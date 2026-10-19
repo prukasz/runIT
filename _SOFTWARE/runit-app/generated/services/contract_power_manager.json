@@ -17,7 +17,7 @@
       "op": 1,
       "symbol": "SYS_PWRM_OP_SET_CONFIG",
       "label": "Power manager configuration",
-      "description": "Sets the operating mode of the power manager (strict budget, margin, USB-PD auto-negotiation).",
+      "description": "Sets how the power budget works: on / off, strict or with a soft margin, and the power source on a board without source pins.",
       "args": {
         "struct": "sys_power_manager_cfg_t",
         "fields": [
@@ -37,7 +37,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "1 = reject overruns outright, 0 = soft margin"
+            "description": "1 = the rails are held to the budget, 0 = with the soft margin"
           },
           {
             "id": "soft_margin_pct",
@@ -47,60 +47,17 @@
             "size": 1,
             "offset": 2,
             "unit": "%",
-            "description": "Allowed budget overrun, in percent"
+            "description": "Allowed budget overrun when not strict, in percent (0..100)"
           },
           {
-            "id": "source_device",
-            "label": "Source pin device",
-            "type": "device",
-            "raw_type": "u16",
-            "size": 2,
+            "id": "source",
+            "label": "Power source",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
             "offset": 3,
-            "description": "Device of the pin that tells a battery from a USB input"
-          },
-          {
-            "id": "source_pin",
-            "label": "Source pin",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 5,
-            "description": "Pin number on that device"
-          },
-          {
-            "id": "battery_level",
-            "label": "Battery pin level",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 6
-          },
-          {
-            "id": "pd_max_auto",
-            "label": "USB-PD auto-negotiation",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 7,
-            "description": "1 = automatically request the offer with the highest power"
-          },
-          {
-            "id": "ext_input",
-            "label": "External input type",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 8,
-            "options": [
-              {
-                "label": "Bench supply",
-                "value": 0
-              },
-              {
-                "label": "Battery pack",
-                "value": 1
-              }
-            ]
+            "enum": "sys_power_source_e",
+            "description": "The source on a board without source pins; a board with them detects it (ignored)"
           }
         ]
       }
@@ -110,7 +67,7 @@
       "op": 2,
       "symbol": "SYS_PWRM_OP_GET_CONFIG",
       "label": "Read power manager configuration",
-      "description": "Returns the operating mode of the power manager.",
+      "description": "Returns what SET_CONFIG sets.",
       "returns": {
         "struct": "sys_power_manager_cfg_t",
         "description": "Current power manager configuration",
@@ -131,7 +88,7 @@
             "raw_type": "u8",
             "size": 1,
             "offset": 1,
-            "description": "1 = reject overruns outright, 0 = soft margin"
+            "description": "1 = the rails are held to the budget, 0 = with the soft margin"
           },
           {
             "id": "soft_margin_pct",
@@ -141,60 +98,17 @@
             "size": 1,
             "offset": 2,
             "unit": "%",
-            "description": "Allowed budget overrun, in percent"
+            "description": "Allowed budget overrun when not strict, in percent (0..100)"
           },
           {
-            "id": "source_device",
-            "label": "Source pin device",
-            "type": "device",
-            "raw_type": "u16",
-            "size": 2,
+            "id": "source",
+            "label": "Power source",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
             "offset": 3,
-            "description": "Device of the pin that tells a battery from a USB input"
-          },
-          {
-            "id": "source_pin",
-            "label": "Source pin",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 5,
-            "description": "Pin number on that device"
-          },
-          {
-            "id": "battery_level",
-            "label": "Battery pin level",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 6
-          },
-          {
-            "id": "pd_max_auto",
-            "label": "USB-PD auto-negotiation",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 7,
-            "description": "1 = automatically request the offer with the highest power"
-          },
-          {
-            "id": "ext_input",
-            "label": "External input type",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 8,
-            "options": [
-              {
-                "label": "Bench supply",
-                "value": 0
-              },
-              {
-                "label": "Battery pack",
-                "value": 1
-              }
-            ]
+            "enum": "sys_power_source_e",
+            "description": "The source on a board without source pins; a board with them detects it (ignored)"
           }
         ]
       }
@@ -287,127 +201,6 @@
             "unit": "%"
           }
         ]
-      }
-    },
-    {
-      "id": "SET_RESPONSE",
-      "op": 5,
-      "symbol": "SYS_PWRM_OP_SET_RESPONSE",
-      "label": "Set power event response",
-      "description": "Sets the response (notify, disable, reset, safe state) to a power event, for one rail or for the whole board.",
-      "args": {
-        "struct": "response_args_t",
-        "fields": [
-          {
-            "id": "target",
-            "label": "Target (board or rail ID)",
-            "type": "integer",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0,
-            "description": "0xFFFF for the board, or the device ID of a regulator"
-          },
-          {
-            "id": "kind",
-            "label": "Power event type",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "options": [
-              {
-                "label": "OVP",
-                "value": 1
-              },
-              {
-                "label": "UVP",
-                "value": 2
-              },
-              {
-                "label": "SPC",
-                "value": 3
-              },
-              {
-                "label": "OCP warning",
-                "value": 4
-              },
-              {
-                "label": "OCP critical",
-                "value": 5
-              },
-              {
-                "label": "OTP",
-                "value": 6
-              },
-              {
-                "label": "Battery low",
-                "value": 7
-              },
-              {
-                "label": "Battery critical",
-                "value": 8
-              },
-              {
-                "label": "Budget exceeded",
-                "value": 9
-              },
-              {
-                "label": "Source changed",
-                "value": 10
-              }
-            ]
-          },
-          {
-            "id": "response",
-            "label": "Required response",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "options": [
-              {
-                "label": "Notify only",
-                "value": 0
-              },
-              {
-                "label": "Disable output",
-                "value": 1
-              },
-              {
-                "label": "Reset device",
-                "value": 2
-              },
-              {
-                "label": "Safe state",
-                "value": 3
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET_RESPONSES",
-      "op": 6,
-      "symbol": "SYS_PWRM_OP_GET_RESPONSES",
-      "label": "Read power event responses of a target",
-      "description": "Returns the response to every event type for the given target.",
-      "args": {
-        "struct": "target_args_t",
-        "fields": [
-          {
-            "id": "target",
-            "label": "Target",
-            "type": "integer",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0
-          }
-        ]
-      },
-      "returns": {
-        "type": "bytes",
-        "description": "Array of response codes"
       }
     },
     {
@@ -512,16 +305,72 @@
             "size": 1,
             "offset": 30,
             "description": "1 enabled, 2 strict, 4 over budget, 8 input seen"
+          },
+          {
+            "id": "pd_mV",
+            "label": "USB-PD voltage",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 31,
+            "unit": "mV",
+            "description": "The voltage of the USB-PD profile in use (0 = none)"
+          },
+          {
+            "id": "pd_mA",
+            "label": "USB-PD current",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 35,
+            "unit": "mA",
+            "description": "The most current that profile offers"
+          },
+          {
+            "id": "pd_type",
+            "label": "USB-PD profile",
+            "type": "integer",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 39,
+            "description": "0 fixed, 1 PPS, 2 AVS (USB-PD option type), 255 none"
           }
         ]
       }
     },
     {
-      "id": "NEGOTIATE_MAX",
+      "id": "SET_PD",
+      "read_by": "GET_PD",
+      "record": "SYS_ACTIONS_ID_POWER_PD",
       "op": 8,
-      "symbol": "SYS_PWRM_OP_NEGOTIATE_MAX",
-      "label": "Negotiate maximum USB-PD power",
-      "description": "Asks the USB-PD charger for its highest-power offer."
+      "symbol": "SYS_PWRM_OP_SET_PD",
+      "label": "USB-PD request",
+      "description": "What to ask the USB-PD charger for on a USB source: its highest offer, or a set voltage at the most current offered there. A fixed profile below the set voltage raises PD_FIXED.",
+      "args": {
+        "struct": "sys_power_pd_t",
+        "fields": [
+          {
+            "id": "mode",
+            "label": "Request",
+            "type": "enum",
+            "enum": "sys_power_pd_mode_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
+          },
+          {
+            "id": "voltage_mV",
+            "label": "Voltage",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "mV",
+            "description": "The voltage of the Set voltage request; the current is the most offered there"
+          }
+        ]
+      }
     },
     {
       "id": "SET_RESPONSES",
@@ -664,6 +513,39 @@
           }
         ]
       }
+    },
+    {
+      "id": "GET_PD",
+      "op": 13,
+      "symbol": "SYS_PWRM_OP_GET_PD",
+      "label": "Read USB-PD request",
+      "description": "Returns what SET_PD sets.",
+      "returns": {
+        "struct": "sys_power_pd_t",
+        "description": "The USB-PD request",
+        "fields": [
+          {
+            "id": "mode",
+            "label": "Request",
+            "type": "enum",
+            "enum": "sys_power_pd_mode_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
+          },
+          {
+            "id": "voltage_mV",
+            "label": "Voltage",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "mV",
+            "description": "The voltage of the Set voltage request; the current is the most offered there"
+          }
+        ]
+      }
     }
   ],
   "events": [
@@ -728,6 +610,19 @@
       "symbol": "PWRM_EV_INPUT_OVP",
       "value": {
         "description": "The input voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "PD_FIXED",
+      "event": 5,
+      "code": 1541,
+      "label": "USB-PD fixed profile",
+      "description": "The charger has no adjustable profile for the set voltage: a lower fixed one is in use",
+      "notify": true,
+      "symbol": "PWRM_EV_PD_FIXED",
+      "value": {
+        "description": "The voltage in use",
         "unit": "mV"
       }
     }

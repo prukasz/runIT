@@ -136,7 +136,7 @@ err_h runit_start(void) {
 #if !CONFIG_RUNIT_BOARD_BARE
       {"devices", runit_board_devices_init},
 #endif
-      {"system devices", mark_system_devices},  // whatever exists now is the board's: the REMOVE sweep leaves it
+      {"system devices", mark_system_devices},  // whatever exists now is the board's: never removed
 #if CONFIG_RUNIT_BLE_START
       {"ble", sys_ble_start},
 #endif

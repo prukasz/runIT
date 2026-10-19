@@ -575,6 +575,12 @@
           "value": 16777223,
           "alias": "Data streams",
           "description": "Data streams and bindings"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_POWER_PD",
+          "value": 16777224,
+          "alias": "USB-PD request",
+          "description": "USB-PD request SET_PD"
         }
       ]
     },
@@ -926,25 +932,6 @@
         }
       ]
     },
-    "sys_power_ext_input_e": {
-      "alias": "External input source",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
-      "members": [
-        {
-          "name": "SYS_POWER_EXT_BENCH",
-          "value": 0,
-          "alias": "Bench supply",
-          "description": "Bench power supply"
-        },
-        {
-          "name": "SYS_POWER_EXT_BATTERY",
-          "value": 1,
-          "alias": "Battery pack",
-          "description": "Battery pack"
-        }
-      ]
-    },
     "sys_power_kind_e": {
       "alias": "Power Event",
       "kind": "enum",
@@ -1015,6 +1002,31 @@
           "value": 10,
           "alias": "Power source changed",
           "description": "Power source changed"
+        }
+      ]
+    },
+    "sys_power_pd_mode_e": {
+      "alias": "USB-PD Request",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "members": [
+        {
+          "name": "SYS_POWER_PD_OFF",
+          "value": 0,
+          "alias": "Off",
+          "description": "Nothing asked: the charger's default 5 V"
+        },
+        {
+          "name": "SYS_POWER_PD_MAX",
+          "value": 1,
+          "alias": "Highest offer",
+          "description": "The highest voltage offered, at the most current there"
+        },
+        {
+          "name": "SYS_POWER_PD_VOLTAGE",
+          "value": 2,
+          "alias": "Set voltage",
+          "description": "The set voltage, at the most current offered there"
         }
       ]
     },
@@ -2074,6 +2086,7 @@
     "SYS_ACTIONS_ID_LOG": "settings_record",
     "SYS_ACTIONS_ID_POWER_BATTERY": "settings_record",
     "SYS_ACTIONS_ID_POWER_CFG": "settings_record",
+    "SYS_ACTIONS_ID_POWER_PD": "settings_record",
     "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
     "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
     "SYS_BLE_CHR_RUNIT_LOGS": "ble_runit_uuid",
@@ -2144,8 +2157,6 @@
     "SYS_POWER_ALERT_OCP_WARNING": "sys_power_alert_e",
     "SYS_POWER_BATTERY_LIPO": "sys_power_battery_e",
     "SYS_POWER_BATTERY_NONE": "sys_power_battery_e",
-    "SYS_POWER_EXT_BATTERY": "sys_power_ext_input_e",
-    "SYS_POWER_EXT_BENCH": "sys_power_ext_input_e",
     "SYS_POWER_KIND_BATTERY_CRITICAL": "sys_power_kind_e",
     "SYS_POWER_KIND_BATTERY_LOW": "sys_power_kind_e",
     "SYS_POWER_KIND_BUDGET_EXCEEDED": "sys_power_kind_e",
@@ -2157,6 +2168,9 @@
     "SYS_POWER_KIND_SOURCE_CHANGED": "sys_power_kind_e",
     "SYS_POWER_KIND_SPC": "sys_power_kind_e",
     "SYS_POWER_KIND_UVP": "sys_power_kind_e",
+    "SYS_POWER_PD_MAX": "sys_power_pd_mode_e",
+    "SYS_POWER_PD_OFF": "sys_power_pd_mode_e",
+    "SYS_POWER_PD_VOLTAGE": "sys_power_pd_mode_e",
     "SYS_POWER_RESPONSE_DISABLE": "sys_power_response_e",
     "SYS_POWER_RESPONSE_NOTIFY": "sys_power_response_e",
     "SYS_POWER_RESPONSE_RESET": "sys_power_response_e",

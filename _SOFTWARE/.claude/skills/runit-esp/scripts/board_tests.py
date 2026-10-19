@@ -605,10 +605,11 @@ INA_CH = {TPS_A_ID: 2, TPS_B_ID: 0}  # INA3221 channel of each rail (HARDWARE.md
 
 def power_status(link: Link) -> dict | None:
     r = link.request(bytes([KEY_POWER_MGR, PW_GET_STATUS_OP]))
-    if r is None or not r.ok or len(r.data) != 31:
+    if r is None or not r.ok or len(r.data) != 40:
         return None
-    f = struct.unpack("<BiiIIIIIBB", r.data)
-    keys = ("source", "input_mV", "input_mA", "source_mV", "source_mA", "budget_mW", "limit_mW", "allocated_mW", "battery_pct", "flags")
+    f = struct.unpack("<BiiIIIIIBBIIB", r.data)
+    keys = ("source", "input_mV", "input_mA", "source_mV", "source_mA", "budget_mW", "limit_mW", "allocated_mW", "battery_pct",
+            "flags", "pd_mV", "pd_mA", "pd_type")
     return dict(zip(keys, f))
 
 

@@ -47,9 +47,9 @@ describe('the catalog has no problem and the services it names are on the board'
     if (returns) expect(answer.value, `${service} ${command} returned ${returns.kind}`).toBeDefined()
   })
 
-  it('the power manager status is the 31 bytes of its struct, with a plausible input', async () => {
+  it('the power manager status is the 40 bytes of its struct, with a plausible input', async () => {
     const { value, data } = await board.services.call('POWER_MANAGER', 'GET_STATUS')
-    expect(data.length).toBe(31)
+    expect(data.length).toBe(40)
     expect((value as { input_mV: number }).input_mV).toBeGreaterThan(3000)
   })
 })

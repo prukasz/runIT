@@ -28,6 +28,7 @@ describe('the board settings from the service descriptors', () => {
     expect(group('POWER_MANAGER.SET_CONFIG')?.read.id).toBe('GET_CONFIG')
     expect(group('POWER_MANAGER.SET_PSU')?.read.id).toBe('GET_PSU')
     expect(group('POWER_MANAGER.SET_BATTERY')?.read.id).toBe('GET_BATTERY')
+    expect(group('POWER_MANAGER.SET_PD')?.read.id).toBe('GET_PD')
     // The read may answer more than the write takes: autostart is one field of the project's INFO.
     expect(group('PROJECT.OPTIONS')?.read.id).toBe('INFO')
     expect(group('SYS.DEADMAN_SET')?.read.id).toBe('DEADMAN_GET')
@@ -37,6 +38,7 @@ describe('the board settings from the service descriptors', () => {
   it('keeps a marked setting in its record; one without is the board\'s own', () => {
     expect(group('LOG.SET')?.recordId).toBe(record('SYS_ACTIONS_ID_LOG'))
     expect(group('POWER_MANAGER.SET_PSU')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PSU'))
+    expect(group('POWER_MANAGER.SET_PD')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PD'))
     expect(group('PROJECT.OPTIONS')?.recordId).toBeUndefined()
     // The dead-man is runtime only: the project never keeps it, so a board that restarts runs offline.
     expect(group('SYS.DEADMAN_SET')?.recordId).toBeUndefined()

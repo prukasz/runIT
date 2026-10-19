@@ -64,6 +64,9 @@
     "ERR_DEV_DEPS_FULL": {
       "message": "{id} cannot depend on more devices"
     },
+    "ERR_DEV_SYSTEM": {
+      "message": "{id} is part of the board and cannot be removed"
+    },
     "ERR_DEV_FAULT_RESPONSE": {
       "message": "The response to an error of {id} failed (step {stage}, {action})",
       "hint": "Check the device's error policy and the action it runs.",

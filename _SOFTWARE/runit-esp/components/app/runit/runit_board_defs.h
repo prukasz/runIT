@@ -53,11 +53,11 @@
 #define RUNIT_BOARD_DRV8962_LIMIT_MA   2000u    // chopping limit of every channel until the user sets one
 #define RUNIT_BOARD_DRV8962_PCA_PWM_HZ 1000u  // the PCA9685 has one frequency for CH 0..15 (a PCA9685 tops at 1526 Hz)
 
-#define RUNIT_BOARD_POWER_LIMIT_MV          20000          // hardware trip: highest input voltage
-#define RUNIT_BOARD_POWER_LIMIT_MA          5500           // hardware trip: highest input current
-#define RUNIT_BOARD_POWER_RESERVE_MW        3667         // 3.3 V buck for the ESP32: 3.3 V x 1 A at ~90 %
-#define RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA 1000  // assumed while the source's current limit is unknown (USB too)
-#define RUNIT_BOARD_VREG_EFFICIENCY_PCT     90        // TPS55289 rails
+#define RUNIT_BOARD_POWER_LIMIT_MV          20000  // hardware trip: highest input voltage
+#define RUNIT_BOARD_POWER_LIMIT_MA          5500   // hardware trip: highest input current
+#define RUNIT_BOARD_POWER_RESERVE_MW        3667   // 3.3 V buck for the ESP32: 3.3 V x 1 A at ~90 %
+#define RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA 1000   // assumed while the source's current limit is unknown (USB too)
+#define RUNIT_BOARD_VREG_EFFICIENCY_PCT     90     // TPS55289 rails
 
 /* A devkit (CONFIG_RUNIT_BOARD_DEVKIT): USB only. */
 #define RUNIT_DEVKIT_POWER_LIMIT_MV   5000  // USB VBUS

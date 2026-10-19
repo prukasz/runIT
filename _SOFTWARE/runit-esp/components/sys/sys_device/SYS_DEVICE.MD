@@ -40,7 +40,7 @@ An op is a u16, `[contract u8][op u8]`: the high byte is the contract, the low b
 | `0x0001` RESET | lifecycle (driver) | outputs off, defaults |
 | `0x0002` SUSPEND | lifecycle (driver), **required** | outputs safe; the device refuses writes (`ERR_DEV_SUSPENDED`) until RESUME, and counts as suspended even if a step failed |
 | `0x0003` RESUME | lifecycle (driver), **required** | a failing resume leaves it suspended |
-| `0x0004` REMOVE | generic | refused while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
+| `0x0004` REMOVE | generic | refused for a board device (`ERR_DEV_SYSTEM{id}`) and while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
 | `0x0005` INFO → `{u16 type_id, u8 suspended}` | generic | from the type and `sys_device_base_t` |
 | `0x0006` OPS → `u16[]` | generic | SUSPEND, RESUME, REMOVE, INFO, OPS, SET / GET_ERROR_POLICY, then the type's op table. The app reads what a device can do instead of trying ops |
 | `0x0007` SET_ERROR_POLICY `{u8 importance, u32 actions[4]}` (17 B) | generic | the device's error policy (below). Importance > 4: `ERR_DEV_RANGE`. Allowed while suspended |
@@ -71,7 +71,7 @@ Internal callers use `sys_device_call(id, op, args, len, out, cap, &out_len)`: t
 
 - **Dependencies are declared, not inferred from IDs.** A driver's `create()` calls `sys_device_use(&c->base, dep)` for every device it will call (the device of each pin, ...), before using it. `dep` must exist (`ERR_DEV_NOT_FOUND{dep}`); up to `CONFIG_SYS_DEVICE_MAX_DEPS` distinct ones (`ERR_DEV_DEPS_FULL`). They are stored in the device's own `sys_device_base_t` (`dep_count`, `deps[]`). A CREATE from inside a `create()` is refused (`ERR_DEV_BAD_ARG`). The registry reads them: REMOVE of a used device answers `ERR_DEV_IN_USE{id, user}` (remove the user first), so no device is left calling a device that is gone, or a new one under the same ID.
 - **Order = creation order.** A device can only use devices that exist when it is created and a used device can't be removed, so the instance list (kept in creation order) is a dependency order. IDs are free: a pin may be on a higher ID, as long as that device was created first.
-- **The board's own devices.** After the onboard devices are created the app calls `sys_device_mark_system()` (boot step "system devices"): everything registered then is the board's, and the REMOVE sweep leaves it, so changing the project removes only the devices the project created. An explicit REMOVE of one still works, and the registry doesn't protect them from it; the suspend, resume and reset sweeps cover all.
+- **The board's own devices.** After the onboard devices are created the app calls `sys_device_mark_system()` (boot step "system devices"): everything registered then is the board's and stays: a REMOVE of one answers `ERR_DEV_SYSTEM{id}` and the REMOVE sweep leaves them, so changing the project removes only the devices the project created. A device created later is never the board's. The suspend, resume and reset sweeps cover all.
 - `sys_device_sweep(op)` (SUSPEND, RESUME, RESET or REMOVE) goes newest first (users before what they use), RESUME oldest first. Best effort: every device is tried, the first error is returned and the others go to `err_report`. The app's safe state (`runit_enter_safe_state`, RUNIT.MD) sweeps SUSPEND.
 
 ## Suspended and resumed: the DEVICE events

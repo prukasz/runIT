@@ -1710,6 +1710,24 @@
           "description": "the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only",
           "message": "The response to an error of {id} failed (step {stage}, {action})",
           "hint": "Check the device's error policy and the action it runs."
+        },
+        {
+          "code": 23,
+          "tag": 393239,
+          "name": "ERR_DEV_SYSTEM",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "REMOVE of a board device (sys_device_mark_system)",
+          "message": "{id} is part of the board and cannot be removed"
         }
       ]
     },
@@ -2719,36 +2737,6 @@
           "description": "a setting out of range",
           "message": "{value} is outside {min}..{max}",
           "hint": "Use a value within the range shown."
-        },
-        {
-          "code": 6,
-          "tag": 917510,
-          "name": "ERR_PWRM_NOT_RAIL",
-          "severity": 3,
-          "size": 2,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            }
-          ],
-          "description": "a response target that is neither the board nor a rail of it",
-          "message": "{id} is not a power rail of the board",
-          "hint": "Choose the board or one of its power rails."
-        },
-        {
-          "code": 7,
-          "tag": 917511,
-          "name": "ERR_PWRM_NO_OFFER",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "no USB-PD sink on the board, or the charger offers nothing",
-          "message": "The charger offers no power",
-          "hint": "Connect a USB-C charger that offers power."
         }
       ]
     },

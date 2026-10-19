@@ -149,7 +149,8 @@ typedef struct __attribute__((packed)) {
   X(ERR_DEV_PIN_LOCKED,     ERR_TAG(ERR_MOD_SYS_DEVICE, 19), ERR_SEV_HIGH,   { uint16_t id; uint8_t pin; }) /* a locked pin: only its owner drives it (sys_pins.h) */ \
   X(ERR_DEV_IN_USE,         ERR_TAG(ERR_MOD_SYS_DEVICE, 20), ERR_SEV_MEDIUM, { uint16_t id; uint16_t user; }) /* REMOVE of a device another one uses */ \
   X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */ \
-  X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */
+  X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */ \
+  X(ERR_DEV_SYSTEM,         ERR_TAG(ERR_MOD_SYS_DEVICE, 23), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a board device (sys_device_mark_system) */
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)
 
@@ -286,8 +287,8 @@ MUST_USE err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args
 MUST_USE err_h sys_device_sweep(uint16_t op);
 
 /**
- * @brief Marks every device registered now as the board's own (created by the system at boot): the REMOVE sweep
- * leaves them, so changing the project removes only the devices it created. An explicit REMOVE of one still works.
+ * @brief Marks every device registered now as the board's own (created by the system at boot): they can't be removed
+ * (ERR_DEV_SYSTEM) and the REMOVE sweep leaves them, so changing the project removes only the devices it created.
  * Boot step, after the onboard devices are created.
  */
 void sys_device_mark_system(void);

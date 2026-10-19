@@ -23,7 +23,7 @@ typedef struct {
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
   sys_device_error_policy_t policy;  // SET_ERROR_POLICY; read by the error path under s_table_mux
-  bool system;                       // the board's own (sys_device_mark_system): REMOVE sweep leaves it
+  bool system;                       // the board's own (sys_device_mark_system): never removed
 } dev_t_;
 
 typedef struct {
@@ -214,10 +214,11 @@ static err_h op_resume(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t o
   return err;
 }
 
-// Refused while another device uses it. Otherwise the hardware is released, the instance unregistered and freed, even
+// Refused for a board device and while another device uses it. Otherwise the hardware is released, the instance unregistered and freed, even
 // if uninstall() failed.
 static err_h op_remove(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   const dev_t_ d = s_reg.devs[i];
+  ERR_CHECK(!d.system, ERR_DEV_SYSTEM, .id = d.id);
   const uint32_t user = find_user(d.id);
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
   err_h err = d.type->uninstall(d.ctx);

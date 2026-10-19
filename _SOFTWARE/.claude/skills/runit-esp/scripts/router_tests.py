@@ -1179,13 +1179,13 @@ def test_error_policy(link: Link) -> None:
 
 
 KEY_POWER = 0x0A
-PW_SET_CONFIG, PW_GET_CONFIG, PW_SET_PSU, PW_SET_BATTERY, PW_SET_RESPONSE, PW_GET_RESPONSES, PW_GET_STATUS = range(1, 8)
+PW_SET_CONFIG, PW_GET_CONFIG, PW_SET_PSU, PW_SET_BATTERY = range(1, 5)
+PW_GET_STATUS, PW_SET_PD, PW_SET_RESPONSES, PW_GET_MATRIX, PW_GET_PD = 0x07, 0x08, 0x09, 0x0C, 0x0D
+PD_OFF, PD_MAX, PD_VOLTAGE = 0, 1, 2
 SRC_UNKNOWN, SRC_USB, SRC_PSU, SRC_BATTERY = 0, 1, 2, 3
 PW_FLAG_ENABLED, PW_FLAG_STRICT, PW_FLAG_INPUT_SEEN = 0x01, 0x02, 0x08
 PW_RESPONSES_DEFAULT = bytes([0, 1, 0, 1, 0, 0, 3, 0, 3, 1, 0])  # by kind, index 0 unused
-SOURCE_PIN = 7
 TPS_RAIL_A = 10  # a budgeted rail on the board; not created on the devkit
-TPS_RAIL_B = 11
 PW_TARGET_BOARD = 0xFFFF  # response target: the board row
 
 
@@ -1193,17 +1193,17 @@ def pw(link: Link, op: int, payload: bytes = b"") -> Response | None:
     return link.request(bytes([KEY_POWER, op]), payload=payload)
 
 
-def pw_config(enabled=1, strict=1, margin=20, pin=(0xFFFF, 0xFF), battery_level=1, pd_max_auto=1, ext_input=0) -> bytes:
-    return bytes([enabled, strict, margin]) + struct.pack("<HB", *pin) + bytes([battery_level, pd_max_auto, ext_input])
+def pw_config(enabled=1, strict=1, margin=20, source=0) -> bytes:
+    return bytes([enabled, strict, margin, source])
 
 
 def pw_status(link: Link) -> dict | None:
     r = pw(link, PW_GET_STATUS)
-    if r is None or not r.ok or len(r.data) != 31:
+    if r is None or not r.ok or len(r.data) != 40:
         return None
-    f = struct.unpack("<BiiIIIIIBB", r.data)
+    f = struct.unpack("<BiiIIIIIBBIIB", r.data)
     keys = ("source", "input_mV", "input_mA", "source_mV", "source_mA", "budget_mW", "limit_mW", "allocated_mW",
-            "battery_pct", "flags")
+            "battery_pct", "flags", "pd_mV", "pd_mA", "pd_type")
     return dict(zip(keys, f))
 
 
@@ -1224,26 +1224,38 @@ def test_power(link: Link) -> None:
     r = pw(link, PW_SET_CONFIG, pw_config())
     check("power SET_CONFIG defaults", r is not None and r.ok, str(r))
     r = pw(link, PW_GET_CONFIG)
-    check("power GET_CONFIG = defaults (on, strict, 20 %, no pin, battery level 1)",
-          r is not None and r.ok and r.data == pw_config(), str(r))
-    for name, cfg in (("margin 101", pw_config(margin=101)), ("enabled 2", pw_config(enabled=2)),
-                      ("battery level 2", pw_config(battery_level=2))):
+    check("power GET_CONFIG = defaults (on, strict, 20 %, source UNKNOWN)", r is not None and r.ok and r.data == pw_config(), str(r))
+    for name, cfg in (("enabled 2", pw_config(enabled=2)), ("strict 2", pw_config(strict=2)),
+                      ("margin 101", pw_config(margin=101)), ("source 4", pw_config(source=4))):
         r = pw(link, PW_SET_CONFIG, cfg)
         check(f"power config {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_CONFIG, pw_config()[:6])
-    check("power SET_CONFIG with 6 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = pw(link, PW_SET_CONFIG, pw_config()[:3])
+    check("power SET_CONFIG with 3 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
     st = wait_source(link, SRC_UNKNOWN)
-    devkit_check("status: 31 bytes, source UNKNOWN, enabled + strict, no input monitor on the devkit",
-          st is not None and st["source"] == SRC_UNKNOWN and st["flags"] & 0x0B == PW_FLAG_ENABLED | PW_FLAG_STRICT, str(st))
+    devkit_check("status: 40 bytes, source UNKNOWN, enabled + strict, no input monitor, no USB-PD on the devkit",
+          st is not None and st["source"] == SRC_UNKNOWN and st["flags"] & 0x0B == PW_FLAG_ENABLED | PW_FLAG_STRICT
+          and st["pd_type"] == 0xFF, str(st))
 
-    # Source without a pin: an entered PSU, then a configured battery
+    # USB-PD request: stored and read back (the devkit has no sink: nothing is asked)
+    pd = lambda mode, mV=0: bytes([mode]) + struct.pack("<I", mV)
+    r = pw(link, PW_GET_PD)
+    check("GET_PD = default (highest offer)", r is not None and r.ok and r.data == pd(PD_MAX), str(r))
+    r = pw(link, PW_SET_PD, pd(PD_VOLTAGE, 9000))
+    r2 = pw(link, PW_GET_PD)
+    check("SET_PD 9 V -> GET_PD 9 V", r is not None and r.ok and r2 is not None and r2.data == pd(PD_VOLTAGE, 9000), f"{r} {r2}")
+    for name, frame in (("mode 3", pd(3)), ("voltage 0", pd(PD_VOLTAGE, 0)), ("voltage 30 V", pd(PD_VOLTAGE, 30000))):
+        r = pw(link, PW_SET_PD, frame)
+        check(f"SET_PD {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw(link, PW_SET_PD, pd(PD_MAX, 5000))
+    r2 = pw(link, PW_GET_PD)
+    check("SET_PD highest offer drops the voltage", r is not None and r.ok and r2 is not None and r2.data == pd(PD_MAX), f"{r} {r2}")
+
+    # Settings: PSU and battery, checked and read back
     r = pw(link, PW_SET_PSU, struct.pack("<II", 0, 500))
     check("PSU 0 mV -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
     r = pw(link, PW_SET_PSU, struct.pack("<II", 12000, 2000))
     check("SET_PSU 12 V / 2 A", r is not None and r.ok, str(r))
-    st = wait_source(link, SRC_PSU)
-    devkit_check("source PSU", st is not None and st["source"] == SRC_PSU, str(st))
     pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
     r = pw(link, PW_SET_BATTERY, bytes([1, 0, 20, 10]))
     check("battery 0 cells -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
@@ -1251,30 +1263,16 @@ def test_power(link: Link) -> None:
     check("battery critical >= low -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
     r = pw(link, PW_SET_BATTERY, bytes([1, 2, 20, 10]))
     check("SET_BATTERY LiPo 2S 20 / 10 %", r is not None and r.ok, str(r))
-    st = wait_source(link, SRC_BATTERY)
-    devkit_check("source BATTERY (PSU removed)", st is not None and st["source"] == SRC_BATTERY, str(st))
     pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
-    st = wait_source(link, SRC_UNKNOWN)
-    devkit_check("battery removed -> UNKNOWN", st is not None and st["source"] == SRC_UNKNOWN, str(st))
 
-    # Source pin: an output the manager reads as it is (level 1 = battery)
-    dev(link, GPIO_ID, IO_SET_MODE, bytes([SOURCE_PIN, 3]))
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([SOURCE_PIN, 1]))
-    r = pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=1))
-    check(f"config source pin GPIO {SOURCE_PIN}, battery = 1", r is not None and r.ok, str(r))
-    st = wait_source(link, SRC_BATTERY)
-    devkit_check("pin 1 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
-    dev(link, GPIO_ID, IO_SET_LEVEL, bytes([SOURCE_PIN, 0]))
-    st = wait_source(link, SRC_USB)
-    devkit_check("pin 0 -> USB", st is not None and st["source"] == SRC_USB, str(st))
-    pw(link, PW_SET_CONFIG, pw_config(pin=(GPIO_ID, SOURCE_PIN), battery_level=0))
-    st = wait_source(link, SRC_BATTERY)
-    devkit_check("battery level 0: pin 0 -> BATTERY", st is not None and st["source"] == SRC_BATTERY, str(st))
-    pw(link, PW_SET_CONFIG, pw_config())
-    dev(link, GPIO_ID, IO_RESET, bytes([SOURCE_PIN]))
+    # Source on a board without source pins (the devkit): what SET_CONFIG says
+    for name, src in (("PSU", SRC_PSU), ("BATTERY", SRC_BATTERY), ("USB", SRC_USB), ("UNKNOWN", SRC_UNKNOWN)):
+        pw(link, PW_SET_CONFIG, pw_config(source=src))
+        st = wait_source(link, src)
+        devkit_check(f"SET_CONFIG source {name} -> {name}", st is not None and st["source"] == src, str(st))
 
     # Modes
-    r = pw(link, PW_SET_CONFIG, pw_config(enabled=1, strict=0, margin=30))
+    r = pw(link, PW_SET_CONFIG, pw_config(strict=0, margin=30))
     st = pw_status(link)
     check("soft: flags enabled, not strict", st is not None and st["flags"] & 0x03 == PW_FLAG_ENABLED, str(st))
     pw(link, PW_SET_CONFIG, pw_config(enabled=0))
@@ -1283,43 +1281,31 @@ def test_power(link: Link) -> None:
     check("off: flags not enabled", st is not None and st["flags"] & PW_FLAG_ENABLED == 0, str(st))
     pw(link, PW_SET_CONFIG, pw_config())
 
-    # Response matrix: the board row and one row per rail (target = rail device ID), stored ("pwr_resp")
-    def responses(target: int) -> Response | None:
-        return pw(link, PW_GET_RESPONSES, struct.pack("<H", target))
+    # Response matrix: the board row, then one row per rail (GET_MATRIX, each row its target first), set whole
+    def matrix() -> list[tuple[int, bytes]] | None:
+        r = pw(link, PW_GET_MATRIX)
+        row = 2 + len(PW_RESPONSES_DEFAULT)
+        if r is None or not r.ok or len(r.data) % row:
+            return None
+        return [(struct.unpack_from("<H", r.data, i)[0], bytes(r.data[i + 2:i + row])) for i in range(0, len(r.data), row)]
 
-    def set_response(target: int, kind: int, response: int) -> Response | None:
-        return pw(link, PW_SET_RESPONSE, struct.pack("<HBB", target, kind, response))
+    def set_matrix(rows: list[tuple[int, bytes]]) -> Response | None:
+        return pw(link, PW_SET_RESPONSES, b"".join(cells for _, cells in rows))
 
-    r = responses(PW_TARGET_BOARD)
-    check("GET_RESPONSES board = the board defaults", r is not None and r.ok and r.data == PW_RESPONSES_DEFAULT, str(r))
-    r = responses(TPS_RAIL_A)
-    check("GET_RESPONSES rail A = the board defaults (no own defaults)", r is not None and r.ok and r.data == PW_RESPONSES_DEFAULT, str(r))
-    r = set_response(TPS_RAIL_A, 5, 1)
-    ra, rb, bd = responses(TPS_RAIL_A), responses(TPS_RAIL_B), responses(PW_TARGET_BOARD)
-    check("SET_RESPONSE rail A OCP critical -> DISABLE: only rail A changes",
-          r is not None and r.ok and ra.data[5] == 1 and rb.data[5] == 0 and bd.data[5] == 0,
-          f"{r} A={ra} B={rb} board={bd}")
-    set_response(TPS_RAIL_A, 5, 0)
-    r = set_response(PW_TARGET_BOARD, 5, 1)
-    check("SET_RESPONSE board OCP critical -> DISABLE, rail A keeps its own",
-          r is not None and r.ok and responses(PW_TARGET_BOARD).data[5] == 1 and responses(TPS_RAIL_A).data[5] == 0, str(r))
-    set_response(PW_TARGET_BOARD, 5, 0)
-    r = set_response(99, 5, 1)
-    check("SET_RESPONSE target 99 (no such rail) -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
-    r = responses(99)
-    check("GET_RESPONSES target 99 -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
-    r = set_response(PW_TARGET_BOARD, 11, 0)
-    check("SET_RESPONSE kind 11 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = set_response(PW_TARGET_BOARD, 5, 4)
-    check("SET_RESPONSE response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_GET_RESPONSES)
-    check("GET_RESPONSES without target -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    matrix = b"".join(bytes(responses(t).data) for t in (PW_TARGET_BOARD, TPS_RAIL_A, TPS_RAIL_B))
-    r = link.request(bytes([KEY_POWER, 0x09]), payload=matrix[:-1])
+    rows = matrix() or []
+    check("GET_MATRIX: the board row first, every row the board defaults",
+          len(rows) > 0 and rows[0][0] == PW_TARGET_BOARD and all(c == PW_RESPONSES_DEFAULT for _, c in rows), str(rows))
+    if len(rows) > 1:
+        changed = [rows[0], (rows[1][0], rows[1][1][:5] + bytes([1]) + rows[1][1][6:])] + rows[2:]
+        r = set_matrix(changed)
+        check("SET_RESPONSES first rail OCP critical -> DISABLE: only that row changes", r is not None and r.ok and matrix() == changed, str(r))
+        set_matrix(rows)
+    whole = b"".join(c for _, c in rows)
+    r = pw(link, PW_SET_RESPONSES, whole[:-1])
     check("SET_RESPONSES with the wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    r = link.request(bytes([KEY_POWER, 0x09]), payload=matrix)
+    r = pw(link, PW_SET_RESPONSES, whole)
     check("SET_RESPONSES with the whole matrix", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_POWER, 0x09]), payload=bytes([4]) + matrix[1:])
+    r = pw(link, PW_SET_RESPONSES, bytes([4]) + whole[1:])
     check("SET_RESPONSES with a response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
 
     # The VREG guard passes a budgeted rail that isn't created

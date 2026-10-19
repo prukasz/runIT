@@ -39,10 +39,11 @@ System IDs (class `0x01`):
 | `0x01000005` `SYS_ACTIONS_ID_POWER_RESPONSES` | power SET_RESPONSES (the whole matrix) | power |
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
 | `0x01000007` `SYS_ACTIONS_ID_CONN` | data streams and bindings | connector |
+| `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power SET_PD (the USB-PD request) | power |
 
 Any client may write any class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
 
-**Settings are records.** A settings record is the module's own SET frame (`[root key][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][level, mirror, trace, errors, logs]`. The module's SET applies the value live and stores nothing. Persistence is the app uploading (or recording) the record. A matrix of values has an op that takes it whole (`SET_RESPONSES`) next to the single-cell one.
+**Settings are records.** A settings record is the module's own SET frame (`[root key][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][level, mirror, trace, errors, logs]`. The module's SET applies the value live and stores nothing. Persistence is the app uploading (or recording) the record. A matrix of values is set whole (`SET_RESPONSES`).
 
 **Image.** Frames back to back, each `[u16 len LE][keys + payload]`: what `router_route` takes (no seq, no flags), 1..`CONFIG_ROUTER_FRAME_MAX - 2` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
 

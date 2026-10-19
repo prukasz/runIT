@@ -30,7 +30,7 @@ err_h runit_board_connector_bindings_init(void) {
 
 /* ---- Power layout ---- */
 
-/* Default response per power event; changed at runtime with SET_RESPONSE. */
+/* Default response per power event; changed at runtime with SET_RESPONSES. */
 static const uint8_t k_power_responses[SYS_POWER_KIND_COUNT] = {
     [SYS_POWER_KIND_OVP] = SYS_POWER_RESPONSE_DISABLE,
     [SYS_POWER_KIND_UVP] = SYS_POWER_RESPONSE_NOTIFY,

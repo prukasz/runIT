@@ -13,7 +13,8 @@ extern "C" {
  * @brief Power manager (SYS_POWER_MANAGER.MD): one board input feeding always-on loads (the reserve) and the
  * regulator rails listed in the board description. It identifies the source and its budget, keeps the rails'
  * allocation under it (strictly, or with a margin), splits what's left between rails without a user current limit,
- * estimates battery charge and answers power events with the response matrix. It sees every POWER_VREG op of a
+ * asks the USB-PD charger for the voltage set, estimates battery charge and answers power events with the response
+ * matrix. The layout (rails, monitors, source pins) is the board's; the settings are remote. It sees every POWER_VREG op of a
  * budgeted rail (a sys_device guard), remote commands included.
  */
 
@@ -62,12 +63,13 @@ typedef enum {
   SYS_POWER_BATTERY_LIPO = 1,  //@alias LiPo @description Lithium polymer, 4.2V/cell
 } sys_power_battery_e;
 
-/* What feeds the external input. The board's eFuse only says the input is live, not what is on it, so the user says. */
-//#ref-enum @alias External input source
+/* What the manager asks the USB-PD charger for (SET_PD). */
+//#ref-enum @alias USB-PD Request
 typedef enum {
-  SYS_POWER_EXT_BENCH = 0,    //@alias Bench supply @description Bench power supply
-  SYS_POWER_EXT_BATTERY = 1,  //@alias Battery pack @description Battery pack
-} sys_power_ext_input_e;
+  SYS_POWER_PD_OFF = 0,      //@alias Off @description Nothing asked: the charger's default 5 V
+  SYS_POWER_PD_MAX = 1,      //@alias Highest offer @description The highest voltage offered, at the most current there
+  SYS_POWER_PD_VOLTAGE = 2,  //@alias Set voltage @description The set voltage, at the most current offered there
+} sys_power_pd_mode_e;
 
 /* ----------------------------------------------------------------------------
  * Events of the manager itself (sys_event.h "Events tables"): contract 0x06, source SYS_DEVICE_ID_NONE, channel 0.
@@ -79,7 +81,8 @@ typedef enum {
   X(BATTERY_LOW,      0x01, SYS_EVENT_NOTIFY) \
   X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
   X(BUDGET_EXCEEDED,  0x03, SYS_EVENT_NOTIFY) \
-  X(INPUT_OVP,        0x04, SYS_EVENT_NOTIFY)
+  X(INPUT_OVP,        0x04, SYS_EVENT_NOTIFY) \
+  X(PD_FIXED,         0x05, SYS_EVENT_NOTIFY)
 
 #define SYS_POWER_MANAGER__EV(name, n, flags) \
   PWRM_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MANAGER, n), PWRM_EV_##name##_FLAGS = (flags),
@@ -110,7 +113,7 @@ typedef struct {
   sys_io_pin_t ext_ok;  // the external input (a supply or a battery); it has priority when both are live
 } sys_power_source_pins_t;
 
-/** @brief The board's power layout. Must stay valid (static). */
+/** @brief The board's power layout. Must stay valid (static): the rails and monitors never change at run time. */
 typedef struct {
   uint32_t max_mV;              // hardware trip of the input: budget cap; above it INPUT_OVP
   uint32_t max_mA;              // hardware trip of the input: budget cap
@@ -119,7 +122,7 @@ typedef struct {
   uint8_t vreg_efficiency_pct;  // rail input power = output power * 100 / efficiency
   sys_power_channel_t input;    // measures the board input
   uint16_t usb_pd;              // USB-PD sink device (POWER_USB_PD contract), or SYS_DEVICE_ID_NONE
-  const sys_power_source_pins_t* source_pins;  // NULL = none: the source is the "source pin" setting or inferred
+  const sys_power_source_pins_t* source_pins;  // NULL = none: the source is what SET_CONFIG says
   const sys_power_consumer_t* consumers;
   uint8_t consumer_count;       // at most CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS
   const uint8_t* responses;     // default sys_power_response_e per sys_power_kind_e (SYS_POWER_KIND_COUNT; NULL = Notify):
@@ -133,16 +136,19 @@ typedef struct {
  * Settings (applied with SET, kept as records SYS_ACTIONS_ID_POWER_*; also the SET / GET payloads)
  * ------------------------------------------------------------------------- */
 
-/** @brief How the manager works (SET_CONFIG / GET_CONFIG). */
+/** @brief How the budget works (SET_CONFIG / GET_CONFIG). */
 typedef struct __attribute__((packed)) {
   uint8_t enabled;          /**< 1 = enabled, 0 = measure only */
   uint8_t strict;           /**< 1 = strict budget, 0 = soft margin */
   uint8_t soft_margin_pct;  /**< Soft margin above budget (0..100%) */
-  sys_io_pin_t source_pin;  /**< Pin to distinguish battery from USB */
-  uint8_t battery_level;    /**< Pin level corresponding to battery */
-  uint8_t pd_max_auto;      /**< 1 = auto negotiate max USB-PD offer */
-  uint8_t ext_input;        /**< sys_power_ext_input_e */
+  uint8_t source;           /**< sys_power_source_e: the source on a board without source pins (ignored with them) */
 } sys_power_manager_cfg_t;
+
+/** @brief What to ask the USB-PD charger for (SET_PD / GET_PD). */
+typedef struct __attribute__((packed)) {
+  uint8_t mode;         /**< sys_power_pd_mode_e */
+  uint32_t voltage_mV;  /**< The voltage of SYS_POWER_PD_VOLTAGE (else 0) */
+} sys_power_pd_t;
 
 /** @brief An external supply's limits (SET_PSU); 0 / 0 = none. */
 typedef struct __attribute__((packed)) {
@@ -176,6 +182,9 @@ typedef struct __attribute__((packed)) {
   uint32_t allocated_mW;  /**< Allocated power in mW */
   uint8_t battery_pct;    /**< Battery charge % (0xFF = unknown) */
   uint8_t flags;          /**< SYS_POWER_FLAG_* bitmask */
+  uint32_t pd_mV;         /**< USB-PD: the voltage of the profile in use (0 = none) */
+  uint32_t pd_mA;         /**< USB-PD: the most current it offers */
+  uint8_t pd_type;        /**< sys_power_usb_pd_option_type_e of that profile, SYS_POWER_PD_TYPE_NONE without one */
 } sys_power_status_t;
 
 #define SYS_POWER_FLAG_ENABLED     0x01u
@@ -183,7 +192,8 @@ typedef struct __attribute__((packed)) {
 #define SYS_POWER_FLAG_OVER_BUDGET 0x04u
 #define SYS_POWER_FLAG_INPUT_SEEN  0x08u  // the input monitor answered at least once
 
-#define SYS_POWER_PCT_UNKNOWN 0xFFu
+#define SYS_POWER_PCT_UNKNOWN   0xFFu
+#define SYS_POWER_PD_TYPE_NONE  0xFFu
 
 /* ----------------------------------------------------------------------------
  * Errors (module ERR_MOD_SYS_POWER_MANAGER)
@@ -194,9 +204,7 @@ typedef struct __attribute__((packed)) {
   X(ERR_PWRM_BUDGET_EXCEEDED,        ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 2), ERR_SEV_MEDIUM, { uint16_t id; uint32_t requested_mW; uint32_t available_mW; }) /* a rail change that doesn't fit */                                \
   X(ERR_PWRM_BELOW_ALLOCATION,       ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 3), ERR_SEV_MEDIUM, { uint32_t allocated_mW; uint32_t limit_mW; })              /* the budget shrank under what's committed */                          \
   X(ERR_PWRM_FAULT,                  ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 4), ERR_SEV_MEDIUM, { uint16_t source; uint8_t channel; uint8_t kind; uint8_t response; int32_t value; }) /* a hardware fault and the response taken */ \
-  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */                                             \
-  X(ERR_PWRM_NOT_RAIL,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 6), ERR_SEV_HIGH,   { uint16_t id; })                                      /* a response target that is neither the board nor a rail of it */           \
-  X(ERR_PWRM_NO_OFFER,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 7), ERR_SEV_MEDIUM, {})                                     /* no USB-PD sink on the board, or the charger offers nothing */
+  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */
 
 ERR_TAGS_DECLARE(ERR_SYS_POWER_MANAGER_MAP)
 
@@ -214,25 +222,19 @@ typedef void (*sys_power_safe_state_f)(void);
  */
 MUST_USE err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_state_f safe_state);
 
-/** @brief Stored at once, applied on the next tick (woken now). soft_margin_pct 0..100, battery_level 0 / 1. */
+/** @brief Stored at once, applied on the next tick (woken now). enabled, strict 0 / 1, soft_margin_pct 0..100, source a
+ * sys_power_source_e. */
 MUST_USE err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg);
 void sys_power_manager_get_config(sys_power_manager_cfg_t* out);
 
 /** @brief Stored. 0 / 0 removes it. */
 MUST_USE err_h sys_power_manager_set_psu(const sys_power_psu_t* psu);
-/** @brief Stored. chemistry NONE removes it. */
+/** @brief Stored. chemistry NONE removes it. A battery set: a live external input is the battery, else a PSU. */
 MUST_USE err_h sys_power_manager_set_battery(const sys_power_battery_t* battery);
 /** @brief The external supply as set (0 / 0 = none). */
 void sys_power_manager_get_psu(sys_power_psu_t* out);
 /** @brief The battery as set (chemistry NONE = none). */
 void sys_power_manager_get_battery(sys_power_battery_t* out);
-
-/**
- * @brief One response of one target (SYS_POWER_TARGET_BOARD or a rail's device ID). Applied (the app saves the
- * whole matrix as a SET_RESPONSES frame). A rail's row starts from its board-config default.
- * @return ERR_PWRM_NOT_RAIL for another target, ERR_PWRM_BAD_ARG for a kind / response out of range.
- */
-MUST_USE err_h sys_power_manager_set_response(uint16_t target, uint8_t kind, uint8_t response);
 
 /**
  * @brief The whole matrix at once: (1 + rails) rows of SYS_POWER_KIND_COUNT responses, row 0 the board, then the
@@ -241,7 +243,6 @@ MUST_USE err_h sys_power_manager_set_response(uint16_t target, uint8_t kind, uin
  * @return ERR_CMD_BAD_LEN for another size, ERR_PWRM_BAD_ARG for a response out of range (nothing changes).
  */
 MUST_USE err_h sys_power_manager_set_responses(const uint8_t* matrix, size_t len);
-MUST_USE err_h sys_power_manager_get_responses(uint16_t target, uint8_t out[SYS_POWER_KIND_COUNT]);
 
 /**
  * @brief The whole matrix, each row with its target: the board first, then the rails in the board config's order (the
@@ -253,11 +254,13 @@ MUST_USE err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint
 MUST_USE err_h sys_power_manager_get_status(sys_power_status_t* out);
 
 /**
- * @brief Asks the charger for its highest offer, once: its highest voltage and the current offered at it, both capped
- * by the board's max_mV / max_mA. The same the `pd_max_auto` setting does by itself on every USB source.
- * @return ERR_PWRM_NO_OFFER when there is no USB-PD sink, the sink cannot be read, or it offers nothing (a plain 5 V USB).
+ * @brief What to ask the USB-PD charger for, on every USB source (asked again when the offer changes). MAX: the highest
+ * voltage offered; VOLTAGE: `voltage_mV` (1 .. the board's max_mV). A range profile (PPS / AVS) gives the voltage
+ * itself, else the highest fixed profile at or below it (PD_FIXED is published); the current is the most that profile
+ * offers. Both capped by the board's max_mV / max_mA.
  */
-MUST_USE err_h sys_power_manager_negotiate_max(void);
+MUST_USE err_h sys_power_manager_set_pd(const sys_power_pd_t* pd);
+void sys_power_manager_get_pd(sys_power_pd_t* out);
 
 #ifdef __cplusplus
 }

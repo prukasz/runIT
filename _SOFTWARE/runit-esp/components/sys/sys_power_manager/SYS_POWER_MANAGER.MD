@@ -1,6 +1,6 @@
 # sys_power_manager — power budget, source, battery, responses
 
-Component `components/sys/sys_power_manager/`. It watches one board input, the power source behind it, and the regulator rails fed from it. It keeps the rails within the source's budget, estimates the battery charge, and answers power faults with a response matrix. The contracts it uses (POWER_MONITOR, POWER_VREG) are `sys_power`'s (SYS_POWER.MD).
+Component `components/sys/sys_power_manager/`. It watches one board input, the power source behind it, and the regulator rails fed from it. It keeps the rails within the source's budget, asks the USB-PD charger for the voltage set, estimates the battery charge, and answers power faults with a response matrix. What the board has (rails, monitors, source pins, the sink) is fixed in the board config; what the user chooses is set remotely. The contracts it uses (POWER_MONITOR, POWER_VREG) are `sys_power`'s (SYS_POWER.MD).
 
 | File | Contents |
 |---|---|
@@ -13,7 +13,7 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 
 ## Board description (`sys_power_board_t`)
 
-Static, from the board config (`components/app/runit/runit_board_cfg.c`, constants in `runit_board_defs.h`):
+Static, from the board config (`components/app/runit/runit_board_cfg.c`, constants in `runit_board_defs.h`). Each power element is tied to its measurement here: a rail to its regulator and monitor channel, the board input to its monitor channel. The rails' own limits (voltage, current) are set by the user on the regulator itself (POWER_VREG frames, through the guard below).
 
 | Field | Value | Meaning |
 |---|---|---|
@@ -25,10 +25,10 @@ Static, from the board config (`components/app/runit/runit_board_cfg.c`, constan
 | `consumers` | TPS55289 rail A (id 10, monitor channel 2), rail B (id 11, monitor channel 0) | The budgeted rails |
 | `min_mA` | 200 (`TPS55289_MIN_CURRENT_MA`) | The lowest limit a rail can be programmed to |
 | `usb_pd` | AP33772S (id 13) | The USB-PD sink |
-| `source_pins` | TCA6424A pins 3 (VUSB_OK) and 4 (VEXT_OK) | The eFuse power-good outputs |
+| `source_pins` | TCA6424A pins 3 (VUSB_OK) and 4 (VEXT_OK); devkit none | The eFuse power-good outputs; none: SET_CONFIG says the source |
 | `responses` | the board's defaults (below) | A consumer may carry its own; NULL = the board's |
 
-A device need not exist at boot. A missing input monitor is skipped until it answers once. A missing rail counts as off, and its state is forgotten, so a new one starts from scratch.
+The board's devices are created at boot and can't be removed (`ERR_DEV_SYSTEM`, SYS_DEVICE.MD), so a rail never disappears. The manager starts before them: a monitor is skipped until it answers once, a rail counts as off until it exists, and one whose creation failed stays off.
 
 ## Settings (records, SYS_ACTIONS.MD)
 
@@ -36,14 +36,15 @@ SET applies a setting at once and stores nothing. After a reset the manager star
 
 | Record ID | Frame | Contents |
 |---|---|---|
-| `0x01000002` | SET_CONFIG `sys_power_manager_cfg_t`, 9 B | `enabled` (1), `strict` (1), `soft_margin_pct` (1, 0..100, default 20), `source_pin` (`sys_io_pin_t`, 3 B, default none), `battery_level` (1, 0 / 1), `pd_max_auto` (1, 0 / 1), `ext_input` (1, `sys_power_ext_input_e`) |
+| `0x01000002` | SET_CONFIG `sys_power_manager_cfg_t`, 4 B | `enabled` (0 / 1), `strict` (0 / 1), `soft_margin_pct` (0..100), `source` (`sys_power_source_e`: the source on a board without source pins, ignored with them) |
 | `0x01000003` | SET_PSU `sys_power_psu_t`, 8 B | `max_mV`, `max_mA` of an external supply; 0 / 0 removes it |
 | `0x01000004` | SET_BATTERY `sys_power_battery_t`, 4 B | `chemistry` (NONE / LIPO), `cells` (1 .. max_mV / 4200), `low_pct` (2..100), `critical_pct` (1..low − 1) |
 | `0x01000005` | SET_RESPONSES, `u8[1 + rails][11]` | The whole response matrix (below) |
+| `0x01000008` | SET_PD `sys_power_pd_t`, 5 B | `mode` (`sys_power_pd_mode_e`: OFF, MAX, VOLTAGE), `voltage_mV` (VOLTAGE: 1 .. `max_mV`) |
 
 Out of range: `ERR_PWRM_BAD_ARG {value, min, max}`. A change applies at once: the task is woken and recomputes the budget.
 
-Defaults: enabled, strict, soft margin 20 %, no source pin, battery level 1, `pd_max_auto` on, `ext_input` bench, no PSU, no battery.
+Defaults: enabled, strict, soft margin 20 %, source UNKNOWN, PD MAX, no PSU, no battery.
 
 ### Modes
 
@@ -59,11 +60,10 @@ The guard keeps tracking the rails while the manager is disabled, so turning it 
 
 The source is one of UNKNOWN, USB, PSU or BATTERY. Its current limit caps the budget.
 
-- **`source_pin` set**: the pin is made an input on its device (an already configured pin is read as it is). Its level decides: `battery_level` → BATTERY, the other level → USB. A device that does not exist yet gives UNKNOWN, and the read is retried.
-- **The eFuse pins** (`source_pins`): the external input wins when it is live, and becomes PSU, or BATTERY when `ext_input` says a battery is on it (the eFuse only says the input is live). Otherwise USB-C live → USB. If neither is live, or the pins cannot be read (the expander not created yet), the next rule applies. This rule comes after `source_pin`, which stays a user override.
-- **No pin and no eFuse pins**: an entered PSU → PSU, else a configured battery → BATTERY, else UNKNOWN. USB is never detected this way.
+- **The eFuse pins** (`source_pins`): the external input wins when it is live. The eFuse only says the input is live, so a configured battery (SET_BATTERY) makes it BATTERY, else PSU. Otherwise USB-C live → USB. Neither live, or the pins cannot be read (the expander not created yet) → UNKNOWN. SET_CONFIG's `source` is ignored.
+- **No source pins** (the devkit): the source is SET_CONFIG's `source` (default UNKNOWN).
 
-Source current: PSU → its entered `max_mA`, or the board's `max_mA` when none is entered (the board's eFuse limits an external supply; enter the real limit with SET_PSU). BATTERY → the board's `max_mA`. USB → the current of the USB-PD sink's highest offer (`GET_LIMITS`, the same read as "Negotiating the highest offer"), or `unknown_source_mA` while the sink is not created or offers nothing. UNKNOWN → `unknown_source_mA`. A change publishes `SOURCE_CHANGED`.
+Source current: PSU → its entered `max_mA`, or the board's `max_mA` when none is entered (the board's eFuse limits an external supply; enter the real limit with SET_PSU). BATTERY → the board's `max_mA`. USB → the current of the USB-PD profile in use ("USB-PD request"), or `unknown_source_mA` while the sink is not created or offers nothing. UNKNOWN → `unknown_source_mA`. A change publishes `SOURCE_CHANGED`.
 
 ## Budget and rails
 
@@ -99,6 +99,7 @@ The manager's own events (contract `0x06`, **source `SYS_DEVICE_ID_NONE`** = 0xF
 | `BATTERY_CRITICAL` | `0x0602` | % | BATTERY_CRITICAL |
 | `BUDGET_EXCEEDED` | `0x0603` | the limit, mW | BUDGET_EXCEEDED |
 | `INPUT_OVP` | `0x0604` | input mV | OVP |
+| `PD_FIXED` | `0x0605` | the voltage in use, mV | – (information: no response) |
 
 The manager also listens (queued) to the rails' and monitors' events and maps them to a kind:
 
@@ -122,34 +123,41 @@ Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 
 
 Defaults (the board config, both rails the same): OVP, SPC and budget exceeded → DISABLE; OTP and battery critical → SAFE_STATE; the rest NOTIFY. OCP critical stays NOTIFY: a TPS55289 at its OCP limit holds its current by itself.
 
-**Per target.** One row for the board and one per rail, so rail A can keep running in its limit while rail B is cut. `SET_RESPONSE {target, kind, response}` takes target `0xFFFF` (`SYS_POWER_TARGET_BOARD`) or a rail's device ID. Another ID gives `ERR_PWRM_NOT_RAIL {id}`. The change applies at once. The app saves the whole matrix as the record `0x01000005`. How the chip protects itself (OCP delay, hiccup, which faults it reports) is the device's own setting.
+**Per target.** One row for the board and one per rail, so rail A can keep running in its limit while rail B is cut. The matrix is set whole (`SET_RESPONSES`, rows in GET_MATRIX's order) and read with its targets (`GET_MATRIX`: `0xFFFF` = `SYS_POWER_TARGET_BOARD`, else the rail's device ID). The change applies at once. The app saves it as the record `0x01000005`. How the chip protects itself (OCP delay, hiccup, which faults it reports) is the device's own setting.
 
-## Negotiating the highest offer
+## USB-PD request
 
-`NEGOTIATE_MAX` (by hand) and the `pd_max_auto` setting (by itself, every tick while the source is USB) ask the USB-PD sink for its highest-voltage offer (`GET_LIMITS`) and the current offered at it. Both are capped by the board's `max_mV` / `max_mA`, and the request is sent with `SET_SETTINGS`.
+SET_PD says what to ask the charger for. Every tick on a USB source the manager reads the sink's offers (`LIST_OPTIONS`), picks one and, when it differs from the last request, sends it (`SET_SETTINGS`). A new charger is asked again.
 
-- The automatic request is sent only when the offer differs from the last one (a new charger, a changed setting, a new source). A refusal is reported once.
-- A plain 5 V USB offers nothing. `NEGOTIATE_MAX` then answers `ERR_PWRM_NO_OFFER`, and the automatic one does nothing.
-- The budget follows the measured input voltage and the offered current on its own.
+| `mode` | Voltage asked |
+|---|---|
+| `0` OFF | nothing is asked: the charger's 5 V |
+| `1` MAX (default) | the highest voltage offered |
+| `2` VOLTAGE | `voltage_mV` |
+
+- The voltage is capped by the board's `max_mV`. A range profile (PPS, then AVS) that holds it gives the voltage itself; otherwise the highest fixed profile at or below it is taken, the same choice the sink makes.
+- The current is the most the chosen profile offers, capped by `max_mA`. It is also the USB source's current for the budget.
+- VOLTAGE answered by a lower fixed profile publishes `PD_FIXED` (value: the voltage in use), once per request.
+- GET_STATUS shows the profile in use: `pd_mV`, `pd_mA`, `pd_type` (0 fixed, 1 PPS, 2 AVS, 0xFF none).
+- A refused request is reported once (the sink's error), not every tick.
 
 ## Remote (`ROUTER_KEY_POWER` = 0x0A)
 
 | Op | Request | Response |
 |---|---|---|
-| `0x01` SET_CONFIG | `sys_power_manager_cfg_t` (9 B) | – |
-| `0x02` GET_CONFIG | – | `sys_power_manager_cfg_t` (9 B) |
+| `0x01` SET_CONFIG | `sys_power_manager_cfg_t` (4 B) | – |
+| `0x02` GET_CONFIG | – | `sys_power_manager_cfg_t` (4 B) |
 | `0x03` SET_PSU | `{u32 max_mV, u32 max_mA}` | – |
 | `0x04` SET_BATTERY | `{u8 chemistry, u8 cells, u8 low_pct, u8 critical_pct}` | – |
-| `0x05` SET_RESPONSE | `{u16 target, u8 kind, u8 response}` | – |
-| `0x06` GET_RESPONSES | `{u16 target}` | `u8[11]` by kind (index 0 unused) |
-| `0x07` GET_STATUS | – | `sys_power_status_t` (31 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen) |
-| `0x08` NEGOTIATE_MAX | – | – (`ERR_PWRM_NO_OFFER` when nothing is offered) |
+| `0x07` GET_STATUS | – | `sys_power_status_t` (40 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen), `u32 pd_mV, u32 pd_mA, u8 pd_type` |
+| `0x08` SET_PD | `sys_power_pd_t` (5 B): `u8 mode, u32 voltage_mV` | – |
 | `0x09` SET_RESPONSES | `u8[1 + rails][11]`, no header: the whole matrix | – (another size: `ERR_CMD_BAD_LEN`; nothing changes) |
 | `0x0A` GET_PSU | – | `sys_power_psu_t` (8 B), as set |
 | `0x0B` GET_BATTERY | – | `sys_power_battery_t` (4 B), as set |
 | `0x0C` GET_MATRIX | – | `sys_power_response_row_t[1 + rails]`: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind; the rows in SET_RESPONSES's order |
+| `0x0D` GET_PD | – | `sys_power_pd_t` (5 B), as set |
 
-Every SET has its read (`read_by` in the descriptor: GET_CONFIG, GET_PSU, GET_BATTERY, GET_MATRIX), so the app reads the settings when it connects and shows the board's values.
+Every SET has its read (`read_by` in the descriptor: GET_CONFIG, GET_PSU, GET_BATTERY, GET_MATRIX, GET_PD), so the app reads the settings when it connects and shows the board's values.
 
 ## Errors (`ERR_MOD_SYS_POWER_MANAGER` = 14)
 
@@ -160,8 +168,6 @@ Every SET has its read (`read_by` in the descriptor: GET_CONFIG, GET_PSU, GET_BA
 | `ERR_PWRM_BELOW_ALLOCATION` | MEDIUM | `allocated_mW, limit_mW` | The budget shrank under what is committed |
 | `ERR_PWRM_FAULT` | MEDIUM | `source, channel, kind, response, value` | A hardware fault and the response taken |
 | `ERR_PWRM_BAD_ARG` | HIGH | `value, min, max` | A setting out of range |
-| `ERR_PWRM_NOT_RAIL` | HIGH | `id` | A response target that is neither the board nor one of its rails |
-| `ERR_PWRM_NO_OFFER` | MEDIUM | – | No USB-PD sink on the board, the sink cannot be read, or it offers nothing |
 
 Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPENDED`, `ERR_DEV_NOT_FOUND`.
 
@@ -169,4 +175,4 @@ Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPEND
 
 - The USB-PD negotiation has not been run against a PD charger yet.
 - The module has not been run on the PCB, which needs the INA3221 and the TPS55289 rails.
-- The hardware test is `router_tests.py` `test_power` (config, settings, source pin, status, responses). It is not run on the board yet.
+- The hardware test is `router_tests.py` `test_power` (config, settings, source, status, responses). It is not run on the board yet.
