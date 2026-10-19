@@ -1,11 +1,14 @@
 """Checks the references between descriptors, which no single schema can see.
 
   device     "contracts" name existing contracts
+  command    one with a read and a write side is a mirror: read.returns has the fields of write.args (id, raw_type, size)
   vm-block   wire_id is unique, below VM_BLOCK_TYPES_MAX and equals VM_BLK_<ID> of vm_block_ids.h
              state_len equals the `.state_len` of the block's VM_BLOCK_TYPE_DEFINE (a sizeof resolved from a _Static_assert; 0 when absent)
              device.contract / device.device_type name an existing contract / device
-             variant "op" is a command of that contract; "args" keys are arguments of that command
-             the "idle" options of a device block are 0 or an op code: (contract_id << 8) | op, or 0xFF00 | op for a device's own command
+             variant "op" is a command of that contract, "dir" one of its sides (needed when it has both); "args" keys are
+             arguments of that side
+             the "idle" options of a device block are 0 or the op code of a command with a write side: (contract_id << 8) | op,
+             or 0xFF00 | op for a device's own command
              "fixed" / "default" / condition values fit the enum group, the options or the contract choice they refer to
              "{name}" in a header or body is a field, an argument, a pin, "device" or "variant"
              conditions name a field of the block, "device.<config id>" of the device, or a variant of the block
@@ -103,6 +106,14 @@ class Checker:
                 if name not in self.contracts:
                     self.error(path, "contracts", f"'{name}' is not a contract (no contract_*.json with that id)")
 
+    def mirrors_check(self):
+        def shape(part):
+            return [(f.get("id"), f.get("raw_type"), f.get("size")) for f in (part or {}).get("fields", [])]
+        for path, document in list(self.contracts.values()) + list(self.devices.values()):
+            for c in document.get("commands", []):
+                if "read" in c and "write" in c and shape(c["read"].get("returns")) != shape(c["write"].get("args")):
+                    self.error(path, f"commands/{c['id']}", "a command with both sides is a mirror: read.returns must have the fields of write.args")
+
     def blocks(self):
         """Checks every block descriptor; returns (how many, block types without one)."""
         numbers, limit = block_numbers()
@@ -146,7 +157,7 @@ class Checker:
             else:
                 device = entry[1]
         if contract is not None:  # the idle option of a contract block is 0 (hold) or the full op code: (contract_id << 8) | op
-            codes = {0} | {(contract["contract_id"] << 8) | c["op"] for c in contract["commands"]}
+            codes = {0} | {(contract["contract_id"] << 8) | c["op"] for c in contract["commands"] if "write" in c}
             for field in block.get("fields", []):
                 for option in field.get("options", []) if field["id"] == "idle" else []:
                     if option["value"] not in codes:
@@ -156,7 +167,7 @@ class Checker:
             if own is None:
                 self.error(path, "device.device_type", "SYS_DEVICE_CONTRACT_OWN is not published in enums.json (device_contract)")
             else:
-                codes = {0} | {(own << 8) | c["op"] for c in device.get("commands", [])}
+                codes = {0} | {(own << 8) | c["op"] for c in device.get("commands", []) if "write" in c}
                 for field in block.get("fields", []):
                     for option in field.get("options", []) if field["id"] == "idle" else []:
                         if option["value"] not in codes:
@@ -186,7 +197,18 @@ class Checker:
                     command = next((c for c in owner.get("commands", []) if c["id"] == part["op"]), None)
                     if command is None:
                         self.error(path, f"{where}/op", f"'{part['op']}' is not a command of {owner['id']}")
-                args = {f["id"]: f for f in (command or {}).get("args", {}).get("fields", [])}
+                side = None
+                if command is not None:
+                    sides = [d for d in ("read", "write") if d in command]
+                    if "dir" in part:
+                        side = command.get(part["dir"])
+                        if side is None:
+                            self.error(path, f"{where}/dir", f"{part['op']} has no {part['dir']} side")
+                    elif len(sides) == 1:
+                        side = command[sides[0]]
+                    else:
+                        self.error(path, f"{where}/dir", f"{part['op']} has a read and a write side: say which ('dir')")
+                args = {f["id"]: f for f in (side or {}).get("args", {}).get("fields", [])}
                 for name, override in part.get("args", {}).items():
                     at = f"{where}/args/{name}"
                     if command is None:
@@ -260,6 +282,7 @@ class Checker:
 def main():
     checker = Checker()
     checker.devices_check()
+    checker.mirrors_check()
     count, missing = checker.blocks()
     if checker.problems:
         fail(f"{len(checker.problems)} broken reference(s):\n  " + "\n  ".join(checker.problems))

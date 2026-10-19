@@ -109,7 +109,7 @@ static err_h create_device(uint16_t id, uint16_t type, const void* cfg, uint32_t
   if (cfg_len > 0) {
     memcpy(args + sizeof(type), cfg, cfg_len);
   }
-  return sys_device_call(id, SYS_DEVICE_OP_CREATE, args, (uint32_t)sizeof(type) + cfg_len, NULL, 0, NULL);
+  return sys_device_write(id, SYS_DEVICE_OP_CREATE, args, (uint32_t)sizeof(type) + cfg_len);
 }
 
 #if CONFIG_RUNIT_BOARD_DEVKIT

@@ -185,6 +185,25 @@
         }
       ]
     },
+    "cmd_dir_e": {
+      "alias": "Command Direction",
+      "kind": "enum",
+      "source_file": "runit-esp/components/core/cmd/cmd.h",
+      "members": [
+        {
+          "name": "CMD_DIR_READ",
+          "value": 0,
+          "alias": "Read",
+          "description": "Asks for a value; changes nothing"
+        },
+        {
+          "name": "CMD_DIR_WRITE",
+          "value": 1,
+          "alias": "Write",
+          "description": "Sets a value or runs an action"
+        }
+      ]
+    },
     "device_contract": {
       "alias": "Device Contract",
       "kind": "defines",
@@ -2037,6 +2056,8 @@
     }
   },
   "symbols": {
+    "CMD_DIR_READ": "cmd_dir_e",
+    "CMD_DIR_WRITE": "cmd_dir_e",
     "DEVICE_ID_ADS7128": "board_device",
     "DEVICE_ID_AP33772S": "board_device",
     "DEVICE_ID_DAC53202": "board_device",

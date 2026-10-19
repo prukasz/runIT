@@ -152,7 +152,7 @@ static err_h uninstall(void* ctx) {
   return err;
 }
 
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   servo_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->trim = 0;
@@ -216,13 +216,13 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
+    DEVICE_ENTRY_W(RESET),
     /* Device own ops */
-    {SERVO_OP_HOME, home_h},
-    {SERVO_OP_SET_TRIM, set_trim_h},
-    {SERVO_OP_SET, set_h},
-    {SERVO_OP_GET_PULSE, get_pulse_h},
-    {SERVO_OP_RELEASE, release_h},
+    {SERVO_OP_HOME, NULL, home_h},
+    {SERVO_OP_TRIM, NULL, set_trim_h},
+    {SERVO_OP_TARGET, NULL, set_h},
+    {SERVO_OP_PULSE, get_pulse_h, NULL},
+    {SERVO_OP_RELEASE, NULL, release_h},
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_SERVO, .cfg_size = sizeof(servo_cfg_t), .ctx_size = sizeof(servo_t),

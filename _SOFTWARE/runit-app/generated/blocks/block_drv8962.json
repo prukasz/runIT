@@ -35,7 +35,7 @@
       "id": "set_current_limit",
       "alias": "Set current limit",
       "description": "Sets the chopping current limit of a channel; the reference voltage follows the largest limit. 0 means no limit.",
-      "op": "set_current_limit",
+      "op": "current_limit",
       "args": {
         "channel": {
           "required": true
@@ -75,7 +75,7 @@
       "id": "get_fault",
       "alias": "Read fault",
       "description": "Reads whether a channel has a fault and why: overcurrent, thermal or undervoltage, or external. The same faults are also events an On event block can react to.",
-      "op": "get_fault",
+      "op": "fault",
       "args": {
         "channel": {
           "required": true

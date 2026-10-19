@@ -9,77 +9,83 @@
   "category": "power",
   "commands": [
     {
-      "id": "SET_ENABLE",
+      "id": "ENABLE",
       "op": 0,
-      "label": "Output",
+      "symbol": "VREG_OP_ENABLE",
+      "label": "Enable",
       "description": "Switches the regulator output on or off.",
-      "symbol": "VREG_OP_SET_ENABLE",
-      "args": {
-        "fields": [
-          {
-            "id": "enable",
-            "label": "Output",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "options": [
-              {
-                "label": "Off",
-                "value": 0
-              },
-              {
-                "label": "On",
-                "value": 1
-              }
-            ]
-          }
-        ],
-        "struct": "vreg_enable_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "enable",
+              "label": "Output",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
+            }
+          ],
+          "struct": "vreg_enable_args_t"
+        }
       }
     },
     {
-      "id": "SET_VOLTAGE",
+      "id": "VOLTAGE",
       "op": 1,
-      "label": "Voltage",
+      "symbol": "VREG_OP_VOLTAGE",
+      "label": "Output voltage",
       "description": "Sets the wanted output voltage; the output follows when it is enabled.",
-      "symbol": "VREG_OP_SET_VOLTAGE",
-      "args": {
-        "fields": [
-          {
-            "id": "voltage_mV",
-            "label": "Voltage",
-            "type": "number",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "description": "The wanted output voltage",
-            "unit": "mV"
-          }
-        ],
-        "struct": "vreg_voltage_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "The wanted output voltage",
+              "unit": "mV"
+            }
+          ],
+          "struct": "vreg_voltage_args_t"
+        }
       }
     },
     {
-      "id": "SET_CURRENT",
+      "id": "CURRENT",
       "op": 2,
+      "symbol": "VREG_OP_CURRENT",
       "label": "Current limit",
       "description": "Sets the wanted output current limit.",
-      "symbol": "VREG_OP_SET_CURRENT",
-      "args": {
-        "fields": [
-          {
-            "id": "current_mA",
-            "label": "Current limit",
-            "type": "number",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "description": "The wanted output current limit",
-            "unit": "mA"
-          }
-        ],
-        "struct": "vreg_current_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "current_mA",
+              "label": "Current limit",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "The wanted output current limit",
+              "unit": "mA"
+            }
+          ],
+          "struct": "vreg_current_args_t"
+        }
       }
     }
   ],

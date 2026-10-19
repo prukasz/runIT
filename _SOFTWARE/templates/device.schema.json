@@ -544,46 +544,13 @@
       }
     },
 
-    "command": {
+    "side": {
       "type": "object",
-      "required": ["id", "label"],
-      "description": "Polecenie / operacja sterownika urządzenia (RPC).",
+      "description": "Jedna strona polecenia (cmd_dir_e): odczyt (bajt kierunku 0x00) albo zapis (0x01). Polecenie z obiema stronami to lustro: odczyt zwraca dokładnie to, co zapis przyjmuje (read.returns == write.args), a jego args to klucz (pin, kanał; puste dla ustawień modułu).",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unikalny identyfikator polecenia (np. 'reset', 'set_level', 'home', 'set_trim')."
-        },
-        "op": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Numeryczny kod operacji specyficznej dla sterownika w firmware (np. 0, 1)."
-        },
-        "urgent": {
-          "type": "boolean",
-          "default": false,
-          "description": "Czy polecenie ma priorytet natychmiastowy."
-        },
-        "label": {
-          "type": "string",
-          "description": "Czytelna nazwa polecenia (np. 'Reset', 'Ustaw trymer', 'Odczytaj impuls')."
-        },
         "description": {
           "type": "string",
-          "description": "Opis działania polecenia."
-        },
-        "symbol": {
-          "type": "string",
-          "description": "Opcjonalny symbol stałej C w firmware (np. 'SERVO_OP_HOME', 'SERVO_OP_SET_TRIM')."
-        },
-        "pin_scoped": {
-          "type": "boolean",
-          "default": false,
-          "description": "Czy polecenie dotyczy konkretnego pinu/kanału (np. ustawienie poziomu wybranego pinu)."
-        },
-        "invasive": {
-          "type": "boolean",
-          "default": false,
-          "description": "Czy polecenie zmienia stan pinu / kanału / urządzenia, któremu jest dane (zapis, a nie odczyt). Pin, którym zarządza inne urządzenie, nie jest dla takiego polecenia oferowany w aplikacji."
+          "description": "Co robi ta strona."
         },
         "args": {
           "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt ze strukturą C).",
@@ -603,6 +570,10 @@
                 "struct": {
                   "type": "string",
                   "description": "Nazwa typu struktury C (np. 'servo_trim_t', 'servo_set_t')."
+                },
+                "array": {
+                  "type": "boolean",
+                  "description": "Ciąg takich struktur (wiersze), np. macierz odpowiedzi."
                 },
                 "fields": {
                   "type": "array",
@@ -669,6 +640,55 @@
               "additionalProperties": false
             }
           ]
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "command": {
+      "type": "object",
+      "required": ["id", "label"],
+      "description": "Polecenie / operacja sterownika urządzenia (RPC): strona odczytu i / albo zapisu.",
+      "anyOf": [{"required": ["read"]}, {"required": ["write"]}],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unikalny identyfikator polecenia (np. 'reset', 'set_level', 'home', 'set_trim')."
+        },
+        "op": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Numeryczny kod operacji specyficznej dla sterownika w firmware (np. 0, 1)."
+        },
+        "urgent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie ma priorytet natychmiastowy."
+        },
+        "label": {
+          "type": "string",
+          "description": "Czytelna nazwa polecenia (np. 'Reset', 'Ustaw trymer', 'Odczytaj impuls')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Opis działania polecenia."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Opcjonalny symbol stałej C w firmware (np. 'SERVO_OP_HOME', 'SERVO_OP_SET_TRIM')."
+        },
+        "pin_scoped": {
+          "type": "boolean",
+          "default": false,
+          "description": "Czy polecenie dotyczy konkretnego pinu/kanału (np. ustawienie poziomu wybranego pinu)."
+        },
+        "read": {
+          "$ref": "#/$defs/side",
+          "description": "Strona odczytu: args to klucz, returns odpowiedź. Przy obu stronach odpowiedź = write.args (lustro)."
+        },
+        "write": {
+          "$ref": "#/$defs/side",
+          "description": "Strona zapisu: args to wartość (albo argumenty akcji); odpowiada ACK bez danych, chyba że podaje returns."
         }
       },
       "additionalProperties": false

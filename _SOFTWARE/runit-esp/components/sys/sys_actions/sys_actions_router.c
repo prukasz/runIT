@@ -140,20 +140,20 @@ ROUTER_OP_NOARGS(op_remove_all) {
   return sys_actions_remove_all();
 }
 
-static const router_entry_t k_ops[] = {
-    {SYS_ACTIONS_OP_RUN, op_run},
-    {SYS_ACTIONS_OP_RECORD_START, op_record_start},
-    {SYS_ACTIONS_OP_RECORD_STOP, op_record_stop},
-    {SYS_ACTIONS_OP_BEGIN, op_begin},
-    {SYS_ACTIONS_OP_WRITE, op_write},
-    {SYS_ACTIONS_OP_COMMIT, op_commit},
-    {SYS_ACTIONS_OP_READ, op_read},
-    {SYS_ACTIONS_OP_INFO, op_info},
-    {SYS_ACTIONS_OP_LIST, op_list},
-    {SYS_ACTIONS_OP_REMOVE, op_remove},
-    {SYS_ACTIONS_OP_ABORT, op_abort},
-    {SYS_ACTIONS_OP_RUN_ALL, op_run_all},
-    {SYS_ACTIONS_OP_REMOVE_ALL, op_remove_all},
+static const router_op_t k_ops[] = {
+    ROUTER_W(SYS_ACTIONS_OP_RUN, op_run),
+    ROUTER_W(SYS_ACTIONS_OP_RECORD_START, op_record_start),
+    ROUTER_W(SYS_ACTIONS_OP_RECORD_STOP, op_record_stop),
+    ROUTER_W(SYS_ACTIONS_OP_BEGIN, op_begin),
+    ROUTER_W(SYS_ACTIONS_OP_WRITE, op_write),
+    ROUTER_W(SYS_ACTIONS_OP_COMMIT, op_commit),
+    ROUTER_R(SYS_ACTIONS_OP_READ, op_read),
+    ROUTER_R(SYS_ACTIONS_OP_INFO, op_info),
+    ROUTER_R(SYS_ACTIONS_OP_LIST, op_list),
+    ROUTER_W(SYS_ACTIONS_OP_REMOVE, op_remove),
+    ROUTER_W(SYS_ACTIONS_OP_ABORT, op_abort),
+    ROUTER_W(SYS_ACTIONS_OP_RUN_ALL, op_run_all),
+    ROUTER_W(SYS_ACTIONS_OP_REMOVE_ALL, op_remove_all),
 };
 
 ROUTER_MODULE(sys_actions_router, k_ops)

@@ -63,28 +63,28 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
 
 /* ---- IO contract ---- */
 
-IO_HANDLER(SET_LEVEL) {
+IO_WRITE(LEVEL) {
   pca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
 
-IO_HANDLER(TOGGLE) {
+IO_WRITE(TOGGLE) {
   pca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_duty(c, args->pin, c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
 }
 
 // A read: allowed while suspended.
-IO_HANDLER(GET_LEVEL) {
+IO_READ(LEVEL) {
   pca_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   const uint8_t level = c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2;
-  return cmd_reply(out, out_cap, out_len, &level, sizeof(level));
+  return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
 }
 
-IO_HANDLER(SET_PWM_DUTY) {
+IO_WRITE(PWM_DUTY) {
   pca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
@@ -92,7 +92,7 @@ IO_HANDLER(SET_PWM_DUTY) {
 }
 
 // One frequency for all 16 channels: `pin` is not used.
-IO_HANDLER(SET_PWM_FREQ) {
+IO_WRITE(PWM_FREQ) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
@@ -104,7 +104,7 @@ IO_HANDLER(SET_PWM_FREQ) {
 SYS_PINS_STATE_HANDLERS(pca_t)
 
 // The owner of a locked channel (a bridge driver on CH 8-15) drives it here; the IO writes refuse it.
-PINS_HANDLER(SET_LOCKED_LEVEL) {
+PINS_WRITE(LOCKED_LEVEL) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
@@ -127,7 +127,7 @@ static err_h uninstall(void* ctx) {
   return err;
 }
 
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   pca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   for (uint8_t ch = 0; ch < PCA9685_CHANNELS; ch++) {
@@ -174,10 +174,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    IO_ENTRY(SET_LEVEL),          IO_ENTRY(TOGGLE),           IO_ENTRY(GET_LEVEL),
-    IO_ENTRY(SET_PWM_DUTY),       IO_ENTRY(SET_PWM_FREQ),
-    SYS_PINS_STATE_ENTRIES,           PINS_ENTRY(SET_LOCKED_LEVEL),
+    DEVICE_ENTRY_W(RESET),
+    IO_ENTRY(LEVEL),          IO_ENTRY_W(TOGGLE),
+    IO_ENTRY_W(PWM_DUTY),       IO_ENTRY_W(PWM_FREQ),
+    SYS_PINS_STATE_ENTRIES,           PINS_ENTRY_W(LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t), .ctx_size = sizeof(pca_t),

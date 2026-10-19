@@ -16,9 +16,8 @@ extern "C" {
 #define TPS55289_I2C_ADDR_74 0x74u  // the MODE pin selects one of the two addresses
 #define TPS55289_I2C_ADDR_75 0x75u
 
-/* Own ops: how the chip protects itself (registers; SET while suspended: ERR_DEV_SUSPENDED, GET always). */
-#define TPS55289_OP_SET_PROTECTION SYS_DEVICE_OWN_OP(0x01)  // args tps55289_protection_t
-#define TPS55289_OP_GET_PROTECTION SYS_DEVICE_OWN_OP(0x02)  // -> tps55289_protection_t
+/* Own ops: how the chip protects itself (registers; the write while suspended: ERR_DEV_SUSPENDED, the read always). */
+#define TPS55289_OP_PROTECTION SYS_DEVICE_OWN_OP(0x01)  // read -> tps55289_protection_t, write tps55289_protection_t
 
 #define TPS55289_OCP_DELAY_MAX 3u  // VOUT_SR OCP_DELAY: 0 = 128 us, 1 = 3.072 ms, 2 = 6.144 ms, 3 = 12.288 ms
 #define TPS55289_FAULT_OVP     0x01u   // fault_mask bits: the fault pulls FB/INT low, so it becomes an event

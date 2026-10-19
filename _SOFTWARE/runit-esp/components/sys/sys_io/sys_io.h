@@ -133,31 +133,34 @@ typedef struct __attribute__((packed)) {
 } io_intr_args_t;
 
 /**
- * @brief The IO contract, once: X(NAME, op number, args struct). From it come the
- * op IDs IO_OP_<NAME>, a typedef io_args_<NAME>_t per op, IO_HANDLER(NAME) (a
- * device's handler: its args type is the one listed here) and IO_ENTRY(NAME) (its
- * row in the op table). Numbers are never reused.
+ * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). From it come IO_OP_<NAME>, io_key_<NAME>_t, io_value_<NAME>_t, IO_READ(NAME) /
+ * IO_WRITE(NAME) and IO_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: LEVEL RW, TOGGLE W,
+ * PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE RW. Numbers are never reused.
  */
-#define SYS_IO_CONTRACT(X)                   \
-  X(SET_LEVEL,      0x00, io_level_args_t)   \
-  X(TOGGLE,         0x01, io_pin_args_t)     \
-  X(GET_LEVEL,      0x02, io_pin_args_t)     \
-  X(SET_PWM_DUTY,   0x03, io_duty_args_t)    \
-  X(SET_PWM_FREQ,   0x04, io_freq_args_t)    \
-  X(SET_MODE,       0x05, io_mode_args_t)    \
-  X(RESET,          0x06, io_pin_args_t)     \
-  X(CONFIGURE_INTR, 0x07, io_intr_args_t)    \
-  X(GET_VOLTAGE,    0x08, io_pin_args_t)     \
-  X(SET_VOLTAGE,    0x09, io_voltage_args_t)
+#define SYS_IO_CONTRACT(X)                              \
+  X(LEVEL,    0x00, io_pin_args_t,     io_level_args_t) \
+  X(TOGGLE,   0x01, sys_device_none_t, io_pin_args_t)   \
+  X(PWM_DUTY, 0x03, sys_device_none_t, io_duty_args_t)  \
+  X(PWM_FREQ, 0x04, sys_device_none_t, io_freq_args_t)  \
+  X(MODE,     0x05, sys_device_none_t, io_mode_args_t)  \
+  X(RESET,    0x06, sys_device_none_t, io_pin_args_t)   \
+  X(INTR,     0x07, sys_device_none_t, io_intr_args_t)  \
+  X(VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
 
-#define SYS_IO__ID(name, n, args_t) IO_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n),
-#define SYS_IO__ARGS(name, n, args_t) typedef args_t io_args_##name##_t;
+#define SYS_IO__ID(name, n, key_t, value_t) IO_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n),
+#define SYS_IO__TYPES(name, n, key_t, value_t) \
+  typedef key_t io_key_##name##_t;             \
+  typedef value_t io_value_##name##_t;
 
 enum { SYS_IO_CONTRACT(SYS_IO__ID) };
-SYS_IO_CONTRACT(SYS_IO__ARGS)
+SYS_IO_CONTRACT(SYS_IO__TYPES)
 
-#define IO_HANDLER(name) SYS_DEVICE_HANDLER(io_h_##name, io_args_##name##_t)
-#define IO_ENTRY(name) {IO_OP_##name, io_h_##name}
+#define IO_READ(name)    SYS_DEVICE_READ(io, name)
+#define IO_WRITE(name)   SYS_DEVICE_WRITE(io, name)
+#define IO_ENTRY(name)   SYS_DEVICE_ENTRY(IO_OP_##name, io, name)
+#define IO_ENTRY_R(name) SYS_DEVICE_ENTRY_R(IO_OP_##name, io, name)
+#define IO_ENTRY_W(name) SYS_DEVICE_ENTRY_W(IO_OP_##name, io, name)
 
 /**
  * @brief Pin of a device. In a create struct a pin that is not used is
@@ -177,6 +180,10 @@ typedef struct __attribute__((packed)) {
 static inline bool sys_io_pin_valid(sys_io_pin_t p) {
   return p.device != SYS_DEVICE_ID_NONE;
 }
+
+/** @brief A device's answer to a LEVEL / VOLTAGE read: the write's struct for the pin (the mirror). */
+MUST_USE err_h sys_io_reply_level(uint8_t pin, bool level, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+MUST_USE err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
 MUST_USE err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode);
 MUST_USE err_h sys_io_reset(sys_io_pin_t p);

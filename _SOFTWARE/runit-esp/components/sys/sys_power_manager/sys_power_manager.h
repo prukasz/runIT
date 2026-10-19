@@ -204,7 +204,8 @@ typedef struct __attribute__((packed)) {
   X(ERR_PWRM_BUDGET_EXCEEDED,        ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 2), ERR_SEV_MEDIUM, { uint16_t id; uint32_t requested_mW; uint32_t available_mW; }) /* a rail change that doesn't fit */                                \
   X(ERR_PWRM_BELOW_ALLOCATION,       ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 3), ERR_SEV_MEDIUM, { uint32_t allocated_mW; uint32_t limit_mW; })              /* the budget shrank under what's committed */                          \
   X(ERR_PWRM_FAULT,                  ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 4), ERR_SEV_MEDIUM, { uint16_t source; uint8_t channel; uint8_t kind; uint8_t response; int32_t value; }) /* a hardware fault and the response taken */ \
-  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */
+  X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */                                             \
+  X(ERR_PWRM_NOT_RAIL,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 6), ERR_SEV_HIGH,   { uint16_t id; })                                      /* a matrix row whose target is neither the board nor a rail of it */
 
 ERR_TAGS_DECLARE(ERR_SYS_POWER_MANAGER_MAP)
 
@@ -237,12 +238,13 @@ void sys_power_manager_get_psu(sys_power_psu_t* out);
 void sys_power_manager_get_battery(sys_power_battery_t* out);
 
 /**
- * @brief The whole matrix at once: (1 + rails) rows of SYS_POWER_KIND_COUNT responses, row 0 the board, then the
- * rails in the board config's order. Validated and applied; the app saves the SET_RESPONSES frame as the record
- * SYS_ACTIONS_ID_POWER_RESPONSES.
- * @return ERR_CMD_BAD_LEN for another size, ERR_PWRM_BAD_ARG for a response out of range (nothing changes).
+ * @brief Rows of the matrix, each with its target (what sys_power_manager_get_matrix gives): matched by target, so the
+ * order doesn't matter; a target left out keeps its row. All checked before anything changes. The app saves the
+ * MATRIX write as the record SYS_ACTIONS_ID_POWER_RESPONSES.
+ * @return ERR_PWRM_NOT_RAIL for a target that is neither the board nor a rail, ERR_PWRM_BAD_ARG for a response out of
+ * range, ERR_CMD_BAD_LEN for more rows than the board has.
  */
-MUST_USE err_h sys_power_manager_set_responses(const uint8_t* matrix, size_t len);
+MUST_USE err_h sys_power_manager_set_matrix(const sys_power_response_row_t* rows, uint8_t count);
 
 /**
  * @brief The whole matrix, each row with its target: the board first, then the rails in the board config's order (the

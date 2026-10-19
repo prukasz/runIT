@@ -446,7 +446,7 @@ static void sample(void) {
 
   s_refused = false;
   frame_init(&s_desc, VM_OP_ADD_OBJECTS);
-  frame_init(&s_value, VM_OP_SET_DATA);
+  frame_init(&s_value, VM_OP_DATA);
   for (uint16_t i = 0; i < s_sub_count; i++) {
     walk(vm_obj_lookup_by_id(s_subscribed_ids[i]), 0);
   }

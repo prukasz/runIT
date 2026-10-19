@@ -44,7 +44,7 @@ static err_h mux_apply(mux_t* c, sys_power_supply_source_e target) {
 
 /* ---- POWER_SUPPLY contract ---- */
 
-SUPPLY_HANDLER(SELECT) {
+SUPPLY_WRITE(SOURCE) {
   mux_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->source, SYS_POWER_SUPPLY_OFF, SYS_POWER_SUPPLY_B);
@@ -52,7 +52,7 @@ SUPPLY_HANDLER(SELECT) {
   return mux_apply(c, c->wanted);
 }
 
-SUPPLY_HANDLER(GET_SOURCE) {
+SUPPLY_READ(SOURCE) {
   (void)args;
   const uint8_t source = (uint8_t)((mux_t*)ctx)->source;
   return cmd_reply(out, out_cap, out_len, &source, sizeof(source));
@@ -61,7 +61,7 @@ SUPPLY_HANDLER(GET_SOURCE) {
 /* ---- Lifecycle ---- */
 
 /* Back to the create state: both sources off, nothing wanted. */
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   mux_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->wanted = SYS_POWER_SUPPLY_OFF;
@@ -135,9 +135,8 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    SUPPLY_ENTRY(SELECT),
-    SUPPLY_ENTRY(GET_SOURCE),
+    DEVICE_ENTRY_W(RESET),
+    SUPPLY_ENTRY(SOURCE),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_POWER_MUX, .cfg_size = sizeof(power_mux_cfg_t), .ctx_size = sizeof(mux_t),

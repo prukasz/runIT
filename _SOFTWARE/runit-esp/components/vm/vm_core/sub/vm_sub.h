@@ -13,7 +13,7 @@
  * value differs from what was last sent -- whether or not the block that wrote
  * it marked it fresh (a quiet write is a change too):
  *
- *   - value records (VM_OP_SET_DATA, vm_wire_data_t):
+ *   - value records (VM_OP_DATA, vm_wire_data_t):
  *     [u16 id][u16 start_idx][u16 byte_len][data]; a PTR's data is its child
  *     IDs (u16 each); an object larger than a frame is split, start_idx counts
  *     elements.

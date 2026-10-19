@@ -54,27 +54,27 @@ ROUTER_OP_NOARGS(op_get_pd) {
   return cmd_reply(out, out_cap, out_len, &pd, sizeof(pd));
 }
 
-// The whole matrix as the payload: no header, so not a ROUTER_OP_TAIL. `in` is the op's key, then the matrix.
-static err_h op_set_responses(CMD_F_PARAMS) {
+// Rows of sys_power_response_row_t as the payload (what the read answers): no header, so not a ROUTER_OP_TAIL. `in` is
+// the command's code, then the rows.
+static err_h op_set_matrix(CMD_F_PARAMS) {
   (void)ctx;
   (void)out;
   (void)out_cap;
   (void)out_len;
-  return sys_power_manager_set_responses(in + 1, in_len - 1);
+  const uint32_t len = in_len - 1;
+  ERR_CHECK(len % sizeof(sys_power_response_row_t) == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)len,
+            .need = (uint16_t)sizeof(sys_power_response_row_t));
+  return sys_power_manager_set_matrix((const sys_power_response_row_t*)(in + 1),
+                                      (uint8_t)(len / sizeof(sys_power_response_row_t)));
 }
 
-static const router_entry_t k_ops[] = {
-    {SYS_PWRM_OP_SET_CONFIG, op_set_config},
-    {SYS_PWRM_OP_GET_CONFIG, op_get_config},
-    {SYS_PWRM_OP_SET_PSU, op_set_psu},
-    {SYS_PWRM_OP_SET_BATTERY, op_set_battery},
-    {SYS_PWRM_OP_GET_STATUS, op_get_status},
-    {SYS_PWRM_OP_SET_PD, op_set_pd},
-    {SYS_PWRM_OP_SET_RESPONSES, op_set_responses},
-    {SYS_PWRM_OP_GET_PSU, op_get_psu},
-    {SYS_PWRM_OP_GET_BATTERY, op_get_battery},
-    {SYS_PWRM_OP_GET_MATRIX, op_get_matrix},
-    {SYS_PWRM_OP_GET_PD, op_get_pd},
+static const router_op_t k_ops[] = {
+    ROUTER_RW(SYS_PWRM_OP_CONFIG, op_get_config, op_set_config),
+    ROUTER_RW(SYS_PWRM_OP_PSU, op_get_psu, op_set_psu),
+    ROUTER_RW(SYS_PWRM_OP_BATTERY, op_get_battery, op_set_battery),
+    ROUTER_R(SYS_PWRM_OP_STATUS, op_get_status),
+    ROUTER_RW(SYS_PWRM_OP_PD, op_get_pd, op_set_pd),
+    ROUTER_RW(SYS_PWRM_OP_MATRIX, op_get_matrix, op_set_matrix),
 };
 
 ROUTER_MODULE(sys_power_manager_router, k_ops)

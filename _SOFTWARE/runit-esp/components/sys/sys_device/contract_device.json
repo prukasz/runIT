@@ -11,162 +11,169 @@
     {
       "id": "CREATE",
       "op": 0,
+      "symbol": "SYS_DEVICE_OP_CREATE",
       "label": "Create device",
       "description": "Creates a device of a type: its type id, then the create struct of that type (the device descriptor lists its fields).",
-      "symbol": "SYS_DEVICE_OP_CREATE",
-      "args": {
-        "fields": [
-          {
-            "id": "type",
-            "label": "Device type",
-            "type": "number",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0
-          }
-        ]
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "type",
+              "label": "Device type",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0
+            }
+          ]
+        }
       }
     },
     {
       "id": "RESET",
       "op": 1,
+      "symbol": "SYS_DEVICE_OP_RESET",
       "label": "Reset",
       "description": "Puts the device's outputs off and its settings back to defaults.",
-      "symbol": "SYS_DEVICE_OP_RESET"
+      "write": {}
     },
     {
       "id": "SUSPEND",
       "op": 2,
+      "symbol": "SYS_DEVICE_OP_SUSPEND",
       "label": "Suspend",
       "description": "Makes the outputs safe; the device refuses writes until it is resumed.",
-      "symbol": "SYS_DEVICE_OP_SUSPEND"
+      "write": {}
     },
     {
       "id": "RESUME",
       "op": 3,
+      "symbol": "SYS_DEVICE_OP_RESUME",
       "label": "Resume",
       "description": "Lets a suspended device work again.",
-      "symbol": "SYS_DEVICE_OP_RESUME"
+      "write": {}
     },
     {
       "id": "REMOVE",
       "op": 4,
+      "symbol": "SYS_DEVICE_OP_REMOVE",
       "label": "Remove",
       "description": "Releases the device's hardware and removes it (refused while another device uses it).",
-      "symbol": "SYS_DEVICE_OP_REMOVE"
+      "write": {}
     },
     {
       "id": "INFO",
       "op": 5,
+      "symbol": "SYS_DEVICE_OP_INFO",
       "label": "Info",
       "description": "What the device is: its type and whether it is suspended.",
-      "symbol": "SYS_DEVICE_OP_INFO",
-      "returns": {
-        "type": "struct",
-        "fields": [
-          {
-            "id": "type_id",
-            "label": "Device type",
-            "type": "number",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0
-          },
-          {
-            "id": "suspended",
-            "label": "Suspended",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "options": [
-              {
-                "label": "No",
-                "value": 0
-              },
-              {
-                "label": "Yes",
-                "value": 1
-              }
-            ]
-          }
-        ],
-        "struct": "sys_device_info_t",
-        "size": 3
+      "read": {
+        "returns": {
+          "type": "struct",
+          "fields": [
+            {
+              "id": "type_id",
+              "label": "Device type",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0
+            },
+            {
+              "id": "suspended",
+              "label": "Suspended",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "options": [
+                {
+                  "label": "No",
+                  "value": 0
+                },
+                {
+                  "label": "Yes",
+                  "value": 1
+                }
+              ]
+            }
+          ],
+          "struct": "sys_device_info_t",
+          "size": 3
+        }
       }
     },
     {
       "id": "OPS",
       "op": 6,
+      "symbol": "SYS_DEVICE_OP_OPS",
       "label": "List operations",
       "description": "Every operation the device answers.",
-      "symbol": "SYS_DEVICE_OP_OPS",
-      "returns": {
-        "type": "u16",
-        "label": "Operations",
-        "array": true
+      "read": {
+        "returns": {
+          "type": "u16",
+          "label": "Operations",
+          "array": true
+        }
       }
     },
     {
-      "id": "SET_ERROR_POLICY",
+      "id": "ERROR_POLICY",
       "op": 7,
-      "label": "Set error policy",
-      "description": "Which of the device's errors get a response, and which record runs.",
-      "symbol": "SYS_DEVICE_OP_SET_ERROR_POLICY",
-      "args": {
-        "fields": [
-          {
-            "id": "importance",
-            "label": "Importance",
-            "type": "enum",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Which of the device's errors get a response"
-          },
-          {
-            "id": "actions",
-            "label": "Actions",
-            "type": "number",
-            "raw_type": "u32",
-            "size": 16,
-            "offset": 1,
-            "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
-          }
-        ],
-        "struct": "sys_device_error_policy_t"
-      }
-    },
-    {
-      "id": "GET_ERROR_POLICY",
-      "op": 8,
-      "label": "Read error policy",
-      "description": "The device's error policy.",
-      "symbol": "SYS_DEVICE_OP_GET_ERROR_POLICY",
-      "returns": {
-        "type": "struct",
-        "fields": [
-          {
-            "id": "importance",
-            "label": "Importance",
-            "type": "enum",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Which of the device's errors get a response"
-          },
-          {
-            "id": "actions",
-            "label": "Actions",
-            "type": "number",
-            "raw_type": "u32",
-            "size": 16,
-            "offset": 1,
-            "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
-          }
-        ],
-        "struct": "sys_device_error_policy_t",
-        "size": 17
+      "symbol": "SYS_DEVICE_OP_ERROR_POLICY",
+      "label": "Error policy",
+      "description": "How much the device's errors matter and the action run for each severity.",
+      "read": {
+        "description": "The device's error policy.",
+        "returns": {
+          "struct": "sys_device_error_policy_t",
+          "fields": [
+            {
+              "id": "importance",
+              "label": "Importance",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which of the device's errors get a response"
+            },
+            {
+              "id": "actions",
+              "label": "Actions",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 16,
+              "offset": 1,
+              "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Which of the device's errors get a response, and which record runs.",
+        "args": {
+          "fields": [
+            {
+              "id": "importance",
+              "label": "Importance",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which of the device's errors get a response"
+            },
+            {
+              "id": "actions",
+              "label": "Actions",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 16,
+              "offset": 1,
+              "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
+            }
+          ],
+          "struct": "sys_device_error_policy_t"
+        }
       }
     }
   ],

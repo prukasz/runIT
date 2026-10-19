@@ -146,14 +146,14 @@ ROUTER_OP_NOARGS(op_list) {
   return NULL;
 }
 
-static const router_entry_t k_ops[] = {
-    {OP_SVC_CREATE, op_svc_create},
-    {OP_SVC_REMOVE, op_svc_remove},
-    {OP_CHAR_CREATE, op_char_create},
-    {OP_CHAR_REMOVE, op_char_remove},
-    {OP_APPLY, op_apply},
-    {OP_STATUS, op_status},
-    {OP_LIST, op_list},
+static const router_op_t k_ops[] = {
+    ROUTER_W(OP_SVC_CREATE, op_svc_create),
+    ROUTER_W(OP_SVC_REMOVE, op_svc_remove),
+    ROUTER_W(OP_CHAR_CREATE, op_char_create),
+    ROUTER_W(OP_CHAR_REMOVE, op_char_remove),
+    ROUTER_W(OP_APPLY, op_apply),
+    ROUTER_R(OP_STATUS, op_status),
+    ROUTER_R(OP_LIST, op_list),
 };
 
 ROUTER_MODULE(sys_ble_router, k_ops)

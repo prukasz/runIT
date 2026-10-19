@@ -189,7 +189,7 @@ static err_h negotiate(ap_t* c, uint32_t voltage_mV, uint32_t current_mA) {
 // esp_timer task. Only the ID crosses over: a REMOVE stops the timer first, and a request already waiting for the
 // lock then finds no device (ERR_DEV_NOT_FOUND, reported).
 static void keepalive_cb(void* arg) {
-  err_report(sys_device_call((uint16_t)(uintptr_t)arg, AP_OP_KEEPALIVE, NULL, 0, NULL, 0, NULL));
+  err_report(sys_device_write((uint16_t)(uintptr_t)arg, AP_OP_KEEPALIVE, NULL, 0));
 }
 
 SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
@@ -204,21 +204,21 @@ SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
 
 /* ---- POWER_VREG: the sink's output switch and a wanted voltage / current ---- */
 
-VREG_HANDLER(SET_ENABLE) {
+VREG_WRITE(ENABLE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   const uint8_t flag = args->enable ? OUTPUT_ON : OUTPUT_OFF;
   return sys_i2c_reg_write(&c->i2c, CMD_SYSTEM, &flag, 1);
 }
 
-VREG_HANDLER(SET_VOLTAGE) {
+VREG_WRITE(VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->last_voltage_mV = args->voltage_mV;
   return negotiate(c, c->last_voltage_mV, c->last_current_mA);
 }
 
-VREG_HANDLER(SET_CURRENT) {
+VREG_WRITE(CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->last_current_mA = args->current_mA;
@@ -227,12 +227,20 @@ VREG_HANDLER(SET_CURRENT) {
 
 /* ---- POWER_USB_PD ---- */
 
-PD_HANDLER(SET_SETTINGS) {
+PD_WRITE(SETTINGS) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->last_voltage_mV = args->voltage_mV;
   c->last_current_mA = args->current_mA;
   return negotiate(c, args->voltage_mV, args->current_mA);
+}
+
+// What was last asked for (the setting, not what the charger granted). A read: allowed while suspended.
+PD_READ(SETTINGS) {
+  (void)args;
+  const ap_t* c = ctx;
+  const pd_settings_args_t a = {.voltage_mV = c->last_voltage_mV, .current_mA = c->last_current_mA};
+  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
 }
 
 // Source PDO `slot` (1-based) as an option; false if the slot is empty.
@@ -260,7 +268,7 @@ static bool pdo_option(const ap_t* c, uint8_t slot, sys_power_usb_pd_option_t* o
   return true;
 }
 
-PD_HANDLER(LIST_OPTIONS) {
+PD_READ(OPTIONS) {
   (void)args;
   ap_t* c = ctx;
   sys_power_usb_pd_option_t options[PDO_COUNT];
@@ -274,7 +282,7 @@ PD_HANDLER(LIST_OPTIONS) {
 }
 
 // The highest-voltage offer sets the limits.
-PD_HANDLER(GET_LIMITS) {
+PD_READ(LIMITS) {
   (void)args;
   ap_t* c = ctx;
   sys_power_usb_pd_limits_t limits = {0};
@@ -310,7 +318,7 @@ static err_h read_current_mA(ap_t* c, int32_t* mA) {
   return NULL;
 }
 
-PMON_HANDLER(GET_VOLTAGE) {
+PMON_READ(VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
@@ -318,7 +326,7 @@ PMON_HANDLER(GET_VOLTAGE) {
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
-PMON_HANDLER(GET_CURRENT) {
+PMON_READ(CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
@@ -326,7 +334,7 @@ PMON_HANDLER(GET_CURRENT) {
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
 }
 
-PMON_HANDLER(GET_POWER) {
+PMON_READ(POWER) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV, mA;
@@ -339,7 +347,7 @@ PMON_HANDLER(GET_POWER) {
 /* ---- Lifecycle: the output is the board's own supply (the sink input), so reset / suspend / resume leave it alone:
  * switching it off in a fault would cut power to the ESP (brownout, tested 2026-10-01). ---- */
 
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   (void)ctx, (void)args, (void)out, (void)out_cap, (void)out_len;
   return NULL;
 }
@@ -392,11 +400,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),       VREG_ENTRY(SET_ENABLE),
-    VREG_ENTRY(SET_VOLTAGE),    VREG_ENTRY(SET_CURRENT),   PD_ENTRY(SET_SETTINGS),     PD_ENTRY(LIST_OPTIONS),
-    PD_ENTRY(GET_LIMITS),       PMON_ENTRY(GET_VOLTAGE),   PMON_ENTRY(GET_CURRENT),    PMON_ENTRY(GET_POWER),
+    DEVICE_ENTRY_W(RESET),       VREG_ENTRY_W(ENABLE),
+    VREG_ENTRY_W(VOLTAGE),    VREG_ENTRY_W(CURRENT),   PD_ENTRY(SETTINGS),     PD_ENTRY_R(OPTIONS),
+    PD_ENTRY_R(LIMITS),       PMON_ENTRY_R(VOLTAGE),   PMON_ENTRY_R(CURRENT),    PMON_ENTRY_R(POWER),
     /* Internal keepalive timer op */
-    {AP_OP_KEEPALIVE, keepalive_h},
+    {AP_OP_KEEPALIVE, NULL, keepalive_h},
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_AP33772S, .cfg_size = sizeof(ap33772s_cfg_t), .ctx_size = sizeof(ap_t),

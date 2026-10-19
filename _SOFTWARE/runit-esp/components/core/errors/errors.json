@@ -1568,7 +1568,7 @@
           "tag": 393233,
           "name": "ERR_DEV_OP",
           "severity": 0,
-          "size": 2,
+          "size": 3,
           "fields": [
             {
               "name": "op",
@@ -1576,6 +1576,12 @@
               "offset": 0,
               "size": 2,
               "id_kind": "device_op"
+            },
+            {
+              "name": "dir",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
             }
           ],
           "description": "context: route step",
@@ -2549,6 +2555,25 @@
           "fields": [],
           "description": "invalid argument value",
           "message": "A value of the command is not valid"
+        },
+        {
+          "code": 4,
+          "tag": 720900,
+          "name": "ERR_CMD_DIRECTION",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "dir",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "cmd_dir_e"
+            }
+          ],
+          "description": "the command has no such side, or dir is neither read nor write",
+          "message": "The command has no {dir} side",
+          "hint": "Read a command that can be read, write one that can be written."
         }
       ]
     },
@@ -2737,6 +2762,25 @@
           "description": "a setting out of range",
           "message": "{value} is outside {min}..{max}",
           "hint": "Use a value within the range shown."
+        },
+        {
+          "code": 6,
+          "tag": 917510,
+          "name": "ERR_PWRM_NOT_RAIL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a matrix row whose target is neither the board nor a rail of it",
+          "message": "{id} is not a power rail of the board",
+          "hint": "Choose the board or one of its power rails."
         }
       ]
     },

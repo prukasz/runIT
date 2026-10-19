@@ -14,13 +14,14 @@
 #define KEY_OPTS  "opts"
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
 #define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
-#define RUN_FRAME 6u                              // [key][op][u32 id]
+#define HDR       3u                              // [key][dir][code] in front of a command's args
+#define RUN_FRAME (HDR + 4u)                      // [key][dir][code][u32 id]
 
 // The project record runs the program's list, which runs a chunk: three levels of RUN.
 _Static_assert(CONFIG_SYS_ACTIONS_MAX_DEPTH >= 3, "a project run nests three RUNs: raise SYS_ACTIONS_MAX_DEPTH");
 _Static_assert(CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME) <= CONFIG_SYS_ACTIONS_MAX_BYTES,
                "the list of chunks must fit a record");
-_Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_BYTES + 2 + sizeof(sys_project_mark_t) <=
+_Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_BYTES + HDR + sizeof(sys_project_mark_t) <=
                    CONFIG_SYS_ACTIONS_MAX_BYTES,
                "the project record must fit a record");
 
@@ -96,9 +97,9 @@ static err_h clear_bank(uint8_t bank) {
 
 static err_h mark_frame(const uint8_t* frame, uint16_t len, bool last, void* ctx) {
   sys_project_mark_t* mark = ctx;
-  if (len == 2 + sizeof(*mark) && frame[0] == ROUTER_KEY_PROJECT && frame[1] == SYS_PROJECT_OP_MARK &&
-      mark->bank == 0xFFu) {  // the first one only
-    memcpy(mark, frame + 2, sizeof(*mark));
+  if (len == HDR + sizeof(*mark) && frame[0] == ROUTER_KEY_PROJECT && frame[1] == CMD_DIR_WRITE &&
+      frame[2] == SYS_PROJECT_OP_MARK && mark->bank == 0xFFu) {  // the first one only
+    memcpy(mark, frame + HDR, sizeof(*mark));
   }
   return NULL;
 }
@@ -150,8 +151,9 @@ static err_h flush_chunk(void) {
   uint8_t* at = s_chunks + s_save.chunks_len;
   memcpy(at, &flen, LEN_BYTES);
   at[LEN_BYTES] = ROUTER_KEY_ACTIONS;
-  at[LEN_BYTES + 1] = SYS_ACTIONS_OP_RUN;
-  memcpy(at + LEN_BYTES + 2, &id, sizeof(id));
+  at[LEN_BYTES + 1] = CMD_DIR_WRITE;
+  at[LEN_BYTES + 2] = SYS_ACTIONS_OP_RUN;
+  memcpy(at + LEN_BYTES + HDR, &id, sizeof(id));
   s_save.chunks_len += LEN_BYTES + RUN_FRAME;
   s_save.buf_len = 0;
   return NULL;
@@ -211,10 +213,11 @@ static err_h frame_add(void) {
 }
 
 static err_h frame_done(void) {
-  if (s_save.flen >= 2 && s_frame[0] == ROUTER_KEY_PROJECT && s_frame[1] == SYS_PROJECT_OP_SECTION) {
+  if (s_save.flen >= HDR && s_frame[0] == ROUTER_KEY_PROJECT && s_frame[1] == CMD_DIR_WRITE &&
+      s_frame[2] == SYS_PROJECT_OP_SECTION) {
     uint32_t id = 0;
-    ERR_CHECK(s_save.flen == 2 + sizeof(id), ERR_PROJECT_BAD_SECTION, .id = 0);
-    memcpy(&id, s_frame + 2, sizeof(id));
+    ERR_CHECK(s_save.flen == HDR + sizeof(id), ERR_PROJECT_BAD_SECTION, .id = 0);
+    memcpy(&id, s_frame + HDR, sizeof(id));
     return section_open(id);
   }
   return frame_add();
@@ -324,12 +327,13 @@ static err_h commit_store(void) {
   }
   // the project record: the commit point
   uint8_t* at = s_buf;
-  const uint16_t mark_len = 2 + sizeof(sys_project_mark_t);
+  const uint16_t mark_len = HDR + sizeof(sys_project_mark_t);
   const sys_project_mark_t mark = {.bank = s_save.bank, .crc32 = s_save.crc, .bytes = s_save.want};
   memcpy(at, &mark_len, LEN_BYTES);
   at[LEN_BYTES] = ROUTER_KEY_PROJECT;
-  at[LEN_BYTES + 1] = SYS_PROJECT_OP_MARK;
-  memcpy(at + LEN_BYTES + 2, &mark, sizeof(mark));
+  at[LEN_BYTES + 1] = CMD_DIR_WRITE;
+  at[LEN_BYTES + 2] = SYS_PROJECT_OP_MARK;
+  memcpy(at + LEN_BYTES + HDR, &mark, sizeof(mark));
   at += LEN_BYTES + mark_len;
   for (uint16_t i = 0; i <= s_save.sections; i++) {
     const bool program = i == s_save.sections;  // the program last
@@ -340,8 +344,9 @@ static err_h commit_store(void) {
     const uint16_t flen = RUN_FRAME;
     memcpy(at, &flen, LEN_BYTES);
     at[LEN_BYTES] = ROUTER_KEY_ACTIONS;
-    at[LEN_BYTES + 1] = program ? SYS_ACTIONS_OP_RUN : SYS_ACTIONS_OP_RUN_ALL;  // the program stops at a failing frame
-    memcpy(at + LEN_BYTES + 2, &id, sizeof(id));
+    at[LEN_BYTES + 1] = CMD_DIR_WRITE;
+    at[LEN_BYTES + 2] = program ? SYS_ACTIONS_OP_RUN : SYS_ACTIONS_OP_RUN_ALL;  // the program stops at a failing frame
+    memcpy(at + LEN_BYTES + HDR, &id, sizeof(id));
     at += LEN_BYTES + RUN_FRAME;
   }
   ERR_TRY(sys_actions_set(SYS_ACTIONS_ID_PROJECT, s_buf, (uint16_t)(at - s_buf)));
@@ -437,5 +442,5 @@ err_h sys_project_boot(void) {
     return NULL;
   }
   ESP_LOGI(TAG, "autostart: running the stored project");
-  return router_inject((const uint8_t[]){ROUTER_KEY_PROJECT, SYS_PROJECT_OP_RUN}, 2, false);
+  return router_inject((const uint8_t[]){ROUTER_KEY_PROJECT, CMD_DIR_WRITE, SYS_PROJECT_OP_RUN}, HDR, false);
 }

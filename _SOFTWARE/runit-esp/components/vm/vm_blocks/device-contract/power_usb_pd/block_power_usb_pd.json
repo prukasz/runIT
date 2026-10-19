@@ -23,7 +23,7 @@
       "id": "set_settings",
       "alias": "Request",
       "description": "Asks the source for a voltage and a current.",
-      "op": "SET_SETTINGS",
+      "op": "SETTINGS", "dir": "write",
       "args": {
         "voltage_mV": { "required": true, "input": "optional", "accepts": ["number", "accessor"] },
         "current_mA": { "required": true, "input": "optional", "accepts": ["number", "accessor"] }
@@ -34,7 +34,7 @@
       "id": "get_limits",
       "alias": "Read offer",
       "description": "Reads the highest-voltage offer of the source: its voltage in millivolts and its current in milliamps.",
-      "op": "GET_LIMITS",
+      "op": "LIMITS",
       "activation": { "kind": "enabled", "text": "Reads on every pass while enabled; gate it with a periodic block to read less often." },
       "header": { "subtitle": "Read offer of {device}" }
     }

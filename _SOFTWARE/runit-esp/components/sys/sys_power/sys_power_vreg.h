@@ -41,23 +41,29 @@ typedef struct __attribute__((packed)) {
 } vreg_current_args_t;
 
 /**
- * @brief The vreg contract, once: X(NAME, op number, args struct). From it come
- * VREG_OP_<NAME>, vreg_args_<NAME>_t, VREG_HANDLER(NAME) and VREG_ENTRY(NAME)
- * (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
+ * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). From it come VREG_OP_<NAME>, vreg_key_<NAME>_t, vreg_value_<NAME>_t, VREG_READ(NAME) /
+ * VREG_WRITE(NAME) and VREG_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: ENABLE W, VOLTAGE
+ * W, CURRENT W. Numbers are never reused.
  */
-#define SYS_POWER_VREG_CONTRACT(X)          \
-  X(SET_ENABLE,  0x00, vreg_enable_args_t)  \
-  X(SET_VOLTAGE, 0x01, vreg_voltage_args_t) \
-  X(SET_CURRENT, 0x02, vreg_current_args_t)
+#define SYS_POWER_VREG_CONTRACT(X)                         \
+  X(ENABLE,  0x00, sys_device_none_t, vreg_enable_args_t)  \
+  X(VOLTAGE, 0x01, sys_device_none_t, vreg_voltage_args_t) \
+  X(CURRENT, 0x02, sys_device_none_t, vreg_current_args_t)
 
-#define SYS_POWER_VREG__ID(name, n, args_t) VREG_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_VREG, n),
-#define SYS_POWER_VREG__ARGS(name, n, args_t) typedef args_t vreg_args_##name##_t;
+#define SYS_POWER_VREG__ID(name, n, key_t, value_t) VREG_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_VREG, n),
+#define SYS_POWER_VREG__TYPES(name, n, key_t, value_t) \
+  typedef key_t vreg_key_##name##_t;                   \
+  typedef value_t vreg_value_##name##_t;
 
 enum { SYS_POWER_VREG_CONTRACT(SYS_POWER_VREG__ID) };
-SYS_POWER_VREG_CONTRACT(SYS_POWER_VREG__ARGS)
+SYS_POWER_VREG_CONTRACT(SYS_POWER_VREG__TYPES)
 
-#define VREG_HANDLER(name) SYS_DEVICE_HANDLER(vreg_h_##name, vreg_args_##name##_t)
-#define VREG_ENTRY(name) {VREG_OP_##name, vreg_h_##name}
+#define VREG_READ(name)    SYS_DEVICE_READ(vreg, name)
+#define VREG_WRITE(name)   SYS_DEVICE_WRITE(vreg, name)
+#define VREG_ENTRY(name)   SYS_DEVICE_ENTRY(VREG_OP_##name, vreg, name)
+#define VREG_ENTRY_R(name) SYS_DEVICE_ENTRY_R(VREG_OP_##name, vreg, name)
+#define VREG_ENTRY_W(name) SYS_DEVICE_ENTRY_W(VREG_OP_##name, vreg, name)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

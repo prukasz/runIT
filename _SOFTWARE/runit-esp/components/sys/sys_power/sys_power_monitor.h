@@ -44,24 +44,30 @@ typedef struct __attribute__((packed)) {
 } pmon_alert_args_t;
 
 /**
- * @brief The monitor contract, once: X(NAME, op number, args struct). From it come
- * PMON_OP_<NAME>, pmon_args_<NAME>_t, PMON_HANDLER(NAME) and PMON_ENTRY(NAME)
- * (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
+ * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). From it come PMON_OP_<NAME>, pmon_key_<NAME>_t, pmon_value_<NAME>_t, PMON_READ(NAME) /
+ * PMON_WRITE(NAME) and PMON_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: VOLTAGE R,
+ * CURRENT R, ALERT W, POWER R. Numbers are never reused.
  */
-#define SYS_POWER_MONITOR_CONTRACT(X)       \
-  X(GET_VOLTAGE, 0x00, pmon_channel_args_t) \
-  X(GET_CURRENT, 0x01, pmon_channel_args_t) \
-  X(SET_ALERT,   0x02, pmon_alert_args_t)   \
-  X(GET_POWER,   0x03, pmon_channel_args_t)
+#define SYS_POWER_MONITOR_CONTRACT(X)                      \
+  X(VOLTAGE, 0x00, pmon_channel_args_t, int32_t)           \
+  X(CURRENT, 0x01, pmon_channel_args_t, int32_t)           \
+  X(ALERT,   0x02, sys_device_none_t,   pmon_alert_args_t) \
+  X(POWER,   0x03, pmon_channel_args_t, int32_t)
 
-#define SYS_POWER_MONITOR__ID(name, n, args_t) PMON_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n),
-#define SYS_POWER_MONITOR__ARGS(name, n, args_t) typedef args_t pmon_args_##name##_t;
+#define SYS_POWER_MONITOR__ID(name, n, key_t, value_t) PMON_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n),
+#define SYS_POWER_MONITOR__TYPES(name, n, key_t, value_t) \
+  typedef key_t pmon_key_##name##_t;                      \
+  typedef value_t pmon_value_##name##_t;
 
 enum { SYS_POWER_MONITOR_CONTRACT(SYS_POWER_MONITOR__ID) };
-SYS_POWER_MONITOR_CONTRACT(SYS_POWER_MONITOR__ARGS)
+SYS_POWER_MONITOR_CONTRACT(SYS_POWER_MONITOR__TYPES)
 
-#define PMON_HANDLER(name) SYS_DEVICE_HANDLER(pmon_h_##name, pmon_args_##name##_t)
-#define PMON_ENTRY(name) {PMON_OP_##name, pmon_h_##name}
+#define PMON_READ(name)    SYS_DEVICE_READ(pmon, name)
+#define PMON_WRITE(name)   SYS_DEVICE_WRITE(pmon, name)
+#define PMON_ENTRY(name)   SYS_DEVICE_ENTRY(PMON_OP_##name, pmon, name)
+#define PMON_ENTRY_R(name) SYS_DEVICE_ENTRY_R(PMON_OP_##name, pmon, name)
+#define PMON_ENTRY_W(name) SYS_DEVICE_ENTRY_W(PMON_OP_##name, pmon, name)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

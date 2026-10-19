@@ -49,18 +49,18 @@ err_h sys_pins_locked(uint16_t device, uint64_t* mask) {
 }
 
 err_h sys_pins_lock(sys_io_pin_t p) {
-  const pins_args_LOCK_t a = {.pin = p.pin};
-  return sys_device_call(p.device, PINS_OP_LOCK, &a, sizeof(a), NULL, 0, NULL);
+  const pins_value_LOCK_t a = {.pin = p.pin};
+  return sys_device_write(p.device, PINS_OP_LOCK, &a, sizeof(a));
 }
 
 err_h sys_pins_unlock(sys_io_pin_t p) {
-  const pins_args_UNLOCK_t a = {.pin = p.pin};
-  return sys_device_call(p.device, PINS_OP_UNLOCK, &a, sizeof(a), NULL, 0, NULL);
+  const pins_value_UNLOCK_t a = {.pin = p.pin};
+  return sys_device_write(p.device, PINS_OP_UNLOCK, &a, sizeof(a));
 }
 
 err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level) {
-  const pins_args_SET_LOCKED_LEVEL_t a = {.pin = p.pin, .level = level};
-  return sys_device_call(p.device, PINS_OP_SET_LOCKED_LEVEL, &a, sizeof(a), NULL, 0, NULL);
+  const pins_value_LOCKED_LEVEL_t a = {.pin = p.pin, .level = level};
+  return sys_device_write(p.device, PINS_OP_LOCKED_LEVEL, &a, sizeof(a));
 }
 
 err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin) {

@@ -38,7 +38,8 @@
       "id": "set_level",
       "alias": "Set level",
       "description": "Drives a pin high or low. A wired level wins over the one in the body.",
-      "op": "SET_LEVEL",
+      "op": "LEVEL",
+      "dir": "write",
       "args": {
         "pin": {
           "required": true
@@ -70,7 +71,8 @@
       "id": "get_level",
       "alias": "Read level",
       "description": "Reads the level of a pin.",
-      "op": "GET_LEVEL",
+      "op": "LEVEL",
+      "dir": "read",
       "args": {
         "pin": {
           "required": true
@@ -88,7 +90,7 @@
       "id": "set_pwm_duty",
       "alias": "Set PWM duty",
       "description": "Sets the PWM duty of a pin (0 to 4095 on a 12-bit device). The device refuses it unless the pin is in PWM mode.",
-      "op": "SET_PWM_DUTY",
+      "op": "PWM_DUTY",
       "args": {
         "pin": {
           "required": true
@@ -102,7 +104,7 @@
       "id": "set_pwm_freq",
       "alias": "Set PWM frequency",
       "description": "Sets the PWM frequency of a pin; a device with one frequency for all its pins ignores the pin.",
-      "op": "SET_PWM_FREQ",
+      "op": "PWM_FREQ",
       "args": {
         "pin": {
           "required": true
@@ -116,7 +118,7 @@
       "id": "set_mode",
       "alias": "Set mode",
       "description": "Configures what a pin does: input, output, PWM, ADC or DAC.",
-      "op": "SET_MODE",
+      "op": "MODE",
       "args": {
         "pin": {
           "required": true
@@ -148,7 +150,8 @@
       "id": "get_voltage",
       "alias": "Read voltage",
       "description": "Reads the voltage of an analog pin, in millivolts. The device refuses it unless the pin is in ADC mode.",
-      "op": "GET_VOLTAGE",
+      "op": "VOLTAGE",
+      "dir": "read",
       "args": {
         "pin": {
           "required": true
@@ -166,7 +169,8 @@
       "id": "set_voltage",
       "alias": "Set voltage",
       "description": "Drives an analog output pin to a voltage, in millivolts. The device refuses it unless the pin is in DAC mode.",
-      "op": "SET_VOLTAGE",
+      "op": "VOLTAGE",
+      "dir": "write",
       "args": {
         "pin": {
           "required": true

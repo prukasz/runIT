@@ -5,7 +5,7 @@
 #define TAG __FILE_NAME__
 
 #define REQ_HDR_BYTES     2u                    // [seq][flags]
-#define REQ_MIN_BYTES     (REQ_HDR_BYTES + 1u)  // ... and a root key
+#define REQ_MIN_BYTES     (REQ_HDR_BYTES + 2u)  // ... a root key and the direction
 #define RESP_HDR_BYTES    3u                   // [stream][seq][status]
 #define REJECT_RESP_BYTES 64u               // error answers sent from router_submit (link task stack)
 

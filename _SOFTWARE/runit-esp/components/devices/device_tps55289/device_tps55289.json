@@ -87,179 +87,188 @@
   ],
   "commands": [
     {
-      "id": "set_protection",
+      "id": "protection",
       "op": 1,
-      "symbol": "TPS55289_OP_SET_PROTECTION",
-      "label": "Set protection",
-      "description": "Sets hardware protection register settings (OCP delay, hiccup mode, fault mask, active discharge)",
-      "args": {
-        "struct": "tps55289_protection_t",
-        "fields": [
-          {
-            "id": "ocp_delay",
-            "label": "OCP delay",
-            "description": "Overcurrent protection response delay",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "options": [
-              {
-                "label": "128 us",
-                "value": 0
-              },
-              {
-                "label": "3.072 ms",
-                "value": 1
-              },
-              {
-                "label": "6.144 ms",
-                "value": 2
-              },
-              {
-                "label": "12.288 ms",
-                "value": 3
-              }
-            ],
-            "default": 1
-          },
-          {
-            "id": "hiccup",
-            "label": "Hiccup mode",
-            "description": "Restart automatically on short-circuit after 76ms vs latch off",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "options": [
-              {
-                "label": "Latch off",
-                "value": 0
-              },
-              {
-                "label": "Hiccup restart",
-                "value": 1
-              }
-            ],
-            "default": 1
-          },
-          {
-            "id": "fault_mask",
-            "label": "Fault mask",
-            "description": "Mask of faults pulling FB/INT low: bit 0 OVP, bit 1 OCP, bit 2 SCP",
-            "type": "number",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "min": 0,
-            "max": 7,
-            "default": 7
-          },
-          {
-            "id": "discharge",
-            "label": "Active discharge",
-            "description": "Enable active discharge resistor on disable",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "options": [
-              {
-                "label": "Off",
-                "value": 0
-              },
-              {
-                "label": "On",
-                "value": 1
-              }
-            ],
-            "default": 1
-          }
-        ]
-      }
-    },
-    {
-      "id": "get_protection",
-      "op": 2,
-      "symbol": "TPS55289_OP_GET_PROTECTION",
-      "label": "Get protection",
-      "description": "Reads current protection register settings",
-      "returns": {
-        "struct": "tps55289_protection_t",
-        "label": "Protection settings",
-        "description": "Current protection settings register state",
-        "fields": [
-          {
-            "id": "ocp_delay",
-            "label": "OCP delay",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "options": [
-              {
-                "label": "128 us",
-                "value": 0
-              },
-              {
-                "label": "3.072 ms",
-                "value": 1
-              },
-              {
-                "label": "6.144 ms",
-                "value": 2
-              },
-              {
-                "label": "12.288 ms",
-                "value": 3
-              }
-            ]
-          },
-          {
-            "id": "hiccup",
-            "label": "Hiccup mode",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "options": [
-              {
-                "label": "Latch off",
-                "value": 0
-              },
-              {
-                "label": "Hiccup restart",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "id": "fault_mask",
-            "label": "Fault mask",
-            "type": "number",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2
-          },
-          {
-            "id": "discharge",
-            "label": "Active discharge",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "options": [
-              {
-                "label": "Off",
-                "value": 0
-              },
-              {
-                "label": "On",
-                "value": 1
-              }
-            ]
-          }
-        ]
+      "symbol": "TPS55289_OP_PROTECTION",
+      "label": "Protection",
+      "description": "How the chip protects itself: OCP delay, hiccup, the faults it reports.",
+      "read": {
+        "description": "Reads current protection register settings",
+        "returns": {
+          "struct": "tps55289_protection_t",
+          "fields": [
+            {
+              "id": "ocp_delay",
+              "label": "OCP delay",
+              "description": "Overcurrent protection response delay",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "128 us",
+                  "value": 0
+                },
+                {
+                  "label": "3.072 ms",
+                  "value": 1
+                },
+                {
+                  "label": "6.144 ms",
+                  "value": 2
+                },
+                {
+                  "label": "12.288 ms",
+                  "value": 3
+                }
+              ],
+              "default": 1
+            },
+            {
+              "id": "hiccup",
+              "label": "Hiccup mode",
+              "description": "Restart automatically on short-circuit after 76ms vs latch off",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "options": [
+                {
+                  "label": "Latch off",
+                  "value": 0
+                },
+                {
+                  "label": "Hiccup restart",
+                  "value": 1
+                }
+              ],
+              "default": 1
+            },
+            {
+              "id": "fault_mask",
+              "label": "Fault mask",
+              "description": "Mask of faults pulling FB/INT low: bit 0 OVP, bit 1 OCP, bit 2 SCP",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "min": 0,
+              "max": 7,
+              "default": 7
+            },
+            {
+              "id": "discharge",
+              "label": "Active discharge",
+              "description": "Enable active discharge resistor on disable",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ],
+              "default": 1
+            }
+          ],
+          "label": "Protection settings",
+          "description": "Current protection settings register state"
+        }
+      },
+      "write": {
+        "description": "Sets hardware protection register settings (OCP delay, hiccup mode, fault mask, active discharge)",
+        "args": {
+          "struct": "tps55289_protection_t",
+          "fields": [
+            {
+              "id": "ocp_delay",
+              "label": "OCP delay",
+              "description": "Overcurrent protection response delay",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "128 us",
+                  "value": 0
+                },
+                {
+                  "label": "3.072 ms",
+                  "value": 1
+                },
+                {
+                  "label": "6.144 ms",
+                  "value": 2
+                },
+                {
+                  "label": "12.288 ms",
+                  "value": 3
+                }
+              ],
+              "default": 1
+            },
+            {
+              "id": "hiccup",
+              "label": "Hiccup mode",
+              "description": "Restart automatically on short-circuit after 76ms vs latch off",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "options": [
+                {
+                  "label": "Latch off",
+                  "value": 0
+                },
+                {
+                  "label": "Hiccup restart",
+                  "value": 1
+                }
+              ],
+              "default": 1
+            },
+            {
+              "id": "fault_mask",
+              "label": "Fault mask",
+              "description": "Mask of faults pulling FB/INT low: bit 0 OVP, bit 1 OCP, bit 2 SCP",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "min": 0,
+              "max": 7,
+              "default": 7
+            },
+            {
+              "id": "discharge",
+              "label": "Active discharge",
+              "description": "Enable active discharge resistor on disable",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ],
+              "default": 1
+            }
+          ]
+        }
       }
     }
   ],

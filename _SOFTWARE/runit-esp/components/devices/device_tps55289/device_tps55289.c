@@ -193,7 +193,7 @@ static err_h tps_set_en(tps_t* c, bool high) {
 // esp_timer task. Only the ID crosses over: a REMOVE stops the timer first, and a step already waiting
 // for the lock then finds no device (ERR_DEV_NOT_FOUND, reported).
 static void tps_rise_timer_cb(void* arg) {
-  err_report(sys_device_call((uint16_t)(uintptr_t)arg, TPS_OP_RISE_STEP, NULL, 0, NULL, 0, NULL));
+  err_report(sys_device_write((uint16_t)(uintptr_t)arg, TPS_OP_RISE_STEP, NULL, 0));
 }
 
 static err_h tps_rise_schedule(tps_t* c, uint32_t delay_ms) {
@@ -298,7 +298,7 @@ static err_h tps_set_enable(tps_t* c, bool state) {
 /* ---- POWER_VREG contract ---- */
 
 // On: returns once the rise started; VREG_EV_READY when the output is settled.
-VREG_HANDLER(SET_ENABLE) {
+VREG_WRITE(ENABLE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
@@ -307,7 +307,7 @@ VREG_HANDLER(SET_ENABLE) {
 
 // Higher on a running rail: a rise (ramp at the soft-rise limit, settle, VREG_EV_READY). Lower, or the
 // output off: written at once. During a rise the ramp just follows the new target.
-VREG_HANDLER(SET_VOLTAGE) {
+VREG_WRITE(VOLTAGE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
@@ -333,7 +333,7 @@ VREG_HANDLER(SET_VOLTAGE) {
 }
 
 // During a rise only stored: the end of the rise writes it.
-VREG_HANDLER(SET_CURRENT) {
+VREG_WRITE(CURRENT) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
@@ -386,7 +386,7 @@ SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
 /* ---- EVENT contract: FB/INT fell (our only subscription) ---- */
 
 // Publishes each fault of the status register. OCP during a rise is the inrush.
-EVENT_HANDLER(ON_EVENT) {
+EVENT_WRITE(ON_EVENT) {
   (void)args;
   tps_t* c = ctx;
   if (!tps_powered(c)) {
@@ -411,7 +411,7 @@ EVENT_HANDLER(ON_EVENT) {
 
 /* Back to the create defaults: rail off (EN low), 5 V / minimum current / default protection wanted. Without
    an EN pin the chip stays powered, so the protection is written now. */
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
@@ -505,14 +505,13 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    VREG_ENTRY(SET_ENABLE),  VREG_ENTRY(SET_VOLTAGE),   VREG_ENTRY(SET_CURRENT),
-    EVENT_ENTRY(ON_EVENT),
+    DEVICE_ENTRY_W(RESET),
+    VREG_ENTRY_W(ENABLE),  VREG_ENTRY_W(VOLTAGE),   VREG_ENTRY_W(CURRENT),
+    EVENT_ENTRY_W(ON_EVENT),
     /* Internal rise timer op */
-    {TPS_OP_RISE_STEP, rise_step_h},
+    {TPS_OP_RISE_STEP, NULL, rise_step_h},
     /* Device own ops */
-    {TPS55289_OP_SET_PROTECTION, set_protection_h},
-    {TPS55289_OP_GET_PROTECTION, get_protection_h},
+    {TPS55289_OP_PROTECTION, get_protection_h, set_protection_h},
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TPS55289, .cfg_size = sizeof(tps55289_cfg_t), .ctx_size = sizeof(tps_t),

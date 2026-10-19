@@ -10,6 +10,15 @@
     },
     "ERR_CMD_BAD_ARG": {
       "message": "A value of the command is not valid"
+    },
+    "ERR_CMD_DIRECTION": {
+      "message": "The command has no {dir} side",
+      "hint": "Read a command that can be read, write one that can be written.",
+      "fields": {
+        "dir": {
+          "enum_ref": "cmd_dir_e"
+        }
+      }
     }
   }
 }

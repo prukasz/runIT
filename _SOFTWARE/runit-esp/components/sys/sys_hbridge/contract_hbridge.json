@@ -9,106 +9,111 @@
   "category": "motor",
   "commands": [
     {
-      "id": "SET_DRIVE",
+      "id": "DRIVE",
       "op": 0,
-      "invasive": true,
+      "symbol": "HBRIDGE_OP_DRIVE",
       "label": "Drive",
       "description": "Drives a motor channel; out of range is an error.",
-      "symbol": "HBRIDGE_OP_SET_DRIVE",
-      "args": {
-        "fields": [
-          {
-            "id": "channel",
-            "label": "Channel",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "The motor channel"
-          },
-          {
-            "id": "drive",
-            "label": "Drive",
-            "type": "number",
-            "raw_type": "i16",
-            "size": 2,
-            "offset": 1,
-            "description": "PWM steps: -4095 full reverse to 4095 full forward (a half bridge 0 to 4095)",
-            "min": -4095,
-            "max": 4095
-          }
-        ],
-        "struct": "hbridge_drive_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "pin",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The motor channel"
+            },
+            {
+              "id": "drive",
+              "label": "Drive",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 1,
+              "description": "PWM steps: -4095 full reverse to 4095 full forward (a half bridge 0 to 4095)",
+              "min": -4095,
+              "max": 4095
+            }
+          ],
+          "struct": "hbridge_drive_args_t"
+        }
       }
     },
     {
       "id": "BRAKE",
       "op": 1,
-      "invasive": true,
+      "symbol": "HBRIDGE_OP_BRAKE",
       "label": "Brake",
       "description": "Shorts the motor terminals.",
-      "symbol": "HBRIDGE_OP_BRAKE",
-      "args": {
-        "fields": [
-          {
-            "id": "channel",
-            "label": "Channel",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "The motor channel"
-          }
-        ],
-        "struct": "hbridge_channel_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "pin",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The motor channel"
+            }
+          ],
+          "struct": "hbridge_channel_args_t"
+        }
       }
     },
     {
       "id": "COAST",
       "op": 2,
-      "invasive": true,
+      "symbol": "HBRIDGE_OP_COAST",
       "label": "Coast",
       "description": "Releases the motor: the outputs are off.",
-      "symbol": "HBRIDGE_OP_COAST",
-      "args": {
-        "fields": [
-          {
-            "id": "channel",
-            "label": "Channel",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "The motor channel"
-          }
-        ],
-        "struct": "hbridge_channel_args_t"
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "pin",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The motor channel"
+            }
+          ],
+          "struct": "hbridge_channel_args_t"
+        }
       }
     },
     {
-      "id": "GET_CURRENT",
+      "id": "CURRENT",
       "op": 3,
-      "label": "Read current",
+      "symbol": "HBRIDGE_OP_CURRENT",
+      "label": "Current",
       "description": "Reads the current of a channel.",
-      "symbol": "HBRIDGE_OP_GET_CURRENT",
-      "args": {
-        "fields": [
-          {
-            "id": "channel",
-            "label": "Channel",
-            "type": "pin",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "The motor channel"
-          }
-        ],
-        "struct": "hbridge_channel_args_t"
-      },
-      "returns": {
-        "type": "i32",
-        "label": "Current",
-        "unit": "mA"
+      "read": {
+        "args": {
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "pin",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The motor channel"
+            }
+          ],
+          "struct": "hbridge_channel_args_t"
+        },
+        "returns": {
+          "type": "i32",
+          "label": "Current",
+          "unit": "mA"
+        }
       }
     }
   ],

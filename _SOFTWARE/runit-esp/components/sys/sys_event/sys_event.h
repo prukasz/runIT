@@ -98,11 +98,12 @@ enum { SYS_DEVICE_EVENTS(SYS_DEVICE__EV) };
  * The EVENT contract (0x03xx): a device that listens to events answers ON_EVENT
  * ------------------------------------------------------------------------- */
 
-// The contract's only op (no table: one op doesn't need the X-macro). Args = sys_event_t.
+// The contract's only op, a write (no table: one op doesn't need the X-macro). Args = sys_event_t.
 #define EVENT_OP_ON_EVENT SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_EVENT, 0x00)
+typedef sys_event_t event_value_ON_EVENT_t;
 
-#define EVENT_HANDLER(name) SYS_DEVICE_HANDLER(event_h_##name, sys_event_t)
-#define EVENT_ENTRY(name) {EVENT_OP_##name, event_h_##name}
+#define EVENT_WRITE(name)   SYS_DEVICE_WRITE(event, name)
+#define EVENT_ENTRY_W(name) SYS_DEVICE_ENTRY_W(EVENT_OP_##name, event, name)
 
 /* ----------------------------------------------------------------------------
  * Errors (module ERR_MOD_SYS_EVENT).

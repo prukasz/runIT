@@ -10,141 +10,170 @@
   "category": "system",
   "commands": [
     {
-      "id": "SET",
-      "read_by": "GET",
-      "record": "SYS_ACTIONS_ID_LOG",
+      "id": "CONFIG",
       "op": 1,
-      "symbol": "SYS_LOG_OP_SET",
-      "label": "Set the logging options",
+      "symbol": "SYS_LOG_OP_CONFIG",
+      "record": "SYS_ACTIONS_ID_LOG",
+      "label": "Log settings",
       "description": "Stores the log level and the forwarding options and applies them at once.",
-      "args": {
-        "struct": "sys_log_cfg_t",
-        "fields": [
-          {
-            "id": "level",
-            "label": "Log level",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Highest level of the messages that are logged",
-            "options": [
-              {
-                "label": "None",
-                "value": 0
-              },
-              {
-                "label": "Errors",
-                "value": 1
-              },
-              {
-                "label": "Warnings",
-                "value": 2
-              },
-              {
-                "label": "Info",
-                "value": 3
-              },
-              {
-                "label": "Debug",
-                "value": 4
-              },
-              {
-                "label": "Verbose",
-                "value": 5
-              }
-            ]
-          },
-          {
-            "id": "mirror_serial",
-            "label": "Serial console (UART)",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "1 = print the log lines on the UART serial console"
-          },
-          {
-            "id": "trace_errors",
-            "label": "Error trace in the log",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "description": "1 = print the whole error chain in the log text"
-          },
-          {
-            "id": "send_errors",
-            "label": "Errors stream",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "description": "1 = send the error records on the ERRORS stream"
-          },
-          {
-            "id": "send_logs",
-            "label": "Logs stream",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 4,
-            "description": "1 = send the log lines on the LOGS stream (e.g. over BLE)"
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET",
-      "op": 2,
-      "symbol": "SYS_LOG_OP_GET",
-      "label": "Read the logging options",
-      "description": "Returns the current log level and stream settings.",
-      "returns": {
-        "struct": "sys_log_cfg_t",
-        "description": "Current logging settings",
-        "fields": [
-          {
-            "id": "level",
-            "label": "Log level",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0
-          },
-          {
-            "id": "mirror_serial",
-            "label": "Serial console",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1
-          },
-          {
-            "id": "trace_errors",
-            "label": "Error trace",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2
-          },
-          {
-            "id": "send_errors",
-            "label": "Errors stream",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3
-          },
-          {
-            "id": "send_logs",
-            "label": "Logs stream",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 4
-          }
-        ]
+      "read": {
+        "description": "Returns the current log level and stream settings.",
+        "returns": {
+          "struct": "sys_log_cfg_t",
+          "fields": [
+            {
+              "id": "level",
+              "label": "Log level",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Highest level of the messages that are logged",
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "Errors",
+                  "value": 1
+                },
+                {
+                  "label": "Warnings",
+                  "value": 2
+                },
+                {
+                  "label": "Info",
+                  "value": 3
+                },
+                {
+                  "label": "Debug",
+                  "value": 4
+                },
+                {
+                  "label": "Verbose",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "id": "mirror_serial",
+              "label": "Serial console (UART)",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "1 = print the log lines on the UART serial console"
+            },
+            {
+              "id": "trace_errors",
+              "label": "Error trace in the log",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "1 = print the whole error chain in the log text"
+            },
+            {
+              "id": "send_errors",
+              "label": "Errors stream",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "description": "1 = send the error records on the ERRORS stream"
+            },
+            {
+              "id": "send_logs",
+              "label": "Logs stream",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4,
+              "description": "1 = send the log lines on the LOGS stream (e.g. over BLE)"
+            }
+          ],
+          "description": "Current logging settings"
+        }
+      },
+      "write": {
+        "description": "Stores the log level and the forwarding options and applies them at once.",
+        "args": {
+          "struct": "sys_log_cfg_t",
+          "fields": [
+            {
+              "id": "level",
+              "label": "Log level",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Highest level of the messages that are logged",
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "Errors",
+                  "value": 1
+                },
+                {
+                  "label": "Warnings",
+                  "value": 2
+                },
+                {
+                  "label": "Info",
+                  "value": 3
+                },
+                {
+                  "label": "Debug",
+                  "value": 4
+                },
+                {
+                  "label": "Verbose",
+                  "value": 5
+                }
+              ]
+            },
+            {
+              "id": "mirror_serial",
+              "label": "Serial console (UART)",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "1 = print the log lines on the UART serial console"
+            },
+            {
+              "id": "trace_errors",
+              "label": "Error trace in the log",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "1 = print the whole error chain in the log text"
+            },
+            {
+              "id": "send_errors",
+              "label": "Errors stream",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "description": "1 = send the error records on the ERRORS stream"
+            },
+            {
+              "id": "send_logs",
+              "label": "Logs stream",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4,
+              "description": "1 = send the log lines on the LOGS stream (e.g. over BLE)"
+            }
+          ]
+        }
       }
     },
     {
@@ -153,25 +182,27 @@
       "symbol": "SYS_LOG_OP_ERRORS",
       "label": "Read a kept error",
       "description": "The board keeps the latest error records (the ones the errors stream carries) in RAM, so the app can read what happened before it connected. This returns the one at the index, the oldest first, with how many there are. A restart empties them.",
-      "args": {
-        "struct": "sys_log_errors_args_t",
-        "fields": [
-          {
-            "id": "index",
-            "label": "Index",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "min": 0,
-            "description": "0 = the oldest kept record"
-          }
-        ]
-      },
-      "returns": {
-        "type": "bytes",
-        "label": "Record",
-        "description": "u8 total kept, then the error record (ERRORS.MD \"Error record\"); only the total for an index past the end."
+      "read": {
+        "args": {
+          "struct": "sys_log_errors_args_t",
+          "fields": [
+            {
+              "id": "index",
+              "label": "Index",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "description": "0 = the oldest kept record"
+            }
+          ]
+        },
+        "returns": {
+          "type": "bytes",
+          "label": "Record",
+          "description": "u8 total kept, then the error record (ERRORS.MD \"Error record\"); only the total for an index past the end."
+        }
       }
     }
   ]

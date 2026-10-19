@@ -40,7 +40,7 @@
       "id": "set_drive",
       "alias": "Drive",
       "description": "Drives a motor channel at a speed in percent: negative is reverse, a half bridge takes 0 to 100. A wired drive wins over the one in the body; a value out of range is an error, never clamped.",
-      "op": "SET_DRIVE",
+      "op": "DRIVE",
       "args": {
         "channel": { "required": true },
         "drive": {
@@ -80,7 +80,7 @@
       "id": "get_current",
       "alias": "Read current",
       "description": "Reads the current of a channel, in milliamps.",
-      "op": "GET_CURRENT",
+      "op": "CURRENT",
       "args": { "channel": { "required": true } },
       "activation": { "kind": "enabled", "text": "Reads on every pass while enabled." },
       "header": { "subtitle": "Read current of {channel}" }

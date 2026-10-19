@@ -16,35 +16,37 @@
       "symbol": "OP_CREATE",
       "label": "Create a stream",
       "description": "Creates a user stream with the given ID and stream byte.",
-      "args": {
-        "struct": "create_t",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Connector ID (4 or more for the app's streams)"
-          },
-          {
-            "id": "stream",
-            "label": "Stream byte",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "Byte that identifies the stream in a frame"
-          },
-          {
-            "id": "name",
-            "label": "Stream name",
-            "type": "string",
-            "raw_type": "string",
-            "description": "Name for diagnostics (text, NUL-terminated, runs to the end of the frame)"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "create_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Connector ID (4 or more for the app's streams)"
+            },
+            {
+              "id": "stream",
+              "label": "Stream byte",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Byte that identifies the stream in a frame"
+            },
+            {
+              "id": "name",
+              "label": "Stream name",
+              "type": "string",
+              "raw_type": "string",
+              "description": "Name for diagnostics (text, NUL-terminated, runs to the end of the frame)"
+            }
+          ]
+        }
       }
     },
     {
@@ -53,19 +55,21 @@
       "symbol": "OP_REMOVE",
       "label": "Remove a stream",
       "description": "Removes a user stream and its bindings to transports.",
-      "args": {
-        "struct": "id_t_",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "ID of the connector to remove"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "id_t_",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "ID of the connector to remove"
+            }
+          ]
+        }
       }
     },
     {
@@ -74,38 +78,40 @@
       "symbol": "OP_BIND",
       "label": "Bind to a transport",
       "description": "Binds a stream to a transport (UART, BLE) at the given endpoint.",
-      "args": {
-        "struct": "bind_t",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Connector ID"
-          },
-          {
-            "id": "provider",
-            "label": "Transport",
-            "type": "enum",
-            "enum": "transport_e",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "Transport ID"
-          },
-          {
-            "id": "endpoint",
-            "label": "Endpoint",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 2,
-            "description": "Endpoint of the transport (for BLE the 16-bit UUID of the characteristic, for UART 0)"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "bind_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Connector ID"
+            },
+            {
+              "id": "provider",
+              "label": "Transport",
+              "type": "enum",
+              "enum": "transport_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Transport ID"
+            },
+            {
+              "id": "endpoint",
+              "label": "Endpoint",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Endpoint of the transport (for BLE the 16-bit UUID of the characteristic, for UART 0)"
+            }
+          ]
+        }
       }
     },
     {
@@ -114,29 +120,31 @@
       "symbol": "OP_UNBIND",
       "label": "Remove a binding",
       "description": "Removes the binding of a stream to the given transport.",
-      "args": {
-        "struct": "unbind_t",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Connector ID"
-          },
-          {
-            "id": "provider",
-            "label": "Transport",
-            "type": "enum",
-            "enum": "transport_e",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "Transport ID"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "unbind_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Connector ID"
+            },
+            {
+              "id": "provider",
+              "label": "Transport",
+              "type": "enum",
+              "enum": "transport_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Transport ID"
+            }
+          ]
+        }
       }
     },
     {
@@ -145,19 +153,21 @@
       "symbol": "OP_SUSPEND",
       "label": "Suspend a stream",
       "description": "Stops sending frames on a stream (they are dropped without blocking the sender).",
-      "args": {
-        "struct": "id_t_",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "ID of the connector to suspend"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "id_t_",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "ID of the connector to suspend"
+            }
+          ]
+        }
       }
     },
     {
@@ -166,19 +176,21 @@
       "symbol": "OP_RESUME",
       "label": "Resume a stream",
       "description": "Resumes normal sending on a suspended stream.",
-      "args": {
-        "struct": "id_t_",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Connector ID",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "ID of the connector to resume"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "id_t_",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "ID of the connector to resume"
+            }
+          ]
+        }
       }
     },
     {
@@ -187,10 +199,12 @@
       "symbol": "OP_INFO",
       "label": "List the streams",
       "description": "Returns every active connector, its state (system, suspended) and its transport bindings.",
-      "returns": {
-        "type": "u8",
-        "label": "Number of connectors",
-        "description": "Then, for each connector: id, stream, flags (bit 0 system, bit 1 suspended), number of bindings and the bindings (provider, endpoint), a NUL-terminated name."
+      "read": {
+        "returns": {
+          "type": "u8",
+          "label": "Number of connectors",
+          "description": "Then, for each connector: id, stream, flags (bit 0 system, bit 1 suspended), number of bindings and the bindings (provider, endpoint), a NUL-terminated name."
+        }
       }
     }
   ]

@@ -43,22 +43,29 @@ typedef struct __attribute__((packed)) {
 } sys_power_usb_pd_limits_t;
 
 /**
- * @brief The USB_PD contract, once: X(NAME, op number, args struct). From it come PD_OP_<NAME>, pd_args_<NAME>_t,
- * PD_HANDLER(NAME) and PD_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
+ * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). From it come PD_OP_<NAME>, pd_key_<NAME>_t, pd_value_<NAME>_t, PD_READ(NAME) /
+ * PD_WRITE(NAME) and PD_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: SETTINGS RW, OPTIONS
+ * R, LIMITS R. Numbers are never reused.
  */
-#define SYS_POWER_USB_PD_CONTRACT(X)        \
-  X(SET_SETTINGS, 0x00, pd_settings_args_t) \
-  X(LIST_OPTIONS, 0x01, sys_device_none_t)  \
-  X(GET_LIMITS,   0x02, sys_device_none_t)
+#define SYS_POWER_USB_PD_CONTRACT(X)                              \
+  X(SETTINGS, 0x00, sys_device_none_t, pd_settings_args_t)        \
+  X(OPTIONS,  0x01, sys_device_none_t, sys_power_usb_pd_option_t) \
+  X(LIMITS,   0x02, sys_device_none_t, sys_power_usb_pd_limits_t)
 
-#define SYS_POWER_USB_PD__ID(name, n, args_t) PD_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_USB_PD, n),
-#define SYS_POWER_USB_PD__ARGS(name, n, args_t) typedef args_t pd_args_##name##_t;
+#define SYS_POWER_USB_PD__ID(name, n, key_t, value_t) PD_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_USB_PD, n),
+#define SYS_POWER_USB_PD__TYPES(name, n, key_t, value_t) \
+  typedef key_t pd_key_##name##_t;                       \
+  typedef value_t pd_value_##name##_t;
 
 enum { SYS_POWER_USB_PD_CONTRACT(SYS_POWER_USB_PD__ID) };
-SYS_POWER_USB_PD_CONTRACT(SYS_POWER_USB_PD__ARGS)
+SYS_POWER_USB_PD_CONTRACT(SYS_POWER_USB_PD__TYPES)
 
-#define PD_HANDLER(name) SYS_DEVICE_HANDLER(pd_h_##name, pd_args_##name##_t)
-#define PD_ENTRY(name) {PD_OP_##name, pd_h_##name}
+#define PD_READ(name)    SYS_DEVICE_READ(pd, name)
+#define PD_WRITE(name)   SYS_DEVICE_WRITE(pd, name)
+#define PD_ENTRY(name)   SYS_DEVICE_ENTRY(PD_OP_##name, pd, name)
+#define PD_ENTRY_R(name) SYS_DEVICE_ENTRY_R(PD_OP_##name, pd, name)
+#define PD_ENTRY_W(name) SYS_DEVICE_ENTRY_W(PD_OP_##name, pd, name)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

@@ -3,12 +3,12 @@
 #include "vm_blocks.h"
 
 _Static_assert(SYS_HBRIDGE_DRIVE_MAX == 4095, "the HBRIDGE block's scale (percent to steps) assumes 12 bits");
-_Static_assert(sizeof(hbridge_args_SET_DRIVE_t) == 3 && sizeof(hbridge_args_BRAKE_t) == 1 &&
-                   sizeof(hbridge_args_COAST_t) == 1 && sizeof(hbridge_args_GET_CURRENT_t) == 1,
+_Static_assert(sizeof(hbridge_value_DRIVE_t) == 3 && sizeof(hbridge_value_BRAKE_t) == 1 &&
+                   sizeof(hbridge_value_COAST_t) == 1 && sizeof(hbridge_key_CURRENT_t) == 1,
                "an HBRIDGE op's argument struct changed: update the table of the HBRIDGE block");
 
 static const vm_dev_op_t k_ops[] = {
-    {.op = HBRIDGE_OP_SET_DRIVE,
+    {.op = HBRIDGE_OP_DRIVE,
      .act = VM_DEV_ACT_CHANGE,
      .result = VM_DEV_R_NONE,
      .nfield = 2,
@@ -16,7 +16,7 @@ static const vm_dev_op_t k_ops[] = {
      .scale = {0, 40.95f}},  // channel, drive: percent in the block, 12-bit steps on the wire
     VM_DEV_OP(HBRIDGE_OP_BRAKE, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
     VM_DEV_OP(HBRIDGE_OP_COAST, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    VM_DEV_OP(HBRIDGE_OP_GET_CURRENT, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
+    VM_DEV_OP(HBRIDGE_OP_CURRENT, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 1};
 

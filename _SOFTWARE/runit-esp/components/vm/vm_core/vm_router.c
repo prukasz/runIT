@@ -91,16 +91,16 @@ VM_OP_FN(op_add_objects) {
 }
 
 static err_h set_data(const uint8_t* body, size_t len) {
-  ERR_TRY(need(VM_OP_SET_DATA, 0, len, 1));
+  ERR_TRY(need(VM_OP_DATA, 0, len, 1));
   uint8_t n = body[0];
   size_t off = 1;
   for (uint8_t i = 0; i < n; i++) {
     vm_wire_data_t rec;
-    ERR_TRY(need(VM_OP_SET_DATA, off, len, sizeof(rec)));
+    ERR_TRY(need(VM_OP_DATA, off, len, sizeof(rec)));
     memcpy(&rec, body + off, sizeof(rec));
     off += sizeof(rec);
 
-    ERR_TRY(need(VM_OP_SET_DATA, off, len, rec.byte_len));
+    ERR_TRY(need(VM_OP_DATA, off, len, rec.byte_len));
     if (vm_exec_mode() != VM_RUN_STOPPED) {
       ERR_TRY(vm_override_post(rec.id, rec.start_idx, body + off, rec.byte_len));  // applied at the next pass start
     } else {
@@ -112,7 +112,7 @@ static err_h set_data(const uint8_t* body, size_t len) {
 }
 
 VM_OP_FN(op_set_data) {
-  return load_result(set_data(body, len), VM_OP_SET_DATA, loading());
+  return load_result(set_data(body, len), VM_OP_DATA, loading());
 }
 
 static err_h add_accessors(const uint8_t* body, size_t len) {
@@ -277,17 +277,17 @@ err_h vm_stop_on_fault(uint16_t device_id) {
   return err;
 }
 
-static const router_entry_t k_ops[] = {
-    {VM_OP_RESET, op_reset},
-    {VM_OP_OPEN, op_open_closed},
-    {VM_OP_ADD_OBJECTS, op_add_objects},
-    {VM_OP_SET_DATA, op_set_data},
-    {VM_OP_ADD_ACCESSORS, op_add_accessors},
-    {VM_OP_ADD_BLOCK, op_add_block},
-    {VM_OP_SUBSCRIBE, op_subscribe},
-    {VM_OP_EXEC, op_exec},
-    {VM_OP_SPEED, op_speed},
-    {VM_OP_STATUS, op_status},
+static const router_op_t k_ops[] = {
+    ROUTER_W(VM_OP_RESET, op_reset),
+    ROUTER_W(VM_OP_OPEN, op_open_closed),
+    ROUTER_W(VM_OP_ADD_OBJECTS, op_add_objects),
+    ROUTER_W(VM_OP_DATA, op_set_data),
+    ROUTER_W(VM_OP_ADD_ACCESSORS, op_add_accessors),
+    ROUTER_W(VM_OP_ADD_BLOCK, op_add_block),
+    ROUTER_W(VM_OP_SUBSCRIBE, op_subscribe),
+    ROUTER_W(VM_OP_EXEC, op_exec),
+    ROUTER_W(VM_OP_SPEED, op_speed),
+    ROUTER_R(VM_OP_STATUS, op_status),
 };
 
 ROUTER_MODULE(vm_router, k_ops)

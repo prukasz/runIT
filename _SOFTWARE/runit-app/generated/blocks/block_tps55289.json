@@ -37,7 +37,8 @@
       "id": "set_protection",
       "alias": "Set protection",
       "description": "Sets the protection of the regulator. The device keeps the values and writes them again each time it is enabled. Usually this is set once when the device is installed; use the block to change it while the program runs.",
-      "op": "set_protection",
+      "op": "protection",
+      "dir": "write",
       "args": {
         "ocp_delay": {
           "required": true
@@ -72,7 +73,8 @@
       "id": "get_protection",
       "alias": "Read protection",
       "description": "Reads the protection settings of the regulator: overcurrent delay, hiccup mode, fault mask and active discharge.",
-      "op": "get_protection",
+      "op": "protection",
+      "dir": "read",
       "activation": {
         "kind": "enabled",
         "text": "Reads on every pass while enabled; gate it with a periodic block to read less often."

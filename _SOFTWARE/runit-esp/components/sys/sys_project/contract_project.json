@@ -15,29 +15,31 @@
       "symbol": "SYS_PROJECT_OP_BEGIN",
       "label": "Start storing a project",
       "description": "Opens an upload session for a project of the given length in bytes, with its flags (autostart, run at once).",
-      "args": {
-        "struct": "begin_t",
-        "fields": [
-          {
-            "id": "len",
-            "label": "Stream length",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "unit": "B",
-            "description": "Total size of the stream being uploaded, in bytes"
-          },
-          {
-            "id": "flags",
-            "label": "Option flags",
-            "type": "bitmask",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 4,
-            "description": "Bit 0 (0x01): autostart after a restart; bit 1 (0x02): run at once after the commit"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "begin_t",
+          "fields": [
+            {
+              "id": "len",
+              "label": "Stream length",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "Total size of the stream being uploaded, in bytes"
+            },
+            {
+              "id": "flags",
+              "label": "Option flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4,
+              "description": "Bit 0 (0x01): autostart after a restart; bit 1 (0x02): run at once after the commit"
+            }
+          ]
+        }
       }
     },
     {
@@ -46,27 +48,29 @@
       "symbol": "SYS_PROJECT_OP_WRITE",
       "label": "Write a chunk of the project",
       "description": "Uploads the next piece of the project stream at the given byte offset.",
-      "args": {
-        "struct": "write_t",
-        "fields": [
-          {
-            "id": "offset",
-            "label": "Byte offset",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "unit": "B",
-            "description": "Offset in the data stream"
-          },
-          {
-            "id": "data",
-            "label": "Chunk data",
-            "type": "string",
-            "raw_type": "bytes",
-            "description": "Raw bytes of the stream chunk (runs to the end of the frame)"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "write_t",
+          "fields": [
+            {
+              "id": "offset",
+              "label": "Byte offset",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "Offset in the data stream"
+            },
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Raw bytes of the stream chunk (runs to the end of the frame)"
+            }
+          ]
+        }
       }
     },
     {
@@ -75,19 +79,21 @@
       "symbol": "SYS_PROJECT_OP_COMMIT",
       "label": "Commit the project",
       "description": "Verifies the CRC-32 and that all the sections fit together, stores the project in Flash and optionally runs it.",
-      "args": {
-        "struct": "commit_t",
-        "fields": [
-          {
-            "id": "crc32",
-            "label": "CRC-32 checksum",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "description": "CRC-32 checksum of the whole stream"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "commit_t",
+          "fields": [
+            {
+              "id": "crc32",
+              "label": "CRC-32 checksum",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "CRC-32 checksum of the whole stream"
+            }
+          ]
+        }
       }
     },
     {
@@ -95,7 +101,8 @@
       "op": 4,
       "symbol": "SYS_PROJECT_OP_ABORT",
       "label": "Cancel the project upload",
-      "description": "Aborts the open upload session and clears the working buffer, leaving the project stored before untouched."
+      "description": "Aborts the open upload session and clears the working buffer, leaving the project stored before untouched.",
+      "write": {}
     },
     {
       "id": "INFO",
@@ -103,57 +110,59 @@
       "symbol": "SYS_PROJECT_OP_INFO",
       "label": "Read the project state",
       "description": "Returns what is known about the stored project: whether there is one, autostart, the active memory bank, the CRC-32 and the size.",
-      "returns": {
-        "struct": "sys_project_info_t",
-        "description": "Information about the stored project",
-        "fields": [
-          {
-            "id": "stored",
-            "label": "Project stored",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "1 = a project is stored in Flash, 0 = none"
-          },
-          {
-            "id": "autostart",
-            "label": "Autostart",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "1 = the project runs by itself when the board starts"
-          },
-          {
-            "id": "bank",
-            "label": "Active bank",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "description": "Index of the active Flash bank (0 or 1)"
-          },
-          {
-            "id": "crc32",
-            "label": "CRC-32 checksum",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 3,
-            "description": "Checksum of the stored stream"
-          },
-          {
-            "id": "bytes",
-            "label": "Project size",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 7,
-            "unit": "B",
-            "description": "Total size of the stored project, in bytes"
-          }
-        ]
+      "read": {
+        "returns": {
+          "struct": "sys_project_info_t",
+          "description": "Information about the stored project",
+          "fields": [
+            {
+              "id": "stored",
+              "label": "Project stored",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = a project is stored in Flash, 0 = none"
+            },
+            {
+              "id": "autostart",
+              "label": "Autostart",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "1 = the project runs by itself when the board starts"
+            },
+            {
+              "id": "bank",
+              "label": "Active bank",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "Index of the active Flash bank (0 or 1)"
+            },
+            {
+              "id": "crc32",
+              "label": "CRC-32 checksum",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 3,
+              "description": "Checksum of the stored stream"
+            },
+            {
+              "id": "bytes",
+              "label": "Project size",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 7,
+              "unit": "B",
+              "description": "Total size of the stored project, in bytes"
+            }
+          ]
+        }
       }
     },
     {
@@ -161,35 +170,55 @@
       "op": 6,
       "symbol": "SYS_PROJECT_OP_RUN",
       "label": "Run the stored project",
-      "description": "Replays every section and command of the stored project (RUN_ALL of the project record)."
+      "description": "Replays every section and command of the stored project (RUN_ALL of the project record).",
+      "write": {}
     },
     {
       "id": "ERASE",
       "op": 7,
       "symbol": "SYS_PROJECT_OP_ERASE",
       "label": "Erase the stored project",
-      "description": "Removes the stored project and its program records from Flash."
+      "description": "Removes the stored project and its program records from Flash.",
+      "write": {}
     },
     {
       "id": "OPTIONS",
-      "read_by": "INFO",
       "op": 8,
       "symbol": "SYS_PROJECT_OP_OPTIONS",
       "label": "Set the project options",
       "description": "Sets the project options, e.g. the autostart flag.",
-      "args": {
-        "struct": "options_t",
-        "fields": [
-          {
-            "id": "autostart",
-            "label": "Autostart",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "1 = autostart on, 0 = off"
-          }
-        ]
+      "read": {
+        "returns": {
+          "struct": "options_t",
+          "fields": [
+            {
+              "id": "autostart",
+              "label": "Autostart",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = autostart on, 0 = off"
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Sets the project options, e.g. the autostart flag.",
+        "args": {
+          "struct": "options_t",
+          "fields": [
+            {
+              "id": "autostart",
+              "label": "Autostart",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = autostart on, 0 = off"
+            }
+          ]
+        }
       }
     },
     {
@@ -198,19 +227,21 @@
       "symbol": "SYS_PROJECT_OP_SECTION",
       "label": "Header of a stream section",
       "description": "Opens a section inside the project stream (refused as a command of its own).",
-      "args": {
-        "struct": "section_t",
-        "fields": [
-          {
-            "id": "id",
-            "label": "Record ID",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "description": "ID of the record the section goes to (0 = the program)"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "section_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Record ID",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "ID of the record the section goes to (0 = the program)"
+            }
+          ]
+        }
       }
     },
     {
@@ -219,37 +250,38 @@
       "symbol": "SYS_PROJECT_OP_MARK",
       "label": "Project record marker",
       "description": "First frame of the project record: the bank, the CRC-32 and the length (does nothing when replayed).",
-      "args": {
-        "struct": "sys_project_mark_t",
-        "fields": [
-          {
-            "id": "bank",
-            "label": "Bank",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0
-          },
-          {
-            "id": "crc32",
-            "label": "CRC-32",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 1
-          },
-          {
-            "id": "bytes",
-            "label": "Bytes",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 5,
-            "unit": "B"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "sys_project_mark_t",
+          "fields": [
+            {
+              "id": "bank",
+              "label": "Bank",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "crc32",
+              "label": "CRC-32",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1
+            },
+            {
+              "id": "bytes",
+              "label": "Bytes",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 5,
+              "unit": "B"
+            }
+          ]
+        }
       }
     }
   ]
 }
-

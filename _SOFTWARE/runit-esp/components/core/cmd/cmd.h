@@ -27,6 +27,17 @@ extern "C" {
  */
 typedef MUST_USE err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
+/**
+ * @brief Which side of a command a request runs: the byte after the root key of every request (ROUTER.MD "Wire
+ * format"). A command has a read side, a write side or both; with both, the read answers what the write takes (the
+ * mirror, CMD.MD). A write answers no data unless its command says otherwise.
+ */
+//#ref-enum @alias Command Direction
+typedef enum {
+  CMD_DIR_READ = 0,   //@alias Read @description Asks for a value; changes nothing
+  CMD_DIR_WRITE = 1,  //@alias Write @description Sets a value or runs an action
+} cmd_dir_e;
+
 // The parameters of a cmd_f, for the macros that declare or write one.
 #define CMD_OUT_PARAMS uint8_t *out, uint32_t out_cap, uint32_t *out_len
 #define CMD_F_PARAMS   void *ctx, const uint8_t *in, uint32_t in_len, CMD_OUT_PARAMS
@@ -36,11 +47,18 @@ typedef MUST_USE err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, u
  * ------------------------------------------------------------------------- */
 
 #define ERR_CMD_MAP(X)                                                                                    \
-  X(ERR_CMD_BAD_LEN,  ERR_TAG(ERR_MOD_CMD, 1), ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */ \
-  X(ERR_CMD_OUT_FULL, ERR_TAG(ERR_MOD_CMD, 2), ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */ \
-  X(ERR_CMD_BAD_ARG,  ERR_TAG(ERR_MOD_CMD, 3), ERR_SEV_HIGH, {}) /* invalid argument value */
+  X(ERR_CMD_BAD_LEN,   ERR_TAG(ERR_MOD_CMD, 1), ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */ \
+  X(ERR_CMD_OUT_FULL,  ERR_TAG(ERR_MOD_CMD, 2), ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */ \
+  X(ERR_CMD_BAD_ARG,   ERR_TAG(ERR_MOD_CMD, 3), ERR_SEV_HIGH, {}) /* invalid argument value */ \
+  X(ERR_CMD_DIRECTION, ERR_TAG(ERR_MOD_CMD, 4), ERR_SEV_HIGH, { uint8_t dir; }) /* the command has no such side, or dir is neither read nor write */
 
 ERR_TAGS_DECLARE(ERR_CMD_MAP)
+
+/**
+ * @brief The side of a command that `dir` asks for (`read` or `write`, NULL = the command has none).
+ * @return ERR_CMD_DIRECTION for a missing side or a dir that is neither CMD_DIR_READ nor CMD_DIR_WRITE.
+ */
+MUST_USE err_h cmd_side(cmd_f read, cmd_f write, uint8_t dir, cmd_f* fn);
 
 /**
  * @brief Writes the answer to `out`.

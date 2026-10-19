@@ -11,540 +11,547 @@
   "category": "power",
   "commands": [
     {
-      "id": "SET_CONFIG",
-      "read_by": "GET_CONFIG",
-      "record": "SYS_ACTIONS_ID_POWER_CFG",
+      "id": "CONFIG",
       "op": 1,
-      "symbol": "SYS_PWRM_OP_SET_CONFIG",
+      "symbol": "SYS_PWRM_OP_CONFIG",
+      "record": "SYS_ACTIONS_ID_POWER_CFG",
       "label": "Power manager configuration",
       "description": "Sets how the power budget works: on / off, strict or with a soft margin, and the power source on a board without source pins.",
-      "args": {
-        "struct": "sys_power_manager_cfg_t",
-        "fields": [
-          {
-            "id": "enabled",
-            "label": "Enabled",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "1 = budget control active, 0 = measure only"
-          },
-          {
-            "id": "strict",
-            "label": "Strict",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "1 = the rails are held to the budget, 0 = with the soft margin"
-          },
-          {
-            "id": "soft_margin_pct",
-            "label": "Soft margin",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "unit": "%",
-            "description": "Allowed budget overrun when not strict, in percent (0..100)"
-          },
-          {
-            "id": "source",
-            "label": "Power source",
-            "type": "enum",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "enum": "sys_power_source_e",
-            "description": "The source on a board without source pins; a board with them detects it (ignored)"
-          }
-        ]
+      "read": {
+        "description": "Returns what SET_CONFIG sets.",
+        "returns": {
+          "struct": "sys_power_manager_cfg_t",
+          "fields": [
+            {
+              "id": "enabled",
+              "label": "Enabled",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = budget control active, 0 = measure only"
+            },
+            {
+              "id": "strict",
+              "label": "Strict",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "1 = the rails are held to the budget, 0 = with the soft margin"
+            },
+            {
+              "id": "soft_margin_pct",
+              "label": "Soft margin",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "unit": "%",
+              "description": "Allowed budget overrun when not strict, in percent (0..100)"
+            },
+            {
+              "id": "source",
+              "label": "Power source",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "enum": "sys_power_source_e",
+              "description": "The source on a board without source pins; a board with them detects it (ignored)"
+            }
+          ],
+          "description": "Current power manager configuration"
+        }
+      },
+      "write": {
+        "description": "Sets how the power budget works: on / off, strict or with a soft margin, and the power source on a board without source pins.",
+        "args": {
+          "struct": "sys_power_manager_cfg_t",
+          "fields": [
+            {
+              "id": "enabled",
+              "label": "Enabled",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = budget control active, 0 = measure only"
+            },
+            {
+              "id": "strict",
+              "label": "Strict",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "1 = the rails are held to the budget, 0 = with the soft margin"
+            },
+            {
+              "id": "soft_margin_pct",
+              "label": "Soft margin",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "unit": "%",
+              "description": "Allowed budget overrun when not strict, in percent (0..100)"
+            },
+            {
+              "id": "source",
+              "label": "Power source",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "enum": "sys_power_source_e",
+              "description": "The source on a board without source pins; a board with them detects it (ignored)"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "GET_CONFIG",
-      "op": 2,
-      "symbol": "SYS_PWRM_OP_GET_CONFIG",
-      "label": "Read power manager configuration",
-      "description": "Returns what SET_CONFIG sets.",
-      "returns": {
-        "struct": "sys_power_manager_cfg_t",
-        "description": "Current power manager configuration",
-        "fields": [
-          {
-            "id": "enabled",
-            "label": "Enabled",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "1 = budget control active, 0 = measure only"
-          },
-          {
-            "id": "strict",
-            "label": "Strict",
-            "type": "boolean",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1,
-            "description": "1 = the rails are held to the budget, 0 = with the soft margin"
-          },
-          {
-            "id": "soft_margin_pct",
-            "label": "Soft margin",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "unit": "%",
-            "description": "Allowed budget overrun when not strict, in percent (0..100)"
-          },
-          {
-            "id": "source",
-            "label": "Power source",
-            "type": "enum",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "enum": "sys_power_source_e",
-            "description": "The source on a board without source pins; a board with them detects it (ignored)"
-          }
-        ]
-      }
-    },
-    {
-      "id": "SET_PSU",
-      "read_by": "GET_PSU",
-      "record": "SYS_ACTIONS_ID_POWER_PSU",
+      "id": "PSU",
       "op": 3,
-      "symbol": "SYS_PWRM_OP_SET_PSU",
+      "symbol": "SYS_PWRM_OP_PSU",
+      "record": "SYS_ACTIONS_ID_POWER_PSU",
       "label": "Set external supply limits",
       "description": "Sets the maximum voltage and current of an external power supply.",
-      "args": {
-        "struct": "sys_power_psu_t",
-        "fields": [
-          {
-            "id": "max_mV",
-            "label": "Maximum voltage",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "unit": "mV"
-          },
-          {
-            "id": "max_mA",
-            "label": "Maximum current",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 4,
-            "unit": "mA"
-          }
-        ]
+      "read": {
+        "description": "Returns the external supply limits as set (0 / 0: no supply entered).",
+        "returns": {
+          "struct": "sys_power_psu_t",
+          "fields": [
+            {
+              "id": "max_mV",
+              "label": "Maximum voltage",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "mV"
+            },
+            {
+              "id": "max_mA",
+              "label": "Maximum current",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "unit": "mA"
+            }
+          ],
+          "description": "External supply limits"
+        }
+      },
+      "write": {
+        "description": "Sets the maximum voltage and current of an external power supply.",
+        "args": {
+          "struct": "sys_power_psu_t",
+          "fields": [
+            {
+              "id": "max_mV",
+              "label": "Maximum voltage",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "mV"
+            },
+            {
+              "id": "max_mA",
+              "label": "Maximum current",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "unit": "mA"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "SET_BATTERY",
-      "read_by": "GET_BATTERY",
-      "record": "SYS_ACTIONS_ID_POWER_BATTERY",
+      "id": "BATTERY",
       "op": 4,
-      "symbol": "SYS_PWRM_OP_SET_BATTERY",
+      "symbol": "SYS_PWRM_OP_BATTERY",
+      "record": "SYS_ACTIONS_ID_POWER_BATTERY",
       "label": "Set battery parameters",
       "description": "Sets the cell chemistry, the number of cells in series and the low and critical charge thresholds.",
-      "args": {
-        "struct": "sys_power_battery_t",
-        "fields": [
-          {
-            "id": "chemistry",
-            "label": "Cell chemistry",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "options": [
-              {
-                "label": "None",
-                "value": 0
-              },
-              {
-                "label": "LiPo (4.2 V per cell)",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "id": "cells",
-            "label": "Number of cells",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1
-          },
-          {
-            "id": "low_pct",
-            "label": "Low threshold",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "unit": "%"
-          },
-          {
-            "id": "critical_pct",
-            "label": "Critical threshold",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "unit": "%"
-          }
-        ]
+      "read": {
+        "description": "Returns the battery as set (chemistry None: no battery entered).",
+        "returns": {
+          "struct": "sys_power_battery_t",
+          "fields": [
+            {
+              "id": "chemistry",
+              "label": "Cell chemistry",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "LiPo (4.2 V per cell)",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "id": "cells",
+              "label": "Number of cells",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "low_pct",
+              "label": "Low threshold",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "unit": "%"
+            },
+            {
+              "id": "critical_pct",
+              "label": "Critical threshold",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "unit": "%"
+            }
+          ],
+          "description": "Battery parameters"
+        }
+      },
+      "write": {
+        "description": "Sets the cell chemistry, the number of cells in series and the low and critical charge thresholds.",
+        "args": {
+          "struct": "sys_power_battery_t",
+          "fields": [
+            {
+              "id": "chemistry",
+              "label": "Cell chemistry",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "LiPo (4.2 V per cell)",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "id": "cells",
+              "label": "Number of cells",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "low_pct",
+              "label": "Low threshold",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "unit": "%"
+            },
+            {
+              "id": "critical_pct",
+              "label": "Critical threshold",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "unit": "%"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "GET_STATUS",
+      "id": "STATUS",
       "op": 7,
-      "symbol": "SYS_PWRM_OP_GET_STATUS",
+      "symbol": "SYS_PWRM_OP_STATUS",
       "label": "Read power status",
       "description": "Returns the active source, the power budget state, the input voltage readings and the battery state.",
-      "returns": {
-        "struct": "sys_power_status_t",
-        "description": "Board power status",
-        "fields": [
-          {
-            "id": "source",
-            "label": "Active source",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "0 unknown, 1 USB, 2 PSU, 3 battery"
-          },
-          {
-            "id": "input_mV",
-            "label": "Input voltage",
-            "type": "integer",
-            "raw_type": "i32",
-            "size": 4,
-            "offset": 1,
-            "unit": "mV"
-          },
-          {
-            "id": "input_mA",
-            "label": "Input current",
-            "type": "integer",
-            "raw_type": "i32",
-            "size": 4,
-            "offset": 5,
-            "unit": "mA"
-          },
-          {
-            "id": "source_mV",
-            "label": "Source voltage limit",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 9,
-            "unit": "mV"
-          },
-          {
-            "id": "source_mA",
-            "label": "Source current limit",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 13,
-            "unit": "mA"
-          },
-          {
-            "id": "budget_mW",
-            "label": "Budget",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 17,
-            "unit": "mW",
-            "description": "Without the soft margin"
-          },
-          {
-            "id": "limit_mW",
-            "label": "Limit",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 21,
-            "unit": "mW",
-            "description": "With the soft margin"
-          },
-          {
-            "id": "allocated_mW",
-            "label": "Allocated",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 25,
-            "unit": "mW"
-          },
-          {
-            "id": "battery_pct",
-            "label": "Battery charge",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 29,
-            "unit": "%",
-            "description": "0xFF = unknown"
-          },
-          {
-            "id": "flags",
-            "label": "Flags",
-            "type": "bitmask",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 30,
-            "description": "1 enabled, 2 strict, 4 over budget, 8 input seen"
-          },
-          {
-            "id": "pd_mV",
-            "label": "USB-PD voltage",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 31,
-            "unit": "mV",
-            "description": "The voltage of the USB-PD profile in use (0 = none)"
-          },
-          {
-            "id": "pd_mA",
-            "label": "USB-PD current",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 35,
-            "unit": "mA",
-            "description": "The most current that profile offers"
-          },
-          {
-            "id": "pd_type",
-            "label": "USB-PD profile",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 39,
-            "description": "0 fixed, 1 PPS, 2 AVS (USB-PD option type), 255 none"
-          }
-        ]
+      "read": {
+        "returns": {
+          "struct": "sys_power_status_t",
+          "description": "Board power status",
+          "fields": [
+            {
+              "id": "source",
+              "label": "Active source",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "0 unknown, 1 USB, 2 PSU, 3 battery"
+            },
+            {
+              "id": "input_mV",
+              "label": "Input voltage",
+              "type": "integer",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV"
+            },
+            {
+              "id": "input_mA",
+              "label": "Input current",
+              "type": "integer",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 5,
+              "unit": "mA"
+            },
+            {
+              "id": "source_mV",
+              "label": "Source voltage limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 9,
+              "unit": "mV"
+            },
+            {
+              "id": "source_mA",
+              "label": "Source current limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 13,
+              "unit": "mA"
+            },
+            {
+              "id": "budget_mW",
+              "label": "Budget",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 17,
+              "unit": "mW",
+              "description": "Without the soft margin"
+            },
+            {
+              "id": "limit_mW",
+              "label": "Limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 21,
+              "unit": "mW",
+              "description": "With the soft margin"
+            },
+            {
+              "id": "allocated_mW",
+              "label": "Allocated",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 25,
+              "unit": "mW"
+            },
+            {
+              "id": "battery_pct",
+              "label": "Battery charge",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 29,
+              "unit": "%",
+              "description": "0xFF = unknown"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 30,
+              "description": "1 enabled, 2 strict, 4 over budget, 8 input seen"
+            },
+            {
+              "id": "pd_mV",
+              "label": "USB-PD voltage",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 31,
+              "unit": "mV",
+              "description": "The voltage of the USB-PD profile in use (0 = none)"
+            },
+            {
+              "id": "pd_mA",
+              "label": "USB-PD current",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 35,
+              "unit": "mA",
+              "description": "The most current that profile offers"
+            },
+            {
+              "id": "pd_type",
+              "label": "USB-PD profile",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 39,
+              "description": "0 fixed, 1 PPS, 2 AVS (USB-PD option type), 255 none"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "SET_PD",
-      "read_by": "GET_PD",
-      "record": "SYS_ACTIONS_ID_POWER_PD",
+      "id": "PD",
       "op": 8,
-      "symbol": "SYS_PWRM_OP_SET_PD",
+      "symbol": "SYS_PWRM_OP_PD",
+      "record": "SYS_ACTIONS_ID_POWER_PD",
       "label": "USB-PD request",
       "description": "What to ask the USB-PD charger for on a USB source: its highest offer, or a set voltage at the most current offered there. A fixed profile below the set voltage raises PD_FIXED.",
-      "args": {
-        "struct": "sys_power_pd_t",
-        "fields": [
-          {
-            "id": "mode",
-            "label": "Request",
-            "type": "enum",
-            "enum": "sys_power_pd_mode_e",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
-          },
-          {
-            "id": "voltage_mV",
-            "label": "Voltage",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 1,
-            "unit": "mV",
-            "description": "The voltage of the Set voltage request; the current is the most offered there"
-          }
-        ]
+      "read": {
+        "description": "Returns what SET_PD sets.",
+        "returns": {
+          "struct": "sys_power_pd_t",
+          "fields": [
+            {
+              "id": "mode",
+              "label": "Request",
+              "type": "enum",
+              "enum": "sys_power_pd_mode_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV",
+              "description": "The voltage of the Set voltage request; the current is the most offered there"
+            }
+          ],
+          "description": "The USB-PD request"
+        }
+      },
+      "write": {
+        "description": "What to ask the USB-PD charger for on a USB source: its highest offer, or a set voltage at the most current offered there. A fixed profile below the set voltage raises PD_FIXED.",
+        "args": {
+          "struct": "sys_power_pd_t",
+          "fields": [
+            {
+              "id": "mode",
+              "label": "Request",
+              "type": "enum",
+              "enum": "sys_power_pd_mode_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV",
+              "description": "The voltage of the Set voltage request; the current is the most offered there"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "SET_RESPONSES",
-      "read_by": "GET_MATRIX",
-      "record": "SYS_ACTIONS_ID_POWER_RESPONSES",
+      "id": "MATRIX",
       "op": 9,
-      "symbol": "SYS_PWRM_OP_SET_RESPONSES",
-      "label": "Set the full response matrix",
-      "description": "Saves the whole response matrix for the board and every regulator rail.",
-      "args": {
-        "fields": [
-          {
-            "id": "matrix",
-            "label": "Response matrix",
-            "type": "string",
-            "raw_type": "bytes",
-            "description": "All response rows (the rest of the frame)"
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET_PSU",
-      "op": 10,
-      "symbol": "SYS_PWRM_OP_GET_PSU",
-      "label": "Read external supply limits",
-      "description": "Returns the external supply limits as set (0 / 0: no supply entered).",
-      "returns": {
-        "struct": "sys_power_psu_t",
-        "description": "External supply limits",
-        "fields": [
-          {
-            "id": "max_mV",
-            "label": "Maximum voltage",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 0,
-            "unit": "mV"
-          },
-          {
-            "id": "max_mA",
-            "label": "Maximum current",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 4,
-            "unit": "mA"
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET_BATTERY",
-      "op": 11,
-      "symbol": "SYS_PWRM_OP_GET_BATTERY",
-      "label": "Read battery parameters",
-      "description": "Returns the battery as set (chemistry None: no battery entered).",
-      "returns": {
-        "struct": "sys_power_battery_t",
-        "description": "Battery parameters",
-        "fields": [
-          {
-            "id": "chemistry",
-            "label": "Cell chemistry",
-            "type": "choice",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "options": [
-              {
-                "label": "None",
-                "value": 0
-              },
-              {
-                "label": "LiPo (4.2 V per cell)",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "id": "cells",
-            "label": "Number of cells",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 1
-          },
-          {
-            "id": "low_pct",
-            "label": "Low threshold",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 2,
-            "unit": "%"
-          },
-          {
-            "id": "critical_pct",
-            "label": "Critical threshold",
-            "type": "integer",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 3,
-            "unit": "%"
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET_MATRIX",
-      "op": 12,
-      "symbol": "SYS_PWRM_OP_GET_MATRIX",
-      "label": "Read the full response matrix",
-      "description": "Returns every row of the response matrix with its target: the board first, then the regulator rails in the order SET_RESPONSES takes them.",
-      "returns": {
-        "struct": "sys_power_response_row_t",
-        "array": true,
-        "description": "One row per target",
-        "fields": [
-          {
-            "id": "target",
-            "label": "Target",
-            "type": "device",
-            "raw_type": "u16",
-            "size": 2,
-            "offset": 0,
-            "description": "0xFFFF for the board, or the device ID of a regulator rail"
-          },
-          {
-            "id": "responses",
-            "label": "Responses",
-            "type": "enum",
-            "enum": "sys_power_response_e",
-            "index_enum": "sys_power_kind_e",
-            "raw_type": "u8",
-            "size": 11,
-            "offset": 2,
-            "description": "The response to each power event kind (sys_power_kind_e order)"
-          }
-        ]
-      }
-    },
-    {
-      "id": "GET_PD",
-      "op": 13,
-      "symbol": "SYS_PWRM_OP_GET_PD",
-      "label": "Read USB-PD request",
-      "description": "Returns what SET_PD sets.",
-      "returns": {
-        "struct": "sys_power_pd_t",
-        "description": "The USB-PD request",
-        "fields": [
-          {
-            "id": "mode",
-            "label": "Request",
-            "type": "enum",
-            "enum": "sys_power_pd_mode_e",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "Off (the charger's 5 V), the highest offer, or the set voltage"
-          },
-          {
-            "id": "voltage_mV",
-            "label": "Voltage",
-            "type": "integer",
-            "raw_type": "u32",
-            "size": 4,
-            "offset": 1,
-            "unit": "mV",
-            "description": "The voltage of the Set voltage request; the current is the most offered there"
-          }
-        ]
+      "symbol": "SYS_PWRM_OP_MATRIX",
+      "record": "SYS_ACTIONS_ID_POWER_RESPONSES",
+      "label": "Response matrix",
+      "description": "The response to each power event, for the board and for each rail: a row per target (0xFFFF the board, else the rail's device ID). The write matches the rows by target; a target left out keeps its row.",
+      "read": {
+        "description": "Returns every row of the response matrix with its target: the board first, then the regulator rails in the order SET_RESPONSES takes them.",
+        "returns": {
+          "struct": "sys_power_response_row_t",
+          "array": true,
+          "description": "One row per target",
+          "fields": [
+            {
+              "id": "target",
+              "label": "Target",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "0xFFFF for the board, or the device ID of a regulator rail"
+            },
+            {
+              "id": "responses",
+              "label": "Responses",
+              "type": "enum",
+              "enum": "sys_power_response_e",
+              "index_enum": "sys_power_kind_e",
+              "raw_type": "u8",
+              "size": 11,
+              "offset": 2,
+              "description": "The response to each power event kind (sys_power_kind_e order)"
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Saves the whole response matrix for the board and every regulator rail.",
+        "args": {
+          "struct": "sys_power_response_row_t",
+          "array": true,
+          "fields": [
+            {
+              "id": "target",
+              "label": "Target",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "0xFFFF for the board, or the device ID of a regulator rail"
+            },
+            {
+              "id": "responses",
+              "label": "Responses",
+              "type": "enum",
+              "enum": "sys_power_response_e",
+              "index_enum": "sys_power_kind_e",
+              "raw_type": "u8",
+              "size": 11,
+              "offset": 2,
+              "description": "The response to each power event kind (sys_power_kind_e order)"
+            }
+          ]
+        }
       }
     }
   ],

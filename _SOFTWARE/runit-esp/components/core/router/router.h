@@ -42,16 +42,37 @@ ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
  * Routing
  * ------------------------------------------------------------------------- */
 
+/** @brief A root key and its module router. */
 typedef struct {
   uint8_t key;
   cmd_f fn;
 } router_entry_t;
+
+/** @brief One command of a module: its code and its two sides (NULL = the command has no such side). */
+typedef struct {
+  uint8_t code;
+  cmd_f read;
+  cmd_f write;
+} router_op_t;
+
+// The rows of a module's command table.
+#define ROUTER_R(code, read)         {(code), (read), NULL}
+#define ROUTER_W(code, write)        {(code), NULL, (write)}
+#define ROUTER_RW(code, read, write) {(code), (read), (write)}
 
 /**
  * @brief Calls the entry of `table` whose key is in[0], with the same `ctx`, and wraps a failure in ERR_ROUTER_KEY{key}.
  */
 MUST_USE err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
                            uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+
+/**
+ * @brief Runs one command of a module: `in` is [dir][code][args]. The side `dir` asks for gets [code][args] (so the
+ * op macros below parse it). A failure is wrapped in ERR_ROUTER_KEY{code}.
+ * @return ERR_ROUTER_UNKNOWN_KEY for an unknown code, ERR_CMD_DIRECTION for a side the command doesn't have.
+ */
+MUST_USE err_h router_call_op(const router_op_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
+                              uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
 /**
  * @brief Copies the fixed-size payload after the key (in[1..]) into `args`; size 0 (args may be NULL) only checks
@@ -109,10 +130,11 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
 // Declares a module router in its header.
 #define ROUTER_MODULE_DECLARE(fn) MUST_USE err_h fn(CMD_F_PARAMS)
 
-// Defines the module router `fn`: consumes its own key and calls the op of `table`. Prefix `static` for a file-local one.
-#define ROUTER_MODULE(fn, table)                                                             \
-  err_h fn(CMD_F_PARAMS) {                                                               \
-    return router_call(table, ARRAY_LEN(table), ctx, in + 1, in_len - 1, out, out_cap, out_len); \
+// Defines the module router `fn`: consumes its own key and runs the command of `table` (router_call_op). Prefix
+// `static` for a file-local one.
+#define ROUTER_MODULE(fn, table)                                                                    \
+  err_h fn(CMD_F_PARAMS) {                                                                      \
+    return router_call_op(table, ARRAY_LEN(table), ctx, in + 1, in_len - 1, out, out_cap, out_len); \
   }
 
 /** @brief Binds a root key (router_ids.h) to a module router (called with ctx NULL). Boot only, before router_init. */

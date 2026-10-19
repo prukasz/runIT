@@ -37,7 +37,7 @@
       "id": "position",
       "alias": "Position",
       "description": "Moves the servo to a position. The position is sent only when it changes.",
-      "op": "set",
+      "op": "target",
       "header": { "subtitle": "Move to {value_x10}" },
       "args": {
         "value_x10": {
@@ -89,7 +89,7 @@
       "id": "trim",
       "alias": "Trim",
       "description": "Sets a correction added to every move; it applies from the next move.",
-      "op": "set_trim",
+      "op": "trim",
       "header": { "subtitle": "Trim {trim}" },
       "args": {
         "trim": {

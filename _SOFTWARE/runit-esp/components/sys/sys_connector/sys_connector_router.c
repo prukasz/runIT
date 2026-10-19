@@ -98,14 +98,14 @@ ROUTER_OP_NOARGS(op_info) {
   return NULL;
 }
 
-static const router_entry_t k_ops[] = {
-    {OP_CREATE, op_create},
-    {OP_REMOVE, op_remove},
-    {OP_BIND, op_bind},
-    {OP_UNBIND, op_unbind},
-    {OP_SUSPEND, op_suspend},
-    {OP_RESUME, op_resume},
-    {OP_INFO, op_info},
+static const router_op_t k_ops[] = {
+    ROUTER_W(OP_CREATE, op_create),
+    ROUTER_W(OP_REMOVE, op_remove),
+    ROUTER_W(OP_BIND, op_bind),
+    ROUTER_W(OP_UNBIND, op_unbind),
+    ROUTER_W(OP_SUSPEND, op_suspend),
+    ROUTER_W(OP_RESUME, op_resume),
+    ROUTER_R(OP_INFO, op_info),
 };
 
 ROUTER_MODULE(sys_connector_router, k_ops)

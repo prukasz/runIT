@@ -115,11 +115,11 @@ static uint32_t limit_of(uint32_t budget_mW) {
 }
 
 static err_h vreg_direct(uint16_t id, uint16_t op, uint32_t value) {
-  if (op == VREG_OP_SET_ENABLE) {
+  if (op == VREG_OP_ENABLE) {
     const vreg_enable_args_t a = {.enable = value != 0};
-    return sys_device_call_direct(id, op, &a, sizeof(a), NULL, 0, NULL);
+    return sys_device_call_direct(id, CMD_DIR_WRITE, op, &a, sizeof(a), NULL, 0, NULL);
   }
-  return sys_device_call_direct(id, op, &value, sizeof(value), NULL, 0, NULL);  // voltage / current: one u32
+  return sys_device_call_direct(id, CMD_DIR_WRITE, op, &value, sizeof(value), NULL, 0, NULL);  // voltage / current: one u32
 }
 
 /* ---- Events and the response matrix ---- */
@@ -148,7 +148,7 @@ static void apply_response(uint8_t kind, int target) {
     if (target != BOARD_TARGET && target != i) {
       continue;
     }
-    err_h err = sys_device_call(s_pm.board->consumers[i].vreg, op, NULL, 0, NULL, 0, NULL);
+    err_h err = sys_device_write(s_pm.board->consumers[i].vreg, op, NULL, 0);
     if (err_root_tag(err) == ERR_DEV_NOT_FOUND) {
       err_free(err);  // the rail isn't created: nothing to stop
     } else {
@@ -254,7 +254,7 @@ static err_h rebalance(void) {
       continue;
     }
     if (cap_mA != r->applied_mA) {
-      err_h set_err = vreg_direct(s_pm.board->consumers[i].vreg, VREG_OP_SET_CURRENT, cap_mA);
+      err_h set_err = vreg_direct(s_pm.board->consumers[i].vreg, VREG_OP_CURRENT, cap_mA);
       const uint32_t root = err_root_tag(set_err);
       if (root == ERR_DEV_SUSPENDED || root == ERR_DEV_NOT_FOUND) {
         err_free(set_err);  // off (a fault) or gone: it gets its share when it is back
@@ -306,25 +306,25 @@ static err_h change_rail(int i, rail_t next, uint16_t op, uint32_t value) {
 
 /* The POWER_VREG guard: every SET_ENABLE / SET_VOLTAGE / SET_CURRENT of a budgeted rail, remote commands included.
  * SET_CURRENT 0 = back to the automatic share. Other devices pass. */
-static err_h vreg_guard(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, bool* handled) {
+static err_h vreg_guard(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, bool* handled) {
   const int i = consumer_index(id);
   sys_device_error_policy_t exists;  // only to ask the registry whether the device is there, without its lock
-  if (i < 0 || (op != VREG_OP_SET_ENABLE && op != VREG_OP_SET_VOLTAGE && op != VREG_OP_SET_CURRENT) ||
+  if (i < 0 || dir != CMD_DIR_WRITE || (op != VREG_OP_ENABLE && op != VREG_OP_VOLTAGE && op != VREG_OP_CURRENT) ||
       !sys_device_error_policy_get(id, &exists)) {
     return NULL;  // not a budgeted rail, or not created: the registry answers (ERR_DEV_NOT_FOUND)
   }
   *handled = true;
-  const uint32_t need = op == VREG_OP_SET_ENABLE ? sizeof(vreg_enable_args_t) : sizeof(uint32_t);
+  const uint32_t need = op == VREG_OP_ENABLE ? sizeof(vreg_enable_args_t) : sizeof(uint32_t);
   ERR_CHECK(args_len == need, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = (uint16_t)need);
   uint32_t value = 0;
   memcpy(&value, args, need);
   err_h err = NULL;
   LOCK();
   rail_t next = s_pm.rails[i];
-  if (op == VREG_OP_SET_ENABLE) {
+  if (op == VREG_OP_ENABLE) {
     next.enabled = value != 0;
     err = change_rail(i, next, op, value);
-  } else if (op == VREG_OP_SET_VOLTAGE) {
+  } else if (op == VREG_OP_VOLTAGE) {
     if (value > s_pm.board->max_mV) {
       err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_pm.board->max_mV);
     } else {
@@ -705,18 +705,30 @@ void sys_power_manager_get_battery(sys_power_battery_t* out) {
   UNLOCK();
 }
 
-static size_t matrix_size(void) {
-  return (size_t)(1 + s_pm.board->consumer_count) * SYS_POWER_KIND_COUNT;
+// The matrix row of a target: 0 for the board, 1 + i for rail i.
+static err_h row_of(uint16_t target, uint8_t* row) {
+  if (target == SYS_POWER_TARGET_BOARD) {
+    *row = 0;
+    return NULL;
+  }
+  const int rail = consumer_index(target);
+  ERR_CHECK(rail >= 0, ERR_PWRM_NOT_RAIL, .id = target);
+  *row = (uint8_t)(1 + rail);
+  return NULL;
 }
 
-err_h sys_power_manager_set_responses(const uint8_t* matrix, size_t len) {
+err_h sys_power_manager_set_matrix(const sys_power_response_row_t* rows, uint8_t count) {
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
-  ERR_CHECK(len == matrix_size(), ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = (uint16_t)matrix_size());
-  for (size_t i = 0; i < len; i++) {
-    ERR_TRY(check_range(matrix[i], SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
+  uint8_t at[1 + CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
+  ERR_CHECK(count <= ARRAY_LEN(at), ERR_CMD_BAD_LEN, .got = count, .need = (uint16_t)ARRAY_LEN(at));
+  for (uint8_t i = 0; i < count; i++) {  // all checked before anything changes
+    ERR_TRY(row_of(rows[i].target, &at[i]));
+    for (uint8_t k = 0; k < SYS_POWER_KIND_COUNT; k++) {
+      ERR_TRY(check_range(rows[i].responses[k], SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
+    }
   }
   LOCK();
-  memcpy(s_pm.responses, matrix, len);
+  for (uint8_t i = 0; i < count; i++) memcpy(s_pm.responses[at[i]], rows[i].responses, SYS_POWER_KIND_COUNT);
   UNLOCK();
   return NULL;
 }

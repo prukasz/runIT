@@ -215,7 +215,7 @@ static err_h publish_channel_fault(const drv_t* c, uint8_t channel) {
 /* nFAULT fell: finds the faulted channels, then publishes them. The chip says only "something is wrong", so the
    currents decide: a channel at its limit, else the one channel that was driving, else a chip-wide shutdown (thermal
    or supply). The publish comes last: an inline listener may call back into this device. */
-EVENT_HANDLER(ON_EVENT) {
+EVENT_WRITE(ON_EVENT) {
   (void)args;
   drv_t* c = ctx;
   if (c->base.suspended) {
@@ -271,7 +271,7 @@ EVENT_HANDLER(ON_EVENT) {
 
 /* ---- HBRIDGE contract ---- */
 
-HBRIDGE_HANDLER(SET_DRIVE) {
+HBRIDGE_WRITE(DRIVE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
@@ -280,14 +280,14 @@ HBRIDGE_HANDLER(SET_DRIVE) {
   return chip_set_drive(c, args->channel, args->drive);
 }
 
-HBRIDGE_HANDLER(BRAKE) {
+HBRIDGE_WRITE(BRAKE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   return chip_brake(c, args->channel);
 }
 
-HBRIDGE_HANDLER(COAST) {
+HBRIDGE_WRITE(COAST) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
@@ -296,7 +296,7 @@ HBRIDGE_HANDLER(COAST) {
 
 /* A read, allowed while suspended. A channel over its limit is latched and braked here too (the fault line is edge
    triggered: a reading may be the first to see it) and published. */
-HBRIDGE_HANDLER(GET_CURRENT) {
+HBRIDGE_READ(CURRENT) {
   drv_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA = 0;
@@ -384,7 +384,7 @@ static err_h uninstall(void* ctx) {
 }
 
 // Every channel braked (outputs on, inputs low).
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   err_h err = NULL;
@@ -513,16 +513,16 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    HBRIDGE_ENTRY(SET_DRIVE),
-    HBRIDGE_ENTRY(BRAKE),
-    HBRIDGE_ENTRY(COAST),
-    HBRIDGE_ENTRY(GET_CURRENT),
-    EVENT_ENTRY(ON_EVENT),
+    DEVICE_ENTRY_W(RESET),
+    HBRIDGE_ENTRY_W(DRIVE),
+    HBRIDGE_ENTRY_W(BRAKE),
+    HBRIDGE_ENTRY_W(COAST),
+    HBRIDGE_ENTRY_R(CURRENT),
+    EVENT_ENTRY_W(ON_EVENT),
     /* Device own ops */
-    {DRV8962_OP_SET_CURRENT_LIMIT, set_current_limit_h},
-    {DRV8962_OP_CLEAR_FAULT, clear_fault_h},
-    {DRV8962_OP_GET_FAULT, get_fault_h},
+    {DRV8962_OP_CURRENT_LIMIT, NULL, set_current_limit_h},
+    {DRV8962_OP_CLEAR_FAULT, NULL, clear_fault_h},
+    {DRV8962_OP_FAULT, get_fault_h, NULL},
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DRV8962, .cfg_size = sizeof(drv8962_cfg_t), .ctx_size = sizeof(drv_t),

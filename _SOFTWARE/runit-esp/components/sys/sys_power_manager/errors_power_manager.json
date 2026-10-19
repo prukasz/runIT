@@ -36,6 +36,10 @@
     "ERR_PWRM_BAD_ARG": {
       "message": "{value} is outside {min}..{max}",
       "hint": "Use a value within the range shown."
+    },
+    "ERR_PWRM_NOT_RAIL": {
+      "message": "{id} is not a power rail of the board",
+      "hint": "Choose the board or one of its power rails."
     }
   }
 }

@@ -13,8 +13,7 @@
 #define SYS_I2C_OP_INFO      0x01u
 #define SYS_I2C_OP_SCAN      0x02u
 #define SYS_I2C_OP_RESET     0x03u
-#define SYS_I2C_OP_RAW_READ  0x04u
-#define SYS_I2C_OP_RAW_WRITE 0x05u
+#define SYS_I2C_OP_RAW       0x04u  // read: [bus][addr][reg][len] -> [bus][addr][reg] + data; write: [bus][addr][reg] + data
 
 #define SCAN_ADDR_FIRST 0x08u  // 0x00-0x07 and 0x78-0x7F are reserved addresses
 #define SCAN_ADDR_LAST  0x77u
@@ -77,16 +76,20 @@ static err_h raw_finish(sys_i2c_dev_t* dev, err_h err) {
   return err;
 }
 
+// The answer is the write's layout (the mirror): the address, then the bytes read.
 ROUTER_OP(op_raw_read, sys_i2c_raw_read_args_t) {
+  const sys_i2c_raw_write_args_t head = {.bus = args->bus, .addr = args->addr, .reg = args->reg};
+  const uint32_t need = sizeof(head) + args->len;
   ERR_TRY(check_remote_bus(args->bus));
-  ERR_CHECK(args->len > 0 && args->len <= out_cap, ERR_CMD_OUT_FULL, .need = args->len, .cap = (uint16_t)out_cap);
+  ERR_CHECK(args->len > 0 && need <= out_cap, ERR_CMD_OUT_FULL, .need = (uint16_t)need, .cap = (uint16_t)out_cap);
 
   sys_i2c_dev_t dev;
   sys_i2c_dev_init(&dev, args->bus, args->addr, RAW_SPEED_HZ);
   ERR_TRY(sys_i2c_dev_add(&dev));
-  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, args->reg, out, args->len));
+  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, args->reg, out + sizeof(head), args->len));
   if (err == NULL) {
-    *out_len = args->len;
+    memcpy(out, &head, sizeof(head));
+    *out_len = need;
   }
   return err;
 }
@@ -100,12 +103,11 @@ ROUTER_OP_TAIL(op_raw_write, sys_i2c_raw_write_args_t) {
   return raw_finish(&dev, sys_i2c_reg_write(&dev, args->reg, tail, tail_len));
 }
 
-static const router_entry_t k_ops[] = {
-    {SYS_I2C_OP_INFO, op_info},
-    {SYS_I2C_OP_SCAN, op_scan},
-    {SYS_I2C_OP_RESET, op_reset},
-    {SYS_I2C_OP_RAW_READ, op_raw_read},
-    {SYS_I2C_OP_RAW_WRITE, op_raw_write},
+static const router_op_t k_ops[] = {
+    ROUTER_R(SYS_I2C_OP_INFO, op_info),
+    ROUTER_R(SYS_I2C_OP_SCAN, op_scan),
+    ROUTER_W(SYS_I2C_OP_RESET, op_reset),
+    ROUTER_RW(SYS_I2C_OP_RAW, op_raw_read, op_raw_write),
 };
 
 ROUTER_MODULE(sys_i2c_router, k_ops)

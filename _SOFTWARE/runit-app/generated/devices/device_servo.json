@@ -224,57 +224,64 @@
       "op": 0,
       "symbol": "SERVO_OP_HOME",
       "label": "Home",
-      "description": "Moves servo to its configured default start position"
+      "description": "Moves servo to its configured default start position",
+      "write": {}
     },
     {
-      "id": "set_trim",
+      "id": "trim",
       "op": 1,
-      "symbol": "SERVO_OP_SET_TRIM",
-      "label": "Set Trim",
+      "symbol": "SERVO_OP_TRIM",
+      "label": "Trim",
       "description": "Applies pulse offset/trim",
-      "args": {
-        "struct": "servo_trim_t",
-        "fields": [
-          {
-            "id": "trim",
-            "type": "number",
-            "raw_type": "i16",
-            "size": 2,
-            "label": "Trim offset",
-            "unit": "deg"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "servo_trim_t",
+          "fields": [
+            {
+              "id": "trim",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "label": "Trim offset",
+              "unit": "deg"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "set",
+      "id": "target",
       "op": 2,
-      "symbol": "SERVO_OP_SET",
-      "label": "Set Position",
+      "symbol": "SERVO_OP_TARGET",
+      "label": "Target",
       "description": "Sets servo angle or continuous speed",
-      "args": {
-        "struct": "servo_set_t",
-        "fields": [
-          {
-            "id": "value_x10",
-            "type": "number",
-            "raw_type": "i16",
-            "size": 2,
-            "label": "Position (x10)"
-          }
-        ]
+      "write": {
+        "args": {
+          "struct": "servo_set_t",
+          "fields": [
+            {
+              "id": "value_x10",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "label": "Position (x10)"
+            }
+          ]
+        }
       }
     },
     {
-      "id": "get_pulse",
+      "id": "pulse",
       "op": 3,
-      "symbol": "SERVO_OP_GET_PULSE",
-      "label": "Get Pulse Width",
+      "symbol": "SERVO_OP_PULSE",
+      "label": "Pulse",
       "description": "Reads current pulse in microseconds",
-      "returns": {
-        "type": "u16",
-        "unit": "us",
-        "label": "Pulse width"
+      "read": {
+        "returns": {
+          "type": "u16",
+          "unit": "us",
+          "label": "Pulse width"
+        }
       }
     },
     {
@@ -282,7 +289,8 @@
       "op": 4,
       "symbol": "SERVO_OP_RELEASE",
       "label": "Release (Limp)",
-      "description": "Stops driving PWM pulses, allowing the servo horn to move freely"
+      "description": "Stops driving PWM pulses, allowing the servo horn to move freely",
+      "write": {}
     }
   ],
   "values": {

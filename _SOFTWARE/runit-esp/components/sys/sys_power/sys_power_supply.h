@@ -24,22 +24,27 @@ typedef struct __attribute__((packed)) {
 } supply_select_args_t;
 
 /**
- * @brief The supply contract, once: X(NAME, op number, args struct). From it come SUPPLY_OP_<NAME>,
- * supply_args_<NAME>_t, SUPPLY_HANDLER(NAME) and SUPPLY_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables").
- * Numbers are never reused.
+ * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). From it come SUPPLY_OP_<NAME>, supply_key_<NAME>_t, supply_value_<NAME>_t,
+ * SUPPLY_READ(NAME) / SUPPLY_WRITE(NAME) and SUPPLY_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables").
+ * Sides: SOURCE RW. Numbers are never reused.
  */
-#define SYS_POWER_SUPPLY_CONTRACT(X)        \
-  X(SELECT,     0x00, supply_select_args_t) \
-  X(GET_SOURCE, 0x01, sys_device_none_t)
+#define SYS_POWER_SUPPLY_CONTRACT(X) \
+  X(SOURCE, 0x00, sys_device_none_t, supply_select_args_t)
 
-#define SYS_POWER_SUPPLY__ID(name, n, args_t) SUPPLY_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_SUPPLY, n),
-#define SYS_POWER_SUPPLY__ARGS(name, n, args_t) typedef args_t supply_args_##name##_t;
+#define SYS_POWER_SUPPLY__ID(name, n, key_t, value_t) SUPPLY_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_SUPPLY, n),
+#define SYS_POWER_SUPPLY__TYPES(name, n, key_t, value_t) \
+  typedef key_t supply_key_##name##_t;                   \
+  typedef value_t supply_value_##name##_t;
 
 enum { SYS_POWER_SUPPLY_CONTRACT(SYS_POWER_SUPPLY__ID) };
-SYS_POWER_SUPPLY_CONTRACT(SYS_POWER_SUPPLY__ARGS)
+SYS_POWER_SUPPLY_CONTRACT(SYS_POWER_SUPPLY__TYPES)
 
-#define SUPPLY_HANDLER(name) SYS_DEVICE_HANDLER(supply_h_##name, supply_args_##name##_t)
-#define SUPPLY_ENTRY(name) {SUPPLY_OP_##name, supply_h_##name}
+#define SUPPLY_READ(name)    SYS_DEVICE_READ(supply, name)
+#define SUPPLY_WRITE(name)   SYS_DEVICE_WRITE(supply, name)
+#define SUPPLY_ENTRY(name)   SYS_DEVICE_ENTRY(SUPPLY_OP_##name, supply, name)
+#define SUPPLY_ENTRY_R(name) SYS_DEVICE_ENTRY_R(SUPPLY_OP_##name, supply, name)
+#define SUPPLY_ENTRY_W(name) SYS_DEVICE_ENTRY_W(SUPPLY_OP_##name, supply, name)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

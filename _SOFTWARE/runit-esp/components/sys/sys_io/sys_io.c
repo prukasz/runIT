@@ -4,7 +4,7 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_IO, "sys_io", ERR_SYS_IO_MAP)
 
 err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode) {
   const io_mode_args_t a = {.pin = p.pin, .mode = (uint8_t)mode};
-  return sys_device_call(p.device, IO_OP_SET_MODE, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_MODE, &a, sizeof(a));
 }
 
 // A device without the op (the pins have a fixed function) is fine; any other failure is returned.
@@ -31,7 +31,7 @@ err_h sys_io_prepare_input(sys_io_pin_t p) {
 
 err_h sys_io_reset(sys_io_pin_t p) {
   const io_pin_args_t a = {.pin = p.pin};
-  return sys_device_call(p.device, IO_OP_RESET, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_RESET, &a, sizeof(a));
 }
 
 err_h sys_io_release(sys_io_pin_t p) {
@@ -41,45 +41,58 @@ err_h sys_io_release(sys_io_pin_t p) {
 err_h sys_io_configure_intr(sys_io_pin_t p, const sys_io_intr_cfg_t* cfg) {
   ERR_CHECK(cfg != NULL, ERR_DEV_BAD_ARG);
   const io_intr_args_t a = {.pin = p.pin, .cfg = *cfg};
-  return sys_device_call(p.device, IO_OP_CONFIGURE_INTR, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_INTR, &a, sizeof(a));
 }
 
 err_h sys_io_set_level(sys_io_pin_t p, bool level) {
   const io_level_args_t a = {.pin = p.pin, .level = level};
-  return sys_device_call(p.device, IO_OP_SET_LEVEL, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_LEVEL, &a, sizeof(a));
 }
 
 err_h sys_io_toggle(sys_io_pin_t p) {
   const io_pin_args_t a = {.pin = p.pin};
-  return sys_device_call(p.device, IO_OP_TOGGLE, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_TOGGLE, &a, sizeof(a));
 }
 
 err_h sys_io_get_level(sys_io_pin_t p, bool* level) {
   const io_pin_args_t a = {.pin = p.pin};
-  uint8_t out = 0;
+  io_level_args_t out = {0};
   ERR_CHECK(level != NULL, ERR_DEV_BAD_ARG);
-  ERR_TRY(sys_device_read(p.device, IO_OP_GET_LEVEL, &a, sizeof(a), &out, sizeof(out)));
-  *level = out != 0;
+  ERR_TRY(sys_device_read(p.device, IO_OP_LEVEL, &a, sizeof(a), &out, sizeof(out)));
+  *level = out.level != 0;
   return NULL;
 }
 
 err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV) {
   const io_pin_args_t a = {.pin = p.pin};
+  io_voltage_args_t out = {0};
   ERR_CHECK(out_mV != NULL, ERR_DEV_BAD_ARG);
-  return sys_device_read(p.device, IO_OP_GET_VOLTAGE, &a, sizeof(a), out_mV, sizeof(*out_mV));
+  ERR_TRY(sys_device_read(p.device, IO_OP_VOLTAGE, &a, sizeof(a), &out, sizeof(out)));
+  *out_mV = out.voltage_mV;
+  return NULL;
 }
 
 err_h sys_io_set_voltage(sys_io_pin_t p, int32_t voltage_mV) {
   const io_voltage_args_t a = {.pin = p.pin, .voltage_mV = voltage_mV};
-  return sys_device_call(p.device, IO_OP_SET_VOLTAGE, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_VOLTAGE, &a, sizeof(a));
 }
 
 err_h sys_io_set_pwm_duty(sys_io_pin_t p, uint32_t duty) {
   const io_duty_args_t a = {.pin = p.pin, .duty = duty};
-  return sys_device_call(p.device, IO_OP_SET_PWM_DUTY, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_PWM_DUTY, &a, sizeof(a));
 }
 
 err_h sys_io_set_pwm_frequency(sys_io_pin_t p, uint32_t frequency_Hz) {
   const io_freq_args_t a = {.pin = p.pin, .frequency_Hz = frequency_Hz};
-  return sys_device_call(p.device, IO_OP_SET_PWM_FREQ, &a, sizeof(a), NULL, 0, NULL);
+  return sys_device_write(p.device, IO_OP_PWM_FREQ, &a, sizeof(a));
+}
+
+err_h sys_io_reply_level(uint8_t pin, bool level, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+  const io_level_args_t a = {.pin = pin, .level = level};
+  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
+}
+
+err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+  const io_voltage_args_t a = {.pin = pin, .voltage_mV = voltage_mV};
+  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
 }

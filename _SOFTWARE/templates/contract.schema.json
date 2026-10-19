@@ -105,10 +105,60 @@
   "additionalProperties": false,
 
   "$defs": {
+    "side": {
+      "type": "object",
+      "description": "Jedna strona polecenia (cmd_dir_e): odczyt (bajt kierunku 0x00) albo zapis (0x01). Polecenie z obiema stronami to lustro: odczyt zwraca dokładnie to, co zapis przyjmuje (read.returns == write.args), a jego args to klucz (pin, kanał; puste dla ustawień modułu).",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Co robi ta strona."
+        },
+        "args": {
+          "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt struktury C).",
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "Prosta lista parametrów wejściowych.",
+              "items": {
+                "$ref": "#/$defs/field"
+              }
+            },
+            {
+              "type": "object",
+              "required": ["fields"],
+              "description": "Jawnie nazwana struktura argumentów w C.",
+              "properties": {
+                "struct": {
+                  "type": "string",
+                  "description": "Nazwa typu struktury C (np. 'sys_io_set_level_t')."
+                },
+                "array": {
+                  "type": "boolean",
+                  "description": "Ciąg takich struktur (wiersze), np. macierz odpowiedzi."
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/field"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "returns": {
+          "$ref": "#/$defs/commandReturn"
+        }
+      },
+      "additionalProperties": false
+    },
+
     "command": {
       "type": "object",
       "required": ["id"],
-      "description": "Polecenie / operacja zdefiniowana w kontrakcie.",
+      "description": "Polecenie / operacja zdefiniowana w kontrakcie: strona odczytu i / albo zapisu.",
+      "anyOf": [{"required": ["read"]}, {"required": ["write"]}],
       "properties": {
         "id": {
           "type": "string",
@@ -149,47 +199,13 @@
           "type": "string",
           "description": "Rekord ustawienia (członek grupy 'settings_record' w enums.json, np. 'SYS_ACTIONS_ID_LOG'): aplikacja zapisuje ramkę tego polecenia jako sekcję projektu o tym ID, więc ustawienie wraca przy każdym starcie projektu. Bez niego ustawienie płytka trzyma sama (zapis działa od razu)."
         },
-        "read_by": {
-          "type": "string",
-          "description": "Ustawienie płytki: id polecenia tego samego kontraktu, które je odczytuje (bez argumentów, zwraca strukturę z każdym polem argumentów tego polecenia). Aplikacja pokazuje takie polecenie jako ustawienie: odczytuje je po połączeniu i zapisuje tym poleceniem."
+        "read": {
+          "$ref": "#/$defs/side",
+          "description": "Strona odczytu: args to klucz, returns odpowiedź. Przy obu stronach odpowiedź = write.args (lustro)."
         },
-        "invasive": {
-          "type": "boolean",
-          "default": false,
-          "description": "Czy polecenie zmienia stan pinu / kanału / urządzenia, któremu jest dane (zapis, a nie odczyt). Pin, którym zarządza inne urządzenie, nie jest dla takiego polecenia oferowany w aplikacji."
-        },
-        "args": {
-          "description": "Parametry wejściowe przekazywane do polecenia (prosta lista pól lub obiekt struktury C).",
-          "oneOf": [
-            {
-              "type": "array",
-              "description": "Prosta lista parametrów wejściowych.",
-              "items": {
-                "$ref": "#/$defs/field"
-              }
-            },
-            {
-              "type": "object",
-              "required": ["fields"],
-              "description": "Jawnie nazwana struktura argumentów w C.",
-              "properties": {
-                "struct": {
-                  "type": "string",
-                  "description": "Nazwa typu struktury C (np. 'sys_io_set_level_t')."
-                },
-                "fields": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/field"
-                  }
-                }
-              },
-              "additionalProperties": false
-            }
-          ]
-        },
-        "returns": {
-          "$ref": "#/$defs/commandReturn"
+        "write": {
+          "$ref": "#/$defs/side",
+          "description": "Strona zapisu: args to wartość (albo argumenty akcji); odpowiada ACK bez danych, chyba że podaje returns."
         },
         "tags": {
           "type": "array",

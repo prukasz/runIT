@@ -16,9 +16,12 @@ extern "C" {
  * ERR_DEV_ID{id} and ERR_DEV_OP{op}.
  *
  * Op = [contract u8][op u8]: 0x00xx the device (lifecycle, below), 0x01xx-0xFExx a contract (IDs below, the one place
- * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). A contract is ONE table X(NAME, n, args_t) that
- * gives <PREFIX>_OP_<NAME>, <prefix>_args_<NAME>_t, <PREFIX>_HANDLER(NAME) and <PREFIX>_ENTRY(NAME), so an op number
- * can't be paired with another op's struct (SYS_DEVICE_LIFECYCLE below is the pattern; sys_io.h, sys_pins.h contracts).
+ * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). An op has a read side, a write side or both
+ * (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes (the mirror, CMD.MD).
+ * A contract is ONE table X(NAME, n, key_t, value_t) that gives <PREFIX>_OP_<NAME>, <prefix>_key_<NAME>_t,
+ * <prefix>_value_<NAME>_t, <PREFIX>_READ(NAME) / <PREFIX>_WRITE(NAME) (the handlers) and <PREFIX>_ENTRY(NAME) (both
+ * sides), _ENTRY_R, _ENTRY_W (one), so an op number can't be paired with another op's struct (SYS_DEVICE_LIFECYCLE below
+ * is the pattern; sys_io.h, sys_pins.h contracts).
  *
  * Locking: one recursive lock covers the registry and every call into a device. An op must not sleep or wait for
  * anything but its own I/O, and a driver must not hold a lock of its own across sys_device_call() or
@@ -64,7 +67,7 @@ typedef enum {
 
 #define SYS_DEVICE_ERR_LEVELS 4u  // one action per severity LOW, MEDIUM, HIGH, CRITICAL
 
-/** @brief SET_ERROR_POLICY args and GET_ERROR_POLICY answer. */
+/** @brief ERROR_POLICY: the write takes it, the read answers it. */
 typedef struct __attribute__((packed)) {
   uint8_t importance;                       /**< sys_device_importance_e */
   uint32_t actions[SYS_DEVICE_ERR_LEVELS];  /**< Record run for low, medium, high, critical (0: none) */
@@ -87,26 +90,34 @@ typedef struct __attribute__((packed)) {
   }                                                                                                               \
   static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
 
-/**
- * @brief Device contract (0x00xx): the lifecycle. CREATE (0x00) is not in the
- * table: it has no instance yet. REMOVE, INFO and OPS are answered by the
- * registry for every device: a driver's op table lists none of them.
- */
-#define SYS_DEVICE_LIFECYCLE(X) \
-  X(RESET, 0x01, sys_device_none_t) \
-  X(SUSPEND, 0x02, sys_device_none_t) \
-  X(RESUME, 0x03, sys_device_none_t) \
-  X(REMOVE, 0x04, sys_device_none_t) \
-  X(INFO, 0x05, sys_device_none_t) \
-  X(OPS, 0x06, sys_device_none_t) \
-  X(SET_ERROR_POLICY, 0x07, sys_device_error_policy_t) \
-  X(GET_ERROR_POLICY, 0x08, sys_device_none_t)
+/** @brief INFO answer. */
+typedef struct __attribute__((packed)) {
+  uint16_t type_id;   /**< Device type ID */
+  uint8_t suspended;  /**< 1 if suspended, 0 otherwise */
+} sys_device_info_t;
 
-#define SYS_DEVICE__ID(name, n, args_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
-#define SYS_DEVICE__ARGS(name, n, args_t) typedef args_t sys_device_args_##name##_t;
+/**
+ * @brief Device contract (0x00xx): the lifecycle, X(NAME, n, key_t, value_t). CREATE (0x00, write) is not in the
+ * table: it has no instance yet. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS (answered as a list, so
+ * its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and ERROR_POLICY are the
+ * registry's for every device: a driver's op table lists none of them.
+ */
+#define SYS_DEVICE_LIFECYCLE(X)                                          \
+  X(RESET,        0x01, sys_device_none_t, sys_device_none_t)            \
+  X(SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)            \
+  X(RESUME,       0x03, sys_device_none_t, sys_device_none_t)            \
+  X(REMOVE,       0x04, sys_device_none_t, sys_device_none_t)            \
+  X(INFO,         0x05, sys_device_none_t, sys_device_info_t)            \
+  X(OPS,          0x06, sys_device_none_t, sys_device_none_t)            \
+  X(ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
+
+#define SYS_DEVICE__ID(name, n, key_t, value_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
+#define SYS_DEVICE__TYPES(name, n, key_t, value_t) \
+  typedef key_t sys_device_key_##name##_t;          \
+  typedef value_t sys_device_value_##name##_t;
 
 enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00), SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ID) };  // CREATE: [type u16][create struct]
-SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
+SYS_DEVICE_LIFECYCLE(SYS_DEVICE__TYPES)
 
 /* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
@@ -116,14 +127,16 @@ SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
   X(SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
   X(RESUMED, 0x01, SYS_EVENT_NOTIFY)
 
-#define DEVICE_HANDLER(name) SYS_DEVICE_HANDLER(sys_device_h_##name, sys_device_args_##name##_t)
-#define DEVICE_ENTRY(name) {SYS_DEVICE_OP_##name, sys_device_h_##name}
+/* The handlers and op-table rows of a contract op: <P>_READ / <P>_WRITE write the side's cmd_f (the read parses the
+ * key, the write the value), <P>_ENTRY lists both sides, _ENTRY_R / _ENTRY_W one. */
+#define SYS_DEVICE_READ(p, name)  SYS_DEVICE_HANDLER(p##_r_##name, p##_key_##name##_t)
+#define SYS_DEVICE_WRITE(p, name) SYS_DEVICE_HANDLER(p##_w_##name, p##_value_##name##_t)
+#define SYS_DEVICE_ENTRY(op, p, name)   {(op), p##_r_##name, p##_w_##name}
+#define SYS_DEVICE_ENTRY_R(op, p, name) {(op), p##_r_##name, NULL}
+#define SYS_DEVICE_ENTRY_W(op, p, name) {(op), NULL, p##_w_##name}
 
-/** @brief INFO answer. */
-typedef struct __attribute__((packed)) {
-  uint16_t type_id;   /**< Device type ID */
-  uint8_t suspended;  /**< 1 if suspended, 0 otherwise */
-} sys_device_info_t;
+#define DEVICE_WRITE(name)   SYS_DEVICE_WRITE(sys_device, name)
+#define DEVICE_ENTRY_W(name) SYS_DEVICE_ENTRY_W(SYS_DEVICE_OP_##name, sys_device, name)
 
 /* ----------------------------------------------------------------------------
  * Errors (module ERR_MOD_SYS_DEVICE). Besides the registry's, the ones every
@@ -144,7 +157,7 @@ typedef struct __attribute__((packed)) {
   X(ERR_DEV_ID,             ERR_TAG(ERR_MOD_SYS_DEVICE, 13), ERR_SEV_NONE,   { uint16_t id; }) /* context: route step / sweep */ \
   X(ERR_DEV_BAD_PIN,        ERR_TAG(ERR_MOD_SYS_DEVICE, 15), ERR_SEV_HIGH,   { uint16_t id; uint8_t pin; })       \
   X(ERR_DEV_RANGE,          ERR_TAG(ERR_MOD_SYS_DEVICE, 16), ERR_SEV_HIGH,   { uint16_t id; int32_t value; int32_t min; int32_t max; }) /* a value the chip would reject (signed: thresholds may be negative) */ \
-  X(ERR_DEV_OP,             ERR_TAG(ERR_MOD_SYS_DEVICE, 17), ERR_SEV_NONE,   { uint16_t op; }) /* context: route step */ \
+  X(ERR_DEV_OP,             ERR_TAG(ERR_MOD_SYS_DEVICE, 17), ERR_SEV_NONE,   { uint16_t op; uint8_t dir; }) /* context: route step */ \
   X(ERR_DEV_UNKNOWN_OP,     ERR_TAG(ERR_MOD_SYS_DEVICE, 18), ERR_SEV_HIGH,   { uint16_t op; }) /* an op (contract) the device doesn't have */ \
   X(ERR_DEV_PIN_LOCKED,     ERR_TAG(ERR_MOD_SYS_DEVICE, 19), ERR_SEV_HIGH,   { uint16_t id; uint8_t pin; }) /* a locked pin: only its owner drives it (sys_pins.h) */ \
   X(ERR_DEV_IN_USE,         ERR_TAG(ERR_MOD_SYS_DEVICE, 20), ERR_SEV_MEDIUM, { uint16_t id; uint16_t user; }) /* REMOVE of a device another one uses */ \
@@ -185,11 +198,13 @@ typedef struct {
 } sys_device_base_t;
 
 /**
- * @brief One entry of a device's op table.
+ * @brief One entry of a device's op table: the op and its two sides (NULL = the device has no such side). Each gets
+ * the device's struct as ctx and the side's args only.
  */
 typedef struct {
   uint16_t op;
-  cmd_f fn;  // gets the device's struct as ctx and the op's args only
+  cmd_f read;
+  cmd_f write;
 } sys_device_op_t;
 
 /**
@@ -245,18 +260,21 @@ static inline MUST_USE err_h sys_device_check_active(const sys_device_base_t* de
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Runs op `op` of device `id` without a transport: device-to-device
+ * @brief Runs side `dir` (cmd_dir_e) of op `op` of device `id` without a transport: device-to-device
  * calls, the contract wrappers, event listeners, timers, the board creating
- * its devices (op CREATE, args [type u16][create struct]). `args` and `out` are
+ * its devices (op CREATE, a write, args [type u16][create struct]). `args` and `out` are
  * the op's wire payload and answer (any size: the args are used in place);
  * `out_len` may be NULL.
  */
-MUST_USE err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+MUST_USE err_h sys_device_call(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
                                uint32_t out_cap, uint32_t* out_len);
 
+/** @brief The write side of `op`: sys_device_call with no answer. The contract wrappers' setters and actions. */
+MUST_USE err_h sys_device_write(uint16_t id, uint16_t op, const void* args, uint32_t args_len);
+
 /**
- * @brief sys_device_call of an op whose answer has a fixed size (a reading, a mask): ERR_CMD_BAD_LEN unless the
- * device answered exactly `out_size` bytes. The contract wrappers' getters.
+ * @brief The read side of `op` with the key `args`, whose answer has a fixed size (a reading, a mask): ERR_CMD_BAD_LEN
+ * unless the device answered exactly `out_size` bytes. The contract wrappers' getters.
  */
 MUST_USE err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
                                uint32_t out_size);
@@ -268,14 +286,15 @@ MUST_USE err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint3
  * call on. Runs without the registry lock; it must not be reached from inside a device op (lock order: the guard's
  * own lock, then the registry's).
  */
-typedef err_h (*sys_device_guard_f)(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, bool* handled);
+typedef err_h (*sys_device_guard_f)(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len,
+                                    bool* handled);
 
 /** @brief Sets the guard of `contract`. Boot only; one per contract, up to CONFIG_SYS_DEVICE_GUARDS. */
 MUST_USE err_h sys_device_set_guard(uint8_t contract, sys_device_guard_f fn);
 
 /** @brief sys_device_call without the guard: for the guard's owner, to run the op it decided on. */
-MUST_USE err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
-                                      uint32_t out_cap, uint32_t* out_len);
+MUST_USE err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len,
+                                      void* out, uint32_t out_cap, uint32_t* out_len);
 
 /**
  * @brief Runs SUSPEND, RESUME, RESET or REMOVE (`op`, else ERR_DEV_UNKNOWN_OP) on every instance: newest first (a

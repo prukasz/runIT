@@ -22,7 +22,7 @@ typedef struct {
   uint16_t id;
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
-  sys_device_error_policy_t policy;  // SET_ERROR_POLICY; read by the error path under s_table_mux
+  sys_device_error_policy_t policy;  // ERROR_POLICY write; read by the error path under s_table_mux
   bool system;                       // the board's own (sys_device_mark_system): never removed
 } dev_t_;
 
@@ -72,10 +72,10 @@ static const sys_device_type_t* find_type(uint16_t type) {
 }
 
 // The handler of `op` in the type's table, or NULL.
-static cmd_f type_op(const sys_device_type_t* t, uint16_t op) {
+static const sys_device_op_t* type_op(const sys_device_type_t* t, uint16_t op) {
   for (uint32_t i = 0; i < t->op_count; i++) {
     if (t->ops[i].op == op) {
-      return t->ops[i].fn;
+      return &t->ops[i];
     }
   }
   return NULL;
@@ -255,46 +255,73 @@ static err_h op_get_policy(uint32_t i, const uint8_t* args, uint8_t* out, uint32
   return cmd_reply(out, out_cap, out_len, &s_reg.devs[i].policy, sizeof(s_reg.devs[i].policy));
 }
 
+typedef err_h (*registry_op_f)(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+
+// One side per row; ERROR_POLICY has two.
 static const struct {
   uint16_t op;
+  uint8_t dir;
   uint16_t args_size;
-  err_h (*fn)(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+  registry_op_f fn;
 } k_registry_ops[] = {
-    {SYS_DEVICE_OP_SUSPEND, 0, op_suspend},
-    {SYS_DEVICE_OP_RESUME, 0, op_resume},
-    {SYS_DEVICE_OP_REMOVE, 0, op_remove},
-    {SYS_DEVICE_OP_INFO, 0, op_info},
-    {SYS_DEVICE_OP_OPS, 0, op_ops},
-    {SYS_DEVICE_OP_SET_ERROR_POLICY, sizeof(sys_device_error_policy_t), op_set_policy},
-    {SYS_DEVICE_OP_GET_ERROR_POLICY, 0, op_get_policy},
+    {SYS_DEVICE_OP_SUSPEND, CMD_DIR_WRITE, 0, op_suspend},
+    {SYS_DEVICE_OP_RESUME, CMD_DIR_WRITE, 0, op_resume},
+    {SYS_DEVICE_OP_REMOVE, CMD_DIR_WRITE, 0, op_remove},
+    {SYS_DEVICE_OP_INFO, CMD_DIR_READ, 0, op_info},
+    {SYS_DEVICE_OP_OPS, CMD_DIR_READ, 0, op_ops},
+    {SYS_DEVICE_OP_ERROR_POLICY, CMD_DIR_WRITE, sizeof(sys_device_error_policy_t), op_set_policy},
+    {SYS_DEVICE_OP_ERROR_POLICY, CMD_DIR_READ, 0, op_get_policy},
 };
 
-// OPS: the registry's ops, then the type's table.
+#define SIDE_READ  0x01u  // OPS: the op has a read side
+#define SIDE_WRITE 0x02u  // ... a write side
+
+// OPS: [op u16][sides u8] per op, the registry's, then the type's table.
 static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   const sys_device_type_t* t = s_reg.devs[i].type;
-  const uint32_t n = ARRAY_LEN(k_registry_ops);
-  const uint32_t count = n + t->op_count;
-  ERR_CHECK(count * 2 <= out_cap, ERR_CMD_OUT_FULL, .need = (uint16_t)(count * 2), .cap = (uint16_t)out_cap);
-  for (uint32_t k = 0; k < count; k++) {
-    const uint16_t op = k < n ? k_registry_ops[k].op : t->ops[k - n].op;
-    memcpy(out + k * 2, &op, sizeof(op));  // little-endian target
+  uint32_t pos = 0;
+  for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
+    if (k > 0 && k_registry_ops[k - 1].op == k_registry_ops[k].op) continue;  // the second side of the same op
+    uint8_t sides = 0;
+    for (uint32_t j = k; j < ARRAY_LEN(k_registry_ops) && k_registry_ops[j].op == k_registry_ops[k].op; j++) {
+      sides |= k_registry_ops[j].dir == CMD_DIR_READ ? SIDE_READ : SIDE_WRITE;
+    }
+    ERR_TRY(cmd_append(out, out_cap, &pos, &k_registry_ops[k].op, sizeof(uint16_t)));  // little-endian target
+    ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
   }
-  *out_len = count * 2;
+  for (uint32_t k = 0; k < t->op_count; k++) {
+    const uint8_t sides = (t->ops[k].read != NULL ? SIDE_READ : 0) | (t->ops[k].write != NULL ? SIDE_WRITE : 0);
+    ERR_TRY(cmd_append(out, out_cap, &pos, &t->ops[k].op, sizeof(uint16_t)));
+    ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
+  }
+  *out_len = pos;
   return NULL;
 }
 
-// Any op but CREATE, on a registered device: the registry's, else the type's.
-static err_h run_op(uint32_t i, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out, uint32_t out_cap,
-                    uint32_t* out_len) {
+static bool registry_op(uint16_t op) {
   for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
-    if (k_registry_ops[k].op == op) {
-      const uint16_t need = k_registry_ops[k].args_size;
-      ERR_CHECK(args_len == need, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = need);
-      return k_registry_ops[k].fn(i, args, out, out_cap, out_len);
-    }
+    if (k_registry_ops[k].op == op) return true;
   }
-  const cmd_f fn = type_op(s_reg.devs[i].type, op);
-  ERR_CHECK(fn != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
+  return false;
+}
+
+// Any op but CREATE, on a registered device: the registry's, else the type's.
+static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
+                    uint32_t out_cap, uint32_t* out_len) {
+  if (registry_op(op)) {
+    for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
+      if (k_registry_ops[k].op == op && k_registry_ops[k].dir == dir) {
+        const uint16_t need = k_registry_ops[k].args_size;
+        ERR_CHECK(args_len == need, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = need);
+        return k_registry_ops[k].fn(i, args, out, out_cap, out_len);
+      }
+    }
+    return ERR_NEW(ERR_CMD_DIRECTION, .dir = dir);
+  }
+  const sys_device_op_t* row = type_op(s_reg.devs[i].type, op);
+  ERR_CHECK(row != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
+  cmd_f fn = NULL;
+  ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
   return fn(s_reg.devs[i].ctx, args, args_len, out, out_cap, out_len);
 }
 
@@ -318,17 +345,18 @@ void sys_device_type_register(const sys_device_type_t* type) {
   s_reg.types[s_reg.type_count++] = type;
 }
 
-static err_h wrap_op(err_h err, uint16_t op) {
-  return err != NULL ? ERR_WRAP(err, ERR_DEV_OP, .op = op) : NULL;
+static err_h wrap_op(err_h err, uint8_t dir, uint16_t op) {
+  return err != NULL ? ERR_WRAP(err, ERR_DEV_OP, .op = op, .dir = dir) : NULL;
 }
 
 /* One call, the args in place (no copy, so no size limit besides the caller's). Errors are wrapped in ERR_DEV_ID. */
-static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out, uint32_t out_cap,
-                  uint32_t* out_len) {
+static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
+                  uint32_t out_cap, uint32_t* out_len) {
   // SUSPEND / RESUME / RESET to "no device" = every device (sys_device_sweep). Not wrapped in ERR_DEV_ID{NONE}: the
   // sweep's own error already names the device that failed, and the error policy reads that ID.
   if (id == SYS_DEVICE_ID_NONE &&
       (op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME || op == SYS_DEVICE_OP_RESET)) {
+    ERR_CHECK(dir == CMD_DIR_WRITE, ERR_CMD_DIRECTION, .dir = dir);
     ERR_CHECK(args_len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 0);
     return sys_device_sweep(op);
   }
@@ -337,7 +365,9 @@ static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_l
   const uint32_t i = find_dev(id);
   const bool found = i != s_reg.dev_count;  // before the op: REMOVE shrinks the table
   if (op == SYS_DEVICE_OP_CREATE) {
-    if (id == SYS_DEVICE_ID_NONE) {
+    if (dir != CMD_DIR_WRITE) {
+      err = ERR_NEW(ERR_CMD_DIRECTION, .dir = dir);
+    } else if (id == SYS_DEVICE_ID_NONE) {
       err = ERR_NEW(ERR_DEV_BAD_ID, .id = id);
     } else if (found) {
       err = ERR_NEW(ERR_DEV_ID_TAKEN, .id = id);
@@ -349,11 +379,11 @@ static err_h call(uint16_t id, uint16_t op, const uint8_t* args, uint32_t args_l
   } else if (!found) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = id);
   } else {
-    err = run_op(i, op, args, args_len, out, out_cap, out_len);
+    err = run_op(i, dir, op, args, args_len, out, out_cap, out_len);
   }
   UNLOCK();
   if (op == SYS_DEVICE_OP_CREATE || found) {
-    err = wrap_op(err, op);  // not around NOT_FOUND: there was no op to run
+    err = wrap_op(err, dir, op);  // not around NOT_FOUND: there was no op to run
   }
   return err != NULL ? ERR_WRAP(err, ERR_DEV_ID, .id = id) : NULL;
 }
@@ -379,8 +409,8 @@ static sys_device_guard_f find_guard(uint16_t op) {
   return NULL;
 }
 
-static err_h call_checked(bool guarded, uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
-                          uint32_t out_cap, uint32_t* out_len) {
+static err_h call_checked(bool guarded, uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len,
+                          void* out, uint32_t out_cap, uint32_t* out_len) {
   static const uint8_t k_no_args[1];  // handlers memcpy their args: never from NULL
   uint32_t dummy;
   ERR_CHECK(args != NULL || args_len == 0, ERR_DEV_BAD_ARG);
@@ -394,33 +424,37 @@ static err_h call_checked(bool guarded, uint16_t id, uint16_t op, const void* ar
   sys_device_guard_f guard = guarded ? find_guard(op) : NULL;
   if (guard != NULL) {
     bool handled = false;
-    err_h err = guard(id, op, args, args_len, &handled);
+    err_h err = guard(id, dir, op, args, args_len, &handled);
     if (handled) {
       if (err != NULL && err->tag != ERR_DEV_ID) {
-        err = ERR_WRAP(wrap_op(err, op), ERR_DEV_ID, .id = id);
+        err = ERR_WRAP(wrap_op(err, dir, op), ERR_DEV_ID, .id = id);
       }
       return err;
     }
     err_free(err);  // a guard that passes the op on returns nothing
   }
-  return call(id, op, args, args_len, out, out_cap, out_len);
+  return call(id, dir, op, args, args_len, out, out_cap, out_len);
 }
 
-err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_cap,
-                      uint32_t* out_len) {
-  return call_checked(true, id, op, args, args_len, out, out_cap, out_len);
+err_h sys_device_call(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
+                      uint32_t out_cap, uint32_t* out_len) {
+  return call_checked(true, id, dir, op, args, args_len, out, out_cap, out_len);
+}
+
+err_h sys_device_write(uint16_t id, uint16_t op, const void* args, uint32_t args_len) {
+  return sys_device_call(id, CMD_DIR_WRITE, op, args, args_len, NULL, 0, NULL);
 }
 
 err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_size) {
   uint32_t out_len = 0;
-  ERR_TRY(sys_device_call(id, op, args, args_len, out, out_size, &out_len));
+  ERR_TRY(sys_device_call(id, CMD_DIR_READ, op, args, args_len, out, out_size, &out_len));
   ERR_CHECK(out_len == out_size, ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = (uint16_t)out_size);
   return NULL;
 }
 
-err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
                              uint32_t out_cap, uint32_t* out_len) {
-  return call_checked(false, id, op, args, args_len, out, out_cap, out_len);
+  return call_checked(false, id, dir, op, args, args_len, out, out_cap, out_len);
 }
 
 /* ----------------------------------------------------------------------------
@@ -450,7 +484,7 @@ err_h sys_device_sweep(uint16_t op) {
     s_reg.sweep_changed = false;
   }
   for (uint32_t i = 0; i < n; i++) {
-    err_h err = sys_device_call(ids[i], op, NULL, 0, NULL, 0, NULL);
+    err_h err = sys_device_write(ids[i], op, NULL, 0);
     if (err == NULL) {
       continue;
     }

@@ -62,7 +62,8 @@
       "id": "select",
       "alias": "Select source",
       "description": "Feeds the load from nothing, source A or source B. At most one source is on: a change switches the old one off first and the new one on after the device's delay.",
-      "op": "SELECT",
+      "op": "SOURCE",
+      "dir": "write",
       "args": {
         "source": {
           "required": true,
@@ -81,7 +82,8 @@
       "id": "get_source",
       "alias": "Read source",
       "description": "Reads which source is on: off, source A or source B.",
-      "op": "GET_SOURCE",
+      "op": "SOURCE",
+      "dir": "read",
       "activation": {
         "kind": "enabled",
         "text": "Reads on every pass while enabled."

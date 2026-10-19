@@ -86,7 +86,7 @@ static err_h chip_release_all(tca_t* c) {
 
 /* Reads the inputs and publishes each armed pin's edge (value = the new level). The
    INT line is released by the read. While suspended the chip is in reset: its INT edge isn't an input change. */
-EVENT_HANDLER(ON_EVENT) {
+EVENT_WRITE(ON_EVENT) {
   (void)args;
   tca_t* c = ctx;
   if (c->base.suspended) {
@@ -114,7 +114,7 @@ EVENT_HANDLER(ON_EVENT) {
 
 /* ---- IO contract ---- */
 
-IO_HANDLER(SET_MODE) {
+IO_WRITE(MODE) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   ERR_CHECK(args->mode == SYS_IO_MODE_INPUT || args->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
@@ -122,21 +122,21 @@ IO_HANDLER(SET_MODE) {
   return chip_set_config(c, 1UL << args->pin, args->mode == SYS_IO_MODE_INPUT ? (1UL << args->pin) : 0);
 }
 
-IO_HANDLER(SET_LEVEL) {
+IO_WRITE(LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
 
-IO_HANDLER(TOGGLE) {
+IO_WRITE(TOGGLE) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_pins(c, 1UL << args->pin, (chip_output(c) & (1UL << args->pin)) ? 0 : (1UL << args->pin));
 }
 
 // Reads the chip: refused while it is in reset.
-IO_HANDLER(GET_LEVEL) {
+IO_READ(LEVEL) {
   tca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
@@ -144,11 +144,11 @@ IO_HANDLER(GET_LEVEL) {
   ERR_TRY(chip_get_pins(c, &levels));
   c->cached_inputs = levels;
   const uint8_t level = (levels & (1UL << args->pin)) != 0;
-  return cmd_reply(out, out_cap, out_len, &level, sizeof(level));
+  return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
 }
 
 // The pin back to its power-on state: input, latch low, interrupt disarmed.
-IO_HANDLER(RESET) {
+IO_WRITE(RESET) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   c->intr_mode[args->pin] = SYS_IO_INTR_DISABLE;
@@ -157,7 +157,7 @@ IO_HANDLER(RESET) {
 }
 
 // Edges only: the INT line reports changes of the input port, there is no ADC and no filter (`debounce` is ignored).
-IO_HANDLER(CONFIGURE_INTR) {
+IO_WRITE(INTR) {
   tca_t* c = ctx;
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
@@ -171,7 +171,7 @@ IO_HANDLER(CONFIGURE_INTR) {
 SYS_PINS_STATE_HANDLERS(tca_t)
 
 // The owner of a locked pin (a rail's EN, a bridge's sleep, PCA9685 OE) drives it here; the IO writes refuse it.
-PINS_HANDLER(SET_LOCKED_LEVEL) {
+PINS_WRITE(LOCKED_LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_device_check_active(&c->base));
@@ -183,7 +183,7 @@ PINS_HANDLER(SET_LOCKED_LEVEL) {
 
 /* Unlocked pins back to power-on: inputs, latch low, interrupts disarmed. Locked pins are left to their owners: a
    pin another device drives (a rail's EN, an LM73100 enable, PCA9685 OE) keeps its level. The chip is not reset. */
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   tca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   const uint32_t free_pins = ~(uint32_t)c->pins.locked & PINS_MASK;
@@ -269,11 +269,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    IO_ENTRY(SET_MODE),       IO_ENTRY(SET_LEVEL),     IO_ENTRY(TOGGLE),
-    IO_ENTRY(GET_LEVEL),      IO_ENTRY(RESET),         IO_ENTRY(CONFIGURE_INTR),
-    SYS_PINS_STATE_ENTRIES,   PINS_ENTRY(SET_LOCKED_LEVEL),
-    EVENT_ENTRY(ON_EVENT),
+    DEVICE_ENTRY_W(RESET),
+    IO_ENTRY_W(MODE),       IO_ENTRY(LEVEL),     IO_ENTRY_W(TOGGLE),
+      IO_ENTRY_W(RESET),         IO_ENTRY_W(INTR),
+    SYS_PINS_STATE_ENTRIES,   PINS_ENTRY_W(LOCKED_LEVEL),
+    EVENT_ENTRY_W(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TCA6424A, .cfg_size = sizeof(tca6424a_cfg_t), .ctx_size = sizeof(tca_t),

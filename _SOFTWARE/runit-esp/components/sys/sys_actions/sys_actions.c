@@ -209,8 +209,8 @@ err_h sys_actions_run(uint32_t id, bool keep_going) {
 
 err_h sys_actions_request(uint32_t id, bool urgent) {
   ERR_TRY(check_id(id));
-  uint8_t req[2 + sizeof(id)] = {ROUTER_KEY_ACTIONS, SYS_ACTIONS_OP_RUN};
-  memcpy(req + 2, &id, sizeof(id));  // LE on the ESP32
+  uint8_t req[3 + sizeof(id)] = {ROUTER_KEY_ACTIONS, CMD_DIR_WRITE, SYS_ACTIONS_OP_RUN};
+  memcpy(req + 3, &id, sizeof(id));  // LE on the ESP32
   return router_inject(req, sizeof(req), urgent);
 }
 
@@ -218,14 +218,15 @@ err_h sys_actions_request(uint32_t id, bool urgent) {
  * Recording (router tap)
  * ------------------------------------------------------------------------- */
 
-// Frames a recording keeps: not the sys key, not the actions ops other than RUN / RUN_ALL.
+// Frames a recording keeps: writes only ([key][dir] first), not the sys key, not the actions commands other than RUN /
+// RUN_ALL.
 static bool recordable(const err_cmd_t* cmd) {
   uint8_t key = cmd->req[0];  // the dispatcher routes only frames with a root key
-  if (key == ROUTER_KEY_SYS) {
+  if (cmd->req_len < 2 || cmd->req[1] != CMD_DIR_WRITE || key == ROUTER_KEY_SYS) {
     return false;
   }
   if (key == ROUTER_KEY_ACTIONS) {
-    return cmd->req_len >= 2 && (cmd->req[1] == SYS_ACTIONS_OP_RUN || cmd->req[1] == SYS_ACTIONS_OP_RUN_ALL);
+    return cmd->req_len >= 3 && (cmd->req[2] == SYS_ACTIONS_OP_RUN || cmd->req[2] == SYS_ACTIONS_OP_RUN_ALL);
   }
   return true;
 }

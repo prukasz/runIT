@@ -6,7 +6,7 @@ _Static_assert(sizeof(servo_set_t) == 2 && sizeof(servo_trim_t) == 2,
                "a servo op's argument struct changed: update the table of the SERVO block");
 
 static const vm_dev_op_t k_ops[] = {
-    {.op = SERVO_OP_SET,
+    {.op = SERVO_OP_TARGET,
      .act = VM_DEV_ACT_CHANGE,
      .result = VM_DEV_R_NONE,
      .nfield = 1,
@@ -14,7 +14,7 @@ static const vm_dev_op_t k_ops[] = {
      .scale = {10.0f}},  // position in the servo's unit, tenths on the wire
     {.op = SERVO_OP_HOME, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
     {.op = SERVO_OP_RELEASE, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
-    VM_DEV_OP(SERVO_OP_SET_TRIM, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_I16),
+    VM_DEV_OP(SERVO_OP_TRIM, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_I16),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

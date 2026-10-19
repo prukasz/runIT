@@ -7,9 +7,9 @@ _Static_assert(sizeof(drv8962_limit_t) == 5 && sizeof(hbridge_channel_args_t) ==
                "a DRV8962 op's struct changed: update the table of the DRV8962 block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(DRV8962_OP_SET_CURRENT_LIMIT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U8, VM_DEV_F_U32),
+    VM_DEV_OP(DRV8962_OP_CURRENT_LIMIT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U8, VM_DEV_F_U32),
     VM_DEV_OP(DRV8962_OP_CLEAR_FAULT, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    VM_DEV_OP(DRV8962_OP_GET_FAULT, VM_DEV_ACT_READ, VM_DEV_R_U8X2, 1, VM_DEV_F_U8),
+    VM_DEV_OP(DRV8962_OP_FAULT, VM_DEV_ACT_READ, VM_DEV_R_U8X2, 1, VM_DEV_F_U8),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 1};
 

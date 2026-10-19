@@ -1,8 +1,9 @@
 #include "sys_device_router.h"
 #include "sys_device.h"
 
-// After the root key: [id u16][op u16][args].
+// After the root key: [dir u8][id u16][op u16][args].
 typedef struct __attribute__((packed)) {
+  uint8_t dir;
   uint16_t id;
   uint16_t op;
 } hdr_t;
@@ -15,5 +16,5 @@ err_h sys_device_router(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* 
   ERR_CHECK(got >= sizeof(hdr_t), ERR_CMD_BAD_LEN, .got = (uint16_t)got, .need = sizeof(hdr_t));
   hdr_t h;
   memcpy(&h, in + 1, sizeof(h));  // little-endian target
-  return sys_device_call(h.id, h.op, in + 1 + sizeof(h), got - sizeof(h), out, out_cap, out_len);
+  return sys_device_call(h.id, h.dir, h.op, in + 1 + sizeof(h), got - sizeof(h), out, out_cap, out_len);
 }

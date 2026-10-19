@@ -348,7 +348,7 @@ static err_h publish_crossing(ads_t* c, uint8_t pin, uint16_t code) {
    edge-triggered (falling edge only), so if the sequencer re-latches a flag between our read and our clear (it keeps
    converting autonomously the whole time), a flag can be left set with no further edge ever able to fire and revisit
    it: ALERT would stay asserted forever. Looping until a poll comes back with nothing pending closes that gap. */
-EVENT_HANDLER(ON_EVENT) {
+EVENT_WRITE(ON_EVENT) {
   (void)args;
   ads_t* c = ctx;
   if (c->base.suspended) {
@@ -393,18 +393,18 @@ EVENT_HANDLER(ON_EVENT) {
 /* ---- IO contract ---- */
 
 // A read: refused while suspended (the sequencer is stopped).
-IO_HANDLER(GET_VOLTAGE) {
+IO_READ(VOLTAGE) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   uint16_t code = 0;
   ERR_TRY(chip_read_channel(c, args->pin, &code));
   const int32_t mV = (int32_t)code_to_mV(c, code);
-  return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
+  return sys_io_reply_voltage(args->pin, mV, out, out_cap, out_len);
 }
 
 // Channels are analog inputs out of reset and this device has nothing else, so the only mode that can be honoured is ADC.
-IO_HANDLER(SET_MODE) {
+IO_WRITE(MODE) {
   ads_t* c = ctx;
   ERR_TRY(check_channel(c, args->pin));
   ERR_CHECK(args->mode == SYS_IO_MODE_ADC, ERR_IO_MODE_UNSUPPORTED, .id = c->base.id, .pin = args->pin, .mode = args->mode);
@@ -413,7 +413,7 @@ IO_HANDLER(SET_MODE) {
 
 /* The on-chip window comparator is the only trigger an analog input has; edge modes belong to digital pins. A
    threshold of 0 mV up means "no high limit": full scale never trips the comparator. */
-IO_HANDLER(CONFIGURE_INTR) {
+IO_WRITE(INTR) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
@@ -458,7 +458,7 @@ IO_HANDLER(CONFIGURE_INTR) {
 }
 
 // The channel's comparator off.
-IO_HANDLER(RESET) {
+IO_WRITE(RESET) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
@@ -484,7 +484,7 @@ static err_h uninstall(void* ctx) {
 }
 
 // Back to the chip's defaults: every comparator off.
-DEVICE_HANDLER(RESET) {
+DEVICE_WRITE(RESET) {
   ads_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   memset(c->intr_modes, SYS_IO_INTR_DISABLE, sizeof(c->intr_modes));
@@ -537,9 +537,9 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY(RESET),
-    IO_ENTRY(GET_VOLTAGE), IO_ENTRY(SET_MODE),          IO_ENTRY(CONFIGURE_INTR),
-    IO_ENTRY(RESET),       EVENT_ENTRY(ON_EVENT),
+    DEVICE_ENTRY_W(RESET),
+    IO_ENTRY_R(VOLTAGE), IO_ENTRY_W(MODE),          IO_ENTRY_W(INTR),
+    IO_ENTRY_W(RESET),       EVENT_ENTRY_W(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_ADS7128, .cfg_size = sizeof(ads7128_cfg_t), .ctx_size = sizeof(ads_t),

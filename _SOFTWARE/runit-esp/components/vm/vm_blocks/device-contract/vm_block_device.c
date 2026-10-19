@@ -2,11 +2,12 @@
 
 #include "vm_blocks.h"
 
-#define OUT_BYTES 8u  // the largest result (two i32)
+#define OUT_BYTES 12u  // the largest answer: a mirror read's key and two i32
 
-static const vm_dev_op_t* op_find(const vm_dev_contract_t* c, uint16_t op) {
+// The row of `op` on side `dir`: READ rows are the op's read side, the others its write side.
+static const vm_dev_op_t* op_find(const vm_dev_contract_t* c, uint16_t op, uint8_t dir) {
   for (uint8_t i = 0; i < c->count; i++) {
-    if (c->ops[i].op == op) {
+    if (c->ops[i].op == op && (c->ops[i].act == VM_DEV_ACT_READ) == (dir == CMD_DIR_READ)) {
       return &c->ops[i];
     }
   }
@@ -129,18 +130,21 @@ static err_h call(const vm_block_device_data_t* d, const vm_dev_op_t* op, const 
   const uint32_t len = args_pack(op, v, args);
   uint8_t out[OUT_BYTES];
   uint32_t out_len = 0;
-  ERR_TRY(sys_device_call(d->device_id, op->op, args, len, out, sizeof(out), &out_len));
+  const bool read = op->act == VM_DEV_ACT_READ;
+  ERR_TRY(sys_device_call(d->device_id, read ? CMD_DIR_READ : CMD_DIR_WRITE, op->op, args, len, out, sizeof(out),
+                          &out_len));
   if (op->result != VM_DEV_R_NONE) {
     const uint32_t want = result_count(op) * (result_is_u8(op) ? 1u : 4u);
-    ERR_CHECK(out_len == want, ERR_VM_RANGE, .val = out_len, .min = want, .max = want);
-    memcpy(result, out, want);
+    const uint32_t skip = out_len == want + len ? len : 0;  // the read of a mirror op answers its key first
+    ERR_CHECK(out_len - skip == want, ERR_VM_RANGE, .val = out_len, .min = want, .max = want);
+    memcpy(result, out + skip, want);
   }
   return NULL;
 }
 
 // The idle operation: the address fields as last sent, the rest from the constants.
 static void idle_send(vm_block_h b, vm_block_device_data_t* d, const vm_dev_contract_t* c) {
-  const vm_dev_op_t* op = op_find(c, d->idle_op);
+  const vm_dev_op_t* op = op_find(c, d->idle_op, CMD_DIR_WRITE);
   if (op == NULL) {
     return;
   }
@@ -157,7 +161,7 @@ static void idle_send(vm_block_h b, vm_block_device_data_t* d, const vm_dev_cont
 
 void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
   vm_block_device_data_t* d = (vm_block_device_data_t*)vm_block_get_custom_data(b);
-  const vm_dev_op_t* op = op_find(c, d->op);  // checked at load
+  const vm_dev_op_t* op = op_find(c, d->op, d->dir);  // checked at load
   const bool en = vm_block_is_enabled(b);
   const bool rising = en && !(d->flags & VM_DEV_F_PREV_EN);
   d->flags = (uint8_t)(en ? (d->flags | VM_DEV_F_PREV_EN) : (d->flags & ~VM_DEV_F_PREV_EN));
@@ -222,10 +226,10 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 bool vm_device_check(vm_block_h b, const vm_dev_contract_t* c) {
   vm_block_device_data_t d;
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
-  if (d.device_id == SYS_DEVICE_ID_NONE) {
+  if (d.device_id == SYS_DEVICE_ID_NONE || d.dir > CMD_DIR_WRITE) {
     return false;
   }
-  const vm_dev_op_t* op = op_find(c, d.op);
+  const vm_dev_op_t* op = op_find(c, d.op, d.dir);
   if (op == NULL || b->cfg.in_cnt > op->nfield) {
     return false;
   }
@@ -236,7 +240,7 @@ bool vm_device_check(vm_block_h b, const vm_dev_contract_t* c) {
     return true;
   }
   // an idle operation: a send, on the same address fields (the ones last sent)
-  const vm_dev_op_t* idle = op_find(c, d.idle_op);
+  const vm_dev_op_t* idle = op_find(c, d.idle_op, CMD_DIR_WRITE);
   if (idle == NULL || op->act == VM_DEV_ACT_READ || idle->act == VM_DEV_ACT_READ) {
     return false;
   }

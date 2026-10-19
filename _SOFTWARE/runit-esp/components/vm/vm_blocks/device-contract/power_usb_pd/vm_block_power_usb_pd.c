@@ -2,12 +2,12 @@
 #include "sys_power_usb_pd.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(pd_args_SET_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limits_t) == 8,
+_Static_assert(sizeof(pd_value_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limits_t) == 8,
                "a POWER_USB_PD struct changed: update the table of the POWER_USB_PD block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(PD_OP_SET_SETTINGS, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U32, VM_DEV_F_U32),
-    {.op = PD_OP_GET_LIMITS, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_I32X2, .nfield = 0},
+    VM_DEV_OP(PD_OP_SETTINGS, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U32, VM_DEV_F_U32),
+    {.op = PD_OP_LIMITS, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_I32X2, .nfield = 0},
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

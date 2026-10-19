@@ -5,12 +5,12 @@
 #include "sys_device.h"
 #include "sys_system.h"
 
-// Image of one action: [u16 len LE][keys + payload] per frame (SYS_ACTIONS.MD). Here one device-router frame
-// [ROUTER_KEY_DEVICE][SYS_DEVICE_ID_NONE u16][op u16]: the op for every device.
-#define U16(v) (uint8_t)(v), (uint8_t)((v) >> 8)
-#define SWEEP_FRAME(op) 5, 0, ROUTER_KEY_DEVICE, U16(SYS_DEVICE_ID_NONE), U16(op)
-// One sys-router frame [ROUTER_KEY_SYS][op]: the board restarts (hard reset).
-#define SYS_FRAME(op) 2, 0, ROUTER_KEY_SYS, (uint8_t)(op)
+// Image of one action: [u16 len LE][keys + payload] per frame (SYS_ACTIONS.MD). Here one device-router write
+// [ROUTER_KEY_DEVICE][dir][SYS_DEVICE_ID_NONE u16][op u16]: the op for every device.
+#define U16(v)          (uint8_t)(v), (uint8_t)((v) >> 8)
+#define SWEEP_FRAME(op) 6, 0, ROUTER_KEY_DEVICE, CMD_DIR_WRITE, U16(SYS_DEVICE_ID_NONE), U16(op)
+// One sys-router write [ROUTER_KEY_SYS][dir][code]: the board restarts (hard reset).
+#define SYS_FRAME(op) 3, 0, ROUTER_KEY_SYS, CMD_DIR_WRITE, (uint8_t)(op)
 
 static const uint8_t k_suspend_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_SUSPEND)};
 static const uint8_t k_resume_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_RESUME)};

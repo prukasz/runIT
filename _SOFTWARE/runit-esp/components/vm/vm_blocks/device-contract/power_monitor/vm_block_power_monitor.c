@@ -2,15 +2,15 @@
 #include "sys_power_monitor.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(pmon_args_GET_VOLTAGE_t) == 1 && sizeof(pmon_args_GET_CURRENT_t) == 1 &&
-                   sizeof(pmon_args_GET_POWER_t) == 1 && sizeof(pmon_args_SET_ALERT_t) == 6,
+_Static_assert(sizeof(pmon_key_VOLTAGE_t) == 1 && sizeof(pmon_key_CURRENT_t) == 1 &&
+                   sizeof(pmon_key_POWER_t) == 1 && sizeof(pmon_value_ALERT_t) == 6,
                "a POWER_MONITOR op's argument struct changed: update the table of the POWER_MONITOR block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(PMON_OP_GET_VOLTAGE, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
-    VM_DEV_OP(PMON_OP_GET_CURRENT, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
-    VM_DEV_OP(PMON_OP_GET_POWER, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
-    VM_DEV_OP(PMON_OP_SET_ALERT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 3, VM_DEV_F_U8, VM_DEV_F_U8, VM_DEV_F_I32),
+    VM_DEV_OP(PMON_OP_VOLTAGE, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
+    VM_DEV_OP(PMON_OP_CURRENT, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
+    VM_DEV_OP(PMON_OP_POWER, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
+    VM_DEV_OP(PMON_OP_ALERT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 3, VM_DEV_F_U8, VM_DEV_F_U8, VM_DEV_F_I32),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 1};
 

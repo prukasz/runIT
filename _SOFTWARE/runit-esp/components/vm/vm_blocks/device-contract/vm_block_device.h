@@ -85,7 +85,7 @@ typedef struct __attribute__((aligned(4))) {
   uint16_t op;  // What the block does with the device; it decides the block's inputs and outputs.
   uint16_t idle_op;  // What the block does once when its enable turns off (none: the device is left as it is).
   uint8_t flags;
-  uint8_t _pad;
+  uint8_t dir;  // cmd_dir_e of `op`: a read fills the outputs, a write drives the device (idle_op is a write)
   int32_t k[VM_DEV_FIELDS_MAX];  // The value of each input of the operation while that input is not wired (the bits of a float for a scaled input).
   int32_t idle_k[VM_DEV_FIELDS_MAX];  // The inputs of the idle operation after its address inputs (same encoding).
   int32_t last[VM_DEV_FIELDS_MAX];

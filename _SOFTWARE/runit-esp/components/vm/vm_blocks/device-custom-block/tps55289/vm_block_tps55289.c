@@ -5,9 +5,9 @@
 _Static_assert(sizeof(tps55289_protection_t) == 4, "tps55289_protection_t changed: update the table of the TPS55289 block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(TPS55289_OP_SET_PROTECTION, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 4, VM_DEV_F_U8, VM_DEV_F_U8, VM_DEV_F_U8,
+    VM_DEV_OP(TPS55289_OP_PROTECTION, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 4, VM_DEV_F_U8, VM_DEV_F_U8, VM_DEV_F_U8,
               VM_DEV_F_U8),
-    {.op = TPS55289_OP_GET_PROTECTION, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_U8X4, .nfield = 0},
+    {.op = TPS55289_OP_PROTECTION, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_U8X4, .nfield = 0},
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

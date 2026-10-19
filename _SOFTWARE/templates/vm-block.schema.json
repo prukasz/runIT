@@ -370,6 +370,11 @@
         "alias": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
         "op": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "Id of a command of the contract in 'device.contract' (HBRIDGE: SET_DRIVE), or of the device in 'device.device_type' (drv8962: set_current_limit). Its arguments become the variant's values and its results output pins. On the wire the operation is the u16 `(contract_id << 8) | op` of a contract command, or `0xFF00 | op` (SYS_DEVICE_CONTRACT_OWN) of a device's own command. A custom block's variant that runs a device command names it here and describes the command's arguments in 'args', not in 'fields'." },
+          "dir": {
+            "type": "string",
+            "enum": ["read", "write"],
+            "description": "Strona polecenia `op`, którą wariant wywołuje: read wypełnia wyjścia, write steruje urządzeniem. Konieczne, gdy polecenie ma obie strony."
+          },
         "args": { "type": "object", "propertyNames": { "$ref": "#/$defs/argId" }, "additionalProperties": { "$ref": "#/$defs/argOverride" }, "description": "Per argument of 'op' (by the argument's id in the contract): fixed value, input mode, hidden, hints. An argument not listed behaves as the contract says, with input 'optional'." },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" }, "description": "The variant's own values (for a custom operation)." },
         "activation": { "$ref": "#/$defs/activation" },

@@ -2,11 +2,11 @@
 #include "sys_power_supply.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(supply_args_SELECT_t) == 1, "the POWER_SUPPLY SELECT argument struct changed: update the table");
+_Static_assert(sizeof(supply_value_SOURCE_t) == 1, "the POWER_SUPPLY SELECT argument struct changed: update the table");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(SUPPLY_OP_SELECT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    {.op = SUPPLY_OP_GET_SOURCE, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_U8, .nfield = 0},
+    VM_DEV_OP(SUPPLY_OP_SOURCE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
+    {.op = SUPPLY_OP_SOURCE, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_U8, .nfield = 0},
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

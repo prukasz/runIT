@@ -10,7 +10,7 @@ extern "C" {
  * @brief Remote interface of the VM (ROUTER_KEY_VM, VM_CORE.MD "Remote"): build, run and watch a program.
  *
  * Every record layout is a packed struct of vm_wire.h. The same ops carry the program to the board and the board's
- * values back: telemetry frames are these commands, `[ROUTER_KEY_VM][VM_OP_SET_DATA][n]{records}` for values and
+ * values back: telemetry frames are these commands, `[ROUTER_KEY_VM][VM_OP_DATA][n]{records}` for values and
  * `[ROUTER_KEY_VM][VM_OP_ADD_OBJECTS][n]{records}` for the heap objects the app never uploaded (vm_sub.c). So a
  * telemetry frame can be fed back to the board as a command (and recorded into a record), and the app parses
  * both directions with one decoder.
@@ -21,7 +21,7 @@ extern "C" {
 #define VM_OP_RESET         0x01u        // -                              unload everything, leave the VM stopped
 #define VM_OP_OPEN          0x02u         // vm_wire_open_t                 replace the program with an empty one
 #define VM_OP_ADD_OBJECTS   0x03u  // u8 n, n x (vm_wire_obj_t, name)
-#define VM_OP_SET_DATA      0x04u     // u8 n, n x (vm_wire_data_t, data)  stopped: load; running: runtime write
+#define VM_OP_DATA      0x04u     // u8 n, n x (vm_wire_data_t, data)  stopped: load; running: runtime write
 #define VM_OP_ADD_ACCESSORS 0x05u  // u8 n, n x (vm_wire_acc_t, index steps)
 #define VM_OP_ADD_BLOCK     0x06u    // vm_wire_block_t, pins, state   one block per frame, in execution order
 #define VM_OP_SUBSCRIBE     0x07u    // u8 n, n x vm_wire_sub_t        n = 0 clears

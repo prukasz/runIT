@@ -68,7 +68,7 @@ static bool take_sub(uint32_t i, const sys_event_t* e, bool inline_call, sys_eve
 // A listener's failure is reported with the event; the other listeners still run.
 static void deliver(const sys_event_sub_t* sub, const sys_event_t* e) {
   err_h err = sub->device != SYS_DEVICE_ID_NONE
-                  ? sys_device_call(sub->device, EVENT_OP_ON_EVENT, e, sizeof(*e), NULL, 0, NULL)
+                  ? sys_device_write(sub->device, EVENT_OP_ON_EVENT, e, sizeof(*e))
                   : sub->fn(e, sub->ctx);
   if (err != NULL) {
     err_report(ERR_WRAP(err, ERR_EVENT_DELIVERY, .source = e->source, .event = e->event, .channel = e->channel,

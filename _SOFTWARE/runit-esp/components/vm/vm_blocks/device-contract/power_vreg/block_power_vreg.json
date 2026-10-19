@@ -39,7 +39,7 @@
       "id": "set_enable",
       "alias": "Output",
       "description": "Switches the regulator output on or off. It returns at once: wait for the regulator's ready event before using the rail. The power manager may refuse it against the power budget.",
-      "op": "SET_ENABLE",
+      "op": "ENABLE",
       "args": { "enable": { "required": true, "input": "optional", "accepts": ["number", "accessor"] } },
       "header": { "subtitle": "Output {enable}" }
     },
@@ -47,7 +47,7 @@
       "id": "set_voltage",
       "alias": "Voltage",
       "description": "Sets the wanted output voltage; the output follows when it is on. The regulator keeps it while the output is off. A higher voltage returns at once: wait for the ready event. The power manager may refuse it against the power budget.",
-      "op": "SET_VOLTAGE",
+      "op": "VOLTAGE",
       "args": { "voltage_mV": { "required": true, "input": "optional", "accepts": ["number", "accessor"] } },
       "header": { "subtitle": "Voltage {voltage_mV}" }
     },
@@ -55,7 +55,7 @@
       "id": "set_current",
       "alias": "Current limit",
       "description": "Sets the wanted output current limit. The regulator keeps it while the output is off.",
-      "op": "SET_CURRENT",
+      "op": "CURRENT",
       "args": { "current_mA": { "required": true, "input": "optional", "accepts": ["number", "accessor"] } },
       "header": { "subtitle": "Limit {current_mA}" }
     }

@@ -26,10 +26,9 @@ ROUTER_OP(op_errors, sys_log_errors_args_t) {
   return cmd_reply(out, out_cap, out_len, reply, 1 + len);
 }
 
-static const router_entry_t k_ops[] = {
-    {SYS_LOG_OP_SET, op_set},
-    {SYS_LOG_OP_GET, op_get},
-    {SYS_LOG_OP_ERRORS, op_errors},
+static const router_op_t k_ops[] = {
+    ROUTER_RW(SYS_LOG_OP_CONFIG, op_get, op_set),
+    ROUTER_R(SYS_LOG_OP_ERRORS, op_errors),
 };
 
 ROUTER_MODULE(sys_log_router, k_ops)

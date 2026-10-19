@@ -9,50 +9,47 @@
   "category": "power",
   "commands": [
     {
-      "id": "SELECT",
+      "id": "SOURCE",
       "op": 0,
-      "label": "Select source",
-      "description": "Feeds the load from nothing, source A or source B.",
-      "symbol": "SUPPLY_OP_SELECT",
-      "args": {
-        "fields": [
-          {
-            "id": "source",
-            "label": "Source",
-            "type": "enum",
-            "enum": "sys_power_supply_source_e",
-            "raw_type": "u8",
-            "size": 1,
-            "offset": 0,
-            "description": "What feeds the load"
-          }
-        ],
-        "struct": "supply_select_args_t"
-      }
-    },
-    {
-      "id": "GET_SOURCE",
-      "op": 1,
-      "label": "Read source",
-      "description": "Reads which source is on.",
-      "symbol": "SUPPLY_OP_GET_SOURCE",
-      "returns": {
-        "type": "u8",
-        "label": "Source",
-        "choices": [
-          {
-            "label": "Off",
-            "value": 0
-          },
-          {
-            "label": "Source A",
-            "value": 1
-          },
-          {
-            "label": "Source B",
-            "value": 2
-          }
-        ]
+      "symbol": "SUPPLY_OP_SOURCE",
+      "label": "Source",
+      "description": "Which source feeds the load: the write switches, the read answers the one that is on.",
+      "read": {
+        "description": "Reads which source is on.",
+        "returns": {
+          "struct": "supply_select_args_t",
+          "fields": [
+            {
+              "id": "source",
+              "label": "Source",
+              "type": "enum",
+              "enum": "sys_power_supply_source_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "What feeds the load"
+            }
+          ],
+          "label": "Source"
+        }
+      },
+      "write": {
+        "description": "Feeds the load from nothing, source A or source B.",
+        "args": {
+          "fields": [
+            {
+              "id": "source",
+              "label": "Source",
+              "type": "enum",
+              "enum": "sys_power_supply_source_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "What feeds the load"
+            }
+          ],
+          "struct": "supply_select_args_t"
+        }
       }
     }
   ]
