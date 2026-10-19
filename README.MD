@@ -137,3 +137,9 @@ Całość na popularnym mikrokontrolerze ESP32-S3.
 | `_SOFTWARE` | Firmware ESP32-S3 (ESP-IDF), deskryptory danych i aplikacja webowa |
 | `_HARDWARE` | Projekt płytki: schematy i PCB (Altium) |
 | `_DOCS` | Obrazy i dokumentacja do README |
+
+## Licencja
+
+Całe repozytorium (firmware, aplikacja, deskryptory, projekt płytki i dokumentacja) jest udostępnione na licencji [PolyForm Noncommercial 1.0.0](LICENSE.md). Możesz używać, zmieniać i udostępniać runIT do celów niekomercyjnych (hobby, nauka, badania). Użycie komercyjne, w tym sprzedaż płytek, produktów lub usług opartych na runIT, wymaga osobnej zgody autora.
+
+Copyright (c) 2026 prukasz
