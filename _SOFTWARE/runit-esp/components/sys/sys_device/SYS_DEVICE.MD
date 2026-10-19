@@ -65,7 +65,7 @@ A contract is written once, as a table `X(NAME, op number, args struct)` (`SYS_D
 
 The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, the three small generator macros (see `sys_pins.h`) and a `SYS_DEVICE_CONTRACT_*` ID. Numbers inside a table are never reused.
 
-Internal callers use `sys_device_call(id, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`).
+Internal callers use `sys_device_call(id, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`). A getter whose answer has a fixed size uses `sys_device_read(id, op, args, len, out, size)`: the same call, `ERR_CMD_BAD_LEN` unless the device answered exactly `size` bytes.
 
 ## Dependencies, safe state and order
 

@@ -1,6 +1,6 @@
 # sys_power — the power contracts
 
-Not a module with state: sets of device ops that mean the same on every device that has them, like the IO contract (SYS_IO.MD). A device lists the ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_power.c` only build the `sys_device_call`, so an internal call and a remote command run the same code.
+Not a module with state: sets of device ops that mean the same on every device that has them, like the IO contract (SYS_IO.MD). A device lists the ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_power.c` only build the `sys_device_call` (the getters `sys_device_read`, which also checks the answer's size), so an internal call and a remote command run the same code.
 
 | File | Contents |
 |---|---|

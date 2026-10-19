@@ -15,8 +15,8 @@ extern "C" {
 //#ref-enum @alias Supply Source
 typedef enum {
   SYS_POWER_SUPPLY_OFF = 0,  //@alias Off @description Output unpowered
-  SYS_POWER_SUPPLY_A = 1,  //@alias Source A @description Output fed from source A
-  SYS_POWER_SUPPLY_B = 2,  //@alias Source B @description Output fed from source B
+  SYS_POWER_SUPPLY_A = 1,    //@alias Source A @description Output fed from source A
+  SYS_POWER_SUPPLY_B = 2,    //@alias Source B @description Output fed from source B
 } sys_power_supply_source_e;
 
 typedef struct __attribute__((packed)) {
@@ -28,8 +28,8 @@ typedef struct __attribute__((packed)) {
  * supply_args_<NAME>_t, SUPPLY_HANDLER(NAME) and SUPPLY_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables").
  * Numbers are never reused.
  */
-#define SYS_POWER_SUPPLY_CONTRACT(X) \
-  X(SELECT, 0x00, supply_select_args_t) \
+#define SYS_POWER_SUPPLY_CONTRACT(X)        \
+  X(SELECT,     0x00, supply_select_args_t) \
   X(GET_SOURCE, 0x01, sys_device_none_t)
 
 #define SYS_POWER_SUPPLY__ID(name, n, args_t) SUPPLY_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_SUPPLY, n),

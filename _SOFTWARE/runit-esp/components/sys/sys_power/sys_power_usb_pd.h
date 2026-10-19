@@ -19,8 +19,8 @@ extern "C" {
 //#ref-enum @alias USB-PD Option Type
 typedef enum {
   SYS_POWER_USB_PD_OPTION_FIXED = 0,  //@alias Fixed @description Fixed voltage supply PDO
-  SYS_POWER_USB_PD_OPTION_PPS = 1,  //@alias PPS @description Programmable Power Supply PDO
-  SYS_POWER_USB_PD_OPTION_AVS = 2,  //@alias AVS @description Adjustable Voltage Supply PDO
+  SYS_POWER_USB_PD_OPTION_PPS = 1,    //@alias PPS @description Programmable Power Supply PDO
+  SYS_POWER_USB_PD_OPTION_AVS = 2,    //@alias AVS @description Adjustable Voltage Supply PDO
 } sys_power_usb_pd_option_type_e;
 
 /** @brief One power option the source offers: the LIST_OPTIONS answer is an array of these. */
@@ -46,10 +46,10 @@ typedef struct __attribute__((packed)) {
  * @brief The USB_PD contract, once: X(NAME, op number, args struct). From it come PD_OP_<NAME>, pd_args_<NAME>_t,
  * PD_HANDLER(NAME) and PD_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
  */
-#define SYS_POWER_USB_PD_CONTRACT(X) \
+#define SYS_POWER_USB_PD_CONTRACT(X)        \
   X(SET_SETTINGS, 0x00, pd_settings_args_t) \
-  X(LIST_OPTIONS, 0x01, sys_device_none_t) \
-  X(GET_LIMITS, 0x02, sys_device_none_t)
+  X(LIST_OPTIONS, 0x01, sys_device_none_t)  \
+  X(GET_LIMITS,   0x02, sys_device_none_t)
 
 #define SYS_POWER_USB_PD__ID(name, n, args_t) PD_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_USB_PD, n),
 #define SYS_POWER_USB_PD__ARGS(name, n, args_t) typedef args_t pd_args_##name##_t;

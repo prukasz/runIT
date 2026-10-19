@@ -18,9 +18,5 @@ err_h sys_hbridge_coast(uint16_t device, uint8_t channel) {
 err_h sys_hbridge_get_current_mA(uint16_t device, uint8_t channel, int32_t* out_mA) {
   const hbridge_channel_args_t a = {.channel = channel};
   ERR_CHECK(out_mA != NULL, ERR_DEV_BAD_ARG);
-  int32_t mA = 0;
-  uint32_t out_len = 0;
-  ERR_TRY(sys_device_call(device, HBRIDGE_OP_GET_CURRENT, &a, sizeof(a), &mA, sizeof(mA), &out_len));
-  *out_mA = mA;
-  return NULL;
+  return sys_device_read(device, HBRIDGE_OP_GET_CURRENT, &a, sizeof(a), out_mA, sizeof(*out_mA));
 }

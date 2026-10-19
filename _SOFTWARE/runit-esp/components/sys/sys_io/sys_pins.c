@@ -36,13 +36,8 @@ err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, uint64_t
 /* ---- Wrappers ---- */
 
 static err_h get_mask(uint16_t device, uint16_t op, uint64_t* mask) {
-  uint64_t out = 0;
-  uint32_t out_len = 0;
   ERR_CHECK(mask != NULL, ERR_DEV_BAD_ARG);
-  ERR_TRY(sys_device_call(device, op, NULL, 0, &out, sizeof(out), &out_len));
-  ERR_CHECK(out_len == sizeof(out), ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = sizeof(out));
-  *mask = out;
-  return NULL;
+  return sys_device_read(device, op, NULL, 0, mask, sizeof(*mask));
 }
 
 err_h sys_pins_available(uint16_t device, uint64_t* mask) {

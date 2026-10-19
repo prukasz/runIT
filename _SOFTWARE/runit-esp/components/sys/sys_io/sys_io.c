@@ -29,13 +29,13 @@ err_h sys_io_prepare_input(sys_io_pin_t p) {
   return err;
 }
 
-err_h sys_io_release(sys_io_pin_t p) {
-  return ignore_unknown_op(sys_io_reset(p));
-}
-
 err_h sys_io_reset(sys_io_pin_t p) {
   const io_pin_args_t a = {.pin = p.pin};
   return sys_device_call(p.device, IO_OP_RESET, &a, sizeof(a), NULL, 0, NULL);
+}
+
+err_h sys_io_release(sys_io_pin_t p) {
+  return ignore_unknown_op(sys_io_reset(p));
 }
 
 err_h sys_io_configure_intr(sys_io_pin_t p, const sys_io_intr_cfg_t* cfg) {
@@ -57,23 +57,16 @@ err_h sys_io_toggle(sys_io_pin_t p) {
 err_h sys_io_get_level(sys_io_pin_t p, bool* level) {
   const io_pin_args_t a = {.pin = p.pin};
   uint8_t out = 0;
-  uint32_t out_len = 0;
   ERR_CHECK(level != NULL, ERR_DEV_BAD_ARG);
-  ERR_TRY(sys_device_call(p.device, IO_OP_GET_LEVEL, &a, sizeof(a), &out, sizeof(out), &out_len));
-  ERR_CHECK(out_len == sizeof(out), ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = sizeof(out));
+  ERR_TRY(sys_device_read(p.device, IO_OP_GET_LEVEL, &a, sizeof(a), &out, sizeof(out)));
   *level = out != 0;
   return NULL;
 }
 
 err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV) {
   const io_pin_args_t a = {.pin = p.pin};
-  int32_t out = 0;
-  uint32_t out_len = 0;
   ERR_CHECK(out_mV != NULL, ERR_DEV_BAD_ARG);
-  ERR_TRY(sys_device_call(p.device, IO_OP_GET_VOLTAGE, &a, sizeof(a), &out, sizeof(out), &out_len));
-  ERR_CHECK(out_len == sizeof(out), ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = sizeof(out));
-  *out_mV = out;
-  return NULL;
+  return sys_device_read(p.device, IO_OP_GET_VOLTAGE, &a, sizeof(a), out_mV, sizeof(*out_mV));
 }
 
 err_h sys_io_set_voltage(sys_io_pin_t p, int32_t voltage_mV) {

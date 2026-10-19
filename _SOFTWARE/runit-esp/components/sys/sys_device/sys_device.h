@@ -254,6 +254,13 @@ MUST_USE err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint3
                                uint32_t out_cap, uint32_t* out_len);
 
 /**
+ * @brief sys_device_call of an op whose answer has a fixed size (a reading, a mask): ERR_CMD_BAD_LEN unless the
+ * device answered exactly `out_size` bytes. The contract wrappers' getters.
+ */
+MUST_USE err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
+                               uint32_t out_size);
+
+/**
  * @brief A contract's guard (SYS_DEVICE.MD "Guards"): sees every sys_device_call of an op of its contract before the
  * device does, remote commands included. It sets `*handled` and returns the result to take over the call (it runs
  * the op itself with sys_device_call_direct, or refuses it), or leaves `*handled` false and returns NULL to pass the

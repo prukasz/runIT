@@ -410,6 +410,13 @@ err_h sys_device_call(uint16_t id, uint16_t op, const void* args, uint32_t args_
   return call_checked(true, id, op, args, args_len, out, out_cap, out_len);
 }
 
+err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_size) {
+  uint32_t out_len = 0;
+  ERR_TRY(sys_device_call(id, op, args, args_len, out, out_size, &out_len));
+  ERR_CHECK(out_len == out_size, ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = (uint16_t)out_size);
+  return NULL;
+}
+
 err_h sys_device_call_direct(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
                              uint32_t out_cap, uint32_t* out_len) {
   return call_checked(false, id, op, args, args_len, out, out_cap, out_len);

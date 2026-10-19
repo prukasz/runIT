@@ -1,6 +1,6 @@
 # sys_io — the IO contract
 
-Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` = `0x01`, ops `0x01xx`) that mean the same on every device that has them (PWM expander, GPIO expander, the ESP's own pins). A device lists the IO ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_io.c` only build the `sys_device_call`, so an internal call and a remote command run the same code.
+Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` = `0x01`, ops `0x01xx`) that mean the same on every device that has them (PWM expander, GPIO expander, the ESP's own pins). A device lists the IO ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_io.c` only build the `sys_device_call` (the getters `sys_device_read`, which also checks the answer's size), so an internal call and a remote command run the same code.
 
 | File | Contents |
 |---|---|

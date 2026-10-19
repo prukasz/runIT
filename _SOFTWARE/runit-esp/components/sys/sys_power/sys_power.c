@@ -1,4 +1,3 @@
-
 #include "sys_power_monitor.h"
 #include "sys_power_supply.h"
 #include "sys_power_usb_pd.h"
@@ -11,12 +10,8 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_POWER, "sys_power", ERR_SYS_POWER_MAP)
 // A channel reading: the three GET ops answer one i32.
 static err_h monitor_read(uint16_t device, uint16_t op, uint8_t channel, int32_t* out) {
   const pmon_channel_args_t a = {.channel = channel};
-  int32_t value = 0;
-  uint32_t out_len = 0;
   ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
-  ERR_TRY(sys_device_call(device, op, &a, sizeof(a), &value, sizeof(value), &out_len));
-  *out = value;
-  return NULL;
+  return sys_device_read(device, op, &a, sizeof(a), out, sizeof(*out));
 }
 
 err_h sys_power_monitor_get_voltage(uint16_t device, uint8_t channel, int32_t* out_mV) {
@@ -63,8 +58,7 @@ err_h sys_power_supply_select(uint16_t device, sys_power_supply_source_e source)
 err_h sys_power_supply_get_source(uint16_t device, sys_power_supply_source_e* out_source) {
   ERR_CHECK(out_source != NULL, ERR_DEV_BAD_ARG);
   uint8_t source = 0;
-  uint32_t out_len = 0;
-  ERR_TRY(sys_device_call(device, SUPPLY_OP_GET_SOURCE, NULL, 0, &source, sizeof(source), &out_len));
+  ERR_TRY(sys_device_read(device, SUPPLY_OP_GET_SOURCE, NULL, 0, &source, sizeof(source)));
   *out_source = (sys_power_supply_source_e)source;
   return NULL;
 }
@@ -82,6 +76,7 @@ err_h sys_power_usb_pd_list_options(uint16_t device, sys_power_usb_pd_option_t* 
   sys_power_usb_pd_option_t all[SYS_POWER_USB_PD_OPTIONS_MAX];
   uint32_t len = 0;
   ERR_TRY(sys_device_call(device, PD_OP_LIST_OPTIONS, NULL, 0, all, sizeof(all), &len));
+  ERR_CHECK(len % sizeof(all[0]) == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = (uint16_t)sizeof(all[0]));
   uint8_t count = (uint8_t)(len / sizeof(all[0]));
   count = count > max_options ? max_options : count;
   memcpy(out, all, count * sizeof(all[0]));
@@ -92,8 +87,7 @@ err_h sys_power_usb_pd_list_options(uint16_t device, sys_power_usb_pd_option_t* 
 err_h sys_power_usb_pd_get_limits(uint16_t device, int32_t* out_mV, int32_t* out_mA) {
   ERR_CHECK(out_mV != NULL && out_mA != NULL, ERR_DEV_BAD_ARG);
   sys_power_usb_pd_limits_t limits;
-  uint32_t len = 0;
-  ERR_TRY(sys_device_call(device, PD_OP_GET_LIMITS, NULL, 0, &limits, sizeof(limits), &len));
+  ERR_TRY(sys_device_read(device, PD_OP_GET_LIMITS, NULL, 0, &limits, sizeof(limits)));
   *out_mV = limits.voltage_mV;
   *out_mA = limits.current_mA;
   return NULL;
