@@ -63,7 +63,7 @@ readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                 
 
 ## The dead-man
 
-The board enters its safe state (VM stopped, devices suspended: RUNIT.MD) when no frame came for the dead-man's timeout, and at once when the link drops if `on_link_lost` is set (ROUTER.MD "Safe state and dead-man"). Any frame feeds it. `session/deadman.ts` keeps it:
+The board enters its safe state (VM stopped, devices suspended: RUNIT.MD) when no frame came for the dead-man's timeout, and at once when the link drops if `on_link_lost` is set (SYS_SYSTEM.MD "Dead-man"). Any frame feeds it. `session/deadman.ts` keeps it:
 
 ```ts
 const deadman = new DeadMan(link, { timeoutMs: 1500 })        // onLinkLost: true, heartbeatMs: a third of the timeout
@@ -150,7 +150,7 @@ log.markRead({ ref: 'device:3' }); log.clearRead() // or log.clear({ ref }) when
 log.onChange((entries) => …)
 ```
 
-- The board sends a command's error twice (the answer and the errors stream) and never suppresses repeats: the same record (link, peer, seq and chain) within `duplicateMs` (2 s) is one; the same chain again is the same entry, its `count` and `last` go up and it is unread again. Past `capacity` the oldest read entries go first.
+- The board sends a command's error twice (the answer and the errors stream) and never suppresses repeats: the same record (link, seq and chain) within `duplicateMs` (2 s) is one; the same chain again is the same entry, its `count` and `last` go up and it is unread again. Past `capacity` the oldest read entries go first.
 - What the backend knows by itself: the record's layout (from `enums.json`), which descriptors name which kinds (`device_type`, `device_op`, `router_key`, `vm_op`, `contract`, `vm_block_type`, `error_tag` in `ErrorInterpreter`) and how the program's kinds map to the project (`vm_object`, `vm_accessor`, `vm_block` and its pins, `device`, `pin`, `channel` in `errors/program.ts`). Messages, kinds, scopes and field meanings are errors.json's.
 
 ## Sending a list in order, loading a program
@@ -186,7 +186,7 @@ await loadProgram(link, [...result.frames, engine.exec('normal')], {
 | Every other command, its arguments and answer | `generated/services`, `generated/contracts`, `generated/devices`; `device_contract`, `device_id`, `io_pin_none` in `enums.json` | `services.test.ts`: no problems in the bundle; every packed struct's layout against its C typedef; a device request equals the frame of the stored-project fixture; `sys_io_pin_t` is the 3 B of a pin reference |
 | The events stream: the NOTIFY op, `sys_event_t`, the device contract's events | `enums.json` (`event_op`), `contract_event.json`, `contract_device.json` | `events.test.ts`: `sys_event_t` is 14 B, an event read with its contract and name, the DEVICE events equal `SYS_DEVICE_EVENTS` of `sys_device.h` |
 | Error messages, what an error field refers to | `errors.json` (`message`, `id_kind`, `id_kind_by`, `of`, `context`, `id_kinds`), from the maps and `errors_<module>.json` | `errors.test.ts`: every placeholder is a field, every kind is described; records built from errors.json read back with names |
-| The way out of the safe state | `ROUTER.MD` (SAFE_LEAVE), `SYS_DEVICE.MD` "Sweeps over the router", `RUNIT.MD` "Safe state", VM_CORE.MD | `safestate.test.ts`: SAFE_LEAVE first, the RESUME sweep (the frame of SYS_DEVICE.MD) when it is refused |
+| The way out of the safe state | `SYS_SYSTEM.MD` (SAFE_LEAVE), `SYS_DEVICE.MD` "Sweeps over the router", `RUNIT.MD` "Safe state", VM_CORE.MD | `safestate.test.ts`: SAFE_LEAVE first, the RESUME sweep (the frame of SYS_DEVICE.MD) when it is refused |
 | The stored project's records, the stream | `SYS_PROJECT.MD`, `SYS_ACTIONS.MD` | `fixtures/stored-project.json`: the stream, its CRC and every record read back from a board |
 
 ## Tests

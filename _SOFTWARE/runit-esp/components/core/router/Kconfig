@@ -38,7 +38,7 @@ menu "router"
         range 1024 32768
         help
           Ring buffer for normal frames waiting for the work task. Each frame
-          takes its length plus 16 bytes. Multiple of 4.
+          takes its length plus up to 12 bytes. Multiple of 4.
 
     config ROUTER_URGENT_QUEUE_SIZE
         int "Urgent queue (bytes)"
@@ -72,7 +72,8 @@ menu "router"
         default 6144
         range 3072 32768
         help
-          Runs urgent frames and the safe-state handler.
+          Runs urgent frames and the watch (router_set_watch: the safe-state
+          handler on a dead-man or a lost link).
 
     config ROUTER_ERR_REQ_MAX
         int "Request bytes kept in an error record"
@@ -81,12 +82,5 @@ menu "router"
         help
           How much of the failing request (keys + payload) an error record
           repeats. Longer requests are cut and marked.
-
-    config ROUTER_DEADMAN_DEFAULT_MS
-        int "Dead-man timeout at boot (ms, 0 = off)"
-        default 0
-        range 0 600000
-        help
-          Changed at runtime with the sys DEADMAN_SET command; not stored.
 
 endmenu

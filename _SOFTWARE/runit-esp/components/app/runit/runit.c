@@ -22,6 +22,8 @@
 #include "sys_power_manager_router.h"
 #include "sys_project.h"
 #include "sys_project_router.h"
+#include "sys_system.h"
+#include "sys_system_router.h"
 #include "sys_uart.h"
 #include "vm_exec.h"
 #include "vm_retain.h"
@@ -37,19 +39,27 @@ void runit_enter_safe_state(void) {
   err_report(sys_device_suspend_all());
 }
 
-// The router's safe state (STOP, dead-man, link lost, a power fault): the router notes why, for SYS SAFE_GET.
-static void router_safe_state(router_safe_reason_e reason) {
+// The safe state of sys_system (STOP, dead-man, link lost, a power fault): sys_system notes why, for SYS SAFE_GET.
+static void safe_state(sys_safe_reason_e reason) {
   ESP_LOGW(TAG, "safe state (reason %d)", (int)reason);
   runit_enter_safe_state();
 }
 
+// A BLE client gone is the command link lost (the dead-man's on_link_lost).
+static void ble_conn(bool connected, int32_t reason) {
+  (void)reason;
+  if (!connected) {
+    sys_system_link_lost();
+  }
+}
+
 // SYS SAFE_LEAVE: the way out is the way in, reversed; the program is started again by the client (VM EXEC).
-static err_h router_safe_leave(void) {
+static err_h safe_leave(void) {
   return sys_device_resume_all();
 }
 
 void runit_power_safe_state(void) {
-  router_enter_safe_state(ROUTER_SAFE_POWER);
+  sys_system_enter_safe_state(SYS_SAFE_POWER);
 }
 
 // The devices created so far are the board's own.
@@ -70,6 +80,7 @@ static err_h log_init(void) {
 }
 
 static err_h router_setup(void) {
+  ERR_TRY(router_register(ROUTER_KEY_SYS, sys_system_router));
   ERR_TRY(router_register(ROUTER_KEY_I2C, sys_i2c_router));
   ERR_TRY(router_register(ROUTER_KEY_BLE, sys_ble_router));
   ERR_TRY(router_register(ROUTER_KEY_CONN, sys_connector_router));
@@ -80,8 +91,10 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_VM, vm_router));
   ERR_TRY(router_register(ROUTER_KEY_PROJECT, sys_project_router));
   router_set_tap(&g_sys_actions_tap);
-  router_set_safe_state(router_safe_state);
-  router_set_safe_leave(router_safe_leave);
+  sys_system_set_safe_state(safe_state);
+  sys_system_set_safe_leave(safe_leave);
+  ERR_TRY(sys_system_init());
+  ERR_TRY(sys_ble_add_conn_listener(ble_conn));
   return router_init();
 }
 

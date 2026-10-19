@@ -1,12 +1,14 @@
-#include "esp_log.h"
+#include "sys_system_router.h"
+
 #include <sys/time.h>
 
+#include "esp_log.h"
 #include "esp_system.h"
-#include "router_internal.h"
+#include "sys_system.h"
 
 #define TAG __FILE_NAME__
 
-/* sys router (ROUTER_KEY_SYS): link check, stop, restart, dead-man, bye, time, the safe state.
+/* Sys router (ROUTER_KEY_SYS): link check, stop, restart, dead-man, bye, time, the safe state.
  *
  *   key  op              request              response
  *   0x01 PING            -                    { u32 uptime_ms }
@@ -24,7 +26,7 @@
 
 #define OP_PING 0x01u
 #define OP_STOP 0x02u
-#define OP_RESTART ROUTER_SYS_OP_RESTART
+#define OP_RESTART SYS_SYSTEM_OP_RESTART
 #define OP_DEADMAN_SET 0x04u
 #define OP_DEADMAN_GET 0x05u
 #define OP_BYE 0x06u
@@ -51,7 +53,7 @@ typedef struct __attribute__((packed)) {
 } sys_time_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t reason;   /**< router_safe_reason_e of the last entry; 0 = not in the safe state */
+  uint8_t reason;   /**< sys_safe_reason_e of the last entry; 0 = not in the safe state */
   uint32_t for_ms;  /**< Time since that entry */
 } sys_safe_t;
 
@@ -65,7 +67,7 @@ static void restart_now(TimerHandle_t t) {
   esp_restart();
 }
 
-U_TIMER_DEFINE(router_restart_timer, MSEC(RESTART_DELAY_MS), false, restart_now);
+U_TIMER_DEFINE(sys_restart_timer, MSEC(RESTART_DELAY_MS), false, restart_now);
 
 ROUTER_OP_NOARGS(op_ping) {
   const uint32_t uptime_ms = (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount());
@@ -73,25 +75,25 @@ ROUTER_OP_NOARGS(op_ping) {
 }
 
 ROUTER_OP_NOARGS(op_stop) {
-  router_enter_safe_state(ROUTER_SAFE_STOP);
+  sys_system_enter_safe_state(SYS_SAFE_STOP);
   return NULL;
 }
 
 ROUTER_OP_NOARGS(op_restart) {
-  U_TIMER_START(router_restart_timer);
+  U_TIMER_START(sys_restart_timer);
   return NULL;
 }
 
 ROUTER_OP(op_deadman_set, sys_deadman_t) {
   ERR_CHECK(args->on_link_lost <= 1, ERR_CMD_BAD_ARG);
-  router_deadman_set(args->timeout_ms, args->on_link_lost != 0);
+  sys_system_deadman_set(args->timeout_ms, args->on_link_lost != 0);
   return NULL;
 }
 
 ROUTER_OP_NOARGS(op_deadman_get) {
   uint32_t timeout_ms;
   bool on_link_lost;
-  router_deadman_get(&timeout_ms, &on_link_lost);
+  sys_system_deadman_get(&timeout_ms, &on_link_lost);
   const sys_deadman_t r = {.timeout_ms = timeout_ms, .on_link_lost = on_link_lost};
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
 }
@@ -99,7 +101,7 @@ ROUTER_OP_NOARGS(op_deadman_get) {
 // The client is leaving on purpose (its Disconnect, its window closing): the board goes on with what it runs, and a dead-man the client
 // armed must not stop it for the silence that follows. A link that drops without it (power, range) is still a lost link.
 ROUTER_OP_NOARGS(op_bye) {
-  router_deadman_set(0, false);
+  sys_system_deadman_set(0, false);
   ESP_LOGI(TAG, "client left: dead-man off");
   return NULL;
 }
@@ -121,13 +123,13 @@ ROUTER_OP_NOARGS(op_time_get) {
 ROUTER_OP_NOARGS(op_safe_get) {
   uint8_t reason;
   uint32_t for_ms;
-  router_safe_state_get(&reason, &for_ms);
+  sys_system_safe_state_get(&reason, &for_ms);
   const sys_safe_t r = {.reason = reason, .for_ms = for_ms};
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
 }
 
 ROUTER_OP_NOARGS(op_safe_leave) {
-  return router_leave_safe_state();
+  return sys_system_leave_safe_state();
 }
 
 static const router_entry_t k_ops[] = {
@@ -143,8 +145,4 @@ static const router_entry_t k_ops[] = {
     {OP_SAFE_LEAVE, op_safe_leave},
 };
 
-static ROUTER_MODULE(sys_router, k_ops)
-
-err_h router_sys_register(void) {
-  return router_register(ROUTER_KEY_SYS, sys_router);
-}
+ROUTER_MODULE(sys_system_router, k_ops)

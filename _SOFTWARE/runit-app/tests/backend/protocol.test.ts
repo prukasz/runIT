@@ -53,12 +53,12 @@ describe('requests and responses (ROUTER.MD examples)', () => {
   })
 
   it('decodes the error record of the ROUTER.MD example, naming the tags from errors.json', () => {
-    const frame = bytes('05 07 01 01 40 8d 1b 5e 9b 01 00 00 01 00 00 00 00 07 00 03 02 02 00 03 01 00 02 00 00 01 02 01 00 02 00 00 01 02 10 00 01 00 02 01 00')
+    const frame = bytes('05 07 01 01 40 8d 1b 5e 9b 01 00 00 01 07 00 03 02 02 00 03 01 00 02 00 00 01 02 01 00 02 00 00 01 02 10 00 01 00 02 01 00')
     const response = decodeResponse(defs, frame)!
     const record = decodeErrorRecord(defs, response.data, errorCatalog())!
     expect(record.source).toBe('command')
     expect(record.time).toBe(0x19b5e1b8d40) // the board's clock, UTC ms
-    expect(record.command).toMatchObject({ link: 1, peer: 0, seq: 7, flags: 0, requestCut: false })
+    expect(record.command).toMatchObject({ link: 1, seq: 7, flags: 0, requestCut: false })
     expect(hex(record.command!.request)).toBe('02 02 00')
     expect(record.chain.map((n) => n.info?.name)).toEqual(['ERR_ROUTER_KEY', 'ERR_ROUTER_KEY', 'ERR_I2C_REMOTE_DENIED'])
     expect(record.chain[0]!.fields).toEqual({ key: 2 })

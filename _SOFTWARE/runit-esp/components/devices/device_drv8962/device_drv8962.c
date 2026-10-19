@@ -62,8 +62,6 @@ static err_h check_channel(const drv_t* c, uint8_t channel) {
   return NULL;
 }
 
-/* ---- Chip access: the router and the registry add the context ---- */
-
 // IPROPI of a half bridge as mA (0 without the pin).
 static err_h sample_current_mA(const drv_t* c, uint8_t bridge, int32_t* out_mA) {
   *out_mA = 0;

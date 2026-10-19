@@ -513,7 +513,7 @@ def test_power_chips(link: Link) -> None:
 
 
 def test_safe_state(link: Link) -> None:
-    """STOP (the router safe state) suspends every device, newest first; each one is resumed, oldest first."""
+    """STOP (the safe state, sys_system) suspends every device, newest first; each one is resumed, oldest first."""
     r = create(link, SERVO_ID, SERVO_TYPE, servo_cfg(pin(PCA_ID, 0), 0, 0, 0, 0, 180, 90, 500, 2500, 0))
     check("safe state: servo created", r is not None and r.ok, str(r))
     pins = [pin(PCA_ID, 8 + i) for i in range(4)] + [pin(PCA_ID, 12 + i) for i in range(4)] + [NONE] * 4

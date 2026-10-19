@@ -45,7 +45,7 @@ Rules:
 | Power layout, limits and the safe state for the power manager | `runit_board_cfg.c` (`runit_board_power_init`), `runit_board_defs.h` |
 | Onboard devices and their IDs | `runit_board_devices_init`, `runit_board_defs.h`, `board.json` |
 | The firmware's own actions (resume / suspend / reset all, hard reset) | `runit_onboard_actions.c` |
-| Safe state: VM stopped (retained values saved), then every device suspended | `runit_enter_safe_state` (router STOP, dead-man, link lost, critical errors) |
+| Safe state: VM stopped (retained values saved), then every device suspended | `runit_enter_safe_state` (`sys_system`: STOP, dead-man, link lost; critical errors) |
 
 ## 6. Descriptors
 

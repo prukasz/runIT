@@ -47,23 +47,27 @@ static void write_line(const uint8_t* frame, uint32_t len) {
   funlockfile(stdout);
 }
 
-/* One send for both tables: the router link's `peer` and the connector provider's `endpoint` are both the one
- * address a UART has, SYS_UART_ENDPOINT. A connector bound elsewhere is refused instead of writing to the wrong place. */
-static err_h uart_send(uint32_t address, const uint8_t* frame, uint32_t len) {
-  ERR_CHECK(address == SYS_UART_ENDPOINT, ERR_UART_BAD_ENDPOINT, .endpoint = address);
+static err_h link_send(const uint8_t* frame, uint32_t len) {
   write_line(frame, len);
   return NULL;
 }
 
+// The connector's `endpoint` is the one address a UART has, SYS_UART_ENDPOINT: a connector bound elsewhere is refused
+// instead of writing to the wrong place.
+static err_h provider_send(uint32_t endpoint, const uint8_t* frame, uint32_t len) {
+  ERR_CHECK(endpoint == SYS_UART_ENDPOINT, ERR_UART_BAD_ENDPOINT, .endpoint = endpoint);
+  return link_send(frame, len);
+}
+
 static const router_link_t k_link = {
     .name = "uart",
-    .send = uart_send,
+    .send = link_send,
     .max_frame = NULL,  // CONFIG_ROUTER_FRAME_MAX
 };
 
 static const sys_connector_provider_t k_provider = {
     .name = "uart",
-    .send = uart_send,
+    .send = provider_send,
     .max_frame = NULL,  // CONFIG_SYS_CONNECTOR_FRAME_MAX
 };
 
@@ -118,7 +122,7 @@ static void rx_line(const char* line, size_t len, bool overflow) {
     }
     s_frame[i] = (uint8_t)((hi << 4) | lo);
   }
-  err_report(router_submit(TRANSPORT_UART, 0, s_frame, (uint32_t)size));
+  err_report(router_submit(TRANSPORT_UART, s_frame, (uint32_t)size));
 }
 
 static void rx_bytes(line_rx_t* rx, const uint8_t* data, int count) {

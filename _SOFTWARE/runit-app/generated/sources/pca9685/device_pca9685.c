@@ -27,8 +27,6 @@ typedef struct {
   uint16_t duty[PCA9685_CHANNELS];  // last written duty (get_level reads it back)
 } pca_t;
 
-/* ---- Chip access: the router and the registry add the context ---- */
-
 static err_h chip_sleep(pca_t* c, bool sleep) {
   ERR_TRY(sys_i2c_reg_update(&c->i2c, REG_MODE1, MODE1_SLEEP, sleep ? MODE1_SLEEP : 0));
   if (!sleep) {

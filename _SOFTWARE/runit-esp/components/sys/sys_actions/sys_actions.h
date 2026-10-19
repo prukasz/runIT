@@ -111,13 +111,13 @@ MUST_USE err_h sys_actions_run(uint32_t id, bool keep_going);
 MUST_USE err_h sys_actions_request(uint32_t id, bool urgent);
 
 /**
- * @brief Starts recording the frames of one client (`link`, `peer`) into
+ * @brief Starts recording the frames of one client (its `link`) into
  * record `id`. Recorded: frames from that client except the sys key and the
  * actions ops other than RUN. With `execute`, frames run as usual and only
  * those that succeed are recorded; without, they are recorded and answered OK
  * without running. One recording or upload at a time (ERR_ACTION_BUSY).
  */
-MUST_USE err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t link, uint32_t peer);
+MUST_USE err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t link);
 
 /**
  * @brief Stores the recording (replacing a record with that ID) and closes

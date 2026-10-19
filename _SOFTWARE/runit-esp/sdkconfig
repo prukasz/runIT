@@ -3487,8 +3487,6 @@ CONFIG_ROUTER_URGENT_TASK_PRIO=15
 CONFIG_ROUTER_URGENT_TASK_STACK=6144
 # default:
 CONFIG_ROUTER_ERR_REQ_MAX=32
-# default:
-CONFIG_ROUTER_DEADMAN_DEFAULT_MS=0
 # end of router
 
 #
@@ -3647,6 +3645,13 @@ CONFIG_SYS_PROJECT_MAX_SECTIONS=40
 # default:
 CONFIG_SYS_PROJECT_MAX_CHUNKS=32
 # end of sys_project
+
+#
+# sys_system
+#
+# default:
+CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS=0
+# end of sys_system
 
 #
 # sys_uart

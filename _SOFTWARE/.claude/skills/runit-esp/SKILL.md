@@ -29,9 +29,10 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | core | `core/utils` | `utils.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists |
 | core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format |
 | core | `core/cmd` | `CMD.MD` | the command handler type, `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
-| core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, op macros, tap, dead-man, sys ops |
+| core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, op macros, tap, watch |
 | sys | `sys/sys_connector` | `SYS_CONNECTOR.MD` | outbound streams, transport providers (`transport_e`), bindings |
 | sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console command link; BLE (GATT, MTU, fragment framing) |
+| sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
 | sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per contract, publish, NOTIFY stream, C listeners |

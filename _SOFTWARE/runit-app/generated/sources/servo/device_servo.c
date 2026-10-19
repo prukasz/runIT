@@ -16,8 +16,6 @@ typedef struct {
   uint16_t pulse_us;  // pulse last sent, 0 = pin not driven
 } servo_t;
 
-/* ---- Chip access: the router and the registry add the context ---- */
-
 // The one place that talks to the pin: clamps to the configured range and converts to duty.
 static err_h servo_send(servo_t* c, int32_t pulse_us) {
   if (pulse_us < c->cfg.min_us) {

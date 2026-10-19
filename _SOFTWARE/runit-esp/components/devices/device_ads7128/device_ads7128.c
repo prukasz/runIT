@@ -122,8 +122,6 @@ static uint8_t event_count_field(uint16_t event_counter_threshold) {
   return event_counter_threshold <= 1 ? 0 : (uint8_t)(event_counter_threshold - 1);
 }
 
-/* ---- Chip access: the router and the registry add the context ---- */
-
 static err_h chip_write_reg(ads_t* c, uint8_t reg, uint8_t val) {
   const uint8_t frame[3] = {OP_SINGLE_REGISTER_WRITE, reg, val};
   return sys_i2c_write(&c->i2c, frame, sizeof(frame));

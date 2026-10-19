@@ -432,7 +432,7 @@
           "name": "ROUTER_KEY_SYS",
           "value": 1,
           "alias": "System",
-          "description": "System: ping, stop, restart, dead-man"
+          "description": "System: ping, stop, restart, dead-man, clock, safe state"
         },
         {
           "name": "ROUTER_KEY_I2C",
@@ -493,37 +493,6 @@
           "value": 12,
           "alias": "Project",
           "description": "Project: save a whole project as one stream, run it, read state"
-        }
-      ]
-    },
-    "router_safe_reason_e": {
-      "alias": "Safe State Reason",
-      "kind": "enum",
-      "source_file": "runit-esp/components/core/router/router.h",
-      "members": [
-        {
-          "name": "ROUTER_SAFE_STOP",
-          "value": 1,
-          "alias": "Stop",
-          "description": "sys STOP command"
-        },
-        {
-          "name": "ROUTER_SAFE_DEADMAN",
-          "value": 2,
-          "alias": "Deadman",
-          "description": "No frame within the dead-man timeout"
-        },
-        {
-          "name": "ROUTER_SAFE_LINK_LOST",
-          "value": 3,
-          "alias": "Link lost",
-          "description": "router_link_lost with on_link_lost set"
-        },
-        {
-          "name": "ROUTER_SAFE_POWER",
-          "value": 4,
-          "alias": "Power fault",
-          "description": "The power manager's response to a power fault (its response matrix: safe state)"
         }
       ]
     },
@@ -1164,6 +1133,37 @@
           "value": 2,
           "alias": "AVS",
           "description": "Adjustable Voltage Supply PDO"
+        }
+      ]
+    },
+    "sys_safe_reason_e": {
+      "alias": "Safe State Reason",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_system/sys_system.h",
+      "members": [
+        {
+          "name": "SYS_SAFE_STOP",
+          "value": 1,
+          "alias": "Stop",
+          "description": "sys STOP command"
+        },
+        {
+          "name": "SYS_SAFE_DEADMAN",
+          "value": 2,
+          "alias": "Deadman",
+          "description": "No frame within the dead-man timeout"
+        },
+        {
+          "name": "SYS_SAFE_LINK_LOST",
+          "value": 3,
+          "alias": "Link lost",
+          "description": "The link lost its client with on_link_lost set"
+        },
+        {
+          "name": "SYS_SAFE_POWER",
+          "value": 4,
+          "alias": "Power fault",
+          "description": "The power manager's response to a power fault (its response matrix: safe state)"
         }
       ]
     },
@@ -2068,10 +2068,6 @@
     "ROUTER_KEY_PROJECT": "router_key",
     "ROUTER_KEY_SYS": "router_key",
     "ROUTER_KEY_VM": "router_key",
-    "ROUTER_SAFE_DEADMAN": "router_safe_reason_e",
-    "ROUTER_SAFE_LINK_LOST": "router_safe_reason_e",
-    "ROUTER_SAFE_POWER": "router_safe_reason_e",
-    "ROUTER_SAFE_STOP": "router_safe_reason_e",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
     "SERVO_TYPE_ANGLE": "servo_type_e",
@@ -2182,6 +2178,10 @@
     "SYS_POWER_USB_PD_OPTION_AVS": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_FIXED": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_PPS": "sys_power_usb_pd_option_type_e",
+    "SYS_SAFE_DEADMAN": "sys_safe_reason_e",
+    "SYS_SAFE_LINK_LOST": "sys_safe_reason_e",
+    "SYS_SAFE_POWER": "sys_safe_reason_e",
+    "SYS_SAFE_STOP": "sys_safe_reason_e",
     "TRANSPORT_BLE": "transport_e",
     "TRANSPORT_UART": "transport_e",
     "VM_BIT_AND": "vm_bit_op_e",

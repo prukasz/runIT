@@ -28,7 +28,7 @@ const payload = (name: string, values: Record<string, number> = {}): number[] =>
 /** An error record (ROUTER.MD "Error record"): a command's when `request` is given, else an internal one. */
 const record = (nodes: [string, Record<string, number>?][], request?: number[], seq = 7, time = 0): Uint8Array => {
   const stamp = [...u32(time), ...u32(0)]  // u64 LE
-  const head = request ? [defs.errorRecord.srcCommand, ...stamp, 1, ...u32(0), seq, 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
+  const head = request ? [defs.errorRecord.srcCommand, ...stamp, 1, seq, 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
   const chain = nodes.flatMap(([name, values]) => {
     const info = catalog.get(tagOf(name))!
     const p = payload(name, values)

@@ -10,7 +10,7 @@ import type { RunitLink } from './link'
  * internal ones too) and what came back as ERROR answers. The board does not suppress repeats and sends a command's error
  * both as the answer and on the stream (SYS_CONNECTOR.MD "Errors stream"), so:
  *
- *   - the same record twice (the same command: link, peer and seq, and the same chain) within `duplicateMs` is one;
+ *   - the same record twice (the same command: link and seq, and the same chain) within `duplicateMs` is one;
  *   - the same error again (the same chain, `ErrorReport.key`) is the same entry: its count and time go up and it is unread
  *     again, it does not pile up as a new one;
  *   - what the user has read is marked (`markRead`) and removed with `clearRead`, or by reference (`clear({ ref })`) when the
@@ -63,7 +63,7 @@ interface Entry {
 }
 
 const commandKey = (record: ErrorRecord): string | undefined =>
-  record.command && `${record.command.link}:${record.command.peer}:${record.command.seq}`
+  record.command && `${record.command.link}:${record.command.seq}`
 
 export class ErrorLog {
   private readonly items = new Map<string, Entry>()

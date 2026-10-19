@@ -5,7 +5,7 @@ import { decodeAnswer, serviceCall } from '../protocol/services'
 import type { LinkStatus, RunitLink } from './link'
 
 /*
- * The board's dead-man (ROUTER.MD "Safe state and dead-man"), kept from the app. The board enters its safe state (VM stopped,
+ * The board's dead-man (SYS_SYSTEM.MD "Dead-man"), kept from the app. The board enters its safe state (VM stopped,
  * every device suspended: RUNIT.MD) when no frame came for `timeout_ms`, and at once when the link drops if `on_link_lost` is
  * set. Any frame feeds it, so:
  *
@@ -17,7 +17,7 @@ import type { LinkStatus, RunitLink } from './link'
  * The commands and fields are the descriptor's (`contract_sys.json`); `DEADMAN_COMMANDS` names them, the catalog lays them out.
  */
 
-/** The dead-man's commands and fields in the sys service's descriptor (ROUTER.MD "sys router"). */
+/** The dead-man's commands and fields in the sys service's descriptor (SYS_SYSTEM.MD "Remote"). */
 export const DEADMAN_COMMANDS = {
   service: 'SYS',
   set: 'DEADMAN_SET',

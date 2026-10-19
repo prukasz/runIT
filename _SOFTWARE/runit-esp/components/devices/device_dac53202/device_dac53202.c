@@ -37,8 +37,6 @@ typedef struct {
   uint16_t code[DAC53202_CHANNELS];  // last code written (GET_VOLTAGE reads it back)
 } dac_t;
 
-/* ---- Chip access: the router and the registry add the context ---- */
-
 static err_h chip_write_reg(dac_t* c, uint8_t reg, uint16_t data) {
   const uint8_t b[2] = {(uint8_t)(data >> 8), (uint8_t)data};
   return sys_i2c_reg_write(&c->i2c, reg, b, sizeof(b));

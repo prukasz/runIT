@@ -1,0 +1,10 @@
+menu "sys_system"
+
+    config SYS_SYSTEM_DEADMAN_DEFAULT_MS
+        int "Dead-man timeout at boot (ms, 0 = off)"
+        default 0
+        range 0 600000
+        help
+          Changed at runtime with the sys DEADMAN_SET command; not stored.
+
+endmenu

@@ -40,9 +40,9 @@ export interface BoardRun {
   readonly nextBlock?: number
 }
 
-/** The board's safe state as `SYS SAFE_GET` answers it: why it entered it (`router_safe_reason_e`) and since when. */
+/** The board's safe state as `SYS SAFE_GET` answers it: why it entered it (`sys_safe_reason_e`) and since when. */
 export interface SafeState {
-  /** The reason's member name (`ROUTER_SAFE_POWER`). */
+  /** The reason's member name (`SYS_SAFE_POWER`). */
   readonly reason: string
   /** As the user reads it, and what it means (the enum's alias and description). */
   readonly alias: string
@@ -54,8 +54,8 @@ export interface SafeState {
 /** The `vm_run_mode_e` member name of a number, from the published enums (never a number typed in here). */
 const runModeNames = (): ReadonlyMap<number, string> => new Map(bundledEnums().vm_run_mode_e?.members.map((member) => [member.value, member.name]) ?? [])
 
-/** The safe state's reasons (`router_safe_reason_e`), by value and by name. */
-const safeReasons = () => bundledEnums().router_safe_reason_e?.members ?? []
+/** The safe state's reasons (`sys_safe_reason_e`), by value and by name. */
+const safeReasons = () => bundledEnums().sys_safe_reason_e?.members ?? []
 
 /**
  * Run, Stop and the safe stop, and what the board says of its program.

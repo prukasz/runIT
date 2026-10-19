@@ -4,7 +4,7 @@ Component `components/app/runit/`. The application: the boot sequence, the safe 
 
 | File | Contents |
 |---|---|
-| `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the router's safe-state handler |
+| `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the safe-state handler and leave of `sys_system` |
 | `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy"), the error sink, and the registry's state listener, which publishes the DEVICE events `SUSPENDED` / `RESUMED` (SYS_DEVICE.MD "Suspended and resumed") |
 | `runit_board_cfg.h/.c` | `runit_board_connector_bindings_init()`: which stream goes to which transport; `runit_board_power_init()`: the power layout |
 | `runit_board_defs.h` | Onboard device IDs and power limits of board rev 1 |
@@ -21,7 +21,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | actions, events | `sys_actions_init`, `sys_event_init` |
 | onboard actions | `runit_onboard_actions_init` (below) |
 | power | `runit_board_power_init`: `sys_power_manager_init` with the board's layout (`runit_board_cfg.c`, IDs and limits in `runit_board_defs.h`) and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
-| router | module routers (keys in `router_ids.h`), the actions tap, the event action runner, the safe-state handler, `router_init` |
+| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man and the router watch), the BLE connection listener that tells `sys_system` the link is lost, `router_init` |
 | vm | `vm_init` (VM_CORE.MD): the event subscription, telemetry, retained values, the supervisor task. After the router (a program is loaded and run through `ROUTER_KEY_VM`) |
 | uart, ble link | the two command links / stream providers |
 | stream bindings | `runit_board_connector_bindings_init` |
@@ -42,13 +42,13 @@ Checked on a board: a stored project with a device section and autostart runs af
 | 3 `RUNIT_ACTION_ID_RESUME` (user class, `0x00000003`) | resume all | `05 FF FF 03 00` (every device, oldest first) |
 | 4 `RUNIT_ACTION_ID_SUSPEND` (`0x00000004`) | suspend all | `05 FF FF 02 00` (every device, newest first) |
 | 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 FF FF 01 00` (every device, newest first; the drivers' RESET) |
-| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `02 00 01 03` (sys router RESTART, ~100 ms after the answer) |
+| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `02 00 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
 
 Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's autostart, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). The router calls it on STOP, dead-man and link lost; the power manager's response "safe state" goes through the router too (`runit_power_safe_state` → `router_enter_safe_state(ROUTER_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `router_safe_leave` resumes every device (`sys_device_resume_all`, oldest first); the client starts the program again (VM EXEC).
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_suspend_all`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_resume_all`, oldest first); the client starts the program again (VM EXEC).
 
 ## Error policy wiring
 

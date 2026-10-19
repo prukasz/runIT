@@ -43,7 +43,7 @@ single-packet frame: C0 <frame>
 ```
 
 - **TX**: an item (a whole frame, up to `CONFIG_SYS_BLE_TX_ITEM_MAX`, default 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
-- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST submits the frame: `router_submit(TRANSPORT_BLE, 0, frame)`.
+- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST submits the frame: `router_submit(TRANSPORT_BLE, frame)`.
 - A router frame of up to `CONFIG_ROUTER_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
 - An unframed characteristic sends one item per packet (item ≤ MTU − 3).
 
@@ -76,7 +76,7 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 - Connection parameters: interval 7.5 ms, latency 0, supervision timeout 2 s. The central may refuse them or round them up.
 - On disconnect: TX buffers are drained, subscriptions are cleared, advertising restarts and the listeners are called.
 - Advertising carries the runIT service (0xFFE0) next to the name, so a client can filter by it. No bonding (`sm_bonding = 0`): the app reconnects by itself.
-- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The link uses it to reset reassembly and to call `router_link_lost()`.
+- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The link uses it to reset reassembly; `runit` uses it to tell `sys_system` the command link is lost (`sys_system_link_lost`).
 - The module publishes no `sys_event` events. Connection changes reach the listeners only.
 - `sys_ble_get_status`: connected, MTU, RX overflow count.
 

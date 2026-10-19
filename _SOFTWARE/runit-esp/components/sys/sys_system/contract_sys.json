@@ -131,7 +131,7 @@
             "id": "reason",
             "label": "Reason",
             "type": "enum",
-            "enum": "router_safe_reason_e",
+            "enum": "sys_safe_reason_e",
             "raw_type": "u8",
             "size": 1,
             "offset": 0,

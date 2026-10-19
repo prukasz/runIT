@@ -28,8 +28,7 @@ typedef struct {
   uint32_t id;
   bool execute;    // record: frames run as usual (else taken without running)
   bool overflow;   // record: a frame didn't fit; `need` = the size it would have taken
-  uint8_t link;    // record: the client being recorded
-  uint32_t peer;
+  uint8_t link;    // record: the link of the client being recorded
   uint16_t len;    // image bytes so far
   uint16_t want;   // upload: announced image length
   uint16_t count;  // record: frames
@@ -252,8 +251,7 @@ static void record_append(const uint8_t* req, uint32_t len) {
 // Keeps the frame when it comes from the client being recorded and the recording is in mode `execute`.
 static bool record_frame(const router_cmd_t* cmd, bool execute) {
   LOCK();
-  const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute &&
-                    s_session.link == cmd->link && s_session.peer == cmd->peer;
+  const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.link == cmd->link;
   if (mine) {
     record_append(cmd->req, cmd->req_len);
   }
@@ -288,14 +286,13 @@ static err_h session_open(session_e kind, uint32_t id) {
   return NULL;
 }
 
-err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t link, uint32_t peer) {
+err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t link) {
   ERR_TRY(check_id(id));
   LOCK();
   err_h err = session_open(SESSION_RECORD, id);
   if (err == NULL) {
     s_session.execute = execute;
     s_session.link = link;
-    s_session.peer = peer;
     s_recording = true;
   }
   UNLOCK();

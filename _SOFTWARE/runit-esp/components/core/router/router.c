@@ -1,4 +1,3 @@
-
 #include "router.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_ROUTER, "router", ERR_ROUTER_MAP)

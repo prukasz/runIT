@@ -3,6 +3,7 @@
 #include "sdkconfig.h"
 #include "sys_actions.h"
 #include "sys_device.h"
+#include "sys_system.h"
 
 // Image of one action: [u16 len LE][keys + payload] per frame (SYS_ACTIONS.MD). Here one device-router frame
 // [ROUTER_KEY_DEVICE][SYS_DEVICE_ID_NONE u16][op u16]: the op for every device.
@@ -14,7 +15,7 @@
 static const uint8_t k_suspend_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_SUSPEND)};
 static const uint8_t k_resume_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_RESUME)};
 static const uint8_t k_reset_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_RESET)};
-static const uint8_t k_hard_reset[] = {SYS_FRAME(ROUTER_SYS_OP_RESTART)};
+static const uint8_t k_hard_reset[] = {SYS_FRAME(SYS_SYSTEM_OP_RESTART)};
 
 err_h runit_onboard_actions_init(void) {
   ERR_TRY(sys_actions_set(SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, CONFIG_RUNIT_ACTION_ID_RESUME), k_resume_all,

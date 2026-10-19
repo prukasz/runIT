@@ -9,7 +9,7 @@
 | Descriptor | Where | Schema |
 |---|---|---|
 | Device | `runit-esp/components/devices/device_<name>/device_<name>.json` | `device.schema.json` |
-| Contract | `runit-esp/components/sys/sys_<name>/contract_<name>.json` (also `core/router`, `vm/vm_core`) | `contract.schema.json` |
+| Contract | `runit-esp/components/sys/sys_<name>/contract_<name>.json` (also `sys/sys_system/contract_sys.json`, `vm/vm_core`) | `contract.schema.json` |
 | Board | `runit-esp/components/app/runit/board.json` | `board.schema.json` |
 | VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (one per block type of `vm_block_ids.h`; `crosscheck.py` lists any without one) | `vm-block.schema.json` |
 

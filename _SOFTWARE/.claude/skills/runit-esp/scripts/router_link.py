@@ -75,7 +75,6 @@ class Record:
     src: int
     time_ms: int = 0  # the board's clock when it reported (UTC; before 2020: since the start)
     link: int = 0
-    peer: int = 0
     seq: int = 0
     flags: int = 0
     request: bytes = b""
@@ -119,11 +118,11 @@ def decode_record(b: bytes) -> Record:
     if src == 0:
         nodes, cut = decode_chain(b[9:])
         return Record(src=0, time_ms=time_ms, nodes=nodes, chain_cut=cut)
-    link, peer, seq, flags, rl = struct.unpack_from("<BIBBB", b, 9)
+    link, seq, flags, rl = struct.unpack_from("<BBBB", b, 9)
     n = rl & 0x7F
-    req = b[17 : 17 + n]
-    nodes, cut = decode_chain(b[17 + n :])
-    return Record(1, time_ms, link, peer, seq, flags, req, bool(rl & 0x80), nodes, cut)
+    req = b[13 : 13 + n]
+    nodes, cut = decode_chain(b[13 + n :])
+    return Record(1, time_ms, link, seq, flags, req, bool(rl & 0x80), nodes, cut)
 
 
 @dataclass

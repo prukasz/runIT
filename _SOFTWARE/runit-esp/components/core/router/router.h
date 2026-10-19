@@ -9,35 +9,8 @@
 extern "C" {
 #endif
 
-/**
- * @brief A module router is a cmd_f (cmd.h) that routes by keys. Every remote
- * command goes through routers: each one consumes its key from `in`, passes
- * the rest to the next router, and on failure wraps the returned error with
- * its key, so the error chain records the route. `in` starts at the router's
- * own key; `ctx` is NULL from the root (router_route) and what the caller
- * hands down below it (router_call).
- *
- * The handler type, the answer helper (cmd_reply) and the payload errors
- * (ERR_CMD_*) live in cmd.h: the router doesn't own them, so code that only
- * handles commands (the device registry, the contracts, the devices) doesn't
- * depend on it.
- */
-
-/* ----------------------------------------------------------------------------
- * Wire format
- *
- * Request (one frame from a link):
- *   [seq][flags][key][key]...[payload]
- *   seq   - client's counter, echoed in the response
- *   flags - ROUTER_FLAG_*; the app decides what is urgent
- *   keys  - root key (router_ids.h), then each router's own keys
- *
- * Response (sent to the request's origin only):
- *   [CONFIG_ROUTER_RESPONSE_STREAM][seq][status][data]
- *   status 0 - data is the router's output (may be empty)
- *   status 1 - data is the error record (router_err_record): the request and
- *              its error chain together, so the error can be tracked alone
- * ------------------------------------------------------------------------- */
+/* Remote commands: links, the dispatcher and the tree of module routers. Wire format, error record, dispatcher and
+ * watch: ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's. */
 
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT 0x01u  //@alias Urgent @description Run on the urgent task, next to (not behind) normal frames
@@ -53,7 +26,6 @@ typedef enum {
  * ------------------------------------------------------------------------- */
 
 // clang-format off
-/* Tags 4, 5 and 11 (BAD_LEN, OUT_FULL, BAD_ARG) moved to ERR_MOD_CMD (cmd.h). */
 #define ERR_ROUTER_MAP(X)                                                                                    \
   X(ERR_ROUTER_KEY,         ERR_TAG(ERR_MOD_ROUTER, 1),  ERR_SEV_NONE,   { uint8_t key; }) /* context only: route step */ \
   X(ERR_ROUTER_NO_KEY,      ERR_TAG(ERR_MOD_ROUTER, 2),  ERR_SEV_HIGH,   {}) /* input ended where a key was expected */ \
@@ -68,20 +40,7 @@ typedef enum {
 ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
 
 /* ----------------------------------------------------------------------------
- * Error record
- *
- * An error with what caused it, self-contained, for responses now and for the
- * errors stream / stored history later:
- *
- *   [src u8]                                   router_err_src_e
- *   src COMMAND:
- *     [link u8][peer u32 LE][seq u8][flags u8]
- *     [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
- *     [request]     keys + payload as received (no seq / flags)
- *   [chain]                                    err_encode() format
- *
- * The request is cut to CONFIG_ROUTER_ERR_REQ_MAX bytes, and further when the
- * buffer is small; the chain gets the rest (its own truncated bit).
+ * Error record (ROUTER.MD "Error record")
  * ------------------------------------------------------------------------- */
 
 //#ref-enum @alias Error Record Source
@@ -94,11 +53,8 @@ typedef enum {
 #define ROUTER_ERR_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
 #define ROUTER_ERR_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
 
-/**
- * @brief The command an error belongs to.
- */
+/** The command an error belongs to. */
 typedef struct {
-  uint32_t peer;
   const uint8_t* req;  // keys + payload (frame without seq / flags), may be NULL when req_len is 0
   uint32_t req_len;
   uint8_t link;
@@ -107,7 +63,7 @@ typedef struct {
 } router_cmd_t;
 
 /**
- * @brief Encodes an error record (layout above) into `buf`.
+ * @brief Encodes an error record into `buf`.
  * @param cmd The command, or NULL for an internal error (src INTERNAL).
  * @return Bytes written (0 only when cap is too small for the header).
  */
@@ -117,59 +73,36 @@ uint32_t router_err_record(const router_cmd_t* cmd, err_h err, uint8_t* buf, uin
  * Routing
  * ------------------------------------------------------------------------- */
 
-/**
- * @brief One entry of a module's key table.
- */
 typedef struct {
   uint8_t key;
   cmd_f fn;
 } router_entry_t;
 
 /**
- * @brief Calls the entry of `table` whose key is in[0], with the same `ctx`,
- * and wraps a failure in ERR_ROUTER_KEY{key}. A module router consumes its
- * own key and hands the rest to this (ROUTER_MODULE writes that router).
+ * @brief Calls the entry of `table` whose key is in[0], with the same `ctx`, and wraps a failure in ERR_ROUTER_KEY{key}.
  */
 MUST_USE err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
                            uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
 /**
- * @brief Copies the fixed-size payload after the key (in[1..]) into `args`.
- * With size 0 (args may be NULL) it only checks that nothing follows the key.
+ * @brief Copies the fixed-size payload after the key (in[1..]) into `args`; size 0 (args may be NULL) only checks
+ * that nothing follows the key.
  * @return ERR_CMD_BAD_LEN unless exactly `size` bytes follow the key.
- * @usage op_args_t a; ERR_TRY(router_args(in, in_len, &a, sizeof(a)));
  */
 MUST_USE err_h router_args(const uint8_t* in, uint32_t in_len, void* args, uint32_t size);
 
 /**
- * @brief Like router_args, for a fixed header followed by a variable tail (a
- * name, data bytes): copies the header and points `tail` at the rest. With
- * size 0 (hdr may be NULL) the whole payload is the tail.
+ * @brief Like router_args for a fixed header and a variable tail: copies the header and points `tail` at the rest.
+ * Size 0 (hdr may be NULL): the whole payload is the tail.
  * @return ERR_CMD_BAD_LEN unless the header and at least one tail byte follow the key.
  */
 MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, uint32_t size, const uint8_t** tail,
                                 uint32_t* tail_len);
 
 /* ----------------------------------------------------------------------------
- * Op macros
- *
- * A module router is a key table of ops; each op only adapts the native API
- * (which stays the source: typed, callable without packing). The macros write
- * the cmd_f, check the payload length and parse it; the block after them is
- * the op body, which sees:
- *   ctx                     what router_call was given (a device's struct), else NULL
- *   a                       const args_t* - the parsed payload (ROUTER_OP, ROUTER_OP_TAIL)
- *   tail, tail_len          bytes after the header, at least 1 (ROUTER_OP_TAIL)
- *   out, out_cap, out_len   the answer (cmd_reply); untouched = empty answer
- *
- *   ROUTER_OP(op_char_remove, char_remove_t) {
- *     return sys_ble_char_remove(a->svc_uuid, a->uuid);
- *   }
- *   ROUTER_OP_NOARGS(op_apply) {
- *     return sys_ble_apply();
- *   }
- *   static const router_entry_t k_ops[] = {{OP_CHAR_REMOVE, op_char_remove}, {OP_APPLY, op_apply}};
- *   ROUTER_MODULE(sys_ble_router, k_ops)
+ * Op macros (ROUTER.MD "Routing"). They write the cmd_f, check and parse the
+ * payload; the block after them is the body, which sees `ctx`, `args`,
+ * `tail` / `tail_len` (ROUTER_OP_TAIL) and `out`, `out_cap`, `out_len`.
  * ------------------------------------------------------------------------- */
 
 // Op with a fixed-size payload `args_t` (packed struct).
@@ -191,7 +124,7 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
   }                                                        \
   static err_h fn##_body(void* ctx, CMD_OUT_PARAMS)
 
-// Op with args fixed header `hdr_t` and args variable tail (name, data).
+// Op with a fixed header `hdr_t` and a variable tail (name, data).
 #define ROUTER_OP_TAIL(fn, hdr_t)                                                                        \
   static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len,              \
                          CMD_OUT_PARAMS);                                                            \
@@ -204,174 +137,98 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
   }                                                                                                      \
   static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
 
-// Declares a module router (in its header): MUST_USE err_h fn(cmd_f parameters);
+// Declares a module router in its header.
 #define ROUTER_MODULE_DECLARE(fn) MUST_USE err_h fn(CMD_F_PARAMS)
 
-/* Defines the module router `fn` (a cmd_f): consumes its own key and calls
- * the op of `table` (router_call). Prefix `static` for a file-local one. */
+// Defines the module router `fn`: consumes its own key and calls the op of `table`. Prefix `static` for a file-local one.
 #define ROUTER_MODULE(fn, table)                                                             \
   err_h fn(CMD_F_PARAMS) {                                                               \
     return router_call(table, ARRAY_LEN(table), ctx, in + 1, in_len - 1, out, out_cap, out_len); \
   }
 
-/**
- * @brief Binds a root key (router_ids.h) to a module router (called with ctx
- * NULL). Boot only, before router_init().
- */
+/** @brief Binds a root key (router_ids.h) to a module router (called with ctx NULL). Boot only, before router_init. */
 MUST_USE err_h router_register(uint8_t key, cmd_f fn);
 
 /**
- * @brief Routes one command (`in` starts at the root key). Used by the
- * dispatcher and for replay of stored frames. Thread-safe as far as the
- * module routers are: urgent and normal frames run at the same time.
+ * @brief Routes one command (`in` starts at the root key): the dispatcher, and the replay of stored frames. Urgent and
+ * normal frames run at the same time, so module routers must be thread-safe.
  */
 MUST_USE err_h router_route(const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
 /* ----------------------------------------------------------------------------
- * Links and dispatch
+ * Links and dispatch. One client per link.
  * ------------------------------------------------------------------------- */
 
-/**
- * @brief A transport that delivers command frames (router_submit) and carries
- * the answers. `peer` tells clients on one link apart (0 when there is one).
- */
 typedef struct {
   const char* name;
-  /** Sends one response frame to `peer`. */
-  MUST_USE err_h (*send)(uint32_t peer, const uint8_t* frame, uint32_t len);
+  /** Sends one response frame to the link's client. Both router tasks call it. NULL only for the internal link. */
+  MUST_USE err_h (*send)(const uint8_t* frame, uint32_t len);
   /** Largest frame the link carries right now; NULL = CONFIG_ROUTER_FRAME_MAX. */
-  uint32_t (*max_frame)(uint32_t peer);
+  uint32_t (*max_frame)(void);
 } router_link_t;
 
-/**
- * @brief Registers a link under its ID (router_ids.h). Any time; links are
- * never removed.
- */
+/** @brief Registers a link under its ID (transport_e). Boot only; links are never removed. */
 MUST_USE err_h router_link_register(uint8_t link_id, const router_link_t* link);
 
 /**
- * @brief Queues one whole request frame from a link (copied). Called from the
- * link's own task, not from an ISR. A frame that can't be queued (bad length,
- * queue full) is answered with an error response right away (when it has a
- * seq) and reported with its command (err_report_ex); NULL is returned then.
+ * @brief Queues one request frame from a link (copied). The link's task, not an ISR. A frame that can't be queued
+ * (bad length, queue full) is answered with an error right away and reported; NULL is returned then.
  * @return Only misuse: ERR_ROUTER_BAD_LINK, ERR_CMD_BAD_ARG.
  */
-MUST_USE err_h router_submit(uint8_t link_id, uint32_t peer, const uint8_t* frame, uint32_t len);
-
-/**
- * @brief The link lost its client (e.g. BLE disconnect). Triggers the safe
- * state when the dead-man is enabled with `on_link_lost`.
- */
-void router_link_lost(void);
+MUST_USE err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len);
 
 /* ----------------------------------------------------------------------------
  * Internal link, tap and origin
- *
- * Link 0 is the board itself: frames queued by router_inject (an action run
- * by an event, the VM, boot). They are routed like link frames, on the same
- * tasks, and their answers are dropped; their errors are still reported
- * (link "internal"). They don't feed the dead-man: they don't prove a client
- * is alive.
  * ------------------------------------------------------------------------- */
 
-#define ROUTER_LINK_INTERNAL 0u
+#define ROUTER_LINK_INTERNAL 0u  // the board itself: answers dropped, errors reported, not shown to the watch
 
 /**
- * @brief Queues a command from the board itself on the internal link. Never
- * blocks. Task context, not an ISR.
- * @param req    Keys + payload (no seq / flags), as router_route takes them.
- * @param urgent Run on the urgent task.
+ * @brief Queues keys + payload (no seq / flags) from the board itself on the internal link. Never blocks. Task
+ * context, not an ISR.
  * @return ERR_ROUTER_FRAME_LEN (too long for a frame), ERR_ROUTER_QUEUE_FULL.
- * @usage ERR_TRY(router_inject((const uint8_t[]){ROUTER_KEY_SYS, 0x02}, 2, true));
  */
 MUST_USE err_h router_inject(const uint8_t* req, uint32_t len, bool urgent);
 
-/**
- * @brief Sees every frame the dispatcher routes, from every link (also the
- * internal one), on the task that routes it. Both members may be NULL.
- */
+/** Sees every frame the dispatcher routes (every link, also the internal one), on the routing task. */
 typedef struct {
-  /** Before routing. true = the frame is taken: answered OK with no data and not routed. */
+  /** Before routing. true = taken: answered OK with no data and not routed. */
   bool (*take)(const router_cmd_t* cmd);
-  /** After routing a frame that wasn't taken. `result` is borrowed (don't free it). */
+  /** After routing a frame that wasn't taken. `result` is borrowed. */
   void (*seen)(const router_cmd_t* cmd, err_h result);
 } router_tap_t;
 
-/**
- * @brief Sets the tap (one; NULL removes it). Boot only, by the app: the
- * router doesn't know who records.
- */
+/** @brief Sets the tap (one; NULL removes it). Boot only. */
 void router_set_tap(const router_tap_t* tap);
 
-/**
- * @brief The command the calling task is routing (link, peer, request), so an
- * op can tell who sent it. NULL outside the router tasks. Inside a replay
- * (router_route called by an op) it is still the outer command.
- */
+/** @brief The command the calling task is routing; NULL outside the router tasks. Inside a replay: the outer one. */
 const router_cmd_t* router_origin(void);
 
 /**
- * @brief Sends the first `len` bytes of `out` — the buffer the calling op got — as an extra OK answer to the command
- * being routed (same seq, same link and peer), before the op's own answer. For a command that answers with several
- * packets (an action read back frame by frame): the op sends all but the last this way and returns the last as its
- * answer. The client matches them by seq and knows the count itself. Inside a replay (an action running the op) `out`
- * is not the dispatcher's buffer and nothing is sent, like any answer there. Router tasks only.
- * @return ERR_CMD_BAD_ARG outside a router task. A link that fails to send is reported, not returned.
+ * @brief Sends the first `len` bytes of the calling op's `out` as an extra OK answer (same seq and link) before the
+ * op's own answer: a command that answers in several packets. Inside a replay nothing is sent. Router tasks only.
+ * @return ERR_CMD_BAD_ARG outside a router task. A failed send is reported, not returned.
  */
 MUST_USE err_h router_answer_part(const uint8_t* out, uint32_t len);
 
 /* ----------------------------------------------------------------------------
- * Safe state and dead-man
- *
- * The safe-state handler is registered by the app (it knows what "safe" is:
- * VM stop, devices suspended). It runs on the urgent task.
+ * Watch: for the module that watches the clients (the dead-man, sys_system.h).
  * ------------------------------------------------------------------------- */
 
-//#ref-enum @alias Safe State Reason
-typedef enum {
-  ROUTER_SAFE_STOP = 1,  //@alias Stop @description sys STOP command
-  ROUTER_SAFE_DEADMAN = 2,  //@alias Deadman @description No frame within the dead-man timeout
-  ROUTER_SAFE_LINK_LOST = 3,  //@alias Link lost @description router_link_lost with on_link_lost set
-  ROUTER_SAFE_POWER = 4,  //@alias Power fault @description The power manager's response to a power fault (its response matrix: safe state)
-} router_safe_reason_e;
+typedef struct {
+  /** A frame arrived from a link (not the internal one), before it is queued. The link's task. */
+  void (*frame)(void);
+  /** After router_wake_urgent, on the urgent task (may block on I/O). */
+  void (*urgent)(void);
+} router_watch_t;
 
-typedef void (*router_safe_state_f)(router_safe_reason_e reason);
-typedef err_h (*router_safe_leave_f)(void);
+/** @brief Sets the watch (one; NULL removes it). Members may be NULL. Boot only, before router_init. */
+void router_set_watch(const router_watch_t* watch);
 
-/**
- * @brief Sets the safe-state handler. Boot only. NULL = only logged.
- */
-void router_set_safe_state(router_safe_state_f fn);
+/** @brief Runs the watch's `urgent` on the urgent task, soon. Any task or a timer callback, not an ISR. */
+void router_wake_urgent(void);
 
-/**
- * @brief Sets what leaving the safe state does (SYS SAFE_LEAVE): the devices resumed. Boot only. NULL: SAFE_LEAVE only clears the note.
- */
-void router_set_safe_leave(router_safe_leave_f fn);
-
-/**
- * @brief Enters the safe state for `reason`: the handler runs and the router notes the reason and the time (SYS SAFE_GET) until
- *        SYS SAFE_LEAVE. The router's own reasons call it; a module of a later layer (the power manager) through the application.
- */
-void router_enter_safe_state(router_safe_reason_e reason);
-
-/**
- * @brief The safe state as noted: the reason of the last entry (0 = not in it) and how long ago, in ms.
- */
-void router_safe_state_get(uint8_t* reason, uint32_t* for_ms);
-
-/**
- * @brief Runtime dead-man. `timeout_ms` 0 = off. While on, the safe state is
- * entered when no frame arrives from any link for `timeout_ms` (once; the
- * next frame re-arms it), and on router_link_lost when `on_link_lost`.
- * Not stored - off again after a restart (default CONFIG_ROUTER_DEADMAN_DEFAULT_MS).
- */
-void router_deadman_set(uint32_t timeout_ms, bool on_link_lost);
-void router_deadman_get(uint32_t* timeout_ms, bool* on_link_lost);
-
-/**
- * @brief Registers the sys router and starts the urgent and work tasks.
- * Register module routers before; links may come before or after.
- */
+/** @brief Starts the urgent and work tasks. Module routers are registered before; links before or after. */
 MUST_USE err_h router_init(void);
 
 #ifdef __cplusplus

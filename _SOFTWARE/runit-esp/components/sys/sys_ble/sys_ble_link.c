@@ -52,7 +52,7 @@ static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
 
   if (hdr & SYS_BLE_FRAG_LAST) {
     s_rx.active = false;
-    sys_ble_report(router_submit(TRANSPORT_BLE, 0, s_rx.buf, (uint32_t)s_rx.len));
+    sys_ble_report(router_submit(TRANSPORT_BLE, s_rx.buf, (uint32_t)s_rx.len));
   }
 }
 
@@ -60,7 +60,6 @@ static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
     s_rx.active = false;
-    router_link_lost();
   }
 }
 
@@ -68,13 +67,11 @@ static void on_conn(bool connected, int32_t reason) {
  * TX: router link
  * ------------------------------------------------------------------------- */
 
-static err_h link_send(uint32_t peer, const uint8_t* frame, uint32_t len) {
-  (void)peer;
+static err_h link_send(const uint8_t* frame, uint32_t len) {
   return sys_ble_char_send(SYS_BLE_CHR_RUNIT_TX, frame, len, LINK_SEND_WAIT_MS);
 }
 
-static uint32_t link_max_frame(uint32_t peer) {
-  (void)peer;
+static uint32_t link_max_frame(void) {
   return (uint32_t)sys_ble_char_max_payload(SYS_BLE_CHR_RUNIT_TX);
 }
 
