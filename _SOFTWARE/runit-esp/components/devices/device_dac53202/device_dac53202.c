@@ -109,8 +109,8 @@ static err_h uninstall(void* ctx) {
   dac_t* c = ctx;
   err_h err = NULL;
   if (sys_i2c_dev_added(&c->i2c)) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_set_power(c, 0));
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, chip_set_power(c, 0));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
   return err;
 }

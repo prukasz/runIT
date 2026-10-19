@@ -119,11 +119,11 @@ static err_h uninstall(void* ctx) {
   pca_t* c = ctx;
   err_h err = NULL;
   if (sys_i2c_dev_added(&c->i2c)) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true));
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, chip_sleep(c, true));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));  // outputs off, then the pin is let go
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->oe));
+  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));  // outputs off, then the pin is let go
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->oe));
   return err;
 }
 
@@ -142,8 +142,8 @@ DEVICE_HANDLER(RESET) {
 static err_h suspend_hook(void* ctx) {
   pca_t* c = ctx;
   err_h err = NULL;
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));
-  SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true));
+  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));
+  ERR_KEEP_FIRST(err, chip_sleep(c, true));
   return err;
 }
 

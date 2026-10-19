@@ -109,10 +109,10 @@ static err_h chip_set_outputs(drv_t* c, uint8_t channel, bool enabled) {
   err_h err = NULL;
   for (uint8_t i = first; i <= last; i++) {
     if (has_pin(c, DRV8962_PIN_EN1 + i)) {
-      SYS_DEVICE_KEEP_FIRST(err, set_locked_pin(c, DRV8962_PIN_EN1 + i, enabled));
+      ERR_KEEP_FIRST(err, set_locked_pin(c, DRV8962_PIN_EN1 + i, enabled));
     }
     if (has_pin(c, DRV8962_PIN_IN1 + i)) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_io_set_pwm_duty(c->pin[DRV8962_PIN_IN1 + i], 0));
+      ERR_KEEP_FIRST(err, sys_io_set_pwm_duty(c->pin[DRV8962_PIN_IN1 + i], 0));
     }
   }
   c->ch[channel].drive = 0;
@@ -231,7 +231,7 @@ EVENT_HANDLER(ON_EVENT) {
   // Sample every channel (a failed read counts as 0 mA). The classification below dispatches each fault once.
   for (uint8_t ch = 0; ch < n; ch++) {
     int32_t mA = 0;
-    SYS_DEVICE_KEEP_FIRST(err, read_channel_current_mA(c, ch, &mA));
+    ERR_KEEP_FIRST(err, read_channel_current_mA(c, ch, &mA));
     const int16_t drive = c->ch[ch].drive;
     if (drive >= DRIVE_DEADBAND || drive <= -DRIVE_DEADBAND) {
       active_count++;
@@ -245,25 +245,25 @@ EVENT_HANDLER(ON_EVENT) {
   if (over_count > 0) {
     for (uint8_t ch = 0; ch < n; ch++) {
       if (current_at_or_over(c->ch[ch].last_current_mA, c->current_limit_mA[ch])) {
-        SYS_DEVICE_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_OVERCURRENT));
+        ERR_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_OVERCURRENT));
         faulted |= (uint8_t)(1u << ch);
       }
     }
   } else if (active_count == 1 && last_active >= 0) {
     // Exactly one channel was driving when the fault occurred: the culprit.
-    SYS_DEVICE_KEEP_FIRST(err, mark_channel_fault(c, (uint8_t)last_active, SYS_HBRIDGE_FAULT_OVERCURRENT));
+    ERR_KEEP_FIRST(err, mark_channel_fault(c, (uint8_t)last_active, SYS_HBRIDGE_FAULT_OVERCURRENT));
     faulted |= (uint8_t)(1u << last_active);
   } else {
     // Chip-wide thermal shutdown (OTSD) or supply UVLO.
     for (uint8_t ch = 0; ch < n; ch++) {
-      SYS_DEVICE_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO));
+      ERR_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO));
       faulted |= (uint8_t)(1u << ch);
     }
   }
 
   for (uint8_t ch = 0; ch < n; ch++) {
     if (faulted & (1u << ch)) {
-      SYS_DEVICE_KEEP_FIRST(err, publish_channel_fault(c, ch));
+      ERR_KEEP_FIRST(err, publish_channel_fault(c, ch));
     }
   }
   return err;
@@ -361,21 +361,21 @@ static err_h uninstall(void* ctx) {
   drv_t* c = ctx;
   err_h err = NULL;
   if (c->nfault_subscribed) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(c->nfault_sub));
+    ERR_KEEP_FIRST(err, sys_event_unsubscribe(c->nfault_sub));
     c->nfault_subscribed = false;
   }
   if (c->started) {
     for (uint8_t i = 0; i < channel_count(c); i++) {
-      SYS_DEVICE_KEEP_FIRST(err, chip_coast(c, i));
+      ERR_KEEP_FIRST(err, chip_coast(c, i));
     }
     c->started = false;
   }
   for (uint8_t idx = 0; idx < DRV8962_PINS; idx++) {
     if (c->locked_mask & (1u << idx)) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(c->pin[idx]));
+      ERR_KEEP_FIRST(err, sys_pins_unlock(c->pin[idx]));
     }
     if (c->used_mask & (1u << idx)) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_io_release(c->pin[idx]));
+      ERR_KEEP_FIRST(err, sys_io_release(c->pin[idx]));
     }
   }
   c->locked_mask = 0;
@@ -389,7 +389,7 @@ DEVICE_HANDLER(RESET) {
   ERR_TRY(sys_device_check_active(&c->base));
   err_h err = NULL;
   for (uint8_t i = 0; i < channel_count(c); i++) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_brake(c, i));
+    ERR_KEEP_FIRST(err, chip_brake(c, i));
   }
   return err;
 }
@@ -399,7 +399,7 @@ static err_h suspend_hook(void* ctx) {
   drv_t* c = ctx;
   err_h err = NULL;
   for (uint8_t i = 0; i < channel_count(c); i++) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_coast(c, i));
+    ERR_KEEP_FIRST(err, chip_coast(c, i));
   }
   return err;
 }

@@ -375,7 +375,7 @@ EVENT_HANDLER(ON_EVENT) {
       if (!(c->alert_active_mask & (1u << pin))) {
         // Entry watch tripped: a genuine new crossing.
         c->alert_active_mask |= (uint8_t)(1u << pin);
-        SYS_DEVICE_KEEP_FIRST(err, publish_crossing(c, pin, code));
+        ERR_KEEP_FIRST(err, publish_crossing(c, pin, code));
         alert_cfg_t exit_cfg;
         arm_exit_watch(&exit_cfg, &c->entry_alert_cfg[pin], (high & (1u << pin)) != 0, (low & (1u << pin)) != 0);
         ERR_TRY(chip_set_alert_cfg(c, pin, &exit_cfg));
@@ -473,12 +473,12 @@ IO_HANDLER(RESET) {
 static err_h uninstall(void* ctx) {
   ads_t* c = ctx;
   err_h err = NULL;
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));  // ALERT first: no events while the chip stops
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));  // ALERT first: no events while the chip stops
   if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
-      SYS_DEVICE_KEEP_FIRST(err, chip_stop_sequence(c));  // nothing converts after the device is gone
+      ERR_KEEP_FIRST(err, chip_stop_sequence(c));  // nothing converts after the device is gone
     }
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
   return err;
 }

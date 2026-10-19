@@ -76,7 +76,16 @@ typedef struct __attribute__((packed)) {
  * The body sees ctx (the device's struct), a (const args_t*), out, out_cap,
  * out_len. `in` is the payload only: the registry strips the op.
  */
-#define SYS_DEVICE_HANDLER(fn, args_t)                                                            static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);   static err_h fn(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,                   uint32_t* out_len) {                                                              args_t args;                                                                                       ERR_CHECK(in_len == sizeof(args), ERR_CMD_BAD_LEN, .got = (uint16_t)in_len, .need = (uint16_t)sizeof(args));     memcpy(&args, in, sizeof(args));                                                                      return fn##_body(ctx, &args, out, out_cap, out_len);                                             }                                                                                               static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
+#define SYS_DEVICE_HANDLER(fn, args_t)                                                                            \
+  static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);       \
+  static err_h fn(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,                  \
+                  uint32_t* out_len) {                                                                            \
+    args_t args;                                                                                                  \
+    ERR_CHECK(in_len == sizeof(args), ERR_CMD_BAD_LEN, .got = (uint16_t)in_len, .need = (uint16_t)sizeof(args)); \
+    memcpy(&args, in, sizeof(args));                                                                              \
+    return fn##_body(ctx, &args, out, out_cap, out_len);                                                          \
+  }                                                                                                               \
+  static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
 
 /**
  * @brief Device contract (0x00xx): the lifecycle. CREATE (0x00) is not in the
@@ -221,7 +230,8 @@ void sys_device_type_register(const sys_device_type_t* type);
  * driver's component must be linked as WHOLE_ARCHIVE: nothing references it,
  * and the linker would drop the registration.
  * @usage SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t),
- *                               .ctx_size = sizeof(pca_t), .create = create, .uninstall = uninstall, SYS_DEVICE_OPS(k_ops));
+ *                               .ctx_size = sizeof(pca_t), .create = create, .uninstall = uninstall,
+ *                               .suspend = suspend, .resume = resume, SYS_DEVICE_OPS(k_ops));
  */
 #define SYS_DEVICE_TYPE_DEFINE(...)                                                \
   static const sys_device_type_t s_sys_device_type = {__VA_ARGS__};                \
@@ -294,22 +304,6 @@ void sys_device_mark_system(void);
  * @usage if (sys_io_pin_valid(c->oe)) { ERR_TRY(sys_device_use(&c->base, c->oe.device)); }
  */
 MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
-
-/**
- * @brief Keeps the first error of a sequence whose steps all run (teardown).
- * @usage err_h err = NULL; SYS_DEVICE_KEEP_FIRST(err, chip_sleep(c, true)); SYS_DEVICE_KEEP_FIRST(err, ...);
- */
-#define SYS_DEVICE_KEEP_FIRST(acc, call)  \
-  do {                                    \
-    err_h _keep_ = (call);                \
-    if (_keep_ != NULL) {                 \
-      if ((acc) == NULL) {                \
-        (acc) = _keep_;                   \
-      } else {                            \
-        err_free(_keep_);                 \
-      }                                   \
-    }                                     \
-  } while (0)
 
 /* ----------------------------------------------------------------------------
  * Error policy (SYS_DEVICE.MD "Error policy"): per instance, importance and an

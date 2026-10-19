@@ -74,7 +74,7 @@ static err_h suspend_hook(void* ctx) {
   mux_t* c = ctx;
   err_h err = NULL;
   for (uint8_t i = 0; i < 2; i++) {
-    SYS_DEVICE_KEEP_FIRST(err, mux_set_switch(c, i, false));
+    ERR_KEEP_FIRST(err, mux_set_switch(c, i, false));
   }
   c->source = SYS_POWER_SUPPLY_OFF;
   return err;
@@ -86,7 +86,7 @@ static err_h resume_hook(void* ctx) {
   err_h err = mux_apply(c, c->wanted);
   if (err != NULL) {
     for (uint8_t i = 0; i < 2; i++) {
-      SYS_DEVICE_KEEP_FIRST(err, mux_set_switch(c, i, false));
+      ERR_KEEP_FIRST(err, mux_set_switch(c, i, false));
     }
     c->source = SYS_POWER_SUPPLY_OFF;
     return err;
@@ -101,8 +101,8 @@ static err_h uninstall(void* ctx) {
   mux_t* c = ctx;
   err_h err = NULL;
   for (uint8_t i = 0; i < 2; i++) {
-    SYS_DEVICE_KEEP_FIRST(err, mux_set_switch(c, i, false));  // off before the pin is let go (a no-op if not locked)
-    SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->en[i]));
+    ERR_KEEP_FIRST(err, mux_set_switch(c, i, false));  // off before the pin is let go (a no-op if not locked)
+    ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->en[i]));
   }
   return err;
 }

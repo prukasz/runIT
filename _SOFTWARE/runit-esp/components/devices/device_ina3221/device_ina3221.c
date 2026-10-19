@@ -93,7 +93,7 @@ static err_h set_pin_edge(ina_t* c, int i, sys_io_intr_mode_e mode) {
   ERR_TRY(sys_pins_unlock(c->pin[i].pin));
   const sys_io_intr_cfg_t cfg = {.mode = mode};
   err_h err = sys_io_configure_intr(c->pin[i].pin, &cfg);
-  SYS_DEVICE_KEEP_FIRST(err, sys_pins_lock(c->pin[i].pin));
+  ERR_KEEP_FIRST(err, sys_pins_lock(c->pin[i].pin));
   return err;
 }
 
@@ -126,7 +126,7 @@ static err_h disarm_inverted_alerts(ina_t* c) {
       continue;
     }
     c->inverted_alert[i] = -1;
-    SYS_DEVICE_KEEP_FIRST(err, set_pin_edge(c, i, SYS_IO_INTR_MODE_FALLING_EDGE));
+    ERR_KEEP_FIRST(err, set_pin_edge(c, i, SYS_IO_INTR_MODE_FALLING_EDGE));
   }
   return err;
 }
@@ -187,11 +187,11 @@ static err_h on_inverted_release(ina_t* c, int i) {
   int32_t mA = 0;
   const uint8_t ch = (uint8_t)c->inverted_alert[i];
   err_h err = NULL;
-  SYS_DEVICE_KEEP_FIRST(err, chip_read_current_mA(c, ch, &mA));  // a failed read still publishes (value 0)
+  ERR_KEEP_FIRST(err, chip_read_current_mA(c, ch, &mA));  // a failed read still publishes (value 0)
   if (i == 0) {
-    SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_CRITICAL, c->base.id, ch, mA));
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_CRITICAL, c->base.id, ch, mA));
   } else {
-    SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_WARNING, c->base.id, ch, mA));
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_WARNING, c->base.id, ch, mA));
   }
   return err;
 }
@@ -211,12 +211,12 @@ static err_h on_flags(ina_t* c) {
       continue;
     }
     int32_t mA = 0;
-    SYS_DEVICE_KEEP_FIRST(err, chip_read_current_mA(c, ch, &mA));
+    ERR_KEEP_FIRST(err, chip_read_current_mA(c, ch, &mA));
     if (crit) {
-      SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_CRITICAL, c->base.id, ch, mA));
+      ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_CRITICAL, c->base.id, ch, mA));
     }
     if (warn) {
-      SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_WARNING, c->base.id, ch, mA));
+      ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_WARNING, c->base.id, ch, mA));
     }
   }
   return err;
@@ -264,10 +264,10 @@ static err_h uninstall(void* ctx) {
   ina_t* c = ctx;
   err_h err = NULL;
   for (int i = 0; i < 2; i++) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->pin[i]));
+    ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->pin[i]));
   }
   if (sys_i2c_dev_added(&c->i2c)) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
   return err;
 }

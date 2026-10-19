@@ -197,6 +197,20 @@
   } while (0)
 
 /**
+ * @brief Keeps the first error of a sequence whose steps all run (teardown); a later error is freed.
+ * @usage err_h err = NULL; ERR_KEEP_FIRST(err, chip_sleep(c, true)); ERR_KEEP_FIRST(err, ...);
+ */
+#define ERR_KEEP_FIRST(acc, call) \
+  do {                            \
+    err_h _err_keep_ = (call);    \
+    if ((acc) == NULL) {          \
+      (acc) = _err_keep_;         \
+    } else {                      \
+      err_free(_err_keep_);       \
+    }                             \
+  } while (0)
+
+/**
  * @brief Converts an ESP-IDF call result: NULL on ESP_OK, otherwise a new
  * ERR_ESP_ERR node with the esp_err_t code.
  * @usage err_h e = ERR_ESP(gpio_set_level(pin, 1));

@@ -53,10 +53,6 @@ static portMUX_TYPE s_table_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static const sys_device_error_policy_t k_policy_default = {.importance = SYS_DEVICE_IMPORTANCE_LOW};
 
-static uint16_t u16_at(const uint8_t* b) {
-  return (uint16_t)(b[0] | (b[1] << 8));
-}
-
 /* ---- Types ---- */
 
 static const sys_device_type_t* find_type(uint16_t type) {
@@ -149,7 +145,8 @@ err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
 static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
   ERR_CHECK(!s_creating, ERR_DEV_BAD_ARG);  // a create() creating another device: not supported
   ERR_CHECK(args_len >= 2, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 2);  // the type u16
-  const uint16_t type_id = u16_at(args);
+  uint16_t type_id;
+  memcpy(&type_id, args, sizeof(type_id));  // little-endian target
   const sys_device_type_t* type = find_type(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(args_len - 2 == type->cfg_size, ERR_CMD_BAD_LEN, .got = (uint16_t)(args_len - 2),
@@ -161,7 +158,7 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
   err_h err = type->create(ctx, args + 2);
   s_creating = false;
   if (err != NULL) {
-    SYS_DEVICE_KEEP_FIRST(err, type->uninstall(ctx));  // the cause stays; a rollback failure is dropped
+    ERR_KEEP_FIRST(err, type->uninstall(ctx));  // the cause stays; a rollback failure is dropped
     free(ctx);
     return ERR_WRAP(err, ERR_DEV_INSTALL, .id = id, .type = type_id);
   }

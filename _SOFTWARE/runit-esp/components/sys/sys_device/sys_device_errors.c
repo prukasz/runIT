@@ -47,7 +47,7 @@ static err_h system_fault(uint16_t id) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
                    .stage = SYS_DEVICE_FAULT_STAGE_SUSPEND, .action = 0u);
   }
-  SYS_DEVICE_KEEP_FIRST(response, err);
+  ERR_KEEP_FIRST(response, err);
   return response;
 }
 
@@ -62,7 +62,7 @@ static err_h device_fault(uint16_t id, uint8_t sev, uint32_t action, err_h chain
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = sev, .stage = SYS_DEVICE_FAULT_STAGE_ACTION,
                    .action = action);
   }
-  SYS_DEVICE_KEEP_FIRST(response, err);
+  ERR_KEEP_FIRST(response, err);
   return response;
 }
 
@@ -92,7 +92,7 @@ err_h sys_device_handle_error(err_h chain) {
       // A critical failure above every device: nobody to attribute it to.
       if (handled_count == 0 && !system_done && err_sev(n) == ERR_SEV_CRITICAL) {
         system_done = true;
-        SYS_DEVICE_KEEP_FIRST(first, system_fault(SYS_DEVICE_ID_NONE));
+        ERR_KEEP_FIRST(first, system_fault(SYS_DEVICE_ID_NONE));
       }
       continue;
     }
@@ -117,7 +117,7 @@ err_h sys_device_handle_error(err_h chain) {
       continue;
     }
     const uint32_t action = found ? p.actions[sev - ERR_SEV_LOW] : 0u;
-    SYS_DEVICE_KEEP_FIRST(first, device_fault(id, sev, action, chain));
+    ERR_KEEP_FIRST(first, device_fault(id, sev, action, chain));
     system_done = system_done || sev == ERR_SEV_CRITICAL;
   }
 

@@ -105,7 +105,7 @@ EVENT_HANDLER(ON_EVENT) {
     const uint8_t mode = c->intr_mode[pin];
     if (mode == SYS_IO_INTR_MODE_BOTH_EDGES || (mode == SYS_IO_INTR_MODE_RISING_EDGE && level) ||
         (mode == SYS_IO_INTR_MODE_FALLING_EDGE && !level)) {
-      SYS_DEVICE_KEEP_FIRST(err, level ? SYS_EVENT_PUBLISH(IO, RISING, c->base.id, pin, 1)
+      ERR_KEEP_FIRST(err, level ? SYS_EVENT_PUBLISH(IO, RISING, c->base.id, pin, 1)
                                        : SYS_EVENT_PUBLISH(IO, FALLING, c->base.id, pin, 0));
     }
   }
@@ -199,9 +199,9 @@ static err_h suspend_hook(void* ctx) {
   tca_t* c = ctx;
   err_h err = NULL;
   if (c->rst.locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->rst, false));
+    ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->rst, false));
   } else {
-    SYS_DEVICE_KEEP_FIRST(err, chip_release_all(c));
+    ERR_KEEP_FIRST(err, chip_release_all(c));
   }
   return err;
 }
@@ -226,12 +226,12 @@ static err_h uninstall(void* ctx) {
   err_h err = NULL;
   if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
-      SYS_DEVICE_KEEP_FIRST(err, chip_release_all(c));  // nothing stays driven
+      ERR_KEEP_FIRST(err, chip_release_all(c));  // nothing stays driven
     }
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->rst));
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->rst));
   return err;
 }
 

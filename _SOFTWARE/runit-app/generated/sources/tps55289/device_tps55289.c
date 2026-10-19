@@ -265,7 +265,7 @@ static err_h tps_rail_off(tps_t* c, bool chip_powered, bool discharge) {
   err_h err = NULL;
   tps_rise_cancel(c);
   if (chip_powered) {
-    SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
+    ERR_KEEP_FIRST(err, chip_set_output_enable(c, false));
   }
   if (discharge && err == NULL && chip_powered && c->prot.discharge && sys_io_pin_valid(c->en.pin)) {
     c->rise = RISE_FALL;
@@ -275,7 +275,7 @@ static err_h tps_rail_off(tps_t* c, bool chip_powered, bool discharge) {
     }
     c->rise = RISE_IDLE;
   }
-  SYS_DEVICE_KEEP_FIRST(err, tps_set_en(c, false));
+  ERR_KEEP_FIRST(err, tps_set_en(c, false));
   return err;
 }
 
@@ -396,13 +396,13 @@ EVENT_HANDLER(ON_EVENT) {
   ERR_TRY(chip_get_status(c, &status));
   err_h err = NULL;
   if (status & STATUS_OVP) {
-    SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, OVP, c->base.id, 0, c->last_voltage_mV));
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, OVP, c->base.id, 0, c->last_voltage_mV));
   }
   if ((status & STATUS_OCP) && c->rise == RISE_IDLE) {
-    SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, OCP, c->base.id, 0, c->last_current_limit_mA));
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, OCP, c->base.id, 0, c->last_current_limit_mA));
   }
   if (status & STATUS_SCP) {
-    SYS_DEVICE_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, SCP, c->base.id, 0, 0));
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG, SCP, c->base.id, 0, 0));
   }
   return err;
 }
@@ -439,7 +439,7 @@ static err_h resume_hook(void* ctx) {
       err = tps_apply_config(c);
     }
     if (err != NULL) {
-      SYS_DEVICE_KEEP_FIRST(err, tps_rail_off(c, true, false));
+      ERR_KEEP_FIRST(err, tps_rail_off(c, true, false));
       return err;
     }
   }
@@ -454,18 +454,18 @@ static err_h uninstall(void* ctx) {
   err_h err = NULL;
   if (c->rise_timer != NULL) {
     tps_rise_cancel(c);
-    SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->rise_timer)));
+    ERR_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->rise_timer)));
     c->rise_timer = NULL;
   }
   if (sys_i2c_dev_added(&c->i2c)) {
     if (tps_powered(c)) {
-      SYS_DEVICE_KEEP_FIRST(err, chip_set_output_enable(c, false));
+      ERR_KEEP_FIRST(err, chip_set_output_enable(c, false));
     }
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_drive(&c->en, false));  // rail off
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->en));
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->en, false));  // rail off
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->en));
   return err;
 }
 

@@ -40,26 +40,10 @@ ERR_TAGS_DECLARE(ERR_I2C_MAP)                          // header: enum + err_dat
 ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constructor registration
 ```
 
-- `errors` never includes module headers; it only looks tags up in registered tables (`err_tag_info`, `err_module`).
+- `errors` never includes module headers; it only looks tags up in registered tables (`err_tag_info`, `err_module`, internal).
 - Compile-time checks: payload fits a node, no duplicate tag IDs. Registration asserts: tag belongs to the module, module ID is unique, and count fits `ERRORS_MAX_MODULES`.
-- Module IDs (`ERR_MOD_*`) must be unique firmware-wide: add new ones to `err_modules.h`. Current modules:
-  - `ERR_MOD_CORE` = 0 (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`)
-  - `ERR_MOD_SYS_I2C` = 1
-  - `ERR_MOD_ROUTER` = 2
-  - `ERR_MOD_SYS_UART` = 3
-  - `ERR_MOD_SYS_BLE` = 4
-  - `ERR_MOD_SYS_CONNECTOR` = 5
-  - `ERR_MOD_SYS_DEVICE` = 6
-  - `ERR_MOD_SYS_IO` = 7
-  - `ERR_MOD_SYS_ACTIONS` = 8
-  - `ERR_MOD_SYS_EVENT` = 9
-  - `ERR_MOD_SYS_POWER` = 10
-  - `ERR_MOD_CMD` = 11
-  - `ERR_MOD_SYS_LOG` = 13
-  - `ERR_MOD_SYS_POWER_MANAGER` = 14
-  - `ERR_MOD_VM` = 15
-  - `ERR_MOD_SYS_PROJECT` = 16
-- A context-only wrapper tag (adds data, not a failure of its own) gets default severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
+- Module IDs (`ERR_MOD_*`) are assigned only in `err_modules.h` (the list, in order; a new module takes the next number, none is renumbered or reused).
+- A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
 - Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration.
 
 ## Creating and propagating
@@ -69,6 +53,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 | `ERR_NEW(TAG, .f = v)` / `ERR_WRAP(cause, TAG, …)` | New root error / new node over `cause` (takes ownership) |
 | `ERR_TRY(call)` | Return the error of `call` if any |
 | `ERR_CHECK(cond, TAG, …)` | Return a new error if `cond` is false |
+| `ERR_KEEP_FIRST(acc, call)` | Run `call`, keep the first error in `acc`, free a later one (teardown: every step runs) |
 | `ERR_ESP(esp_call)` / `ERR_TRY_ESP(esp_call)` | `esp_err_t` → `NULL` or `ERR_ESP_ERR{code}` |
 
 A payload that does not fit a node fails to compile in `ERR_MODULE_DEFINE`.

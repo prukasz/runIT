@@ -238,7 +238,7 @@ static err_h rebalance(bool* starved) {
     }
     if (cap_mA < s_board->consumers[i].min_mA) {
       // The regulator can't limit this low: the limit doesn't cover the rail at this voltage. The old limit stays.
-      SYS_DEVICE_KEEP_FIRST(err, ERR_NEW(ERR_PWRM_BUDGET_EXCEEDED, .id = s_board->consumers[i].vreg,
+      ERR_KEEP_FIRST(err, ERR_NEW(ERR_PWRM_BUDGET_EXCEEDED, .id = s_board->consumers[i].vreg,
                                          .requested_mW = rail_input_mW(r->set_mV, s_board->consumers[i].min_mA),
                                          .available_mW = share_mW));
       allocated += rail_input_mW(r->set_mV, r->applied_mA);
@@ -250,7 +250,7 @@ static err_h rebalance(bool* starved) {
       if (root == ERR_DEV_SUSPENDED || root == ERR_DEV_NOT_FOUND) {
         err_free(set_err);  // off (a fault) or gone: it gets its share when it is back
       } else if (set_err != NULL) {
-        SYS_DEVICE_KEEP_FIRST(err, set_err);  // the old limit stays programmed and counted
+        ERR_KEEP_FIRST(err, set_err);  // the old limit stays programmed and counted
       } else {
         r->applied_mA = cap_mA;
       }
@@ -292,7 +292,7 @@ static err_h change_rail(int i, rail_t next, uint16_t op, uint32_t value) {
   if (err != NULL) {
     s_rails[i] = prev;
   }
-  SYS_DEVICE_KEEP_FIRST(err, rebalance(&starved));
+  ERR_KEEP_FIRST(err, rebalance(&starved));
   return err;
 }
 
@@ -513,7 +513,7 @@ static void program_input_alerts(uint32_t limit_mA) {
   const uint32_t warn_mA = limit_mA * CONFIG_SYS_POWER_MANAGER_INPUT_WARNING_PCT / 100u;
   err_h err = sys_power_monitor_set_alert(s_board->input.device, s_board->input.channel, SYS_POWER_ALERT_OCP_CRITICAL,
                                           (int32_t)limit_mA);
-  SYS_DEVICE_KEEP_FIRST(err, sys_power_monitor_set_alert(s_board->input.device, s_board->input.channel,
+  ERR_KEEP_FIRST(err, sys_power_monitor_set_alert(s_board->input.device, s_board->input.channel,
                                                          SYS_POWER_ALERT_OCP_WARNING, (int32_t)warn_mA));
   if (err == NULL) {
     s_alert_mA = limit_mA;

@@ -360,12 +360,12 @@ static err_h uninstall(void* ctx) {
   err_h err = NULL;
   if (c->keepalive_timer != NULL) {
     keepalive_stop(c);
-    SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->keepalive_timer)));
+    ERR_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->keepalive_timer)));
     c->keepalive_timer = NULL;
   }
-  SYS_DEVICE_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
   if (sys_i2c_dev_added(&c->i2c)) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
+    ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
   return err;
 }

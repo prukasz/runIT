@@ -125,14 +125,14 @@ static err_h release_pin(uint8_t pin) {
   }
 
   err_h err = NULL;
-  SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(pwm_err));
-  SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(isr_err));
-  SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(gpio_reset_pin((gpio_num_t)pin)));
+  ERR_KEEP_FIRST(err, ERR_ESP(pwm_err));
+  ERR_KEEP_FIRST(err, ERR_ESP(isr_err));
+  ERR_KEEP_FIRST(err, ERR_ESP(gpio_reset_pin((gpio_num_t)pin)));
   if (was_adc) {
     if (cali_handle != NULL) {
-      SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(adc_cali_delete_scheme_curve_fitting(cali_handle)));
+      ERR_KEEP_FIRST(err, ERR_ESP(adc_cali_delete_scheme_curve_fitting(cali_handle)));
     }
-    SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_adc_update_active_channels()));
+    ERR_KEEP_FIRST(err, ERR_ESP(esp_adc_update_active_channels()));
   }
   return err;
 }
@@ -307,7 +307,7 @@ static err_h arm_digital(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_i
   if (cfg->mode == SYS_IO_INTR_DISABLE) {
     pin_obj->intr = *cfg;
     err_h err = ERR_ESP(gpio_isr_handler_remove(pin));
-    SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(gpio_set_intr_type(pin, GPIO_INTR_DISABLE)));
+    ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_intr_type(pin, GPIO_INTR_DISABLE)));
     return err;
   }
   ERR_CHECK(cfg->mode < ARRAY_LEN(k_gpio_intr_map) && k_gpio_intr_map[cfg->mode] != GPIO_INTR_DISABLE,
@@ -428,7 +428,7 @@ static err_h release_pins(const gpio_t* c, bool all) {
   const uint64_t mask = configured_mask();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     if ((mask & (1ULL << pin)) && (all || (c->pins.locked & (1ULL << pin)) == 0)) {
-      SYS_DEVICE_KEEP_FIRST(err, release_pin(pin));
+      ERR_KEEP_FIRST(err, release_pin(pin));
     }
   }
   return err;
@@ -459,12 +459,12 @@ static err_h suspend_hook(void* ctx) {
       }
       pin_obj->hw.pwm_cfg.saved_duty = pin_obj->hw.pwm_cfg.duty;
       pin_obj->suspended = true;
-      SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(esp_pwm_set_duty(pin_obj, 0)));
+      ERR_KEEP_FIRST(err, ERR_ESP(esp_pwm_set_duty(pin_obj, 0)));
     } else if (is_digital_output(pin_obj->pin_mode)) {
       pin_obj->saved_level = gpio_get_level((gpio_num_t)pin) != 0;
       pin_obj->suspended = true;
       // Open-drain: released (high); push-pull: low.
-      SYS_DEVICE_KEEP_FIRST(err, ERR_ESP(gpio_set_level((gpio_num_t)pin, pin_obj->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL)));
+      ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_level((gpio_num_t)pin, pin_obj->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL)));
     }
   }
   UNLOCK();
@@ -487,7 +487,7 @@ static err_h resume_hook(void* ctx) {
     if (step == NULL) {
       pin_obj->suspended = false;
     }
-    SYS_DEVICE_KEEP_FIRST(err, step);
+    ERR_KEEP_FIRST(err, step);
   }
   UNLOCK();
   return err;

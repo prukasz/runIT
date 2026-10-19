@@ -142,11 +142,11 @@ static err_h uninstall(void* ctx) {
   servo_t* c = ctx;
   err_h err = NULL;
   if (c->pwm_ready) {
-    SYS_DEVICE_KEEP_FIRST(err, servo_stop(c));
+    ERR_KEEP_FIRST(err, servo_stop(c));
     c->pwm_ready = false;
   }
   if (c->pin_used) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_io_release(c->cfg.pwm_pin));
+    ERR_KEEP_FIRST(err, sys_io_release(c->cfg.pwm_pin));
     c->pin_used = false;
   }
   return err;

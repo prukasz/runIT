@@ -120,16 +120,16 @@ err_h sys_dev_pin_drive(const sys_dev_pin_t* p, bool level) {
 err_h sys_dev_pin_release(sys_dev_pin_t* p) {
   err_h err = NULL;
   if (p->subscribed) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_event_unsubscribe(p->sub));
+    ERR_KEEP_FIRST(err, sys_event_unsubscribe(p->sub));
     p->subscribed = false;
   }
   if (p->locked) {
-    SYS_DEVICE_KEEP_FIRST(err, sys_pins_unlock(p->pin));
+    ERR_KEEP_FIRST(err, sys_pins_unlock(p->pin));
     p->locked = false;
   }
   if (p->used) {
     if (!p->keep) {
-      SYS_DEVICE_KEEP_FIRST(err, sys_io_reset(p->pin));
+      ERR_KEEP_FIRST(err, sys_io_reset(p->pin));
     }
     p->used = false;
   }
