@@ -9,18 +9,18 @@ const SET = sys.commands.get(DEADMAN_COMMANDS.set)!.op
 const PING = sys.commands.get(DEADMAN_COMMANDS.ping)!.op
 const u32 = (n: number) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, n >>> 24]
 
-/** A board that answers DEADMAN_SET and PING (with `uptime`), and holds every other request unanswered when `hold`. */
+/** A board that answers the DEADMAN write and PING (with `uptime`), and holds every other request unanswered when `hold`. */
 const board = () => {
   const b = Object.assign(new FakeBoard(), { uptime: 1000, hold: false })
   b.respond = (frame, send) => {
     if (frame[2] !== defs.keys.sys) return b.hold ? undefined : send(answer(frame[0]!))
-    if (frame[3] === PING) send(answer(frame[0]!, u32((b.uptime += 10))))
+    if (frame[4] === PING) send(answer(frame[0]!, u32((b.uptime += 10))))
     else send(answer(frame[0]!))
   }
   return b
 }
 
-const sysOps = (b: FakeBoard, op: number) => b.requests.filter((f) => f[2] === defs.keys.sys && f[3] === op)
+const sysOps = (b: FakeBoard, op: number) => b.requests.filter((f) => f[2] === defs.keys.sys && f[4] === op) // [seq][flags][key][dir][op]
 
 const start = async (b: FakeBoard, options: { timeoutMs?: number; onLinkLost?: boolean; heartbeatMs?: number } = {}) => {
   const link = new RunitLink(b, { timeoutMs: 200, reconnect: { delaysMs: [0, 1, 2], openTimeoutMs: 50 } })
@@ -34,17 +34,18 @@ const start = async (b: FakeBoard, options: { timeoutMs?: number; onLinkLost?: b
 
 describe('the dead-man', () => {
   it('names commands and fields the descriptor has', () => {
-    expect(sys.commands.get(DEADMAN_COMMANDS.set)!.args!.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.timeout, DEADMAN_COMMANDS.onLinkLost])
-    const ping = sys.commands.get(DEADMAN_COMMANDS.ping)!.returns
+    expect(sys.commands.get(DEADMAN_COMMANDS.set)!.write!.args!.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.timeout, DEADMAN_COMMANDS.onLinkLost])
+    const ping = sys.commands.get(DEADMAN_COMMANDS.ping)!.read!.returns
     expect(ping?.kind === 'struct' && ping.layout.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.uptime])
   })
 
-  it('is armed when it starts: DEADMAN_SET (urgent) with the timeout and the link-lost flag, then PING', async () => {
+  it('is armed when it starts: the DEADMAN write (urgent) with the timeout and the link-lost flag, then PING', async () => {
     const b = board()
     const { link, deadman, events } = await start(b)
     const set = sysOps(b, SET)[0]!
     expect(set[1]).toBe(defs.flags.urgent)
-    expect([...set.subarray(4)]).toEqual([...u32(120), 1])
+    expect(set[3]).toBe(defs.dir.write)
+    expect([...set.subarray(5)]).toEqual([...u32(120), 1])
     expect(sysOps(b, PING)).toHaveLength(1)
     expect(events).toEqual([{ type: 'armed', timeoutMs: 120, onLinkLost: true }])
     await deadman.stop()
@@ -115,7 +116,7 @@ describe('the dead-man', () => {
     const b = board()
     const { link, deadman } = await start(b)
     await deadman.stop()
-    expect([...sysOps(b, SET).at(-1)!.subarray(4)]).toEqual([...u32(0), 0])
+    expect([...sysOps(b, SET).at(-1)!.subarray(5)]).toEqual([...u32(0), 0])
     expect(deadman.active).toBe(false)
     await link.close()
   })

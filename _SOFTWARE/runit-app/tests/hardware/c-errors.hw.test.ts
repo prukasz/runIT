@@ -30,7 +30,7 @@ const fail = async (run: () => Promise<unknown>): Promise<CommandError> => {
 
 describe('an error from the board, read for a user', () => {
   it('names the device and the pin and says what is wrong', async () => {
-    const error = await fail(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 99, level: 'High' }))
+    const error = await fail(() => board.services.device(1, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
     const report = interpreter.interpret(error.record!)
     expect(report.message).toMatch(/pin/i)
     expect(report.message).toContain('99')
@@ -47,7 +47,7 @@ describe('an error from the board, read for a user', () => {
   })
 
   it('every node of the chain is a tag errors.json knows', async () => {
-    const error = await fail(() => board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 5, voltage_mV: 100 }))
+    const error = await fail(() => board.services.device(4, 'IO', 'VOLTAGE', { pin: 5, voltage_mV: 100 }, { side: 'write' }))
     const report = interpreter.interpret(error.record!)
     expect(report.chain.length).toBeGreaterThan(1)
     for (const node of report.chain) expect(node.message, node.name).toBeTruthy()
@@ -64,7 +64,7 @@ describe('an error from the board, read for a user', () => {
 describe('the error log', () => {
   it('one failed command is one entry: the answer and the stream copy are the same error', async () => {
     log.clear()
-    const error = await fail(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 98, level: 'Low' }))
+    const error = await fail(() => board.services.device(1, 'IO', 'LEVEL', { pin: 98, level: 'Low' }, { side: 'write' }))
     log.addCommandError(error)
     await sleep(500) // the stream copy
     const entries = log.entries({ ref: 'device:1' })
@@ -75,10 +75,10 @@ describe('the error log', () => {
 
   it('the same mistake again counts up, a different one is another entry', async () => {
     await sleep(2200) // past the duplicate window
-    log.addCommandError(await fail(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 98, level: 'Low' })))
+    log.addCommandError(await fail(() => board.services.device(1, 'IO', 'LEVEL', { pin: 98, level: 'Low' }, { side: 'write' })))
     await sleep(300)
     expect(log.entries({ ref: 'device:1' })[0]!.count).toBe(2)
-    log.addCommandError(await fail(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 97, level: 'Low' })))
+    log.addCommandError(await fail(() => board.services.device(1, 'IO', 'LEVEL', { pin: 97, level: 'Low' }, { side: 'write' })))
     await sleep(300)
     expect(log.entries({ ref: 'device:1' })).toHaveLength(2)
   })
@@ -98,7 +98,7 @@ describe('the error log', () => {
 
   it('a burst of 20 errors: every one answered, the log does not choke', async () => {
     log.clear()
-    const results = await Promise.all(Array.from({ length: 20 }, (_, i) => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 100 + i, level: 'Low' }).then(() => 'ok', () => 'refused')))
+    const results = await Promise.all(Array.from({ length: 20 }, (_, i) => board.services.device(1, 'IO', 'LEVEL', { pin: 100 + i, level: 'Low' }, { side: 'write' }).then(() => 'ok', () => 'refused')))
     expect(results.every((r) => r === 'refused')).toBe(true)
     await sleep(800)
     expect(log.entries().length).toBeGreaterThan(0)

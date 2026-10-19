@@ -10,7 +10,8 @@ import { ServiceCatalog } from './catalog/services'
 import type { DescriptorFile } from './catalog/services'
 
 /*
- * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, flags,
+ * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
+ * direction byte, flags,
  * status and the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
  * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`limits.json`), the errors (`errors.json`: tags, fields, message
  * templates, what an id field refers to) and the enum groups their fields name (`bundledEnums`); and every
@@ -21,6 +22,8 @@ import type { DescriptorFile } from './catalog/services'
 export interface LinkDefinitions {
   /** Root keys by name (`sys`, `ble`, `vm`, ...): the first key of a request after `[seq][flags]`. */
   readonly keys: Readonly<Record<string, number>>
+  /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
+  readonly dir: { readonly read: number; readonly write: number }
   /** The first byte of a frame says which stream it belongs to. */
   readonly streams: { readonly response: number; readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
   readonly status: { readonly ok: number; readonly error: number }
@@ -31,6 +34,8 @@ export interface LinkDefinitions {
   readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly requestCut: number; readonly stampBytes: number }
   /** The ops of the `actions` and `project` routers by command id (`RUN`, `BEGIN`, ...): `generated/services/contract_*.json`. */
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
+  /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
+  readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
   /** `CONFIG_ROUTER_FRAME_MAX`: the largest request (and response) frame. A link may carry less. */
   readonly frameMax: number
   /** The op of an event frame on the events stream (`SYS_EVENT_OP_NOTIFY`, group `event_op`): `[event key][NOTIFY][sys_event_t]`. */
@@ -46,10 +51,11 @@ const value = (enums: EnumTables, group: string, symbol: string): number => {
 }
 
 interface ContractFile {
-  readonly commands: readonly { readonly id: string; readonly op: number }[]
+  readonly commands: readonly { readonly id: string; readonly op: number; readonly write?: unknown }[]
 }
 
 const opsOf = (contract: ContractFile): Record<string, number> => Object.fromEntries(contract.commands.map((c) => [c.id, c.op]))
+const opDirsOf = (contract: ContractFile, dir: LinkDefinitions['dir']): Record<string, number> => Object.fromEntries(contract.commands.map((c) => [c.id, c.write ? dir.write : dir.read]))
 
 export const linkDefinitions = (
   enums: EnumTables,
@@ -58,8 +64,10 @@ export const linkDefinitions = (
 ): LinkDefinitions => {
   const keys = enums.router_key
   if (!keys) throw new Error("generated/common/enums.json has no group 'router_key'.")
+  const dir = { read: value(enums, 'cmd_dir_e', 'CMD_DIR_READ'), write: value(enums, 'cmd_dir_e', 'CMD_DIR_WRITE') }
   return {
     keys: Object.fromEntries(keys.members.map((m) => [m.name.replace(/^ROUTER_KEY_/, '').toLowerCase(), m.value])),
+    dir,
     streams: {
       response: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_RESPONSE'),
       telemetry: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_TELEMETRY'),
@@ -88,6 +96,7 @@ export const linkDefinitions = (
       stampBytes: value(enums, 'err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },
     ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
+    opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
     frameMax,
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),
   }

@@ -130,6 +130,9 @@
       "symbol": "OP_TIME",
       "label": "Clock",
       "description": "The board's wall clock (UTC, milliseconds since 1970). The board has no battery clock: the app sets it whenever it connects; the read answers 0 until a client set it since the power came on.",
+      "tags": [
+        "app"
+      ],
       "read": {
         "returns": {
           "struct": "sys_time_t",

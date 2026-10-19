@@ -3,7 +3,7 @@ import { Button } from '@ui/components'
 import type { SafeState } from './useVm'
 
 /*
- * The board's safe state (useVm: `SYS SAFE_GET`), shown where the user looks while it lasts: the right panel blinks red, and its top
+ * The board's safe state (useVm: `SYS SAFE`), shown where the user looks while it lasts: the right panel blinks red, and its top
  * says why the board entered it (the reason's alias and description: Stop, the dead-man, a lost link, a power fault), for how long,
  * and offers the way out (Resume: the devices resumed, the program started again when one is ready). A latched device fault refuses
  * every start until it is acknowledged. Collapsed, the panel shows a red shield that opens it.

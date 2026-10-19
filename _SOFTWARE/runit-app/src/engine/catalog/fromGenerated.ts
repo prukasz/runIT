@@ -262,12 +262,27 @@ const outputsOfReturns = (returns: unknown): readonly PinSpec[] => {
   ]
 }
 
-/** The argument fields of a command: `args.fields`, or `args` itself when it is a list. */
-const commandArgs = (command: GeneratedCommand): readonly Json[] => {
-  const args = command.args
+/** The argument fields of a side of a command: `args.fields`, or `args` itself when it is a list. */
+const sideArgs = (side: Json | undefined): readonly Json[] => {
+  const args = side?.args
   const fields = Array.isArray(args) ? args : list(obj(args)?.fields)
   return fields.flatMap((f) => (obj(f) ? [obj(f) as Json] : []))
 }
+
+/**
+ * What a read side returns, without the key it echoes: a mirror read answers the write's arguments, its key (the pin) first, and
+ * the board hands the block only what follows the key (vm_block_device.c).
+ */
+const returnsWithoutKey = (side: Json | undefined): unknown => {
+  const returns = obj(side?.returns)
+  const keys = new Set(sideArgs(side).map((a) => str(a.id)))
+  if (!returns || !Array.isArray(returns.fields) || keys.size === 0) return returns
+  return { ...returns, fields: returns.fields.filter((f) => !keys.has(str(obj(f)?.id))) }
+}
+
+/** `cmd_dir_e` by side (enums.json): the byte that picks the read or the write of a command. */
+const dirOf = (enums: EnumTables, side: 'read' | 'write'): number | undefined =>
+  enums.cmd_dir_e?.members.find((m) => m.name === (side === 'read' ? 'CMD_DIR_READ' : 'CMD_DIR_WRITE'))?.value
 
 interface Resolved {
   readonly operation: Operation
@@ -285,6 +300,7 @@ const resolveOperation = (
   contractId: number | undefined,
   commands: readonly GeneratedCommand[],
   commandId: string,
+  sideId: string | undefined,
   argOverrides: Json | undefined,
   enums: EnumTables,
 ): Resolved | string => {
@@ -293,15 +309,22 @@ const resolveOperation = (
   const op = num(command.op)
   if (op === undefined) return `command '${commandId}' of ${source} '${of}' has no op number`
   if (contractId === undefined) return `${source} '${of}' has no contract id to build the op code of '${commandId}' from`
+  const sides = (['read', 'write'] as const).filter((s) => obj(command[s]))
+  const sideName = sideId === 'read' || sideId === 'write' ? sideId : sides.length === 1 ? sides[0] : undefined
+  if (!sideName) return `command '${commandId}' of ${source} '${of}' has a read and a write: the variant names neither (\`dir\`)`
+  const side = obj(command[sideName])
+  if (!side) return `command '${commandId}' of ${source} '${of}' has no ${sideName} side`
+  const dir = dirOf(enums, sideName)
+  if (dir === undefined) return `enums.json has no cmd_dir_e member for a ${sideName}`
   const value = ((contractId << 8) | op) & 0xffff
-  const fields = commandArgs(command).map((arg) => {
+  const fields = sideArgs(side).map((arg) => {
     const base = field(arg, enums, obj(argOverrides?.[str(arg.id) ?? '']))
     // A command argument is an input by default (the descriptor schema: "an argument not listed behaves as the contract says,
     // with input 'optional'"), unless the variant fixes it or says otherwise.
     const mode = inputMode(obj(argOverrides?.[base.id])?.input) ?? (base.fixed !== undefined ? 'none' : 'optional')
     return { ...base, input: mode } satisfies Field
   })
-  return { operation: { source, of, command: commandId, value }, fields, outputs: outputsOfReturns(command.returns) }
+  return { operation: { source, of, command: commandId, dir, value }, fields, outputs: sideName === 'read' ? outputsOfReturns(returnsWithoutKey(side)) : outputsOfReturns(side.returns) }
 }
 
 const category = (v: unknown): Category => {
@@ -340,9 +363,9 @@ const blockType = (raw: GeneratedBlock, input: GeneratedInput, warnings: string[
     let unsupported: string | undefined
     if (opId !== undefined) {
       const result = contract
-        ? resolveOperation('contract', contract.id, num(contract.contract_id), contract.commands ?? [], opId, obj(rawVariant.args), input.enums)
+        ? resolveOperation('contract', contract.id, num(contract.contract_id), contract.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), input.enums)
         : deviceDescriptor
-          ? resolveOperation('device', deviceDescriptor.id, ownContractId(input.enums), deviceDescriptor.commands ?? [], opId, obj(rawVariant.args), input.enums)
+          ? resolveOperation('device', deviceDescriptor.id, ownContractId(input.enums), deviceDescriptor.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), input.enums)
           : `no contract or device to resolve '${opId}' in`
       if (typeof result === 'string') unsupported = result
       else resolved = result

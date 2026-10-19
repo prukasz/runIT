@@ -63,7 +63,7 @@ export const WIRE_SYMBOLS = {
     reset: 'RESET',
     open: 'OPEN',
     addObjects: 'ADD_OBJECTS',
-    setData: 'SET_DATA',
+    setData: 'DATA',
     addAccessors: 'ADD_ACCESSORS',
     addBlock: 'ADD_BLOCK',
     subscribe: 'SUBSCRIBE',

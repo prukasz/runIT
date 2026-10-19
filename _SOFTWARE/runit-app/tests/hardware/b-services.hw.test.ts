@@ -32,23 +32,23 @@ describe('the catalog has no problem and the services it names are on the board'
 
   it.each([
     ['SYS', 'PING'],
-    ['SYS', 'DEADMAN_GET'],
+    ['SYS', 'DEADMAN'],
     ['BLE', 'STATUS'],
     ['BLE', 'LIST'],
     ['CONNECTOR', 'INFO'],
     ['I2C', 'INFO'],
-    ['LOG', 'GET'],
-    ['POWER_MANAGER', 'GET_CONFIG'],
-    ['POWER_MANAGER', 'GET_STATUS'],
+    ['LOG', 'CONFIG'],
+    ['POWER_MANAGER', 'CONFIG'],
+    ['POWER_MANAGER', 'STATUS'],
     ['PROJECT', 'INFO'],
-  ])('%s %s answers and decodes by its descriptor', async (service, command) => {
-    const answer = await board.services.call(service!, command!)
-    const returns = catalog.service(service!).commands.get(command!)!.returns
+  ])('%s %s (its read) answers and decodes by its descriptor', async (service, command) => {
+    const answer = await board.services.call(service!, command!, undefined, { side: 'read' })
+    const returns = catalog.service(service!).commands.get(command!)!.read?.returns
     if (returns) expect(answer.value, `${service} ${command} returned ${returns.kind}`).toBeDefined()
   })
 
   it('the power manager status is the 40 bytes of its struct, with a plausible input', async () => {
-    const { value, data } = await board.services.call('POWER_MANAGER', 'GET_STATUS')
+    const { value, data } = await board.services.call('POWER_MANAGER', 'STATUS')
     expect(data.length).toBe(40)
     expect((value as { input_mV: number }).input_mV).toBeGreaterThan(3000)
   })
@@ -72,7 +72,7 @@ describe('devices', () => {
   })
 
   it('the status LED is lit; TOGGLE puts it out and back on, read back each time', async () => {
-    const level = async () => (await board.services.device(1, 'IO', 'GET_LEVEL', { pin: LED })).value
+    const level = async () => ((await board.services.device(1, 'IO', 'LEVEL', { pin: LED }, { side: 'read' })).value as { level: unknown }).level
     expect(String(await level())).toMatch(/High|1|true/i)
     await board.services.device(1, 'IO', 'TOGGLE', { pin: LED })
     expect(String(await level())).toMatch(/Low|0|false/i)
@@ -80,21 +80,21 @@ describe('devices', () => {
     expect(String(await level())).toMatch(/High|1|true/i)
   })
 
-  it('SET_LEVEL with a label, then back', async () => {
-    await board.services.device(1, 'IO', 'SET_LEVEL', { pin: LED, level: 'Low' })
-    expect(String((await board.services.device(1, 'IO', 'GET_LEVEL', { pin: LED })).value)).toMatch(/Low|0|false/i)
-    await board.services.device(1, 'IO', 'SET_LEVEL', { pin: LED, level: 'High' })
+  it('the LEVEL write with a label, then back', async () => {
+    await board.services.device(1, 'IO', 'LEVEL', { pin: LED, level: 'Low' }, { side: 'write' })
+    expect(String(((await board.services.device(1, 'IO', 'LEVEL', { pin: LED }, { side: 'read' })).value as { level: unknown }).level)).toMatch(/Low|0|false/i)
+    await board.services.device(1, 'IO', 'LEVEL', { pin: LED, level: 'High' }, { side: 'write' })
   })
 
   it('a pin the chip does not have: ERR_DEV_BAD_PIN', async () => {
-    const error = await refused(board.services.device(1, 'IO', 'SET_LEVEL', { pin: 99, level: 'High' }))
+    const error = await refused(board.services.device(1, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
     expect(error.record!.cause!.info?.name).toBe('ERR_DEV_BAD_PIN')
   })
 
   it('SUSPEND refuses a command; RESUME takes it again', async () => {
     await board.services.device(4, 'DEVICE', 'SUSPEND') // the DAC: nothing connected to it
     try {
-      const error = await refused(board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 0, voltage_mV: 100 }))
+      const error = await refused(board.services.device(4, 'IO', 'VOLTAGE', { pin: 0, voltage_mV: 100 }, { side: 'write' }))
       expect(error.record!.cause!.info?.name).toBe('ERR_DEV_SUSPENDED')
     } finally {
       await board.services.device(4, 'DEVICE', 'RESUME')
@@ -110,7 +110,7 @@ describe('devices', () => {
 
   it('a command arguments check: a pin out of the byte range is refused by the encoder, nothing is sent', async () => {
     const before = board.link.commands
-    expect(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 300, level: 'High' })).toThrow()
+    expect(() => board.services.device(1, 'IO', 'LEVEL', { pin: 300, level: 'High' }, { side: 'write' })).toThrow()
     expect(board.link.commands).toBe(before)
   })
 })

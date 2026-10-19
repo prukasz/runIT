@@ -9,17 +9,17 @@ const linkTo = async (board: FakeBoard) => {
   return link
 }
 
-const req = (i: number) => ({ keys: [defs.keys.sys!, 0x01], payload: Uint8Array.of(i) })
+const req = (i: number) => ({ keys: [defs.keys.sys!, defs.dir.read, 0x01], payload: Uint8Array.of(i) })
 
 describe('sending a list in order', () => {
   it('sends in order, answers each, and reports progress', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [frame[4]!])) // echoes the payload byte
+    board.respond = (frame, send) => send(answer(frame[0]!, [frame[5]!])) // echoes the payload byte
     const link = await linkTo(board)
     const progress: [number, number][] = []
     const answers = await sendInOrder(link, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(req), { onProgress: (d, t) => progress.push([d, t]) })
     expect(answers.map((a) => a[0])).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    expect(board.requests.map((f) => f[4])).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) // the board saw them in order
+    expect(board.requests.map((f) => f[5])).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) // the board saw them in order
     expect(progress.at(-1)).toEqual([10, 10])
     expect(progress.map((p) => p[0])).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     await link.close()
@@ -46,7 +46,7 @@ describe('sending a list in order', () => {
 
   it('stops at the first failure: nothing after it is sent, and the error is the link\'s own', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[4] !== 2)) // request 2 is refused
+    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[5] !== 2)) // request 2 is refused
     const link = await linkTo(board)
     const result = await sendInOrder(link, Array.from({ length: 20 }, (_, i) => req(i)), { window: 2 }).catch((e: unknown) => e)
     expect(result).toMatchObject({ code: 'device-error' })
@@ -76,8 +76,8 @@ describe('sending a program', () => {
     await until(() => board.requests.length === result.frames.length)
     result.frames.forEach((frame, i) => {
       const sent = board.requests[i]!
-      expect([sent[2], sent[3]]).toEqual([engine.wire.routerKey, frame.op]) // [seq][flags][vm key][op]
-      expect([...sent.subarray(4)]).toEqual([...frame.payload])
+      expect([sent[2], sent[3], sent[4]]).toEqual([engine.wire.routerKey, defs.dir.write, frame.op]) // [seq][flags][vm key][dir][op]
+      expect([...sent.subarray(5)]).toEqual([...frame.payload])
     })
     expect(defs.keys.vm).toBe(engine.wire.routerKey) // the engine and the backend agree on the VM router's key
     await link.close()
@@ -89,11 +89,11 @@ describe('loading a program', () => {
   const OPEN = vm.commands.get(LOAD_COMMANDS.open)!.op
   const RESET = vm.commands.get(LOAD_COMMANDS.reset)!.op
   const result = build(project([num('x'), num('y')], [blk('e', 'expr', { groups: { inputs: 2 }, inputs: [read('x'), read('y')], editor: { text: 'in0 * 2 + in1' } })]))
-  const ops = (board: FakeBoard) => board.requests.map((f) => f[3])
+  const ops = (board: FakeBoard) => board.requests.map((f) => f[4])
 
   it("names the commands the descriptor has, and the engine's load starts with its OPEN", () => {
     expect(vm.key).toBe(defs.keys.vm)
-    expect(vm.commands.get(LOAD_COMMANDS.reset)!.args).toBeUndefined() // RESET has no payload
+    expect(vm.commands.get(LOAD_COMMANDS.reset)!.write!.args).toBeUndefined() // RESET has no payload
     expect(result.frames[0]!.op).toBe(OPEN)
   })
 
@@ -139,7 +139,7 @@ describe('loading a program', () => {
 
   it("does not retry what the board refuses: RESET, then LoadError with the board's error", async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[3] !== result.frames[2]!.op || frame[3] === RESET))
+    board.respond = (frame, send) => send(answer(frame[0]!, [], frame[4] !== result.frames[2]!.op || frame[4] === RESET))
     const link = await linkTo(board)
     const retried: number[] = []
     const error = (await loadProgram(link, result.frames, { window: 1, onRetry: (a) => retried.push(a) }).catch((e: unknown) => e)) as LoadError
@@ -154,7 +154,7 @@ describe('loading a program', () => {
 
   it('gives up after the retries: each attempt from OPEN, then RESET; reset: false leaves the board as it is', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => (frame[3] === OPEN ? undefined : send(answer(frame[0]!))) // OPEN never answered
+    board.respond = (frame, send) => (frame[4] === OPEN ? undefined : send(answer(frame[0]!))) // OPEN never answered
     const link = new RunitLink(board, { timeoutMs: 30, reconnect: false, stallAfter: 100 })
     await link.connect(board.device)
     const error = (await loadProgram(link, result.frames, { window: 1, retries: 1 }).catch((e: unknown) => e)) as LoadError

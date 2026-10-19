@@ -7,7 +7,7 @@
 
 /**
  * `vm_block_device_data_t`: where the device block's values sit in its state.
- * u16 device_id @0, u16 op @2, u16 idle_op @4, u8 flags @6, pad @7, i32 k[4] @8, i32 idle_k[4] @24, i32 last[4] @40.
+ * u16 device_id @0, u16 op @2, u16 idle_op @4, u8 flags @6, u8 dir @7 (cmd_dir_e of `op`), i32 k[4] @8, i32 idle_k[4] @24, i32 last[4] @40.
  * `k` holds the constant of each input of the operation while that input is unwired (the bits of a float for a scaled input);
  * `idle_k` the inputs of the idle operation after its address inputs; `last` and `flags` are runtime state, zero in a program.
  */
@@ -16,6 +16,7 @@ export const DEVICE_STATE = {
   op: 2,
   idleOp: 4,
   flags: 6,
+  dir: 7,
   k: 8,
   idleK: 24,
   last: 40,

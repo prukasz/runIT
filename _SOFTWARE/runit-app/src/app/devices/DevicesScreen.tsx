@@ -51,11 +51,11 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
   )
 }
 
-/** The error policy a device starts with: its SET_ERROR_POLICY step in the start commands (`sys_device` starts at LOW, no actions). */
+/** The error policy a device starts with: its ERROR_POLICY write in the start commands (`sys_device` starts at LOW, no actions). */
 interface Policy { readonly importance: number; readonly actions: readonly number[] }
 
 const isPolicyStep = (step: Step, state: DevicesState): boolean =>
-  step.kind === 'device' && step.contract === state.lifecycle.id && step.command === DEVICE_COMMANDS.setPolicy
+  step.kind === 'device' && step.contract === state.lifecycle.id && step.command === DEVICE_COMMANDS.policy
 
 function policyOf(device: DeviceInfo, state: DevicesState): Policy {
   const step = device.defaults.find((s) => isPolicyStep(s, state))
@@ -68,7 +68,7 @@ function policyOf(device: DeviceInfo, state: DevicesState): Policy {
 const setPolicy = (device: DeviceInfo, state: DevicesState, policy: Policy) =>
   state.setDefaults(device, (steps) => [
     ...steps.filter((s) => !isPolicyStep(s, state)),
-    { kind: 'device', device: device.id, contract: state.lifecycle.id, command: DEVICE_COMMANDS.setPolicy, args: { importance: policy.importance, actions: [...policy.actions] } },
+    { kind: 'device', device: device.id, contract: state.lifecycle.id, command: DEVICE_COMMANDS.policy, args: { importance: policy.importance, actions: [...policy.actions] } },
   ])
 
 function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
@@ -210,9 +210,9 @@ function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: De
   )
 }
 
-/** The request of a step, to send it live. */
+/** The request of a step (a write), to send it live. */
 const stepRequest = (state: DevicesState, step: Step): Request =>
-  step.kind === 'frame' ? { keys: [step.bytes[0]!], payload: Uint8Array.from(step.bytes.slice(1)) } : deviceCall(state.services.link.defs, state.catalog, step.device, step.contract, step.command, step.args).request
+  step.kind === 'frame' ? { keys: [step.bytes[0]!], payload: Uint8Array.from(step.bytes.slice(1)) } : deviceCall(state.services.link.defs, state.catalog, step.device, step.contract, step.command, step.args, 'write').request
 
 function ActionScreen({ action, state }: { action: ProjectAction; state: DevicesState }) {
   const [result, setResult] = useState<{ tone: 'info' | 'error'; text: string } | undefined>()

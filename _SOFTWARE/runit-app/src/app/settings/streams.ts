@@ -90,10 +90,11 @@ export const streamsFromRecord = (catalog: ServiceCatalog, frames: readonly Uint
   const streams: DataStream[] = [...base]
   const find = (id: number) => streams.find((s) => s.id === id)
   for (const frame of frames) {
-    if (frame[0] !== entry.key) continue
-    const command = [create, bind, unbind, suspend, resume].find((c) => c.op === frame[1])
-    if (!command?.args) continue
-    const a = decodeFields(command.args, frame.subarray(2)) as Readonly<Record<string, unknown>>
+    if (frame[0] !== entry.key || frame[1] !== catalog.dirs.write) continue // [key][dir][op][args]
+    const command = [create, bind, unbind, suspend, resume].find((c) => c.op === frame[2])
+    const layout = command?.write?.args
+    if (!command || !layout) continue
+    const a = decodeFields(layout, frame.subarray(3)) as Readonly<Record<string, unknown>>
     const id = Number(a.id)
     if (command === create) {
       const at = streams.findIndex((s) => s.id === id)

@@ -20,7 +20,7 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
   const [values, setValues] = useState<PowerValues>([])
   useEffect(() => {
     if (!on) {
-      setValues([])
+      setValues((v) => (v.length === 0 ? v : []))
       return
     }
     let stopped = false
@@ -42,8 +42,8 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
             try {
               const r = reading.read
               const { value } = r.kind === 'service'
-                ? await services.call(r.service, r.command, reading.args, options)
-                : await services.device(r.device, r.contract, r.command, reading.args, options)
+                ? await services.call(r.service, r.command, reading.args, { ...options, side: 'read' })
+                : await services.device(r.device, r.contract, r.command, reading.args, { ...options, side: 'read' })
               answers.set(key, value)
             } catch {
               answers.set(key, undefined)

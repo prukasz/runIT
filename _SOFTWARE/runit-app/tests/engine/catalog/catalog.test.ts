@@ -127,6 +127,7 @@ describe('held against the firmware source', () => {
       op: DEVICE_STATE.op,
       idle_op: DEVICE_STATE.idleOp,
       flags: DEVICE_STATE.flags,
+      dir: DEVICE_STATE.dir,
       k: DEVICE_STATE.k,
       idle_k: DEVICE_STATE.idleK,
       last: DEVICE_STATE.last,
@@ -170,7 +171,7 @@ describe('blocks as the UI and the compiler read them', () => {
   it('a contract variant resolves its command: op number, argument fields as inputs, returned value as output', () => {
     const io = catalog.require('io')
     const setLevel = io.variants.find((v) => v.id === 'set_level')!
-    expect(setLevel.operation).toMatchObject({ source: 'contract', of: 'IO', command: 'SET_LEVEL', value: 0x0100 })
+    expect(setLevel.operation).toMatchObject({ source: 'contract', of: 'IO', command: 'LEVEL', dir: 1, value: 0x0100 })
     expect(setLevel.fields.map((f) => f.id)).toEqual(['pin', 'level'])
     expect(setLevel.fields.every((f) => f.input === 'optional')).toBe(true)
     expect(setLevel.fields[0]?.required).toBe(true)
@@ -178,7 +179,7 @@ describe('blocks as the UI and the compiler read them', () => {
 
     expect(shapeOf(io, 'get_level').outputs).toHaveLength(1)
     expect(shapeOf(io, 'toggle').outputs).toHaveLength(0)
-    expect(io.variants.find((v) => v.id === 'get_level')?.operation?.value).toBe(0x0102)
+    expect(io.variants.find((v) => v.id === 'get_level')?.operation).toMatchObject({ command: 'LEVEL', dir: 0, value: 0x0100 }) // the read of the same command
   })
 
   it('a command that returns a struct gives one output per field', () => {
@@ -195,7 +196,7 @@ describe('blocks as the UI and the compiler read them', () => {
     const unresolved = catalog.blocks.filter((b) => b.integration !== 'core').flatMap((b) => b.variants.filter((v) => v.unsupported !== undefined).map((v) => `${b.id}.${v.id}: ${v.unsupported}`))
     expect(unresolved).toEqual([])
     const servo = catalog.require('servo')
-    expect(servo.variants.map((v) => [v.id, v.operation?.command])).toEqual([['position', 'set'], ['home', 'home'], ['release', 'release'], ['trim', 'set_trim']])
+    expect(servo.variants.map((v) => [v.id, v.operation?.command])).toEqual([['position', 'target'], ['home', 'home'], ['release', 'release'], ['trim', 'trim']])
     // the position is the command's one argument, scaled to tenths of a degree: one input, no second field
     expect(servo.variants[0]!.fields.map((f) => [f.id, f.scale])).toEqual([['value_x10', 10]])
   })

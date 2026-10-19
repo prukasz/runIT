@@ -11,7 +11,7 @@ import type { SendOptions } from './send'
  *             (BEGIN, WRITE, COMMIT with the CRC), read back frame by frame.
  *   project   settings, devices and the program saved as one stream in sections; the board stores each section as its record,
  *             cuts the program into chunk records and writes the project record that runs them in order. The program is the
- *             compiled VM frames (`[vm key][op][payload]`); a project can start by itself at boot (autostart).
+ *             compiled VM frames (`[vm key][dir][op][payload]`, writes all); a project can start by itself at boot (autostart).
  *
  * A frame here is what the router takes: keys and payload, no `seq` / `flags`.
  */
@@ -83,16 +83,16 @@ export const SECTION_PROGRAM = 0
 
 /* ---- frames ---- */
 
-/** A frame for the VM router (a program frame): `[vm key][op][payload]`. */
-export const vmFrame = (defs: LinkDefinitions, op: number, payload: Uint8Array = new Uint8Array()): Uint8Array => concat(Uint8Array.of(defs.keys.vm!, op), payload)
+/** A frame for the VM router (a program frame, a write): `[vm key][dir][op][payload]`. */
+export const vmFrame = (defs: LinkDefinitions, op: number, payload: Uint8Array = new Uint8Array()): Uint8Array => concat(Uint8Array.of(defs.keys.vm!, defs.dir.write, op), payload)
 
-/** A frame for the device router: `[device key][id u16][op u16][args]` (op is `(contract id << 8) | n`). */
+/** A write for the device router: `[device key][dir][id u16][op u16][args]` (op is `(contract id << 8) | n`). */
 export const deviceFrame = (defs: LinkDefinitions, device: number, op: number, args: Uint8Array = new Uint8Array()): Uint8Array =>
-  concat(Uint8Array.of(defs.keys.device!, device & 0xff, device >> 8, op & 0xff, op >> 8), args)
+  concat(Uint8Array.of(defs.keys.device!, defs.dir.write, device & 0xff, device >> 8, op & 0xff, op >> 8), args)
 
-/** A program frame back into `{ op, payload }` (what the engine reads); undefined when it is not for the VM router. */
+/** A program frame back into `{ op, payload }` (what the engine reads); undefined when it is not a write for the VM router. */
 export const programFrameOf = (defs: LinkDefinitions, frame: Uint8Array): { readonly op: number; readonly payload: Uint8Array } | undefined =>
-  frame.length >= 2 && frame[0] === defs.keys.vm ? { op: frame[1]!, payload: frame.slice(2) } : undefined
+  frame.length >= 3 && frame[0] === defs.keys.vm && frame[1] === defs.dir.write ? { op: frame[2]!, payload: frame.slice(3) } : undefined
 
 /* ---- the stream ---- */
 
@@ -109,7 +109,7 @@ export interface ProjectContent {
   readonly program?: readonly Uint8Array[]
 }
 
-const sectionFrame = (defs: LinkDefinitions, id: number): Uint8Array => concat(Uint8Array.of(defs.keys.project!, defs.ops.project.SECTION!), u32(id))
+const sectionFrame = (defs: LinkDefinitions, id: number): Uint8Array => concat(Uint8Array.of(defs.keys.project!, defs.dir.write, defs.ops.project.SECTION!), u32(id))
 
 /** The frames of the stream, section frames included. */
 export const projectFrames = (defs: LinkDefinitions, content: ProjectContent): Uint8Array[] => {
@@ -143,7 +143,8 @@ export interface SaveOptions extends SendOptions {
   readonly run?: boolean
 }
 
-const project = (link: RunitLink, op: string, payload?: Uint8Array) => link.request({ keys: [link.defs.keys.project!, link.defs.ops.project[op]!], ...(payload ? { payload } : {}) }, { timeoutMs: 10_000, label: `project ${op}` })
+const project = (link: RunitLink, op: string, payload?: Uint8Array) =>
+  link.request({ keys: [link.defs.keys.project!, link.defs.opDirs.project[op]!, link.defs.ops.project[op]!], ...(payload ? { payload } : {}) }, { timeoutMs: 10_000, label: `project ${op}` })
 
 /** Saves a project: BEGIN, the stream in WRITEs, COMMIT with its CRC. Resolves with the stream's length and CRC once the board stored it. */
 export const saveProject = async (link: RunitLink, content: ProjectContent, options: SaveOptions = {}): Promise<{ readonly bytes: number; readonly crc: number }> => {
@@ -151,10 +152,10 @@ export const saveProject = async (link: RunitLink, content: ProjectContent, opti
   const stream = projectStream(defs, content)
   const crc = crc32(stream)
   await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of((options.autostart ? 1 : 0) | (options.run ? 2 : 0))))
-  const chunk = defs.frameMax - 2 - 2 - 4 // [seq][flags][key][op] and the offset
+  const chunk = defs.frameMax - 2 - 3 - 4 // [seq][flags][key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < stream.length; at += chunk) {
-    writes.push({ keys: [defs.keys.project!, defs.ops.project.WRITE!], payload: concat(u32(at), stream.subarray(at, at + chunk)) })
+    writes.push({ keys: [defs.keys.project!, defs.dir.write, defs.ops.project.WRITE!], payload: concat(u32(at), stream.subarray(at, at + chunk)) })
   }
   await sendInOrder(link, writes, { window: options.window, timeoutMs: options.timeoutMs ?? 10_000, onProgress: options.onProgress })
   await project(link, 'COMMIT', u32(crc))
@@ -173,7 +174,7 @@ export const setAutostart = async (link: RunitLink, on: boolean): Promise<void> 
 /* ---- records ---- */
 
 const action = (link: RunitLink, op: string, payload?: Uint8Array, timeoutMs = 5000) =>
-  link.request({ keys: [link.defs.keys.actions!, link.defs.ops.actions[op]!], ...(payload ? { payload } : {}) }, { timeoutMs, label: `actions ${op}` })
+  link.request({ keys: [link.defs.keys.actions!, link.defs.opDirs.actions[op]!, link.defs.ops.actions[op]!], ...(payload ? { payload } : {}) }, { timeoutMs, label: `actions ${op}` })
 
 export interface RecordInfo {
   readonly bytes: number
@@ -187,9 +188,9 @@ export const storeRecord = async (link: RunitLink, id: number, frames: readonly 
   const defs = link.defs
   const image = frameImage(frames)
   await action(link, 'BEGIN', concat(u32(id), Uint8Array.of(image.length & 0xff, image.length >> 8)))
-  const chunk = defs.frameMax - 2 - 2 - 2 // [seq][flags][key][op] and the offset
+  const chunk = defs.frameMax - 2 - 3 - 2 // [seq][flags][key][dir][op] and the offset
   const writes = []
-  for (let at = 0; at < image.length; at += chunk) writes.push({ keys: [defs.keys.actions!, defs.ops.actions.WRITE!], payload: concat(Uint8Array.of(at & 0xff, at >> 8), image.subarray(at, at + chunk)) })
+  for (let at = 0; at < image.length; at += chunk) writes.push({ keys: [defs.keys.actions!, defs.dir.write, defs.ops.actions.WRITE!], payload: concat(Uint8Array.of(at & 0xff, at >> 8), image.subarray(at, at + chunk)) })
   await sendInOrder(link, writes, options)
   await action(link, 'COMMIT', u32(crc32(image)))
 }
@@ -203,7 +204,7 @@ export const recordInfo = async (link: RunitLink, id: number): Promise<RecordInf
 export const readRecord = async (link: RunitLink, id: number): Promise<Uint8Array[]> => {
   const { count } = await recordInfo(link, id)
   if (count === 0) return []
-  const parts = await link.requestParts({ keys: [link.defs.keys.actions!, link.defs.ops.actions.READ!], payload: u32(id) }, count, { timeoutMs: 10_000, label: `actions READ ${id.toString(16)}` })
+  const parts = await link.requestParts({ keys: [link.defs.keys.actions!, link.defs.dir.read, link.defs.ops.actions.READ!], payload: u32(id) }, count, { timeoutMs: 10_000, label: `actions READ ${id.toString(16)}` })
   return parts.map((p) => p.slice())
 }
 
@@ -246,11 +247,11 @@ export const readProject = async (link: RunitLink): Promise<StoredProject | unde
   const sections: Section[] = []
   const program: Uint8Array[] = []
   for (const frame of await readRecord(link, PROJECT_RECORD_ID)) {
-    if (frame[0] !== defs.keys.actions || frame.length < 6) continue // the MARK frame: nothing to run
-    const id = readU32(frame, 2)
-    if (frame[1] === defs.ops.actions.RUN_ALL) sections.push({ id, frames: await readRecord(link, id) })
-    else if (frame[1] === defs.ops.actions.RUN) {
-      for (const run of await readRecord(link, id)) if (run[0] === defs.keys.actions && run[1] === defs.ops.actions.RUN) program.push(...(await readRecord(link, readU32(run, 2))))
+    if (frame[0] !== defs.keys.actions || frame[1] !== defs.dir.write || frame.length < 7) continue // the MARK frame: nothing to run
+    const id = readU32(frame, 3)
+    if (frame[2] === defs.ops.actions.RUN_ALL) sections.push({ id, frames: await readRecord(link, id) })
+    else if (frame[2] === defs.ops.actions.RUN) {
+      for (const run of await readRecord(link, id)) if (run[0] === defs.keys.actions && run[1] === defs.dir.write && run[2] === defs.ops.actions.RUN) program.push(...(await readRecord(link, readU32(run, 3))))
     }
   }
   const verified = crc32(projectStream(defs, { sections, program })) === info.crc

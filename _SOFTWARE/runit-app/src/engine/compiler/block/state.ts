@@ -53,7 +53,7 @@ const encodeFields = (bytes: Uint8Array, fields: readonly Field[], ctx: StateCon
   }
 }
 
-/** `vm_block_device_data_t`: device id, op, idle op, then `k[]` for the operation's input fields in the command's order. */
+/** `vm_block_device_data_t`: device id, op, idle op, the side of op, then `k[]` for the operation's input fields in the command's order. */
 const encodeDevice = (ctx: StateContext, wired: WiredFields): Uint8Array | null => {
   const { type, instance, variant } = ctx
   if (!variant) {
@@ -85,6 +85,7 @@ const encodeDevice = (ctx: StateContext, wired: WiredFields): Uint8Array | null 
   const bytes = new Uint8Array(type.stateLength)
   writeRaw(bytes, DEVICE_STATE.deviceId, 'u16', instance.device)
   writeRaw(bytes, DEVICE_STATE.op, 'u16', operation.value)
+  writeRaw(bytes, DEVICE_STATE.dir, 'u8', operation.dir)
   // block-level fields with an offset: `idle` is the idle operation, written at its place in the state
   encodeFields(bytes, type.fields, ctx, wired)
 

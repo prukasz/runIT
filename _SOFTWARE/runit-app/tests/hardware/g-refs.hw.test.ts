@@ -144,20 +144,20 @@ describe('a command to a device', () => {
   }
 
   it('a pin: the device by its name, the pin by its number, both marked', async () => {
-    const report = await fail(() => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 99, level: 'High' }))
+    const report = await fail(() => board.services.device(1, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
     expect(report.message).toBe('Expander has no Pin 99')
     expect(targets(interpreter, report)).toEqual(expect.arrayContaining([{ kind: 'device', device: 1 }, { kind: 'pin', device: 1, pin: 99 }]))
   })
 
   it('a channel of the DAC: marked as a channel of that device, not as a pin', async () => {
-    const report = await fail(() => board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 5, voltage_mV: 100 }))
+    const report = await fail(() => board.services.device(4, 'IO', 'VOLTAGE', { pin: 5, voltage_mV: 100 }, { side: 'write' }))
     const marks = targets(interpreter, report) as { kind: string; device?: number; channel?: number; pin?: number }[]
     expect(marks.some((t) => t.device === 4 && (t.channel === 5 || t.pin === 5)), JSON.stringify(marks)).toBe(true)
     expect(report.message).toMatch(/Analog out/)
   })
 
   it('a device command that does not exist is a command of that device', async () => {
-    const report = await fail(() => board.link.request({ keys: [defs.keys.device!, 1, 0, 0xff, 0x7f] }))
+    const report = await fail(() => board.link.request({ keys: [defs.keys.device!, defs.dir.write, 1, 0, 0xff, 0x7f] }))
     expect(report.refs.some((r) => r.kind === 'device' && r.id === 1)).toBe(true)
     expect(report.chain.some((n) => n.name === 'ERR_DEV_UNKNOWN_OP')).toBe(true)
   })
@@ -169,7 +169,7 @@ describe('a command to a device', () => {
     const object = result.ids.variables.get('x')!
     const programInterpreter = interpreterFor(p, result)
     const payload = Uint8Array.of(1, object & 0xff, object >> 8, 9, 0, 4, 0, 0, 0, 0, 0) // one record: object, element 9 of 1, 4 bytes
-    const error = await board.link.request({ keys: [defs.keys.vm!, engine.wire.ops.setData], payload }).then(() => undefined, (e: unknown) => e)
+    const error = await board.link.request({ keys: [defs.keys.vm!, defs.dir.write, engine.wire.ops.setData], payload }).then(() => undefined, (e: unknown) => e)
     expect(error, 'the board took a write beyond the variable').toBeInstanceOf(CommandError)
     const report = programInterpreter.interpret((error as CommandError).record!)
     const all = everyText(report).join(' | ')

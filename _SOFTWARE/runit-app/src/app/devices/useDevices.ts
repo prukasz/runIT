@@ -8,8 +8,8 @@ import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
 import { EMPTY_LAYOUT } from '../code/canvas/layout'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
-import { baseConfig, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
-import type { DeviceInfo } from './devices'
+import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
+import type { DeviceInfo, DeviceOps } from './devices'
 
 type ProjectState = ReturnType<typeof useProject>
 
@@ -51,7 +51,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const [live, setLive] = useState<ReadonlyMap<number, LiveDevice>>(new Map())
   // Every ID the board has answered for since the link opened: a device there keeps its ID, even when no project device uses it now.
   const occupied = useRef(new Set<number>())
-  const [ops, setOps] = useState<ReadonlySet<number> | undefined>()
+  const [ops, setOps] = useState<DeviceOps | undefined>()
   const [busy, setBusy] = useState<SyncProgress | undefined>()
   const [note, setNote] = useState<DevicesNote | undefined>()
   // The state this session put pins in with live commands (`device/pin` -> a kind, or null after a reset): the board cannot be asked,
@@ -144,7 +144,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   }), [link, catalog, lifecycle, probe, names])
 
   const selectedDevice = selection?.kind === 'device' ? devices.find((d) => d.id === selection.id) : undefined
-  /** OPS of the selected device: which commands it answers. */
+  /** OPS of the selected device: which commands it answers, and their sides. */
   const selectedId = selectedDevice?.id
   const refreshOps = useCallback(async () => {
     setOps(undefined)
@@ -153,7 +153,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     if (!connected || selectedId === undefined || known?.state !== 'present' || (selectedDevice?.type && known.typeId !== selectedDevice.type.typeId)) return
     try {
       const { value } = await services.device(selectedId, lifecycle.id, DEVICE_COMMANDS.ops)
-      setOps(new Set((value as readonly number[]).map(Number)))
+      setOps(decodeOps(value))
     } catch {
       setOps(undefined)
     }

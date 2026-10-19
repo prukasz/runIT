@@ -108,12 +108,42 @@
       "op": 6,
       "symbol": "SYS_DEVICE_OP_OPS",
       "label": "List operations",
-      "description": "Every operation the device answers.",
+      "description": "Every operation the device answers, with the sides it has.",
       "read": {
         "returns": {
-          "type": "u16",
           "label": "Operations",
-          "array": true
+          "description": "One row per operation: the registry's, then the device type's",
+          "array": true,
+          "fields": [
+            {
+              "id": "op",
+              "label": "Operation",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "(contract << 8) | op"
+            },
+            {
+              "id": "sides",
+              "label": "Sides",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "Bit 0: the op has a read side; bit 1: a write side",
+              "bits": [
+                {
+                  "bit": 0,
+                  "label": "Read"
+                },
+                {
+                  "bit": 1,
+                  "label": "Write"
+                }
+              ]
+            }
+          ]
         }
       }
     },

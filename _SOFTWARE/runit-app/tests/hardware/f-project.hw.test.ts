@@ -11,11 +11,11 @@ import type { Board } from './harness'
 /* Stored records and the stored project on a real board, through the backend (BACKEND.md "Records and the project" ran against
  * a fake platform and a script). Everything the suite stores it removes again, also when a test fails. */
 
-const IO_SET_LEVEL = 0x0100 // (contract IO = 1) << 8 | SET_LEVEL
+const IO_LEVEL = 0x0100 // (contract IO = 1) << 8 | LEVEL (its write: deviceFrame)
 const PIN = 22 // TCA6424A pin 22: an output, left low at boot
 const ACTION = 90
-const level = async (board: Board) => String((await board.services.device(1, 'IO', 'GET_LEVEL', { pin: PIN })).value)
-const set = (high: boolean) => deviceFrame(defs, 1, IO_SET_LEVEL, Uint8Array.of(PIN, high ? 1 : 0))
+const level = async (board: Board) => String(((await board.services.device(1, 'IO', 'LEVEL', { pin: PIN }, { side: 'read' })).value as { level: unknown }).level)
+const set = (high: boolean) => deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(PIN, high ? 1 : 0))
 
 const result = build(
   project(
@@ -57,7 +57,7 @@ async function cleanup() {
   await eraseProject(board.link).catch(() => undefined)
   await setAutostart(board.link, false).catch(() => undefined)
   await removeRecord(board.link, ACTION).catch(() => undefined)
-  await board.services.device(1, 'IO', 'SET_LEVEL', { pin: PIN, level: 'Low' }).catch(() => undefined)
+  await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' }).catch(() => undefined)
   await board.services.call('VM', 'RESET').catch(() => undefined)
 }
 
@@ -73,7 +73,7 @@ describe('a stored record (an action)', () => {
   })
 
   it('RUN executes it: the pin ends high', async () => {
-    await board.services.device(1, 'IO', 'SET_LEVEL', { pin: PIN, level: 'Low' })
+    await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     await runRecord(board.link, ACTION)
     expect(await until(async () => /High|1|true/i.test(await level(board)), 2000, 100)).toBe(true)
   })
@@ -118,7 +118,7 @@ describe('the stored project', () => {
   })
 
   it('runProject runs it: the section sets the pin, the program computes', async () => {
-    await board.services.device(1, 'IO', 'SET_LEVEL', { pin: PIN, level: 'Low' })
+    await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     await runProject(board.link)
     expect(await until(async () => /High|1|true/i.test(await level(board)), 3000, 100)).toBe(true)
     expect(await until(async () => (await telemetryOf(board)).get('y') === 3, 4000, 100)).toBe(true)
@@ -127,7 +127,7 @@ describe('the stored project', () => {
   it('with autostart the board runs it by itself after a restart', async () => {
     await setAutostart(board.link, true)
     expect((await projectInfo(board.link)).autostart).toBe(true)
-    await board.services.device(1, 'IO', 'SET_LEVEL', { pin: PIN, level: 'Low' })
+    await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     const since = Date.now()
     await board.services.call('SYS', 'RESTART')
     await until(async () => {

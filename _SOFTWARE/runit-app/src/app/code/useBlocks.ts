@@ -33,11 +33,12 @@ export const blockPinChoices = (state: Pick<DevicesState, 'catalog' | 'board' | 
   const count = device.type?.pins?.count ?? 0
   const operation = variantOf(type, variant)?.operation
   const command = operation && (operation.source === 'contract' ? state.catalog.contracts.get(operation.of) : device.type)?.commands.get(operation.command)
-  const wants = command?.args?.fields.find((f) => f.id === field)?.pinState
+  const side = operation && state.catalog.sideOfDir(operation.dir)
+  const wants = side && command?.[side]?.args?.fields.find((f) => f.id === field)?.pinState
   const users = usedBy(state.devices, device.id)
   return Array.from({ length: count }, (_, pin) => pin)
     .filter((pin) => !isReserved(state.board, device.id, pin))
-    .filter((pin) => !command || !changesPin(command) || !users.some((u) => u.use.pin.pin === pin))
+    .filter((pin) => !command || !side || !changesPin(side) || !users.some((u) => u.use.pin.pin === pin))
     .filter((pin) => pinReady(pinStateOf(device, state.board, pin, !device.type?.pins?.fixedModes), wants))
 }
 

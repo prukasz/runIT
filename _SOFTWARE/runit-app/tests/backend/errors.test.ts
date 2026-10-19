@@ -66,8 +66,8 @@ describe('reading an error', () => {
   it('a device command: the route, the device and its pin, the message with names, enum aliases and the command', () => {
     const op = 0x0101 // IO contract, op 1
     const data = record(
-      [['ERR_ROUTER_KEY', { key: defs.keys.device! }], ['ERR_DEV_ID', { id: 3 }], ['ERR_DEV_OP', { op }], ['ERR_IO_PIN_IN_USE', { id: 3, pin: 22, mode: ioMode.value }]],
-      [defs.keys.device!, ...u16(3), ...u16(op), 22],
+      [['ERR_ROUTER_KEY', { key: defs.keys.device! }], ['ERR_DEV_ID', { id: 3 }], ['ERR_DEV_OP', { op, dir: defs.dir.write }], ['ERR_IO_PIN_IN_USE', { id: 3, pin: 22, mode: ioMode.value }]],
+      [defs.keys.device!, defs.dir.write, ...u16(3), ...u16(op), 22],
     )
     const report = interpreter.read(data)!
     expect(report.message).toBe(`Pin 22 of Left motor is already set up as ${ioMode.alias}`)

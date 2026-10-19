@@ -2,13 +2,15 @@ import { encodeFields } from '@backend'
 import type { CatalogEntry, CommandDef, Decoded, FieldInput, FieldValues, Layout, ServiceCatalog, WireField } from '@backend'
 
 /*
- * The board's settings, as the service descriptors (`generated/services/contract_*.json`) mark them. Nothing here names a
+ * The board's settings, as the service descriptors (`generated/services/contract_*.json`) describe them. Nothing here names a
  * service's fields: the descriptors give the commands, the layouts, the labels, the help and the records.
  *
- *   form    a command that writes a struct and names the command that reads it back (`read_by`: no arguments, answers a
- *           struct holding every field the write takes). Its fields make the form.
- *   table   a command that writes a whole table as bytes and names a read that answers its rows (an array of structs: the
- *           row's target first, then an array field whose elements are the columns, `index_enum` naming them).
+ * A setting is a command with a read and a write whose read takes no key (the mirror of a module's own setting: the read
+ * answers what the write takes, CMD.MD). A command tagged `app` is one the app sets itself (the clock): no setting.
+ *
+ *   form    the write takes one struct, the read answers it. Its fields make the form.
+ *   table   both sides are rows (`array`): the row's target first, then an array field whose elements are the columns
+ *           (`index_enum` naming them). The write is matched by target: a row left out keeps its values.
  *   record  a service whose settings are one record (`record` on the service: the GATT table, the data streams). Its
  *           editor is the app's (gatt.ts, streams.ts); the commands and their fields still come from the descriptor.
  *
@@ -16,24 +18,22 @@ import type { CatalogEntry, CommandDef, Decoded, FieldInput, FieldValues, Layout
  * the board's own (it keeps it itself): written at once, never stored in the project.
  */
 
-/** A setting: the command that writes it, the one that reads it back, and the record the project keeps it in. */
+/** A setting: its command (read and written), and the record the project keeps it in. */
 export interface SettingGroup {
-  /** `<service>.<write command>`: the group's key. */
+  /** `<service>.<command>`: the group's key. */
   readonly key: string
   readonly service: string
-  readonly write: CommandDef
-  readonly read: CommandDef
+  readonly command: CommandDef
   /** The write's arguments: the form. */
   readonly layout: Layout
   readonly recordId?: number
 }
 
-/** A settings table: rows of a target and one value per column, written whole. */
+/** A settings table: rows of a target and one value per column. */
 export interface SettingTable {
   readonly key: string
   readonly service: string
-  readonly write: CommandDef
-  readonly read: CommandDef
+  readonly command: CommandDef
   /** The row's target (a device, or the board). */
   readonly target: WireField
   /** The array field of the row: one element per column. */
@@ -58,33 +58,35 @@ export interface SettingSection {
 /** The services whose record the app edits with its own editor, by the descriptor's id. */
 export const RECORD_EDITORS: Readonly<Record<string, RecordEditor>> = { BLE: 'gatt', CONNECTOR: 'streams' }
 
-/** The fields a command answers when it answers one struct (or each element of a list of them). */
-const answerFields = (command: CommandDef, array: boolean): readonly WireField[] | undefined =>
-  command.returns?.kind === 'struct' && command.returns.array === array ? command.returns.layout.fields : undefined
+/** The fields the read of a command answers when it answers one struct (or each element of a list of them). */
+const answerFields = (command: CommandDef, array: boolean): readonly WireField[] | undefined => {
+  const returns = command.read?.returns
+  return returns?.kind === 'struct' && returns.array === array ? returns.layout.fields : undefined
+}
 
-const takesNothing = (command: CommandDef): boolean => (command.args?.fields.length ?? 0) === 0
+const sameFields = (a: readonly WireField[], b: readonly WireField[]): boolean => a.length === b.length && a.every((f, i) => f.id === b[i]!.id && f.offset === b[i]!.offset && f.size === b[i]!.size)
 
 /**
- * Every setting the catalog's services mark, by service in the catalog's order. A mark that does not fit (an unknown read, a
- * read with arguments, one that does not answer what the write takes) is left out and named in `problems`.
+ * Every setting of the catalog's services, by service in the catalog's order: each mirror whose read takes no key. One whose
+ * read does not answer what its write takes is left out and named in `problems`.
  */
 export const settingSections = (catalog: ServiceCatalog, problems: string[] = []): SettingSection[] =>
   [...catalog.services.values()].flatMap((service) => {
     const groups: SettingGroup[] = []
     const tables: SettingTable[] = []
-    for (const write of service.commands.values()) {
-      if (!write.readBy) continue
-      const key = `${service.id}.${write.id}`
-      const read = service.commands.get(write.readBy)
-      const record = write.recordId !== undefined ? { recordId: write.recordId } : {}
-      const struct = read && takesNothing(read) ? answerFields(read, false) : undefined
-      const rows = read && takesNothing(read) ? answerFields(read, true) : undefined
-      if (read && struct && write.args && !write.args.variable && write.args.fields.every((f) => struct.some((a) => a.id === f.id))) {
-        groups.push({ key, service: service.id, write, read, layout: write.args, ...record })
-      } else if (read && rows && rows.length === 2 && rows[1]!.indexEnum && write.args?.variable && write.args.fields.length === 1) {
-        tables.push({ key, service: service.id, write, read, target: rows[0]!, cells: rows[1]!, ...record })
+    for (const command of service.commands.values()) {
+      const { read, write } = command
+      if (!read || !write || (read.args?.fields.length ?? 0) > 0 || command.tags.includes('app')) continue
+      const key = `${service.id}.${command.id}`
+      const record = command.recordId !== undefined ? { recordId: command.recordId } : {}
+      const struct = answerFields(command, false)
+      const rows = answerFields(command, true)
+      if (struct && write.args && !write.args.array && !write.args.variable && write.args.fields.every((f) => struct.some((a) => a.id === f.id))) {
+        groups.push({ key, service: service.id, command, layout: write.args, ...record })
+      } else if (rows && rows.length === 2 && rows[1]!.indexEnum && write.args?.array && sameFields(write.args.fields, rows)) {
+        tables.push({ key, service: service.id, command, target: rows[0]!, cells: rows[1]!, ...record })
       } else {
-        problems.push(`${key}: read_by ${write.readBy} does not read back what it writes.`)
+        problems.push(`${key}: its read does not answer what its write takes.`)
       }
     }
     const editor = RECORD_EDITORS[service.id]
@@ -110,12 +112,17 @@ export const tableRows = (table: SettingTable, answer: Decoded | undefined): { t
     return [{ target: Number(record[table.target.id]), cells: Array.isArray(cells) ? cells.map(Number) : [] }]
   })
 
-/** The bytes a table's write takes: every row's cells, in the rows' order, without the targets. */
-export const tableBytes = (rows: readonly { readonly cells: readonly number[] }[]): number[] => rows.flatMap((r) => [...r.cells])
+/** The rows a table's write takes: each row's target and cells, by the row's field ids. */
+export const tableArgs = (table: SettingTable, rows: readonly { readonly target: number; readonly cells: readonly number[] }[]): FieldValues[] =>
+  rows.map((r) => ({ [table.target.id]: r.target, [table.cells.id]: [...r.cells] }))
 
-/** A setting's name from its write's label, without the verb: `Set the logging options` → `Logging options`. */
-export const settingTitle = (write: CommandDef): string => {
-  const name = write.label.replace(/^set\s+(the\s+)?/i, '')
+/** Two tables say the same to the board: the same rows, targets and cells, in the same order. */
+export const sameRows = (a: readonly { readonly target: number; readonly cells: readonly number[] }[], b: readonly { readonly target: number; readonly cells: readonly number[] }[]): boolean =>
+  JSON.stringify(a.map((r) => [r.target, r.cells])) === JSON.stringify(b.map((r) => [r.target, r.cells]))
+
+/** A setting's name: its command's label, a leading verb dropped (`Set the logging options` → `Logging options`). */
+export const settingTitle = (command: CommandDef): string => {
+  const name = command.label.replace(/^set\s+(the\s+)?/i, '')
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 

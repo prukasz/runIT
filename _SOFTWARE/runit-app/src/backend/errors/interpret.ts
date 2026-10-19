@@ -91,7 +91,7 @@ export interface ErrorReport {
   readonly severity: number
   /** The root cause's message. */
   readonly message: string
-  /** The context nodes' messages, outermost first (`In device 3`, `In IO SET_LEVEL`). */
+  /** The context nodes' messages, outermost first (`In device 3`, `In IO LEVEL`). */
   readonly where: readonly string[]
   readonly chain: readonly NodeReport[]
   readonly cause?: NodeReport
@@ -211,19 +211,19 @@ export class ErrorInterpreter {
     }
   }
 
-  /** The command of a record: `[key][op][args]`, or `[device key][id u16][op u16][args]` for a device. */
+  /** The command of a record: `[key][dir][op][args]`, or `[device key][dir][id u16][op u16][args]` for a device. */
   private command(request: Uint8Array): { label: string; refs: Ref[] } | undefined {
     const key = request[0]
     if (key === undefined) return undefined
-    if (key === this.defs.keys.device && request.length >= 5) {
-      const id = request[1]! | (request[2]! << 8)
+    if (key === this.defs.keys.device && request.length >= 6) {
+      const id = request[2]! | (request[3]! << 8)
       const device: Ref = { kind: 'device', id }
-      const op: Ref = { kind: 'device_op', id: request[3]! | (request[4]! << 8), scope: device }
+      const op: Ref = { kind: 'device_op', id: request[4]! | (request[5]! << 8), scope: device }
       return { label: `${this.label(op)} (${this.label(device)})`, refs: [device, op] }
     }
     const target: Ref = { kind: 'router_key', id: key }
     const entry = this.services.byKey.get(key)
-    const command = entry && request.length >= 2 ? [...entry.commands.values()].find((c) => c.op === request[1]) : undefined
+    const command = entry && request.length >= 3 ? [...entry.commands.values()].find((c) => c.op === request[2]) : undefined
     return { label: command ? `${entry!.label}: ${command.label}` : this.label(target), refs: [target] }
   }
 

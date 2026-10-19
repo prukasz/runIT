@@ -104,7 +104,8 @@ describe('a device block', () => {
     const used = build(project([num('b')], [read1, blk('s', 'set', { inputs: [out('io1', 0), read('b')] })]))
     expect(used.ir!.blocks[0]!.outputs).toHaveLength(1)
     expect(used.ir!.objects[used.ir!.blocks[0]!.outputs[0]!]!.type).toBe('i32') // an int pin
-    expect(view(used.ir!.blocks[0]!.state).getUint16(2, true)).toBe(0x0102) // IO_OP_GET_LEVEL
+    expect(view(used.ir!.blocks[0]!.state).getUint16(2, true)).toBe(0x0100) // IO_OP_LEVEL
+    expect(view(used.ir!.blocks[0]!.state).getUint8(7)).toBe(0) // its read side (CMD_DIR_READ)
 
     const named = build(project([num('level')], [{ ...read1, outputs: [{ path: { root: 'level', steps: [] } }] }]))
     expect(named.ir!.blocks[0]!.outputs).toEqual([named.ids.variables.get('level')])

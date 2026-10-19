@@ -17,7 +17,7 @@ await loadProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 |---|---|
 | `definitions.ts` | The only file that reads `generated/` (the firmware's own actions: `onboardActions`, `RUNIT_ACTION_ID_*`): router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up); the board (`bundledBoard`, `board.json`, or `board_devkit.json` when the app was started for a devkit: `appBoardKind`, `VITE_RUNIT_BOARD`; its devices, the pins each uses, I2C buses, the pins set up at boot and the reserved ones, and `power`: the input and each regulator rail by the power monitor channel that measures it) and the firmware's onboard action IDs (`onboardActionIds`, the `RUNIT_ACTION_ID_*` limits). A symbol the firmware stops publishing stops the load with a message that names it. |
 | `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it (a device type also its pins, `provides.pins`, and its config presets), and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
-| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `events.ts`: `decodeEvent`, a frame of the events stream (`[event key][NOTIFY][sys_event_t]`, SYS_EVENT.MD) with its contract and its row of that contract's `events` table (`SUSPENDED` of a device, an over-current). `services.ts`: the request of any catalog command and its answer decoded; `readDeviceFrame`, a device frame of a record back into its command and arguments (a CREATE into the type and its config). |
+| `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `events.ts`: `decodeEvent`, a frame of the events stream (`[event key][NOTIFY][sys_event_t]`, SYS_EVENT.MD) with its contract and its row of that contract's `events` table (`SUSPENDED` of a device, an over-current). `services.ts`: the request of any catalog command (one side of it) and its answer decoded; `readDeviceFrame`, a device frame of a record back into its command, side and arguments (a CREATE into the type and its config). |
 | `errors/` | `interpret.ts`: `ErrorInterpreter`, an error record read for a user (messages, the instances it is about as `Ref`s). `program.ts`: `programRefs` / `deviceRefs`, the app's names for those instances. |
 | `transport/` | `types.ts`: what a BLE platform provides (`requestDevice`, `knownDevices`, `forget` (drops the permission for a board: only the chooser offers it again), `open` → a channel to write packets to, packets and a loss notice back). `framing.ts`: a frame to packets and back, as the firmware does it (SYS_BLE.MD "Framing"). `webBluetooth.ts`: the Web Bluetooth platform. |
 | `session/` | `commands.ts`: sequence bytes, answers by seq, timeouts, pipelining, answers in parts. `link.ts`: `RunitLink`, the connection. `send.ts`: `sendInOrder` / `sendProgram`, a list of requests sent in order; `loadProgram`, a program loaded with retries and a RESET when it gives up. `services.ts`: `Services`, the catalog's commands over the link. `deadman.ts`: `DeadMan`, the board's dead-man armed and fed. `safestate.ts`: `leaveSafeState`, every device resumed (`SYS SAFE_LEAVE`, which also clears the board's note of the safe state; a firmware without it gets the RESUME sweep) and the program started again. `errorlog.ts`: `ErrorLog`, the board's errors kept for a user. `project.ts`: stored records, the project stream, reading a project back. |
@@ -28,26 +28,30 @@ The backend names no service, contract, command or field: it reads them from the
 
 | Entry | Has | Request |
 |---|---|---|
-| service | `router_key` (`generated/services`) | `[router key][op][args]` |
-| device contract | `contract_id`, no router key (`generated/contracts`) | `[device key][device id u16][(contract id << 8) \| op u16][args]` (SYS_DEVICE.MD "Ops") |
-| device type | `type_id` (`generated/devices`) | its own ops in contract `SYS_DEVICE_CONTRACT_OWN`; CREATE (device contract `SYS_DEVICE_CONTRACT_DEVICE`) carries `[type u16][config]` |
+| service | `router_key` (`generated/services`) | `[router key][dir][op][args]` |
+| device contract | `contract_id`, no router key (`generated/contracts`) | `[device key][dir][device id u16][(contract id << 8) \| op u16][args]` (SYS_DEVICE.MD "Ops") |
+| device type | `type_id` (`generated/devices`) | its own ops in contract `SYS_DEVICE_CONTRACT_OWN`; CREATE (device contract `SYS_DEVICE_CONTRACT_DEVICE`, a write) carries `[type u16][config]` |
+
+**A command has a read side, a write side or both** (`CommandDef.read`, `.write`: each its own `args` and `returns`), and every request says which with the byte after the root key (`dir`: `cmd_dir_e` in `enums.json`, `LinkDefinitions.dir`, `catalog.dirs`; CMD.MD). A command with both is a mirror: its read takes the key (a pin, a channel; nothing for a module's setting) and answers what its write takes. A write answers no data unless its side has `returns`. A call of a command with one side runs it; one with both is told which (`side`, else it throws), and `sidesOf`, `sideOf`, `isMirror` say what a command has.
 
 ```ts
 const services = new Services(link)                                              // the bundled catalog by default
-const { value } = await services.call('SYS', 'PING')                             // { uptime_ms: 1234 }
-await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 500, on_link_lost: true })
-await services.device(3, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' })         // a choice by its label, an enum by its member name
-await services.device(9, 'servo', 'set', { value_x10: 900 })                     // a device type's own op
+const { value } = await services.call('SYS', 'PING')                             // { uptime_ms: 1234 }: PING has a read only
+await services.call('SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, { side: 'write' })
+await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })               // { timeout_ms: 500, on_link_lost: true }: the mirror
+await services.device(3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, { side: 'write' })   // a choice by its label, an enum by its member name
+await services.device(3, 'IO', 'LEVEL', { pin: 22 }, { side: 'read' })          // { pin: 22, level: 1 }: the key, then the value
+await services.device(9, 'servo', 'target', { value_x10: 900 })                  // a device type's own op
 await services.create(20, 'servo', { pwm_pin: { device: 3, pin: 0 }, … })        // the fields of device_servo.json's config; a pin is { device, pin }
 storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE', { pin: 22 }).request)])   // the same request in a record
-readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                  // a frame read back: { device, entry, command, args } or { …, create: { type, config } }
+readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                  // a frame read back: { device, entry, command, side, args } or { …, create: { type, config } }
 ```
 
 - **Layout**: a field sits at its `offset` (or after the one before), is `size` bytes (or its `raw_type`'s width); a number field of several widths is an array (`u32` of 16 B is a list of 4); a `bytes` / `string` field without a size runs to the end and is last; a `string` ends in one NUL (`cmd_name_arg`). Little endian.
 - **A bitmask** field (`type: bitmask`, the descriptor's `bits` name the ones offered) takes its number: the bits set, as an integer; the form offers each named bit as a chip.
-- **Values** are given by field id. A missing field takes its `default`, an optional one zero; else the call throws `PayloadError`, as it does for a field id that is not there, a value outside the raw type or the descriptor's `min` / `max`, and an unknown choice label or enum member. A pin reference (`pin_ref`, a `sys_io_pin_t`, or a list of them) is `{ device, pin }`, `null` for an unused pin (`SYS_IO_PIN_NONE`, `io_pin_none` in `enums.json`); an optional pin left out is unused, never device 0 / pin 0. A command marked `urgent` is sent urgent. One marked `invasive` changes the pin, channel or device it is given (a write): `CommandDef.invasive`, for a UI that must not offer a pin another device manages. One with `read_by` is a board setting: `CommandDef.readBy` names the command that reads it back, `CommandDef.recordId` the settings record it is kept in (`record`, resolved through `settings_record` in enums.json; also `CatalogEntry.recordId` for a service kept as one record). `WireField.indexEnum` names the enum whose members are an array field's elements.
-- **Answers** are decoded by `returns`: a struct by field id (booleans as booleans, pins as `{ device, pin }` or `null`), a value, or a list of either. A value that only leads the answer (a count, the rest described in words: `CONNECTOR INFO`, `BLE LIST`) is read from the front; `Answer.data` keeps the bytes.
-- **Problems**: overlapping fields, a field that does not fit its raw type, a router key or contract id the firmware does not publish (`router_key`, `device_contract` in `enums.json`), an op twice, a device naming a contract nobody describes, a pin reference that is not bytes of a multiple of 3, an unpublished `io_pin_none` or `device_id`. They go to `catalog.problems`; the rest of the catalog stays usable. `services.test.ts` holds the bundle at none, and holds every layout of a packed C struct against the struct in `runit-esp/components/**/*.h` (its size, each field inside the member of its name).
+- **Values** are given by field id. A missing field takes its `default`, an optional one zero; else the call throws `PayloadError`, as it does for a field id that is not there, a value outside the raw type or the descriptor's `min` / `max`, and an unknown choice label or enum member. A pin reference (`pin_ref`, a `sys_io_pin_t`, or a list of them) is `{ device, pin }`, `null` for an unused pin (`SYS_IO_PIN_NONE`, `io_pin_none` in `enums.json`); an optional pin left out is unused, never device 0 / pin 0. A command marked `urgent` is sent urgent. Its write changes the pin, channel or device it is given; a UI does not offer it a pin another device manages. `CommandDef.recordId` is the settings record the frame of its write is kept in (`record`, resolved through `settings_record` in enums.json; also `CatalogEntry.recordId` for a service kept as one record); `CommandDef.tags` the descriptor's (`app`: a command the app sets itself, the clock). `WireField.indexEnum` names the enum whose members are an array field's elements. A side whose arguments are rows (`array`: the power response matrix) takes a list of structs.
+- **Answers** are decoded by the side's `returns`: a struct by field id (booleans as booleans, pins as `{ device, pin }` or `null`), a value, or a list of either. A value that only leads the answer (a count, the rest described in words: `CONNECTOR INFO`, `BLE LIST`) is read from the front; `Answer.data` keeps the bytes.
+- **Problems**: overlapping fields, a field that does not fit its raw type, a router key or contract id the firmware does not publish (`router_key`, `device_contract` in `enums.json`), an op twice, a command with neither side, a device naming a contract nobody describes, a pin reference that is not bytes of a multiple of 3, an unpublished `io_pin_none`, `device_id` or `cmd_dir_e`. They go to `catalog.problems`; the rest of the catalog stays usable. `services.test.ts` holds the bundle at none, and holds every layout of a packed C struct against the struct in `runit-esp/components/**/*.h` (its size, each field inside the member of its name).
 
 ## The connection
 
@@ -68,18 +72,18 @@ The board enters its safe state (VM stopped, devices suspended: RUNIT.MD) when n
 ```ts
 const deadman = new DeadMan(link, { timeoutMs: 1500 })        // onLinkLost: true, heartbeatMs: a third of the timeout
 deadman.onEvent((e) => …)   // armed | restarted { uptimeMs } | lapsed { reason: 'link-lost' | 'silence', silentMs } | failed { step, error }
-await deadman.start()        // DEADMAN_SET now (or when the link opens), then fed until stop()
-await deadman.stop()         // DEADMAN_SET 0; stop({ disarm: false }) leaves it to time out
+await deadman.start()        // the DEADMAN write now (or when the link opens), then fed until stop()
+await deadman.stop()         // the DEADMAN write of 0; stop({ disarm: false }) leaves it to time out
 ```
 
-- **Armed** with DEADMAN_SET (sent urgent) when the link opens and after every reconnect: the setting lives in the board's RAM and a restart forgets it.
+- **Armed** with the DEADMAN write (sent urgent) when the link opens and after every reconnect: the setting lives in the board's RAM and a restart forgets it.
 - **Fed** by a PING (urgent) only when nothing was written for `heartbeatMs`; the check runs every half heartbeat, so a heartbeat of 1/1.5 of the timeout or more is refused.
 - **After a reconnect**, PING's uptime says whether the board restarted (`restarted`: its program, the devices a project made and the dead-man are as at boot). If not, `lapsed` says the board has most likely entered its safe state: `link-lost` with `on_link_lost`, `silence` when the last write before the drop is a timeout old. A silence of a whole timeout while connected (a timer held back) is `lapsed` too. The board sends nothing when it enters its safe state: this is the app's inference.
 - Commands and fields are the descriptor's (`contract_sys.json`), named once in `DEADMAN_COMMANDS`; `deadman.test.ts` holds them against the catalog.
 - **Leaving the safe state** is the caller's choice, never automatic (motors move again):
 
 ```ts
-await leaveSafeState(link, { start: engine.exec('normal') })   // SYS SAFE_LEAVE (else RESUME to every device, [05][FF FF][03 00]), then the EXEC given
+await leaveSafeState(link, { start: engine.exec('normal') })   // SYS SAFE_LEAVE (else RESUME to every device, [05][01][FF FF][03 00]), then the EXEC given
 ```
 
   The program stays loaded through the safe state; after `restarted` it is gone: `runProject(link)` (the stored project) or `loadProgram` instead. A failed RESUME is thrown and the VM is not started. A critical device fault latched by the VM refuses every start (`ERR_VM_EXEC_FAULT_LATCHED`) until the caller, who shows it, sends `engine.exec('ackFault')`. The commands are the descriptors' (`contract_device.json`, `contract_vm.json`), named once in `SAFE_STATE_COMMANDS`; the device ID of the sweep is `SYS_DEVICE_ID_NONE` (`device_id` in `enums.json`).
@@ -106,7 +110,7 @@ Checked on a board: after SUBSCRIBE `x=0, y=3, z=0`; a write of `x=5` came back 
 The board keeps commands in NVS as records (SYS_ACTIONS.MD) and a whole project as one stream of sections plus the compiled program (SYS_PROJECT.MD). `session/project.ts`:
 
 ```ts
-await storeRecord(link, 10, [deviceFrame(defs, 1, IO_SET_LEVEL, Uint8Array.of(22, 0))])   // a user action, run later with runRecord(link, 10)
+await storeRecord(link, 10, [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(22, 0))])   // a user action (a write of IO LEVEL), run later with runRecord(link, 10)
 await saveProject(link, {                                                                  // settings, devices, then the program (last)
   sections: [{ id: deviceRecordId(1), frames: [...] }],
   program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
@@ -116,7 +120,7 @@ const stored = await readProject(link)                     // { info, sections, 
 const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))   // the project, decompiled
 ```
 
-`projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0 last) and `crc32` is zlib's. Checked on a board: the stream built here (297 B, one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
+`projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0 last) and `crc32` is zlib's. A record holds writes only (`[key][dir][op][args]`, dir the write: the board records no read, SYS_ACTIONS.MD): `vmFrame`, `deviceFrame` and the section frames are writes; `programFrameOf` reads a VM write back. Checked on a board: the stream built here (one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run, in the frames with the direction byte, are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
 
 ## Errors for a user
 

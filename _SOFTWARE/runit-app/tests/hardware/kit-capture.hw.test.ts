@@ -37,11 +37,11 @@ describe.runIf(process.env.KIT_CAPTURE)('capture', () => {
       samples.push({ id, title, program, hex: hex(seen[0]!) })
     }
 
-    await capture('pin', 'A pin the device does not have', null, () => board.services.device(1, 'IO', 'SET_LEVEL', { pin: 99, level: 'High' }))
-    await capture('channel', 'A channel the DAC does not have', null, () => board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 5, voltage_mV: 100 }))
+    await capture('pin', 'A pin the device does not have', null, () => board.services.device(1, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
+    await capture('channel', 'A channel the DAC does not have', null, () => board.services.device(4, 'IO', 'VOLTAGE', { pin: 5, voltage_mV: 100 }, { side: 'write' }))
     await capture('device', 'A device that is not there', null, () => board.services.device(9, 'DEVICE', 'INFO'))
     await board.services.device(4, 'DEVICE', 'SUSPEND')
-    await capture('suspended', 'A suspended device', null, () => board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 0, voltage_mV: 100 }))
+    await capture('suspended', 'A suspended device', null, () => board.services.device(4, 'IO', 'VOLTAGE', { pin: 0, voltage_mV: 100 }, { side: 'write' }))
     await board.services.device(4, 'DEVICE', 'RESUME')
 
     const compute = compiled.compute()

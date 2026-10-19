@@ -54,7 +54,7 @@ export const sendInOrder = async (link: RunitLink, requests: readonly Request[],
   return answers
 }
 
-/** The frames the engine makes for a program (`{ op, payload }`, the commands of the VM router). */
+/** The frames the engine makes for a program (`{ op, payload }`, the commands of the VM router; writes all). */
 export interface ProgramFrame {
   readonly op: number
   readonly payload: Uint8Array
@@ -64,7 +64,7 @@ export interface ProgramFrame {
 export const sendProgram = (link: RunitLink, frames: readonly ProgramFrame[], options?: SendOptions): Promise<Uint8Array[]> =>
   sendInOrder(
     link,
-    frames.map((frame) => ({ keys: [link.defs.keys.vm!, frame.op], payload: frame.payload })),
+    frames.map((frame) => ({ keys: [link.defs.keys.vm!, link.defs.dir.write, frame.op], payload: frame.payload })),
     options,
   )
 

@@ -92,7 +92,7 @@ export const readFromBoard = async (link: RunitLink, catalog: ServiceCatalog, bo
   const read = fromBoard(defs, catalog, board, project, { devices, actions })
   const settingsNotes: string[] = []
   const storedSettings = (stored?.sections ?? []).filter((s) => recordClass(s.id) === SETTINGS_CLASS)
-  const settings = settingsFromRecords(catalog, storedSettings, storedSettings.length > 0 ? await readLiveBase(link, catalog) : { tables: {} }, settingsNotes)
+  const settings = settingsFromRecords(catalog, storedSettings, storedSettings.length > 0 ? await readLiveBase(link, catalog) : {}, settingsNotes)
   const notes = [`Read: ${storedSettings.length} setting record(s), ${read.project.devices.length} device(s), ${read.project.boardDefaults.length} board device(s) with start commands, ${read.project.actions.length} action(s)${stored ? '' : ' (no stored project: the device records alone)'}.`, ...read.notes]
   notes.push(...settingsNotes)
   if (stored && !stored.verified) notes.push('The stored project did not read back whole (its CRC differs): write it again.')

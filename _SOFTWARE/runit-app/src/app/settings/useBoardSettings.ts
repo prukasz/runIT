@@ -5,7 +5,7 @@ import type { DataStream, GattService, ProjectSettings, SettingsRow } from '../p
 import type { useProject } from '../project/useProject'
 import { decodeGattList, GATT, gattApply, sameGatt } from './gatt'
 import type { LiveGattService } from './gatt'
-import { groupValues, sameValues, settingSections, tableBytes, tableRows } from './settings'
+import { groupValues, sameRows, sameValues, settingSections, tableArgs, tableRows } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 import { decodeStreamsInfo, sameStreams, STREAMS, streamsApply } from './streams'
 
@@ -49,14 +49,14 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     let ok = true
     for (const g of section.groups) {
       try {
-        const { value } = await services.call(g.service, g.read.id)
+        const { value } = await services.call(g.service, g.command.id, undefined, { side: 'read' })
         setLive((l) => ({ ...l, values: { ...l.values, [g.key]: groupValues(g, value) } }))
         setError(g.key, undefined)
       } catch (failure) { ok = false; setError(g.key, `Reading: ${message(failure)}`) }
     }
     for (const t of section.tables) {
       try {
-        const { value } = await services.call(t.service, t.read.id)
+        const { value } = await services.call(t.service, t.command.id, undefined, { side: 'read' })
         setLive((l) => ({ ...l, tables: { ...l.tables, [t.key]: tableRows(t, value) } }))
         setError(t.key, undefined)
       } catch (failure) { ok = false; setError(t.key, `Reading: ${message(failure)}`) }
@@ -160,7 +160,7 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     tableRowsOf: (t: SettingTable): readonly SettingsRow[] => settings.tables[t.key] ?? live.tables[t.key] ?? [],
     tableDiffers: (t: SettingTable): boolean => {
       const [mine, board] = [settings.tables[t.key], live.tables[t.key]]
-      return mine !== undefined && board !== undefined && JSON.stringify(tableBytes(mine)) !== JSON.stringify(tableBytes(board))
+      return mine !== undefined && board !== undefined && !sameRows(mine, board)
     },
     changeTable: (t: SettingTable, rows: readonly SettingsRow[]) => editSettings((s) => ({ ...s, tables: { ...s.tables, [t.key]: rows } }), `setting:${t.key}`),
     applyTable: (t: SettingTable) => {
@@ -215,11 +215,10 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
 /** The write of a form: the fields the write takes (a read may answer more). */
 const formCall = (services: Services, g: SettingGroup, values: FieldValues): ServiceCall => {
   const known = new Set(g.layout.fields.map((f) => f.id))
-  return serviceCall(services.catalog, g.service, g.write.id, Object.fromEntries(Object.entries(values).filter(([id]) => known.has(id))))
+  return serviceCall(services.catalog, g.service, g.command.id, Object.fromEntries(Object.entries(values).filter(([id]) => known.has(id))), 'write')
 }
 
-/** The write of a table: its one bytes field, every row's cells. */
-const tableCall = (services: Services, t: SettingTable, rows: readonly SettingsRow[]): ServiceCall =>
-  serviceCall(services.catalog, t.service, t.write.id, { [t.write.args!.fields[0]!.id]: tableBytes(rows) })
+/** The write of a table: every row, its target and its cells. */
+const tableCall = (services: Services, t: SettingTable, rows: readonly SettingsRow[]): ServiceCall => serviceCall(services.catalog, t.service, t.command.id, tableArgs(t, rows), 'write')
 
 export type BoardSettingsState = ReturnType<typeof useBoardSettings>

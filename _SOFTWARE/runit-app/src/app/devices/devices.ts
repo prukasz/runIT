@@ -1,5 +1,5 @@
-import { bundledEnums, createDeviceCall, deviceCall, deviceOp, onboardActionIds, readDeviceFrame, requestFrame } from '@backend'
-import type { BoardDescriptor, CatalogEntry, CommandDef, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, WireField } from '@backend'
+import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, readDeviceFrame, requestFrame, sidesOf } from '@backend'
+import type { BoardDescriptor, CatalogEntry, CommandDef, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
 import type { BoardDefaults, ProjectAction, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 
 /*
@@ -167,10 +167,10 @@ export const admittedSeverities = <T extends { readonly value: number }>(importa
   return severities.filter((s) => s.value > top - importance)
 }
 
-/** The IO contract's commands a pin's start settings are: its mode (SET_MODE) and its interrupt (CONFIGURE_INTR). */
-export const PIN_START_COMMANDS = { mode: 'SET_MODE', interrupt: 'CONFIGURE_INTR' } as const
+/** The IO contract's commands a pin's start settings are (their writes): its mode (MODE) and its interrupt (INTR). */
+export const PIN_START_COMMANDS = { mode: 'MODE', interrupt: 'INTR' } as const
 
-/** The GPIO modes a device's `pins.modes` names, as the `sys_io_mode_e` member a SET_MODE takes. PWM, ADC and interrupt are not here: a command sets those. */
+/** The GPIO modes a device's `pins.modes` names, as the `sys_io_mode_e` member a MODE write takes. PWM, ADC and interrupt are not here: a command sets those. */
 export const GPIO_MODE_MEMBER: Readonly<Record<string, string>> = {
   input: 'SYS_IO_MODE_INPUT',
   input_pullup: 'SYS_IO_MODE_INPUT_PULLUP',
@@ -227,7 +227,7 @@ export const pinStartOf = (steps: readonly Step[], device: number, pin: number):
 }
 
 /** The start commands with the pin's settings replaced by `next`: an unset mode, or an interrupt of mode 0, has no step.
- *  An interrupt needs a configured pin (the board refuses CONFIGURE_INTR on one at its boot default), so an interrupt without a
+ *  An interrupt needs a configured pin (the board refuses INTR on one at its boot default), so an interrupt without a
  *  mode gets the one it needs: an input for an edge, ADC for a window. */
 export const withPinStart = (steps: readonly Step[], device: number, pin: number, next: PinStart): Step[] => {
   const made: Step[] = []
@@ -237,7 +237,7 @@ export const withPinStart = (steps: readonly Step[], device: number, pin: number
   if (i && i.mode !== 0) {
     made.push({
       kind: 'device', device, contract: 'IO', command: PIN_START_COMMANDS.interrupt,
-      // Every argument of CONFIGURE_INTR is given (the window fields are 0 for an edge).
+      // Every argument of INTR is given (the window fields are 0 for an edge).
       args: { pin, mode: i.mode, debounce: i.debounce, threshold_up_mV: i.upMv, threshold_down_mV: i.downMv, hysteresis_mV: i.hysteresisMv, event_counter_threshold: i.count },
     })
   }
@@ -257,8 +257,8 @@ const kindOfMode = (mode: number): string | undefined => {
 }
 
 /**
- * Whether a device's command offers a member of an enum field: the modes of SET_MODE only the ones its pins can be (`pins.modes`), the
- * interrupt modes of CONFIGURE_INTR the edges for a device with digital pins and the ADC windows for one with only analogue pins.
+ * Whether a device's command offers a member of an enum field: the modes of a MODE write only the ones its pins can be (`pins.modes`), the
+ * interrupt modes of INTR the edges for a device with digital pins and the ADC windows for one with only analogue pins.
  */
 export const offersMember = (device: DeviceInfo | undefined, group: string | undefined, value: number): boolean => {
   const modes = device?.type?.pins?.modes
@@ -268,7 +268,7 @@ export const offersMember = (device: DeviceInfo | undefined, group: string | und
   return true
 }
 
-/** The state kind of a SET_MODE argument as a form keeps it: the member's value, or its alias or name. */
+/** The state kind of a MODE argument as a form keeps it: the member's value, or its alias or name. */
 export const kindOfModeValue = (mode: unknown): string | undefined => {
   const member = bundledEnums().sys_io_mode_e?.members.find((m) => m.value === Number(mode) || m.alias === mode || m.name === mode)
   return member && modeKind(member.name)
@@ -279,8 +279,8 @@ const kindOfCapability = (word: string): string | undefined => (word.startsWith(
 
 /**
  * What the app knows of the state of a pin of `device` (the words of `pin_state`): `unconfigured`, or the kinds it is in. A device
- * without SET_MODE (`setMode` false: PCA9685's channels, the DAC) has its pins fixed: every kind it offers. Otherwise it is what
- * this session set live (`live`: a kind, or null after a reset), else what the start commands do (the last SET_MODE, a RESET
+ * without the MODE write (`setMode` false: PCA9685's channels, the DAC) has its pins fixed: every kind it offers. Otherwise it is what
+ * this session set live (`live`: a kind, or null after a reset), else what the start commands do (the last MODE write, a RESET
  * clears it), else what the boot sets up (board.json `pin_setup`): the app cannot ask the board, so a pin set up by an earlier
  * session and not in the project reads as unconfigured.
  */
@@ -298,7 +298,7 @@ export const pinStateOf = (device: DeviceInfo, board: BoardDescriptor, pin: numb
     else if (step.command === 'RESET') kind = undefined
   }
   // A device with a reset mode (default_mode: the expander's inputs, the ADC's channels) is never `unconfigured`: its pins have that mode
-  // until SET_MODE changes it, and SET_MODE is accepted at any time.
+  // until a MODE write changes it, and one is accepted at any time.
   if (reset) return [...new Set([kind ?? kindOfCapability(reset) ?? reset, 'unconfigured'])]
   return kind ? [kind] : ['unconfigured']
 }
@@ -311,7 +311,7 @@ export const pinReady = (states: readonly string[], wants: readonly string[] | u
 export const noPinReady = (wants: readonly string[]): string =>
   wants.includes('unconfigured') ? 'Every pin is set up already' : wants.includes('configured') ? 'No pin is set up yet: set its mode first' : `No pin is set up as ${wants.join(' or ')}: set its mode first`
 
-/** The fields of CONFIGURE_INTR that only an ADC window takes. */
+/** The fields of INTR that only an ADC window takes. */
 const WINDOW_FIELDS = ['threshold_up_mV', 'threshold_down_mV', 'hysteresis_mV', 'event_counter_threshold']
 
 /** A pin's number as the app shows it: always `#n` (what commands and errors carry). */
@@ -336,10 +336,10 @@ export const pinChoiceLabel = (devices: readonly DeviceInfo[], device: number, p
 }
 
 /**
- * A command changes the pin it is given: the descriptor marks it `invasive` (set level, toggle, PWM, mode, reset, interrupt, lock;
- * not the reads). A pin another device uses is managed by that device, so the view offers it to reads only.
+ * A side of a command changes the pin it is given: its write (level, toggle, PWM, mode, reset, interrupt, lock; not the reads). A pin
+ * another device uses is managed by that device, so the view offers it to reads only.
  */
-export const changesPin = (command: CommandDef): boolean => command.invasive
+export const changesPin = (side: Side): boolean => side === 'write'
 
 /** The devices that use a pin of `device`, and which pin. */
 export const usedBy = (devices: readonly DeviceInfo[], device: number): { readonly by: DeviceInfo; readonly use: PinUse }[] =>
@@ -358,12 +358,33 @@ export const pinNotes = (board: BoardDescriptor, device: number): ReadonlyMap<nu
 
 /* ---- commands ---- */
 
+/** The ops a device answers (its OPS), each with the bits of its sides. */
+export type DeviceOps = ReadonlyMap<number, number>
+
+/** The bit of each side in an OPS row's `sides` (`contract_device.json`, `SIDE_READ` / `SIDE_WRITE` in sys_device.c). */
+export const OPS_SIDE_BIT: Readonly<Record<Side, number>> = { read: 0x01, write: 0x02 }
+
+/** The OPS answer as the ops and their sides. */
+export const decodeOps = (value: unknown): DeviceOps =>
+  new Map((Array.isArray(value) ? value : []).map((row: Readonly<Record<string, unknown>>) => [Number(row.op), Number(row.sides)]))
+
+/** The device answers this side of the command; true until its OPS says (`ops` undefined). */
+export const answers = (catalog: ServiceCatalog, ops: DeviceOps | undefined, entry: CatalogEntry, command: CommandDef, side: Side): boolean =>
+  command[side] !== undefined && (!ops || ((ops.get(deviceOp(catalog, entry, command)) ?? 0) & OPS_SIDE_BIT[side]) !== 0)
+
+/** One side of one command: what the test panel tries. */
+export interface CommandSideOf {
+  readonly command: CommandDef
+  readonly side: Side
+}
+
 /**
- * The commands a device can be sent, by contract: the device contract, each contract its type implements, its own ops. CREATE is
- * the install, never listed; a board device (created by the firmware) has no REMOVE either. With the device's OPS answer only the
- * commands it answers are listed (a contract may describe ops a chip does not have: an expander has no PWM).
+ * The commands a device can be sent, by contract: the device contract, each contract its type implements, its own ops; each side of
+ * a command on its own (a mirror is its read and its write). CREATE is the install, never listed; a board device (created by the
+ * firmware) has no REMOVE either. With the device's OPS answer only the sides it answers are listed (a contract may describe ops a
+ * chip does not have: an expander has no PWM).
  */
-export const commandGroups = (catalog: ServiceCatalog, type: CatalogEntry | undefined, { ops }: { readonly ops?: ReadonlySet<number> } = {}): { readonly entry: CatalogEntry; readonly commands: readonly CommandDef[] }[] => {
+export const commandGroups = (catalog: ServiceCatalog, type: CatalogEntry | undefined, { ops }: { readonly ops?: DeviceOps } = {}): { readonly entry: CatalogEntry; readonly commands: readonly CommandSideOf[] }[] => {
   const lifecycle = catalog.lifecycleContractId === undefined ? undefined : catalog.byContractId.get(catalog.lifecycleContractId)
   const contracts = [lifecycle, ...(type?.contracts ?? []).map((c) => catalog.contracts.get(c)).filter((c) => c !== lifecycle), type]
   // The test panel has these elsewhere: Install / Remove and the lifecycle icons on top, the error policy under them; INFO and OPS the
@@ -371,9 +392,15 @@ export const commandGroups = (catalog: ServiceCatalog, type: CatalogEntry | unde
   const hidden = (entry: CatalogEntry, command: CommandDef) => entry === lifecycle && (command.id === CREATE || (Object.values(DEVICE_COMMANDS) as string[]).includes(command.id))
   return contracts
     .filter((entry, i, all): entry is CatalogEntry => entry !== undefined && all.indexOf(entry) === i)
-    .map((entry) => ({ entry, commands: [...entry.commands.values()].filter((c) => !hidden(entry, c) && (!ops || ops.has(deviceOp(catalog, entry, c)))) }))
+    .map((entry) => ({
+      entry,
+      commands: [...entry.commands.values()].filter((c) => !hidden(entry, c)).flatMap((command) => sidesOf(command).filter((side) => answers(catalog, ops, entry, command, side)).map((side) => ({ command, side }))),
+    }))
     .filter((group) => group.commands.length > 0)
 }
+
+/** A side's name in a list: the command's label, and the side when the command has both (`Level: read`). */
+export const sideLabel = ({ command, side }: CommandSideOf): string => (isMirror(command) ? `${command.label}: ${side}` : command.label)
 
 /** The command of the device contract that creates a device (SYS_DEVICE.MD "Ops"). */
 const CREATE = 'CREATE'
@@ -387,9 +414,9 @@ export const lifecycleOf = (catalog: ServiceCatalog): CatalogEntry => {
 
 /* ---- frames and records ---- */
 
-/** The frame of a step, as a record holds it. */
+/** The frame of a step, as a record holds it: a step is a write (a record holds writes only, SYS_ACTIONS.MD). */
 export const stepFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, step: Step): Uint8Array =>
-  step.kind === 'frame' ? Uint8Array.from(step.bytes) : requestFrame(deviceCall(defs, catalog, step.device, step.contract, step.command, step.args).request)
+  step.kind === 'frame' ? Uint8Array.from(step.bytes) : requestFrame(deviceCall(defs, catalog, step.device, step.contract, step.command, step.args, 'write').request)
 
 /** The install packet of a project device: CREATE with its type and config. */
 export const installFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice): Uint8Array =>
@@ -481,7 +508,7 @@ export const fromBoard = (defs: LinkDefinitions, catalog: ServiceCatalog, board:
   const typeOf = (device: number) => types.get(device)
   const step = (frame: Uint8Array): Step => {
     const read = readDeviceFrame(defs, catalog, frame, typeOf)
-    if (!read || read.create) return { kind: 'frame', bytes: Array.from(frame) }
+    if (!read || read.create || read.side !== 'write') return { kind: 'frame', bytes: Array.from(frame) }
     const args = keepable(read.args)
     return { kind: 'device', device: read.device, contract: read.entry.id, command: read.command.id, ...(args ? { args } : {}) }
   }
@@ -537,16 +564,16 @@ export const describeStep = (catalog: ServiceCatalog, step: Step, nameOf: (devic
   if (step.kind === 'frame') return { command: 'Command', args: step.bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ') }
   const entry = catalog.contracts.get(step.contract) ?? catalog.devices.get(step.contract)
   const command = entry?.commands.get(step.command)
-  // An edge interrupt has no window: its threshold fields are not shown (CONFIGURE_INTR takes them, ignored for an edge).
+  // An edge interrupt has no window: its threshold fields are not shown (INTR takes them, ignored for an edge).
   const window = step.args?.mode === 4 || step.args?.mode === 5
-  const fields = (command?.args?.fields ?? []).filter((f) => window || !WINDOW_FIELDS.includes(f.id))
+  const fields = (command?.write?.args?.fields ?? []).filter((f) => window || !WINDOW_FIELDS.includes(f.id))
   const args = fields.map((f) => `${f.label} ${showValue(f, step.args?.[f.id] ?? f.default, nameOf, pinName, step.device)}`).join(' · ')
   return { device: step.device, command: command ? `${entry!.label}: ${command.label}` : `${step.contract} ${step.command}`, args }
 }
 
-/** An answer as a user reads it: a struct field by field, a value with its unit or choice, a list joined; OPS's ops in hex. */
-export const showAnswer = (command: CommandDef, value: unknown, nameOf: (device: number) => string | undefined, pinName: PinNamer, own?: number): string => {
-  const returns = command.returns
+/** An answer of a side as a user reads it: a struct field by field, a value with its unit or choice, a list joined; a list of u16 in hex. */
+export const showAnswer = (command: CommandDef, side: Side, value: unknown, nameOf: (device: number) => string | undefined, pinName: PinNamer, own?: number): string => {
+  const returns = command[side]?.returns
   if (!returns || value === undefined) return 'Done.'
   if (returns.kind === 'struct') {
     const one = (record: unknown) => returns.layout.fields.map((f) => `${f.label}: ${showValue(f, (record as Record<string, unknown>)[f.id], nameOf, pinName, own)}`).join(' · ')
@@ -562,7 +589,7 @@ export const showAnswer = (command: CommandDef, value: unknown, nameOf: (device:
 /** The types a project cannot add more of: the chip's own GPIO, which the board already has (board.json). */
 export const SINGLE_TYPES: ReadonlySet<string> = new Set(['gpio_esp'])
 
-export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME', setPolicy: 'SET_ERROR_POLICY', getPolicy: 'GET_ERROR_POLICY' } as const
+export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME', policy: 'ERROR_POLICY' } as const
 
 /** The device contract's events the view follows (`contract_device.json`, SYS_DEVICE_EVENTS): a device's `suspended` flag changed. */
 export const DEVICE_EVENTS = { suspended: 'SUSPENDED', resumed: 'RESUMED' } as const

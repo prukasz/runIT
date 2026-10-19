@@ -1,18 +1,19 @@
 import type { FieldValues } from '../catalog/codec'
-import type { ServiceCatalog } from '../catalog/services'
+import type { ServiceCatalog, Side } from '../catalog/services'
 import { bundledServiceCatalog } from '../definitions'
 import { createDeviceCall, decodeAnswer, deviceCall, serviceCall } from '../protocol/services'
-import type { Decoded, ServiceCall } from '../protocol/services'
+import type { CallArgs, Decoded, ServiceCall } from '../protocol/services'
 import type { CommandOptions } from './commands'
 import type { RunitLink } from './link'
 
 /*
  * Every command of every router, sent over the link as its descriptor describes it (`protocol/services.ts`): the arguments
- * encoded by field id, the answer decoded. The catalog is what the firmware publishes; nothing here names a service.
+ * encoded by field id, the answer decoded. The catalog is what the firmware publishes; nothing here names a service. A command
+ * with a read and a write is told which (`side`); one with a single side runs it.
  *
  *   const services = new Services(link)
  *   const { value } = await services.call('SYS', 'PING')                         // { uptime_ms: 1234 }
- *   await services.device(3, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' })
+ *   await services.device(3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, { side: 'write' })
  *   await services.create(20, 'servo', { pwm_pin: [3, 0, 4], servo_type: 'SERVO_TYPE_ANGLE' })
  */
 
@@ -23,6 +24,11 @@ export interface Answer {
   readonly data: Uint8Array
 }
 
+/** The options of a call: the link's, and the side of a command that has both. */
+export interface CallOptions extends CommandOptions {
+  readonly side?: Side
+}
+
 export class Services {
   constructor(
     readonly link: RunitLink,
@@ -30,13 +36,13 @@ export class Services {
   ) {}
 
   /** A command of a system service (`SYS`, `I2C`, `BLE`, `LOG`, ... as the catalog has them). */
-  call(service: string, command: string, args?: FieldValues, options?: CommandOptions): Promise<Answer> {
-    return this.send(serviceCall(this.catalog, service, command, args), options)
+  call(service: string, command: string, args?: CallArgs, { side, ...options }: CallOptions = {}): Promise<Answer> {
+    return this.send(serviceCall(this.catalog, service, command, args, side), options)
   }
 
   /** A command to a device: a contract's (`IO`, `DEVICE`, ...) or one of its type's own (`servo`). */
-  device(device: number, contract: string, command: string, args?: FieldValues, options?: CommandOptions): Promise<Answer> {
-    return this.send(deviceCall(this.link.defs, this.catalog, device, contract, command, args), options)
+  device(device: number, contract: string, command: string, args?: CallArgs, { side, ...options }: CallOptions = {}): Promise<Answer> {
+    return this.send(deviceCall(this.link.defs, this.catalog, device, contract, command, args, side), options)
   }
 
   /** Creates device `device` of a type (a device descriptor's id or type id) with its config. */

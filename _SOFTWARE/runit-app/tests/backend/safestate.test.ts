@@ -28,16 +28,16 @@ describe('leaving the safe state', () => {
     const link = await linkTo(board)
     const start = engine.exec('normal')
     await leaveSafeState(link, { start })
-    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, 0x0a)), hex(Uint8Array.of(defs.keys.vm!, start.op, ...start.payload))])
+    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, defs.dir.write, 0x0a)), hex(Uint8Array.of(defs.keys.vm!, defs.dir.write, start.op, ...start.payload))])
     await link.close()
   })
 
-  it('a firmware without SAFE_LEAVE gets the RESUME sweep ([05][FF FF][03 00], SYS_DEVICE.MD); without a start the VM stays stopped', async () => {
+  it('a firmware without SAFE_LEAVE gets the RESUME sweep ([05][01][FF FF][03 00], SYS_DEVICE.MD); without a start the VM stays stopped', async () => {
     const board = new FakeBoard()
     board.respond = (frame, send) => send(answer(frame[0]!, [], frame[2] !== defs.keys.sys))
     const link = await linkTo(board)
     await leaveSafeState(link)
-    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, 0x0a)), hex(Uint8Array.of(defs.keys.device!, 0xff, 0xff, 0x03, 0x00))])
+    expect(board.requests.map(body)).toEqual([hex(Uint8Array.of(defs.keys.sys!, defs.dir.write, 0x0a)), hex(Uint8Array.of(defs.keys.device!, defs.dir.write, 0xff, 0xff, 0x03, 0x00))])
     await link.close()
   })
 

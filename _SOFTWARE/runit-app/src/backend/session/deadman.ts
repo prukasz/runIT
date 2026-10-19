@@ -9,7 +9,7 @@ import type { LinkStatus, RunitLink } from './link'
  * every device suspended: RUNIT.MD) when no frame came for `timeout_ms`, and at once when the link drops if `on_link_lost` is
  * set. Any frame feeds it, so:
  *
- *   - armed with DEADMAN_SET when the link opens, and again after every reconnect: the setting lives in RAM, a restart forgets it;
+ *   - armed with the DEADMAN write when the link opens, and again after every reconnect: the setting lives in RAM, a restart forgets it;
  *   - a heartbeat (PING, urgent: it passes commands the board is slow to answer) only when nothing was written for `heartbeatMs`;
  *   - after a reconnect, PING's uptime says whether the board restarted (it is then as at boot) and, if not, whether the drop or
  *     the silence most likely put it in its safe state. The board sends nothing when it enters it: this is the app's inference.
@@ -20,7 +20,7 @@ import type { LinkStatus, RunitLink } from './link'
 /** The dead-man's commands and fields in the sys service's descriptor (SYS_SYSTEM.MD "Remote"). */
 export const DEADMAN_COMMANDS = {
   service: 'SYS',
-  set: 'DEADMAN_SET',
+  set: 'DEADMAN',
   ping: 'PING',
   timeout: 'timeout_ms',
   onLinkLost: 'on_link_lost',
@@ -116,7 +116,7 @@ export class DeadMan {
   /* ---- the commands ---- */
 
   private async set(timeoutMs: number, onLinkLost: boolean): Promise<void> {
-    const call = serviceCall(this.catalog, DEADMAN_COMMANDS.service, DEADMAN_COMMANDS.set, { [DEADMAN_COMMANDS.timeout]: timeoutMs, [DEADMAN_COMMANDS.onLinkLost]: onLinkLost })
+    const call = serviceCall(this.catalog, DEADMAN_COMMANDS.service, DEADMAN_COMMANDS.set, { [DEADMAN_COMMANDS.timeout]: timeoutMs, [DEADMAN_COMMANDS.onLinkLost]: onLinkLost }, 'write')
     await this.link.request({ ...call.request, urgent: true }, { label: call.label })
   }
 
@@ -129,7 +129,7 @@ export class DeadMan {
     return ms
   }
 
-  /** DEADMAN_SET, then PING: what the board's uptime says about the time the link was down. */
+  /** The DEADMAN write, then PING: what the board's uptime says about the time the link was down. */
   private async arm(): Promise<void> {
     const before = this.uptime
     const dropped = this.dropped

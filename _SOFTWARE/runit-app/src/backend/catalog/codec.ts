@@ -73,6 +73,8 @@ export interface Layout {
   readonly fixed: number
   /** The last field has no size. */
   readonly variable: boolean
+  /** A run of such structs, one per row (`array` in the descriptor: the rows of a matrix). */
+  readonly array?: boolean
 }
 
 export type FieldValue = number | bigint | boolean | string | Uint8Array | PinRef | null | readonly (number | bigint | boolean)[] | readonly (PinRef | null)[]

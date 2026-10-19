@@ -25,7 +25,7 @@ const until = async <T>(check: () => T | undefined | false | Promise<T | undefin
   }
 }
 
-const IO_SET_LEVEL = 0x0100
+const IO_LEVEL = 0x0100 // (contract IO = 1) << 8 | LEVEL (its write: deviceFrame)
 const PIN = 22
 const defs = bundledLinkDefinitions()
 
@@ -68,7 +68,7 @@ async function runSuite(): Promise<Result[]> {
   if (link.state !== 'connected') return results
 
   // a board a failed run left armed or in its safe state would fail the tests that follow for the wrong reason
-  await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 0, on_link_lost: false })
+  await services.call('SYS', 'DEADMAN', { timeout_ms: 0, on_link_lost: false }, { side: 'write' })
   await leaveSafeState(link)
   await services.call('VM', 'RESET')
 
@@ -81,9 +81,9 @@ async function runSuite(): Promise<Result[]> {
     expect((await Promise.all(Array.from({ length: 40 }, () => services.call('SYS', 'PING')))).length === 40, 'pipelined')
   })
 
-  await test('every read-only command decodes', async () => {
-    for (const [service, command] of [['SYS', 'DEADMAN_GET'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['CONNECTOR', 'INFO'], ['I2C', 'INFO'], ['LOG', 'GET'], ['POWER_MANAGER', 'GET_CONFIG'], ['POWER_MANAGER', 'GET_STATUS'], ['PROJECT', 'INFO']] as const) {
-      await services.call(service, command)
+  await test('every read without a key decodes', async () => {
+    for (const [service, command] of [['SYS', 'DEADMAN'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['CONNECTOR', 'INFO'], ['I2C', 'INFO'], ['LOG', 'CONFIG'], ['POWER_MANAGER', 'CONFIG'], ['POWER_MANAGER', 'STATUS'], ['PROJECT', 'INFO']] as const) {
+      await services.call(service, command, undefined, { side: 'read' })
     }
   })
 
@@ -99,7 +99,7 @@ async function runSuite(): Promise<Result[]> {
   })
 
   await test('IO on the status LED: TOGGLE twice, read back', async () => {
-    const level = async () => String((await services.device(1, 'IO', 'GET_LEVEL', { pin: 23 })).value)
+    const level = async () => String(((await services.device(1, 'IO', 'LEVEL', { pin: 23 }, { side: 'read' })).value as { level: unknown }).level)
     expect(/High|1|true/i.test(await level()), 'LED is not lit at the start')
     await services.device(1, 'IO', 'TOGGLE', { pin: 23 })
     expect(/Low|0|false/i.test(await level()), 'TOGGLE did not put it out')
@@ -108,7 +108,7 @@ async function runSuite(): Promise<Result[]> {
   })
 
   await test('a request of 500 bytes goes out in one write, and the link is fine after it', async () => {
-    const big = await link.request({ keys: [defs.keys.sys!, 0x01], payload: new Uint8Array(500) }).then(() => 'answered', (e: unknown) => (e instanceof CommandError ? e.code : String(e)))
+    const big = await link.request({ keys: [defs.keys.sys!, defs.dir.read, 0x01], payload: new Uint8Array(500) }).then(() => 'answered', (e: unknown) => (e instanceof CommandError ? e.code : String(e)))
     expect(big === 'answered' || big === 'device-error', `big frame: ${big}`)
     await uptime() // the link is fine after it
   })
@@ -132,17 +132,17 @@ async function runSuite(): Promise<Result[]> {
   await test('the dead-man arms and feeds, and disarms', async () => {
     const deadman = new DeadMan(link, { timeoutMs: 1500 })
     await deadman.start()
-    expect(((await services.call('SYS', 'DEADMAN_GET')).value as { timeout_ms: number }).timeout_ms === 1500, 'not armed')
+    expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 1500, 'not armed')
     await sleep(3500) // longer than the timeout: only the heartbeat keeps the board out of the safe state
     expect(((await services.device(4, 'DEVICE', 'INFO')).value as { suspended: number }).suspended === 0, 'the board entered its safe state')
     await deadman.stop()
-    expect(((await services.call('SYS', 'DEADMAN_GET')).value as { timeout_ms: number }).timeout_ms === 0, 'not disarmed')
+    expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'not disarmed')
   })
 
   await test('a stored project: save, read back verified, autostart off, erase', async () => {
     const result = program()
     const content: ProjectContent = {
-      sections: [{ id: deviceRecordId(1), frames: [deviceFrame(defs, 1, IO_SET_LEVEL, Uint8Array.of(PIN, 1))] }],
+      sections: [{ id: deviceRecordId(1), frames: [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(PIN, 1))] }],
       program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
     }
     const stream = projectStream(defs, content)
@@ -153,7 +153,7 @@ async function runSuite(): Promise<Result[]> {
     } finally {
       await setAutostart(link, false).catch(() => undefined)
       await eraseProject(link).catch(() => undefined)
-      await services.device(1, 'IO', 'SET_LEVEL', { pin: PIN, level: 'Low' }).catch(() => undefined)
+      await services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' }).catch(() => undefined)
     }
     expect((await projectInfo(link)).stored === false, 'not erased')
   })
@@ -233,7 +233,7 @@ async function beforeReload(arm: boolean): Promise<Before> {
   const services = new Services(link)
   const result = program()
   await loadProgram(link, [...result.frames, engine.exec('normal')])
-  if (arm) await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 20_000, on_link_lost: true })
+  if (arm) await services.call('SYS', 'DEADMAN', { timeout_ms: 20_000, on_link_lost: true }, { side: 'write' })
   return { uptime: ((await services.call('SYS', 'PING')).value as { uptime_ms: number }).uptime_ms }
 }
 
@@ -293,9 +293,9 @@ async function afterReload(before: Before, arm: boolean): Promise<Result[]> {
   }
 
   await test('the board is left disarmed and clean', async () => {
-    await services.call('SYS', 'DEADMAN_SET', { timeout_ms: 0, on_link_lost: false })
+    await services.call('SYS', 'DEADMAN', { timeout_ms: 0, on_link_lost: false }, { side: 'write' })
     await services.call('VM', 'RESET')
-    expect(((await services.call('SYS', 'DEADMAN_GET')).value as { timeout_ms: number }).timeout_ms === 0, 'still armed')
+    expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'still armed')
   })
   await link.disconnect()
   return results

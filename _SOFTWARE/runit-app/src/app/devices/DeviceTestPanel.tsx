@@ -1,32 +1,37 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, ListPlus, Pause, Play, PlugZap, RotateCcw, Send, Unplug } from 'lucide-react'
-import type { CatalogEntry, CommandDef, FieldValues } from '@backend'
+import type { CatalogEntry, CommandDef, FieldValues, Side } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TreeChildren, TreeDisclosure, TreeSlab } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
 import type { Step } from '../project/projectFile'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
-import { bundledEnums, deviceOp } from '@backend'
-import { changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, usedBy, withPinStart } from './devices'
+import { bundledEnums } from '@backend'
+import { answers, changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
 import type { DeviceInfo, PinInterrupt, PinStart } from './devices'
 import type { DevicesState } from './useDevices'
 
 type Result = { readonly tone: 'info' | 'error'; readonly text: string }
 
-/** One command: its arguments, Send (live), Add to start, Add to action; what the board answered. */
-function CommandTester({ device, entry, command, state }: { device: DeviceInfo; entry: CatalogEntry; command: CommandDef; state: DevicesState }) {
+/**
+ * One side of a command: its arguments, Send (live), and for a write Add to start and Add to action (a record holds writes only);
+ * what the board answered.
+ */
+function CommandTester({ device, entry, command, side, state }: { device: DeviceInfo; entry: CatalogEntry; command: CommandDef; side: Side; state: DevicesState }) {
   const [open, setOpen] = useState(false)
   const [args, setArgs] = useState<FieldValues>({})
   const [result, setResult] = useState<Result | undefined>()
   const [sending, setSending] = useState(false)
-  const step: Step = { kind: 'device', device: device.id, contract: entry.id, command: command.id, ...(command.args ? { args } : {}) }
+  const layout = command[side]?.args
+  const write = side === 'write'
+  const step: Step = { kind: 'device', device: device.id, contract: entry.id, command: command.id, ...(layout ? { args } : {}) }
   // The pin states: now (what this session did live) and at start (what the project and the boot do): a command takes only a pin in the
-  // state its descriptor wants (`pin_state`), so none is refused. A device without SET_MODE has its pins fixed.
+  // state its descriptor wants (`pin_state`), so none is refused. A device without the MODE write has its pins fixed.
   const io = state.catalog.contracts.get('IO')
-  const setModeDef = io?.commands.get('SET_MODE')
-  const hasSetMode = !device.type?.pins?.fixedModes && (!setModeDef || !state.ops || state.ops.has(deviceOp(state.catalog, io!, setModeDef)))
-  const pinField = command.args?.fields.find((f) => f.type === 'pin' && f.pinState)
+  const modeDef = io?.commands.get(PIN_START_COMMANDS.mode)
+  const hasSetMode = !device.type?.pins?.fixedModes && (!modeDef || answers(state.catalog, state.ops, io!, modeDef, 'write'))
+  const pinField = layout?.fields.find((f) => f.type === 'pin' && f.pinState)
   const chosen = pinField ? args[pinField.id] : undefined
   const stateNow = (pin: number) => pinStateOf(device, state.board, pin, hasSetMode, state.pinKinds)
   const stateAtStart = (pin: number) => pinStateOf(device, state.board, pin, hasSetMode)
@@ -37,13 +42,13 @@ function CommandTester({ device, entry, command, state }: { device: DeviceInfo; 
     setSending(true)
     setResult(undefined)
     try {
-      const { value } = await state.services.device(device.id, entry.id, command.id, command.args ? args : undefined)
+      const { value } = await state.services.device(device.id, entry.id, command.id, layout ? args : undefined, { side })
       // What the board did to the pin is what the next command's pin list is made from.
-      if (entry.id === 'IO' && typeof args.pin === 'number') {
-        if (command.id === 'SET_MODE') state.setPinKind(device.id, args.pin, kindOfModeValue(args.mode) ?? null)
+      if (entry.id === 'IO' && write && typeof args.pin === 'number') {
+        if (command.id === PIN_START_COMMANDS.mode) state.setPinKind(device.id, args.pin, kindOfModeValue(args.mode) ?? null)
         else if (command.id === 'RESET') state.setPinKind(device.id, args.pin, null)
       }
-      setResult({ tone: 'info', text: showAnswer(command, value, state.nameOf, state.pinName, device.id) })
+      setResult({ tone: 'info', text: showAnswer(command, side, value, state.nameOf, state.pinName, device.id) })
       if (entry === state.lifecycle) void state.probe()
     } catch (failure) {
       setResult({ tone: 'error', text: state.explain(failure) })
@@ -62,19 +67,23 @@ function CommandTester({ device, entry, command, state }: { device: DeviceInfo; 
   }
   return (
     <>
-      <TreeSlab label={command.label} title={command.description ?? command.label} disclosure={<TreeDisclosure open={open} onToggle={() => setOpen(!open)} />} onClick={() => setOpen(!open)} />
+      <TreeSlab label={sideLabel({ command, side })} title={command[side]?.description ?? command.description ?? command.label} disclosure={<TreeDisclosure open={open} onToggle={() => setOpen(!open)} />} onClick={() => setOpen(!open)} />
       <TreeChildren open={open}>
         <div className="devices-command">
-          {command.description && <p className="devices-hint">{command.description}</p>}
-          {command.args && <FieldsForm grid={false} layout={command.args} values={args} onChange={setArgs} context={{ devices: state.devices, own: device, board: state.board, changesPin: changesPin(command), pinStates: stateNow }} />}
+          {(command[side]?.description ?? command.description) && <p className="devices-hint">{command[side]?.description ?? command.description}</p>}
+          {layout && <FieldsForm grid={false} layout={layout} values={args} onChange={setArgs} context={{ devices: state.devices, own: device, board: state.board, changesPin: changesPin(side), pinStates: stateNow }} />}
           <div className="devices-actions">
             <Button size="sm" variant="primary" disabled={!state.connected || sending || !readyNow} title={!state.connected ? 'Connect the board first' : !readyNow ? 'The pin is not in a state this command needs: choose another pin' : 'Send it to the board now'} onClick={() => void send()}>
               <Send aria-hidden="true" />Send
             </Button>
-            <Button size="sm" disabled={!readyAtStart} title={readyAtStart ? 'Send it every time the stored project starts' : notAtStart} onClick={() => { state.setDefaults(device, (steps) => [...steps, step]); setResult({ tone: 'info', text: 'Added to the start commands.' }) }}>
-              <ListPlus aria-hidden="true" />At start
-            </Button>
-            <ChoiceField<number> aria-label="Add to action" disabled={!readyAtStart} title={readyAtStart ? undefined : notAtStart} value={undefined} choices={actions} placeholder="Add to action…" onChange={addToAction} />
+            {write && (
+              <>
+                <Button size="sm" disabled={!readyAtStart} title={readyAtStart ? 'Send it every time the stored project starts' : notAtStart} onClick={() => { state.setDefaults(device, (steps) => [...steps, step]); setResult({ tone: 'info', text: 'Added to the start commands.' }) }}>
+                  <ListPlus aria-hidden="true" />At start
+                </Button>
+                <ChoiceField<number> aria-label="Add to action" disabled={!readyAtStart} title={readyAtStart ? undefined : notAtStart} value={undefined} choices={actions} placeholder="Add to action…" onChange={addToAction} />
+              </>
+            )}
           </div>
           {result && (result.tone === 'error' ? <FieldError>{result.text}</FieldError> : <p className="devices-answer">{result.text}</p>)}
         </div>
@@ -148,8 +157,8 @@ export function DeviceTestPanel({ device, state }: { device: DeviceInfo; state: 
       {groups.map(({ entry, commands }) => (
         <div key={entry.id} className="devices-group">
           <h4>{entry === device.type ? `${entry.label}: own operations` : entry.label}</h4>
-          {commands.map((command) => (
-            <CommandTester key={command.id} device={device} entry={entry} command={command} state={state} />
+          {commands.map(({ command, side }) => (
+            <CommandTester key={`${command.id}:${side}`} device={device} entry={entry} command={command} side={side} state={state} />
           ))}
         </div>
       ))}
@@ -165,10 +174,10 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
   const [advanced, setAdvanced] = useState(false)
   const modes = device.type?.pins?.modes ?? []
   const io = device.type?.contracts?.includes('IO') ? state.catalog.contracts.get('IO') : undefined
-  // Offered where the device answers the command (before the board answers, its descriptor says so).
+  // Offered where the device answers the command's write (before the board answers, its descriptor says so).
   const offers = (command: string): boolean => {
     const def = io?.commands.get(command)
-    return def !== undefined && (!state.ops || state.ops.has(deviceOp(state.catalog, io!, def)))
+    return def !== undefined && answers(state.catalog, state.ops, io!, def, 'write')
   }
   const members = bundledEnums()
   const kept = state.board.reservedPins.find((r) => r.device === device.id && r.pin === pin)

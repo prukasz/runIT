@@ -19,9 +19,9 @@ describe('the power readings', () => {
 
   it('by default: the input in short (source, voltage, power), each rail with More (voltage, current)', () => {
     const readings = defaultReadings(bundledBoard())
-    expect(readings.filter((r) => r.main).map((r) => [r.read.command, r.field])).toEqual([['GET_STATUS', 'source'], ['GET_STATUS', 'input_mV'], ['GET_POWER', undefined]])
-    expect(readings.filter((r) => !r.main).map((r) => [r.name, r.read.command])).toEqual([['Rail A', 'GET_VOLTAGE'], ['Rail A', 'GET_CURRENT'], ['Rail B', 'GET_VOLTAGE'], ['Rail B', 'GET_CURRENT']])
-    expect(readings.find((r) => r.name === 'Rail B')).toMatchObject({ read: { kind: 'device', device: 12, contract: 'POWER_MONITOR', command: 'GET_VOLTAGE' }, args: { channel: 0 } })
+    expect(readings.filter((r) => r.main).map((r) => [r.read.command, r.field])).toEqual([['STATUS', 'source'], ['STATUS', 'input_mV'], ['POWER', undefined]])
+    expect(readings.filter((r) => !r.main).map((r) => [r.name, r.read.command])).toEqual([['Rail A', 'VOLTAGE'], ['Rail A', 'CURRENT'], ['Rail B', 'VOLTAGE'], ['Rail B', 'CURRENT']])
+    expect(readings.find((r) => r.name === 'Rail B')).toMatchObject({ read: { kind: 'device', device: 12, contract: 'POWER_MONITOR', command: 'VOLTAGE' }, args: { channel: 0 } })
   })
 })
 
@@ -47,7 +47,7 @@ describe('a devkit board (board_devkit.json)', () => {
     expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_gpio_esp']])
     expect(board.pinSetup).toEqual([])
     expect(board.power).toEqual({ rails: [] })
-    expect(defaultReadings(board).map((r) => [r.read.command, r.field])).toEqual([['GET_STATUS', 'source'], ['GET_STATUS', 'input_mV']])
+    expect(defaultReadings(board).map((r) => [r.read.command, r.field])).toEqual([['STATUS', 'source'], ['STATUS', 'input_mV']])
     expect(deviceList(emptyProject(), bundledServiceCatalog(), board).map((d) => d.id)).toEqual([0])
   })
 

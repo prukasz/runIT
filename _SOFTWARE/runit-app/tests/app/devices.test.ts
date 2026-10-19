@@ -4,7 +4,7 @@ import { bundledEnums } from '../../src/backend'
 import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import {
-  actionRecordOf, admittedSeverities, offersMember, pinReady, pinStateOf, baseConfig, changesPin, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, fromBoard, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
+  actionRecordOf, admittedSeverities, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, fromBoard, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
 } from '../../src/app/devices/devices'
 
 const defs = bundledLinkDefinitions()
@@ -19,10 +19,10 @@ const project: ProjectFile = {
   devices: [{
     id: 20, type: 'servo', name: 'Left servo',
     config: { pwm_pin: { device: pwm.id, pin: 2 }, servo_type: 0, byte_mode: 0, invert: 1, angle_min_deg: 0, angle_max_deg: 180, default_pos: 90, min_us: 500, max_us: 2400, deadband_us: 0 },
-    defaults: [{ kind: 'device', device: 20, contract: 'servo', command: 'set', args: { value_x10: 450 } }],
+    defaults: [{ kind: 'device', device: 20, contract: 'servo', command: 'target', args: { value_x10: 450 } }],
   }],
-  boardDefaults: [{ device: expander.id, steps: [{ kind: 'device', device: expander.id, contract: 'IO', command: 'SET_LEVEL', args: { pin: 22, level: 1 } }] }],
-  actions: [{ id: 10, name: 'Wave', steps: [{ kind: 'device', device: 20, contract: 'servo', command: 'home' }, { kind: 'frame', bytes: [defs.keys.sys!, 0x01] }] }],
+  boardDefaults: [{ device: expander.id, steps: [{ kind: 'device', device: expander.id, contract: 'IO', command: 'LEVEL', args: { pin: 22, level: 1 } }] }],
+  actions: [{ id: 10, name: 'Wave', steps: [{ kind: 'device', device: 20, contract: 'servo', command: 'home' }, { kind: 'frame', bytes: [defs.keys.sys!, defs.dir.write, 0x02] }] }],
 }
 
 describe('the devices of the view', () => {
@@ -68,12 +68,16 @@ describe('the devices of the view', () => {
     expect(pinChoiceLabel(deviceList(named, catalog, board), pwm.id, 2)).toBe('#2 Left servo · PWM pin')
   })
 
-  it('the writes of the IO and PINS contracts are marked invasive, their reads are not', () => {
+  it('a write changes the pin it is given, a read does not; the IO and PINS commands have the sides that say so', () => {
     const io = catalog.contracts.get('IO')!
     const pins = catalog.contracts.get('PINS')!
-    expect(['SET_LEVEL', 'TOGGLE', 'SET_PWM_DUTY', 'SET_MODE', 'RESET', 'CONFIGURE_INTR'].every((id) => changesPin(io.commands.get(id)!))).toBe(true)
-    expect(['LOCK', 'UNLOCK', 'SET_LOCKED_LEVEL'].every((id) => changesPin(pins.commands.get(id)!))).toBe(true)
-    expect(changesPin(io.commands.get('GET_LEVEL')!) || changesPin(io.commands.get('GET_VOLTAGE')!)).toBe(false)
+    expect(changesPin('write')).toBe(true)
+    expect(changesPin('read')).toBe(false)
+    expect(['LEVEL', 'TOGGLE', 'PWM_DUTY', 'MODE', 'RESET', 'INTR', 'VOLTAGE'].every((id) => io.commands.get(id)!.write !== undefined)).toBe(true)
+    expect(['LOCK', 'UNLOCK', 'LOCKED_LEVEL'].every((id) => pins.commands.get(id)!.write !== undefined)).toBe(true)
+    // the mirrors: the read takes the pin, the write the pin and the value
+    expect(['LEVEL', 'VOLTAGE'].every((id) => io.commands.get(id)!.read?.args?.fields.map((f) => f.id).join() === 'pin')).toBe(true)
+    expect(['AVAILABLE', 'LOCKED'].every((id) => pins.commands.get(id)!.write === undefined)).toBe(true)
   })
 
   it('offers a device its contracts and its own ops, not the device contract (the panel has it on top)', () => {
@@ -82,22 +86,31 @@ describe('the devices of the view', () => {
     expect(groups.map((g) => g.entry.id)).toEqual(['servo'])
   })
 
-  it('the lifecycle commands the panel shows elsewhere are not listed; with OPS only the commands the device answers are offered', () => {
+  it('the lifecycle commands the panel shows elsewhere are not listed; with OPS only the sides the device answers are offered', () => {
     const lifecycle = lifecycleOf(catalog)
     const pca = catalog.devices.get('pca9685')!
-    const ids = (groups: ReturnType<typeof commandGroups>) => groups.flatMap((g) => g.commands.map((c) => `${g.entry.id}.${c.id}`))
+    const ids = (groups: ReturnType<typeof commandGroups>) => groups.flatMap((g) => g.commands.map((c) => `${g.entry.id}.${c.command.id}.${c.side}`))
     expect(ids(commandGroups(catalog, pca)).filter((id) => id.startsWith(`${lifecycle.id}.`))).toEqual([])
+    // a mirror is offered as its read and its write
+    expect(ids(commandGroups(catalog, pca))).toEqual(expect.arrayContaining(['IO.LEVEL.read', 'IO.LEVEL.write']))
     const io = catalog.contracts.get('IO')!
-    const ops = new Set([deviceOp(catalog, lifecycle, lifecycle.commands.get(DEVICE_COMMANDS.info)!), deviceOp(catalog, io, io.commands.get('SET_PWM_DUTY')!)])
-    expect(ids(commandGroups(catalog, pca, { ops }))).toEqual(['IO.SET_PWM_DUTY'])
+    const ops = new Map([
+      [deviceOp(catalog, lifecycle, lifecycle.commands.get(DEVICE_COMMANDS.info)!), OPS_SIDE_BIT.read],
+      [deviceOp(catalog, io, io.commands.get('PWM_DUTY')!), OPS_SIDE_BIT.write],
+      [deviceOp(catalog, io, io.commands.get('LEVEL')!), OPS_SIDE_BIT.write], // the chip drives the level but cannot read it back
+    ])
+    expect(ids(commandGroups(catalog, pca, { ops }))).toEqual(['IO.LEVEL.write', 'IO.PWM_DUTY.write'])
+    expect(decodeOps([{ op: 0x0100, sides: 3 }])).toEqual(new Map([[0x0100, 3]]))
   })
 
-  it('a device frame reads back as the command it was, a CREATE as the type and its config', () => {
-    const set = requestFrame(deviceCall(defs, catalog, 3, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' }).request)
-    expect(readDeviceFrame(defs, catalog, set)).toMatchObject({ device: 3, entry: { id: 'IO' }, command: { id: 'SET_LEVEL' }, args: { pin: 22, level: 1 } })
-    const own = requestFrame(deviceCall(defs, catalog, 20, 'servo', 'set', { value_x10: -300 }).request)
+  it('a device frame reads back as the command it was and its side, a CREATE as the type and its config', () => {
+    const set = requestFrame(deviceCall(defs, catalog, 3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write').request)
+    expect(readDeviceFrame(defs, catalog, set)).toMatchObject({ device: 3, entry: { id: 'IO' }, command: { id: 'LEVEL' }, side: 'write', args: { pin: 22, level: 1 } })
+    const readFrame = requestFrame(deviceCall(defs, catalog, 3, 'IO', 'LEVEL', { pin: 22 }, 'read').request)
+    expect(readDeviceFrame(defs, catalog, readFrame)).toMatchObject({ side: 'read', args: { pin: 22 } })
+    const own = requestFrame(deviceCall(defs, catalog, 20, 'servo', 'target', { value_x10: -300 }).request)
     expect(readDeviceFrame(defs, catalog, own)).toBeUndefined() // whose own op it is needs the type
-    expect(readDeviceFrame(defs, catalog, own, () => catalog.devices.get('servo'))).toMatchObject({ command: { id: 'set' }, args: { value_x10: -300 } })
+    expect(readDeviceFrame(defs, catalog, own, () => catalog.devices.get('servo'))).toMatchObject({ command: { id: 'target' }, args: { value_x10: -300 } })
     const create = requestFrame(createDeviceCall(defs, catalog, 20, 'servo', project.devices[0]!.config).request)
     const read = readDeviceFrame(defs, catalog, create)
     expect(read?.create?.type.id).toBe('servo')
@@ -172,10 +185,10 @@ describe('the devices of the view', () => {
     expect(pinStartOf(steps, esp, 5)).toEqual({ mode: pullup, interrupt: interrupt(rising, true) })
     expect(pinStartOf(steps, esp, 6)).toEqual({})
     steps = withPinStart(steps, esp, 5, { mode: pullup, interrupt: interrupt(0, false) })
-    expect(steps.map((s) => s.kind === 'device' ? s.command : s.kind)).toEqual(['SET_MODE'])
+    expect(steps.map((s) => s.kind === 'device' ? s.command : s.kind)).toEqual(['MODE'])
     steps = withPinStart(steps, esp, 5, {})
     expect(steps).toEqual([])
-    // Each step encodes: the firmware takes every argument of CONFIGURE_INTR.
+    // Each step encodes: the firmware takes every argument of INTR.
     const full = withPinStart([], esp, 5, { mode: pullup, interrupt: interrupt(rising, true) })
     for (const step of full) expect(() => stepFrame(defs, catalog, step)).not.toThrow()
   })
@@ -216,16 +229,17 @@ describe('the pins a command is offered', () => {
 
   it('every IO command that takes a pin says in which state, from the descriptor', () => {
     const io = catalog.contracts.get('IO')!
-    const wants = (id: string) => io.commands.get(id)!.args!.fields.find((f) => f.id === 'pin')!.pinState
-    expect(wants('SET_LEVEL')).toEqual(['output'])
-    expect(wants('SET_PWM_DUTY')).toEqual(['pwm'])
-    expect(wants('SET_MODE')).toEqual(['unconfigured'])
+    const wants = (id: string, side: 'read' | 'write' = 'write') => io.commands.get(id)![side]!.args!.fields.find((f) => f.id === 'pin')!.pinState
+    expect(wants('LEVEL')).toEqual(['output'])
+    expect(wants('LEVEL', 'read')).toEqual(['input', 'output'])
+    expect(wants('PWM_DUTY')).toEqual(['pwm'])
+    expect(wants('MODE')).toEqual(['unconfigured'])
     expect(wants('RESET')).toEqual(['configured'])
   })
 
   it('a pin has no mode until something gives it one: the start commands, then what this session did live', () => {
     expect(pinStateOf(gpio, board, 4, true)).toEqual(['unconfigured'])
-    const started = withStart([io('SET_MODE', { pin: 4, mode: mode('SYS_IO_MODE_PWM') })])
+    const started = withStart([io('MODE', { pin: 4, mode: mode('SYS_IO_MODE_PWM') })])
     expect(pinStateOf(started, board, 4, true)).toEqual(['pwm'])
     expect(pinStateOf(started, board, 5, true)).toEqual(['unconfigured'])
     // a RESET after it clears it; a live change goes before the project's
@@ -244,7 +258,7 @@ describe('the pins a command is offered', () => {
     expect(pinReady(['unconfigured'], undefined)).toBe(true)
   })
 
-  it('a device whose pins have a mode after reset (default_mode) keeps SET_MODE open and its pins configured', () => {
+  it('a device whose pins have a mode after reset (default_mode) keeps the MODE write open and its pins configured', () => {
     const tca = deviceList(emptyProject('x'), catalog, board).find((d) => d.type?.id === 'tca6424a')!
     expect(pinStateOf(tca, board, 3, true)).toEqual(['input', 'unconfigured'])
     expect(pinReady(pinStateOf(tca, board, 3, true), ['configured'])).toBe(true)
@@ -253,7 +267,7 @@ describe('the pins a command is offered', () => {
     expect(pinStateOf(tca, board, 3, true, new Map([[`${tca.id}/3`, 'output']]))).toEqual(['output', 'unconfigured'])
   })
 
-  it('a device without SET_MODE has its pins fixed: the states its descriptor offers', () => {
+  it('a device without the MODE write has its pins fixed: the states its descriptor offers', () => {
     const dac = deviceList(emptyProject('x'), catalog, board).find((d) => d.type?.id === 'dac53202')
     if (dac) expect(pinStateOf(dac, board, 0, false)).toEqual(['dac'])
   })

@@ -4,7 +4,7 @@ import { bundledServiceCatalog, decodeEvent, encodeFields, EVENT_LAYOUT } from '
 import { defs } from './fakes'
 
 const catalog = bundledServiceCatalog()
-const layout = catalog.contracts.get(EVENT_LAYOUT.contract)!.commands.get(EVENT_LAYOUT.command)!.args!
+const layout = catalog.contracts.get(EVENT_LAYOUT.contract)!.commands.get(EVENT_LAYOUT.command)!.write!.args!
 const C = (path: string) => readFileSync(new URL(`../../../runit-esp/components/${path}`, import.meta.url), 'utf8')
 
 /** A frame of the events stream as sys_event.c sends it: [event key][NOTIFY][sys_event_t]. */

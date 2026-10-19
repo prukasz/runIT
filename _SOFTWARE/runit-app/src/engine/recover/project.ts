@@ -248,7 +248,8 @@ const recoverBlock = (
   if (isDevice) {
     device = readRaw(state, DEVICE_STATE.deviceId, 'u16')
     const op = readRaw(state, DEVICE_STATE.op, 'u16')
-    variant = type.variants.find((v) => v.operation?.value === op)
+    const dir = readRaw(state, DEVICE_STATE.dir, 'u8')
+    variant = type.variants.find((v) => v.operation?.value === op && v.operation?.dir === dir)
     if (!variant) {
       note('error', 'unknown-operation', `Block ${block.id} runs operation ${op}, which '${type.alias}' does not have.`, where)
       return undefined

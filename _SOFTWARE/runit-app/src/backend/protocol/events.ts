@@ -4,7 +4,7 @@ import type { LinkDefinitions } from '../definitions'
 
 /*
  * An event the board sends on the events stream (SYS_EVENT.MD "Publishing"): `[event key][NOTIFY][sys_event_t]`, the command
- * shape. The layout of `sys_event_t` is the EVENT contract's (`contract_event.json`: the arguments of ON_EVENT, which take the
+ * shape. The layout of `sys_event_t` is the EVENT contract's (`contract_event.json`: the arguments of the ON_EVENT write, which take the
  * same struct), the event's name and meaning its contract's `events` table (the ID is `[contract u8][n u8]`, like an op).
  * Only NOTIFY events come here: the ones that matter to the user (a fault, a device suspended).
  */
@@ -30,7 +30,7 @@ export interface BoardEvent {
 /** A frame of the events stream read; undefined when it is not a NOTIFY event or does not fit `sys_event_t`. */
 export const decodeEvent = (defs: LinkDefinitions, catalog: ServiceCatalog, data: Uint8Array): BoardEvent | undefined => {
   if (data.length < 2 || data[0] !== defs.keys.event || data[1] !== defs.eventNotify) return undefined
-  const layout = catalog.contracts.get(EVENT_LAYOUT.contract)?.commands.get(EVENT_LAYOUT.command)?.args
+  const layout = catalog.contracts.get(EVENT_LAYOUT.contract)?.commands.get(EVENT_LAYOUT.command)?.write?.args
   if (!layout) return undefined
   let f: Readonly<Record<string, unknown>>
   try {

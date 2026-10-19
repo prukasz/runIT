@@ -40,7 +40,7 @@ export interface BoardRun {
   readonly nextBlock?: number
 }
 
-/** The board's safe state as `SYS SAFE_GET` answers it: why it entered it (`sys_safe_reason_e`) and since when. */
+/** The board's safe state as `SYS SAFE` answers it: why it entered it (`sys_safe_reason_e`) and since when. */
 export interface SafeState {
   /** The reason's member name (`SYS_SAFE_POWER`). */
   readonly reason: string
@@ -66,7 +66,7 @@ const safeReasons = () => bundledEnums().sys_safe_reason_e?.members ?? []
  * board (or a firmware without STATUS) they are a simulation that sends nothing. The safe stop is always real: `SYS STOP`,
  * the board's safe state (the VM stopped, every device output switched off and suspended).
  *
- * It asks `SYS SAFE_GET` every second too: whether the board is in its safe state, why (STOP, the dead-man, a lost link, a power
+ * It asks `SYS SAFE` every second too: whether the board is in its safe state, why (STOP, the dead-man, a lost link, a power
  * fault) and since when. `leaveSafe` is the way out (`leaveSafeState`: the devices resumed, the program started again when one is
  * ready), `ackFault` clears a latched device fault (`EXEC ackFault`) that refuses every start.
  */
@@ -113,12 +113,12 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     }
     if (!safeSupported.current) return
     try {
-      const { value } = await services.call('SYS', 'SAFE_GET', undefined, { timeoutMs: 1500, label: 'SYS SAFE_GET (poll)' })
+      const { value } = await services.call('SYS', 'SAFE', undefined, { timeoutMs: 1500, label: 'SYS SAFE (poll)' })
       const answer = value as Record<string, unknown>
       const member = safeReasons().find((m) => m.value === Number(answer.reason) || m.name === answer.reason)
       setSafe(member ? { reason: member.name, alias: member.alias ?? member.name, ...(member.description ? { description: member.description } : {}), forMs: Number(answer.for_ms) } : undefined)
     } catch (failure) {
-      // A firmware without SAFE_GET refuses it: the app stops asking and shows no safe state.
+      // A firmware without SAFE refuses it: the app stops asking and shows no safe state.
       if (failure instanceof Error && /device-error|unknown/i.test(`${(failure as { code?: string }).code ?? ''} ${failure.message}`)) safeSupported.current = false
       setSafe(undefined)
     }
@@ -199,7 +199,7 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
 
   const exec = useCallback((command: ExecCommand) => {
     const frame = engine.exec(command)
-    return link.request({ keys: [services.catalog.service('VM').key!, frame.op], payload: frame.payload }, { label: `VM EXEC ${command}` })
+    return link.request({ keys: [services.catalog.service('VM').key!, services.catalog.dirs.write, frame.op], payload: frame.payload }, { label: `VM EXEC ${command}` })
   }, [engine, link, services])
 
   /** What is wrong with a program that will not compile, as one line for the bar. */
@@ -286,7 +286,7 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
   return {
     /** What the board answered last; undefined while unknown (not connected, or no STATUS). */
     board,
-    /** The board's safe state while it is in it (`SYS SAFE_GET`); undefined otherwise, or while unknown. */
+    /** The board's safe state while it is in it (`SYS SAFE`); undefined otherwise, or while unknown. */
     safe,
     leaveSafe,
     ackFault,

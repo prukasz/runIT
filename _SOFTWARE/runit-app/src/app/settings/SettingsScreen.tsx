@@ -43,7 +43,7 @@ function FormCard({ group, state, context }: { group: SettingGroup; state: Board
   const kept = group.recordId !== undefined
   const source = kept ? state.formSource(group) : state.formDiffers(group) ? 'project' : state.formSource(group)
   return (
-    <Card title={settingTitle(group.write)} help={group.write.description}
+    <Card title={settingTitle(group.command)} help={group.command.write?.description ?? group.command.description}
       actions={<span className="settings-actions"><SourceBar source={source} differs={state.formDiffers(group)} kept={kept} connected={state.connected} busy={state.busy !== undefined}
         onApply={() => state.applyForm(group)} onDrop={() => state.dropForm(group)} /></span>}>
       {source === 'none'
@@ -70,7 +70,7 @@ function TableCard({ table, state, nameOf }: { table: SettingTable; state: Board
   const set = (row: number, index: number, value: number) =>
     state.changeTable(table, rows.map((r, i) => (i === row ? { ...r, cells: r.cells.map((c, j) => (j === index ? value : c)) } : r)))
   return (
-    <Card title={settingTitle(table.write)} help={table.write.description}
+    <Card title={settingTitle(table.command)} help={table.command.write?.description ?? table.command.description}
       actions={<span className="settings-actions"><SourceBar source={state.tableSource(table)} differs={state.tableDiffers(table)} kept connected={state.connected} busy={state.busy !== undefined}
         onApply={() => state.applyTable(table)} onDrop={() => state.dropTable(table)} /></span>}>
       {rows.length === 0
@@ -111,8 +111,8 @@ function UuidField({ label, value, onChange }: { label: string; value: number; o
 function GattEditor({ section, state, context }: { section: SettingSection; state: BoardSettingsState; context: PinContext }) {
   const catalog = state.sectionCatalog
   const entry = catalog.service(GATT.service)
-  const svcFields = catalog.command(entry, GATT.createService).args!
-  const charLayout = catalog.command(entry, GATT.createChar).args!
+  const svcFields = catalog.command(entry, GATT.createService).write!.args!
+  const charLayout = catalog.command(entry, GATT.createChar).write!.args!
   const label = (layout: typeof svcFields, id: string) => layout.fields.find((f) => f.id === id)?.label ?? id
   const services = state.gattServices()
   const locked = (state.live.gatt ?? []).filter((s) => s.locked)
@@ -185,7 +185,7 @@ function GattEditor({ section, state, context }: { section: SettingSection; stat
 function StreamsEditor({ section, state, context }: { section: SettingSection; state: BoardSettingsState; context: PinContext }) {
   const catalog = state.sectionCatalog
   const entry = catalog.service(STREAMS.service)
-  const create = catalog.command(entry, STREAMS.create).args!
+  const create = catalog.command(entry, STREAMS.create).write!.args!
   const bind = catalog.command(entry, STREAMS.bind)
   const streams = state.streamsOf()
   const ids = bundledEnums().sys_connector_id_e?.members ?? []
@@ -231,7 +231,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
                     onChange={(on) => setStream(s.id, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
                 </FormRow>
                 {binding && t.value === bleTransport && (
-                  <FormRow label={bind.args?.fields.find((f) => f.id === 'endpoint')?.label ?? 'Endpoint'} note={bind.args?.fields.find((f) => f.id === 'endpoint')?.description}>
+                  <FormRow label={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.label ?? 'Endpoint'} note={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.description}>
                     <ChoiceField<number> aria-label={`${s.name}: characteristic`} value={binding.endpoint} choices={charChoices} unavailableLabel={(u) => hex(u)}
                       onChange={(endpoint) => endpoint !== undefined && setStream(s.id, (o) => ({ ...o, bindings: o.bindings.map((b) => (b.provider === t.value ? { ...b, endpoint } : b)) }))} />
                   </FormRow>

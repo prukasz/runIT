@@ -101,7 +101,7 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
     // The pins the board keeps for itself are not offered; a command that changes the pin is offered only the pins nobody else manages.
     const choices = Array.from({ length: pins.count }, (_, pin) => pin)
       .filter((pin) => !isReserved(context.board, own.id, pin) && (!context.changesPin || !users.some((u) => u.use.pin.pin === pin)))
-      // Only the pins in a state the command wants: it would be refused on any other (SET_LEVEL on a pin with no mode).
+      // Only the pins in a state the command wants: it would be refused on any other (a LEVEL write on a pin with no mode).
       .filter((pin) => !context.pinStates || pinReady(context.pinStates(pin), field.pinState))
       .map((pin): Choice<number> => {
         const hint = pinHint(own.type, pin)

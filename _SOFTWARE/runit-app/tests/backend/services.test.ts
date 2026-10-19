@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   bundledServiceCatalog, createDeviceCall, decodeAnswer, decodeFields, deviceCall, deviceFrame, encodeFields, PayloadError, PIN_REF_SIZE, rawWidth, requestFrame, RunitLink,
-  ServiceCatalog, serviceCall, Services,
+  ServiceCatalog, serviceCall, Services, sidesOf,
 } from '@backend'
 import type { FieldValues, Layout } from '@backend'
 import { generatedEnums } from '@engine/generated'
@@ -65,10 +65,12 @@ const packedStructs = (): Map<string, CStruct | undefined> => {
 const layouts = (): { where: string; layout: Layout }[] =>
   catalog.entries.flatMap((entry) => [
     ...(entry.config ? [{ where: `${entry.id} config`, layout: entry.config }] : []),
-    ...[...entry.commands.values()].flatMap((c) => [
-      ...(c.args ? [{ where: `${entry.id} ${c.id} args`, layout: c.args }] : []),
-      ...(c.returns?.kind === 'struct' ? [{ where: `${entry.id} ${c.id} returns`, layout: c.returns.layout }] : []),
-    ]),
+    ...[...entry.commands.values()].flatMap((c) =>
+      sidesOf(c).flatMap((s) => [
+        ...(c[s]!.args ? [{ where: `${entry.id} ${c.id} ${s} args`, layout: c[s]!.args! }] : []),
+        ...(c[s]!.returns?.kind === 'struct' ? [{ where: `${entry.id} ${c.id} ${s} returns`, layout: (c[s]!.returns as { layout: Layout }).layout }] : []),
+      ]),
+    ),
   ])
 
 /** A value for every field of a layout: its default, else its minimum or zero (bytes of its size, an empty string, a list for an array). */
@@ -117,8 +119,8 @@ describe('the catalog', () => {
   it('reports a descriptor that does not hold together, and keeps the rest', () => {
     const bad = new ServiceCatalog(
       [
-        { source: 'a.json', json: { id: 'A', router_key: 250, commands: [{ id: 'X', op: 1, args: { fields: [{ id: 'p', type: 'integer', raw_type: 'u16', offset: 0 }, { id: 'q', type: 'integer', raw_type: 'u8', offset: 1 }] } }, { id: 'Y', op: 1 }] } },
-        { source: 'b.json', json: { id: 'B', contract_id: 1, commands: [{ id: 'Z', op: 2 }] } },
+        { source: 'a.json', json: { id: 'A', router_key: 250, commands: [{ id: 'X', op: 1, write: { args: { fields: [{ id: 'p', type: 'integer', raw_type: 'u16', offset: 0 }, { id: 'q', type: 'integer', raw_type: 'u8', offset: 1 }] } } }, { id: 'Y', op: 1, read: {} }, { id: 'W', op: 3 }] } },
+        { source: 'b.json', json: { id: 'B', contract_id: 1, commands: [{ id: 'Z', op: 2, write: {} }] } },
         { source: 'c.json', json: { id: 'nothing' } },
       ],
       generatedEnums,
@@ -126,16 +128,48 @@ describe('the catalog', () => {
     expect(bad.problems.join('\n')).toMatch(/router key 250/)
     expect(bad.problems.join('\n')).toMatch(/q \(1\.\.1\) overlaps p \(0\.\.1\)/)
     expect(bad.problems.join('\n')).toMatch(/op 1 is both X and Y/)
+    expect(bad.problems.join('\n')).toMatch(/command W: neither a read nor a write/)
     expect(bad.problems.join('\n')).toMatch(/c\.json: neither/)
     expect(bad.contract('B').commands.has('Z')).toBe(true)
   })
 })
 
 describe('requests', () => {
-  it('a service command: [key][op][args], laid out by the descriptor', () => {
-    const call = serviceCall(catalog, 'SYS', 'DEADMAN_SET', { timeout_ms: 500, on_link_lost: true })
-    expect(call.request.keys).toEqual([defs.keys.sys, catalog.service('SYS').commands.get('DEADMAN_SET')!.op])
+  it('a service command: [key][dir][op][args], laid out by the descriptor', () => {
+    const call = serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, 'write')
+    expect(call.request.keys).toEqual([defs.keys.sys, defs.dir.write, catalog.service('SYS').commands.get('DEADMAN')!.op])
     expect(hex(call.request.payload!)).toBe('f401000001')
+    expect(defs.dir).toEqual({ read: 0, write: 1 }) // cmd_dir_e, cmd.h
+  })
+
+  it('a command with a read and a write is told which; one with a single side runs it', () => {
+    const read = serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read')
+    expect(read.request.keys).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('DEADMAN')!.op])
+    expect(read.request.payload!.length).toBe(0)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true })).toThrow(/say which one/)
+    expect(serviceCall(catalog, 'SYS', 'PING').request.keys[1]).toBe(defs.dir.read)
+    expect(serviceCall(catalog, 'SYS', 'STOP').request.keys[1]).toBe(defs.dir.write)
+    expect(() => serviceCall(catalog, 'SYS', 'PING', undefined, 'write')).toThrow(/no write side/)
+  })
+
+  it('a mirror: the read takes the key and answers what the write takes', () => {
+    const level = catalog.contract('IO').commands.get('LEVEL')!
+    expect(level.read!.args!.fields.map((f) => f.id)).toEqual(['pin'])
+    expect(level.read!.returns?.kind === 'struct' && level.read!.returns.layout.fields.map((f) => f.id)).toEqual(level.write!.args!.fields.map((f) => f.id))
+    const read = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22 }, 'read')
+    expect(hex(requestFrame(read.request))).toBe(hex(Uint8Array.of(defs.keys.device!, defs.dir.read, 1, 0, 0, 1, 22)))
+    expect(decodeAnswer(read, Uint8Array.of(22, 1))).toEqual({ pin: 22, level: 1 })
+  })
+
+  it('a side whose arguments are rows takes a list (the response matrix, one row per target)', () => {
+    const matrix = catalog.service('POWER_MANAGER').commands.get('MATRIX')!
+    const layout = matrix.write!.args!
+    expect(layout.array).toBe(true)
+    const row = { target: 0xffff, responses: Array.from({ length: layout.fields[1]!.size! }, () => 0) }
+    const call = serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', [row, { ...row, target: 5 }], 'write')
+    expect(call.request.payload!.length).toBe(2 * layout.fixed)
+    expect(hex(call.request.payload!.subarray(layout.fixed, layout.fixed + 2))).toBe('0500')
+    expect(() => serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', row, 'write')).toThrow(/takes rows/)
   })
 
   it('an urgent command carries the flag the descriptor gives it', () => {
@@ -145,20 +179,20 @@ describe('requests', () => {
     expect(serviceCall(catalog, 'SYS', 'PING').request.urgent).toBeUndefined()
   })
 
-  it('a device command is the frame the board ran (the project fixture): [device key][id][contract << 8 | op][args]', () => {
-    const call = deviceCall(defs, catalog, 1, 'IO', 'SET_LEVEL', { pin: 22, level: 'High' })
+  it('a device command is the frame the board ran (the project fixture): [device key][dir][id][contract << 8 | op][args]', () => {
+    const call = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write')
     expect(hex(requestFrame(call.request))).toBe(hex(deviceFrame(defs, 1, 0x0100, Uint8Array.of(22, 1))))
   })
 
   it("a device type's own command is in the own contract", () => {
-    const call = deviceCall(defs, catalog, 9, 'servo', 'set', { value_x10: -900 })
-    expect(hex(call.request.payload!)).toBe('0900' + hex(Uint8Array.of(catalog.device('servo').commands.get('set')!.op, catalog.ownContractId!)) + '7cfc')
+    const call = deviceCall(defs, catalog, 9, 'servo', 'target', { value_x10: -900 })
+    expect(hex(call.request.payload!)).toBe('0900' + hex(Uint8Array.of(catalog.device('servo').commands.get('target')!.op, catalog.ownContractId!)) + '7cfc')
   })
 
-  it('CREATE is [type u16][config] (SYS_DEVICE.MD: pca9685 under ID 3)', () => {
+  it('CREATE is a write of [type u16][config] (SYS_DEVICE.MD: pca9685 under ID 3)', () => {
     const pca = catalog.device('pca9685')
     const call = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!))
-    expect(call.request.keys).toEqual([defs.keys.device])
+    expect(call.request.keys).toEqual([defs.keys.device, defs.dir.write])
     expect(hex(call.request.payload!).slice(0, 12)).toBe('030000004100')
     expect(call.request.payload!.length).toBe(6 + pca.config!.fixed)
   })
@@ -198,23 +232,23 @@ describe('requests', () => {
 
   it('every command of every descriptor encodes from its defaults and zeros', () => {
     for (const entry of catalog.entries) {
-      for (const c of entry.commands.values()) if (c.args) expect(() => encodeFields(c.args!, zeros(c.args!)), `${entry.id} ${c.id}`).not.toThrow()
+      for (const c of entry.commands.values()) for (const s of sidesOf(c)) if (c[s]!.args) expect(() => encodeFields(c[s]!.args!, zeros(c[s]!.args!)), `${entry.id} ${c.id} ${s}`).not.toThrow()
       if (entry.config) expect(() => encodeFields(entry.config!, zeros(entry.config!)), `${entry.id} config`).not.toThrow()
     }
   })
 
   it('an enum field takes a member name, a choice field its label; a string ends in one NUL', () => {
-    const mode = deviceCall(defs, catalog, 0, 'IO', 'SET_MODE', { pin: 4, mode: generatedEnums.sys_io_mode_e!.members[1]!.name })
+    const mode = deviceCall(defs, catalog, 0, 'IO', 'MODE', { pin: 4, mode: generatedEnums.sys_io_mode_e!.members[1]!.name })
     expect(mode.request.payload![5]).toBe(generatedEnums.sys_io_mode_e!.members[1]!.value)
     const create = serviceCall(catalog, 'CONNECTOR', 'CREATE', { id: 4, stream: 0x20, name: 'app' })
     expect(hex(create.request.payload!)).toBe('0420' + '61707000')
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN_SET', { timeout_ms: 1 })).toThrow(/on_link_lost is missing/)
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN_SET', { timeout_ms: 1, on_link_lost: 0, extra: 1 })).toThrow(/No field extra/)
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN_SET', { timeout_ms: -1, on_link_lost: 0 })).toThrow(PayloadError)
-    expect(() => deviceCall(defs, catalog, 0, 'IO', 'SET_LEVEL', { pin: 1, level: 'Middle' })).toThrow(/'Middle' is not a value of level/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1 }, 'write')).toThrow(/on_link_lost is missing/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1, on_link_lost: 0, extra: 1 }, 'write')).toThrow(/No field extra/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: -1, on_link_lost: 0 }, 'write')).toThrow(PayloadError)
+    expect(() => deviceCall(defs, catalog, 0, 'IO', 'LEVEL', { pin: 1, level: 'Middle' }, 'write')).toThrow(/'Middle' is not a value of level/)
     expect(() => serviceCall(catalog, 'SYS', 'PING', { x: 1 })).toThrow(/takes no arguments/)
     expect(() => serviceCall(catalog, 'NOPE', 'PING')).toThrow(/No service NOPE/)
   })
@@ -223,7 +257,8 @@ describe('requests', () => {
 describe('answers', () => {
   it('a struct by field id, booleans as booleans', () => {
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'PING'), Uint8Array.of(0xd2, 0x04, 0, 0))).toEqual({ uptime_ms: 1234 })
-    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN_GET'), Uint8Array.of(0xf4, 1, 0, 0, 1))).toEqual({ timeout_ms: 500, on_link_lost: true })
+    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read'), Uint8Array.of(0xf4, 1, 0, 0, 1))).toEqual({ timeout_ms: 500, on_link_lost: true })
+    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, 'write'), new Uint8Array())).toBeUndefined() // a write answers no data
   })
 
   it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 26 bytes)', () => {
@@ -235,17 +270,23 @@ describe('answers', () => {
   })
 
   it('an array field (u32 of 16 bytes) is a list both ways', () => {
-    const set = deviceCall(defs, catalog, 2, 'DEVICE', 'SET_ERROR_POLICY', { importance: 3, actions: [10, 0, 0, 0x01000001] })
+    const set = deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', { importance: 3, actions: [10, 0, 0, 0x01000001] }, 'write')
     expect(hex(set.request.payload!.subarray(4))).toBe('03' + '0a000000' + '00000000' + '00000000' + '01000001')
-    expect(decodeAnswer(deviceCall(defs, catalog, 2, 'DEVICE', 'GET_ERROR_POLICY'), set.request.payload!.subarray(4))).toEqual({ importance: 3, actions: [10, 0, 0, 0x01000001] })
-    expect(() => deviceCall(defs, catalog, 2, 'DEVICE', 'SET_ERROR_POLICY', { importance: 3, actions: [1] })).toThrow(/takes 4 values/)
+    expect(decodeAnswer(deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', undefined, 'read'), set.request.payload!.subarray(4))).toEqual({ importance: 3, actions: [10, 0, 0, 0x01000001] })
+    expect(() => deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', { importance: 3, actions: [1] }, 'write')).toThrow(/takes 4 values/)
   })
 
   it('a list of values and a list of structs', () => {
-    expect(decodeAnswer(deviceCall(defs, catalog, 0, 'DEVICE', 'OPS'), Uint8Array.of(2, 0, 3, 0, 0, 1))).toEqual([2, 3, 0x100])
+    // OPS: [op u16][sides u8] per op (sys_device.c), bit 0 a read side, bit 1 a write side
+    expect(decodeAnswer(deviceCall(defs, catalog, 0, 'DEVICE', 'OPS'), Uint8Array.of(2, 0, 2, 7, 0, 3, 0, 1, 1))).toEqual([
+      { op: 2, sides: 2 },
+      { op: 7, sides: 3 },
+      { op: 0x100, sides: 1 },
+    ])
     const info = catalog.service('I2C').commands.get('INFO')!
-    if (info.returns?.kind !== 'struct') throw new Error('I2C INFO is a struct list')
-    const one = info.returns.layout.fixed
+    const returns = info.read?.returns
+    if (returns?.kind !== 'struct') throw new Error('I2C INFO is a struct list')
+    const one = returns.layout.fixed
     const decoded = decodeAnswer(serviceCall(catalog, 'I2C', 'INFO'), new Uint8Array(one * 2)) as unknown[]
     expect(decoded).toHaveLength(2)
     expect(() => decodeAnswer(serviceCall(catalog, 'I2C', 'INFO'), new Uint8Array(one + 1))).toThrow(/whole elements/)
@@ -266,7 +307,7 @@ describe('over the link', () => {
     const services = new Services(link)
     const out = await services.call('SYS', 'PING')
     expect(out.value).toEqual({ uptime_ms: 10_000 })
-    expect([...board.requests[0]!.subarray(2)]).toEqual([defs.keys.sys, catalog.service('SYS').commands.get('PING')!.op])
+    expect([...board.requests[0]!.subarray(2)]).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('PING')!.op])
     await services.call('SYS', 'STOP')
     await until(() => board.requests.length === 2)
     expect(board.requests[1]![1]).toBe(defs.flags.urgent)

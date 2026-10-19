@@ -83,10 +83,10 @@ export const gattFromRecord = (catalog: ServiceCatalog, frames: readonly Uint8Ar
   const chr = catalog.command(entry, GATT.createChar)
   const services: GattService[] = []
   for (const frame of frames) {
-    if (frame[0] !== entry.key) continue
-    const args = (command: typeof svc) => decodeFields(command.args!, frame.subarray(2)) as Readonly<Record<string, unknown>>
-    if (frame[1] === svc.op) services.push({ uuid: Number(args(svc).uuid), primary: Boolean(args(svc).is_primary), characteristics: [] })
-    else if (frame[1] === chr.op) {
+    if (frame[0] !== entry.key || frame[1] !== catalog.dirs.write) continue // [key][dir][op][args]
+    const args = (command: typeof svc) => decodeFields(command.write!.args!, frame.subarray(3)) as Readonly<Record<string, unknown>>
+    if (frame[2] === svc.op) services.push({ uuid: Number(args(svc).uuid), primary: Boolean(args(svc).is_primary), characteristics: [] })
+    else if (frame[2] === chr.op) {
       const a = args(chr)
       const at = services.findIndex((s) => s.uuid === Number(a.svc_uuid))
       if (at < 0) continue

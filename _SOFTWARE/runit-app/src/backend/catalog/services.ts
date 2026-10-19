@@ -8,10 +8,14 @@ import type { Choice, Layout, PinRef, RawType, WireField } from './codec'
  * device types (`generated/devices`). No service, contract, command or field is named in this code; a new descriptor is a new
  * entry with nothing to edit here. The descriptor's kind decides only how it is addressed:
  *
- *   service    a descriptor with a `router_key`: its commands are `[router key][op][args]`
+ *   service    a descriptor with a `router_key`: its commands are `[router key][dir][op][args]`
  *   contract   a descriptor with a `contract_id` and no router key: ops a device answers, `(contract id << 8) | op` (SYS_DEVICE.MD)
  *   device     a device type (`type_id`): the contracts it implements, its own ops (contract `SYS_DEVICE_CONTRACT_OWN`) and the
  *              config struct its CREATE carries
+ *
+ * A command has a read side, a write side or both (`cmd_dir_e`, the byte after the root key of every request): each side has its
+ * own arguments and answer. With both, the read answers what the write takes (the mirror, CMD.MD) and its arguments are the key
+ * (a pin, a channel; none for a module's setting).
  *
  * A descriptor that does not hold together (fields that overlap, a router key or a contract id the firmware does not publish,
  * an op twice) is reported in `problems`, not thrown: the rest of the catalog stays usable.
@@ -23,6 +27,17 @@ export type Returns =
   | { readonly kind: 'struct'; readonly layout: Layout; readonly array: boolean; readonly label?: string; readonly description?: string }
   | { readonly kind: 'value'; readonly rawType: RawType; readonly boolean: boolean; readonly array: boolean; readonly unit?: string; readonly label?: string; readonly description?: string; readonly choices?: readonly Choice[] }
 
+/** A side of a command (`cmd_dir_e`): `read` asks for a value and changes nothing, `write` sets one or runs an action. */
+export type Side = 'read' | 'write'
+export const SIDES: readonly Side[] = ['read', 'write']
+
+/** What one side of a command takes and answers. A write answers nothing unless it says so. */
+export interface CommandSide {
+  readonly description?: string
+  readonly args?: Layout
+  readonly returns?: Returns
+}
+
 export interface CommandDef {
   readonly id: string
   readonly op: number
@@ -30,14 +45,32 @@ export interface CommandDef {
   readonly description?: string
   readonly urgent: boolean
   readonly pinScoped: boolean
-  /** It changes the pin, channel or device it is given (a write, not a read): `invasive` in the descriptor. */
-  readonly invasive: boolean
-  /** A board setting: the command of the same entry that reads it back (`read_by` in the descriptor). */
-  readonly readBy?: string
-  /** The settings record its frame is kept in (`record`: a member of `settings_record` in enums.json), as its u32 ID. */
+  /** The descriptor's `tags`: `app` = the app sets it itself (the clock), it is no setting for the user. */
+  readonly tags: readonly string[]
+  /** The settings record the frame of its write is kept in (`record`: a member of `settings_record` in enums.json), as its u32 ID. */
   readonly recordId?: number
-  readonly args?: Layout
-  readonly returns?: Returns
+  readonly read?: CommandSide
+  readonly write?: CommandSide
+}
+
+/** The sides a command has, read first. */
+export const sidesOf = (command: CommandDef): Side[] => SIDES.filter((s) => command[s] !== undefined)
+
+/** A command with both sides: its read answers what its write takes. */
+export const isMirror = (command: CommandDef): boolean => command.read !== undefined && command.write !== undefined
+
+/**
+ * The side of `command` a request runs: `side` when given (the command must have it), else its only one. A command with both
+ * sides needs `side`.
+ */
+export const sideOf = (command: CommandDef, side?: Side): Side => {
+  if (side) {
+    if (!command[side]) throw new Error(`${command.id} has no ${side} side.`)
+    return side
+  }
+  const sides = sidesOf(command)
+  if (sides.length !== 1) throw new Error(`${command.id} has a read and a write: say which one.`)
+  return sides[0]!
 }
 
 export interface EventDef {
@@ -53,9 +86,9 @@ export interface DevicePins {
   readonly count: number
   readonly labels?: readonly string[]
   readonly modes: readonly string[]
-  /** The mode its pins are in after a reset, with no SET_MODE (`default_mode`); none: a pin has no mode until SET_MODE gives it one. */
+  /** The mode its pins are in after a reset, with no MODE write (`default_mode`); none: a pin has no mode until a MODE write gives it one. */
   readonly defaultMode?: string
-  /** Its pins have their modes for good: the device has no SET_MODE (`fixed_modes`: the PCA9685's channels are PWM / output). */
+  /** Its pins have their modes for good: the device has no MODE write (`fixed_modes`: the PCA9685's channels are PWM / output). */
   readonly fixedModes?: boolean
 }
 
@@ -128,6 +161,8 @@ export class ServiceCatalog {
   readonly pinNone: PinRef | undefined
   /** The device ID that addresses every device (`SYS_DEVICE_ID_NONE`): SUSPEND, RESUME and RESET sent to it are sweeps (SYS_DEVICE.MD). */
   readonly allDevices: number | undefined
+  /** The direction byte of each side (`cmd_dir_e`: `CMD_DIR_READ`, `CMD_DIR_WRITE`). */
+  readonly dirs: Readonly<Record<Side, number>>
 
   constructor(
     files: readonly DescriptorFile[],
@@ -143,6 +178,10 @@ export class ServiceCatalog {
     if (!this.pinNone) this.problems.push("generated/common/enums.json: group 'io_pin_none' has no SYS_IO_PIN_NONE_DEVICE / _INDEX: an unused pin cannot be sent.")
     this.allDevices = enums.device_id?.members.find((m) => m.name === 'SYS_DEVICE_ID_NONE')?.value
     if (this.allDevices === undefined) this.problems.push("generated/common/enums.json: group 'device_id' has no SYS_DEVICE_ID_NONE: no sweep over every device can be addressed.")
+    const dir = (name: string) => enums.cmd_dir_e?.members.find((m) => m.name === name)?.value
+    const [read, write] = [dir('CMD_DIR_READ'), dir('CMD_DIR_WRITE')]
+    if (read === undefined || write === undefined) this.problems.push("generated/common/enums.json: group 'cmd_dir_e' has no CMD_DIR_READ / CMD_DIR_WRITE: no request can say its side.")
+    this.dirs = { read: read ?? 0, write: write ?? 1 }
     for (const file of files) this.add(file)
     for (const device of this.devices.values()) {
       for (const contract of device.contracts) if (!this.contracts.has(contract)) this.problems.push(`${device.source}: contract ${contract} is not described.`)
@@ -170,6 +209,11 @@ export class ServiceCatalog {
     const entry = typeof id === 'number' ? this.byTypeId.get(id) : this.devices.get(id)
     if (!entry) throw new Error(`No device type ${id} (${[...this.devices.keys()].join(', ')}).`)
     return entry
+  }
+
+  /** The side whose direction byte is `dir`; undefined for a byte that is neither. */
+  sideOfDir(dir: number): Side | undefined {
+    return SIDES.find((s) => this.dirs[s] === dir)
   }
 
   command(entry: CatalogEntry, id: string): CommandDef {
@@ -265,10 +309,8 @@ export class ServiceCatalog {
     const op = num(json?.op)
     if (!json || !id) return void problem('a command without an id.')
     if (op === undefined || !Number.isInteger(op) || op < 0 || op > 0xff) return void problem(`command ${id}: op ${String(json.op)} is not a byte.`)
-    const where = `command ${id}`
-    const argsJson = Array.isArray(json.args) ? { fields: json.args } : obj(json.args)
-    const args = argsJson ? this.layout(argsJson, `${where} args`, problem) : undefined
-    const returns = obj(json.returns) ? this.returns(obj(json.returns)!, `${where} returns`, problem) : undefined
+    const sides = Object.fromEntries(SIDES.flatMap((s) => (obj(json[s]) ? [[s, this.side(obj(json[s])!, `command ${id} ${s}`, problem)]] : []))) as Partial<Record<Side, CommandSide>>
+    if (!sides.read && !sides.write) return void problem(`command ${id}: neither a read nor a write side.`)
     const recordId = this.recordOf(json.record, problem)
     return {
       id,
@@ -277,12 +319,17 @@ export class ServiceCatalog {
       ...(str(json.description) ? { description: str(json.description) } : {}),
       urgent: json.urgent === true,
       pinScoped: json.pin_scoped === true,
-      invasive: json.invasive === true,
-      ...(str(json.read_by) ? { readBy: str(json.read_by) } : {}),
+      tags: arr(json.tags).filter((t): t is string => typeof t === 'string'),
       ...(recordId !== undefined ? { recordId } : {}),
-      ...(args ? { args } : {}),
-      ...(returns ? { returns } : {}),
+      ...sides,
     }
+  }
+
+  private side(json: Json, where: string, problem: (text: string) => void): CommandSide {
+    const argsJson = Array.isArray(json.args) ? { fields: json.args } : obj(json.args)
+    const args = argsJson ? this.layout(argsJson, `${where} args`, problem) : undefined
+    const returns = obj(json.returns) ? this.returns(obj(json.returns)!, `${where} returns`, problem) : undefined
+    return { ...(str(json.description) ? { description: str(json.description) } : {}), ...(args ? { args } : {}), ...(returns ? { returns } : {}) }
   }
 
   private returns(json: Json, where: string, problem: (text: string) => void): Returns | undefined {
@@ -394,6 +441,7 @@ export class ServiceCatalog {
       }
     }
     if (declared !== undefined && !variable && declared !== fixed) problem(`${where}: the fields take ${fixed} bytes, the struct is ${declared}.`)
-    return { ...(str(json.struct) ? { struct: str(json.struct) } : {}), fields, fixed: declared !== undefined && !variable ? Math.max(declared, fixed) : fixed, variable }
+    if (json.array === true && variable) problem(`${where}: rows of a struct that ends in a field of any length.`)
+    return { ...(str(json.struct) ? { struct: str(json.struct) } : {}), fields, fixed: declared !== undefined && !variable ? Math.max(declared, fixed) : fixed, variable, ...(json.array === true ? { array: true } : {}) }
   }
 }

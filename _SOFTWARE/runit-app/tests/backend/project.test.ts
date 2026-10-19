@@ -68,8 +68,8 @@ describe('the stream', () => {
   it('the program is section 0, last; a section cannot be 0', () => {
     expect(() => projectStream(defs, { sections: [{ id: 0, frames: [Uint8Array.of(1)] }] })).toThrow(/program/)
     const frames = parseImage(projectStream(defs, content()))!
-    const sections = frames.filter((f) => f[0] === defs.keys.project && f[1] === defs.ops.project.SECTION)
-    expect(sections.map((f) => (f[2]! | (f[3]! << 8) | (f[4]! << 16) | (f[5]! << 24)) >>> 0)).toEqual([0x02000001, 10, 0])
+    const sections = frames.filter((f) => f[0] === defs.keys.project && f[1] === defs.dir.write && f[2] === defs.ops.project.SECTION)
+    expect(sections.map((f) => (f[3]! | (f[4]! << 8) | (f[5]! << 16) | (f[6]! << 24)) >>> 0)).toEqual([0x02000001, 10, 0])
     expect(frames.at(-1)![0]).toBe(defs.keys.vm) // the last frame is the program's
   })
 })
@@ -85,22 +85,24 @@ describe('saving', () => {
     const stream = projectStream(defs, content())
     expect(result).toEqual({ bytes: stream.length, crc: crc32(stream) })
 
-    const ops = board.requests.map((f) => f[3])
+    // [seq][flags][key][dir][op][args]: every command of a save is a write
+    expect(board.requests.every((f) => f[3] === defs.dir.write)).toBe(true)
+    const ops = board.requests.map((f) => f[4])
     const { BEGIN, WRITE, COMMIT } = defs.ops.project
     expect(ops[0]).toBe(BEGIN)
     expect(ops.at(-1)).toBe(COMMIT)
     const begin = board.requests[0]!
-    expect([...begin.subarray(4, 8)]).toEqual([...new Uint8Array(new Uint32Array([stream.length]).buffer)])
-    expect(begin[8]).toBe(1) // autostart, no run
-    const writes = board.requests.filter((f) => f[3] === WRITE)
+    expect([...begin.subarray(5, 9)]).toEqual([...new Uint8Array(new Uint32Array([stream.length]).buffer)])
+    expect(begin[9]).toBe(1) // autostart, no run
+    const writes = board.requests.filter((f) => f[4] === WRITE)
     const joined = new Uint8Array(stream.length)
     for (const w of writes) {
-      const offset = new DataView(w.buffer, w.byteOffset).getUint32(4, true)
-      joined.set(w.subarray(8), offset)
+      const offset = new DataView(w.buffer, w.byteOffset).getUint32(5, true)
+      joined.set(w.subarray(9), offset)
     }
     expect(joined).toEqual(stream)
     expect(writes.every((w) => w.length <= defs.frameMax)).toBe(true)
-    expect(new DataView(board.requests.at(-1)!.buffer, board.requests.at(-1)!.byteOffset).getUint32(4, true)).toBe(crc32(stream))
+    expect(new DataView(board.requests.at(-1)!.buffer, board.requests.at(-1)!.byteOffset).getUint32(5, true)).toBe(crc32(stream))
     expect(progress.at(-1)).toBe(writes.length)
     await link.close()
   })
@@ -113,9 +115,9 @@ describe('saving', () => {
     const frames = [deviceFrame(defs, 1, IO_SET, Uint8Array.of(22, 0)), deviceFrame(defs, 1, IO_SET, Uint8Array.of(23, 0))]
     await storeRecord(link, 10, frames)
     const [begin, write, commit] = board.requests
-    expect(hex(begin!.subarray(4))).toBe('0a000000' + '1200')
-    expect(hex(write!.subarray(4))).toBe('0000' + hex(frameImage(frames)))
-    expect(hex(commit!.subarray(4))).toBe(hex(new Uint8Array(new Uint32Array([crc32(frameImage(frames))]).buffer)))
+    expect(hex(begin!.subarray(5))).toBe('0a000000' + '1400')
+    expect(hex(write!.subarray(5))).toBe('0000' + hex(frameImage(frames)))
+    expect(hex(commit!.subarray(5))).toBe(hex(new Uint8Array(new Uint32Array([crc32(frameImage(frames))]).buffer)))
     await link.close()
   })
 })
@@ -126,8 +128,10 @@ const store = (board: FakeBoard) => {
   const info = fixture.info
   const u32 = (n: number) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff]
   board.respond = (frame, send) => {
-    const [seq, , key, op] = frame
-    const id = frame.length >= 8 ? (frame[4]! | (frame[5]! << 8) | (frame[6]! << 16) | (frame[7]! << 24)) >>> 0 : 0
+    const [seq, , key, dir, op] = frame
+    const id = frame.length >= 9 ? (frame[5]! | (frame[6]! << 8) | (frame[7]! << 16) | (frame[8]! << 24)) >>> 0 : 0
+    const read = dir === defs.dir.read
+    if (!read && (op === defs.ops.project.INFO || op === defs.ops.actions.INFO || op === defs.ops.actions.READ || op === defs.ops.actions.LIST)) return send(answer(seq!, [], false))
     if (key === defs.keys.project && op === defs.ops.project.INFO) return send(answer(seq!, [info.stored ? 1 : 0, info.autostart ? 1 : 0, info.bank, ...u32(info.crc), ...u32(info.bytes)]))
     if (key === defs.keys.actions && op === defs.ops.actions.INFO) {
       const frames = records.get(id)

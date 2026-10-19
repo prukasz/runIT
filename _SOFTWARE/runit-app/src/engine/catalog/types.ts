@@ -109,8 +109,10 @@ export interface Operation {
   readonly source: 'contract' | 'device'
   /** The contract or device type id. */
   readonly of: string
-  /** The command's id (`SET_LEVEL`, `get_fault`). */
+  /** The command's id (`LEVEL`, `fault`). */
   readonly command: string
+  /** The side of the command the block runs (`cmd_dir_e`): a read fills the outputs, a write drives the device. */
+  readonly dir: number
   /**
    * What the block's state holds in `op`: the u16 `SYS_DEVICE_OP(contract, n)` = `(contract_id << 8) | n` of a contract command, or
    * `SYS_DEVICE_OWN_OP(n)` = `0xFF00 | n` of a device's own command (sys_device.h). Not the command's bare `op` of the descriptor.

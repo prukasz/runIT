@@ -13,10 +13,11 @@ import type { LogLevel } from '@ui/components'
  *   logs     the logs stream: one ESP_LOG line per frame (`I (854) tag: text`), cut to its level, its tag and its text.
  *   app      the link coming up and going down, so a gap in the lines has its reason.
  *
- * Time: when the link comes up the app gives the board the time (`SYS TIME_SET`), reads its clock back (`TIME_GET`: the clock and the
- * uptime of one moment) and reads the errors the board kept (`LOG ERRORS`, the latest ones, also those from before the link was up: an
- * error of the start). An error is dated by the board's clock in its record, a log line by its uptime (`I (854) tag`) and the board's
- * clock minus its uptime; so each shows when it happened on the board, in UTC, not when it reached the app.
+ * Time: when the link comes up the app gives the board the time (the `SYS TIME` write), reads its clock back (the TIME read; 0 = not
+ * set) and its uptime (`SYS PING`, the next answer: the app's time between the two answers is added to the clock) and reads the
+ * errors the board kept (`LOG ERRORS`, the latest ones, also those from before the link was up: an error of the start). An error is
+ * dated by the board's clock in its record, a log line by its uptime (`I (854) tag`) and the board's clock minus its uptime; so each
+ * shows when it happened on the board, in UTC, not when it reached the app.
  */
 
 export interface ConsoleLine {
@@ -73,12 +74,15 @@ export function useConsole(link: RunitLink, state: LinkState, interpreter: Error
     const services = new Services(link)
     void (async () => {
       try {
-        await services.call('SYS', 'TIME_SET', { unix_ms: Date.now() }, { timeoutMs: 1500, label: 'SYS TIME_SET' })
-        const { value } = await services.call('SYS', 'TIME_GET', undefined, { timeoutMs: 1500, label: 'SYS TIME_GET' })
-        const clock = value as { unix_ms: number; uptime_ms: number }
-        if (!alive || Number(clock.unix_ms) < CLOCK_SET_AFTER_MS) return
-        offset.current = Number(clock.unix_ms) - Number(clock.uptime_ms)
-        log.setClock(Number(clock.unix_ms), Number(clock.uptime_ms))
+        await services.call('SYS', 'TIME', { unix_ms: Date.now() }, { timeoutMs: 1500, label: 'SYS TIME write', side: 'write' })
+        const { value: time } = await services.call('SYS', 'TIME', undefined, { timeoutMs: 1500, label: 'SYS TIME read', side: 'read' })
+        const timeAt = Date.now()
+        const { value: ping } = await services.call('SYS', 'PING', undefined, { timeoutMs: 1500, label: 'SYS PING (clock)' })
+        const unixMs = Number((time as { unix_ms: number | bigint }).unix_ms) + (Date.now() - timeAt)
+        const uptimeMs = Number((ping as { uptime_ms: number }).uptime_ms)
+        if (!alive || unixMs < CLOCK_SET_AFTER_MS) return
+        offset.current = unixMs - uptimeMs
+        log.setClock(unixMs, uptimeMs)
         // the lines that came before the clock was known are dated now
         setLines((all) => all.map((l) => (l.uptimeMs === undefined ? l : { ...l, at: l.uptimeMs + offset.current! })))
       } catch { /* a firmware without the clock */ }

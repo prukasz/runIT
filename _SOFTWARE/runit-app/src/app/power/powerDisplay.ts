@@ -3,11 +3,11 @@ import type { DeviceInfo } from '../devices/devices'
 
 /*
  * The Live power display, pure: what it reads (the project's `powerDisplay`, else the board's default), the commands a reading can
- * use, a reading's unit and how a value is shown. A reading is a name and a command that answers a value: a service's
- * (`POWER_MANAGER GET_STATUS`) or a device's (`POWER_MONITOR GET_VOLTAGE` on a channel), and the field of a struct answer.
+ * use, a reading's unit and how a value is shown. A reading is a name and the read of a command that answers a value: a service's
+ * (`POWER_MANAGER STATUS`) or a device's (`POWER_MONITOR VOLTAGE` on a channel), and the field of a struct answer.
  */
 
-/** What a reading sends: a command of a service, or of a device (one of its contracts', or its type's own). */
+/** What a reading sends (the command's read): a command of a service, or of a device (one of its contracts', or its type's own). */
 export type PowerRead =
   | { readonly kind: 'service'; readonly service: string; readonly command: string }
   | { readonly kind: 'device'; readonly device: number; readonly contract: string; readonly command: string }
@@ -22,7 +22,7 @@ export interface PowerReading {
   readonly main?: boolean
 }
 
-const STATUS = { kind: 'service', service: 'POWER_MANAGER', command: 'GET_STATUS' } as const
+const STATUS = { kind: 'service', service: 'POWER_MANAGER', command: 'STATUS' } as const
 const monitor = (device: number, command: string) => ({ kind: 'device', device, contract: 'POWER_MONITOR', command }) as const
 
 /** The board's own display: the input's source, voltage and power in short, each regulator rail's voltage and current with More (board.json's `power`). */
@@ -31,11 +31,11 @@ export const defaultReadings = (board: BoardDescriptor): PowerReading[] => {
   return [
     { name: 'Input', read: STATUS, field: 'source', main: true },
     { name: 'Input', read: STATUS, field: 'input_mV', main: true },
-    ...(input ? [{ name: 'Input', read: monitor(input.device, 'GET_POWER'), args: { channel: input.channel }, main: true }] : []),
+    ...(input ? [{ name: 'Input', read: monitor(input.device, 'POWER'), args: { channel: input.channel }, main: true }] : []),
     ...board.power.rails.flatMap((rail): PowerReading[] => rail.monitor
       ? [
-        { name: rail.name, read: monitor(rail.monitor.device, 'GET_VOLTAGE'), args: { channel: rail.monitor.channel } },
-        { name: rail.name, read: monitor(rail.monitor.device, 'GET_CURRENT'), args: { channel: rail.monitor.channel } },
+        { name: rail.name, read: monitor(rail.monitor.device, 'VOLTAGE'), args: { channel: rail.monitor.channel } },
+        { name: rail.name, read: monitor(rail.monitor.device, 'CURRENT'), args: { channel: rail.monitor.channel } },
       ]
       : []),
   ]
@@ -49,8 +49,8 @@ export const commandOf = (catalog: ServiceCatalog, devices: readonly DeviceInfo[
   return owner?.commands.get(read.command)
 }
 
-/** A command that only reads and answers something: one a display can send every second. */
-const readable = (command: CommandDef): boolean => !command.invasive && command.returns !== undefined
+/** A command whose read answers something: a display can send it every second. */
+const readable = (command: CommandDef): boolean => command.read?.returns !== undefined
 
 /** The descriptors' category of what is about power (`"category": "power"`: the power manager, the power contracts). */
 const POWER = 'power'
@@ -77,12 +77,18 @@ export const readCommands = (catalog: ServiceCatalog, devices: readonly DeviceIn
 
 export const readKey = (read: PowerRead): string => (read.kind === 'service' ? `service:${read.service}:${read.command}` : `device:${read.device}:${read.contract}:${read.command}`)
 
-/** The fields of a struct answer; none for a one-value answer. */
-export const answerFields = (command: CommandDef | undefined): readonly WireField[] => (command?.returns?.kind === 'struct' ? command.returns.layout.fields : [])
+/** The arguments of a reading: the key its read takes (a channel). */
+export const readArgs = (command: CommandDef | undefined): readonly WireField[] => command?.read?.args?.fields ?? []
+
+/** The fields of a struct answer of the read; none for a one-value answer. */
+export const answerFields = (command: CommandDef | undefined): readonly WireField[] => {
+  const returns = command?.read?.returns
+  return returns?.kind === 'struct' ? returns.layout.fields : []
+}
 
 /** What a reading's value is: its field (struct answer) or the answer's own unit, label and choices. */
 export const valueSpec = (command: CommandDef | undefined, field: string | undefined): { readonly unit?: string; readonly label?: string; readonly field?: WireField } => {
-  const returns = command?.returns
+  const returns = command?.read?.returns
   if (!returns) return {}
   if (returns.kind === 'struct') {
     const f = returns.layout.fields.find((x) => x.id === field)

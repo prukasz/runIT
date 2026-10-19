@@ -4,7 +4,7 @@ import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, PanelHeader
 import type { Choice } from '@ui/components'
 import type { DeviceInfo } from '../devices/devices'
 import type { useProject } from '../project/useProject'
-import { answerFields, commandOf, defaultReadings, readCommands, readKey, showValue, valueSpec } from './powerDisplay'
+import { answerFields, commandOf, defaultReadings, readArgs, readCommands, readKey, showValue, valueSpec } from './powerDisplay'
 import type { PowerReading } from './powerDisplay'
 import { usePowerLive } from './usePowerLive'
 import './PowerLive.css'
@@ -41,7 +41,7 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
       <PanelHeader title="Live power display" />
       <p className="power-display-intro">What the right panel shows of the board's power, read every second while connected. Readings of one name stand together; those not in the short view show with More.</p>
       <div className="power-display-actions">
-        <Button onClick={() => set([...readings, { name: 'Reading', read: { kind: 'service', service: 'POWER_MANAGER', command: 'GET_STATUS' }, field: 'input_mV', main: true }])}><Plus aria-hidden="true" />Add a reading</Button>
+        <Button onClick={() => set([...readings, { name: 'Reading', read: { kind: 'service', service: 'POWER_MANAGER', command: 'STATUS' }, field: 'input_mV', main: true }])}><Plus aria-hidden="true" />Add a reading</Button>
         <Button disabled={own === undefined} title="Back to the board's own: the input, the source and every regulator rail" onClick={() => project.edit((p) => {
           const { powerDisplay: _dropped, ...rest } = p
           return rest
@@ -52,7 +52,7 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
           const command = commandOf(services.catalog, devices, reading.read)
           const fields = answerFields(command)
           const spec = valueSpec(command, reading.field)
-          const args = command?.args?.fields ?? []
+          const args = readArgs(command)
           const setArg = (id: string, value: FieldValues[string]) => change(i, { args: { ...(reading.args ?? {}), [id]: value } }, `power-arg:${i}:${id}`)
           return (
             <Card key={i} title={reading.name || 'Reading'} actions={(

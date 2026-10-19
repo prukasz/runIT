@@ -13,13 +13,13 @@ beforeAll(async () => {
   board = await openBoard()
 })
 afterAll(async () => {
-  await board.services.call('SYS', 'DEADMAN_SET', { timeout_ms: 0, on_link_lost: false }).catch(() => undefined)
+  await board.services.call('SYS', 'DEADMAN', { timeout_ms: 0, on_link_lost: false }, { side: 'write' }).catch(() => undefined)
   await leaveSafeState(board.link).catch(() => undefined)
   await board.close()
 })
 
-const setDeadman = (timeout_ms: number, on_link_lost: boolean) => board.services.call('SYS', 'DEADMAN_SET', { timeout_ms, on_link_lost })
-const getDeadman = async () => (await board.services.call('SYS', 'DEADMAN_GET')).value as { timeout_ms: number; on_link_lost: boolean }
+const setDeadman = (timeout_ms: number, on_link_lost: boolean) => board.services.call('SYS', 'DEADMAN', { timeout_ms, on_link_lost }, { side: 'write' })
+const getDeadman = async () => (await board.services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number; on_link_lost: boolean }
 const suspended = async (device: number) => ((await board.services.device(device, 'DEVICE', 'INFO')).value as { suspended: number }).suspended
 const events = (deadman: DeadMan) => {
   const seen: DeadManEvent[] = []
@@ -55,7 +55,7 @@ describe('the board enters its safe state', () => {
     await sleep(1800) // no frame at all
     expect(await board.console.waitFor(SAFE, since, 3000)).toBeDefined()
     expect(await suspended(4)).toBe(1)
-    const error = await board.services.device(4, 'IO', 'SET_VOLTAGE', { pin: 0, voltage_mV: 100 }).then(
+    const error = await board.services.device(4, 'IO', 'VOLTAGE', { pin: 0, voltage_mV: 100 }, { side: 'write' }).then(
       () => undefined,
       (e: unknown) => e,
     )
