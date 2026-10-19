@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_POWER_MANAGER",
+  "errors": {
+    "ERR_PWRM_NOT_READY": {
+      "message": "The power manager is not ready"
+    },
+    "ERR_PWRM_BUDGET_EXCEEDED": {
+      "message": "{id} needs {requested_mW}; only {available_mW} is available",
+      "hint": "Lower the load, switch off another rail, or use a stronger supply.",
+      "fields": {
+        "requested_mW": { "unit": "mW" },
+        "available_mW": { "unit": "mW" }
+      }
+    },
+    "ERR_PWRM_BELOW_ALLOCATION": {
+      "message": "The power budget fell to {limit_mW}, below the {allocated_mW} the outputs use",
+      "hint": "The supply gives less than before: lower the load or use a stronger supply.",
+      "fields": {
+        "limit_mW": { "unit": "mW" },
+        "allocated_mW": { "unit": "mW" }
+      }
+    },
+    "ERR_PWRM_FAULT": {
+      "message": "{kind} on {channel} of {source} ({value}): {response}",
+      "hint": "Check what is connected to that output (a short, too much load); the board reacted as its power settings say.",
+      "fields": {
+        "kind": {
+          "enum_ref": "sys_power_kind_e"
+        },
+        "response": {
+          "enum_ref": "sys_power_response_e"
+        }
+      }
+    },
+    "ERR_PWRM_BAD_ARG": {
+      "message": "{value} is outside {min}..{max}",
+      "hint": "Use a value within the range shown."
+    },
+    "ERR_PWRM_NOT_RAIL": {
+      "message": "{id} is not a power rail of the board",
+      "hint": "Choose the board or one of its power rails."
+    },
+    "ERR_PWRM_NO_OFFER": {
+      "message": "The charger offers no power",
+      "hint": "Connect a USB-C charger that offers power."
+    }
+  }
+}

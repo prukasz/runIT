@@ -8,10 +8,10 @@
 
 | Descriptor | Where | Schema |
 |---|---|---|
-| Device | `components/devices/device_<name>/device_<name>.json` | `device.schema.json` |
-| Contract | `components/sys/sys_<name>/contract_<name>.json` (also `core/router`, `vm/vm_core`) | `contract.schema.json` |
-| Board | `components/app/runit/board.json` | `board.schema.json` |
-| VM block | `components/vm/vm_blocks/**/block_<name>.json` (one per block type of `vm_block_ids.h`; `crosscheck.py` lists any without one) | `vm-block.schema.json` |
+| Device | `runit-esp/components/devices/device_<name>/device_<name>.json` | `device.schema.json` |
+| Contract | `runit-esp/components/sys/sys_<name>/contract_<name>.json` (also `core/router`, `vm/vm_core`) | `contract.schema.json` |
+| Board | `runit-esp/components/app/runit/board.json` | `board.schema.json` |
+| VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (one per block type of `vm_block_ids.h`; `crosscheck.py` lists any without one) | `vm-block.schema.json` |
 
 Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`), so a new device or contract needs no registration.
 
@@ -25,17 +25,17 @@ A pin field (`type: pin`) says the mode its pin must have in `requires` (`output
 
 | Generator | Output | Schema |
 |---|---|---|
-| `generate_enums.py` | `generated/common/enums.json` | `enums.schema.json` |
-| `generate_limits.py` | `generated/common/limits.json` | `limits.schema.json` |
-| `generate_errors.py` | `components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
+| `generate_enums.py` | `runit-app/generated/common/enums.json` | `enums.schema.json` |
+| `generate_limits.py` | `runit-app/generated/common/limits.json` | `limits.schema.json` |
+| `generate_errors.py` | `runit-esp/components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
 
 Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand. Re-run them after changing a marked enum or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
 
-`generate_errors.py` reads `ERR_MOD_*` from `components/core/errors/err_modules.h`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `components/`.
+`generate_errors.py` reads `ERR_MOD_*` from `runit-esp/components/core/errors/err_modules.h`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `runit-esp/components/`.
 
 ### Errors: what a user reads, what an error is about
 
-Each error module has `errors_<module name>.json` next to the header of its map (`components/sys/sys_i2c/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
+Each error module has `errors_<module name>.json` next to the header of its map (`runit-esp/components/sys/sys_i2c/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
 
 ```json
 { "module": "ERR_MOD_SYS_IO", "errors": {
@@ -52,21 +52,21 @@ Each error module has `errors_<module name>.json` next to the header of its map 
 
 A command of a device contract whose field is of type `pin` (the device's own pin) says in which state the pin must be, `"pin_state": ["output"]` (any of the listed): `unconfigured` (no mode yet: SET_MODE), `configured` (any mode: RESET), `input` / `output` (digital modes), `pwm`, `adc`, `dac`. The app lists only the pins in such a state (`contract.schema.json`; `requires` on a config's pin reference is another thing: the mode the referenced pin must be able to take). A device whose pins are in a mode right after reset says it in `provides.pins.default_mode` (`input` for the TCA6424A, `adc` for the ADS7128); without it a pin has no mode until SET_MODE gives one (the ESP GPIO). A device with no SET_MODE, whose pins keep the modes of `modes` for good, says `provides.pins.fixed_modes: true` (the PCA9685): its pins are ready for each of those modes with no start command. A command that takes a pin and has no `pin_state` is offered every pin that is not reserved or managed by another device. A new IO-style command needs it in the same change.
 
-## The `generated/` bundle (what the app reads)
+## The `runit-app/generated/` bundle (what the app reads)
 
-`generate_bundle.py` copies the descriptors from `components/` into `generated/` (repository root), so the app reads one place and never the source tree:
+`generate_bundle.py` copies the descriptors from `runit-esp/components/` into `runit-app/generated/`, so the app reads one place and never the source tree:
 
 | Folder | Content | Taken from |
 |---|---|---|
-| `generated/devices/` | `device_*.json` | `components/devices/*/` |
-| `generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `components/sys/*/` and others |
-| `generated/services/` | `contract_*.json` with `scope` `system` | the same places |
-| `generated/blocks/` | `block_*.json` | `components/vm/vm_blocks/**/` |
-| `generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `components/devices/*/manual/` |
-| `generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `components/devices/*/` |
-| `generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json` | generated / `components/core/errors/`, `components/app/runit/` |
+| `runit-app/generated/devices/` | `device_*.json` | `runit-esp/components/devices/*/` |
+| `runit-app/generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `runit-esp/components/sys/*/` and others |
+| `runit-app/generated/services/` | `contract_*.json` with `scope` `system` | the same places |
+| `runit-app/generated/blocks/` | `block_*.json` | `runit-esp/components/vm/vm_blocks/**/` |
+| `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp/components/devices/*/manual/` |
+| `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp/components/devices/*/` |
+| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json` | generated / `runit-esp/components/core/errors/`, `runit-esp/components/app/runit/` |
 
-A device's manual is written by hand in `components/devices/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `generated/`.
+A device's manual is written by hand in `runit-esp/components/devices/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `runit-app/generated/`.
 
 ### What is published: only what is marked
 
@@ -103,7 +103,7 @@ config VM_BLOCK_MAX_IN
         Maximum number of input accessors allowed for a single VM execution block.
 ```
 
-`generate_limits.py` writes `generated/common/limits.json` with the value the firmware is built with (`sdkconfig`, like `generate_enums.py`) and the first paragraph of the `help` as the description. `@alias` is required, `@unit` optional; nothing unmarked is published (task priorities and stack sizes are not limits a program can hit). Change the value (`idf.py menuconfig`, then `idf.py reconfigure`) and run `sh templates/sync.sh`. The app reads the file; what it derives (the payload of a frame is `CONFIG_ROUTER_FRAME_MAX` less `[seq][flags]` and the two keys of a VM command) is its own arithmetic, checked against the C by its tests.
+`generate_limits.py` writes `runit-app/generated/common/limits.json` with the value the firmware is built with (`sdkconfig`, like `generate_enums.py`) and the first paragraph of the `help` as the description. `@alias` is required, `@unit` optional; nothing unmarked is published (task priorities and stack sizes are not limits a program can hit). Change the value (`idf.py menuconfig`, then `idf.py reconfigure`) and run `sh templates/sync.sh`. The app reads the file; what it derives (the payload of a frame is `CONFIG_ROUTER_FRAME_MAX` less `[seq][flags]` and the two keys of a VM command) is its own arithmetic, checked against the C by its tests.
 
 ## Core versus scanned
 
@@ -118,8 +118,8 @@ A command that changes the pin, channel or device it is given (a write: set a le
 ## Synchronization
 
 ```sh
-sh templates/sync.sh            # regenerate enums.json and errors.json, refresh generated/, then validate everything
-sh templates/sync.sh --check    # CI: fail when a generated file or a copy in generated/ is out of date, then validate
+sh templates/sync.sh            # regenerate enums.json and errors.json, refresh runit-app/generated/, then validate everything
+sh templates/sync.sh --check    # CI: fail when a generated file or a copy in runit-app/generated/ is out of date, then validate
 ```
 
-Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py` and `crosscheck.py`. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `components/vm/vm_core/block/vm_block_ids.h`, and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or an op code (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract and its `args` keys are arguments of that command; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors and the `errors_<module>.json` texts, board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).
+Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py` and `crosscheck.py`. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `runit-esp/components/vm/vm_core/block/vm_block_ids.h`, and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or an op code (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract and its `args` keys are arguments of that command; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors and the `errors_<module>.json` texts, board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).

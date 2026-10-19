@@ -1,0 +1,171 @@
+{
+  "$schema": "../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "for",
+  "wire_id": 5,
+  "alias": "For",
+  "description": "Runs the blocks below it repeatedly within one pass, like a C loop: for (i = start; i compared with end; i = i changed by step), bounded by a turn budget.",
+  "category": "flow",
+  "order": 30,
+  "tags": [
+    "loop",
+    "repeat",
+    "iterate",
+    "counter",
+    "index",
+    "while"
+  ],
+  "integration": "core",
+  "state_len": 24,
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled. The whole loop runs inside the pass: a long loop makes the pass long and delays everything else in the program."
+  },
+  "span": {
+    "offset": 0
+  },
+  "eno": {
+    "alias": "Loop body",
+    "description": "Put a block on its enable to make it, and what depends on it, part of the loop."
+  },
+  "header": {
+    "subtitle": "{start} to {end} ({cmp}) step {op}{step}"
+  },
+  "body": [
+    "{start} to {end}",
+    "step {op}{step}",
+    "max {max_turns} turns"
+  ],
+  "outputs": [
+    {
+      "id": "index",
+      "alias": "Index",
+      "description": "The loop variable, published before each turn.",
+      "value": "float"
+    }
+  ],
+  "fields": [
+    {
+      "id": "start",
+      "alias": "Start",
+      "description": "The iterator's first value. A wired start wins over the one in the body. It must be a finite number.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 4,
+      "size": 4,
+      "default": 0,
+      "input": "optional",
+      "accepts": [
+        "number",
+        "accessor"
+      ]
+    },
+    {
+      "id": "end",
+      "alias": "End",
+      "description": "The value the iterator is compared with. A wired end wins over the one in the body. It must be a finite number.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 8,
+      "size": 4,
+      "default": 10,
+      "input": "optional",
+      "accepts": [
+        "number",
+        "accessor"
+      ]
+    },
+    {
+      "id": "step",
+      "alias": "Step",
+      "description": "What the iterator advances by on each turn. A wired step wins over the one in the body. A step that never reaches the end stops at the turn budget.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 12,
+      "size": 4,
+      "default": 1,
+      "input": "optional",
+      "accepts": [
+        "number",
+        "accessor"
+      ]
+    },
+    {
+      "id": "op",
+      "alias": "Step operation",
+      "description": "How the iterator advances on each turn.",
+      "type": "enum",
+      "options": [
+        {
+          "value": 0,
+          "alias": "+",
+          "description": "Add the step."
+        },
+        {
+          "value": 1,
+          "alias": "-",
+          "description": "Subtract the step."
+        },
+        {
+          "value": 2,
+          "alias": "*",
+          "description": "Multiply by the step."
+        },
+        {
+          "value": 3,
+          "alias": "/",
+          "description": "Divide by the step."
+        }
+      ],
+      "default": 0,
+      "raw_type": "u8",
+      "offset": 18,
+      "size": 1
+    },
+    {
+      "id": "cmp",
+      "alias": "Condition",
+      "description": "The loop runs while the iterator compares this way with the end.",
+      "type": "enum",
+      "options": [
+        {
+          "value": 0,
+          "alias": "<",
+          "description": "The iterator is less than the end."
+        },
+        {
+          "value": 1,
+          "alias": "<=",
+          "description": "The iterator is less than or equal to the end."
+        },
+        {
+          "value": 2,
+          "alias": ">",
+          "description": "The iterator is greater than the end."
+        },
+        {
+          "value": 3,
+          "alias": ">=",
+          "description": "The iterator is greater than or equal to the end."
+        }
+      ],
+      "default": 0,
+      "raw_type": "u8",
+      "offset": 19,
+      "size": 1
+    },
+    {
+      "id": "max_turns",
+      "alias": "Max turns",
+      "description": "A hard budget of turns per pass that stops a loop that would not end (a step of 0, a wrong direction). Hitting it is reported and the loop stops.",
+      "type": "number",
+      "raw_type": "u16",
+      "offset": 16,
+      "size": 2,
+      "min": 1,
+      "max": 65535,
+      "default": 100
+    }
+  ]
+}

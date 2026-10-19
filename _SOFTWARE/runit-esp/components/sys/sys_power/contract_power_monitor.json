@@ -1,0 +1,160 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "POWER_MONITOR",
+  "contract_id": 4,
+  "alias": "Power monitor",
+  "description": "Voltage, current and power readings and current alerts",
+  "category": "power",
+  "commands": [
+    {
+      "id": "GET_VOLTAGE",
+      "op": 0,
+      "label": "Read voltage",
+      "description": "Reads the voltage of a channel.",
+      "symbol": "PMON_OP_GET_VOLTAGE",
+      "args": {
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The measured channel"
+          }
+        ],
+        "struct": "pmon_channel_args_t"
+      },
+      "returns": {
+        "type": "i32",
+        "label": "Voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "GET_CURRENT",
+      "op": 1,
+      "label": "Read current",
+      "description": "Reads the current of a channel (a reversed shunt reads negative).",
+      "symbol": "PMON_OP_GET_CURRENT",
+      "args": {
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The measured channel"
+          }
+        ],
+        "struct": "pmon_channel_args_t"
+      },
+      "returns": {
+        "type": "i32",
+        "label": "Current",
+        "unit": "mA"
+      }
+    },
+    {
+      "id": "SET_ALERT",
+      "op": 2,
+      "invasive": true,
+      "label": "Set current alert",
+      "description": "Arms a hardware alert that publishes an event when the current crosses a threshold.",
+      "symbol": "PMON_OP_SET_ALERT",
+      "args": {
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The measured channel"
+          },
+          {
+            "id": "alert",
+            "label": "Alert",
+            "type": "enum",
+            "enum": "sys_power_alert_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "Which alert to arm"
+          },
+          {
+            "id": "threshold_mA",
+            "label": "Threshold",
+            "type": "number",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 2,
+            "description": "The event is published when the current crosses it",
+            "unit": "mA"
+          }
+        ],
+        "struct": "pmon_alert_args_t"
+      }
+    },
+    {
+      "id": "GET_POWER",
+      "op": 3,
+      "label": "Read power",
+      "description": "Reads the power of a channel.",
+      "symbol": "PMON_OP_GET_POWER",
+      "args": {
+        "fields": [
+          {
+            "id": "channel",
+            "label": "Channel",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The measured channel"
+          }
+        ],
+        "struct": "pmon_channel_args_t"
+      },
+      "returns": {
+        "type": "i32",
+        "label": "Power",
+        "unit": "mW"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "OCP_WARNING",
+      "event": 0,
+      "code": 1024,
+      "label": "Over-current warning",
+      "description": "A channel's current crossed its warning threshold",
+      "notify": true,
+      "symbol": "PMON_EV_OCP_WARNING",
+      "value": {
+        "description": "The current",
+        "unit": "mA"
+      }
+    },
+    {
+      "id": "OCP_CRITICAL",
+      "event": 1,
+      "code": 1025,
+      "label": "Over-current critical",
+      "description": "A channel's current crossed its critical threshold",
+      "notify": true,
+      "symbol": "PMON_EV_OCP_CRITICAL",
+      "value": {
+        "description": "The current",
+        "unit": "mA"
+      }
+    }
+  ]
+}

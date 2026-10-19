@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from router_link import ROOT, STREAM_ERRORS, STREAM_TELEMETRY, Link, Response
+from router_link import ESP, STREAM_ERRORS, STREAM_TELEMETRY, Link, Response
 
 KEY_VM = 0x0B
 OP_RESET, OP_OPEN, OP_ADD_OBJECTS, OP_SET_DATA, OP_ADD_ACCESSORS, OP_ADD_BLOCK, OP_SUBSCRIBE, OP_EXEC, OP_SPEED, OP_STATUS = range(1, 11)
@@ -34,7 +34,7 @@ FRAME_BUDGET = 400  # bytes of payload per load frame (the router takes 512)
 
 # ---- firmware headers --------------------------------------------------------------------------------------------
 
-_BLOCKS = ROOT / "components/vm/vm_core/block/vm_block_ids.h"
+_BLOCKS = ESP / "components/vm/vm_core/block/vm_block_ids.h"
 BLK = {m.group(1): int(m.group(2)) for m in re.finditer(r"#define\s+VM_BLK_(\w+)\s+(\d+)", _BLOCKS.read_text())}
 BLK.pop("NONE", None)
 
@@ -52,7 +52,7 @@ def _enum(text: str, name: str) -> dict[str, int]:
     return out
 
 
-_EXPR_H = (ROOT / "components/vm/vm_blocks/core/expr_core/vm_expr_core.h").read_text()
+_EXPR_H = (ESP / "components/vm/vm_blocks/core/expr_core/vm_expr_core.h").read_text()
 OPF = {k[len("VM_EXPR_"):]: v for k, v in _enum(_EXPR_H, "vm_expr_op_e").items()}
 OPB = {k[len("VM_BIT_"):]: v for k, v in _enum(_EXPR_H, "vm_bit_op_e").items()}
 

@@ -7,7 +7,7 @@ import { loadGeneratedInput } from '@engine/generated'
 const catalog = Catalog.fromGenerated(loadGeneratedInput())
 
 /* The firmware's own source: what the descriptors and the engine's tables are held against. */
-const vmDir = fileURLToPath(new URL('../../../../components/vm/', import.meta.url))
+const vmDir = fileURLToPath(new URL('../../../../runit-esp/components/vm/', import.meta.url))
 const read = (path: string) => readFileSync(vmDir + path, 'utf8')
 const filesUnder = (dir: string, ext: string): string[] =>
   readdirSync(vmDir + dir).flatMap((name) => {
@@ -212,7 +212,7 @@ describe('blocks as the UI and the compiler read them', () => {
   })
 
   it('the op code is the u16 the firmware builds: (contract << 8) | n, or 0xFF00 | n for a device command', () => {
-    const header = readFileSync(fileURLToPath(new URL('../../../../components/sys/sys_device/sys_device.h', import.meta.url)), 'utf8')
+    const header = readFileSync(fileURLToPath(new URL('../../../../runit-esp/components/sys/sys_device/sys_device.h', import.meta.url)), 'utf8')
     expect(header).toMatch(/#define\s+SYS_DEVICE_OP\(contract,\s*n\)\s+\(\(uint16_t\)\(\(\(contract\)\s*<<\s*8\)\s*\|\s*\(n\)\)\)/)
     const contractNumbers = new Map([...header.matchAll(/#define\s+SYS_DEVICE_CONTRACT_(\w+)\s+0x([0-9a-fA-F]+)u/g)].map((m) => [m[1]!, parseInt(m[2]!, 16)]))
     const input = loadGeneratedInput()

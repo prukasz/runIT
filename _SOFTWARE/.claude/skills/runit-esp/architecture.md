@@ -1,6 +1,6 @@
 # Firmware architecture
 
-How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `components/`.
+How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `runit-esp/components/`.
 
 ## 1. The idea
 
@@ -49,4 +49,4 @@ Rules:
 
 ## 6. Descriptors
 
-Every contract, device, block, error map and the board have a JSON descriptor next to their code, written against `templates/*.schema.json` (templates/AGENTS.md). `sh templates/sync.sh` regenerates `enums.json`, `errors.json` and the limits from the C sources, validates every descriptor, checks it against the code (IDs, sizes) and publishes to `generated/`, which the app reads. Wire-visible changes in C always go with a sync.
+Every contract, device, block, error map and the board have a JSON descriptor next to their code, written against `templates/*.schema.json` (templates/AGENTS.md). `sh templates/sync.sh` regenerates `enums.json`, `errors.json` and the limits from the C sources, validates every descriptor, checks it against the code (IDs, sizes) and publishes to `runit-app/generated/`, which the app reads. Wire-visible changes in C always go with a sync.

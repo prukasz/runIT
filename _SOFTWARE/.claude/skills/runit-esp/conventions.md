@@ -1,8 +1,8 @@
 # Firmware coding conventions
 
-Rules for all code under `components/` and `main/`. Error handling has its own file: [errors.md](errors.md). A component's `AGENTS.md` adds the rules for that component.
+Rules for all code under `runit-esp/components/` and `runit-esp/main/`. Error handling has its own file: [errors.md](errors.md). A component's `AGENTS.md` adds the rules for that component.
 
-## 1. RTOS objects — static allocation (`components/core/utils/utils.h`)
+## 1. RTOS objects — static allocation (`runit-esp/components/core/utils/utils.h`)
 
 **Rule:** an RTOS object that exists from boot to shutdown (module mutexes, queues, ring buffers, tasks) is defined with the `U_*_DEFINE` macros, not created at runtime.
 

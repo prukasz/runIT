@@ -1,0 +1,226 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "SYS",
+  "router_key": 1,
+  "alias": "Board system commands (System Control)",
+  "description": "Basic board control: checking the link (ping), stopping the system safely, restarting, and the communication watchdog (dead-man).",
+  "category": "system",
+  "commands": [
+    {
+      "id": "PING",
+      "op": 1,
+      "symbol": "OP_PING",
+      "label": "Ping",
+      "description": "Checks that the board answers and returns its uptime in milliseconds.",
+      "returns": {
+        "struct": "sys_ping_response_t",
+        "description": "Uptime since the board started",
+        "fields": [
+          {
+            "id": "uptime_ms",
+            "label": "Uptime",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms"
+          }
+        ]
+      }
+    },
+    {
+      "id": "STOP",
+      "op": 2,
+      "symbol": "OP_STOP",
+      "label": "Stop the system",
+      "description": "Puts the board in its safe state: switches off the device outputs and stops the VM.",
+      "urgent": true
+    },
+    {
+      "id": "RESTART",
+      "op": 3,
+      "symbol": "OP_RESTART",
+      "label": "Restart the board",
+      "description": "Restarts the ESP32 after the answer is sent (about 100 ms later)."
+    },
+    {
+      "id": "BYE",
+      "op": 6,
+      "symbol": "OP_BYE",
+      "label": "Say goodbye",
+      "description": "The app leaves on purpose (its Disconnect, its window closing): the board turns the dead-man off and goes on with what it runs. Without it a dead-man the app armed would stop the board after the silence that follows. A link that drops without it (power, range) is a lost link as before."
+    },
+    {
+      "id": "TIME_SET",
+      "op": 7,
+      "symbol": "OP_TIME_SET",
+      "label": "Set the clock",
+      "description": "Gives the board the time (UTC, milliseconds since 1970). The board has no battery clock: the app sets it whenever it connects, and it is lost at a restart.",
+      "args": {
+        "struct": "sys_time_set_t",
+        "fields": [
+          {
+            "id": "unix_ms",
+            "label": "Time (UTC)",
+            "type": "integer",
+            "raw_type": "u64",
+            "size": 8,
+            "offset": 0,
+            "unit": "ms",
+            "description": "Milliseconds since 1970-01-01 00:00 UTC"
+          }
+        ]
+      }
+    },
+    {
+      "id": "TIME_GET",
+      "op": 8,
+      "symbol": "OP_TIME_GET",
+      "label": "Read the clock",
+      "description": "The board's time (UTC) and whether a client has set it since the start.",
+      "returns": {
+        "struct": "sys_time_t",
+        "description": "The board's clock",
+        "fields": [
+          {
+            "id": "unix_ms",
+            "label": "Time (UTC)",
+            "type": "integer",
+            "raw_type": "u64",
+            "size": 8,
+            "offset": 0,
+            "unit": "ms",
+            "description": "Milliseconds since 1970-01-01 00:00 UTC; counts from 1970 at the start until it is set (before 2020: not a date)"
+          },
+          {
+            "id": "synced",
+            "label": "Set",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 8,
+            "description": "1 = the clock holds a date: a client set it (it survives a software restart, not a loss of power)"
+          },
+          {
+            "id": "uptime_ms",
+            "label": "Uptime",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 9,
+            "unit": "ms",
+            "description": "Time since the board started, the base of the log lines (I (854) tag): with the time above it dates every line"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SAFE_GET",
+      "op": 9,
+      "symbol": "OP_SAFE_GET",
+      "label": "Read the safe state",
+      "description": "Whether the board is in its safe state (the VM stopped, every device output off and suspended), why it entered it and how long ago. A reason of 0: not in it.",
+      "returns": {
+        "struct": "sys_safe_t",
+        "description": "The safe state",
+        "fields": [
+          {
+            "id": "reason",
+            "label": "Reason",
+            "type": "enum",
+            "enum": "router_safe_reason_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "Why it entered the safe state last; 0 = not in the safe state"
+          },
+          {
+            "id": "for_ms",
+            "label": "For",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "ms",
+            "description": "Time since it entered it"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SAFE_LEAVE",
+      "op": 10,
+      "symbol": "OP_SAFE_LEAVE",
+      "label": "Leave the safe state",
+      "invasive": true,
+      "description": "Resumes every device (oldest first) and clears the safe state. The program stays stopped: start it with VM EXEC. Motors move again when the devices resume."
+    },
+    {
+      "id": "DEADMAN_SET",
+      "read_by": "DEADMAN_GET",
+      "op": 4,
+      "symbol": "OP_DEADMAN_SET",
+      "label": "Set the communication watchdog (dead-man)",
+      "description": "Sets how long the board waits for a command before it enters its safe state by itself, and whether a lost link does it at once. 0 = off: the board then runs its program on its own, offline, with no client. Runtime only: after a restart the board is as built (off by default).",
+      "args": {
+        "struct": "sys_deadman_t",
+        "fields": [
+          {
+            "id": "timeout_ms",
+            "label": "Timeout",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms",
+            "min": 0,
+            "max": 600000,
+            "description": "Time without a command before the safe state (0 = off). The app asks the board about every second while it is connected, so 3000 or more does not trip a connected board; a board with no client is tripped by any value but 0."
+          },
+          {
+            "id": "on_link_lost",
+            "label": "React to a lost link",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4,
+            "description": "1 = enter the safe state at once when the BLE connection drops (the program then stops: leave it off for a board that should keep running without the app)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "DEADMAN_GET",
+      "op": 5,
+      "symbol": "OP_DEADMAN_GET",
+      "label": "Read the watchdog settings",
+      "description": "Returns the current timeout and whether a lost link triggers the safe state.",
+      "returns": {
+        "struct": "sys_deadman_t",
+        "description": "Communication watchdog settings",
+        "fields": [
+          {
+            "id": "timeout_ms",
+            "label": "Timeout",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "unit": "ms"
+          },
+          {
+            "id": "on_link_lost",
+            "label": "Reaction to a lost link",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4
+          }
+        ]
+      }
+    }
+  ]
+}

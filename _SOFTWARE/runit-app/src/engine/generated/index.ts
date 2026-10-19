@@ -8,7 +8,7 @@ import { wireDefinitions } from './wire'
 import type { EnumTables, VmContract } from './wire'
 
 /*
- * The one place the engine touches generated/ (the bundle `templates/generate_bundle.py` copies from components/). Everything
+ * The one place the engine touches generated/ (the bundle `templates/generate_bundle.py` copies from runit-esp/components/). Everything
  * else takes parsed definitions as arguments, so tests and other apps can supply their own.
  */
 

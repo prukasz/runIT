@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "power_usb_pd",
+  "wire_id": 37,
+  "alias": "USB-PD sink",
+  "description": "Asks a USB-PD source for a voltage and a current, or reads its highest-voltage offer.",
+  "category": "device",
+  "order": 70,
+  "tags": ["power", "usb", "usb-c", "pd", "charger", "voltage", "ap33772s"],
+  "integration": "contract",
+  "state_len": 56,
+  "device": { "contract": "POWER_USB_PD" },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a request is sent on the first pass and whenever it changes, a reading on every pass."
+  },
+  "header": { "subtitle": "{variant} {device}" },
+  "body": ["{device}"],
+  "variants": [
+    {
+      "id": "set_settings",
+      "alias": "Request",
+      "description": "Asks the source for a voltage and a current.",
+      "op": "SET_SETTINGS",
+      "args": {
+        "voltage_mV": { "required": true, "input": "optional", "accepts": ["number", "accessor"] },
+        "current_mA": { "required": true, "input": "optional", "accepts": ["number", "accessor"] }
+      },
+      "header": { "subtitle": "Request {voltage_mV} at {current_mA}" }
+    },
+    {
+      "id": "get_limits",
+      "alias": "Read offer",
+      "description": "Reads the highest-voltage offer of the source: its voltage in millivolts and its current in milliamps.",
+      "op": "GET_LIMITS",
+      "activation": { "kind": "enabled", "text": "Reads on every pass while enabled; gate it with a periodic block to read less often." },
+      "header": { "subtitle": "Read offer of {device}" }
+    }
+  ]
+}

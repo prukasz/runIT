@@ -1,0 +1,80 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_DEVICE",
+  "errors": {
+    "ERR_DEV_BAD_ARG": {
+      "message": "A device request is not valid"
+    },
+    "ERR_DEV_BAD_ID": {
+      "message": "{id} is not a valid device ID"
+    },
+    "ERR_DEV_NOT_FOUND": {
+      "message": "{id} does not exist",
+      "hint": "Write the project to the board (toolbar), or check the device ID."
+    },
+    "ERR_DEV_ID_TAKEN": {
+      "message": "The ID of {id} is already taken",
+      "hint": "Give the device another ID."
+    },
+    "ERR_DEV_TABLE_FULL": {
+      "message": "No room for {id}: the board has as many devices as it can hold",
+      "hint": "Remove a device you do not use."
+    },
+    "ERR_DEV_TYPE_UNKNOWN": {
+      "message": "The board does not know {type}",
+      "hint": "Update the board's firmware, or remove the device: this firmware has no driver for it."
+    },
+    "ERR_DEV_SUSPENDED": {
+      "message": "{id} is suspended",
+      "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
+    },
+    "ERR_DEV_NO_MEM": {
+      "message": "No memory for {id} ({size} bytes)",
+      "hint": "Remove a device or a part of the program you do not need, then try again."
+    },
+    "ERR_DEV_INSTALL": {
+      "message": "While creating {id} ({type})"
+    },
+    "ERR_DEV_ID": {
+      "message": "In {id}"
+    },
+    "ERR_DEV_BAD_PIN": {
+      "message": "{id} has no {pin}",
+      "hint": "Choose a pin the device has."
+    },
+    "ERR_DEV_RANGE": {
+      "message": "{id}: {value} is outside {min}..{max}",
+      "hint": "Use a value within the range shown."
+    },
+    "ERR_DEV_OP": {
+      "message": "In {op}"
+    },
+    "ERR_DEV_UNKNOWN_OP": {
+      "message": "The device cannot do {op}",
+      "hint": "This device does not have that command: use one from its list."
+    },
+    "ERR_DEV_PIN_LOCKED": {
+      "message": "{pin} of {id} is held by another device",
+      "hint": "Change the pin through the device that holds it, or choose a free pin."
+    },
+    "ERR_DEV_IN_USE": {
+      "message": "{id} cannot be removed: {user} uses it",
+      "hint": "Remove or change that device first."
+    },
+    "ERR_DEV_DEPS_FULL": {
+      "message": "{id} cannot depend on more devices"
+    },
+    "ERR_DEV_FAULT_RESPONSE": {
+      "message": "The response to an error of {id} failed (step {stage}, {action})",
+      "hint": "Check the device's error policy and the action it runs.",
+      "fields": {
+        "stage": {
+          "enum_ref": "sys_device_fault_stage_e"
+        },
+        "action": {
+          "id_kind": "action"
+        }
+      }
+    }
+  }
+}

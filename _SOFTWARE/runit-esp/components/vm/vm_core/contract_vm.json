@@ -1,0 +1,371 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "VM",
+  "router_key": 11,
+  "alias": "Virtual machine (VM Core Supervisor)",
+  "description": "Managing the program of the runIT VM: loading objects and blocks, controlling the run (start, pause, step) and subscribing to telemetry.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "RESET",
+      "op": 1,
+      "symbol": "VM_OP_RESET",
+      "label": "Reset the VM program",
+      "description": "Removes the loaded program and leaves the VM stopped."
+    },
+    {
+      "id": "OPEN",
+      "op": 2,
+      "symbol": "VM_OP_OPEN",
+      "label": "Open a program load session",
+      "description": "Reserves memory for the objects, accessors and blocks of a program, of the given arena size.",
+      "args": {
+        "struct": "vm_wire_open_t",
+        "fields": [
+          {
+            "id": "obj_cnt",
+            "label": "Number of objects",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "Number of slots for data objects"
+          },
+          {
+            "id": "acc_cnt",
+            "label": "Number of accessors",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "description": "Number of slots for indexing accessors"
+          },
+          {
+            "id": "blk_cnt",
+            "label": "Number of blocks",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 4,
+            "description": "Number of slots for function blocks"
+          },
+          {
+            "id": "total_size",
+            "label": "Memory arena size",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 6,
+            "unit": "B",
+            "description": "Total memory reserved for the program"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_OBJECTS",
+      "op": 3,
+      "symbol": "VM_OP_ADD_OBJECTS",
+      "label": "Add data objects",
+      "description": "Registers the definitions of the program's variable and constant objects.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Object data",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sequence of object records (runs to the end of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_DATA",
+      "op": 4,
+      "symbol": "VM_OP_SET_DATA",
+      "label": "Set data values",
+      "description": "Loads the initial values of objects (while loading) or changes values at run time.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Value data",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sequence of value records (runs to the end of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_ACCESSORS",
+      "op": 5,
+      "symbol": "VM_OP_ADD_ACCESSORS",
+      "label": "Add accessors",
+      "description": "Defines the access and indexing paths into the structures and arrays of the program.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Accessor data",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sequence of accessor records (runs to the end of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ADD_BLOCK",
+      "op": 6,
+      "symbol": "VM_OP_ADD_BLOCK",
+      "label": "Add a block",
+      "description": "Loads one block, in the order the control loop runs them.",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "Block definition",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Block header, pins and state (runs to the end of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SUBSCRIBE",
+      "op": 7,
+      "symbol": "VM_OP_SUBSCRIBE",
+      "label": "Telemetry subscription",
+      "description": "Chooses the objects whose values are streamed to the app as telemetry (an empty list clears the subscription).",
+      "args": {
+        "fields": [
+          {
+            "id": "data",
+            "label": "List of object IDs",
+            "type": "string",
+            "raw_type": "bytes",
+            "description": "Sequence of subscription records (runs to the end of the frame)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "EXEC",
+      "op": 8,
+      "symbol": "VM_OP_EXEC",
+      "label": "Control the run of the program",
+      "description": "Starts, pauses, resumes, steps or resets the VM program.",
+      "args": {
+        "struct": "vm_wire_exec_t",
+        "fields": [
+          {
+            "id": "command",
+            "label": "Supervisor command",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "options": [
+              {
+                "label": "Scan mode",
+                "value": 0
+              },
+              {
+                "label": "One pass (Once)",
+                "value": 1
+              },
+              {
+                "label": "Block mode",
+                "value": 2
+              },
+              {
+                "label": "Next block",
+                "value": 3
+              },
+              {
+                "label": "Back to the start (Rewind)",
+                "value": 4
+              },
+              {
+                "label": "Normal mode (continuous)",
+                "value": 5
+              },
+              {
+                "label": "Pause",
+                "value": 6
+              },
+              {
+                "label": "Resume",
+                "value": 7
+              },
+              {
+                "label": "Reset",
+                "value": 8
+              },
+              {
+                "label": "Acknowledge the fault",
+                "value": 9
+              },
+              {
+                "label": "Clear the retained values",
+                "value": 10
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "SPEED",
+      "op": 9,
+      "symbol": "VM_OP_SPEED",
+      "label": "Slow motion",
+      "description": "Slows down the passes of the VM program for debugging live.",
+      "args": {
+        "struct": "vm_wire_speed_t",
+        "fields": [
+          {
+            "id": "factor",
+            "label": "Slow-down factor",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0,
+            "description": "1 = normal speed, more than 1 = slow motion"
+          },
+          {
+            "id": "step_ms",
+            "label": "Time per step",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "unit": "ms",
+            "max": 60000,
+            "default": 10,
+            "description": "Program time each pass you ask for adds while the VM is stepped (scan or block mode), so TIMER, PERIODIC and Every go on; 0 stands time still"
+          }
+        ]
+      }
+    },
+    {
+      "id": "STATUS",
+      "op": 10,
+      "symbol": "VM_OP_STATUS",
+      "label": "Read the state of the VM",
+      "description": "Returns whether the program runs (the run mode), whether one is loaded and complete, the latched device fault and the pass statistics.",
+      "returns": {
+        "struct": "vm_wire_status_t",
+        "description": "What the VM is doing and what it holds",
+        "fields": [
+          {
+            "id": "mode",
+            "label": "Run mode",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "enum": "vm_run_mode_e",
+            "description": "Stopped, running, paused (frozen), or a debugging mode"
+          },
+          {
+            "id": "load_state",
+            "label": "Program storage",
+            "type": "enum",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "enum": "vm_load_state_e"
+          },
+          {
+            "id": "ready",
+            "label": "Program ready",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "A program is loaded and complete: EXEC can start it"
+          },
+          {
+            "id": "fault_latched",
+            "label": "Fault latched",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 3,
+            "description": "A critical device fault stops the VM until EXEC Ack fault"
+          },
+          {
+            "id": "fault_device",
+            "label": "Device of the fault",
+            "type": "device",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 4,
+            "description": "Meaningful only while a fault is latched"
+          },
+          {
+            "id": "slowdown",
+            "label": "Slow-down factor",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 6,
+            "description": "1 = normal speed"
+          },
+          {
+            "id": "fault_root_tag",
+            "label": "Root cause of the fault",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 8,
+            "description": "The error tag at the root of the latched fault (0 if not known); meaningful only while a fault is latched"
+          },
+          {
+            "id": "pass_count",
+            "label": "Passes",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 12,
+            "description": "Passes completed since the statistics were reset"
+          },
+          {
+            "id": "last_pass_us",
+            "label": "Last pass",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 16,
+            "unit": "us"
+          },
+          {
+            "id": "arena_used",
+            "label": "Program memory used",
+            "type": "integer",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 20,
+            "unit": "B"
+          },
+          {
+            "id": "next_block",
+            "label": "Next block",
+            "type": "integer",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 24,
+            "description": "The block the next Next runs while the VM is stepped by block: the one it is parked before, or 0 between two passes (0xFFFF otherwise)"
+          }
+        ]
+      }
+    }
+  ]
+}

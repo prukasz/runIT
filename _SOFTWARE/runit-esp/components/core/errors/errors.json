@@ -1,0 +1,4716 @@
+{
+  "$schema": "../../../../templates/errors.schema.json",
+  "schemaVersion": 4,
+  "kind": "errors",
+  "severities": {
+    "ERR_SEV_NONE": 0,
+    "ERR_SEV_LOW": 1,
+    "ERR_SEV_MEDIUM": 2,
+    "ERR_SEV_HIGH": 3,
+    "ERR_SEV_CRITICAL": 4
+  },
+  "id_kinds": {
+    "device": {
+      "alias": "Device",
+      "description": "A device by its ID"
+    },
+    "device_type": {
+      "alias": "Device type",
+      "description": "A device type (type_id of a device descriptor)"
+    },
+    "device_op": {
+      "alias": "Device command",
+      "description": "A device command: contract << 8 | op",
+      "format": "hex",
+      "scope": "device"
+    },
+    "pin": {
+      "alias": "Pin",
+      "description": "A pin of a device",
+      "scope": "device"
+    },
+    "channel": {
+      "alias": "Channel",
+      "description": "A channel of a device",
+      "scope": "device"
+    },
+    "i2c_bus": {
+      "alias": "I2C bus",
+      "description": "An I2C bus"
+    },
+    "i2c_address": {
+      "alias": "I2C address",
+      "description": "A 7-bit address on an I2C bus",
+      "format": "hex",
+      "scope": "i2c_bus"
+    },
+    "vm_object": {
+      "alias": "Variable",
+      "description": "A VM object by its id: a variable of the program or one of its elements"
+    },
+    "vm_accessor": {
+      "alias": "Accessor",
+      "description": "A VM accessor by its id: the path a block reads or writes through"
+    },
+    "vm_block": {
+      "alias": "Block",
+      "description": "A VM block by its place in the execution order"
+    },
+    "vm_block_input": {
+      "alias": "Block input",
+      "description": "An input pin of a VM block, from 0",
+      "scope": "vm_block"
+    },
+    "vm_block_output": {
+      "alias": "Block output",
+      "description": "An output pin of a VM block, from 0",
+      "scope": "vm_block"
+    },
+    "vm_block_enable": {
+      "alias": "Block enable",
+      "description": "An enable source of a VM block, from 0",
+      "scope": "vm_block"
+    },
+    "vm_block_type": {
+      "alias": "Block type",
+      "description": "A VM block type (wire_id of a block descriptor)"
+    },
+    "vm_op": {
+      "alias": "Program command",
+      "description": "A command of the VM router"
+    },
+    "action": {
+      "alias": "Action",
+      "description": "A stored action by its ID"
+    },
+    "project_section": {
+      "alias": "Project section",
+      "description": "A section of the stored project by its ID"
+    },
+    "router_key": {
+      "alias": "Command target",
+      "description": "A router key"
+    },
+    "link": {
+      "alias": "Link",
+      "description": "A router link (a transport connection)"
+    },
+    "connector": {
+      "alias": "Connector",
+      "description": "A data connector by its ID"
+    },
+    "transport": {
+      "alias": "Transport",
+      "description": "A transport provider"
+    },
+    "ble_uuid": {
+      "alias": "BLE characteristic",
+      "description": "A 16-bit BLE UUID",
+      "format": "hex"
+    },
+    "stream": {
+      "alias": "Stream",
+      "description": "A stream byte"
+    },
+    "contract": {
+      "alias": "Contract",
+      "description": "A device contract by its ID"
+    },
+    "error_tag": {
+      "alias": "Error",
+      "description": "An error tag"
+    },
+    "esp_err": {
+      "alias": "ESP-IDF error",
+      "description": "An esp_err_t code",
+      "format": "hex"
+    }
+  },
+  "modules": [
+    {
+      "id": 0,
+      "name": "core",
+      "symbol": "ERR_MOD_CORE",
+      "source_file": "runit-esp/components/core/errors/errors.h",
+      "texts_file": "runit-esp/components/core/errors/errors_core.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1,
+          "name": "ERR_POOL_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "no block for a new error",
+          "message": "The board ran out of room to record error details"
+        },
+        {
+          "code": 2,
+          "tag": 2,
+          "name": "ERR_ESP_ERR",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "code",
+              "type": "i32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "esp_err"
+            }
+          ],
+          "description": "ESP-IDF call failed",
+          "message": "A system call failed ({code})"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "sys_i2c",
+      "symbol": "ERR_MOD_SYS_I2C",
+      "source_file": "runit-esp/components/sys/sys_i2c/sys_i2c.h",
+      "texts_file": "runit-esp/components/sys/sys_i2c/errors_sys_i2c.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 65537,
+          "name": "ERR_I2C_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "NULL pointer or zero length",
+          "message": "An I2C request is not valid"
+        },
+        {
+          "code": 2,
+          "tag": 65538,
+          "name": "ERR_I2C_BAD_BUS",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "no such bus, or disabled / not initialized",
+          "message": "{bus} does not exist or is off",
+          "hint": "Choose a bus the board has."
+        },
+        {
+          "code": 3,
+          "tag": 65539,
+          "name": "ERR_I2C_BAD_DEV_CFG",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "not a 7-bit address, or speed 0",
+          "message": "{addr} on {bus} is not a valid device setting"
+        },
+        {
+          "code": 4,
+          "tag": 65540,
+          "name": "ERR_I2C_BUS_INIT",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "sda",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "scl",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "over ERR_ESP_ERR",
+          "message": "{bus} could not start on pins {sda} (SDA) and {scl} (SCL)"
+        },
+        {
+          "code": 5,
+          "tag": 65541,
+          "name": "ERR_I2C_BUS_STUCK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "probe timed out: bus busy, SCL held low or no pull-ups",
+          "message": "{bus} is stuck while reaching {addr}: check the wiring and pull-ups",
+          "hint": "Check the wiring and the pull-up resistors, then restart the board."
+        },
+        {
+          "code": 6,
+          "tag": 65542,
+          "name": "ERR_I2C_BUS_RESET",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "over ERR_ESP_ERR",
+          "message": "{bus} could not be reset"
+        },
+        {
+          "code": 7,
+          "tag": 65543,
+          "name": "ERR_I2C_DEV_NOT_FOUND",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "nothing acked the address",
+          "message": "Nothing answers at {addr} on {bus}",
+          "hint": "Check that the module is connected and powered, and that its address is right."
+        },
+        {
+          "code": 8,
+          "tag": 65544,
+          "name": "ERR_I2C_DEV_ADD",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "over ERR_ESP_ERR",
+          "message": "{addr} on {bus} could not be added"
+        },
+        {
+          "code": 9,
+          "tag": 65545,
+          "name": "ERR_I2C_DEV_REMOVE",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "over ERR_ESP_ERR",
+          "message": "{addr} on {bus} could not be removed"
+        },
+        {
+          "code": 10,
+          "tag": 65546,
+          "name": "ERR_I2C_DEV_NOT_ADDED",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "transfer before sys_i2c_dev_add",
+          "message": "{addr} on {bus} is used before it is added"
+        },
+        {
+          "code": 11,
+          "tag": 65547,
+          "name": "ERR_I2C_NO_ACK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "NACK / aborted transfer",
+          "message": "{addr} on {bus} did not answer",
+          "hint": "Check the wiring and the power of the module."
+        },
+        {
+          "code": 12,
+          "tag": 65548,
+          "name": "ERR_I2C_BUS_BUSY",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "bus lock timed out",
+          "message": "{bus} stayed busy while reaching {addr}",
+          "hint": "Try again; if it repeats, check the wiring of the bus."
+        },
+        {
+          "code": 13,
+          "tag": 65549,
+          "name": "ERR_I2C_XFER",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "other failure, over ERR_ESP_ERR",
+          "message": "A transfer with {addr} on {bus} failed",
+          "hint": "Check the wiring and the power of the module."
+        },
+        {
+          "code": 14,
+          "tag": 65550,
+          "name": "ERR_I2C_REG",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "reg",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "write",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "context only: register access",
+          "context": true,
+          "message": "At register {reg}"
+        },
+        {
+          "code": 15,
+          "tag": 65551,
+          "name": "ERR_I2C_ADDR_TAKEN",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            },
+            {
+              "name": "addr",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "i2c_address",
+              "of": "bus"
+            }
+          ],
+          "description": "another device is added at this address",
+          "message": "{addr} on {bus} is already used by another device",
+          "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
+        },
+        {
+          "code": 16,
+          "tag": 65552,
+          "name": "ERR_I2C_REMOTE_DENIED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "remote op on a bus other than CONFIG_SYS_I2C_REMOTE_BUS",
+          "message": "{bus} cannot be used from the app",
+          "hint": "Use the bus the app may reach (the external I2C)."
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "router",
+      "symbol": "ERR_MOD_ROUTER",
+      "source_file": "runit-esp/components/core/router/router.h",
+      "texts_file": "runit-esp/components/core/router/errors_router.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 131073,
+          "name": "ERR_ROUTER_KEY",
+          "severity": 0,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "description": "context only: route step",
+          "context": true,
+          "message": "In {key}"
+        },
+        {
+          "code": 2,
+          "tag": 131074,
+          "name": "ERR_ROUTER_NO_KEY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "input ended where a key was expected",
+          "message": "The command ends before it says what it is for"
+        },
+        {
+          "code": 3,
+          "tag": 131075,
+          "name": "ERR_ROUTER_UNKNOWN_KEY",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "message": "The board has nothing that answers {key}"
+        },
+        {
+          "code": 6,
+          "tag": 131078,
+          "name": "ERR_ROUTER_KEY_TAKEN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "message": "{key} is registered twice"
+        },
+        {
+          "code": 7,
+          "tag": 131079,
+          "name": "ERR_ROUTER_TABLE_FULL",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "message": "No room to register {key}"
+        },
+        {
+          "code": 8,
+          "tag": 131080,
+          "name": "ERR_ROUTER_BAD_LINK",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "link"
+            }
+          ],
+          "description": "unknown, unregistered or taken",
+          "message": "{link} is not a connection the board knows"
+        },
+        {
+          "code": 9,
+          "tag": 131081,
+          "name": "ERR_ROUTER_QUEUE_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "link"
+            },
+            {
+              "name": "urgent",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "frame dropped",
+          "message": "The board is busy: a command from {link} was dropped",
+          "hint": "Send commands less often."
+        },
+        {
+          "code": 10,
+          "tag": 131082,
+          "name": "ERR_ROUTER_FRAME_LEN",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "link"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "description": "frame too short or too long",
+          "message": "A frame of {len} bytes from {link} was refused (at most {max})"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "sys_uart",
+      "symbol": "ERR_MOD_SYS_UART",
+      "source_file": "runit-esp/components/sys/sys_uart/sys_uart.h",
+      "texts_file": "runit-esp/components/sys/sys_uart/errors_sys_uart.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 196609,
+          "name": "ERR_UART_LINE_BAD",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "\"#R:\" line: odd digits, non-hex or too long",
+          "message": "A serial line of {len} characters is not a valid frame"
+        },
+        {
+          "code": 2,
+          "tag": 196610,
+          "name": "ERR_UART_BAD_ENDPOINT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "endpoint",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "connector binding to an endpoint other than 0",
+          "message": "The serial port has no endpoint {endpoint}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "sys_ble",
+      "symbol": "ERR_MOD_SYS_BLE",
+      "source_file": "runit-esp/components/sys/sys_ble/sys_ble.h",
+      "texts_file": "runit-esp/components/sys/sys_ble/errors_sys_ble.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 262145,
+          "name": "ERR_BLE_STACK",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "NimBLE init / host call failed",
+          "message": "Bluetooth failed (code {rc})"
+        },
+        {
+          "code": 2,
+          "tag": 262146,
+          "name": "ERR_BLE_ADV",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "advertising failed",
+          "message": "The board could not start advertising (code {rc})"
+        },
+        {
+          "code": 3,
+          "tag": 262147,
+          "name": "ERR_BLE_GATT",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "add / delete service failed",
+          "message": "Bluetooth service {uuid} could not be changed (code {rc})"
+        },
+        {
+          "code": 4,
+          "tag": 262148,
+          "name": "ERR_BLE_SVC_LOCKED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth service {uuid} cannot be changed",
+          "hint": "This service belongs to the board: add a service of your own instead."
+        },
+        {
+          "code": 5,
+          "tag": 262149,
+          "name": "ERR_BLE_UUID_TAKEN",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth {uuid} is already in use",
+          "hint": "Choose another UUID."
+        },
+        {
+          "code": 6,
+          "tag": 262150,
+          "name": "ERR_BLE_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "description": "no such service / characteristic",
+          "message": "Bluetooth {uuid} does not exist",
+          "hint": "Check the UUID, or apply the Bluetooth settings first."
+        },
+        {
+          "code": 7,
+          "tag": 262151,
+          "name": "ERR_BLE_NO_MEM",
+          "severity": 3,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "message": "No memory for Bluetooth {uuid} ({size} bytes)",
+          "hint": "Make the buffers smaller, or remove a characteristic you do not need."
+        },
+        {
+          "code": 8,
+          "tag": 262152,
+          "name": "ERR_BLE_NO_TX",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "description": "no TX buffer, or being removed",
+          "message": "Bluetooth {uuid} cannot send",
+          "hint": "Give the characteristic a send buffer with notify or indicate."
+        },
+        {
+          "code": 9,
+          "tag": 262153,
+          "name": "ERR_BLE_NO_RX",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "description": "not writable / no RX buffer",
+          "message": "Bluetooth {uuid} cannot receive",
+          "hint": "Give the characteristic a receive buffer and allow write."
+        },
+        {
+          "code": 10,
+          "tag": 262154,
+          "name": "ERR_BLE_TX_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "item dropped",
+          "message": "Bluetooth {uuid} is full: {len} bytes were not sent",
+          "hint": "Send less often, or make the send buffer larger."
+        },
+        {
+          "code": 11,
+          "tag": 262155,
+          "name": "ERR_BLE_RX_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "peer write dropped",
+          "message": "Bluetooth {uuid} is full: {len} bytes received were dropped",
+          "hint": "Write less often, or make the receive buffer larger."
+        },
+        {
+          "code": 12,
+          "tag": 262156,
+          "name": "ERR_BLE_TOO_LONG",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "{len} bytes are too long for Bluetooth {uuid} (at most {max})",
+          "hint": "Send less at once, or make the buffer larger."
+        },
+        {
+          "code": 13,
+          "tag": 262157,
+          "name": "ERR_BLE_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "A Bluetooth setting is not valid"
+        },
+        {
+          "code": 14,
+          "tag": 262158,
+          "name": "ERR_BLE_FRAG",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "hdr",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "packet out of order: frame dropped",
+          "message": "Bluetooth {uuid}: a packet came out of order and its frame was dropped"
+        },
+        {
+          "code": 15,
+          "tag": 262159,
+          "name": "ERR_BLE_RX_HANDLER",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "description": "handler already set, or char has an RX buffer",
+          "message": "Bluetooth {uuid} already has a receiver"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "sys_connector",
+      "symbol": "ERR_MOD_SYS_CONNECTOR",
+      "source_file": "runit-esp/components/sys/sys_connector/sys_connector.h",
+      "texts_file": "runit-esp/components/sys/sys_connector/errors_sys_connector.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 327681,
+          "name": "ERR_CONN_BAD_ID",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "description": "outside 0..CONFIG_SYS_CONNECTOR_MAX-1",
+          "message": "{id} is not a valid connector"
+        },
+        {
+          "code": 2,
+          "tag": 327682,
+          "name": "ERR_CONN_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "message": "{id} does not exist"
+        },
+        {
+          "code": 3,
+          "tag": 327683,
+          "name": "ERR_CONN_EXISTS",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "message": "{id} already exists",
+          "hint": "Choose another stream ID."
+        },
+        {
+          "code": 4,
+          "tag": 327684,
+          "name": "ERR_CONN_PROTECTED",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "description": "system connector: no remove, keeps one binding",
+          "message": "{id} belongs to the system and cannot be changed that way",
+          "hint": "A system stream keeps one transport: bind another before you unbind this one."
+        },
+        {
+          "code": 5,
+          "tag": 327685,
+          "name": "ERR_CONN_NO_PROVIDER",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "message": "{provider} is not available",
+          "hint": "Choose a transport the board has."
+        },
+        {
+          "code": 6,
+          "tag": 327686,
+          "name": "ERR_CONN_BINDINGS_FULL",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "message": "{id} cannot be bound to more transports",
+          "hint": "Unbind a transport first."
+        },
+        {
+          "code": 7,
+          "tag": 327687,
+          "name": "ERR_CONN_TOO_LONG",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            },
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "description": "frame not sent there",
+          "message": "{id}: {len} bytes are too long for {provider} (at most {max})",
+          "hint": "Send less at once."
+        },
+        {
+          "code": 8,
+          "tag": 327688,
+          "name": "ERR_CONN_QUEUE_FULL",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "payload dropped",
+          "message": "{id} is full: {len} bytes were dropped",
+          "hint": "Send less often."
+        },
+        {
+          "code": 9,
+          "tag": 327689,
+          "name": "ERR_CONN_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "A connector setting is not valid"
+        },
+        {
+          "code": 10,
+          "tag": 327690,
+          "name": "ERR_CONN_SEND",
+          "severity": 0,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            },
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "endpoint",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "context: provider send failed",
+          "context": true,
+          "message": "While {id} sent over {provider}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "sys_device",
+      "symbol": "ERR_MOD_SYS_DEVICE",
+      "source_file": "runit-esp/components/sys/sys_device/sys_device.h",
+      "texts_file": "runit-esp/components/sys/sys_device/errors_sys_device.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 393217,
+          "name": "ERR_DEV_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "A device request is not valid"
+        },
+        {
+          "code": 2,
+          "tag": 393218,
+          "name": "ERR_DEV_BAD_ID",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "SYS_DEVICE_ID_NONE",
+          "message": "{id} is not a valid device ID"
+        },
+        {
+          "code": 3,
+          "tag": 393219,
+          "name": "ERR_DEV_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "message": "{id} does not exist",
+          "hint": "Write the project to the board (toolbar), or check the device ID."
+        },
+        {
+          "code": 4,
+          "tag": 393220,
+          "name": "ERR_DEV_ID_TAKEN",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "message": "The ID of {id} is already taken",
+          "hint": "Give the device another ID."
+        },
+        {
+          "code": 5,
+          "tag": 393221,
+          "name": "ERR_DEV_TABLE_FULL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "CONFIG_SYS_DEVICE_MAX",
+          "message": "No room for {id}: the board has as many devices as it can hold",
+          "hint": "Remove a device you do not use."
+        },
+        {
+          "code": 6,
+          "tag": 393222,
+          "name": "ERR_DEV_TYPE_UNKNOWN",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device_type"
+            }
+          ],
+          "message": "The board does not know {type}",
+          "hint": "Update the board's firmware, or remove the device: this firmware has no driver for it."
+        },
+        {
+          "code": 10,
+          "tag": 393226,
+          "name": "ERR_DEV_SUSPENDED",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "message": "{id} is suspended",
+          "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
+        },
+        {
+          "code": 11,
+          "tag": 393227,
+          "name": "ERR_DEV_NO_MEM",
+          "severity": 4,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "message": "No memory for {id} ({size} bytes)",
+          "hint": "Remove a device or a part of the program you do not need, then try again."
+        },
+        {
+          "code": 12,
+          "tag": 393228,
+          "name": "ERR_DEV_INSTALL",
+          "severity": 0,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "type",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind": "device_type"
+            }
+          ],
+          "description": "context: create failed",
+          "context": true,
+          "message": "While creating {id} ({type})"
+        },
+        {
+          "code": 13,
+          "tag": 393229,
+          "name": "ERR_DEV_ID",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "context: route step / sweep",
+          "context": true,
+          "message": "In {id}"
+        },
+        {
+          "code": 15,
+          "tag": 393231,
+          "name": "ERR_DEV_BAD_PIN",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            }
+          ],
+          "message": "{id} has no {pin}",
+          "hint": "Choose a pin the device has."
+        },
+        {
+          "code": 16,
+          "tag": 393232,
+          "name": "ERR_DEV_RANGE",
+          "severity": 3,
+          "size": 14,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "i32",
+              "offset": 6,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "i32",
+              "offset": 10,
+              "size": 4
+            }
+          ],
+          "description": "a value the chip would reject (signed: thresholds may be negative)",
+          "message": "{id}: {value} is outside {min}..{max}",
+          "hint": "Use a value within the range shown."
+        },
+        {
+          "code": 17,
+          "tag": 393233,
+          "name": "ERR_DEV_OP",
+          "severity": 0,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device_op"
+            }
+          ],
+          "description": "context: route step",
+          "context": true,
+          "message": "In {op}"
+        },
+        {
+          "code": 18,
+          "tag": 393234,
+          "name": "ERR_DEV_UNKNOWN_OP",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device_op"
+            }
+          ],
+          "description": "an op (contract) the device doesn't have",
+          "message": "The device cannot do {op}",
+          "hint": "This device does not have that command: use one from its list."
+        },
+        {
+          "code": 19,
+          "tag": 393235,
+          "name": "ERR_DEV_PIN_LOCKED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            }
+          ],
+          "description": "a locked pin: only its owner drives it (sys_pins.h)",
+          "message": "{pin} of {id} is held by another device",
+          "hint": "Change the pin through the device that holds it, or choose a free pin."
+        },
+        {
+          "code": 20,
+          "tag": 393236,
+          "name": "ERR_DEV_IN_USE",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "user",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "REMOVE of a device another one uses",
+          "message": "{id} cannot be removed: {user} uses it",
+          "hint": "Remove or change that device first."
+        },
+        {
+          "code": 21,
+          "tag": 393237,
+          "name": "ERR_DEV_DEPS_FULL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "CONFIG_SYS_DEVICE_MAX_DEPS",
+          "message": "{id} cannot depend on more devices"
+        },
+        {
+          "code": 22,
+          "tag": 393238,
+          "name": "ERR_DEV_FAULT_RESPONSE",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "sev",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "stage",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_device_fault_stage_e"
+            },
+            {
+              "name": "action",
+              "type": "u32",
+              "offset": 4,
+              "size": 4,
+              "id_kind": "action"
+            }
+          ],
+          "description": "the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only",
+          "message": "The response to an error of {id} failed (step {stage}, {action})",
+          "hint": "Check the device's error policy and the action it runs."
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "sys_io",
+      "symbol": "ERR_MOD_SYS_IO",
+      "source_file": "runit-esp/components/sys/sys_io/sys_io.h",
+      "texts_file": "runit-esp/components/sys/sys_io/errors_sys_io.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 458753,
+          "name": "ERR_IO_PIN_IN_USE",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_io_mode_e"
+            }
+          ],
+          "description": "SET_MODE of a configured pin; mode = the current one",
+          "message": "{pin} of {id} is already set up as {mode}",
+          "hint": "Reset the pin first, or keep its mode: a pin is set up once."
+        },
+        {
+          "code": 2,
+          "tag": 458754,
+          "name": "ERR_IO_PIN_UNCONFIGURED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            }
+          ],
+          "description": "the op needs SET_MODE first",
+          "message": "{pin} of {id} is not set up yet",
+          "hint": "Set the pin's mode first (Devices: the pin's Mode, or Set mode), then use it."
+        },
+        {
+          "code": 3,
+          "tag": 458755,
+          "name": "ERR_IO_WRONG_MODE",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_io_mode_e"
+            }
+          ],
+          "description": "the op doesn't fit the pin's current mode",
+          "message": "{pin} of {id} is {mode}: it cannot do that",
+          "hint": "Use a command that fits the pin's mode, or reset the pin and set another mode."
+        },
+        {
+          "code": 4,
+          "tag": 458756,
+          "name": "ERR_IO_MODE_UNSUPPORTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_io_mode_e"
+            }
+          ],
+          "description": "this pin / device can't do the mode",
+          "message": "{pin} of {id} cannot be {mode}",
+          "hint": "Choose a mode this pin offers, or another pin."
+        },
+        {
+          "code": 5,
+          "tag": 458757,
+          "name": "ERR_IO_FEATURE_UNSUPPORTED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            }
+          ],
+          "description": "e.g. ADC on a pin without ADC",
+          "message": "{pin} of {id} does not support that",
+          "hint": "Use a pin that has it (the device page lists what each pin can do)."
+        },
+        {
+          "code": 6,
+          "tag": 458758,
+          "name": "ERR_IO_PWM_CHANNELS_EXHAUSTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            },
+            {
+              "name": "channels",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "{pin} of {id}: all {channels} PWM channels are in use",
+          "hint": "Reset a PWM pin you no longer need, or use a PWM expander."
+        },
+        {
+          "code": 7,
+          "tag": 458759,
+          "name": "ERR_IO_PWM_TIMERS_EXHAUSTED",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            },
+            {
+              "name": "timers",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            },
+            {
+              "name": "frequency_Hz",
+              "type": "u32",
+              "offset": 4,
+              "size": 4,
+              "unit": "Hz"
+            }
+          ],
+          "description": "a new frequency needs a timer and none is free",
+          "message": "{pin} of {id}: no PWM timer is free for {frequency_Hz} (all {timers} in use)",
+          "hint": "Use a frequency another PWM pin already runs at, or reset a PWM pin you no longer need."
+        },
+        {
+          "code": 8,
+          "tag": 458760,
+          "name": "ERR_IO_BAD_READING",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin",
+              "of": "id"
+            }
+          ],
+          "description": "an ADC didn't return the channel asked for",
+          "message": "{pin} of {id} returned a wrong reading",
+          "hint": "Read it again; if it keeps failing, restart the board."
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "actions",
+      "symbol": "ERR_MOD_SYS_ACTIONS",
+      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
+      "texts_file": "runit-esp/components/sys/sys_actions/errors_actions.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 524289,
+          "name": "ERR_ACTION_NOT_FOUND",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "action"
+            }
+          ],
+          "message": "{id} does not exist",
+          "hint": "Write the project to the board (toolbar), or check which action is called."
+        },
+        {
+          "code": 3,
+          "tag": 524291,
+          "name": "ERR_ACTION_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a recording or upload is open",
+          "message": "A recording or upload is already open"
+        },
+        {
+          "code": 4,
+          "tag": 524292,
+          "name": "ERR_ACTION_NO_SESSION",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no recording / upload of that kind open",
+          "message": "No recording or upload is open"
+        },
+        {
+          "code": 5,
+          "tag": 524293,
+          "name": "ERR_ACTION_TOO_BIG",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "message": "The action is {len} bytes; at most {max} fit",
+          "hint": "Split the action into smaller ones."
+        },
+        {
+          "code": 6,
+          "tag": 524294,
+          "name": "ERR_ACTION_OFFSET",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "upload write out of order",
+          "message": "The upload is out of order (at {got}, expected {want})"
+        },
+        {
+          "code": 7,
+          "tag": 524295,
+          "name": "ERR_ACTION_INCOMPLETE",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "commit before every byte came",
+          "message": "The upload is incomplete ({got} of {want} bytes)",
+          "hint": "Write it again."
+        },
+        {
+          "code": 8,
+          "tag": 524296,
+          "name": "ERR_ACTION_CRC",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The upload is damaged (checksum {got}, expected {want})",
+          "hint": "Write it again."
+        },
+        {
+          "code": 9,
+          "tag": 524297,
+          "name": "ERR_ACTION_BAD_FRAME",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "image framing broken there",
+          "message": "The action is broken at byte {offset}"
+        },
+        {
+          "code": 10,
+          "tag": 524298,
+          "name": "ERR_ACTION_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "recording stopped with no frame",
+          "message": "The recording has no command",
+          "hint": "Add a command to the action."
+        },
+        {
+          "code": 11,
+          "tag": 524299,
+          "name": "ERR_ACTION_DEPTH",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "RUN nested deeper than CONFIG_SYS_ACTIONS_MAX_DEPTH",
+          "message": "Actions run each other {depth} levels deep: too deep",
+          "hint": "Make the actions call each other less deep."
+        },
+        {
+          "code": 12,
+          "tag": 524300,
+          "name": "ERR_ACTION_WRONG_TASK",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "sys_actions_run outside a router task",
+          "message": "An action was started from the wrong place"
+        },
+        {
+          "code": 14,
+          "tag": 524302,
+          "name": "ERR_ACTION_NO_MEM",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "No memory for the action ({size} bytes)"
+        },
+        {
+          "code": 15,
+          "tag": 524303,
+          "name": "ERR_ACTION_STEP",
+          "severity": 0,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "action"
+            },
+            {
+              "name": "step",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "description": "context: frame `step` (from 0) failed",
+          "context": true,
+          "message": "In step {step} of {id}"
+        },
+        {
+          "code": 16,
+          "tag": 524304,
+          "name": "ERR_ACTION_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "An action request is not valid"
+        },
+        {
+          "code": 17,
+          "tag": 524305,
+          "name": "ERR_ACTION_BAD_ID",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "ID 0 (SYS_ACTIONS_ID_NONE)",
+          "message": "Action ID 0 is not valid"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "event",
+      "symbol": "ERR_MOD_SYS_EVENT",
+      "source_file": "runit-esp/components/sys/sys_event/sys_event.h",
+      "texts_file": "runit-esp/components/sys/sys_event/errors_event.json",
+      "tags": [
+        {
+          "code": 2,
+          "tag": 589826,
+          "name": "ERR_EVENT_QUEUE_FULL",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "event",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dropped",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "Too many events: {dropped} from {source} were dropped",
+          "hint": "The source sends events faster than they are taken: slow it down."
+        },
+        {
+          "code": 3,
+          "tag": 589827,
+          "name": "ERR_EVENT_TABLE_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "message": "No room for another event subscription"
+        },
+        {
+          "code": 4,
+          "tag": 589828,
+          "name": "ERR_EVENT_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "subscription handle",
+          "message": "Event subscription {id} does not exist"
+        },
+        {
+          "code": 5,
+          "tag": 589829,
+          "name": "ERR_EVENT_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "An event request is not valid"
+        },
+        {
+          "code": 8,
+          "tag": 589832,
+          "name": "ERR_EVENT_DELIVERY",
+          "severity": 0,
+          "size": 7,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "event",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "source"
+            },
+            {
+              "name": "device",
+              "type": "u16",
+              "offset": 5,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "context: a listener failed",
+          "context": true,
+          "message": "While {device} handled event {event} of {source} ({channel})"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "sys_power",
+      "symbol": "ERR_MOD_SYS_POWER",
+      "source_file": "runit-esp/components/sys/sys_power/sys_power.h",
+      "texts_file": "runit-esp/components/sys/sys_power/errors_sys_power.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 655361,
+          "name": "ERR_POWER_BAD_CHANNEL",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "id"
+            }
+          ],
+          "description": "the device has no such channel",
+          "message": "{id} has no {channel}",
+          "hint": "Choose a channel the device has."
+        },
+        {
+          "code": 2,
+          "tag": 655362,
+          "name": "ERR_POWER_ALERT_UNSUPPORTED",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "id"
+            },
+            {
+              "name": "alert",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_power_alert_e"
+            }
+          ],
+          "description": "this channel / device can't do the alert (sys_power_alert_e)",
+          "message": "{channel} of {id} cannot raise the {alert} alert",
+          "hint": "Choose an alert this channel offers."
+        },
+        {
+          "code": 3,
+          "tag": 655363,
+          "name": "ERR_POWER_EXT_FEEDBACK",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "the regulator uses an external divider: its output can't be set in mV",
+          "message": "{id} uses an external divider: its output cannot be set in mV",
+          "hint": "Set it in its own terms (the device page says how), not in mV."
+        },
+        {
+          "code": 4,
+          "tag": 655364,
+          "name": "ERR_POWER_NO_PROFILE",
+          "severity": 3,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "voltage_mV",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "unit": "mV"
+            },
+            {
+              "name": "lowest_mV",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "mV"
+            }
+          ],
+          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer)",
+          "message": "{id}: the source offers nothing at or below {voltage_mV} (lowest {lowest_mV})",
+          "hint": "Use a charger that offers this voltage, or ask for a higher one."
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "cmd",
+      "symbol": "ERR_MOD_CMD",
+      "source_file": "runit-esp/components/core/cmd/cmd.h",
+      "texts_file": "runit-esp/components/core/cmd/errors_cmd.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 720897,
+          "name": "ERR_CMD_BAD_LEN",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "payload size",
+          "message": "The command carries {got} bytes; it needs {need}"
+        },
+        {
+          "code": 2,
+          "tag": 720898,
+          "name": "ERR_CMD_OUT_FULL",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "answer does not fit the link",
+          "message": "The answer needs {need} bytes; the link takes {cap}"
+        },
+        {
+          "code": 3,
+          "tag": 720899,
+          "name": "ERR_CMD_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "invalid argument value",
+          "message": "A value of the command is not valid"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "log",
+      "symbol": "ERR_MOD_SYS_LOG",
+      "source_file": "runit-esp/components/sys/sys_log/sys_log.h",
+      "texts_file": "runit-esp/components/sys/sys_log/errors_log.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 851969,
+          "name": "ERR_LOG_BAD_LEVEL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "level",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "above CONFIG_LOG_MAXIMUM_LEVEL",
+          "message": "Log level {level} is above the highest the board has ({max})",
+          "hint": "Choose a lower level."
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "power_manager",
+      "symbol": "ERR_MOD_SYS_POWER_MANAGER",
+      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "texts_file": "runit-esp/components/sys/sys_power_manager/errors_power_manager.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 917505,
+          "name": "ERR_PWRM_NOT_READY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "before sys_power_manager_init",
+          "message": "The power manager is not ready"
+        },
+        {
+          "code": 2,
+          "tag": 917506,
+          "name": "ERR_PWRM_BUDGET_EXCEEDED",
+          "severity": 2,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "requested_mW",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "unit": "mW"
+            },
+            {
+              "name": "available_mW",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "mW"
+            }
+          ],
+          "description": "a rail change that doesn't fit",
+          "message": "{id} needs {requested_mW}; only {available_mW} is available",
+          "hint": "Lower the load, switch off another rail, or use a stronger supply."
+        },
+        {
+          "code": 3,
+          "tag": 917507,
+          "name": "ERR_PWRM_BELOW_ALLOCATION",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "allocated_mW",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "unit": "mW"
+            },
+            {
+              "name": "limit_mW",
+              "type": "u32",
+              "offset": 4,
+              "size": 4,
+              "unit": "mW"
+            }
+          ],
+          "description": "the budget shrank under what's committed",
+          "message": "The power budget fell to {limit_mW}, below the {allocated_mW} the outputs use",
+          "hint": "The supply gives less than before: lower the load or use a stronger supply."
+        },
+        {
+          "code": 4,
+          "tag": 917508,
+          "name": "ERR_PWRM_FAULT",
+          "severity": 2,
+          "size": 9,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "source"
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "sys_power_kind_e"
+            },
+            {
+              "name": "response",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "sys_power_response_e"
+            },
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 5,
+              "size": 4
+            }
+          ],
+          "description": "a hardware fault and the response taken",
+          "message": "{kind} on {channel} of {source} ({value}): {response}",
+          "hint": "Check what is connected to that output (a short, too much load); the board reacted as its power settings say."
+        },
+        {
+          "code": 5,
+          "tag": 917509,
+          "name": "ERR_PWRM_BAD_ARG",
+          "severity": 3,
+          "size": 12,
+          "fields": [
+            {
+              "name": "value",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "i32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "i32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "a setting out of range",
+          "message": "{value} is outside {min}..{max}",
+          "hint": "Use a value within the range shown."
+        },
+        {
+          "code": 6,
+          "tag": 917510,
+          "name": "ERR_PWRM_NOT_RAIL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a response target that is neither the board nor a rail of it",
+          "message": "{id} is not a power rail of the board",
+          "hint": "Choose the board or one of its power rails."
+        },
+        {
+          "code": 7,
+          "tag": 917511,
+          "name": "ERR_PWRM_NO_OFFER",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no USB-PD sink on the board, or the charger offers nothing",
+          "message": "The charger offers no power",
+          "hint": "Connect a USB-C charger that offers power."
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "vm",
+      "symbol": "ERR_MOD_VM",
+      "source_file": "runit-esp/components/vm/vm_core/errors/vm_err.h",
+      "texts_file": "runit-esp/components/vm/vm_core/errors/errors_vm.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 983041,
+          "name": "ERR_VM_ALLOC_EXHAUSTED",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "requested",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "remaining",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The program needs {requested} more bytes; {remaining} are left",
+          "hint": "Make the program smaller: fewer or shorter variables."
+        },
+        {
+          "code": 2,
+          "tag": 983042,
+          "name": "ERR_VM_ACCESSOR_UNKNOWN_ID",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            }
+          ],
+          "message": "{id} does not exist"
+        },
+        {
+          "code": 3,
+          "tag": 983043,
+          "name": "ERR_VM_ACCESSOR_OOB",
+          "severity": 1,
+          "size": 7,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 5,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{id}: position {index} is outside {obj_id} (step {chain_pos})"
+        },
+        {
+          "code": 4,
+          "tag": 983044,
+          "name": "ERR_VM_ACCESSOR_TYPE_MISMATCH",
+          "severity": 1,
+          "size": 7,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "actual",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 5,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{id}: {obj_id} is {actual}, {expected} was expected (step {chain_pos})"
+        },
+        {
+          "code": 5,
+          "tag": 983045,
+          "name": "ERR_VM_ACCESSOR_NULL_OBJ",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "parent_id",
+              "type": "u16",
+              "offset": 3,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{id}: {parent_id} has nothing at step {chain_pos}"
+        },
+        {
+          "code": 6,
+          "tag": 983046,
+          "name": "ERR_VM_ACCESSOR_DEPTH_EXCEEDED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            }
+          ],
+          "message": "{id} goes too deep"
+        },
+        {
+          "code": 7,
+          "tag": 983047,
+          "name": "ERR_VM_ACCESSOR_INDEX_FAILED",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "message": "{id}: the position at step {chain_pos} could not be read"
+        },
+        {
+          "code": 8,
+          "tag": 983048,
+          "name": "ERR_VM_ACCESSOR_NAME_NOT_FOUND",
+          "severity": 1,
+          "size": 19,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "name",
+              "type": "chars",
+              "offset": 3,
+              "size": 16
+            }
+          ],
+          "message": "{id}: there is nothing named '{name}' (step {chain_pos})"
+        },
+        {
+          "code": 9,
+          "tag": 983049,
+          "name": "ERR_VM_ACCESSOR_NOT_MUTABLE",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "chain_pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 3,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{id}: {obj_id} cannot be written (step {chain_pos})"
+        },
+        {
+          "code": 10,
+          "tag": 983050,
+          "name": "ERR_VM_BLOCK_PIN_MISSING",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pin_id",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind_by": {
+                "field": "is_out",
+                "kinds": {
+                  "0": "vm_block_input",
+                  "1": "vm_block_output"
+                }
+              }
+            },
+            {
+              "name": "is_out",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "{pin_id} of {block_idx} is missing"
+        },
+        {
+          "code": 11,
+          "tag": 983051,
+          "name": "ERR_VM_BLOCK_PIN_UNLINKED",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pin_id",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind_by": {
+                "field": "is_out",
+                "kinds": {
+                  "0": "vm_block_input",
+                  "1": "vm_block_output"
+                }
+              }
+            },
+            {
+              "name": "is_out",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "{pin_id} of {block_idx} is not connected",
+          "hint": "Connect the pin."
+        },
+        {
+          "code": 12,
+          "tag": 983052,
+          "name": "ERR_VM_BLOCK_FAILED",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "block_type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "vm_block_type"
+            }
+          ],
+          "message": "{block_idx} ({block_type}) failed"
+        },
+        {
+          "code": 13,
+          "tag": 983053,
+          "name": "ERR_VM_OBJ_COPY_MISMATCH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "src_type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "dst_type",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "src_size",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dst_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "A {src_type} of {src_size} bytes cannot be copied into a {dst_type} of {dst_size} bytes"
+        },
+        {
+          "code": 14,
+          "tag": 983054,
+          "name": "ERR_VM_OBJ_COPY_SHAPE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "The values do not have the same shape (element {index}, level {depth})"
+        },
+        {
+          "code": 15,
+          "tag": 983055,
+          "name": "ERR_VM_OBJ_NOT_MUTABLE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} cannot be written"
+        },
+        {
+          "code": 16,
+          "tag": 983056,
+          "name": "ERR_VM_OBJ_OOB",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "Position {index} is outside {obj_id}"
+        },
+        {
+          "code": 17,
+          "tag": 983057,
+          "name": "ERR_VM_OBJ_NOT_PTR",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "actual",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} is {actual}, not a folder"
+        },
+        {
+          "code": 18,
+          "tag": 983058,
+          "name": "ERR_VM_OBJ_BAD_TYPE",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "{type} is not a type the board knows"
+        },
+        {
+          "code": 19,
+          "tag": 983059,
+          "name": "ERR_VM_OBJ_EMPTY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "A {type} with no elements"
+        },
+        {
+          "code": 20,
+          "tag": 983060,
+          "name": "ERR_VM_OBJ_BAD_SIZE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "payload_size",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "width",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "A {type} of {payload_size} bytes does not split into elements of {width}"
+        },
+        {
+          "code": 21,
+          "tag": 983061,
+          "name": "ERR_VM_OBJ_NAME_TOO_LONG",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "A name of {len} bytes is too long"
+        },
+        {
+          "code": 22,
+          "tag": 983062,
+          "name": "ERR_VM_OBJ_RETENTIVE_PTR",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "A {type} cannot be kept across restarts"
+        },
+        {
+          "code": 23,
+          "tag": 983063,
+          "name": "ERR_VM_LOAD_BAD_STATE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "state",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_load_state_e"
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_load_state_e"
+            }
+          ],
+          "message": "The program upload is {state}; {expected} was expected"
+        },
+        {
+          "code": 24,
+          "tag": 983064,
+          "name": "ERR_VM_LOAD_TOO_BIG",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "requested",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "available",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The program needs {requested} bytes; the board has {available}",
+          "hint": "Make the program smaller."
+        },
+        {
+          "code": 25,
+          "tag": 983065,
+          "name": "ERR_VM_LOAD_DATA_RANGE",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "start_idx",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            },
+            {
+              "name": "items",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            }
+          ],
+          "message": "{id}: {len} values from {start_idx} do not fit its {items} elements"
+        },
+        {
+          "code": 26,
+          "tag": 983066,
+          "name": "ERR_VM_LOAD_SHORT_RECORD",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "packet",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "vm_op"
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "{packet} is cut short ({got} of {need} bytes)"
+        },
+        {
+          "code": 27,
+          "tag": 983067,
+          "name": "ERR_VM_ACC_INDEX_OOB",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "acc_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "count",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "{acc_id}: step {pos} is outside its {count} steps"
+        },
+        {
+          "code": 28,
+          "tag": 983068,
+          "name": "ERR_VM_ACC_BAD_KIND",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "acc_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "vm_index_kind_e"
+            }
+          ],
+          "message": "{acc_id}: step {pos} is {kind}, which is not allowed there"
+        },
+        {
+          "code": 29,
+          "tag": 983069,
+          "name": "ERR_VM_REG_OOB",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_reg_e"
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_object",
+                  "1": "vm_accessor",
+                  "2": "vm_block"
+                }
+              }
+            },
+            {
+              "name": "count",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "{id} is outside the {count} {kind} of the program"
+        },
+        {
+          "code": 30,
+          "tag": 983070,
+          "name": "ERR_VM_REG_DUP",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_reg_e"
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_object",
+                  "1": "vm_accessor",
+                  "2": "vm_block"
+                }
+              }
+            }
+          ],
+          "message": "{id} is loaded twice"
+        },
+        {
+          "code": 31,
+          "tag": 983071,
+          "name": "ERR_VM_BLK_BAD_SHAPE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "in_cnt",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "q_cnt",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "{blk_id} has {in_cnt} inputs and {q_cnt} outputs: not what its type takes"
+        },
+        {
+          "code": 32,
+          "tag": 983072,
+          "name": "ERR_VM_BLK_BAD_REF",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "ref_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_accessor",
+                  "1": "vm_object",
+                  "2": "vm_accessor",
+                  "3": "vm_object"
+                }
+              }
+            },
+            {
+              "name": "slot",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_block_input",
+                  "1": "vm_block_output",
+                  "2": "vm_block_enable"
+                }
+              }
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 5,
+              "size": 1,
+              "enum_ref": "vm_ref_kind"
+            }
+          ],
+          "message": "{slot} of {blk_id} refers to {ref_id}, which does not exist"
+        },
+        {
+          "code": 33,
+          "tag": 983073,
+          "name": "ERR_VM_DYN_FULL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "limit",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "message": "No room for more dynamic values (at most {limit})"
+        },
+        {
+          "code": 34,
+          "tag": 983074,
+          "name": "ERR_VM_BLK_UNKNOWN_TYPE",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "block_type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "vm_block_type"
+            }
+          ],
+          "message": "{blk_id}: the board has no {block_type}"
+        },
+        {
+          "code": 35,
+          "tag": 983075,
+          "name": "ERR_VM_EXEC_BLOCK_HUNG",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "ms",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "message": "{block_idx} has run for {ms} ms without finishing",
+          "hint": "Check the block: a loop that never ends, or a device that does not answer."
+        },
+        {
+          "code": 36,
+          "tag": 983076,
+          "name": "ERR_VM_EXEC_SPAN_DEPTH",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: loops are nested {depth} deep, too deep"
+        },
+        {
+          "code": 37,
+          "tag": 983077,
+          "name": "ERR_VM_EXEC_BAD_SPAN",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "start",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "end",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "{block_idx}: its loop covers blocks {start} to {end}, which is not valid"
+        },
+        {
+          "code": 38,
+          "tag": 983078,
+          "name": "ERR_VM_EVENT_OVERFLOW",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "depth",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dropped",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "Too many events from {source}: {dropped} dropped (queue of {depth})",
+          "hint": "The source sends events faster than the program takes them: slow it down."
+        },
+        {
+          "code": 39,
+          "tag": 983079,
+          "name": "ERR_VM_EXPR_BAD_CODE",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the formula is broken at {pc} ({opcode})"
+        },
+        {
+          "code": 40,
+          "tag": 983080,
+          "name": "ERR_VM_EXPR_MATH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the formula cannot compute {opcode} at {pc}",
+          "hint": "Check the formula: a division by zero, or a value out of range."
+        },
+        {
+          "code": 41,
+          "tag": 983081,
+          "name": "ERR_VM_FOR_BAD_LOOP",
+          "severity": 1,
+          "size": 9,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "turns",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 8,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the loop would run {turns} times (at most {cap})",
+          "hint": "Check the loop limits."
+        },
+        {
+          "code": 42,
+          "tag": 983082,
+          "name": "ERR_VM_OBJ_OWNERSHIP",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "limit",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "message": "Values refer to each other in a loop or too deep (at most {limit})"
+        },
+        {
+          "code": 43,
+          "tag": 983083,
+          "name": "ERR_VM_OBJ_USR_PROTECTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} cannot be changed from the app",
+          "hint": "Change it in the program, not from the app."
+        },
+        {
+          "code": 44,
+          "tag": 983084,
+          "name": "ERR_VM_LOAD_RUNNING",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_run_mode_e"
+            }
+          ],
+          "message": "The program cannot be changed while it runs ({mode})",
+          "hint": "Stop the program first."
+        },
+        {
+          "code": 45,
+          "tag": 983085,
+          "name": "ERR_VM_EXEC_CONTROL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "command",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_exec_command_e"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_run_mode_e"
+            }
+          ],
+          "message": "{command} is not possible now ({mode})",
+          "hint": "Wait for the program to reach a state that allows it, or stop it first."
+        },
+        {
+          "code": 46,
+          "tag": 983086,
+          "name": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} is a folder: it cannot be written from the app"
+        },
+        {
+          "code": 47,
+          "tag": 983087,
+          "name": "ERR_VM_OVERRIDE_BAD_RECORD",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "declared_len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "item_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "A write to {obj_id} is broken ({declared_len} bytes for elements of {item_size})"
+        },
+        {
+          "code": 48,
+          "tag": 983088,
+          "name": "ERR_VM_EXEC_SELF_BARRIER",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "operation",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "The program tried to stop itself from inside a block"
+        },
+        {
+          "code": 49,
+          "tag": 983089,
+          "name": "ERR_VM_EXEC_FAULT_LATCHED",
+          "severity": 4,
+          "size": 6,
+          "fields": [
+            {
+              "name": "device_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "root_tag",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "id_kind": "error_tag"
+            }
+          ],
+          "message": "The program is stopped by a critical error of {device_id} ({root_tag}): acknowledge it to start again",
+          "hint": "Fix the device error, then acknowledge it and run again."
+        },
+        {
+          "code": 50,
+          "tag": 983090,
+          "name": "ERR_VM_PERIODIC_OVERRUN",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "missed",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "period_ms",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "ms"
+            }
+          ],
+          "message": "{block_idx} missed {missed} runs of its {period_ms} period",
+          "hint": "Give the block a longer period, or make what it runs shorter."
+        },
+        {
+          "code": 51,
+          "tag": 983091,
+          "name": "ERR_VM_RETAIN_UNNAMED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} must have a name to be kept across restarts",
+          "hint": "Give the variable a name."
+        },
+        {
+          "code": 52,
+          "tag": 983092,
+          "name": "ERR_VM_RETAIN_TOO_BIG",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "need",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "message": "Keeping {obj_id} needs {need} bytes; at most {max} are kept",
+          "hint": "Keep fewer or smaller variables across restarts."
+        },
+        {
+          "code": 53,
+          "tag": 983093,
+          "name": "ERR_VM_RETAIN_MISMATCH",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "The kept value of {obj_id} does not match it ({type}, {size} bytes)"
+        },
+        {
+          "code": 54,
+          "tag": 983094,
+          "name": "ERR_VM_RETAIN_CORRUPT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "The kept values are damaged at byte {offset}"
+        },
+        {
+          "code": 55,
+          "tag": 983095,
+          "name": "ERR_VM_SUB_TRACK_FULL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "message": "Too many values to watch (at most {max})",
+          "hint": "Watch fewer values at once."
+        },
+        {
+          "code": 56,
+          "tag": 983096,
+          "name": "ERR_VM_BLK_OUTPUT_TAKEN",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "blk_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "slot",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_block_input",
+                  "1": "vm_block_output",
+                  "2": "vm_block_enable"
+                }
+              }
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 5,
+              "size": 1,
+              "enum_ref": "vm_ref_kind"
+            }
+          ],
+          "message": "{slot} of {blk_id} writes {obj_id}, which another block already writes",
+          "hint": "Let only one block write the variable."
+        },
+        {
+          "code": 57,
+          "tag": 983097,
+          "name": "ERR_VM_LOAD_EMPTY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "unused",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "The program is empty",
+          "hint": "Add blocks to the program."
+        },
+        {
+          "code": 58,
+          "tag": 983098,
+          "name": "ERR_VM_LOAD_ABORTED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "packet",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "vm_op"
+            }
+          ],
+          "message": "The program upload was cancelled at {packet}: send it again from the start",
+          "hint": "Load the program again."
+        },
+        {
+          "code": 59,
+          "tag": 983099,
+          "name": "ERR_VM_LOAD_INCOMPLETE",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_reg_e"
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_object",
+                  "1": "vm_accessor",
+                  "2": "vm_block"
+                }
+              }
+            }
+          ],
+          "message": "The program is incomplete: {id} was never loaded"
+        },
+        {
+          "code": 60,
+          "tag": 983100,
+          "name": "ERR_VM_NO_MEM",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "No memory for the program ({size} bytes)",
+          "hint": "Make the program smaller."
+        },
+        {
+          "code": 61,
+          "tag": 983101,
+          "name": "ERR_VM_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "A program request is not valid"
+        },
+        {
+          "code": 62,
+          "tag": 983102,
+          "name": "ERR_VM_RANGE",
+          "severity": 1,
+          "size": 12,
+          "fields": [
+            {
+              "name": "val",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "a count or value outside its limits",
+          "message": "{val} is outside {min}..{max}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "project",
+      "symbol": "ERR_MOD_SYS_PROJECT",
+      "source_file": "runit-esp/components/sys/sys_project/sys_project.h",
+      "texts_file": "runit-esp/components/sys/sys_project/errors_project.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1048577,
+          "name": "ERR_PROJECT_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a save is open",
+          "message": "A project save is already open"
+        },
+        {
+          "code": 2,
+          "tag": 1048578,
+          "name": "ERR_PROJECT_NO_SESSION",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "message": "No project save is open"
+        },
+        {
+          "code": 3,
+          "tag": 1048579,
+          "name": "ERR_PROJECT_TOO_BIG",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The project is {len} bytes; at most {max} fit",
+          "hint": "Remove a part of the project you do not need (devices, actions, program)."
+        },
+        {
+          "code": 4,
+          "tag": 1048580,
+          "name": "ERR_PROJECT_OFFSET",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The project upload is out of order (at {got}, expected {want})"
+        },
+        {
+          "code": 5,
+          "tag": 1048581,
+          "name": "ERR_PROJECT_INCOMPLETE",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The project upload is incomplete ({got} of {want} bytes)",
+          "hint": "Write the project again."
+        },
+        {
+          "code": 6,
+          "tag": 1048582,
+          "name": "ERR_PROJECT_CRC",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The project is damaged (checksum {got}, expected {want})",
+          "hint": "Write the project again."
+        },
+        {
+          "code": 7,
+          "tag": 1048583,
+          "name": "ERR_PROJECT_BAD_FRAME",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "length 0 or above a link frame",
+          "message": "The project is broken at byte {offset}"
+        },
+        {
+          "code": 8,
+          "tag": 1048584,
+          "name": "ERR_PROJECT_TRUNCATED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "the stream ends inside a frame",
+          "message": "The project ends in the middle of a command"
+        },
+        {
+          "code": 9,
+          "tag": 1048585,
+          "name": "ERR_PROJECT_NO_SECTION",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a frame before the first SECTION",
+          "message": "The project has a command before its first section"
+        },
+        {
+          "code": 10,
+          "tag": 1048586,
+          "name": "ERR_PROJECT_BAD_SECTION",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "project_section"
+            }
+          ],
+          "description": "class not allowed, or a SECTION frame of the wrong size",
+          "message": "{id} is not allowed"
+        },
+        {
+          "code": 11,
+          "tag": 1048587,
+          "name": "ERR_PROJECT_SECTION_DUP",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "project_section"
+            }
+          ],
+          "message": "{id} appears twice"
+        },
+        {
+          "code": 12,
+          "tag": 1048588,
+          "name": "ERR_PROJECT_SECTION_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "The project has more than {max} sections",
+          "hint": "Remove a part of the project you do not need."
+        },
+        {
+          "code": 13,
+          "tag": 1048589,
+          "name": "ERR_PROJECT_SECTION_BIG",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "project_section"
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "{id} is larger than {max} bytes",
+          "hint": "Split it: fewer start commands per device, smaller actions."
+        },
+        {
+          "code": 14,
+          "tag": 1048590,
+          "name": "ERR_PROJECT_SECTION_EMPTY",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "project_section"
+            }
+          ],
+          "message": "{id} is empty"
+        },
+        {
+          "code": 15,
+          "tag": 1048591,
+          "name": "ERR_PROJECT_ORDER",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a second program, or a section after it",
+          "message": "The program must be the last part of the project"
+        },
+        {
+          "code": 16,
+          "tag": 1048592,
+          "name": "ERR_PROJECT_CHUNKS",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "the program needs more chunks",
+          "message": "The program is too large to store (more than {max} parts)",
+          "hint": "Make the program smaller."
+        },
+        {
+          "code": 17,
+          "tag": 1048593,
+          "name": "ERR_PROJECT_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "a stream with no section",
+          "message": "The project has no section"
+        },
+        {
+          "code": 18,
+          "tag": 1048594,
+          "name": "ERR_PROJECT_NOT_STORED",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "message": "No project is stored",
+          "hint": "Write the project to the board first (toolbar)."
+        },
+        {
+          "code": 19,
+          "tag": 1048595,
+          "name": "ERR_PROJECT_NOT_IN_STREAM",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a SECTION frame sent as a command",
+          "message": "A section was sent as a command"
+        },
+        {
+          "code": 20,
+          "tag": 1048596,
+          "name": "ERR_PROJECT_RUN",
+          "severity": 0,
+          "size": 0,
+          "fields": [],
+          "description": "context: stored, but the run failed",
+          "context": true,
+          "message": "The project is stored, but running it failed"
+        },
+        {
+          "code": 21,
+          "tag": 1048597,
+          "name": "ERR_PROJECT_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "A project request is not valid"
+        }
+      ]
+    }
+  ]
+}

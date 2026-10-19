@@ -15,7 +15,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@generated/*": ["../generated/*"],
+      "@generated/*": ["./generated/*"],
       "@engine": ["./src/engine/index.ts"],
       "@backend": ["./src/backend/index.ts"],
       "@backend/*": ["./src/backend/*"],

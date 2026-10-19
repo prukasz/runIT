@@ -1,11 +1,11 @@
-"""Publishes the error catalog of the firmware as one JSON: components/core/errors/errors.json.
+"""Publishes the error catalog of the firmware as one JSON: runit-esp/components/core/errors/errors.json.
 
-Reads ERR_MOD_* from components/core/errors/err_modules.h, and the ERR_MODULE_DEFINE and ERR_*_MAP macros from the headers
-and sources under components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
+Reads ERR_MOD_* from runit-esp/components/core/errors/err_modules.h, and the ERR_MODULE_DEFINE and ERR_*_MAP macros from the headers
+and sources under runit-esp/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
 its map (templates/error-texts.schema.json): a message template per error and what a field refers to where the field's
-name does not say it. Enum groups named there are read from generated/common/enums.json (generate_enums.py runs first).
+name does not say it. Enum groups named there are read from runit-app/generated/common/enums.json (generate_enums.py runs first).
 
-Output: components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
+Output: runit-esp/components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
 
 Usage: python templates/generate_errors.py [--check]
 """
@@ -13,9 +13,9 @@ import json
 import re
 from functools import lru_cache
 
-from _common import GENERATED, ROOT, fail, publish, read, rel, sources
+from _common import COMPONENTS_DIR, GENERATED, fail, publish, read, rel, sources
 
-OUT = ROOT / "components" / "core" / "errors" / "errors.json"
+OUT = COMPONENTS_DIR / "core" / "errors" / "errors.json"
 SCHEMA_VERSION = 4
 PAYLOAD_MAX = 64
 
@@ -333,7 +333,7 @@ def scan():
 
 def main():
     publish(OUT, {
-        "$schema": "../../../templates/errors.schema.json",
+        "$schema": "../../../../templates/errors.schema.json",
         "schemaVersion": SCHEMA_VERSION,
         "kind": "errors",
         "severities": SEVERITIES,

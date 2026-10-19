@@ -2,9 +2,9 @@
 
 Current hardware revision. Sources of truth, in order:
 
-1. [components/app/runit/runit_board_defs.h](../../../components/app/runit/runit_board_defs.h) — device IDs, TCA pins, power limits
-2. [components/app/runit/runit_board_cfg.c](../../../components/app/runit/runit_board_cfg.c), [RUNIT.MD](../../../components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
-3. `components/devices/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `generated/devices/`)
+1. [runit-esp/components/app/runit/runit_board_defs.h](../../../runit-esp/components/app/runit/runit_board_defs.h) — device IDs, TCA pins, power limits
+2. [runit-esp/components/app/runit/runit_board_cfg.c](../../../runit-esp/components/app/runit/runit_board_cfg.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
+3. `runit-esp/components/devices/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
 

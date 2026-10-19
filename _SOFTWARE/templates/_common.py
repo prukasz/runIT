@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPONENTS_DIR = ROOT / "components"
-GENERATED = ROOT / "generated"
+ESP = ROOT / "runit-esp"
+COMPONENTS_DIR = ESP / "components"
+GENERATED = ROOT / "runit-app" / "generated"
 SKIP_DIRS = {"build", ".git"}
 
 
@@ -22,7 +23,7 @@ def rel(path):
 
 @lru_cache(maxsize=None)
 def sources(*suffixes):
-    """Every file under components/ with one of the suffixes (build output is skipped)."""
+    """Every file under runit-esp/components/ with one of the suffixes (build output is skipped)."""
     return tuple(sorted(
         p for p in COMPONENTS_DIR.rglob("*")
         if p.suffix in suffixes and not SKIP_DIRS & set(p.relative_to(COMPONENTS_DIR).parts)

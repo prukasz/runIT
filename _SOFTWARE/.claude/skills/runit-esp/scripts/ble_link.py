@@ -4,7 +4,7 @@
   Needs `pip install bleak` (the repository's .venv has it; the IDF env does not).
 
 Nothing about the firmware is typed in here: UUIDs, fragment bits, stream bytes and root keys are read from
-generated/common/enums.json, the BLE op numbers from generated/services/contract_ble.json, the frame limit from
+runit-app/generated/common/enums.json, the BLE op numbers from runit-app/generated/services/contract_ble.json, the frame limit from
 limits.json, the MTU the board offers from sdkconfig. Errors are decoded by router_link (tags from the firmware headers).
 
     dev = await find_board(name="runit")                 # or address="94:A9:..."
@@ -20,9 +20,9 @@ import time
 
 from bleak import BleakClient, BleakScanner
 
-from router_link import ROOT, Response
+from router_link import ESP, ROOT, Response
 
-GENERATED = ROOT / "generated"
+GENERATED = ROOT / "runit-app" / "generated"
 
 
 def _load(*path: str) -> dict:
@@ -58,7 +58,7 @@ ATT_VALUE_MAX = 512
 
 def offered_mtu() -> int | None:
     """The MTU the board asks the central for (sdkconfig), or None when there is no sdkconfig."""
-    path = ROOT / "sdkconfig"
+    path = ESP / "sdkconfig"
     m = re.search(r"^CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=(\d+)", path.read_text(encoding="utf8"), re.M) if path.exists() else None
     return int(m.group(1)) if m else None
 

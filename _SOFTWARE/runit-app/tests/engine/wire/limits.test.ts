@@ -12,7 +12,7 @@ import { blk, build, engine, flag, num, project, read } from '../helpers'
  * against sdkconfig, and the frame arithmetic against the router's C.
  */
 
-const root = fileURLToPath(new URL('../../../../', import.meta.url))
+const root = fileURLToPath(new URL('../../../../runit-esp/', import.meta.url))
 const text = (path: string) => readFileSync(root + path, 'utf8')
 const sdkconfig = new Map([...text('sdkconfig').matchAll(/^CONFIG_(\w+)=(-?\d+)$/gm)].map((m) => [m[1]!, Number(m[2])]))
 

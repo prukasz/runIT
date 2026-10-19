@@ -1,4 +1,4 @@
-"""Publishes the limits the board enforces as one JSON: generated/common/limits.json.
+"""Publishes the limits the board enforces as one JSON: runit-app/generated/common/limits.json.
 
 A limit is a Kconfig option marked with a comment directly above its `config` line. The value is the one the firmware is
 built with (sdkconfig); the description is the first paragraph of the option's `help`.
@@ -14,7 +14,7 @@ Marker:  #@limit @alias <title> [@unit <unit>]      directly above `config <NAME
 
 Only what is marked is published (task priorities and stack sizes are not limits a program can hit). `@alias` is required.
 
-Output: generated/common/limits.json (generated: do not edit), checked by templates/limits.schema.json
+Output: runit-app/generated/common/limits.json (generated: do not edit), checked by templates/limits.schema.json
   {"limits": {NAME: {config, value, alias, description?, unit?, source_file}}}
 
 Usage: python templates/generate_limits.py [--check]
@@ -60,7 +60,7 @@ def help_text(lines, start):
 
 
 def scan():
-    """{NAME: limit} of every `#@limit` option under components/."""
+    """{NAME: limit} of every `#@limit` option under runit-esp/components/."""
     values = sdkconfig()
     limits = {}
     for path in kconfigs():
@@ -96,8 +96,8 @@ def scan():
 def main():
     limits = scan()
     if not limits:
-        fail("no `#@limit` marker found under components/")
-    publish(OUT, {"$schema": "../../templates/limits.schema.json", "schemaVersion": SCHEMA_VERSION, "kind": "limits", "limits": limits}, "generate_limits.py")
+        fail("no `#@limit` marker found under runit-esp/components/")
+    publish(OUT, {"$schema": "../../../templates/limits.schema.json", "schemaVersion": SCHEMA_VERSION, "kind": "limits", "limits": limits}, "generate_limits.py")
 
 
 if __name__ == "__main__":

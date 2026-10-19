@@ -1,16 +1,16 @@
-"""Copies the descriptors that live next to the code in components/ into generated/, where the app reads them.
+"""Copies the descriptors that live next to the code in runit-esp/components/ into runit-app/generated/, where the app reads them.
 
-  generated/devices/    device_*.json                          (components/devices/*/)
-  generated/contracts/  contract_*.json with scope "device"    (components/sys/*/ and others)
-  generated/services/   contract_*.json with scope "system"
-  generated/blocks/     block_*.json                           (components/vm/vm_blocks/**/)
-  generated/common/     errors.json, board.json                (enums.json is written there by generate_enums.py)
-  generated/manuals/<id>/  manual.md and its pictures            (components/devices/device_*/manual/)
-  generated/sources/<id>/  the device's own .c and .h            (components/devices/device_*/)
+  runit-app/generated/devices/    device_*.json                          (runit-esp/components/devices/*/)
+  runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp/components/sys/*/ and others)
+  runit-app/generated/services/   contract_*.json with scope "system"
+  runit-app/generated/blocks/     block_*.json                           (runit-esp/components/vm/vm_blocks/**/)
+  runit-app/generated/common/     errors.json, board.json                (enums.json is written there by generate_enums.py)
+  runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp/components/devices/device_*/manual/)
+  runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp/components/devices/device_*/)
 
 A copy is the same JSON with its `$schema` pointing at templates/ from the new place. Copies of descriptors that no longer
 exist are deleted from the four folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the
-pictures are the manual folder's image files. Nothing in generated/ is edited by hand.
+pictures are the manual folder's image files. Nothing in runit-app/generated/ is edited by hand.
 
 Usage: python templates/generate_bundle.py [--check]
 """
@@ -27,7 +27,7 @@ MANAGED = ("devices", "contracts", "services", "blocks")  # folders whose every 
 
 
 def plan():
-    """{path under generated/: (source file, schema file)} of every copy."""
+    """{path under runit-app/generated/: (source file, schema file)} of every copy."""
     files = {}
     for path in sources(".json"):
         if path.name.startswith("device_"):
@@ -40,7 +40,7 @@ def plan():
         else:
             continue
         if target in files:
-            fail(f"{rel(path)} and {rel(files[target][0])} would both become generated/{target}")
+            fail(f"{rel(path)} and {rel(files[target][0])} would both become runit-app/generated/{target}")
         files[target] = (path, schema)
     files["common/errors.json"] = (ERRORS, "errors.schema.json")
     files["common/board.json"] = (BOARD, "board.schema.json")
@@ -48,17 +48,17 @@ def plan():
 
 
 def copy_of(source, schema, target):
-    """The descriptor with `$schema` first, pointing at templates/ from generated/<target>."""
+    """The descriptor with `$schema` first, pointing at templates/ from runit-app/generated/<target>."""
     if not source.exists():
-        fail(f"{rel(source)} not found (expected for generated/{target})")
+        fail(f"{rel(source)} not found (expected for runit-app/generated/{target})")
     document = json.loads(read(source))
     document.pop("$schema", None)
-    depth = target.count("/") + 1  # generated/<folder>/<file>: two levels up reach the repository root
-    return {"$schema": "../" * depth + f"templates/{schema}", **document}
+    depth = target.count("/") + 1  # runit-app/generated/<folder>/<file>: three levels up reach _SOFTWARE
+    return {"$schema": "../" * (depth + 1) + f"templates/{schema}", **document}
 
 
 def docs_plan():
-    """{path under generated/: source file} of every device's manual and of its code copy (generated/manuals/<id>/, generated/sources/<id>/)."""
+    """{path under runit-app/generated/: source file} of every device's manual and of its code copy (runit-app/generated/manuals/<id>/, runit-app/generated/sources/<id>/)."""
     files = {}
     for descriptor in sources(".json"):
         if not descriptor.name.startswith("device_"):
@@ -103,8 +103,8 @@ def main():
         if not CHECK:
             path.unlink()
     if CHECK and changed:
-        fail(f"generated/ is out of date ({len(changed)}: {', '.join(changed[:5])}{' ...' if len(changed) > 5 else ''}): run python templates/generate_bundle.py")
-    print(f"generated/ is up to date ({len(files) + len(docs)} copies)" if CHECK else f"generated/: {len(files) + len(docs)} copies, {len(changed)} changed, {len(stale) + len(stale_docs)} stale removed")
+        fail(f"runit-app/generated/ is out of date ({len(changed)}: {', '.join(changed[:5])}{' ...' if len(changed) > 5 else ''}): run python templates/generate_bundle.py")
+    print(f"runit-app/generated/ is up to date ({len(files) + len(docs)} copies)" if CHECK else f"runit-app/generated/: {len(files) + len(docs)} copies, {len(changed)} changed, {len(stale) + len(stale_docs)} stale removed")
 
 
 if __name__ == "__main__":

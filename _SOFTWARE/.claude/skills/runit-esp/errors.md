@@ -1,6 +1,6 @@
 # Error handling
 
-The design and every macro: [ERRORS.MD](../../../components/core/errors/ERRORS.MD) and [core/errors/AGENTS.md](../../../components/core/errors/AGENTS.md). Who responds to errors: SYS_DEVICE.MD "Error policy". How a reported chain leaves the board: ROUTER.MD "Error record". This file is the checklist that applies in every component.
+The design and every macro: [ERRORS.MD](../../../runit-esp/components/core/errors/ERRORS.MD) and [core/errors/AGENTS.md](../../../runit-esp/components/core/errors/AGENTS.md). Who responds to errors: SYS_DEVICE.MD "Error policy". How a reported chain leaves the board: ROUTER.MD "Error record". This file is the checklist that applies in every component.
 
 ## Rules
 

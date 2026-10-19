@@ -1,5 +1,5 @@
 /*
- * The vocabulary of the VM wire format. Sources: components/vm/vm_core/obj/vm_obj.h (types, widths, name limit),
+ * The vocabulary of the VM wire format. Sources: runit-esp/components/vm/vm_core/obj/vm_obj.h (types, widths, name limit),
  * loader/vm_wire.h (records), store/vm_store.h (ids). Numbers that firmware publishes (op ids, enum values) are not here:
  * they arrive in a WireDefinitions (definitions.ts), read from generated/.
  */

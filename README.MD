@@ -134,7 +134,9 @@ Całość na popularnym mikrokontrolerze ESP32-S3.
 
 | Folder | Zawartość |
 |---|---|
-| `_SOFTWARE` | Firmware ESP32-S3 (ESP-IDF), deskryptory danych i aplikacja webowa |
+| `_SOFTWARE/runit-esp` | Firmware ESP32-S3 (ESP-IDF) |
+| `_SOFTWARE/runit-app` | Aplikacja (przeglądarka / Electron) wraz z deskryptorami urządzeń w `generated/` |
+| `_SOFTWARE/templates` | Schematy i generatory deskryptorów (wspólne dla firmware i aplikacji) |
 | `_HARDWARE` | Projekt płytki: schematy i PCB (Altium) |
 | `_DOCS` | Obrazy i dokumentacja do README |
 

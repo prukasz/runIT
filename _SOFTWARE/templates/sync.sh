@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regenerates enums.json, limits.json and errors.json, copies the descriptors into generated/, then checks all against their schemas
+# Regenerates enums.json, limits.json and errors.json, copies the descriptors into runit-app/generated/, then checks all against their schemas
 # and the references between them (crosscheck.py).
 #   templates/sync.sh            regenerate and validate
 #   templates/sync.sh --check    only fail when a generated file is out of date (CI), then validate

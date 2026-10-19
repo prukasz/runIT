@@ -47,7 +47,7 @@ def block_numbers():
 
 
 def struct_sizes():
-    """{type name: bytes} of every `sizeof(T) == N` a _Static_assert under components/ pins down."""
+    """{type name: bytes} of every `sizeof(T) == N` a _Static_assert under runit-esp/components/ pins down."""
     sizes = {}
     for path in sources(".c", ".h"):
         for condition in ASSERT_RE.findall(read(path)):
@@ -122,7 +122,7 @@ class Checker:
                 self.error(path, "wire_id", f"{wire} is also the wire_id of '{seen[wire]}'")
             seen[wire] = block_id
             if macro not in lengths:
-                self.error(path, "state_len", f"{macro} has no VM_BLOCK_TYPE_DEFINE under components/")
+                self.error(path, "state_len", f"{macro} has no VM_BLOCK_TYPE_DEFINE under runit-esp/components/")
             elif lengths[macro] != block["state_len"]:
                 self.error(path, "state_len", f"{block['state_len']} but the .state_len of {macro} is {lengths[macro]} in C")
             self.block(path, block)

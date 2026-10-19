@@ -1,0 +1,119 @@
+{
+  "$schema": "../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "power_vreg",
+  "wire_id": 35,
+  "alias": "Regulator",
+  "description": "Switches an adjustable regulator on or off and sets its output voltage and current limit.",
+  "category": "device",
+  "order": 50,
+  "tags": [
+    "power",
+    "regulator",
+    "voltage",
+    "current limit",
+    "supply",
+    "rail",
+    "tps55289"
+  ],
+  "integration": "contract",
+  "state_len": 56,
+  "device": {
+    "contract": "POWER_VREG"
+  },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a setting is sent on the first pass and whenever it changes."
+  },
+  "header": {
+    "subtitle": "{variant} {device}"
+  },
+  "body": [
+    "{device}",
+    "When disabled: {idle}"
+  ],
+  "fields": [
+    {
+      "id": "idle",
+      "alias": "When disabled",
+      "description": "What the block does once when it stops being enabled.",
+      "type": "enum",
+      "raw_type": "u16",
+      "offset": 4,
+      "size": 2,
+      "options": [
+        {
+          "value": 0,
+          "alias": "Hold",
+          "description": "Leave the regulator as it is."
+        },
+        {
+          "value": 1280,
+          "alias": "Switch off",
+          "description": "Switch the output off. The voltage and the limit are kept."
+        }
+      ],
+      "default": 0
+    }
+  ],
+  "variants": [
+    {
+      "id": "set_enable",
+      "alias": "Output",
+      "description": "Switches the regulator output on or off. It returns at once: wait for the regulator's ready event before using the rail. The power manager may refuse it against the power budget.",
+      "op": "SET_ENABLE",
+      "args": {
+        "enable": {
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ]
+        }
+      },
+      "header": {
+        "subtitle": "Output {enable}"
+      }
+    },
+    {
+      "id": "set_voltage",
+      "alias": "Voltage",
+      "description": "Sets the wanted output voltage; the output follows when it is on. The regulator keeps it while the output is off. A higher voltage returns at once: wait for the ready event. The power manager may refuse it against the power budget.",
+      "op": "SET_VOLTAGE",
+      "args": {
+        "voltage_mV": {
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ]
+        }
+      },
+      "header": {
+        "subtitle": "Voltage {voltage_mV}"
+      }
+    },
+    {
+      "id": "set_current",
+      "alias": "Current limit",
+      "description": "Sets the wanted output current limit. The regulator keeps it while the output is off.",
+      "op": "SET_CURRENT",
+      "args": {
+        "current_mA": {
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ]
+        }
+      },
+      "header": {
+        "subtitle": "Limit {current_mA}"
+      }
+    }
+  ]
+}

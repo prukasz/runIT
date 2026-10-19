@@ -1,6 +1,6 @@
 # The VM engine (for agents)
 
-`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`components/vm/`) and `generated/`.
+`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`runit-esp/components/vm/`) and `generated/`.
 
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own
@@ -81,7 +81,7 @@ What the program never held does not come back: descriptions, the names of block
 | Fact | Source | Held against it by |
 |---|---|---|
 | Op ids, enum values, flags | `generated/common/enums.json`, `generated/services/contract_vm.json` | `wire/frames.test.ts` (against the firmware's own numbers) |
-| Record layouts, arena rules, load checks | `components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
+| Record layouts, arena rules, load checks | `runit-esp/components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
 | Blocks: pins, fields, offsets, variants | `generated/blocks/block_*.json` | `catalog.test.ts` parses `VM_BLOCK_TYPE_DEFINE` and `vm_block_ids.h`: pin shape and wire ids must equal the C |
 | Device block ops and arguments | `generated/contracts/*.json`, `generated/devices/*.json` | `catalog.test.ts` (every variant resolves; the op code equals `SYS_DEVICE_OP` / the device header's `SYS_DEVICE_OWN_OP`), `palette.test.ts` (every variant compiles) |
 | State sizes | `state_len` of `generated/blocks/block_*.json` | `templates/crosscheck.py` and `catalog.test.ts` compare it with the `.state_len` of each `VM_BLOCK_TYPE_DEFINE` (a `sizeof` pinned by a `_Static_assert`) |
@@ -108,7 +108,7 @@ Three things were once held in the engine and are now published and checked at t
 
 - Initial values are not "fresh" (VM_CORE.MD): a block triggered by its inputs does nothing until an input is written at run time. The engine does not hide that.
 - The layout of `vm_block_device_data_t` and of the core blocks' fields (offsets, `raw_type`) is in the descriptors only where they publish it; the device struct is held in `layouts.ts` and checked against the header.
-- `generated/common/limits.json` holds the values of the build in `sdkconfig`. Two boards built differently need their own file (or `limits` passed by the app); no command of the system or VM contract reports them at run time.
+- `generated/common/limits.json` holds the values of the build in `runit-esp/sdkconfig`. Two boards built differently need their own file (or `limits` passed by the app); no command of the system or VM contract reports them at run time.
 
 ## Not done yet
 

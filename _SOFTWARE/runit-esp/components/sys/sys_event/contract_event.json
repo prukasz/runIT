@@ -1,0 +1,73 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "EVENT",
+  "contract_id": 3,
+  "alias": "Event notification",
+  "description": "Contract for devices that listen to events forwarded by sys_event.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "ON_EVENT",
+      "op": 0,
+      "symbol": "EVENT_OP_ON_EVENT",
+      "label": "On event",
+      "description": "Callback invoked when an event arrives for this device.",
+      "args": {
+        "struct": "sys_event_t",
+        "fields": [
+          {
+            "id": "source",
+            "label": "Source device",
+            "type": "device",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 0
+          },
+          {
+            "id": "event",
+            "label": "Event ID",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2
+          },
+          {
+            "id": "channel",
+            "label": "Channel",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 4
+          },
+          {
+            "id": "flags",
+            "label": "Flags",
+            "type": "number",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 5
+          },
+          {
+            "id": "value",
+            "label": "Value",
+            "type": "number",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 6
+          },
+          {
+            "id": "t_ms",
+            "label": "Timestamp",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 10,
+            "unit": "ms"
+          }
+        ]
+      }
+    }
+  ]
+}

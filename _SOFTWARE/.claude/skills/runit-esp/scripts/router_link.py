@@ -21,6 +21,7 @@ from pathlib import Path
 import serial  # pyserial (in the ESP-IDF python env)
 
 ROOT = Path(__file__).resolve().parents[4]  # _SOFTWARE
+ESP = ROOT / "runit-esp"  # the firmware project: components/, sdkconfig
 PREFIX = "#R:"
 STREAM_RESPONSE = 0x05
 STREAM_TELEMETRY = 0x02
@@ -36,13 +37,13 @@ SEV_NAMES = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
 def load_tags() -> dict[int, str]:
-    """tag value -> name, from err_modules.h and every ERR_*_MAP in components/."""
+    """tag value -> name, from err_modules.h and every ERR_*_MAP in runit-esp/components/."""
     mods = {}
-    for m in re.finditer(r"#define\s+(ERR_MOD_\w+)\s+(\d+)u", (ROOT / "components/core/errors/err_modules.h").read_text()):
+    for m in re.finditer(r"#define\s+(ERR_MOD_\w+)\s+(\d+)u", (ESP / "components/core/errors/err_modules.h").read_text()):
         mods[m.group(1)] = int(m.group(2))
     tags = {}
     pat = re.compile(r"X\(\s*(ERR_\w+)\s*,\s*ERR_TAG\(\s*(ERR_MOD_\w+)\s*,\s*(\d+)\s*\)")
-    for h in (ROOT / "components").rglob("*.h"):
+    for h in (ESP / "components").rglob("*.h"):
         for m in pat.finditer(h.read_text(errors="ignore")):
             if m.group(2) in mods:
                 tags[(mods[m.group(2)] << 16) | int(m.group(3))] = m.group(1)

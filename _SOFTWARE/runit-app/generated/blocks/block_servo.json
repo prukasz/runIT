@@ -1,0 +1,189 @@
+{
+  "$schema": "../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "servo",
+  "wire_id": 39,
+  "alias": "Servo",
+  "description": "Moves a servo to a position, sends it home or lets it go limp.",
+  "category": "device",
+  "order": 20,
+  "tags": [
+    "servo",
+    "motion",
+    "pwm"
+  ],
+  "integration": "custom",
+  "state_len": 56,
+  "device": {
+    "device_type": "servo"
+  },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a position is sent when it changes, home and release once on each rising enable."
+  },
+  "header": {
+    "subtitle": "{variant} {device}"
+  },
+  "body": [
+    "{device}",
+    "Disabled: {idle}"
+  ],
+  "fields": [
+    {
+      "id": "idle",
+      "alias": "When disabled",
+      "description": "What the block does once when it stops being enabled.",
+      "type": "enum",
+      "options": [
+        {
+          "value": 0,
+          "alias": "Hold",
+          "description": "Leave the servo where it is."
+        },
+        {
+          "value": 65280,
+          "alias": "Go home",
+          "description": "Move to the default position."
+        },
+        {
+          "value": 65284,
+          "alias": "Release",
+          "description": "Stop the pulse so the servo goes limp."
+        }
+      ],
+      "default": 0
+    }
+  ],
+  "variants": [
+    {
+      "id": "position",
+      "alias": "Position",
+      "description": "Moves the servo to a position. The position is sent only when it changes.",
+      "op": "set",
+      "header": {
+        "subtitle": "Move to {value_x10}"
+      },
+      "args": {
+        "value_x10": {
+          "alias": "Position",
+          "scale": 10,
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ],
+          "hints": [
+            {
+              "text": "Angle servo: degrees within the servo's angle limits",
+              "unit": "deg",
+              "when": {
+                "all": [
+                  {
+                    "field": "device.servo_type",
+                    "equals": 0
+                  },
+                  {
+                    "field": "device.byte_mode",
+                    "equals": 0
+                  }
+                ]
+              }
+            },
+            {
+              "text": "Continuous servo: speed, negative is reverse",
+              "min": -100,
+              "max": 100,
+              "unit": "%",
+              "when": {
+                "all": [
+                  {
+                    "field": "device.servo_type",
+                    "equals": 1
+                  },
+                  {
+                    "field": "device.byte_mode",
+                    "equals": 0
+                  }
+                ]
+              }
+            },
+            {
+              "text": "Byte mode: the whole range as a byte",
+              "min": 0,
+              "max": 255,
+              "when": {
+                "field": "device.byte_mode",
+                "equals": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "home",
+      "alias": "Home",
+      "op": "home",
+      "description": "Moves the servo to its default position (plus the trim) once on each rising enable.",
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Moves home once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Home {device}"
+      }
+    },
+    {
+      "id": "release",
+      "alias": "Release",
+      "op": "release",
+      "description": "Stops the pulse so the servo goes limp, once on each rising enable. The next position or home drives it again.",
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Releases the servo once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Release {device}"
+      }
+    },
+    {
+      "id": "trim",
+      "alias": "Trim",
+      "description": "Sets a correction added to every move; it applies from the next move.",
+      "op": "set_trim",
+      "header": {
+        "subtitle": "Trim {trim}"
+      },
+      "args": {
+        "trim": {
+          "alias": "Trim",
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ],
+          "hints": [
+            {
+              "text": "Angle servo: degrees",
+              "unit": "deg",
+              "when": {
+                "field": "device.servo_type",
+                "equals": 0
+              }
+            },
+            {
+              "text": "Continuous servo: pulse width",
+              "unit": "us",
+              "when": {
+                "field": "device.servo_type",
+                "equals": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

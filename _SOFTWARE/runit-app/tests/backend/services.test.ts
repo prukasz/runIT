@@ -10,7 +10,8 @@ import type { FieldValues, Layout } from '@backend'
 import { generatedEnums } from '@engine/generated'
 import { answer, defs, FakeBoard, until } from './fakes'
 
-const root = fileURLToPath(new URL('../../../', import.meta.url))
+const root = fileURLToPath(new URL('../../../runit-esp/', import.meta.url))
+const generatedDir = fileURLToPath(new URL('../../generated', import.meta.url))
 const catalog = bundledServiceCatalog()
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
 
@@ -30,7 +31,7 @@ interface CStruct {
   readonly members: ReadonlyMap<string, { readonly offset: number; readonly size: number }>
 }
 
-/** Every `typedef struct __attribute__((packed)) { … } name;` of components/, with its members' offsets (undefined: a member of unknown type). */
+/** Every `typedef struct __attribute__((packed)) { … } name;` of runit-esp/components/, with its members' offsets (undefined: a member of unknown type). */
 const packedStructs = (): Map<string, CStruct | undefined> => {
   const bodies = new Map<string, string>()
   for (const file of walk(join(root, 'components'))) {
@@ -90,7 +91,7 @@ describe('the catalog', () => {
   })
 
   it('has every descriptor of generated/ (nothing listed by hand)', () => {
-    const count = (dir: string, prefix: string) => readdirSync(join(root, 'generated', dir)).filter((f) => f.startsWith(prefix) && f.endsWith('.json')).length
+    const count = (dir: string, prefix: string) => readdirSync(join(generatedDir, dir)).filter((f) => f.startsWith(prefix) && f.endsWith('.json')).length
     expect(catalog.entries.length).toBe(count('services', 'contract_') + count('contracts', 'contract_') + count('devices', 'device_'))
   })
 

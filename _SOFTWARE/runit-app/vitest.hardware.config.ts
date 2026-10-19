@@ -7,7 +7,7 @@ const at = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 export default defineConfig({
   resolve: {
     alias: {
-      '@generated': at('../generated'),
+      '@generated': at('./generated'),
       '@engine': at('./src/engine'),
       '@backend': at('./src/backend'),
     },

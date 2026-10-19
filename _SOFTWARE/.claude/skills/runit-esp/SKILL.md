@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE/data connector and VM. Load for any work under components/ or main/, and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE/data connector and VM. Load for any work under runit-esp/ (components/, main/), and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -22,7 +22,7 @@ Session context and hardware: `runit-root` skill ([SKILL.md](../runit-root/SKILL
 
 ## Component docs
 
-Paths are under `components/`. Each `core`, `sys` and `vm` folder also holds its `AGENTS.md`.
+Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also holds its `AGENTS.md`.
 
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
@@ -45,12 +45,12 @@ Paths are under `components/`. Each `core`, `sys` and `vm` folder also holds its
 | vm | `vm/vm_blocks` | `VM_BLOCKS.MD`, `<block>/<name>.md` | the block palette, device blocks, adding a block; one user guide per block |
 | app | `app/runit` | `RUNIT.MD` | boot steps, safe state, error policy wiring, onboard actions, board config and stream routing |
 
-Descriptors (`device_*.json`, `contract_*.json`, `block_*.json`, `errors.json`, `board.json`) live next to the code and follow `templates/*.schema.json`: [templates/AGENTS.md](../../../templates/AGENTS.md). `sh templates/sync.sh` regenerates and validates them into `generated/`.
+Descriptors (`device_*.json`, `contract_*.json`, `block_*.json`, `errors.json`, `board.json`) live next to the code and follow `templates/*.schema.json`: [templates/AGENTS.md](../../../templates/AGENTS.md). `sh templates/sync.sh` regenerates and validates them into `runit-app/generated/`.
 
 ## Quick build
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE build
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
 ```
 
 After editing any `Kconfig`: run `idf.py reconfigure`. If you changed an option's `default`, run `idf.py refresh-config --policy=kconfig` instead. See [build.md](build.md) §3.

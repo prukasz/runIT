@@ -1,14 +1,14 @@
 """Build the graphify graph with a preprocessed C pass.
 
 tree-sitter does not expand macros, so headers full of X-macros and attribute
-macros (e.g. components/core/errors/errors.h) produce no symbols, and every use of
+macros (e.g. runit-esp/components/core/errors/errors.h) produce no symbols, and every use of
 their types becomes a placeholder node. This script:
 
 1. preprocesses each project .c file with the ESP-IDF toolchain (flags taken from
-   build/compile_commands.json, output kept with line markers),
+   runit-esp/build/compile_commands.json, output kept with line markers),
 2. extracts symbols from the expanded text,
 3. maps every node back to its original file and line via the markers,
-4. keeps only project code (components/, main/) and drops ESP-IDF and placeholders,
+4. keeps only project code (runit-esp/components/, runit-esp/main/) and drops ESP-IDF and placeholders,
 5. merges with the non-C AST pass and the cached semantic (doc) results, then
    writes graphify-out/ the same way the normal pipeline does.
 
@@ -40,9 +40,10 @@ from graphify.report import generate
 from graphify.watch import _read_build_excludes, _read_build_gitignore
 
 ROOT = Path('.').resolve()
-WORK = ROOT / 'build' / 'graphify_pp'
+ESP = ROOT / 'runit-esp'
+WORK = ESP / 'build' / 'graphify_pp'
 OUT = ROOT / 'graphify-out'
-PROJECT_DIRS = ('components/', 'main/')
+PROJECT_DIRS = ('runit-esp/components/', 'runit-esp/main/')
 SPEC = 'C:/Users/Lukasz/.claude-private/skills/graphify/references/extraction-spec.md'
 
 
@@ -151,7 +152,7 @@ def main():
     det = detect(ROOT, extra_excludes=_read_build_excludes(out_path()),
                  gitignore=_read_build_gitignore(out_path()))
 
-    cc = json.loads((ROOT / 'build' / 'compile_commands.json').read_text(encoding='utf-8'))
+    cc = json.loads((ESP / 'build' / 'compile_commands.json').read_text(encoding='utf-8'))
     units = {}
     for entry in cc:
         f = rel(entry['file'])
@@ -180,7 +181,7 @@ def main():
     old2new, c_nodes = {}, {}
     # declarations the expansion does not locate (typedefs, tags, macros, header prototypes)
     by_name = {}
-    project_files = {rel(p) for d in ('components', 'main') for p in (ROOT / d).rglob('*')
+    project_files = {rel(p) for d in ('components', 'main') for p in (ESP / d).rglob('*')
                      if p.suffix in ('.c', '.h')}
     for f in sorted(project_files):
         for name, line, kind in declarations(f):
@@ -226,7 +227,7 @@ def main():
                         'source_file': c_nodes[s]['source_file'], '_origin': 'ast'})
     print(f'expanded edges dropped: {dict(why)}')
     headers_with_symbols = {n['source_file'] for n in c_nodes.values() if n['source_file'].endswith('.h')}
-    all_headers = {rel(p) for d in ('components', 'main') for p in (ROOT / d).rglob('*.h')}
+    all_headers = {rel(p) for d in ('components', 'main') for p in (ESP / d).rglob('*.h')}
     print(f'C symbols: {len(c_nodes)} nodes, {len(c_edges)} edges; '
           f'headers with symbols: {len(headers_with_symbols)}/{len(all_headers)}')
 

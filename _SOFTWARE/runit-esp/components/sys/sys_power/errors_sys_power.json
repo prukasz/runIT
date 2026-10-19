@@ -1,0 +1,27 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_POWER",
+  "errors": {
+    "ERR_POWER_BAD_CHANNEL": {
+      "message": "{id} has no {channel}",
+      "hint": "Choose a channel the device has."
+    },
+    "ERR_POWER_ALERT_UNSUPPORTED": {
+      "message": "{channel} of {id} cannot raise the {alert} alert",
+      "hint": "Choose an alert this channel offers.",
+      "fields": {
+        "alert": {
+          "enum_ref": "sys_power_alert_e"
+        }
+      }
+    },
+    "ERR_POWER_EXT_FEEDBACK": {
+      "message": "{id} uses an external divider: its output cannot be set in mV",
+      "hint": "Set it in its own terms (the device page says how), not in mV."
+    },
+    "ERR_POWER_NO_PROFILE": {
+      "message": "{id}: the source offers nothing at or below {voltage_mV} (lowest {lowest_mV})",
+      "hint": "Use a charger that offers this voltage, or ask for a higher one."
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_CONNECTOR",
+  "errors": {
+    "ERR_CONN_BAD_ID": {
+      "message": "{id} is not a valid connector"
+    },
+    "ERR_CONN_NOT_FOUND": {
+      "message": "{id} does not exist"
+    },
+    "ERR_CONN_EXISTS": {
+      "message": "{id} already exists",
+      "hint": "Choose another stream ID."
+    },
+    "ERR_CONN_PROTECTED": {
+      "message": "{id} belongs to the system and cannot be changed that way",
+      "hint": "A system stream keeps one transport: bind another before you unbind this one."
+    },
+    "ERR_CONN_NO_PROVIDER": {
+      "message": "{provider} is not available",
+      "hint": "Choose a transport the board has."
+    },
+    "ERR_CONN_BINDINGS_FULL": {
+      "message": "{id} cannot be bound to more transports",
+      "hint": "Unbind a transport first."
+    },
+    "ERR_CONN_TOO_LONG": {
+      "message": "{id}: {len} bytes are too long for {provider} (at most {max})",
+      "hint": "Send less at once."
+    },
+    "ERR_CONN_QUEUE_FULL": {
+      "message": "{id} is full: {len} bytes were dropped",
+      "hint": "Send less often."
+    },
+    "ERR_CONN_BAD_ARG": {
+      "message": "A connector setting is not valid"
+    },
+    "ERR_CONN_SEND": {
+      "message": "While {id} sent over {provider}"
+    }
+  }
+}

@@ -27,8 +27,8 @@ const server = await createServer({
   root,
   configFile: false,
   logLevel: 'error',
-  resolve: { alias: { '@generated': at('../../../generated'), '@engine': at('../../src/engine'), '@backend': at('../../src/backend') } },
-  server: { port: 5199, strictPort: true, fs: { allow: [at('../../..')] } },
+  resolve: { alias: { '@generated': at('../../generated'), '@engine': at('../../src/engine'), '@backend': at('../../src/backend') } },
+  server: { port: 5199, strictPort: true, fs: { allow: [at('../..')] } },
 })
 await server.listen()
 const url = 'http://localhost:5199/tests/browser/index.html'

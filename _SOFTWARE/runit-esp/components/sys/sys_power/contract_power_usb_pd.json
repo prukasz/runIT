@@ -1,0 +1,139 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "POWER_USB_PD",
+  "contract_id": 7,
+  "alias": "USB-PD sink",
+  "description": "Requesting a profile from a USB-PD source and reading its offers",
+  "category": "power",
+  "commands": [
+    {
+      "id": "SET_SETTINGS",
+      "op": 0,
+      "label": "Request",
+      "description": "Asks the source for a voltage and a current.",
+      "symbol": "PD_OP_SET_SETTINGS",
+      "args": {
+        "fields": [
+          {
+            "id": "voltage_mV",
+            "label": "Voltage",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 0,
+            "description": "The voltage to ask the source for",
+            "unit": "mV"
+          },
+          {
+            "id": "current_mA",
+            "label": "Current",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 4,
+            "description": "The current to ask for",
+            "unit": "mA"
+          }
+        ],
+        "struct": "pd_settings_args_t"
+      }
+    },
+    {
+      "id": "LIST_OPTIONS",
+      "op": 1,
+      "label": "List offers",
+      "description": "Every offer of the source (empty slots left out).",
+      "symbol": "PD_OP_LIST_OPTIONS",
+      "returns": {
+        "type": "struct",
+        "fields": [
+          {
+            "id": "slot",
+            "label": "Slot",
+            "type": "number",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The source's offer number, from 1"
+          },
+          {
+            "id": "type",
+            "label": "Type",
+            "type": "enum",
+            "enum": "sys_power_usb_pd_option_type_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1
+          },
+          {
+            "id": "min_mV",
+            "label": "Lowest voltage",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 2,
+            "description": "Equal to the highest for a fixed offer",
+            "unit": "mV"
+          },
+          {
+            "id": "max_mV",
+            "label": "Highest voltage",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 4,
+            "unit": "mV"
+          },
+          {
+            "id": "max_mA",
+            "label": "Current limit",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 6,
+            "unit": "mA"
+          }
+        ],
+        "struct": "sys_power_usb_pd_option_t",
+        "size": 8,
+        "array": true
+      }
+    },
+    {
+      "id": "GET_LIMITS",
+      "op": 2,
+      "label": "Read offer",
+      "description": "The highest-voltage offer of the source.",
+      "symbol": "PD_OP_GET_LIMITS",
+      "returns": {
+        "type": "struct",
+        "fields": [
+          {
+            "id": "voltage_mV",
+            "label": "Voltage",
+            "type": "number",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 0,
+            "description": "The highest-voltage offer",
+            "unit": "mV"
+          },
+          {
+            "id": "current_mA",
+            "label": "Current",
+            "type": "number",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 4,
+            "description": "Its current",
+            "unit": "mA"
+          }
+        ],
+        "struct": "sys_power_usb_pd_limits_t",
+        "size": 8
+      }
+    }
+  ]
+}

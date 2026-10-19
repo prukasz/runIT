@@ -183,7 +183,7 @@ describe('formula errors say where and what', () => {
 })
 
 describe('held against the firmware', () => {
-  const header = readFileSync(fileURLToPath(new URL('../../../../components/vm/vm_blocks/core/expr_core/vm_expr_core.h', import.meta.url)), 'utf8')
+  const header = readFileSync(fileURLToPath(new URL('../../../../runit-esp/components/vm/vm_blocks/core/expr_core/vm_expr_core.h', import.meta.url)), 'utf8')
   const cEntries = (flavor: Flavor) => {
     const prefix = flavor === 'float' ? 'EXPR' : 'BIT'
     const entries = new Map<string, string>()

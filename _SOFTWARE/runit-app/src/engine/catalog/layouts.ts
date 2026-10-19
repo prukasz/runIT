@@ -1,6 +1,6 @@
 /*
  * Facts about a block's state that generated/blocks does not carry: where the values sit in the 56-byte state every device block
- * shares (`vm_block_device_data_t`, components/vm/vm_blocks/device-contract/vm_block_device.h). The size of a state is not here:
+ * shares (`vm_block_device_data_t`, runit-esp/components/vm/vm_blocks/device-contract/vm_block_device.h). The size of a state is not here:
  * the descriptors publish it as `state_len` (templates/crosscheck.py compares it with the C), and the catalog reads it.
  * `tests/engine/catalog/catalog.test.ts` reads the struct from the C and holds these offsets against it.
  */

@@ -16,8 +16,11 @@ sdkconfig*
 partitions.csv
 dependencies.lock
 
-# the app / not part of firmware graph
-runit-app/
-tools/
-generated/
-templates/
+# not part of the graph: shared tooling, schemas, the published descriptors, the app's build output
+/tools/
+/templates/
+runit-app/generated/
+runit-app/node_modules/
+runit-app/dist/
+runit-app/release/
+runit-app/design/kit-data.js

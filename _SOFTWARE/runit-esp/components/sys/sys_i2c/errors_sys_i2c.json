@@ -1,0 +1,62 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_I2C",
+  "errors": {
+    "ERR_I2C_BAD_ARG": {
+      "message": "An I2C request is not valid"
+    },
+    "ERR_I2C_BAD_BUS": {
+      "message": "{bus} does not exist or is off",
+      "hint": "Choose a bus the board has."
+    },
+    "ERR_I2C_BAD_DEV_CFG": {
+      "message": "{addr} on {bus} is not a valid device setting"
+    },
+    "ERR_I2C_BUS_INIT": {
+      "message": "{bus} could not start on pins {sda} (SDA) and {scl} (SCL)"
+    },
+    "ERR_I2C_BUS_STUCK": {
+      "message": "{bus} is stuck while reaching {addr}: check the wiring and pull-ups",
+      "hint": "Check the wiring and the pull-up resistors, then restart the board."
+    },
+    "ERR_I2C_BUS_RESET": {
+      "message": "{bus} could not be reset"
+    },
+    "ERR_I2C_DEV_NOT_FOUND": {
+      "message": "Nothing answers at {addr} on {bus}",
+      "hint": "Check that the module is connected and powered, and that its address is right."
+    },
+    "ERR_I2C_DEV_ADD": {
+      "message": "{addr} on {bus} could not be added"
+    },
+    "ERR_I2C_DEV_REMOVE": {
+      "message": "{addr} on {bus} could not be removed"
+    },
+    "ERR_I2C_DEV_NOT_ADDED": {
+      "message": "{addr} on {bus} is used before it is added"
+    },
+    "ERR_I2C_NO_ACK": {
+      "message": "{addr} on {bus} did not answer",
+      "hint": "Check the wiring and the power of the module."
+    },
+    "ERR_I2C_BUS_BUSY": {
+      "message": "{bus} stayed busy while reaching {addr}",
+      "hint": "Try again; if it repeats, check the wiring of the bus."
+    },
+    "ERR_I2C_XFER": {
+      "message": "A transfer with {addr} on {bus} failed",
+      "hint": "Check the wiring and the power of the module."
+    },
+    "ERR_I2C_REG": {
+      "message": "At register {reg}"
+    },
+    "ERR_I2C_ADDR_TAKEN": {
+      "message": "{addr} on {bus} is already used by another device",
+      "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
+    },
+    "ERR_I2C_REMOTE_DENIED": {
+      "message": "{bus} cannot be used from the app",
+      "hint": "Use the bus the app may reach (the external I2C)."
+    }
+  }
+}

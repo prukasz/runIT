@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_UART",
+  "errors": {
+    "ERR_UART_LINE_BAD": {
+      "message": "A serial line of {len} characters is not a valid frame"
+    },
+    "ERR_UART_BAD_ENDPOINT": {
+      "message": "The serial port has no endpoint {endpoint}"
+    }
+  }
+}

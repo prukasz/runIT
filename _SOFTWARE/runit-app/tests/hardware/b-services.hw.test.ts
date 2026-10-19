@@ -3,7 +3,7 @@ import { CommandError, bundledServiceCatalog } from '@backend'
 import { openBoard } from './harness'
 import type { Board } from './harness'
 
-/* The onboard devices and their ids (components/app/runit, RUNIT.MD "Boot"). */
+/* The onboard devices and their ids (runit-esp/components/app/runit, RUNIT.MD "Boot"). */
 const ONBOARD: Record<number, string> = { 0: 'gpio_esp', 1: 'tca6424a', 2: 'ads7128', 3: 'pca9685', 4: 'dac53202', 5: 'drv8962', 6: 'drv8962', 7: 'power_mux', 8: 'power_mux', 10: 'tps55289', 11: 'tps55289', 12: 'ina3221', 13: 'ap33772s' }
 const LED = 23 // TCA6424A pin 23: the status LED, lit once the boot got far enough
 

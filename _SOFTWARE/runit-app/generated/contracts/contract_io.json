@@ -1,0 +1,449 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "IO",
+  "contract_id": 1,
+  "alias": "IO pins",
+  "description": "Pins that read or drive a level, a PWM duty or frequency, a voltage",
+  "category": "gpio",
+  "commands": [
+    {
+      "id": "SET_LEVEL",
+      "op": 0,
+      "invasive": true,
+      "label": "Set level",
+      "description": "Drives a pin high or low.",
+      "symbol": "IO_OP_SET_LEVEL",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "output"
+            ]
+          },
+          {
+            "id": "level",
+            "label": "Level",
+            "type": "choice",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "options": [
+              {
+                "label": "Low",
+                "value": 0
+              },
+              {
+                "label": "High",
+                "value": 1
+              }
+            ]
+          }
+        ],
+        "struct": "io_level_args_t"
+      }
+    },
+    {
+      "id": "TOGGLE",
+      "op": 1,
+      "invasive": true,
+      "label": "Toggle",
+      "description": "Flips the level of a pin.",
+      "symbol": "IO_OP_TOGGLE",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "output"
+            ]
+          }
+        ],
+        "struct": "io_pin_args_t"
+      }
+    },
+    {
+      "id": "GET_LEVEL",
+      "op": 2,
+      "label": "Read level",
+      "description": "Reads the level of a pin.",
+      "symbol": "IO_OP_GET_LEVEL",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "input",
+              "output"
+            ]
+          }
+        ],
+        "struct": "io_pin_args_t"
+      },
+      "returns": {
+        "type": "u8",
+        "label": "Level",
+        "choices": [
+          {
+            "label": "Low",
+            "value": 0
+          },
+          {
+            "label": "High",
+            "value": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "SET_PWM_DUTY",
+      "op": 3,
+      "invasive": true,
+      "label": "Set PWM duty",
+      "description": "Sets the PWM duty of a pin.",
+      "symbol": "IO_OP_SET_PWM_DUTY",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "pwm"
+            ]
+          },
+          {
+            "id": "duty",
+            "label": "Duty",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "description": "PWM duty, 0 to 4095 (12 bits)",
+            "min": 0,
+            "max": 4095
+          }
+        ],
+        "struct": "io_duty_args_t"
+      }
+    },
+    {
+      "id": "SET_PWM_FREQ",
+      "op": 4,
+      "invasive": true,
+      "label": "Set PWM frequency",
+      "description": "Sets the PWM frequency of a pin; a device with one frequency for all its pins ignores the pin.",
+      "symbol": "IO_OP_SET_PWM_FREQ",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "pwm"
+            ]
+          },
+          {
+            "id": "frequency_Hz",
+            "label": "Frequency",
+            "type": "number",
+            "raw_type": "u32",
+            "size": 4,
+            "offset": 1,
+            "unit": "Hz",
+            "min": 1
+          }
+        ],
+        "struct": "io_freq_args_t"
+      }
+    },
+    {
+      "id": "SET_MODE",
+      "op": 5,
+      "invasive": true,
+      "label": "Set mode",
+      "description": "Configures what a pin does.",
+      "symbol": "IO_OP_SET_MODE",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "unconfigured"
+            ]
+          },
+          {
+            "id": "mode",
+            "label": "Mode",
+            "type": "enum",
+            "enum": "sys_io_mode_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "What the pin does"
+          }
+        ],
+        "struct": "io_mode_args_t"
+      }
+    },
+    {
+      "id": "RESET",
+      "op": 6,
+      "invasive": true,
+      "label": "Reset pin",
+      "description": "Puts a pin back in its power-on state.",
+      "symbol": "IO_OP_RESET",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "configured"
+            ]
+          }
+        ],
+        "struct": "io_pin_args_t"
+      }
+    },
+    {
+      "id": "CONFIGURE_INTR",
+      "op": 7,
+      "invasive": true,
+      "label": "Configure interrupt",
+      "description": "Arms a pin to raise events on an edge or when an analog value leaves a window.",
+      "symbol": "IO_OP_CONFIGURE_INTR",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "input",
+              "adc"
+            ]
+          },
+          {
+            "id": "mode",
+            "label": "Interrupt mode",
+            "type": "enum",
+            "enum": "sys_io_intr_mode_e",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 1,
+            "description": "What to watch the pin for"
+          },
+          {
+            "id": "debounce",
+            "label": "Debounce",
+            "type": "boolean",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 2,
+            "description": "1 = debounce enabled"
+          },
+          {
+            "id": "threshold_up_mV",
+            "label": "Upper threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 3,
+            "unit": "mV",
+            "description": "ADC window modes only: the upper edge of the window"
+          },
+          {
+            "id": "threshold_down_mV",
+            "label": "Lower threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 5,
+            "unit": "mV",
+            "description": "ADC window modes only: the lower edge of the window"
+          },
+          {
+            "id": "hysteresis_mV",
+            "label": "Hysteresis",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 7,
+            "unit": "mV",
+            "description": "ADC window modes only"
+          },
+          {
+            "id": "event_counter_threshold",
+            "label": "Event counter threshold",
+            "type": "number",
+            "raw_type": "u16",
+            "size": 2,
+            "offset": 9,
+            "description": "ADC window modes only: samples past the threshold before an event"
+          }
+        ],
+        "struct": "io_intr_args_t"
+      }
+    },
+    {
+      "id": "GET_VOLTAGE",
+      "op": 8,
+      "label": "Read voltage",
+      "description": "Reads the voltage of an analog pin (a negative reading is reported).",
+      "symbol": "IO_OP_GET_VOLTAGE",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "adc"
+            ]
+          }
+        ],
+        "struct": "io_pin_args_t"
+      },
+      "returns": {
+        "type": "i32",
+        "label": "Voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "SET_VOLTAGE",
+      "op": 9,
+      "invasive": true,
+      "label": "Set voltage",
+      "description": "Drives an analog output pin to a voltage.",
+      "symbol": "IO_OP_SET_VOLTAGE",
+      "args": {
+        "fields": [
+          {
+            "id": "pin",
+            "label": "Pin",
+            "type": "pin",
+            "raw_type": "u8",
+            "size": 1,
+            "offset": 0,
+            "description": "The pin of the device",
+            "pin_state": [
+              "dac"
+            ]
+          },
+          {
+            "id": "voltage_mV",
+            "label": "Voltage",
+            "type": "number",
+            "raw_type": "i32",
+            "size": 4,
+            "offset": 1,
+            "unit": "mV"
+          }
+        ],
+        "struct": "io_voltage_args_t"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "RISING",
+      "event": 0,
+      "code": 256,
+      "label": "Rising edge",
+      "description": "A watched pin went from low to high",
+      "notify": false,
+      "symbol": "IO_EV_RISING",
+      "value": {
+        "description": "The level (1)"
+      }
+    },
+    {
+      "id": "FALLING",
+      "event": 1,
+      "code": 257,
+      "label": "Falling edge",
+      "description": "A watched pin went from high to low",
+      "notify": false,
+      "symbol": "IO_EV_FALLING",
+      "value": {
+        "description": "The level (0)"
+      }
+    },
+    {
+      "id": "ADC_OUTSIDE",
+      "event": 2,
+      "code": 258,
+      "label": "Left window",
+      "description": "An analog value left its window",
+      "notify": false,
+      "symbol": "IO_EV_ADC_OUTSIDE",
+      "value": {
+        "description": "The voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "ADC_INSIDE",
+      "event": 3,
+      "code": 259,
+      "label": "Back inside window",
+      "description": "An analog value came back inside its window",
+      "notify": false,
+      "symbol": "IO_EV_ADC_INSIDE",
+      "value": {
+        "description": "The voltage",
+        "unit": "mV"
+      }
+    }
+  ]
+}

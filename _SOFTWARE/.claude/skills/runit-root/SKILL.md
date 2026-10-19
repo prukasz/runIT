@@ -14,10 +14,10 @@ description: Entry point for any new session in the runIT repo. Gives project vi
 
 | Task touches | Load skill | Code root |
 |---|---|---|
-| Firmware (C, ESP-IDF, FreeRTOS, devices, VM, BLE, errors) | `runit-esp` | `components/`, `main/` |
+| Firmware (C, ESP-IDF, FreeRTOS, devices, VM, BLE, errors) | `runit-esp` | `runit-esp/components/`, `runit-esp/main/` |
 | JSON descriptors, schemas and their generators | `runit-templates` | `templates/` |
 
-`runit-esp` maps the firmware: every component has its own `*.MD` (API, wire format) and `AGENTS.md` (rules for changing it), and the skill links them. The app is written in `runit-app/` (VM engine, BLE link, UI kit and the app's frame so far; start at its `AGENTS.md`); it reads what the firmware publishes as descriptors in `generated/`.
+`runit-esp` maps the firmware: every component has its own `*.MD` (API, wire format) and `AGENTS.md` (rules for changing it), and the skill links them. The app is written in `runit-app/` (VM engine, BLE link, UI kit and the app's frame so far; start at its `AGENTS.md`); it reads what the firmware publishes as descriptors in `runit-app/generated/`.
 
 ## 2. Project in one paragraph
 
@@ -27,31 +27,34 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 
 | Path | Contents |
 |---|---|
-| `main/` | ESP-IDF entry (`main.c`, only `runit_start()`) |
-| `components/core/` | Foundation, no hardware: `utils` (static RTOS macros), `errors` (error chain, pool, tags), `cmd` (command handler type), `router` (links, dispatch, root keys) |
-| `components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_io`, `sys_power`, `sys_hbridge` (contracts), `sys_power_manager`, `sys_event`, `sys_actions`, `sys_project`, `sys_connector`, `sys_log`, `sys_i2c`, `sys_ble`, `sys_uart` |
-| `components/devices/` | One component per chip (`device_<chip>/`: create struct and own ops in the header, the driver in `device_<chip>.c`, descriptor `device_<chip>.json`) |
-| `components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (the block palette) |
-| `components/app/runit/` | The application: boot steps, safe state, error policy wiring, board config and stream routing |
+| `runit-esp/` | The firmware, an ESP-IDF project (build from here): `CMakeLists.txt`, `sdkconfig`, `sdkconfig.qemu.defaults`, `partitions.csv`, `.clang-format`, `.clangd`, `build/` and the folders below |
+| `runit-esp/main/` | ESP-IDF entry (`main.c`, only `runit_start()`) |
+| `runit-esp/components/core/` | Foundation, no hardware: `utils` (static RTOS macros), `errors` (error chain, pool, tags), `cmd` (command handler type), `router` (links, dispatch, root keys) |
+| `runit-esp/components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_io`, `sys_power`, `sys_hbridge` (contracts), `sys_power_manager`, `sys_event`, `sys_actions`, `sys_project`, `sys_connector`, `sys_log`, `sys_i2c`, `sys_ble`, `sys_uart` |
+| `runit-esp/components/devices/` | One component per chip (`device_<chip>/`: create struct and own ops in the header, the driver in `device_<chip>.c`, descriptor `device_<chip>.json`) |
+| `runit-esp/components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (the block palette) |
+| `runit-esp/components/app/runit/` | The application: boot steps, safe state, error policy wiring, board config and stream routing |
 | `runit-app/` | The app, so far its frame, the Project screen and the Devices view (the board's and the project's devices, their settings and start commands, actions, every operation tried live, written to the board and read back: `src/app/devices`) and the Code view (the variables: the tree, each edited in place, its details; the blocks: the palette from the descriptors, the list, the canvas with click-and-connect and the link windows, each block's settings, formula and pins, what the compiler and the board say of it: `src/app/code`): `src/engine` (VM engine: variables, accessors, blocks, formulas, compiler, run-time writes and telemetry, recovering a project from the stored program) and `src/backend` (the BLE link: commands, streams, reconnecting, every router's commands from the descriptors, loading a program, the dead-man and leaving the safe state, stored records and the project, errors read for a user and attached to devices, pins, variables and blocks), `src/ui` (the frame of the screens and the shared UI parts, React components with their CSS, which every screen must use: `npm run check:ui`), `src/app` (the app: `npm run dev` in a browser; the connection, Play / the eye (live view) / the bug (debug: stepping by loop or by block, slow motion) / Stop / the safe stop on `VM STATUS`, the program loaded into the board from the project, the open project with undo and the file), `electron/` (the same app on the desktop: `npm run app`, the installer `npm run app:dist`) and `design/` (the UI kit page, built from the backend's data: `npm run kit`) |
-| `templates/`, `generated/` | Descriptor schemas, the generators and `sync.sh`; the published descriptors (`templates/AGENTS.md`) |
+| `runit-app/generated/` | The descriptors the firmware publishes, read by the app; written only by the generators (`templates/AGENTS.md`) |
+| `templates/` | Descriptor schemas, the generators and `sync.sh` (shared by firmware and app) |
+| `tools/`, `.claude/`, `graphify-out/` | Shared tooling, skills and notes, the code graph |
 
-**Layers** (a group depends only on the ones before it): `core` → `sys` → `devices` → `vm`; `app/runit` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in the root `CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.
+**Layers** (a group depends only on the ones before it): `core` → `sys` → `devices` → `vm`; `app/runit` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in `runit-esp/CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.
 
 ## 4. Commands
 
 ```powershell
-# Firmware build (ESP-IDF v6.1 via EIM profile; details, Kconfig reconfigure, flash: runit-esp/build.md)
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE build
+# Firmware build (ESP-IDF v6.1 via EIM profile; details, Kconfig reconfigure, flash: .claude/skills/runit-esp/build.md)
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
 # Regenerate and validate the JSON descriptors (templates/AGENTS.md)
 sh templates/sync.sh
-# Rebuild the code graph graphify-out/ (preprocessed C + docs from the semantic cache; post-commit hook does it too)
+# Rebuild the code graph graphify-out/ (preprocessed firmware C, the app's TypeScript and the docs from the semantic cache; post-commit hook does it too)
 $(cat graphify-out/.graphify_python) tools/graphify_pp.py
 ```
 
 Query the graph before grepping for structure: `graphify query "…"`, `graphify explain "X"`, `graphify path "A" "B"`, `graphify affected "X"`. Docs with no semantic result are listed by the script as `NOT IN GRAPH YET`: run `/graphify . --update` for them. Never use plain `graphify update` or `graphify hook install`: they drop the preprocessed headers.
 
-Only ESP-IDF v6.1 is installed (`C:\esp\v6.1\esp-idf`, matching the root `CMakeLists.txt` default). Its `export.ps1` does not work with the EIM install. Use the profile script above.
+Only ESP-IDF v6.1 is installed (`C:\esp\v6.1\esp-idf`, matching the `runit-esp/CMakeLists.txt` default). Its `export.ps1` does not work with the EIM install. Use the profile script above.
 
 ## 5. Keeping the docs current
 

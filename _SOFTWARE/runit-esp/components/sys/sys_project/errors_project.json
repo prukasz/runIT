@@ -1,0 +1,76 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_PROJECT",
+  "errors": {
+    "ERR_PROJECT_BUSY": {
+      "message": "A project save is already open"
+    },
+    "ERR_PROJECT_NO_SESSION": {
+      "message": "No project save is open"
+    },
+    "ERR_PROJECT_TOO_BIG": {
+      "message": "The project is {len} bytes; at most {max} fit",
+      "hint": "Remove a part of the project you do not need (devices, actions, program)."
+    },
+    "ERR_PROJECT_OFFSET": {
+      "message": "The project upload is out of order (at {got}, expected {want})"
+    },
+    "ERR_PROJECT_INCOMPLETE": {
+      "message": "The project upload is incomplete ({got} of {want} bytes)",
+      "hint": "Write the project again."
+    },
+    "ERR_PROJECT_CRC": {
+      "message": "The project is damaged (checksum {got}, expected {want})",
+      "hint": "Write the project again."
+    },
+    "ERR_PROJECT_BAD_FRAME": {
+      "message": "The project is broken at byte {offset}"
+    },
+    "ERR_PROJECT_TRUNCATED": {
+      "message": "The project ends in the middle of a command"
+    },
+    "ERR_PROJECT_NO_SECTION": {
+      "message": "The project has a command before its first section"
+    },
+    "ERR_PROJECT_BAD_SECTION": {
+      "message": "{id} is not allowed"
+    },
+    "ERR_PROJECT_SECTION_DUP": {
+      "message": "{id} appears twice"
+    },
+    "ERR_PROJECT_SECTION_FULL": {
+      "message": "The project has more than {max} sections",
+      "hint": "Remove a part of the project you do not need."
+    },
+    "ERR_PROJECT_SECTION_BIG": {
+      "message": "{id} is larger than {max} bytes",
+      "hint": "Split it: fewer start commands per device, smaller actions."
+    },
+    "ERR_PROJECT_SECTION_EMPTY": {
+      "message": "{id} is empty"
+    },
+    "ERR_PROJECT_ORDER": {
+      "message": "The program must be the last part of the project"
+    },
+    "ERR_PROJECT_CHUNKS": {
+      "message": "The program is too large to store (more than {max} parts)",
+      "hint": "Make the program smaller."
+    },
+    "ERR_PROJECT_EMPTY": {
+      "message": "The project has no section"
+    },
+    "ERR_PROJECT_NOT_STORED": {
+      "message": "No project is stored",
+      "hint": "Write the project to the board first (toolbar)."
+    },
+    "ERR_PROJECT_NOT_IN_STREAM": {
+      "message": "A section was sent as a command"
+    },
+    "ERR_PROJECT_RUN": {
+      "message": "The project is stored, but running it failed"
+    },
+    "ERR_PROJECT_BAD_ARG": {
+      "message": "A project request is not valid"
+    }
+  }
+}

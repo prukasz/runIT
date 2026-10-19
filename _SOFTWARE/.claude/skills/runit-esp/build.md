@@ -6,7 +6,7 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 | Item | Path |
 |---|---|
-| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in root `CMakeLists.txt`) |
+| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in `runit-esp/CMakeLists.txt`) |
 | Tools | `C:\Espressif\tools` |
 | Python venv | `C:\Espressif\tools\python\v6.1\venv` |
 | Activation script | `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1` |
@@ -15,10 +15,10 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 ## 2. Commands
 
-Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be `_SOFTWARE`.
+Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be `runit-esp` (`_SOFTWARE\runit-esp`, the firmware project: its `sdkconfig`, `partitions.csv`, `build*/` and `sdkconfig.qemu.defaults` sit there, and the relative paths below are from it).
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE build
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
 ```
 
 | Task | Command (after activation) | Time |
@@ -39,7 +39,7 @@ Rules for running from the agent:
 
 Success looks like `Project build complete`.
 
-**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `factory` 0x10000 2 MB, `project` 0x210000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../components/sys/sys_project/SYS_PROJECT.MD)). Retained VM values are in `nvs`.
+**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `factory` 0x10000 2 MB, `project` 0x210000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp/components/sys/sys_project/SYS_PROJECT.MD)). Retained VM values are in `nvs`.
 
 ## 2a. Flash and monitor
 
@@ -61,7 +61,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: `components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_gpio_esp`.
+Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_gpio_esp`.
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 
@@ -106,7 +106,7 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 | [vm_suite.py](scripts/vm_suite.py) | the VM: wire, loader, supervisor modes (stepping moves program time, block mode sends per stop, `next_block`) and STATUS, runtime writes, telemetry, retained values, every block (VM_CORE.MD "Tests", VM_BLOCKS.MD "Tests"). `--only expr,for`, `--list`, `--skip-hw`; ~4.5 min. Parts: `vm_lib.py` (program builder, telemetry reader), `vm_t_core.py`, `vm_t_blocks.py`, `vm_t_runtime.py`, `vm_t_hw.py` |
 | [vm_core_tests.py](scripts/vm_core_tests.py) | a smaller VM suite (core, the blocks, ACTION and ON_EVENT); runs on a bare devkit build |
 | [board_tests.py](scripts/board_tests.py) | the runIT PCB's onboard chips; `--energise` switches the muxes and rails on with nothing connected |
-| [ble_suite.py](scripts/ble_suite.py) (library: [ble_link.py](scripts/ble_link.py)) | the BLE link as the app's backend uses it, from a PC (`.venv` Python: `bleak`; the IDF env has none). `python ble_suite.py [scenario ...] [--name runit \| --address AA:BB:..] [--uart COMx]`. Scenarios: `basic` (MTU is what `sdkconfig` offers, GATT table, PING, STATUS), `frames` (13 B to the frame limit in packets of 1 to 512 B, counter wrap, over-limit frame, `ERR_BLE_FRAG`), `streams`, `latency`, `cycles` (reconnects, a disconnect mid-frame) are the default; `idle`, `stress`, `restart` (reboots the board), `gatt` (APPLY with a client connected, adds and removes a test service), `actions` (a user action stored, listed, read back, run, removed; `--action-id`, `--device`, `--pins`), `project` (a device section + autostart saved, INFO and every record checked, the board restarted and the LEDs lit by the project; reboots the board), `load --frames FILE` (engine frames to the VM router), `capture --plan FILE --out FILE` (a program, runtime writes, every stream recorded raw), `deadman` (needs `--uart`; resumes the devices the safe state suspended), `soak --minutes N` (with `--uart` it also watches for panics and reboots) on request. UUIDs, fragment bits, stream bytes, keys and ops come from `generated/`, not from the script. Opening the console port can reset the board |
+| [ble_suite.py](scripts/ble_suite.py) (library: [ble_link.py](scripts/ble_link.py)) | the BLE link as the app's backend uses it, from a PC (`.venv` Python: `bleak`; the IDF env has none). `python ble_suite.py [scenario ...] [--name runit \| --address AA:BB:..] [--uart COMx]`. Scenarios: `basic` (MTU is what `sdkconfig` offers, GATT table, PING, STATUS), `frames` (13 B to the frame limit in packets of 1 to 512 B, counter wrap, over-limit frame, `ERR_BLE_FRAG`), `streams`, `latency`, `cycles` (reconnects, a disconnect mid-frame) are the default; `idle`, `stress`, `restart` (reboots the board), `gatt` (APPLY with a client connected, adds and removes a test service), `actions` (a user action stored, listed, read back, run, removed; `--action-id`, `--device`, `--pins`), `project` (a device section + autostart saved, INFO and every record checked, the board restarted and the LEDs lit by the project; reboots the board), `load --frames FILE` (engine frames to the VM router), `capture --plan FILE --out FILE` (a program, runtime writes, every stream recorded raw), `deadman` (needs `--uart`; resumes the devices the safe state suspended), `soak --minutes N` (with `--uart` it also watches for panics and reboots) on request. UUIDs, fragment bits, stream bytes, keys and ops come from `runit-app/generated/`, not from the script. Opening the console port can reset the board |
 | [runit-app/tests/hardware](../../../runit-app/tests/hardware) (`npm run test:hw` in `runit-app/`) | the app's TypeScript backend itself against the PCB over BLE (bleak behind `bleak_bridge.py`) with the console as a witness (`uart_tap.py`): link, services, errors and what they point at (blocks, variables, devices, pins), dead-man and safe state, program and telemetry, records and the stored project. Suites and what they change: [BACKEND.md](../../../runit-app/src/backend/BACKEND.md) "Tests". `HW_UART` (default `COM9`), `HW_NAME`, `HW_ADDRESS`. `npm run test:browser` runs the app's `WebBluetoothPlatform` in Chrome / Edge against the board (the chooser answered through the DevTools protocol), including reloading the tab |
 | [router_send.py](scripts/router_send.py) | single frames by hand: `python router_send.py --port COMx "01 01" "u 01 01" "raw 07"` (keys + payload in hex; `u ` = urgent, `raw ` = bytes as-is); prints the answer and the stream frames and log lines meanwhile (`--wait` seconds) |
 | [serial_capture.py](scripts/serial_capture.py), [usb_capture.py](scripts/usb_capture.py) | boot log / serial capture (§2a); `usb_capture.py` resets, reopens the re-enumerated native USB port, reads N s |
@@ -132,7 +132,7 @@ Expected under QEMU: I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` (no devices / pu
 **QEMU hangs at boot because `esp_adc` is linked** (device_gpio_esp's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached; it returns early from that constructor on every boot (so the RESTART test works too):
 
 ```powershell
-xtensa-esp32s3-elf-gdb -batch -x qemu_skip_adc_cal.gdb ..\..\..\..\build_qemu\runIT.elf   # C:\Espressif\tools\xtensa-esp-elf-gdb\<ver>\xtensa-esp-elf-gdb\bin
+xtensa-esp32s3-elf-gdb -batch -x qemu_skip_adc_cal.gdb ..\..\..\..\runit-esp\build_qemu\runIT.elf   # C:\Espressif\tools\xtensa-esp-elf-gdb\<ver>\xtensa-esp-elf-gdb\bin
 ```
 
 **Opening the port resets a USB-Serial-JTAG board** (pyserial toggles DTR / RTS), so the first command of a run reaches a board that is booting. The boot log is dropped mid-line while nobody reads it, and the first answer then arrives glued to the fragment (`…size#R:0501…`). `router_link.py` takes the frame from the **last `#R:` in the line** and keeps the text before it as log.

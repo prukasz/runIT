@@ -19,7 +19,7 @@ Every member needs `@alias` (the name a user sees; nothing is derived from a C i
 `#define`s (also function-like ones), or a `CONFIG_*` option read from sdkconfig. `*_CNT` / `*_COUNT` sentinels are left out.
 `@wire-size <bytes>` and `@mem-size <bytes>` pass through as `wire_size` / `mem_size`.
 
-Output: generated/common/enums.json (generated: do not edit), checked by templates/enums.schema.json
+Output: runit-app/generated/common/enums.json (generated: do not edit), checked by templates/enums.schema.json
   {"enums": {name: {alias, kind, source_file, members: [{name, value, alias, description?}]}},
    "symbols": {MEMBER: enum name}}
 
@@ -28,10 +28,10 @@ Usage: python templates/generate_enums.py [--check]
 import re
 from functools import lru_cache
 
-from _common import GENERATED, ROOT, fail, publish, read, rel, sources
+from _common import ESP, GENERATED, fail, publish, read, rel, sources
 
 OUT = GENERATED / "common" / "enums.json"
-SDKCONFIG = ROOT / "sdkconfig"
+SDKCONFIG = ESP / "sdkconfig"
 SCHEMA_VERSION = 1
 
 ENUM_RE = re.compile(r"^//#ref-enum(?P<rest>[^\n]*)\n\s*typedef\s+enum(?:\s+\w+)?\s*\{(?P<body>.*?)\}\s*(?P<name>\w+)\s*;", re.DOTALL | re.MULTILINE)
@@ -71,7 +71,7 @@ def sdkconfig():
 
 @lru_cache(maxsize=None)
 def defines():
-    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under components/."""
+    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under runit-esp/components/."""
     plain, macros = {}, {}
     for header in sources(".h"):
         for name, params, body in DEFINE_RE.findall(read(header)):
@@ -212,7 +212,7 @@ def parse_defines(m, path):
 
 
 def scan():
-    """({name: group}, {member: group name}) of everything published under components/."""
+    """({name: group}, {member: group name}) of everything published under runit-esp/components/."""
     groups = {}
     for header in sources(".h"):
         text = read(header)
@@ -239,7 +239,7 @@ def scan():
 
 def main():
     groups, symbols = scan()
-    publish(OUT, {"$schema": "../../templates/enums.schema.json", "schemaVersion": SCHEMA_VERSION, "kind": "enums", "enums": groups, "symbols": symbols}, "generate_enums.py")
+    publish(OUT, {"$schema": "../../../templates/enums.schema.json", "schemaVersion": SCHEMA_VERSION, "kind": "enums", "enums": groups, "symbols": symbols}, "generate_enums.py")
 
 
 if __name__ == "__main__":

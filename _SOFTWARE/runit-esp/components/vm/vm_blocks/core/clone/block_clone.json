@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "clone",
+  "wire_id": 7,
+  "alias": "Clone",
+  "description": "Copies the source into a tree this block builds for itself and hangs it on a pointer cell. It builds a new tree only when the shape of the source changes, so it keeps a snapshot of a structure that can change shape, for example a parsed message.",
+  "category": "data",
+  "order": 30,
+  "tags": ["copy", "snapshot", "duplicate", "tree", "message", "pointer"],
+  "integration": "core",
+  "state_len": 0,
+  "activation": {
+    "kind": "triggered",
+    "text": "Runs when the source (the first input) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled. A clone is fresh for one pass only."
+  },
+  "eno": {
+    "alias": "Copied",
+    "description": "Active on the passes a copy happened."
+  },
+  "header": { "subtitle": "{cell} = clone of {source}" },
+  "inputs": [
+    {
+      "id": "source",
+      "alias": "Copy from",
+      "description": "The object or tree to copy. The block runs when it is fresh.",
+      "value": "object",
+      "required": true
+    },
+    {
+      "id": "cell",
+      "alias": "Copy to",
+      "description": "An element of a pointer object the clone is attached to. Memory for the clone is taken only when the shape changes; while it stays the same the values are just refilled. The number of clones that can exist at once is limited.",
+      "value": "cell",
+      "required": true,
+      "writes": true
+    }
+  ]
+}

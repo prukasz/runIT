@@ -11,8 +11,8 @@ const server = await createServer({
   configFile: false,
   logLevel: 'error',
   appType: 'custom',
-  server: { middlewareMode: true, fs: { allow: [at('../..')] } },
-  resolve: { alias: { '@generated': at('../../generated'), '@engine': at('../src/engine'), '@backend': at('../src/backend') } },
+  server: { middlewareMode: true, fs: { allow: [at('..')] } },
+  resolve: { alias: { '@generated': at('../generated'), '@engine': at('../src/engine'), '@backend': at('../src/backend') } },
 })
 
 try {
@@ -32,7 +32,7 @@ try {
   }
 
   // ---- devices: the catalog the board's descriptors give, and the project's own ----
-  const raw = (file) => JSON.parse(readFileSync(at(`../../generated/devices/${file}`), 'utf8'))
+  const raw = (file) => JSON.parse(readFileSync(at(`../generated/devices/${file}`), 'utf8'))
   const types = [...catalog.devices.values()].map((d) => {
     const json = raw(`device_${d.id}.json`)
     return {

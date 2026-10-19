@@ -1,0 +1,93 @@
+{
+  "$schema": "../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "drv8962",
+  "wire_id": 40,
+  "alias": "DRV8962 motor driver",
+  "description": "What only the DRV8962 motor driver has: a current limit per channel, clearing a fault and reading it. Driving the channels is the Motor block.",
+  "category": "device",
+  "order": 35,
+  "tags": [
+    "motor",
+    "drv8962",
+    "current limit",
+    "fault",
+    "driver"
+  ],
+  "integration": "custom",
+  "state_len": 56,
+  "device": {
+    "device_type": "drv8962"
+  },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a limit is sent when it changes, clearing a fault once on each rising enable, a reading on every pass."
+  },
+  "header": {
+    "subtitle": "{variant} {channel}"
+  },
+  "body": [
+    "{device}"
+  ],
+  "variants": [
+    {
+      "id": "set_current_limit",
+      "alias": "Set current limit",
+      "description": "Sets the chopping current limit of a channel; the reference voltage follows the largest limit. 0 means no limit.",
+      "op": "set_current_limit",
+      "args": {
+        "channel": {
+          "required": true
+        },
+        "limit_mA": {
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ]
+        }
+      },
+      "header": {
+        "subtitle": "{channel} limit {limit_mA}"
+      }
+    },
+    {
+      "id": "clear_fault",
+      "alias": "Clear fault",
+      "description": "Clears the fault latches of a channel with a sleep-pin reset pulse once on each rising enable. The channel brakes.",
+      "op": "clear_fault",
+      "args": {
+        "channel": {
+          "required": true
+        }
+      },
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Clears the fault once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Clear fault of {channel}"
+      }
+    },
+    {
+      "id": "get_fault",
+      "alias": "Read fault",
+      "description": "Reads whether a channel has a fault and why: overcurrent, thermal or undervoltage, or external. The same faults are also events an On event block can react to.",
+      "op": "get_fault",
+      "args": {
+        "channel": {
+          "required": true
+        }
+      },
+      "activation": {
+        "kind": "enabled",
+        "text": "Reads on every pass while enabled."
+      },
+      "header": {
+        "subtitle": "Fault of {channel}"
+      }
+    }
+  ]
+}
