@@ -20,9 +20,14 @@ typedef struct {
 U_QUEUE_DEFINE(sys_event_queue, CONFIG_SYS_EVENT_QUEUE_LEN, sizeof(sys_event_t));
 U_TASK_DEFINE(sys_event_task_h, CONFIG_SYS_EVENT_TASK_STACK);
 
-static sub_slot_t s_subs[CONFIG_SYS_EVENT_MAX_SUBS];
-static U_SPINLOCK_DEFINE(s_lock);  // s_subs: short copies only, never held while calling out
-static uint32_t s_isr_drops;       // atomic: ISR events the queue couldn't take
+static struct {
+  sub_slot_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock
+  /* ISR events the queue couldn't take. Counts up and wraps; only the ISR side writes it, the task reads it (an
+     aligned u32 is read and written whole) and reports what it has not reported yet. */
+  volatile uint32_t isr_drops;
+  uint32_t isr_drops_reported;  // event task only
+} s_event;
+static U_SPINLOCK_DEFINE(s_lock);  // s_event.subs: short copies only, never held while calling out
 
 /* ----------------------------------------------------------------------------
  * Matching and delivery
@@ -52,9 +57,9 @@ static bool sub_matches(const sub_slot_t* s, const sys_event_t* e, bool inline_c
    CONFIG_SYS_EVENT_MAX_SUBS x 16 B of the publisher's stack (an esp_timer task, a router task). */
 static bool take_sub(uint32_t i, const sys_event_t* e, bool inline_call, sys_event_sub_t* out) {
   U_CRITICAL_ENTER(s_lock);
-  const bool hit = sub_matches(&s_subs[i], e, inline_call);
+  const bool hit = sub_matches(&s_event.subs[i], e, inline_call);
   if (hit) {
-    *out = s_subs[i].sub;
+    *out = s_event.subs[i].sub;
   }
   U_CRITICAL_EXIT(s_lock);
   return hit;
@@ -84,7 +89,7 @@ static bool any_queued(const sys_event_t* e) {
   bool any = false;
   U_CRITICAL_ENTER(s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !any; i++) {
-    any = sub_matches(&s_subs[i], e, false);
+    any = sub_matches(&s_event.subs[i], e, false);
   }
   U_CRITICAL_EXIT(s_lock);
   return any;
@@ -102,6 +107,13 @@ static void notify(const sys_event_t* e) {
   err_free(sys_connector_send(SYS_CONNECTOR_EVENTS, frame, sizeof(frame)));
 }
 
+// What runs where the event is published, or in the task for a deferred one: notify first (whatever the listeners
+// do, an action stopping the board, the cause is out), then the inline listeners.
+static void deliver_inline(const sys_event_t* e) {
+  notify(e);
+  run_listeners(e, true);
+}
+
 /* ----------------------------------------------------------------------------
  * Publish and the event task
  * ------------------------------------------------------------------------- */
@@ -117,7 +129,7 @@ static void publish_from_isr(const sys_event_t* event) {
   ev.t_ms = now_ms();
   BaseType_t woken = pdFALSE;
   if (xQueueSendFromISR(sys_event_queue, &ev, &woken) != pdTRUE) {
-    __atomic_fetch_add(&s_isr_drops, 1, __ATOMIC_RELAXED);
+    s_event.isr_drops++;
   }
   portYIELD_FROM_ISR(woken);
 }
@@ -135,8 +147,7 @@ err_h sys_event_publish(const sys_event_t* event) {
   ev.t_ms = now_ms();
   // DEFER: the whole delivery in the event task. Else notify and the inline listeners now, then one queued copy.
   if (!(ev.flags & SYS_EVENT_DEFER)) {
-    notify(&ev);  // first: whatever the listeners do (an action stopping the board), the cause is out
-    run_listeners(&ev, true);
+    deliver_inline(&ev);
     if (!any_queued(&ev)) {
       return NULL;
     }
@@ -153,15 +164,15 @@ static void event_task(void* arg) {
     if (xQueueReceive(sys_event_queue, &ev, WAIT_FOREVER) != pdTRUE) {
       continue;
     }
-    uint32_t dropped = __atomic_exchange_n(&s_isr_drops, 0, __ATOMIC_RELAXED);
+    const uint32_t dropped = s_event.isr_drops - s_event.isr_drops_reported;  // unsigned: right across the wrap
     if (dropped > 0) {
+      s_event.isr_drops_reported += dropped;
       err_report(ERR_NEW(ERR_EVENT_QUEUE_FULL, .source = SYS_EVENT_ANY_SOURCE, .event = SYS_EVENT_ANY_EVENT,
                          .dropped = dropped));
     }
     if (ev.flags & SYS_EVENT_DEFER) {
       ev.flags &= (uint8_t)~SYS_EVENT_DEFER;
-      notify(&ev);
-      run_listeners(&ev, true);
+      deliver_inline(&ev);
     }
     run_listeners(&ev, false);
   }
@@ -184,8 +195,8 @@ err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle) {
   bool added = false;
   U_CRITICAL_ENTER(s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !added; i++) {
-    if (!s_subs[i].used) {
-      s_subs[i] = (sub_slot_t){.used = true, .sub = *sub};
+    if (!s_event.subs[i].used) {
+      s_event.subs[i] = (sub_slot_t){.used = true, .sub = *sub};
       *handle = (uint8_t)i;
       added = true;
     }
@@ -198,8 +209,8 @@ err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle) {
 err_h sys_event_unsubscribe(uint8_t handle) {
   bool found = false;
   U_CRITICAL_ENTER(s_lock);
-  if (handle < CONFIG_SYS_EVENT_MAX_SUBS && s_subs[handle].used) {
-    s_subs[handle].used = false;
+  if (handle < CONFIG_SYS_EVENT_MAX_SUBS && s_event.subs[handle].used) {
+    s_event.subs[handle].used = false;
     found = true;
   }
   U_CRITICAL_EXIT(s_lock);
