@@ -2,6 +2,8 @@
 
 Działa na dowolnym ESP32-S3. Wybór płytki: `menuconfig` → runIT → Board (`CONFIG_RUNIT_BOARD`).
 
+Jak firmware działa (schemat przepływu: łącza, router, moduły, urządzenia, VM, strumienie): `runit-flow.html`, otwierany w przeglądarce.
+
 Komendy firmware w `runit-esp/` (profil ESP-IDF załadowany), aplikacji w `runit-app/`.
 
 ## Czysty devkit
