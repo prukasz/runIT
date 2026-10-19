@@ -5,21 +5,21 @@
 #include "sys_pins.h"
 #include "utils.h"
 
-#define I2C_SPEED_HZ 400000u
+#define I2C_SPEED_HZ   400000u
 #define RESET_PULSE_MS 10u  // RST low, and the wait after it is released
 
-#define REG_INPUT_PORT0 0x00u
-#define REG_OUTPUT_PORT0 0x04u
+#define REG_INPUT_PORT0    0x00u
+#define REG_OUTPUT_PORT0   0x04u
 #define REG_POLARITY_PORT0 0x08u
-#define REG_CONFIG_PORT0 0x0Cu
+#define REG_CONFIG_PORT0   0x0Cu
 #define REG_AUTO_INCREMENT 0x80u
 
 #define PINS_MASK ((1UL << TCA6424A_PINS) - 1u)
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (chip held in reset, every pin an input)
-  sys_dev_pin_t intr;  // INT: its falling edge runs our ON_EVENT
-  sys_dev_pin_t rst;   // RST: low holds the chip in reset
+  sys_pins_owned_t intr;  // INT: its falling edge runs our ON_EVENT
+  sys_pins_owned_t rst;   // RST: low holds the chip in reset
   sys_pins_state_t pins;
   sys_i2c_dev_t i2c;
 
@@ -199,7 +199,7 @@ static err_h suspend_hook(void* ctx) {
   tca_t* c = ctx;
   err_h err = NULL;
   if (c->rst.locked) {
-    ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->rst, false));
+    ERR_KEEP_FIRST(err, sys_pins_drive(&c->rst, false));
   } else {
     ERR_KEEP_FIRST(err, chip_release_all(c));
   }
@@ -210,7 +210,7 @@ static err_h suspend_hook(void* ctx) {
 static err_h resume_hook(void* ctx) {
   tca_t* c = ctx;
   if (c->rst.locked) {
-    ERR_TRY(sys_dev_pin_drive(&c->rst, true));
+    ERR_TRY(sys_pins_drive(&c->rst, true));
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
   ERR_TRY(chip_restore(c));
@@ -230,8 +230,8 @@ static err_h uninstall(void* ctx) {
     }
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->rst));
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->rst));
   return err;
 }
 
@@ -251,7 +251,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   /* RST released before the probe: after a safe state (suspend holds the chip in reset) an ESP restart finds RST
      still low, and a chip in reset doesn't answer the probe. */
   if (sys_io_pin_valid(cfg->rst_pin)) {
-    ERR_TRY(sys_dev_pin_take_output(&c->base, &c->rst, cfg->rst_pin, true));
+    ERR_TRY(sys_pins_take_output(&c->base, &c->rst, cfg->rst_pin, true));
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
 
@@ -261,7 +261,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   ERR_TRY(chip_restore(c));
 
   // INT: its falling edge reaches our ON_EVENT (inline: an I2C read, no delay).
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
 
   return chip_get_pins(c, &c->cached_inputs);
 }

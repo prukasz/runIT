@@ -6,27 +6,27 @@
 
 #define I2C_SPEED_HZ 400000u
 
-#define REG_CONFIG 0x00u
-#define REG_SHUNT_1 0x01u  // + 2 per channel
-#define REG_BUS_1 0x02u    // + 2 per channel
+#define REG_CONFIG     0x00u
+#define REG_SHUNT_1    0x01u  // + 2 per channel
+#define REG_BUS_1      0x02u    // + 2 per channel
 #define REG_CRITICAL_1 0x07u
-#define REG_WARNING_1 0x08u
-#define REG_MASK 0x0Fu
+#define REG_WARNING_1  0x08u
+#define REG_MASK       0x0Fu
 
-#define CONFIG_DEFAULT 0x7127u
-#define CONFIG_RESET 0x8000u
+#define CONFIG_DEFAULT   0x7127u
+#define CONFIG_RESET     0x8000u
 #define CONFIG_MODE_BITS 0x0007u  // ESHT | EBUS | MODE: continuous shunt + bus measurement
-#define MASK_DEFAULT 0x0002u
-#define MASK_WRITABLE 0x7C00u
-#define MASK_CEN (1u << 10)  // critical alert latch
-#define MASK_WEN (1u << 11)  // warning alert latch
-#define MASK_CF_SHIFT 7      // critical flags CF1..CF3 = bits 9..7 (channel 0 = bit 9)
-#define MASK_WF_SHIFT 3      // warning flags WF1..WF3 = bits 5..3
+#define MASK_DEFAULT     0x0002u
+#define MASK_WRITABLE    0x7C00u
+#define MASK_CEN         (1u << 10)  // critical alert latch
+#define MASK_WEN         (1u << 11)  // warning alert latch
+#define MASK_CF_SHIFT    7      // critical flags CF1..CF3 = bits 9..7 (channel 0 = bit 9)
+#define MASK_WF_SHIFT    3      // warning flags WF1..WF3 = bits 5..3
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_i2c_dev_t i2c;
-  sys_dev_pin_t pin[2];  // [0] critical, [1] warning
+  sys_pins_owned_t pin[2];  // [0] critical, [1] warning
   int8_t inverted_alert[2];  // reversed-shunt channel armed on that pin, -1 = none
   uint8_t inverted_mask;
   uint16_t shunt_mohm;  // every channel's shunt, mOhm
@@ -264,7 +264,7 @@ static err_h uninstall(void* ctx) {
   ina_t* c = ctx;
   err_h err = NULL;
   for (int i = 0; i < 2; i++) {
-    ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->pin[i]));
+    ERR_KEEP_FIRST(err, sys_pins_release(&c->pin[i]));
   }
   if (sys_i2c_dev_added(&c->i2c)) {
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
@@ -290,7 +290,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   // Alert pins: input with pull-up, listener on both edges (inline: an I2C read), falling edge armed, locked.
   const sys_io_pin_t alert_pin[2] = {cfg->crit_pin, cfg->warn_pin};
   for (int i = 0; i < 2; i++) {
-    ERR_TRY(sys_dev_pin_take_input(&c->base, &c->pin[i], alert_pin[i], (uint16_t)((IO_EV_RISING & 0xFF00u) | SYS_EVENT_ANY_IN),
+    ERR_TRY(sys_pins_take_input(&c->base, &c->pin[i], alert_pin[i], (uint16_t)((IO_EV_RISING & 0xFF00u) | SYS_EVENT_ANY_IN),
                                    SYS_IO_INTR_MODE_FALLING_EDGE));
   }
 

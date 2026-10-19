@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define INA3221_CHANNELS 3u
+#define INA3221_CHANNELS     3u
 #define INA3221_I2C_ADDR_MIN 0x40u  // the A0 strap (GND / Vs+ / SDA / SCL) selects 0x40..0x43
 #define INA3221_I2C_ADDR_MAX 0x43u
 

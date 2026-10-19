@@ -7,24 +7,24 @@
 /* Register map: DAC53202 datasheet (SLASF47) 7.6. Channel 0 and 1 registers are not in address order. */
 #define REG_DAC_1_VOUT_CMP_CONFIG 0x03u
 #define REG_DAC_0_VOUT_CMP_CONFIG 0x15u
-#define REG_DAC_1_DATA 0x19u
-#define REG_DAC_0_DATA 0x1Cu
-#define REG_COMMON_CONFIG 0x1Fu
+#define REG_DAC_1_DATA            0x19u
+#define REG_DAC_0_DATA            0x1Cu
+#define REG_COMMON_CONFIG         0x1Fu
 
 /* COMMON-CONFIG: reset 0x0FFF (both channels powered down, Hi-Z). Per channel VOUT-PDN (2 bits) + IOUT-PDN (1 bit):
    channel 0 at [11:9], channel 1 at [2:0]. The don't-care bits [8:3] are written with their reset value. */
 #define COMMON_DONT_CARE 0x01F8u
-#define PDN_CH0 0x0E00u
-#define PDN_CH1 0x0007u
-#define VOUT_ON_CH0 0x0200u  // VOUT powered up, IOUT still down
-#define VOUT_ON_CH1 0x0001u
+#define PDN_CH0          0x0E00u
+#define PDN_CH1          0x0007u
+#define VOUT_ON_CH0      0x0200u  // VOUT powered up, IOUT still down
+#define VOUT_ON_CH1      0x0001u
 
 /* VOUT-GAIN [12:10] = 001: gain 1x, VDD as reference (full scale = VDD). */
 #define VOUT_GAIN_VDD (1u << 10)
 
 /* The data is a 10-bit straight-binary code, MSB left-aligned in the 16-bit register (datasheet 7.6.8: 0x155 is
    written 0x5540). */
-#define CODE_MAX 1023u
+#define CODE_MAX   1023u
 #define CODE_SHIFT 6u
 
 #define ALL_CHANNELS 0x03u

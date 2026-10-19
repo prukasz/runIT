@@ -5,16 +5,16 @@
 #include "sys_pins.h"
 #include "utils.h"
 
-#define HALF_BRIDGES 4u
-#define PWM_FREQ_DEFAULT_HZ 20000u
+#define HALF_BRIDGES         4u
+#define PWM_FREQ_DEFAULT_HZ  20000u
 #define RIPROPI_DEFAULT_OHMS 3090u
-#define DRIVE_DEADBAND 20  // a full-bridge drive below this (0.5 %) brakes
-#define WAKE_DELAY_MS 2u  // tWAKE: 1.2 ms max before the inputs are taken (a bounded wait, like the TPS55289's EN)
-#define SLEEP_PULSE_US 30u      // nSLEEP reset pulse that clears the fault latches
-#define SLEEP_WAKE_US 1000u     // and the wait after it
-#define VREF_MIN_MV 50u         // a floating VREF sets an undefined chopping threshold: always drive 50 .. 3300
-#define VREF_MAX_MV 3300u
-#define AIPROPI_UA_PER_A 212u   // IPROPI output: 212 uA per A (datasheet), so I(mA) = V(mV) * 10^6 / (212 * R)
+#define DRIVE_DEADBAND       20  // a full-bridge drive below this (0.5 %) brakes
+#define WAKE_DELAY_MS        2u  // tWAKE: 1.2 ms max before the inputs are taken (a bounded wait, like the TPS55289's EN)
+#define SLEEP_PULSE_US       30u      // nSLEEP reset pulse that clears the fault latches
+#define SLEEP_WAKE_US        1000u     // and the wait after it
+#define VREF_MIN_MV          50u         // a floating VREF sets an undefined chopping threshold: always drive 50 .. 3300
+#define VREF_MAX_MV          3300u
+#define AIPROPI_UA_PER_A     212u   // IPROPI output: 212 uA per A (datasheet), so I(mA) = V(mV) * 10^6 / (212 * R)
 
 typedef struct {
   int16_t drive;  // PWM steps (SYS_HBRIDGE_DRIVE_MAX = full)

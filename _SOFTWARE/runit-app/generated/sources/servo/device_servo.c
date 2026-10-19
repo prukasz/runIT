@@ -1,11 +1,11 @@
 #include "device_servo.h"
 
 #define PWM_FREQUENCY_HZ 50u
-#define PERIOD_US 20000u
-#define ANGLE_LIMIT_DEG 360
-#define BYTE_MAX 255
-#define SPEED_MAX_X10 1000  // 100 percent in tenths
-#define SPEED_MAX_PCT 100
+#define PERIOD_US        20000u
+#define ANGLE_LIMIT_DEG  360
+#define BYTE_MAX         255
+#define SPEED_MAX_X10    1000  // 100 percent in tenths
+#define SPEED_MAX_PCT    100
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (no pulse)

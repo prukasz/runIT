@@ -5,32 +5,32 @@
 #include "sys_pins.h"
 #include "utils.h"
 
-#define I2C_SPEED_HZ 400000u
+#define I2C_SPEED_HZ        400000u
 #define TPS55289_SHUNT_MOHM 10u  // current sense resistor of the board
-#define EN_WAKEUP_MS 10u         // I2C is up ~10 ms after EN rises
+#define EN_WAKEUP_MS        10u         // I2C is up ~10 ms after EN rises
 
-#define REG_REF_LSB 0x00u
+#define REG_REF_LSB    0x00u
 #define REG_IOUT_LIMIT 0x02u
-#define REG_VOUT_SR 0x03u
-#define REG_VOUT_FS 0x04u
-#define REG_CDC 0x05u
-#define REG_MODE 0x06u
-#define REG_STATUS 0x07u
+#define REG_VOUT_SR    0x03u
+#define REG_VOUT_FS    0x04u
+#define REG_CDC        0x05u
+#define REG_MODE       0x06u
+#define REG_STATUS     0x07u
 
-#define IOUT_LIMIT_EN 0x80u   // current limit on; [6:0] = VISP - VISN in 0.5 mV steps
-#define VOUT_SR_SLEW 0x03u    // [1:0] slew rate
+#define IOUT_LIMIT_EN     0x80u   // current limit on; [6:0] = VISP - VISN in 0.5 mV steps
+#define VOUT_SR_SLEW      0x03u    // [1:0] slew rate
 #define VOUT_SR_OCP_DELAY 0x30u  // [5:4] OCP response delay
-#define VOUT_FS_EXT_FB 0x80u  // external feedback divider
-#define VOUT_FS_INTFB 0x03u   // internal feedback ratio
-#define REF_MAX 0x07FFu       // 11-bit reference
-#define CDC_FAULT_MASKS 0xE0u // SC_MASK / OCP_MASK / OVP_MASK (bits 7 / 6 / 5 = TPS55289_FAULT_* << 5)
-#define CDC_FAULT_SHIFT 5u
-#define MODE_OE 0x80u         // output enable
-#define MODE_HICCUP 0x20u     // short circuit: 76 ms off, then soft start
-#define MODE_DISCHG 0x10u     // output discharge while OE is off (EN high)
-#define STATUS_SCP 0x80u
-#define STATUS_OCP 0x40u
-#define STATUS_OVP 0x20u
+#define VOUT_FS_EXT_FB    0x80u  // external feedback divider
+#define VOUT_FS_INTFB     0x03u   // internal feedback ratio
+#define REF_MAX           0x07FFu       // 11-bit reference
+#define CDC_FAULT_MASKS   0xE0u // SC_MASK / OCP_MASK / OVP_MASK (bits 7 / 6 / 5 = TPS55289_FAULT_* << 5)
+#define CDC_FAULT_SHIFT   5u
+#define MODE_OE           0x80u         // output enable
+#define MODE_HICCUP       0x20u     // short circuit: 76 ms off, then soft start
+#define MODE_DISCHG       0x10u     // output discharge while OE is off (EN high)
+#define STATUS_SCP        0x80u
+#define STATUS_OCP        0x40u
+#define STATUS_OVP        0x20u
 
 /* VOUT_SR[1:0]: slew rate of output voltage changes (reset default 2.5 mV/us). */
 #define SLEW_1_25_MV_US 0
@@ -48,8 +48,8 @@
    TPS_RAMP_STEP_MS, so the load's capacitors charge gradually. The chip itself slews 1.25 mV/us, so
    without the steps a rail reaches 20 V in ~16 ms. The ramp counts toward the settle window below. */
 #define TPS_RAMP_START_MV 1000
-#define TPS_RAMP_STEP_MV 1000
-#define TPS_RAMP_STEP_MS 50
+#define TPS_RAMP_STEP_MV  1000
+#define TPS_RAMP_STEP_MS  50
 /* The settle is also the startup window in which the chip's OCP flag is ignored (a load's inrush keeps
    the chip in current limit while its capacitors charge). The calls that start a rise (enable, voltage
    up) wait it out, so they take this long. The flag is cleared at its end; an overload that persists
@@ -89,8 +89,8 @@ typedef enum {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (output off + EN low, writes refused until RESUME)
-  sys_dev_pin_t intr;  // FB/INT: its falling edge runs our ON_EVENT
-  sys_dev_pin_t en;    // rail enable: locked, driven by tps_set_en
+  sys_pins_owned_t intr;  // FB/INT: its falling edge runs our ON_EVENT
+  sys_pins_owned_t en;    // rail enable: locked, driven by tps_set_en
   sys_i2c_dev_t i2c;
   esp_timer_handle_t rise_timer;  // one-shot: the next rise step
 
@@ -181,7 +181,7 @@ static err_h tps_set_en(tps_t* c, bool high) {
   if (!sys_io_pin_valid(c->en.pin)) {
     return NULL;
   }
-  ERR_TRY(sys_dev_pin_drive(&c->en, high));
+  ERR_TRY(sys_pins_drive(&c->en, high));
   if (high) {
     vTaskDelay(MSEC(EN_WAKEUP_MS));
   }
@@ -463,9 +463,9 @@ static err_h uninstall(void* ctx) {
     }
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
-  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->en, false));  // rail off
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->en));
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_pins_drive(&c->en, false));  // rail off
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->en));
   return err;
 }
 
@@ -487,14 +487,14 @@ static err_h create(void* ctx, const void* cfg_in) {
   // EN must be driven high before the I2C probe below - the TPS55289's I2C
   // interface is unavailable while EN is low/floating, so probing first
   // would always fail with ERR_I2C_DEV_NOT_FOUND on a fresh boot.
-  ERR_TRY(sys_dev_pin_take_output(&c->base, &c->en, cfg->en_pin, false));  // an invalid pin is no pin: nothing driven
+  ERR_TRY(sys_pins_take_output(&c->base, &c->en, cfg->en_pin, false));  // an invalid pin is no pin: nothing driven
   if (sys_io_pin_valid(c->en.pin)) {
     ERR_TRY(tps_set_en(c, true));
   }
   ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
 
   // FB/INT: its falling edge reaches our ON_EVENT (inline: an I2C read, no delay).
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
 
   // Probe with EN high (above), write the defaults with the output off, then
   // hand over to the hardware switch: the rail stays off (EN low) until enabled.

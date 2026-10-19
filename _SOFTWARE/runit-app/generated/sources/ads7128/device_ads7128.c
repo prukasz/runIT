@@ -6,8 +6,8 @@
 #include "utils.h"
 
 #define I2C_SPEED_HZ 100000u
-#define CH_MASK_ALL 0xFFu
-#define MAX_CODE 0x0FFFu
+#define CH_MASK_ALL  0xFFu
+#define MAX_CODE     0x0FFFu
 
 // Time the chip needs after a software reset before it answers again (a bounded wait, like the TPS55289's EN).
 #define RESET_DELAY_MS 5u
@@ -21,41 +21,41 @@
 #define CLK_DIV 0x0Au
 
 // Hysteresis is a 4-bit field applied as [hysteresis, 000b], i.e. in steps of 8 codes.
-#define HYSTERESIS_STEP 8u
+#define HYSTERESIS_STEP      8u
 #define HYSTERESIS_FIELD_MAX 0x0Fu
-#define EVENT_COUNT_MAX 16u  // the 4-bit field counts n + 1 violations
+#define EVENT_COUNT_MAX      16u  // the 4-bit field counts n + 1 violations
 
 // Frame opcodes: [opcode][register][data...]
-#define OP_SINGLE_REGISTER_WRITE 0x08u
+#define OP_SINGLE_REGISTER_WRITE     0x08u
 #define OP_CONTINUOUS_REGISTER_WRITE 0x28u
-#define OP_CONTINUOUS_REGISTER_READ 0x30u
+#define OP_CONTINUOUS_REGISTER_READ  0x30u
 
 // Registers (datasheet 8.6) and the bits used here
-#define REG_GENERAL_CFG 0x01u
-#define REG_DATA_CFG 0x02u
-#define REG_OSR_CFG 0x03u
-#define REG_OPMODE_CFG 0x04u
-#define REG_PIN_CFG 0x05u
-#define REG_SEQUENCE_CFG 0x10u
-#define REG_MANUAL_CH_SEL 0x11u
+#define REG_GENERAL_CFG     0x01u
+#define REG_DATA_CFG        0x02u
+#define REG_OSR_CFG         0x03u
+#define REG_OPMODE_CFG      0x04u
+#define REG_PIN_CFG         0x05u
+#define REG_SEQUENCE_CFG    0x10u
+#define REG_MANUAL_CH_SEL   0x11u
 #define REG_AUTO_SEQ_CH_SEL 0x12u
-#define REG_ALERT_CH_SEL 0x14u
-#define REG_ALERT_PIN_CFG 0x17u
-#define REG_EVENT_FLAG 0x18u
+#define REG_ALERT_CH_SEL    0x14u
+#define REG_ALERT_PIN_CFG   0x17u
+#define REG_EVENT_FLAG      0x18u
 #define REG_EVENT_HIGH_FLAG 0x1Au
-#define REG_EVENT_LOW_FLAG 0x1Cu
-#define REG_EVENT_RGN 0x1Eu
-#define REG_HYSTERESIS_CH0 0x20u  // four registers per channel: HYSTERESIS, HIGH_TH, EVENT_COUNT, LOW_TH
-#define REG_RECENT_CH0_LSB 0xA0u  // two registers per channel
+#define REG_EVENT_LOW_FLAG  0x1Cu
+#define REG_EVENT_RGN       0x1Eu
+#define REG_HYSTERESIS_CH0  0x20u  // four registers per channel: HYSTERESIS, HIGH_TH, EVENT_COUNT, LOW_TH
+#define REG_RECENT_CH0_LSB  0xA0u  // two registers per channel
 
-#define GENERAL_RST 0x01u
-#define GENERAL_DWC_EN 0x10u    // digital window comparator on
-#define GENERAL_STATS_EN 0x20u  // keeps RECENT_CHx updated
-#define DATA_APPEND_CHID 0x10u  // channel ID appended to conversion data
-#define OPMODE_CONV_AUTO 0x20u
+#define GENERAL_RST          0x01u
+#define GENERAL_DWC_EN       0x10u    // digital window comparator on
+#define GENERAL_STATS_EN     0x20u  // keeps RECENT_CHx updated
+#define DATA_APPEND_CHID     0x10u  // channel ID appended to conversion data
+#define OPMODE_CONV_AUTO     0x20u
 #define OPMODE_OSC_LOW_POWER 0x10u
-#define SEQ_START 0x10u
-#define SEQ_MODE_AUTO 0x01u
+#define SEQ_START            0x10u
+#define SEQ_MODE_AUTO        0x01u
 // OSR_CFG = 0 (no averaging), PIN_CFG = 0 (every channel an analog input), ALERT_PIN_CFG = 0 (open drain, active low)
 
 // Region watched by the digital window comparator (EVENT_RGN bit of a channel)
@@ -77,7 +77,7 @@ typedef struct {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (sequencer stopped)
-  sys_dev_pin_t intr;  // ALERT: active low, its falling edge runs our ON_EVENT
+  sys_pins_owned_t intr;  // ALERT: active low, its falling edge runs our ON_EVENT
   sys_i2c_dev_t i2c;
   uint16_t full_scale_mV;  // the input voltage of code 4095
 
@@ -473,7 +473,7 @@ IO_HANDLER(RESET) {
 static err_h uninstall(void* ctx) {
   ads_t* c = ctx;
   err_h err = NULL;
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));  // ALERT first: no events while the chip stops
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));  // ALERT first: no events while the chip stops
   if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
       ERR_KEEP_FIRST(err, chip_stop_sequence(c));  // nothing converts after the device is gone
@@ -530,7 +530,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   ERR_TRY(chip_reset(c));
 
   // ALERT: active low, so its falling edge reaches our ON_EVENT (inline: I2C reads, no delay).
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
   return NULL;
 }
 

@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define PCA9685_CHANNELS 16u
+#define PCA9685_CHANNELS         16u
 #define PCA9685_MIN_FREQUENCY_HZ 24u    // prescaler 255 at the 25 MHz oscillator
 #define PCA9685_MAX_FREQUENCY_HZ 1526u  // prescaler 3
 

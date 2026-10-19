@@ -7,8 +7,8 @@
 extern "C" {
 #endif
 
-#define TCA6424A_PINS 24u
-#define TCA6424A_I2C_ADDR_LOW 0x22u   // ADDR low
+#define TCA6424A_PINS          24u
+#define TCA6424A_I2C_ADDR_LOW  0x22u   // ADDR low
 #define TCA6424A_I2C_ADDR_HIGH 0x23u  // ADDR high
 
 /**
