@@ -46,7 +46,7 @@ describe('limits from generated/', () => {
 describe('the frame the board takes', () => {
   it('the router puts [seq][flags] and two keys in front of a VM frame', () => {
     const dispatch = text('components/core/router/router_dispatch.c')
-    expect(/#define\s+REQ_HDR\s+(\d+)u/.exec(dispatch)?.[1]).toBe('2')
+    expect(/#define\s+REQ_HDR_BYTES\s+(\d+)u/.exec(dispatch)?.[1]).toBe('2')
     expect(FRAME_OVERHEAD).toBe(2 + 2)
     expect(frameCapacity(DEFAULT_LIMITS)).toBe(sdkconfig.get('ROUTER_FRAME_MAX')! - 4)
   })

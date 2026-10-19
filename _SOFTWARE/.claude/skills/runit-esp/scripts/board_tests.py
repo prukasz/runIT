@@ -83,7 +83,7 @@ def new_errors(link: Link, t: float) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-BOOT_DEVICES: set[int] = set()  # created by the firmware at boot (CONFIG_RUNIT_ONBOARD_DEVICES): the tests keep them
+BOOT_DEVICES: set[int] = set()  # created by the firmware at boot (CONFIG_RUNIT_BOARD_PCB): the tests keep them
 
 
 def exists(link: Link, dev_id: int) -> bool:

@@ -133,7 +133,7 @@ err_h runit_start(void) {
       {"ble link", sys_ble_link_init},
       {"stream bindings", runit_board_connector_bindings_init},
       {"i2c", sys_i2c_init},
-#if CONFIG_RUNIT_ONBOARD_DEVICES
+#if !CONFIG_RUNIT_BOARD_BARE
       {"devices", runit_board_devices_init},
 #endif
       {"system devices", mark_system_devices},  // whatever exists now is the board's: remove_all leaves it

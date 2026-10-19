@@ -15,7 +15,7 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 ## 2. Commands
 
-Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be `runit-esp` (`_SOFTWARE\runit-esp`, the firmware project: its `sdkconfig`, `partitions.csv`, `build*/` and `sdkconfig.qemu.defaults` sit there, and the relative paths below are from it).
+Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be `runit-esp` (`_SOFTWARE\runit-esp`, the firmware project: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
 
 ```powershell
 . C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
@@ -76,7 +76,7 @@ Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`,
 
 **Watch out:** an option can be marked `# default:` with a value that differs from its current Kconfig default; the refresh then silently flips it. If that happens, restore the value and delete its `# default:` line so it counts as user-set, then `idf.py reconfigure`. An option the user set explicitly (no marker) keeps its value even when the default changes; change it by hand.
 
-`sdkconfig` and `sdkconfig.old` are **tracked in git**. `sdkconfig.qemu.defaults` holds the QEMU overrides (§6). Treat `sdkconfig` changes as part of the commit.
+`sdkconfig` and `sdkconfig.old` are **tracked in git**. `sdkconfig.qemu.defaults` holds the QEMU overrides (§6), `sdkconfig.devkit.defaults` the devkit's (§6). Treat `sdkconfig` changes as part of the commit.
 
 Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly added option, or the build still using an old default value.
 
@@ -86,7 +86,10 @@ Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly a
 - CMake warnings about private include dirs between `esp_wifi` and `wpa_supplicant` (inside IDF).
 - The project itself has no warnings: any project warning is new and must be fixed.
 
-## 5. clangd (per machine)
+## 5. VS Code: the ESP-IDF extension and clangd (per machine)
+
+**The ESP-IDF extension** takes a workspace folder as its project and has no setting for a project in a subfolder. Open `runit.code-workspace` (in `_SOFTWARE`): the repo as the first folder and `runit-esp` as its own folder. Then run `ESP-IDF: Pick a Workspace Folder` once and pick `runit-esp (ESP-IDF)`; build, flash and menuconfig work on it, in `runit-esp/build` like `idf.py -C`. The extension's settings (`idf.currentSetup`, `idf.port`, `idf.flashType`) go to `runit-esp/.vscode/settings.json`, which is gitignored.
+
 
 `.clangd` is tracked, but `.vscode/` is gitignored. Add this once in VS Code user/workspace settings:
 
@@ -113,9 +116,9 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 
 **`vm_suite.py`** drives GPIO 12 of device 0 (`VM_SUITE_PIN` changes it) and only reads the INA3221; it never starts a motor, servo or regulator block, and clears the retained values it made. Most tests step the VM one pass at a time (scan mode, ONCE) and read the result from the telemetry of that pass, so they don't depend on timing; the time blocks use wide margins and watch only objects that change rarely (an object that changes every pass floods the link).
 
-**Bare devkit build (no chips on the board).** `CONFIG_RUNIT_ONBOARD_DEVICES=y` in the tracked `sdkconfig` makes the boot step `devices` fail on a devkit and creates GPIO ESP as device 0, which breaks the suite's CREATE tests. Build a separate variant instead of editing `sdkconfig`: write `CONFIG_RUNIT_ONBOARD_DEVICES=n` to a defaults file and run `idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;<path to that file>" build`, then flash with `idf.py -B build_devkit -p <PORT> flash`.
+**Devkit builds.** The tracked `sdkconfig` is the PCB's (`CONFIG_RUNIT_BOARD_PCB`). A plain ESP32-S3 devkit takes an overlay in its own build folder instead of an edit of `sdkconfig`: `idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults" build`, then `idf.py -B build_devkit -p <PORT> flash` (`RUNIT_BOARD_DEVKIT`: only the ESP GPIO as device 0, no power layout, 4 MB flash). The app for it: `npm run dev:devkit` or `npm run app:devkit` in `runit-app/` (board_devkit.json). The test suites want an empty device table instead (they create the devices, and device 0 tells them the board is the PCB): a defaults file with `CONFIG_RUNIT_BOARD_BARE=y` in the same command, in another build folder.
 
-**QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` and no onboard devices from `sdkconfig.qemu.defaults`:
+**QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` and no devices (`CONFIG_RUNIT_BOARD_BARE`) from `sdkconfig.qemu.defaults`:
 
 ```powershell
 idf.py -B build_qemu -D SDKCONFIG=build_qemu/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.qemu.defaults" build

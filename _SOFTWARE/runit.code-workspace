@@ -1,0 +1,8 @@
+{
+  // _SOFTWARE first (the repo, Claude Code, the app); runit-esp as its own folder so the ESP-IDF extension sees the
+  // project (it takes a workspace folder as the project: "ESP-IDF: Pick a Workspace Folder" -> runit-esp).
+  "folders": [
+    { "path": ".", "name": "_SOFTWARE" },
+    { "path": "runit-esp", "name": "runit-esp (ESP-IDF)" }
+  ]
+}

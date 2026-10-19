@@ -1,0 +1,140 @@
+{
+  "$schema": "../../../templates/board.schema.json",
+  "schemaVersion": 3,
+  "kind": "board",
+  "name": "runIT devkit",
+  "revision": 1,
+  "description": "A plain ESP32-S3 devkit running the runIT firmware built with CONFIG_RUNIT_BOARD_DEVKIT: only the ESP32-S3's own pins as device 0, no onboard chips, powered from USB.",
+  "source_files": [
+    "components/app/runit/runit_board_defs.h",
+    "components/app/runit/runit_board_cfg.c",
+    "components/app/runit/Kconfig"
+  ],
+  "i2c_buses": [
+    {
+      "bus": 0,
+      "name": "internal",
+      "sda_pin": {
+        "device": 0,
+        "pin": 15
+      },
+      "scl_pin": {
+        "device": 0,
+        "pin": 16
+      },
+      "frequency_hz": 400000,
+      "description": "I2C bus 0 (the PCB's internal bus; on a devkit free for the user's chips)"
+    },
+    {
+      "bus": 1,
+      "name": "user",
+      "sda_pin": {
+        "device": 0,
+        "pin": 40
+      },
+      "scl_pin": {
+        "device": 0,
+        "pin": 41
+      },
+      "frequency_hz": 400000,
+      "description": "External user I2C bus for sensors and breakouts"
+    }
+  ],
+  "power": {
+    "limits": {
+      "max_mV": 5000,
+      "max_mA": 500,
+      "reserve_mW": 1000,
+      "unknown_source_mA": 500,
+      "vreg_efficiency_pct": 90
+    },
+    "rails": [],
+    "muxes": [],
+    "responses": {
+      "ovp": "disable",
+      "uvp": "notify",
+      "spc": "disable",
+      "ocp_warning": "notify",
+      "ocp_critical": "notify",
+      "otp": "safe_state",
+      "battery_low": "notify",
+      "battery_critical": "safe_state",
+      "budget_exceeded": "disable",
+      "source_changed": "notify"
+    }
+  },
+  "devices": [
+    {
+      "id": 0,
+      "symbol": "DEVICE_ID_GPIO_ESP",
+      "name": "ESP32 GPIO",
+      "alias": "ESP32 GPIO",
+      "type": "SYS_DEVICE_TYPE_GPIO_ESP",
+      "descriptor": "device_gpio_esp",
+      "description": "The ESP32-S3's own pins",
+      "role": "mcu_gpio"
+    }
+  ],
+  "pin_setup": [],
+  "reserved_pins": [
+    {
+      "device": 0,
+      "pin": 15,
+      "symbol": "SYS_PIN_I2C0_SDA",
+      "label": "I2C 0 SDA",
+      "reason": "I2C bus 0 data line"
+    },
+    {
+      "device": 0,
+      "pin": 16,
+      "symbol": "SYS_PIN_I2C0_SCL",
+      "label": "I2C 0 SCL",
+      "reason": "I2C bus 0 clock line"
+    },
+    {
+      "device": 0,
+      "pin": 40,
+      "symbol": "SYS_PIN_I2C1_SDA",
+      "label": "I2C 1 SDA",
+      "reason": "External user I2C bus data line"
+    },
+    {
+      "device": 0,
+      "pin": 41,
+      "symbol": "SYS_PIN_I2C1_SCL",
+      "label": "I2C 1 SCL",
+      "reason": "External user I2C bus clock line"
+    },
+    {
+      "device": 0,
+      "pin": 19,
+      "label": "USB D-",
+      "reason": "ESP32-S3 USB-Serial-JTAG data minus"
+    },
+    {
+      "device": 0,
+      "pin": 20,
+      "label": "USB D+",
+      "reason": "ESP32-S3 USB-Serial-JTAG data plus"
+    },
+    {
+      "device": 0,
+      "pin": 0,
+      "label": "BOOT Strapping",
+      "reason": "ESP32-S3 boot strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 45,
+      "label": "VDD_SPI Strapping",
+      "reason": "ESP32-S3 SPI voltage strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 46,
+      "label": "ROM Strapping",
+      "reason": "ESP32-S3 ROM boot log strap pin"
+    }
+  ],
+  "terminals": []
+}

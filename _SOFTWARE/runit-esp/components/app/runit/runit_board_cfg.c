@@ -4,6 +4,7 @@
 #include "devices.h"
 #include "runit.h"
 #include "runit_board_defs.h"
+#include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_connector.h"
 #include "sys_device.h"
@@ -27,17 +28,9 @@ err_h runit_board_connector_bindings_init(void) {
   return NULL;
 }
 
-/* Power layout of this board revision: both TPS55289 rails budgeted, the INA3221 measures them and the input. */
-static const sys_power_consumer_t k_power_consumers[] = {
-    {.vreg = DEVICE_ID_TPS55289_2,
-     .monitor = {.device = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_A},
-     .min_mA = TPS55289_MIN_CURRENT_MA},
-    {.vreg = DEVICE_ID_TPS55289_1,
-     .monitor = {.device = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_B},
-     .min_mA = TPS55289_MIN_CURRENT_MA},
-};
+/* ---- Power layout ---- */
 
-/* Default response per power event (rev 1); changed at runtime with SET_RESPONSE. */
+/* Default response per power event; changed at runtime with SET_RESPONSE. */
 static const uint8_t k_power_responses[SYS_POWER_KIND_COUNT] = {
     [SYS_POWER_KIND_OVP] = SYS_POWER_RESPONSE_DISABLE,
     [SYS_POWER_KIND_UVP] = SYS_POWER_RESPONSE_NOTIFY,
@@ -49,6 +42,32 @@ static const uint8_t k_power_responses[SYS_POWER_KIND_COUNT] = {
     [SYS_POWER_KIND_BATTERY_CRITICAL] = SYS_POWER_RESPONSE_SAFE_STATE,
     [SYS_POWER_KIND_BUDGET_EXCEEDED] = SYS_POWER_RESPONSE_DISABLE,
     [SYS_POWER_KIND_SOURCE_CHANGED] = SYS_POWER_RESPONSE_NOTIFY,
+};
+
+#if CONFIG_RUNIT_BOARD_DEVKIT
+
+/* A devkit on USB: no rails, no monitor, no sink, no source pins; only the input limits for the budget. */
+static const sys_power_board_t k_power_board = {
+    .max_mV = RUNIT_DEVKIT_POWER_LIMIT_MV,
+    .max_mA = RUNIT_DEVKIT_POWER_LIMIT_MA,
+    .reserve_mW = RUNIT_DEVKIT_POWER_RESERVE_MW,
+    .unknown_source_mA = RUNIT_DEVKIT_POWER_LIMIT_MA,
+    .vreg_efficiency_pct = RUNIT_BOARD_VREG_EFFICIENCY_PCT,
+    .input = {.device = SYS_DEVICE_ID_NONE},
+    .usb_pd = SYS_DEVICE_ID_NONE,
+    .responses = k_power_responses,
+};
+
+#else
+
+/* Power layout of this board revision: both TPS55289 rails budgeted, the INA3221 measures them and the input. */
+static const sys_power_consumer_t k_power_consumers[] = {
+    {.vreg = DEVICE_ID_TPS55289_2,
+     .monitor = {.device = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_A},
+     .min_mA = TPS55289_MIN_CURRENT_MA},
+    {.vreg = DEVICE_ID_TPS55289_1,
+     .monitor = {.device = DEVICE_ID_INA3221, .channel = RUNIT_BOARD_INA_CH_RAIL_B},
+     .min_mA = TPS55289_MIN_CURRENT_MA},
 };
 
 /* The eFuse power-good outputs on the TCA6424A: VUSB_OK 3, VEXT_OK 4 (HARDWARE.md). They are inputs after the TCA6424A is created. */
@@ -71,6 +90,8 @@ static const sys_power_board_t k_power_board = {
     .responses = k_power_responses,
 };
 
+#endif
+
 err_h runit_board_power_init(void) {
   return sys_power_manager_init(&k_power_board, runit_power_safe_state);
 }
@@ -90,6 +111,14 @@ static err_h create_device(uint16_t id, uint16_t type, const void* cfg, uint32_t
   }
   return sys_device_call(id, SYS_DEVICE_OP_CREATE, args, (uint32_t)sizeof(type) + cfg_len, NULL, 0, NULL);
 }
+
+#if CONFIG_RUNIT_BOARD_DEVKIT
+
+err_h runit_board_devices_init(void) {
+  return create_device(DEVICE_ID_GPIO_ESP, SYS_DEVICE_TYPE_GPIO_ESP, NULL, 0);
+}
+
+#else
 
 /* One chip of the board. A failure is logged and the rest are still created (a missing chip must not take the others
  * down); the first failure is returned to the boot sequence, the others are reported. */
@@ -208,3 +237,5 @@ err_h runit_board_devices_init(void) {
 
   return first;
 }
+
+#endif

@@ -58,6 +58,11 @@
 #define RUNIT_BOARD_POWER_RESERVE_MW 3667         // 3.3 V buck for the ESP32: 3.3 V x 1 A at ~90 %
 #define RUNIT_BOARD_POWER_UNKNOWN_SOURCE_MA 1000  // assumed while the source's current limit is unknown (USB too)
 #define RUNIT_BOARD_VREG_EFFICIENCY_PCT 90        // TPS55289 rails
+
+/* A devkit (CONFIG_RUNIT_BOARD_DEVKIT): USB only. */
+#define RUNIT_DEVKIT_POWER_LIMIT_MV 5000  // USB VBUS
+#define RUNIT_DEVKIT_POWER_LIMIT_MA 500   // a USB 2.0 port
+#define RUNIT_DEVKIT_POWER_RESERVE_MW 1000  // the ESP32-S3 module with its radio, through the devkit LDO
 /* INA3221 channels, measured on the PCB 2026-09-24: rail A on 2, the board input on 1, rail B on 0. All three shunts
  * are wired reversed (INA3221 inverted_mask = 0x07). */
 #define RUNIT_BOARD_INA_SHUNT_MOHM 10  // the PCB's three shunts (mOhm)

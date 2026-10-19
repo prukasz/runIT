@@ -1,0 +1,6 @@
+# Devkit build overlay (applied after sdkconfig): an ESP32-S3 devkit with only the ESP GPIO device.
+#   idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults" build
+#   idf.py -B build_devkit -p <PORT> flash monitor
+CONFIG_RUNIT_BOARD_DEVKIT=y
+# Any S3 devkit has at least 4 MB of flash; the partitions end at 0x290000.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

@@ -10,7 +10,7 @@
 |---|---|---|
 | Device | `runit-esp/components/devices/device_<name>/device_<name>.json` | `device.schema.json` |
 | Contract | `runit-esp/components/sys/sys_<name>/contract_<name>.json` (also `sys/sys_system/contract_sys.json`, `vm/vm_core`) | `contract.schema.json` |
-| Board | `runit-esp/components/app/runit/board.json` | `board.schema.json` |
+| Board | `runit-esp/components/app/runit/board.json` (the PCB), `board_devkit.json` (a devkit, `CONFIG_RUNIT_BOARD_DEVKIT`: device 0 only, no power sources, monitor or rails) | `board.schema.json` |
 | VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (one per block type of `vm_block_ids.h`; `crosscheck.py` lists any without one) | `vm-block.schema.json` |
 
 Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`), so a new device or contract needs no registration.
@@ -64,7 +64,7 @@ A command of a device contract whose field is of type `pin` (the device's own pi
 | `runit-app/generated/blocks/` | `block_*.json` | `runit-esp/components/vm/vm_blocks/**/` |
 | `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp/components/devices/*/manual/` |
 | `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp/components/devices/*/` |
-| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json` | generated / `runit-esp/components/core/errors/`, `runit-esp/components/app/runit/` |
+| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json`, `board_devkit.json` | generated / `runit-esp/components/core/errors/`, `runit-esp/components/app/runit/` |
 
 A device's manual is written by hand in `runit-esp/components/devices/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `runit-app/generated/`.
 

@@ -55,14 +55,7 @@
     "power": {
       "type": "object",
       "description": "Board power topology, limits, rails and manager configuration",
-      "required": [
-        "limits",
-        "sources",
-        "rails",
-        "input_monitor",
-        "muxes",
-        "responses"
-      ],
+      "required": ["limits", "rails", "muxes", "responses"],
       "additionalProperties": false,
       "properties": {
         "limits": {

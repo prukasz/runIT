@@ -37,3 +37,22 @@ describe('what a reading can read', () => {
     expect(new Set(commands.map((c) => c.group))).toEqual(new Set(['Power manager', 'Motor 1 supply', 'Motor 2 supply', 'Rail A', 'Rail B', 'Power monitor', 'USB-C PD']))
   })
 })
+
+describe('a devkit board (board_devkit.json)', () => {
+  it('has the ESP pins only: no chips, no power layout, the input read from the power manager alone', async () => {
+    const { bundledServiceCatalog } = await import('@backend')
+    const { deviceList } = await import('../../src/app/devices/devices')
+    const { emptyProject } = await import('../../src/app/project/projectFile')
+    const board = bundledBoard('devkit')
+    expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_gpio_esp']])
+    expect(board.pinSetup).toEqual([])
+    expect(board.power).toEqual({ rails: [] })
+    expect(defaultReadings(board).map((r) => [r.read.command, r.field])).toEqual([['GET_STATUS', 'source'], ['GET_STATUS', 'input_mV']])
+    expect(deviceList(emptyProject(), bundledServiceCatalog(), board).map((d) => d.id)).toEqual([0])
+  })
+
+  it('is not the default: the app is the PCB\'s unless it was started for a devkit', () => {
+    expect(bundledBoard().name).toBe('runIT')
+    expect(bundledBoard('devkit').name).toBe('runIT devkit')
+  })
+})

@@ -6,6 +6,7 @@
   "description": "runIT app, written from scratch. src/engine = the VM engine (objects, accessors, blocks, compiler); no UI dependencies.",
   "scripts": {
     "dev": "vite",
+    "dev:devkit": "vite --mode devkit",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -15,6 +16,7 @@
     "test:browser": "node tests/browser/run.mjs",
     "kit": "node design/build-kit.mjs",
     "app": "node electron/start.mjs",
+    "app:devkit": "node electron/start.mjs --mode devkit",
     "app:start": "vite build && node electron/start.mjs --built",
     "app:dist": "vite build && electron-builder",
     "check:ui": "node tools/check-ui.mjs"

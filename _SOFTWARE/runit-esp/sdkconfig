@@ -3745,7 +3745,11 @@ CONFIG_VM_SUB_MAX_TRACKED=256
 # default:
 CONFIG_RUNIT_BLE_START=y
 # default:
-CONFIG_RUNIT_ONBOARD_DEVICES=y
+CONFIG_RUNIT_BOARD_PCB=y
+# default:
+# CONFIG_RUNIT_BOARD_DEVKIT is not set
+# default:
+# CONFIG_RUNIT_BOARD_BARE is not set
 
 #
 # Onboard action IDs

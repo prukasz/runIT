@@ -4,7 +4,7 @@
   runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp/components/sys/*/ and others)
   runit-app/generated/services/   contract_*.json with scope "system"
   runit-app/generated/blocks/     block_*.json                           (runit-esp/components/vm/vm_blocks/**/)
-  runit-app/generated/common/     errors.json, board.json                (enums.json is written there by generate_enums.py)
+  runit-app/generated/common/     errors.json, board.json, board_devkit.json (enums.json is written there by generate_enums.py)
   runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp/components/devices/device_*/manual/)
   runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp/components/devices/device_*/)
 
@@ -23,6 +23,7 @@ IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
 ERRORS = COMPONENTS_DIR / "core" / "errors" / "errors.json"
 BOARD = COMPONENTS_DIR / "app" / "runit" / "board.json"
+BOARD_DEVKIT = COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"  # CONFIG_RUNIT_BOARD_DEVKIT
 MANAGED = ("devices", "contracts", "services", "blocks")  # folders whose every .json is owned by this script
 
 
@@ -44,6 +45,7 @@ def plan():
         files[target] = (path, schema)
     files["common/errors.json"] = (ERRORS, "errors.schema.json")
     files["common/board.json"] = (BOARD, "board.schema.json")
+    files["common/board_devkit.json"] = (BOARD_DEVKIT, "board.schema.json")
     return files
 
 

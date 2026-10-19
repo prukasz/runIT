@@ -2,6 +2,7 @@ import enumsJson from '@generated/common/enums.json'
 import errorsJson from '@generated/common/errors.json'
 import limitsJson from '@generated/common/limits.json'
 import boardJson from '@generated/common/board.json'
+import devkitBoardJson from '@generated/common/board_devkit.json'
 import actionsContract from '@generated/services/contract_actions.json'
 import projectContract from '@generated/services/contract_project.json'
 import type { EnumTables } from '@engine/generated/wire'
@@ -138,9 +139,18 @@ export interface BoardPower {
   readonly rails: readonly { readonly id: string; readonly name: string; readonly regulator: number; readonly monitor?: PowerProbe; readonly description?: string }[]
 }
 
-/** The bundled board (generated/common/board.json). */
-export const bundledBoard = (): BoardDescriptor => {
-  const json = boardJson as unknown as {
+/**
+ * The boards the firmware is built for (`CONFIG_RUNIT_BOARD`): the runIT PCB, or a plain ESP32-S3 devkit with only the ESP pins
+ * (no chips, no power layout). The app is the same for both; only the board descriptor differs.
+ */
+export type BoardKind = 'pcb' | 'devkit'
+
+/** The board this app was started for: `VITE_RUNIT_BOARD` (`npm run dev:devkit`, `npm run app:devkit`), else the PCB. */
+export const appBoardKind = (): BoardKind => (import.meta.env.VITE_RUNIT_BOARD === 'devkit' ? 'devkit' : 'pcb')
+
+/** A bundled board (generated/common/board.json, board_devkit.json); by default the one the app was started for. */
+export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor => {
+  const json = (kind === 'devkit' ? devkitBoardJson : boardJson) as unknown as {
     name: string
     devices: { id: number; name: string; description?: string; descriptor: string; pins?: { use: string; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
     i2c_buses?: { bus: number; name: string; description?: string }[]

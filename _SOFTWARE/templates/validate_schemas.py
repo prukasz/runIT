@@ -5,7 +5,7 @@
   vm-block.schema.json  runit-esp/components/vm/vm_blocks/**/block_*.json
   errors.schema.json    runit-esp/components/core/errors/errors.json
   error-texts.schema.json  runit-esp/components/**/errors_<module>.json (the message templates of a module's errors)
-  board.schema.json     runit-esp/components/app/runit/board.json
+  board.schema.json     runit-esp/components/app/runit/board.json, board_devkit.json
   enums.schema.json     runit-app/generated/common/enums.json
   limits.schema.json    runit-app/generated/common/limits.json
 
@@ -37,7 +37,7 @@ CHECKS = (
     ("vm-block.schema.json", descriptors("block_")),
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
     ("error-texts.schema.json", descriptors("errors_")),
-    ("board.schema.json", [COMPONENTS_DIR / "app" / "runit" / "board.json"]),
+    ("board.schema.json", [COMPONENTS_DIR / "app" / "runit" / "board.json", COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"]),
     ("enums.schema.json", [ENUMS]),
     ("limits.schema.json", [LIMITS]),
 )
