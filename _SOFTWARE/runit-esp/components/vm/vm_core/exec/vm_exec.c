@@ -182,8 +182,6 @@ static void clear_upd(void) {
 static void report_event_overflow(void) {
   err_h e = vm_event_take_overflow();
   if (unlikely(e != NULL)) err_report(e);
-
-
 }
 
 bool vm_exec_cancelled(void) {

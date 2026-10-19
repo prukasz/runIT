@@ -5,27 +5,21 @@
 
 U_QUEUE_DEFINE(s_vm_event_q, CONFIG_VM_EVENT_DEPTH, sizeof(sys_event_t));
 
-/* Scan cycle snapshot. Written by vm_event_drain(), read lock-free by supervisor/blocks. */
-static sys_event_t s_cycle[CONFIG_VM_EVENT_DEPTH];
-static uint8_t s_cycle_cnt;
-
-static volatile uint16_t s_dropped;
-static volatile uint16_t s_drop_source;
-
-bool vm_event_post(const sys_event_t* ev) {
-  if (!ev) return false;
-
-  if (U_QUEUE_SEND(s_vm_event_q, ev, NO_WAIT) == pdTRUE) return true;
-
-  if (s_dropped != UINT16_MAX) s_dropped++;
-  s_drop_source = ev->source;
-  return false;
-}
+static struct {
+  sys_event_t cycle[CONFIG_VM_EVENT_DEPTH];  // this pass's events: VM task only, read lock-free by blocks
+  uint8_t cycle_cnt;
+  volatile uint32_t dropped;      // event task only writes (queue full)
+  volatile uint16_t drop_source;  // event task only writes: the source of the last dropped event
+  uint32_t dropped_reported;      // VM task only
+} s_vm_event;
 
 // The listener (queued: the event task) of the one wildcard subscription: every event goes to the queue.
 static err_h on_event(const sys_event_t* ev, void* ctx) {
   (void)ctx;
-  (void)vm_event_post(ev);
+  if (U_QUEUE_SEND(s_vm_event_q, ev, NO_WAIT) != pdTRUE) {
+    s_vm_event.drop_source = ev->source;
+    s_vm_event.dropped++;
+  }
   return NULL;
 }
 
@@ -41,34 +35,29 @@ err_h vm_event_init(void) {
 }
 
 void vm_event_drain(void) {
-  s_cycle_cnt = 0;
-  while (s_cycle_cnt < CONFIG_VM_EVENT_DEPTH && U_QUEUE_RECEIVE(s_vm_event_q, &s_cycle[s_cycle_cnt], NO_WAIT)) {
-    s_cycle_cnt++;
-  }
+  uint8_t n = 0;
+  while (n < CONFIG_VM_EVENT_DEPTH && U_QUEUE_RECEIVE(s_vm_event_q, &s_vm_event.cycle[n], NO_WAIT)) n++;
+  s_vm_event.cycle_cnt = n;
 }
 
 uint8_t vm_event_count(void) {
-  return s_cycle_cnt;
-}
-
-const sys_event_t* vm_event_snapshot(uint8_t* out_cnt) {
-  if (out_cnt) *out_cnt = s_cycle_cnt;
-  return s_cycle_cnt ? s_cycle : NULL;
+  return s_vm_event.cycle_cnt;
 }
 
 const sys_event_t* vm_event_at(uint8_t i) {
-  return (i < s_cycle_cnt) ? &s_cycle[i] : NULL;
+  return (i < s_vm_event.cycle_cnt) ? &s_vm_event.cycle[i] : NULL;
 }
 
 err_h vm_event_take_overflow(void) {
-  uint16_t dropped = s_dropped;
+  const uint32_t dropped = s_vm_event.dropped - s_vm_event.dropped_reported;  // unsigned: wrap-safe
   if (dropped == 0) return NULL;
-  s_dropped = 0;
-  return ERR_NEW(ERR_VM_EVENT_OVERFLOW, .source = s_drop_source, .depth = CONFIG_VM_EVENT_DEPTH, .dropped = dropped);
+  s_vm_event.dropped_reported += dropped;
+  return ERR_NEW(ERR_VM_EVENT_OVERFLOW, .source = s_vm_event.drop_source, .depth = CONFIG_VM_EVENT_DEPTH,
+                 .dropped = dropped > UINT16_MAX ? UINT16_MAX : (uint16_t)dropped);
 }
 
 void vm_event_reset(void) {
-  s_cycle_cnt = 0;
+  s_vm_event.cycle_cnt = 0;
   xQueueReset(s_vm_event_q);
-  s_dropped = 0;
+  s_vm_event.dropped_reported = s_vm_event.dropped;
 }
