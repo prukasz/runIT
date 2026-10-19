@@ -23,4 +23,4 @@ Code graph: `graphify-out/` (firmware C with preprocessed headers, the app's Typ
 - Build commands for this machine are in `runit-esp` (`build.md`); the generic ESP-IDF command fails here.
 - An app UI shows names, never `obj-…` IDs, and builds from the shared parts in `runit-app/src/ui/components` (`npm run check:ui`; a hook reports raw markup after each edit).
 - Descriptors (`device_*.json`, `contract_*.json`, `errors.json`, the `errors_<module>.json` messages) follow `templates/*.schema.json`. `runit-esp/build/` and `graphify-out/` are not edited by hand.
-- Match the surrounding code style (`runit-esp/.clang-format` for C).
+- Match the surrounding code style. C is formatted by hand (`runit-esp/.clang-format` has formatting off): 120 columns, `#define` values aligned in a column.

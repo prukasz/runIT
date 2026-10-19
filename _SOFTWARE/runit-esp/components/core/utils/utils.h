@@ -51,7 +51,7 @@ extern "C" {
 #define MSEC(ms) ((TickType_t)(((uint64_t)(ms) * configTICK_RATE_HZ + 999u) / 1000u))
 #define SECONDS(sec) ((TickType_t)((uint64_t)(sec) * configTICK_RATE_HZ))
 #define WAIT_FOREVER portMAX_DELAY
-#define NO_WAIT 0
+#define NO_WAIT      0
 
 /* ----------------------------------------------------------------------------
  * Static object definitions

@@ -207,15 +207,15 @@ static const vm_expr_op_info_t vm_bit_ops[VM_BIT_OP_CNT] = {
 /* ==========================================================================
    Fault reasons (ERR_VM_EXPR_BAD_CODE at load, ERR_VM_EXPR_MATH at run time)
    ========================================================================== */
-#define VM_EXPR_BAD_HEADER 0u     // constants + code don't fit custom_len
-#define VM_EXPR_BAD_OPCODE 1u     // unknown opcode
-#define VM_EXPR_BAD_OPERAND 2u    // operand missing, out of range, or an unwired input
+#define VM_EXPR_BAD_HEADER    0u     // constants + code don't fit custom_len
+#define VM_EXPR_BAD_OPCODE    1u     // unknown opcode
+#define VM_EXPR_BAD_OPERAND   2u    // operand missing, out of range, or an unwired input
 #define VM_EXPR_BAD_UNDERFLOW 3u  // an opcode needs more values than the stack holds
-#define VM_EXPR_BAD_OVERFLOW 4u   // more than VM_EXPR_STACK_MAX values
-#define VM_EXPR_BAD_RESULT 5u     // the stack doesn't end with exactly one value
+#define VM_EXPR_BAD_OVERFLOW  4u   // more than VM_EXPR_STACK_MAX values
+#define VM_EXPR_BAD_RESULT    5u     // the stack doesn't end with exactly one value
 
-#define VM_EXPR_MATH_DIV0 0u
-#define VM_EXPR_MATH_DOMAIN 1u
+#define VM_EXPR_MATH_DIV0       0u
+#define VM_EXPR_MATH_DOMAIN     1u
 #define VM_EXPR_MATH_NOT_FINITE 2u
 
 /* Load-time check of a block's bytecode against an opcode table (the blocks' vm_verify_* call it). */

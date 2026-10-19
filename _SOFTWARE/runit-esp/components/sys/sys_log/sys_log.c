@@ -6,7 +6,7 @@
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
 
-#define ANSI_ESC '\x1b'
+#define ANSI_ESC  '\x1b'
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
 
 _Static_assert(CONFIG_LOG_DEFAULT_LEVEL <= LEVEL_MAX, "the default log level is above the compile-time ceiling");

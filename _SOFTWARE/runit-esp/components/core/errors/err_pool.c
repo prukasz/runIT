@@ -2,7 +2,7 @@
 
 #include "utils.h"
 
-#define BLOCKS CONFIG_ERRORS_POOL_BLOCKS
+#define BLOCKS     CONFIG_ERRORS_POOL_BLOCKS
 #define BLOCK_SIZE CONFIG_ERRORS_POOL_BLOCK_SIZE
 
 _Static_assert(BLOCK_SIZE % 4 == 0, "ERRORS_POOL_BLOCK_SIZE must be a multiple of 4");

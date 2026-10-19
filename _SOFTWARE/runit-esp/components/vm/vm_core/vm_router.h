@@ -18,16 +18,16 @@ extern "C" {
  * Ops never renumber. A failing load op (OPEN to ADD_BLOCK, and the first start) discards the whole program (fail
  * closed, VM_CORE.MD), so the upload restarts at OPEN.
  */
-#define VM_OP_RESET 0x01u        // -                              unload everything, leave the VM stopped
-#define VM_OP_OPEN 0x02u         // vm_wire_open_t                 replace the program with an empty one
-#define VM_OP_ADD_OBJECTS 0x03u  // u8 n, n x (vm_wire_obj_t, name)
-#define VM_OP_SET_DATA 0x04u     // u8 n, n x (vm_wire_data_t, data)  stopped: load; running: runtime write
+#define VM_OP_RESET         0x01u        // -                              unload everything, leave the VM stopped
+#define VM_OP_OPEN          0x02u         // vm_wire_open_t                 replace the program with an empty one
+#define VM_OP_ADD_OBJECTS   0x03u  // u8 n, n x (vm_wire_obj_t, name)
+#define VM_OP_SET_DATA      0x04u     // u8 n, n x (vm_wire_data_t, data)  stopped: load; running: runtime write
 #define VM_OP_ADD_ACCESSORS 0x05u  // u8 n, n x (vm_wire_acc_t, index steps)
-#define VM_OP_ADD_BLOCK 0x06u    // vm_wire_block_t, pins, state   one block per frame, in execution order
-#define VM_OP_SUBSCRIBE 0x07u    // u8 n, n x vm_wire_sub_t        n = 0 clears
-#define VM_OP_EXEC 0x08u         // vm_wire_exec_t                 vm_exec_command_e
-#define VM_OP_SPEED 0x09u        // vm_wire_speed_t                slow motion (debugging aid) and the program time per stepped pass
-#define VM_OP_STATUS 0x0Au       // -  ->  vm_wire_status_t        run mode, load state, fault latch, pass stats
+#define VM_OP_ADD_BLOCK     0x06u    // vm_wire_block_t, pins, state   one block per frame, in execution order
+#define VM_OP_SUBSCRIBE     0x07u    // u8 n, n x vm_wire_sub_t        n = 0 clears
+#define VM_OP_EXEC          0x08u         // vm_wire_exec_t                 vm_exec_command_e
+#define VM_OP_SPEED         0x09u        // vm_wire_speed_t                slow motion (debugging aid) and the program time per stepped pass
+#define VM_OP_STATUS        0x0Au       // -  ->  vm_wire_status_t        run mode, load state, fault latch, pass stats
 
 ROUTER_MODULE_DECLARE(vm_router);
 

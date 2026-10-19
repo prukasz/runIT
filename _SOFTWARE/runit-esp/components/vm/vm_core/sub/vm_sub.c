@@ -22,7 +22,7 @@
 /* Value record head (vm_wire_data_t) and describe record without its name
    (vm_wire_obj_t): the SET_DATA / ADD_OBJECTS layouts. */
 #define SUB_VALUE_HDR_LEN sizeof(vm_wire_data_t)
-#define SUB_DESC_HDR_LEN sizeof(vm_wire_obj_t)
+#define SUB_DESC_HDR_LEN  sizeof(vm_wire_obj_t)
 
 /* ---------------------------------------------------------------------------
  * Subscription list
@@ -65,8 +65,8 @@ static uint16_t s_sub_count;
 #define SUB_SLOTS (CONFIG_VM_SUB_MAX_TRACKED + CONFIG_VM_SUB_MAX_TRACKED / 2u)
 /* track_t.head: 14-bit header hash | flags */
 #define SUB_HEAD_HASH 0x3FFFu
-#define SUB_LOST 0x4000u /* a record didn't reach the transport: resend from `resume` */
-#define SUB_SEEN 0x8000u /* reached in this pass */
+#define SUB_LOST      0x4000u /* a record didn't reach the transport: resend from `resume` */
+#define SUB_SEEN      0x8000u /* reached in this pass */
 
 typedef struct {
   vm_obj_h obj;    /* NULL: free slot */

@@ -45,10 +45,10 @@ typedef enum {
    system connectors. */
 //#ref-defines stream_byte @alias Stream Bytes @prefix SYS_CONNECTOR_STREAM_
 #define SYS_CONNECTOR_STREAM_TELEMETRY 0x02u  //@alias Telemetry @description Telemetry frame stream byte
-#define SYS_CONNECTOR_STREAM_LOGS 0x03u  //@alias Logs @description Log frame stream byte
-#define SYS_CONNECTOR_STREAM_ERRORS 0x04u  //@alias Errors @description Error record stream byte
-#define SYS_CONNECTOR_STREAM_RESPONSE CONFIG_ROUTER_RESPONSE_STREAM  //@alias Response @description Command response stream byte
-#define SYS_CONNECTOR_STREAM_EVENTS 0x06u  //@alias Events @description Event notification stream byte
+#define SYS_CONNECTOR_STREAM_LOGS      0x03u  //@alias Logs @description Log frame stream byte
+#define SYS_CONNECTOR_STREAM_ERRORS    0x04u  //@alias Errors @description Error record stream byte
+#define SYS_CONNECTOR_STREAM_RESPONSE  CONFIG_ROUTER_RESPONSE_STREAM  //@alias Response @description Command response stream byte
+#define SYS_CONNECTOR_STREAM_EVENTS    0x06u  //@alias Events @description Event notification stream byte
 
 #define SYS_CONNECTOR_NAME_MAX 16u  // including the NUL
 

@@ -31,17 +31,17 @@ extern "C" {
 #define SYS_DEVICE_OP(contract, n) ((uint16_t)(((contract) << 8) | (n)))
 
 //#ref-defines device_contract @alias Device Contract @prefix SYS_DEVICE_CONTRACT_
-#define SYS_DEVICE_CONTRACT_DEVICE 0x00u  //@alias Device @description Device lifecycle operations
-#define SYS_DEVICE_CONTRACT_IO 0x01u  //@alias IO pins @description IO pins operations
-#define SYS_DEVICE_CONTRACT_PINS 0x02u  //@alias Pin locks @description Pin locks operations
-#define SYS_DEVICE_CONTRACT_EVENT 0x03u  //@alias Events @description Events operations
+#define SYS_DEVICE_CONTRACT_DEVICE        0x00u  //@alias Device @description Device lifecycle operations
+#define SYS_DEVICE_CONTRACT_IO            0x01u  //@alias IO pins @description IO pins operations
+#define SYS_DEVICE_CONTRACT_PINS          0x02u  //@alias Pin locks @description Pin locks operations
+#define SYS_DEVICE_CONTRACT_EVENT         0x03u  //@alias Events @description Events operations
 #define SYS_DEVICE_CONTRACT_POWER_MONITOR 0x04u  //@alias Power monitor @description Power monitor operations
-#define SYS_DEVICE_CONTRACT_POWER_VREG 0x05u  //@alias Regulator @description Voltage regulator operations
+#define SYS_DEVICE_CONTRACT_POWER_VREG    0x05u  //@alias Regulator @description Voltage regulator operations
 #define SYS_DEVICE_CONTRACT_POWER_MANAGER 0x06u  //@alias Power manager events @description Power manager operations
-#define SYS_DEVICE_CONTRACT_POWER_USB_PD 0x07u  //@alias USB-PD sink @description USB-PD sink operations
-#define SYS_DEVICE_CONTRACT_POWER_SUPPLY 0x08u  //@alias Power mux @description Power supply/mux operations
-#define SYS_DEVICE_CONTRACT_HBRIDGE 0x09u  //@alias H-bridge @description H-bridge motor driver operations
-#define SYS_DEVICE_CONTRACT_OWN 0xFFu  //@alias Device-specific @description Device-specific own operations
+#define SYS_DEVICE_CONTRACT_POWER_USB_PD  0x07u  //@alias USB-PD sink @description USB-PD sink operations
+#define SYS_DEVICE_CONTRACT_POWER_SUPPLY  0x08u  //@alias Power mux @description Power supply/mux operations
+#define SYS_DEVICE_CONTRACT_HBRIDGE       0x09u  //@alias H-bridge @description H-bridge motor driver operations
+#define SYS_DEVICE_CONTRACT_OWN           0xFFu  //@alias Device-specific @description Device-specific own operations
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
 

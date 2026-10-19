@@ -42,7 +42,7 @@
 #define ESP_PWM_TIMER_NONE 0xFFu
 
 /* Timers / channels PWM pins may use (for error payloads and messages). */
-#define ESP_PWM_TIMERS ((uint8_t)__builtin_popcount(CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK))
+#define ESP_PWM_TIMERS   ((uint8_t)__builtin_popcount(CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK))
 #define ESP_PWM_CHANNELS ((uint8_t)__builtin_popcount(CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK))
 
 /**

@@ -90,10 +90,14 @@ Diagnostics only. Chips are controlled through their device drivers, never raw. 
 | `0x01` INFO | – | `sys_i2c_info_t` per bus (19 B each): `u8 flags` (bit0 enabled, bit1 ready, bit2 pull-up), `u8 sda`, `u8 scl`, `u32 used[4]` | all buses |
 | `0x02` SCAN | `u8 bus` | `sys_i2c_scan_t` (16 B): `u32 found[4]`, bit n = address n acked, 0x08–0x77 | remote bus |
 | `0x03` RESET | `u8 bus` | – | remote bus |
-| `0x04` RAW_READ | `sys_i2c_raw_read_args_t`: `u8 bus, addr, reg, len` | `len` bytes | remote bus, `CONFIG_SYS_I2C_REMOTE_RAW`, address with no device |
+| `0x04` RAW_READ | `sys_i2c_raw_read_args_t`: `u8 bus, addr, reg, len` | `len` bytes | remote bus, address with no device |
 | `0x05` RAW_WRITE | `sys_i2c_raw_write_args_t`: `u8 bus, addr, reg`, then data (≥ 1 B) | – | same |
 
 - **Remote bus** = `CONFIG_SYS_I2C_REMOTE_BUS` (default 1, the user connector). Bus 0 holds the regulators and the USB-PD controller; scan, reset or raw on it → `ERR_I2C_REMOTE_DENIED{bus}`. INFO reports every bus.
-- **Raw** ops are compiled out unless `CONFIG_SYS_I2C_REMOTE_RAW` (default on). Compiled out, the op is not in the module's table, so the router answers `ERR_ROUTER_UNKNOWN_KEY` with the op byte as its `key`. They use a temporary device (`dev_add` → transfer → `dev_remove`), so an address owned by a driver fails with `ERR_I2C_ADDR_TAKEN` and a driver's cached state can't be bypassed.
+- **Raw** ops are always in. They use a temporary device (`dev_add` → transfer → `dev_remove`), so an address owned by a driver fails with `ERR_I2C_ADDR_TAKEN` and a driver's cached state can't be bypassed.
 - SCAN stops at the first error other than not-found (a stuck bus) and returns it.
 - `sys_i2c_bus_info(bus, &info)` is the C API behind INFO.
+
+## Open
+
+- Raw access (RAW_READ / RAW_WRITE) can't be turned off: a Kconfig option to leave it out of release builds.

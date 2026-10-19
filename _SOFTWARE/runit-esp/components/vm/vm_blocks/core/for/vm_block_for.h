@@ -59,8 +59,8 @@ _Static_assert(sizeof(vm_for_code_t) == 24, "wire format header size");
 #define VM_FOR_CUSTOM_LEN sizeof(vm_for_code_t)
 
 
-#define VM_FOR_RT_BAD 0x01u
-#define VM_FOR_BAD_CAPPED 0u
+#define VM_FOR_RT_BAD         0x01u
+#define VM_FOR_BAD_CAPPED     0u
 #define VM_FOR_BAD_NOT_FINITE 1u
 
 /* Load-time check of the block's state; the pin shape comes from the pin enums above. */

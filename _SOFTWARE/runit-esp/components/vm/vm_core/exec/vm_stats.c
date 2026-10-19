@@ -8,7 +8,7 @@
 static const char* TAG = "vm_exec";  // the log lines keep the supervisor's tag
 
 #define VM_PROFILE_MAX_BLOCKS 64
-#define VM_PROFILE_TOP 4
+#define VM_PROFILE_TOP        4
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 

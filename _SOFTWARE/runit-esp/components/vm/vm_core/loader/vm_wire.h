@@ -38,15 +38,15 @@ _Static_assert(sizeof(vm_wire_open_t) == 10, "OPEN body is 10 bytes");
  *   [2]    bits 0..3 element type (vm_obj_t_e), bits 4..7 name length (0..15)
  *   [3]    flags, VM_WIRE_HEAD_F_*
  * Built and read only with vm_wire_head_pack / _unpack. */
-#define VM_WIRE_HEAD_TYPE_MASK 0x0Fu
+#define VM_WIRE_HEAD_TYPE_MASK  0x0Fu
 #define VM_WIRE_HEAD_NAME_SHIFT 4u
 
 //#ref-defines vm_wire_head_flag @alias Object Flags @prefix VM_WIRE_HEAD_F_
-#define VM_WIRE_HEAD_F_MUTABLE (1u << 0)  //@alias Writable @description Writable at run time
+#define VM_WIRE_HEAD_F_MUTABLE       (1u << 0)  //@alias Writable @description Writable at run time
 #define VM_WIRE_HEAD_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description Freshness cleared at end of pass
-#define VM_WIRE_HEAD_F_TAGGED (1u << 3)  //@alias Named by the board @description Named by the board
-#define VM_WIRE_HEAD_F_RETENTIVE (1u << 4)  //@alias Retained @description Retained after restart
-#define VM_WIRE_HEAD_F_DYNAMIC (1u << 5)  //@alias Heap object @description Heap object
+#define VM_WIRE_HEAD_F_TAGGED        (1u << 3)  //@alias Named by the board @description Named by the board
+#define VM_WIRE_HEAD_F_RETENTIVE     (1u << 4)  //@alias Retained @description Retained after restart
+#define VM_WIRE_HEAD_F_DYNAMIC       (1u << 5)  //@alias Heap object @description Heap object
 #define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
 // Bits 1 and 7 are not used: they are sent as 0 and ignored when read (`upd` is runtime state, never on the wire).
 

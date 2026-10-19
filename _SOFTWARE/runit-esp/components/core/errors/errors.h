@@ -195,7 +195,7 @@ typedef enum {
 } err_record_src_e;
 
 //#ref-defines err_record_flag @alias Error Record Flags @prefix ERR_RECORD_
-#define ERR_RECORD_REQ_CUT 0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
+#define ERR_RECORD_REQ_CUT     0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
 #define ERR_RECORD_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
 
 /**

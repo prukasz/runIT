@@ -6,22 +6,22 @@
 
 #define I2C_SPEED_HZ 400000u
 
-#define REG_CONFIG 0x00u
-#define REG_SHUNT_1 0x01u  // + 2 per channel
-#define REG_BUS_1 0x02u    // + 2 per channel
+#define REG_CONFIG     0x00u
+#define REG_SHUNT_1    0x01u  // + 2 per channel
+#define REG_BUS_1      0x02u    // + 2 per channel
 #define REG_CRITICAL_1 0x07u
-#define REG_WARNING_1 0x08u
-#define REG_MASK 0x0Fu
+#define REG_WARNING_1  0x08u
+#define REG_MASK       0x0Fu
 
-#define CONFIG_DEFAULT 0x7127u
-#define CONFIG_RESET 0x8000u
+#define CONFIG_DEFAULT   0x7127u
+#define CONFIG_RESET     0x8000u
 #define CONFIG_MODE_BITS 0x0007u  // ESHT | EBUS | MODE: continuous shunt + bus measurement
-#define MASK_DEFAULT 0x0002u
-#define MASK_WRITABLE 0x7C00u
-#define MASK_CEN (1u << 10)  // critical alert latch
-#define MASK_WEN (1u << 11)  // warning alert latch
-#define MASK_CF_SHIFT 7      // critical flags CF1..CF3 = bits 9..7 (channel 0 = bit 9)
-#define MASK_WF_SHIFT 3      // warning flags WF1..WF3 = bits 5..3
+#define MASK_DEFAULT     0x0002u
+#define MASK_WRITABLE    0x7C00u
+#define MASK_CEN         (1u << 10)  // critical alert latch
+#define MASK_WEN         (1u << 11)  // warning alert latch
+#define MASK_CF_SHIFT    7      // critical flags CF1..CF3 = bits 9..7 (channel 0 = bit 9)
+#define MASK_WF_SHIFT    3      // warning flags WF1..WF3 = bits 5..3
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended

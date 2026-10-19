@@ -17,7 +17,7 @@
 ERR_MODULE_DEFINE(ERR_MOD_SYS_POWER_MANAGER, "power_manager", ERR_SYS_POWER_MANAGER_MAP)
 
 #define LIPO_FULL_CELL_MV 4200
-#define BOARD_TARGET (-1)  // a response for every rail
+#define BOARD_TARGET      (-1)  // a response for every rail
 
 /* A rail as set through POWER_VREG (the guard sees every set). */
 typedef struct {

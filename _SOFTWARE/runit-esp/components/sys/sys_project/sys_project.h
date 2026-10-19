@@ -26,7 +26,7 @@ extern "C" {
 #define SYS_PROJECT_SECTION_PROGRAM 0u
 
 #define SYS_PROJECT_FLAG_AUTOSTART 0x01u  // BEGIN: replay the project at every boot (kept with the project)
-#define SYS_PROJECT_FLAG_RUN 0x02u        // BEGIN: run it as soon as it is committed
+#define SYS_PROJECT_FLAG_RUN       0x02u        // BEGIN: run it as soon as it is committed
 
 /* The record IDs of the pipeline: class PROJECT, index [bank + 1 u8][n u16]. Two banks alternate, so a save never
  * touches the stored project's records. n = 0 of a bank is the program's list of chunks, 1.. are given in order. */

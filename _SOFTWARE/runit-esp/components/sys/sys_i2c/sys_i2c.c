@@ -41,12 +41,12 @@ static const bus_cfg_t k_bus_cfg[SYS_I2C_BUS_COUNT] = {
 #endif
 };
 
-// Written only by sys_i2c_init (boot), read-only after that.
-static i2c_master_bus_handle_t s_bus[SYS_I2C_BUS_COUNT];
-
-// Addresses with a device added, 1 bit per 7-bit address per bus.
-static uint32_t s_addr_used[SYS_I2C_BUS_COUNT][(ADDR_7BIT_MAX + 1) / 32];
-_Static_assert(sizeof(s_addr_used[0]) == sizeof(((sys_i2c_bus_info_t){0}).used), "bus info map size");
+static struct {
+  i2c_master_bus_handle_t bus[SYS_I2C_BUS_COUNT];  // written only by sys_i2c_init (boot), read-only after that
+  // Addresses with a device added, 1 bit per 7-bit address per bus. Under s_addr_lock.
+  uint32_t addr_used[SYS_I2C_BUS_COUNT][(ADDR_7BIT_MAX + 1) / 32];
+} s_i2c;
+_Static_assert(sizeof(s_i2c.addr_used[0]) == sizeof(((sys_i2c_bus_info_t){0}).used), "bus info map size");
 static U_SPINLOCK_DEFINE(s_addr_lock);
 
 /* ----------------------------------------------------------------------------
@@ -69,21 +69,21 @@ static bool addr_claim(uint8_t bus, uint8_t addr) {
   uint32_t bit = 1u << (addr % 32);
   bool free;
   U_CRITICAL_ENTER(s_addr_lock);
-  free = (s_addr_used[bus][addr / 32] & bit) == 0;
-  s_addr_used[bus][addr / 32] |= bit;
+  free = (s_i2c.addr_used[bus][addr / 32] & bit) == 0;
+  s_i2c.addr_used[bus][addr / 32] |= bit;
   U_CRITICAL_EXIT(s_addr_lock);
   return free;
 }
 
 static void addr_release(uint8_t bus, uint8_t addr) {
   U_CRITICAL_ENTER(s_addr_lock);
-  s_addr_used[bus][addr / 32] &= ~(1u << (addr % 32));
+  s_i2c.addr_used[bus][addr / 32] &= ~(1u << (addr % 32));
   U_CRITICAL_EXIT(s_addr_lock);
 }
 
 // Probe of a ready bus and a 7-bit address.
 static err_h probe(uint8_t bus, uint8_t addr) {
-  esp_err_t rc = i2c_master_probe(s_bus[bus], addr, CONFIG_SYS_I2C_PROBE_TIMEOUT_MS);
+  esp_err_t rc = i2c_master_probe(s_i2c.bus[bus], addr, CONFIG_SYS_I2C_PROBE_TIMEOUT_MS);
   switch (rc) {
     case ESP_OK:
       return NULL;
@@ -136,7 +136,7 @@ static err_h reg_read(sys_i2c_dev_t* dev, uint8_t reg, uint8_t* data, size_t len
 err_h sys_i2c_init(void) {
   for (uint8_t b = 0; b < SYS_I2C_BUS_COUNT; b++) {
     const bus_cfg_t* c = &k_bus_cfg[b];
-    if (!c->enabled || s_bus[b] != NULL) {
+    if (!c->enabled || s_i2c.bus[b] != NULL) {
       continue;
     }
     const i2c_master_bus_config_t cfg = {
@@ -147,9 +147,9 @@ err_h sys_i2c_init(void) {
         .glitch_ignore_cnt = CONFIG_SYS_I2C_GLITCH_IGNORE_CNT,
         .flags.enable_internal_pullup = c->pullup,
     };
-    esp_err_t rc = i2c_new_master_bus(&cfg, &s_bus[b]);
+    esp_err_t rc = i2c_new_master_bus(&cfg, &s_i2c.bus[b]);
     if (rc != ESP_OK) {
-      s_bus[b] = NULL;
+      s_i2c.bus[b] = NULL;
       return ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_INIT, .bus = b, .sda = c->sda, .scl = c->scl);
     }
   }
@@ -157,7 +157,7 @@ err_h sys_i2c_init(void) {
 }
 
 bool sys_i2c_bus_ready(uint8_t bus) {
-  return bus < SYS_I2C_BUS_COUNT && s_bus[bus] != NULL;
+  return bus < SYS_I2C_BUS_COUNT && s_i2c.bus[bus] != NULL;
 }
 
 err_h sys_i2c_bus_info(uint8_t bus, sys_i2c_bus_info_t* info) {
@@ -166,13 +166,13 @@ err_h sys_i2c_bus_info(uint8_t bus, sys_i2c_bus_info_t* info) {
   const bus_cfg_t* c = &k_bus_cfg[bus];
   *info = (sys_i2c_bus_info_t){
       .enabled = c->enabled,
-      .ready = s_bus[bus] != NULL,
+      .ready = s_i2c.bus[bus] != NULL,
       .pullup = c->pullup,
       .sda = c->sda,
       .scl = c->scl,
   };
   U_CRITICAL_ENTER(s_addr_lock);
-  memcpy(info->used, s_addr_used[bus], sizeof(info->used));
+  memcpy(info->used, s_i2c.addr_used[bus], sizeof(info->used));
   U_CRITICAL_EXIT(s_addr_lock);
   return NULL;
 }
@@ -185,7 +185,7 @@ err_h sys_i2c_probe(uint8_t bus, uint8_t addr) {
 
 err_h sys_i2c_bus_reset(uint8_t bus) {
   ERR_TRY(check_bus(bus));
-  esp_err_t rc = i2c_master_bus_reset(s_bus[bus]);
+  esp_err_t rc = i2c_master_bus_reset(s_i2c.bus[bus]);
   return rc == ESP_OK ? NULL : ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_RESET, .bus = bus);
 }
 
@@ -211,7 +211,7 @@ err_h sys_i2c_dev_add(sys_i2c_dev_t* dev) {
         .device_address = dev->addr,
         .scl_speed_hz = dev->speed_Hz,
     };
-    esp_err_t rc = i2c_master_bus_add_device(s_bus[dev->bus], &cfg, &dev->handle);
+    esp_err_t rc = i2c_master_bus_add_device(s_i2c.bus[dev->bus], &cfg, &dev->handle);
     if (rc != ESP_OK) {
       dev->handle = NULL;
       err = ERR_WRAP(ERR_ESP(rc), ERR_I2C_DEV_ADD, .bus = dev->bus, .addr = dev->addr);

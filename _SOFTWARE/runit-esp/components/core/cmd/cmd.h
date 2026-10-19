@@ -29,7 +29,7 @@ typedef MUST_USE err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, u
 
 // The parameters of a cmd_f, for the macros that declare or write one.
 #define CMD_OUT_PARAMS uint8_t *out, uint32_t out_cap, uint32_t *out_len
-#define CMD_F_PARAMS void *ctx, const uint8_t *in, uint32_t in_len, CMD_OUT_PARAMS
+#define CMD_F_PARAMS   void *ctx, const uint8_t *in, uint32_t in_len, CMD_OUT_PARAMS
 
 /* ----------------------------------------------------------------------------
  * Errors (module ERR_MOD_CMD)

@@ -11,7 +11,7 @@
 #define TAG __FILE_NAME__
 
 #define NAMESPACE "project"
-#define KEY_OPTS "opts"
+#define KEY_OPTS  "opts"
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
 #define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
 #define RUN_FRAME 6u                              // [key][op][u32 id]

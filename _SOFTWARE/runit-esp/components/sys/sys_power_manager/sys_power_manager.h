@@ -180,10 +180,10 @@ typedef struct __attribute__((packed)) {
   uint8_t flags;          /**< SYS_POWER_FLAG_* bitmask */
 } sys_power_status_t;
 
-#define SYS_POWER_FLAG_ENABLED 0x01u
-#define SYS_POWER_FLAG_STRICT 0x02u
+#define SYS_POWER_FLAG_ENABLED     0x01u
+#define SYS_POWER_FLAG_STRICT      0x02u
 #define SYS_POWER_FLAG_OVER_BUDGET 0x04u
-#define SYS_POWER_FLAG_INPUT_SEEN 0x08u  // the input monitor answered at least once
+#define SYS_POWER_FLAG_INPUT_SEEN  0x08u  // the input monitor answered at least once
 
 #define SYS_POWER_PCT_UNKNOWN 0xFFu
 

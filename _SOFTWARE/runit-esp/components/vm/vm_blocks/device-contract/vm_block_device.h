@@ -77,8 +77,8 @@ typedef struct vm_dev_contract_t {
 } vm_dev_contract_t;
 
 #define VM_DEV_F_PREV_EN (1u << 0)  // the enable was true last pass
-#define VM_DEV_F_SENT (1u << 1)     // `last` holds what the device was told
-#define VM_DEV_F_IDLE (1u << 2)     // the idle operation was sent since the enable fell
+#define VM_DEV_F_SENT    (1u << 1)     // `last` holds what the device was told
+#define VM_DEV_F_IDLE    (1u << 2)     // the idle operation was sent since the enable fell
 
 typedef struct __attribute__((aligned(4))) {
   uint16_t device_id;  // The device the block works on.

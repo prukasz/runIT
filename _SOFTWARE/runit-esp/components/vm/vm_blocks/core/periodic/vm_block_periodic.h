@@ -26,7 +26,7 @@
  *    `time_base` units. A PERIOD of 0 from the pin pauses ticking.
  */
 
-#define VM_PERIODIC_F_ARMED (1u << 0)    // Running: next_ms is valid
+#define VM_PERIODIC_F_ARMED   (1u << 0)    // Running: next_ms is valid
 #define VM_PERIODIC_F_OVERRUN (1u << 1)  // Current overrun episode already reported
 
 typedef struct __attribute__((aligned(8))) {

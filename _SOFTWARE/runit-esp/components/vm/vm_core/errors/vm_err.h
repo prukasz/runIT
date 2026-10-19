@@ -10,9 +10,9 @@
 
 // clang-format off
 //#ref-defines vm_ref_kind @alias Block wiring point @prefix VM_REF_KIND_
-#define VM_REF_KIND_IN 0   //@alias Input @description An input pin: an accessor
+#define VM_REF_KIND_IN  0   //@alias Input @description An input pin: an accessor
 #define VM_REF_KIND_OUT 1  //@alias Output @description An output pin: an object
-#define VM_REF_KIND_EN 2   //@alias Enable @description An enable source: an accessor
+#define VM_REF_KIND_EN  2   //@alias Enable @description An enable source: an accessor
 #define VM_REF_KIND_ENO 3  //@alias ENO @description The enable output: an object
 
 #define ERR_VM_MAP(X) \
@@ -86,8 +86,8 @@ ERR_TAGS_DECLARE(ERR_VM_MAP)
 #define VM_RAISE(...) err_report(ERR_NEW(__VA_ARGS__))
 
 /* Object ID constants and the names the debug output uses for the VM enums. */
-#define VM_OBJ_ID_NONE     0xFFFFu
-#define VM_OBJ_ID_DYN_BIT  0x8000u
+#define VM_OBJ_ID_NONE    0xFFFFu
+#define VM_OBJ_ID_DYN_BIT 0x8000u
 
 static inline void vm_format_obj_id(uint16_t id, char* buf, size_t buf_size) {
   if (id == VM_OBJ_ID_NONE) {

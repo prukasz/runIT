@@ -10,7 +10,7 @@
 #define TAG __FILE_NAME__
 
 #define NAMESPACE "actions"
-#define KEY_LEN 10u                               // "a" + 8 hex digits + NUL
+#define KEY_LEN   10u                               // "a" + 8 hex digits + NUL
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
 #define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
 

@@ -5,13 +5,13 @@
 #include "sys_pins.h"
 #include "utils.h"
 
-#define I2C_SPEED_HZ 400000u
+#define I2C_SPEED_HZ   400000u
 #define RESET_PULSE_MS 10u  // RST low, and the wait after it is released
 
-#define REG_INPUT_PORT0 0x00u
-#define REG_OUTPUT_PORT0 0x04u
+#define REG_INPUT_PORT0    0x00u
+#define REG_OUTPUT_PORT0   0x04u
 #define REG_POLARITY_PORT0 0x08u
-#define REG_CONFIG_PORT0 0x0Cu
+#define REG_CONFIG_PORT0   0x0Cu
 #define REG_AUTO_INCREMENT 0x80u
 
 #define PINS_MASK ((1UL << TCA6424A_PINS) - 1u)

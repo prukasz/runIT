@@ -6,10 +6,10 @@
 #include "sys_ble_priv.h"
 #include "sys_connector.h"
 
-#define LINK_SEND_WAIT_MS 100u     // answer waits this long for TX buffer space
+#define LINK_SEND_WAIT_MS     100u     // answer waits this long for TX buffer space
 #define PROVIDER_SEND_WAIT_MS 20u  // stream frame (connector task) waits this long
-#define TX_FRAMES 4u            // frames the TX / LOGS buffers hold
-#define STATUS_BUFFER 512u      // size of the STATUS characteristic buffer
+#define TX_FRAMES             4u            // frames the TX / LOGS buffers hold
+#define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer
 
 _Static_assert(CONFIG_SYS_BLE_TX_ITEM_MAX >= CONFIG_ROUTER_FRAME_MAX,
                "SYS_BLE_TX_ITEM_MAX must hold a whole router frame");

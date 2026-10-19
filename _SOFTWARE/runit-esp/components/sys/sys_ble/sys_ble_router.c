@@ -19,20 +19,20 @@
  *                                                                   n x { u16 uuid, u8 flags (bit0 write, bit1 indicate,
  *                                                                   bit2 notify, bit3 framed), u32 tx, u32 rx, name (NUL-ended) } } */
 
-#define OP_SVC_CREATE 0x01u
-#define OP_SVC_REMOVE 0x02u
+#define OP_SVC_CREATE  0x01u
+#define OP_SVC_REMOVE  0x02u
 #define OP_CHAR_CREATE 0x03u
 #define OP_CHAR_REMOVE 0x04u
-#define OP_APPLY 0x05u
-#define OP_STATUS 0x06u
-#define OP_LIST 0x07u
+#define OP_APPLY       0x05u
+#define OP_STATUS      0x06u
+#define OP_LIST        0x07u
 
-#define LIST_PRIMARY (1u << 0)
-#define LIST_LOCKED (1u << 1)
-#define LIST_WRITE (1u << 0)
+#define LIST_PRIMARY  (1u << 0)
+#define LIST_LOCKED   (1u << 1)
+#define LIST_WRITE    (1u << 0)
 #define LIST_INDICATE (1u << 1)
-#define LIST_NOTIFY (1u << 2)
-#define LIST_FRAMED (1u << 3)
+#define LIST_NOTIFY   (1u << 2)
+#define LIST_FRAMED   (1u << 3)
 
 typedef struct __attribute__((packed)) {
   uint16_t uuid;       /**< Service UUID */

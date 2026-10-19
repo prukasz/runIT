@@ -3,9 +3,9 @@
 #include "err_internal.h"
 
 #define RECORD_INTERNAL_HDR (1u + ERR_RECORD_STAMP_BYTES)  // src, stamp
-#define RECORD_COMMAND_HDR (RECORD_INTERNAL_HDR + 4u)      // ... link, seq, flags, req_len
-#define CHAIN_CUT 0x80u                                    // bit 7 of the node count: nodes were left out
-#define NODE_HDR 5u                                        // tag u32 + len u8
+#define RECORD_COMMAND_HDR  (RECORD_INTERNAL_HDR + 4u)      // ... link, seq, flags, req_len
+#define CHAIN_CUT           0x80u                                    // bit 7 of the node count: nodes were left out
+#define NODE_HDR            5u                                        // tag u32 + len u8
 
 _Static_assert(CONFIG_ERRORS_RECORD_REQ_MAX < ERR_RECORD_REQ_CUT, "ERRORS_RECORD_REQ_MAX must fit 7 bits");
 

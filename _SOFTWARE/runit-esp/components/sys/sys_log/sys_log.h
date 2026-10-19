@@ -28,8 +28,8 @@ extern "C" {
  */
 
 /** @brief Ops of ROUTER_KEY_LOG. The stored record SYS_ACTIONS_ID_LOG holds the SET frame: [ROUTER_KEY_LOG][SET][sys_log_cfg_t]. */
-#define SYS_LOG_OP_SET 0x01u
-#define SYS_LOG_OP_GET 0x02u
+#define SYS_LOG_OP_SET    0x01u
+#define SYS_LOG_OP_GET    0x02u
 #define SYS_LOG_OP_ERRORS 0x03u  // [index u8] -> [total u8][record], the error history (oldest is index 0)
 
 /** @brief The settings record and the SET / GET payload (packed, the wire form). */

@@ -1,14 +1,4 @@
-BasedOnStyle: Google
-ColumnLimit: 300
-PointerAlignment: Left
-SortIncludes: true
-IncludeBlocks: Merge
-BreakBeforeBraces: Attach
-AlignAfterOpenBracket: DontAlign
-AllowShortIfStatementsOnASingleLine: WithoutElse
-AllowShortFunctionsOnASingleLine: None
-AlignConsecutiveMacros: Consecutive
-AlignConsecutiveDeclarations: Consecutive
-AlignConsecutiveAssignments: Consecutive
-AlignConsecutiveBitFields: Consecutive
-AlignTrailingComments: true
+# Formatting is off: the code is formatted by hand (120 columns, Google-like, #define values aligned in a column).
+# A clang-format pass would rewrap code and comments and break the `//#ref-*` / `//@alias` markers the generators read.
+DisableFormat: true
+SortIncludes: Never

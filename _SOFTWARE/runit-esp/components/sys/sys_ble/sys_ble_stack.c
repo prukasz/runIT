@@ -13,12 +13,12 @@
 
 #define TAG __FILE_NAME__
 
-#define ADV_ITVL_MIN_MS 20u  // fastest advertising the spec allows: quick (re)connects
-#define ADV_ITVL_MAX_MS 30u
-#define CONN_ITVL_UNITS 6u     // 7.5 ms (1.25 ms units): the spec minimum, lowest link latency
+#define ADV_ITVL_MIN_MS    20u  // fastest advertising the spec allows: quick (re)connects
+#define ADV_ITVL_MAX_MS    30u
+#define CONN_ITVL_UNITS    6u     // 7.5 ms (1.25 ms units): the spec minimum, lowest link latency
 #define CONN_SLAVE_LATENCY 0u  // answer every connection event
 #define CONN_TIMEOUT_UNITS 200u  // 2 s supervision timeout (10 ms units)
-#define UUID_USER_DESC 0x2901u
+#define UUID_USER_DESC     0x2901u
 
 void ble_store_config_init(void);
 

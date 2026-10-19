@@ -4,19 +4,19 @@
 #include "sys_i2c.h"
 #include "sys_pins.h"
 
-#define I2C_SPEED_HZ 100000u
+#define I2C_SPEED_HZ    100000u
 #define WAKEUP_DELAY_US 500u
 
-#define REG_MODE1 0x00u
+#define REG_MODE1     0x00u
 #define REG_LED_START 0x06u
 #define REG_PRE_SCALE 0xFEu
 #define REG_LED_N(ch) (REG_LED_START + (ch) * 4u)
 
 #define MODE1_SLEEP (1u << 4)
-#define MODE1_AI (1u << 5)
-#define LED_FULL (1u << 4)  // full on / full off bit of the LED_ON_H / LED_OFF_H registers
+#define MODE1_AI    (1u << 5)
+#define LED_FULL    (1u << 4)  // full on / full off bit of the LED_ON_H / LED_OFF_H registers
 
-#define OSC_HZ 25000000.0
+#define OSC_HZ       25000000.0
 #define MIN_PRESCALE 0x03
 
 typedef struct {

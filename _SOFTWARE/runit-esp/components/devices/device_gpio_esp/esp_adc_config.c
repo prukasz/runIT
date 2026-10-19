@@ -16,10 +16,10 @@
   } while (0)
 
 #define ADC_FRAME_SIZE_BYTES 256
-#define ADC_SAMPLE_RATE_HZ 20000
-#define ADC_IIR_ALPHA 0.1f
-#define ADC_TASK_PRIORITY 5
-#define ADC_CHANNELS 10  // ADC1 on the ESP32-S3
+#define ADC_SAMPLE_RATE_HZ   20000
+#define ADC_IIR_ALPHA        0.1f
+#define ADC_TASK_PRIORITY    5
+#define ADC_CHANNELS         10  // ADC1 on the ESP32-S3
 
 U_MUTEX_DEFINE(adc_mutex);
 U_TASK_DEFINE(adc_processing_task, 4096);

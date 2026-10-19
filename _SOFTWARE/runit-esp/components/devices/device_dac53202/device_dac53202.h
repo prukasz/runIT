@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 #define DAC53202_CHANNELS 2u
-#define DAC53202_VREF_MV 3300  // both channels: VDD (3.3 V board supply) as reference, gain 1x
+#define DAC53202_VREF_MV  3300  // both channels: VDD (3.3 V board supply) as reference, gain 1x
 
 /**
  * @brief DAC53202 configuration struct (wire format for CREATE).

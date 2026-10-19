@@ -7,9 +7,9 @@
 #include "vm_obj_access.h"
 #include "vm_store.h"
 
-#define VM_RETAIN_NS "vm"          // NVS namespace (default partition)
-#define VM_RETAIN_KEY "retain"     // the one blob in it
-#define RETAIN_HDR_LEN 2u          // u16 count
+#define VM_RETAIN_NS     "vm"          // NVS namespace (default partition)
+#define VM_RETAIN_KEY    "retain"     // the one blob in it
+#define RETAIN_HDR_LEN   2u          // u16 count
 #define RETAIN_REC_FIXED 4u        // u8 name_len + u8 type + u16 size
 #define RETAIN_PERIOD_MS ((uint64_t)CONFIG_VM_RETAIN_PERIOD_S * 1000u)
 

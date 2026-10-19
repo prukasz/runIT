@@ -43,8 +43,8 @@ typedef struct __attribute__((packed)) {
 
 /* Own ops */
 #define DRV8962_OP_SET_CURRENT_LIMIT SYS_DEVICE_OWN_OP(0x00)  // drv8962_limit_t: chopping limit of a channel; VREF follows the largest
-#define DRV8962_OP_CLEAR_FAULT SYS_DEVICE_OWN_OP(0x01)        // hbridge_channel_args_t: nSLEEP reset pulse clears the chip's latches; the channel brakes
-#define DRV8962_OP_GET_FAULT SYS_DEVICE_OWN_OP(0x02)          // hbridge_channel_args_t -> drv8962_fault_t
+#define DRV8962_OP_CLEAR_FAULT       SYS_DEVICE_OWN_OP(0x01)        // hbridge_channel_args_t: nSLEEP reset pulse clears the chip's latches; the channel brakes
+#define DRV8962_OP_GET_FAULT         SYS_DEVICE_OWN_OP(0x02)          // hbridge_channel_args_t -> drv8962_fault_t
 
 typedef struct __attribute__((packed)) {
   uint8_t channel;    /**< Motor channel index */

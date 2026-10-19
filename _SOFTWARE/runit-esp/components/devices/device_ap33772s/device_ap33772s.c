@@ -5,22 +5,22 @@
 #include "sys_pins.h"
 #include "utils.h"
 
-#define I2C_SPEED_HZ 400000u
-#define PDO_COUNT SYS_POWER_USB_PD_OPTIONS_MAX  // slots 1-7 SPR, 8-13 EPR
+#define I2C_SPEED_HZ            400000u
+#define PDO_COUNT               SYS_POWER_USB_PD_OPTIONS_MAX  // slots 1-7 SPR, 8-13 EPR
 #define MAX_SOFTWARE_VOLTAGE_MV 22000u          // software limit, whatever the charger offers
-#define MAX_CURRENT_MA 5000u
-#define PDO_WAIT_MS 100u        // the chip has the source PDOs this long after power-up
-#define KEEPALIVE_MS 500u       // an AVS request is repeated at this period
-#define DEFAULT_VOLTAGE_MV 5000u
-#define DEFAULT_CURRENT_MA 500u
+#define MAX_CURRENT_MA          5000u
+#define PDO_WAIT_MS             100u        // the chip has the source PDOs this long after power-up
+#define KEEPALIVE_MS            500u       // an AVS request is repeated at this period
+#define DEFAULT_VOLTAGE_MV      5000u
+#define DEFAULT_CURRENT_MA      500u
 
-#define CMD_SYSTEM 0x06u
-#define CMD_VOLTAGE 0x11u
-#define CMD_CURRENT 0x12u
-#define CMD_SRCPDO 0x20u
+#define CMD_SYSTEM    0x06u
+#define CMD_VOLTAGE   0x11u
+#define CMD_CURRENT   0x12u
+#define CMD_SRCPDO    0x20u
 #define CMD_PD_REQMSG 0x31u
 
-#define OUTPUT_ON 0x12u
+#define OUTPUT_ON  0x12u
 #define OUTPUT_OFF 0x11u
 
 /* Own op: repeat the AVS request, sent by the keep-alive timer through sys_device_call (so it runs under the

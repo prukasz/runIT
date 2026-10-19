@@ -3578,7 +3578,6 @@ CONFIG_SYS_I2C_GLITCH_IGNORE_CNT=7
 # default:
 CONFIG_SYS_I2C_REMOTE_BUS=1
 # default:
-CONFIG_SYS_I2C_REMOTE_RAW=y
 
 #
 # Bus 0 (onboard chips)

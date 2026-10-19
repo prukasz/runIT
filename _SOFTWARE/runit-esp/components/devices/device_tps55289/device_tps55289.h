@@ -21,10 +21,10 @@ extern "C" {
 #define TPS55289_OP_GET_PROTECTION SYS_DEVICE_OWN_OP(0x02)  // -> tps55289_protection_t
 
 #define TPS55289_OCP_DELAY_MAX 3u  // VOUT_SR OCP_DELAY: 0 = 128 us, 1 = 3.072 ms, 2 = 6.144 ms, 3 = 12.288 ms
-#define TPS55289_FAULT_OVP 0x01u   // fault_mask bits: the fault pulls FB/INT low, so it becomes an event
-#define TPS55289_FAULT_OCP 0x02u
-#define TPS55289_FAULT_SCP 0x04u
-#define TPS55289_FAULT_ALL 0x07u
+#define TPS55289_FAULT_OVP     0x01u   // fault_mask bits: the fault pulls FB/INT low, so it becomes an event
+#define TPS55289_FAULT_OCP     0x02u
+#define TPS55289_FAULT_SCP     0x04u
+#define TPS55289_FAULT_ALL     0x07u
 
 /**
  * @brief Chip-level protection register settings.

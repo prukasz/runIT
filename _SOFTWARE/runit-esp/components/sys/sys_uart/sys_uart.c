@@ -13,13 +13,13 @@
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_UART, "sys_uart", ERR_SYS_UART_MAP)
 
-#define UART_PORT CONFIG_ESP_CONSOLE_UART_NUM
+#define UART_PORT       CONFIG_ESP_CONSOLE_UART_NUM
 #define USB_JTAG_TX_BUF 64u  // the driver needs one; TX goes through stdout
-#define LINE_PREFIX "#R:"
+#define LINE_PREFIX     "#R:"
 #define LINE_PREFIX_LEN (sizeof(LINE_PREFIX) - 1u)
-#define LINE_LEN_MAX (LINE_PREFIX_LEN + 2u * CONFIG_ROUTER_FRAME_MAX)
-#define READ_CHUNK 64u
-#define READ_WAIT_MS 10u
+#define LINE_LEN_MAX    (LINE_PREFIX_LEN + 2u * CONFIG_ROUTER_FRAME_MAX)
+#define READ_CHUNK      64u
+#define READ_WAIT_MS    10u
 
 U_TASK_DEFINE(sys_uart_rx_task_h, CONFIG_SYS_UART_TASK_STACK);
 

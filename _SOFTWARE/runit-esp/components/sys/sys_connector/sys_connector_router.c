@@ -14,15 +14,15 @@
  *                                                         { u8 id, u8 stream, u8 flags (bit0 system, bit1 suspended),
  *                                                           u8 n, n × { u8 provider, u32 endpoint }, name (NUL-ended) } */
 
-#define OP_CREATE 0x01u
-#define OP_REMOVE 0x02u
-#define OP_BIND 0x03u
-#define OP_UNBIND 0x04u
+#define OP_CREATE  0x01u
+#define OP_REMOVE  0x02u
+#define OP_BIND    0x03u
+#define OP_UNBIND  0x04u
 #define OP_SUSPEND 0x05u
-#define OP_RESUME 0x06u
-#define OP_INFO 0x07u
+#define OP_RESUME  0x06u
+#define OP_INFO    0x07u
 
-#define INFO_SYSTEM (1u << 0)
+#define INFO_SYSTEM    (1u << 0)
 #define INFO_SUSPENDED (1u << 1)
 
 typedef struct __attribute__((packed)) {

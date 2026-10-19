@@ -24,16 +24,16 @@
  *
  * Whether a command runs urgent is the client's choice (ROUTER_FLAG_URGENT). */
 
-#define OP_PING 0x01u
-#define OP_STOP 0x02u
-#define OP_RESTART SYS_SYSTEM_OP_RESTART
+#define OP_PING        0x01u
+#define OP_STOP        0x02u
+#define OP_RESTART     SYS_SYSTEM_OP_RESTART
 #define OP_DEADMAN_SET 0x04u
 #define OP_DEADMAN_GET 0x05u
-#define OP_BYE 0x06u
-#define OP_TIME_SET 0x07u
-#define OP_TIME_GET 0x08u
-#define OP_SAFE_GET 0x09u
-#define OP_SAFE_LEAVE 0x0Au
+#define OP_BYE         0x06u
+#define OP_TIME_SET    0x07u
+#define OP_TIME_GET    0x08u
+#define OP_SAFE_GET    0x09u
+#define OP_SAFE_LEAVE  0x0Au
 
 #define RESTART_DELAY_MS 100u  // lets the answer leave before the restart
 

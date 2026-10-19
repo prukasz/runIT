@@ -46,14 +46,14 @@ extern "C" {
 #define SYS_EVENT_OP_NOTIFY 0x01u  //@alias Notify @description an event on the events stream: [ROUTER_KEY_EVENT][NOTIFY][sys_event_t]
 
 /* Match values of a subscription. */
-#define SYS_EVENT_ANY_SOURCE 0xFFFFu  // any source
-#define SYS_EVENT_ANY_EVENT 0xFFFFu   // any event
-#define SYS_EVENT_ANY_IN 0xFFu        // low byte of `event`: any event of that contract (n 0xFF is never used)
+#define SYS_EVENT_ANY_SOURCE  0xFFFFu  // any source
+#define SYS_EVENT_ANY_EVENT   0xFFFFu   // any event
+#define SYS_EVENT_ANY_IN      0xFFu        // low byte of `event`: any event of that contract (n 0xFF is never used)
 #define SYS_EVENT_ANY_CHANNEL 0xFFu   // any channel
 
 /* flags */
 #define SYS_EVENT_NOTIFY 0x01u  // sent on the events connector (the only events the app gets)
-#define SYS_EVENT_DEFER 0x02u   // set by the publisher, not by a table: everything is delivered in the event task
+#define SYS_EVENT_DEFER  0x02u   // set by the publisher, not by a table: everything is delivered in the event task
                                 // (the task clears it first: a listener or the stream never sees it)
 
 /* One occurrence. Copied into the queue, passed as the ON_EVENT args and sent as the events stream record, so packed

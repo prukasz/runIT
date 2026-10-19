@@ -32,14 +32,6 @@ menu "sys_i2c"
           raw access to. INFO reports every bus. Keep it on the user bus: the
           onboard bus has the regulators and the USB-PD controller.
 
-    config SYS_I2C_REMOTE_RAW
-        bool "Remote raw register read / write"
-        default y
-        help
-          Adds RAW_READ / RAW_WRITE to the i2c router: register access to a
-          chip on the remote bus at an address with no device added. For
-          bring-up of new chips; consider turning it off in release builds.
-
     menu "Bus 0 (onboard chips)"
 
         config SYS_I2C_BUS0_ENABLE
