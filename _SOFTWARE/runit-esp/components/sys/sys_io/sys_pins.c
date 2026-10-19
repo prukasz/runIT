@@ -74,14 +74,12 @@ err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_stat
 }
 
 /* ----------------------------------------------------------------------------
- * A device's own pins (sys_pins.h): the take / drive / release order every driver used by hand.
+ * A device's own pins (sys_pins.h): take / drive / release in one order for every driver.
  * ------------------------------------------------------------------------- */
 
-err_h sys_dev_pin_take_output(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, bool level) {
+err_h sys_pins_take_output(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, bool level) {
   p->pin = pin;  // SYS_IO_PIN_NONE stays NONE: the struct's pin is what the driver checks
-  if (!sys_io_pin_valid(pin)) {
-    return NULL;
-  }
+  if (!sys_io_pin_valid(pin)) return NULL;
   ERR_TRY(sys_device_use(dev, pin.device));
   ERR_TRY(sys_io_set_mode(pin, SYS_IO_MODE_OUTPUT_PUSH_PULL));
   p->used = true;
@@ -91,11 +89,10 @@ err_h sys_dev_pin_take_output(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_p
   return NULL;
 }
 
-err_h sys_dev_pin_take_input(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, uint16_t event, uint8_t mode) {
+err_h sys_pins_take_input(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, uint16_t event,
+                          uint8_t mode) {
   p->pin = pin;
-  if (!sys_io_pin_valid(pin)) {
-    return NULL;
-  }
+  if (!sys_io_pin_valid(pin)) return NULL;
   ERR_TRY(sys_device_use(dev, pin.device));
   ERR_TRY(sys_io_prepare_input(pin));
   p->used = true;
@@ -112,11 +109,11 @@ err_h sys_dev_pin_take_input(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pi
   return NULL;
 }
 
-err_h sys_dev_pin_drive(const sys_dev_pin_t* p, bool level) {
+err_h sys_pins_drive(const sys_pins_owned_t* p, bool level) {
   return p->locked ? sys_pins_set_locked_level(p->pin, level) : NULL;
 }
 
-err_h sys_dev_pin_release(sys_dev_pin_t* p) {
+err_h sys_pins_release(sys_pins_owned_t* p) {
   err_h err = NULL;
   if (p->subscribed) {
     ERR_KEEP_FIRST(err, sys_event_unsubscribe(p->sub));
@@ -127,9 +124,7 @@ err_h sys_dev_pin_release(sys_dev_pin_t* p) {
     p->locked = false;
   }
   if (p->used) {
-    if (!p->keep) {
-      ERR_KEEP_FIRST(err, sys_io_reset(p->pin));
-    }
+    if (!p->keep) ERR_KEEP_FIRST(err, sys_io_reset(p->pin));
     p->used = false;
   }
   return err;

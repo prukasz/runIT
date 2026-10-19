@@ -8,7 +8,6 @@
  * duplicate ID fails to compile (sys_device.c).
  */
 
-// clang-format off
 #define SYS_DEVICE_TYPE_LIST(X)                                          \
   X(GPIO_ESP, 0x0040)  /* components/devices/device_gpio_esp */          \
   X(PCA9685,  0x0041)  /* components/devices/device_pca9685 */           \
@@ -21,7 +20,6 @@
   X(SERVO,    0x0048)  /* components/devices/device_servo */            \
   X(DRV8962,  0x0049)  /* components/devices/device_drv8962 */          \
   X(POWER_MUX, 0x004A) /* components/devices/device_power_mux */
-// clang-format on
 
 #define SYS_DEVICE__TYPE_ENUM(name, id) SYS_DEVICE_TYPE_##name = (id),
 

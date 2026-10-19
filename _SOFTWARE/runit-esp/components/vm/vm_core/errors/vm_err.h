@@ -8,7 +8,6 @@
  * Payloads are limited to ERR_DATA_MAX bytes. `obj_id` / `parent_id` carry the failing object ID (or
  * VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE) for vm_obj_lookup_by_id(). */
 
-// clang-format off
 //#ref-defines vm_ref_kind @alias Block wiring point @prefix VM_REF_KIND_
 #define VM_REF_KIND_IN  0   //@alias Input @description An input pin: an accessor
 #define VM_REF_KIND_OUT 1  //@alias Output @description An output pin: an object
@@ -78,7 +77,6 @@
   X(ERR_VM_NO_MEM, ERR_TAG(ERR_MOD_VM, 60), ERR_SEV_HIGH, { uint32_t size; }) \
   X(ERR_VM_BAD_ARG, ERR_TAG(ERR_MOD_VM, 61), ERR_SEV_HIGH, {  }) \
   X(ERR_VM_RANGE, ERR_TAG(ERR_MOD_VM, 62), ERR_SEV_LOW, { uint32_t val; uint32_t min; uint32_t max; }) /* a count or value outside its limits */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_VM_MAP)
 

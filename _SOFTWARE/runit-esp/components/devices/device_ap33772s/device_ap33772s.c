@@ -38,7 +38,7 @@ static inline bool pdo_augmented(uint16_t p) { return ((p >> 14) & 1u) != 0; }
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_i2c_dev_t i2c;
-  sys_dev_pin_t intr;
+  sys_pins_owned_t intr;
   esp_timer_handle_t keepalive_timer;  // periodic while an AVS contract is active
 
   uint16_t pdo[PDO_COUNT];  // slot - 1
@@ -363,7 +363,7 @@ static err_h uninstall(void* ctx) {
     ERR_KEEP_FIRST(err, ERR_ESP(esp_timer_delete(c->keepalive_timer)));
     c->keepalive_timer = NULL;
   }
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));
   if (sys_i2c_dev_added(&c->i2c)) {
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
@@ -385,7 +385,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 
   ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
 
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, 0, SYS_IO_INTR_MODE_FALLING_EDGE));  // no events
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, 0, SYS_IO_INTR_MODE_FALLING_EDGE));  // no events
   return read_pdos(c);
 }
 

@@ -24,11 +24,9 @@ typedef enum sys_power_alert_e {
 /* Events of the monitor contract (sys_event.h "Events tables"), published by a
  * device for an armed alert; channel = the measured channel, value = mA. The n of
  * each event is the sys_power_alert_e that armed it. Both matter to the user: NOTIFY. */
-// clang-format off
 #define SYS_POWER_MONITOR_EVENTS(X) \
   X(OCP_WARNING, 0x00, SYS_EVENT_NOTIFY) \
   X(OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)
-// clang-format on
 
 #define SYS_POWER_MONITOR__EV(name, n, flags) \
   PMON_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n), PMON_EV_##name##_FLAGS = (flags),
@@ -50,13 +48,11 @@ typedef struct __attribute__((packed)) {
  * PMON_OP_<NAME>, pmon_args_<NAME>_t, PMON_HANDLER(NAME) and PMON_ENTRY(NAME)
  * (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
  */
-// clang-format off
 #define SYS_POWER_MONITOR_CONTRACT(X) \
   X(GET_VOLTAGE, 0x00, pmon_channel_args_t) \
   X(GET_CURRENT, 0x01, pmon_channel_args_t) \
   X(SET_ALERT, 0x02, pmon_alert_args_t) \
   X(GET_POWER, 0x03, pmon_channel_args_t)
-// clang-format on
 
 #define SYS_POWER_MONITOR__ID(name, n, args_t) PMON_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n),
 #define SYS_POWER_MONITOR__ARGS(name, n, args_t) typedef args_t pmon_args_##name##_t;

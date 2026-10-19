@@ -51,7 +51,6 @@ extern "C" {
 #define SYS_BLE_BUFF_SIZE_FOR(item_max, count) \
   (((((size_t)(item_max) + 3u) & ~(size_t)3u) + SYS_BLE_BUFF_ITEM_HDR) * ((count) < 2u ? 2u : (size_t)(count)))
 
-// clang-format off
 #define ERR_SYS_BLE_MAP(X)                                                                                        \
   X(ERR_BLE_STACK,       ERR_TAG(ERR_MOD_SYS_BLE, 1),  ERR_SEV_HIGH,   { int32_t rc; }) /* NimBLE init / host call failed */ \
   X(ERR_BLE_ADV,         ERR_TAG(ERR_MOD_SYS_BLE, 2),  ERR_SEV_MEDIUM, { int32_t rc; }) /* advertising failed */   \
@@ -68,7 +67,6 @@ extern "C" {
   X(ERR_BLE_BAD_ARG,     ERR_TAG(ERR_MOD_SYS_BLE, 13), ERR_SEV_HIGH,   {})                                 \
   X(ERR_BLE_FRAG,        ERR_TAG(ERR_MOD_SYS_BLE, 14), ERR_SEV_LOW,    { uint16_t uuid; uint8_t hdr; uint8_t expected; }) /* packet out of order: frame dropped */ \
   X(ERR_BLE_RX_HANDLER,  ERR_TAG(ERR_MOD_SYS_BLE, 15), ERR_SEV_MEDIUM, { uint16_t uuid; }) /* handler already set, or char has an RX buffer */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_BLE_MAP)
 

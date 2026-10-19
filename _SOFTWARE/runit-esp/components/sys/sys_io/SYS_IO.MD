@@ -44,12 +44,12 @@ What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOC
 
 ## A device's own pins (`sys_pins.h`)
 
-A driver keeps one `sys_dev_pin_t` per pin it uses (zeroed = unused) and lets the shared functions do the take, drive and release:
+A driver keeps one `sys_pins_owned_t` per pin it uses (zeroed = unused) and lets the shared functions do the take, drive and release:
 
-- `sys_dev_pin_take_output(dev, p, pin, level)`: use the pin's device, output mode, level, lock.
-- `sys_dev_pin_take_input(dev, p, pin, event, mode)`: use, input, subscribe `event` to the owner's ON_EVENT (inline; `0` = none), interrupt `mode`, lock.
-- `sys_dev_pin_drive(p, level)`: drive a pin the owner locked; a pin that is not locked is left alone, so teardown can call it without checking.
-- `sys_dev_pin_release(p)`: unsubscribe, unlock, reset the mode. Set `p->keep = true` after the take to leave an output as it is.
+- `sys_pins_take_output(dev, p, pin, level)`: use the pin's device, output mode, level, lock.
+- `sys_pins_take_input(dev, p, pin, event, mode)`: use, input, subscribe `event` to the owner's ON_EVENT (inline; `0` = none), interrupt `mode`, lock.
+- `sys_pins_drive(p, level)`: drive a pin the owner locked; a pin that is not locked is left alone, so teardown can call it without checking.
+- `sys_pins_release(p)`: unsubscribe, unlock, reset the mode. Set `p->keep = true` after the take to leave an output as it is.
 
 An invalid pin (`SYS_IO_PIN_NONE`) is stored as NONE and does nothing, so an optional pin needs no check at the call site. Teardown: drive the level the chip needs, then release.
 
@@ -68,7 +68,7 @@ Which pins a device has and which are locked. A pin another device depends on (P
 - A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; SET_LOCKED_LEVEL writes the pin and stays the device's own.
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.
 - A lock is bookkeeping, not an identity: whoever sends LOCK / UNLOCK is trusted to be the owner. An owner ID in LOCK would close that; the contract has none.
-- Taking a pin by hand: `sys_io_set_mode`, then `sys_pins_lock`, then `sys_pins_set_locked_level`; release: drive safe, `sys_pins_unlock`. A driver's own output pin uses `sys_dev_pin_take_output` instead, which does the first, a level and the lock (PCA9685 OE, TPS55289 EN).
+- Taking a pin by hand: `sys_io_set_mode`, then `sys_pins_lock`, then `sys_pins_set_locked_level`; release: drive safe, `sys_pins_unlock`. A driver's own output pin uses `sys_pins_take_output` instead, which does the first, a level and the lock (PCA9685 OE, TPS55289 EN).
 - Pins of a device the caller does not know (a bridge driver's IN / EN / IPROPI / VREF pins can sit on the ESP, the PCA9685, the TCA6424A or the DAC53202): `sys_io_prepare(p, mode)` is SET_MODE that accepts a device without SET_MODE (fixed-function pins: PCA9685 PWM channels, DAC outputs); `sys_io_prepare_input(p)` makes a pin an input with the pull-up where the device has one, else a plain input (the TCA6424A has no pull-ups: the board has external ones); `sys_io_release(p)` is RESET with the same tolerance. Any other failure is returned.
 
 ## Events
@@ -79,4 +79,4 @@ The IO events (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0
 - **TCA6424A** (`device_tca6424a`): its ON_EVENT runs on the INT pin's falling edge, reads the input port and publishes the edges of the pins armed with an edge mode. Nothing while suspended.
 - **ADS7128** (`device_ads7128`): window crossings, read after its ALERT pin falls; the value is the voltage in mV.
 
-A pin whose owner watches its edges takes it with `sys_dev_pin_take_input` (below), which subscribes the owner's ON_EVENT.
+A pin whose owner watches its edges takes it with `sys_pins_take_input` ("A device's own pins" above), which subscribes the owner's ON_EVENT.

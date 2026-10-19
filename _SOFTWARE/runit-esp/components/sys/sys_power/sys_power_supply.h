@@ -28,11 +28,9 @@ typedef struct __attribute__((packed)) {
  * supply_args_<NAME>_t, SUPPLY_HANDLER(NAME) and SUPPLY_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables").
  * Numbers are never reused.
  */
-// clang-format off
 #define SYS_POWER_SUPPLY_CONTRACT(X) \
   X(SELECT, 0x00, supply_select_args_t) \
   X(GET_SOURCE, 0x01, sys_device_none_t)
-// clang-format on
 
 #define SYS_POWER_SUPPLY__ID(name, n, args_t) SUPPLY_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_SUPPLY, n),
 #define SYS_POWER_SUPPLY__ARGS(name, n, args_t) typedef args_t supply_args_##name##_t;

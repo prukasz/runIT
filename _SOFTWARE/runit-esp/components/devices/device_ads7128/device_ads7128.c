@@ -77,7 +77,7 @@ typedef struct {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (sequencer stopped)
-  sys_dev_pin_t intr;  // ALERT: active low, its falling edge runs our ON_EVENT
+  sys_pins_owned_t intr;  // ALERT: active low, its falling edge runs our ON_EVENT
   sys_i2c_dev_t i2c;
   uint16_t full_scale_mV;  // the input voltage of code 4095
 
@@ -473,7 +473,7 @@ IO_HANDLER(RESET) {
 static err_h uninstall(void* ctx) {
   ads_t* c = ctx;
   err_h err = NULL;
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));  // ALERT first: no events while the chip stops
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));  // ALERT first: no events while the chip stops
   if (sys_i2c_dev_added(&c->i2c)) {
     if (!c->base.suspended) {
       ERR_KEEP_FIRST(err, chip_stop_sequence(c));  // nothing converts after the device is gone
@@ -530,7 +530,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   ERR_TRY(chip_reset(c));
 
   // ALERT: active low, so its falling edge reaches our ON_EVENT (inline: I2C reads, no delay).
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
   return NULL;
 }
 

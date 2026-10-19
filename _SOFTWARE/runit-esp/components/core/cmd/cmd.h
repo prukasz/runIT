@@ -35,12 +35,10 @@ typedef MUST_USE err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, u
  * Errors (module ERR_MOD_CMD)
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_CMD_MAP(X)                                                                                    \
   X(ERR_CMD_BAD_LEN,  ERR_TAG(ERR_MOD_CMD, 1), ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */ \
   X(ERR_CMD_OUT_FULL, ERR_TAG(ERR_MOD_CMD, 2), ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */ \
   X(ERR_CMD_BAD_ARG,  ERR_TAG(ERR_MOD_CMD, 3), ERR_SEV_HIGH, {}) /* invalid argument value */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_CMD_MAP)
 

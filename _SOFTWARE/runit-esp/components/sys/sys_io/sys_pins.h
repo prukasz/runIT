@@ -29,14 +29,12 @@ typedef struct __attribute__((packed)) {
   uint8_t level;  /**< 0 = Low, 1 = High */
 } pins_level_args_t;
 
-// clang-format off
-#define SYS_PINS_CONTRACT(X) \
-  X(AVAILABLE, 0x00, sys_device_none_t) \
-  X(LOCKED, 0x01, sys_device_none_t) \
-  X(LOCK, 0x02, pins_pin_args_t) \
-  X(UNLOCK, 0x03, pins_pin_args_t) \
+#define SYS_PINS_CONTRACT(X)                   \
+  X(AVAILABLE,        0x00, sys_device_none_t) \
+  X(LOCKED,           0x01, sys_device_none_t) \
+  X(LOCK,             0x02, pins_pin_args_t)   \
+  X(UNLOCK,           0x03, pins_pin_args_t)   \
   X(SET_LOCKED_LEVEL, 0x04, pins_level_args_t)
-// clang-format on
 
 #define SYS_PINS__ID(name, n, args_t) PINS_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_PINS, n),
 #define SYS_PINS__ARGS(name, n, args_t) typedef args_t pins_args_##name##_t;
@@ -48,13 +46,9 @@ SYS_PINS_CONTRACT(SYS_PINS__ARGS)
 #define PINS_ENTRY(name) {PINS_OP_##name, pins_h_##name}
 
 /* ----------------------------------------------------------------------------
- * For the device: the pin state and its checks. The device keeps one
- * sys_pins_state_t, calls sys_pins_state_check_free() before every write, and
- * answers the PINS ops with a line each:
- *   PINS_HANDLER(AVAILABLE)  { return sys_pins_reply(out, out_cap, out_len, ((my_t*)ctx)->pins.available); }
- *   PINS_HANDLER(LOCKED)     { return sys_pins_reply(out, out_cap, out_len, ((my_t*)ctx)->pins.locked); }
- *   PINS_HANDLER(LOCK)       { my_t* c = ctx; return sys_pins_state_lock(&c->pins, c->id, args->pin); }
- *   PINS_HANDLER(UNLOCK)     { my_t* c = ctx; return sys_pins_state_unlock(&c->pins, c->id, args->pin); }
+ * For the device: the pin state and its checks. The device keeps one sys_pins_state_t, calls
+ * sys_pins_state_check_free() (or sys_pins_check_writable()) before every write, and answers the PINS ops with
+ * SYS_PINS_STATE_HANDLERS below.
  * ------------------------------------------------------------------------- */
 
 typedef struct {
@@ -123,22 +117,26 @@ typedef struct {
   sys_io_pin_t pin;
   uint8_t sub;      // sys_event handle, while subscribed
   bool used;        // its mode is ours: release resets it
-  bool locked;      // locked on its device, driven by its owner (sys_dev_pin_drive)
+  bool locked;      // locked on its device, driven by its owner (sys_pins_drive)
   bool subscribed;  // its edges reach the owner's ON_EVENT
   bool keep;        // release leaves it as it is (an output the chip needs at a level): set after the take
-} sys_dev_pin_t;
+} sys_pins_owned_t;
 
 /** @brief An output at `level`, locked for its owner. */
-MUST_USE err_h sys_dev_pin_take_output(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, bool level);
+MUST_USE err_h sys_pins_take_output(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, bool level);
 
-/** @brief An input watched in `mode` (sys_io_intr_mode_e); its edges raise `event` to the owner (0 = no subscription). Locked. */
-MUST_USE err_h sys_dev_pin_take_input(sys_device_base_t* dev, sys_dev_pin_t* p, sys_io_pin_t pin, uint16_t event, uint8_t mode);
+/**
+ * @brief An input watched in `mode` (sys_io_intr_mode_e); its edges raise `event` to the owner (0 = no subscription).
+ * Locked.
+ */
+MUST_USE err_h sys_pins_take_input(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, uint16_t event,
+                                   uint8_t mode);
 
 /** @brief Drives a pin its owner locked to `level`; a pin that is not locked is left alone. */
-MUST_USE err_h sys_dev_pin_drive(const sys_dev_pin_t* p, bool level);
+MUST_USE err_h sys_pins_drive(const sys_pins_owned_t* p, bool level);
 
 /** @brief Undoes the take: unsubscribe, unlock, reset (not with `keep`). Safe on an unused pin. */
-MUST_USE err_h sys_dev_pin_release(sys_dev_pin_t* p);
+MUST_USE err_h sys_pins_release(sys_pins_owned_t* p);
 
 #ifdef __cplusplus
 }

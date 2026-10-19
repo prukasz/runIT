@@ -89,8 +89,8 @@ typedef enum {
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (output off + EN low, writes refused until RESUME)
-  sys_dev_pin_t intr;  // FB/INT: its falling edge runs our ON_EVENT
-  sys_dev_pin_t en;    // rail enable: locked, driven by tps_set_en
+  sys_pins_owned_t intr;  // FB/INT: its falling edge runs our ON_EVENT
+  sys_pins_owned_t en;    // rail enable: locked, driven by tps_set_en
   sys_i2c_dev_t i2c;
   esp_timer_handle_t rise_timer;  // one-shot: the next rise step
 
@@ -181,7 +181,7 @@ static err_h tps_set_en(tps_t* c, bool high) {
   if (!sys_io_pin_valid(c->en.pin)) {
     return NULL;
   }
-  ERR_TRY(sys_dev_pin_drive(&c->en, high));
+  ERR_TRY(sys_pins_drive(&c->en, high));
   if (high) {
     vTaskDelay(MSEC(EN_WAKEUP_MS));
   }
@@ -463,9 +463,9 @@ static err_h uninstall(void* ctx) {
     }
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->intr));
-  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->en, false));  // rail off
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->en));
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->intr));
+  ERR_KEEP_FIRST(err, sys_pins_drive(&c->en, false));  // rail off
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->en));
   return err;
 }
 
@@ -487,14 +487,14 @@ static err_h create(void* ctx, const void* cfg_in) {
   // EN must be driven high before the I2C probe below - the TPS55289's I2C
   // interface is unavailable while EN is low/floating, so probing first
   // would always fail with ERR_I2C_DEV_NOT_FOUND on a fresh boot.
-  ERR_TRY(sys_dev_pin_take_output(&c->base, &c->en, cfg->en_pin, false));  // an invalid pin is no pin: nothing driven
+  ERR_TRY(sys_pins_take_output(&c->base, &c->en, cfg->en_pin, false));  // an invalid pin is no pin: nothing driven
   if (sys_io_pin_valid(c->en.pin)) {
     ERR_TRY(tps_set_en(c, true));
   }
   ERR_TRY(sys_i2c_dev_add(&c->i2c));  // probes the chip
 
   // FB/INT: its falling edge reaches our ON_EVENT (inline: an I2C read, no delay).
-  ERR_TRY(sys_dev_pin_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, IO_EV_FALLING, SYS_IO_INTR_MODE_FALLING_EDGE));
 
   // Probe with EN high (above), write the defaults with the output off, then
   // hand over to the hardware switch: the rail stays off (EN low) until enabled.

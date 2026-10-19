@@ -50,7 +50,6 @@ typedef struct {
  * carries bus and address; the register helpers wrap it in ERR_I2C_REG.
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_SYS_I2C_MAP(X)                                                                                               \
   X(ERR_I2C_BAD_ARG,        ERR_TAG(ERR_MOD_SYS_I2C, 1),  ERR_SEV_HIGH,   {}) /* NULL pointer or zero length */       \
   X(ERR_I2C_BAD_BUS,        ERR_TAG(ERR_MOD_SYS_I2C, 2),  ERR_SEV_HIGH,   { uint8_t bus; }) /* no such bus, or disabled / not initialized */ \
@@ -68,7 +67,6 @@ typedef struct {
   X(ERR_I2C_REG,            ERR_TAG(ERR_MOD_SYS_I2C, 14), ERR_SEV_NONE,   { uint8_t reg; uint8_t write; }) /* context only: register access */ \
   X(ERR_I2C_ADDR_TAKEN,     ERR_TAG(ERR_MOD_SYS_I2C, 15), ERR_SEV_HIGH,   { uint8_t bus; uint8_t addr; }) /* another device is added at this address */ \
   X(ERR_I2C_REMOTE_DENIED,  ERR_TAG(ERR_MOD_SYS_I2C, 16), ERR_SEV_MEDIUM, { uint8_t bus; }) /* remote op on a bus other than CONFIG_SYS_I2C_REMOTE_BUS */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_I2C_MAP)
 

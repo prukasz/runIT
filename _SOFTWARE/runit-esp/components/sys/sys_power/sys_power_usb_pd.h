@@ -46,12 +46,10 @@ typedef struct __attribute__((packed)) {
  * @brief The USB_PD contract, once: X(NAME, op number, args struct). From it come PD_OP_<NAME>, pd_args_<NAME>_t,
  * PD_HANDLER(NAME) and PD_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables"). Numbers are never reused.
  */
-// clang-format off
 #define SYS_POWER_USB_PD_CONTRACT(X) \
   X(SET_SETTINGS, 0x00, pd_settings_args_t) \
   X(LIST_OPTIONS, 0x01, sys_device_none_t) \
   X(GET_LIMITS, 0x02, sys_device_none_t)
-// clang-format on
 
 #define SYS_POWER_USB_PD__ID(name, n, args_t) PD_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_USB_PD, n),
 #define SYS_POWER_USB_PD__ARGS(name, n, args_t) typedef args_t pd_args_##name##_t;

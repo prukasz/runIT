@@ -92,7 +92,6 @@ typedef struct __attribute__((packed)) {
  * table: it has no instance yet. REMOVE, INFO and OPS are answered by the
  * registry for every device: a driver's op table lists none of them.
  */
-// clang-format off
 #define SYS_DEVICE_LIFECYCLE(X) \
   X(RESET, 0x01, sys_device_none_t) \
   X(SUSPEND, 0x02, sys_device_none_t) \
@@ -102,7 +101,6 @@ typedef struct __attribute__((packed)) {
   X(OPS, 0x06, sys_device_none_t) \
   X(SET_ERROR_POLICY, 0x07, sys_device_error_policy_t) \
   X(GET_ERROR_POLICY, 0x08, sys_device_none_t)
-// clang-format on
 
 #define SYS_DEVICE__ID(name, n, args_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
 #define SYS_DEVICE__ARGS(name, n, args_t) typedef args_t sys_device_args_##name##_t;
@@ -114,11 +112,9 @@ SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ARGS)
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
  * learns of a safe state or a fault response without asking. The IDs are made in sys_event.h (DEVICE_EV_*), which has the
  * flag values; this layer only reports the change (sys_device_set_state_listener). */
-// clang-format off
 #define SYS_DEVICE_EVENTS(X) \
   X(SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
   X(RESUMED, 0x01, SYS_EVENT_NOTIFY)
-// clang-format on
 
 #define DEVICE_HANDLER(name) SYS_DEVICE_HANDLER(sys_device_h_##name, sys_device_args_##name##_t)
 #define DEVICE_ENTRY(name) {SYS_DEVICE_OP_##name, sys_device_h_##name}
@@ -135,7 +131,6 @@ typedef struct __attribute__((packed)) {
  * on all.
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_SYS_DEVICE_MAP(X)                                                                                     \
   X(ERR_DEV_BAD_ARG,        ERR_TAG(ERR_MOD_SYS_DEVICE, 1),  ERR_SEV_HIGH,   {})                                  \
   X(ERR_DEV_BAD_ID,         ERR_TAG(ERR_MOD_SYS_DEVICE, 2),  ERR_SEV_HIGH,   { uint16_t id; }) /* SYS_DEVICE_ID_NONE */ \
@@ -155,7 +150,6 @@ typedef struct __attribute__((packed)) {
   X(ERR_DEV_IN_USE,         ERR_TAG(ERR_MOD_SYS_DEVICE, 20), ERR_SEV_MEDIUM, { uint16_t id; uint16_t user; }) /* REMOVE of a device another one uses */ \
   X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */ \
   X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)
 

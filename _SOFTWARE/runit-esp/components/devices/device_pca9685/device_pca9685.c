@@ -21,7 +21,7 @@
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
-  sys_dev_pin_t oe;  // output enable (active low): locked on its device, driven by us
+  sys_pins_owned_t oe;  // output enable (active low): locked on its device, driven by us
   sys_pins_state_t pins;
   sys_i2c_dev_t i2c;
   uint16_t duty[PCA9685_CHANNELS];  // last written duty (get_level reads it back)
@@ -122,8 +122,8 @@ static err_h uninstall(void* ctx) {
     ERR_KEEP_FIRST(err, chip_sleep(c, true));
     ERR_KEEP_FIRST(err, sys_i2c_dev_remove(&c->i2c));
   }
-  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));  // outputs off, then the pin is let go
-  ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->oe));
+  ERR_KEEP_FIRST(err, sys_pins_drive(&c->oe, true));  // outputs off, then the pin is let go
+  ERR_KEEP_FIRST(err, sys_pins_release(&c->oe));
   return err;
 }
 
@@ -142,7 +142,7 @@ DEVICE_HANDLER(RESET) {
 static err_h suspend_hook(void* ctx) {
   pca_t* c = ctx;
   err_h err = NULL;
-  ERR_KEEP_FIRST(err, sys_dev_pin_drive(&c->oe, true));
+  ERR_KEEP_FIRST(err, sys_pins_drive(&c->oe, true));
   ERR_KEEP_FIRST(err, chip_sleep(c, true));
   return err;
 }
@@ -151,7 +151,7 @@ static err_h suspend_hook(void* ctx) {
 static err_h resume_hook(void* ctx) {
   pca_t* c = ctx;
   ERR_TRY(chip_sleep(c, false));
-  ERR_TRY(sys_dev_pin_drive(&c->oe, false));
+  ERR_TRY(sys_pins_drive(&c->oe, false));
   return NULL;
 }
 
@@ -166,7 +166,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   ERR_TRY(chip_sleep(c, false));
   ERR_TRY(sys_i2c_reg_update(&c->i2c, REG_MODE1, MODE1_AI, MODE1_AI));
   // Active low: the outputs are enabled. Left as an output on uninstall (its outputs-off level stays).
-  ERR_TRY(sys_dev_pin_take_output(&c->base, &c->oe, cfg->oe_pin, false));
+  ERR_TRY(sys_pins_take_output(&c->base, &c->oe, cfg->oe_pin, false));
   c->oe.keep = true;
   return NULL;
 }

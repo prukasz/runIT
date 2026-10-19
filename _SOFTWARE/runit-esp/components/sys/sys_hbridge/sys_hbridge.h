@@ -41,13 +41,11 @@ typedef struct __attribute__((packed)) {
  * hbridge_args_<NAME>_t, HBRIDGE_HANDLER(NAME) and HBRIDGE_ENTRY(NAME) (SYS_DEVICE.MD "Contract tables").
  * Numbers are never reused.
  */
-// clang-format off
 #define SYS_HBRIDGE_CONTRACT(X) \
   X(SET_DRIVE, 0x00, hbridge_drive_args_t) \
   X(BRAKE, 0x01, hbridge_channel_args_t) \
   X(COAST, 0x02, hbridge_channel_args_t) \
   X(GET_CURRENT, 0x03, hbridge_channel_args_t)
-// clang-format on
 
 #define SYS_HBRIDGE__ID(name, n, args_t) HBRIDGE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_HBRIDGE, n),
 #define SYS_HBRIDGE__ARGS(name, n, args_t) typedef args_t hbridge_args_##name##_t;
@@ -60,12 +58,10 @@ SYS_HBRIDGE_CONTRACT(SYS_HBRIDGE__ARGS)
 
 /* Events of the contract (sys_event.h "Events tables"): a channel fault, published by the driver; channel = the
  * channel, value = its current in mA. A fault is something the user must see: NOTIFY. */
-// clang-format off
 #define SYS_HBRIDGE_EVENTS(X) \
   X(OVERCURRENT, 0x00, SYS_EVENT_NOTIFY) \
   X(THERMAL_OR_UVLO, 0x01, SYS_EVENT_NOTIFY) \
   X(EXTERNAL, 0x02, SYS_EVENT_NOTIFY)
-// clang-format on
 
 #define SYS_HBRIDGE__EV(name, n, flags) \
   HBRIDGE_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_HBRIDGE, n), HBRIDGE_EV_##name##_FLAGS = (flags),

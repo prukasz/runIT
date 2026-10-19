@@ -74,14 +74,12 @@ typedef enum {
  * The device events it answers (VREG, monitor) are the devices' own.
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define SYS_POWER_MANAGER_EVENTS(X) \
   X(SOURCE_CHANGED, 0x00, SYS_EVENT_NOTIFY) \
   X(BATTERY_LOW, 0x01, SYS_EVENT_NOTIFY) \
   X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
   X(BUDGET_EXCEEDED, 0x03, SYS_EVENT_NOTIFY) \
   X(INPUT_OVP, 0x04, SYS_EVENT_NOTIFY)
-// clang-format on
 
 #define SYS_POWER_MANAGER__EV(name, n, flags) \
   PWRM_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MANAGER, n), PWRM_EV_##name##_FLAGS = (flags),
@@ -191,7 +189,6 @@ typedef struct __attribute__((packed)) {
  * Errors (module ERR_MOD_SYS_POWER_MANAGER)
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_SYS_POWER_MANAGER_MAP(X)                                                                                                 \
   X(ERR_PWRM_NOT_READY,              ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 1), ERR_SEV_HIGH,   {})                                     /* before sys_power_manager_init */ \
   X(ERR_PWRM_BUDGET_EXCEEDED,        ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 2), ERR_SEV_MEDIUM, { uint16_t id; uint32_t requested_mW; uint32_t available_mW; }) /* a rail change that doesn't fit */ \
@@ -200,7 +197,6 @@ typedef struct __attribute__((packed)) {
   X(ERR_PWRM_BAD_ARG,                ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; })              /* a setting out of range */ \
   X(ERR_PWRM_NOT_RAIL,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 6), ERR_SEV_HIGH,   { uint16_t id; })                                      /* a response target that is neither the board nor a rail of it */ \
   X(ERR_PWRM_NO_OFFER,               ERR_TAG(ERR_MOD_SYS_POWER_MANAGER, 7), ERR_SEV_MEDIUM, {})                                     /* no USB-PD sink on the board, or the charger offers nothing */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_POWER_MANAGER_MAP)
 

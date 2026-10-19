@@ -55,7 +55,6 @@ extern "C" {
 /** @brief The record of device `dev` (its device ID, u16): install and default commands. */
 #define SYS_ACTIONS_ID_DEVICE(dev) SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_DEVICE, dev)
 
-// clang-format off
 #define ERR_SYS_ACTIONS_MAP(X)                                                                                   \
   X(ERR_ACTION_NOT_FOUND,  ERR_TAG(ERR_MOD_SYS_ACTIONS, 1),  ERR_SEV_MEDIUM, { uint32_t id; })                   \
   X(ERR_ACTION_BUSY,       ERR_TAG(ERR_MOD_SYS_ACTIONS, 3),  ERR_SEV_MEDIUM, {}) /* a recording or upload is open */ \
@@ -72,7 +71,6 @@ extern "C" {
   X(ERR_ACTION_STEP,       ERR_TAG(ERR_MOD_SYS_ACTIONS, 15), ERR_SEV_NONE,   { uint32_t id; uint16_t step; }) /* context: frame `step` (from 0) failed */ \
   X(ERR_ACTION_BAD_ARG,    ERR_TAG(ERR_MOD_SYS_ACTIONS, 16), ERR_SEV_HIGH,   {}) \
   X(ERR_ACTION_BAD_ID,     ERR_TAG(ERR_MOD_SYS_ACTIONS, 17), ERR_SEV_HIGH,   {}) /* ID 0 (SYS_ACTIONS_ID_NONE) */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_ACTIONS_MAP)
 

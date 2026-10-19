@@ -27,7 +27,6 @@ extern "C" {
  * shared ones in sys_device.h (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED).
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_SYS_IO_MAP(X)                                                                                                                                                                             \
   X(ERR_IO_PIN_IN_USE,             ERR_TAG(ERR_MOD_SYS_IO, 1), ERR_SEV_HIGH, { uint16_t id; uint8_t pin; uint8_t mode; })  /* SET_MODE of a configured pin; mode = the current one */                   \
   X(ERR_IO_PIN_UNCONFIGURED,       ERR_TAG(ERR_MOD_SYS_IO, 2), ERR_SEV_HIGH, { uint16_t id; uint8_t pin; })               /* the op needs SET_MODE first */                                             \
@@ -37,45 +36,42 @@ extern "C" {
   X(ERR_IO_PWM_CHANNELS_EXHAUSTED, ERR_TAG(ERR_MOD_SYS_IO, 6), ERR_SEV_HIGH, { uint16_t id; uint8_t pin; uint8_t channels; })                                                                           \
   X(ERR_IO_PWM_TIMERS_EXHAUSTED,   ERR_TAG(ERR_MOD_SYS_IO, 7), ERR_SEV_HIGH, { uint16_t id; uint8_t pin; uint8_t timers; uint32_t frequency_Hz; }) /* a new frequency needs a timer and none is free */ \
   X(ERR_IO_BAD_READING,            ERR_TAG(ERR_MOD_SYS_IO, 8), ERR_SEV_HIGH, { uint16_t id; uint8_t pin; })               /* an ADC didn't return the channel asked for */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_IO_MAP)
 
 /* Available modes to set IO to */
 //#ref-enum @alias IO Mode
 typedef enum sys_io_mode_e {
-  SYS_IO_MODE_INPUT = 0,  //@alias Input @description Digital input
-  SYS_IO_MODE_INPUT_PULLUP = 1,  //@alias Input with Pullup @description Digital input with pull-up resistor
-  SYS_IO_MODE_INPUT_PULLDOWN = 2,  //@alias Input with Pulldown @description Digital input with pull-down resistor
-  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3,  //@alias Output Push-Pull @description Digital output push-pull
-  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4,  //@alias Output Open-Drain @description Digital output open-drain
+  SYS_IO_MODE_INPUT = 0,                     //@alias Input @description Digital input
+  SYS_IO_MODE_INPUT_PULLUP = 1,              //@alias Input with Pullup @description Digital input with pull-up resistor
+  SYS_IO_MODE_INPUT_PULLDOWN = 2,            //@alias Input with Pulldown @description Digital input with pull-down resistor
+  SYS_IO_MODE_OUTPUT_PUSH_PULL = 3,          //@alias Output Push-Pull @description Digital output push-pull
+  SYS_IO_MODE_OUTPUT_OPEN_DRAIN = 4,         //@alias Output Open-Drain @description Digital output open-drain
   SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP = 5,  //@alias Output Open-Drain-Pullup @description Digital output open-drain with pull-up
-  SYS_IO_MODE_PWM = 6,  //@alias PWM @description PWM output
-  SYS_IO_MODE_ADC = 7,  //@alias ADC @description Analog ADC input
-  SYS_IO_MODE_DAC = 8,  //@alias DAC @description Analog DAC output
+  SYS_IO_MODE_PWM = 6,                       //@alias PWM @description PWM output
+  SYS_IO_MODE_ADC = 7,                       //@alias ADC @description Analog ADC input
+  SYS_IO_MODE_DAC = 8,                       //@alias DAC @description Analog DAC output
 } sys_io_mode_e;
 
 /* Available interrupt modes */
 //#ref-enum @alias Interrupt Mode
 typedef enum sys_io_intr_mode_e {
-  SYS_IO_INTR_DISABLE = 0,  //@alias Disable @description Interrupt disabled
-  SYS_IO_INTR_MODE_RISING_EDGE = 1,  //@alias Rising Edge @description Trigger on rising edge
-  SYS_IO_INTR_MODE_FALLING_EDGE = 2,  //@alias Falling Edge @description Trigger on falling edge
-  SYS_IO_INTR_MODE_BOTH_EDGES = 3,  //@alias Both Edges @description Trigger on both rising and falling edges
+  SYS_IO_INTR_DISABLE = 0,             //@alias Disable @description Interrupt disabled
+  SYS_IO_INTR_MODE_RISING_EDGE = 1,    //@alias Rising Edge @description Trigger on rising edge
+  SYS_IO_INTR_MODE_FALLING_EDGE = 2,   //@alias Falling Edge @description Trigger on falling edge
+  SYS_IO_INTR_MODE_BOTH_EDGES = 3,     //@alias Both Edges @description Trigger on both rising and falling edges
   SYS_IO_INTR_ADC_WINDOW_OUTSIDE = 4,  //@alias Outside set window @description Trigger when ADC leaves window
-  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5,  //@alias Inside set window @description Trigger when ADC enters window
+  SYS_IO_INTR_ADC_WINDOW_INSIDE = 5,   //@alias Inside set window @description Trigger when ADC enters window
 } sys_io_intr_mode_e;
 
 /* Events of the IO contract (sys_event.h "Events tables"), published by a
  * device for a pin armed with CONFIGURE_INTR; channel = pin. Flags 0: an edge
  * is code flow (an alert pin, the VM), not something to show by itself. */
-// clang-format off
-#define SYS_IO_EVENTS(X) \
-  X(RISING, 0x00, 0) \
-  X(FALLING, 0x01, 0) \
+#define SYS_IO_EVENTS(X)  \
+  X(RISING,      0x00, 0) \
+  X(FALLING,     0x01, 0) \
   X(ADC_OUTSIDE, 0x02, 0) \
-  X(ADC_INSIDE, 0x03, 0)
-// clang-format on
+  X(ADC_INSIDE,  0x03, 0)
 
 #define SYS_IO__EV(name, n, flags) \
   IO_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n), IO_EV_##name##_FLAGS = (flags),
@@ -142,17 +138,17 @@ typedef struct __attribute__((packed)) {
  * device's handler: its args type is the one listed here) and IO_ENTRY(NAME) (its
  * row in the op table). Numbers are never reused.
  */
-#define SYS_IO_CONTRACT(X) \
-  X(SET_LEVEL, 0x00, io_level_args_t) \
-  X(TOGGLE, 0x01, io_pin_args_t) \
-  X(GET_LEVEL, 0x02, io_pin_args_t) \
-  X(SET_PWM_DUTY, 0x03, io_duty_args_t) \
-  X(SET_PWM_FREQ, 0x04, io_freq_args_t) \
-  X(SET_MODE, 0x05, io_mode_args_t) \
-  X(RESET, 0x06, io_pin_args_t) \
-  X(CONFIGURE_INTR, 0x07, io_intr_args_t) \
-  X(GET_VOLTAGE, 0x08, io_pin_args_t) \
-  X(SET_VOLTAGE, 0x09, io_voltage_args_t)
+#define SYS_IO_CONTRACT(X)                   \
+  X(SET_LEVEL,      0x00, io_level_args_t)   \
+  X(TOGGLE,         0x01, io_pin_args_t)     \
+  X(GET_LEVEL,      0x02, io_pin_args_t)     \
+  X(SET_PWM_DUTY,   0x03, io_duty_args_t)    \
+  X(SET_PWM_FREQ,   0x04, io_freq_args_t)    \
+  X(SET_MODE,       0x05, io_mode_args_t)    \
+  X(RESET,          0x06, io_pin_args_t)     \
+  X(CONFIGURE_INTR, 0x07, io_intr_args_t)    \
+  X(GET_VOLTAGE,    0x08, io_pin_args_t)     \
+  X(SET_VOLTAGE,    0x09, io_voltage_args_t)
 
 #define SYS_IO__ID(name, n, args_t) IO_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n),
 #define SYS_IO__ARGS(name, n, args_t) typedef args_t io_args_##name##_t;

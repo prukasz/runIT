@@ -4,7 +4,7 @@
 
 typedef struct {
   sys_device_base_t base;  // first: id, suspended (both sources off, writes refused until RESUME)
-  sys_dev_pin_t en[2];     // source A, source B
+  sys_pins_owned_t en[2];  // source A, source B
   bool active_high;
   uint8_t switch_delay_ms;
   sys_power_supply_source_e source;  // what is switched on now
@@ -17,7 +17,7 @@ static uint8_t en_index(sys_power_supply_source_e source) {
 
 /* Drive one enable pin to "on" or "off" (the pin is locked after create). */
 static err_h mux_set_switch(mux_t* c, uint8_t index, bool on) {
-  return sys_dev_pin_drive(&c->en[index], on == c->active_high);
+  return sys_pins_drive(&c->en[index], on == c->active_high);
 }
 
 /* Break before make: the source that is on goes off, the delay passes, then the new one goes on. A failure leaves
@@ -102,7 +102,7 @@ static err_h uninstall(void* ctx) {
   err_h err = NULL;
   for (uint8_t i = 0; i < 2; i++) {
     ERR_KEEP_FIRST(err, mux_set_switch(c, i, false));  // off before the pin is let go (a no-op if not locked)
-    ERR_KEEP_FIRST(err, sys_dev_pin_release(&c->en[i]));
+    ERR_KEEP_FIRST(err, sys_pins_release(&c->en[i]));
   }
   return err;
 }
@@ -127,7 +127,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   // Both switches off before the pins are locked: nothing is fed until a source is selected.
   const sys_io_pin_t en_pin[2] = {cfg->en_a_pin, cfg->en_b_pin};
   for (uint8_t i = 0; i < 2; i++) {
-    ERR_TRY(sys_dev_pin_take_output(&c->base, &c->en[i], en_pin[i], !c->active_high));
+    ERR_TRY(sys_pins_take_output(&c->base, &c->en[i], en_pin[i], !c->active_high));
   }
   return NULL;
 }

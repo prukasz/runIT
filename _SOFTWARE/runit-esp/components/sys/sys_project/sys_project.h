@@ -34,7 +34,6 @@ extern "C" {
 #define SYS_PROJECT_ID(bank, n) \
   SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_PROJECT, ((((uint32_t)(bank) + 1u) << 16) | (uint32_t)(n)))
 
-// clang-format off
 #define ERR_SYS_PROJECT_MAP(X)                                                                                         \
   X(ERR_PROJECT_BUSY,          ERR_TAG(ERR_MOD_SYS_PROJECT, 1),  ERR_SEV_MEDIUM, {}) /* a save is open */              \
   X(ERR_PROJECT_NO_SESSION,    ERR_TAG(ERR_MOD_SYS_PROJECT, 2),  ERR_SEV_MEDIUM, {})                                  \
@@ -57,7 +56,6 @@ extern "C" {
   X(ERR_PROJECT_NOT_IN_STREAM, ERR_TAG(ERR_MOD_SYS_PROJECT, 19), ERR_SEV_MEDIUM, {}) /* a SECTION frame sent as a command */ \
   X(ERR_PROJECT_RUN,           ERR_TAG(ERR_MOD_SYS_PROJECT, 20), ERR_SEV_NONE,   {}) /* context: stored, but the run failed */ \
   X(ERR_PROJECT_BAD_ARG,       ERR_TAG(ERR_MOD_SYS_PROJECT, 21), ERR_SEV_HIGH,   {})
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_SYS_PROJECT_MAP)
 

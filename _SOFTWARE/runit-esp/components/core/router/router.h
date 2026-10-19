@@ -26,7 +26,6 @@ typedef enum {
  * Errors (module ERR_MOD_ROUTER)
  * ------------------------------------------------------------------------- */
 
-// clang-format off
 #define ERR_ROUTER_MAP(X)                                                                                    \
   X(ERR_ROUTER_KEY,         ERR_TAG(ERR_MOD_ROUTER, 1),  ERR_SEV_NONE,   { uint8_t key; }) /* context only: route step */ \
   X(ERR_ROUTER_NO_KEY,      ERR_TAG(ERR_MOD_ROUTER, 2),  ERR_SEV_HIGH,   {}) /* input ended where a key was expected */ \
@@ -36,7 +35,6 @@ typedef enum {
   X(ERR_ROUTER_BAD_LINK,    ERR_TAG(ERR_MOD_ROUTER, 8),  ERR_SEV_HIGH,   { uint8_t link; }) /* unknown, unregistered or taken */ \
   X(ERR_ROUTER_QUEUE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 9),  ERR_SEV_MEDIUM, { uint8_t link; uint8_t urgent; }) /* frame dropped */ \
   X(ERR_ROUTER_FRAME_LEN,   ERR_TAG(ERR_MOD_ROUTER, 10), ERR_SEV_MEDIUM, { uint8_t link; uint16_t len; uint16_t max; }) /* frame too short or too long */
-// clang-format on
 
 ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
 
