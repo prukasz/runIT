@@ -11,12 +11,7 @@ _Static_assert(SYS_CONNECTOR_APP_BASE < CONFIG_SYS_CONNECTOR_MAX, "no room for u
 
 typedef struct {
   bool used;
-  bool system;
-  bool suspended;
-  uint8_t stream;
-  uint8_t binding_count;
-  sys_connector_binding_t bindings[CONFIG_SYS_CONNECTOR_BINDINGS];
-  char name[SYS_CONNECTOR_NAME_MAX];
+  sys_connector_info_t info;  // the connector itself, what sys_connector_info copies out
 } conn_t;
 
 static void conn_task(void* arg);
@@ -25,9 +20,11 @@ U_MUTEX_DEFINE(sys_connector_mutex);
 U_RINGBUFFER_DEFINE(sys_connector_rb, CONFIG_SYS_CONNECTOR_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_TASK_DEFINE(sys_connector_task_h, CONFIG_SYS_CONNECTOR_TASK_STACK);
 
-static conn_t s_conns[CONFIG_SYS_CONNECTOR_MAX];
-static const sys_connector_provider_t* s_providers[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // index = ID
-static uint8_t s_frame[CONFIG_SYS_CONNECTOR_FRAME_MAX];                                     // task only
+static struct {
+  conn_t conns[CONFIG_SYS_CONNECTOR_MAX];
+  const sys_connector_provider_t* providers[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // index = ID
+  uint8_t frame[CONFIG_SYS_CONNECTOR_FRAME_MAX];                                     // task only
+} s_conn;
 
 #define LOCK() U_MUTEX_LOCK(sys_connector_mutex, WAIT_FOREVER)
 #define UNLOCK() U_MUTEX_UNLOCK(sys_connector_mutex)
@@ -45,14 +42,17 @@ static err_h check_id(uint8_t id) {
   return NULL;
 }
 
+static bool provider_id_ok(uint8_t provider_id) {
+  return provider_id > 0 && provider_id <= CONFIG_SYS_CONNECTOR_PROVIDERS_MAX;
+}
+
 err_h sys_connector_register_provider(uint8_t provider_id, const sys_connector_provider_t* provider) {
   ERR_CHECK(provider != NULL && provider->send != NULL, ERR_CONN_BAD_ARG);
-  ERR_CHECK(provider_id > 0 && provider_id <= CONFIG_SYS_CONNECTOR_PROVIDERS_MAX, ERR_CONN_NO_PROVIDER,
-            .provider = provider_id);
+  ERR_CHECK(provider_id_ok(provider_id), ERR_CONN_NO_PROVIDER, .provider = provider_id);
   LOCK();
-  bool slot_free = s_providers[provider_id] == NULL;
+  bool slot_free = s_conn.providers[provider_id] == NULL;
   if (slot_free) {
-    s_providers[provider_id] = provider;
+    s_conn.providers[provider_id] = provider;
   }
   UNLOCK();
   ERR_CHECK(slot_free, ERR_CONN_NO_PROVIDER, .provider = provider_id);
@@ -62,11 +62,12 @@ err_h sys_connector_register_provider(uint8_t provider_id, const sys_connector_p
 static err_h create(uint8_t id, uint8_t stream, const char* name, bool system) {
   ERR_TRY(check_id(id));
   LOCK();
-  bool exists = s_conns[id].used;
+  conn_t* c = &s_conn.conns[id];
+  bool exists = c->used;
   if (!exists) {
-    s_conns[id] = (conn_t){.used = true, .system = system, .stream = stream};
+    *c = (conn_t){.used = true, .info = {.id = id, .stream = stream, .system = system}};
     if (name != NULL) {
-      strncpy(s_conns[id].name, name, SYS_CONNECTOR_NAME_MAX - 1);
+      strncpy(c->info.name, name, SYS_CONNECTOR_NAME_MAX - 1);
     }
   }
   UNLOCK();
@@ -100,30 +101,41 @@ err_h sys_connector_create(uint8_t id, uint8_t stream, const char* name) {
 
 /* Takes the lock and sets *c to existing connector `id`. On an error the lock
  * is not held. */
-static err_h lock_conn(uint8_t id, conn_t** c) {
+static err_h lock_conn(uint8_t id, sys_connector_info_t** c) {
   ERR_TRY(check_id(id));
   LOCK();
-  if (!s_conns[id].used) {
+  if (!s_conn.conns[id].used) {
     UNLOCK();
     return ERR_NEW(ERR_CONN_NOT_FOUND, .id = id);
   }
-  *c = &s_conns[id];
+  *c = &s_conn.conns[id].info;
   return NULL;
 }
 
+/* Copies connector `id` (a valid ID) out under the lock; false when it does not exist. */
+static bool snapshot(uint8_t id, sys_connector_info_t* out) {
+  LOCK();
+  bool used = s_conn.conns[id].used;
+  if (used) {
+    *out = s_conn.conns[id].info;
+  }
+  UNLOCK();
+  return used;
+}
+
 err_h sys_connector_remove(uint8_t id) {
-  conn_t* c;
+  sys_connector_info_t* c;
   ERR_TRY(lock_conn(id, &c));
   bool system = c->system;
   if (!system) {
-    *c = (conn_t){0};
+    s_conn.conns[id] = (conn_t){0};
   }
   UNLOCK();
   ERR_CHECK(!system, ERR_CONN_PROTECTED, .id = id);
   return NULL;
 }
 
-static int find_binding(const conn_t* c, uint8_t provider_id) {
+static int find_binding(const sys_connector_info_t* c, uint8_t provider_id) {
   for (int i = 0; i < c->binding_count; i++) {
     if (c->bindings[i].provider == provider_id) {
       return i;
@@ -133,10 +145,9 @@ static int find_binding(const conn_t* c, uint8_t provider_id) {
 }
 
 err_h sys_connector_bind(uint8_t id, uint8_t provider_id, uint32_t endpoint) {
-  ERR_CHECK(provider_id > 0 && provider_id <= CONFIG_SYS_CONNECTOR_PROVIDERS_MAX &&
-                s_providers[provider_id] != NULL,
-            ERR_CONN_NO_PROVIDER, .provider = provider_id);
-  conn_t* c;
+  ERR_CHECK(provider_id_ok(provider_id) && s_conn.providers[provider_id] != NULL, ERR_CONN_NO_PROVIDER,
+            .provider = provider_id);
+  sys_connector_info_t* c;
   ERR_TRY(lock_conn(id, &c));
   int i = find_binding(c, provider_id);
   bool full = i < 0 && c->binding_count >= CONFIG_SYS_CONNECTOR_BINDINGS;
@@ -152,7 +163,7 @@ err_h sys_connector_bind(uint8_t id, uint8_t provider_id, uint32_t endpoint) {
 }
 
 err_h sys_connector_unbind(uint8_t id, uint8_t provider_id) {
-  conn_t* c;
+  sys_connector_info_t* c;
   ERR_TRY(lock_conn(id, &c));
   int i = find_binding(c, provider_id);
   bool last = i >= 0 && c->system && c->binding_count == 1;
@@ -165,7 +176,7 @@ err_h sys_connector_unbind(uint8_t id, uint8_t provider_id) {
 }
 
 static err_h set_suspended(uint8_t id, bool suspended) {
-  conn_t* c;
+  sys_connector_info_t* c;
   ERR_TRY(lock_conn(id, &c));
   c->suspended = suspended;
   UNLOCK();
@@ -182,18 +193,8 @@ err_h sys_connector_resume(uint8_t id) {
 
 err_h sys_connector_info(uint8_t id, sys_connector_info_t* out) {
   ERR_CHECK(out != NULL, ERR_CONN_BAD_ARG);
-  conn_t* c;
-  ERR_TRY(lock_conn(id, &c));
-  *out = (sys_connector_info_t){
-      .id = id,
-      .stream = c->stream,
-      .system = c->system,
-      .suspended = c->suspended,
-      .binding_count = c->binding_count,
-  };
-  memcpy(out->bindings, c->bindings, sizeof(out->bindings));
-  memcpy(out->name, c->name, sizeof(out->name));
-  UNLOCK();
+  ERR_TRY(check_id(id));
+  ERR_CHECK(snapshot(id, out), ERR_CONN_NOT_FOUND, .id = id);
   return NULL;
 }
 
@@ -202,28 +203,20 @@ err_h sys_connector_info(uint8_t id, sys_connector_info_t* out) {
  * ------------------------------------------------------------------------- */
 
 static uint32_t provider_max(uint8_t provider_id, uint32_t endpoint) {
-  const sys_connector_provider_t* p = s_providers[provider_id];
+  const sys_connector_provider_t* p = s_conn.providers[provider_id];
   uint32_t max = p->max_frame != NULL ? p->max_frame(endpoint) : CONFIG_SYS_CONNECTOR_FRAME_MAX;
   return max < CONFIG_SYS_CONNECTOR_FRAME_MAX ? max : CONFIG_SYS_CONNECTOR_FRAME_MAX;
 }
 
 uint32_t sys_connector_max_payload(uint8_t id) {
-  if (id >= CONFIG_SYS_CONNECTOR_MAX) {
-    return 0;
-  }
-  sys_connector_binding_t bindings[CONFIG_SYS_CONNECTOR_BINDINGS];
-  LOCK();
-  bool used = s_conns[id].used;
-  uint8_t count = s_conns[id].binding_count;
-  memcpy(bindings, s_conns[id].bindings, sizeof(bindings));
-  UNLOCK();
-  if (!used) {
+  sys_connector_info_t c;
+  if (id >= CONFIG_SYS_CONNECTOR_MAX || !snapshot(id, &c)) {
     return 0;
   }
   // Providers are asked outside the lock: they take their own.
   uint32_t max = CONFIG_SYS_CONNECTOR_FRAME_MAX;
-  for (uint8_t i = 0; i < count; i++) {
-    uint32_t m = provider_max(bindings[i].provider, bindings[i].endpoint);
+  for (uint8_t i = 0; i < c.binding_count; i++) {
+    uint32_t m = provider_max(c.bindings[i].provider, c.bindings[i].endpoint);
     max = m < max ? m : max;
   }
   return max > 0 ? max - 1 : 0;  // stream byte
@@ -234,13 +227,9 @@ err_h sys_connector_send(uint8_t id, const void* data, uint32_t len) {
   ERR_TRY(check_id(id));
   ERR_CHECK(len + 1 <= CONFIG_SYS_CONNECTOR_FRAME_MAX, ERR_CONN_TOO_LONG, .id = id, .provider = 0,
             .len = (uint16_t)len, .max = CONFIG_SYS_CONNECTOR_FRAME_MAX - 1);
-  LOCK();
-  bool used = s_conns[id].used;
-  bool live = used && !s_conns[id].suspended && s_conns[id].binding_count > 0;
-  uint8_t stream = s_conns[id].stream;
-  UNLOCK();
-  ERR_CHECK(used, ERR_CONN_NOT_FOUND, .id = id);
-  if (!live) {
+  sys_connector_info_t c;
+  ERR_CHECK(snapshot(id, &c), ERR_CONN_NOT_FOUND, .id = id);
+  if (c.suspended || c.binding_count == 0) {
     return NULL;
   }
 
@@ -250,7 +239,7 @@ err_h sys_connector_send(uint8_t id, const void* data, uint32_t len) {
   }
   uint8_t* item = slot;
   item[0] = id;
-  item[1] = stream;
+  item[1] = c.stream;
   if (len > 0) {
     memcpy(item + ITEM_HDR, data, len);
   }
@@ -261,23 +250,21 @@ err_h sys_connector_send(uint8_t id, const void* data, uint32_t len) {
 /* Errors here are logged, never reported: a report goes to the errors
  * connector, i.e. back into this task, and could loop. */
 static void send_frame(uint8_t id, const uint8_t* frame, uint32_t len) {
-  sys_connector_binding_t bindings[CONFIG_SYS_CONNECTOR_BINDINGS];
-  LOCK();
-  bool live = s_conns[id].used && !s_conns[id].suspended;  // may have changed since queued
-  uint8_t count = live ? s_conns[id].binding_count : 0;
-  memcpy(bindings, s_conns[id].bindings, sizeof(bindings));
-  UNLOCK();
+  sys_connector_info_t c;
+  if (!snapshot(id, &c) || c.suspended) {  // may have changed since queued
+    return;
+  }
 
-  for (uint8_t i = 0; i < count; i++) {
-    uint8_t pid = bindings[i].provider;
-    uint32_t max = provider_max(pid, bindings[i].endpoint);
+  for (uint8_t i = 0; i < c.binding_count; i++) {
+    uint8_t pid = c.bindings[i].provider;
+    uint32_t max = provider_max(pid, c.bindings[i].endpoint);
     err_h err = NULL;
     if (len > max) {
       err = ERR_NEW(ERR_CONN_TOO_LONG, .id = id, .provider = pid, .len = (uint16_t)len, .max = (uint16_t)max);
     } else {
-      err = s_providers[pid]->send(bindings[i].endpoint, frame, len);
+      err = s_conn.providers[pid]->send(c.bindings[i].endpoint, frame, len);
       if (err != NULL) {
-        err = ERR_WRAP(err, ERR_CONN_SEND, .id = id, .provider = pid, .endpoint = bindings[i].endpoint);
+        err = ERR_WRAP(err, ERR_CONN_SEND, .id = id, .provider = pid, .endpoint = c.bindings[i].endpoint);
       }
     }
     if (err != NULL) {
@@ -298,8 +285,8 @@ static void conn_task(void* arg) {
     // Frame = [stream][payload]: the item already holds it after the id byte.
     uint8_t id = item[0];
     uint32_t len = (uint32_t)(size - 1);
-    memcpy(s_frame, item + 1, len);
+    memcpy(s_conn.frame, item + 1, len);
     vRingbufferReturnItem(sys_connector_rb, item);
-    send_frame(id, s_frame, len);
+    send_frame(id, s_conn.frame, len);
   }
 }

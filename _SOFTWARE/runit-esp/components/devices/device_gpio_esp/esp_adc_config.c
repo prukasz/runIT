@@ -25,21 +25,22 @@ U_MUTEX_DEFINE(adc_mutex);
 U_TASK_DEFINE(adc_processing_task, 4096);
 U_BINARY_SEM_DEFINE(adc_sync_sem);
 
-static adc_continuous_handle_t adc_handle = NULL;
-static uint16_t last_channels_mask = 0;
-static bool is_adc_running = false;
-
-static volatile bool _needs_hardware_reconfig = false;
+static struct {
+  adc_continuous_handle_t handle;  // NULL while no channel is sampled
+  uint16_t channels_mask;          // the channels the hardware is (to be) set up for
+  bool running;
+  volatile bool needs_reconfig;  // set by a pin change, cleared by the task once the hardware is rebuilt
+} s_adc;
 
 // Safely tears down and rebuilds the ADC hardware (background task, adc_mutex held).
 static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
-  if (adc_handle != NULL) {
-    if (is_adc_running) {
-      RETURN_ON_ERROR(adc_continuous_stop(adc_handle));
-      is_adc_running = false;
+  if (s_adc.handle != NULL) {
+    if (s_adc.running) {
+      RETURN_ON_ERROR(adc_continuous_stop(s_adc.handle));
+      s_adc.running = false;
     }
-    RETURN_ON_ERROR(adc_continuous_deinit(adc_handle));
-    adc_handle = NULL;
+    RETURN_ON_ERROR(adc_continuous_deinit(s_adc.handle));
+    s_adc.handle = NULL;
   }
 
   if (channel_mask == 0) return ESP_OK;
@@ -63,7 +64,7 @@ static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
       .max_store_buf_size = 4096,
       .conv_frame_size = ADC_FRAME_SIZE_BYTES,
   };
-  RETURN_ON_ERROR(adc_continuous_new_handle(&handle_cfg, &adc_handle));
+  RETURN_ON_ERROR(adc_continuous_new_handle(&handle_cfg, &s_adc.handle));
 
   adc_continuous_config_t adc_config = {
       .pattern_num = pattern_count,
@@ -73,9 +74,9 @@ static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
       .format = ADC_DIGI_OUTPUT_FORMAT_TYPE2,
   };
 
-  RETURN_ON_ERROR(adc_continuous_config(adc_handle, &adc_config));
-  RETURN_ON_ERROR(adc_continuous_start(adc_handle));
-  is_adc_running = true;
+  RETURN_ON_ERROR(adc_continuous_config(s_adc.handle, &adc_config));
+  RETURN_ON_ERROR(adc_continuous_start(s_adc.handle));
+  s_adc.running = true;
   return ESP_OK;
 }
 
@@ -100,12 +101,12 @@ static uint16_t compute_active_channels_mask(void) {
 
 esp_err_t esp_adc_update_active_channels(void) {
   if (U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
-  last_channels_mask = compute_active_channels_mask();
+  s_adc.channels_mask = compute_active_channels_mask();
 
   // Consume any leftover semaphore token to prevent an early return
   xSemaphoreTake(adc_sync_sem, 0);
 
-  _needs_hardware_reconfig = true;
+  s_adc.needs_reconfig = true;
   U_MUTEX_UNLOCK(adc_mutex);
 
   xSemaphoreTake(adc_sync_sem, WAIT_FOREVER);
@@ -208,18 +209,18 @@ static void adc_processing_task_function(void* pvParameters) {
   uint32_t ret_num = 0;
 
   while (1) {
-    if (_needs_hardware_reconfig) {
+    if (s_adc.needs_reconfig) {
       if (U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) == pdTRUE) {
         // A failed rebuild leaves the ADC stopped; the caller has no way to hear of it, the readings just stay as they were.
-        (void)reconfigure_adc_hardware(last_channels_mask);
-        _needs_hardware_reconfig = false;
+        (void)reconfigure_adc_hardware(s_adc.channels_mask);
+        s_adc.needs_reconfig = false;
         xSemaphoreGive(adc_sync_sem);
         U_MUTEX_UNLOCK(adc_mutex);
       }
     }
 
-    if (is_adc_running && adc_handle != NULL && !_needs_hardware_reconfig) {
-      esp_err_t ret = adc_continuous_read(adc_handle, raw_buffer, ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
+    if (s_adc.running && s_adc.handle != NULL && !s_adc.needs_reconfig) {
+      esp_err_t ret = adc_continuous_read(s_adc.handle, raw_buffer, ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
 
       if (ret == ESP_OK || ret == ESP_ERR_INVALID_STATE) {
         uint32_t channel_sums[ADC_CHANNELS] = {0};
