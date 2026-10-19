@@ -9,7 +9,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `errors.h` | Types (`err_t`/`err_h`, `err_sev_e`, `err_tag_info_t`, `err_module_t`), core API, core tags (module 0) |
 | `err_modules.h` | Module IDs (`ERR_MOD_*`) — the single source of truth for module assignment |
 | `err_macros.h` | All macros: `ERR_TAG`, `ERR_HDR_LEN`/`ERR_DATA_MAX`, X-macro constructors, `ERR_TRY*` propagation. Included by `errors.h` |
-| `errors.c` | `err_new`, `err_free`, `err_sev`, `err_chain_sev`, core module registration |
+| `errors.c` | `err_new`, `err_free`, `err_sev`, `err_chain_sev`, `err_root_tag`, core module registration |
 | `err_internal.h` | Shared by the component's own files only: the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
 | `err_tags.c` | Module and tag registry, lookup |
@@ -69,6 +69,7 @@ Rules:
 - `err_sev_e`: NONE < LOW < MEDIUM < HIGH < CRITICAL. **A tag has one severity**, in its map; a node carries none of its own.
 - `err_sev(e)`: the node's tag's severity (NONE for an unknown tag).
 - `err_chain_sev(chain)`: the highest severity of the chain's nodes. Wrapping never lowers a cause: an expected failure is handled (freed) where it is expected, not reported.
+- `err_root_tag(chain)`: the tag of the deepest node (0 for NULL), for a caller that tolerates one known cause (`sys_io_prepare` and `ERR_DEV_UNKNOWN_OP`).
 - Severity picks the log level (HIGH/CRITICAL → error, MEDIUM → warn, else info). The response layer is the device error policy (SYS_DEVICE.MD "Error policy"), built on `err_chain_sev` and run by the app's sink.
 
 ## Logging

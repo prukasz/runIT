@@ -89,16 +89,16 @@ MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len,
  * @usage SYS_PINS_STATE_HANDLERS(pca_t)
  *        static const sys_device_op_t k_ops[] = {..., SYS_PINS_STATE_ENTRIES, PINS_ENTRY(SET_LOCKED_LEVEL)};
  */
-#define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                       \
+#define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                           \
   PINS_HANDLER(AVAILABLE) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.available); } \
   PINS_HANDLER(LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
-  PINS_HANDLER(LOCK) {                                                                                       \
-    ctx_t* c = ctx;                                                                                          \
-    return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                                \
-  }                                                                                                          \
-  PINS_HANDLER(UNLOCK) {                                                                                     \
-    ctx_t* c = ctx;                                                                                          \
-    return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                              \
+  PINS_HANDLER(LOCK) {                                                                                           \
+    ctx_t* c = ctx;                                                                                              \
+    return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                                 \
+  }                                                                                                              \
+  PINS_HANDLER(UNLOCK) {                                                                                         \
+    ctx_t* c = ctx;                                                                                              \
+    return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                               \
   }
 #define SYS_PINS_STATE_ENTRIES PINS_ENTRY(AVAILABLE), PINS_ENTRY(LOCKED), PINS_ENTRY(LOCK), PINS_ENTRY(UNLOCK)
 

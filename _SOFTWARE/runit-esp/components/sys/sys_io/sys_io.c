@@ -7,17 +7,9 @@ err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode) {
   return sys_device_call(p.device, IO_OP_SET_MODE, &a, sizeof(a), NULL, 0, NULL);
 }
 
-// The tag of the root cause (the deepest node) of a chain, 0 for none.
-static uint32_t root_tag(err_h err) {
-  while (err != NULL && err->next != NULL) {
-    err = err->next;
-  }
-  return err != NULL ? err->tag : 0;
-}
-
 // A device without the op (the pins have a fixed function) is fine; any other failure is returned.
 static err_h ignore_unknown_op(err_h err) {
-  if (root_tag(err) == ERR_DEV_UNKNOWN_OP) {
+  if (err_root_tag(err) == ERR_DEV_UNKNOWN_OP) {
     err_free(err);
     return NULL;
   }
@@ -30,7 +22,7 @@ err_h sys_io_prepare(sys_io_pin_t p, sys_io_mode_e mode) {
 
 err_h sys_io_prepare_input(sys_io_pin_t p) {
   err_h err = sys_io_set_mode(p, SYS_IO_MODE_INPUT_PULLUP);
-  if (root_tag(err) == ERR_IO_MODE_UNSUPPORTED) {  // an expander without pull-ups: the board has an external one
+  if (err_root_tag(err) == ERR_IO_MODE_UNSUPPORTED) {  // an expander without pull-ups: the board has an external one
     err_free(err);
     err = sys_io_set_mode(p, SYS_IO_MODE_INPUT);
   }
@@ -68,6 +60,7 @@ err_h sys_io_get_level(sys_io_pin_t p, bool* level) {
   uint32_t out_len = 0;
   ERR_CHECK(level != NULL, ERR_DEV_BAD_ARG);
   ERR_TRY(sys_device_call(p.device, IO_OP_GET_LEVEL, &a, sizeof(a), &out, sizeof(out), &out_len));
+  ERR_CHECK(out_len == sizeof(out), ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = sizeof(out));
   *level = out != 0;
   return NULL;
 }
@@ -78,6 +71,7 @@ err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV) {
   uint32_t out_len = 0;
   ERR_CHECK(out_mV != NULL, ERR_DEV_BAD_ARG);
   ERR_TRY(sys_device_call(p.device, IO_OP_GET_VOLTAGE, &a, sizeof(a), &out, sizeof(out), &out_len));
+  ERR_CHECK(out_len == sizeof(out), ERR_CMD_BAD_LEN, .got = (uint16_t)out_len, .need = sizeof(out));
   *out_mV = out;
   return NULL;
 }

@@ -104,3 +104,11 @@ uint8_t err_chain_sev(err_h chain) {
   }
   return sev;
 }
+
+uint32_t err_root_tag(err_h chain) {
+  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;  // cycle guard, as in err_free
+  while (chain != NULL && chain->next != NULL && left-- > 0) {
+    chain = chain->next;
+  }
+  return chain != NULL ? chain->tag : 0;
+}

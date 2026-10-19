@@ -97,6 +97,12 @@ uint8_t err_sev(err_h e);
  */
 uint8_t err_chain_sev(err_h chain);
 
+/**
+ * @brief Tag of the chain's root cause (its deepest node), 0 for NULL. For a caller that tolerates one known cause.
+ * @usage if (err_root_tag(err) == ERR_DEV_UNKNOWN_OP) { err_free(err); err = NULL; }
+ */
+uint32_t err_root_tag(err_h chain);
+
 /* ----------------------------------------------------------------------------
  * Core tags (module 0)
  * ------------------------------------------------------------------------- */

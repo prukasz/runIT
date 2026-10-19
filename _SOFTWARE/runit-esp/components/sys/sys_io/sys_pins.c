@@ -1,7 +1,6 @@
 #include "sys_pins.h"
 #include "sys_event.h"
 
-
 void sys_pins_state_init(sys_pins_state_t* s, uint8_t count) {
   s->available = count >= 64 ? ~(uint64_t)0 : BIT64(count) - 1;
   s->locked = 0;

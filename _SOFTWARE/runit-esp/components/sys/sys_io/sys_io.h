@@ -142,7 +142,6 @@ typedef struct __attribute__((packed)) {
  * device's handler: its args type is the one listed here) and IO_ENTRY(NAME) (its
  * row in the op table). Numbers are never reused.
  */
-// clang-format off
 #define SYS_IO_CONTRACT(X) \
   X(SET_LEVEL, 0x00, io_level_args_t) \
   X(TOGGLE, 0x01, io_pin_args_t) \
@@ -154,7 +153,6 @@ typedef struct __attribute__((packed)) {
   X(CONFIGURE_INTR, 0x07, io_intr_args_t) \
   X(GET_VOLTAGE, 0x08, io_pin_args_t) \
   X(SET_VOLTAGE, 0x09, io_voltage_args_t)
-// clang-format on
 
 #define SYS_IO__ID(name, n, args_t) IO_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n),
 #define SYS_IO__ARGS(name, n, args_t) typedef args_t io_args_##name##_t;

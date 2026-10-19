@@ -59,14 +59,6 @@ U_TASK_DEFINE(sys_pwrm_task_h, CONFIG_SYS_POWER_MANAGER_TASK_STACK);
 
 /* ---- Helpers ---- */
 
-static uint32_t root_tag(err_h e) {
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;
-  while (e != NULL && e->next != NULL && left-- > 0) {
-    e = e->next;
-  }
-  return e != NULL ? e->tag : 0;
-}
-
 static int consumer_index(uint16_t id) {
   for (uint8_t i = 0; i < s_board->consumer_count; i++) {
     if (s_board->consumers[i].vreg == id) {
@@ -143,7 +135,7 @@ static void apply_response(uint8_t kind, int target) {
       continue;
     }
     err_h err = sys_device_call(s_board->consumers[i].vreg, op, NULL, 0, NULL, 0, NULL);
-    if (root_tag(err) == ERR_DEV_NOT_FOUND) {
+    if (err_root_tag(err) == ERR_DEV_NOT_FOUND) {
       err_free(err);  // the rail isn't created: nothing to stop
     } else {
       err_report(err);
@@ -246,7 +238,7 @@ static err_h rebalance(bool* starved) {
     }
     if (cap_mA != r->applied_mA) {
       err_h set_err = vreg_direct(s_board->consumers[i].vreg, VREG_OP_SET_CURRENT, cap_mA);
-      const uint32_t root = root_tag(set_err);
+      const uint32_t root = err_root_tag(set_err);
       if (root == ERR_DEV_SUSPENDED || root == ERR_DEV_NOT_FOUND) {
         err_free(set_err);  // off (a fault) or gone: it gets its share when it is back
       } else if (set_err != NULL) {
@@ -347,7 +339,7 @@ static sys_power_source_e detect_source(void) {
   if (sys_io_pin_valid(s_cfg.source_pin)) {
     if (!s_pin_ready) {
       err_h err = sys_io_set_mode(s_cfg.source_pin, SYS_IO_MODE_INPUT);
-      const uint32_t root = root_tag(err);
+      const uint32_t root = err_root_tag(err);
       s_pin_ready = err == NULL || root == ERR_IO_PIN_IN_USE;  // already configured: read it as it is
       err_free(err);  // its device may not exist yet: retried next tick
       if (!s_pin_ready) {
@@ -498,7 +490,7 @@ static void forget_removed_rails(void) {
   for (uint8_t i = 0; i < s_board->consumer_count; i++) {
     sys_device_info_t info;
     err_h err = sys_device_call(s_board->consumers[i].vreg, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info), NULL);
-    if (root_tag(err) == ERR_DEV_NOT_FOUND) {
+    if (err_root_tag(err) == ERR_DEV_NOT_FOUND) {
       s_rails[i] = (rail_t){0};
     }
     err_free(err);
@@ -517,7 +509,7 @@ static void program_input_alerts(uint32_t limit_mA) {
                                                          SYS_POWER_ALERT_OCP_WARNING, (int32_t)warn_mA));
   if (err == NULL) {
     s_alert_mA = limit_mA;
-  } else if (s_alert_mA == 0 && root_tag(err) == ERR_DEV_NOT_FOUND) {
+  } else if (s_alert_mA == 0 && err_root_tag(err) == ERR_DEV_NOT_FOUND) {
     err_free(err);  // the monitor isn't created yet
   } else {
     err_report(err);
@@ -535,7 +527,7 @@ static bool read_input(bool* have_input) {
   if (err == NULL) {
     err = sys_power_monitor_get_current(s_board->input.device, s_board->input.channel, &mA);
   }
-  const uint32_t root = root_tag(err);
+  const uint32_t root = err_root_tag(err);
   if (root == ERR_DEV_SUSPENDED || (root == ERR_DEV_NOT_FOUND && !s_input_seen)) {
     err_free(err);  // can't be read now: keep the last status, recompute nothing
     return false;
