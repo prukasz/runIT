@@ -1,4 +1,4 @@
-import { eraseProject, listRecords, onboardActionIds, projectInfo, readProject, readRecord, removeRecord, saveProject, storeRecord, vmFrame } from '@backend'
+import { eraseProject, listRecords, onboardActionIds, projectInfo, readProject, readRecord, removeRecord, saveProject, serviceCall, storeRecord, vmFrame } from '@backend'
 import type { BoardDescriptor, LinkDefinitions, RunitLink, Section, ServiceCatalog } from '@backend'
 import type { Engine } from '@engine'
 import type { ProjectFile } from '../project/projectFile'
@@ -8,9 +8,10 @@ import { actionRecordOf, DEVICE_CLASS, deviceProblems, deviceSections, fromBoard
 /*
  * The project's devices and actions on the board, both ways (SYS_PROJECT.MD, SYS_ACTIONS.MD).
  *
- *   write   the stored project: the settings the project keeps as their records (settings/settingsRecords.ts), every device record as a section (the board's devices with start commands, then the
+ *   write   the old project replaced whole (SYS_PROJECT.MD): the VM stopped (RESET) and the project erased, which removes the
+ *           devices it created (the board's stay); then the stored project: the settings the project keeps as their records (settings/settingsRecords.ts), every device record as a section (the board's devices with start commands, then the
  *           project's devices) and the program last (compiled, with EXEC so it starts), autostart as the board had it (on
- *           when no project was stored), or the stored project erased when there is nothing to store; then every action
+ *           when no project was stored), nothing when there is nothing to store; then every action
  *           as a user record. The device and user records the project no longer has are removed (a project that omits a
  *           device leaves its record in flash, SYS_PROJECT.MD; the firmware's onboard actions stay).
  *   read    the settings and device records the stored project runs (the device records alone when none is stored) and the
@@ -44,9 +45,10 @@ export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, boa
   const program = programFrames(defs, engine, project)
   const info = await projectInfo(link)
   const autostart = info.stored ? info.autostart : true
-  if (sections.length === 0 && !program) {
-    if (info.stored) await eraseProject(link)
-  } else {
+  // The old program and devices go first: the program would call devices that are gone, and the new run creates them again.
+  await link.request(serviceCall(catalog, 'VM', 'RESET').request, { timeoutMs: 10_000, label: 'VM RESET' })
+  await eraseProject(link)
+  if (sections.length > 0 || program) {
     await saveProject(link, { sections, ...(program ? { program } : {}) }, { autostart, onProgress: (done, total) => onProgress?.({ step: 'Settings, devices and program', done, total }) })
   }
 
@@ -67,8 +69,8 @@ export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, boa
   for (const id of stored) if (!wanted.has(id) || project.actions.find((a) => actionRecordOf(a.id) === id)?.steps.length === 0) await removeRecord(link, id)
 
   const removed = staleDevices.length > 0 ? ` ${staleDevices.length} device record(s) the project no longer has removed.` : ''
-  if (sections.length === 0 && !program) return `Nothing runs at start: the stored project is erased, ${project.actions.length} action(s) written.${removed}`
-  return `Written: ${settings.length} setting record(s), ${sections.length - settings.length} device record(s), ${program ? 'the program, ' : ''}${project.actions.length} action(s). They run at the next start${autostart ? '' : ' (autostart is off: Project, or RUN)'}.${removed}`
+  if (sections.length === 0 && !program) return `Nothing runs at start: the stored project and its devices are erased, ${project.actions.length} action(s) written.${removed}`
+  return `Written: ${settings.length} setting record(s), ${sections.length - settings.length} device record(s), ${program ? 'the program, ' : ''}${project.actions.length} action(s). The old project's devices are removed; the new project runs at the next start${autostart ? '' : ' (autostart is off: Project, or RUN)'}.${removed}`
 }
 
 /** Reads the devices and actions the board keeps into the project. Resolves with the project and the notes for the user. */

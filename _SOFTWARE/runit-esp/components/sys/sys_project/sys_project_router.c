@@ -8,7 +8,7 @@
  *   0x04 ABORT     -                                -
  *   0x05 INFO      -                                { u8 stored, u8 autostart, u8 bank, u32 crc32, u32 bytes }
  *   0x06 RUN       -                                -   (RUN_ALL of the project)
- *   0x07 ERASE     -                                -
+ *   0x07 ERASE     -                                -   (the project's devices, the project record, both banks)
  *   0x08 OPTIONS   { u8 autostart }                 -   (read: { u8 autostart })
  *   0x10 SECTION   { u32 id }                       a frame of the stream, refused as a command
  *   0x11 MARK      { u8 bank, u32 crc32, u32 bytes } first frame of the project record, does nothing when run */

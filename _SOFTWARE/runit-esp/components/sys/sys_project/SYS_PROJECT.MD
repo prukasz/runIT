@@ -49,6 +49,8 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 
 `sys_project_run` = `sys_actions_run(project record, keep_going = true)`: the settings and devices run with `RUN_ALL` frames (one failing device leaves the rest configured), the program with `RUN` (stops at its first failing frame; the VM loader fails closed anyway). Depth: project record → list → chunk = 3 RUNs, so `CONFIG_SYS_ACTIONS_MAX_DEPTH` must be at least 3 (a `_Static_assert`).
 
+**A new project replaces the old one whole**: VM RESET, ERASE (the old project's devices go, the board's stay), then the save. Its run creates the devices again from their CREATE frames, so a project runs onto a board without devices of its own: after a boot or an ERASE. A second RUN of the same stored project without either finds its devices taken (`ERR_DEV_ID_TAKEN`; `RUN_ALL` goes on, the devices keep what they had).
+
 **The VM start is the program's own last frame** (`[0x0B][0x08 EXEC]` normal): the firmware does not know the VM here. A program without it is loaded and stays stopped.
 
 **Every section runs at every start.** The project record runs each section in order, whatever its class: an action stored as a section (a user ID) is run at the start like the settings and devices around it. A user action that must wait for a call (a button, the VM's ACTION block, an error policy) is stored with the actions router (BEGIN / WRITE / COMMIT, SYS_ACTIONS.MD), not as a section. IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions") and are not for the app.
@@ -65,7 +67,7 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 | `0x04` ABORT | – | – |
 | `0x05` INFO | – | `u8 stored, u8 autostart, u8 bank, u32 crc32, u32 bytes` (crc and length of the stream it was saved from: the app compares them with its project) |
 | `0x06` RUN | – | – (`ERR_PROJECT_NOT_STORED` with none) |
-| `0x07` ERASE | – | – (the project record and both banks go; the settings, devices and user records stay) |
+| `0x07` ERASE | – | – (the devices the project created are removed, `sys_device_sweep(REMOVE)`: the board's stay; then the project record and both banks; the settings, device and user records stay). Stop the VM first (VM RESET): its program would call devices that are gone |
 | `0x08` OPTIONS | write: `u8 autostart`; read: – | write: –; read: `u8 autostart` |
 | `0x10` SECTION | `u32 id` | only a frame of the stream: sent as a command it is `ERR_PROJECT_NOT_IN_STREAM` |
 | `0x11` MARK | `u8 bank, u32 crc32, u32 bytes` | first frame of the project record; does nothing when run |
@@ -103,7 +105,7 @@ One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions r
 - `CONFIG_SYS_PROJECT_MAX_BYTES` (default 64 KB, up to 256 KB) bounds the total stream size.
 - `CONFIG_SYS_PROJECT_MAX_SECTIONS` (default 40): maximum distinct settings, device and user sections in one project.
 - `CONFIG_SYS_PROJECT_MAX_CHUNKS` (default 32): maximum program chunk records (`32 * CONFIG_SYS_ACTIONS_MAX_BYTES` = 128 KB max program size).
-- Stored records that a new project omits (e.g. an older device configuration) remain in flash; ERASE and a new save do not remove existing settings or device records.
+- Stored records that a new project omits (e.g. an older device configuration) remain in flash: ERASE and a save do not remove settings or device records. The app removes the ones its project no longer has (`writeToBoard`).
 - One save session at a time (`ERR_PROJECT_BUSY`).
 
 ## Tests
@@ -115,4 +117,4 @@ One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions r
 - Complete project save with autostart and immediate run flags.
 - Storing of sections under their IDs and chunked program records in sequence.
 - Bank switching: second save alternating to the other bank and clearing old bank records.
-- ERASE: removing the project record and both bank records.
+- ERASE: removing the project's devices, the project record and both bank records.

@@ -12,5 +12,6 @@ Spec: `SYS_PROJECT.MD` (this folder).
 - State: one `s_project` struct (`.bss`): the open save (`save`, zeroed whole when a save closes), the buffers it fills (`buf`, `frame`, `chunks`, `secs`) and the options' NVS handle (`nvs`, opened at init). Records are built with `put_frame` only.
 - Concurrency: `sys_project_mutex` guards all of `s_project` but `nvs`.
 - Execution & nesting: `sys_project_run` executes on a router task via `sys_actions_run` with `keep_going = true`. It nests three RUN levels (project record -> chunk list -> chunk); `CONFIG_SYS_ACTIONS_MAX_DEPTH` must be at least 3 (`_Static_assert`).
+- ERASE: `sys_device_sweep(SYS_DEVICE_OP_REMOVE)` first (the board's devices stay; its error is reported and the erase goes on), then the project record and both banks. A new project is ERASE and then a save: the run creates its devices again. The VM is stopped by the caller (the app sends VM RESET).
 - Boot autostart: `sys_project_boot` queues `[ROUTER_KEY_PROJECT, SYS_PROJECT_OP_RUN]` via `router_inject` when autostart is enabled and a project is stored. It runs after devices are initialized.
 

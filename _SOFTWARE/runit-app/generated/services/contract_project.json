@@ -178,7 +178,7 @@
       "op": 7,
       "symbol": "SYS_PROJECT_OP_ERASE",
       "label": "Erase the stored project",
-      "description": "Removes the stored project and its program records from Flash.",
+      "description": "Removes the devices the project created (the board's stay), the stored project and its program records. Stop the VM first.",
       "write": {}
     },
     {

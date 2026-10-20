@@ -5,6 +5,7 @@
 #include "nvs.h"
 #include "sdkconfig.h"
 #include "sys_actions_router.h"
+#include "sys_device.h"
 #include "sys_project_router.h"
 #include "utils.h"
 
@@ -415,6 +416,8 @@ err_h sys_project_erase(void) {
   LOCK();
   err_h err = s_project.save.open ? ERR_NEW(ERR_PROJECT_BUSY) : NULL;
   if (err == NULL) {
+    // the project's devices, newest first; the board's stay. A failed uninstall still frees its device: go on.
+    err_report(sys_device_sweep(SYS_DEVICE_OP_REMOVE));
     err = sys_actions_remove(SYS_ACTIONS_ID_PROJECT);  // first: without it the banks are not a project
     if (err != NULL && err->tag == ERR_ACTION_NOT_FOUND) {
       err_free(err);

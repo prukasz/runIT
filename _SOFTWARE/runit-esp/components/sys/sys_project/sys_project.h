@@ -101,7 +101,10 @@ MUST_USE err_h sys_project_info(sys_project_info_t* out);
 /** @brief Runs the stored project (RUN_ALL of its record: one failing section doesn't stop the others). Router task only. */
 MUST_USE err_h sys_project_run(void);
 
-/** @brief Removes the stored project and its program records (the settings and device records stay). */
+/**
+ * @brief Removes the devices the project created (the board's stay), the stored project and its program records (the
+ * settings and device records stay). Stop the VM first: its program would call devices that are gone.
+ */
 MUST_USE err_h sys_project_erase(void);
 
 MUST_USE err_h sys_project_set_autostart(bool on);
