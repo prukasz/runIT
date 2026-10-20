@@ -12,6 +12,6 @@
 #define SYS_PROJECT_OP_ERASE   0x07u
 #define SYS_PROJECT_OP_OPTIONS 0x08u
 #define SYS_PROJECT_OP_SECTION 0x10u  // a frame of the stream only: opens a section
-#define SYS_PROJECT_OP_MARK    0x11u     // first frame of the project record: bank, CRC and length of the stream (a no-op when run)
+#define SYS_PROJECT_OP_MARK    0x11u  // first frame of the project record: bank, CRC and length of the stream (a no-op when run)
 
 ROUTER_MODULE_DECLARE(sys_project_router);

@@ -9,7 +9,7 @@
  *   0x05 INFO      -                                { u8 stored, u8 autostart, u8 bank, u32 crc32, u32 bytes }
  *   0x06 RUN       -                                -   (RUN_ALL of the project)
  *   0x07 ERASE     -                                -
- *   0x08 OPTIONS   { u8 autostart }                 -
+ *   0x08 OPTIONS   { u8 autostart }                 -   (read: { u8 autostart })
  *   0x10 SECTION   { u32 id }                       a frame of the stream, refused as a command
  *   0x11 MARK      { u8 bank, u32 crc32, u32 bytes } first frame of the project record, does nothing when run */
 
@@ -70,9 +70,7 @@ ROUTER_OP(op_options, options_t) {
 }
 
 ROUTER_OP_NOARGS(op_options_get) {
-  sys_project_info_t i;
-  ERR_TRY(sys_project_info(&i));
-  const options_t o = {.autostart = i.autostart};
+  const options_t o = {.autostart = sys_project_autostart()};
   return cmd_reply(out, out_cap, out_len, &o, sizeof(o));
 }
 

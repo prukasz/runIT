@@ -9,7 +9,8 @@ Spec: `SYS_PROJECT.MD` (this folder).
 - Commit atomicity: `commit_store` copies staged sections to their final IDs (`sys_actions_copy`), stores the chunk list, writes the project record at `SYS_ACTIONS_ID_PROJECT` (`0x03000000`, the commit point), and clears the old bank (`clear_bank`). A failed or aborted save drops all staged records with `clear_bank`.
 - Section ordering: `SYS_PROJECT_SECTION_PROGRAM` (0) must be the last section in the stream (`ERR_PROJECT_ORDER`). Sections with `id != 0` must have class `<= SYS_ACTIONS_CLASS_DEVICE`.
 - Size limits: each non-program section cannot exceed `sys_actions_max_bytes(id)`. Program chunks cannot exceed `CONFIG_SYS_ACTIONS_MAX_BYTES`. Total stream cannot exceed `CONFIG_SYS_PROJECT_MAX_BYTES`.
-- Concurrency: `sys_project_mutex` guards the save state and shared buffers (`s_save`, `s_buf`, `s_frame`, `s_chunks`, `s_secs`).
+- State: one `s_project` struct (`.bss`): the open save (`save`, zeroed whole when a save closes), the buffers it fills (`buf`, `frame`, `chunks`, `secs`) and the options' NVS handle (`nvs`, opened at init). Records are built with `put_frame` only.
+- Concurrency: `sys_project_mutex` guards all of `s_project` but `nvs`.
 - Execution & nesting: `sys_project_run` executes on a router task via `sys_actions_run` with `keep_going = true`. It nests three RUN levels (project record -> chunk list -> chunk); `CONFIG_SYS_ACTIONS_MAX_DEPTH` must be at least 3 (`_Static_assert`).
 - Boot autostart: `sys_project_boot` queues `[ROUTER_KEY_PROJECT, SYS_PROJECT_OP_RUN]` via `router_inject` when autostart is enabled and a project is stored. It runs after devices are initialized.
 

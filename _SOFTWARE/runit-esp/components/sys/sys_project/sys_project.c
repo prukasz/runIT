@@ -21,8 +21,8 @@
 _Static_assert(CONFIG_SYS_ACTIONS_MAX_DEPTH >= 3, "a project run nests three RUNs: raise SYS_ACTIONS_MAX_DEPTH");
 _Static_assert(CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME) <= CONFIG_SYS_ACTIONS_MAX_BYTES,
                "the list of chunks must fit a record");
-_Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_BYTES + HDR + sizeof(sys_project_mark_t) <=
-                   CONFIG_SYS_ACTIONS_MAX_BYTES,
+_Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_BYTES + HDR + sizeof(sys_project_mark_t)
+                   <= CONFIG_SYS_ACTIONS_MAX_BYTES,
                "the project record must fit a record");
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_PROJECT, "project", ERR_SYS_PROJECT_MAP)
@@ -32,7 +32,7 @@ typedef struct {
   uint32_t staged_id;  // where it waits until then
 } section_t;
 
-/* The one open save. The stream is parsed as it comes: a frame at a time into s_frame, whole frames into s_buf (the
+/* The one open save. The stream is parsed as it comes: a frame at a time into .frame, whole frames into .buf (the
  * record being built), which goes to flash when the section ends (or, for the program, when it is full). */
 typedef struct {
   bool open;
@@ -41,27 +41,28 @@ typedef struct {
   uint16_t seq;       // the IDs given so far in this bank
   uint32_t want, got, crc;
   // parser
-  uint8_t hdr[LEN_BYTES];
-  uint8_t hdr_got;
+  uint8_t len_got;    // bytes of flen so far: 0 only between frames
   uint16_t flen, fgot;
   // section
   bool in_section, is_program, program_seen;
   uint32_t final_id;
   uint16_t buf_len;
   uint16_t sections;
-  uint16_t chunks_len;  // bytes of s_chunks
+  uint16_t chunks_len;  // bytes of .chunks
 } save_t;
 
-U_MUTEX_DEFINE(sys_project_mutex);  // s_save and the buffers: both router tasks write, ops open / close
-#define LOCK() ((void)U_MUTEX_LOCK(sys_project_mutex, WAIT_FOREVER))
+U_MUTEX_DEFINE(sys_project_mutex);  // s_project but .nvs: both router tasks write, ops open / close
+#define LOCK()   ((void)U_MUTEX_LOCK(sys_project_mutex, WAIT_FOREVER))
 #define UNLOCK() ((void)U_MUTEX_UNLOCK(sys_project_mutex))
 
-static save_t s_save;
-static uint8_t s_buf[CONFIG_SYS_ACTIONS_MAX_BYTES];  // the record being built (and, at COMMIT, the project record)
-static uint8_t s_frame[FRAME_MAX];
-static uint8_t s_chunks[CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME)];  // the program's list of chunks
-static section_t s_secs[CONFIG_SYS_PROJECT_MAX_SECTIONS];
-static nvs_handle_t s_nvs;
+static struct {
+  save_t save;                                                              // zeroed whole when a save closes
+  uint8_t buf[CONFIG_SYS_ACTIONS_MAX_BYTES];                                // the record being built
+  uint8_t frame[FRAME_MAX];                                                 // the frame being parsed
+  uint8_t chunks[CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME)];  // the program's list of chunks
+  section_t secs[CONFIG_SYS_PROJECT_MAX_SECTIONS];                          // the sections staged so far
+  nvs_handle_t nvs;                                                         // the options; opened at init
+} s_project;  // zero at the start (.bss)
 
 /* ----------------------------------------------------------------------------
  * IDs one after another
@@ -69,7 +70,18 @@ static nvs_handle_t s_nvs;
 
 // The next ID of the bank being filled: 1, 2, 3... (0 is the program's list of chunks).
 static uint32_t next_id(void) {
-  return SYS_PROJECT_ID(s_save.bank, ++s_save.seq);
+  return SYS_PROJECT_ID(s_project.save.bank, ++s_project.save.seq);
+}
+
+// Writes [u16 len][key][write][op][args] at `at`: a frame as a record holds it. Returns the bytes written.
+static uint16_t put_frame(uint8_t* at, uint8_t key, uint8_t op, const void* args, uint16_t args_len) {
+  const uint16_t flen = HDR + args_len;
+  memcpy(at, &flen, LEN_BYTES);
+  at[LEN_BYTES] = key;
+  at[LEN_BYTES + 1] = CMD_DIR_WRITE;
+  at[LEN_BYTES + 2] = op;
+  memcpy(at + LEN_BYTES + HDR, args, args_len);
+  return LEN_BYTES + flen;
 }
 
 // Removes every record of a bank (what a failed save left, or what a stored project no longer needs).
@@ -123,19 +135,19 @@ static bool read_mark(sys_project_mark_t* mark) {
  * Options
  * ------------------------------------------------------------------------- */
 
-static bool autostart_get(void) {
+bool sys_project_autostart(void) {
   uint8_t on = 0;
-  return nvs_get_u8(s_nvs, KEY_OPTS, &on) == ESP_OK && on != 0;
+  return nvs_get_u8(s_project.nvs, KEY_OPTS, &on) == ESP_OK && on != 0;
 }
 
 err_h sys_project_set_autostart(bool on) {
-  ERR_TRY_ESP(nvs_set_u8(s_nvs, KEY_OPTS, on ? 1 : 0));
-  return ERR_ESP(nvs_commit(s_nvs));
+  ERR_TRY_ESP(nvs_set_u8(s_project.nvs, KEY_OPTS, on ? 1 : 0));
+  return ERR_ESP(nvs_commit(s_project.nvs));
 }
 
 err_h sys_project_init(void) {
   // sys_actions_init opened the partition; the options are one more namespace in it.
-  return ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_nvs));
+  return ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_project.nvs));
 }
 
 /* ----------------------------------------------------------------------------
@@ -143,36 +155,30 @@ err_h sys_project_init(void) {
  * ------------------------------------------------------------------------- */
 
 static err_h flush_chunk(void) {
-  ERR_CHECK(s_save.chunks_len + LEN_BYTES + RUN_FRAME <= sizeof(s_chunks), ERR_PROJECT_CHUNKS,
+  ERR_CHECK(s_project.save.chunks_len + LEN_BYTES + RUN_FRAME <= sizeof(s_project.chunks), ERR_PROJECT_CHUNKS,
             .max = CONFIG_SYS_PROJECT_MAX_CHUNKS);
   const uint32_t id = next_id();
-  ERR_TRY(sys_actions_set(id, s_buf, s_save.buf_len));
-  const uint16_t flen = RUN_FRAME;
-  uint8_t* at = s_chunks + s_save.chunks_len;
-  memcpy(at, &flen, LEN_BYTES);
-  at[LEN_BYTES] = ROUTER_KEY_ACTIONS;
-  at[LEN_BYTES + 1] = CMD_DIR_WRITE;
-  at[LEN_BYTES + 2] = SYS_ACTIONS_OP_RUN;
-  memcpy(at + LEN_BYTES + HDR, &id, sizeof(id));
-  s_save.chunks_len += LEN_BYTES + RUN_FRAME;
-  s_save.buf_len = 0;
+  ERR_TRY(sys_actions_set(id, s_project.buf, s_project.save.buf_len));
+  uint8_t* at = s_project.chunks + s_project.save.chunks_len;
+  s_project.save.chunks_len += put_frame(at, ROUTER_KEY_ACTIONS, SYS_ACTIONS_OP_RUN, &id, sizeof(id));
+  s_project.save.buf_len = 0;
   return NULL;
 }
 
 static err_h section_close(void) {
-  if (!s_save.in_section) {
+  if (!s_project.save.in_section) {
     return NULL;
   }
-  ERR_CHECK(s_save.buf_len > 0, ERR_PROJECT_SECTION_EMPTY, .id = s_save.final_id);
-  if (s_save.is_program) {
+  ERR_CHECK(s_project.save.buf_len > 0, ERR_PROJECT_SECTION_EMPTY, .id = s_project.save.final_id);
+  if (s_project.save.is_program) {
     ERR_TRY(flush_chunk());
   } else {
     const uint32_t staged = next_id();
-    ERR_TRY(sys_actions_set(staged, s_buf, s_save.buf_len));
-    s_secs[s_save.sections++] = (section_t){.final_id = s_save.final_id, .staged_id = staged};
+    ERR_TRY(sys_actions_set(staged, s_project.buf, s_project.save.buf_len));
+    s_project.secs[s_project.save.sections++] = (section_t){.final_id = s_project.save.final_id, .staged_id = staged};
   }
-  s_save.in_section = false;
-  s_save.buf_len = 0;
+  s_project.save.in_section = false;
+  s_project.save.buf_len = 0;
   return NULL;
 }
 
@@ -180,44 +186,45 @@ static err_h section_open(uint32_t id) {
   ERR_TRY(section_close());
   const bool program = id == SYS_PROJECT_SECTION_PROGRAM;
   ERR_CHECK(program || (id >> 24) <= SYS_ACTIONS_CLASS_DEVICE, ERR_PROJECT_BAD_SECTION, .id = id);
-  ERR_CHECK(!s_save.program_seen, ERR_PROJECT_ORDER);  // the program is the last section
+  ERR_CHECK(!s_project.save.program_seen, ERR_PROJECT_ORDER);  // the program is the last section
   if (program) {
-    s_save.program_seen = true;
+    s_project.save.program_seen = true;
   } else {
-    ERR_CHECK(s_save.sections < CONFIG_SYS_PROJECT_MAX_SECTIONS, ERR_PROJECT_SECTION_FULL,
+    ERR_CHECK(s_project.save.sections < CONFIG_SYS_PROJECT_MAX_SECTIONS, ERR_PROJECT_SECTION_FULL,
               .max = CONFIG_SYS_PROJECT_MAX_SECTIONS);
-    for (uint16_t i = 0; i < s_save.sections; i++) {
-      ERR_CHECK(s_secs[i].final_id != id, ERR_PROJECT_SECTION_DUP, .id = id);
+    for (uint16_t i = 0; i < s_project.save.sections; i++) {
+      ERR_CHECK(s_project.secs[i].final_id != id, ERR_PROJECT_SECTION_DUP, .id = id);
     }
   }
-  s_save.in_section = true;
-  s_save.is_program = program;
-  s_save.final_id = id;
-  s_save.buf_len = 0;
+  s_project.save.in_section = true;
+  s_project.save.is_program = program;
+  s_project.save.final_id = id;
+  s_project.save.buf_len = 0;
   return NULL;
 }
 
 // A frame that is not a SECTION: it belongs to the open section, whole.
 static err_h frame_add(void) {
-  ERR_CHECK(s_save.in_section, ERR_PROJECT_NO_SECTION);
-  const uint32_t need = LEN_BYTES + s_save.flen;
-  const uint32_t max = sys_actions_max_bytes(s_save.final_id);  // the program takes the user class's limit
-  if (s_save.buf_len + need > max) {
-    ERR_CHECK(s_save.is_program && s_save.buf_len > 0, ERR_PROJECT_SECTION_BIG, .id = s_save.final_id, .max = max);
+  ERR_CHECK(s_project.save.in_section, ERR_PROJECT_NO_SECTION);
+  const uint32_t need = LEN_BYTES + s_project.save.flen;
+  const uint32_t max = sys_actions_max_bytes(s_project.save.final_id);  // the program takes the user class's limit
+  if (s_project.save.buf_len + need > max) {
+    ERR_CHECK(s_project.save.is_program && s_project.save.buf_len > 0, ERR_PROJECT_SECTION_BIG,
+              .id = s_project.save.final_id, .max = max);
     ERR_TRY(flush_chunk());
   }
-  memcpy(s_buf + s_save.buf_len, &s_save.flen, LEN_BYTES);
-  memcpy(s_buf + s_save.buf_len + LEN_BYTES, s_frame, s_save.flen);
-  s_save.buf_len += (uint16_t)need;
+  memcpy(s_project.buf + s_project.save.buf_len, &s_project.save.flen, LEN_BYTES);
+  memcpy(s_project.buf + s_project.save.buf_len + LEN_BYTES, s_project.frame, s_project.save.flen);
+  s_project.save.buf_len += (uint16_t)need;
   return NULL;
 }
 
 static err_h frame_done(void) {
-  if (s_save.flen >= HDR && s_frame[0] == ROUTER_KEY_PROJECT && s_frame[1] == CMD_DIR_WRITE &&
-      s_frame[2] == SYS_PROJECT_OP_SECTION) {
+  if (s_project.save.flen >= HDR && s_project.frame[0] == ROUTER_KEY_PROJECT && s_project.frame[1] == CMD_DIR_WRITE &&
+      s_project.frame[2] == SYS_PROJECT_OP_SECTION) {
     uint32_t id = 0;
-    ERR_CHECK(s_save.flen == HDR + sizeof(id), ERR_PROJECT_BAD_SECTION, .id = 0);
-    memcpy(&id, s_frame + HDR, sizeof(id));
+    ERR_CHECK(s_project.save.flen == HDR + sizeof(id), ERR_PROJECT_BAD_SECTION, .id = 0);
+    memcpy(&id, s_project.frame + HDR, sizeof(id));
     return section_open(id);
   }
   return frame_add();
@@ -226,29 +233,28 @@ static err_h frame_done(void) {
 // The stream's next bytes through the parser: [u16 len][frame] back to back, in any cut.
 static err_h feed(const uint8_t* p, uint32_t n, uint32_t offset) {
   while (n > 0) {
-    if (s_save.hdr_got < LEN_BYTES) {
-      s_save.hdr[s_save.hdr_got++] = *p++;
+    if (s_project.save.len_got < LEN_BYTES) {
+      ((uint8_t*)&s_project.save.flen)[s_project.save.len_got++] = *p++;  // little-endian, as the stream
       n--;
       offset++;
-      if (s_save.hdr_got == LEN_BYTES) {
-        memcpy(&s_save.flen, s_save.hdr, LEN_BYTES);
-        s_save.fgot = 0;
-        ERR_CHECK(s_save.flen >= 1 && s_save.flen <= FRAME_MAX, ERR_PROJECT_BAD_FRAME, .offset = offset - LEN_BYTES);
+      if (s_project.save.len_got == LEN_BYTES) {
+        s_project.save.fgot = 0;
+        ERR_CHECK(s_project.save.flen >= 1 && s_project.save.flen <= FRAME_MAX, ERR_PROJECT_BAD_FRAME,
+                  .offset = offset - LEN_BYTES);
       }
       continue;
     }
-    uint32_t take = s_save.flen - s_save.fgot;
+    uint32_t take = s_project.save.flen - s_project.save.fgot;
     if (take > n) {
       take = n;
     }
-    memcpy(s_frame + s_save.fgot, p, take);
-    s_save.fgot += (uint16_t)take;
+    memcpy(s_project.frame + s_project.save.fgot, p, take);
+    s_project.save.fgot += (uint16_t)take;
     p += take;
     n -= take;
     offset += take;
-    if (s_save.fgot == s_save.flen) {
-      s_save.hdr_got = 0;
-      s_save.fgot = 0;  // a frame is complete: only a cut inside one leaves hdr_got / fgot set at COMMIT
+    if (s_project.save.fgot == s_project.save.flen) {
+      s_project.save.len_got = 0;  // a frame is complete: only a cut inside one leaves len_got set at COMMIT
       ERR_TRY(frame_done());
     }
   }
@@ -261,10 +267,10 @@ static err_h feed(const uint8_t* p, uint32_t n, uint32_t offset) {
 
 // Lock held: drops the save and the records it staged.
 static void save_drop(void) {
-  if (s_save.open) {
-    err_report(clear_bank(s_save.bank));
+  if (s_project.save.open) {
+    err_report(clear_bank(s_project.save.bank));
   }
-  s_save = (save_t){0};
+  s_project.save = (save_t){0};
 }
 
 err_h sys_project_begin(uint32_t len, uint8_t flags) {
@@ -272,14 +278,14 @@ err_h sys_project_begin(uint32_t len, uint8_t flags) {
             .max = CONFIG_SYS_PROJECT_MAX_BYTES);
   LOCK();
   err_h err = NULL;
-  if (s_save.open) {
+  if (s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_BUSY);
   } else {
     sys_project_mark_t mark;
     const uint8_t bank = read_mark(&mark) ? (uint8_t)(mark.bank ^ 1u) : 0u;  // the one the stored project doesn't use
     err = clear_bank(bank);
     if (err == NULL) {
-      s_save = (save_t){.open = true, .flags = flags, .bank = bank, .want = len};
+      s_project.save = (save_t){.open = true, .flags = flags, .bank = bank, .want = len};
     }
   }
   UNLOCK();
@@ -290,17 +296,17 @@ err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len) {
   ERR_CHECK(data != NULL && len > 0, ERR_PROJECT_BAD_ARG);
   LOCK();
   err_h err = NULL;
-  if (!s_save.open) {
+  if (!s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_NO_SESSION);
-  } else if (offset != s_save.got) {
-    err = ERR_NEW(ERR_PROJECT_OFFSET, .got = offset, .want = s_save.got);  // the save goes on: the client resends
-  } else if (len > s_save.want - s_save.got) {
-    err = ERR_NEW(ERR_PROJECT_TOO_BIG, .len = s_save.got + len, .max = s_save.want);
+  } else if (offset != s_project.save.got) {
+    err = ERR_NEW(ERR_PROJECT_OFFSET, .got = offset, .want = s_project.save.got);  // the save goes on: a resend
+  } else if (len > s_project.save.want - s_project.save.got) {
+    err = ERR_NEW(ERR_PROJECT_TOO_BIG, .len = s_project.save.got + len, .max = s_project.save.want);
     save_drop();
   } else {
-    s_save.crc = esp_rom_crc32_le(s_save.crc, data, len);
+    s_project.save.crc = esp_rom_crc32_le(s_project.save.crc, data, len);
     err = feed(data, len, offset);
-    s_save.got += len;
+    s_project.save.got += len;
     if (err != NULL) {
       save_drop();
     }
@@ -313,45 +319,32 @@ err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len) {
 // stored one. Returns after the old bank is cleared.
 static err_h commit_store(void) {
   ERR_TRY(section_close());
-  ERR_CHECK(s_save.sections > 0 || s_save.program_seen, ERR_PROJECT_EMPTY);
+  ERR_CHECK(s_project.save.sections > 0 || s_project.save.program_seen, ERR_PROJECT_EMPTY);
 
   // the program's list of chunks: staged like the rest
-  const uint32_t list_id = SYS_PROJECT_ID(s_save.bank, 0);
-  if (s_save.program_seen) {
-    ERR_TRY(sys_actions_set(list_id, s_chunks, s_save.chunks_len));
+  const uint32_t list_id = SYS_PROJECT_ID(s_project.save.bank, 0);
+  if (s_project.save.program_seen) {
+    ERR_TRY(sys_actions_set(list_id, s_project.chunks, s_project.save.chunks_len));
   }
   // the settings and device records: from staging to their IDs
-  for (uint16_t i = 0; i < s_save.sections; i++) {
-    ERR_TRY(sys_actions_copy(s_secs[i].staged_id, s_secs[i].final_id));
-    ERR_TRY(sys_actions_remove(s_secs[i].staged_id));
+  for (uint16_t i = 0; i < s_project.save.sections; i++) {
+    ERR_TRY(sys_actions_copy(s_project.secs[i].staged_id, s_project.secs[i].final_id));
+    ERR_TRY(sys_actions_remove(s_project.secs[i].staged_id));
   }
   // the project record: the commit point
-  uint8_t* at = s_buf;
-  const uint16_t mark_len = HDR + sizeof(sys_project_mark_t);
-  const sys_project_mark_t mark = {.bank = s_save.bank, .crc32 = s_save.crc, .bytes = s_save.want};
-  memcpy(at, &mark_len, LEN_BYTES);
-  at[LEN_BYTES] = ROUTER_KEY_PROJECT;
-  at[LEN_BYTES + 1] = CMD_DIR_WRITE;
-  at[LEN_BYTES + 2] = SYS_PROJECT_OP_MARK;
-  memcpy(at + LEN_BYTES + HDR, &mark, sizeof(mark));
-  at += LEN_BYTES + mark_len;
-  for (uint16_t i = 0; i <= s_save.sections; i++) {
-    const bool program = i == s_save.sections;  // the program last
-    if (program && !s_save.program_seen) {
-      break;
-    }
-    const uint32_t id = program ? list_id : s_secs[i].final_id;
-    const uint16_t flen = RUN_FRAME;
-    memcpy(at, &flen, LEN_BYTES);
-    at[LEN_BYTES] = ROUTER_KEY_ACTIONS;
-    at[LEN_BYTES + 1] = CMD_DIR_WRITE;
-    at[LEN_BYTES + 2] = program ? SYS_ACTIONS_OP_RUN : SYS_ACTIONS_OP_RUN_ALL;  // the program stops at a failing frame
-    memcpy(at + LEN_BYTES + HDR, &id, sizeof(id));
-    at += LEN_BYTES + RUN_FRAME;
+  const sys_project_mark_t mark = {
+      .bank = s_project.save.bank, .crc32 = s_project.save.crc, .bytes = s_project.save.want};
+  uint16_t len = put_frame(s_project.buf, ROUTER_KEY_PROJECT, SYS_PROJECT_OP_MARK, &mark, sizeof(mark));
+  for (uint16_t i = 0; i < s_project.save.sections; i++) {
+    const uint32_t id = s_project.secs[i].final_id;
+    len += put_frame(s_project.buf + len, ROUTER_KEY_ACTIONS, SYS_ACTIONS_OP_RUN_ALL, &id, sizeof(id));
   }
-  ERR_TRY(sys_actions_set(SYS_ACTIONS_ID_PROJECT, s_buf, (uint16_t)(at - s_buf)));
+  if (s_project.save.program_seen) {  // last; RUN, not RUN_ALL: the program stops at a failing frame
+    len += put_frame(s_project.buf + len, ROUTER_KEY_ACTIONS, SYS_ACTIONS_OP_RUN, &list_id, sizeof(list_id));
+  }
+  ERR_TRY(sys_actions_set(SYS_ACTIONS_ID_PROJECT, s_project.buf, len));
   // the old project's program records are not needed any more
-  err_report(clear_bank(s_save.bank ^ 1u));
+  err_report(clear_bank(s_project.save.bank ^ 1u));
   return NULL;
 }
 
@@ -359,23 +352,23 @@ err_h sys_project_commit(uint32_t crc32) {
   LOCK();
   err_h err;
   bool run = false;
-  if (!s_save.open) {
+  if (!s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_NO_SESSION);
-  } else if (s_save.got != s_save.want) {
-    err = ERR_NEW(ERR_PROJECT_INCOMPLETE, .got = s_save.got, .want = s_save.want);
-  } else if (s_save.crc != crc32) {
-    err = ERR_NEW(ERR_PROJECT_CRC, .got = crc32, .want = s_save.crc);
-  } else if (s_save.hdr_got != 0 || s_save.fgot != 0) {
+  } else if (s_project.save.got != s_project.save.want) {
+    err = ERR_NEW(ERR_PROJECT_INCOMPLETE, .got = s_project.save.got, .want = s_project.save.want);
+  } else if (s_project.save.crc != crc32) {
+    err = ERR_NEW(ERR_PROJECT_CRC, .got = crc32, .want = s_project.save.crc);
+  } else if (s_project.save.len_got != 0) {
     err = ERR_NEW(ERR_PROJECT_TRUNCATED);
   } else {
     err = commit_store();
     if (err == NULL) {
-      err = sys_project_set_autostart((s_save.flags & SYS_PROJECT_FLAG_AUTOSTART) != 0);
-      run = (s_save.flags & SYS_PROJECT_FLAG_RUN) != 0;
+      err = sys_project_set_autostart((s_project.save.flags & SYS_PROJECT_FLAG_AUTOSTART) != 0);
+      run = (s_project.save.flags & SYS_PROJECT_FLAG_RUN) != 0;
     }
   }
   if (err == NULL) {
-    s_save = (save_t){0};  // stored: the bank is the project's now
+    s_project.save = (save_t){0};  // stored: the bank is the project's now
   } else {
     save_drop();
   }
@@ -402,7 +395,7 @@ void sys_project_abort(void) {
 err_h sys_project_info(sys_project_info_t* out) {
   ERR_CHECK(out != NULL, ERR_PROJECT_BAD_ARG);
   sys_project_mark_t mark;
-  *out = (sys_project_info_t){.autostart = autostart_get()};
+  *out = (sys_project_info_t){.autostart = sys_project_autostart()};
   if (read_mark(&mark)) {
     out->stored = 1;
     out->bank = mark.bank;
@@ -420,7 +413,7 @@ err_h sys_project_run(void) {
 
 err_h sys_project_erase(void) {
   LOCK();
-  err_h err = s_save.open ? ERR_NEW(ERR_PROJECT_BUSY) : NULL;
+  err_h err = s_project.save.open ? ERR_NEW(ERR_PROJECT_BUSY) : NULL;
   if (err == NULL) {
     err = sys_actions_remove(SYS_ACTIONS_ID_PROJECT);  // first: without it the banks are not a project
     if (err != NULL && err->tag == ERR_ACTION_NOT_FOUND) {

@@ -66,7 +66,7 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 | `0x05` INFO | – | `u8 stored, u8 autostart, u8 bank, u32 crc32, u32 bytes` (crc and length of the stream it was saved from: the app compares them with its project) |
 | `0x06` RUN | – | – (`ERR_PROJECT_NOT_STORED` with none) |
 | `0x07` ERASE | – | – (the project record and both banks go; the settings, devices and user records stay) |
-| `0x08` OPTIONS | `u8 autostart` | – |
+| `0x08` OPTIONS | write: `u8 autostart`; read: – | write: –; read: `u8 autostart` |
 | `0x10` SECTION | `u32 id` | only a frame of the stream: sent as a command it is `ERR_PROJECT_NOT_IN_STREAM` |
 | `0x11` MARK | `u8 bank, u32 crc32, u32 bytes` | first frame of the project record; does nothing when run |
 
