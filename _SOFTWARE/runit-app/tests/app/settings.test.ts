@@ -64,9 +64,9 @@ describe('the board settings from the service descriptors', () => {
 
   it('shows only the written fields of an answer, and compares values as the board gets them', () => {
     const options = group('PROJECT.OPTIONS')!
-    const values = groupValues(options, { autostart: true, other: 3 })
-    expect(values).toEqual({ autostart: true })
-    expect([...encodeFields(options.layout, values)]).toEqual([1])
+    const values = groupValues(options, { boot: 2, other: 3 })
+    expect(values).toEqual({ boot: 2 })
+    expect([...encodeFields(options.layout, values)]).toEqual([2])
     const log = group('LOG.CONFIG')!
     const board = groupValues(log, { level: 3, mirror_serial: true, trace_errors: false, send_errors: true, send_logs: false })
     expect(() => serviceCall(catalog, 'LOG', 'CONFIG', board, 'write')).not.toThrow()

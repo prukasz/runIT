@@ -14,7 +14,7 @@
       "op": 1,
       "symbol": "SYS_PROJECT_OP_BEGIN",
       "label": "Start storing a project",
-      "description": "Opens an upload session for a project of the given length in bytes, with its flags (autostart, run at once).",
+      "description": "Opens an upload session for a project of the given length in bytes, with what the board does with it at start (stored and applied at the commit).",
       "write": {
         "args": {
           "struct": "begin_t",
@@ -30,13 +30,14 @@
               "description": "Total size of the stream being uploaded, in bytes"
             },
             {
-              "id": "flags",
-              "label": "Option flags",
-              "type": "bitmask",
+              "id": "boot",
+              "label": "At start",
+              "type": "enum",
+              "enum": "sys_project_boot_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 4,
-              "description": "Bit 0 (0x01): autostart after a restart; bit 1 (0x02): run at once after the commit"
+              "description": "Nothing, load, or load and start: kept as the boot option and applied right after the commit, as at a boot"
             }
           ]
         }
@@ -109,7 +110,7 @@
       "op": 5,
       "symbol": "SYS_PROJECT_OP_INFO",
       "label": "Read the project state",
-      "description": "Returns what is known about the stored project: whether there is one, autostart, the active memory bank, the CRC-32 and the size.",
+      "description": "Returns what is known about the stored project: whether there is one, what the board does with it at start, the active memory bank, the CRC-32 and the size.",
       "read": {
         "returns": {
           "struct": "sys_project_info_t",
@@ -125,13 +126,14 @@
               "description": "1 = a project is stored in Flash, 0 = none"
             },
             {
-              "id": "autostart",
-              "label": "Autostart",
-              "type": "boolean",
+              "id": "boot",
+              "label": "At start",
+              "type": "enum",
+              "enum": "sys_project_boot_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "1 = the project runs by itself when the board starts"
+              "description": "What the board does with the project when it starts"
             },
             {
               "id": "bank",
@@ -170,7 +172,7 @@
       "op": 6,
       "symbol": "SYS_PROJECT_OP_RUN",
       "label": "Run the stored project",
-      "description": "Replays every section and command of the stored project (RUN_ALL of the project record).",
+      "description": "Loads every section of the stored project (RUN_ALL of the project record), then runs its start section (the program starts).",
       "write": {}
     },
     {
@@ -185,37 +187,39 @@
       "id": "OPTIONS",
       "op": 8,
       "symbol": "SYS_PROJECT_OP_OPTIONS",
-      "label": "Set the project options",
-      "description": "Sets the project options, e.g. the autostart flag.",
+      "label": "Project at start",
+      "description": "What the board does with the stored project when it starts: nothing, load it (the program waits), or load and start it.",
       "read": {
         "returns": {
           "struct": "options_t",
           "fields": [
             {
-              "id": "autostart",
-              "label": "Autostart",
-              "type": "boolean",
+              "id": "boot",
+              "label": "At start",
+              "type": "enum",
+              "enum": "sys_project_boot_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "1 = autostart on, 0 = off"
+              "description": "Nothing, load, or load and start"
             }
           ]
         }
       },
       "write": {
-        "description": "Sets the project options, e.g. the autostart flag.",
+        "description": "What the board does with the stored project when it starts: nothing, load it (the program waits), or load and start it.",
         "args": {
           "struct": "options_t",
           "fields": [
             {
-              "id": "autostart",
-              "label": "Autostart",
-              "type": "boolean",
+              "id": "boot",
+              "label": "At start",
+              "type": "enum",
+              "enum": "sys_project_boot_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "1 = autostart on, 0 = off"
+              "description": "Nothing, load, or load and start"
             }
           ]
         }
@@ -238,7 +242,7 @@
               "raw_type": "u32",
               "size": 4,
               "offset": 0,
-              "description": "ID of the record the section goes to (0 = the program)"
+              "description": "ID of the record the section goes to (0 = the program, 0xFFFFFFFF = the start)"
             }
           ]
         }
@@ -282,6 +286,14 @@
           ]
         }
       }
+    },
+    {
+      "id": "LOAD",
+      "op": 18,
+      "symbol": "SYS_PROJECT_OP_LOAD",
+      "label": "Load the stored project",
+      "description": "Loads every section of the stored project without its start section: the settings, the devices and the program, which stays stopped.",
+      "write": {}
     }
   ]
 }

@@ -12,7 +12,7 @@
 #define TAG __FILE_NAME__
 
 #define NAMESPACE "project"
-#define KEY_OPTS  "opts"
+#define KEY_BOOT  "boot"
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
 #define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
 #define HDR       3u                              // [key][dir][code] in front of a command's args
@@ -20,6 +20,8 @@
 
 // The project record runs the program's list, which runs a chunk: three levels of RUN.
 _Static_assert(CONFIG_SYS_ACTIONS_MAX_DEPTH >= 3, "a project run nests three RUNs: raise SYS_ACTIONS_MAX_DEPTH");
+_Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS + CONFIG_SYS_PROJECT_MAX_CHUNKS < SYS_PROJECT_N_START,
+               "the IDs given one after another must stay below the start section's");
 _Static_assert(CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME) <= CONFIG_SYS_ACTIONS_MAX_BYTES,
                "the list of chunks must fit a record");
 _Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_BYTES + HDR + sizeof(sys_project_mark_t)
@@ -33,11 +35,17 @@ typedef struct {
   uint32_t staged_id;  // where it waits until then
 } section_t;
 
+typedef enum {
+  KIND_RECORD,   // a record under the section's ID
+  KIND_PROGRAM,  // cut into chunks
+  KIND_START,    // one record in the bank, run by RUN only
+} kind_e;
+
 /* The one open save. The stream is parsed as it comes: a frame at a time into .frame, whole frames into .buf (the
  * record being built), which goes to flash when the section ends (or, for the program, when it is full). */
 typedef struct {
   bool open;
-  uint8_t flags;
+  uint8_t boot;       // sys_project_boot_e, stored at COMMIT
   uint8_t bank;       // the one being filled
   uint16_t seq;       // the IDs given so far in this bank
   uint32_t want, got, crc;
@@ -45,8 +53,9 @@ typedef struct {
   uint8_t len_got;    // bytes of flen so far: 0 only between frames
   uint16_t flen, fgot;
   // section
-  bool in_section, is_program, program_seen;
-  uint32_t final_id;
+  bool in_section, program_seen, start_seen;
+  uint8_t kind;       // kind_e of the open section
+  uint32_t final_id;  // the open section's ID (the start section: its record in the bank)
   uint16_t buf_len;
   uint16_t sections;
   uint16_t chunks_len;  // bytes of .chunks
@@ -136,13 +145,15 @@ static bool read_mark(sys_project_mark_t* mark) {
  * Options
  * ------------------------------------------------------------------------- */
 
-bool sys_project_autostart(void) {
-  uint8_t on = 0;
-  return nvs_get_u8(s_project.nvs, KEY_OPTS, &on) == ESP_OK && on != 0;
+uint8_t sys_project_get_boot(void) {
+  uint8_t boot = SYS_PROJECT_BOOT_NONE;
+  return nvs_get_u8(s_project.nvs, KEY_BOOT, &boot) == ESP_OK && boot < SYS_PROJECT_BOOT_COUNT ? boot
+                                                                                              : SYS_PROJECT_BOOT_NONE;
 }
 
-err_h sys_project_set_autostart(bool on) {
-  ERR_TRY_ESP(nvs_set_u8(s_project.nvs, KEY_OPTS, on ? 1 : 0));
+err_h sys_project_set_boot(uint8_t boot) {
+  ERR_CHECK(boot < SYS_PROJECT_BOOT_COUNT, ERR_PROJECT_BAD_BOOT, .value = boot);
+  ERR_TRY_ESP(nvs_set_u8(s_project.nvs, KEY_BOOT, boot));
   return ERR_ESP(nvs_commit(s_project.nvs));
 }
 
@@ -171,8 +182,11 @@ static err_h section_close(void) {
     return NULL;
   }
   ERR_CHECK(s_project.save.buf_len > 0, ERR_PROJECT_SECTION_EMPTY, .id = s_project.save.final_id);
-  if (s_project.save.is_program) {
+  if (s_project.save.kind == KIND_PROGRAM) {
     ERR_TRY(flush_chunk());
+  } else if (s_project.save.kind == KIND_START) {
+    ERR_TRY(sys_actions_set(s_project.save.final_id, s_project.buf, s_project.save.buf_len));  // in the bank: no staging
+    s_project.save.start_seen = true;
   } else {
     const uint32_t staged = next_id();
     ERR_TRY(sys_actions_set(staged, s_project.buf, s_project.save.buf_len));
@@ -185,11 +199,16 @@ static err_h section_close(void) {
 
 static err_h section_open(uint32_t id) {
   ERR_TRY(section_close());
-  const bool program = id == SYS_PROJECT_SECTION_PROGRAM;
-  ERR_CHECK(program || (id >> 24) <= SYS_ACTIONS_CLASS_DEVICE, ERR_PROJECT_BAD_SECTION, .id = id);
-  ERR_CHECK(!s_project.save.program_seen, ERR_PROJECT_ORDER);  // the program is the last section
-  if (program) {
+  const uint8_t kind = id == SYS_PROJECT_SECTION_PROGRAM ? KIND_PROGRAM
+                       : id == SYS_PROJECT_SECTION_START ? KIND_START
+                                                         : KIND_RECORD;
+  ERR_CHECK(kind != KIND_RECORD || (id >> 24) <= SYS_ACTIONS_CLASS_DEVICE, ERR_PROJECT_BAD_SECTION, .id = id);
+  // the records, then the program, then the start: one of each of the last two
+  ERR_CHECK(!s_project.save.start_seen && !(s_project.save.program_seen && kind != KIND_START), ERR_PROJECT_ORDER);
+  if (kind == KIND_PROGRAM) {
     s_project.save.program_seen = true;
+  } else if (kind == KIND_START) {
+    id = SYS_PROJECT_ID(s_project.save.bank, SYS_PROJECT_N_START);
   } else {
     ERR_CHECK(s_project.save.sections < CONFIG_SYS_PROJECT_MAX_SECTIONS, ERR_PROJECT_SECTION_FULL,
               .max = CONFIG_SYS_PROJECT_MAX_SECTIONS);
@@ -198,7 +217,7 @@ static err_h section_open(uint32_t id) {
     }
   }
   s_project.save.in_section = true;
-  s_project.save.is_program = program;
+  s_project.save.kind = kind;
   s_project.save.final_id = id;
   s_project.save.buf_len = 0;
   return NULL;
@@ -210,7 +229,7 @@ static err_h frame_add(void) {
   const uint32_t need = LEN_BYTES + s_project.save.flen;
   const uint32_t max = sys_actions_max_bytes(s_project.save.final_id);  // the program takes the user class's limit
   if (s_project.save.buf_len + need > max) {
-    ERR_CHECK(s_project.save.is_program && s_project.save.buf_len > 0, ERR_PROJECT_SECTION_BIG,
+    ERR_CHECK(s_project.save.kind == KIND_PROGRAM && s_project.save.buf_len > 0, ERR_PROJECT_SECTION_BIG,
               .id = s_project.save.final_id, .max = max);
     ERR_TRY(flush_chunk());
   }
@@ -274,9 +293,10 @@ static void save_drop(void) {
   s_project.save = (save_t){0};
 }
 
-err_h sys_project_begin(uint32_t len, uint8_t flags) {
+err_h sys_project_begin(uint32_t len, uint8_t boot) {
   ERR_CHECK(len > 0 && len <= CONFIG_SYS_PROJECT_MAX_BYTES, ERR_PROJECT_TOO_BIG, .len = len,
             .max = CONFIG_SYS_PROJECT_MAX_BYTES);
+  ERR_CHECK(boot < SYS_PROJECT_BOOT_COUNT, ERR_PROJECT_BAD_BOOT, .value = boot);
   LOCK();
   err_h err = NULL;
   if (s_project.save.open) {
@@ -286,7 +306,7 @@ err_h sys_project_begin(uint32_t len, uint8_t flags) {
     const uint8_t bank = read_mark(&mark) ? (uint8_t)(mark.bank ^ 1u) : 0u;  // the one the stored project doesn't use
     err = clear_bank(bank);
     if (err == NULL) {
-      s_project.save = (save_t){.open = true, .flags = flags, .bank = bank, .want = len};
+      s_project.save = (save_t){.open = true, .boot = boot, .bank = bank, .want = len};
     }
   }
   UNLOCK();
@@ -317,10 +337,10 @@ err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len) {
 }
 
 // Lock held, every byte in and checked: the project record (MARK, the sections' RUN frames, the program) becomes the
-// stored one. Returns after the old bank is cleared.
+// stored one; the start section is not in it (RUN runs it after). Returns after the old bank is cleared.
 static err_h commit_store(void) {
   ERR_TRY(section_close());
-  ERR_CHECK(s_project.save.sections > 0 || s_project.save.program_seen, ERR_PROJECT_EMPTY);
+  ERR_CHECK(s_project.save.sections > 0 || s_project.save.program_seen || s_project.save.start_seen, ERR_PROJECT_EMPTY);
 
   // the program's list of chunks: staged like the rest
   const uint32_t list_id = SYS_PROJECT_ID(s_project.save.bank, 0);
@@ -352,7 +372,7 @@ static err_h commit_store(void) {
 err_h sys_project_commit(uint32_t crc32) {
   LOCK();
   err_h err;
-  bool run = false;
+  uint8_t boot = SYS_PROJECT_BOOT_NONE;
   if (!s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_NO_SESSION);
   } else if (s_project.save.got != s_project.save.want) {
@@ -364,8 +384,8 @@ err_h sys_project_commit(uint32_t crc32) {
   } else {
     err = commit_store();
     if (err == NULL) {
-      err = sys_project_set_autostart((s_project.save.flags & SYS_PROJECT_FLAG_AUTOSTART) != 0);
-      run = (s_project.save.flags & SYS_PROJECT_FLAG_RUN) != 0;
+      boot = s_project.save.boot;
+      err = sys_project_set_boot(boot);
     }
   }
   if (err == NULL) {
@@ -374,8 +394,8 @@ err_h sys_project_commit(uint32_t crc32) {
     save_drop();
   }
   UNLOCK();
-  if (err == NULL && run) {
-    err = sys_project_run();
+  if (err == NULL && boot != SYS_PROJECT_BOOT_NONE) {  // as at a boot
+    err = sys_project_run(boot == SYS_PROJECT_BOOT_RUN);
     if (err != NULL) {
       err = ERR_WRAP(err, ERR_PROJECT_RUN);
     }
@@ -396,7 +416,7 @@ void sys_project_abort(void) {
 err_h sys_project_info(sys_project_info_t* out) {
   ERR_CHECK(out != NULL, ERR_PROJECT_BAD_ARG);
   sys_project_mark_t mark;
-  *out = (sys_project_info_t){.autostart = sys_project_autostart()};
+  *out = (sys_project_info_t){.boot = sys_project_get_boot()};
   if (read_mark(&mark)) {
     out->stored = 1;
     out->bank = mark.bank;
@@ -406,10 +426,20 @@ err_h sys_project_info(sys_project_info_t* out) {
   return NULL;
 }
 
-err_h sys_project_run(void) {
+err_h sys_project_run(bool start) {
   sys_project_mark_t mark;
   ERR_CHECK(read_mark(&mark), ERR_PROJECT_NOT_STORED);
-  return sys_actions_run(SYS_ACTIONS_ID_PROJECT, true);
+  ERR_TRY(sys_actions_run(SYS_ACTIONS_ID_PROJECT, true));
+  if (!start) {
+    return NULL;
+  }
+  const uint32_t id = SYS_PROJECT_ID(mark.bank, SYS_PROJECT_N_START);
+  err_h err = sys_actions_run(id, false);
+  if (err != NULL && err->tag == ERR_ACTION_NOT_FOUND) {  // a project without a start section
+    err_free(err);
+    return NULL;
+  }
+  return err;
 }
 
 err_h sys_project_erase(void) {
@@ -434,9 +464,11 @@ err_h sys_project_erase(void) {
 err_h sys_project_boot(void) {
   sys_project_info_t info;
   ERR_TRY(sys_project_info(&info));
-  if (!info.stored || !info.autostart) {
+  if (!info.stored || info.boot == SYS_PROJECT_BOOT_NONE) {
     return NULL;
   }
-  ESP_LOGI(TAG, "autostart: running the stored project");
-  return router_inject((const uint8_t[]){ROUTER_KEY_PROJECT, CMD_DIR_WRITE, SYS_PROJECT_OP_RUN}, HDR, false);
+  const bool run = info.boot == SYS_PROJECT_BOOT_RUN;
+  ESP_LOGI(TAG, "boot: %s the stored project", run ? "running" : "loading");
+  const uint8_t op = run ? SYS_PROJECT_OP_RUN : SYS_PROJECT_OP_LOAD;
+  return router_inject((const uint8_t[]){ROUTER_KEY_PROJECT, CMD_DIR_WRITE, op}, HDR, false);
 }

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, programFrameOf, projectInfo, projectStream, readProject, readRecord,
-  RunitLink, saveProject, storeRecord, vmFrame,
+  projectBankRecordId, RunitLink, saveProject, SECTION_START, storeRecord, vmFrame,
 } from '@backend'
 import type { ProjectContent } from '@backend'
 import { blk, build, engine, flag, num, project, read } from '../engine/helpers'
@@ -38,7 +38,7 @@ interface Fixture {
   stream: string
   crc: number
   bytes: number
-  info: { stored: boolean; autostart: boolean; bank: number; crc: number; bytes: number }
+  info: { stored: boolean; boot: number; bank: number; crc: number; bytes: number }
   records: Record<string, string[]>
 }
 const fixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/stored-project.json', import.meta.url)), 'utf8')) as Fixture
@@ -72,16 +72,26 @@ describe('the stream', () => {
     expect(sections.map((f) => (f[3]! | (f[4]! << 8) | (f[5]! << 16) | (f[6]! << 24)) >>> 0)).toEqual([0x02000001, 10, 0])
     expect(frames.at(-1)![0]).toBe(defs.keys.vm) // the last frame is the program's
   })
+
+  it('the start section is 0xFFFFFFFF, after the program; a section cannot be it', () => {
+    expect(() => projectStream(defs, { sections: [{ id: SECTION_START, frames: [Uint8Array.of(1)] }] })).toThrow(/start/)
+    const exec = Uint8Array.of(defs.keys.vm!, defs.dir.write, 8, 0)
+    const frames = parseImage(projectStream(defs, { ...content(), start: [exec] }))!
+    const ids = frames.filter((f) => f[0] === defs.keys.project && f[2] === defs.ops.project.SECTION).map((f) => (f[3]! | (f[4]! << 8) | (f[5]! << 16) | (f[6]! << 24)) >>> 0)
+    expect(ids).toEqual([0x02000001, 10, 0, SECTION_START])
+    expect(frames.at(-1)).toEqual(exec)
+    expect(projectBankRecordId(1, 0xffff)).toBe(0x0302ffff) // SYS_PROJECT_ID(bank 1, the start)
+  })
 })
 
 describe('saving', () => {
-  it('BEGIN with the length and the flags, the stream in WRITEs at their offsets, COMMIT with the CRC', async () => {
+  it('BEGIN with the length and the boot option, the stream in WRITEs at their offsets, COMMIT with the CRC', async () => {
     const board = new FakeBoard()
     board.respond = (frame, send) => send(answer(frame[0]!))
     const link = new RunitLink(board, { reconnect: false })
     await link.connect(board.device)
     const progress: number[] = []
-    const result = await saveProject(link, content(), { autostart: true, run: false, window: 2, onProgress: (done) => progress.push(done) })
+    const result = await saveProject(link, content(), { boot: defs.projectBoot.load, window: 2, onProgress: (done) => progress.push(done) })
     const stream = projectStream(defs, content())
     expect(result).toEqual({ bytes: stream.length, crc: crc32(stream) })
 
@@ -93,7 +103,7 @@ describe('saving', () => {
     expect(ops.at(-1)).toBe(COMMIT)
     const begin = board.requests[0]!
     expect([...begin.subarray(5, 9)]).toEqual([...new Uint8Array(new Uint32Array([stream.length]).buffer)])
-    expect(begin[9]).toBe(1) // autostart, no run
+    expect(begin[9]).toBe(defs.projectBoot.load)
     const writes = board.requests.filter((f) => f[4] === WRITE)
     const joined = new Uint8Array(stream.length)
     for (const w of writes) {
@@ -132,7 +142,7 @@ const store = (board: FakeBoard) => {
     const id = frame.length >= 9 ? (frame[5]! | (frame[6]! << 8) | (frame[7]! << 16) | (frame[8]! << 24)) >>> 0 : 0
     const read = dir === defs.dir.read
     if (!read && (op === defs.ops.project.INFO || op === defs.ops.actions.INFO || op === defs.ops.actions.READ || op === defs.ops.actions.LIST)) return send(answer(seq!, [], false))
-    if (key === defs.keys.project && op === defs.ops.project.INFO) return send(answer(seq!, [info.stored ? 1 : 0, info.autostart ? 1 : 0, info.bank, ...u32(info.crc), ...u32(info.bytes)]))
+    if (key === defs.keys.project && op === defs.ops.project.INFO) return send(answer(seq!, [info.stored ? 1 : 0, info.boot, info.bank, ...u32(info.crc), ...u32(info.bytes)]))
     if (key === defs.keys.actions && op === defs.ops.actions.INFO) {
       const frames = records.get(id)
       if (!frames) return send(answer(seq!, [], false))

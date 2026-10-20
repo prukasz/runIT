@@ -239,7 +239,10 @@ KEY_ACTIONS, KEY_PROJECT, KEY_DEVICE = KEYS["actions"], KEYS["project"], KEYS["d
 _ACTION = {c["id"]: c["op"] for c in _load("services", "contract_actions.json")["commands"]}
 _PROJECT = {c["id"]: c["op"] for c in _load("services", "contract_project.json")["commands"]}
 #: the first frame of a project stream section is [project key][SECTION][u32 id]
-SECTION_PROGRAM = 0
+SECTION_PROGRAM, SECTION_START = 0, 0xFFFFFFFF
+#: what the board does with the stored project at start and right after a save (sys_project_boot_e)
+_BOOT = {m["name"]: m["value"] for m in _load("common", "enums.json")["enums"]["sys_project_boot_e"]["members"]}
+BOOT_NONE, BOOT_LOAD, BOOT_RUN = _BOOT["SYS_PROJECT_BOOT_NONE"], _BOOT["SYS_PROJECT_BOOT_LOAD"], _BOOT["SYS_PROJECT_BOOT_RUN"]
 
 
 def image(frames: list[bytes]) -> bytes:
@@ -310,15 +313,19 @@ def section(action: int) -> bytes:
     return bytes([KEY_PROJECT, _PROJECT["SECTION"]]) + struct.pack("<I", action)
 
 
-async def project_save(link: "BleLink", sections: dict[int, list[bytes]], program: list[bytes] | None = None, autostart: bool = False, run: bool = False) -> Response | None:
-    """Saves a project as one stream: the sections (record id -> frames) in order, the program (VM frames, keys included) last."""
+async def project_save(link: "BleLink", sections: dict[int, list[bytes]], program: list[bytes] | None = None, start: list[bytes] | None = None,
+                       boot: int = BOOT_NONE) -> Response | None:
+    """Saves a project as one stream: the sections (record id -> frames) in order, the program (VM frames, keys included),
+    then its start (the EXEC: RUN runs it, LOAD leaves it out). `boot` is kept and done right after the save, as at a boot."""
     frames: list[bytes] = []
     for action, fs in sections.items():
         frames += [section(action), *fs]
     if program:
         frames += [section(SECTION_PROGRAM), *program]
+    if start:
+        frames += [section(SECTION_START), *start]
     data = image(frames)
-    r = await link.request(bytes([KEY_PROJECT, _PROJECT["BEGIN"]]), struct.pack("<IB", len(data), (1 if autostart else 0) | (2 if run else 0)))
+    r = await link.request(bytes([KEY_PROJECT, _PROJECT["BEGIN"]]), struct.pack("<IB", len(data), boot))
     if r is None or not r.ok:
         return r
     if not await _chunks(link, bytes([KEY_PROJECT, _PROJECT["WRITE"]]), "<I", data):
@@ -330,5 +337,5 @@ async def project_info(link: "BleLink") -> dict | None:
     r = await link.request(bytes([KEY_PROJECT, _PROJECT["INFO"]]))
     if r is None or not r.ok:
         return None
-    stored, autostart, bank, crc, size = struct.unpack("<BBBII", r.data[:11])
-    return {"stored": bool(stored), "autostart": bool(autostart), "bank": bank, "crc": crc, "bytes": size}
+    stored, boot, bank, crc, size = struct.unpack("<BBBII", r.data[:11])
+    return {"stored": bool(stored), "boot": boot, "bank": bank, "crc": crc, "bytes": size}

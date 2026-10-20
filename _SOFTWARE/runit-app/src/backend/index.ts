@@ -10,10 +10,10 @@
  */
 export { appBoardKind, bundledBlockTypes, bundledBoard, bundledEnums, onboardActionIds, onboardActions, bundledLinkDefinitions, bundledServiceCatalog, errorCatalog, errorIdKinds, errorSeverities, linkDefinitions } from './definitions'
 export type { BoardDescriptor, BoardDevice, BoardKind, BoardPin, BoardPower, PowerProbe, ErrorField, ErrorInfo, IdKindInfo, LinkDefinitions } from './definitions'
-export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rawWidth, readValue } from './catalog/codec'
-export type { Choice, FieldInput, FieldRecord, FieldValue, FieldValues, Layout, PinRef, RawType, WireField } from './catalog/codec'
+export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rawWidth, readValue, withRanges } from './catalog/codec'
+export type { Choice, FieldInput, FieldRanges, FieldRecord, FieldValue, FieldValues, Layout, PinRef, RawType, WireField } from './catalog/codec'
 export { isMirror, ServiceCatalog, SIDES, sideOf, sidesOf } from './catalog/services'
-export type { CatalogEntry, CommandDef, CommandSide, DevicePins, DevicePreset, DescriptorFile, EntryKind, EventDef, Returns, Side } from './catalog/services'
+export type { CatalogEntry, CommandDef, CommandSide, DeviceChannels, DevicePins, DevicePreset, DescriptorFile, EntryKind, EventDef, Returns, Side } from './catalog/services'
 export { createDeviceCall, decodeAnswer, decodeReturns, deviceCall, deviceOp, readDeviceFrame, requestFrame, serviceCall } from './protocol/services'
 export type { CallArgs, Decoded, DeviceFrame, ServiceCall } from './protocol/services'
 export { Services } from './session/services'
@@ -46,7 +46,7 @@ export { LOAD_COMMANDS, LoadError, loadProgram, sendInOrder, sendProgram } from 
 export type { LoadOptions, ProgramFrame, SendOptions } from './session/send'
 export {
   crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, programFrameOf, PROJECT_RECORD_ID, projectFrames, projectInfo,
-  projectStream, readProject, readRecord, recordInfo, removeRecord, runProject, runRecord, saveProject, SECTION_PROGRAM, setAutostart, storeRecord,
-  eraseProject, vmFrame,
+  projectStream, readProject, readRecord, recordInfo, removeRecord, runProject, runRecord, saveProject, SECTION_PROGRAM, SECTION_START, setProjectBoot, storeRecord,
+  eraseProject, loadProject, projectBankRecordId, vmFrame,
 } from './session/project'
 export type { ProjectContent, ProjectInfo, RecordInfo, SaveOptions, Section, StoredProject } from './session/project'

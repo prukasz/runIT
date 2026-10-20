@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
-  crc32, deviceFrame, deviceRecordId, eraseProject, listRecords, programFrameOf, projectInfo, projectStream, readProject, readRecord, recordInfo,
-  removeRecord, runProject, runRecord, saveProject, sendProgram, setAutostart, storeRecord, vmFrame,
+  crc32, deviceFrame, deviceRecordId, eraseProject, listRecords, loadProject, programFrameOf, projectInfo, projectStream, readProject, readRecord, recordInfo,
+  removeRecord, runProject, runRecord, saveProject, sendProgram, setProjectBoot, storeRecord, vmFrame,
 } from '@backend'
 import type { ProjectContent } from '@backend'
 import { blk, build, engine, num, project, read } from '../engine/helpers'
@@ -25,7 +25,8 @@ const result = build(
 )
 const content = (): ProjectContent => ({
   sections: [{ id: deviceRecordId(1), frames: [set(true)] }], // at every start: the pin high
-  program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
+  program: result.frames.map((f) => vmFrame(defs, f.op, f.payload)),
+  start: [vmFrame(defs, engine.exec('normal').op, engine.exec('normal').payload)],
 })
 
 /** Subscribes to the program's variables and reads what comes for a moment: the values by variable. */
@@ -44,6 +45,9 @@ async function telemetryOf(b: Board): Promise<Map<string, unknown>> {
   return seen
 }
 
+/** The VM's pass counter (VM STATUS): it grows only while the program runs. */
+const passes = async (b: Board): Promise<number> => Number(((await b.services.call('VM', 'STATUS')).value as { pass_count: unknown }).pass_count)
+
 let board: Board
 beforeAll(async () => {
   board = await openBoard()
@@ -55,7 +59,7 @@ afterAll(async () => {
 })
 async function cleanup() {
   await eraseProject(board.link).catch(() => undefined)
-  await setAutostart(board.link, false).catch(() => undefined)
+  await setProjectBoot(board.link, defs.projectBoot.none).catch(() => undefined)
   await removeRecord(board.link, ACTION).catch(() => undefined)
   await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' }).catch(() => undefined)
   await board.services.call('VM', 'RESET').catch(() => undefined)
@@ -96,10 +100,10 @@ describe('the stored project', () => {
   it('saveProject: the board takes the stream and INFO gives its length and CRC', async () => {
     const stream = projectStream(defs, content())
     const progress: number[] = []
-    const saved = await saveProject(board.link, content(), { autostart: false, onProgress: (done) => progress.push(done) })
+    const saved = await saveProject(board.link, content(), { boot: defs.projectBoot.none, onProgress: (done) => progress.push(done) })
     expect(saved).toEqual({ bytes: stream.length, crc: crc32(stream) })
     const info = await projectInfo(board.link)
-    expect(info).toMatchObject({ stored: true, autostart: false, bytes: stream.length, crc: crc32(stream) })
+    expect(info).toMatchObject({ stored: true, boot: defs.projectBoot.none, bytes: stream.length, crc: crc32(stream) })
     expect(progress.length).toBeGreaterThan(0)
   })
 
@@ -108,6 +112,7 @@ describe('the stored project', () => {
     expect(stored.verified).toBe(true)
     expect(stored.sections).toEqual(content().sections)
     expect(stored.program).toEqual(content().program)
+    expect(stored.start).toEqual(content().start)
   })
 
   it('the engine recovers the project from what the board holds', async () => {
@@ -117,16 +122,25 @@ describe('the stored project', () => {
     expect(names).toEqual(expect.arrayContaining(['x', 'y', 'z']))
   })
 
-  it('runProject runs it: the section sets the pin, the program computes', async () => {
+  it('loadProject loads it without the start: the section sets the pin, the program waits', async () => {
     await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
-    await runProject(board.link)
+    await loadProject(board.link)
     expect(await until(async () => /High|1|true/i.test(await level(board)), 3000, 100)).toBe(true)
-    expect(await until(async () => (await telemetryOf(board)).get('y') === 3, 4000, 100)).toBe(true)
+    const before = await passes(board)
+    await sleep(500)
+    expect(await passes(board), 'stopped: the VM makes no passes').toBe(before)
   })
 
-  it('with autostart the board runs it by itself after a restart', async () => {
-    await setAutostart(board.link, true)
-    expect((await projectInfo(board.link)).autostart).toBe(true)
+  it('runProject loads it and starts it: the program computes', async () => {
+    await board.services.call('VM', 'RESET')
+    await runProject(board.link)
+    const before = await passes(board)
+    expect(await until(async () => (await passes(board)) > before, 4000, 100), 'running: the VM makes passes').toBe(true)
+  })
+
+  it('with the boot option run the board loads and starts it by itself after a restart', async () => {
+    await setProjectBoot(board.link, defs.projectBoot.run)
+    expect((await projectInfo(board.link)).boot).toBe(defs.projectBoot.run)
     await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     const since = Date.now()
     await board.services.call('SYS', 'RESTART')
@@ -138,11 +152,13 @@ describe('the stored project', () => {
       }
     }, 30_000, 300)
     expect(await until(async () => /High|1|true/i.test(await level(board)), 8000, 200), 'the project section ran at boot').toBe(true)
-    expect(await until(async () => (await telemetryOf(board)).get('y') === 3, 5000, 100), 'the program is loaded and running').toBe(true)
+    expect(await until(async () => (await telemetryOf(board)).get('y') === 3, 5000, 100), 'the program is loaded').toBe(true)
+    const before = await passes(board)
+    expect(await until(async () => (await passes(board)) > before, 4000, 100), 'and running').toBe(true)
   })
 
   it('eraseProject removes it', async () => {
-    await setAutostart(board.link, false)
+    await setProjectBoot(board.link, defs.projectBoot.none)
     await eraseProject(board.link)
     expect((await projectInfo(board.link)).stored).toBe(false)
     expect(await readProject(board.link)).toBeUndefined()

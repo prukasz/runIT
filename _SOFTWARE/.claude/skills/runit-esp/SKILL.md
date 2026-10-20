@@ -40,7 +40,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE) |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, battery, response matrix, VREG guard (key `0x0A`) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`) |
-| sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, commit, run, autostart (key `0x0C`) |
+| sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, the start section, commit, load / run, what happens at start (key `0x0C`) |
 | devices | `devices/device_<chip>` | `device_<chip>.json`, the header | one driver each (GPIO ESP, PCA9685, TCA6424A, TPS55289, INA3221, AP33772S, POWER_MUX, DAC53202, ADS7128, SERVO, DRV8962): the descriptor and the header comments are its doc; how to write one is `SYS_DEVICE_NEW.md` (reference driver `device_pca9685`) |
 | vm | `vm/vm_core` | `VM_CORE.MD` | the program runtime: model, store, loader, supervisor, telemetry, retained values (key `0x0B`) |
 | vm | `vm/vm_blocks` | `VM_BLOCKS.MD`, `<block>/<name>.md` | the block palette, device blocks, adding a block; one user guide per block |

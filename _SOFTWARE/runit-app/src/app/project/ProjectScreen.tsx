@@ -60,10 +60,10 @@ function BoardCard({ link, connected, run }: { link: RunitLink; connected: boole
 
 /**
  * The Project screen: the file (name, New, Open, Save, Restore previous), what the project holds, what the board holds, and the
- * project service's own settings (autostart); the other services' settings are tabs of their own (settings/SettingsTabs.tsx).
+ * project service's own settings (what the board does with the project at start); the other services' settings are tabs of their own (settings/SettingsTabs.tsx).
  */
 export function ProjectScreen({ project, link, connected, run, settings, context, nameOf }: { project: ProjectState; link: RunitLink; connected: boolean; run?: BoardRun; settings: BoardSettingsState; context: PinContext; nameOf: (device: number) => string }) {
-  // The project service's own settings (autostart): the other services' are tabs of their own.
+  // The project service's own settings (what the board does with the project at start): the other services' are tabs of their own.
   const own = settings.sections.find((s) => s.service.key === link.defs.keys.project)
   const counts = projectCounts(project.project)
   const { note } = project

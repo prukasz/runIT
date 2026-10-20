@@ -140,7 +140,7 @@ err_h runit_start(void) {
 #if CONFIG_RUNIT_BLE_START
       {"ble", sys_ble_start},
 #endif
-      {"project autostart", sys_project_boot},  // last: the run is queued at once and needs the devices
+      {"project at start", sys_project_boot},  // last: the load or run is queued at once and needs the devices
   };
   uint32_t failed = 0;
   err_h err = runit_run_boot_steps(k_boot, ARRAY_LEN(k_boot), &failed);

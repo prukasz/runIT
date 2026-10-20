@@ -1161,6 +1161,31 @@
         }
       ]
     },
+    "sys_project_boot_e": {
+      "alias": "Project at start",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_project/sys_project.h",
+      "members": [
+        {
+          "name": "SYS_PROJECT_BOOT_NONE",
+          "value": 0,
+          "alias": "Nothing",
+          "description": "The board starts with its defaults; the project waits for LOAD or RUN"
+        },
+        {
+          "name": "SYS_PROJECT_BOOT_LOAD",
+          "value": 1,
+          "alias": "Load",
+          "description": "Settings, devices and program loaded; the program waits to be started"
+        },
+        {
+          "name": "SYS_PROJECT_BOOT_RUN",
+          "value": 2,
+          "alias": "Run",
+          "description": "Loaded and started"
+        }
+      ]
+    },
     "sys_safe_reason_e": {
       "alias": "Safe State Reason",
       "kind": "enum",
@@ -2206,6 +2231,9 @@
     "SYS_POWER_USB_PD_OPTION_AVS": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_FIXED": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_PPS": "sys_power_usb_pd_option_type_e",
+    "SYS_PROJECT_BOOT_LOAD": "sys_project_boot_e",
+    "SYS_PROJECT_BOOT_NONE": "sys_project_boot_e",
+    "SYS_PROJECT_BOOT_RUN": "sys_project_boot_e",
     "SYS_SAFE_DEADMAN": "sys_safe_reason_e",
     "SYS_SAFE_LINK_LOST": "sys_safe_reason_e",
     "SYS_SAFE_POWER": "sys_safe_reason_e",

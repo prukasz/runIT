@@ -50,7 +50,7 @@
       "message": "{id} is empty"
     },
     "ERR_PROJECT_ORDER": {
-      "message": "The program must be the last part of the project"
+      "message": "The program and its start must be the last parts of the project, one of each"
     },
     "ERR_PROJECT_CHUNKS": {
       "message": "The program is too large to store (more than {max} parts)",
@@ -71,6 +71,9 @@
     },
     "ERR_PROJECT_BAD_ARG": {
       "message": "A project request is not valid"
+    },
+    "ERR_PROJECT_BAD_BOOT": {
+      "message": "{value} is not a start option of the project"
     }
   }
 }

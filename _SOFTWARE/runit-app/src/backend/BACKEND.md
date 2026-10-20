@@ -114,8 +114,8 @@ await storeRecord(link, 10, [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(22, 0)
 await saveProject(link, {                                                                  // settings, devices, then the program (last)
   sections: [{ id: deviceRecordId(1), frames: [...] }],
   program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
-}, { autostart: true, onProgress })
-const info = await projectInfo(link)                       // { stored, autostart, crc, bytes }: the CRC and length of the stream saved
+}, { boot: link.defs.projectBoot.run, onProgress })
+const info = await projectInfo(link)                       // { stored, boot, crc, bytes }: the CRC and length of the stream saved
 const stored = await readProject(link)                     // { info, sections, program, verified } read back from NVS
 const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))   // the project, decompiled
 ```
@@ -207,7 +207,7 @@ await loadProgram(link, [...result.frames, engine.exec('normal')], {
 | `d-deadman` | `DeadMan` armed, fed past its timeout and disarmed; the safe state after silence, from STOP and on a lost link (held against the console); `leaveSafeState`; `lapsed` and `restarted` inferred after a drop and a restart |
 | `e-program` | the engine's program loaded with `loadProgram`, run, SUBSCRIBE, runtime writes as telemetry (latency), pause / resume, a program the board refuses (`LoadError`, RESET, a readable error), a good load after it |
 | `g-refs` | errors tied back to the user's names: a program refused at load ("input 2 of Compute does not exist", "output 1 of Constant refers to Result, which does not exist", marked on that block pin), a block failing while it runs ("Expander has no Pin 99", marked on the block, the device and the pin; "Device 77 does not exist"), a command to a device (pin, DAC channel, unknown op), a write beyond a variable (marked on the variable); never an `obj-…` id; `ErrorLog` by device and pin |
-| `f-project` | a stored record (store, list, read back, run, replace, remove); `saveProject` with INFO's length and CRC, `readProject` verified, the engine recovering the project, `runProject`, autostart across a restart, `eraseProject` |
+| `f-project` | a stored record (store, list, read back, run, replace, remove); `saveProject` with INFO's length and CRC, `readProject` verified, the engine recovering the project, `loadProject` (the program waits), `runProject`, boot RUN across a restart, `eraseProject` |
 
 The suites change the board and put it back: the status LED and expander pin 22 are toggled, devices are suspended and resumed, the VM program is replaced, record 90 and a project are stored and erased, the dead-man is left disarmed, and the board restarts three times. No other BLE client may hold the board, and nothing else may hold the console port.
 

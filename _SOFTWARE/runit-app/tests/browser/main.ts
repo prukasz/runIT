@@ -1,6 +1,6 @@
 import {
   CommandError, DeadMan, ErrorInterpreter, RunitLink, Services, WebBluetoothPlatform, bundledLinkDefinitions, crc32, eraseProject, leaveSafeState, loadProgram, projectInfo,
-  projectStream, readProject, saveProject, sendProgram, setAutostart, vmFrame, deviceFrame, deviceRecordId,
+  projectStream, readProject, saveProject, sendProgram, setProjectBoot, vmFrame, deviceFrame, deviceRecordId,
 } from '@backend'
 import type { LinkStatus, ProjectContent } from '@backend'
 import { blk, build, engine, num, project, read } from '../engine/helpers'
@@ -139,19 +139,20 @@ async function runSuite(): Promise<Result[]> {
     expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'not disarmed')
   })
 
-  await test('a stored project: save, read back verified, autostart off, erase', async () => {
+  await test('a stored project: save, read back verified, nothing at start, erase', async () => {
     const result = program()
     const content: ProjectContent = {
       sections: [{ id: deviceRecordId(1), frames: [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(PIN, 1))] }],
-      program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
+      program: result.frames.map((f) => vmFrame(defs, f.op, f.payload)),
+      start: [vmFrame(defs, engine.exec('normal').op, engine.exec('normal').payload)],
     }
     const stream = projectStream(defs, content)
     try {
-      expect(JSON.stringify(await saveProject(link, content, { autostart: false })) === JSON.stringify({ bytes: stream.length, crc: crc32(stream) }), 'saved size or CRC')
+      expect(JSON.stringify(await saveProject(link, content, { boot: defs.projectBoot.none })) === JSON.stringify({ bytes: stream.length, crc: crc32(stream) }), 'saved size or CRC')
       expect((await projectInfo(link)).stored, 'not stored')
       expect((await readProject(link))?.verified === true, 'not verified')
     } finally {
-      await setAutostart(link, false).catch(() => undefined)
+      await setProjectBoot(link, defs.projectBoot.none).catch(() => undefined)
       await eraseProject(link).catch(() => undefined)
       await services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' }).catch(() => undefined)
     }

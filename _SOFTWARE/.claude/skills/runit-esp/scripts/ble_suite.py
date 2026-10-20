@@ -17,7 +17,7 @@ Scenarios (default: basic frames streams latency cycles):
             answered OK. The program stays loaded: end the file with a reset frame to leave the VM empty
   actions   stored records: a user action (--action-id, default 10; 3 to 6 belong to the firmware) that switches the two LEDs
             (--device 1, --pins 22,23) off is stored, listed, read back frame for frame, run, and removed
-  project   a project with a device section that lights the two LEDs and autostart: stored, INFO matches, every record read back,
+  project   a project with a device section that lights the two LEDs and boot LOAD: stored, INFO matches, every record read back,
             the board restarted and the LEDs are on after the boot; then erased (reboots the board)
   capture   --plan FILE: {"load": [frames], "writes": [[frames], ...]} (the engine's frames: a program, then runtime writes): loads the
             program, applies each write 0.7 s apart and records every stream frame raw (--out FILE); checks that telemetry came after
@@ -43,7 +43,7 @@ import zlib
 from pathlib import Path
 
 from ble_link import (
-    ATT_VALUE_MAX, BLE_OPS, KEY_DEVICE, action_info, action_list, action_read, action_run, action_store, device_frame, image, project_info, project_save, section, FRAG_FIRST, FRAG_LAST, FRAME_MAX, GENERATED, KEYS, LOGS, RX, STREAM_ERRORS, STREAM_LOGS, STREAM_TELEMETRY, SVC, TX,
+    ATT_VALUE_MAX, BLE_OPS, BOOT_LOAD, KEY_DEVICE, action_info, action_list, action_read, action_run, action_store, device_frame, image, project_info, project_save, section, FRAG_FIRST, FRAG_LAST, FRAME_MAX, GENERATED, KEYS, LOGS, RX, STREAM_ERRORS, STREAM_LOGS, STREAM_TELEMETRY, SVC, TX,
     BleLink, find_board, fragment, offered_mtu,
 )
 from router_link import Link, decode_record
@@ -382,11 +382,11 @@ async def project(ctx: Ctx) -> None:
     before = await project_info(link)
     check("no project is stored to start with", before is not None and not before["stored"], f"{before}: ERASE it first, this scenario replaces it")
     on = _pin_frames(ctx.args, 1)
-    r = await project_save(link, {device_id: on}, autostart=True)
+    r = await project_save(link, {device_id: on}, boot=BOOT_LOAD)
     check("the project is stored", r is not None and r.ok, str(r))
     stream = image([section(device_id), *on])
     info = await project_info(link)
-    check("INFO: stored, autostart, the length and CRC of the stream", info is not None and info["stored"] and info["autostart"] and info["bytes"] == len(stream) and info["crc"] == zlib.crc32(stream), str(info))
+    check("INFO: stored, load at start, the length and CRC of the stream", info is not None and info["stored"] and info["boot"] == BOOT_LOAD and info["bytes"] == len(stream) and info["crc"] == zlib.crc32(stream), str(info))
     check("the device section is a record of its own, as sent", await action_read(link, device_id) == on)
     record = await action_read(link, 0x03000000)
     check("the project record runs the section", record is not None and any(f[:2] == bytes([KEYS["actions"], 0x0D]) and struct.unpack_from("<I", f, 2)[0] == device_id for f in record), str(record))

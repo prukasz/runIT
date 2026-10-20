@@ -11,7 +11,9 @@ import type { SendOptions } from './send'
  *             (BEGIN, WRITE, COMMIT with the CRC), read back frame by frame.
  *   project   settings, devices and the program saved as one stream in sections; the board stores each section as its record,
  *             cuts the program into chunk records and writes the project record that runs them in order. The program is the
- *             compiled VM frames (`[vm key][dir][op][payload]`, writes all); a project can start by itself at boot (autostart).
+ *             compiled VM frames (`[vm key][dir][op][payload]`, writes all); the start section (the EXEC that starts it) is
+ *             kept apart: LOAD leaves it out, RUN runs it. At a boot and right after a save the board does what the boot
+ *             option says (`defs.projectBoot`: nothing, load, run).
  *
  * A frame here is what the router takes: keys and payload, no `seq` / `flags`.
  */
@@ -77,9 +79,13 @@ const concat = (...parts: readonly Uint8Array[]): Uint8Array => {
 
 /** The id of a device's install and default commands. */
 export const deviceRecordId = (device: number): number => (0x02000000 | device) >>> 0
-/** The project record; the section id of the program is 0. */
+/** The project record; the section id of the program is 0, of the start 0xFFFFFFFF. */
 export const PROJECT_RECORD_ID = 0x03000000
 export const SECTION_PROGRAM = 0
+export const SECTION_START = 0xffffffff
+/** A record of a project bank (`SYS_PROJECT_ID`): class PROJECT, `[bank + 1 u8][n u16]`; n 0xFFFF is the start section. */
+export const projectBankRecordId = (bank: number, n: number): number => (PROJECT_RECORD_ID | ((bank + 1) << 16) | n) >>> 0
+const START_N = 0xffff
 
 /* ---- frames ---- */
 
@@ -105,8 +111,10 @@ export interface Section {
 export interface ProjectContent {
   /** In the order they run: settings, then devices, then the user's actions. */
   readonly sections?: readonly Section[]
-  /** The compiled program (`vmFrame`s), last in the stream; end it with EXEC to have it start. */
+  /** The compiled program (`vmFrame`s), after the sections. */
   readonly program?: readonly Uint8Array[]
+  /** What starts it (the VM's EXEC), last in the stream: RUN runs it, LOAD leaves it out. */
+  readonly start?: readonly Uint8Array[]
 }
 
 const sectionFrame = (defs: LinkDefinitions, id: number): Uint8Array => concat(Uint8Array.of(defs.keys.project!, defs.dir.write, defs.ops.project.SECTION!), u32(id))
@@ -115,10 +123,11 @@ const sectionFrame = (defs: LinkDefinitions, id: number): Uint8Array => concat(U
 export const projectFrames = (defs: LinkDefinitions, content: ProjectContent): Uint8Array[] => {
   const frames: Uint8Array[] = []
   for (const section of content.sections ?? []) {
-    if (section.id === SECTION_PROGRAM) throw new RangeError('Section 0 is the program: give it as `program`.')
+    if (section.id === SECTION_PROGRAM || section.id === SECTION_START) throw new RangeError('Sections 0 and 0xFFFFFFFF are the program and the start: give them as `program` and `start`.')
     frames.push(sectionFrame(defs, section.id), ...section.frames)
   }
   if (content.program && content.program.length > 0) frames.push(sectionFrame(defs, SECTION_PROGRAM), ...content.program)
+  if (content.start && content.start.length > 0) frames.push(sectionFrame(defs, SECTION_START), ...content.start)
   return frames
 }
 
@@ -129,7 +138,8 @@ export const projectStream = (defs: LinkDefinitions, content: ProjectContent): U
 
 export interface ProjectInfo {
   readonly stored: boolean
-  readonly autostart: boolean
+  /** The boot option: a value of `defs.projectBoot`. */
+  readonly boot: number
   readonly bank: number
   /** CRC and length of the stream the stored project was saved from: compare them with a project's `projectStream`. */
   readonly crc: number
@@ -137,10 +147,8 @@ export interface ProjectInfo {
 }
 
 export interface SaveOptions extends SendOptions {
-  /** Start the project at every boot. */
-  readonly autostart?: boolean
-  /** Run it right after saving. */
-  readonly run?: boolean
+  /** The boot option (`defs.projectBoot`, default none): kept, and done right after the save as at a boot. */
+  readonly boot?: number
 }
 
 const project = (link: RunitLink, op: string, payload?: Uint8Array) =>
@@ -151,7 +159,7 @@ export const saveProject = async (link: RunitLink, content: ProjectContent, opti
   const defs = link.defs
   const stream = projectStream(defs, content)
   const crc = crc32(stream)
-  await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of((options.autostart ? 1 : 0) | (options.run ? 2 : 0))))
+  await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of(options.boot ?? defs.projectBoot.none)))
   const chunk = defs.frameMax - 2 - 3 - 4 // [seq][flags][key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < stream.length; at += chunk) {
@@ -164,12 +172,16 @@ export const saveProject = async (link: RunitLink, content: ProjectContent, opti
 
 export const projectInfo = async (link: RunitLink): Promise<ProjectInfo> => {
   const data = await project(link, 'INFO')
-  return { stored: data[0] === 1, autostart: data[1] === 1, bank: data[2]!, crc: readU32(data, 3), bytes: readU32(data, 7) }
+  return { stored: data[0] === 1, boot: data[1]!, bank: data[2]!, crc: readU32(data, 3), bytes: readU32(data, 7) }
 }
 
+/** Loads the stored project and runs its start section. */
 export const runProject = async (link: RunitLink): Promise<void> => void (await project(link, 'RUN'))
+/** Loads the stored project without its start section: the program stays stopped. */
+export const loadProject = async (link: RunitLink): Promise<void> => void (await project(link, 'LOAD'))
 export const eraseProject = async (link: RunitLink): Promise<void> => void (await project(link, 'ERASE'))
-export const setAutostart = async (link: RunitLink, on: boolean): Promise<void> => void (await project(link, 'OPTIONS', Uint8Array.of(on ? 1 : 0)))
+/** Sets the boot option (`defs.projectBoot`). */
+export const setProjectBoot = async (link: RunitLink, boot: number): Promise<void> => void (await project(link, 'OPTIONS', Uint8Array.of(boot)))
 
 /* ---- records ---- */
 
@@ -232,6 +244,8 @@ export interface StoredProject {
   readonly sections: readonly Section[]
   /** The program: its frames in order (`programFrameOf` reads them for the engine). */
   readonly program: readonly Uint8Array[]
+  /** The start section's frames; empty when it has none. */
+  readonly start: readonly Uint8Array[]
   /** The CRC of the stream rebuilt from what was read equals the one the board saved: nothing was lost on the way. */
   readonly verified: boolean
 }
@@ -254,6 +268,7 @@ export const readProject = async (link: RunitLink): Promise<StoredProject | unde
       for (const run of await readRecord(link, id)) if (run[0] === defs.keys.actions && run[1] === defs.dir.write && run[2] === defs.ops.actions.RUN) program.push(...(await readRecord(link, readU32(run, 3))))
     }
   }
-  const verified = crc32(projectStream(defs, { sections, program })) === info.crc
-  return { info, sections, program, verified }
+  const start = await readRecord(link, projectBankRecordId(info.bank, START_N)).catch(() => [] as Uint8Array[]) // none: not found
+  const verified = crc32(projectStream(defs, { sections, program, start })) === info.crc
+  return { info, sections, program, start, verified }
 }

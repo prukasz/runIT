@@ -892,10 +892,11 @@ def test_actions(link: Link) -> None:
 
 
 KEY_PROJECT = 0x0C
-P_BEGIN, P_WRITE, P_COMMIT, P_ABORT, P_INFO, P_RUN, P_ERASE, P_OPTIONS, P_SECTION = 1, 2, 3, 4, 5, 6, 7, 8, 0x10
+P_BEGIN, P_WRITE, P_COMMIT, P_ABORT, P_INFO, P_RUN, P_ERASE, P_OPTIONS, P_SECTION, P_LOAD = 1, 2, 3, 4, 5, 6, 7, 8, 0x10, 0x12
+BOOT_NONE, BOOT_LOAD, BOOT_RUN = 0, 1, 2  # sys_project_boot_e
 CLASS_PROJECT = 3
 PROJECT_RECORD = CLASS_PROJECT << 24
-SEC_PROGRAM = 0
+SEC_PROGRAM, SEC_START = 0, 0xFFFFFFFF
 T5 = (CLASS_SYSTEM << 24) | 0xFF05  # a system-class ID no module uses: a project section's record
 
 
@@ -907,8 +908,8 @@ def section(sid: int, *frames: bytes) -> bytes:
     return image(bytes([KEY_PROJECT, P_SECTION]) + u32(sid), *frames)
 
 
-def prj_save(link: Link, stream: bytes, flags: int = 0, chunk: int = 400, crc: int | None = None) -> Response | None:
-    r = prj(link, P_BEGIN, struct.pack("<IB", len(stream), flags))
+def prj_save(link: Link, stream: bytes, boot: int = BOOT_NONE, chunk: int = 400, crc: int | None = None) -> Response | None:
+    r = prj(link, P_BEGIN, struct.pack("<IB", len(stream), boot))
     if r is None or not r.ok:
         return r
     for off in range(0, len(stream), chunk):
@@ -922,7 +923,7 @@ def prj_info(link: Link) -> tuple[int, int, int, int, int] | None:
     r = prj(link, P_INFO)
     if r is None or not r.ok or len(r.data) != 11:
         return None
-    return struct.unpack("<BBBII", r.data)  # stored, autostart, bank, crc32, bytes
+    return struct.unpack("<BBBII", r.data)  # stored, boot, bank, crc32, bytes
 
 
 def test_project(link: Link) -> None:
@@ -940,18 +941,22 @@ def test_project(link: Link) -> None:
     check("frame before SECTION -> ERR_PROJECT_NO_SECTION", err_cause(r) == "ERR_PROJECT_NO_SECTION", str(r))
     r = prj_save(link, section(SEC_PROGRAM, CONN_INFO) + section(T5, CONN_INFO))
     check("section after the program -> ERR_PROJECT_ORDER", err_cause(r) == "ERR_PROJECT_ORDER", str(r))
+    r = prj_save(link, section(SEC_START, CONN_INFO) + section(SEC_PROGRAM, CONN_INFO))
+    check("program after the start -> ERR_PROJECT_ORDER", err_cause(r) == "ERR_PROJECT_ORDER", str(r))
+    r = prj(link, P_BEGIN, struct.pack("<IB", 8, 3))
+    check("BEGIN with boot 3 -> ERR_PROJECT_BAD_BOOT", err_cause(r) == "ERR_PROJECT_BAD_BOOT", str(r))
     stream = section(T5, CONN_INFO) + section(SEC_PROGRAM, *([CONN_INFO] * 1100))  # 2 chunks of 4 KB
     r = prj_save(link, stream, crc=1)
     check("bad CRC -> ERR_PROJECT_CRC", err_cause(r) == "ERR_PROJECT_CRC", str(r))
     check("nothing stored after the failures", prj_info(link) is not None and prj_info(link)[0] == 0)
     check("failed saves leave no staged record", info(link, T5) is None)
 
-    # a good save, run at once
-    r = prj_save(link, stream, flags=1 | 2)
+    # a good save, run at once (boot RUN)
+    r = prj_save(link, stream, boot=BOOT_RUN)
     check("project save + run", r is not None and r.ok, str(r))
     i = prj_info(link)
-    check("INFO: stored, autostart, crc and length of the stream",
-          i is not None and i[0] == 1 and i[1] == 1 and i[3] == zlib.crc32(stream) and i[4] == len(stream), str(i))
+    check("INFO: stored, boot RUN, crc and length of the stream",
+          i is not None and i[0] == 1 and i[1] == BOOT_RUN and i[3] == zlib.crc32(stream) and i[4] == len(stream), str(i))
     check("the section's record is stored under its ID", info(link, T5) == (4, 1, zlib.crc32(image(CONN_INFO))), str(info(link, T5)))
     listing = actions_list(link, PROJECT_RECORD)
     ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
@@ -963,15 +968,22 @@ def test_project(link: Link) -> None:
     check("program records: list + 2 chunks in order", ids == want, f"{[hex(x) for x in ids]} want {[hex(x) for x in want]}")
     r = prj(link, P_RUN)
     check("project RUN", r is not None and r.ok, str(r))
+    r = prj(link, P_LOAD)
+    check("project LOAD", r is not None and r.ok, str(r))
 
-    # a second save goes to the other bank and the old bank's records go
-    r = prj_save(link, section(T5, CONN_INFO, CONN_INFO) + section(SEC_PROGRAM, CONN_INFO))
+    # a second save (with a start section, nothing at start) goes to the other bank and the old bank's records go
+    r = prj_save(link, section(T5, CONN_INFO, CONN_INFO) + section(SEC_PROGRAM, CONN_INFO) + section(SEC_START, CONN_INFO))
     check("second save", r is not None and r.ok, str(r))
     i2 = prj_info(link)
     check("the other bank is the project's now", i2 is not None and i2[2] == 1 - bank, str(i2))
     listing = actions_list(link, PROJECT_RECORD)
     ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
-    check("old bank cleared: record + list + 1 chunk", len(ids) == 3, str([hex(x) for x in ids]))
+    base2 = ((2 - bank) << 16) | (CLASS_PROJECT << 24)
+    check("old bank cleared: record + list + 1 chunk + the start", ids == [PROJECT_RECORD, base2, base2 + 2, base2 + 0xFFFF],
+          str([hex(x) for x in ids]))
+    check("INFO: nothing at start", prj_info(link)[1] == BOOT_NONE)
+    r = prj(link, P_RUN)
+    check("project RUN with its start section", r is not None and r.ok, str(r))
 
     r = prj(link, P_ERASE)
     check("ERASE", r is not None and r.ok and prj_info(link)[0] == 0, str(r))

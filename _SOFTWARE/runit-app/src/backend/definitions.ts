@@ -6,6 +6,8 @@ import devkitBoardJson from '@generated/common/board_devkit.json'
 import actionsContract from '@generated/services/contract_actions.json'
 import projectContract from '@generated/services/contract_project.json'
 import type { EnumTables } from '@engine/generated/wire'
+import { parseRanges } from './catalog/codec'
+import type { FieldRanges } from './catalog/codec'
 import { ServiceCatalog } from './catalog/services'
 import type { DescriptorFile } from './catalog/services'
 
@@ -40,6 +42,8 @@ export interface LinkDefinitions {
   readonly frameMax: number
   /** The op of an event frame on the events stream (`SYS_EVENT_OP_NOTIFY`, group `event_op`): `[event key][NOTIFY][sys_event_t]`. */
   readonly eventNotify: number
+  /** What the board does with the stored project when it starts and right after a save (`sys_project_boot_e`). */
+  readonly projectBoot: { readonly none: number; readonly load: number; readonly run: number }
 }
 
 const value = (enums: EnumTables, group: string, symbol: string): number => {
@@ -99,6 +103,11 @@ export const linkDefinitions = (
     opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
     frameMax,
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),
+    projectBoot: {
+      none: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_NONE'),
+      load: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_LOAD'),
+      run: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_RUN'),
+    },
   }
 }
 
@@ -123,6 +132,8 @@ export interface BoardDevice {
   readonly config: Readonly<Record<string, unknown>>
   /** Where it sits on an I2C bus of the board (`i2c_buses`). */
   readonly i2c?: { readonly bus: number; readonly address: number }
+  /** The ranges board.json gives for the fields of its commands (`COMMAND.field`); they replace the device type's. */
+  readonly ranges?: FieldRanges
 }
 
 /** What board.json says of the board: its devices, the pins set up at boot and the pins nothing else may take. */
@@ -161,7 +172,7 @@ export const appBoardKind = (): BoardKind => (import.meta.env.VITE_RUNIT_BOARD =
 export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor => {
   const json = (kind === 'devkit' ? devkitBoardJson : boardJson) as unknown as {
     name: string
-    devices: { id: number; name: string; description?: string; descriptor: string; pins?: { use: string; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
+    devices: { id: number; name: string; description?: string; descriptor: string; ranges?: unknown; pins?: { use: string; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
     i2c_buses?: { bus: number; name: string; description?: string }[]
     pin_setup?: { device: number; pin: number; mode: string; label: string; description?: string }[]
     reserved_pins?: { device: number; pin: number; label: string; reason?: string }[]
@@ -172,7 +183,7 @@ export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor 
   }
   return {
     name: json.name,
-    devices: json.devices.map((d) => ({ id: d.id, name: d.name, ...(d.description ? { description: d.description } : {}), descriptor: d.descriptor, pins: d.pins ?? [], config: d.config ?? {}, ...(d.i2c ? { i2c: { bus: d.i2c.bus, address: d.i2c.address } } : {}) })),
+    devices: json.devices.map((d) => ({ id: d.id, name: d.name, ...(d.description ? { description: d.description } : {}), descriptor: d.descriptor, pins: d.pins ?? [], config: d.config ?? {}, ...(d.i2c ? { i2c: { bus: d.i2c.bus, address: d.i2c.address } } : {}), ...(Object.keys(parseRanges(d.ranges)).length > 0 ? { ranges: parseRanges(d.ranges) } : {}) })),
     i2cBuses: json.i2c_buses ?? [],
     pinSetup: json.pin_setup ?? [],
     reservedPins: json.reserved_pins ?? [],

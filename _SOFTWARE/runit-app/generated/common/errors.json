@@ -4671,8 +4671,8 @@
           "severity": 2,
           "size": 0,
           "fields": [],
-          "description": "a second program, or a section after it",
-          "message": "The program must be the last part of the project"
+          "description": "a second program or start, or a section after them",
+          "message": "The program and its start must be the last parts of the project, one of each"
         },
         {
           "code": 16,
@@ -4741,6 +4741,23 @@
           "size": 0,
           "fields": [],
           "message": "A project request is not valid"
+        },
+        {
+          "code": 22,
+          "tag": 1048598,
+          "name": "ERR_PROJECT_BAD_BOOT",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "value",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "not a sys_project_boot_e",
+          "message": "{value} is not a start option of the project"
         }
       ]
     }

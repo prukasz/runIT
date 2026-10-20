@@ -5,7 +5,7 @@
  "bytes": 312,
  "info": {
   "stored": true,
-  "autostart": true,
+  "boot": 2,
   "bank": 1,
   "crc": 2826088283,
   "bytes": 312

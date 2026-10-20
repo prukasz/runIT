@@ -30,9 +30,9 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | devices | `runit_board_devices_init`, by `CONFIG_RUNIT_BOARD`: a devkit (`RUNIT_BOARD_DEVKIT`) gets only the ESP GPIO (ID 0); no devices (`RUNIT_BOARD_BARE`) skips the step. The PCB (`RUNIT_BOARD_PCB`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed, 10 mOhm shunts), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 1 kHz); every channel braked with a 2 A limit (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
 | system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; the REMOVE sweep (`sys_device_sweep`) leaves it |
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
-| project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project runs on a router task when its autostart is on (SYS_PROJECT.MD) |
+| project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project is loaded, or loaded and started, on a router task as its boot option says (SYS_PROJECT.MD) |
 
-Checked on a board: a stored project with a device section and autostart runs after the boot (the section's commands are applied once the devices exist).
+Checked on a board: a stored project with a device section and boot LOAD is loaded after the boot (the section's commands are applied once the devices exist).
 
 ## Onboard actions
 
@@ -45,7 +45,7 @@ Checked on a board: a stored project with a device section and autostart runs af
 | 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 FF FF 01 00` (every device, newest first; the drivers' RESET) |
 | 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `02 00 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
 
-Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's autostart, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
+Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's boot option, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Safe state
 
