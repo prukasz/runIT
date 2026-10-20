@@ -85,15 +85,17 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
   | Thing | Pattern | Example |
   |---|---|---|
   | Core / system module API | `<module>[_<object>]_<action>` | `router_submit`, `sys_io_set_mode`, `sys_device_call` |
-  | Router op numbers | `<MODULE>_OP_<NAME>` / `VM_OP_<NAME>` | `VM_OP_SET_DATA`, `SYS_SYSTEM_OP_RESTART` |
+  | Router op numbers | `<MODULE>_OP_<NAME>` / `VM_OP_<NAME>` | `VM_OP_DATA`, `SYS_SYSTEM_OP_RESTART` |
   | VM API | `vm_<part>_<action>` | `vm_exec_stop`, `vm_loader_add_accessor` |
-  | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_SET_PROTECTION` |
+  | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_PROTECTION` |
   | Chip access (static, in the driver) | `chip_<action>(ctx, ...)` returning `err_h` | `chip_set_voltage` |
   | Board / application | `runit_<area>_<action>` | `runit_board_devices_init` |
   | Kconfig | `CONFIG_<MODULE>_<NAME>` | `CONFIG_SYS_EVENT_QUEUE_LEN` |
   | Error tag / module | `ERR_<MODULE>_<WHAT>` / `ERR_MOD_<MODULE>` | `ERR_IO_PIN_IN_USE`, `ERR_MOD_SYS_IO` |
 
   The module segment matches the component folder name.
+
+- **A command is named for its value or action** (`DEADMAN`, `TIME`, `LEVEL`), never for a side: the read and the write of one value are the two sides of one op (CMD.MD "Read and write").
 
 ### 5.2 Current deviations (open)
 

@@ -82,6 +82,8 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 
 ## Remote (`sys_ble_router`, root key `ROUTER_KEY_BLE` = 0x03)
 
+Requests are `[0x03][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). STATUS and LIST are reads, the other ops writes.
+
 | Op | Request | Response |
 |---|---|---|
 | `0x01` SVC_CREATE | `u16 uuid, u8 is_primary` | – |
@@ -94,7 +96,7 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 
 The app reads LIST to see what a save must change, so it removes only what is not wanted.
 
-Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). Bytes after `[key][op]`: `03 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B), then `03 05` (APPLY). The link adds its own frame header (ROUTER.MD).
+Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B), then `03 01 05` (APPLY). The link adds its own frame header (ROUTER.MD).
 
 ## Errors (`ERR_MOD_SYS_BLE` = 4)
 

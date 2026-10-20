@@ -43,7 +43,7 @@ static inline MUST_USE err_h load_result(err_h err, uint8_t op, bool armed) {
   return vm_loader_abort(err, op);
 }
 
-// While the VM runs, ADD_OBJECTS / ADD_ACCESSORS / ADD_BLOCK are refused by the loader and SET_DATA is a runtime
+// While the VM runs, ADD_OBJECTS / ADD_ACCESSORS / ADD_BLOCK are refused by the loader and DATA is a runtime
 // write: none of them touches the loaded program, so a failure there doesn't discard it. OPEN is the one op that
 // replaces a running program, so it always counts.
 static inline bool loading(void) {

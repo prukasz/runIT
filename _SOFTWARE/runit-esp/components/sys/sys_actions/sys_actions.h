@@ -41,14 +41,14 @@ extern "C" {
 #define SYS_ACTIONS_ID(class, n) ((((uint32_t)(class)) << 24) | ((uint32_t)(n) & 0xFFFFFFu))
 
 //#ref-defines settings_record @alias Settings records @prefix SYS_ACTIONS_ID_
-#define SYS_ACTIONS_ID_LOG             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 1)  //@alias Log @description Log options SET frame
-#define SYS_ACTIONS_ID_POWER_CFG       SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 2)  //@alias Power configuration @description Power configuration SET_CONFIG
-#define SYS_ACTIONS_ID_POWER_PSU       SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 3)  //@alias Power supply @description Power supply SET_PSU
-#define SYS_ACTIONS_ID_POWER_BATTERY   SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)  //@alias Battery @description Battery SET_BATTERY
-#define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  //@alias Power responses @description Power responses SET_RESPONSES
+#define SYS_ACTIONS_ID_LOG             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 1)  //@alias Log @description Log options: the CONFIG write
+#define SYS_ACTIONS_ID_POWER_CFG       SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 2)  //@alias Power configuration @description Power configuration: the CONFIG write
+#define SYS_ACTIONS_ID_POWER_PSU       SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 3)  //@alias Power supply @description Power supply: the PSU write
+#define SYS_ACTIONS_ID_POWER_BATTERY   SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)  //@alias Battery @description Battery: the BATTERY write
+#define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  //@alias Power responses @description Power responses: the MATRIX write
 #define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
 #define SYS_ACTIONS_ID_CONN            SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
-#define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request SET_PD
+#define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
 
 /** @brief The project record: the list of RUN frames sys_project replays (SYS_PROJECT.MD). The other IDs of this class are sys_project's. */
 #define SYS_ACTIONS_ID_PROJECT SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_PROJECT, 0)

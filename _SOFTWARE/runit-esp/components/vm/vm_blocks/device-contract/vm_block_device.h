@@ -9,9 +9,10 @@
  *  (->ARG1)  |             |
  *  (->ARG2)  ---------------
  *
- *  One block type per device contract (IO, HBRIDGE, POWER_MONITOR), one engine for all of them. The block's state
- *  names the device and the operation of the contract; the operation's argument fields are the inputs, in the order
- *  of the argument struct (without the device and the op), and the result of a read operation is output 0.
+ *  One block type per device contract (IO, HBRIDGE, POWER_MONITOR, POWER_SUPPLY, POWER_USB_PD, POWER_VREG), one
+ *  engine for all of them. The block's state names the device and the operation of the contract; the operation's
+ *  argument fields are the inputs, in the order of the argument struct (without the device and the op), and the
+ *  result of a read operation is output 0.
  *
  *  - An input that is not wired uses its constant from the state (`k`). A wired input is converted to the field's type
  *    (rounded, saturated); the device range-checks. A field with a scale (HBRIDGE drive: percent, wire steps = x40.95)

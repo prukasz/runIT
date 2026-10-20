@@ -162,12 +162,12 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unikalny identyfikator operacji (np. 'SET_LEVEL', 'GET_LEVEL', 'SET_PWM_DUTY', 'GET_VOLTAGE')."
+          "description": "Unikalny identyfikator operacji (np. 'LEVEL', 'TOGGLE', 'PWM_DUTY', 'VOLTAGE')."
         },
         "op": {
           "type": "integer",
           "minimum": 0,
-          "description": "Numeryczny kod operacji w firmware (np. 1 dla SET_LEVEL). Opcjonalny, gdy indeksowany po kolei."
+          "description": "Numeryczny kod operacji w firmware (np. 1 dla TOGGLE). Opcjonalny, gdy indeksowany po kolei."
         },
         "urgent": {
           "type": "boolean",
@@ -188,7 +188,7 @@
         },
         "symbol": {
           "type": "string",
-          "description": "Opcjonalny stały symbol C w firmware (np. 'SYS_IO_OP_SET_LEVEL')."
+          "description": "Opcjonalny stały symbol C w firmware (np. 'SYS_IO_OP_LEVEL')."
         },
         "pin_scoped": {
           "type": "boolean",

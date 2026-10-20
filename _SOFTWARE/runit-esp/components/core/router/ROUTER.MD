@@ -8,7 +8,7 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 |---|---|
 | `router.h` | Wire format, error tags, routing helpers, links, tap, watch. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
 | `router_ids.h` | Root keys (`ROUTER_KEY_*`) |
-| `router.c` | Root table, `router_route`, `router_call` / `router_args` / `router_args_tail` (op macros in `router.h`) |
+| `router.c` | Root table, `router_route`, `router_call` / `router_call_op` / `router_args` / `router_args_tail` (op macros in `router.h`) |
 | `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, tap, watch |
 | `Kconfig` | Frame size, response stream byte, table sizes, queues, task prio/stack |
 | `AGENTS.md` | Rules for changing this folder |
@@ -16,23 +16,26 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 ## Wire format
 
 ```
-request   [seq][flags][root key][key]...[payload]
+request   [seq][flags][root key][dir][code]...[payload]
 response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
 ```
 
 - `seq`: client's counter, echoed; the client matches answers by it (answers may come out of order — urgent frames overtake).
 - `flags` bit 0 `ROUTER_FLAG_URGENT`: the app decides what is urgent; the firmware has no fixed list.
+- `dir` (`cmd_dir_e`, `cmd.h`): 0 `CMD_DIR_READ`, 1 `CMD_DIR_WRITE`, the side of the command that runs (CMD.MD "Read and write"). A module's command is `[key][dir][code][args]`; a device's `[0x05][dir][id u16][op u16][args]` (SYS_DEVICE.MD). A side the command doesn't have, or a dir above 1: `ERR_CMD_DIRECTION{dir}`.
+- Stream frames (telemetry, events) have the command shape without `seq`, `flags` and `dir`: `[key][code][data]`.
 - `status` 0 OK: `data` = router output (may be empty). 1 error: `data` = the **error record** (ERRORS.MD "Error record"): the request and its error chain together, so a captured or stored error is self-contained. Its command header is the frame's `err_cmd_t` (`errors.h`), which the dispatcher fills.
 - Payloads are packed little-endian structs, size checked exactly (`router_args`).
 
 ## Routing
 
-- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. A module router consumes its key and calls `router_call(table, n, ctx, in + 1, in_len - 1, …)`, which looks up the next key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. So every level shows in the error chain.
+- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. The root calls `router_call(table, n, ctx, in, …)`, which looks up the key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. A module router consumes its key and calls `router_call_op(k_ops, n, ctx, in + 1, in_len - 1, …)` on `[dir][code][args]`: it finds the code's row, takes the side `dir` asks for (`cmd_side`), calls it with `[code][args]` and wraps a failure in `ERR_ROUTER_KEY{code}`. So every level shows in the error chain.
+- **Command table**: `router_op_t {code, read, write}`, one row per command: `ROUTER_R(code, fn)`, `ROUTER_W(code, fn)` or `ROUTER_RW(code, read, write)` (NULL = no such side). What each side takes and answers: CMD.MD "Read and write".
 - **Writing ops**: the native C API stays the source (typed, no packing on internal calls, callbacks and handles); an op only adapts it. Use the macros, not hand-written `cmd_f`s:
   - `ROUTER_OP(fn, args_t) { … }`: fixed packed payload, the body gets `args` (`const args_t*`).
   - `ROUTER_OP_NOARGS(fn) { … }`: no payload.
   - `ROUTER_OP_TAIL(fn, hdr_t) { … }`: header plus a variable tail (`tail`, `tail_len` ≥ 1), e.g. a NUL-ended name or data bytes.
-  - `ROUTER_MODULE(fn, k_ops)`: writes the module's `cmd_f` (prefix `static` for a file-local one); `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
+  - `ROUTER_MODULE(fn, k_ops)`: writes the module's `cmd_f` over its command table (`router_call_op`; prefix `static` for a file-local one); `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
   Bodies also see `ctx`, `out`, `out_cap`, `out_len` (answer with `cmd_reply`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API.
 - Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`main`). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`).
 - `out_cap` is limited to what the origin link carries right now; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big).
@@ -54,7 +57,7 @@ link RX task ── router_submit(link, frame) ──► copy into ring buffer
 
 ### Internal link, tap, origin
 
-- **Link 0 (`ROUTER_LINK_INTERNAL`)** is the board itself. `router_inject(req, len, urgent)` queues keys + payload (seq from an internal counter, flags from `urgent`) on the same rings and tasks as link frames; answers are dropped (the internal link has no `send`), errors are still reported (link `internal`). Injected frames are not shown to the watch (they prove no client is alive). Task context, never blocks (`ERR_ROUTER_QUEUE_FULL`, `ERR_ROUTER_FRAME_LEN`). `router_submit` refuses link 0.
+- **Link 0 (`ROUTER_LINK_INTERNAL`)** is the board itself. `router_inject(req, len, urgent)` queues a request without seq / flags (`[key][dir]…[payload]`; seq from an internal counter, flags from `urgent`) on the same rings and tasks as link frames; answers are dropped (the internal link has no `send`), errors are still reported (link `internal`). Injected frames are not shown to the watch (they prove no client is alive). Task context, never blocks (`ERR_ROUTER_QUEUE_FULL`, `ERR_ROUTER_FRAME_LEN`). `router_submit` refuses link 0.
 - **Tap** `router_set_tap(&{take, seen})` (boot, by the app): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a frame that was not taken. Both run on the routing task for every link. Used by the actions recorder (SYS_ACTIONS.MD).
 - **Origin** `router_origin()`: the command the calling task is routing (link, seq, request), NULL outside the router tasks; inside a replay it is still the outer command.
 - **More than one answer** `router_answer_part(out, len)`: sends the first `len` bytes of the op's own `out` buffer as an extra OK answer (same `seq` and link) before the op returns. A command that answers with several packets sends all but the last this way and returns the last (actions READ: one packet per recorded frame). The client matches by `seq` and knows the count; an error answer ends the series.
@@ -76,9 +79,9 @@ link RX task ── router_submit(link, frame) ──► copy into ring buffer
 | `ERR_ROUTER_TABLE_FULL` | HIGH | `u8 key` | Root table capacity (`CONFIG_ROUTER_MAX_KEYS`) reached |
 | `ERR_ROUTER_BAD_LINK` | HIGH | `u8 link` | Invalid link ID, unregistered link or slot taken |
 | `ERR_ROUTER_QUEUE_FULL` | MEDIUM | `u8 link, u8 urgent` | Inbound ring buffer full; frame dropped |
-| `ERR_ROUTER_FRAME_LEN` | MEDIUM | `u8 link, u16 len, u16 max` | Frame too short (< 3 B) or exceeds link max length |
+| `ERR_ROUTER_FRAME_LEN` | MEDIUM | `u8 link, u16 len, u16 max` | Frame too short (< 4 B: seq, flags, key, dir) or exceeds link max length |
 
-Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD` = 11 (CMD.MD).
+Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIRECTION` belong to `ERR_MOD_CMD` = 11 (CMD.MD).
 
 ## Root keys and links
 
@@ -88,10 +91,10 @@ Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD
 | `0x02` i2c | `sys_i2c_router` | SYS_I2C.MD "Remote" |
 | `0x03` ble | `sys_ble_router` | SYS_BLE.MD "Remote" |
 | `0x04` conn | `sys_connector_router` | SYS_CONNECTOR.MD "Remote" |
-| `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[id u16][op u16][args]` |
+| `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[dir][id u16][op u16][args]` |
 | `0x06` actions | `sys_actions_router` | SYS_ACTIONS.MD |
 | `0x07` event | – (no router) | frame shape of the events stream: `[0x07][0x01 NOTIFY][sys_event_t]`, SYS_EVENT.MD |
-| `0x08` log | `sys_log_router` | SYS_LOG.MD (log options SET / GET) |
+| `0x08` log | `sys_log_router` | SYS_LOG.MD (log options CONFIG, error history ERRORS) |
 | `0x09` | – | Reserved (unused) |
 | `0x0A` power | `sys_power_manager_router` | SYS_POWER_MANAGER.MD |
 | `0x0B` vm | `vm_router` | VM_CORE.MD (build, run and watch a program) |

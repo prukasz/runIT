@@ -123,7 +123,7 @@ qemu-system-xtensa -M esp32s3 -m 32M -drive file=qemu_flash.bin,if=mtd,format=ra
 python router_tests.py --port socket://localhost:5555 --target qemu
 ```
 
-Expected under QEMU: I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` (no devices / pull-ups), GPIO `GET_LEVEL` readback fails (no GPIO readback).
+Expected under QEMU: I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` (no devices / pull-ups), a GPIO `LEVEL` read back fails (no GPIO readback).
 
 **QEMU hangs at boot because `esp_adc` is linked** (device_gpio_esp's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached; it returns early from that constructor on every boot (so the RESTART test works too):
 

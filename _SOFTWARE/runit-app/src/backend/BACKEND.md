@@ -7,7 +7,7 @@ const link = new RunitLink(new WebBluetoothPlatform(bundledLinkDefinitions()))
 await link.connect(await platform.requestDevice())            // a user gesture; or platform.knownDevices() with no chooser
 link.onStatus((s) => …)                                       // { state, reason?, attempt? }
 link.onStream((f) => …)                                       // telemetry / logs / errors / events: { stream, name, data }
-const out = await link.request({ keys: [defs.keys.sys, 0x01] }) // PING; keys = root key, then the op
+const out = await link.request({ keys: [defs.keys.sys, defs.dir.read, 0x01] }) // PING; keys = root key, the side (dir), then the op
 await loadProgram(link, engine.compile(project).frames, { onProgress: (done, total) => … })   // in order, each answered; again from OPEN if the link fails
 ```
 
@@ -15,7 +15,7 @@ await loadProgram(link, engine.compile(project).frames, { onProgress: (done, tot
 
 | Module | What it is |
 |---|---|
-| `definitions.ts` | The only file that reads `generated/` (the firmware's own actions: `onboardActions`, `RUNIT_ACTION_ID_*`): router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up); the board (`bundledBoard`, `board.json`, or `board_devkit.json` when the app was started for a devkit: `appBoardKind`, `VITE_RUNIT_BOARD`; its devices, the pins each uses, I2C buses, the pins set up at boot and the reserved ones, and `power`: the input and each regulator rail by the power monitor channel that measures it) and the firmware's onboard action IDs (`onboardActionIds`, the `RUNIT_ACTION_ID_*` limits). A symbol the firmware stops publishing stops the load with a message that names it. |
+| `definitions.ts` | The only file that reads `generated/` (the firmware's own actions: `onboardActions`, `RUNIT_ACTION_ID_*`): router keys, flags, status, stream bytes, the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`, `ble_frag` in `enums.json`), `ROUTER_FRAME_MAX` (`limits.json`), the error tags (`errors.json`); the direction byte (`dir`, `cmd_dir_e`); the ops of the `actions` and `project` routers by command id (`ops`) with the side each is sent with (`opDirs`: its write, else its read) and the project's boot option (`projectBoot`: none / load / run, `sys_project_boot_e`); every service, contract and device descriptor (`bundledServiceCatalog`, a glob: a new file is picked up); the board (`bundledBoard`, `board.json`, or `board_devkit.json` when the app was started for a devkit: `appBoardKind`, `VITE_RUNIT_BOARD`; its devices, the pins each uses, I2C buses, the pins set up at boot and the reserved ones, and `power`: the input and each regulator rail by the power monitor channel that measures it) and the firmware's onboard action IDs (`onboardActionIds`, the `RUNIT_ACTION_ID_*` limits). A symbol the firmware stops publishing stops the load with a message that names it. |
 | `catalog/` | `services.ts`: `ServiceCatalog`, every command of every router as the descriptors describe it (a device type also its pins, `provides.pins`, and its config presets), and what does not hold together in them (`problems`). `codec.ts`: a payload from field values and back, by the descriptor's layout. |
 | `protocol/` | `frames.ts`: request `[seq][flags][keys…][payload]`, response `[stream][seq][status][data]` (ROUTER.MD). `errors.ts`: the error record (source, command, chain of tags with their fields, named from `errors.json`). `events.ts`: `decodeEvent`, a frame of the events stream (`[event key][NOTIFY][sys_event_t]`, SYS_EVENT.MD) with its contract and its row of that contract's `events` table (`SUSPENDED` of a device, an over-current). `services.ts`: the request of any catalog command (one side of it) and its answer decoded; `readDeviceFrame`, a device frame of a record back into its command, side and arguments (a CREATE into the type and its config). |
 | `errors/` | `interpret.ts`: `ErrorInterpreter`, an error record read for a user (messages, the instances it is about as `Ref`s). `program.ts`: `programRefs` / `deviceRefs`, the app's names for those instances. |
@@ -32,7 +32,7 @@ The backend names no service, contract, command or field: it reads them from the
 | device contract | `contract_id`, no router key (`generated/contracts`) | `[device key][dir][device id u16][(contract id << 8) \| op u16][args]` (SYS_DEVICE.MD "Ops") |
 | device type | `type_id` (`generated/devices`) | its own ops in contract `SYS_DEVICE_CONTRACT_OWN`; CREATE (device contract `SYS_DEVICE_CONTRACT_DEVICE`, a write) carries `[type u16][config]` |
 
-**A command has a read side, a write side or both** (`CommandDef.read`, `.write`: each its own `args` and `returns`), and every request says which with the byte after the root key (`dir`: `cmd_dir_e` in `enums.json`, `LinkDefinitions.dir`, `catalog.dirs`; CMD.MD). A command with both is a mirror: its read takes the key (a pin, a channel; nothing for a module's setting) and answers what its write takes. A write answers no data unless its side has `returns`. A call of a command with one side runs it; one with both is told which (`side`, else it throws), and `sidesOf`, `sideOf`, `isMirror` say what a command has.
+**A command has a read side, a write side or both** (`CommandDef.read`, `.write`: each its own `args` and `returns`), and every request says which with the byte after the root key (`dir`: `cmd_dir_e` of `cmd.h`, in `enums.json`; `LinkDefinitions.dir`, `catalog.dirs`). A command with both is a mirror: its read takes the key (a pin, a channel; nothing for a module's setting) and answers what its write takes. A write answers no data unless its side has `returns`. A call of a command with one side runs it; one with both is told which (`side`, else it throws), and `sidesOf`, `sideOf`, `isMirror` say what a command has.
 
 ```ts
 const services = new Services(link)                                              // the bundled catalog by default
@@ -111,16 +111,20 @@ The board keeps commands in NVS as records (SYS_ACTIONS.MD) and a whole project 
 
 ```ts
 await storeRecord(link, 10, [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(22, 0))])   // a user action (a write of IO LEVEL), run later with runRecord(link, 10)
-await saveProject(link, {                                                                  // settings, devices, then the program (last)
+const start = engine.exec('normal')
+await saveProject(link, {                                                                  // settings, devices, the program, then its start
   sections: [{ id: deviceRecordId(1), frames: [...] }],
-  program: [...result.frames, engine.exec('normal')].map((f) => vmFrame(defs, f.op, f.payload)),
-}, { boot: link.defs.projectBoot.run, onProgress })
-const info = await projectInfo(link)                       // { stored, boot, crc, bytes }: the CRC and length of the stream saved
+  program: result.frames.map((f) => vmFrame(defs, f.op, f.payload)),
+  start: [vmFrame(defs, start.op, start.payload)],
+}, { boot: link.defs.projectBoot.run, onProgress })        // the boot option: none / load / run, done at a boot and right after the save
+const info = await projectInfo(link)                       // { stored, boot, bank, crc, bytes }: the CRC and length of the stream saved
+await loadProject(link); await runProject(link)            // LOAD: every section but the start (the program waits); RUN: the start too
+await setProjectBoot(link, link.defs.projectBoot.load)     // PROJECT OPTIONS write
 const stored = await readProject(link)                     // { info, sections, program, verified } read back from NVS
 const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))   // the project, decompiled
 ```
 
-`projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0 last) and `crc32` is zlib's. A record holds writes only (`[key][dir][op][args]`, dir the write: the board records no read, SYS_ACTIONS.MD): `vmFrame`, `deviceFrame` and the section frames are writes; `programFrameOf` reads a VM write back. Checked on a board: the stream built here (one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run, in the frames with the direction byte, are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
+`projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0, then the start section `0xFFFFFFFF`, `SECTION_START`) and `crc32` is zlib's. A record holds writes only (`[key][dir][op][args]`, dir the write: the board records no read, SYS_ACTIONS.MD): `vmFrame`, `deviceFrame` and the section frames are writes; `programFrameOf` reads a VM write back. Checked on a board: the stream built here (one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in, so `verified` is true. The records of that run, in the frames with the direction byte, are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.
 
 ## Errors for a user
 
@@ -195,7 +199,7 @@ await loadProgram(link, [...result.frames, engine.exec('normal')], {
 
 ## Tests
 
-`npm test` from `runit-app/`. Fixtures captured from a board: `tests/backend/fixtures/board-streams.json` (telemetry and log frames), `stored-project.json` (a saved project and its records). On a board: `.claude/skills/runit-esp/scripts/ble_suite.py` (build.md §6) drives the same protocol from a PC; its `load` scenario sends frames the engine compiled (a JSON of `{op, payload}`) to a real board, `capture` also applies runtime writes and records every stream raw. `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
+`npm test` from `runit-app/`. Fixtures captured from a board: `tests/backend/fixtures/board-streams.json` (telemetry and log frames), `stored-project.json` (a saved project and its records). `tests/backend/fakes.ts` is a board behind a fake platform (reassembles what is written, answers on notify, drops the link, fails or hangs an open). `link.test.ts` covers requests, order, parts, errors, timeouts, streams, reconnecting, the stall and the late open.
 
 **The backend on a board:** `npm run test:hw` (`vitest.hardware.config.ts`, `tests/hardware/*.hw.test.ts`) runs this TypeScript backend itself, the real `RunitLink`, `Services`, `DeadMan`, `ErrorLog`, `loadProgram` and `saveProject`, against a board over the PC's Bluetooth. Node has no BLE, so `tests/hardware/bleakPlatform.ts` is a `BlePlatform` that moves packets through `bleak_bridge.py` (bleak, JSON lines on stdio); framing, commands and the connection logic stay the backend's. `uart_tap.py` reads the board's console beside it (`Console` in `uart.ts`): what the firmware logs is the independent witness for what the app infers (the safe state, a panic). Environment: `HW_UART` (console port, default `COM9`), `HW_NAME` (advertised name, default `runit`), `HW_ADDRESS`, `HW_PYTHON` (default `../.venv`, which has bleak and pyserial). One file at a time, in order:
 

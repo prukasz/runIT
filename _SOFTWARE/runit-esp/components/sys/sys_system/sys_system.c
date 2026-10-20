@@ -18,8 +18,8 @@ static struct {
   uint32_t pending;        // bit per sys_safe_reason_e waiting for the urgent task
   sys_safe_state_f safe_state;
   sys_safe_leave_f safe_leave;
-  /* The safe state as noted for SAFE_GET: the reason of the last entry (0 = not in it) and its tick. Written by
-   * whoever enters it (the router's task, the dead-man, the power manager), read by SAFE_GET: single words, a torn
+  /* The safe state as noted for SAFE: the reason of the last entry (0 = not in it) and its tick. Written by
+   * whoever enters it (the router's task, the dead-man, the power manager), read by SAFE: single words, a torn
    * pair only skews the age by one entry. */
   volatile uint8_t safe_reason;
   volatile TickType_t safe_since;

@@ -45,7 +45,7 @@ typedef struct __attribute__((packed)) {  // 14 B
 | | `OCP` | `0x0501` | NOTIFY | mA |
 | | `SCP` | `0x0502` | NOTIFY | 0 |
 | | `READY` | `0x0503` | 0 (code flow) | mV |
-| POWER_MANAGER (`0x06`) | `SOURCE_CHANGED`, `BATTERY_LOW`, `BATTERY_CRITICAL`, `BUDGET_EXCEEDED`, `INPUT_OVP` | `0x0600`–`0x0604` | NOTIFY | per event |
+| POWER_MANAGER (`0x06`) | `SOURCE_CHANGED`, `BATTERY_LOW`, `BATTERY_CRITICAL`, `BUDGET_EXCEEDED`, `INPUT_OVP`, `PD_FIXED` | `0x0600`–`0x0605` | NOTIFY | per event |
 | HBRIDGE (`0x09`) | `OVERCURRENT` | `0x0900` | NOTIFY | mA |
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
@@ -57,7 +57,7 @@ Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6
 `sys_event_publish(&ev)`:
 
 1. `t_ms` is set.
-2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
+2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. It has no dir byte: it is an outbound frame, not a request. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
 3. Inline listeners, table order.
 4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 
@@ -82,7 +82,7 @@ ERR_TRY(sys_event_subscribe(&(sys_event_sub_t){
 - **Match**: `source` exact or `SYS_EVENT_ANY_SOURCE` (0xFFFF); `event` exact, `SYS_EVENT_ANY_EVENT` (0xFFFF) or `(contract << 8) | SYS_EVENT_ANY_IN` (any event of a contract); `channel` exact or `SYS_EVENT_ANY_CHANNEL` (0xFF).
 - **Match function**: `sys_event_matches(source, event, channel, &ev)` is the rule above as a function, for code that filters events itself (the VM's `ON_EVENT` block); the subscription table uses the same one.
 - **Inline** (`inline_call`): in the publisher's task before publish returns. May block on I/O (I2C), never on a delay or timeout. **Queued**: the event task (`CONFIG_SYS_EVENT_TASK_PRIO`, default 6: above router work, below urgent).
-- **Target device** (`device` ≠ `SYS_DEVICE_ID_NONE`): `sys_device_call(device, EVENT_OP_ON_EVENT, &ev)`. The EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03) has one op, `EVENT_OP_ON_EVENT` = 0x0300, with no X-macro table; `EVENT_HANDLER(ON_EVENT)` / `EVENT_ENTRY(ON_EVENT)`, args = `sys_event_t`. A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
+- **Target device** (`device` ≠ `SYS_DEVICE_ID_NONE`): `sys_device_write(device, EVENT_OP_ON_EVENT, &ev, sizeof(ev))`. The EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03) has one op, `EVENT_OP_ON_EVENT` = 0x0300, a write, with no X-macro table; `EVENT_WRITE(ON_EVENT)` / `EVENT_ENTRY_W(ON_EVENT)`, args = `sys_event_t`. A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
 - **Target fn** (`device` = `SYS_DEVICE_ID_NONE`): `fn(ev, ctx)`. Only for modules that live forever (the VM, the power manager). The matching slot is copied out under a spinlock and the function is called without it, so an unsubscribe doesn't wait for a delivery in progress.
 - `CONFIG_SYS_EVENT_MAX_SUBS` (32, up to 255) slots; the handle is the slot; `ERR_EVENT_TABLE_FULL` when none is free.
 

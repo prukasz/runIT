@@ -369,7 +369,7 @@
         "id": { "$ref": "#/$defs/identifier" },
         "alias": { "type": "string", "minLength": 1 },
         "description": { "type": "string", "minLength": 1 },
-        "op": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "Id of a command of the contract in 'device.contract' (HBRIDGE: SET_DRIVE), or of the device in 'device.device_type' (drv8962: set_current_limit). Its arguments become the variant's values and its results output pins. On the wire the operation is the u16 `(contract_id << 8) | op` of a contract command, or `0xFF00 | op` (SYS_DEVICE_CONTRACT_OWN) of a device's own command. A custom block's variant that runs a device command names it here and describes the command's arguments in 'args', not in 'fields'." },
+        "op": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$", "description": "Id of a command of the contract in 'device.contract' (HBRIDGE: DRIVE), or of the device in 'device.device_type' (drv8962: current_limit). Its arguments become the variant's values and its results output pins. On the wire the operation is the u16 `(contract_id << 8) | op` of a contract command, or `0xFF00 | op` (SYS_DEVICE_CONTRACT_OWN) of a device's own command. A custom block's variant that runs a device command names it here and describes the command's arguments in 'args', not in 'fields'." },
           "dir": {
             "type": "string",
             "enum": ["read", "write"],
@@ -415,7 +415,8 @@
           "id": "on",
           "alias": "On",
           "description": "Drives a pin high.",
-          "op": "SET_LEVEL",
+          "op": "LEVEL",
+          "dir": "write",
           "args": { "level": { "fixed": 1, "hidden": true } },
           "header": { "subtitle": "{pin} on" }
         },
@@ -423,7 +424,8 @@
           "id": "off",
           "alias": "Off",
           "description": "Drives a pin low.",
-          "op": "SET_LEVEL",
+          "op": "LEVEL",
+          "dir": "write",
           "args": { "level": { "fixed": 0, "hidden": true } },
           "header": { "subtitle": "{pin} off" }
         },
@@ -431,7 +433,8 @@
           "id": "set_level",
           "alias": "Set level",
           "description": "Drives a pin high or low; a wired level wins over the one in the body.",
-          "op": "SET_LEVEL",
+          "op": "LEVEL",
+          "dir": "write",
           "args": { "pin": { "required": true }, "level": { "input": "optional", "accepts": ["number", "accessor"] } },
           "header": { "subtitle": "{pin} = {level}" }
         },
@@ -439,7 +442,8 @@
           "id": "read_level",
           "alias": "Read level",
           "description": "Reads the level of a pin.",
-          "op": "GET_LEVEL",
+          "op": "LEVEL",
+          "dir": "read",
           "activation": { "kind": "enabled", "text": "Reads on every pass while enabled." },
           "header": { "subtitle": "Read {pin}" }
         }

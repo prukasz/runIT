@@ -15,7 +15,7 @@ Component `components/sys/sys_project/`. The pipeline that saves a whole **proje
 
 ## The save: one stream
 
-The app sends the project as **one stream**: frames back to back, `[u16 len LE][keys + payload]` (the image format of a record), cut into **sections**. A section opens with a SECTION frame `[0x0C][0x10][u32 id]`; the frames after it belong to it.
+The app sends the project as **one stream**: frames back to back, `[u16 len LE][key][dir][…]` (the image format of a record), cut into **sections**. A section opens with a SECTION frame `[0x0C][0x01][0x10][u32 id]`; the frames after it belong to it.
 
 | Section id | The frames become |
 |---|---|
@@ -26,7 +26,7 @@ The app sends the project as **one stream**: frames back to back, `[u16 len LE][
 The order is the run order: the records (system, devices), then the program, then the start; one program and one start at the most, either may be missing (`ERR_PROJECT_ORDER`). Sections are stored in the stream's order, each at most the limit of its class (a device record 512 bytes).
 
 ```
-stream:  [SECTION 0x01000001][log SET frame]                       -> record 0x01000001
+stream:  [SECTION 0x01000001][log CONFIG write]                    -> record 0x01000001
          [SECTION 0x02000000][CREATE, defaults ...]                -> record 0x02000000
          [SECTION 0][frame][frame]...(any number)                  -> chunks 1, 2, 3 ... and the list 0
          [SECTION 0xFFFFFFFF][EXEC normal]                         -> the start, 0xFFFF
@@ -42,7 +42,7 @@ Nothing a project changes is touched while the stream comes: every section is st
 
 1. stores the program's list of chunks;
 2. copies every staged section to its own ID (`sys_actions_copy`, no flash write when it is the same image) and frees the staging record;
-3. stores the **project record**: `[0x0C][0x11 MARK][u8 bank, u32 stream crc32, u32 stream length]`, then one `RUN_ALL <id>` frame per section in order, then `RUN <list>` for the program. **This is the commit point**: until it is stored, the old project is the stored one;
+3. stores the **project record**: `[0x0C][0x01][0x11 MARK][u8 bank, u32 stream crc32, u32 stream length]`, then one `RUN_ALL <id>` frame per section in order, then `RUN <list>` for the program. **This is the commit point**: until it is stored, the old project is the stored one;
 4. clears the other bank (the old program).
 
 A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` after a power cut) drops the staged records and leaves the stored project and the settings as they were. Only a flash failure *inside* step 2 can leave some settings new: they are separate records.

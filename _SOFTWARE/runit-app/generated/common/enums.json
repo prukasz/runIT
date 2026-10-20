@@ -557,31 +557,31 @@
           "name": "SYS_ACTIONS_ID_LOG",
           "value": 16777217,
           "alias": "Log",
-          "description": "Log options SET frame"
+          "description": "Log options: the CONFIG write"
         },
         {
           "name": "SYS_ACTIONS_ID_POWER_CFG",
           "value": 16777218,
           "alias": "Power configuration",
-          "description": "Power configuration SET_CONFIG"
+          "description": "Power configuration: the CONFIG write"
         },
         {
           "name": "SYS_ACTIONS_ID_POWER_PSU",
           "value": 16777219,
           "alias": "Power supply",
-          "description": "Power supply SET_PSU"
+          "description": "Power supply: the PSU write"
         },
         {
           "name": "SYS_ACTIONS_ID_POWER_BATTERY",
           "value": 16777220,
           "alias": "Battery",
-          "description": "Battery SET_BATTERY"
+          "description": "Battery: the BATTERY write"
         },
         {
           "name": "SYS_ACTIONS_ID_POWER_RESPONSES",
           "value": 16777221,
           "alias": "Power responses",
-          "description": "Power responses SET_RESPONSES"
+          "description": "Power responses: the MATRIX write"
         },
         {
           "name": "SYS_ACTIONS_ID_BLE",
@@ -599,7 +599,7 @@
           "name": "SYS_ACTIONS_ID_POWER_PD",
           "value": 16777224,
           "alias": "USB-PD request",
-          "description": "USB-PD request SET_PD"
+          "description": "USB-PD request: the PD write"
         }
       ]
     },

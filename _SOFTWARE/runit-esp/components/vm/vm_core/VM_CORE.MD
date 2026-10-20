@@ -44,39 +44,39 @@ Rules everything else follows:
 
 ## Remote (`ROUTER_KEY_VM` = 0x0B, `vm_router.h`)
 
-Ops never renumber.
+A request is `[0x0B][dir][op][payload]`: `dir` (`cmd_dir_e`, read 0 / write 1) picks the side of the op (a side the op does not have: `ERR_CMD_DIRECTION`). Ops never renumber.
 
-| Op | Payload | Effect |
-|---|---|---|
-| `0x01` RESET | – | Unload everything; leaves the VM stopped |
-| `0x02` OPEN | `vm_wire_open_t` | Replace the program with an empty one of this size (fail closed) |
-| `0x03` ADD_OBJECTS | `u8 n`, n × (`vm_wire_obj_t`, name) | Create + bind objects |
-| `0x04` SET_DATA | `u8 n`, n × (`vm_wire_data_t`, data) | Stopped: load values and PTR links. Running: a runtime write, applied at the next pass start |
-| `0x05` ADD_ACCESSORS | `u8 n`, n × (`vm_wire_acc_t`, steps) | Create + bind + pre-resolve |
-| `0x06` ADD_BLOCK | `vm_wire_block_t`, pins, state | One block per frame, in execution order |
-| `0x07` SUBSCRIBE | `u8 n`, n × `vm_wire_sub_t` | Telemetry for those objects; 0 clears |
-| `0x08` EXEC | `vm_wire_exec_t` | `vm_exec_command_e` (scan, once, block, next, rewind, normal, pause, resume, reset, ack fault, forget retained) |
-| `0x09` SPEED | `vm_wire_speed_t` | Slow motion (debugging aid): `factor`, and the `step_ms` of stepping (a 2-byte body is the factor alone) |
-| `0x0A` STATUS | – | Answers `vm_wire_status_t`: run mode (`vm_run_mode_e`), load state, `ready` (loaded and complete: EXEC can start it), the latched fault (device and root tag, meaningful only while latched), slow-down, pass count, last pass time, arena bytes used, `next_block` (the block the next `NEXT` runs in block mode, `0xFFFF` otherwise). Reads only, at any time |
+| Op | Dir | Payload | Effect |
+|---|---|---|---|
+| `0x01` RESET | W | – | Unload everything; leaves the VM stopped |
+| `0x02` OPEN | W | `vm_wire_open_t` | Replace the program with an empty one of this size (fail closed) |
+| `0x03` ADD_OBJECTS | W | `u8 n`, n × (`vm_wire_obj_t`, name) | Create + bind objects |
+| `0x04` DATA | W | `u8 n`, n × (`vm_wire_data_t`, data) | Stopped: load values and PTR links. Running: a runtime write, applied at the next pass start |
+| `0x05` ADD_ACCESSORS | W | `u8 n`, n × (`vm_wire_acc_t`, steps) | Create + bind + pre-resolve |
+| `0x06` ADD_BLOCK | W | `vm_wire_block_t`, pins, state | One block per frame, in execution order |
+| `0x07` SUBSCRIBE | W | `u8 n`, n × `vm_wire_sub_t` | Telemetry for those objects; 0 clears |
+| `0x08` EXEC | W | `vm_wire_exec_t` | `vm_exec_command_e` (scan, once, block, next, rewind, normal, pause, resume, reset, ack fault, forget retained) |
+| `0x09` SPEED | W | `vm_wire_speed_t` | Slow motion (debugging aid): `factor`, and the `step_ms` of stepping (a 2-byte body is the factor alone) |
+| `0x0A` STATUS | R | – | Answers `vm_wire_status_t`: run mode (`vm_run_mode_e`), load state, `ready` (loaded and complete: EXEC can start it), the latched fault (device and root tag, meaningful only while latched), slow-down, pass count, last pass time, arena bytes used, `next_block` (the block the next `NEXT` runs in block mode, `0xFFFF` otherwise). At any time |
 
-**Load order**: RESET or OPEN, ADD_OBJECTS, SET_DATA (initial values, PTR links), ADD_ACCESSORS, ADD_BLOCK one by one, then EXEC. The first start checks the program is complete (`vm_loader_verify_complete`).
+**Load order**: RESET or OPEN, ADD_OBJECTS, DATA (initial values, PTR links), ADD_ACCESSORS, ADD_BLOCK one by one, then EXEC. The first start checks the program is complete (`vm_loader_verify_complete`).
 
 **Fail closed**: any failing load op (OPEN to ADD_BLOCK, and the first start) discards the whole program (`vm_loader_abort`): the cause comes back wrapped in `ERR_VM_LOAD_ABORTED {packet = the op}` and the upload restarts at OPEN. Nothing is rolled back piecemeal.
 
-**While running**: ADD_OBJECTS, ADD_ACCESSORS and ADD_BLOCK are refused and leave the program as it is; SET_DATA is a runtime write (`vm_override`, a ring of `CONFIG_VM_OVERRIDE_BUF_SIZE` bytes) applied at the next pass start, refused for a `usr_protected` object; OPEN replaces the running program.
+**While running**: ADD_OBJECTS, ADD_ACCESSORS and ADD_BLOCK are refused and leave the program as it is; DATA is a runtime write (`vm_override`, a ring of `CONFIG_VM_OVERRIDE_BUF_SIZE` bytes) applied at the next pass start, refused for a `usr_protected` object; OPEN replaces the running program.
 
 The object head on the wire is an explicit 4-byte layout (`vm_wire_head_t`, `vm_wire_head_pack` / `_unpack`): u16 payload size, type | name length << 4, flags (mutable 0, upd_resetable 2, tagged 3, retentive 4, dynamic 5, usr_protected 6; bits 1 and 7 read as 0). Only mutable, upd_resetable, retentive and usr_protected are taken from the wire; tagged and dynamic are the board's.
 
 ### Telemetry is the same command
 
-A telemetry frame sent by `vm_sub.c` on the telemetry connector (`SYS_CONNECTOR_TELEMETRY`) is exactly a command of this router, without `seq` / `flags`:
+A telemetry frame sent by `vm_sub.c` on the telemetry connector (`SYS_CONNECTOR_TELEMETRY`) is a write of this router without `seq` / `flags` and without the direction byte (a stream frame has no side):
 
 ```
-values        [0x0B][0x04 SET_DATA][u8 count] count × (vm_wire_data_t, data)
+values        [0x0B][0x04 DATA][u8 count] count × (vm_wire_data_t, data)
 heap objects  [0x0B][0x03 ADD_OBJECTS][u8 count] count × (vm_wire_obj_t, name)
 ```
 
-So the board writes values out in the format the app writes them in: a telemetry frame can be sent back as a command (it sets the same values), recorded into a record (SYS_ACTIONS.MD), and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`).
+So the board writes values out in the format the app writes them in: with `0x01` (write) after the key a telemetry frame is a command (it sets the same values) and can be stored in a record (SYS_ACTIONS.MD), and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`).
 
 Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; sampled at the end of every pass, and in block mode also at every stop before a block (`block_gate` in `vm_exec.c`, once per stop), so a stepped program shows what each block did; an object larger than a frame is split by `start_idx`, and one larger than the connector queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_VM_SUB_TRACK_FULL`), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
 
@@ -99,7 +99,7 @@ Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the s
 ## Open
 
 - **Palette:** blocks for the own operations of the other devices (VM_BLOCKS.MD "Not yet written"); "run once at start" as an explicit block option.
-- **Retained values as a record:** a snapshot as `SET_DATA` frames in a record would make readback symmetric with the rest; for now a plain NVS blob.
+- **Retained values as a record:** a snapshot as `DATA` frames in a record would make readback symmetric with the rest; for now a plain NVS blob.
 - **Initial values are not fresh:** values uploaded with the program don't trigger anything, so a block triggered by its inputs (EXPR, SET, ...) does nothing until an input is written at run time. The app writes the inputs (or a gate) once after the start.
 - **Start with no program:** `EXEC` normal on an empty VM succeeds (`vm_loader_verify_complete` checks only an open program) and runs zero blocks. Undecided whether this should be an error.
 - **Lost answers:** a request now and then gets no answer on the USB-Serial-JTAG link (about twice in 1500 requests, not repeatable); no cause found.

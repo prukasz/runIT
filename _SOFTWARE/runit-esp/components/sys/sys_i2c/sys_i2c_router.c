@@ -7,8 +7,8 @@
  *   0x01 INFO        -                                sys_i2c_info_t[SYS_I2C_BUS_COUNT]
  *   0x02 SCAN        { u8 bus }                       { u32 found[4] } bit n = address n acked
  *   0x03 RESET       { u8 bus }                       -
- *   0x04 RAW_READ    { u8 bus, addr, reg, len }       len bytes
- *   0x05 RAW_WRITE   { u8 bus, addr, reg } data[1..]  - */
+ *   0x04 RAW         read  { u8 bus, addr, reg, len } { u8 bus, addr, reg } + len bytes
+ *                    write { u8 bus, addr, reg } data[1..]  - */
 
 #define SYS_I2C_OP_INFO      0x01u
 #define SYS_I2C_OP_SCAN      0x02u

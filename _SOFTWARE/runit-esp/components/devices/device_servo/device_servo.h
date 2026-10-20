@@ -37,7 +37,7 @@ typedef struct __attribute__((packed)) {
 #define SERVO_OP_TRIM    SYS_DEVICE_OWN_OP(0x01)  // servo_trim_t: added to every target, applied by the next move
 #define SERVO_OP_TARGET  SYS_DEVICE_OWN_OP(0x02)  // servo_set_t: move to a position
 #define SERVO_OP_PULSE   SYS_DEVICE_OWN_OP(0x03)  // -> u16 us, the pulse last sent (0 = not driven)
-#define SERVO_OP_RELEASE SYS_DEVICE_OWN_OP(0x04)  // stop the pulse: the servo goes limp; the next SET / HOME drives it again
+#define SERVO_OP_RELEASE SYS_DEVICE_OWN_OP(0x04)  // stop the pulse: the servo goes limp; the next TARGET / HOME drives it again
 
 #define SERVO_TRIM_MAX 500  // +-: degrees for an angle servo (the pulse range limits it anyway), us for a continuous one
 

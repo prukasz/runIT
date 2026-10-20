@@ -32,20 +32,20 @@ System IDs (class `0x01`):
 
 | ID | Record | Set by |
 |---|---|---|
-| `0x01000001` `SYS_ACTIONS_ID_LOG` | log options (SET frame) | log |
-| `0x01000002` `SYS_ACTIONS_ID_POWER_CFG` | power SET_CONFIG | power |
-| `0x01000003` `SYS_ACTIONS_ID_POWER_PSU` | power SET_PSU | power |
-| `0x01000004` `SYS_ACTIONS_ID_POWER_BATTERY` | power SET_BATTERY | power |
-| `0x01000005` `SYS_ACTIONS_ID_POWER_RESPONSES` | power SET_RESPONSES (the whole matrix) | power |
+| `0x01000001` `SYS_ACTIONS_ID_LOG` | log options (the CONFIG write) | log |
+| `0x01000002` `SYS_ACTIONS_ID_POWER_CFG` | power CONFIG | power |
+| `0x01000003` `SYS_ACTIONS_ID_POWER_PSU` | power PSU | power |
+| `0x01000004` `SYS_ACTIONS_ID_POWER_BATTERY` | power BATTERY | power |
+| `0x01000005` `SYS_ACTIONS_ID_POWER_RESPONSES` | power MATRIX (the response matrix) | power |
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
 | `0x01000007` `SYS_ACTIONS_ID_CONN` | data streams and bindings | connector |
-| `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power SET_PD (the USB-PD request) | power |
+| `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
 
 Any client may write any class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
 
-**Settings are records.** A settings record is the module's own SET frame (`[root key][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][level, mirror, trace, errors, logs]`. The module's SET applies the value live and stores nothing. Persistence is the app uploading (or recording) the record. A matrix of values is set whole (`SET_RESPONSES`).
+**Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][0x01][level, mirror, trace, errors, logs]` (log CONFIG). The write applies the value live and stores nothing. Persistence is the app uploading (or recording) the record.
 
-**Image.** Frames back to back, each `[u16 len LE][keys + payload]`: what `router_route` takes (no seq, no flags), 1..`CONFIG_ROUTER_FRAME_MAX - 2` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
+**Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CONFIG_ROUTER_FRAME_MAX - 2` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
 
 **Storage.** Namespace `actions` in the `project` partition (`CONFIG_SYS_ACTIONS_PARTITION`, 512 KB), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one blob per record. One `nvs_set_blob` per store; NVS keeps the old value until the new one is complete. A partition NVS can't use (no free pages, new version) is erased at init.
 The store checks framing only, not content. A frame the router can't take fails at its step (`ERR_ROUTER_UNKNOWN_KEY` for an unknown key).
@@ -54,7 +54,7 @@ The store checks framing only, not content. A frame the router can't take fails 
 
 ## Running
 
-`sys_actions_run(id, keep_going)` loads the image and routes every frame in order. Answers are dropped. A failing frame's error is wrapped in `ERR_ACTION_STEP {id u32, step}` (step counted from 0), so the report shows the action, the step, the route and the cause.
+`sys_actions_run(id, keep_going)` loads the image and routes every frame in order, each with its own dir. Answers are dropped. A failing frame's error is wrapped in `ERR_ACTION_STEP {id u32, step}` (step counted from 0), so the report shows the action, the step, the route and the cause.
 
 - **Only on a router task** (`router_origin() != NULL`, else `ERR_ACTION_WRONG_TASK`). That means a remote RUN, or a RUN frame queued with `router_inject`. `sys_actions_request(id, urgent)` does the queueing for callers that aren't a router task (the VM, the device error policy). A replay never interleaves with live normal frames, since they wait on the same task. An urgent STOP still overtakes it.
 - **RUN stops at the first failing frame. RUN_ALL does not** (`keep_going`): it runs every frame, reports each failure, and returns the first. A RUN_ALL inside a record continues inside it, but a failure it returns still stops an outer plain RUN.
@@ -65,9 +65,9 @@ The store checks framing only, not content. A frame the router can't take fails 
 
 `main` installs `g_sys_actions_tap` (`router_set_tap`, see [ROUTER.MD](../../core/router/ROUTER.MD)). RECORD_START records the client that sent it (its link, from `router_origin()`). Frames from other clients run as usual and are not recorded.
 
-- Recorded: that client's frames, except the `sys` key (PING, STOP, …) and the actions ops other than RUN and RUN_ALL. A RUN or RUN_ALL is recorded as itself, not as its content.
+- Recorded: that client's writes (dir 1), except the `sys` key (STOP, …) and the actions ops other than RUN and RUN_ALL. A RUN or RUN_ALL is recorded as itself, not as its content. Reads are never recorded: they run and answer as usual.
 - **`execute = 1`**: frames run as usual, and only those that succeed are recorded.
-- **`execute = 0`**: frames are recorded and answered OK with no data, without running. This is how to build "motor forward" without the motor moving. A frame that would read something answers empty.
+- **`execute = 0`**: frames are recorded and answered OK with no data, without running. This is how to build "motor forward" without the motor moving.
 - A frame that doesn't fit ends the growth. RECORD_STOP then answers `ERR_ACTION_TOO_BIG` and stores nothing. No frame → `ERR_ACTION_EMPTY`.
 - A `sys` frame (STOP) can't be recorded; upload it instead.
 
@@ -85,6 +85,8 @@ The store checks framing only, not content. A frame the router can't take fails 
 
 All IDs are u32 LE. `info` = `{u16 bytes, u16 count, u32 crc32}`.
 
+Requests are `[0x06][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). READ, INFO and LIST are reads, every other op is a write.
+
 | Op | Request | Response |
 |---|---|---|
 | `0x01` RUN | `u32 id` | – (error record on a failing step) |
@@ -93,7 +95,7 @@ All IDs are u32 LE. `info` = `{u16 bytes, u16 count, u32 crc32}`.
 | `0x04` BEGIN | `u32 id, u16 len` | – |
 | `0x05` WRITE | `u16 offset`, data | – (offset = bytes so far) |
 | `0x06` COMMIT | `u32 crc32` | – (checks length, CRC and framing; stores, replacing the ID) |
-| `0x07` READ | `u32 id` | **one answer packet per frame**, in order, each exactly the frame as recorded or uploaded (keys + payload, no length prefix). `x` frames in, `x` packets back, then nothing more. All carry the READ's `seq`; the client counts them with the `count` of INFO / RECORD_STOP. A failure (`ERR_ACTION_NOT_FOUND`, a frame that doesn't fit the link → `ERR_CMD_OUT_FULL`, a damaged image) is an error answer with that `seq` and ends the read |
+| `0x07` READ | `u32 id` | **one answer packet per frame**, in order, each exactly the frame as recorded or uploaded (from its key, with its dir; no length prefix). `x` frames in, `x` packets back, then nothing more. All carry the READ's `seq`; the client counts them with the `count` of INFO / RECORD_STOP. A failure (`ERR_ACTION_NOT_FOUND`, a frame that doesn't fit the link → `ERR_CMD_OUT_FULL`, a damaged image) is an error answer with that `seq` and ends the read |
 | `0x08` INFO | `u32 id` | info |
 | `0x09` LIST | `u32 start` | `u16 total` (all stored records), then u32 IDs ascending from `start`, up to 48 and as many as fit. Ask again from the last ID + 1 |
 | `0x0A` REMOVE | `u32 id` | – |
@@ -106,8 +108,8 @@ All IDs are u32 LE. `info` = `{u16 bytes, u16 count, u32 crc32}`.
 READ is the mirror of recording and upload: the frames that went in come out, one packet each. The packets before the last go out with `router_answer_part` (see ROUTER.MD); the last one is the op's own answer. An answer has 3 header bytes where a request has 2, so a recorded frame of the largest size does not fit an answer (`ERR_CMD_OUT_FULL`). So does any frame longer than the link carries (BLE before the MTU exchange).
 
 **Examples**
-- Record "blink" as user action 5 without running it, over UART: `06 02 05 00 00 00 00` (RECORD_START id 5, execute 0), then the device frames, then `06 03` (RECORD_STOP → info). Run it: `06 01 05 00 00 00`.
-- Save the log options as the system record: BEGIN `06 04 01 00 00 01 09 00`, WRITE the 9-byte image `07 00 08 01 03 01 00 01 01`, COMMIT with the CRC.
+- Record "blink" as user action 5 without running it, over UART: `06 01 02 05 00 00 00 00` (RECORD_START id 5, execute 0), then the device writes, then `06 01 03` (RECORD_STOP → info). Run it: `06 01 01 05 00 00 00`.
+- Save the log options as the system record: BEGIN `06 01 04 01 00 00 01 0A 00` (id `0x01000001`, 10 bytes), WRITE `06 01 05 00 00` (offset 0) and the 10-byte image `08 00 08 01 01 03 01 00 01 01` (one frame of 8 bytes: log, write, CONFIG, level 3, mirror on, trace off, errors on, logs on), COMMIT `06 01 06` with the CRC.
 
 ## Errors (`ERR_MOD_SYS_ACTIONS` = 8)
 

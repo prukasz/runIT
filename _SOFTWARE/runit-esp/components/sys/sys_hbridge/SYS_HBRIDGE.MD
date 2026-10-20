@@ -4,24 +4,26 @@ Component `components/sys/sys_hbridge/`. A contract, not a module with state: op
 
 | File | Contents |
 |---|---|
-| `sys_hbridge.h` | The contract table `SYS_HBRIDGE_CONTRACT`, `HBRIDGE_HANDLER` / `HBRIDGE_ENTRY`, the fault reasons, the events table, the wrappers |
-| `sys_hbridge.c` | The wrappers (`sys_device_call` of the op, `sys_device_read` for GET_CURRENT; nothing else) |
+| `sys_hbridge.h` | The contract table `SYS_HBRIDGE_CONTRACT`, `HBRIDGE_READ` / `HBRIDGE_WRITE`, `HBRIDGE_ENTRY` / `_ENTRY_R` / `_ENTRY_W`, the fault reasons, the events table, the wrappers |
+| `sys_hbridge.c` | The wrappers (`sys_device_write` of the op, `sys_device_read` for CURRENT; nothing else) |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
 | `AGENTS.md` | Rules for changing this folder |
 
 A channel is a full bridge (a motor, both directions) or a half bridge (a solenoid, one direction), as the driver is configured.
 
-| Op | Args | Answer | Notes |
-|---|---|---|---|
-| `0x0900` SET_DRIVE | `{u8 channel, i16 drive}` | – | PWM steps (12 bits, `IO_PWM_DUTY_MAX`): -4095 (full reverse) .. 4095 (full forward) for a full bridge, 0..4095 for a half bridge; else `ERR_DEV_RANGE`. A full bridge brakes below 20 (0.5 %) |
-| `0x0901` BRAKE | `{u8 channel}` | – | Short the terminals (outputs on, inputs low) |
-| `0x0902` COAST | `{u8 channel}` | – | Release the motor (outputs off) |
-| `0x0903` GET_CURRENT | `{u8 channel}` | `i32` mA | Allowed while suspended |
+Requests are `[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD).
+
+| Op | Side | Args | Answer | Notes |
+|---|---|---|---|---|
+| `0x0900` DRIVE | W | `{u8 channel, i16 drive}` | – | PWM steps (12 bits, `IO_PWM_DUTY_MAX`): -4095 (full reverse) .. 4095 (full forward) for a full bridge, 0..4095 for a half bridge; else `ERR_DEV_RANGE`. A full bridge brakes below 20 (0.5 %) |
+| `0x0901` BRAKE | W | `{u8 channel}` | – | Short the terminals (outputs on, inputs low) |
+| `0x0902` COAST | W | `{u8 channel}` | – | Release the motor (outputs off) |
+| `0x0903` CURRENT | R | `{u8 channel}` | `i32` mA | Allowed while suspended |
 
 The drive is an integer count of PWM steps. The wire carries no floats: the PWM is 12 bits, so a 12-bit count gives the driver its full resolution.
 
 - A channel the driver does not have: `ERR_DEV_BAD_PIN {id, pin}`.
-- SET_DRIVE, BRAKE and COAST while suspended: `ERR_DEV_SUSPENDED`.
+- DRIVE, BRAKE and COAST while suspended: `ERR_DEV_SUSPENDED`.
 - A half bridge has no brake band: drive 0 is PWM 0 with the bridge enabled, not a BRAKE.
 
 ## Events

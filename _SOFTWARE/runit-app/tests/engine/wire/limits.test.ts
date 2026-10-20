@@ -44,18 +44,18 @@ describe('limits from generated/', () => {
 })
 
 describe('the frame the board takes', () => {
-  it('the router puts [seq][flags] and two keys in front of a VM frame', () => {
+  it('the router puts [seq][flags], the key, the direction byte and the op in front of a VM frame', () => {
     const dispatch = text('components/core/router/router_dispatch.c')
     expect(/#define\s+REQ_HDR_BYTES\s+(\d+)u/.exec(dispatch)?.[1]).toBe('2')
-    expect(FRAME_OVERHEAD).toBe(2 + 2)
-    expect(frameCapacity(DEFAULT_LIMITS)).toBe(sdkconfig.get('ROUTER_FRAME_MAX')! - 4)
+    expect(FRAME_OVERHEAD).toBe(2 + 3)
+    expect(frameCapacity(DEFAULT_LIMITS)).toBe(sdkconfig.get('ROUTER_FRAME_MAX')! - 5)
   })
 
   it('the packing policy stays inside what a frame holds, and gives way to a smaller frame', () => {
     expect(frameFill(DEFAULT_LIMITS)).toBe(DEFAULT_LIMITS.frameBudget)
     expect(frameFill({ ...DEFAULT_LIMITS, frameMax: 128 })).toBe(128 - FRAME_OVERHEAD - 1)
     expect(dataChunk(DEFAULT_LIMITS, 4)).toBe(192)
-    expect(dataChunk({ ...DEFAULT_LIMITS, frameMax: 64 }, 4)).toBe(52) // 64 - 4 overhead - 1 count - 6 record head = 53, whole 4-byte elements
+    expect(dataChunk({ ...DEFAULT_LIMITS, frameMax: 64 }, 4)).toBe(52) // 64 - 5 overhead - 1 count - 6 record head = 52, whole 4-byte elements
     expect(dataChunk({ ...DEFAULT_LIMITS, frameMax: 12 }, 4)).toBe(4) // never less than one element
   })
 

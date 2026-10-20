@@ -14,58 +14,59 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 | `sys_device_types.h` | **The type IDs**, one X-macro list (`SYS_DEVICE_TYPE_LIST` → `SYS_DEVICE_TYPE_<NAME>`); a duplicate fails to compile |
 | `sys_device.c` | Types, instances (creation order), generic ops, calls, sweeps. Depends on `cmd` only |
 | `sys_device_errors.c` | The error policy: the walk over a reported chain and the response (below) |
-| `sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
+| `sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[dir u8][id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
 | `Kconfig` | `SYS_DEVICE_MAX` (32 instances), `SYS_DEVICE_TYPES` (16), `SYS_DEVICE_MAX_DEPS` (4 devices one device may use), `SYS_DEVICE_GUARDS` (2 contracts with a guard) |
 | `SYS_DEVICE_NEW.md` | Adding a device: a driver on this registry |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Commands
 
-`[0x05][device id u16 LE][op u16 LE][args]`. A failure is wrapped in `ERR_DEV_ID{id}` and `ERR_DEV_OP{op}`, so the chain reads `KEY 05` → `ERR_DEV_ID` → `ERR_DEV_OP` → cause (`ERR_DEV_NOT_FOUND` comes without the op node: nothing ran). IDs are `0..0xFFFE`; `0xFFFF` (`SYS_DEVICE_ID_NONE`, published as `device_id`) is "no device" in pin references and in the sweeps below. There is no list op: an app probes IDs with INFO and reads what each answers with OPS.
+`[0x05][dir u8][device id u16 LE][op u16 LE][args]` (`dir` 0 read, 1 write; ROUTER.MD). A failure is wrapped in `ERR_DEV_ID{id}` and `ERR_DEV_OP{op, dir}`, so the chain reads `KEY 05` → `ERR_DEV_ID` → `ERR_DEV_OP` → cause (`ERR_DEV_NOT_FOUND` comes without the op node: nothing ran). IDs are `0..0xFFFE`; `0xFFFF` (`SYS_DEVICE_ID_NONE`, published as `device_id`) is "no device" in pin references and in the sweeps below. There is no list op: an app probes IDs with INFO and reads what each answers with OPS.
 
 ```
 boot:    SYS_DEVICE_TYPE_DEFINE in device_pca9685.c registers type 0x0041 (a constructor)
-create:  [05][03 00][00 00][41 00][cfg]  -> size check, calloc(ctx_size), id = 3, create(ctx, cfg), add (3, 0x0041, ctx)
-use:     [05][03 00][03 01][pin u8][duty u32] -> ID 3 -> its type's op table -> IO_HANDLER(SET_PWM_DUTY)(ctx, args)
-remove:  [05][03 00][04 00]              -> uninstall(ctx), unregister, free
+create:  [05][01][03 00][00 00][41 00][cfg]  -> size check, calloc(ctx_size), id = 3, create(ctx, cfg), add (3, 0x0041, ctx)
+use:     [05][01][03 00][03 01][pin u8][duty u32] -> ID 3 -> its type's op table -> IO_WRITE(PWM_DUTY)(ctx, args)
+remove:  [05][01][03 00][04 00]              -> uninstall(ctx), unregister, free
 ```
 
 ### Ops
 
 An op is a u16, `[contract u8][op u8]`: the high byte is the contract, the low byte the op inside it (`SYS_DEVICE_OP(contract, n)`). Contract IDs are assigned in one place, `sys_device.h` (`SYS_DEVICE_CONTRACT_*`: 0x00 device, 0x01 IO, 0x02 PINS, 0x03 EVENT (`ON_EVENT`, SYS_EVENT.MD), 0x04 POWER_MONITOR, 0x05 POWER_VREG (SYS_POWER.MD), 0x06 POWER_MANAGER (events only, SYS_POWER_MANAGER.MD), 0x07 POWER_USB_PD, 0x08 POWER_SUPPLY (SYS_POWER.MD), 0x09 HBRIDGE (SYS_HBRIDGE.MD), 0xFF own). Device types are **u16** (CREATE, INFO, the type errors), assigned in `sys_device_types.h`; drivers start at 0x0040. A new contract takes the next free ID and numbers its ops from 0, without touching any other contract or any device's own ops.
 
-| Op | Range | Meaning |
-|---|---|---|
-| `0x0000` CREATE `[type u16][create struct]` | the ID is free | `ERR_DEV_BAD_ID`, `ID_TAKEN`, `TABLE_FULL`, `TYPE_UNKNOWN`, `ERR_CMD_BAD_LEN` (struct size); the driver's failure wrapped in `ERR_DEV_INSTALL{id, type}` after `uninstall()` |
-| `0x0001` RESET | lifecycle (driver) | outputs off, defaults |
-| `0x0002` SUSPEND | lifecycle (driver), **required** | outputs safe; the device refuses writes (`ERR_DEV_SUSPENDED`) until RESUME, and counts as suspended even if a step failed |
-| `0x0003` RESUME | lifecycle (driver), **required** | a failing resume leaves it suspended |
-| `0x0004` REMOVE | generic | refused for a board device (`ERR_DEV_SYSTEM{id}`) and while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
-| `0x0005` INFO → `{u16 type_id, u8 suspended}` | generic | from the type and `sys_device_base_t` |
-| `0x0006` OPS → `u16[]` | generic | SUSPEND, RESUME, REMOVE, INFO, OPS, SET / GET_ERROR_POLICY, then the type's op table (without the ops the type's `has_op` says this device can't run as wired). The app reads what a device can do instead of trying ops |
-| `0x0007` SET_ERROR_POLICY `{u8 importance, u32 actions[4]}` (17 B) | generic | the device's error policy (below). Importance > 4: `ERR_DEV_RANGE`. Allowed while suspended |
-| `0x0008` GET_ERROR_POLICY → the same 5 bytes | generic | |
-| `0x01xx..0xFExx` | contracts | one meaning on every device that has them (`0x01` IO: SYS_IO.MD) |
-| `0xFFxx` | own | the device's own operations (`SYS_DEVICE_OWN_OP(n)`); two types may give the same number different meanings |
+An op has a read side, a write side or both. With both, the read takes the key (a pin, a channel, or nothing) and answers what the write takes; the write answers nothing. A side the op doesn't have: `ERR_CMD_DIRECTION {dir}`.
 
-**Sweeps over the router**: SUSPEND, RESUME or RESET sent to device ID `0xFFFF` (`SYS_DEVICE_ID_NONE`, "no device") runs `sys_device_sweep(op)`: `[05][FF FF][02 00]` suspends every device, `[05][FF FF][03 00]` resumes them, `[05][FF FF][01 00]` resets them (newest first, as suspend; no args, else `ERR_CMD_BAD_LEN`). Best effort as below; the first failure comes back as the device's own `ERR_DEV_ID` chain (not wrapped in an ID-NONE node, so the error policy still finds the device). A normal device frame, so an action can record or hold it (the app's onboard actions do, RUNIT.MD). REMOVE has no router sweep: `sys_device_sweep(SYS_DEVICE_OP_REMOVE)` is the firmware's (the project's ERASE, SYS_PROJECT.MD).
+| Op | Side | Range | Meaning |
+|---|---|---|---|
+| `0x0000` CREATE `[type u16][create struct]` | W | the ID is free | `ERR_DEV_BAD_ID`, `ID_TAKEN`, `TABLE_FULL`, `TYPE_UNKNOWN`, `ERR_CMD_BAD_LEN` (struct size); the driver's failure wrapped in `ERR_DEV_INSTALL{id, type}` after `uninstall()` |
+| `0x0001` RESET | W | lifecycle (driver) | outputs off, defaults |
+| `0x0002` SUSPEND | W | lifecycle (driver), **required** | outputs safe; the device refuses writes (`ERR_DEV_SUSPENDED`) until RESUME, and counts as suspended even if a step failed |
+| `0x0003` RESUME | W | lifecycle (driver), **required** | a failing resume leaves it suspended |
+| `0x0004` REMOVE | W | generic | refused for a board device (`ERR_DEV_SYSTEM{id}`) and while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
+| `0x0005` INFO → `{u16 type_id, u8 suspended}` | R | generic | from the type and `sys_device_base_t` |
+| `0x0006` OPS → `{u16 op, u8 sides}[]` | R | generic | one row per op, `sides` bit 0 read, bit 1 write: SUSPEND, RESUME, REMOVE, INFO, OPS, ERROR_POLICY, then the type's op table (without the ops the type's `has_op` says this device can't run as wired). The app reads what a device can do instead of trying ops |
+| `0x0007` ERROR_POLICY `{u8 importance, u32 actions[4]}` (17 B) | RW | generic | the device's error policy (below). Importance > 4: `ERR_DEV_RANGE`. Allowed while suspended |
+| `0x01xx..0xFExx` | | contracts | one meaning on every device that has them (`0x01` IO: SYS_IO.MD) |
+| `0xFFxx` | | own | the device's own operations (`SYS_DEVICE_OWN_OP(n)`); two types may give the same number different meanings |
 
-A device's class is the set of ops it answers (OPS returns it). The op table (`sys_device_op_t {u16 op, cmd_f fn}`) lists only the ops the driver has, so its size doesn't depend on how many contracts exist. A type whose ops depend on the wiring gives `has_op(ctx, op)`: an op it answers false for is left out of OPS and answered `ERR_DEV_UNKNOWN_OP` (the DRV8962's POWER_MONITOR without its IPROPI pins).
+**Sweeps over the router**: SUSPEND, RESUME or RESET sent to device ID `0xFFFF` (`SYS_DEVICE_ID_NONE`, "no device") runs `sys_device_sweep(op)`: `[05][01][FF FF][02 00]` suspends every device, `[05][01][FF FF][03 00]` resumes them, `[05][01][FF FF][01 00]` resets them (newest first, as suspend; writes, no args, else `ERR_CMD_BAD_LEN`). Best effort as below; the first failure comes back as the device's own `ERR_DEV_ID` chain (not wrapped in an ID-NONE node, so the error policy still finds the device). A normal device frame, so an action can record or hold it (the app's onboard actions do, RUNIT.MD). REMOVE has no router sweep: `sys_device_sweep(SYS_DEVICE_OP_REMOVE)` is the firmware's (the project's ERASE, SYS_PROJECT.MD).
+
+A device's class is the set of ops it answers, with their sides (OPS returns it). The op table (`sys_device_op_t {u16 op, cmd_f read, cmd_f write}`, NULL = no such side) lists only the ops the driver has, and a row only the sides the driver has (an ADC answers the VOLTAGE read, a DAC the VOLTAGE write), so its size doesn't depend on how many contracts exist. A type whose ops depend on the wiring gives `has_op(ctx, op)`: an op it answers false for is left out of OPS and answered `ERR_DEV_UNKNOWN_OP` (the DRV8962's POWER_MONITOR without its IPROPI pins).
 
 ### Contract tables (X-macros)
 
-A contract is written once, as a table `X(NAME, op number, args struct)` (`SYS_DEVICE_LIFECYCLE` here, `SYS_IO_CONTRACT` in `sys_io.h`, `SYS_PINS_CONTRACT` in `sys_pins.h`, the power contracts in `sys_power_*.h`). Four things come out of it, all keyed by `NAME`:
+A contract is written once, as a table `X(NAME, op number, key_t, value_t)` (`SYS_DEVICE_LIFECYCLE` here, `SYS_IO_CONTRACT` in `sys_io.h`, `SYS_PINS_CONTRACT` in `sys_pins.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `NAME`:
 
 | Generated | Example |
 |---|---|
-| op ID | `IO_OP_SET_LEVEL` = `0x0100` |
-| args typedef | `io_args_SET_LEVEL_t` = `io_level_args_t` |
-| handler macro | `IO_HANDLER(SET_LEVEL) { … a->level … }` (parses exactly `sizeof(args)` bytes, else `ERR_CMD_BAD_LEN`; body sees `ctx`, `a`, `out…`) |
-| table row | `IO_ENTRY(SET_LEVEL)` |
+| op ID | `IO_OP_LEVEL` = `0x0100` |
+| key / value typedefs | `io_key_LEVEL_t` = `io_pin_args_t`, `io_value_LEVEL_t` = `io_level_args_t` |
+| handler macros | `IO_READ(LEVEL) { … args->pin … }` (parses the key), `IO_WRITE(LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args`, `out…` |
+| table rows | `IO_ENTRY(LEVEL)` (both sides), `IO_ENTRY_R(LEVEL)`, `IO_ENTRY_W(LEVEL)` (one) |
 
-The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, the three small generator macros (see `sys_pins.h`) and a `SYS_DEVICE_CONTRACT_*` ID. Numbers inside a table are never reused.
+The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, its generator macros (see `sys_pins.h`) and a `SYS_DEVICE_CONTRACT_*` ID. Numbers inside a table are never reused.
 
-Internal callers use `sys_device_call(id, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`). A getter whose answer has a fixed size uses `sys_device_read(id, op, args, len, out, size)`: the same call, `ERR_CMD_BAD_LEN` unless the device answered exactly `size` bytes.
+Internal callers use `sys_device_call(id, dir, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`). `sys_device_write(id, op, args, len)` is the write side with no answer; `sys_device_read(id, op, key, len, out, size)` the read side of a getter whose answer has a fixed size, `ERR_CMD_BAD_LEN` unless the device answered exactly `size` bytes.
 
 ## Dependencies, safe state and order
 
@@ -91,7 +92,7 @@ One recursive mutex covers the registry and every call into a device. It is need
 Per-device locks were considered and not taken: REMOVE during a call would need reference counts, and an inline event published inside an op may reach a higher ID (lock order). With short ops the single lock costs one I2C sequence of waiting.
 
 Rules (they keep the lock short and deadlock-free):
-- **A background task that an op may wait for publishes with `SYS_EVENT_DEFER` in the event's flags** (everything deferred to the event task), never inline: an inline listener run in that task could need the lock the waiting op holds. GPIO ESP's ADC task does this (SET_MODE / RESET wait for it to rebuild the ADC channel set).
+- **A background task that an op may wait for publishes with `SYS_EVENT_DEFER` in the event's flags** (everything deferred to the event task), never inline: an inline listener run in that task could need the lock the waiting op holds. GPIO ESP's ADC task does this (MODE / RESET wait for it to rebuild the ADC channel set).
 - **An op must not sleep or wait for anything but its own I/O.** A long sequence runs as steps: a timer calls `sys_device_call(id, OWN_OP)` for each step (TPS55289 rise). The bounded waits are a chip's start-up after a power pin (TPS55289 EN, 10 ms) and the power mux's break-before-make pause (1..100 ms, configured).
 - **A driver must not hold a lock of its own while it calls `sys_device_call` or `sys_event_publish`** (a listener may call back into it: GPIO ESP collects ADC events under `gpio_mutex` and publishes them after).
 
@@ -103,7 +104,7 @@ How to write a driver (type ID, struct, ops, create / uninstall, hooks, registra
 
 Error severities never change: a device's **importance** only decides which of its errors get a **response**. The policy is in `sys_device_errors.c`; the app wires its runner and VM stop in `runit_error_policy.c`.
 
-Each instance has `{importance, actions[4]}` (`sys_device_error_policy_t`, the action IDs are u32), set with SET_ERROR_POLICY, read with GET_ERROR_POLICY. A new instance starts at LOW with no actions; REMOVE forgets it (not stored, like the instances).
+Each instance has `{importance, actions[4]}` (`sys_device_error_policy_t`, the action IDs are u32), set and read with ERROR_POLICY. A new instance starts at LOW with no actions; REMOVE forgets it (not stored, like the instances).
 
 | Importance | Admits (gets a response) |
 |---|---|
@@ -125,4 +126,4 @@ Rule: CRITICAL at any importance but NONE, else `severity + importance > 4`. `ac
 
 ## Errors (`ERR_MOD_SYS_DEVICE` = 6)
 
-Registry: `ERR_DEV_BAD_ARG`, `BAD_ID`, `NOT_FOUND`, `ID_TAKEN`, `TABLE_FULL`, `TYPE_UNKNOWN`, the context nodes `ID {id}` and `OP {op}` (severity NONE), `UNKNOWN_OP {op}`. Devices: `SUSPENDED`, `NO_MEM` (critical), the context node `INSTALL {id, type}`, `IN_USE {id, user}`, `DEPS_FULL {id}`, `BAD_PIN`, `PIN_LOCKED {id, pin}` (a write to a pin locked by its owner), `RANGE {id, i32 value, i32 min, i32 max}` (signed: thresholds may be negative), `FAULT_RESPONSE {id, sev, stage, action}` (the policy's response failed; diagnostics only). A misdefined or duplicate type stops the boot with an assert, like a duplicate error module.
+Registry: `ERR_DEV_BAD_ARG`, `BAD_ID`, `NOT_FOUND`, `ID_TAKEN`, `TABLE_FULL`, `TYPE_UNKNOWN`, the context nodes `ID {id}` and `OP {op, dir}` (severity NONE), `UNKNOWN_OP {op}`. Devices: `SUSPENDED`, `NO_MEM` (critical), the context node `INSTALL {id, type}`, `IN_USE {id, user}`, `DEPS_FULL {id}`, `BAD_PIN`, `PIN_LOCKED {id, pin}` (a write to a pin locked by its owner), `RANGE {id, i32 value, i32 min, i32 max}` (signed: thresholds may be negative), `FAULT_RESPONSE {id, sev, stage, action}` (the policy's response failed; diagnostics only). A misdefined or duplicate type stops the boot with an assert, like a duplicate error module.

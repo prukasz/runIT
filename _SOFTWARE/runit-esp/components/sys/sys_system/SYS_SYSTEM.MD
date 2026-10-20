@@ -18,7 +18,7 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 - `sys_system_set_safe_state(fn)`: the app's handler (`runit`: VM stopped, devices suspended, RUNIT.MD). Boot only. NULL = only logged.
 - `sys_system_enter_safe_state(reason)`: notes the reason (`sys_safe_reason_e`) and the tick, then runs the handler on the caller's task. Callers: STOP (the router task that runs it), the dead-man and a lost link (the router's urgent task), the power manager's response (`SYS_SAFE_POWER`, through `runit`).
 - `sys_system_set_safe_leave(fn)`: the app's way out (every device resumed), run by `SAFE_LEAVE` through `sys_system_leave_safe_state`; the note is cleared only when it succeeds. The program is started again by the client (VM EXEC).
-- `sys_system_safe_state_get(&reason, &for_ms)`: the note, for `SAFE_GET` (0 = not in the safe state).
+- `sys_system_safe_state_get(&reason, &for_ms)`: the note, for `SAFE` (0 = not in the safe state).
 
 | `sys_safe_reason_e` | Value | Trigger |
 |---|---|---|
@@ -39,22 +39,22 @@ Runtime only, not stored: `sys_system_deadman_set(timeout_ms, on_link_lost)`, 0 
 
 ## Remote (`ROUTER_KEY_SYS` = 0x01)
 
-| Op | Request | Response |
+Requests are `[0x01][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW op reads with no arguments and answers what its write takes; the write answers nothing.
+
+| Op | Side | Write args / read answer |
 |---|---|---|
-| `0x01` PING | – | `u32 uptime_ms` |
-| `0x02` STOP | – | – (safe state, reason STOP) |
-| `0x03` RESTART | – | – (restart ~100 ms after the answer) |
-| `0x04` DEADMAN_SET | `u32 timeout_ms, u8 on_link_lost` | – |
-| `0x05` DEADMAN_GET | – | same struct |
-| `0x06` BYE | – | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
-| `0x07` TIME_SET | `u64 unix_ms` (UTC) | – (the system clock: `settimeofday`; no battery clock, lost at a restart) |
-| `0x08` TIME_GET | – | `u64 unix_ms, u8 synced, u32 uptime_ms` (`synced`: the clock is past 2020; `uptime_ms`: the base of the log lines) |
-| `0x09` SAFE_GET | – | `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
-| `0x0A` SAFE_LEAVE | – | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
+| `0x01` PING | R | → `u32 uptime_ms` |
+| `0x02` STOP | W | – (safe state, reason STOP) |
+| `0x03` RESTART | W | – (restart ~100 ms after the answer) |
+| `0x04` DEADMAN | RW | `u32 timeout_ms, u8 on_link_lost` |
+| `0x06` BYE | W | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
+| `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: the system clock (`settimeofday`; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set) |
+| `0x09` SAFE | R | → `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
+| `0x0A` SAFE_LEAVE | W | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
 
 Whether a command runs urgent is the client's choice (`ROUTER_FLAG_URGENT`). Payload errors are `ERR_CMD_*` (CMD.MD); the module has no error tags of its own. Sys frames are never recorded into actions (SYS_ACTIONS.MD).
 
-Example over UART: `#R:07010101` = seq 7, flags 1 (urgent), sys, PING → `#R:050700<uptime LE>`.
+Example over UART: `#R:0701010001` = seq 7, flags 1 (urgent), sys, read, PING → `#R:050700<uptime LE>`.
 
 ## Tests
 

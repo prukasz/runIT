@@ -1,13 +1,13 @@
 # sys_log — log output control
 
-Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: five settings, applied at boot from the defaults and changed with SET. The app keeps them as the settings record `SYS_ACTIONS_ID_LOG` (`0x01000001`, SYS_ACTIONS.MD).
+Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: five settings, applied at boot from the defaults and changed with CONFIG. The app keeps them as the settings record `SYS_ACTIONS_ID_LOG` (`0x01000001`, SYS_ACTIONS.MD).
 
 | File | Contents |
 |---|---|
 | `sys_log.h` | `sys_log_cfg_t`, `ERR_SYS_LOG_MAP`, API |
 | `sys_log.c` | The `vprintf` hook, the options and their defaults, the error history and its sending. `ERR_MOD_SYS_LOG` = 13 |
 | `sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08 |
-| `contract_log.json` | The router's descriptor (SET, GET, ERRORS and the options) |
+| `contract_log.json` | The router's descriptor (CONFIG, ERRORS and the options) |
 | `Kconfig` | `SYS_LOG_LINE_MAX` (160): the line buffer of the hook |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -40,15 +40,16 @@ Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror on, trac
 
 ## Remote (`ROUTER_KEY_LOG` = 0x08)
 
-| Op | Request | Response |
-|---|---|---|
-| `0x01` SET | `sys_log_cfg_t`: `{u8 level, mirror_serial, trace_errors, send_errors, send_logs}` (the four flags 0 / 1, else `ERR_CMD_BAD_ARG`) | – (applied at once; nothing is stored) |
-| `0x02` GET | – | `sys_log_cfg_t`: the options in force |
-| `0x03` ERRORS | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ERRORS.MD "Error record"); only `total` for an index past the end |
+Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
 
-Example, level 0 with the console and both connector streams on: the command `[08][01][00][01][01][01][01]` (key, op, then the five bytes). The link adds its own frame header (ROUTER.MD).
+| Op | Side | Request | Response |
+|---|---|---|---|
+| `0x01` CONFIG | RW | write: `sys_log_cfg_t`: `{u8 level, mirror_serial, trace_errors, send_errors, send_logs}` (the four flags 0 / 1, else `ERR_CMD_BAD_ARG`) | read: `sys_log_cfg_t`, the options in force; write: – (applied at once; nothing is stored) |
+| `0x03` ERRORS | R | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ERRORS.MD "Error record"); only `total` for an index past the end |
 
-SET applies the options at once and stores nothing. The app keeps the SET frame as the record `SYS_ACTIONS_ID_LOG` (saved with the upload or the recording, SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
+Example, level 0 with the console and both connector streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The link adds its own frame header (ROUTER.MD).
+
+CONFIG's write applies the options at once and stores nothing. The app keeps that write frame as the record `SYS_ACTIONS_ID_LOG` (saved with the upload or the recording, SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
 
 ## The error history
 

@@ -67,8 +67,6 @@ Register it at boot with `sys_connector_register_provider(TRANSPORT_…, &provid
 
 `sys_connector_info(id, out)` gives one connector's state and bindings; the router's INFO (below) lists them all.
 
-## Remote (`sys_connector_router`, root key `ROUTER_KEY_CONN` = 0x04)
-
 ## Errors stream
 
 `runit_error_wiring_init()` (`runit_error_policy.c`) registers `error_sink` with `err_set_sink`. Every `err_report` / `err_report_ex` chain goes first to the device error policy, then becomes an **error record** (`err_record(cmd, chain)`, ERRORS.MD "Error record") on connector 1. A response from the policy is logged and sent as a second record. A full queue drops the record. So command errors (src 1, with link / seq / request) and internal errors (src 0) share one stream — the error history. A client also gets its own command errors in the response; it can skip stream records with its own link + seq.
@@ -81,6 +79,8 @@ Filled by `sys_log` (SYS_LOG.MD, `sys_log_init(SYS_CONNECTOR_LOGS)`), which owns
 
 ## Remote (`sys_connector_router`, root key `ROUTER_KEY_CONN` = 0x04)
 
+Requests are `[0x04][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). INFO is a read, the other ops writes.
+
 | Op | Request | Response |
 |---|---|---|
 | `0x01` CREATE | `u8 id, u8 stream`, name (NUL-terminated, nothing after the NUL (`cmd_name_arg`), cut to 15) | – |
@@ -90,7 +90,7 @@ Filled by `sys_log` (SYS_LOG.MD, `sys_log_init(SYS_CONNECTOR_LOGS)`), which owns
 | `0x05` SUSPEND / `0x06` RESUME | `u8 id` | – |
 | `0x07` INFO | – | `u8 count`, per connector `u8 id, u8 stream, u8 flags (bit0 system, bit1 suspended), u8 n, n × {u8 provider, u32 endpoint}, name\0` |
 
-Example — VM temperature stream to a user BLE characteristic (created with the `ble` router, SYS_BLE.MD): `04 01 04 10 74 65 6D 70 00` (CREATE id 4, stream 0x10, "temp"), `04 03 04 02 01 EE 00 00` (BIND id 4 → BLE @ 0xEE01).
+Example — VM temperature stream to a user BLE characteristic (created with the `ble` router, SYS_BLE.MD): `04 01 01 04 10 74 65 6D 70 00` (CREATE id 4, stream 0x10, "temp"), `04 01 03 04 02 01 EE 00 00` (BIND id 4 → BLE @ 0xEE01).
 
 ## Errors (`ERR_MOD_SYS_CONNECTOR` = 5)
 

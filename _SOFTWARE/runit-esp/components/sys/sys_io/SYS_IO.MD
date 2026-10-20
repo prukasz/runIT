@@ -1,10 +1,10 @@
 # sys_io — the IO contract
 
-Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` = `0x01`, ops `0x01xx`) that mean the same on every device that has them (PWM expander, GPIO expander, the ESP's own pins). A device lists the IO ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_io.c` only build the `sys_device_call` (the getters `sys_device_read`, which also checks the answer's size), so an internal call and a remote command run the same code.
+Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` = `0x01`, ops `0x01xx`) that mean the same on every device that has them (PWM expander, GPIO expander, the ESP's own pins). A device lists the IO ops it can do in its op table (SYS_DEVICE.MD); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. The wrappers in `sys_io.c` only build the `sys_device_call` (the setters `sys_device_write`, the getters `sys_device_read`, which also checks the answer's size), so an internal call and a remote command run the same code.
 
 | File | Contents |
 |---|---|
-| `sys_io.h` | The `SYS_IO_CONTRACT` table (op IDs, handler / entry macros), arg structs, `sys_io_mode_e`, `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), `sys_io_pin_t`, wrappers |
+| `sys_io.h` | The `SYS_IO_CONTRACT` table (op IDs, handler / entry macros), arg structs, the read answer helpers `sys_io_reply_level` / `sys_io_reply_voltage`, `sys_io_mode_e`, `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), `sys_io_pin_t`, wrappers |
 | `sys_io.c` | The wrappers |
 | `sys_pins.h` / `sys_pins.c` | The PINS contract (below): table, pin-state helper for devices, wrappers, a device's own pins |
 | `contract_io.json`, `contract_pins.json` | The descriptors of the two contracts (checked against the tables by `templates/sync.sh`) |
@@ -17,20 +17,20 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Ops
 
-`[05][id u16][op u16][args]`; payloads are packed little-endian structs. The contract is the table `SYS_IO_CONTRACT(X)` (`X(NAME, number, args)`): `IO_OP_<NAME>`, `io_args_<NAME>_t`, `IO_HANDLER(NAME)` and `IO_ENTRY(NAME)` all come from it (SYS_DEVICE.MD, "Contract tables").
+`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian structs. The contract is the table `SYS_IO_CONTRACT(X)` (`X(NAME, number, key_t, value_t)`): `IO_OP_<NAME>`, `io_key_<NAME>_t` / `io_value_<NAME>_t`, `IO_READ(NAME)` / `IO_WRITE(NAME)` and `IO_ENTRY(NAME)` / `_ENTRY_R` / `_ENTRY_W` all come from it (SYS_DEVICE.MD, "Contract tables"). An RW op's read takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which).
 
-| Op | Wrapper | Args | Answer |
+| Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|
-| `0x0100` SET_LEVEL | `sys_io_set_level(p, level)` | `{u8 pin, u8 level}` | – |
-| `0x0101` TOGGLE | `sys_io_toggle(p)` | `{u8 pin}` | – |
-| `0x0102` GET_LEVEL | `sys_io_get_level(p, &level)` | `{u8 pin}` | u8 |
-| `0x0103` SET_PWM_DUTY | `sys_io_set_pwm_duty(p, duty)` | `{u8 pin, u32 duty}` | – |
-| `0x0104` SET_PWM_FREQ | `sys_io_set_pwm_frequency(p, Hz)` | `{u8 pin, u32 frequency_Hz}` | – |
-| `0x0105` SET_MODE | `sys_io_set_mode(p, mode)` | `{u8 pin, u8 mode}` (`sys_io_mode_e`) | – |
-| `0x0106` RESET | `sys_io_reset(p)` | `{u8 pin}` | – (pin back to its power-on state) |
-| `0x0107` CONFIGURE_INTR | `sys_io_configure_intr(p, &cfg)` | `{u8 pin, u8 mode, u8 debounce, u16 threshold_up_mV, u16 threshold_down_mV, u16 hysteresis_mV, u16 event_counter_threshold}` (11 B: the pin, then `sys_io_intr_cfg_t`) | – |
-| `0x0108` GET_VOLTAGE | `sys_io_get_voltage(p, &mV)` | `{u8 pin}` | i32 mV (signed: a negative reading is reported, not wrapped) |
-| `0x0109` SET_VOLTAGE | `sys_io_set_voltage(p, mV)` | `{u8 pin, i32 voltage_mV}` | – |
+| `0x0100` LEVEL | RW | `sys_io_set_level(p, level)`, `sys_io_get_level(p, &level)` | `{u8 pin, u8 level}`; read key `{u8 pin}` |
+| `0x0101` TOGGLE | W | `sys_io_toggle(p)` | `{u8 pin}` |
+| `0x0103` PWM_DUTY | W | `sys_io_set_pwm_duty(p, duty)` | `{u8 pin, u32 duty}` |
+| `0x0104` PWM_FREQ | W | `sys_io_set_pwm_frequency(p, Hz)` | `{u8 pin, u32 frequency_Hz}` |
+| `0x0105` MODE | W | `sys_io_set_mode(p, mode)` | `{u8 pin, u8 mode}` (`sys_io_mode_e`) |
+| `0x0106` RESET | W | `sys_io_reset(p)` | `{u8 pin}` (pin back to its power-on state) |
+| `0x0107` INTR | W | `sys_io_configure_intr(p, &cfg)` | `{u8 pin, u8 mode, u8 debounce, u16 threshold_up_mV, u16 threshold_down_mV, u16 hysteresis_mV, u16 event_counter_threshold}` (11 B: the pin, then `sys_io_intr_cfg_t`) |
+| `0x0109` VOLTAGE | RW | `sys_io_set_voltage(p, mV)`, `sys_io_get_voltage(p, &mV)` | `{u8 pin, i32 voltage_mV}` (signed: a negative reading is reported, not wrapped); read key `{u8 pin}` |
+
+Example: the level of pin 4 of device 3, `[05][00][03 00][00 01][04]` → `[04][level]`.
 
 - **Duty** is `0..IO_PWM_DUTY_MAX` (4095, 12-bit); a device with another resolution scales or rejects with `ERR_DEV_RANGE`.
 - **Frequency:** a device with one frequency for all pins (PCA9685) ignores `pin`.
@@ -40,7 +40,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Errors (`ERR_MOD_SYS_IO` = 7, `sys_io.h`)
 
-What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (SET_MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`, `BAD_READING {id, pin}` (an ADC did not return the channel asked for).
+What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`, `BAD_READING {id, pin}` (an ADC did not return the channel asked for).
 
 ## A device's own pins (`sys_pins.h`)
 
@@ -55,25 +55,25 @@ An invalid pin (`SYS_IO_PIN_NONE`) is stored as NONE and does nothing, so an opt
 
 ## Pins contract (`0x02xx`, `sys_pins.h`)
 
-Which pins a device has and which are locked. A pin another device depends on (PCA9685's OE, a chip RST) is locked by that device; a locked pin refuses the IO writes (`ERR_DEV_PIN_LOCKED`), reads stay allowed, and the owner drives it with SET_LOCKED_LEVEL. Masks are u64 LE, bit n = pin n (at most 64 pins).
+Which pins a device has and which are locked. A pin another device depends on (PCA9685's OE, a chip RST) is locked by that device; a locked pin refuses the IO writes (`ERR_DEV_PIN_LOCKED`), reads stay allowed, and the owner drives it with LOCKED_LEVEL. Masks are u64 LE, bit n = pin n (at most 64 pins).
 
-| Op | Wrapper | Args | Answer |
+| Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|
-| `0x0200` AVAILABLE | `sys_pins_available(dev, &mask)` | – | u64: the pins the device has |
-| `0x0201` LOCKED | `sys_pins_locked(dev, &mask)` | – | u64: the locked ones |
-| `0x0202` LOCK | `sys_pins_lock(p)` | `{u8 pin}` | – (`ERR_DEV_PIN_LOCKED` if already locked) |
-| `0x0203` UNLOCK | `sys_pins_unlock(p)` | `{u8 pin}` | – (an unlocked pin stays unlocked) |
-| `0x0204` SET_LOCKED_LEVEL | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` | – (the owner's op: a device refuses it while suspended, `ERR_DEV_SUSPENDED`) |
+| `0x0200` AVAILABLE | R | `sys_pins_available(dev, &mask)` | → u64: the pins the device has |
+| `0x0201` LOCKED | R | `sys_pins_locked(dev, &mask)` | → u64: the locked ones |
+| `0x0202` LOCK | W | `sys_pins_lock(p)` | `{u8 pin}` (`ERR_DEV_PIN_LOCKED` if already locked) |
+| `0x0203` UNLOCK | W | `sys_pins_unlock(p)` | `{u8 pin}` (an unlocked pin stays unlocked) |
+| `0x0204` LOCKED_LEVEL | W | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` (the owner's op: a device refuses it while suspended, `ERR_DEV_SUSPENDED`) |
 
-- A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; SET_LOCKED_LEVEL writes the pin and stays the device's own.
+- A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; LOCKED_LEVEL writes the pin and stays the device's own.
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.
 - A lock is bookkeeping, not an identity: whoever sends LOCK / UNLOCK is trusted to be the owner. An owner ID in LOCK would close that; the contract has none.
 - Taking a pin by hand: `sys_io_set_mode`, then `sys_pins_lock`, then `sys_pins_set_locked_level`; release: drive safe, `sys_pins_unlock`. A driver's own output pin uses `sys_pins_take_output` instead, which does the first, a level and the lock (PCA9685 OE, TPS55289 EN).
-- Pins of a device the caller does not know (a bridge driver's IN / EN / IPROPI / VREF pins can sit on the ESP, the PCA9685, the TCA6424A or the DAC53202): `sys_io_prepare(p, mode)` is SET_MODE that accepts a device without SET_MODE (fixed-function pins: PCA9685 PWM channels, DAC outputs); `sys_io_prepare_input(p)` makes a pin an input with the pull-up where the device has one, else a plain input (the TCA6424A has no pull-ups: the board has external ones); `sys_io_release(p)` is RESET with the same tolerance. Any other failure is returned.
+- Pins of a device the caller does not know (a bridge driver's IN / EN / IPROPI / VREF pins can sit on the ESP, the PCA9685, the TCA6424A or the DAC53202): `sys_io_prepare(p, mode)` is MODE that accepts a device without MODE (fixed-function pins: PCA9685 PWM channels, DAC outputs); `sys_io_prepare_input(p)` makes a pin an input with the pull-up where the device has one, else a plain input (the TCA6424A has no pull-ups: the board has external ones); `sys_io_release(p)` is RESET with the same tolerance. Any other failure is returned.
 
 ## Events
 
-The IO events (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0; the table and delivery are in SYS_EVENT.MD) are raised for a pin armed with CONFIGURE_INTR, with channel = pin:
+The IO events (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0; the table and delivery are in SYS_EVENT.MD) are raised for a pin armed with INTR, with channel = pin:
 
 - **GPIO ESP** (`device_gpio_esp`): RISING / FALLING from its pin ISR; ADC_OUTSIDE / ADC_INSIDE from its ADC task, deferred.
 - **TCA6424A** (`device_tca6424a`): its ON_EVENT runs on the INT pin's falling edge, reads the input port and publishes the edges of the pins armed with an edge mode. Nothing while suspended.

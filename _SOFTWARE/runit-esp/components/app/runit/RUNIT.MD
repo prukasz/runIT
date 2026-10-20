@@ -36,20 +36,20 @@ Checked on a board: a stored project with a device section and boot LOAD is load
 
 ## Onboard actions
 
-`runit_onboard_actions.c`: the firmware's own actions, stored at every boot with `sys_actions_set` (only written when they differ, so a client's edit of these IDs is replaced). The IDs are published in `runit-app/generated/common/limits.json` (`RUNIT_ACTION_ID_*`, `#@limit` in `Kconfig`), so the app keeps its own actions off them. Each is one device-router frame to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"):
+`runit_onboard_actions.c`: the firmware's own actions, stored at every boot with `sys_actions_set` (only written when they differ, so a client's edit of these IDs is replaced). The IDs are published in `runit-app/generated/common/limits.json` (`RUNIT_ACTION_ID_*`, `#@limit` in `Kconfig`), so the app keeps its own actions off them. Each is one write frame: a device-router sweep to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"), or a sys command:
 
 | ID (Kconfig) | Does | Frame |
 |---|---|---|
-| 3 `RUNIT_ACTION_ID_RESUME` (user class, `0x00000003`) | resume all | `05 FF FF 03 00` (every device, oldest first) |
-| 4 `RUNIT_ACTION_ID_SUSPEND` (`0x00000004`) | suspend all | `05 FF FF 02 00` (every device, newest first) |
-| 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 FF FF 01 00` (every device, newest first; the drivers' RESET) |
-| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `02 00 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
+| 3 `RUNIT_ACTION_ID_RESUME` (user class, `0x00000003`) | resume all | `05 01 FF FF 03 00` (every device, oldest first) |
+| 4 `RUNIT_ACTION_ID_SUSPEND` (`0x00000004`) | suspend all | `05 01 FF FF 02 00` (every device, newest first) |
+| 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 01 FF FF 01 00` (every device, newest first; the drivers' RESET) |
+| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `01 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
 
-Run with `06 01 <id u32>`, or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's boot option, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
+Run with `06 01 01 <id u32>` (actions RUN, a write), or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's boot option, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_sweep(SUSPEND)`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE_GET`. The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_sweep(RESUME)`, oldest first); the client starts the program again (VM EXEC).
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_sweep(SUSPEND)`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE` (a read). The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_sweep(RESUME)`, oldest first); the client starts the program again (VM EXEC).
 
 ## Error policy wiring
 

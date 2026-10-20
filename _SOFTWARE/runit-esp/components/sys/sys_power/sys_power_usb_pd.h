@@ -8,8 +8,8 @@ extern "C" {
 
 /**
  * @brief The POWER_USB_PD contract (SYS_DEVICE_CONTRACT_POWER_USB_PD: 0x07xx): a USB Power Delivery sink negotiating
- * a voltage / current with its charger. What the charger offers is read with LIST_OPTIONS; SET_SETTINGS asks for a
- * profile (the charger may not grant exactly what is asked); GET_LIMITS gives the highest the charger offers (the
+ * a voltage / current with its charger. What the charger offers is read with OPTIONS; a SETTINGS write asks for a
+ * profile (the charger may not grant exactly what is asked); LIMITS gives the highest the charger offers (the
  * power manager's USB budget).
  */
 
@@ -23,7 +23,7 @@ typedef enum {
   SYS_POWER_USB_PD_OPTION_AVS = 2,    //@alias AVS @description Adjustable Voltage Supply PDO
 } sys_power_usb_pd_option_type_e;
 
-/** @brief One power option the source offers: the LIST_OPTIONS answer is an array of these. */
+/** @brief One power option the source offers: the OPTIONS answer is an array of these. */
 typedef struct __attribute__((packed)) {
   uint8_t slot;       /**< 1-based offer index from source */
   uint8_t type;       /**< sys_power_usb_pd_option_type_e */

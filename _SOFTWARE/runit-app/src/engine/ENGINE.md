@@ -90,7 +90,7 @@ What the program never held does not come back: descriptions, the names of block
 | Telemetry and run-time writes | `VM_CORE.MD` "Telemetry is the same command" (`vm_wire.h` records) | `tests/backend/telemetry.test.ts` decodes frames captured from a board and the write frame the board accepted |
 | Recovering a project | the records of `vm_wire.h`, `layoutVariables` and the compiler read backwards | `recover.test.ts`: every block and variant of the palette compiles, is recovered and compiles to the same bytes (`exact`) |
 | Limits | `generated/common/limits.json`: the options marked `#@limit` in the Kconfig of `vm_core` and `router`, with the values the firmware is built with (`templates/generate_limits.py`) | `limits.test.ts`: the file equals `sdkconfig`, `DEFAULT_LIMITS` equals the file |
-| Frame size | `CONFIG_ROUTER_FRAME_MAX` (a limit) less `[seq][flags]` and the two keys of a VM command | `limits.test.ts` reads `REQ_HDR` from `router_dispatch.c`; a link that carries less passes `limits: { frameMax }` |
+| Frame size | `CONFIG_ROUTER_FRAME_MAX` (a limit) less `[seq][flags]` and `[key][dir][op]` of a VM command | `limits.test.ts` reads `REQ_HDR` from `router_dispatch.c`; a link that carries less passes `limits: { frameMax }` |
 
 ## Extending it
 
@@ -100,9 +100,9 @@ What the program never held does not come back: descriptions, the names of block
 
 ## What the firmware publishes for the engine
 
-Three things were once held in the engine and are now published and checked at the source: `state_len` of every block (descriptor field, compared with the C), the `op` of every device variant (the servo's too), and the limits (`generated/common/limits.json`). The engine reads them; the tests hold the published values against the C and `sdkconfig`.
+Three things are published and checked at the source, not held in the engine: `state_len` of every block (descriptor field, compared with the C), the `op` of every device variant (the servo's too), and the limits (`generated/common/limits.json`). The engine reads them; the tests hold the published values against the C and `sdkconfig`.
 
-`tests/engine/fixtures/vm-golden.json` is the load frames of the firmware host suite's builder (`vm_lib.Prog`, run against the board) for a sample program, taken from the firmware host suite's builder. `wire/frames.test.ts` compares byte for byte. It pins the packing policy of that builder (400 bytes a frame, a value cut at 192), which is why `frameBudget` and `dataChunk` default to those: the board takes any frame up to `frameMax`.
+`tests/engine/fixtures/vm-golden.json` is the load frames of the firmware host suite's builder (`vm_lib.Prog`, run against the board) for a sample program. `wire/frames.test.ts` compares byte for byte. It pins the packing policy of that builder (400 bytes a frame, a value cut at 192), which is why `frameBudget` and `dataChunk` default to those: the board takes any frame up to `frameMax`.
 
 ## Known gaps
 
