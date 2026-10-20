@@ -81,6 +81,18 @@
       }
     ]
   },
+  "ranges": {
+    "VOLTAGE.voltage_mV": {
+      "min": 4000,
+      "max": 20000,
+      "step": 100
+    },
+    "CURRENT.current_mA": {
+      "min": 200,
+      "max": 5500,
+      "step": 100
+    }
+  },
   "contracts": [
     "DEVICE",
     "POWER_VREG"
@@ -162,6 +174,7 @@
               "label": "Active discharge",
               "description": "Enable active discharge resistor on disable",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 3,
@@ -252,6 +265,7 @@
               "label": "Active discharge",
               "description": "Enable active discharge resistor on disable",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 3,

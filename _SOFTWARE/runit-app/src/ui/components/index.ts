@@ -32,6 +32,7 @@ export { PaletteSectionHeader } from './PaletteSectionHeader/PaletteSectionHeade
 export { PanelHeader } from './PanelHeader/PanelHeader'
 export { RefPill } from './ReferenceField/ReferenceField'
 export { SegmentedSwitch } from './SegmentedSwitch/SegmentedSwitch'
+export { Slider } from './Slider/Slider'
 export { Switch } from './Switch/Switch'
 export { TreeAction, TreeChildren, TreeDisclosure, TreeSlab } from './TreeSlab/TreeSlab'
 export type { TreeSlabProps } from './TreeSlab/TreeSlab'

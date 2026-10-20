@@ -127,6 +127,12 @@
       }
     ]
   },
+  "provides": {
+    "channels": {
+      "count": 3,
+      "labels": ["Channel 1", "Channel 2", "Channel 3"]
+    }
+  },
   "contracts": [
     "DEVICE",
     "POWER_MONITOR"

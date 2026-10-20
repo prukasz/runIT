@@ -36,7 +36,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 - **4 configurable H-bridges (8 outputs)** — 2× DRV8962, up to 20 V / 5 A per output, **100 W** total.
 - Full-bridge (motors) or half-bridge (solenoids, loads) topology.
 - **Power-source selection per H-bridge group** (4× LM73100): feed from either DC-DC rail or directly from the input — drive loads with different voltages straight from the board.
-- Current measurement (IPROPI) and **constant-current mode** (VREF current limit, set by DAC53202 — one separate DAC channel per DRV8962).
+- Current measurement (IPROPI) and **constant-current mode** (VREF current limit, set by DAC53202 — one separate DAC channel per DRV8962: one limit for the whole chip).
 - **8 analog/digital inputs** (ADS7128) working directly with up to **20 V**, no external dividers needed.
 
 ### 2.4 PWM expander (PCA9685)
@@ -73,7 +73,7 @@ All onboard chips are created at boot by `runit_board_devices_init()` (the new f
 | 3 | PCA9685 | Digital/Analog IO | 0x60 | OE → TCA 0 | CH 0–7 user PWM headers, CH 8–15 → DRV8962 #2 (12-bit duty, one shared frequency) |
 | 4 | DAC53202 | Digital/Analog IO | 0x48 (A0 = GND) | — | OUT0/OUT1 → VREF of DRV8962 #1/#2; VDD reference, gain 1x (full scale 3.3 V) |
 | 5 | DRV8962 #1 | H-bridge | — | IN1-4 → ESP 21/47/48/45, EN1-4 → ESP 38/39/2/1, IPROPI1-4 → ESP 7/6/5/4, nSLEEP → TCA 9, nFAULT → TCA 11, VM ← TCA 14 (VSUP) / 15 (rail B) | 2 full bridges; PWM 20 kHz on ESP LEDC. Created and braked on the PCB with the new firmware 2026-10-11 (VM supplies off) |
-| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 13 (rail A) / 12 (VSUP) (measured 2026-10-11), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (1 kHz) |
+| 6 | DRV8962 #2 | H-bridge | — | IN1-4 → PCA CH 8-11, EN1-4 → PCA CH 12-15, nSLEEP → TCA 8, nFAULT → TCA 10, VM ← TCA 13 (rail A) / 12 (VSUP) (measured 2026-10-11), IPROPI resistors only | 2 full bridges, PWM at the PCA frequency (50 Hz, shared with the servos on CH 0–7) |
 | 10 | TPS55289 `TPS55289_2` | Voltage Regulator | 0x74 | INT → TCA 1, EN → TCA 17 | Adjustable rail A |
 | 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
 | 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27) | V/I of rail A, rail B and whole-board input, with alerts |

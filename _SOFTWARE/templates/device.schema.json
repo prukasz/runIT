@@ -143,6 +143,21 @@
       ]
     },
 
+    "ranges": {
+      "type": "object",
+      "description": "Zakres pola polecenia kontraktu dla tego urządzenia: klucz to 'POLECENIE.pole' (id polecenia i id pola, np. 'VOLTAGE.voltage_mV'). Nadpisuje min, max i step z kontraktu; aplikacja nie pokaże wartości poza zakresem.",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["min", "max"],
+        "additionalProperties": false,
+        "properties": {
+          "min": { "type": "number" },
+          "max": { "type": "number" },
+          "step": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
     "presets": {
       "type": "array",
       "description": "Gotowe profile i presety konfiguracyjne dla popularnych wariantów sprzętowych (np. SG90 dla serwa, profil 50Hz vs 1kHz dla PCA9685).",
@@ -157,6 +172,9 @@
       "properties": {
         "pins": {
           "$ref": "#/$defs/providedPins"
+        },
+        "channels": {
+          "$ref": "#/$defs/providedChannels"
         },
         "power": {
           "$ref": "#/$defs/providedPower"
@@ -403,6 +421,11 @@
           "type": "number",
           "description": "Dla type='number': krok wartości."
         },
+        "control": {
+          "type": "string",
+          "enum": ["slider", "switch"],
+          "description": "Jak aplikacja może zastąpić pole, gdy użytkownik na to pozwoli (App settings): 'slider' dla type='number' z min i max (suwak w zakresie), 'switch' dla type='choice' z dokładnie dwiema opcjami (przełącznik: pierwsza opcja wyłączona, druga włączona). Bez tego pole zostaje polem liczbowym albo listą."
+        },
         "unit": {
           "type": "string",
           "description": "Jednostka fizyczna wartości (np. 'Hz', 'us', 'deg', 'mV', 'mA', '%', 'V').",
@@ -414,6 +437,18 @@
         }
       },
       "additionalProperties": false
+    },
+
+    "providedChannels": {
+      "type": "object",
+      "required": ["count"],
+      "additionalProperties": false,
+      "description": "Kanały pomiarowe urządzenia, które nie są jego pinami (kanał INA3221, wejście AP33772S): pole polecenia typu 'channel' pokazuje je jako listę. Urządzenie, którego kanałami są jego piny (DRV8962), ich nie podaje: lista pochodzi wtedy z 'pins'.",
+      "properties": {
+        "count": { "type": "integer", "minimum": 1, "description": "Liczba kanałów (numerowanych od 0)." },
+        "labels": { "type": "array", "items": { "type": "string" }, "description": "Nazwy kanałów, po jednej na kanał (np. ['Channel 1', 'Channel 2', 'Channel 3'])." },
+        "by_config": { "$ref": "#/$defs/providedPins/properties/by_config" }
+      }
     },
 
     "providedPins": {
@@ -449,6 +484,29 @@
           "type": "array",
           "description": "Opcjonalne etykiety poszczególnych pinów (np. ['CH0', 'CH1', ...]).",
           "items": { "type": "string" }
+        },
+        "by_config": {
+          "type": "object",
+          "required": ["field", "variants"],
+          "additionalProperties": false,
+          "description": "Liczba pinów i ich etykiety zależą od pola konfiguracji (DRV8962: kanały wg topologii, dwa mostki H albo cztery półmostki). 'count' i 'labels' powyżej to wariant wartości domyślnej pola; wariant o wartości pola z konfiguracji urządzenia je zastępuje.",
+          "properties": {
+            "field": { "type": "string", "description": "Id pola konfiguracji (np. 'topology')." },
+            "variants": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["value", "count"],
+                "additionalProperties": false,
+                "properties": {
+                  "value": { "type": "integer", "description": "Wartość pola." },
+                  "count": { "type": "integer", "minimum": 1, "description": "Liczba pinów / kanałów przy tej wartości." },
+                  "labels": { "type": "array", "items": { "type": "string" }, "description": "Etykiety pinów przy tej wartości." }
+                }
+              }
+            }
+          }
         },
         "shared_frequency": {
           "type": "boolean",

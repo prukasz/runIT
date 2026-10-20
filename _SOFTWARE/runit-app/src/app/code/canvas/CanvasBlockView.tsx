@@ -69,7 +69,8 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
   const concrete = pinsOf(ctx.catalog, block)
   const settings = type ? [...type.fields, ...(variantOf(type, block.variant)?.fields ?? [])] : []
   const constantOf = (index: number): string | undefined => {
-    const id = concrete?.inputs[index]?.pin.field
+    const pin = concrete?.inputs[index]?.pin
+    const id = pin?.field ?? pin?.overrides
     const field = id === undefined ? undefined : settings.find((f) => f.id === id)
     return field && (field.fixed ?? block.values?.[field.id] ?? field.default) !== undefined ? fieldText(ctx, block, field) : undefined
   }

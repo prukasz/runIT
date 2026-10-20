@@ -13,7 +13,7 @@
       "op": 0,
       "symbol": "PD_OP_SETTINGS",
       "label": "Request",
-      "description": "The voltage and current asked of the charger: the write asks, the read answers what was asked last.",
+      "description": "The voltage and current asked of the charger: the write asks, the read answers the last request the charger took (a refused one leaves it; 5 V and 500 mA at start).",
       "read": {
         "returns": {
           "struct": "pd_settings_args_t",

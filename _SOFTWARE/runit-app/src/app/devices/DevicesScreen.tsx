@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookOpen, ListChecks, Lock, Play, Plus, RotateCcw } from 'lucide-react'
 import { bundledEnums, deviceCall, onboardActions, sendInOrder } from '@backend'
 import type { Request } from '@backend'
@@ -12,16 +12,48 @@ import { DevicePage } from './DevicePage'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { StepList } from './StepList'
-import { admittedSeverities, baseConfig, DEVICE_COMMANDS, isBusField, isPinStart, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, SINGLE_TYPES, usedBy } from './devices'
+import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, SINGLE_TYPES, startSettings, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState } from './useDevices'
 import './Devices.css'
 
 
+/*
+ * A device's settings: its config (what CREATE takes). The fields its live settings command writes (`liveSettingsOf`: the DRV8962's
+ * topology, current limit, braking) change on the board at once while it is there; on a board device they are kept as that write in
+ * its start commands (its config is the firmware's), on a project device in its config too. The board's answer to the read shows
+ * while connected.
+ */
 function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
   const type = device.type
   const context = { devices: state.devices, own: device, board: state.board }
+  const live = liveSettingsOf(type)
+  const liveIds = new Set((live?.write?.args?.fields ?? []).map((f) => f.id))
+  const present = state.connected && state.live.get(device.id)?.state === 'present'
+  const [read, setRead] = useState<FieldValues | undefined>()
+  const [error, setError] = useState<string | undefined>()
+  useEffect(() => {
+    setRead(undefined)
+    setError(undefined)
+    if (!live || !type || !present) return
+    let stopped = false
+    state.services.device(device.id, type.id, live.id, undefined, { side: 'read' })
+      .then(({ value }) => { if (!stopped && value !== null && typeof value === 'object' && !Array.isArray(value)) setRead(value as FieldValues) })
+      .catch(() => undefined)
+    return () => { stopped = true }
+  }, [live, type, present, device.id, state.services])
+  const sendLive = async (args: FieldValues) => {
+    if (!live || !type || !present) return
+    setError(undefined)
+    try {
+      await state.services.device(device.id, type.id, live.id, args, { side: 'write' })
+      setRead(args)
+    } catch (failure) {
+      setError(state.explain(failure))
+    }
+  }
   if (!type?.config || type.config.fields.length === 0) return <Card title="Settings" subhead="This type has nothing to set when it is created." />
+  const liveNote = live && <p className="devices-hint">{present ? 'Changed on the board at once.' : 'Sent to the board at once while it is connected.'}{device.system ? ' Kept in the start commands.' : ''}</p>
   if (device.system) {
     // The bus and the address the board's firmware gave the device (board.json `i2c`) are its values, as the fields show them.
     const boardValues: FieldValues = Object.fromEntries(type.config.fields.flatMap((f): [string, FieldInput][] => {
@@ -30,10 +62,20 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
       const value = fromI2c ?? device.config[f.id] ?? (f.pinRef ? ((f.size ?? 3) / 3 === 1 ? pins[0] : pins) : undefined)
       return value === undefined || value === null || (Array.isArray(value) && value.length === 0) ? [] : [[f.id, value as FieldInput]]
     }))
+    const values: FieldValues = { ...boardValues, ...(live ? startSettings(device, live) : {}), ...read }
+    const change = (next: FieldValues) => {
+      if (!live) return
+      const args = liveSettingsArgs(live, { ...values, ...next })
+      state.setDefaults(device, (steps) => [...steps.filter((s) => !isLiveSettingsStep(s, device, live)), { kind: 'device', device: device.id, contract: type.id, command: live.id, args }])
+      void sendLive(args)
+    }
     return (
       <Card title="Settings">
-        {/* Only what board.json gives, locked: the type's default need not be what the board's firmware sets. */}
-        <FieldsForm layout={type.config} values={boardValues} context={context} disabled hide={(f) => boardValues[f.id] === undefined} onChange={() => undefined} />
+        {live && <FieldsForm layout={type.config} values={values} context={context} hide={(f) => !liveIds.has(f.id)} onChange={change} />}
+        {liveNote}
+        {/* The rest only as board.json gives it, locked: the type's default need not be what the board's firmware sets. */}
+        <FieldsForm layout={type.config} values={boardValues} context={context} disabled hide={(f) => liveIds.has(f.id) || boardValues[f.id] === undefined} onChange={() => undefined} />
+        {error && <FieldError>{error}</FieldError>}
       </Card>
     )
   }
@@ -46,7 +88,12 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
             onChange={(id) => { const preset = type.presets?.find((p) => p.id === id); if (preset) state.updateDevice(device.id, (d) => ({ ...d, config: { ...d.config, ...preset.values } })) }} />
         </div>
       )}
-      <FieldsForm layout={type.config} values={device.config} context={context} hide={isBusField} onChange={(config) => state.updateDevice(device.id, (d) => ({ ...d, config }), `device-config:${device.id}`)} />
+      <FieldsForm layout={type.config} values={device.config} context={context} hide={isBusField} onChange={(config) => {
+        state.updateDevice(device.id, (d) => ({ ...d, config }), `device-config:${device.id}`)
+        if (live && [...liveIds].some((id) => config[id] !== device.config[id])) void sendLive(liveSettingsArgs(live, config))
+      }} />
+      {liveNote}
+      {error && <FieldError>{error}</FieldError>}
     </Card>
   )
 }
@@ -124,7 +171,7 @@ function StartCard({ device, state }: { device: DeviceInfo; state: DevicesState 
 }
 
 function PinsCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
-  const pins = device.type?.pins
+  const pins = devicePins(device)
   if (!pins) return null
   const notes = pinNotes(state.board, device.id)
   const users = usedBy(state.devices, device.id)
@@ -140,7 +187,7 @@ function PinsCard({ device, state }: { device: DeviceInfo; state: DevicesState }
             // A click on the row opens the pin's settings (mode, interrupt) in the right panel; the references and buttons in it keep their own action.
             <div key={pin} className={`devices-pin ${errors && errors.console.unread(`device:${device.id}/pin:${pin}`) > 0 ? 'has-error' : ''}`.trim()} data-key={`device:${device.id}/pin:${pin}`}
               onClick={(event) => { if (!(event.target as HTMLElement).closest('button, .ref-pill')) state.selectPin(device.id, pin) }}>
-              <span className="devices-pin-name" title={pinHint(device.type, pin)}>{pinNumber(pin)}</span>
+              <span className="devices-pin-name" title={pinHint(device, pin)}>{pinNumber(pin)}</span>
               {/* A pin another device uses is named by that use: the reference stands in place of the user's name. */}
               {user.length > 0 || kept
                 ? (

@@ -7,7 +7,7 @@ import type { Choice } from '@ui/components'
 import type { Step } from '../project/projectFile'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
-import { bundledEnums } from '@backend'
+import { bundledEnums, withRanges } from '@backend'
 import { answers, changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
 import type { DeviceInfo, PinInterrupt, PinStart } from './devices'
 import type { DevicesState } from './useDevices'
@@ -23,7 +23,7 @@ function CommandTester({ device, entry, command, side, state }: { device: Device
   const [args, setArgs] = useState<FieldValues>({})
   const [result, setResult] = useState<Result | undefined>()
   const [sending, setSending] = useState(false)
-  const layout = command[side]?.args
+  const layout = withRanges(command[side]?.args, command.id, device.ranges)
   const write = side === 'write'
   const step: Step = { kind: 'device', device: device.id, contract: entry.id, command: command.id, ...(layout ? { args } : {}) }
   // The pin states: now (what this session did live) and at start (what the project and the boot do): a command takes only a pin in the
@@ -111,7 +111,7 @@ function LifecycleBar({ device, state }: { device: DeviceInfo; state: DevicesSta
     void state.probe()
   }
   return (
-    <div className="devices-command">
+    <div className="devices-lifecycle">
       <div className="devices-actions">
         {own && (
           <>

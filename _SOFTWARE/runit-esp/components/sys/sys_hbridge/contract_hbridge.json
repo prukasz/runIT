@@ -35,7 +35,8 @@
               "offset": 1,
               "description": "PWM steps: -4095 full reverse to 4095 full forward (a half bridge 0 to 4095)",
               "min": -4095,
-              "max": 4095
+              "max": 4095,
+              "control": "slider"
             }
           ],
           "struct": "hbridge_drive_args_t"

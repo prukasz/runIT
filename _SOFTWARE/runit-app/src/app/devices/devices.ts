@@ -1,5 +1,5 @@
 import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, readDeviceFrame, requestFrame, sidesOf } from '@backend'
-import type { BoardDescriptor, CatalogEntry, CommandDef, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
+import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
 import type { BoardDefaults, ProjectAction, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 
 /*
@@ -57,6 +57,8 @@ export interface DeviceInfo {
   readonly pinAliases: ReadonlyMap<number, string>
   /** The commands it gets at start, after it is created. */
   readonly defaults: readonly Step[]
+  /** The ranges it gives the fields of its commands (`COMMAND.field`): its type's, replaced by board.json's for a board device. */
+  readonly ranges?: FieldRanges
 }
 
 /** The device type of a board device: the descriptor board.json names. */
@@ -122,22 +124,27 @@ export const creationOrder = (devices: readonly DeviceInfo[]): DeviceInfo[] => {
 const listDevices = (project: ProjectFile, catalog: ServiceCatalog, board: BoardDescriptor): DeviceInfo[] => [
   ...board.devices.map((d): DeviceInfo => {
     const type = boardType(catalog, d.descriptor)
+    const defaults = project.boardDefaults.find((b) => b.device === d.id)?.steps ?? []
+    // The live settings its start commands write (the DRV8962's topology) are its config from then on: its channels follow them.
+    const live = liveSettingsOf(type)
+    const liveStep = live && [...defaults].reverse().find((s) => s.kind === 'device' && s.device === d.id && s.contract === type?.id && s.command === live.id)
     return {
       id: d.id,
       name: d.name,
       system: true,
       type,
       ...(d.description ? { description: d.description } : {}),
-      config: d.config as FieldValues,
+      config: { ...(d.config as FieldValues), ...(liveStep?.kind === 'device' ? liveStep.args : {}) },
       ...(d.i2c ? { i2c: d.i2c } : {}),
       uses: d.pins.map((p) => ({ field: /^\w+/.exec(p.use)?.[0] ?? p.use, use: useLabel(type, p.use), pin: { device: p.device, pin: p.pin }, ...(p.description ? { description: p.description } : {}) })),
       pinAliases: aliasesOf(project, d.id),
-      defaults: project.boardDefaults.find((b) => b.device === d.id)?.steps ?? [],
+      defaults,
+      ...(type?.ranges || d.ranges ? { ranges: { ...type?.ranges, ...d.ranges } } : {}),
     }
   }),
   ...creationOrder(project.devices.map((d): DeviceInfo => {
     const type = catalog.devices.get(d.type)
-    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [] }
+    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [], ...(type?.ranges ? { ranges: type.ranges } : {}) }
   })),
 ]
 
@@ -317,8 +324,40 @@ const WINDOW_FIELDS = ['threshold_up_mV', 'threshold_down_mV', 'hysteresis_mV', 
 /** A pin's number as the app shows it: always `#n` (what commands and errors carry). */
 export const pinNumber = (pin: number): string => `#${pin}`
 
-/** The descriptor's own name of a pin (`P26`, `CH8`): a hint beside the number, never in its place. */
-export const pinHint = (type: CatalogEntry | undefined, pin: number): string | undefined => type?.pins?.labels?.[pin]
+/**
+ * A device's pins: its type's (`provides.pins`), with the count and names its config picks when they follow a config field (`by_config`:
+ * the DRV8962's channels are two full bridges or four half bridges by its topology). The config's value, else the field's default.
+ */
+export const devicePins = (device: { readonly type?: CatalogEntry | undefined; readonly config?: FieldValues } | undefined): DevicePins | undefined => {
+  const pins = device?.type?.pins
+  if (!pins?.byConfig) return pins
+  const { field, variants } = pins.byConfig
+  const value = Number(device!.config?.[field] ?? device!.type!.config?.fields.find((f) => f.id === field)?.default ?? 0)
+  const variant = variants.find((v) => v.value === value)
+  if (!variant) return pins
+  const { labels: _labels, ...rest } = pins
+  return { ...rest, count: variant.count, ...(variant.labels ? { labels: variant.labels } : {}) }
+}
+
+/**
+ * The channels a command's `channel` field offers: the device type's own (`provides.channels`, by its config when they follow a
+ * field), else its pins (the DRV8962's channels are its bridges). Each has its name, else `Channel n`.
+ */
+export const deviceChannels = (device: { readonly type?: CatalogEntry | undefined; readonly config?: FieldValues } | undefined): { readonly count: number; readonly labels?: readonly string[] } | undefined => {
+  const channels = device?.type?.channels
+  if (!channels) {
+    const pins = devicePins(device)
+    return pins && { count: pins.count, ...(pins.labels ? { labels: pins.labels } : {}) }
+  }
+  if (!channels.byConfig) return channels
+  const { field, variants } = channels.byConfig
+  const value = Number(device!.config?.[field] ?? device!.type!.config?.fields.find((f) => f.id === field)?.default ?? 0)
+  const variant = variants.find((v) => v.value === value)
+  return variant ? { count: variant.count, ...(variant.labels ? { labels: variant.labels } : {}) } : channels
+}
+
+/** The descriptor's own name of a pin (`P26`, `CH8`, `Bridge A`): a hint beside the number, never in its place. */
+export const pinHint = (device: { readonly type?: CatalogEntry | undefined; readonly config?: FieldValues } | undefined, pin: number): string | undefined => devicePins(device)?.labels?.[pin]
 
 /** Names a pin of a device: `#n`, then the user's name of it (`#22 LED blue`). */
 export type PinNamer = (device: number, pin: number) => string
@@ -372,6 +411,56 @@ export const decodeOps = (value: unknown): DeviceOps =>
 export const answers = (catalog: ServiceCatalog, ops: DeviceOps | undefined, entry: CatalogEntry, command: CommandDef, side: Side): boolean =>
   command[side] !== undefined && (!ops || ((ops.get(deviceOp(catalog, entry, command)) ?? 0) & OPS_SIDE_BIT[side]) !== 0)
 
+/**
+ * A device type's live settings: its own command with both sides whose read takes nothing and whose write takes only fields of its
+ * config, by the same ids (the DRV8962's `settings`: topology, current limit, braking). The Settings card edits those fields live.
+ */
+export const liveSettingsOf = (type: CatalogEntry | undefined): CommandDef | undefined =>
+  [...(type?.commands.values() ?? [])].find((c) => {
+    const fields = c.write?.args?.fields ?? []
+    return c.read !== undefined && (c.read.args?.fields.length ?? 0) === 0 && fields.length > 0 && !c.write?.args?.array && fields.every((f) => type!.config?.fields.some((g) => g.id === f.id))
+  })
+
+/** The arguments of a live settings write from a set of config values (a field not among them: its default). */
+export const liveSettingsArgs = (command: CommandDef, values: FieldValues): FieldValues =>
+  Object.fromEntries((command.write?.args?.fields ?? []).flatMap((f) => {
+    const value = values[f.id] ?? (f.default as FieldValues[string] | undefined)
+    return value === undefined ? [] : [[f.id, value]]
+  }))
+
+/** The step of a device's start commands that writes its live settings. */
+export const isLiveSettingsStep = (step: Step, device: DeviceInfo, command: CommandDef): boolean =>
+  step.kind === 'device' && step.device === device.id && step.contract === device.type?.id && step.command === command.id
+
+/** The live settings a device's start commands give: the arguments of their last write of that command. */
+export const startSettings = (device: DeviceInfo, command: CommandDef): FieldValues | undefined => {
+  const step = [...device.defaults].reverse().find((s) => isLiveSettingsStep(s, device, command))
+  return step?.kind === 'device' ? step.args : undefined
+}
+
+/**
+ * A device whose pins leave no mode to choose: their modes are fixed (`fixed_modes`), or they take one mode and are in it from reset
+ * (the ADS7128's analogue inputs). The test panel does not offer its MODE write: the firmware keeps it for the devices that prepare its
+ * pins, but it could only set the mode the pin has.
+ */
+export const noModeChoice = (type: CatalogEntry | undefined): boolean => {
+  const pins = type?.pins
+  return pins !== undefined && (pins.fixedModes === true || (pins.modes.length === 1 && pins.defaultMode === pins.modes[0]))
+}
+
+/**
+ * A side whose pin field wants a state (`pin_state`) is offered only where the device's pins can ever be in one: their modes
+ * (`pins.modes`), and `unconfigured` while a pin has no mode from reset. The ADS7128's analogue inputs take no LEVEL, TOGGLE, PWM or
+ * VOLTAGE write, also before the board answers OPS (a device not on the board yet).
+ */
+const pinsCanTake = (type: CatalogEntry | undefined, command: CommandDef, side: Side): boolean => {
+  const wants = command[side]?.args?.fields.find((f) => f.type === 'pin' && f.pinState)?.pinState
+  const pins = devicePins({ type })
+  if (!wants || !pins) return true
+  const kinds = [...new Set(pins.modes.flatMap((m) => kindOfCapability(m) ?? []))]
+  return pinReady([...kinds, ...(pins.fixedModes || pins.defaultMode ? [] : ['unconfigured'])], wants)
+}
+
 /** One side of one command: what the test panel tries. */
 export interface CommandSideOf {
   readonly command: CommandDef
@@ -389,12 +478,14 @@ export const commandGroups = (catalog: ServiceCatalog, type: CatalogEntry | unde
   const contracts = [lifecycle, ...(type?.contracts ?? []).map((c) => catalog.contracts.get(c)).filter((c) => c !== lifecycle), type]
   // The test panel has these elsewhere: Install / Remove and the lifecycle icons on top, the error policy under them; INFO and OPS the
   // view asks by itself, and the policy is read back with the start commands.
-  const hidden = (entry: CatalogEntry, command: CommandDef) => entry === lifecycle && (command.id === CREATE || (Object.values(DEVICE_COMMANDS) as string[]).includes(command.id))
+  const hidden = (entry: CatalogEntry, command: CommandDef) =>
+    (entry === lifecycle && (command.id === CREATE || (Object.values(DEVICE_COMMANDS) as string[]).includes(command.id))) ||
+    (entry.id === 'IO' && command.id === PIN_START_COMMANDS.mode && noModeChoice(type))
   return contracts
     .filter((entry, i, all): entry is CatalogEntry => entry !== undefined && all.indexOf(entry) === i)
     .map((entry) => ({
       entry,
-      commands: [...entry.commands.values()].filter((c) => !hidden(entry, c)).flatMap((command) => sidesOf(command).filter((side) => answers(catalog, ops, entry, command, side)).map((side) => ({ command, side }))),
+      commands: [...entry.commands.values()].filter((c) => !hidden(entry, c)).flatMap((command) => sidesOf(command).filter((side) => answers(catalog, ops, entry, command, side) && pinsCanTake(type, command, side)).map((side) => ({ command, side }))),
     }))
     .filter((group) => group.commands.length > 0)
 }

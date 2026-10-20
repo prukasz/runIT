@@ -26,7 +26,7 @@ Not a module with state: sets of device ops that mean the same on every device t
 
 - Readings are signed (a reversed shunt reports a negative current) and allowed while suspended.
 - **GET_POWER**: a chip with a power register reads it; one without answers `sys_power_mW(mV, mA)` from its own two readings (`int64` product, so 20 V × 5.5 A doesn't overflow).
-- **Alerts** (`sys_power_alert_e`): `OCP_WARNING` 0, `OCP_CRITICAL` 1. An armed alert is published as the event with the same n. A device that can't do the alert on that channel answers `ERR_POWER_ALERT_UNSUPPORTED`.
+- **Alerts** (`sys_power_alert_e`): `OCP_WARNING` 0, `OCP_CRITICAL` 1. An armed alert is published as the event with the same n. A device that can't do the alert on that channel answers `ERR_POWER_ALERT_UNSUPPORTED`. The INA3221 publishes a reversed-shunt alert (transparent on the chip) once per excursion: after the event its limit moves 10 % lower and the threshold is armed again only when the current is back under that (`ALERT_HYSTERESIS_PCT`), so a current around the threshold is not an event per conversion.
 
 | Event | ID | Flags | Value |
 |---|---|---|---|
@@ -45,7 +45,7 @@ A regulator with one output. Prefix `VREG_`.
 | `0x0501` SET_VOLTAGE | `sys_power_vreg_set_voltage(dev, mV)` | `{u32 voltage_mV}` | – |
 | `0x0502` SET_CURRENT | `sys_power_vreg_set_current(dev, mA)` | `{u32 current_mA}` | – |
 
-- Voltage and current are the wanted settings. A device with an output of its own keeps them while the output is off and applies them at enable (TPS55289). A device whose output is a USB-PD contract requests them from the charger at once (AP33772S, see POWER_USB_PD).
+- Voltage and current are the wanted settings. A device with an output of its own keeps them while the output is off and applies them at enable (TPS55289). A device whose output is a USB-PD contract requests them from the charger at once; a request the charger refuses is not kept, and the read answers the last one it took (AP33772S, see POWER_USB_PD).
 - Out of the chip's range: `ERR_DEV_RANGE {id, value, min, max}`, never clamped. Writes while suspended: `ERR_DEV_SUSPENDED`.
 
 | Event | ID | Flags | Value |
@@ -87,7 +87,7 @@ A power mux: two switched sources into one load (the LM73100 ideal diodes of an 
 
 | Contract | Implemented by |
 |---|---|
-| POWER_MONITOR | INA3221 (readings, alerts), AP33772S (readings) |
+| POWER_MONITOR | INA3221 (readings, alerts), AP33772S (readings), DRV8962 (CURRENT of a channel from its IPROPI pins; offered only with them wired, `has_op`) |
 | POWER_VREG | TPS55289, AP33772S |
 | POWER_USB_PD | AP33772S |
 | POWER_SUPPLY | power mux (`components/devices/device_power_mux`) |
@@ -96,4 +96,4 @@ The power manager is its own component: SYS_POWER_MANAGER.MD.
 
 ## Errors (`ERR_MOD_SYS_POWER` = 10, `sys_power.h`)
 
-Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289), `ERR_POWER_NO_PROFILE {id, voltage_mV, lowest_mV}` (a USB-PD source offers no profile at or below the voltage; AP33772S).
+Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289), `ERR_POWER_NO_PROFILE {id, voltage_mV, lowest_mV}` (a USB-PD source offers no profile at or below the voltage; `lowest_mV` is its lowest fixed offer (5 V when it offers none); AP33772S).

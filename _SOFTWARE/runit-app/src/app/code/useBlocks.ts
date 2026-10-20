@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { newBlock, variantOf } from '@engine'
 import type { BlockInstance, BlockType, Engine, ObjectPath } from '@engine'
 import { onboardActions } from '@backend'
-import { changesPin, isReserved, pinReady, pinStateOf, usedBy } from '../devices/devices'
+import { changesPin, devicePins, isReserved, pinReady, pinStateOf, usedBy } from '../devices/devices'
 import type { DeviceInfo } from '../devices/devices'
 import type { DevicesState } from '../devices/useDevices'
 import type { ProjectFile } from '../project/projectFile'
@@ -30,7 +30,7 @@ export const decodePlacement = (text: string): Placement => {
  * wants (`pin_state`) when the project starts, so the board does not refuse it. A block that runs no known command is offered every pin.
  */
 export const blockPinChoices = (state: Pick<DevicesState, 'catalog' | 'board' | 'devices'>, type: BlockType, variant: string | undefined, field: string, device: DeviceInfo): number[] => {
-  const count = device.type?.pins?.count ?? 0
+  const count = devicePins(device)?.count ?? 0
   const operation = variantOf(type, variant)?.operation
   const command = operation && (operation.source === 'contract' ? state.catalog.contracts.get(operation.of) : device.type)?.commands.get(operation.command)
   const side = operation && state.catalog.sideOfDir(operation.dir)

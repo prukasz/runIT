@@ -47,6 +47,8 @@ export interface WireField {
   readonly min?: number
   readonly max?: number
   readonly step?: number
+  /** What the app may draw instead of the field's own control (`control`): a slider for a number with a range, a switch for a choice of two. */
+  readonly control?: 'slider' | 'switch'
   readonly default?: unknown
   readonly optional: boolean
   /** The values of a `choice` field, or of an `enum` field from its group in `enums.json`. */
@@ -63,6 +65,31 @@ export interface WireField {
   readonly pinRef: boolean
   /** The values of an unused pin, for a `pinRef` field. */
   readonly pinNone?: PinRef
+}
+
+/** The range a device gives a field of one of its commands (`ranges` of its descriptor or of its board.json entry), by `COMMAND.field`. */
+export type FieldRanges = Readonly<Record<string, { readonly min: number; readonly max: number; readonly step?: number }>>
+
+/** The `ranges` of a descriptor as `FieldRanges`: an entry without a numeric min and max below it is left out. */
+export const parseRanges = (json: unknown): FieldRanges => {
+  const out: Record<string, FieldRanges[string]> = {}
+  if (json && typeof json === 'object') {
+    for (const [key, value] of Object.entries(json)) {
+      const r = value as { min?: unknown; max?: unknown; step?: unknown } | null
+      if (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min < r.max) out[key] = { min: r.min, max: r.max, ...(typeof r.step === 'number' && r.step > 0 ? { step: r.step } : {}) }
+    }
+  }
+  return out
+}
+
+/** `layout` with the ranges a device gives the fields of command `command` (min, max and step replace the contract's). */
+export const withRanges = (layout: Layout | undefined, command: string, ranges: FieldRanges | undefined): Layout | undefined => {
+  if (!layout || !ranges) return layout
+  const fields = layout.fields.map((f) => {
+    const r = ranges[`${command}.${f.id}`]
+    return r ? { ...f, min: r.min, max: r.max, ...(r.step !== undefined ? { step: r.step } : {}) } : f
+  })
+  return { ...layout, fields }
 }
 
 export interface Layout {

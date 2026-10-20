@@ -2,11 +2,12 @@ import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import type { BoardDescriptor, FieldValues, Services } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
 import type { Choice } from '@ui/components'
+import { deviceChannels } from '../devices/devices'
 import type { DeviceInfo } from '../devices/devices'
 import type { useProject } from '../project/useProject'
 import { answerFields, commandOf, defaultReadings, readArgs, readCommands, readKey, showValue, valueSpec } from './powerDisplay'
 import type { PowerReading } from './powerDisplay'
-import { usePowerLive } from './usePowerLive'
+import { usePowerLive, usePowerOps } from './usePowerLive'
 import './PowerLive.css'
 
 /*
@@ -25,7 +26,8 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
   const own = project.project.powerDisplay
   const readings = own ?? defaultReadings(board)
   const values = usePowerLive(services, readings, connected, true)
-  const commands = readCommands(services.catalog, devices)
+  const ops = usePowerOps(services, devices, connected)
+  const commands = readCommands(services.catalog, devices, (id) => ops.get(id))
   const choices: Choice<string>[] = commands.map((c) => ({ value: readKey(c.read), label: c.label, group: c.group }))
   const set = (next: readonly PowerReading[], key?: string) => project.edit((p) => ({ ...p, powerDisplay: next }), key)
   const change = (i: number, patch: Partial<PowerReading>, key?: string) => set(readings.map((r, j) => (j === i ? { ...r, ...patch } : r)), key)
@@ -76,14 +78,22 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
                     if (found) change(i, { read: found.read, args: undefined, field: (fields.find((f) => f.unit) ?? fields[0])?.id })
                   }} />
               </FormRow>
-              {args.map((field) => (
-                <FormRow key={field.id} label={`${field.label}${field.unit ? ` (${field.unit})` : ''}`} note={field.description}>
-                  {field.choices
-                    ? <ChoiceField<string> aria-label={field.label} value={reading.args?.[field.id] === undefined ? undefined : String(reading.args[field.id])} choices={field.choices.map((c) => ({ value: String(c.value), label: c.label }))}
-                      onChange={(v) => { const c = field.choices!.find((x) => String(x.value) === v); if (c) setArg(field.id, typeof c.value === 'string' ? c.label : Number(c.value)) }} />
-                    : <NumberField aria-label={field.label} integer value={typeof reading.args?.[field.id] === 'number' ? (reading.args[field.id] as number) : undefined} onCommit={(v) => setArg(field.id, v)} />}
-                </FormRow>
-              ))}
+              {args.map((field) => {
+                // A `channel` argument of a device's command: that device's channels by name.
+                const channels = field.type === 'channel' && reading.read.kind === 'device' ? deviceChannels(devices.find((d) => d.id === (reading.read as { device: number }).device)) : undefined
+                return (
+                  <FormRow key={field.id} label={`${field.label}${field.unit ? ` (${field.unit})` : ''}`} note={field.description}>
+                    {channels
+                      ? <ChoiceField<number> aria-label={field.label} value={typeof reading.args?.[field.id] === 'number' ? (reading.args[field.id] as number) : undefined} placeholder="Choose a channel"
+                        choices={Array.from({ length: channels.count }, (_, i) => ({ value: i, label: channels.labels?.[i] ?? `Channel ${i + 1}` }))}
+                        onChange={(v) => v !== undefined && setArg(field.id, v)} />
+                      : field.choices
+                      ? <ChoiceField<string> aria-label={field.label} value={reading.args?.[field.id] === undefined ? undefined : String(reading.args[field.id])} choices={field.choices.map((c) => ({ value: String(c.value), label: c.label }))}
+                        onChange={(v) => { const c = field.choices!.find((x) => String(x.value) === v); if (c) setArg(field.id, typeof c.value === 'string' ? c.label : Number(c.value)) }} />
+                      : <NumberField aria-label={field.label} integer value={typeof reading.args?.[field.id] === 'number' ? (reading.args[field.id] as number) : undefined} onCommit={(v) => setArg(field.id, v)} />}
+                  </FormRow>
+                )
+              })}
               {fields.length > 0 && (
                 <FormRow label="Value" note="Which part of the answer the display shows.">
                   <ChoiceField<string> aria-label="Value" value={reading.field} placeholder="Choose a value" choices={fields.filter((f) => f.type !== 'bitmask').map((f) => ({ value: f.id, label: `${f.label}${f.unit ? ` (${f.unit})` : ''}`, ...(f.description ? { description: f.description } : {}) }))}

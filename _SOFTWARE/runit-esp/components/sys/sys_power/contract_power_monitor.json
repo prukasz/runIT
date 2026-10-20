@@ -20,11 +20,12 @@
             {
               "id": "channel",
               "label": "Channel",
-              "type": "pin",
+              "type": "channel",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The measured channel"
+              "default": 0,
+              "description": "The measured channel, counted from 0 (the INA3221's channel 1 is 0; the AP33772S has 0 only; the DRV8962's follow its topology)"
             }
           ],
           "struct": "pmon_channel_args_t"
@@ -48,11 +49,12 @@
             {
               "id": "channel",
               "label": "Channel",
-              "type": "pin",
+              "type": "channel",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The measured channel"
+              "default": 0,
+              "description": "The measured channel, counted from 0 (the INA3221's channel 1 is 0; the AP33772S has 0 only; the DRV8962's follow its topology)"
             }
           ],
           "struct": "pmon_channel_args_t"
@@ -76,11 +78,12 @@
             {
               "id": "channel",
               "label": "Channel",
-              "type": "pin",
+              "type": "channel",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The measured channel"
+              "default": 0,
+              "description": "The measured channel, counted from 0 (the INA3221's channel 1 is 0; the AP33772S has 0 only; the DRV8962's follow its topology)"
             },
             {
               "id": "alert",
@@ -119,11 +122,12 @@
             {
               "id": "channel",
               "label": "Channel",
-              "type": "pin",
+              "type": "channel",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The measured channel"
+              "default": 0,
+              "description": "The measured channel, counted from 0 (the INA3221's channel 1 is 0; the AP33772S has 0 only; the DRV8962's follow its topology)"
             }
           ],
           "struct": "pmon_channel_args_t"

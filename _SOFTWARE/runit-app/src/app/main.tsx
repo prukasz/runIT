@@ -7,12 +7,15 @@ import '@ui/styles/error.css'
 import './App.css'
 import { appBoardKind } from '@backend'
 import { App } from './App'
+import { AppPrefsProvider } from './appSettings/AppPrefs'
 
 // A devkit board (npm run dev:devkit / app:devkit) says so in the window's title.
 if (appBoardKind() === 'devkit') document.title = 'runIT (devkit)'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AppPrefsProvider>
+      <App />
+    </AppPrefsProvider>
   </StrictMode>,
 )

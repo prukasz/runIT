@@ -32,7 +32,7 @@ Per fault, published by the driver: `HBRIDGE_EV_OVERCURRENT` `0x0900`, `HBRIDGE_
 
 ## The response to a fault
 
-The driver decides the response. With its `turn_off_at_ocp` option set, an overcurrent brakes the channel; without it the channel keeps driving and only the fault is latched and published. The driver's fault line is edge triggered: the driver reads the channel currents to tell which channel faulted (a channel at its limit, else the one channel that was driving, else a chip-wide shutdown). Nothing is published while the device is suspended.
+The driver decides the response. With its `turn_off_at_ocp` option set, an overcurrent brakes the channel; without it the channel keeps driving and only the fault is latched and published. The driver's fault line is edge triggered: the driver reads the channel currents to tell which channel faulted (a channel at its limit, else the one channel that was driving, else a chip-wide shutdown). The fault line reports the chip's own protections, not the current limit (VREF regulates without it): the DRV8962 also arms a threshold on each IPROPI pin it reads through an ADC, at the voltage of the limit (an event after 2 readings over it, re-armed 10 % under it), and a pin over it faults its channel as the fault line would. A fault is latched until CLEAR_FAULT: a faulted channel publishes nothing more. Nothing is published while the device is suspended.
 
 A system-wide response to a bridge fault (as the power manager gives a supply fault) is not part of this contract. The power mux a bridge is fed from is not checked by the driver: the DRV8962 does not read its `POWER_SUPPLY` device.
 

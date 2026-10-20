@@ -4,7 +4,7 @@
   "kind": "device-definition",
   "id": "drv8962",
   "alias": "DRV8962 motor driver",
-  "description": "Dual full-bridge (or four half-bridge) motor driver controlled through the PWM and GPIO pins of other devices, with current sensing and a fault input.",
+  "description": "Dual full-bridge (or four half-bridge) motor driver controlled through the PWM and GPIO pins of other devices, with one current limit (VREF), current sensing (IPROPI) and a fault input.",
   "type_id": 73,
   "type": {
     "symbol": "SYS_DEVICE_TYPE_DRV8962",
@@ -22,12 +22,12 @@
   "datasheet": "https://www.ti.com/lit/ds/symlink/drv8962.pdf",
   "config": {
     "struct": "drv8962_cfg_t",
-    "size": 83,
+    "size": 71,
     "fields": [
       {
         "id": "topology",
         "label": "Topology",
-        "description": "How the four half bridges are used",
+        "description": "How the four half bridges are used: the channels follow it (two full bridges: 2 channels, four half bridges: 4)",
         "offset": 0,
         "size": 1,
         "type": "enum",
@@ -63,7 +63,7 @@
       {
         "id": "ripropi_ohms",
         "label": "IPROPI resistor",
-        "description": "The current-sense resistor of each half bridge; 0 selects 3090",
+        "description": "The current-sense resistor of each half bridge (OUT1..OUT4); 0 selects 3090",
         "offset": 50,
         "size": 16,
         "type": "number",
@@ -75,22 +75,25 @@
       {
         "id": "current_limit_mA",
         "label": "Current limit",
-        "description": "Per channel; 0 means no limit",
+        "description": "The chip's chopping limit, every channel: the chip has one reference (VREF). 0 means no limit",
         "offset": 66,
-        "size": 16,
+        "size": 4,
         "type": "number",
         "raw_type": "u32",
         "unit": "mA",
         "min": 0,
-        "max": 10000
+        "max": 10000,
+        "control": "slider",
+        "default": 0
       },
       {
         "id": "turn_off_at_ocp",
         "label": "Brake on over-current",
-        "description": "A channel over its limit is braked",
-        "offset": 82,
+        "description": "A channel over the limit is braked",
+        "offset": 70,
         "size": 1,
         "type": "choice",
+        "control": "switch",
         "raw_type": "u8",
         "options": [
           {
@@ -108,42 +111,33 @@
   },
   "contracts": [
     "DEVICE",
-    "HBRIDGE"
+    "HBRIDGE",
+    "POWER_MONITOR"
   ],
   "commands": [
     {
       "id": "current_limit",
       "op": 0,
       "symbol": "DRV8962_OP_CURRENT_LIMIT",
-      "pin_scoped": true,
+      "pin_scoped": false,
       "label": "Current limit",
-      "description": "Sets the chopping current limit of a channel; VREF follows the largest",
+      "description": "Sets the chopping current limit of the chip, every channel (VREF)",
       "write": {
         "args": {
           "struct": "drv8962_limit_t",
           "fields": [
             {
-              "id": "channel",
-              "label": "Channel",
-              "description": "Motor channel index (0 to 3)",
-              "type": "number",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "min": 0,
-              "max": 3
-            },
-            {
               "id": "limit_mA",
               "label": "Current limit",
-              "description": "Chopping current limit in mA (0 = no limit)",
+              "description": "Chopping current limit in mA, every channel (0 = no limit)",
               "type": "number",
               "raw_type": "u32",
               "size": 4,
-              "offset": 1,
+              "offset": 0,
               "unit": "mA",
               "min": 0,
-              "max": 10000
+              "max": 10000,
+              "control": "slider"
             }
           ]
         }
@@ -163,13 +157,11 @@
             {
               "id": "channel",
               "label": "Channel",
-              "description": "Motor channel index (0 to 3)",
-              "type": "number",
+              "description": "The motor channel (its topology says which)",
+              "type": "pin",
               "raw_type": "u8",
               "size": 1,
-              "offset": 0,
-              "min": 0,
-              "max": 3
+              "offset": 0
             }
           ]
         }
@@ -189,13 +181,11 @@
             {
               "id": "channel",
               "label": "Channel",
-              "description": "Motor channel index (0 to 3)",
-              "type": "number",
+              "description": "The motor channel (its topology says which)",
+              "type": "pin",
               "raw_type": "u8",
               "size": 1,
-              "offset": 0,
-              "min": 0,
-              "max": 3
+              "offset": 0
             }
           ]
         },
@@ -253,20 +243,150 @@
           ]
         }
       }
+    },
+    {
+      "id": "settings",
+      "op": 3,
+      "symbol": "DRV8962_OP_SETTINGS",
+      "label": "Settings",
+      "description": "The settings create takes that change live: the topology, the current limit, braking on over-current. The read answers them.",
+      "read": {
+        "returns": {
+          "struct": "drv8962_settings_t",
+          "label": "Settings",
+          "fields": [
+            {
+              "id": "topology",
+              "label": "Topology",
+              "description": "How the four half bridges are used: the channels follow it (two full bridges: 2 channels, four half bridges: 4)",
+              "offset": 0,
+              "size": 1,
+              "type": "enum",
+              "enum": "drv8962_topology_e",
+              "raw_type": "u8"
+            },
+            {
+              "id": "current_limit_mA",
+              "label": "Current limit",
+              "description": "The chip's chopping limit, every channel: the chip has one reference (VREF). 0 means no limit",
+              "offset": 1,
+              "size": 4,
+              "type": "number",
+              "raw_type": "u32",
+              "unit": "mA",
+              "min": 0,
+              "max": 10000,
+              "control": "slider"
+            },
+            {
+              "id": "turn_off_at_ocp",
+              "label": "Brake on over-current",
+              "description": "A channel over the limit is braked",
+              "offset": 5,
+              "size": 1,
+              "type": "choice",
+              "control": "switch",
+              "raw_type": "u8",
+              "options": [
+                {
+                  "label": "No",
+                  "value": 0
+                },
+                {
+                  "label": "Yes",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Changes them; a new topology coasts every channel, then brakes every channel of the new one.",
+        "args": {
+          "struct": "drv8962_settings_t",
+          "fields": [
+            {
+              "id": "topology",
+              "label": "Topology",
+              "description": "How the four half bridges are used: the channels follow it (two full bridges: 2 channels, four half bridges: 4)",
+              "offset": 0,
+              "size": 1,
+              "type": "enum",
+              "enum": "drv8962_topology_e",
+              "raw_type": "u8"
+            },
+            {
+              "id": "current_limit_mA",
+              "label": "Current limit",
+              "description": "The chip's chopping limit, every channel: the chip has one reference (VREF). 0 means no limit",
+              "offset": 1,
+              "size": 4,
+              "type": "number",
+              "raw_type": "u32",
+              "unit": "mA",
+              "min": 0,
+              "max": 10000,
+              "control": "slider"
+            },
+            {
+              "id": "turn_off_at_ocp",
+              "label": "Brake on over-current",
+              "description": "A channel over the limit is braked",
+              "offset": 5,
+              "size": 1,
+              "type": "choice",
+              "control": "switch",
+              "raw_type": "u8",
+              "options": [
+                {
+                  "label": "No",
+                  "value": 0
+                },
+                {
+                  "label": "Yes",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
     }
   ],
   "provides": {
     "pins": {
-      "count": 4,
+      "count": 2,
       "modes": [
         "output"
       ],
       "labels": [
-        "OUT1",
-        "OUT2",
-        "OUT3",
-        "OUT4"
-      ]
+        "Bridge A (OUT1+OUT2)",
+        "Bridge B (OUT3+OUT4)"
+      ],
+      "by_config": {
+        "field": "topology",
+        "variants": [
+          {
+            "value": 0,
+            "count": 2,
+            "labels": [
+              "Bridge A (OUT1+OUT2)",
+              "Bridge B (OUT3+OUT4)"
+            ]
+          },
+          {
+            "value": 1,
+            "count": 4,
+            "labels": [
+              "OUT1",
+              "OUT2",
+              "OUT3",
+              "OUT4"
+            ]
+          }
+        ]
+      }
     }
   },
   "power_pins": [

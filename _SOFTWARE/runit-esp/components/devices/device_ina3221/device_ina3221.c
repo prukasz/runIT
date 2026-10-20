@@ -23,11 +23,15 @@
 #define MASK_CF_SHIFT    7      // critical flags CF1..CF3 = bits 9..7 (channel 0 = bit 9)
 #define MASK_WF_SHIFT    3      // warning flags WF1..WF3 = bits 5..3
 
+#define ALERT_HYSTERESIS_PCT 10u  // a reversed-shunt alert re-arms once the current is this far back under its threshold
+
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_i2c_dev_t i2c;
   sys_pins_owned_t pin[2];  // [0] critical, [1] warning
   int8_t inverted_alert[2];  // reversed-shunt channel armed on that pin, -1 = none
+  int32_t inverted_threshold_mA[2];  // its threshold
+  bool inverted_over[2];             // over it: the pin waits (falling edge) for the current back under the hysteresis
   uint8_t inverted_mask;
   uint16_t shunt_mohm;  // every channel's shunt, mOhm
   uint16_t config;  // as last written
@@ -100,7 +104,9 @@ static err_h set_pin_edge(ina_t* c, int i, sys_io_intr_mode_e mode) {
 /* A reversed shunt reads negative and the chip compares signed, so the limit is -threshold: the alert is active
    while the current is below the threshold and releases above it. It is transparent (not latched), and its pin
    takes this one channel only - an active channel holds the shared pin and would hide the others. The pin's
-   release (rising edge) is the alert. */
+   release (rising edge) is the alert. A current around the threshold would release and re-assert the pin on every
+   conversion: after the event the limit moves down by the hysteresis and the pin waits for its falling edge (the
+   current back under it), then the threshold is armed again. One event per excursion. */
 static err_h set_inverted_alert(ina_t* c, uint8_t ch, bool critical, int32_t threshold_mA) {
   const int i = critical ? 0 : 1;
   const uint8_t alert = critical ? SYS_POWER_ALERT_OCP_CRITICAL : SYS_POWER_ALERT_OCP_WARNING;
@@ -109,12 +115,14 @@ static err_h set_inverted_alert(ina_t* c, uint8_t ch, bool critical, int32_t thr
   ERR_CHECK(sys_io_pin_valid(c->pin[i].pin) && (c->inverted_alert[i] < 0 || c->inverted_alert[i] == (int8_t)ch),
             ERR_POWER_ALERT_UNSUPPORTED, .id = c->base.id, .channel = ch, .alert = alert);
   // Rising edge first: arming pulls the pin low (its normal state now), which must not count.
-  if (c->inverted_alert[i] < 0) {
+  if (c->inverted_alert[i] < 0 || c->inverted_over[i]) {
     ERR_TRY(set_pin_edge(c, i, SYS_IO_INTR_MODE_RISING_EDGE));
   }
   ERR_TRY(chip_set_latch(c, critical ? (c->mask & MASK_WEN) != 0 : false, critical ? false : (c->mask & MASK_CEN) != 0));
   ERR_TRY(chip_set_alert(c, ch, -threshold_mA, critical));
   c->inverted_alert[i] = (int8_t)ch;
+  c->inverted_threshold_mA[i] = threshold_mA;
+  c->inverted_over[i] = false;
   return NULL;
 }
 
@@ -126,6 +134,7 @@ static err_h disarm_inverted_alerts(ina_t* c) {
       continue;
     }
     c->inverted_alert[i] = -1;
+    c->inverted_over[i] = false;
     ERR_KEEP_FIRST(err, set_pin_edge(c, i, SYS_IO_INTR_MODE_FALLING_EDGE));
   }
   return err;
@@ -182,10 +191,16 @@ PMON_WRITE(ALERT) {
 
 /* ---- EVENT contract: an alert pin changed ---- */
 
-// A reversed-shunt alert's pin released: that channel went over its threshold.
-static err_h on_inverted_release(ina_t* c, int i) {
+/* A reversed-shunt alert's pin released: that channel went over its threshold. Published once; then the limit moves
+   down by the hysteresis and the pin waits for the falling edge (the edge first, so a drop while the limit moves is
+   not missed). */
+static err_h on_inverted_over(ina_t* c, int i) {
   int32_t mA = 0;
   const uint8_t ch = (uint8_t)c->inverted_alert[i];
+  const int32_t threshold = c->inverted_threshold_mA[i];
+  int32_t hysteresis = threshold * (int32_t)ALERT_HYSTERESIS_PCT / 100;
+  hysteresis = hysteresis < 1 ? 1 : hysteresis;
+  hysteresis = hysteresis >= threshold ? threshold - 1 : hysteresis;
   err_h err = NULL;
   ERR_KEEP_FIRST(err, chip_read_current_mA(c, ch, &mA));  // a failed read still publishes (value 0)
   if (i == 0) {
@@ -193,7 +208,19 @@ static err_h on_inverted_release(ina_t* c, int i) {
   } else {
     ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PMON, OCP_WARNING, c->base.id, ch, mA));
   }
+  c->inverted_over[i] = true;
+  ERR_KEEP_FIRST(err, set_pin_edge(c, i, SYS_IO_INTR_MODE_FALLING_EDGE));
+  ERR_KEEP_FIRST(err, chip_set_alert(c, ch, -(threshold - hysteresis), i == 0));
   return err;
+}
+
+// The current is back under the hysteresis: the threshold armed again (the rising edge first, as when arming).
+static err_h on_inverted_back(ina_t* c, int i) {
+  const uint8_t ch = (uint8_t)c->inverted_alert[i];
+  ERR_TRY(set_pin_edge(c, i, SYS_IO_INTR_MODE_RISING_EDGE));
+  ERR_TRY(chip_set_alert(c, ch, -c->inverted_threshold_mA[i], i == 0));
+  c->inverted_over[i] = false;
+  return NULL;
 }
 
 // Falling edge of a normal-polarity pin: publish every flagged channel (the flags clear on this read).
@@ -229,7 +256,10 @@ EVENT_WRITE(ON_EVENT) {
       continue;
     }
     if (c->inverted_alert[i] >= 0) {
-      return args->event == IO_EV_RISING ? on_inverted_release(c, i) : NULL;
+      if (args->event == IO_EV_RISING && !c->inverted_over[i]) {
+        return on_inverted_over(c, i);
+      }
+      return args->event == IO_EV_FALLING && c->inverted_over[i] ? on_inverted_back(c, i) : NULL;
     }
     return args->event == IO_EV_FALLING ? on_flags(c) : NULL;
   }

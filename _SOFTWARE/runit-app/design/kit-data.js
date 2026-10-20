@@ -336,15 +336,14 @@ window.KIT = {
     ],
     "contracts": [
      "DEVICE",
-     "HBRIDGE"
+     "HBRIDGE",
+     "POWER_MONITOR"
     ],
     "pins": {
-     "count": 4,
+     "count": 2,
      "labels": [
-      "OUT1",
-      "OUT2",
-      "OUT3",
-      "OUT4"
+      "Bridge A (OUT1+OUT2)",
+      "Bridge B (OUT3+OUT4)"
      ],
      "modes": [
       "output"
@@ -1251,9 +1250,9 @@ window.KIT = {
    "where": [
     "In Devices",
     "In Expander",
-    "In IO pins: Set level"
+    "In IO pins: Level"
    ],
-   "command": "IO pins: Set level (Expander)",
+   "command": "Device command 0x6301 (ESP32 GPIO)",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",
@@ -1268,7 +1267,7 @@ window.KIT = {
     {
      "name": "ERR_DEV_OP",
      "context": true,
-     "message": "In IO pins: Set level"
+     "message": "In IO pins: Level"
     },
     {
      "name": "ERR_DEV_BAD_PIN",
@@ -1277,6 +1276,14 @@ window.KIT = {
     }
    ],
    "refs": [
+    {
+     "key": "device:0",
+     "kind": "device",
+     "target": {
+      "kind": "device",
+      "device": 0
+     }
+    },
     {
      "key": "device:1",
      "kind": "device",
@@ -1304,9 +1311,9 @@ window.KIT = {
    "where": [
     "In Devices",
     "In Analog out",
-    "In IO pins: Set voltage"
+    "In IO pins: Voltage"
    ],
-   "command": "IO pins: Set voltage (Analog out)",
+   "command": "Regulator: Output voltage (Device 2304)",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",
@@ -1321,7 +1328,7 @@ window.KIT = {
     {
      "name": "ERR_DEV_OP",
      "context": true,
-     "message": "In IO pins: Set voltage"
+     "message": "In IO pins: Voltage"
     },
     {
      "name": "ERR_DEV_BAD_PIN",
@@ -1358,7 +1365,7 @@ window.KIT = {
     "In Devices",
     "In Device 9"
    ],
-   "command": "Device: Info (Device 9)",
+   "command": "Devices",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",
@@ -1386,9 +1393,9 @@ window.KIT = {
    "where": [
     "In Devices",
     "In Analog out",
-    "In IO pins: Set voltage"
+    "In IO pins: Voltage"
    ],
-   "command": "IO pins: Set voltage (Analog out)",
+   "command": "Device: Reset (Device 2304)",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",
@@ -1403,7 +1410,7 @@ window.KIT = {
     {
      "name": "ERR_DEV_OP",
      "context": true,
-     "message": "In IO pins: Set voltage"
+     "message": "In IO pins: Voltage"
     },
     {
      "name": "ERR_DEV_SUSPENDED",
@@ -1431,7 +1438,7 @@ window.KIT = {
     "In Virtual machine (VM Core Supervisor)",
     "In Data stream connectors (Data Connectors)"
    ],
-   "command": "Virtual machine (VM Core Supervisor): Set data values",
+   "command": "Virtual machine (VM Core Supervisor): Reset the VM program",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",

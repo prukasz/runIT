@@ -1,5 +1,6 @@
 import type { BoardDescriptor, CommandDef, FieldValues, ServiceCatalog, WireField } from '@backend'
-import type { DeviceInfo } from '../devices/devices'
+import { answers } from '../devices/devices'
+import type { DeviceInfo, DeviceOps } from '../devices/devices'
 
 /*
  * The Live power display, pure: what it reads (the project's `powerDisplay`, else the board's default), the commands a reading can
@@ -59,7 +60,11 @@ const POWER = 'power'
  * Every command a reading can use, all about power: the power services' that read (`category` power: the power manager), and on
  * each device that has a power contract, its power contracts' and its own commands that read.
  */
-export const readCommands = (catalog: ServiceCatalog, devices: readonly DeviceInfo[]): { readonly read: PowerRead; readonly label: string; readonly group: string }[] => [
+/**
+ * Every reading a display can take: the power services' reads, then each device's power contracts and own reads. With a device's OPS
+ * answer (`opsOf`, read while connected) only what it answers (the DRV8962 reads a current, and only with its IPROPI pins wired).
+ */
+export const readCommands = (catalog: ServiceCatalog, devices: readonly DeviceInfo[], opsOf?: (device: number) => DeviceOps | undefined): { readonly read: PowerRead; readonly label: string; readonly group: string }[] => [
   ...[...catalog.services.values()].filter((service) => service.category === POWER).flatMap((service) => [...service.commands.values()].filter(readable)
     .map((c) => ({ read: { kind: 'service' as const, service: service.id, command: c.id }, label: c.label, group: service.label }))),
   ...devices.flatMap((device) => {
@@ -68,9 +73,10 @@ export const readCommands = (catalog: ServiceCatalog, devices: readonly DeviceIn
       return contract?.category === POWER ? [contract] : []
     })
     if (contracts.length === 0) return []
+    const ops = opsOf?.(device.id)
     return [
-      ...contracts.flatMap((contract) => [...contract.commands.values()].filter(readable).map((c) => ({ read: { kind: 'device' as const, device: device.id, contract: contract.id, command: c.id }, label: `${contract.label}: ${c.label}`, group: device.name }))),
-      ...(device.type ? [...device.type.commands.values()].filter(readable).map((c) => ({ read: { kind: 'device' as const, device: device.id, contract: device.type!.id, command: c.id }, label: c.label, group: device.name })) : []),
+      ...contracts.flatMap((contract) => [...contract.commands.values()].filter((c) => readable(c) && answers(catalog, ops, contract, c, 'read')).map((c) => ({ read: { kind: 'device' as const, device: device.id, contract: contract.id, command: c.id }, label: `${contract.label}: ${c.label}`, group: device.name }))),
+      ...(device.type ? [...device.type.commands.values()].filter((c) => readable(c) && answers(catalog, ops, device.type!, c, 'read')).map((c) => ({ read: { kind: 'device' as const, device: device.id, contract: device.type!.id, command: c.id }, label: c.label, group: device.name })) : []),
     ]
   }),
 ]

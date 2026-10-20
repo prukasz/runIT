@@ -1,16 +1,20 @@
 import { useState } from 'react'
-import { ChoiceField, FormGrid, FormRow, NumberField, Switch, TextField, ToggleChip } from '@ui/components'
+import { ChoiceField, FormGrid, FormRow, NumberField, Slider, Switch, TextField, ToggleChip } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { bundledServiceCatalog } from '@backend'
 import type { BoardDescriptor, FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
-import { isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNotes, pinReady, usedBy } from './devices'
+import { deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNotes, pinReady, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
+import { useAppPrefs } from '../appSettings/AppPrefs'
 
 /*
  * The fields of a layout as a form: a device's config, a command's arguments. Each field gets the control its descriptor
  * asks for: a pin of any device (a pin reference), a pin of this device (an op's `pin`), a choice or an enum member, on / off,
  * a number in its range (several for an array), text, bytes in hex. Values are kept as the backend encodes them (by field id).
  */
+
+/** An option of a `choice` / `enum` field as the descriptor gives it. */
+type FieldChoice = NonNullable<WireField['choices']>[number]
 
 /** Where pins come from: every device of the view, the one the form is about, what board.json says of the pins. */
 export interface PinContext {
@@ -43,7 +47,7 @@ export const fieldValue = (field: WireField, values: FieldValues): FieldInput | 
 
 /** The pins of device `d` a reference may take: free ones only (not used by another device, not reserved), and the one it holds now. */
 const freePins = (context: PinContext, d: DeviceInfo, current: PinRef | null): Choice<number>[] => {
-  const pins = d.type?.pins
+  const pins = devicePins(d)
   if (!pins) return []
   const notes = pinNotes(context.board, d.id)
   const users = usedBy(context.devices, d.id).filter((u) => u.by.id !== context.own?.id)
@@ -74,6 +78,7 @@ function PinRefControl({ error, disabled, label, value, requires, context, onCha
 
 function FieldControl({ field, value, onChange, context, missing, disabled, layout, values }: { field: WireField; value: FieldInput | undefined; onChange: (value: FieldInput) => void; context: PinContext; missing: boolean; disabled: boolean; layout: Layout; values: FieldValues }) {
   const label = `${field.label}${field.unit ? ` (${field.unit})` : ''}`
+  const prefs = useAppPrefs()
   if (field.pinRef) {
     const count = (field.size ?? 3) / 3
     const list: (PinRef | null)[] = count === 1 ? [(value as PinRef | null | undefined) ?? null] : Array.from({ length: count }, (_, i) => ((value as (PinRef | null)[] | undefined)?.[i]) ?? null)
@@ -89,13 +94,22 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
       </>
     )
   }
+  // A choice of two the descriptor marks as on / off (`control: switch`), when the user wants switches: the second option is on.
+  if (field.control === 'switch' && prefs.switches && field.choices?.length === 2) {
+    const [off, on] = field.choices as readonly [FieldChoice, FieldChoice]
+    const pick = (c: FieldChoice) => (typeof c.value === 'string' ? c.label : Number(c.value))
+    const isOn = value !== undefined && (value === pick(on) || String(value) === String(on.value))
+    const isOff = value !== undefined && (value === pick(off) || String(value) === String(off.value))
+    return <Switch label={isOn ? on.label : isOff ? off.label : 'Not set'} checked={isOn} disabled={disabled} onChange={(checked) => onChange(pick(checked ? on : off))} />
+  }
   if (field.choices) {
     const choices = field.choices.filter((c) => offersMember(context.own, field.enum, Number(c.value))).map((c): Choice<string> => ({ value: String(c.value), label: c.label, ...(c.description ? { description: c.description } : {}) }))
     return <ChoiceField<string> aria-label={label} error={missing} disabled={disabled} value={value === undefined ? undefined : String(value)} choices={choices}
       onChange={(next) => { const choice = field.choices!.find((c) => String(c.value) === next); if (choice) onChange(typeof choice.value === 'string' ? choice.label : Number(choice.value)) }} />
   }
-  if (field.type === 'pin' && context.own?.type?.pins) {
-    const pins = context.own.type.pins
+  const ownPins = devicePins(context.own)
+  if (field.type === 'pin' && context.own && ownPins) {
+    const pins = ownPins
     const own = context.own
     const users = usedBy(context.devices, own.id)
     // The pins the board keeps for itself are not offered; a command that changes the pin is offered only the pins nobody else manages.
@@ -104,12 +118,21 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
       // Only the pins in a state the command wants: it would be refused on any other (a LEVEL write on a pin with no mode).
       .filter((pin) => !context.pinStates || pinReady(context.pinStates(pin), field.pinState))
       .map((pin): Choice<number> => {
-        const hint = pinHint(own.type, pin)
+        const hint = pinHint(own, pin)
         return { value: pin, label: pinChoiceLabel(context.devices, own.id, pin), ...(hint ? { description: hint } : {}) }
       })
     const none = choices.length === 0 && field.pinState !== undefined && context.pinStates !== undefined
     return <ChoiceField<number> aria-label={label} disabled={disabled || none} value={typeof value === 'number' && choices.some((c) => c.value === value) ? value : undefined} choices={choices}
       placeholder={none ? noPinReady(field.pinState!) : 'Choose a pin'} onChange={(pin) => pin !== undefined && onChange(pin)} />
+  }
+  // A channel of the device the form is about (`type: channel`): its measurement channels by name.
+  if (field.type === 'channel' && context.own) {
+    const channels = deviceChannels(context.own)
+    if (channels) {
+      const choices = Array.from({ length: channels.count }, (_, i): Choice<number> => ({ value: i, label: channels.labels?.[i] ?? `Channel ${i + 1}` }))
+      return <ChoiceField<number> aria-label={label} disabled={disabled} error={missing} value={typeof value === 'number' ? value : undefined} choices={choices} placeholder="Choose a channel"
+        unavailableLabel={(i) => `Channel ${i + 1}`} onChange={(i) => i !== undefined && onChange(i)} />
+    }
   }
   // A device by its ID (a `device` field), one of the view's; an ID the view does not have stays shown.
   if (field.type === 'device') {
@@ -124,9 +147,9 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
     const none = PIN_NONE !== undefined && deviceField !== undefined && Number(fieldValue(deviceField, values)) === PIN_NONE.device
     const choices = none
       ? [{ value: PIN_NONE.pin, label: 'None' }]
-      : target?.type?.pins
-      ? Array.from({ length: target.type.pins.count }, (_, pin): Choice<number> => {
-          const hint = pinHint(target.type, pin)
+      : target && devicePins(target)
+      ? Array.from({ length: devicePins(target)!.count }, (_, pin): Choice<number> => {
+          const hint = pinHint(target, pin)
           return { value: pin, label: pinChoiceLabel(context.devices, target.id, pin), ...(hint ? { description: hint } : {}) }
         })
       : []
@@ -166,7 +189,14 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
       </span>
     )
   }
-  return <NumberField aria-label={label} disabled={disabled} value={Number(value ?? 0)} min={min} max={max} integer={integer} onCommit={onChange} />
+  // Unset: the descriptor's default, else empty (a 0 shown would not be sent: the command would say the field is missing).
+  const shown = value !== undefined && value !== null ? Number(value) : typeof field.default === 'number' ? field.default : undefined
+  // A number with a range the descriptor marks as a slider (`control: slider`), when the user wants sliders.
+  if (field.control === 'slider' && prefs.sliders && min !== undefined && max !== undefined) {
+    const step = field.step ?? (integer ? 1 : (max - min) / 100)
+    return <Slider label={label} disabled={disabled} error={missing} value={shown} min={min} max={max} step={step} format={(n) => `${n}${field.unit ? ` ${field.unit}` : ''}`} onChange={onChange} />
+  }
+  return <NumberField aria-label={label} disabled={disabled} value={shown} min={min} max={max} integer={integer} onCommit={onChange} />
 }
 
 /** A form of a layout's fields; `onChange` gets every value set so far with the changed one. `disabled` shows them locked (a board device's own settings). */

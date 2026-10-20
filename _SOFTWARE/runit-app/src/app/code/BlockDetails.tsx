@@ -6,7 +6,7 @@ import { onboardActions } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FieldError, FormRow, NumberField, PanelHeader, SegmentedSwitch, Switch, TextField, TypeLead } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
-import { pinChoiceLabel, pinHint } from '../devices/devices'
+import { devicePins, pinChoiceLabel, pinHint } from '../devices/devices'
 import { blockDiagnostics, connect, disconnect, groupCount, isBlockTarget, pinsOf, sourceLabel, withGroupCount } from './blocks'
 import type { PinTarget } from './blocks'
 import { ExpressionEditor } from './ExpressionEditor'
@@ -56,11 +56,12 @@ function FieldInput({ field, block, blocks, onChange }: { field: Field; block: B
     case 'pin': {
       const device = deviceOf()
       const info = device === undefined ? undefined : devices.devices.find((d) => d.id === device)
-      if (info?.type?.pins?.count === undefined) break
+      const count = devicePins(info)?.count
+      if (info === undefined || count === undefined) break
       // The pins this block's command may take on that device, as the device's test panel offers them.
-      const offered = field.deviceField ? Array.from({ length: info.type.pins.count }, (_, pin) => pin) : blockPinChoices(devices, blocks.catalog.get(block.type)!, block.variant, field.id, info)
+      const offered = field.deviceField ? Array.from({ length: count }, (_, pin) => pin) : blockPinChoices(devices, blocks.catalog.get(block.type)!, block.variant, field.id, info)
       return choose([...anyChoice, ...offered.map((pin) => {
-        const hint = pinHint(info.type, pin)
+        const hint = pinHint(info, pin)
         return { value: String(pin), label: pinChoiceLabel(devices.devices, info.id, pin), ...(hint ? { description: hint } : {}) }
       })])
     }
@@ -146,13 +147,16 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
   const fields = settingFields(type, block)
   // The variables a name typed in the formula can find: every one but the folders, by its own name and its path.
   const formulaVariables: FormulaVariable[] = language ? flattenVariables(tree).filter((v) => v.kind !== 'folder').map((v) => ({ id: v.id, name: v.name, label: pathOf(tree, v.id) ?? v.name })) : []
-  const onPin = (field: Field) => pins.inputs.some((p) => p.pin.field === field.id)
+  // The setting a pin stands for while unwired: a field with an input (a device command's argument), or a pin the block lists that
+  // overrides one (Set's source, the Value).
+  const standsFor = (pin: { readonly field?: string; readonly overrides?: string }) => pin.field ?? pin.overrides
+  const onPin = (field: Field) => pins.inputs.some((p) => standsFor(p.pin) === field.id)
   const settingsOnly = fields.filter((f) => !onPin(f))
   const inputGroup = groupCount(type, block, 'inputs')
   const outputGroup = groupCount(type, block, 'outputs')
   const devices = type.integration === 'core' ? [] : deviceChoicesFor(blocks.devices, type, block.variant)
   const wiredField = (id: string) => {
-    const pin = pins.inputs.find((p) => p.pin.field === id)
+    const pin = pins.inputs.find((p) => standsFor(p.pin) === id)
     const source = pin ? block.inputs[pin.index] : undefined
     return source ? sourceLabel(ctx, source) : undefined
   }
@@ -272,7 +276,7 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
                 const source = block.inputs[p.index]
                 const target: PinTarget = { block: block.id, side: 'in', index: p.index }
                 const open = active?.side === 'in' && active.index === p.index
-                const setting = p.pin.field === undefined ? undefined : fields.find((f) => f.id === p.pin.field)
+                const setting = standsFor(p.pin) === undefined ? undefined : fields.find((f) => f.id === standsFor(p.pin))
                 const dropVariable = {
                   onDragOver: (event: React.DragEvent) => { if (event.dataTransfer.types.includes(VARIABLE_DRAG_TYPE)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' } },
                   onDrop: (event: React.DragEvent) => {
@@ -318,7 +322,7 @@ export function BlockDetails({ blocks, code }: { blocks: BlocksState; code: Code
                         event.preventDefault()
                         setPin(target, { kind: 'variable', path })
                       }}>
-                      {source ? `← ${sourceLabel(ctx, source)}` : chosen ? `← use ${chosenName}` : p.pin.field ? 'its setting' : missing(p.index) ? 'required' : 'not wired'}
+                      {source ? `← ${sourceLabel(ctx, source)}` : chosen ? `← use ${chosenName}` : standsFor(p.pin) ? 'its setting' : missing(p.index) ? 'required' : 'not wired'}
                     </span>
                     {source && <button type="button" className="block-pin-clear" aria-label={`Unwire ${p.pin.alias}`} title="Unwire" onClick={() => { setPin(target, null); if (open) setActive(undefined) }}><X aria-hidden="true" /></button>}
                     <FieldError>{pinProblem('in', p.index)}</FieldError>

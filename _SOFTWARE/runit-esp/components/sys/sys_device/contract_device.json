@@ -83,6 +83,7 @@
               "id": "suspended",
               "label": "Suspended",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,

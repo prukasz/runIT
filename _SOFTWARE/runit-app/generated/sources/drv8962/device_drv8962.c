@@ -15,6 +15,8 @@
 #define VREF_MIN_MV          50u         // a floating VREF sets an undefined chopping threshold: always drive 50 .. 3300
 #define VREF_MAX_MV          3300u
 #define AIPROPI_UA_PER_A     212u   // IPROPI output: 212 uA per A (datasheet), so I(mA) = V(mV) * 10^6 / (212 * R)
+#define IPROPI_HYSTERESIS_PCT 10u   // an IPROPI window re-arms once the voltage is this far back under the limit's
+#define IPROPI_SAMPLES        2u    // ADC readings in a row over the limit before the event (one PWM spike does not count)
 
 typedef struct {
   int16_t drive;  // PWM steps (SYS_HBRIDGE_DRIVE_MAX = full)
@@ -34,8 +36,10 @@ typedef struct {
   sys_io_pin_t pin[DRV8962_PINS];
   uint16_t used_mask;    // bit per pin: made a pin of its device (released on uninstall)
   uint16_t locked_mask;  // bit per pin: locked on its device (we drive it with SET_LOCKED_LEVEL)
+  uint8_t ipropi_subscribed;          // bit per half bridge: its IPROPI window's event reaches our ON_EVENT
+  uint8_t ipropi_sub[HALF_BRIDGES];   // sys_event handles
   uint32_t ripropi_ohms[HALF_BRIDGES];
-  uint32_t current_limit_mA[HALF_BRIDGES];  // per channel
+  uint32_t current_limit_mA;  // the chip's, every channel (one VREF); 0 = none
   channel_t ch[HALF_BRIDGES];
 } drv_t;
 
@@ -57,9 +61,28 @@ static bool has_pin(const drv_t* c, uint8_t idx) {
   return sys_io_pin_valid(c->pin[idx]);
 }
 
+static err_h lock_pin(drv_t* c, uint8_t idx);
+
+// The channel a half bridge belongs to.
+static uint8_t bridge_channel(const drv_t* c, uint8_t bridge) {
+  return c->topology == DRV8962_TOPOLOGY_2_FULL_BRIDGES ? (uint8_t)(bridge / 2u) : bridge;
+}
+
 static err_h check_channel(const drv_t* c, uint8_t channel) {
   ERR_CHECK(channel < channel_count(c), ERR_DEV_BAD_PIN, .id = c->base.id, .pin = channel);
   return NULL;
+}
+
+// Every half bridge of the channel has its IPROPI pin: its current can be measured.
+static bool channel_sensed(const drv_t* c, uint8_t channel) {
+  uint8_t first, last;
+  channel_bridges(c, channel, &first, &last);
+  for (uint8_t i = first; i <= last; i++) {
+    if (!has_pin(c, DRV8962_PIN_IPROPI1 + i)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 // IPROPI of a half bridge as mA (0 without the pin).
@@ -166,28 +189,57 @@ static err_h chip_set_drive(drv_t* c, uint8_t channel, int16_t drive) {
   return NULL;
 }
 
-/* VREF sets the chopping threshold of the whole chip (ITRIP x AIPROPI = VREF / RIPROPI). It follows the largest
-   channel limit, each seen through its own IPROPI resistor; no limit anywhere = no regulation (VREF at its 3.3 V
-   maximum). */
+/* VREF sets the chopping threshold of the whole chip (ITRIP x AIPROPI = VREF / RIPROPI): one limit for every half
+   bridge. Set through the smallest IPROPI resistor, so no half bridge passes the limit (one with a larger resistor trips
+   lower); no limit = no regulation (VREF at its 3.3 V maximum). */
 static err_h chip_apply_current_limit(drv_t* c) {
   if (!has_pin(c, DRV8962_PIN_VREF)) {
     return NULL;
   }
-  uint64_t vref_mV = 0;
-  for (uint8_t ch = 0; ch < channel_count(c); ch++) {
-    uint8_t first, last;
-    channel_bridges(c, ch, &first, &last);
-    const uint64_t mV = (uint64_t)c->current_limit_mA[ch] * AIPROPI_UA_PER_A * c->ripropi_ohms[first] / 1000000u;
-    if (mV > vref_mV) {
-      vref_mV = mV;
-    }
+  uint32_t ripropi_min = c->ripropi_ohms[0];
+  for (uint8_t i = 1; i < HALF_BRIDGES; i++) {
+    ripropi_min = c->ripropi_ohms[i] < ripropi_min ? c->ripropi_ohms[i] : ripropi_min;
   }
+  uint64_t vref_mV = (uint64_t)c->current_limit_mA * AIPROPI_UA_PER_A * ripropi_min / 1000000u;
   if (vref_mV == 0 || vref_mV > VREF_MAX_MV) {
     vref_mV = VREF_MAX_MV;
   } else if (vref_mV < VREF_MIN_MV) {
     vref_mV = VREF_MIN_MV;
   }
   return sys_io_set_voltage(c->pin[DRV8962_PIN_VREF], (int32_t)vref_mV);
+}
+
+/* The IPROPI window of a half bridge: the ADC pin's rising threshold at the voltage of the current limit (an event
+   after IPROPI_SAMPLES readings over it, re-armed IPROPI_HYSTERESIS_PCT under it); none without a limit. The pin is
+   locked to this device and unlocked for the change. */
+static err_h arm_ipropi(drv_t* c, uint8_t bridge) {
+  const uint8_t idx = DRV8962_PIN_IPROPI1 + bridge;
+  if (!has_pin(c, idx)) {
+    return NULL;
+  }
+  const uint64_t mV = (uint64_t)c->current_limit_mA * AIPROPI_UA_PER_A * c->ripropi_ohms[bridge] / 1000000u;
+  sys_io_intr_cfg_t cfg = {.mode = SYS_IO_INTR_DISABLE};
+  if (mV > 0) {
+    const uint16_t up = mV > UINT16_MAX ? UINT16_MAX : (uint16_t)mV;
+    cfg = (sys_io_intr_cfg_t){.mode = SYS_IO_INTR_MODE_RISING_EDGE,
+                              .adc = {.threshold_up_mV = up, .hysteresis_mV = (uint16_t)(up * IPROPI_HYSTERESIS_PCT / 100u),
+                                      .event_counter_threshold = IPROPI_SAMPLES}};
+  }
+  if (c->locked_mask & (1u << idx)) {
+    ERR_TRY(sys_pins_unlock(c->pin[idx]));
+    c->locked_mask &= (uint16_t)~(1u << idx);
+  }
+  ERR_TRY(sys_io_configure_intr(c->pin[idx], &cfg));
+  return lock_pin(c, idx);
+}
+
+// Every IPROPI window follows the limit; each one is tried even if another fails.
+static err_h arm_ipropi_all(drv_t* c) {
+  err_h err = NULL;
+  for (uint8_t b = 0; b < HALF_BRIDGES; b++) {
+    ERR_KEEP_FIRST(err, arm_ipropi(c, b));
+  }
+  return err;
 }
 
 /* ---- Faults ---- */
@@ -212,6 +264,20 @@ static err_h publish_channel_fault(const drv_t* c, uint8_t channel) {
   }
 }
 
+/* An IPROPI pin went over the limit: its channel, as a fault nFAULT finds (braked with turn_off_at_ocp, published).
+   Latched until CLEAR_FAULT: the next windows of a faulted channel publish nothing. */
+static err_h on_ipropi_over(drv_t* c, uint8_t bridge) {
+  const uint8_t ch = bridge_channel(c, bridge);
+  if (c->ch[ch].fault) {
+    return NULL;
+  }
+  int32_t mA = 0;
+  err_h err = read_channel_current_mA(c, ch, &mA);  // a failed read publishes the last current
+  ERR_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_OVERCURRENT));
+  ERR_KEEP_FIRST(err, publish_channel_fault(c, ch));
+  return err;
+}
+
 /* nFAULT fell: finds the faulted channels, then publishes them. The chip says only "something is wrong", so the
    currents decide: a channel at its limit, else the one channel that was driving, else a chip-wide shutdown (thermal
    or supply). The publish comes last: an inline listener may call back into this device. */
@@ -220,6 +286,13 @@ EVENT_WRITE(ON_EVENT) {
   drv_t* c = ctx;
   if (c->base.suspended) {
     return NULL;  // coasted already; the fault line may still be low
+  }
+  for (uint8_t b = 0; b < HALF_BRIDGES; b++) {
+    const uint8_t idx = DRV8962_PIN_IPROPI1 + b;
+    if (has_pin(c, idx) && args->event == IO_EV_RISING && args->source == c->pin[idx].device &&
+        args->channel == c->pin[idx].pin) {
+      return on_ipropi_over(c, b);
+    }
   }
   const uint8_t n = channel_count(c);
   uint8_t active_count = 0;
@@ -237,14 +310,14 @@ EVENT_WRITE(ON_EVENT) {
       active_count++;
       last_active = ch;
     }
-    if (current_at_or_over(mA, c->current_limit_mA[ch])) {
+    if (current_at_or_over(mA, c->current_limit_mA)) {
       over_count++;
     }
   }
 
   if (over_count > 0) {
     for (uint8_t ch = 0; ch < n; ch++) {
-      if (current_at_or_over(c->ch[ch].last_current_mA, c->current_limit_mA[ch])) {
+      if (current_at_or_over(c->ch[ch].last_current_mA, c->current_limit_mA)) {
         ERR_KEEP_FIRST(err, mark_channel_fault(c, ch, SYS_HBRIDGE_FAULT_OVERCURRENT));
         faulted |= (uint8_t)(1u << ch);
       }
@@ -301,12 +374,39 @@ HBRIDGE_READ(CURRENT) {
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA = 0;
   ERR_TRY(read_channel_current_mA(c, args->channel, &mA));
-  const uint32_t limit = c->current_limit_mA[args->channel];
+  const uint32_t limit = c->current_limit_mA;
   if (!c->base.suspended && !c->ch[args->channel].fault && limit > 0 && mA > 0 && (uint32_t)mA > limit) {
     ERR_TRY(mark_channel_fault(c, args->channel, SYS_HBRIDGE_FAULT_OVERCURRENT));
     ERR_TRY(publish_channel_fault(c, args->channel));
   }
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+}
+
+/* ---- POWER_MONITOR: a channel's current from its IPROPI pins (full bridge: the larger half bridge). Offered only with
+   an IPROPI pin wired (has_op); a channel without its pins answers ERR_POWER_BAD_CHANNEL. A read, allowed while
+   suspended. ---- */
+
+PMON_READ(CURRENT) {
+  drv_t* c = ctx;
+  ERR_CHECK(args->channel < channel_count(c) && channel_sensed(c, args->channel), ERR_POWER_BAD_CHANNEL,
+            .id = c->base.id, .channel = args->channel);
+  int32_t mA = 0;
+  ERR_TRY(read_channel_current_mA(c, args->channel, &mA));
+  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+}
+
+// The POWER_MONITOR ops need an IPROPI pin; the others are always there.
+static bool has_op(const void* ctx, uint16_t op) {
+  const drv_t* c = ctx;
+  if ((op >> 8) != SYS_DEVICE_CONTRACT_POWER_MONITOR) {
+    return true;
+  }
+  for (uint8_t i = 0; i < HALF_BRIDGES; i++) {
+    if (has_pin(c, DRV8962_PIN_IPROPI1 + i)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /* ---- Own ops ---- */
@@ -317,15 +417,15 @@ SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
   (void)out_len;
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
-  ERR_TRY(check_channel(c, args->channel));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
-  const uint32_t old = c->current_limit_mA[args->channel];
-  c->current_limit_mA[args->channel] = args->limit_mA;
+  const uint32_t old = c->current_limit_mA;
+  c->current_limit_mA = args->limit_mA;
   err_h err = chip_apply_current_limit(c);
   if (err != NULL) {
-    c->current_limit_mA[args->channel] = old;  // not applied: not kept
+    c->current_limit_mA = old;  // not applied: not kept
+    return err;
   }
-  return err;
+  return arm_ipropi_all(c);
 }
 
 // nSLEEP low for 30 us resets the chip's fault latches (every channel's); only the asked channel is cleared here.
@@ -354,6 +454,49 @@ SYS_DEVICE_HANDLER(get_fault_h, hbridge_channel_args_t) {
   return cmd_reply(out, out_cap, out_len, &fault, sizeof(fault));
 }
 
+// The live settings, as the write takes them. A read: allowed while suspended.
+SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
+  (void)args;
+  const drv_t* c = ctx;
+  const drv8962_settings_t s = {
+      .topology = c->topology, .current_limit_mA = c->current_limit_mA, .turn_off_at_ocp = c->turn_off_at_ocp};
+  return cmd_reply(out, out_cap, out_len, &s, sizeof(s));
+}
+
+/* The settings create takes, changed without a new CREATE. The limit goes to VREF (nothing is kept when that fails). A
+   new topology coasts every channel of the old one, forgets their state (a channel number is another bridge now) and
+   brakes every channel of the new one, as create does. */
+SYS_DEVICE_HANDLER(set_settings_h, drv8962_settings_t) {
+  (void)out;
+  (void)out_cap;
+  (void)out_len;
+  drv_t* c = ctx;
+  ERR_TRY(sys_device_check_active(&c->base));
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
+  SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
+  ERR_CHECK(args->turn_off_at_ocp <= 1, ERR_CMD_BAD_ARG);
+  const uint32_t old_limit = c->current_limit_mA;
+  c->current_limit_mA = args->current_limit_mA;
+  err_h err = chip_apply_current_limit(c);
+  if (err != NULL) {
+    c->current_limit_mA = old_limit;  // not applied: not kept
+    return err;
+  }
+  c->turn_off_at_ocp = args->turn_off_at_ocp != 0;
+  ERR_KEEP_FIRST(err, arm_ipropi_all(c));
+  if (args->topology != c->topology) {
+    for (uint8_t i = 0; i < channel_count(c); i++) {
+      ERR_KEEP_FIRST(err, chip_coast(c, i));
+    }
+    c->topology = args->topology;
+    memset(c->ch, 0, sizeof(c->ch));
+    for (uint8_t i = 0; i < channel_count(c); i++) {
+      ERR_KEEP_FIRST(err, chip_brake(c, i));
+    }
+  }
+  return err;
+}
+
 /* ---- Lifecycle ---- */
 
 // Releases the hardware; REMOVE and the create rollback. Each step runs only if it was built, none returns early.
@@ -364,6 +507,12 @@ static err_h uninstall(void* ctx) {
     ERR_KEEP_FIRST(err, sys_event_unsubscribe(c->nfault_sub));
     c->nfault_subscribed = false;
   }
+  for (uint8_t b = 0; b < HALF_BRIDGES; b++) {
+    if (c->ipropi_subscribed & (1u << b)) {
+      ERR_KEEP_FIRST(err, sys_event_unsubscribe(c->ipropi_sub[b]));
+    }
+  }
+  c->ipropi_subscribed = 0;
   if (c->started) {
     for (uint8_t i = 0; i < channel_count(c); i++) {
       ERR_KEEP_FIRST(err, chip_coast(c, i));
@@ -429,9 +578,7 @@ static err_h check_cfg(const drv_t* c, const drv8962_cfg_t* cfg) {
   const uint16_t id = c->base.id;
   SYS_DEV_CHECK_IN_RANGE(id, cfg->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
   ERR_CHECK(cfg->turn_off_at_ocp <= 1, ERR_CMD_BAD_ARG);
-  for (uint8_t i = 0; i < HALF_BRIDGES; i++) {
-    SYS_DEV_CHECK_IN_RANGE(id, cfg->current_limit_mA[i], 0, DRV8962_CURRENT_LIMIT_MAX_MA);
-  }
+  SYS_DEV_CHECK_IN_RANGE(id, cfg->current_limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   return NULL;
 }
 
@@ -445,8 +592,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   memcpy(c->pin, cfg->pin, sizeof(c->pin));
   for (uint8_t i = 0; i < HALF_BRIDGES; i++) {
     c->ripropi_ohms[i] = cfg->ripropi_ohms[i] ? cfg->ripropi_ohms[i] : RIPROPI_DEFAULT_OHMS;
-    c->current_limit_mA[i] = cfg->current_limit_mA[i];
   }
+  c->current_limit_mA = cfg->current_limit_mA;
   for (uint8_t idx = 0; idx < DRV8962_PINS; idx++) {
     if (has_pin(c, idx)) {
       ERR_TRY(sys_device_use(&c->base, c->pin[idx].device));
@@ -491,7 +638,19 @@ static err_h create(void* ctx, const void* cfg_in) {
     ERR_TRY(use_pin(c, DRV8962_PIN_VREF, SYS_IO_MODE_DAC));
     ERR_TRY(chip_apply_current_limit(c));
   }
-  // 6. every channel braked, then nFAULT (its falling edge reaches our ON_EVENT: inline, ADC reads, no delay)
+  // 6. IPROPI windows at the limit, their events to our ON_EVENT (inline, like nFAULT's)
+  for (uint8_t b = 0; b < HALF_BRIDGES; b++) {
+    const uint8_t idx = DRV8962_PIN_IPROPI1 + b;
+    if (!has_pin(c, idx)) {
+      continue;
+    }
+    const sys_event_sub_t sub = {.source = c->pin[idx].device, .event = IO_EV_RISING, .channel = c->pin[idx].pin,
+                                 .inline_call = true, .device = c->base.id};
+    ERR_TRY(sys_event_subscribe(&sub, &c->ipropi_sub[b]));
+    c->ipropi_subscribed |= (uint8_t)(1u << b);
+  }
+  ERR_TRY(arm_ipropi_all(c));
+  // 7. every channel braked, then nFAULT (its falling edge reaches our ON_EVENT: inline, ADC reads, no delay)
   c->started = true;
   for (uint8_t i = 0; i < channel_count(c); i++) {
     ERR_TRY(chip_brake(c, i));
@@ -518,13 +677,15 @@ static const sys_device_op_t k_ops[] = {
     HBRIDGE_ENTRY_W(BRAKE),
     HBRIDGE_ENTRY_W(COAST),
     HBRIDGE_ENTRY_R(CURRENT),
+    PMON_ENTRY_R(CURRENT),
     EVENT_ENTRY_W(ON_EVENT),
     /* Device own ops */
     {DRV8962_OP_CURRENT_LIMIT, NULL, set_current_limit_h},
     {DRV8962_OP_CLEAR_FAULT, NULL, clear_fault_h},
     {DRV8962_OP_FAULT, get_fault_h, NULL},
+    {DRV8962_OP_SETTINGS, get_settings_h, set_settings_h},
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DRV8962, .cfg_size = sizeof(drv8962_cfg_t), .ctx_size = sizeof(drv_t),
                        .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+                       .has_op = has_op, SYS_DEVICE_OPS(k_ops))

@@ -50,8 +50,8 @@
 #define RUNIT_BOARD_TCA_AP_INT         21u
 #define RUNIT_BOARD_ADS_ALERT_ESP_PIN  42u
 #define RUNIT_BOARD_ADS_FULL_SCALE_MV  20000u  // the front end scales the inputs to 20 V
-#define RUNIT_BOARD_DRV8962_LIMIT_MA   2000u    // chopping limit of every channel until the user sets one
-#define RUNIT_BOARD_DRV8962_PCA_PWM_HZ 1000u  // the PCA9685 has one frequency for CH 0..15 (a PCA9685 tops at 1526 Hz)
+#define RUNIT_BOARD_DRV8962_LIMIT_MA   2000u   // the chip's chopping limit (every channel) until the user sets one
+#define RUNIT_BOARD_DRV8962_PCA_PWM_HZ 50u     // the PCA9685 has one frequency for CH 0..15: the servos on CH 0..7 want 50 Hz
 
 #define RUNIT_BOARD_POWER_LIMIT_MV          20000  // hardware trip: highest input voltage
 #define RUNIT_BOARD_POWER_LIMIT_MA          5500   // hardware trip: highest input current

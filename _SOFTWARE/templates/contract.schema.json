@@ -402,7 +402,8 @@
             "enum",
             "pin",
             "device",
-            "bitmask"
+            "bitmask",
+            "channel"
           ]
         },
         "index_enum": {
@@ -478,6 +479,11 @@
         "step": {
           "type": "number",
           "description": "Krok zmiany suwaka lub pola liczbowego."
+        },
+        "control": {
+          "type": "string",
+          "enum": ["slider", "switch"],
+          "description": "Jak aplikacja może zastąpić pole, gdy użytkownik na to pozwoli (App settings): 'slider' dla type='number' z min i max (suwak w zakresie), 'switch' dla type='choice' z dokładnie dwiema opcjami (przełącznik: pierwsza opcja wyłączona, druga włączona). Bez tego pole zostaje polem liczbowym albo listą."
         },
         "options": {
           "type": "array",

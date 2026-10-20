@@ -2,6 +2,8 @@
 
   device     "contracts" name existing contracts
   command    one with a read and a write side is a mirror: read.returns has the fields of write.args (id, raw_type, size)
+  device     a contract with a `channel` field needs the device's provides.channels (or provides.pins)
+  field      a `control` fits its field: slider = a number with min and max, switch = a choice of two options
   vm-block   wire_id is unique, below VM_BLOCK_TYPES_MAX and equals VM_BLK_<ID> of vm_block_ids.h
              state_len equals the `.state_len` of the block's VM_BLOCK_TYPE_DEFINE (a sizeof resolved from a _Static_assert; 0 when absent)
              device.contract / device.device_type name an existing contract / device
@@ -279,10 +281,56 @@ class Checker:
                 self.error(path, f"{at}/field", f"'{name}' is not a field of this block or variant")
 
 
+    def controls_check(self):
+        """A field's `control` needs what it draws: a slider a number with min and max, a switch a choice of two options."""
+        is_contract = False
+
+        def walk(node, path, where):
+            if isinstance(node, dict):
+                control = node.get("control")
+                if control == "slider" and node.get("type") not in ("number", "integer"):
+                    self.error(path, where, "control slider needs a number field")
+                # A contract's field may leave the range to the device (`ranges`); anywhere else it has its own.
+                if control == "slider" and not ("min" in node and "max" in node) and not is_contract:
+                    self.error(path, where, "control slider needs min and max (a contract field may take them from the device's ranges)")
+                if control == "switch" and not (node.get("type") == "choice" and len(node.get("options", [])) == 2):
+                    self.error(path, where, "control switch needs a choice field with exactly two options")
+                for key, value in node.items():
+                    walk(value, path, f"{where}/{node['id']}" if key == "fields" and "id" in node else where)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item, path, f"{where}/{item['id']}" if isinstance(item, dict) and "id" in item and "control" in item else where)
+        for path, document in list(self.contracts.values()) + list(self.devices.values()):
+            is_contract = document.get("kind") != "device-definition"
+            walk(document, path, document["id"])
+        for path, document in self.devices.values():
+            provides = document.get("provides", {})
+            for name in document.get("contracts", []):
+                needs = [f for c in self.contracts.get(name, (None, {}))[1].get("commands", []) for s in ("read", "write")
+                         for part in ("args", "returns") for f in ((c.get(s) or {}).get(part) or {}).get("fields", []) if f.get("type") == "channel"]
+                if needs and "channels" not in provides and "pins" not in provides:
+                    self.error(path, "provides", f"contract {name} has a channel field: the device must give provides.channels (or provides.pins when its pins are its channels)")
+            commands = {}
+            for name in document.get("contracts", []):
+                for c in self.contracts.get(name, (None, {}))[1].get("commands", []):
+                    commands[c["id"]] = c
+            for c in document.get("commands", []):
+                commands[c["id"]] = c
+            for key, r in document.get("ranges", {}).items():
+                command, field = key.split(".", 1)
+                sides = [s for s in ("read", "write") if s in commands.get(command, {})]
+                fields = [f for s in sides for part in ("args", "returns") for f in (commands[command][s].get(part) or {}).get("fields", [])]
+                if not any(f["id"] == field for f in fields):
+                    self.error(path, f"ranges/{key}", "names no field of a command of the device's contracts or of its own commands")
+                if r["min"] >= r["max"]:
+                    self.error(path, f"ranges/{key}", "min must be below max")
+
+
 def main():
     checker = Checker()
     checker.devices_check()
     checker.mirrors_check()
+    checker.controls_check()
     count, missing = checker.blocks()
     if checker.problems:
         fail(f"{len(checker.problems)} broken reference(s):\n  " + "\n  ".join(checker.problems))

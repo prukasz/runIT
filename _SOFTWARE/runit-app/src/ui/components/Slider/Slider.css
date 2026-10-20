@@ -1,0 +1,15 @@
+.slider { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.slider.is-disabled { opacity: .5; }
+.slider input { flex: 1; min-width: 0; height: 22px; margin: 0; background: transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.slider input:disabled { cursor: default; }
+.slider input:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Track: filled up to the thumb. */
+.slider input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--slider-fill), color-mix(in srgb, var(--muted) 35%, transparent) var(--slider-fill)); }
+.slider input::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; border: 0; background: #fff; box-shadow: 0 0 0 2px var(--accent); transition: transform 100ms ease; }
+.slider input:hover:not(:disabled)::-webkit-slider-thumb, .slider input:active:not(:disabled)::-webkit-slider-thumb { transform: scale(1.2); }
+.slider-value { flex: none; min-width: 48px; text-align: right; font-size: 13px; font-weight: 550; color: var(--active); font-variant-numeric: tabular-nums; }
+.slider.is-unset input::-webkit-slider-thumb { background: var(--muted); box-shadow: none; }
+.slider.is-unset .slider-value { color: var(--muted); }
+.slider.is-error input::-webkit-slider-runnable-track { background: color-mix(in srgb, var(--status-lost) 45%, transparent); }
+.slider.is-error input::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--status-lost); }

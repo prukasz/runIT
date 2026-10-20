@@ -19,7 +19,7 @@ const COMPONENTS = join(SRC, 'ui', 'components')
 
 /** Raw elements a component replaces. */
 const ELEMENTS = [
-  [/<input\b/, 'TextField, NumberField, EditableField, Switch or PaletteSearch'],
+  [/<input\b/, 'TextField, NumberField, EditableField, Switch, Slider or PaletteSearch'],
   [/<select\b/, 'ListableField or ChoiceField'],
 ]
 

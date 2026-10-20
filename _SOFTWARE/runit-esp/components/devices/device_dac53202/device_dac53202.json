@@ -63,6 +63,9 @@
       }
     ]
   },
+  "ranges": {
+    "VOLTAGE.voltage_mV": { "min": 0, "max": 3300, "step": 10 }
+  },
   "contracts": [
     "DEVICE",
     "IO"
@@ -84,6 +87,7 @@
       "modes": [
         "dac"
       ],
+      "fixed_modes": true,
       "labels": [
         "OUT0",
         "OUT1"

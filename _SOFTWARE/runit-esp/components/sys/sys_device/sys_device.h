@@ -228,6 +228,9 @@ typedef struct {
   err_h (*resume)(void* ctx);
   const sys_device_op_t* ops;  // the type's own ops (RESET is one); never REMOVE / INFO / OPS / SUSPEND / RESUME
   uint16_t op_count;
+  /** Optional: false for an op of the table this device can't run as wired (the DRV8962's POWER_MONITOR without its
+   *  IPROPI pins): left out of OPS and answered ERR_DEV_UNKNOWN_OP. NULL: every op of the table. */
+  bool (*has_op)(const void* ctx, uint16_t op);
 } sys_device_type_t;
 
 #define SYS_DEVICE_OPS(table) .ops = (table), .op_count = (uint16_t)ARRAY_LEN(table)

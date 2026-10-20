@@ -276,7 +276,13 @@ static const struct {
 #define SIDE_READ  0x01u  // OPS: the op has a read side
 #define SIDE_WRITE 0x02u  // ... a write side
 
-// OPS: [op u16][sides u8] per op, the registry's, then the type's table.
+// The device runs this op of its type's table (has_op: not every wiring gives every op).
+static bool device_has_op(uint32_t i, uint16_t op) {
+  const sys_device_type_t* t = s_reg.devs[i].type;
+  return t->has_op == NULL || t->has_op(s_reg.devs[i].ctx, op);
+}
+
+// OPS: [op u16][sides u8] per op, the registry's, then the type's table (the ops this device runs).
 static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
   const sys_device_type_t* t = s_reg.devs[i].type;
   uint32_t pos = 0;
@@ -290,6 +296,7 @@ static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_
     ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
   }
   for (uint32_t k = 0; k < t->op_count; k++) {
+    if (!device_has_op(i, t->ops[k].op)) continue;
     const uint8_t sides = (t->ops[k].read != NULL ? SIDE_READ : 0) | (t->ops[k].write != NULL ? SIDE_WRITE : 0);
     ERR_TRY(cmd_append(out, out_cap, &pos, &t->ops[k].op, sizeof(uint16_t)));
     ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
@@ -319,7 +326,7 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, u
     return ERR_NEW(ERR_CMD_DIRECTION, .dir = dir);
   }
   const sys_device_op_t* row = type_op(s_reg.devs[i].type, op);
-  ERR_CHECK(row != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
+  ERR_CHECK(row != NULL && device_has_op(i, op), ERR_DEV_UNKNOWN_OP, .op = op);
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
   return fn(s_reg.devs[i].ctx, args, args_len, out, out_cap, out_len);

@@ -2487,7 +2487,7 @@
               "unit": "mV"
             }
           ],
-          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer)",
+          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer, 5 V when it offers none)",
           "message": "{id}: the source offers nothing at or below {voltage_mV} (lowest {lowest_mV})",
           "hint": "Use a charger that offers this voltage, or ask for a higher one."
         }

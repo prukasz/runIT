@@ -19,8 +19,10 @@ import { DevicesScreen } from './devices/DevicesScreen'
 import { DeviceTestPanel, PinPanel } from './devices/DeviceTestPanel'
 import { useDevices } from './devices/useDevices'
 import { useBoardSettings } from './settings/useBoardSettings'
+import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
+import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { APP_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
 import { ConsoleContext, useConsole } from './console/useConsole'
@@ -136,7 +138,8 @@ export function App() {
   // The board's settings, read as soon as the link is up (the Project screen shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
-  const [projectTab, setProjectTab] = usePersistedChoice<string>('runit.project.tab', [PROJECT_TAB, POWER_TAB, ...settingTabs.map((s) => s.service.id)], PROJECT_TAB)
+  const [projectTab, setProjectTab] = usePersistedChoice<string>('runit.project.tab', [PROJECT_TAB, POWER_TAB, APP_TAB, ...settingTabs.map((s) => s.service.id)], PROJECT_TAB)
+  const appZoom = useAppZoom()
   const tabSection = settingTabs.find((s) => s.service.id === projectTab)
   // What the Live power display reads: the project's, else the board's default.
   const powerReadings = useMemo(() => project.project.powerDisplay ?? defaultReadings(devices.board), [project.project.powerDisplay, devices.board])
@@ -403,6 +406,8 @@ export function App() {
             : view === 'Project'
               ? (projectTab === POWER_TAB
                 ? <PowerDisplayScreen project={project} services={devices.services} board={devices.board} devices={devices.devices} connected={state === 'connected'} />
+                : projectTab === APP_TAB
+                ? <AppSettingsScreen zoom={appZoom} />
                 : tabSection
                 ? <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} run={vm.board} settings={boardSettings} context={pinContext} nameOf={nameOf} />)

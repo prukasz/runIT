@@ -21,6 +21,7 @@
               "id": "enable",
               "label": "Output",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
@@ -57,7 +58,8 @@
               "size": 4,
               "offset": 0,
               "description": "The wanted output voltage",
-              "unit": "mV"
+              "unit": "mV",
+              "control": "slider"
             }
           ],
           "struct": "vreg_voltage_args_t"
@@ -81,7 +83,8 @@
               "size": 4,
               "offset": 0,
               "description": "The wanted output current limit",
-              "unit": "mA"
+              "unit": "mA",
+              "control": "slider"
             }
           ],
           "struct": "vreg_current_args_t"

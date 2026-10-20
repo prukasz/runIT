@@ -5,7 +5,7 @@
   "id": "drv8962",
   "wire_id": 40,
   "alias": "DRV8962 motor driver",
-  "description": "What only the DRV8962 motor driver has: a current limit per channel, clearing a fault and reading it. Driving the channels is the Motor block.",
+  "description": "What only the DRV8962 motor driver has: its current limit, clearing a fault and reading it. Driving the channels is the Motor block.",
   "category": "device",
   "order": 35,
   "tags": ["motor", "drv8962", "current limit", "fault", "driver"],
@@ -22,13 +22,12 @@
     {
       "id": "set_current_limit",
       "alias": "Set current limit",
-      "description": "Sets the chopping current limit of a channel; the reference voltage follows the largest limit. 0 means no limit.",
+      "description": "Sets the chopping current limit of the chip, every channel (one reference voltage). 0 means no limit.",
       "op": "current_limit",
       "args": {
-        "channel": { "required": true },
         "limit_mA": { "required": true, "input": "optional", "accepts": ["number", "accessor"] }
       },
-      "header": { "subtitle": "{channel} limit {limit_mA}" }
+      "header": { "subtitle": "Limit {limit_mA}" }
     },
     {
       "id": "clear_fault",

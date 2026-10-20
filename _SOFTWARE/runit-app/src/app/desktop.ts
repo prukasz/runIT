@@ -14,6 +14,11 @@ export interface Desktop {
   select(id: string): void
   /** Runs `globalThis.__runitGesture` with a user gesture. */
   gesture(): Promise<void>
+  /** The window's scale (1 = 100 %). */
+  getZoom(): Promise<number>
+  setZoom(factor: number): void
+  /** The scale changed from the keyboard (Ctrl + / Ctrl − / Ctrl 0) or by `setZoom`. */
+  onZoom(handler: (factor: number) => void): () => void
   onDevices(handler: (devices: readonly ScanResult[]) => void): () => void
 }
 

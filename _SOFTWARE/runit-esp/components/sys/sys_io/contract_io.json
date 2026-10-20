@@ -50,6 +50,7 @@
               "id": "level",
               "label": "Level",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
@@ -88,6 +89,7 @@
               "id": "level",
               "label": "Level",
               "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
@@ -163,7 +165,8 @@
               "offset": 1,
               "description": "PWM duty, 0 to 4095 (12 bits)",
               "min": 0,
-              "max": 4095
+              "max": 4095,
+              "control": "slider"
             }
           ],
           "struct": "io_duty_args_t"
@@ -372,7 +375,8 @@
               "offset": 0,
               "description": "The pin of the device",
               "pin_state": [
-                "adc"
+                "adc",
+                "dac"
               ]
             }
           ],
@@ -426,7 +430,8 @@
               "raw_type": "i32",
               "size": 4,
               "offset": 1,
-              "unit": "mV"
+              "unit": "mV",
+              "control": "slider"
             }
           ],
           "struct": "io_voltage_args_t"

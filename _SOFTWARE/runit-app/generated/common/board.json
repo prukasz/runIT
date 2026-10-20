@@ -335,18 +335,16 @@
           "use": "nfault_pin",
           "device": 1,
           "pin": 11
-        }
-      ],
-      "analog_refs": [
+        },
         {
-          "use": "vref",
+          "use": "vref_pin",
           "device": 4,
-          "channel": 0,
+          "pin": 0,
           "description": "DAC OUT0 sets VREF"
         }
       ],
       "config": {
-        "topology": 1,
+        "topology": 0,
         "turn_off_at_ocp": 1,
         "current_limit_mA": 2000
       }
@@ -410,21 +408,19 @@
           "use": "nfault_pin",
           "device": 1,
           "pin": 10
-        }
-      ],
-      "analog_refs": [
+        },
         {
-          "use": "vref",
+          "use": "vref_pin",
           "device": 4,
-          "channel": 1,
+          "pin": 1,
           "description": "DAC OUT1 sets VREF"
         }
       ],
       "config": {
-        "topology": 1,
+        "topology": 0,
         "turn_off_at_ocp": 1,
         "current_limit_mA": 2000,
-        "pwm_freq_Hz": 1000
+        "pwm_freq_Hz": 50
       }
     },
     {
@@ -480,6 +476,13 @@
       "descriptor": "device_tps55289",
       "description": "TPS55289 buck-boost regulator at 0x74",
       "role": "voltage_regulator",
+      "ranges": {
+        "VOLTAGE.voltage_mV": {
+          "min": 4000,
+          "max": 20000,
+          "step": 100
+        }
+      },
       "i2c": {
         "bus": 0,
         "address": 116,
@@ -507,6 +510,13 @@
       "descriptor": "device_tps55289",
       "description": "TPS55289 buck-boost regulator at 0x75",
       "role": "voltage_regulator",
+      "ranges": {
+        "VOLTAGE.voltage_mV": {
+          "min": 4000,
+          "max": 20000,
+          "step": 100
+        }
+      },
       "i2c": {
         "bus": 0,
         "address": 117,

@@ -95,6 +95,10 @@
     }
   ],
   "provides": {
+    "channels": {
+      "count": 1,
+      "labels": ["VBUS"]
+    },
     "power": [
       {
         "rail": "VBUS_OUT",

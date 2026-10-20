@@ -72,7 +72,6 @@ export function DevicesExplorer({ state }: { state: DevicesState }) {
                 actions={<TreeAction label={`Delete ${a.name}`} onClick={() => state.removeAction(a.id)} />}
                 onClick={() => state.select({ kind: 'action', id: a.id })} />
             ))}
-            {state.project.actions.length === 0 && <p className="devices-hint">No actions yet. An action is a list of commands the board keeps and runs on a call: from the app, a block, an error.</p>}
             <Button variant="dashed" block onClick={() => state.select({ kind: 'action', id: state.addAction() })}>Add action</Button>
           </>
         )}

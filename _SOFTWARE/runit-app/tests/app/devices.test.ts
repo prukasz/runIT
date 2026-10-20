@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, createDeviceCall, deviceCall, deviceOp, onboardActionIds, readDeviceFrame, requestFrame } from '../../src/backend'
+import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, createDeviceCall, deviceCall, deviceOp, onboardActionIds, readDeviceFrame, requestFrame, withRanges } from '../../src/backend'
 import { bundledEnums } from '../../src/backend'
 import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import {
-  actionRecordOf, admittedSeverities, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, fromBoard, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
+  actionRecordOf, admittedSeverities, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, fromBoard, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
 } from '../../src/app/devices/devices'
 
 const defs = bundledLinkDefinitions()
@@ -45,8 +45,8 @@ describe('the devices of the view', () => {
 
   it('names a pin #n, the descriptor\'s name only a hint', () => {
     expect(pinNumber(22)).toBe('#22')
-    expect(pinHint(catalog.devices.get('tca6424a'), 22)).toBe('P26')
-    expect(pinHint(catalog.devices.get('gpio_esp'), 21)).toBeUndefined()
+    expect(pinHint({ type: catalog.devices.get('tca6424a') }, 22)).toBe('P26')
+    expect(pinHint({ type: catalog.devices.get('gpio_esp') }, 21)).toBeUndefined()
   })
 
   it("a pin the user named is called by that name in a command and in a pin reference", () => {
@@ -281,3 +281,75 @@ describe('the pins a command is offered', () => {
   })
 })
 
+
+describe('live settings and channels that follow the config', () => {
+  it('the DRV8962: its settings command writes topology, limit and braking live; its channels follow the topology', async () => {
+    const { liveSettingsOf, liveSettingsArgs, startSettings, devicePins, deviceList } = await import('../../src/app/devices/devices')
+    const catalog = bundledServiceCatalog()
+    const drv = catalog.devices.get('drv8962')
+    const live = liveSettingsOf(drv)
+    expect(live?.id).toBe('settings')
+    expect(liveSettingsOf(catalog.devices.get('tca6424a'))).toBeUndefined()
+    expect(liveSettingsArgs(live!, { topology: 1, current_limit_mA: 1500, turn_off_at_ocp: 0, pwm_freq_Hz: 5 })).toEqual({ topology: 1, current_limit_mA: 1500, turn_off_at_ocp: 0 })
+    const board = deviceList(emptyProject(), catalog, bundledBoard()).find((d) => d.id === 5)!
+    expect(devicePins(board)).toMatchObject({ count: 2, labels: ['Bridge A (OUT1+OUT2)', 'Bridge B (OUT3+OUT4)'] })
+    expect(devicePins({ ...board, config: { ...board.config, topology: 1 } })).toMatchObject({ count: 4, labels: ['OUT1', 'OUT2', 'OUT3', 'OUT4'] })
+    const withStep = { ...board, defaults: [{ kind: 'device' as const, device: 5, contract: 'drv8962', command: 'settings', args: { topology: 1, current_limit_mA: 900, turn_off_at_ocp: 1 } }] }
+    expect(startSettings(withStep, live!)).toEqual({ topology: 1, current_limit_mA: 900, turn_off_at_ocp: 1 })
+    // A board device's live settings in its start commands are its config: four half bridges give four channels.
+    const project = { ...emptyProject(), boardDefaults: [{ device: 5, steps: withStep.defaults }] }
+    const halved = deviceList(project, catalog, bundledBoard()).find((d) => d.id === 5)!
+    expect(halved.config.topology).toBe(1)
+    expect(devicePins(halved)?.count).toBe(4)
+  })
+})
+
+describe('a MODE write with nothing to choose', () => {
+  it('is not offered on a device whose pins take one mode from reset (the ADS7128), and is on the ESP GPIO', async () => {
+    const { commandGroups } = await import('../../src/app/devices/devices')
+    const catalog = bundledServiceCatalog()
+    const ioCommands = (type: string) => commandGroups(catalog, catalog.devices.get(type)).find((g) => g.entry.id === 'IO')?.commands.map((c) => c.command.id) ?? []
+    expect(ioCommands('ads7128')).not.toContain('MODE')
+    expect(ioCommands('ads7128')).toContain('VOLTAGE')
+    expect(ioCommands('gpio_esp')).toContain('MODE')
+  })
+})
+
+describe('IO commands a device\'s pins can never take', () => {
+  it('are not offered: the ADS7128 has Reset, Interrupt and the voltage read only; the ESP GPIO keeps levels and PWM', async () => {
+    const { commandGroups, sideLabel } = await import('../../src/app/devices/devices')
+    const catalog = bundledServiceCatalog()
+    const io = (type: string) => commandGroups(catalog, catalog.devices.get(type)).find((g) => g.entry.id === 'IO')?.commands.map(sideLabel) ?? []
+    expect(io('ads7128')).toEqual(['Reset pin', 'Interrupt', 'Voltage: read'])
+    expect(io('gpio_esp')).toEqual(expect.arrayContaining(['Level: write', 'PWM duty', 'Mode']))
+    expect(io('dac53202')).toEqual(['Reset pin', 'Voltage: read', 'Voltage: write'])
+  })
+})
+
+describe('the ranges a device gives its commands', () => {
+  it('a regulator rail of the runIT board takes 4 to 20 V in steps of 100 mV, and a layout carries it', () => {
+    const rail = deviceList(emptyProject('Rails'), catalog, board).find((d) => d.name === 'Rail A')!
+    expect(rail.ranges?.['VOLTAGE.voltage_mV']).toEqual({ min: 4000, max: 20000, step: 100 })
+    const voltage = catalog.contracts.get('POWER_VREG')!.commands.get('VOLTAGE')!.write!.args!
+    expect(voltage.fields[0]).toMatchObject({ control: 'slider' })
+    expect(voltage.fields[0]!.max).toBeUndefined()
+    expect(withRanges(voltage, 'VOLTAGE', rail.ranges)!.fields[0]).toMatchObject({ min: 4000, max: 20000, step: 100, control: 'slider' })
+  })
+  it('a command without a range keeps its layout', () => {
+    const voltage = catalog.contracts.get('POWER_VREG')!.commands.get('VOLTAGE')!.write!.args!
+    expect(withRanges(voltage, 'CURRENT', { 'VOLTAGE.voltage_mV': { min: 1, max: 2 } })!.fields[0]!.max).toBeUndefined()
+  })
+})
+
+describe('the channels of a device', () => {
+  const monitor = deviceList(emptyProject('Monitor'), catalog, board).find((d) => d.type?.id === 'ina3221')!
+  it("a power monitor's channel field is a channel, and its device names them", () => {
+    const field = catalog.contracts.get('POWER_MONITOR')!.commands.get('CURRENT')!.read!.args!.fields[0]!
+    expect(field.type).toBe('channel')
+    expect(deviceChannels(monitor)).toEqual({ count: 3, labels: ['Channel 1', 'Channel 2', 'Channel 3'] })
+  })
+  it('a device whose channels are its pins gives them', () => {
+    const driver = deviceList(emptyProject('Driver'), catalog, board).find((d) => d.type?.id === 'drv8962')!
+    expect(deviceChannels(driver)?.count).toBe(devicePins(driver)!.count)
+  })
+})

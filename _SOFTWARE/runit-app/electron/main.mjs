@@ -24,8 +24,28 @@ const createWindow = () => {
     height: 900,
     backgroundColor: '#1f1f1f',
     autoHideMenuBar: true,
-    webPreferences: { preload: at('./preload.cjs'), contextIsolation: true, sandbox: true, backgroundThrottling: false },
+    webPreferences: { preload: at('./preload.cjs'), contextIsolation: true, sandbox: true, backgroundThrottling: false, zoomFactor: 1.3 },
   })
+
+  // Ctrl + / Ctrl = zoom in, Ctrl - out, Ctrl 0 back to the start scale (the default menu's zoom needs Shift for the plus).
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return
+    const zoom = window.webContents.getZoomFactor()
+    let next = null
+    if (input.key === '+' || input.key === '=') next = zoom + 0.1
+    else if (input.key === '-' || input.key === '_') next = zoom - 0.1
+    else if (input.key === '0') next = 1.3
+    if (next === null) return
+    event.preventDefault()
+    setZoom(next)
+  })
+  // The page's settings tab shows the scale and sets it too (`zoom:get`, `zoom:set`); a change made here is sent to it (`zoom:changed`).
+  const setZoom = (factor) => {
+    if (typeof factor !== 'number' || !Number.isFinite(factor)) return
+    const next = Math.min(3, Math.max(0.5, Math.round(factor * 100) / 100))
+    window.webContents.setZoomFactor(next)
+    window.webContents.send('zoom:changed', next)
+  }
 
   let wanted = null // the board to pick as soon as the scan sees it (the id the scan reports)
   let answer = null // the pending `select-bluetooth-device` callback
@@ -49,6 +69,8 @@ const createWindow = () => {
     answer = null
     callback(typeof id === 'string' ? id : '')
   })
+  ipcMain.handle('zoom:get', (event) => (own(event) ? window.webContents.getZoomFactor() : 1))
+  ipcMain.on('zoom:set', (event, factor) => { if (own(event)) setZoom(factor) })
   ipcMain.handle('ble:gesture', async (event) => {
     if (own(event)) await window.webContents.executeJavaScript('globalThis.__runitGesture?.()', true)
   })
@@ -56,6 +78,8 @@ const createWindow = () => {
     ipcMain.removeAllListeners('ble:want')
     ipcMain.removeAllListeners('ble:select')
     ipcMain.removeHandler('ble:gesture')
+    ipcMain.removeHandler('zoom:get')
+    ipcMain.removeAllListeners('zoom:set')
   })
 
   // `npm run app` serves the page with Vite; the packaged app loads the built page.

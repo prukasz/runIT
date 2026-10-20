@@ -212,6 +212,21 @@
           "type": { "type": "string", "pattern": "^SYS_DEVICE_TYPE_[A-Z0-9_]+$" },
           "descriptor": { "type": "string" },
           "description": { "type": "string" },
+          "ranges": {
+            "type": "object",
+            "description": "Zakres pola polecenia kontraktu dla tego urządzenia: klucz to 'POLECENIE.pole' (id polecenia i id pola, np. 'VOLTAGE.voltage_mV'). Nadpisuje min, max i step z kontraktu; aplikacja nie pokaże wartości poza zakresem.",
+            "propertyNames": { "pattern": "^[A-Za-z0-9_]+\\.[A-Za-z0-9_]+$" },
+            "additionalProperties": {
+              "type": "object",
+              "required": ["min", "max"],
+              "additionalProperties": false,
+              "properties": {
+                "min": { "type": "number" },
+                "max": { "type": "number" },
+                "step": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          },
           "role": { "type": "string" },
           "i2c": {
             "type": "object",
@@ -234,20 +249,6 @@
                 "device": { "type": "integer" },
                 "pin": { "type": "integer" },
                 "mode": { "type": "string" },
-                "description": { "type": "string" }
-              }
-            }
-          },
-          "analog_refs": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["use", "device", "channel"],
-              "additionalProperties": false,
-              "properties": {
-                "use": { "type": "string" },
-                "device": { "type": "integer" },
-                "channel": { "type": "integer" },
                 "description": { "type": "string" }
               }
             }

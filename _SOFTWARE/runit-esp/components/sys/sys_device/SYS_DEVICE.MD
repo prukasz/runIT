@@ -42,7 +42,7 @@ An op is a u16, `[contract u8][op u8]`: the high byte is the contract, the low b
 | `0x0003` RESUME | lifecycle (driver), **required** | a failing resume leaves it suspended |
 | `0x0004` REMOVE | generic | refused for a board device (`ERR_DEV_SYSTEM{id}`) and while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
 | `0x0005` INFO → `{u16 type_id, u8 suspended}` | generic | from the type and `sys_device_base_t` |
-| `0x0006` OPS → `u16[]` | generic | SUSPEND, RESUME, REMOVE, INFO, OPS, SET / GET_ERROR_POLICY, then the type's op table. The app reads what a device can do instead of trying ops |
+| `0x0006` OPS → `u16[]` | generic | SUSPEND, RESUME, REMOVE, INFO, OPS, SET / GET_ERROR_POLICY, then the type's op table (without the ops the type's `has_op` says this device can't run as wired). The app reads what a device can do instead of trying ops |
 | `0x0007` SET_ERROR_POLICY `{u8 importance, u32 actions[4]}` (17 B) | generic | the device's error policy (below). Importance > 4: `ERR_DEV_RANGE`. Allowed while suspended |
 | `0x0008` GET_ERROR_POLICY → the same 5 bytes | generic | |
 | `0x01xx..0xFExx` | contracts | one meaning on every device that has them (`0x01` IO: SYS_IO.MD) |
@@ -50,7 +50,7 @@ An op is a u16, `[contract u8][op u8]`: the high byte is the contract, the low b
 
 **Sweeps over the router**: SUSPEND, RESUME or RESET sent to device ID `0xFFFF` (`SYS_DEVICE_ID_NONE`, "no device") runs `sys_device_sweep(op)`: `[05][FF FF][02 00]` suspends every device, `[05][FF FF][03 00]` resumes them, `[05][FF FF][01 00]` resets them (newest first, as suspend; no args, else `ERR_CMD_BAD_LEN`). Best effort as below; the first failure comes back as the device's own `ERR_DEV_ID` chain (not wrapped in an ID-NONE node, so the error policy still finds the device). A normal device frame, so an action can record or hold it (the app's onboard actions do, RUNIT.MD). REMOVE has no router sweep: `sys_device_sweep(SYS_DEVICE_OP_REMOVE)` is the firmware's (the project's ERASE, SYS_PROJECT.MD).
 
-A device's class is the set of ops it answers (OPS returns it). The op table (`sys_device_op_t {u16 op, cmd_f fn}`) lists only the ops the driver has, so its size doesn't depend on how many contracts exist.
+A device's class is the set of ops it answers (OPS returns it). The op table (`sys_device_op_t {u16 op, cmd_f fn}`) lists only the ops the driver has, so its size doesn't depend on how many contracts exist. A type whose ops depend on the wiring gives `has_op(ctx, op)`: an op it answers false for is left out of OPS and answered `ERR_DEV_UNKNOWN_OP` (the DRV8962's POWER_MONITOR without its IPROPI pins).
 
 ### Contract tables (X-macros)
 

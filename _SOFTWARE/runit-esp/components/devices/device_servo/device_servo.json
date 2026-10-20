@@ -53,6 +53,7 @@
         "offset": 4,
         "size": 1,
         "type": "choice",
+        "control": "switch",
         "raw_type": "u8",
         "options": [
           {
@@ -73,6 +74,7 @@
         "offset": 5,
         "size": 1,
         "type": "choice",
+        "control": "switch",
         "raw_type": "u8",
         "options": [
           {

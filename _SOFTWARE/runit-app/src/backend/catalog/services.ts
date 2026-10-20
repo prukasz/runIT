@@ -1,6 +1,6 @@
 import type { EnumTables } from '@engine/generated/wire'
-import { PIN_REF_SIZE, RAW_TYPES, rawWidth } from './codec'
-import type { Choice, Layout, PinRef, RawType, WireField } from './codec'
+import { PIN_REF_SIZE, RAW_TYPES, parseRanges, rawWidth } from './codec'
+import type { Choice, FieldRanges, Layout, PinRef, RawType, WireField } from './codec'
 
 /*
  * Every command the board takes, read from the descriptors the firmware publishes (`templates/contract.schema.json`,
@@ -90,6 +90,23 @@ export interface DevicePins {
   readonly defaultMode?: string
   /** Its pins have their modes for good: the device has no MODE write (`fixed_modes`: the PCA9685's channels are PWM / output). */
   readonly fixedModes?: boolean
+  /** How many pins and their names follow a config field (`by_config`: the DRV8962's channels follow its topology); `devicePins` (app/devices) picks the variant. */
+  readonly byConfig?: { readonly field: string; readonly variants: readonly PinsVariant[] }
+}
+
+/** The measurement channels a device type has that are not its pins (`provides.channels`): how many and their names. */
+export interface DeviceChannels {
+  readonly count: number
+  readonly labels?: readonly string[]
+  /** How many channels and their names follow a config field, as for pins (`by_config`). */
+  readonly byConfig?: { readonly field: string; readonly variants: readonly PinsVariant[] }
+}
+
+/** The pins a value of the `by_config` field gives. */
+export interface PinsVariant {
+  readonly value: number
+  readonly count: number
+  readonly labels?: readonly string[]
 }
 
 /** A named set of config values of a device type (`presets` of its descriptor: a common part, a mode). */
@@ -118,8 +135,12 @@ export interface CatalogEntry {
   readonly config?: Layout
   /** A device type's pins. */
   readonly pins?: DevicePins
+  /** A device type's channels, when they are not its pins. */
+  readonly channels?: DeviceChannels
   /** A device type's presets of its config. */
   readonly presets?: readonly DevicePreset[]
+  /** A device type's ranges for the fields of its commands (`ranges`). */
+  readonly ranges?: FieldRanges
   readonly commands: ReadonlyMap<string, CommandDef>
   readonly events: readonly EventDef[]
   /** A service whose settings are one record (`record` in the descriptor: BLE's GATT table, the data streams), as its u32 ID. */
@@ -247,6 +268,24 @@ export class ServiceCatalog {
     const pinsJson = obj(obj(json.provides)?.pins)
     const pinCount = num(pinsJson?.count)
     const pinLabels = arr(pinsJson?.labels).filter((l): l is string => typeof l === 'string')
+    const parseByConfig = (byConfigJson: Json | undefined) =>
+      str(byConfigJson?.field) !== undefined
+        ? {
+            field: str(byConfigJson!.field)!,
+            variants: arr(byConfigJson!.variants).flatMap((v): PinsVariant[] => {
+              const variant = obj(v)
+              const value = num(variant?.value)
+              const count = num(variant?.count)
+              const labels = arr(variant?.labels).filter((l): l is string => typeof l === 'string')
+              return value !== undefined && count !== undefined ? [{ value, count, ...(labels.length > 0 ? { labels } : {}) }] : []
+            }),
+          }
+        : undefined
+    const byConfig = parseByConfig(obj(pinsJson?.by_config))
+    const channelsJson = obj(obj(json.provides)?.channels)
+    const channelCount = num(channelsJson?.count)
+    const channelLabels = arr(channelsJson?.labels).filter((l): l is string => typeof l === 'string')
+    const channelsByConfig = parseByConfig(obj(channelsJson?.by_config))
     const configJson = obj(json.config) ?? (Array.isArray(json.config) ? { fields: json.config } : undefined)
     const serviceRecord = this.recordOf(json.record, problem)
     const entry: CatalogEntry = {
@@ -262,8 +301,10 @@ export class ServiceCatalog {
       contracts: arr(json.contracts).filter((c): c is string => typeof c === 'string'),
       ...(kind === 'device' && configJson ? { config: this.layout(configJson, `config`, problem, num(configJson.size)) } : {}),
       ...(kind === 'device' && pinCount !== undefined
-        ? { pins: { count: pinCount, ...(pinLabels.length > 0 ? { labels: pinLabels } : {}), modes: arr(pinsJson?.modes).filter((m): m is string => typeof m === 'string'), ...(typeof pinsJson?.default_mode === 'string' ? { defaultMode: pinsJson.default_mode } : {}), ...(pinsJson?.fixed_modes === true ? { fixedModes: true } : {}) } }
+        ? { pins: { count: pinCount, ...(pinLabels.length > 0 ? { labels: pinLabels } : {}), modes: arr(pinsJson?.modes).filter((m): m is string => typeof m === 'string'), ...(typeof pinsJson?.default_mode === 'string' ? { defaultMode: pinsJson.default_mode } : {}), ...(pinsJson?.fixed_modes === true ? { fixedModes: true } : {}), ...(byConfig ? { byConfig } : {}) } }
         : {}),
+      ...(kind === 'device' && channelCount !== undefined ? { channels: { count: channelCount, ...(channelLabels.length > 0 ? { labels: channelLabels } : {}), ...(channelsByConfig ? { byConfig: channelsByConfig } : {}) } } : {}),
+      ...(kind === 'device' && Object.keys(parseRanges(json.ranges)).length > 0 ? { ranges: parseRanges(json.ranges) } : {}),
       ...(kind === 'device' && arr(json.presets).length > 0
         ? {
             presets: arr(json.presets).flatMap((p) => {
@@ -421,6 +462,7 @@ export class ServiceCatalog {
         ...(num(f.min) !== undefined ? { min: num(f.min) } : {}),
         ...(num(f.max) !== undefined ? { max: num(f.max) } : {}),
         ...(num(f.step) !== undefined ? { step: num(f.step) } : {}),
+        ...(f.control === 'slider' || f.control === 'switch' ? { control: f.control } : {}),
         ...(f.default !== undefined ? { default: f.default } : {}),
         optional: f.optional === true,
         ...(choices ? { choices } : {}),

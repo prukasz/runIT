@@ -207,14 +207,14 @@ err_h runit_board_devices_init(void) {
   CREATE_CHIP(&first, "DAC53202", DEVICE_ID_DAC53202, SYS_DEVICE_TYPE_DAC53202, dac);
 
   // DRV8962 #1: IN / EN on the ESP, IPROPI on the ESP ADC, nSLEEP / nFAULT on the TCA6424A, VREF = DAC OUT0.
-  drv8962_cfg_t drv1 = {.topology = DRV8962_TOPOLOGY_2_FULL_BRIDGES, .turn_off_at_ocp = 1};
+  drv8962_cfg_t drv1 = {.topology = DRV8962_TOPOLOGY_2_FULL_BRIDGES, .turn_off_at_ocp = 1,
+                        .current_limit_mA = RUNIT_BOARD_DRV8962_LIMIT_MA};
   drv8962_pins_none(&drv1);
   static const uint8_t k_drv1_in[4] = {21, 47, 48, 45}, k_drv1_en[4] = {38, 39, 2, 1}, k_drv1_ipropi[4] = {7, 6, 5, 4};
   for (uint8_t i = 0; i < 4; i++) {
     drv1.pin[DRV8962_PIN_IN1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_in[i]);
     drv1.pin[DRV8962_PIN_EN1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_en[i]);
     drv1.pin[DRV8962_PIN_IPROPI1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_ipropi[i]);
-    drv1.current_limit_mA[i] = RUNIT_BOARD_DRV8962_LIMIT_MA;
   }
   drv1.pin[DRV8962_PIN_NSLEEP] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_NSLEEP);
   drv1.pin[DRV8962_PIN_NFAULT] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_NFAULT);
@@ -223,12 +223,11 @@ err_h runit_board_devices_init(void) {
 
   // DRV8962 #2: IN1-4 = PCA9685 CH 8..11, EN1-4 = CH 12..15. IPROPI has resistors only (no ADC); VREF = DAC OUT1.
   drv8962_cfg_t drv2 = {.topology = DRV8962_TOPOLOGY_2_FULL_BRIDGES, .turn_off_at_ocp = 1,
-                        .pwm_freq_Hz = RUNIT_BOARD_DRV8962_PCA_PWM_HZ};
+                        .pwm_freq_Hz = RUNIT_BOARD_DRV8962_PCA_PWM_HZ, .current_limit_mA = RUNIT_BOARD_DRV8962_LIMIT_MA};
   drv8962_pins_none(&drv2);
   for (uint8_t i = 0; i < 4; i++) {
     drv2.pin[DRV8962_PIN_IN1 + i] = BOARD_PIN(DEVICE_ID_PCA9685, 8 + i);
     drv2.pin[DRV8962_PIN_EN1 + i] = BOARD_PIN(DEVICE_ID_PCA9685, 12 + i);
-    drv2.current_limit_mA[i] = RUNIT_BOARD_DRV8962_LIMIT_MA;
   }
   drv2.pin[DRV8962_PIN_NSLEEP] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV2_NSLEEP);
   drv2.pin[DRV8962_PIN_NFAULT] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV2_NFAULT);

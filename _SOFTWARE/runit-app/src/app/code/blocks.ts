@@ -261,6 +261,9 @@ export const headline = (ctx: BlockContext, block: BlockInstance, operation = fa
     const input = pins.inputs.find((p) => p.pin.id === name)
     const source = input ? block.inputs[input.index] : undefined
     if (source) return sourceLabel(ctx, source)
+    // An unwired pin that stands for a setting (`overrides`: Set's source, the Value) reads as that setting's value.
+    const stands = input?.pin.overrides ? fields.find((f) => f.id === input.pin.overrides) : undefined
+    if (stands) return fieldText(ctx, block, stands)
     const field = fields.find((f) => f.id === name)
     if (field) return fieldText(ctx, block, field)
     if (input) return input.pin.alias

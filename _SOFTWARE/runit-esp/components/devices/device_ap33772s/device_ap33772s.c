@@ -13,6 +13,7 @@
 #define KEEPALIVE_MS            500u       // an AVS request is repeated at this period
 #define DEFAULT_VOLTAGE_MV      5000u
 #define DEFAULT_CURRENT_MA      500u
+#define VSAFE_5V_MV             5000u  // the 5 V every USB-PD source offers (vSafe5V)
 
 #define CMD_SYSTEM    0x06u
 #define CMD_VOLTAGE   0x11u
@@ -48,7 +49,7 @@ typedef struct {
   bool avs_active;
   uint16_t avs_request;  // the last AVS request, repeated by the keep-alive
 
-  uint32_t last_voltage_mV;  // wanted settings: SET_VOLTAGE / SET_CURRENT renegotiate with both
+  uint32_t last_voltage_mV;  // the last request the charger took: a refused one leaves them; each write renegotiates with both
   uint32_t last_current_mA;
 } ap_t;
 
@@ -79,18 +80,24 @@ static void keepalive_stop(ap_t* c) {
   }
 }
 
-// Reads the source PDOs and finds the PPS / AVS profile. The chip needs a moment after power-up to have them.
-static err_h read_pdos(ap_t* c) {
+// The chip needs a moment after power-up to have the source PDOs.
+static void wait_pdos_ready(void) {
   if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
     vTaskDelay(pdMS_TO_TICKS(PDO_WAIT_MS));
   } else {
     ets_delay_us(PDO_WAIT_MS * 1000u);
   }
+}
+
+// Reads the source PDOs and finds the PPS / AVS profile. Called before each request and each read of the offers, so a
+// charger attached after power-up is seen.
+static err_h read_pdos(ap_t* c) {
   uint8_t raw[2 * PDO_COUNT] = {0};
   ERR_TRY(sys_i2c_reg_read(&c->i2c, CMD_SRCPDO, raw, sizeof(raw)));
   for (int i = 0; i < PDO_COUNT; i++) {
     c->pdo[i] = (uint16_t)(raw[2 * i] | (raw[2 * i + 1] << 8));
   }
+  c->index_pps = c->index_avs = -1;
   for (int slot = 1; slot <= PDO_COUNT; slot++) {
     if (slot < 8 && pdo_augmented(c->pdo[slot - 1])) {
       c->index_pps = slot;
@@ -143,6 +150,7 @@ static err_h set_avs(ap_t* c, int slot, uint32_t voltage_mV, uint32_t current_mA
  * or below the voltage. A refusal of one kind falls through to the next. */
 static err_h negotiate(ap_t* c, uint32_t voltage_mV, uint32_t current_mA) {
   SYS_DEV_CHECK_IN_RANGE(c->base.id, voltage_mV, 0, MAX_SOFTWARE_VOLTAGE_MV);
+  ERR_TRY(read_pdos(c));
   if (c->index_pps != -1) {
     const uint16_t pdo = c->pdo[c->index_pps - 1];
     if (voltage_mV >= (pdo_has_vmin(pdo) ? 3300u : 0u) && voltage_mV <= pdo_vmax(pdo) * 100u) {
@@ -166,21 +174,21 @@ static err_h negotiate(ap_t* c, uint32_t voltage_mV, uint32_t current_mA) {
   // The highest fixed profile at or below the request.
   int best_slot = -1;
   uint32_t best_diff = UINT32_MAX;
-  uint32_t lowest_fixed_mV = MAX_SOFTWARE_VOLTAGE_MV;
+  uint32_t lowest_fixed_mV = 0;  // no fixed offer read: reported as vSafe5V below
   for (int slot = 1; slot <= PDO_COUNT; slot++) {
     const uint16_t pdo = c->pdo[slot - 1];
     if (pdo == 0 || pdo_augmented(pdo)) {
       continue;
     }
     const uint32_t pdo_mV = pdo_vmax(pdo) * (slot >= 8 ? 200u : 100u);
-    lowest_fixed_mV = pdo_mV < lowest_fixed_mV ? pdo_mV : lowest_fixed_mV;
+    lowest_fixed_mV = lowest_fixed_mV == 0 || pdo_mV < lowest_fixed_mV ? pdo_mV : lowest_fixed_mV;
     if (pdo_mV <= voltage_mV && voltage_mV - pdo_mV < best_diff) {
       best_diff = voltage_mV - pdo_mV;
       best_slot = slot;
     }
   }
   ERR_CHECK(best_slot != -1, ERR_POWER_NO_PROFILE, .id = c->base.id, .voltage_mV = voltage_mV,
-            .lowest_mV = lowest_fixed_mV);
+            .lowest_mV = lowest_fixed_mV != 0 ? lowest_fixed_mV : VSAFE_5V_MV);
   return set_fixed(c, best_slot, current_mA);
 }
 
@@ -214,15 +222,17 @@ VREG_WRITE(ENABLE) {
 VREG_WRITE(VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
+  ERR_TRY(negotiate(c, args->voltage_mV, c->last_current_mA));
   c->last_voltage_mV = args->voltage_mV;
-  return negotiate(c, c->last_voltage_mV, c->last_current_mA);
+  return NULL;
 }
 
 VREG_WRITE(CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
+  ERR_TRY(negotiate(c, c->last_voltage_mV, args->current_mA));
   c->last_current_mA = args->current_mA;
-  return negotiate(c, c->last_voltage_mV, c->last_current_mA);
+  return NULL;
 }
 
 /* ---- POWER_USB_PD ---- */
@@ -230,12 +240,13 @@ VREG_WRITE(CURRENT) {
 PD_WRITE(SETTINGS) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
+  ERR_TRY(negotiate(c, args->voltage_mV, args->current_mA));
   c->last_voltage_mV = args->voltage_mV;
   c->last_current_mA = args->current_mA;
-  return negotiate(c, args->voltage_mV, args->current_mA);
+  return NULL;
 }
 
-// What was last asked for (the setting, not what the charger granted). A read: allowed while suspended.
+// The last request the charger took (a refused one is not kept). A read: allowed while suspended.
 PD_READ(SETTINGS) {
   (void)args;
   const ap_t* c = ctx;
@@ -271,6 +282,7 @@ static bool pdo_option(const ap_t* c, uint8_t slot, sys_power_usb_pd_option_t* o
 PD_READ(OPTIONS) {
   (void)args;
   ap_t* c = ctx;
+  ERR_TRY(read_pdos(c));
   sys_power_usb_pd_option_t options[PDO_COUNT];
   uint32_t count = 0;
   for (uint8_t slot = 1; slot <= PDO_COUNT; slot++) {
@@ -285,6 +297,7 @@ PD_READ(OPTIONS) {
 PD_READ(LIMITS) {
   (void)args;
   ap_t* c = ctx;
+  ERR_TRY(read_pdos(c));
   sys_power_usb_pd_limits_t limits = {0};
   uint32_t max_mV = 0;
   for (uint8_t slot = 1; slot <= PDO_COUNT; slot++) {
@@ -394,6 +407,7 @@ static err_h create(void* ctx, const void* cfg_in) {
   ERR_TRY(sys_i2c_dev_attach(&c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // probes the chip
 
   ERR_TRY(sys_pins_take_input(&c->base, &c->intr, cfg->intr_pin, 0, SYS_IO_INTR_MODE_FALLING_EDGE));  // no events
+  wait_pdos_ready();
   return read_pdos(c);
 }
 

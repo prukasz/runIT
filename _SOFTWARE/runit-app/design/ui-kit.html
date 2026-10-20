@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="../src/ui/components/OptionMenu/OptionMenu.css">
 <link rel="stylesheet" href="../src/ui/components/TreeSlab/TreeSlab.css">
 <link rel="stylesheet" href="../src/ui/components/Switch/Switch.css">
+<link rel="stylesheet" href="../src/ui/components/Slider/Slider.css">
 <link rel="stylesheet" href="../src/ui/components/ReferenceField/ReferenceField.css">
 <link rel="stylesheet" href="../src/ui/components/DeviceTile/DeviceTile.css">
 <link rel="stylesheet" href="../src/ui/components/ErrorEntry/ErrorEntry.css">
@@ -115,6 +116,13 @@
     <div class="cell"><span class="cap">truefalse · a bool variable's value, with its badge (click either)</span>
       <div class="row"><span class="object-type-icon bool is-false" id="boolbadge"><svg class="i"><use href="#i-toggle-off"/></svg></span>
       <label class="switch is-truefalse"><input type="checkbox" id="boolswitch"><span class="switch-track" aria-hidden="true"></span><span class="switch-label" id="boollabel">false</span></label></div></div>
+  </div>
+
+  <h2>3c · Slider</h2>
+  <div class="grid">
+    <div class="cell"><span class="cap">a number on a scale · applied when the thumb is let go · disabled</span><div class="row">
+      <div class="slider"><input type="range" min="70" max="200" step="10" value="130" style="--slider-fill:46%"><span class="slider-value">130 %</span></div>
+      <div class="slider is-disabled"><input type="range" min="70" max="200" step="10" value="100" disabled style="--slider-fill:23%"><span class="slider-value">100 %</span></div></div></div>
   </div>
 
   <!-- ====================================================================== -->
