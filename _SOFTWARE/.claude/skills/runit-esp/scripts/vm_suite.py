@@ -10,6 +10,9 @@ the IDF venv Python. Most tests load a program, put the VM in scan mode and step
 of a pass is read from the telemetry sent at its end, so nothing depends on timing. Only the time blocks (TIMER,
 PERIODIC), the supervisor modes and the retained values run in real time and use wide margins.
 
+Every request carries the direction byte after the root key ([key][dir][...], router_link.frame adds it from the
+descriptors); telemetry frames do not.
+
 The suite resets the board when it opens the port (USB-Serial-JTAG), loads its own programs, never starts a program
 with a motor, servo or regulator block, and removes the retained values it made.
 

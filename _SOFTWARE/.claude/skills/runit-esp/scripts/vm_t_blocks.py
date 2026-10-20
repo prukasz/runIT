@@ -8,7 +8,7 @@ import struct
 import time
 import zlib
 
-from router_link import Link
+from router_link import KEY_ACTIONS, Link
 from vm_lib import *  # noqa: F401,F403
 from vm_t_core import blk_head, expr_state, F_IN, F_K, OPF  # noqa: F401
 
@@ -874,12 +874,12 @@ def t_periodic(vm: Vm) -> None:
 # ACTION (records of sys_actions)
 # =====================================================================================================================
 
-KEY_ACTIONS = 0x06
-A_RUN, A_BEGIN, A_WRITE, A_COMMIT, A_REMOVE = 0x01, 0x04, 0x05, 0x06, 0x0A
+A_RUN, A_BEGIN, A_WRITE, A_COMMIT, A_REMOVE = 0x01, 0x04, 0x05, 0x06, 0x0A  # sys_actions_router.h, all writes
 
 
 def upload_record(link: Link, rid: int, *frames: bytes) -> Response | None:
-    """A record of the store (SYS_ACTIONS.MD): the frames as [u16 len][keys + payload], BEGIN / WRITE / COMMIT."""
+    """A record of the store (SYS_ACTIONS.MD): the frames as [u16 len][key][dir][keys + payload] (what router_route
+    takes), BEGIN / WRITE / COMMIT."""
     img = b"".join(struct.pack("<H", len(f)) + f for f in frames)
     req = lambda op, pl: link.request(bytes([KEY_ACTIONS, op]), pl)  # noqa: E731
     r = req(A_BEGIN, struct.pack("<IH", rid, len(img)))
@@ -893,7 +893,8 @@ def upload_record(link: Link, rid: int, *frames: bytes) -> Response | None:
 
 
 def vm_write_frame(oid: int, raw: bytes, start: int = 0) -> bytes:
-    return bytes([KEY_VM, OP_SET_DATA, 1]) + struct.pack("<HHH", oid, start, len(raw)) + raw
+    """A frame of a record: the VM's DATA command, [0x0B][dir][DATA][1 record]."""
+    return frame(bytes([KEY_VM, OP_DATA])) + bytes([1]) + struct.pack("<HHH", oid, start, len(raw)) + raw
 
 
 @test("action/records")
@@ -901,7 +902,7 @@ def t_action(vm: Vm) -> None:
     for rid in (7, 8, 9):
         vm.link.request(bytes([KEY_ACTIONS, A_REMOVE]), u32(rid))
     for rid, val in ((7, 42.0), (8, 43.0), (9, 44.0)):
-        # the records write object 0 of the programs below (their `target`) through the VM's own SET_DATA command
+        # the records write object 0 of the programs below (their `target`) through the VM's own DATA command
         r = upload_record(vm.link, rid, vm_write_frame(0, f32(val)))
         check(f"record {rid} uploaded (sets object 0 to {val})", ok(r), str(r))
 

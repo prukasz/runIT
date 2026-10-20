@@ -114,7 +114,8 @@ Payload errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG` belong to `ERR_MOD_CMD
 ## Tests
 
 Host test script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`) covers:
-- The sys key (SYS_SYSTEM.MD): PING (uptime), STOP (safe state), DEADMAN_SET / GET, BYE, TIME_SET / GET, RESTART, SAFE_GET / SAFE_LEAVE.
+- The sys key (SYS_SYSTEM.MD): PING (uptime), STOP (safe state), DEADMAN (write, read back), BYE, TIME (write, read back), RESTART, SAFE / SAFE_LEAVE.
+- The direction byte: a write-only command sent as a read, a read-only one as a write, a dir of 2 (`ERR_CMD_DIRECTION`), a frame without it (`ERR_ROUTER_FRAME_LEN`).
 - Key dispatching, nested router calls, error chain recording with route keys.
 - Urgent task preemption over work queue.
 - Frame sizing, queue saturation, and error records.

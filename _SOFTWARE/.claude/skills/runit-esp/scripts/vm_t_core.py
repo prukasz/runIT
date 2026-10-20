@@ -1,4 +1,7 @@
-"""VM suite, part 1: the wire protocol of the VM router and the expression blocks. Run through vm_suite.py."""
+"""VM suite, part 1: the wire protocol of the VM router and the expression blocks. Run through vm_suite.py.
+
+A request is [0x0B][dir][op][payload]; vm.op() sends [0x0B][op] and router_link.frame adds the side (READ for STATUS,
+WRITE for every other op)."""
 
 from __future__ import annotations
 
@@ -9,7 +12,7 @@ import sys
 import time
 import zlib
 
-from router_link import KEY_SYS, Link
+from router_link import KEY_SYS, READ, WRITE, Link
 from vm_lib import *  # noqa: F401,F403
 from vm_lib import _enum  # noqa: F401
 
@@ -40,15 +43,37 @@ def t_wire_state(vm: Vm) -> None:
     r = vm.reset()
     check("RESET on an empty VM", ok(r), str(r))
     for name, op, payload in (("ADD_OBJECTS", OP_ADD_OBJECTS, batch(obj_rec(0, T_B, 1))),
-                              ("SET_DATA", OP_SET_DATA, batch(struct.pack("<HHH", 0, 0, 1) + b"\x01")),
+                              ("DATA", OP_DATA, batch(struct.pack("<HHH", 0, 0, 1) + b"\x01")),
                               ("ADD_ACCESSORS", OP_ADD_ACCESSORS, batch(struct.pack("<HHBB", 0, 0, 0, 0))),
                               ("ADD_BLOCK", OP_ADD_BLOCK, blk_head())):
         r = vm.op(op, payload)
         check(f"{name} before OPEN -> ERR_VM_LOAD_BAD_STATE", cause(r) == "ERR_VM_LOAD_BAD_STATE", str(r))
     r = vm.exec(X_NORMAL)
     check("EXEC normal on an empty VM starts (and runs nothing)", ok(r), str(r))
-    r = vm.op(OP_SET_DATA, batch(struct.pack("<HHH", 0, 0, 1) + b"\x01"))
+    r = vm.op(OP_DATA, batch(struct.pack("<HHH", 0, 0, 1) + b"\x01"))
     check("a runtime write on an empty VM is refused (no such object)", r is not None and not r.ok, str(r))
+    vm.reset()
+
+
+@test("wire/direction byte")
+def t_wire_dir(vm: Vm) -> None:
+    """[0x0B][dir][op]: the side the op has (every op a write, STATUS a read); another one is ERR_CMD_DIRECTION."""
+    vm.reset()
+    r = vm.op(OP_RESET, dir=READ)
+    check("RESET sent as a read (it has only a write side) -> ERR_CMD_DIRECTION", cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = vm.op(OP_STATUS, dir=WRITE)
+    check("STATUS sent as a write (it has only a read side) -> ERR_CMD_DIRECTION", cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = vm.op(bytes([2, OP_RESET]), raw=True)
+    check("a direction byte of 2 -> ERR_CMD_DIRECTION", cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = vm.op(bytes([WRITE]), raw=True)
+    check("a direction byte and no op -> ERR_ROUTER_NO_KEY", cause(r) == "ERR_ROUTER_NO_KEY", str(r))
+    tiny(vm, 1)
+    r = vm.op(OP_ADD_OBJECTS, batch(obj_rec(0, T_B, 1)), dir=READ)
+    check("a load op on the wrong side is refused before it is parsed", cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = vm.op(OP_ADD_OBJECTS, batch(obj_rec(0, T_B, 1)))
+    check("... and does not discard the open program (the same op as a write loads)", ok(r), str(r))
+    r = vm.op(OP_STATUS)
+    check("STATUS as a read answers", ok(r), str(r))
     vm.reset()
 
 
@@ -60,8 +85,8 @@ def t_wire_short(vm: Vm) -> None:
         ("ADD_OBJECTS: count 2, one record", OP_ADD_OBJECTS, batch(obj_rec(0, T_B, 1)).replace(b"\x01", b"\x02", 1)),
         ("ADD_OBJECTS: record cut inside the head", OP_ADD_OBJECTS, b"\x01\x00\x00\x01"),
         ("ADD_OBJECTS: name longer than the frame", OP_ADD_OBJECTS, b"\x01" + struct.pack("<HHBB", 0, 1, T_B | (5 << 4), F_MUT) + b"ab"),
-        ("SET_DATA: record head cut", OP_SET_DATA, b"\x01\x00\x00\x00"),
-        ("SET_DATA: data shorter than byte_len", OP_SET_DATA, b"\x01" + struct.pack("<HHH", 0, 0, 4) + b"\x01"),
+        ("DATA: record head cut", OP_DATA, b"\x01\x00\x00\x00"),
+        ("DATA: data shorter than byte_len", OP_DATA, b"\x01" + struct.pack("<HHH", 0, 0, 4) + b"\x01"),
         ("ADD_ACCESSORS: head cut", OP_ADD_ACCESSORS, b"\x01\x00\x00\x00"),
         ("ADD_ACCESSORS: steps shorter than idx_len", OP_ADD_ACCESSORS, b"\x01" + struct.pack("<HHBB", 0, 0, 1, 9) + b"\x00\x01"),
         ("ADD_BLOCK with 5 bytes", OP_ADD_BLOCK, b"\x00\x00\x00\x00\x06"),
@@ -144,22 +169,22 @@ def t_wire_objects(vm: Vm) -> None:
     vm.reset()
 
 
-@test("wire/set data")
+@test("wire/data")
 def t_wire_data(vm: Vm) -> None:
     def prog():
         tiny(vm, 5, size=2048)
         vm.op(OP_ADD_OBJECTS, batch(obj_rec(0, T_U32, 64), obj_rec(1, T_F, 4), obj_rec(2, T_PTR, 16), obj_rec(3, T_U8, 3), obj_rec(4, T_B, 1)))
 
     def sd(oid, start, data):
-        return vm.op(OP_SET_DATA, batch(struct.pack("<HHH", oid, start, len(data)) + data))
+        return vm.op(OP_DATA, batch(struct.pack("<HHH", oid, start, len(data)) + data))
 
     prog()
-    check("SET_DATA of a whole array", ok(sd(0, 0, bytes(range(64)))))
-    check("SET_DATA of a slice in the middle", ok(sd(0, 5, b"\x01\x00\x00\x00" * 3)))
-    check("SET_DATA of the last element", ok(sd(0, 15, b"\x09\x00\x00\x00")))
-    check("SET_DATA with zero bytes is a no-op", ok(sd(0, 0, b"")))
-    check("a SET_DATA frame with no records is a no-op", ok(vm.op(OP_SET_DATA, b"\x00")))
-    r = vm.op(OP_SET_DATA, batch(struct.pack("<HHH", 1, 0, 4) + f32(1.5), struct.pack("<HHH", 3, 0, 3) + b"abc", struct.pack("<HHH", 4, 0, 1) + b"\x01"))
+    check("DATA of a whole array", ok(sd(0, 0, bytes(range(64)))))
+    check("DATA of a slice in the middle", ok(sd(0, 5, b"\x01\x00\x00\x00" * 3)))
+    check("DATA of the last element", ok(sd(0, 15, b"\x09\x00\x00\x00")))
+    check("DATA with zero bytes is a no-op", ok(sd(0, 0, b"")))
+    check("a DATA frame with no records is a no-op", ok(vm.op(OP_DATA, b"\x00")))
+    r = vm.op(OP_DATA, batch(struct.pack("<HHH", 1, 0, 4) + f32(1.5), struct.pack("<HHH", 3, 0, 3) + b"abc", struct.pack("<HHH", 4, 0, 1) + b"\x01"))
     check("one frame with records for three objects", ok(r), str(r))
     for name, args, want in (("an unknown object", (9, 0, b"\x00"), "ERR_VM_ACCESSOR_UNKNOWN_ID"),
                              ("a length that is not a multiple of the width", (0, 0, b"\x00" * 6), "ERR_VM_LOAD_DATA_RANGE"),
@@ -168,8 +193,8 @@ def t_wire_data(vm: Vm) -> None:
                              ("a start index of 0xFFFF", (0, 0xFFFF, b"\x00" * 4), "ERR_VM_LOAD_DATA_RANGE")):
         prog()
         r = sd(*args)
-        check(f"SET_DATA with {name} -> {want}", cause(r) == want, str(r))
-        check("... and the program is discarded", cause(vm.op(OP_SET_DATA, batch(struct.pack("<HHH", 0, 0, 4) + bytes(4)))) == "ERR_VM_LOAD_BAD_STATE")
+        check(f"DATA with {name} -> {want}", cause(r) == want, str(r))
+        check("... and the program is discarded", cause(vm.op(OP_DATA, batch(struct.pack("<HHH", 0, 0, 4) + bytes(4)))) == "ERR_VM_LOAD_BAD_STATE")
 
     # PTR links
     prog()
@@ -180,7 +205,7 @@ def t_wire_data(vm: Vm) -> None:
                              ("a child that does not exist", (2, 0, u16(40)), "ERR_VM_ACCESSOR_UNKNOWN_ID")):
         prog()
         r = sd(*args)
-        check(f"PTR SET_DATA with {name} -> {want}", cause(r) == want, str(r))
+        check(f"PTR DATA with {name} -> {want}", cause(r) == want, str(r))
     prog()
     r = sd(2, 0, u16(2))
     check("a PTR linked to itself: refused, or the program stays safe to run and to watch", not ok(r) or ok(vm.exec(X_NORMAL)), str(r))
@@ -195,7 +220,7 @@ def t_wire_acc(vm: Vm) -> None:
     def prog(nacc=4):
         tiny(vm, 4, nacc, 0, 4096)
         vm.op(OP_ADD_OBJECTS, batch(obj_rec(0, T_F, 16), obj_rec(1, T_PTR, 8), obj_rec(2, T_F, 4, name=b"kid"), obj_rec(3, T_U32, 4)))
-        vm.op(OP_SET_DATA, batch(struct.pack("<HHH", 1, 0, 2) + u16(2)))
+        vm.op(OP_DATA, batch(struct.pack("<HHH", 1, 0, 2) + u16(2)))
 
     def acc(aid, root, count, steps):
         return vm.op(OP_ADD_ACCESSORS, batch(struct.pack("<HHBB", aid, root, count, len(steps)) + steps))
@@ -307,7 +332,7 @@ def t_wire_running(vm: Vm) -> None:
     check("ADD_BLOCK while running -> ERR_VM_LOAD_RUNNING", cause(r) == "ERR_VM_LOAD_RUNNING", str(r))
     check("the refused ops did not touch the program", vm.read(a) == 1.0)
     r = vm.write(a, 5.0)
-    check("a SET_DATA while running is a runtime write", ok(r), str(r))
+    check("a DATA while running is a runtime write", ok(r), str(r))
     check("... and takes effect", vm.read(a) == 5.0)
     r = vm.op(OP_ADD_OBJECTS, b"\x05")
     check("a malformed load frame while running is refused without discarding the program", not ok(r) and vm.read(a) == 5.0, str(r))

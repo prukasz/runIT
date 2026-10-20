@@ -1,8 +1,10 @@
 """Host library of the VM suite (vm_suite.py): program builder, loader, telemetry reader, check bookkeeping.
 
-Everything here talks to the board through router_link.Link (the ROUTER_KEY_VM = 0x0B ops of VM_CORE.MD). The
-numbers that the firmware owns (block types, expression opcodes) are read from the firmware headers, so the
-suite follows the code instead of a copy of it.
+Everything here talks to the board through router_link.Link (the ROUTER_KEY_VM = 0x0B ops of VM_CORE.MD). A request is
+[0x0B][dir][op][payload]: callers give [0x0B][op] and router_link.frame adds the direction byte from the descriptors (every
+VM op is a write but STATUS, a read). Telemetry frames carry no direction byte: [0x0B][op][n] records. The numbers that the
+firmware owns (block types, expression opcodes) are read from the firmware headers, so the suite follows the code instead
+of a copy of it.
 """
 
 from __future__ import annotations
@@ -14,10 +16,10 @@ import time
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from router_link import ESP, STREAM_ERRORS, STREAM_TELEMETRY, Link, Response
+from router_link import ESP, READ, STREAM_ERRORS, STREAM_TELEMETRY, WRITE, Link, Response, frame  # noqa: F401
 
 KEY_VM = 0x0B
-OP_RESET, OP_OPEN, OP_ADD_OBJECTS, OP_SET_DATA, OP_ADD_ACCESSORS, OP_ADD_BLOCK, OP_SUBSCRIBE, OP_EXEC, OP_SPEED, OP_STATUS = range(1, 11)
+OP_RESET, OP_OPEN, OP_ADD_OBJECTS, OP_DATA, OP_ADD_ACCESSORS, OP_ADD_BLOCK, OP_SUBSCRIBE, OP_EXEC, OP_SPEED, OP_STATUS = range(1, 11)
 (X_SCAN, X_ONCE, X_BLOCK, X_NEXT, X_RESTART, X_NORMAL, X_PAUSE, X_RESUME, X_RESET, X_ACK, X_RETAIN_CLEAR) = range(11)
 
 T_PTR, T_U8, T_U32, T_I32, T_F, T_B, T_STR = range(1, 8)
@@ -194,9 +196,9 @@ def wait_err(link: Link, t: float, name: str, timeout: float = 2.0):
 
 
 def parse_frame(frame: bytes):
-    """A telemetry frame [0x0B][op][n] records -> [('desc', id, size, type, name_len, flags, name) |
-    ('val', id, start, data)], or None when it is not a well-formed VM frame."""
-    if len(frame) < 3 or frame[0] != KEY_VM or frame[1] not in (OP_ADD_OBJECTS, OP_SET_DATA):
+    """A telemetry frame [0x0B][op][n] records (no direction byte: it is not a request) -> [('desc', id, size, type,
+    name_len, flags, name) | ('val', id, start, data)], or None when it is not a well-formed VM frame."""
+    if len(frame) < 3 or frame[0] != KEY_VM or frame[1] not in (OP_ADD_OBJECTS, OP_DATA):
         return None
     op, n, off, recs = frame[1], frame[2], 3, []
     for _ in range(n):
@@ -342,7 +344,7 @@ class Prog:
             for off in range(0, max(len(raw), 1), step):
                 chunk = raw[off:off + step]
                 data.append(struct.pack("<HHH", oid, start + off // w, len(chunk)) + chunk)
-        pack(OP_SET_DATA, data)
+        pack(OP_DATA, data)
         accs = []
         for aid, root, steps in self.accs:
             body = b""
@@ -384,8 +386,13 @@ class Vm:
         self.dyn: dict[int, tuple[int, int]] = {}  # heap object id -> (type, element count), from describe records
 
     # ops
-    def op(self, op: int, payload: bytes = b"", timeout: float = 2.0) -> Response | None:
-        return self.link.request(bytes([KEY_VM, op]), payload, timeout=timeout)
+    def op(self, op: int, payload: bytes = b"", timeout: float = 2.0, dir: int | None = None,
+           raw: bool = False) -> Response | None:
+        """One VM op. The direction byte is the op's side (`dir` overrides it); `raw`: `op` is the bytes after the key
+        as they go, the direction byte included (a test of the direction byte itself)."""
+        if raw:
+            return self.link.request(bytes([KEY_VM]) + bytes(op), payload, timeout=timeout, raw=True)
+        return self.link.request(bytes([KEY_VM, op]), payload, timeout=timeout, dir=dir)
 
     def exec(self, cmd: int) -> Response | None:
         r = self.op(OP_EXEC, bytes([cmd]))
@@ -417,7 +424,7 @@ class Vm:
         return struct.pack("<HHH", oid, start, len(raw)) + raw
 
     def write_raw(self, *recs: bytes) -> Response | None:
-        return self.op(OP_SET_DATA, bytes([len(recs)]) + b"".join(recs))
+        return self.op(OP_DATA, bytes([len(recs)]) + b"".join(recs))
 
     def write(self, oid: int, v, start: int = 0) -> Response | None:
         t = self.p.types[oid][0]

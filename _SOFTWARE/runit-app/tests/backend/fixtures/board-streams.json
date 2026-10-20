@@ -1,5 +1,5 @@
 {
- "source": "a runIT board over BLE (ble_suite.py style capture): program x, y=3, z = x*2+y (expr block, output z); SUBSCRIBE x y z; then the runtime writes x=5 and x=7.5. Stream bytes: 2 telemetry, 3 logs. Frames without the stream byte.",
+ "source": "a runIT board over BLE (a raw capture of every stream): program x, y=3, z = x*2+y (expr block, output z); SUBSCRIBE x y z; then the runtime writes x=5 and x=7.5. Stream bytes: 2 telemetry, 3 logs. Frames without the stream byte.",
  "frames": [
   {
    "stream": 3,

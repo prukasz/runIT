@@ -132,7 +132,7 @@ def t_modes(vm: Vm) -> None:
 
 @test("exec/STATUS reads the run")
 def t_status(vm: Vm) -> None:
-    """VM STATUS (0x0A) answers vm_wire_status_t: mode, load state, ready, the fault latch, slow-down, passes, arena, next block."""
+    """VM STATUS (0x0A, a read) answers vm_wire_status_t: mode, load state, ready, the fault latch, slow-down, passes, arena, next block."""
     def status(what: str):
         r = vm.op(OP_STATUS)
         if not (ok(r) and len(r.data) == 26):
@@ -166,7 +166,8 @@ def t_status(vm: Vm) -> None:
     time.sleep(0.3)
     s = status("safe state")
     check("sys STOP: stopped, the program kept (open, ready)", ok(r) and s is not None and s[:3] == (0, 1, 1), str(s and s[:3]))
-    vm.link.request(bytes([0x05, 0xFF, 0xFF, 0x03, 0x00]))  # DEVICE RESUME to every device: out of the safe state
+    r = vm.link.request(bytes([KEY_SYS, 0x0A]))  # sys SAFE_LEAVE: every device resumed, the note cleared
+    check("SAFE_LEAVE: out of the safe state", ok(r), str(r))
     vm.reset()
 
 
@@ -267,7 +268,7 @@ def t_step_time(vm: Vm) -> None:
 # =====================================================================================================================
 
 
-@test("write/runtime SET_DATA")
+@test("write/runtime DATA")
 def t_writes(vm: Vm) -> None:
     p = Prog()
     f, i32v, u32v, bl = p.f(0.0), p.i32(0), p.u32(0), p.b(False)
@@ -458,12 +459,12 @@ def t_telemetry_cmd(vm: Vm) -> None:
     vm.sub([a, b, name])
     got = vm.collect(t, [a, b, name])
     frame = next((f for _, f in tele_frames(vm.link, t) if parse_frame(f)), None)
-    check("a telemetry frame is [0x0B][SET_DATA][n] records", frame is not None and frame[:2] == bytes([KEY_VM, OP_SET_DATA]), str(frame))
+    check("a telemetry frame is [0x0B][DATA][n] records (no direction byte: it is not a request)", frame is not None and frame[:2] == bytes([KEY_VM, OP_DATA]), str(frame))
     vm.writes({a: 0, b: 0.0, name: 0})
     time.sleep(0.3)
     t2 = vm.link.mark()
-    r = vm.link.request(frame[:2], frame[2:])
-    check("sent back to the VM as a command it is accepted", ok(r), str(r))
+    r = vm.link.request(frame[:2], frame[2:])  # the request takes the direction byte after the key: [0x0B][WRITE][DATA][n]
+    check("sent back to the VM as a command (with the direction byte) it is accepted", ok(r), str(r))
     got = vm.collect(t2, [a, b, name])
     check("... and sets the values it carries", (vm.vals(got, a), vm.vals(got, b), vm.vals(got, name)) == (7, 2.5, 9), str(got))
     vm.reset()

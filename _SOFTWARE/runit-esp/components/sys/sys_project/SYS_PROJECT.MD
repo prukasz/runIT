@@ -112,7 +112,7 @@ One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions r
 
 ## Tests
 
-`ble_suite.py project` and `actions` (over BLE, on a board: a device section that lights the LEDs, boot LOAD, INFO, every record read back, the restart, erase) and `router_tests.py`, `test_project` (in `.claude/skills/runit-esp/scripts/`) covers:
+`runit-app/tests/hardware/f-project.hw.test.ts` (over BLE, on the PCB: a record stored, read back, run; the project saved, INFO, every record read back, the program recovered, LOAD leaves the VM stopped, RUN starts it, boot RUN across a restart, erase) and `router_tests.py`, `test_project` (over the console, in `.claude/skills/runit-esp/scripts/`) covers:
 - INFO when empty, RUN when empty (`ERR_PROJECT_NOT_STORED`).
 - Input validation: frame before SECTION (`ERR_PROJECT_NO_SECTION`), a section after the program and the program after the start (`ERR_PROJECT_ORDER`), boot 3 (`ERR_PROJECT_BAD_BOOT`), bad CRC (`ERR_PROJECT_CRC`).
 - Verification that aborted or failed saves leave no staged records in flash.

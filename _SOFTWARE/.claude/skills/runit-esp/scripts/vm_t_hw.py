@@ -3,6 +3,9 @@
 Hardware touched: GPIO pin PIN (default 12, push-pull output, nothing connected is expected) of device 0, and reads of the
 INA3221 (device 12). Nothing is switched on: the blocks of motors, servos and regulators are only loaded (to check their
 shape) and the program is reset without ever starting. Change the pin with the VM_SUITE_PIN environment variable.
+
+Device commands go as [0x05][dir][id u16][op u16][args]; a device block's state names its op and the side (`dir`) it
+calls, so an op with both sides (IO LEVEL, VOLTAGE) is one block per side.
 """
 
 from __future__ import annotations
@@ -11,27 +14,39 @@ import os
 import struct
 import time
 
+from router_link import DEVICE_SIDES, KEY_DEVICE, SIDE_READ, SIDE_WRITE
 from vm_lib import *  # noqa: F401,F403
 from vm_t_blocks import loaded, NAN  # noqa: F401
 from vm_t_core import F_IN, OPF, expr_state  # noqa: F401
 
-KEY_DEVICE = 0x05
 GPIO_ID, INA_ID = 0, 12
 PIN = int(os.environ.get("VM_SUITE_PIN", "12"))
-IO_SET_LEVEL, IO_TOGGLE, IO_GET_LEVEL, IO_PWM_DUTY, IO_PWM_FREQ, IO_SET_MODE, IO_RESET, IO_CONFIGURE_INTR, IO_GET_VOLTAGE, IO_SET_VOLTAGE = (
-    0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107, 0x0108, 0x0109)
+# u16 ops of the device router and of a device block's state: (contract_id << 8) | op, a device's own op 0xFF00 | op
+# (runit-app/generated/contracts, generated/devices). LEVEL and VOLTAGE have a read and a write side.
+IO_LEVEL, IO_TOGGLE, IO_PWM_DUTY, IO_PWM_FREQ, IO_MODE, IO_RESET, IO_INTR, IO_VOLTAGE = (
+    0x0100, 0x0101, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107, 0x0109)
+HB_DRIVE, HB_BRAKE, HB_COAST, HB_CURRENT = 0x0900, 0x0901, 0x0902, 0x0903
+PM_VOLTAGE, PM_CURRENT, PM_ALERT, PM_POWER = 0x0400, 0x0401, 0x0402, 0x0403
 EV_RISING, EV_FALLING, EV_ANY_IO = 0x0100, 0x0101, 0x01FF
 
 
-def dev_call(vm: Vm, dev_id: int, op: int, payload: bytes = b"") -> Response | None:
-    return vm.link.request(bytes([KEY_DEVICE]) + struct.pack("<HH", dev_id, op), payload)
+def dev_call(vm: Vm, dev_id: int, op: int, payload: bytes = b"", dir: int | None = None) -> Response | None:
+    """[0x05][dir][id u16][op u16][args]: `dir` for an op with both sides (router_link.frame looks the side up)."""
+    return vm.link.request(bytes([KEY_DEVICE]) + struct.pack("<HH", dev_id, op), payload, dir=dir)
 
 
-def dev_state(device: int, op: int, idle_op: int = 0, k=(), idle_k=()) -> bytes:
-    """vm_block_device_data_t (56 bytes): device, op, idle op, flags, pad, k[4], idle_k[4], last[4]."""
+def dev_state(device: int, op: int, idle_op: int = 0, k=(), idle_k=(), dir: int | None = None) -> bytes:
+    """vm_block_device_data_t (56 bytes): device, op, idle op, flags, dir (the side of `op`), k[4], idle_k[4], last[4].
+    Without `dir` the side the op has (router_link.DEVICE_SIDES); an op with both sides needs it, an op no descriptor
+    names goes as a write."""
+    if dir is None:
+        sides = DEVICE_SIDES.get(op, SIDE_WRITE)
+        if sides == SIDE_READ | SIDE_WRITE:
+            raise ValueError(f"op {op:#06x} has a read and a write side, pass dir=READ or dir=WRITE")
+        dir = READ if sides == SIDE_READ else WRITE
     kk = list(k) + [0] * (4 - len(k))
     ik = list(idle_k) + [0] * (4 - len(idle_k))
-    return struct.pack("<HHHBB4i4i4i", device, op, idle_op, 0, 0, *kk, *ik, 0, 0, 0, 0)
+    return struct.pack("<HHHBB4i4i4i", device, op, idle_op, 0, dir, *kk, *ik, 0, 0, 0, 0)
 
 
 def fbits(x: float) -> int:
@@ -39,15 +54,20 @@ def fbits(x: float) -> int:
 
 
 def level(vm: Vm, pin: int = PIN) -> int | None:
-    r = dev_call(vm, GPIO_ID, IO_GET_LEVEL, bytes([pin]))
-    return r.data[0] if ok(r) and r.data else None
+    """IO LEVEL read: the key {pin} answers {pin, level}."""
+    r = dev_call(vm, GPIO_ID, IO_LEVEL, bytes([pin]), dir=READ)
+    return r.data[1] if ok(r) and len(r.data) >= 2 else None
+
+
+def set_level(vm: Vm, value: int, pin: int = PIN) -> Response | None:
+    return dev_call(vm, GPIO_ID, IO_LEVEL, bytes([pin, value]), dir=WRITE)
 
 
 def pin_free(vm: Vm) -> bool:
     """The pin is not used by anything else: release it, then make it an output."""
-    dev_call(vm, GPIO_ID, IO_CONFIGURE_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 0, 0, 0, 0, 0, 0))
+    dev_call(vm, GPIO_ID, IO_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 0, 0, 0, 0, 0, 0))
     dev_call(vm, GPIO_ID, IO_RESET, bytes([PIN]))
-    r = dev_call(vm, GPIO_ID, IO_SET_MODE, bytes([PIN, 3]))
+    r = dev_call(vm, GPIO_ID, IO_MODE, bytes([PIN, 3]))
     if not ok(r):
         check(f"GPIO {PIN} can be made an output (else the pin tests are skipped)", False, str(r))
         return False
@@ -56,7 +76,7 @@ def pin_free(vm: Vm) -> bool:
 
 
 def pin_release(vm: Vm) -> None:
-    dev_call(vm, GPIO_ID, IO_CONFIGURE_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 0, 0, 0, 0, 0, 0))
+    dev_call(vm, GPIO_ID, IO_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 0, 0, 0, 0, 0, 0))
     dev_call(vm, GPIO_ID, IO_RESET, bytes([PIN]))
 
 
@@ -64,18 +84,20 @@ def pin_release(vm: Vm) -> None:
 # shape of every device block (nothing is started)
 # =====================================================================================================================
 
-# (block, device, [(op, inputs, outputs), ...] that must load)
+# (block, device, [(op, side, inputs, outputs), ...] that must load): the tables of vm_blocks/device-contract and
+# device-custom-block. A block names its op and its side (`dir` in the state); a read fills the outputs.
+R, W = READ, WRITE
 SHAPES = [
-    ("IO", GPIO_ID, [(IO_SET_LEVEL, 2, 0), (IO_TOGGLE, 1, 0), (IO_GET_LEVEL, 1, 1), (IO_PWM_DUTY, 2, 0), (IO_PWM_FREQ, 2, 0), (IO_SET_MODE, 2, 0), (IO_RESET, 1, 0),
-                     (IO_GET_VOLTAGE, 1, 1), (IO_SET_VOLTAGE, 2, 0)]),
-    ("HBRIDGE", 5, [(0x0900, 2, 0), (0x0901, 1, 0), (0x0902, 1, 0), (0x0903, 1, 1)]),
-    ("POWER_MONITOR", INA_ID, [(0x0400, 1, 1), (0x0401, 1, 1), (0x0403, 1, 1), (0x0402, 3, 0)]),
-    ("POWER_VREG", 10, [(0x0500, 1, 0), (0x0501, 1, 0), (0x0502, 1, 0)]),
-    ("POWER_SUPPLY", 7, [(0x0800, 1, 0)]),
-    ("POWER_USB_PD", 13, [(0x0700, 2, 0), (0x0702, 0, 2)]),
-    ("SERVO", 20, [(0xFF02, 1, 0), (0xFF00, 0, 0), (0xFF04, 0, 0), (0xFF01, 1, 0)]),
-    ("DRV8962", 5, [(0xFF00, 2, 0), (0xFF01, 1, 0), (0xFF02, 1, 2)]),
-    ("TPS55289", 10, [(0xFF01, 4, 0), (0xFF02, 0, 4)]),
+    ("IO", GPIO_ID, [(IO_LEVEL, W, 2, 0), (IO_TOGGLE, W, 1, 0), (IO_LEVEL, R, 1, 1), (IO_PWM_DUTY, W, 2, 0), (IO_PWM_FREQ, W, 2, 0),
+                     (IO_MODE, W, 2, 0), (IO_RESET, W, 1, 0), (IO_VOLTAGE, R, 1, 1), (IO_VOLTAGE, W, 2, 0)]),
+    ("HBRIDGE", 5, [(HB_DRIVE, W, 2, 0), (HB_BRAKE, W, 1, 0), (HB_COAST, W, 1, 0), (HB_CURRENT, R, 1, 1)]),
+    ("POWER_MONITOR", INA_ID, [(PM_VOLTAGE, R, 1, 1), (PM_CURRENT, R, 1, 1), (PM_POWER, R, 1, 1), (PM_ALERT, W, 3, 0)]),
+    ("POWER_VREG", 10, [(0x0500, W, 1, 0), (0x0501, W, 1, 0), (0x0502, W, 1, 0)]),  # ENABLE, VOLTAGE, CURRENT
+    ("POWER_SUPPLY", 7, [(0x0800, W, 1, 0), (0x0800, R, 0, 1)]),                    # SOURCE: select, read back
+    ("POWER_USB_PD", 13, [(0x0700, W, 2, 0), (0x0702, R, 0, 2)]),                   # SETTINGS, LIMITS
+    ("SERVO", 20, [(0xFF02, W, 1, 0), (0xFF00, W, 0, 0), (0xFF04, W, 0, 0), (0xFF01, W, 1, 0)]),  # target, home, release, trim
+    ("DRV8962", 5, [(0xFF00, W, 1, 0), (0xFF01, W, 1, 0), (0xFF02, R, 1, 2)]),      # current_limit, clear_fault, fault
+    ("TPS55289", 10, [(0xFF01, W, 4, 0), (0xFF01, R, 0, 4)]),                       # protection: write, read
 ]
 
 
@@ -91,38 +113,53 @@ def one_block(vm: Vm, btype: str, state: bytes, nin: int, nout: int, ens: int = 
 @test("device blocks/shape of every contract block")
 def t_dev_shape(vm: Vm) -> None:
     for btype, dev, ops in SHAPES:
-        for n, (op, nin, nout) in enumerate(ops):
-            r = one_block(vm, btype, dev_state(dev, op), nin, nout)
-            check(f"{btype} op {op:#06x} with {nin} input(s) and {nout} output(s) loads", r is None, str(r))
+        for n, (op, side, nin, nout) in enumerate(ops):
+            st = dev_state(dev, op, dir=side)
+            what = f"{btype} op {op:#06x} {'read' if side == R else 'write'}"
+            r = one_block(vm, btype, st, nin, nout)
+            check(f"{what} with {nin} input(s) and {nout} output(s) loads", r is None, str(r))
             if n:  # the limits are tried on the first operation of each block only: the same code checks them all
                 continue
             if nin:
-                r = one_block(vm, btype, dev_state(dev, op), nin + 1, nout) if nin < 4 else one_block(vm, btype, dev_state(dev, op), 5, nout)
-                check(f"{btype} op {op:#06x}: one input more than the operation has -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-            r = one_block(vm, btype, dev_state(dev, op), nin, nout + 1)
-            check(f"{btype} op {op:#06x}: one output more than the operation answers -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-        r = one_block(vm, btype, dev_state(dev, 0x0DEF), 0, 0)
+                r = one_block(vm, btype, st, nin + 1, nout) if nin < 4 else one_block(vm, btype, st, 5, nout)
+                check(f"{what}: one input more than the operation has -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+            r = one_block(vm, btype, st, nin, nout + 1)
+            check(f"{what}: one output more than the operation answers -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+        op, side, nin, nout = ops[0]
+        r = one_block(vm, btype, dev_state(dev, 0x0DEF, dir=W), 0, 0)
         check(f"{btype}: an operation that is not in its table -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-        r = one_block(vm, btype, dev_state(dev, ops[0][0]), ops[0][1], ops[0][2], ens=2)
+        r = one_block(vm, btype, dev_state(dev, op, dir=side), nin, nout, ens=2)
         check(f"{btype}: enables are allowed", r is None, str(r))
-        r = one_block(vm, btype, dev_state(0xFFFF, ops[0][0]), ops[0][1], ops[0][2])
+        r = one_block(vm, btype, dev_state(0xFFFF, op, dir=side), nin, nout)
         check(f"{btype}: device 0xFFFF (no device) -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-        r = one_block(vm, btype, dev_state(dev, ops[0][0])[:50], ops[0][1], ops[0][2])
+        r = one_block(vm, btype, dev_state(dev, op, dir=side)[:50], nin, nout)
         check(f"{btype}: a state shorter than 56 bytes -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+        r = one_block(vm, btype, dev_state(dev, op, dir=2), nin, nout)
+        check(f"{btype}: a side (dir) of 2 -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
 
-    # the idle operation
-    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=IO_SET_LEVEL, idle_k=(1,)), 2, 0)
-    check("IO SET_LEVEL with an idle SET_LEVEL loads", r is None, str(r))
-    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=IO_RESET), 2, 0)
+    # the side: a block holds one side of its op
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_TOGGLE, dir=R), 1, 0)
+    check("IO TOGGLE as a read (it has only a write side) -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+    r = one_block(vm, "POWER_MONITOR", dev_state(INA_ID, PM_VOLTAGE, dir=W), 1, 0)
+    check("POWER_MONITOR VOLTAGE as a write (it has only a read side) -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, dir=R), 2, 1)
+    check("IO LEVEL read with the write side's two inputs -> ERR_VM_BLK_BAD_SHAPE (the read takes the pin only)", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, dir=W), 2, 1)
+    check("IO LEVEL write with an output -> ERR_VM_BLK_BAD_SHAPE (a write answers nothing)", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+
+    # the idle operation (always the write side of its op)
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, idle_op=IO_LEVEL, idle_k=(1,), dir=W), 2, 0)
+    check("IO LEVEL write with an idle LEVEL write loads", r is None, str(r))
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, idle_op=IO_RESET, dir=W), 2, 0)
     check("... or an idle RESET (an action)", r is None, str(r))
-    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=IO_GET_LEVEL), 2, 0)
-    check("an idle operation that is a read -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_GET_LEVEL, idle_op=IO_SET_LEVEL), 1, 1)
+    r = one_block(vm, "HBRIDGE", dev_state(5, HB_DRIVE, idle_op=HB_CURRENT), 2, 0)
+    check("an idle operation that has only a read side (HBRIDGE CURRENT) -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, idle_op=IO_LEVEL, dir=R), 1, 1)
     check("a block that reads cannot have an idle operation -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=0x0DEF), 2, 0)
+    r = one_block(vm, "IO", dev_state(GPIO_ID, IO_LEVEL, idle_op=0x0DEF, dir=W), 2, 0)
     check("an idle operation the contract does not have -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
-    r = one_block(vm, "HBRIDGE", dev_state(5, 0x0900, idle_op=0x0902), 2, 0)
-    check("HBRIDGE SET_DRIVE with an idle COAST loads", r is None, str(r))
+    r = one_block(vm, "HBRIDGE", dev_state(5, HB_DRIVE, idle_op=HB_COAST), 2, 0)
+    check("HBRIDGE DRIVE with an idle COAST loads", r is None, str(r))
     vm.reset()
 
 
@@ -138,25 +175,25 @@ def t_io_block(vm: Vm) -> None:
     p = Prog()
     lvl, en, tg = p.u8(0), p.b(True), p.b(False)
     rd, eno_l, eno_r, eno_t = p.u8(), p.b(), p.b(), p.b()
-    p.block("IO", state=dev_state(GPIO_ID, IO_SET_MODE, k=(PIN, 3)))  # push-pull output, sent on the first pass
-    p.block("IO", ins=[None, lvl], ens=[en], eno=eno_l, state=dev_state(GPIO_ID, IO_SET_LEVEL, idle_op=IO_SET_LEVEL, k=(PIN, 0), idle_k=(1,)))
-    p.block("IO", ins=[None], outs=[rd], eno=eno_r, state=dev_state(GPIO_ID, IO_GET_LEVEL, k=(PIN,)))
+    p.block("IO", state=dev_state(GPIO_ID, IO_MODE, k=(PIN, 3)))  # push-pull output, sent on the first pass
+    p.block("IO", ins=[None, lvl], ens=[en], eno=eno_l, state=dev_state(GPIO_ID, IO_LEVEL, idle_op=IO_LEVEL, k=(PIN, 0), idle_k=(1,), dir=WRITE))
+    p.block("IO", ins=[None], outs=[rd], eno=eno_r, state=dev_state(GPIO_ID, IO_LEVEL, k=(PIN,), dir=READ))  # answers {pin, level}: the level
     p.block("IO", ens=[tg], eno=eno_t, state=dev_state(GPIO_ID, IO_TOGGLE, k=(PIN,)))
-    if not loaded(vm, p, X_NORMAL, "the IO program (SET_MODE, SET_LEVEL with an idle level, GET_LEVEL, TOGGLE)"):
+    if not loaded(vm, p, X_NORMAL, "the IO program (MODE, LEVEL write with an idle level, LEVEL read, TOGGLE)"):
         return
     time.sleep(0.5)
-    check("SET_MODE and SET_LEVEL (0) from blocks reach the pin", level(vm) == 0, str(level(vm)))
+    check("MODE and LEVEL (0) from blocks reach the pin", level(vm) == 0, str(level(vm)))
     vm.write(lvl, 1)
     time.sleep(0.4)
     check("level 1 from the input pin of the block drives the pin high", level(vm) == 1, str(level(vm)))
-    check("the GET_LEVEL block reads it back into its output", vm.read(rd) == 1)
+    check("the LEVEL read block reads it back into its output", vm.read(rd) == 1)
     vm.write(lvl, 0)
     time.sleep(0.4)
     check("level 0 drives it low again", level(vm) == 0 and vm.read(rd) == 0, f"{level(vm)} {vm.read(rd)}")
     vm.write(en, False)
     time.sleep(0.4)
     check("the enable closes: the idle operation runs once (level 1, from idle_k)", level(vm) == 1, str(level(vm)))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 0]))
+    set_level(vm, 0)
     time.sleep(0.4)
     check("... only once: a disabled block leaves the pin alone afterwards", level(vm) == 0, str(level(vm)))
     vm.write(en, True)
@@ -181,12 +218,12 @@ def t_io_block(vm: Vm) -> None:
         return
     p = Prog()
     lvl = p.u8(1)
-    p.block("IO", state=dev_state(GPIO_ID, IO_SET_MODE, k=(PIN, 3)))
-    p.block("IO", ins=[None, lvl], state=dev_state(GPIO_ID, IO_SET_LEVEL, k=(PIN, 0)))
+    p.block("IO", state=dev_state(GPIO_ID, IO_MODE, k=(PIN, 3)))
+    p.block("IO", ins=[None, lvl], state=dev_state(GPIO_ID, IO_LEVEL, k=(PIN, 0), dir=WRITE))
     loaded(vm, p, X_NORMAL, "a program with a setting")
     time.sleep(0.5)
     check("the block sets the pin high", level(vm) == 1)
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 0]))
+    set_level(vm, 0)
     time.sleep(0.5)
     check("a setting is written on change only: someone else's write is not overwritten", level(vm) == 0, str(level(vm)))
     vm.write(lvl, 1)
@@ -202,7 +239,7 @@ def t_io_block(vm: Vm) -> None:
 def t_dev_fail(vm: Vm) -> None:
     p = Prog()
     out, e = p.i32(77), p.b()
-    p.block("POWER_MONITOR", outs=[out], eno=e, state=dev_state(99, 0x0400, k=(1,)))
+    p.block("POWER_MONITOR", outs=[out], eno=e, state=dev_state(99, PM_VOLTAGE, k=(1,)))
     if not loaded(vm, p, X_SCAN, "a POWER_MONITOR block on a device that does not exist"):
         return
     t = vm.link.mark()
@@ -220,7 +257,7 @@ def t_dev_fail(vm: Vm) -> None:
     # a bad channel of a real device
     p = Prog()
     out, e = p.i32(77), p.b()
-    p.block("POWER_MONITOR", outs=[out], eno=e, state=dev_state(INA_ID, 0x0400, k=(9,)))
+    p.block("POWER_MONITOR", outs=[out], eno=e, state=dev_state(INA_ID, PM_VOLTAGE, k=(9,)))
     loaded(vm, p, X_SCAN, "a POWER_MONITOR block on channel 9")
     t = vm.link.mark()
     g = vm.step([out, e])
@@ -236,11 +273,11 @@ def t_pmon(vm: Vm) -> None:
     mv, ma, mw = p.i32(), p.i32(), p.i32()
     mv0, mvx = p.i32(), p.i32()
     e1, e2, e3 = p.b(), p.b(), p.b()
-    p.block("POWER_MONITOR", ins=[None], outs=[mv], eno=e1, state=dev_state(INA_ID, 0x0400, k=(1,)))      # the channel from the state: the input
-    p.block("POWER_MONITOR", ins=[None], outs=[ma], eno=e2, state=dev_state(INA_ID, 0x0401, k=(1,)))
-    p.block("POWER_MONITOR", ins=[None], outs=[mw], eno=e3, state=dev_state(INA_ID, 0x0403, k=(1,)))
-    p.block("POWER_MONITOR", ins=[ch], outs=[mv0], state=dev_state(INA_ID, 0x0400, k=(0,)))             # the channel from a pin (1) overrides k
-    p.block("POWER_MONITOR", ins=[None], outs=[mvx], state=dev_state(INA_ID, 0x0400, k=(0,)))           # rail B
+    p.block("POWER_MONITOR", ins=[None], outs=[mv], eno=e1, state=dev_state(INA_ID, PM_VOLTAGE, k=(1,)))      # the channel from the state: the input
+    p.block("POWER_MONITOR", ins=[None], outs=[ma], eno=e2, state=dev_state(INA_ID, PM_CURRENT, k=(1,)))
+    p.block("POWER_MONITOR", ins=[None], outs=[mw], eno=e3, state=dev_state(INA_ID, PM_POWER, k=(1,)))
+    p.block("POWER_MONITOR", ins=[ch], outs=[mv0], state=dev_state(INA_ID, PM_VOLTAGE, k=(0,)))             # the channel from a pin (1) overrides k
+    p.block("POWER_MONITOR", ins=[None], outs=[mvx], state=dev_state(INA_ID, PM_VOLTAGE, k=(0,)))           # rail B
     if not loaded(vm, p, X_SCAN, "five POWER_MONITOR blocks"):
         return
     g = vm.step([mv, ma, mw, mv0, mvx, e1, e2, e3])
@@ -269,9 +306,9 @@ def ev_state(source: int, event: int, channel: int) -> bytes:
 def t_on_event(vm: Vm) -> None:
     if not pin_free(vm):
         return
-    dev_call(vm, GPIO_ID, IO_SET_MODE, bytes([PIN, 3]))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 1]))
-    r = dev_call(vm, GPIO_ID, IO_CONFIGURE_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 3, 0, 0, 0, 0, 0))  # both edges, no debounce
+    dev_call(vm, GPIO_ID, IO_MODE, bytes([PIN, 3]))
+    set_level(vm, 1)
+    r = dev_call(vm, GPIO_ID, IO_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 3, 0, 0, 0, 0, 0))  # both edges, no debounce
     check("both edges of the pin raise events", ok(r), str(r))
     p = Prog()
     gate = p.b(False)
@@ -297,7 +334,7 @@ def t_on_event(vm: Vm) -> None:
 
     g = vm.step(ids)
     check("no event: nobody fires", only(g, []), str(fired(g)))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 0]))
+    set_level(vm, 0)
     time.sleep(0.15)
     g = vm.step(ids)
     names = ["any event of the pin", "falling, any device and channel", "any IO event, any pin"]
@@ -306,24 +343,24 @@ def t_on_event(vm: Vm) -> None:
     check("a block that did not fire leaves its value alone", vm.vals(g, rows["another pin"][1]) == -5)
     g = vm.step(ids)
     check("an event lives one pass: the next pass nobody fires", only(g, []), str(fired(g)))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 1]))
+    set_level(vm, 1)
     time.sleep(0.15)
     g = vm.step(ids)
     check("a rising edge: pin, rising and any-IO fire; the value is 1", only(g, ["any event of the pin", "rising, any device and channel", "any IO event, any pin"]) and vm.vals(g, rows["rising, any device and channel"][1]) == 1, str(fired(g)))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 0]))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 1]))
+    set_level(vm, 0)
+    set_level(vm, 1)
     time.sleep(0.2)
     g = vm.step(ids)
     check("two edges before one pass (fall, rise): one pulse per block, falling and rising blocks both fire, the value is the last (1)",
           only(g, ["any event of the pin", "falling, any device and channel", "rising, any device and channel", "any IO event, any pin"]) and vm.vals(g, rows["any event of the pin"][1]) == 1, str(fired(g)))
 
     # a closed gate misses events
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 0]))
+    set_level(vm, 0)
     time.sleep(0.15)
     vm.step(ids, {gate: True})
     g = vm.step(ids)
     check("an event that came while the block was disabled is missed (the gate opens later)", vm.vals(g, rows["the pin, gated"][0]) == 0, str(fired(g)))
-    dev_call(vm, GPIO_ID, IO_SET_LEVEL, bytes([PIN, 1]))
+    set_level(vm, 1)
     time.sleep(0.15)
     g = vm.step(ids)
     check("with the gate open the same block fires", vm.vals(g, rows["the pin, gated"][0]) == 1, str(fired(g)))

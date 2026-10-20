@@ -3,9 +3,14 @@
   QEMU:   python router_tests.py --port socket://localhost:5555 --target qemu
   Board:  python router_tests.py --port COM5
 
-Checks the router (keys, payload sizes, error records, urgent path,
-dead-man), the sys / i2c / conn / ble routers, and the errors stream.
+Checks the router (keys, the direction byte, payload sizes, error records,
+urgent path, dead-man), the sys / i2c / conn / ble routers, and the errors stream.
 Target "qemu" skips what QEMU can't do (BLE controller, I2C devices).
+
+Requests are [key][dir][...] (dir 0 read, 1 write): callers pass the keys
+without dir and router_link adds it from the descriptors; a command with both
+sides gets dir=READ / dir=WRITE. Frames stored in records, images and project
+streams are built with frame(keys, dir): they carry dir as the router takes it.
 """
 
 from __future__ import annotations
@@ -25,8 +30,11 @@ from router_link import (
     KEY_SYS,
     TRANSPORT_BLE,
     TRANSPORT_UART,
+    READ,
+    WRITE,
     Link,
     Response,
+    frame,
 )
 
 RESULTS: list[tuple[str, bool, str]] = []
@@ -66,9 +74,21 @@ def wait_boot(link: Link, timeout: float) -> bool:
     return link.wait_log("runIT up", timeout)
 
 
+# sys ops (contract_sys.json)
+SYS_PING, SYS_STOP, SYS_RESTART, SYS_DEADMAN, SYS_BYE, SYS_TIME, SYS_SAFE, SYS_SAFE_LEAVE = 1, 2, 3, 4, 6, 7, 9, 10
+
+
 def ping(link: Link, urgent: bool = False) -> int | None:
-    r = link.request(bytes([KEY_SYS, 0x01]), urgent=urgent)
+    r = link.request(bytes([KEY_SYS, SYS_PING]), urgent=urgent)
     return struct.unpack("<I", r.data)[0] if r and r.ok and len(r.data) == 4 else None
+
+
+def deadman_get(link: Link) -> Response | None:
+    return link.request(bytes([KEY_SYS, SYS_DEADMAN]), dir=READ)
+
+
+def deadman_set(link: Link, ms: int, on_lost: int) -> Response | None:
+    return link.request(bytes([KEY_SYS, SYS_DEADMAN]), payload=struct.pack("<IB", ms, on_lost), dir=WRITE)
 
 
 # ---------------------------------------------------------------------------
@@ -81,23 +101,33 @@ def test_sys(link: Link) -> None:
     check("sys PING (urgent)", t2 is not None)
     check("uptime grows", t1 is not None and t2 is not None and t2 >= t1, f"{t1} -> {t2}")
 
-    r = link.request(bytes([KEY_SYS, 0x01]), payload=b"\x00")
+    r = link.request(bytes([KEY_SYS, SYS_PING]), payload=b"\x00")
     check("PING with payload -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
-    r = link.request(bytes([KEY_SYS, 0x05]))
+    r = deadman_get(link)
     ok = r is not None and r.ok and len(r.data) == 5
-    check("DEADMAN_GET", ok, str(r))
+    check("DEADMAN read", ok, str(r))
     if ok:
         ms, on_lost = struct.unpack("<IB", r.data)
         check("dead-man off at boot", ms == 0 and on_lost == 0, f"{ms} {on_lost}")
 
     # BYE: the client leaves on purpose, the dead-man it armed is off.
-    r = link.request(bytes([KEY_SYS, 0x04]), payload=struct.pack("<IB", 60000, 0))
-    check("DEADMAN_SET 60 s", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_SYS, 0x06]))
+    r = deadman_set(link, 60000, 0)
+    check("DEADMAN write 60 s: ACK without data", r is not None and r.ok and r.data == b"", str(r))
+    r = deadman_get(link)
+    check("DEADMAN read = what was written", r is not None and r.ok and r.data == struct.pack("<IB", 60000, 0), str(r))
+    r = link.request(bytes([KEY_SYS, SYS_BYE]))
     check("BYE", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_SYS, 0x05]))
-    check("BYE disarmed the dead-man", r is not None and r.ok and struct.unpack("<IB", r.data)[0] == 0, str(r))
+    r = deadman_get(link)
+    check("BYE disarmed the dead-man", r is not None and r.ok and len(r.data) == 5 and struct.unpack("<IB", r.data)[0] == 0, str(r))
+
+    # TIME: the wall clock the client sets (read 0 = never set)
+    now_ms = int(time.time() * 1000)
+    r = link.request(bytes([KEY_SYS, SYS_TIME]), payload=struct.pack("<Q", now_ms), dir=WRITE)
+    check("TIME write", r is not None and r.ok and r.data == b"", str(r))
+    r = link.request(bytes([KEY_SYS, SYS_TIME]), dir=READ)
+    got = struct.unpack("<Q", r.data)[0] if r is not None and r.ok and len(r.data) == 8 else None
+    check("TIME read: the clock runs from what was written", got is not None and now_ms <= got < now_ms + 5000, f"{got} {now_ms}")
 
 
 def test_router_errors(link: Link) -> None:
@@ -106,7 +136,7 @@ def test_router_errors(link: Link) -> None:
     check("unknown root key -> ERR_ROUTER_UNKNOWN_KEY", err_cause(r) == "ERR_ROUTER_UNKNOWN_KEY", str(r))
     if rec:
         check("record: src command, link UART", rec.src == 1 and rec.link == TRANSPORT_UART, str(rec))
-        check("record: echoes seq and request", rec.seq == r.seq and rec.request == bytes([0x7E]), str(rec))
+        check("record: echoes seq and request (key + dir)", rec.seq == r.seq and rec.request == bytes([0x7E, WRITE]), str(rec))
 
     r = link.request(bytes([KEY_SYS, 0x7E]))
     names = r.record.names() if r and r.record else []
@@ -116,11 +146,34 @@ def test_router_errors(link: Link) -> None:
         str(r),
     )
 
-    # Frame without a root key: rejected by router_submit, answered all the same.
+    # Frame without a root key, and a root key without the direction byte: rejected by router_submit, answered all the same.
     seq = link.next_seq()
     link.send_frame(bytes([seq, 0x00]))
     r = link.wait_response(seq)
     check("frame without key -> ERR_ROUTER_FRAME_LEN", err_cause(r) == "ERR_ROUTER_FRAME_LEN", str(r))
+    seq = link.next_seq()
+    link.send_frame(bytes([seq, 0x00, KEY_SYS]))
+    r = link.wait_response(seq)
+    check("frame with a key but no dir -> ERR_ROUTER_FRAME_LEN", err_cause(r) == "ERR_ROUTER_FRAME_LEN", str(r))
+
+    # The direction byte: a side the command lacks, or a dir that is neither read nor write
+    r = link.request(bytes([KEY_SYS, READ, SYS_BYE]), raw=True)
+    names = r.record.names() if r and r.record else []
+    check("write-only command (BYE) sent as a read -> ERR_CMD_DIRECTION",
+          names == ["ERR_ROUTER_KEY", "ERR_ROUTER_KEY", "ERR_CMD_DIRECTION"], str(r))
+    if r and r.record and r.record.cause:
+        check("ERR_CMD_DIRECTION names the dir", r.record.cause.data == bytes([READ]), str(r.record.cause))
+    r = link.request(bytes([KEY_CONN, WRITE, 0x07]), raw=True)
+    check("read-only command (conn INFO) sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = link.request(bytes([KEY_SYS, 2, SYS_PING]), raw=True)
+    check("dir 2 -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = link.request(bytes([KEY_DEVICE, READ]) + struct.pack("<HH", MISSING_ID, OP_CREATE) + struct.pack("<H", GPIO_TYPE), raw=True)
+    check("device CREATE sent as a read -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
+    try:
+        link.request(bytes([KEY_SYS, SYS_DEADMAN]))
+        check("a command with both sides needs dir (router_link refuses it)", False)
+    except ValueError:
+        check("a command with both sides needs dir (router_link refuses it)", True)
 
 
 def test_errors_stream(link: Link) -> None:
@@ -135,21 +188,27 @@ def test_errors_stream(link: Link) -> None:
 
 def test_deadman(link: Link) -> None:
     t = link.mark()
-    r = link.request(bytes([KEY_SYS, 0x04]), payload=struct.pack("<IB", 300, 0))
-    check("DEADMAN_SET 300 ms", r is not None and r.ok, str(r))
+    r = deadman_set(link, 300, 0)
+    check("DEADMAN write 300 ms", r is not None and r.ok, str(r))
     fired = link.wait_log("safe state", 2.0, since=t)
     check("dead-man fires without frames", fired)
-    r = link.request(bytes([KEY_SYS, 0x04]), payload=struct.pack("<IB", 0, 0))
-    check("DEADMAN_SET off", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_SYS, 0x04]), payload=struct.pack("<IB", 0, 2))
-    check("DEADMAN_SET bad flag -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+    r = deadman_set(link, 0, 0)
+    check("DEADMAN write off", r is not None and r.ok, str(r))
+    r = deadman_set(link, 0, 2)
+    check("DEADMAN write bad flag -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
 
 
 def test_stop(link: Link) -> None:
     t = link.mark()
-    r = link.request(bytes([KEY_SYS, 0x02]), urgent=True)
+    r = link.request(bytes([KEY_SYS, SYS_STOP]), urgent=True)
     check("STOP (urgent) answered", r is not None and r.ok, str(r))
     check("STOP runs the safe-state handler", link.wait_log("safe state", 1.0, since=t))
+    r = link.request(bytes([KEY_SYS, SYS_SAFE]))
+    check("SAFE read: in the safe state (reason set)", r is not None and r.ok and len(r.data) == 5 and r.data[0] != 0, str(r))
+    r = link.request(bytes([KEY_SYS, SYS_SAFE_LEAVE]))
+    check("SAFE_LEAVE", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_SYS, SYS_SAFE]))
+    check("SAFE read after SAFE_LEAVE: reason 0", r is not None and r.ok and len(r.data) == 5 and r.data[0] == 0, str(r))
 
 
 def test_i2c(link: Link, target: str) -> None:
@@ -253,16 +312,34 @@ def test_ble(link: Link, target: str) -> None:
 
 
 PCA_TYPE = 0x41
-# Ops are u16: high byte = contract (0x00 device, 0x01 IO, 0xFF the device's own), low byte = op.
+# Ops are u16: high byte = contract (0x00 device, 0x01 IO, 0x02 PINS, 0xFF the device's own), low byte = op
+# (generated/contracts/contract_*.json). LEVEL, VOLTAGE and ERROR_POLICY have a read and a write side: dir is passed.
 OP_CREATE, OP_RESET, OP_SUSPEND, OP_RESUME, OP_REMOVE, OP_INFO, OP_OPS = 0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006
-IO_SET_LEVEL, IO_TOGGLE, IO_GET_LEVEL, IO_SET_DUTY, IO_SET_FREQ = 0x0100, 0x0101, 0x0102, 0x0103, 0x0104
-IO_SET_MODE, IO_RESET, IO_CONFIGURE_INTR, IO_GET_VOLTAGE, IO_SET_VOLTAGE = 0x0105, 0x0106, 0x0107, 0x0108, 0x0109
-PINS_AVAILABLE, PINS_LOCKED, PINS_LOCK, PINS_UNLOCK, PINS_SET_LOCKED_LEVEL = 0x0200, 0x0201, 0x0202, 0x0203, 0x0204
+IO_LEVEL, IO_TOGGLE, IO_PWM_DUTY, IO_PWM_FREQ = 0x0100, 0x0101, 0x0103, 0x0104
+IO_MODE, IO_RESET, IO_INTR, IO_VOLTAGE = 0x0105, 0x0106, 0x0107, 0x0109
+PINS_AVAILABLE, PINS_LOCKED, PINS_LOCK, PINS_UNLOCK, PINS_LOCKED_LEVEL = 0x0200, 0x0201, 0x0202, 0x0203, 0x0204
+SIDE_READ, SIDE_WRITE = 0x01, 0x02  # OPS: the sides of an op
 PCA_ID = 3
 
 
-def dev(link: Link, dev_id: int, op: int, payload: bytes = b"") -> Response | None:
-    return link.request(bytes([KEY_DEVICE]) + struct.pack("<HH", dev_id, op), payload=payload)
+def dev(link: Link, dev_id: int, op: int, payload: bytes = b"", dir: int | None = None) -> Response | None:
+    return link.request(bytes([KEY_DEVICE]) + struct.pack("<HH", dev_id, op), payload=payload, dir=dir)
+
+
+def set_level(link: Link, dev_id: int, pin: int, level: int) -> Response | None:
+    return dev(link, dev_id, IO_LEVEL, bytes([pin, level]), dir=WRITE)
+
+
+def get_level(link: Link, dev_id: int, pin: int) -> Response | None:
+    """IO LEVEL read: the key {pin}, answered {pin, level}."""
+    return dev(link, dev_id, IO_LEVEL, bytes([pin]), dir=READ)
+
+
+def ops_of(r: Response | None) -> dict[int, int]:
+    """OPS: {op: sides} from its [op u16][sides u8] rows."""
+    if r is None or not r.ok or len(r.data) % 3:
+        return {}
+    return {op: sides for op, sides in struct.iter_unpack("<HB", r.data)}
 
 
 PIN_NONE = struct.pack("<HB", 0xFFFF, 0xFF)
@@ -288,69 +365,72 @@ def test_gpio(link: Link, target: str) -> None:
     check("second GPIO ESP -> ERR_DEV_ID_TAKEN", err_cause(r) == "ERR_DEV_ID_TAKEN", str(r))
     r = dev(link, GPIO_ID, OP_INFO)
     check("INFO: type 0x0040", r is not None and r.ok and r.data == struct.pack("<HB", GPIO_TYPE, 0), str(r))
-    r = dev(link, GPIO_ID, OP_OPS)
-    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
-    check("OPS: SET_MODE, GET_VOLTAGE, CONFIGURE_INTR, PINS; no SET_VOLTAGE",
-          {IO_SET_MODE, IO_GET_VOLTAGE, IO_CONFIGURE_INTR, PINS_LOCK} <= ops and IO_SET_VOLTAGE not in ops, str(sorted(ops)))
+    ops = ops_of(dev(link, GPIO_ID, OP_OPS))
+    check("OPS: LEVEL read + write, MODE, INTR, PINS; VOLTAGE read only (no write side)",
+          ops.get(IO_LEVEL) == SIDE_READ | SIDE_WRITE and ops.get(IO_MODE) == SIDE_WRITE and ops.get(IO_INTR) == SIDE_WRITE
+          and ops.get(PINS_LOCK) == SIDE_WRITE and ops.get(IO_VOLTAGE) == SIDE_READ,
+          str({hex(k): v for k, v in ops.items()}))
     r = dev(link, GPIO_ID, PINS_AVAILABLE)
     check("PINS AVAILABLE = the S3's valid GPIOs", r is not None and r.ok and r.data == struct.pack("<Q", GPIO_VALID), str(r))
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([22, 3]))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([22, 3]))
     check("GPIO 22 (doesn't exist) -> ERR_DEV_BAD_PIN", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
-    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 1]))
+    r = set_level(link, GPIO_ID, OUT_PIN, 1)
     check("write of an unconfigured pin -> ERR_IO_PIN_UNCONFIGURED", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
 
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([OUT_PIN, 3]))
-    check("SET_MODE push-pull", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([OUT_PIN, 3]))
-    check("SET_MODE of a configured pin -> ERR_IO_PIN_IN_USE", err_cause(r) == "ERR_IO_PIN_IN_USE", str(r))
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([PWM_PIN, 8]))
-    check("SET_MODE DAC -> ERR_IO_MODE_UNSUPPORTED", err_cause(r) == "ERR_IO_MODE_UNSUPPORTED", str(r))
-    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 1]))
-    check("SET_LEVEL 1", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([OUT_PIN]))
-    check("GET_LEVEL = 1", r is not None and r.ok and r.data == bytes([1]), str(r))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([OUT_PIN, 3]))
+    check("MODE push-pull", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([OUT_PIN, 3]))
+    check("MODE of a configured pin -> ERR_IO_PIN_IN_USE", err_cause(r) == "ERR_IO_PIN_IN_USE", str(r))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([PWM_PIN, 8]))
+    check("MODE DAC -> ERR_IO_MODE_UNSUPPORTED", err_cause(r) == "ERR_IO_MODE_UNSUPPORTED", str(r))
+    r = set_level(link, GPIO_ID, OUT_PIN, 1)
+    check("LEVEL write 1: ACK without data", r is not None and r.ok and r.data == b"", str(r))
+    r = get_level(link, GPIO_ID, OUT_PIN)
+    check("LEVEL read = {pin, 1}", r is not None and r.ok and r.data == bytes([OUT_PIN, 1]), str(r))
     r = dev(link, GPIO_ID, IO_TOGGLE, bytes([OUT_PIN]))
     check("TOGGLE", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([OUT_PIN]))
-    check("GET_LEVEL = 0", r is not None and r.ok and r.data == bytes([0]), str(r))
+    r = get_level(link, GPIO_ID, OUT_PIN)
+    check("LEVEL read = {pin, 0}", r is not None and r.ok and r.data == bytes([OUT_PIN, 0]), str(r))
+    r = dev(link, GPIO_ID, IO_VOLTAGE, struct.pack("<Bi", OUT_PIN, 1000), dir=WRITE)
+    check("VOLTAGE write on the GPIO (read side only) -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
     test_gpio_intr(link, target)
 
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([PWM_PIN, 6]))
-    check("SET_MODE PWM", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([PWM_PIN, 1]))
-    check("SET_LEVEL of a PWM pin -> ERR_IO_WRONG_MODE", err_cause(r) == "ERR_IO_WRONG_MODE", str(r))
-    r = dev(link, GPIO_ID, IO_SET_FREQ, struct.pack("<BI", PWM_PIN, 4))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([PWM_PIN, 6]))
+    check("MODE PWM", r is not None and r.ok, str(r))
+    r = set_level(link, GPIO_ID, PWM_PIN, 1)
+    check("LEVEL write of a PWM pin -> ERR_IO_WRONG_MODE", err_cause(r) == "ERR_IO_WRONG_MODE", str(r))
+    r = dev(link, GPIO_ID, IO_PWM_FREQ, struct.pack("<BI", PWM_PIN, 4))
     check("PWM 4 Hz -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, GPIO_ID, IO_SET_FREQ, struct.pack("<BI", PWM_PIN, 1000))
-    check("SET_PWM_FREQ 1 kHz", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_DUTY, struct.pack("<BI", PWM_PIN, 4096))
+    r = dev(link, GPIO_ID, IO_PWM_FREQ, struct.pack("<BI", PWM_PIN, 1000))
+    check("PWM_FREQ 1 kHz", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_PWM_DUTY, struct.pack("<BI", PWM_PIN, 4096))
     check("duty 4096 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, GPIO_ID, IO_SET_DUTY, struct.pack("<BI", PWM_PIN, 2048))
-    check("SET_PWM_DUTY 2048", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_PWM_DUTY, struct.pack("<BI", PWM_PIN, 2048))
+    check("PWM_DUTY 2048", r is not None and r.ok, str(r))
 
     r = dev(link, GPIO_ID, PINS_LOCK, bytes([OUT_PIN]))
     check("PINS LOCK", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, 1]))
+    r = set_level(link, GPIO_ID, OUT_PIN, 1)
     check("write of a locked pin -> ERR_DEV_PIN_LOCKED", err_cause(r) == "ERR_DEV_PIN_LOCKED", str(r))
-    r = dev(link, GPIO_ID, PINS_SET_LOCKED_LEVEL, bytes([OUT_PIN, 1]))
-    check("SET_LOCKED_LEVEL drives it", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, PINS_LOCKED_LEVEL, bytes([OUT_PIN, 1]))
+    check("LOCKED_LEVEL drives it", r is not None and r.ok, str(r))
 
     r = dev(link, GPIO_ID, OP_SUSPEND)
     check("SUSPEND", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_DUTY, struct.pack("<BI", PWM_PIN, 100))
+    r = dev(link, GPIO_ID, IO_PWM_DUTY, struct.pack("<BI", PWM_PIN, 100))
     check("write while suspended -> ERR_DEV_SUSPENDED", err_cause(r) == "ERR_DEV_SUSPENDED", str(r))
-    r = dev(link, GPIO_ID, PINS_SET_LOCKED_LEVEL, bytes([OUT_PIN, 0]))
+    r = dev(link, GPIO_ID, PINS_LOCKED_LEVEL, bytes([OUT_PIN, 0]))
     check("the owner still drives its locked pin while suspended", r is not None and r.ok, str(r))
     r = dev(link, GPIO_ID, OP_RESUME)
     check("RESUME", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_DUTY, struct.pack("<BI", PWM_PIN, 100))
+    r = dev(link, GPIO_ID, IO_PWM_DUTY, struct.pack("<BI", PWM_PIN, 100))
     check("write after RESUME", r is not None and r.ok, str(r))
 
     r = dev(link, GPIO_ID, OP_RESET)
     check("RESET releases the unlocked pins", r is not None and r.ok, str(r))
-    r = dev(link, GPIO_ID, IO_SET_DUTY, struct.pack("<BI", PWM_PIN, 100))
+    r = dev(link, GPIO_ID, IO_PWM_DUTY, struct.pack("<BI", PWM_PIN, 100))
     check("PWM pin is unconfigured after RESET", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
-    r = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([OUT_PIN]))
+    r = get_level(link, GPIO_ID, OUT_PIN)
     check("the locked pin survived RESET", r is not None and r.ok, str(r))
 
     r = dev(link, GPIO_ID, OP_REMOVE)
@@ -370,33 +450,33 @@ def test_gpio_intr(link: Link, target: str) -> None:
     """OUT_PIN is a push-pull output at level 0: the GPIO matrix sees its own edges, so the ISR runs without a wire.
     A pin edge is code flow (no NOTIFY): it never reaches the events stream, so only "armed edges cause no traffic and
     no fault" is checked here; the delivery itself is seen once a VM program can send it."""
-    r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([PWM_PIN]) + intr_cfg(INTR_FALLING))
-    check("CONFIGURE_INTR of an unconfigured pin -> ERR_IO_PIN_UNCONFIGURED", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
-    r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(9))
-    check("CONFIGURE_INTR mode 9 -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
-    r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_OUTSIDE, up=2000, down=1000))
+    r = dev(link, GPIO_ID, IO_INTR, bytes([PWM_PIN]) + intr_cfg(INTR_FALLING))
+    check("INTR of an unconfigured pin -> ERR_IO_PIN_UNCONFIGURED", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
+    r = dev(link, GPIO_ID, IO_INTR, bytes([OUT_PIN]) + intr_cfg(9))
+    check("INTR mode 9 -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+    r = dev(link, GPIO_ID, IO_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_OUTSIDE, up=2000, down=1000))
     check("ADC window on a digital pin -> ERR_IO_FEATURE_UNSUPPORTED", err_cause(r) == "ERR_IO_FEATURE_UNSUPPORTED", str(r))
-    r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_FALLING))
-    check("CONFIGURE_INTR falling edge", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_FALLING))
+    check("INTR falling edge", r is not None and r.ok, str(r))
     if target == "qemu":  # no GPIO readback, so no edges reach the ISR
-        r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_DISABLE))
-        check("CONFIGURE_INTR disable", r is not None and r.ok, str(r))
+        r = dev(link, GPIO_ID, IO_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_DISABLE))
+        check("INTR disable", r is not None and r.ok, str(r))
         return
 
     t = link.mark()
     for level in (1, 0, 1, 0):
-        r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([OUT_PIN, level]))
+        r = set_level(link, GPIO_ID, OUT_PIN, level)
     time.sleep(0.4)
     check("armed edges: device still answers", r is not None and r.ok, str(r))
     check("edge without NOTIFY: nothing on stream 0x06", event_records(link, t) == [], str(event_records(link, t)))
 
-    r = dev(link, GPIO_ID, IO_CONFIGURE_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_DISABLE))
-    check("CONFIGURE_INTR disable", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_INTR, bytes([OUT_PIN]) + intr_cfg(INTR_DISABLE))
+    check("INTR disable", r is not None and r.ok, str(r))
 
 
 MUX_TYPE = 0x004A
 MUX_ID = 7
-SUPPLY_SELECT, SUPPLY_GET_SOURCE = 0x0800, 0x0801
+SUPPLY_SOURCE = 0x0800  # POWER_SUPPLY SOURCE: the write selects, the read answers the source
 MUX_A_PIN, MUX_B_PIN = 6, 7  # free on the devkit and the runIT board
 
 
@@ -415,15 +495,18 @@ def test_power_mux(link: Link, target: str) -> None:
         return dev(link, MUX_ID, OP_CREATE, struct.pack("<H", MUX_TYPE) + a + b + bytes([level, delay]))
 
     def source() -> int | None:
-        r = dev(link, MUX_ID, SUPPLY_GET_SOURCE)
+        r = dev(link, MUX_ID, SUPPLY_SOURCE, dir=READ)
         return r.data[0] if r is not None and r.ok and len(r.data) == 1 else None
 
+    def select(*args: int) -> Response | None:
+        return dev(link, MUX_ID, SUPPLY_SOURCE, bytes(args), dir=WRITE)
+
     def levels() -> tuple[int, int] | None:
-        a = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_A_PIN]))
-        b = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_B_PIN]))
-        if a is None or b is None or not a.ok or not b.ok:
+        a = get_level(link, GPIO_ID, MUX_A_PIN)
+        b = get_level(link, GPIO_ID, MUX_B_PIN)
+        if a is None or b is None or not a.ok or not b.ok or len(a.data) != 2 or len(b.data) != 2:
             return None
-        return a.data[0], b.data[0]
+        return a.data[1], b.data[1]
 
     r = create(pin(MUX_A_PIN), pin(MUX_B_PIN), level=2)
     check("power mux: CREATE enable level 2 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
@@ -442,8 +525,8 @@ def test_power_mux(link: Link, target: str) -> None:
           "ERR_DEV_INSTALL" in (r.record.names() if r and r.record else []), str(r))
     r = dev(link, MUX_ID, OP_INFO)
     check("power mux: a failed CREATE leaves no device", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([MUX_A_PIN, 3]))
-    check("power mux: the failed CREATE released pin A (SET_MODE works again)", r is not None and r.ok, str(r))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([MUX_A_PIN, 3]))
+    check("power mux: the failed CREATE released pin A (MODE works again)", r is not None and r.ok, str(r))
     r = dev(link, GPIO_ID, IO_RESET, bytes([MUX_A_PIN]))
     check("power mux: IO RESET pin A", r is not None and r.ok, str(r))
 
@@ -454,31 +537,31 @@ def test_power_mux(link: Link, target: str) -> None:
         return
     r = dev(link, MUX_ID, OP_INFO)
     check("power mux: INFO type 0x004A", r is not None and r.ok and r.data == struct.pack("<HB", MUX_TYPE, 0), str(r))
-    r = dev(link, MUX_ID, OP_OPS)
-    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
-    check("power mux: OPS = lifecycle + SELECT / GET_SOURCE, no IO",
-          {SUPPLY_SELECT, SUPPLY_GET_SOURCE, OP_SUSPEND, OP_RESUME} <= ops and IO_SET_LEVEL not in ops, str(sorted(ops)))
+    ops = ops_of(dev(link, MUX_ID, OP_OPS))
+    check("power mux: OPS = lifecycle + SOURCE (read + write), no IO",
+          ops.get(SUPPLY_SOURCE) == SIDE_READ | SIDE_WRITE and {OP_SUSPEND, OP_RESUME} <= ops.keys() and IO_LEVEL not in ops,
+          str({hex(k): v for k, v in ops.items()}))
     check("power mux: both sources off after CREATE", source() == 0)
     if target != "qemu":
         check("power mux: both enable pins low after CREATE", levels() == (0, 0), str(levels()))
 
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([3]))
-    check("power mux: SELECT 3 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, MUX_ID, SUPPLY_SELECT)
-    check("power mux: SELECT without args -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    r = dev(link, GPIO_ID, IO_SET_LEVEL, bytes([MUX_A_PIN, 1]))
+    r = select(3)
+    check("power mux: SOURCE write 3 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = select()
+    check("power mux: SOURCE write without args -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = set_level(link, GPIO_ID, MUX_A_PIN, 1)
     check("power mux: its pin is locked on the GPIO device -> ERR_DEV_PIN_LOCKED", err_cause(r) == "ERR_DEV_PIN_LOCKED", str(r))
     r = dev(link, GPIO_ID, OP_REMOVE)
     check("power mux: REMOVE of the GPIO device while the mux uses it -> ERR_DEV_IN_USE", err_cause(r) == "ERR_DEV_IN_USE", str(r))
 
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
-    check("power mux: SELECT A", r is not None and r.ok, str(r))
+    r = select(1)
+    check("power mux: SELECT A: ACK without data", r is not None and r.ok and r.data == b"", str(r))
     check("power mux: source = A", source() == 1)
     if target != "qemu":
         check("power mux: A pin high, B pin low", levels() == (1, 0), str(levels()))
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    r = select(1)
     check("power mux: SELECT A again does nothing", r is not None and r.ok and source() == 1, str(r))
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([2]))
+    r = select(2)
     check("power mux: SELECT B (A off first)", r is not None and r.ok, str(r))
     check("power mux: source = B", source() == 2)
     if target != "qemu":
@@ -489,7 +572,7 @@ def test_power_mux(link: Link, target: str) -> None:
     check("power mux: suspended = both off", source() == 0)
     if target != "qemu":
         check("power mux: suspended = both pins low", levels() == (0, 0), str(levels()))
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    r = select(1)
     check("power mux: SELECT while suspended -> ERR_DEV_SUSPENDED", err_cause(r) == "ERR_DEV_SUSPENDED", str(r))
     r = dev(link, MUX_ID, OP_RESUME)
     check("power mux: RESUME", r is not None and r.ok, str(r))
@@ -502,11 +585,11 @@ def test_power_mux(link: Link, target: str) -> None:
     r = dev(link, MUX_ID, OP_RESUME)
     check("power mux: after RESET nothing is wanted: RESUME stays off", source() == 0)
 
-    r = dev(link, MUX_ID, SUPPLY_SELECT, bytes([1]))
+    r = select(1)
     r = dev(link, MUX_ID, OP_REMOVE)
     check("power mux: REMOVE", r is not None and r.ok, str(r))
     if target != "qemu":
-        r = dev(link, GPIO_ID, IO_GET_LEVEL, bytes([MUX_A_PIN]))
+        r = get_level(link, GPIO_ID, MUX_A_PIN)
         check("power mux: REMOVE released pin A (unconfigured again)", err_cause(r) == "ERR_IO_PIN_UNCONFIGURED", str(r))
     r = dev(link, MUX_ID, OP_INFO)
     check("power mux: INFO after REMOVE -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
@@ -630,37 +713,41 @@ def test_device(link: Link) -> None:
 
 
 def test_pca(link: Link) -> None:
-    r = dev(link, PCA_ID, IO_SET_FREQ, struct.pack("<BI", 0, 50))
-    check("SET_PWM_FREQ 50 Hz", r is not None and r.ok, str(r))
-    r = dev(link, PCA_ID, IO_SET_FREQ, struct.pack("<BI", 0, 5000))
-    check("SET_PWM_FREQ 5000 Hz -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, PCA_ID, IO_SET_DUTY, struct.pack("<BI", 1, 3000))
-    check("SET_PWM_DUTY ch1 3000", r is not None and r.ok, str(r))
-    r = dev(link, PCA_ID, IO_GET_LEVEL, bytes([1]))
-    check("GET_LEVEL ch1 = 1", r is not None and r.ok and r.data == bytes([1]), str(r))
+    r = dev(link, PCA_ID, IO_PWM_FREQ, struct.pack("<BI", 0, 50))
+    check("PWM_FREQ 50 Hz", r is not None and r.ok, str(r))
+    r = dev(link, PCA_ID, IO_PWM_FREQ, struct.pack("<BI", 0, 5000))
+    check("PWM_FREQ 5000 Hz -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    r = dev(link, PCA_ID, IO_PWM_DUTY, struct.pack("<BI", 1, 3000))
+    check("PWM_DUTY ch1 3000", r is not None and r.ok, str(r))
+    r = get_level(link, PCA_ID, 1)
+    check("LEVEL read ch1 = {1, 1}", r is not None and r.ok and r.data == bytes([1, 1]), str(r))
     r = dev(link, PCA_ID, IO_TOGGLE, bytes([1]))
     check("TOGGLE ch1", r is not None and r.ok, str(r))
-    r = dev(link, PCA_ID, IO_GET_LEVEL, bytes([1]))
-    check("GET_LEVEL ch1 = 0", r is not None and r.ok and r.data == bytes([0]), str(r))
-    r = dev(link, PCA_ID, IO_SET_DUTY, struct.pack("<BI", 1, 4096))
+    r = get_level(link, PCA_ID, 1)
+    check("LEVEL read ch1 = {1, 0}", r is not None and r.ok and r.data == bytes([1, 0]), str(r))
+    r = dev(link, PCA_ID, IO_PWM_DUTY, struct.pack("<BI", 1, 4096))
     check("duty 4096 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, PCA_ID, IO_SET_DUTY, struct.pack("<BI", 16, 100))
+    r = dev(link, PCA_ID, IO_PWM_DUTY, struct.pack("<BI", 16, 100))
     check("channel 16 -> ERR_DEV_BAD_PIN", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
     r = dev(link, PCA_ID, 0x0300)
     names = r.record.names() if r and r.record else []
     check("contract the device lacks -> ERR_DEV_UNKNOWN_OP", err_cause(r) == "ERR_DEV_UNKNOWN_OP", str(r))
-    check("unknown op chain: KEY 05 -> DEV_ID -> UNKNOWN_OP", names == ["ERR_ROUTER_KEY", "ERR_DEV_ID", "ERR_DEV_UNKNOWN_OP"], str(names))
-    r = dev(link, PCA_ID, IO_GET_VOLTAGE, bytes([1]))
-    check("IO op the PCA9685 lacks (GET_VOLTAGE) -> ERR_DEV_UNKNOWN_OP", err_cause(r) == "ERR_DEV_UNKNOWN_OP", str(r))
-    r = dev(link, PCA_ID, 0xFF00)
+    check("unknown op chain: KEY 05 -> DEV_ID -> DEV_OP -> UNKNOWN_OP",
+          names == ["ERR_ROUTER_KEY", "ERR_DEV_ID", "ERR_DEV_OP", "ERR_DEV_UNKNOWN_OP"], str(names))
+    r = dev(link, PCA_ID, IO_VOLTAGE, bytes([1]), dir=READ)
+    check("IO op the PCA9685 lacks (VOLTAGE read) -> ERR_DEV_UNKNOWN_OP", err_cause(r) == "ERR_DEV_UNKNOWN_OP", str(r))
+    r = dev(link, PCA_ID, 0xFF00, dir=WRITE)
     check("own op the device lacks -> ERR_DEV_UNKNOWN_OP", err_cause(r) == "ERR_DEV_UNKNOWN_OP", str(r))
-    r = dev(link, PCA_ID, IO_SET_DUTY, struct.pack("<BI", 1, 5000))
+    r = dev(link, PCA_ID, OP_INFO, dir=WRITE)
+    check("INFO sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
+    r = dev(link, PCA_ID, IO_PWM_DUTY, struct.pack("<BI", 1, 5000))
     names = r.record.names() if r and r.record else []
     check("failing op -> ERR_DEV_OP route node", names[2:3] == ["ERR_DEV_OP"], str(names))
 
-    r = dev(link, PCA_ID, OP_OPS)
-    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
-    check("OPS lists the device's op table", ops >= {OP_OPS, OP_INFO, IO_SET_LEVEL, PINS_LOCK} and IO_GET_VOLTAGE not in ops, str(sorted(ops)))
+    ops = ops_of(dev(link, PCA_ID, OP_OPS))
+    check("OPS lists the device's op table with its sides",
+          ops.get(OP_OPS) == SIDE_READ and ops.get(OP_INFO) == SIDE_READ and ops.get(IO_LEVEL) == SIDE_READ | SIDE_WRITE
+          and ops.get(PINS_LOCK) == SIDE_WRITE and IO_VOLTAGE not in ops, str({hex(k): v for k, v in ops.items()}))
     r = dev(link, PCA_ID, OP_OPS, bytes(1))
     check("OPS with args -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
@@ -672,34 +759,34 @@ def test_pca(link: Link) -> None:
     check("PINS LOCKED = ch8", r is not None and r.ok and r.data == struct.pack("<Q", 1 << 8), str(r))
     r = dev(link, PCA_ID, PINS_LOCK, bytes([8]))
     check("LOCK of a locked pin -> ERR_DEV_PIN_LOCKED", err_cause(r) == "ERR_DEV_PIN_LOCKED", str(r))
-    r = dev(link, PCA_ID, IO_SET_LEVEL, bytes([8, 1]))
+    r = set_level(link, PCA_ID, 8, 1)
     check("IO write of a locked pin -> ERR_DEV_PIN_LOCKED", err_cause(r) == "ERR_DEV_PIN_LOCKED", str(r))
-    r = dev(link, PCA_ID, IO_GET_LEVEL, bytes([8]))
+    r = get_level(link, PCA_ID, 8)
     check("IO read of a locked pin is allowed", r is not None and r.ok, str(r))
-    r = dev(link, PCA_ID, PINS_SET_LOCKED_LEVEL, bytes([8, 1]))
-    check("SET_LOCKED_LEVEL drives the locked pin", r is not None and r.ok, str(r))
+    r = dev(link, PCA_ID, PINS_LOCKED_LEVEL, bytes([8, 1]))
+    check("LOCKED_LEVEL drives the locked pin", r is not None and r.ok, str(r))
     r = dev(link, PCA_ID, PINS_LOCK, bytes([16]))
     check("LOCK ch16 -> ERR_DEV_BAD_PIN", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
     r = dev(link, PCA_ID, PINS_UNLOCK, bytes([8]))
     check("PINS UNLOCK ch8", r is not None and r.ok, str(r))
     r = dev(link, PCA_ID, PINS_LOCKED)
     check("PINS LOCKED empty again", r is not None and r.ok and r.data == bytes(8), str(r))
-    r = dev(link, PCA_ID, IO_SET_LEVEL, bytes([8, 0]))
+    r = set_level(link, PCA_ID, 8, 0)
     check("IO write after UNLOCK", r is not None and r.ok, str(r))
 
     r = dev(link, PCA_ID, OP_SUSPEND)
     check("SUSPEND", r is not None and r.ok, str(r))
     r = dev(link, PCA_ID, OP_INFO)
     check("INFO: suspended", r is not None and r.ok and r.data == struct.pack("<HB", PCA_TYPE, 1), str(r))
-    r = dev(link, PCA_ID, IO_SET_LEVEL, bytes([0, 1]))
+    r = set_level(link, PCA_ID, 0, 1)
     check("write while suspended -> ERR_DEV_SUSPENDED", err_cause(r) == "ERR_DEV_SUSPENDED", str(r))
-    r = dev(link, PCA_ID, IO_GET_LEVEL, bytes([1]))
+    r = get_level(link, PCA_ID, 1)
     check("read while suspended is allowed", r is not None and r.ok, str(r))
     r = dev(link, PCA_ID, OP_RESUME)
     check("RESUME", r is not None and r.ok, str(r))
 
     t = link.mark()
-    r = link.request(bytes([KEY_SYS, 0x02]))
+    r = link.request(bytes([KEY_SYS, SYS_STOP]))
     check("sys STOP suspends devices", r is not None and r.ok and link.wait_log("suspending devices", 2.0, since=t))
     r = dev(link, PCA_ID, OP_INFO)
     check("PCA suspended by the safe state", r is not None and r.ok and r.data[2] == 1, str(r))
@@ -716,7 +803,9 @@ def test_pca(link: Link) -> None:
 
 A_RUN, A_REC_START, A_REC_STOP, A_BEGIN, A_WRITE, A_COMMIT = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
 A_READ, A_INFO, A_LIST, A_REMOVE, A_ABORT, A_RUN_ALL = 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0D
-CONN_INFO = bytes([KEY_CONN, 0x07])  # succeeds on any target, not a sys frame (recordable)
+# Frames as a record holds them: [key][dir][op][args] (built with frame(), not passed through request()).
+CONN_INFO_KEYS = bytes([KEY_CONN, 0x07])
+CONN_INFO = frame(CONN_INFO_KEYS, READ)  # a read that succeeds on any target: runs in an image, a recording skips it
 # Record IDs are u32 = [class u8][index u24] (sys_actions.h): 0 user, 1 system, 2 device
 CLASS_USER, CLASS_SYSTEM, CLASS_DEVICE = 0, 1, 2
 T1, T2, LOOP, KEEP = 1, 2, 200, 255  # user class
@@ -735,6 +824,11 @@ def act(link: Link, op: int, payload: bytes = b"") -> Response | None:
 
 def image(*frames: bytes) -> bytes:
     return b"".join(struct.pack("<H", len(f)) + f for f in frames)
+
+
+def run_frame(aid: int) -> bytes:
+    """actions RUN of `aid` as an image holds it."""
+    return frame(bytes([KEY_ACTIONS, A_RUN]), WRITE) + u32(aid)
 
 
 def upload(link: Link, aid: int, img: bytes, chunk: int = 64, crc: int | None = None) -> Response | None:
@@ -773,26 +867,29 @@ def test_actions(link: Link) -> None:
     for aid in (T1, T2, T3, T4, LOOP, KEEP, SPARE):
         act(link, A_REMOVE, u32(aid))
 
-    # Record, executing: only the client's successful, non-sys frames are kept
+    # Record, executing: only the client's successful writes are kept (no reads, no sys frames)
     r = act(link, A_REC_START, u32(T1) + bytes([1]))
     check("actions RECORD_START 1 (execute)", r is not None and r.ok, str(r))
     r = act(link, A_REC_START, u32(SPARE) + bytes([1]))
     check("second RECORD_START -> ERR_ACTION_BUSY", err_cause(r) == "ERR_ACTION_BUSY", str(r))
-    r = link.request(CONN_INFO)
-    check("recorded frame runs (conn INFO answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
+    r = log_set(link, *LOG_DEFAULT)
+    check("recorded frame runs (log CONFIG write answers ACK)", r is not None and r.ok and r.data == b"", str(r))
+    r = link.request(CONN_INFO_KEYS)
+    check("a read runs during a recording (conn INFO answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
     link.request(bytes([0x7E]))  # fails: not recorded
     ping(link)  # sys: not recorded
     r = act(link, A_REC_STOP)
-    want = image(CONN_INFO)
+    want = image(LOG_DEFAULT_FRAME)
     ok = r is not None and r.ok and len(r.data) == 8
     check("RECORD_STOP", ok, str(r))
     if ok:
         b, c, crc = struct.unpack("<HHI", r.data)
-        check("recording kept 1 frame (failed + sys frames skipped)", (b, c) == (len(want), 1), f"{b} B, {c} frames")
+        check("recording kept 1 frame (read, failed and sys frames skipped)", (b, c) == (len(want), 1), f"{b} B, {c} frames")
         check("RECORD_STOP crc = zlib crc32", crc == zlib.crc32(want), str(r))
     got = readback(link, T1, 1)
-    check("READ 1 = 1 packet, the frame as recorded", [p.data for p in got] == [CONN_INFO] and got[0].ok, str(got))
-    two = [CONN_INFO, bytes([KEY_CONN, 0x07, 0x00])]
+    check("READ 1 = 1 packet, the frame as recorded (with dir)", [p.data for p in got] == [LOG_DEFAULT_FRAME] and got[0].ok,
+          str(got))
+    two = [CONN_INFO, CONN_INFO + b"\x00"]
     r = upload(link, T3, image(*two))
     got = readback(link, T3, 2)
     check("upload 2 frames to a system-class ID, READ = 2 packets in order, as uploaded", r is not None and r.ok and [p.data for p in got] == two, str(got))
@@ -803,10 +900,10 @@ def test_actions(link: Link) -> None:
     r = act(link, A_RUN, u32(T1))
     check("RUN 1", r is not None and r.ok, str(r))
 
-    # Record without executing: frames are taken (answered OK, not run)
+    # Record without executing: writes are taken (answered OK, not run)
     r = act(link, A_REC_START, u32(T2) + bytes([0]))
     check("RECORD_START 2 (no execute)", r is not None and r.ok, str(r))
-    r = dev(link, MISSING_ID, OP_INFO)  # no such device: would fail if it ran
+    r = dev(link, MISSING_ID, OP_RESUME)  # no such device: would fail if it ran
     check("frame taken without running (OK, no data)", r is not None and r.ok and r.data == b"", str(r))
     r = act(link, A_REC_STOP)
     check("RECORD_STOP 2: 1 frame", r is not None and r.ok and len(r.data) == 8 and struct.unpack_from("<HHI", r.data)[1] == 1, str(r))
@@ -821,7 +918,7 @@ def test_actions(link: Link) -> None:
     check("empty recording -> ERR_ACTION_EMPTY", err_cause(r) == "ERR_ACTION_EMPTY", str(r))
 
     # Upload: full image, nested RUN
-    img = image(CONN_INFO, bytes([KEY_ACTIONS, A_RUN]) + u32(T1), CONN_INFO)
+    img = image(CONN_INFO, run_frame(T1), CONN_INFO)
     r = upload(link, T4, img, chunk=5)
     check("upload to a device-class ID (3 frames, 5-byte chunks)", r is not None and r.ok, str(r))
     i = info(link, T4)
@@ -850,14 +947,14 @@ def test_actions(link: Link) -> None:
     check("BEGIN of 513 B in the user class is accepted (limit 4096)", r is not None and r.ok, str(r))
     act(link, A_ABORT)
 
-    r = upload(link, LOOP, image(bytes([KEY_ACTIONS, A_RUN]) + u32(LOOP)))
+    r = upload(link, LOOP, image(run_frame(LOOP)))
     check("upload 200 (runs itself)", r is not None and r.ok, str(r))
     r = act(link, A_RUN, u32(LOOP))
     names = r.record.names() if r and r.record else []
     check("self-RUN stops at ERR_ACTION_DEPTH", err_cause(r) == "ERR_ACTION_DEPTH" and names.count("ERR_ACTION_STEP") >= 2, str(names))
 
     # RUN stops at a failing frame, RUN_ALL runs them all and returns the first failure
-    r = upload(link, SPARE, image(bytes([0x7E]), bytes([KEY_LOG, LOG_SET, 2, 1, 1, 1, 1])))
+    r = upload(link, SPARE, image(frame(bytes([0x7E]), WRITE), log_frame(2, 1, 1, 1, 1)))
     log_set(link, *LOG_DEFAULT)
     r = act(link, A_RUN, u32(SPARE))
     check("RUN stops at the failing frame: the next one did not run",
@@ -900,12 +997,12 @@ SEC_PROGRAM, SEC_START = 0, 0xFFFFFFFF
 T5 = (CLASS_SYSTEM << 24) | 0xFF05  # a system-class ID no module uses: a project section's record
 
 
-def prj(link: Link, op: int, payload: bytes = b"") -> Response | None:
-    return link.request(bytes([KEY_PROJECT, op]), payload=payload)
+def prj(link: Link, op: int, payload: bytes = b"", dir: int | None = None) -> Response | None:
+    return link.request(bytes([KEY_PROJECT, op]), payload=payload, dir=dir)
 
 
 def section(sid: int, *frames: bytes) -> bytes:
-    return image(bytes([KEY_PROJECT, P_SECTION]) + u32(sid), *frames)
+    return image(frame(bytes([KEY_PROJECT, P_SECTION]), WRITE) + u32(sid), *frames)
 
 
 def prj_save(link: Link, stream: bytes, boot: int = BOOT_NONE, chunk: int = 400, crc: int | None = None) -> Response | None:
@@ -957,7 +1054,8 @@ def test_project(link: Link) -> None:
     i = prj_info(link)
     check("INFO: stored, boot RUN, crc and length of the stream",
           i is not None and i[0] == 1 and i[1] == BOOT_RUN and i[3] == zlib.crc32(stream) and i[4] == len(stream), str(i))
-    check("the section's record is stored under its ID", info(link, T5) == (4, 1, zlib.crc32(image(CONN_INFO))), str(info(link, T5)))
+    want = image(CONN_INFO)  # 2 + 3 bytes: [u16 len][key][dir][op]
+    check("the section's record is stored under its ID", info(link, T5) == (len(want), 1, zlib.crc32(want)), str(info(link, T5)))
     listing = actions_list(link, PROJECT_RECORD)
     ids = [x for x in (listing[1] if listing else []) if x >> 24 == CLASS_PROJECT]
     bank = prj_info(link)[2]
@@ -985,6 +1083,19 @@ def test_project(link: Link) -> None:
     r = prj(link, P_RUN)
     check("project RUN with its start section", r is not None and r.ok, str(r))
 
+    # the boot option on its own (OPTIONS), and SECTION outside a stream
+    r = prj(link, P_OPTIONS, bytes([BOOT_LOAD]), dir=WRITE)
+    check("OPTIONS write boot LOAD", r is not None and r.ok and r.data == b"", str(r))
+    r = prj(link, P_OPTIONS, dir=READ)
+    check("OPTIONS read = LOAD, INFO shows it", r is not None and r.ok and r.data == bytes([BOOT_LOAD])
+          and prj_info(link)[1] == BOOT_LOAD, f"{r} {prj_info(link)}")
+    r = prj(link, P_OPTIONS, bytes([3]), dir=WRITE)
+    check("OPTIONS write boot 3 -> ERR_PROJECT_BAD_BOOT", err_cause(r) == "ERR_PROJECT_BAD_BOOT", str(r))
+    r = prj(link, P_OPTIONS, bytes([BOOT_NONE]), dir=WRITE)
+    check("OPTIONS write boot NONE", r is not None and r.ok, str(r))
+    r = prj(link, P_SECTION, u32(T5))
+    check("SECTION as a command -> ERR_PROJECT_NOT_IN_STREAM", err_cause(r) == "ERR_PROJECT_NOT_IN_STREAM", str(r))
+
     r = prj(link, P_ERASE)
     check("ERASE", r is not None and r.ok and prj_info(link)[0] == 0, str(r))
     listing = actions_list(link, PROJECT_RECORD)
@@ -1009,18 +1120,26 @@ def test_actions_after_restart(link: Link) -> None:
 
 
 KEY_LOG = 0x08
-LOG_SET, LOG_GET = 0x01, 0x02
+LOG_CONFIG = 0x01  # read + write: the write sets the options, the read answers them
 LOG_DEFAULT = (3, 1, 1, 1, 1)  # (level, mirror, trace, send_errors, send_logs)
 # level INFO, mirror to the console, print error chains
 
 
+def log_frame(*cfg: int) -> bytes:
+    """The log CONFIG write as a record holds it."""
+    return frame(bytes([KEY_LOG, LOG_CONFIG]), WRITE) + bytes(cfg)
+
+
+LOG_DEFAULT_FRAME = log_frame(*LOG_DEFAULT)
+
+
 def log_get(link: Link) -> tuple | None:
-    r = link.request(bytes([KEY_LOG, LOG_GET]))
+    r = link.request(bytes([KEY_LOG, LOG_CONFIG]), dir=READ)
     return tuple(r.data) if r is not None and r.ok and len(r.data) == 5 else None
 
 
 def log_set(link: Link, level: int, mirror: int, trace: int, errors: int = 1, logs: int = 1) -> Response | None:
-    return link.request(bytes([KEY_LOG, LOG_SET]), payload=bytes([level, mirror, trace, errors, logs]))
+    return link.request(bytes([KEY_LOG, LOG_CONFIG]), payload=bytes([level, mirror, trace, errors, logs]), dir=WRITE)
 
 
 def provoke_error(link: Link) -> tuple[float, list[str], list]:
@@ -1042,16 +1161,18 @@ def recorded(recs: list) -> bool:
 
 def test_log(link: Link) -> None:
     r = log_set(link, *LOG_DEFAULT)
-    check("log SET defaults", r is not None and r.ok, str(r))
-    check("log GET = defaults", log_get(link) == LOG_DEFAULT, str(log_get(link)))
+    check("log CONFIG write defaults: ACK without data", r is not None and r.ok and r.data == b"", str(r))
+    check("log CONFIG read = defaults", log_get(link) == LOG_DEFAULT, str(log_get(link)))
 
     r = log_set(link, 9, 1, 1)
     check("log level above the ceiling -> ERR_LOG_BAD_LEVEL", err_cause(r) == "ERR_LOG_BAD_LEVEL", str(r))
     r = log_set(link, 3, 2, 1)
     check("log flag 2 -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
-    r = link.request(bytes([KEY_LOG, LOG_SET]), payload=b"")
-    check("log SET with 2 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    check("a refused SET changes nothing", log_get(link) == LOG_DEFAULT, str(log_get(link)))
+    r = link.request(bytes([KEY_LOG, LOG_CONFIG]), payload=bytes([3, 1]), dir=WRITE)
+    check("log CONFIG write with 2 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = link.request(bytes([KEY_LOG, LOG_CONFIG]), payload=b"\x00", dir=READ)
+    check("log CONFIG read with args -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    check("a refused write changes nothing", log_get(link) == LOG_DEFAULT, str(log_get(link)))
 
     _, lines, recs = provoke_error(link)
     check("defaults: the chain is printed on the console and the record is sent", printed(lines) and recorded(recs),
@@ -1083,9 +1204,9 @@ def test_log(link: Link) -> None:
     _, lines, _ = provoke_error(link)
     check("back to defaults: the chain is printed again", printed(lines), str(lines))
 
-    # Not stored by the module: a live SET is gone after a restart (the app keeps it as a record, tested below).
+    # Not stored by the module: a live write is gone after a restart (the app keeps it as a record, tested below).
     log_set(link, 2, 0, 0, 0, 0)
-    link.request(bytes([KEY_SYS, 0x03]))
+    link.request(bytes([KEY_SYS, SYS_RESTART]))
     up = False
     for _ in range(40):
         time.sleep(0.5)
@@ -1096,7 +1217,7 @@ def test_log(link: Link) -> None:
     check("log options are the defaults after the restart (nothing is stored)", log_get(link) == LOG_DEFAULT,
           str(log_get(link)))
     r = log_set(link, *LOG_DEFAULT)
-    check("log SET defaults again", r is not None and r.ok and log_get(link) == LOG_DEFAULT, str(r))
+    check("log CONFIG write defaults again", r is not None and r.ok and log_get(link) == LOG_DEFAULT, str(r))
 
 
 # System-class record IDs (sys_actions.h SYS_ACTIONS_ID_*)
@@ -1104,22 +1225,22 @@ REC_LOG, REC_PW_CFG, REC_PW_PSU, REC_PW_BATTERY, REC_PW_RESP = [(CLASS_SYSTEM <<
 
 
 def test_settings(link: Link) -> None:
-    """Settings are records: the app saves the SET frame under the module's ID; nothing replays by itself."""
-    frame = bytes([KEY_LOG, LOG_SET, 2, 1, 0, 0, 1])
+    """Settings are records: the app saves the write frame under the module's ID; nothing replays by itself."""
+    cfg = log_frame(2, 1, 0, 0, 1)
     act(link, A_REMOVE, u32(REC_LOG))
-    r = upload(link, REC_LOG, image(frame))
-    check("settings: the log SET frame saved as record 0x01000001", r is not None and r.ok, str(r))
+    r = upload(link, REC_LOG, image(cfg))
+    check("settings: the log CONFIG write saved as record 0x01000001", r is not None and r.ok, str(r))
     got = readback(link, REC_LOG, 1)
-    check("settings: READ = the log SET frame exactly", [p.data for p in got] == [frame], str(got))
+    check("settings: READ = the log CONFIG write exactly", [p.data for p in got] == [cfg], str(got))
     log_set(link, *LOG_DEFAULT)
     r = act(link, A_RUN, u32(REC_LOG))
     check("settings: RUN applies it (log level 2, errors off)", r is not None and r.ok and log_get(link) == (2, 1, 0, 0, 1), str(r))
     log_set(link, *LOG_DEFAULT)
-    check("settings: the live SET did not change the record", [p.data for p in readback(link, REC_LOG, 1)] == [frame])
+    check("settings: the live write did not change the record", [p.data for p in readback(link, REC_LOG, 1)] == [cfg])
     act(link, A_REMOVE, u32(REC_LOG))
 
 
-OP_SET_ERR_POLICY, OP_GET_ERR_POLICY = 0x0007, 0x0008
+OP_ERROR_POLICY = 0x0007  # read + write: the write takes the policy, the read answers it
 IMP_NONE, IMP_LOW, IMP_MEDIUM, IMP_HIGH, IMP_CRITICAL = 0, 1, 2, 3, 4
 ACT_MED, ACT_HIGH = 201, 200  # actions run by the policy: each sets another log level, which GET shows
 
@@ -1129,12 +1250,15 @@ def test_error_policy(link: Link) -> None:
     check("policy: GPIO ESP present", r is not None and (r.ok or err_cause(r) == "ERR_DEV_ID_TAKEN"), str(r))
     for aid, level in ((ACT_HIGH, 2), (ACT_MED, 1)):
         act(link, A_REMOVE, u32(aid))
-        r = upload(link, aid, image(bytes([KEY_LOG, LOG_SET, level, 1, 1, 1, 1])))
+        r = upload(link, aid, image(log_frame(level, 1, 1, 1, 1)))
         check(f"policy: action {aid} sets log level {level}", r is not None and r.ok, str(r))
     log_set(link, *LOG_DEFAULT)
 
     def policy(importance: int, actions=(0, ACT_MED, ACT_HIGH, 0)) -> Response | None:
-        return dev(link, GPIO_ID, OP_SET_ERR_POLICY, struct.pack("<B4I", importance, *actions))
+        return dev(link, GPIO_ID, OP_ERROR_POLICY, struct.pack("<B4I", importance, *actions), dir=WRITE)
+
+    def policy_get() -> Response | None:
+        return dev(link, GPIO_ID, OP_ERROR_POLICY, dir=READ)
 
     def level_after(provoke) -> int | None:
         log_set(link, *LOG_DEFAULT)
@@ -1143,22 +1267,22 @@ def test_error_policy(link: Link) -> None:
         got = log_get(link)
         return got[0] if got else None
 
-    high_error = lambda: dev(link, GPIO_ID, IO_SET_MODE, bytes([22, 3]))  # ERR_DEV_BAD_PIN, HIGH
+    high_error = lambda: dev(link, GPIO_ID, IO_MODE, bytes([22, 3]))  # ERR_DEV_BAD_PIN, HIGH
 
     def medium_error():  # ERR_DEV_SUSPENDED, MEDIUM
         dev(link, GPIO_ID, OP_SUSPEND)
-        dev(link, GPIO_ID, IO_SET_MODE, bytes([OUT_PIN, 3]))
+        dev(link, GPIO_ID, IO_MODE, bytes([OUT_PIN, 3]))
         dev(link, GPIO_ID, OP_RESUME)
 
-    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
-    check("policy GET default: LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
-    r = dev(link, GPIO_ID, OP_OPS)
-    ops = set(struct.unpack(f"<{len(r.data) // 2}H", r.data)) if r is not None and r.ok else set()
-    check("OPS lists SET / GET_ERROR_POLICY", {OP_SET_ERR_POLICY, OP_GET_ERR_POLICY} <= ops, str(sorted(ops)))
+    r = policy_get()
+    check("policy read default: LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
+    ops = ops_of(dev(link, GPIO_ID, OP_OPS))
+    check("OPS lists ERROR_POLICY with a read and a write side", ops.get(OP_ERROR_POLICY) == SIDE_READ | SIDE_WRITE,
+          str({hex(k): v for k, v in ops.items()}))
     r = policy(5)
     check("policy importance 5 -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
-    r = dev(link, GPIO_ID, OP_SET_ERR_POLICY, bytes([IMP_HIGH, 0, 0, 0]))
-    check("policy SET with 4 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = dev(link, GPIO_ID, OP_ERROR_POLICY, bytes([IMP_HIGH, 0, 0, 0]), dir=WRITE)
+    check("policy write with 4 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
     policy(IMP_LOW)
     check("LOW: a HIGH error runs nothing", level_after(high_error) == 3)
@@ -1171,9 +1295,9 @@ def test_error_policy(link: Link) -> None:
     check("CRITICAL without actions: nothing runs", level_after(high_error) == 3)
     policy(IMP_NONE)
     check("NONE: a HIGH error runs nothing", level_after(high_error) == 3)
-    r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
-    check("policy GET = what was set", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_NONE, 0, ACT_MED, ACT_HIGH, 0), str(r))
-    r = dev(link, GPIO_ID, IO_SET_MODE, bytes([22, 3]))
+    r = policy_get()
+    check("policy read = what was written", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_NONE, 0, ACT_MED, ACT_HIGH, 0), str(r))
+    r = dev(link, GPIO_ID, IO_MODE, bytes([22, 3]))
     check("NONE: the command still gets its error response", err_cause(r) == "ERR_DEV_BAD_PIN", str(r))
 
     # A new instance starts at the defaults
@@ -1182,7 +1306,7 @@ def test_error_policy(link: Link) -> None:
     else:
         dev(link, GPIO_ID, OP_REMOVE)
         dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-        r = dev(link, GPIO_ID, OP_GET_ERR_POLICY)
+        r = policy_get()
         check("REMOVE + CREATE: policy back to LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
 
     for aid in (ACT_HIGH, ACT_MED):
@@ -1191,18 +1315,28 @@ def test_error_policy(link: Link) -> None:
 
 
 KEY_POWER = 0x0A
-PW_SET_CONFIG, PW_GET_CONFIG, PW_SET_PSU, PW_SET_BATTERY = range(1, 5)
-PW_GET_STATUS, PW_SET_PD, PW_SET_RESPONSES, PW_GET_MATRIX, PW_GET_PD = 0x07, 0x08, 0x09, 0x0C, 0x0D
+# contract_power_manager.json: CONFIG, PSU, BATTERY, PD and MATRIX have a read and a write side (the read answers what
+# the write takes), STATUS is read only
+PW_CONFIG, PW_PSU, PW_BATTERY, PW_STATUS, PW_PD, PW_MATRIX = 0x01, 0x03, 0x04, 0x07, 0x08, 0x09
 PD_OFF, PD_MAX, PD_VOLTAGE = 0, 1, 2
 SRC_UNKNOWN, SRC_USB, SRC_PSU, SRC_BATTERY = 0, 1, 2, 3
 PW_FLAG_ENABLED, PW_FLAG_STRICT, PW_FLAG_INPUT_SEEN = 0x01, 0x02, 0x08
 PW_RESPONSES_DEFAULT = bytes([0, 1, 0, 1, 0, 0, 3, 0, 3, 1, 0])  # by kind, index 0 unused
 TPS_RAIL_A = 10  # a budgeted rail on the board; not created on the devkit
 PW_TARGET_BOARD = 0xFFFF  # response target: the board row
+VREG_VOLTAGE = 0x0501  # POWER_VREG VOLTAGE (write only)
 
 
-def pw(link: Link, op: int, payload: bytes = b"") -> Response | None:
-    return link.request(bytes([KEY_POWER, op]), payload=payload)
+def pw(link: Link, op: int, payload: bytes = b"", dir: int | None = None) -> Response | None:
+    return link.request(bytes([KEY_POWER, op]), payload=payload, dir=dir)
+
+
+def pw_get(link: Link, op: int) -> Response | None:
+    return pw(link, op, dir=READ)
+
+
+def pw_set(link: Link, op: int, payload: bytes) -> Response | None:
+    return pw(link, op, payload, dir=WRITE)
 
 
 def pw_config(enabled=1, strict=1, margin=20, source=0) -> bytes:
@@ -1210,7 +1344,7 @@ def pw_config(enabled=1, strict=1, margin=20, source=0) -> bytes:
 
 
 def pw_status(link: Link) -> dict | None:
-    r = pw(link, PW_GET_STATUS)
+    r = pw(link, PW_STATUS)
     if r is None or not r.ok or len(r.data) != 40:
         return None
     f = struct.unpack("<BiiIIIIIBBIIB", r.data)
@@ -1231,18 +1365,20 @@ def wait_source(link: Link, want: int, timeout: float = 3.0) -> dict | None:
 
 
 def test_power(link: Link) -> None:
-    pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
-    pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
-    r = pw(link, PW_SET_CONFIG, pw_config())
-    check("power SET_CONFIG defaults", r is not None and r.ok, str(r))
-    r = pw(link, PW_GET_CONFIG)
-    check("power GET_CONFIG = defaults (on, strict, 20 %, source UNKNOWN)", r is not None and r.ok and r.data == pw_config(), str(r))
+    pw_set(link, PW_PSU, struct.pack("<II", 0, 0))
+    pw_set(link, PW_BATTERY, bytes([0, 0, 0, 0]))
+    r = pw_set(link, PW_CONFIG, pw_config())
+    check("power CONFIG write defaults: ACK without data", r is not None and r.ok and r.data == b"", str(r))
+    r = pw_get(link, PW_CONFIG)
+    check("power CONFIG read = defaults (on, strict, 20 %, source UNKNOWN)", r is not None and r.ok and r.data == pw_config(), str(r))
     for name, cfg in (("enabled 2", pw_config(enabled=2)), ("strict 2", pw_config(strict=2)),
                       ("margin 101", pw_config(margin=101)), ("source 4", pw_config(source=4))):
-        r = pw(link, PW_SET_CONFIG, cfg)
+        r = pw_set(link, PW_CONFIG, cfg)
         check(f"power config {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_CONFIG, pw_config()[:3])
-    check("power SET_CONFIG with 3 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = pw_set(link, PW_CONFIG, pw_config()[:3])
+    check("power CONFIG write with 3 bytes -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = pw(link, PW_STATUS, dir=WRITE)
+    check("power STATUS (read only) sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
 
     st = wait_source(link, SRC_UNKNOWN)
     devkit_check("status: 40 bytes, source UNKNOWN, enabled + strict, no input monitor, no USB-PD on the devkit",
@@ -1251,83 +1387,96 @@ def test_power(link: Link) -> None:
 
     # USB-PD request: stored and read back (the devkit has no sink: nothing is asked)
     pd = lambda mode, mV=0: bytes([mode]) + struct.pack("<I", mV)
-    r = pw(link, PW_GET_PD)
-    check("GET_PD = default (highest offer)", r is not None and r.ok and r.data == pd(PD_MAX), str(r))
-    r = pw(link, PW_SET_PD, pd(PD_VOLTAGE, 9000))
-    r2 = pw(link, PW_GET_PD)
-    check("SET_PD 9 V -> GET_PD 9 V", r is not None and r.ok and r2 is not None and r2.data == pd(PD_VOLTAGE, 9000), f"{r} {r2}")
-    for name, frame in (("mode 3", pd(3)), ("voltage 0", pd(PD_VOLTAGE, 0)), ("voltage 30 V", pd(PD_VOLTAGE, 30000))):
-        r = pw(link, PW_SET_PD, frame)
-        check(f"SET_PD {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_PD, pd(PD_MAX, 5000))
-    r2 = pw(link, PW_GET_PD)
-    check("SET_PD highest offer drops the voltage", r is not None and r.ok and r2 is not None and r2.data == pd(PD_MAX), f"{r} {r2}")
+    r = pw_get(link, PW_PD)
+    check("PD read = default (highest offer)", r is not None and r.ok and r.data == pd(PD_MAX), str(r))
+    r = pw_set(link, PW_PD, pd(PD_VOLTAGE, 9000))
+    r2 = pw_get(link, PW_PD)
+    check("PD write 9 V -> read 9 V", r is not None and r.ok and r2 is not None and r2.data == pd(PD_VOLTAGE, 9000), f"{r} {r2}")
+    for name, args in (("mode 3", pd(3)), ("voltage 0", pd(PD_VOLTAGE, 0)), ("voltage 30 V", pd(PD_VOLTAGE, 30000))):
+        r = pw_set(link, PW_PD, args)
+        check(f"PD write {name} -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw_set(link, PW_PD, pd(PD_MAX, 5000))
+    r2 = pw_get(link, PW_PD)
+    check("PD write highest offer drops the voltage", r is not None and r.ok and r2 is not None and r2.data == pd(PD_MAX), f"{r} {r2}")
 
     # Settings: PSU and battery, checked and read back
-    r = pw(link, PW_SET_PSU, struct.pack("<II", 0, 500))
+    r = pw_set(link, PW_PSU, struct.pack("<II", 0, 500))
     check("PSU 0 mV -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_PSU, struct.pack("<II", 12000, 2000))
-    check("SET_PSU 12 V / 2 A", r is not None and r.ok, str(r))
-    pw(link, PW_SET_PSU, struct.pack("<II", 0, 0))
-    r = pw(link, PW_SET_BATTERY, bytes([1, 0, 20, 10]))
+    r = pw_set(link, PW_PSU, struct.pack("<II", 12000, 2000))
+    r2 = pw_get(link, PW_PSU)
+    check("PSU write 12 V / 2 A -> read the same", r is not None and r.ok and r2 is not None and r2.ok
+          and r2.data == struct.pack("<II", 12000, 2000), f"{r} {r2}")
+    pw_set(link, PW_PSU, struct.pack("<II", 0, 0))
+    r = pw_set(link, PW_BATTERY, bytes([1, 0, 20, 10]))
     check("battery 0 cells -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_BATTERY, bytes([1, 2, 10, 10]))
+    r = pw_set(link, PW_BATTERY, bytes([1, 2, 10, 10]))
     check("battery critical >= low -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw(link, PW_SET_BATTERY, bytes([1, 2, 20, 10]))
-    check("SET_BATTERY LiPo 2S 20 / 10 %", r is not None and r.ok, str(r))
-    pw(link, PW_SET_BATTERY, bytes([0, 0, 0, 0]))
+    r = pw_set(link, PW_BATTERY, bytes([1, 2, 20, 10]))
+    r2 = pw_get(link, PW_BATTERY)
+    check("BATTERY write LiPo 2S 20 / 10 % -> read the same", r is not None and r.ok and r2 is not None and r2.ok
+          and r2.data == bytes([1, 2, 20, 10]), f"{r} {r2}")
+    pw_set(link, PW_BATTERY, bytes([0, 0, 0, 0]))
 
-    # Source on a board without source pins (the devkit): what SET_CONFIG says
+    # Source on a board without source pins (the devkit): what CONFIG says
     for name, src in (("PSU", SRC_PSU), ("BATTERY", SRC_BATTERY), ("USB", SRC_USB), ("UNKNOWN", SRC_UNKNOWN)):
-        pw(link, PW_SET_CONFIG, pw_config(source=src))
+        pw_set(link, PW_CONFIG, pw_config(source=src))
         st = wait_source(link, src)
-        devkit_check(f"SET_CONFIG source {name} -> {name}", st is not None and st["source"] == src, str(st))
+        devkit_check(f"CONFIG source {name} -> {name}", st is not None and st["source"] == src, str(st))
 
     # Modes
-    r = pw(link, PW_SET_CONFIG, pw_config(strict=0, margin=30))
+    r = pw_set(link, PW_CONFIG, pw_config(strict=0, margin=30))
     st = pw_status(link)
     check("soft: flags enabled, not strict", st is not None and st["flags"] & 0x03 == PW_FLAG_ENABLED, str(st))
-    pw(link, PW_SET_CONFIG, pw_config(enabled=0))
+    pw_set(link, PW_CONFIG, pw_config(enabled=0))
     time.sleep(0.3)
     st = pw_status(link)
     check("off: flags not enabled", st is not None and st["flags"] & PW_FLAG_ENABLED == 0, str(st))
-    pw(link, PW_SET_CONFIG, pw_config())
+    pw_set(link, PW_CONFIG, pw_config())
 
-    # Response matrix: the board row, then one row per rail (GET_MATRIX, each row its target first), set whole
+    # Response matrix: the board row, then one row per rail, each its target first. The write takes the same rows,
+    # matched by target: a row left out keeps its responses.
+    row_len = 2 + len(PW_RESPONSES_DEFAULT)
+
     def matrix() -> list[tuple[int, bytes]] | None:
-        r = pw(link, PW_GET_MATRIX)
-        row = 2 + len(PW_RESPONSES_DEFAULT)
-        if r is None or not r.ok or len(r.data) % row:
+        r = pw_get(link, PW_MATRIX)
+        if r is None or not r.ok or len(r.data) % row_len:
             return None
-        return [(struct.unpack_from("<H", r.data, i)[0], bytes(r.data[i + 2:i + row])) for i in range(0, len(r.data), row)]
+        return [(struct.unpack_from("<H", r.data, i)[0], bytes(r.data[i + 2:i + row_len])) for i in range(0, len(r.data), row_len)]
+
+    def rows_bytes(rows: list[tuple[int, bytes]]) -> bytes:
+        return b"".join(struct.pack("<H", target) + cells for target, cells in rows)
 
     def set_matrix(rows: list[tuple[int, bytes]]) -> Response | None:
-        return pw(link, PW_SET_RESPONSES, b"".join(cells for _, cells in rows))
+        return pw_set(link, PW_MATRIX, rows_bytes(rows))
 
     rows = matrix() or []
-    check("GET_MATRIX: the board row first, every row the board defaults",
+    check("MATRIX read: the board row first, every row the board defaults",
           len(rows) > 0 and rows[0][0] == PW_TARGET_BOARD and all(c == PW_RESPONSES_DEFAULT for _, c in rows), str(rows))
-    if len(rows) > 1:
-        changed = [rows[0], (rows[1][0], rows[1][1][:5] + bytes([1]) + rows[1][1][6:])] + rows[2:]
-        r = set_matrix(changed)
-        check("SET_RESPONSES first rail OCP critical -> DISABLE: only that row changes", r is not None and r.ok and matrix() == changed, str(r))
+    if rows:
+        target, cells = rows[-1]  # the last rail (the board row on the devkit)
+        one = (target, cells[:5] + bytes([1]) + cells[6:])
+        r = set_matrix([one])
+        check("MATRIX write of one row (OCP critical -> DISABLE): only that row changes",
+              r is not None and r.ok and r.data == b"" and matrix() == rows[:-1] + [one], str(r))
         set_matrix(rows)
-    whole = b"".join(c for _, c in rows)
-    r = pw(link, PW_SET_RESPONSES, whole[:-1])
-    check("SET_RESPONSES with the wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    r = pw(link, PW_SET_RESPONSES, whole)
-    check("SET_RESPONSES with the whole matrix", r is not None and r.ok, str(r))
-    r = pw(link, PW_SET_RESPONSES, bytes([4]) + whole[1:])
-    check("SET_RESPONSES with a response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+        check("MATRIX write of the whole matrix restores it", matrix() == rows, str(matrix()))
+    whole = rows_bytes(rows)
+    r = pw_set(link, PW_MATRIX, whole[:-1])
+    check("MATRIX write with the wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = pw_set(link, PW_MATRIX, struct.pack("<H", PW_TARGET_BOARD) + bytes([4]) + PW_RESPONSES_DEFAULT[1:])
+    check("MATRIX write with a response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
+    r = pw_set(link, PW_MATRIX, struct.pack("<H", MISSING_ID) + PW_RESPONSES_DEFAULT)
+    check("MATRIX write for a target that is no rail -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
+    check("refused MATRIX writes change nothing", matrix() == rows, str(matrix()))
 
     # The VREG guard passes a budgeted rail that isn't created
-    r = dev(link, TPS_RAIL_A, 0x0501, struct.pack("<I", 9000))
-    devkit_check("VREG SET_VOLTAGE on rail A (not created) -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+    r = dev(link, TPS_RAIL_A, VREG_VOLTAGE, struct.pack("<I", 9000))
+    devkit_check("VREG VOLTAGE on rail A (not created) -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
 
 def test_restart(link: Link) -> None:
     t = link.mark()
-    r = link.request(bytes([KEY_SYS, 0x03]))
+    r = link.request(bytes([KEY_SYS, SYS_RESTART]))
     check("RESTART answered", r is not None and r.ok, str(r))
     check("board boots again", link.wait_log("runIT up", 20.0, since=t))
     check("PING after restart", ping(link) is not None)

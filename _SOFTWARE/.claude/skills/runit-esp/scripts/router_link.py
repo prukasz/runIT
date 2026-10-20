@@ -1,7 +1,7 @@
 """Host side of the runIT router protocol over the console UART ("#R:<hex>" lines).
 
 Works with a real board (COM port) and with QEMU (socket://localhost:5555).
-Requests:  [seq][flags][keys...][payload]       (ROUTER.MD)
+Requests:  [seq][flags][key][dir][keys...][payload]  (ROUTER.MD; `frame` adds dir from the descriptors)
 Responses: [0x05][seq][status][data]            status 1: data = error record
 Streams:   [stream][payload]  0x02 telemetry, 0x03 logs, 0x04 errors (error record)
 
@@ -11,6 +11,7 @@ never go stale.
 
 from __future__ import annotations
 
+import json
 import re
 import struct
 import threading
@@ -51,6 +52,57 @@ def load_tags() -> dict[int, tuple[str, int]]:
 
 
 TAGS = load_tags()
+
+# ---- the direction byte: [key][dir][...] in every request (ROUTER.MD) ----
+
+GENERATED = ROOT / "runit-app" / "generated"
+READ, WRITE = 0, 1  # cmd_dir_e
+SIDE_READ, SIDE_WRITE = 1, 2
+
+
+def _sides(cmd: dict) -> int:
+    return (SIDE_READ if "read" in cmd else 0) | (SIDE_WRITE if "write" in cmd else 0)
+
+
+def load_sides() -> tuple[dict[int, dict[int, int]], dict[int, int]]:
+    """The sides of every command, from the descriptors: {router key: {op: sides}} for the module routers and
+    {u16 op: sides} for the device router (a contract's `(contract_id << 8) | op`, a device's own `0xFF00 | op`, the
+    sides of every device that has it)."""
+    modules: dict[int, dict[int, int]] = {}
+    for f in (GENERATED / "services").glob("contract_*.json"):
+        c = json.loads(f.read_text(encoding="utf8"))
+        modules[c["router_key"]] = {x["op"]: _sides(x) for x in c["commands"]}
+    device: dict[int, int] = {}
+    for f in (GENERATED / "contracts").glob("contract_*.json"):
+        c = json.loads(f.read_text(encoding="utf8"))
+        for x in c.get("commands", []):
+            device[(c["contract_id"] << 8) | x["op"]] = _sides(x)
+    for f in (GENERATED / "devices").glob("device_*.json"):
+        for x in json.loads(f.read_text(encoding="utf8")).get("commands", []):
+            op = 0xFF00 | x["op"]
+            device[op] = device.get(op, 0) | _sides(x)
+    return modules, device
+
+
+MODULE_SIDES, DEVICE_SIDES = load_sides()
+
+
+def frame(keys: bytes, dir: int | None = None) -> bytes:
+    """`keys` as the router takes them: the direction byte after the root key. Without `dir` it is the side the
+    command has; a command with both sides needs `dir` (READ or WRITE). A key or op no descriptor names (a test of
+    the router's errors) goes as a write. `keys` is [key][op...] for a module router and [0x05][id u16][op u16] for the
+    device router."""
+    if dir is None:
+        if keys[0] == KEY_DEVICE and len(keys) >= 5:
+            sides = DEVICE_SIDES.get(struct.unpack_from("<H", keys, 3)[0], SIDE_WRITE)
+        elif len(keys) >= 2:
+            sides = MODULE_SIDES.get(keys[0], {}).get(keys[1], SIDE_WRITE)
+        else:
+            sides = SIDE_WRITE
+        if sides == SIDE_READ | SIDE_WRITE:
+            raise ValueError(f"{keys.hex(' ')}: the command has a read and a write side, pass dir=READ or dir=WRITE")
+        dir = READ if sides == SIDE_READ else WRITE
+    return keys[:1] + bytes([dir]) + keys[1:]
 
 
 @dataclass
@@ -240,11 +292,14 @@ class Link:
     def send_frame(self, frame: bytes) -> None:
         self.ser.write((PREFIX + frame.hex().upper() + "\n").encode())
 
-    def request(self, keys: bytes, payload: bytes = b"", urgent: bool = False, timeout: float = 2.0) -> Response | None:
+    def request(self, keys: bytes, payload: bytes = b"", urgent: bool = False, timeout: float = 2.0,
+                dir: int | None = None, raw: bool = False) -> Response | None:
+        """`keys` without the direction byte (`frame` adds it; `dir` for a command with both sides). `raw`: `keys` go
+        as they are (a test of the direction byte itself)."""
         seq = self.next_seq()
         with self._lock:
             self.responses.pop(seq, None)
-        self.send_frame(bytes([seq, FLAG_URGENT if urgent else 0]) + keys + payload)
+        self.send_frame(bytes([seq, FLAG_URGENT if urgent else 0]) + (keys if raw else frame(keys, dir)) + payload)
         return self.wait_response(seq, timeout)
 
     def request_many(self, keys: bytes, payload: bytes, count: int, timeout: float = 2.0) -> list[Response]:
@@ -253,7 +308,7 @@ class Link:
         seq = self.next_seq()
         with self._lock:
             self._parts[seq] = []
-        self.send_frame(bytes([seq, 0]) + keys + payload)
+        self.send_frame(bytes([seq, 0]) + frame(keys) + payload)
         end = time.time() + timeout
         while time.time() < end:
             with self._lock:

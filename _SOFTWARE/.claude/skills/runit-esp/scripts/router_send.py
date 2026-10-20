@@ -1,10 +1,10 @@
 """Send router packets by hand and show what comes back.
 
-  python router_send.py --port COM10 "01 01" "02 02 01" "u 01 02"
-  python router_send.py --port socket://localhost:5555 "03 06"
+  python router_send.py --port COM10 "01 00 01" "02 00 02 01" "u 01 01 02"
+  python router_send.py --port socket://localhost:5555 "03 00 06"
 
-Each argument is one request: keys + payload in hex (spaces optional); seq and
-flags are added. Prefix "u " for the urgent flag, "raw " to send the bytes
+Each argument is one request: [key][dir][keys...] + payload in hex (spaces
+optional; dir 00 read, 01 write, as typed); seq and flags are added. Prefix "u " for the urgent flag, "raw " to send the bytes
 as-is (no seq/flags added). Prints the TX line, the response (decoded), and
 every stream frame and log line that arrived meanwhile.
 """
