@@ -113,7 +113,6 @@ void vm_override_drain(void) {
       err_report(validation);
     } else if (rec->len > 0) {
       memcpy(obj->payload + (size_t)rec->start_idx * w, rec->data, rec->len);
-      obj->head.f.upd = 1;
       applied_cnt++;
     }
     vRingbufferReturnItem(s_override_rb, item);

@@ -168,6 +168,14 @@ describe('the devices of the view', () => {
     expect(values(4)).toEqual([1, 2, 3, 4])
   })
 
+  it("the policy offers the board's own responses on the failing device and writes them as the u32 the firmware reads", () => {
+    const members = bundledEnums().device_response?.members ?? []
+    expect(members.map((m) => [m.name, m.value])).toEqual([['SYS_DEVICE_RESPONSE_SUSPEND', 0xff000001], ['SYS_DEVICE_RESPONSE_RESET', 0xff000002]])
+    const call = deviceCall(defs, catalog, 20, lifecycleOf(catalog).id, 'ERROR_POLICY', { importance: 2, actions: [0, 0, members[0]!.value, members[1]!.value] }, 'write')
+    // [... importance u8][4 x u32 LE]: the responses are the last two slots (HIGH, CRITICAL)
+    expect(Array.from(requestFrame(call.request).slice(-8))).toEqual([0x01, 0x00, 0x00, 0xff, 0x02, 0x00, 0x00, 0xff])
+  })
+
   it('the pins the board keeps (I2C, strapping, the expander lines) are reserved; the others are not', () => {
     const esp = board.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!.id
     for (const pin of [15, 16, 40, 41]) expect(isReserved(board, esp, pin), `pin ${pin}`).toBe(true)

@@ -6,7 +6,7 @@
 
 export type Category = 'flow' | 'logic' | 'data' | 'time' | 'device' | 'system'
 export type Integration = 'core' | 'contract' | 'custom'
-export type ActivationKind = 'enabled' | 'enable-rising' | 'triggered'
+export type ActivationKind = 'enabled' | 'enable-rising'
 
 /** What a wire carries. `flow` is an execution wire (enable / gate); `object` a whole object of the program; `cell` an element of a pointer object. */
 export type ValueKind = 'bool' | 'int' | 'float' | 'any' | 'object' | 'cell' | 'flow'

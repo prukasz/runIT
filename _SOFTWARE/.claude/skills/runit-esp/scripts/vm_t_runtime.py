@@ -12,8 +12,7 @@ from vm_t_core import F_IN, F_K, OPF, batch, blk_head, expr_state, obj_rec, tiny
 
 
 def counter_prog(n: int = 1) -> tuple[Prog, list[int]]:
-    """n blocks, each adds 1 to its own counter on every pass. The counters are not resetable, so once written they stay
-    fresh and the block runs on every pass; kick() starts them."""
+    """n blocks, each adds 1 to its own counter on every pass."""
     p = Prog()
     cs = [p.f(0.0, flags=F_MUT) for _ in range(n)]
     for c in cs:
@@ -566,7 +565,7 @@ def t_chain(vm: Vm) -> None:
     if not ok(r):
         return
     g = vm.step([xs[0], xs[n // 2], xs[n]], {xs[0]: 0.0})
-    check(f"one pass runs the whole chain in order: the last value is {n} (each block is triggered by the one before)", (vm.vals(g, xs[n // 2]), vm.vals(g, xs[n])) == (float(n // 2), float(n)), f"{vm.vals(g, xs[n // 2])} {vm.vals(g, xs[n])}")
+    check(f"one pass runs the whole chain in order: the last value is {n} (each block reads the one before it)", (vm.vals(g, xs[n // 2]), vm.vals(g, xs[n])) == (float(n // 2), float(n)), f"{vm.vals(g, xs[n // 2])} {vm.vals(g, xs[n])}")
     g = vm.step([xs[n]], {xs[0]: 10.0})
     check("a new input propagates the same way", vm.vals(g, xs[n]) == float(n + 10), str(vm.vals(g, xs[n])))
     vm.reset()

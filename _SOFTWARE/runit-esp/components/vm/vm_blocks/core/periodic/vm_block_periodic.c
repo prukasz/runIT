@@ -29,7 +29,7 @@ static bool vm_periodic_step(vm_block_periodic_data_t* d, uint64_t period_ms, ui
   return true;
 }
 
-/* Enable-driven. ENO is the tick: loud for one pass on a tick, quiet otherwise. */
+/* Enable-driven. ENO is the tick: on for one pass on a tick, off otherwise. */
 void vm_blk_periodic(vm_block_h b) {
   vm_block_periodic_data_t state;
   memcpy(&state, vm_block_get_custom_data(b), sizeof(state));

@@ -9,8 +9,6 @@ import type { IndexStep, ObjType } from './types'
 export interface ObjectFlags {
   /** Writable at run time (`VM_OBJ_F_MUTABLE`). */
   readonly mutable?: boolean
-  /** Freshness cleared at the end of every pass: needed for a block's `upd` triggering to see a write (`VM_OBJ_F_UPD_RESETABLE`). */
-  readonly updResetable?: boolean
   /** Kept across restarts; the object must be named (`VM_OBJ_F_RETENTIVE`, `vm_retain_reserve`). */
   readonly retentive?: boolean
   /** A user's run-time writes are refused (`VM_OBJ_F_USR_PROTECTED`). */

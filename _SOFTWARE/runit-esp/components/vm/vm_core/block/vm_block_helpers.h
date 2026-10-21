@@ -42,16 +42,10 @@ static inline const vm_accessor_t* vm_block_optional_in(vm_block_h b, uint8_t pi
     __bp_err;                                                         \
   })
 
-/* Gate false is quiet; ordinary value writes (including false) remain loud. */
+// Output `pin` as a gate for the blocks below (IF, SWITCH): 1 open, 0 closed.
 static inline void vm_block_drive_gate(vm_block_h b, uint8_t pin, bool state) {
   if (pin >= b->cfg.q_cnt) return;
-  vm_obj_h q = vm_block_get_outputs(b)[pin];
-  if (!state)
-    vm_block_check(b, vm_obj_clear_quiet(q));
-  else {
-    uint8_t one = 1;
-    BLOCK_CALL(VM_OBJ_SET_SCALAR(one, q), b);
-  }
+  BLOCK_CALL(VM_OBJ_SET_SCALAR(state, vm_block_get_outputs(b)[pin]), b);
 }
 
 
@@ -69,4 +63,3 @@ MUST_USE err_h vm_block_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
 
 MUST_USE err_h vm_block_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
 MUST_USE err_h vm_block_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
-MUST_USE err_h vm_block_obj_mark_updated(vm_obj_h obj);

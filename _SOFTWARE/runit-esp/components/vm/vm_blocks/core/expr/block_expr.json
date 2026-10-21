@@ -19,8 +19,8 @@
   },
   "editor_values": ["expression"],
   "activation": {
-    "kind": "triggered",
-    "text": "Runs when one of the inputs it reads is fresh, or on each pass an enable fires, and the block is enabled. Its enable-out stays on every pass the block is enabled and nothing failed, whether or not the result was recomputed."
+    "kind": "enabled",
+    "text": "Computes on every pass while enabled, so the result always follows the inputs. Its enable-out is on every pass the result was written."
   },
   "header": { "subtitle": "{result} = {expression}" },
   "body": ["{expression}"],

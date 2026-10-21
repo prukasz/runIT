@@ -5,7 +5,7 @@
   "id": "set",
   "wire_id": 6,
   "alias": "Set",
-  "description": "Copies the source object (whole trees included) into the destination when the source is fresh, or writes a constant when the source is unwired. Types and counts must match.",
+  "description": "Copies the source object (whole trees included) into the destination, or writes a constant when the source is unwired. Types and counts must match.",
   "category": "data",
   "order": 20,
   "tags": [
@@ -17,8 +17,8 @@
   "integration": "core",
   "state_len": 8,
   "activation": {
-    "kind": "triggered",
-    "text": "Runs when the source is fresh, or on each pass an enable fires (an open gate, a tick). With no source it writes the constant when an enable fires, once at start when none is wired."
+    "kind": "enabled",
+    "text": "Writes on every pass while enabled: the destination follows the source (or holds the constant). To write once, enable it with a pulse (an edge, a tick, an event)."
   },
   "header": {
     "subtitle": "{destination} = {source}"

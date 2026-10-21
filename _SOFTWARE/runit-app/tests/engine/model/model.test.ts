@@ -98,7 +98,7 @@ describe('layout: variables as objects', () => {
 
   it('gives each object its type, name and flags', () => {
     const { objects } = layoutVariables([value('a', 'a', 'u32', { count: 4, retained: true, protected: true })])
-    expect(objects).toEqual([{ id: 0, type: 'u32', count: 4, name: 'a', flags: { mutable: true, updResetable: true, retentive: true, usrProtected: true } }])
+    expect(objects).toEqual([{ id: 0, type: 'u32', count: 4, name: 'a', flags: { mutable: true, retentive: true, usrProtected: true } }])
     expect(layoutVariables([value('a', 'a', 'f32', { writable: false })]).objects[0]?.flags.mutable).toBe(false)
   })
 

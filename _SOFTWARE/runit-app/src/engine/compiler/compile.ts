@@ -163,7 +163,7 @@ export const compile = (ctx: CompileContext, project: Project, options: CompileO
 
   const newObject = (type: ObjType): number => {
     const id = objects.length
-    objects.push({ id, type, count: 1, flags: { mutable: true, updResetable: true, usrProtected: true }, name: '' })
+    objects.push({ id, type, count: 1, flags: { mutable: true, usrProtected: true }, name: '' })
     return id
   }
 

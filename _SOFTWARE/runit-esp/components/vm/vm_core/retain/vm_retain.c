@@ -169,7 +169,7 @@ static MUST_USE err_h apply(const uint8_t* buf, size_t len) {
         /* Renamed-in-place or retyped: keep the uploaded value. */
         VM_RAISE(ERR_VM_RETAIN_MISMATCH, .obj_id = id, .type = type, .size = size);
       } else {
-        memcpy(o->payload, &buf[off], size);  // quiet: stored state, not new input
+        memcpy(o->payload, &buf[off], size);
       }
     }
     off += size;

@@ -26,7 +26,7 @@ describe('wire numbers come from the generated descriptors', () => {
     expect(defs.enMode).toEqual({ any: 0, all: 1 })
     expect(defs.onError).toEqual({ stop: 0, continue: 1 })
     expect(defs.idxKinds).toEqual({ literal: 0, ref: 1, name: 2 })
-    expect(defs.headFlags).toEqual({ mutable: 1, updResetable: 4, retentive: 16, usrProtected: 64 })
+    expect(defs.headFlags).toEqual({ mutable: 1, retentive: 16, usrProtected: 64 })
     expect(defs.exec.scan).toBe(0)
     expect(defs.exec.retainClear).toBe(10)
   })
@@ -62,7 +62,7 @@ const build = (): ProgramIR => {
   const data: DataDef[] = []
   const accessors: AccessorDef[] = []
   const blocks: BlockDef[] = []
-  const standard: ObjectFlags = { mutable: true, updResetable: true }
+  const standard: ObjectFlags = { mutable: true }
   const obj = (type: ObjectDef['type'], count: number, name: string, flags: ObjectFlags, init?: number | boolean | number[]): number => {
     const id = objects.length
     objects.push({ id, type, count, flags, name })

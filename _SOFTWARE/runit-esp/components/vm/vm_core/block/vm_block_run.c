@@ -9,40 +9,8 @@ and may be as careful as it likes, these run once per block per pass.
 
 Everything here is out of line on purpose, and none of it is on the hot path:
 the supervisor calls none of it. These are what a *block body* reaches for --
-clearing its outputs when it stands down, asking whether anything arrived,
 claiming a range -- so each one is paid for only by the blocks that use it.
 */
-
-bool vm_block_triggered(vm_block_h b) {
-  const vm_accessor_t** ins = vm_block_get_inputs(b);
-  for (uint8_t i = 0; i < b->cfg.in_cnt; i++) {
-    if (vm_acc_fresh(ins[i])) {
-      b->cfg.rt |= VM_BLK_RT_TRIGGERED;
-      return true;
-    }
-  }
-  if (!vm_block_en_triggered(b)) return false;
-  b->cfg.rt |= VM_BLK_RT_TRIGGERED;
-  return true;
-}
-
-bool vm_block_en_triggered(vm_block_h b) {
-  /* Fresh first: it is the cheap test and rules out every level that wasn't
-     written this pass. A source that can't be read fails closed here without a
-     report; vm_block_is_enabled() reports it when the body asks. */
-  const vm_accessor_t** en = vm_block_get_en_list(b);
-  for (uint8_t i = 0; i < b->cfg.en_cnt; i++) {
-    if (!vm_acc_fresh(en[i])) continue;
-    bool  v = false;
-    err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
-    if (unlikely(e)) {
-      err_free(e);
-      continue;
-    }
-    if (v) return true;
-  }
-  return false;
-}
 
 void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end) {
   /* The range is written into the block's own payload rather than handed to

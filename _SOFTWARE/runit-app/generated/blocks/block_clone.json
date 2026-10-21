@@ -19,8 +19,8 @@
   "integration": "core",
   "state_len": 0,
   "activation": {
-    "kind": "triggered",
-    "text": "Runs when the source (the first input) is fresh, or on each pass an enable fires (an open gate, a tick), and the block is enabled. A clone is fresh for one pass only."
+    "kind": "enabled",
+    "text": "Copies on every pass while enabled. While the shape stays the same this refills the copy in place; to take a snapshot once, enable it with a pulse (an edge, a tick, an event)."
   },
   "eno": {
     "alias": "Copied",
@@ -33,7 +33,7 @@
     {
       "id": "source",
       "alias": "Copy from",
-      "description": "The object or tree to copy. The block runs when it is fresh.",
+      "description": "The object or tree to copy.",
       "value": "object",
       "required": true
     },

@@ -4,7 +4,6 @@
 #include "utils.h"
 #include "vm_block.h"
 #include "vm_event.h"
-#include "vm_obj_dyn.h"
 #include "vm_override.h"
 #include "vm_retain.h"
 #include "sys_actions.h"
@@ -144,7 +143,7 @@ static void wd_sample(void* arg) {
   s_wd_last = cur;
 }
 
-// Telemetry sampling hook (called before end-of-pass upd sweep)
+// Telemetry sampling hook (called at the end of every completed pass)
 static void (*s_sample_hook)(void);
 
 void vm_exec_set_sample_hook(void (*hook)(void)) {
@@ -159,24 +158,6 @@ err_h vm_exec_request_action(uint32_t id) {
 /* ==========================================================================
    The pass
    ========================================================================== */
-
-// End-of-pass upd sweep: clears upd flag on resetable registry and dynamic objects
-static void clear_upd(void) {
-  const vm_registry_t* g = &g_vm_store.reg[VM_REG_OBJ];
-  for (uint16_t i = 0; i < g->count; i++) {
-    vm_obj_h o = (vm_obj_h)g->items[i];
-    if (o && o->head.f.upd_resetable) o->head.f.upd = 0;
-  }
-
-  /* Heap objects are not in the registry -- they are reached through a
-     parent's pointer cell (vm_obj_dyn.h) -- but a parsed
-     message is exactly the kind of thing a downstream block waits on, so they
-     have to be swept too or freshness would work for arena objects only. */
-  for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
-    vm_obj_h o = vm_obj_dyn_get_by_id(i);
-    if (o && o->head.f.upd_resetable) o->head.f.upd = 0;
-  }
-}
 
 /* Overflow reporting stays outside block dispatch. */
 static void report_event_overflow(void) {
@@ -356,17 +337,14 @@ void vm_exec_pass(void) {
   const uint64_t t_blocks = vm_clock_us();
   vm_stats_phase(VM_PH_BLOCKS, (uint32_t)(t_blocks - t_events));
 
-  // Order within pass: execute blocks -> sample subscriptions -> clear upd
+  // Order within pass: execute blocks -> sample subscriptions -> retained values
   bool completed = !vm_exec_cancelled();
   if (completed && s_sample_hook) s_sample_hook();
   const uint64_t t_sample = vm_clock_us();
   vm_stats_phase(VM_PH_SAMPLE, (uint32_t)(t_sample - t_blocks));
   if (completed) vm_retain_on_pass(t0 / 1000u);  // retention runs on the real clock, not program time
-  const uint64_t t_retain = vm_clock_us();
-  vm_stats_phase(VM_PH_RETAIN, (uint32_t)(t_retain - t_sample));
-  clear_upd();
   const uint64_t t_end = vm_clock_us();
-  vm_stats_phase(VM_PH_CLEAR, (uint32_t)(t_end - t_retain));
+  vm_stats_phase(VM_PH_RETAIN, (uint32_t)(t_end - t_sample));
 
   portENTER_CRITICAL(&s_program_mux);
   if (!s_program_locked && s_mode == VM_RUN_STEP) {
@@ -531,7 +509,6 @@ err_h vm_exec_control(vm_exec_command_e command) {
   if (command == VM_EXEC_RESET_TO_START) {
     vm_run_mode_e previous;
     ERR_TRY(vm_exec_program_lock(&previous));
-    clear_upd();
     s_resume = s_selected;
     vm_exec_program_unlock(s_selected == VM_RUN_RUNNING ? VM_RUN_FROZEN : s_selected);
     return NULL;

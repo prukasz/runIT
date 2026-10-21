@@ -106,7 +106,6 @@ Three things are published and checked at the source, not held in the engine: `s
 
 ## Known gaps
 
-- Initial values are not "fresh" (VM_CORE.MD): a block triggered by its inputs does nothing until an input is written at run time. The engine does not hide that.
 - The layout of `vm_block_device_data_t` and of the core blocks' fields (offsets, `raw_type`) is in the descriptors only where they publish it; the device struct is held in `layouts.ts` and checked against the header.
 - `generated/common/limits.json` holds the values of the build in `runit-esp/sdkconfig`. Two boards built differently need their own file (or `limits` passed by the app); no command of the system or VM contract reports them at run time.
 

@@ -3,7 +3,7 @@
 
 /*
  * Shared by the flow routers IF and SWITCH: both are enable-driven and stateless, and their outputs act as
- * enable gates for the blocks below. `taken` is the output that is driven loud; every other one is cleared quietly.
+ * enable gates for the blocks below. `taken` is set to 1, every other output to 0.
  */
 
 #define VM_BRANCH_NONE 0xFFu  // no output taken (disabled, a failed read, or a selector out of range)

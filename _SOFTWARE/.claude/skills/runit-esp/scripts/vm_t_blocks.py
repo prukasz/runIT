@@ -385,7 +385,7 @@ def t_set_copy(vm: Vm) -> None:
         want = val
         floats = any(isinstance(x, float) for x in (want if isinstance(want, list) else [want]))
         eq = close(got, want) if floats else got == want
-        check(f"SET copies a {name} (a fresh source reaches the destination), ENO 1", eq and vm.vals(g, eno) == 1, f"{got} eno={vm.vals(g, eno)}")
+        check(f"SET copies a {name}, ENO 1", eq and vm.vals(g, eno) == 1, f"{got} eno={vm.vals(g, eno)}")
     check("SET from F into U32 (types differ): the destination is left alone, ENO 0", vm.vals(g, mdst) == 0 and vm.vals(g, meno) == 0, f"{vm.vals(g, mdst)} {vm.vals(g, meno)}")
     check("SET between arrays of different length: refused, ENO 0", vm.vals(g, sz_dst) == [0.0, 0.0, 0.0] and vm.vals(g, sz_eno) == 0, f"{vm.vals(g, sz_dst)} {vm.vals(g, sz_eno)}")
     check("SET into a destination that is not mutable: refused, ENO 0", vm.vals(g, ro_dst) == 1.0 and vm.vals(g, ro_eno) == 0, f"{vm.vals(g, ro_dst)} {vm.vals(g, ro_eno)}")
@@ -397,12 +397,12 @@ def t_set_copy(vm: Vm) -> None:
     check("the protected destination is reported (ERR_VM_OBJ_USR_PROTECTED)", "ERR_VM_OBJ_USR_PROTECTED" in names or "ERR_VM_OBJ_NOT_MUTABLE" in names, str(sorted(set(names))))
     check("the read-only destination is reported (ERR_VM_OBJ_NOT_MUTABLE)", "ERR_VM_OBJ_NOT_MUTABLE" in names, str(sorted(set(names))))
 
-    # a source that is not fresh does not copy
+    # enabled: EN -> destination = source, on every pass
     vm.write(pairs["F"][1], 0.0)
     g = vm.step([pairs["F"][1], pairs["F"][2]])
-    check("a source that is not fresh copies nothing (and ENO is off)", vm.vals(g, pairs["F"][1]) == 0.0 and vm.vals(g, pairs["F"][2]) == 0, f"{vm.vals(g, pairs['F'][1])}")
+    check("an enabled SET copies on every pass: a value written to the destination is overwritten on the next pass", close(vm.vals(g, pairs["F"][1]), 3.5) and vm.vals(g, pairs["F"][2]) == 1, f"{vm.vals(g, pairs['F'][1])}")
     g = vm.step([pairs["F"][1], pairs["F"][2]], {pairs["F"][0]: 7.0})
-    check("... writing the source copies again", vm.vals(g, pairs["F"][1]) == 7.0 and vm.vals(g, pairs["F"][2]) == 1, str(vm.vals(g, pairs["F"][1])))
+    check("... and the destination follows the source", vm.vals(g, pairs["F"][1]) == 7.0 and vm.vals(g, pairs["F"][2]) == 1, str(vm.vals(g, pairs["F"][1])))
     vm.reset()
 
 
@@ -439,19 +439,21 @@ def t_set_const(vm: Vm) -> None:
     for name, (dst, eno, want) in cases.items():
         check(f"SET with no source writes its constant: {name}", close(vm.vals(g, dst), float(want)) and vm.vals(g, eno) == 1, f"{vm.vals(g, dst)} eno={vm.vals(g, eno)}")
     check("... into the first element of an array only", vm.vals(g, arr) == [4.0, 2.0, 3.0], str(vm.vals(g, arr)))
-    check("a SET with a gate does not write until the gate fires", vm.vals(g, gdst) == 0.0 and vm.vals(g, geno) == 0, f"{vm.vals(g, gdst)} {vm.vals(g, geno)}")
-    # the constant is written once (no enable) and not again
+    check("a SET with a closed gate does not write", vm.vals(g, gdst) == 0.0 and vm.vals(g, geno) == 0, f"{vm.vals(g, gdst)} {vm.vals(g, geno)}")
+    # with no enable the constant is held: written on every pass
     first = cases["F 2.5"][0]
     vm.write(first, 0.0)
     g = vm.step(ids)
-    check("... the constant of a SET with no enable is written once (it is not written back on the next pass)", vm.vals(g, first) == 0.0 and vm.vals(g, cases['F 2.5'][1]) == 0, f"{vm.vals(g, first)}")
+    check("... the constant of a SET with no enable is written on every pass (a value written to it is overwritten)", close(vm.vals(g, first), 2.5) and vm.vals(g, cases['F 2.5'][1]) == 1, f"{vm.vals(g, first)}")
     g = vm.step(ids, {gate: True})
-    check("an open gate (fresh) writes the constant", vm.vals(g, gdst) == 9.5 and vm.vals(g, geno) == 1, f"{vm.vals(g, gdst)} {vm.vals(g, geno)}")
+    check("an open gate writes the constant", vm.vals(g, gdst) == 9.5 and vm.vals(g, geno) == 1, f"{vm.vals(g, gdst)} {vm.vals(g, geno)}")
     vm.write(gdst, 0.0)
     g = vm.step(ids)
-    check("... a gate that stays open but is not rewritten does not write again", vm.vals(g, gdst) == 0.0, str(vm.vals(g, gdst)))
-    g = vm.step(ids, {gate: True})
-    check("... writing the gate again does", vm.vals(g, gdst) == 9.5, str(vm.vals(g, gdst)))
+    check("... and keeps writing it while the gate stays open", vm.vals(g, gdst) == 9.5 and vm.vals(g, geno) == 1, str(vm.vals(g, gdst)))
+    vm.write(gate, False)
+    vm.write(gdst, 0.0)
+    g = vm.step(ids)
+    check("... a closed gate stops it: the destination keeps what was written, ENO 0", vm.vals(g, gdst) == 0.0 and vm.vals(g, geno) == 0, f"{vm.vals(g, gdst)} {vm.vals(g, geno)}")
     vm.reset()
 
     # shape
@@ -485,12 +487,12 @@ def t_set_tree(vm: Vm) -> None:
     if not loaded(vm, p):
         return
     g = vm.step([src, dst, eno, gate])
-    check("the tree is not copied until the source or a gate is fresh", g.get(a2) == f32(0.0), str(g.get(a2)))
+    check("the tree is not copied while the gate is closed", g.get(a2) == f32(0.0), str(g.get(a2)))
     g = vm.step([src, dst, eno, gate], {gate: True})
     check("a gate opens: the children of the source are copied into the children of the destination", close(vm.vals(g, a2), 1.5) and vm.vals(g, b2) == 77, f"{vm.vals(g, a2)} {vm.vals(g, b2)}")
     check("... ENO 1", vm.vals(g, eno) == 1)
-    g = vm.step([src, dst, eno, gate], {a: 9.0, gate: True})
-    check("a changed child is copied again", close(vm.vals(g, a2), 9.0), str(vm.vals(g, a2)))
+    g = vm.step([src, dst, eno, gate], {a: 9.0})
+    check("a changed child is copied on the next pass while the gate stays open", close(vm.vals(g, a2), 9.0), str(vm.vals(g, a2)))
     vm.reset()
 
     # shapes that differ
@@ -532,14 +534,14 @@ def t_clone(vm: Vm) -> None:
     check("... with the values of the source", vm.vals(g, child) == [1.0, 2.0, 3.0], str(vm.vals(g, child)))
     check("... ENO 1", vm.vals(g, ea) == 1)
     first = child
-    g = vm.step(ids, {s3: [4.0, 5.0, 6.0], ga: True})
+    g = vm.step(ids, {s3: [4.0, 5.0, 6.0]})
     child = struct.unpack("<H", g[cell][:2])[0]
-    check("a changed source refills the same heap object (same shape, no new allocation)", child == first and vm.vals(g, child) == [4.0, 5.0, 6.0], f"{child:#x} {vm.vals(g, child)}")
-    g = vm.step(ids, {gb: True})
+    check("while the gate stays open a changed source refills the same heap object (same shape, no new allocation)", child == first and vm.vals(g, child) == [4.0, 5.0, 6.0], f"{child:#x} {vm.vals(g, child)}")
+    g = vm.step(ids, {ga: False, gb: True})
     child = struct.unpack("<H", g[cell][:2])[0]
     check("a source of another shape is rebuilt: a float array of 5", vm.dyn.get(child) == (T_F, 5) and vm.vals(g, child) == [10.0, 20.0, 30.0, 40.0, 50.0], f"{vm.dyn.get(child)} {vm.vals(g, child)}")
-    g = vm.step(ids)
-    check("a clone is fresh for one pass only: no new copy without news", vm.vals(g, ea) == 0 and vm.vals(g, eb) == 0)
+    g = vm.step(ids, {gb: False})
+    check("both gates closed: no copy, ENO 0 on both", vm.vals(g, ea) == 0 and vm.vals(g, eb) == 0)
     vm.reset()
 
     # shape of the block

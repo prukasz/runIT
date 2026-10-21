@@ -1876,12 +1876,6 @@
           "description": "Writable at run time"
         },
         {
-          "name": "VM_OBJ_F_UPD_RESETABLE",
-          "value": 4,
-          "alias": "Fresh-tracked",
-          "description": "Freshness cleared at end of pass"
-        },
-        {
           "name": "VM_OBJ_F_TAGGED",
           "value": 8,
           "alias": "Named by the board",
@@ -2361,7 +2355,6 @@
     "VM_OBJ_F_MUTABLE": "vm_obj_flag",
     "VM_OBJ_F_RETENTIVE": "vm_obj_flag",
     "VM_OBJ_F_TAGGED": "vm_obj_flag",
-    "VM_OBJ_F_UPD_RESETABLE": "vm_obj_flag",
     "VM_OBJ_F_USR_PROTECTED": "vm_obj_flag",
     "VM_OBJ_I32": "vm_obj_t_e",
     "VM_OBJ_NONE": "vm_obj_t_e",

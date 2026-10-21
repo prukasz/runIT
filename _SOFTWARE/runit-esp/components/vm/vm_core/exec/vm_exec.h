@@ -154,7 +154,7 @@ void vm_exec_pass(void);
 /** @brief Execute a contiguous range of blocks [start, end). Used for spans/loops. */
 void vm_exec_run_range(uint16_t start, uint16_t end);
 
-/** @brief Set telemetry hook called at end of each pass before clearing upd flags. */
+/** @brief Set telemetry hook called at the end of each completed pass. */
 void vm_exec_set_sample_hook(void (*hook)(void));
 
 /**

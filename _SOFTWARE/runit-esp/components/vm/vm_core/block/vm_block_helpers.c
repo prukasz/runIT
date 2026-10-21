@@ -19,7 +19,3 @@ err_h vm_block_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* 
 err_h vm_block_obj_link(const vm_accessor_t* child, const vm_accessor_t* target) {
   return vm_internal_obj_link(child, target, true);
 }
-
-err_h vm_block_obj_mark_updated(vm_obj_h obj) {
-  return vm_internal_obj_mark_updated(obj, true);
-}

@@ -13,13 +13,6 @@ bool  vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool sche
 MUST_USE err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth);
 MUST_USE err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child);
 
-static __always_inline err_h vm_internal_obj_mark_updated(vm_obj_h obj, bool user) {
-  err_h e = vm_internal_obj_writable(obj, user);
-  if (unlikely(e)) return e;
-  obj->head.f.upd = 1;
-  return NULL;
-}
-
 // --- Inlined indexing & child lookup helpers ---
 
 // one element of obj as a payload, bounds-checked (see vm_obj_get_elem_ptr())
@@ -106,8 +99,8 @@ static __always_inline err_h vm_acc_scalar(const vm_accessor_t* acc, vm_obj_payl
 // --- Scalar store ---
 
 /* Stores `v` (of type `src_type`, every member of vm_val_t starts at its address) into the scalar of type `type` at
- * `ptr` in `owner`, converted, and marks the owner fresh. `src_type` is a constant at every call (VM_TYPE_OF), so the
- * same type folds to a plain store. */
+ * `ptr` in `owner`, converted. `src_type` is a constant at every call (VM_TYPE_OF), so the same type folds to a plain
+ * store. */
 static __always_inline err_h vm_internal_store(vm_obj_h owner, void* ptr, uint8_t type, vm_val_t v, vm_obj_t_e src_type) {
   switch (type) {
     case VM_OBJ_F:   VM_INTERNAL_LOAD_SCALAR((float*)ptr, src_type, &v);    break;
@@ -118,7 +111,6 @@ static __always_inline err_h vm_internal_store(vm_obj_h owner, void* ptr, uint8_
     case VM_OBJ_B:   VM_INTERNAL_LOAD_SCALAR((bool*)ptr, src_type, &v);     break;
     default:         return vm_obj_not_scalar_err(vm_obj_get_id(owner), (vm_obj_t_e)type, VM_ID_NONE);
   }
-  owner->head.f.upd = 1;
   return NULL;
 }
 

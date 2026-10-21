@@ -84,11 +84,9 @@ err_h vm_obj_dyn_new(vm_obj_h* out, vm_obj_t_e type, uint16_t count, const char*
   const vm_obj_head_t head = {
       .payload_size = (uint16_t)size,
       .d            = {.obj_t = type, .name_size = name_len},
-      .f            = {.mutable = 1, .upd_resetable = 1},
+      .f            = {.mutable = 1},
   };
-  ERR_TRY(vm_obj_dyn_create(out, &head, name_len ? name : NULL));
-  (*out)->head.f.upd = 1;  // new data this pass
-  return NULL;
+  return vm_obj_dyn_create(out, &head, name_len ? name : NULL);
 }
 
 err_h vm_obj_dyn_adopt(vm_obj_h parent, uint16_t index, vm_obj_h child) {

@@ -7,10 +7,9 @@
  *
  * Logic Flow:
  *   1. Read APIs (vm_obj_get_obj)
- *   2. Write APIs (vm_obj_clear_quiet)
- *   3. Copy & Clone APIs (vm_obj_copy_content, vm_obj_shape_matches, vm_obj_schema_matches, vm_obj_clone_shape, vm_obj_clone_into)
- *   4. Link APIs (vm_obj_link, vm_obj_link_direct)
- *   5. Update / Freshness Mark APIs (vm_obj_mark_updated)
+ *   2. Copy & Clone APIs (vm_obj_copy_content, vm_obj_shape_matches, vm_obj_schema_matches, vm_obj_clone_shape, vm_obj_clone_into)
+ *   3. Link APIs (vm_obj_link, vm_obj_link_direct)
+ *   4. Object IDs (vm_obj_get_id)
  */
 
 // ===========================================================================
@@ -41,19 +40,7 @@ err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
 }
 
 // ===========================================================================
-// 2. Write APIs
-// ===========================================================================
-
-
-err_h vm_obj_clear_quiet(vm_obj_h obj) {
-  ERR_TRY(vm_internal_obj_writable(obj, false));
-  if (!vm_type_is_scalar(obj->head.d.obj_t)) return vm_obj_not_scalar_err(vm_obj_get_id(obj), (vm_obj_t_e)obj->head.d.obj_t, VM_ID_NONE);
-  if (obj->head.payload_size) memset(obj->payload, 0, obj->head.payload_size);
-  return NULL;
-}
-
-// ===========================================================================
-// 3. Copy & Clone APIs
+// 2. Copy & Clone APIs
 // ===========================================================================
 
 err_h vm_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target) {
@@ -83,7 +70,7 @@ err_h vm_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target
 }
 
 // ===========================================================================
-// 4. Link APIs
+// 3. Link APIs
 // ===========================================================================
 
 err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target) {
@@ -101,12 +88,8 @@ err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child) {
 }
 
 // ===========================================================================
-// 5. Update / Freshness Mark APIs
+// 4. Object IDs
 // ===========================================================================
-
-err_h vm_obj_mark_updated(vm_obj_h obj) {
-  return vm_internal_obj_mark_updated(obj, false);
-}
 
 uint16_t vm_obj_get_id(vm_obj_h obj) {
   if (!obj) return VM_ID_NONE;

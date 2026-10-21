@@ -503,8 +503,8 @@ def t_expr_faults(vm: Vm) -> None:
     vm.reset()
 
 
-@test("expr/float: recovery, trigger and enable")
-def t_expr_trigger(vm: Vm) -> None:
+@test("expr/float: recovery and enable")
+def t_expr_enable(vm: Vm) -> None:
     p = Prog()
     a, b = p.f(6.0), p.f(0.0)
     q, e = p.f(), p.b()
@@ -523,20 +523,18 @@ def t_expr_trigger(vm: Vm) -> None:
     check("the divisor fixed: the quotient is computed", close(vm.vals(g, q), 2.0), str(vm.vals(g, q)))
     check("... and ENO is back", vm.vals(g, e) == 1)
 
-    # freshness: a pass without a fresh input does not recompute
+    # computed on every pass while enabled: the output follows the inputs
     vm.write(q, 99.0)
     g = vm.step(ids)
-    check("an input that is not fresh does not trigger the block (the output keeps what was written)", vm.vals(g, q) == 99.0, str(vm.vals(g, q)))
-    check("... and ENO stays true (pass-through while enabled)", vm.vals(g, e) == 1)
-    g = vm.step(ids, {a: 6.0})
-    check("writing the input again (the same value) triggers it", close(vm.vals(g, q), 2.0), str(vm.vals(g, q)))
+    check("an enabled block computes on every pass (a value written to its output is overwritten)", close(vm.vals(g, q), 2.0), str(vm.vals(g, q)))
+    check("... ENO 1", vm.vals(g, e) == 1)
 
-    # enable: a rising gate fires the block once even though no input changed
+    # enable: an open gate computes, and keeps computing while it stays open
     g = vm.step(ids, {gate: True})
-    check("an open gate (fresh and true) triggers the block", vm.vals(g, q2) == 7.0 and vm.vals(g, e2) == 1, f"{vm.vals(g, q2)} {vm.vals(g, e2)}")
+    check("an open gate: the block computes", vm.vals(g, q2) == 7.0 and vm.vals(g, e2) == 1, f"{vm.vals(g, q2)} {vm.vals(g, e2)}")
     vm.write(q2, 0.0)
     g = vm.step(ids)
-    check("a gate that is merely true (not rewritten) does not trigger", vm.vals(g, q2) == 0.0 and vm.vals(g, e2) == 1, f"{vm.vals(g, q2)} {vm.vals(g, e2)}")
+    check("... and keeps computing while the gate stays open", vm.vals(g, q2) == 7.0 and vm.vals(g, e2) == 1, f"{vm.vals(g, q2)} {vm.vals(g, e2)}")
     g = vm.step(ids, {gate: False})
     check("the gate closed: ENO false", vm.vals(g, e2) == 0)
     # enable mode ALL

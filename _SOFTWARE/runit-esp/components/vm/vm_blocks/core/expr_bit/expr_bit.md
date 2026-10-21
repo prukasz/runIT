@@ -12,10 +12,10 @@ Like **Expression**, but on whole numbers (unsigned 32-bit) and with bit operati
 |---|---|
 | Inputs (any number) | Read by the formula by index. |
 | Result | The value (an unsigned 32-bit number), written to output 0. |
-| ENO | On for the pass the result was written. |
+| ENO | On every pass the result was written. |
 
 ## Behaviour
 
-The formula is checked once at load, exactly as for **Expression**: an invalid formula rejects the whole program. It runs when one of its inputs is fresh, or on each pass an enable fires, and the block is enabled.
+The formula is checked once at load, exactly as for **Expression**: an invalid formula rejects the whole program. It computes on every pass while enabled.
 
 Examples: *bit 3 of a*, *(a shifted left by 4) or b*, *number of bits set in a*.

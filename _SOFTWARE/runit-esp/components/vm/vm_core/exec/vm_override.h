@@ -21,8 +21,8 @@ MUST_USE err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* 
 
 /**
  * @brief Drain and apply all pending runtime variable updates (called from Core 1 at scan boundary).
- * Revalidates the queued record and target, then copies data to object payload
- * and sets upd = 1 so downstream blocks and telemetry react. Malformed or stale
+ * Revalidates the queued record and target, then copies data to object payload,
+ * so every block of the pass reads the new value. Malformed or stale
  * records are reported and discarded without modifying an object.
  */
 void vm_override_drain(void);

@@ -20,7 +20,6 @@
  * - **Restore:** on the first start after a load (an EXEC run command), before the
  *   first pass: each stored value goes into the retentive object with the same
  *   name, type and size; a mismatch keeps the uploaded value and is reported.
- *   Restored values are not marked fresh, exactly like uploaded initial values.
  * - **Active window:** saving only happens between a program's start and its
  *   teardown, so an empty or unstarted program never overwrites stored values.
  * - **Clear (reset all):** vm_retain_clear() erases the store and stops saving

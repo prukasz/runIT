@@ -8,12 +8,12 @@ Use it to keep a snapshot of a structure that can change shape, for example a pa
 
 | Pin | Meaning |
 |---|---|
-| Copy from (required) | The object (or tree) to copy. The block runs when it is fresh. |
+| Copy from (required) | The object (or tree) to copy. |
 | Copy to (required) | An element of a pointer object the clone is attached to. |
 | ENO | Active on the passes a copy happened. |
 
 ## Behaviour
 
-- Memory for the clone is taken only when the shape changes. While the shape stays the same the values are just refilled.
-- A clone is **fresh for one pass** only, then it is not news any more.
+- It copies on every pass while enabled. Memory for the clone is taken only when the shape changes; while the shape stays the same the values are just refilled.
+- To take a snapshot **once** (keep a message while the source moves on), enable it with a pulse: an **Edge**, an **On event**, a **Periodic** tick.
 - The number of clones that can exist at once is limited; a program that needs more gets a clear error at run time.

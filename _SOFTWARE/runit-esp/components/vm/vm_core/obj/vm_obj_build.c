@@ -54,11 +54,11 @@ err_h vm_obj_shape(const vm_obj_head_t* head, uint32_t* out_total) {
 
 void vm_obj_init(vm_obj_h o, const vm_obj_head_t* head, const char* name) {
   o->head = *head;
-  o->head.f.upd = 0;
+  o->head.f._unused = 0;
   o->head.f.tagged = head->d.name_size ? 1 : 0;
   o->head.f.dynamic = 0;
   // usr_protected stays as uploaded: the program marks block-owned objects, a user variable a block drives stays unmarked.
-  // upd and dynamic are never taken from the wire.
+  // dynamic is never taken from the wire.
 
   if (head->d.name_size && name) {
     memcpy(o->payload + head->payload_size, name, head->d.name_size);

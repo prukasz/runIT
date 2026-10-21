@@ -165,8 +165,7 @@ static inline uint32_t fnv(uint32_t h, const uint8_t* p, size_t n) {
   return h;
 }
 
-/* Header as the app sees it: type, size, name. Flags other than the name are
-   not part of it (upd changes every pass). */
+/* Header as the app sees it: type, size, name. The flags are not part of it. */
 static uint16_t head_hash(vm_obj_h o) {
   uint8_t shape[4] = {(uint8_t)o->head.payload_size, (uint8_t)(o->head.payload_size >> 8), o->head.d.obj_t,
                       o->head.f.tagged ? o->head.d.name_size : 0};

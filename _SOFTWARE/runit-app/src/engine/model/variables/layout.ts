@@ -71,7 +71,7 @@ export const layoutVariables = (tree: readonly Variable[]): VariableLayout => {
         id,
         type: variable.type,
         count: variable.count,
-        flags: { mutable: variable.writable !== false, updResetable: true, retentive: variable.retained === true, usrProtected: variable.protected === true },
+        flags: { mutable: variable.writable !== false, retentive: variable.retained === true, usrProtected: variable.protected === true },
         name: variable.name,
       })
       const bytes = initialBytes(variable)
@@ -80,10 +80,10 @@ export const layoutVariables = (tree: readonly Variable[]): VariableLayout => {
       const kept = (variable as FolderVariable).children.filter(included)
       const children = kept.map((c) => ids.get(c.id)!)
       entries.set(variable.id, kept.map((c) => c.id))
-      objects.push({ id, type: 'ptr', count: children.length, flags: { mutable: true, updResetable: true }, name: variable.name })
+      objects.push({ id, type: 'ptr', count: children.length, flags: { mutable: true }, name: variable.name })
       data.push({ id, start: 0, data: encodeValue('ptr', children) })
     } else {
-      objects.push({ id, type: 'ptr', count: 1, flags: { mutable: true, updResetable: true }, name: variable.name })
+      objects.push({ id, type: 'ptr', count: 1, flags: { mutable: true }, name: variable.name })
       const target = variable.target === null ? undefined : ids.get(variable.target)
       if (target !== undefined) data.push({ id, start: 0, data: encodeValue('ptr', [target]) })
       else if (variable.target !== null) skipped.push({ id: variable.id, reason: 'its target is not part of the program' })

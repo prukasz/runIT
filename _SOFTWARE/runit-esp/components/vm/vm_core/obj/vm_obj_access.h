@@ -40,13 +40,9 @@
 /** @brief The object an accessor names; a path ending on a PTR element names the object in that cell. */
 MUST_USE err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source);
 
-// Write
-/** Clear without publishing freshness. Failure still returns an error. */
-MUST_USE err_h vm_obj_clear_quiet(vm_obj_h obj);
-
 // Copy & Clone
 /** @brief Validate the entire destination, then copy without allocating.
- * Failure preserves destination values and freshness. Requires single-writer
+ * Failure preserves the destination's values. Requires single-writer
  * execution; overlapping source leaves follow deterministic slot order. */
 MUST_USE err_h vm_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target);
 MUST_USE err_h vm_obj_copy_direct(vm_obj_h src, vm_obj_h dst);
@@ -75,15 +71,9 @@ MUST_USE err_h vm_obj_clone_shape(vm_obj_h* out, vm_obj_h src);
 /** @brief Copy `source` into the pointer cell `target` names, building the
  *  destination first if its schema (including tags) differs. Fill completes
  *  before replacement releases the old tree; failures preserve the old slot.
- *  A matching destination is preflighted and refilled, then its holder published. */
+ *  A matching destination is preflighted and refilled in place. */
 MUST_USE err_h vm_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target);
 
 // Link
 MUST_USE err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target);
 MUST_USE err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child);
-
-// Update / Freshness Mark
-/** @brief Explicit aggregate update marking, after a successful field update.
- * Scalar writes mark their owner only; copy marks the destination subtree;
- * Clone additionally marks its holder. No implicit ancestor propagation. */
-MUST_USE err_h vm_obj_mark_updated(vm_obj_h obj);

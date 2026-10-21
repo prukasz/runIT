@@ -9,7 +9,7 @@
  * Logic Flow:
  *   1. Permission validation (vm_internal_obj_writable)
  *   2. Read & index conversion (vm_get_as_*, payload_as_index)
- *   3. Accessor walk (vm_acc_walk, vm_acc_walk_fresh): the accessors without a cached payload
+ *   3. Accessor walk (vm_acc_walk): the accessors without a cached payload
  *   4. Dynamic slot management (slot_store)
  *   5. Tree comparison, copy, clone, and link engines (copy_values, copy_tree, vm_internal_shape_matches, vm_internal_obj_copy_content, vm_internal_obj_copy_direct, vm_internal_clone_shape, vm_internal_obj_clone_into, vm_internal_obj_link)
  */
@@ -218,16 +218,6 @@ err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out
   return NULL;
 }
 
-bool vm_acc_walk_fresh(const vm_accessor_t* acc) {
-  vm_obj_payload_t p;
-  err_h e = vm_acc_walk(acc, 0, &p);
-  if (unlikely(e)) {
-    err_free(e);
-    return false;
-  }
-  return p.owner->head.f.upd;
-}
-
 // ===========================================================================
 // 4. Dynamic Slot Management
 // ===========================================================================
@@ -240,13 +230,11 @@ pays nothing for it.
 */
 err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
   vm_obj_h prev = *cell;
-  if (prev == child) return NULL;  // already there: no churn, and no news to publish
+  if (prev == child) return NULL;  // already there: nothing to check or free
   ERR_TRY(vm_obj_dyn_take(owner, child));
 
   *cell = child;
   vm_obj_dyn_release(prev);
-
-  owner->head.f.upd = 1;
   return NULL;
 }
 
@@ -257,15 +245,12 @@ err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
 /* One payload of plain values. `s.ptr == d.ptr` is a copy onto itself, which
    is a no-op rather than an error -- and skipping it also keeps memcpy() off
    a source and destination that are the same bytes. */
-static MUST_USE err_h copy_values(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, bool commit) {
+static MUST_USE err_h copy_values(vm_obj_payload_t s, vm_obj_payload_t d, bool commit) {
   uint8_t w = vm_type_width((vm_obj_t_e)s.type);
   if (unlikely(s.type != d.type || s.count != d.count || w == 0)) {
     return ERR_NEW(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
   }
-  if (commit) {
-    if (likely(s.ptr != d.ptr)) memmove(d.ptr, s.ptr, (size_t)w * s.count);
-    d_owner->head.f.upd = 1;
-  }
+  if (commit && likely(s.ptr != d.ptr)) memmove(d.ptr, s.ptr, (size_t)w * s.count);
   return NULL;
 }
 
@@ -285,7 +270,7 @@ differently from its source is a wiring error and says so.
 */
 static MUST_USE err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h d_owner, uint8_t depth, bool commit, bool user) {
   ERR_TRY(vm_internal_obj_writable(d_owner, user));
-  if (likely(s.type != VM_OBJ_PTR && d.type != VM_OBJ_PTR)) return copy_values(s, d, d_owner, commit);
+  if (likely(s.type != VM_OBJ_PTR && d.type != VM_OBJ_PTR)) return copy_values(s, d, commit);
 
   if (unlikely(s.type != d.type || s.count != d.count)) {
     return ERR_NEW(ERR_VM_OBJ_COPY_MISMATCH, .src_type = s.type, .dst_type = d.type, .src_size = s.count, .dst_size = d.count);
@@ -305,10 +290,6 @@ static MUST_USE err_h copy_tree(vm_obj_payload_t s, vm_obj_payload_t d, vm_obj_h
     // a property of the object, not of the accessor that reached its root
     ERR_TRY(copy_tree(vm_make_payload(sc[i]), vm_make_payload(dc[i]), dc[i], (uint8_t)(depth + 1), commit, user));
   }
-
-  /* The parent's own bytes did not change, but what hangs under it did, and a
-     block whose accessor names the whole table has no other place to see that. */
-  if (commit) d_owner->head.f.upd = 1;
   return NULL;
 }
 
@@ -363,8 +344,7 @@ vm_obj_dyn exists, and this is its first caller outside the self test.
 Three flags are the clone's own rather than the source's. `mutable`, because a
 destination that cannot be written is useless. `retentive` cleared, because
 this lives on the heap and is gone at the next load, so NVS has no business
-with it. `upd_resetable` set, so the sweep withdraws its freshness at the end
-of the pass that filled it -- a snapshot is news once, not forever.
+with it. `usr_protected` cleared: the snapshot belongs to its caller.
 */
 err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
   *out = NULL;
@@ -374,9 +354,8 @@ err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
 
   vm_obj_head_t h = src->head;
   h.f.mutable = 1;
-  h.f.usr_protected = 0;  // the snapshot belongs to its caller, not the source producer
+  h.f.usr_protected = 0;
   h.f.retentive = 0;
-  h.f.upd_resetable = 1;
 
   uint8_t name_len = 0;
   const char* name = vm_obj_get_tag(src, &name_len);
@@ -436,9 +415,7 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
   }
 
   ERR_TRY(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, false, user));
-  ERR_TRY(copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, true, user));
-  slot.owner->head.f.upd = 1;  // a refilled snapshot is a publication too
-  return NULL;
+  return copy_tree(vm_make_payload(src), vm_make_payload(*cell), *cell, 0, true, user);
 }
 
 err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* target, bool user) {

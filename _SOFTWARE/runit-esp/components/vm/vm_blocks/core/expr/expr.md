@@ -8,7 +8,7 @@ Computes a number from its inputs with a formula. The formula is stored as a sho
 |---|---|
 | Inputs (any number) | Read by the formula by index. Only the ones the formula names are read. |
 | Result | The value of the formula (a float), written to output 0. |
-| ENO | On on every pass the block is enabled and nothing failed, whether or not the result was recomputed (a pass-through). Off when disabled or after an error. |
+| ENO | On every pass the result was written. Off when disabled or after an error. |
 
 ## What is available
 
@@ -18,4 +18,4 @@ Arithmetic (`+ - * / %`, power, root, min, max, hypot, atan2), functions (abs, s
 
 - The formula is checked **once, when the program loads**: every operation known, every input named by the formula wired, the stack never short and ending with exactly one value. A bad formula rejects the whole program with the position of the problem.
 - At run time only values are checked: division by zero, a domain error (for example the square root of a negative number) and a non-finite result are reported once and the block drops its ENO.
-- It runs when one of its inputs is fresh, or on each pass an enable fires, and the block is enabled.
+- It computes on every pass while enabled, so the result always follows the inputs, from the first pass on.

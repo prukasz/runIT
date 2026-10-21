@@ -13,7 +13,7 @@
  * copying it (CLONE).
  *
  * Building a tree (a block parsing a message):
- *   vm_obj_dyn_new() each node (fresh: mutable, upd_resetable, upd set), vm_obj_dyn_adopt() it into its parent, and
+ *   vm_obj_dyn_new() each node (mutable), vm_obj_dyn_adopt() it into its parent, and
  *   publish the root by linking it into a cell (an output's cell: vm_obj_link_direct), which checks the whole tree once.
  *   On failure before publishing, vm_obj_dyn_release(root) frees what was built.
  */
@@ -63,8 +63,8 @@ MUST_USE err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const
 
 /**
  * @brief A new node of a tree a block builds: `count` elements of `type` (a PTR for a folder, whose cells start empty),
- * named `name` (`name_len` up to VM_OBJ_NAME_MAX, 0 for none). Mutable, freshness cleared at the end of the pass, and
- * fresh now: what reads it this pass sees new data. No owner until it is adopted or linked.
+ * named `name` (`name_len` up to VM_OBJ_NAME_MAX, 0 for none), mutable, values zero. No owner until it is adopted or
+ * linked.
  * @return As vm_obj_dyn_create, ERR_VM_OBJ_NAME_TOO_LONG.
  */
 MUST_USE err_h vm_obj_dyn_new(vm_obj_h* out, vm_obj_t_e type, uint16_t count, const char* name, uint8_t name_len);

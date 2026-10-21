@@ -8,23 +8,18 @@
  *  ->DST    |           |
  *           -------------
  *
- *  VM_BLK_SET -- Deep payload copy (IN0: src -> IN1: dst). Update-driven.
+ *  VM_BLK_SET -- EN -> DST = SOURCE, on every pass the block is enabled.
  *  Copies whole trees into an existing matching shape without allocation. Types and
  *  element counts must match exactly (no conversion). Both pins are inputs; ENO
  *  signals a write completed this pass.
  *
  *  Constant mode: with SOURCE unwired the block writes its `value` constant to the first
- *  scalar of DST (converted to DST's type: rounded, saturated) instead of copying. It runs
- *  when an enable fires (a tick, an open gate), or once on the first pass when no enable is
- *  wired. A trigger over DST would re-fire forever, so DST never triggers it.
+ *  scalar of DST (converted to DST's type: rounded, saturated) instead of copying.
  */
-
-#define VM_SET_F_DONE (1u << 0) // Constant written at least once (the no-enable case writes once)
 
 typedef struct __attribute__((aligned(4))) {
   float   value;
-  uint8_t flags;
-  uint8_t _pad[3];
+  uint8_t _pad[4];
 } vm_block_set_data_t;
 
 _Static_assert(sizeof(vm_block_set_data_t) == 8, "vm_block_set_data_t must be 8 bytes");

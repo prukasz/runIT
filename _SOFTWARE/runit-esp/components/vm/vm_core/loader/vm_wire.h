@@ -54,15 +54,14 @@ typedef struct __packed {
 } vm_wire_obj_t;
 _Static_assert(sizeof(vm_wire_obj_t) == 2 + VM_OBJ_HEAD_WIRE_SIZE, "ADD_OBJECTS record head");
 
-/* Wire head -> object head. Only the shape and the flags the app may set come over: mutable, upd_resetable, retentive,
- * usr_protected (tagged and dynamic are the board's, upd is runtime state). */
+/* Wire head -> object head. Only the shape and the flags the app may set come over: mutable, retentive, usr_protected
+ * (tagged and dynamic are the board's). */
 static inline vm_obj_head_t vm_wire_head_unpack(const vm_wire_head_t* w) {
   vm_obj_head_t h = {0};
   h.payload_size = w->payload_size;
   h.d.obj_t = w->type_name & VM_WIRE_HEAD_TYPE_MASK;
   h.d.name_size = (uint8_t)(w->type_name >> VM_WIRE_HEAD_NAME_SHIFT);
   h.f.mutable = (w->flags & VM_OBJ_F_MUTABLE) != 0;
-  h.f.upd_resetable = (w->flags & VM_OBJ_F_UPD_RESETABLE) != 0;
   h.f.retentive = (w->flags & VM_OBJ_F_RETENTIVE) != 0;
   h.f.usr_protected = (w->flags & VM_OBJ_F_USR_PROTECTED) != 0;
   return h;
@@ -72,7 +71,7 @@ static inline vm_obj_head_t vm_wire_head_unpack(const vm_wire_head_t* w) {
 static inline vm_wire_head_t vm_wire_head_pack(const vm_obj_head_t* h, uint8_t name_len) {
   vm_wire_head_t w = {.payload_size = h->payload_size,
                       .type_name = (uint8_t)((h->d.obj_t & VM_WIRE_HEAD_TYPE_MASK) | (name_len << VM_WIRE_HEAD_NAME_SHIFT))};
-  w.flags = (uint8_t)((h->f.mutable ? VM_OBJ_F_MUTABLE : 0) | (h->f.upd_resetable ? VM_OBJ_F_UPD_RESETABLE : 0) |
+  w.flags = (uint8_t)((h->f.mutable ? VM_OBJ_F_MUTABLE : 0) |
                       (name_len ? VM_OBJ_F_TAGGED : 0) | (h->f.retentive ? VM_OBJ_F_RETENTIVE : 0) |
                       (h->f.dynamic ? VM_OBJ_F_DYNAMIC : 0) | (h->f.usr_protected ? VM_OBJ_F_USR_PROTECTED : 0));
   return w;

@@ -40,15 +40,14 @@ typedef enum vm_obj_t_e {
 } vm_obj_t_e;
 
 /* The object's flags: the bits of vm_obj_head_t.f in its order, and the flag byte of the wire head (vm_wire.h). The
- * app sets mutable, upd_resetable, retentive and usr_protected; tagged and dynamic are the board's. */
+ * app sets mutable, retentive and usr_protected; tagged and dynamic are the board's. */
 //#ref-defines vm_obj_flag @alias Object Flags @prefix VM_OBJ_F_
 #define VM_OBJ_F_MUTABLE       (1u << 0)  //@alias Writable @description Writable at run time
-#define VM_OBJ_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description Freshness cleared at end of pass
 #define VM_OBJ_F_TAGGED        (1u << 3)  //@alias Named by the board @description Named by the board
 #define VM_OBJ_F_RETENTIVE     (1u << 4)  //@alias Retained @description Retained after restart
 #define VM_OBJ_F_DYNAMIC       (1u << 5)  //@alias Heap object @description Heap object
 #define VM_OBJ_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
-// Bit 1 is `upd` (runtime state) and bit 7 is unused: on the wire both are sent as 0 and ignored when read.
+// Bits 1, 2 and 7 are not used: sent as 0, ignored when read.
 
 /* The head is four bytes on the wire too, but in an explicit layout (vm_wire_head_t, vm_wire.h), not as the
  * compiler lays out vm_obj_head_t. */
@@ -70,8 +69,7 @@ typedef struct __attribute__((aligned(4))) vm_obj_head_t {
   } d;
   struct {
     uint8_t mutable       : 1;
-    uint8_t upd           : 1;
-    uint8_t upd_resetable : 1;
+    uint8_t _unused       : 2;
     uint8_t tagged        : 1;
     uint8_t retentive     : 1;
     uint8_t dynamic       : 1;

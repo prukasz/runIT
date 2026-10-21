@@ -18,8 +18,8 @@
  *   3. Sizing & Registry Lookups (vm_block_get_by_id, vm_block_calc_size, vm_block_get_total_size, vm_block_get_custom_len)
  *   4. Slice Accessors (vm_block_get_inputs, vm_block_get_outputs, vm_block_get_en_list, vm_block_get_custom_data)
  *   5. Pin Access & Validation (vm_block_get_in, vm_block_get_out)
- *   6. Runtime Evaluation, Spans & ENO (vm_block_is_enabled, vm_block_set_eno, vm_block_triggered, vm_block_input_fresh, vm_block_get_span, vm_block_claim_span)
- *   7. Error Reporting & Execution Macros (vm_block_report_error, BLOCK_CALL, IF_BLOCK_*)
+ *   6. Runtime Evaluation, Spans & ENO (vm_block_is_enabled, vm_block_set_eno, vm_block_get_span, vm_block_claim_span)
+ *   7. Error Reporting & Execution Macros (vm_block_report_error, BLOCK_CALL, IF_BLOCK_ENABLED)
  */
 
 // ===========================================================================
@@ -40,13 +40,12 @@ typedef enum vm_blk_on_error_e {
   VM_BLK_ERR_CONTINUE = 1,  //@alias Continue @description A failing call is reported and ENO is left as the block set it
 } vm_blk_on_error_e;
 
-/** @brief Runtime status flags (latched per pass or sticky across load). */
-#define VM_BLK_RT_TRIGGERED (1u << 0u)  // Fresh data arrived on an input (latched by vm_block_triggered)
+/** @brief Runtime status flags (per call, or sticky across the load). */
 #define VM_BLK_RT_SPAN      (1u << 1u)  // Block claimed an execution range (vm_block_claim_span)
 #define VM_BLK_RT_FAULT     (1u << 2u)  // This call failed (vm_block_report_error / vm_block_mark_failed); read by on_error
 #define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
-#define VM_BLK_RT_PER_CALL (VM_BLK_RT_TRIGGERED | VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)
+#define VM_BLK_RT_PER_CALL (VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)
 
 // ===========================================================================
 // 2. Types & Block Data Structure
@@ -267,42 +266,9 @@ static inline bool vm_block_is_enabled(vm_block_h b) {
   return all;
 }
 
-/**
- * @brief Set block ENO: true marks updated (loud), false clears quietly without upd.
- */
+/** @brief Writes the block's ENO (when it has one): true, it acted on this pass. */
 static inline void vm_block_set_eno(vm_block_h b, bool state) {
-  if (!b->cfg.eno) return;
-  *(uint8_t*)b->cfg.eno->payload = state ? 1 : 0;
-  if (state) {
-    b->cfg.eno->head.f.upd = 1;
-  }
-}
-
-/** @brief True if any input carries fresh data, or an enable fires (vm_block_en_triggered);
- *  latches VM_BLK_RT_TRIGGERED.
- */
-bool vm_block_triggered(vm_block_h b);
-
-/** @brief True if an enable source is true and fresh this pass: a gate held open (written
- *  loud every pass while true) or a tick. For a triggered block that counts as a trigger, so
- *  "compute this while the branch is open" works on inputs that don't change (VM_EXEC.MD).
- *  A level that is merely true (not written this pass) does not trigger.
- */
-bool vm_block_en_triggered(vm_block_h b);
-
-/**
- * @brief True if input pin @p pin carries fresh data (`upd` of the object it points into, vm_acc_fresh).
- */
-static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
-  return pin < b->cfg.in_cnt && vm_acc_fresh(vm_block_get_inputs(b)[pin]);
-}
-
-/** @brief Trigger from one source pin (ignoring destination/parameter inputs) or a firing enable.
- */
-static inline bool vm_block_triggered_by(vm_block_h b, uint8_t pin) {
-  if (!vm_block_input_fresh(b, pin) && !vm_block_en_triggered(b)) return false;
-  b->cfg.rt |= VM_BLK_RT_TRIGGERED;
-  return true;
+  if (b->cfg.eno) *(uint8_t*)b->cfg.eno->payload = state ? 1 : 0;
 }
 
 /**
@@ -322,10 +288,8 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 // 7. Error Reporting & Execution Macros
 // ===========================================================================
 
-/* Block activation macros. Nestable: IF_BLOCK_TRIGGERED(b) IF_BLOCK_ENABLED(b) { ... }
- */
-#define IF_BLOCK_ENABLED(block)   if (vm_block_is_enabled(block))
-#define IF_BLOCK_TRIGGERED(block) if (vm_block_triggered(block))
+/* Block activation: IF_BLOCK_ENABLED(b) { ... } */
+#define IF_BLOCK_ENABLED(block) if (vm_block_is_enabled(block))
 
 /** @brief Runs an err_h call, reporting failure with block context and marking the call failed.
  */

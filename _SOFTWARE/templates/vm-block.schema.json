@@ -112,7 +112,7 @@
       "required": ["kind", "text"],
       "additionalProperties": false,
       "properties": {
-        "kind": { "type": "string", "enum": ["enabled", "enable-rising", "triggered"], "description": "enabled: runs every pass while enabled. enable-rising: once on each rising enable. triggered: when an input it reads is fresh." },
+        "kind": { "type": "string", "enum": ["enabled", "enable-rising"], "description": "enabled: runs every pass while enabled. enable-rising: once on each rising enable." },
         "text": { "type": "string", "minLength": 1, "description": "The same in words for the user." }
       }
     },
@@ -479,7 +479,7 @@
       "category": "data",
       "integration": "core",
       "editor": "expression",
-      "activation": { "kind": "triggered", "text": "Runs when an input it reads is fresh, or when an enable fires." },
+      "activation": { "kind": "enabled", "text": "Computes on every pass while enabled." },
       "body": ["{expression}"],
       "inputs": [{ "group": { "alias": "Input", "description": "Read by the formula by position; only the inputs it names are read.", "value": "float", "min": 0, "max": 16, "label": "hidden" } }],
       "outputs": [{ "id": "result", "alias": "Result", "value": "float", "required": true }]

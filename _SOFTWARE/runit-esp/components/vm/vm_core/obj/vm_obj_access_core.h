@@ -129,9 +129,6 @@ static __always_inline vm_obj_payload_t vm_make_payload(vm_obj_h obj) {
  * REF steps followed into other accessors (CONFIG_VM_ACCESSOR_MAX_DEPTH). */
 MUST_USE err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out);
 
-/* Freshness of an accessor that has to be walked; one that doesn't resolve is not fresh (vm_obj_access_internal.c). */
-bool vm_acc_walk_fresh(const vm_accessor_t* acc);
-
 /**
  * @brief Where an accessor points. An accessor whose path is fixed (no steps, or one literal step on its root) was
  * resolved at load (VM_ACC_F_CACHED, vm_accessor_bind) and costs a flag test and a copy; anything else is walked.
@@ -142,15 +139,4 @@ static __always_inline MUST_USE err_h vm_acc_resolve(const vm_accessor_t* acc, v
     return NULL;
   }
   return vm_acc_walk(acc, 0, out);
-}
-
-/**
- * @brief True when the object the accessor points into was written this pass (`upd` of its owner). An unwired pin
- * (NULL) or one that doesn't resolve is not fresh, and says nothing: the block reports it when it reads the pin.
- */
-static __always_inline bool vm_acc_fresh(const vm_accessor_t* acc) {
-  if (likely(acc != NULL && (acc->flags & VM_ACC_F_CACHED))) {
-    return acc->c_payload.owner->head.f.upd;
-  }
-  return acc != NULL && vm_acc_walk_fresh(acc);
 }

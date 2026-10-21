@@ -71,7 +71,6 @@ export const parseProgram = (defs: WireDefinitions, frames: readonly WireFrame[]
           count,
           flags: {
             mutable: (flags & defs.headFlags.mutable) !== 0,
-            updResetable: (flags & defs.headFlags.updResetable) !== 0,
             retentive: (flags & defs.headFlags.retentive) !== 0,
             usrProtected: (flags & defs.headFlags.usrProtected) !== 0,
           },

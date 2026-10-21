@@ -9,7 +9,8 @@ Spec: `VM_CORE.MD` (this folder). The palette: `../vm_blocks/VM_BLOCKS.MD`.
 - A telemetry frame is a command of this router without the direction byte (`[0x0B][DATA | ADD_OBJECTS][count]`). A change to a record changes both directions: keep `vm_router.c`, the loader and `vm_sub.c` on the same `vm_wire.h` structs.
 - Everything from the wire is untrusted: check IDs, counts and lengths before storing. A failing load op goes through `vm_loader_abort(err, VM_OP_*)` (fail closed); a running program is never changed by ADD_*, and DATA while running goes through `vm_override`.
 - The hot path (pass, accessors, block helpers) does not allocate and does not block. Only heap-object builders allocate (`vm_obj_dyn`: CLONE, a block building a tree); a heap object hangs in one cell at most (a tree), so sharing is a copy. Flash writes (retained values) run on the retain task, never on the VM task.
-- Freshness (`upd`) is cleared only by the supervisor at the end of a pass. ENO false is set quietly.
+- There is no freshness: a block acts on every pass it is enabled, and an event is a one-pass pulse value (VM_CORE.MD "Rules"). Do not add hidden per-pass state that a block reads instead of a value.
+- A block never keeps a pointer to a heap object (`vm_obj_dyn`) in its state across passes: the tree may be replaced and freed by the next pass. Read it through its accessor every time.
 - Actions are requested (`vm_exec_request_action`), never run inside a pass.
 - Errors that end where they are raised use `VM_RAISE`; block errors go through `BLOCK_CALL` / `vm_block_report_error`, so they carry the block.
 - The component builds at `-O2` and links `WHOLE_ARCHIVE` (the error tags register from a constructor): keep both in `CMakeLists.txt`.

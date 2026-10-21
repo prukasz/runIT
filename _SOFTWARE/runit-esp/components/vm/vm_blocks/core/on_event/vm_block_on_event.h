@@ -14,13 +14,13 @@
  *    subscription (sys_event_matches): source, event and channel are each exact or a wildcard
  *    (SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_EVENT, SYS_EVENT_ANY_IN for "any event of that contract",
  *    SYS_EVENT_ANY_CHANNEL). The VM listens to every event (vm_event_init); this block doesn't subscribe.
- *  - On a match: ENO pulses for this pass (loud), VALUE gets the event's value
- *    (converted to the output's type, loud). Several matches in one pass
+ *  - On a match: ENO is on for this pass, VALUE gets the event's value
+ *    (converted to the output's type). Several matches in one pass
  *    collapse into one pulse: VALUE is the last one's.
  *  - Nothing is consumed: every ON_EVENT block sees every event of the pass.
  *    An event lives exactly one pass; one that arrives while the block is
  *    disabled is missed, like a physical edge.
- *  - Disabled: ENO drops quietly, events are ignored.
+ *  - Disabled: ENO off, events are ignored.
  *  - A one-pass pulse: to hold it (event -> wait -> act), put a LATCH below.
  */
 

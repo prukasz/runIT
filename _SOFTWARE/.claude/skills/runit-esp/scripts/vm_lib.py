@@ -26,7 +26,7 @@ T_PTR, T_U8, T_U32, T_I32, T_F, T_B, T_STR = range(1, 8)
 WIDTH = {T_PTR: 2, T_U8: 1, T_U32: 4, T_I32: 4, T_F: 4, T_B: 1, T_STR: 1}  # element bytes on the wire
 FMT = {T_U8: "<B", T_U32: "<I", T_I32: "<i", T_F: "<f", T_B: "<B", T_STR: "<B", T_PTR: "<H"}
 
-F_MUT, F_RES, F_RET, F_PROT = 0x01, 0x04, 0x10, 0x40  # wire flags (vm_wire.h)
+F_MUT, F_RET, F_PROT = 0x01, 0x10, 0x40  # wire flags (VM_OBJ_F_*, vm_obj.h)
 NO_ID = 0xFFFF
 EN_ANY, EN_ALL = 0, 1
 ON_ERR_STOP, ON_ERR_CONT = 0, 1
@@ -257,7 +257,7 @@ class Prog:
         self._plain: dict[int, int] = {}
 
     # objects
-    def obj(self, t: int, n: int = 1, flags: int = F_MUT | F_RES, name: bytes | str = b"", init=None) -> int:
+    def obj(self, t: int, n: int = 1, flags: int = F_MUT, name: bytes | str = b"", init=None) -> int:
         oid = len(self.objs)
         name = name.encode() if isinstance(name, str) else name
         self.objs.append((oid, t, n * (4 if t == T_PTR else WIDTH[t]), flags, name))
@@ -499,10 +499,9 @@ class Vm:
         return dec(t, d.get(oid))
 
     def kick(self, per_pass: int = 36) -> None:
-        """Write every initial value again as a runtime write. Values uploaded with the program are not fresh (they
-        trigger nothing); a runtime write is, so this is what makes the blocks see their inputs. The writes wait in a
-        ring (CONFIG_VM_OVERRIDE_BUF_SIZE bytes) that a pass empties, so a long list is sent in groups with a pass
-        between them (a scan-mode VM is stepped, a running one gets a pause)."""
+        """Write every initial value again as a runtime write: puts back the start values a test may have overwritten.
+        The writes wait in a ring (CONFIG_VM_OVERRIDE_BUF_SIZE bytes) that a pass empties, so a long list is sent in
+        groups with a pass between them (a scan-mode VM is stepped, a running one gets a pause)."""
         flags = {o[0]: o[3] for o in self.p.objs}
         recs = [self.data_rec(oid, raw, start) for (oid, start, raw) in self.p.init
                 if self.p.types[oid][0] != T_PTR and flags[oid] & F_MUT and not flags[oid] & F_PROT]

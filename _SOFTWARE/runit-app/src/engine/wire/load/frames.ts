@@ -43,8 +43,7 @@ export const pack = (op: number, records: readonly Uint8Array[], limits: VmLimit
 
 /**
  * The frames that load a program, in the order the board needs them: OPEN (slot counts and arena size), the objects, their
- * initial values, the accessors, then the blocks, one per frame, in execution order. Values uploaded this way are not fresh
- * (VM_CORE.MD, "Still open" 5): a block waiting for a fresh input runs only after a run-time write.
+ * initial values, the accessors, then the blocks, one per frame, in execution order.
  *
  * `arenaBytes` defaults to what the program needs (arena.ts); pass more to leave room.
  */

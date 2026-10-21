@@ -46,7 +46,7 @@ void vm_exec_reset_stats(void);
 
 /* ---- fed by the supervisor ---- */
 
-typedef enum vm_phase_e { VM_PH_EVENTS, VM_PH_BLOCKS, VM_PH_SAMPLE, VM_PH_RETAIN, VM_PH_CLEAR, VM_PH_COUNT } vm_phase_e;
+typedef enum vm_phase_e { VM_PH_EVENTS, VM_PH_BLOCKS, VM_PH_SAMPLE, VM_PH_RETAIN, VM_PH_COUNT } vm_phase_e;
 
 /** @brief Top of a pass: the time since the previous pass start is the cycle time. */
 void vm_stats_pass_begin(uint64_t t0_us);

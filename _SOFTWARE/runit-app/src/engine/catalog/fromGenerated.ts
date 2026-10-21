@@ -216,7 +216,7 @@ const activation = (v: unknown): Activation | undefined => {
   const o = obj(v)
   const kind = str(o?.kind)
   const text = str(o?.text)
-  if (!o || !text || (kind !== 'enabled' && kind !== 'enable-rising' && kind !== 'triggered')) return undefined
+  if (!o || !text || (kind !== 'enabled' && kind !== 'enable-rising')) return undefined
   return { kind, text }
 }
 

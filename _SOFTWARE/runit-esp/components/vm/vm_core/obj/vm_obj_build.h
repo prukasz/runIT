@@ -55,7 +55,7 @@ MUST_USE err_h vm_obj_shape(const vm_obj_head_t* head, uint32_t* out_total);
 /**
  * @brief Initialize a pre-allocated object handle with validated header and name.
  *
- * Copies header, forces `upd` to 0, sets `tagged` bit if name_size > 0,
+ * Copies header, sets `tagged` bit if name_size > 0,
  * clears `dynamic` flag (default arena), and copies name bytes after payload.
  *
  * @param[in,out] o    Allocated object handle.

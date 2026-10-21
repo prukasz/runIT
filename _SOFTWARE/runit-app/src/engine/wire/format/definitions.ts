@@ -12,7 +12,7 @@ export interface WireDefinitions {
   /** `vm_obj_t_e`. */
   readonly objTypes: Readonly<Record<ObjType, number>>
   /** `vm_obj_flag`: the bits of the object head's flag byte the app may set. */
-  readonly headFlags: Readonly<Record<'mutable' | 'updResetable' | 'retentive' | 'usrProtected', number>>
+  readonly headFlags: Readonly<Record<'mutable' | 'retentive' | 'usrProtected', number>>
   /** `vm_blk_en_mode_e`. */
   readonly enMode: Readonly<Record<'any' | 'all', number>>
   /** `vm_blk_on_error_e`. */
@@ -34,7 +34,6 @@ export const WIRE_SYMBOLS = {
     enum: 'vm_obj_flag',
     symbols: {
       mutable: 'VM_OBJ_F_MUTABLE',
-      updResetable: 'VM_OBJ_F_UPD_RESETABLE',
       retentive: 'VM_OBJ_F_RETENTIVE',
       usrProtected: 'VM_OBJ_F_USR_PROTECTED',
     },

@@ -13,7 +13,6 @@ const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text)
 /** The object head's flag byte from the flags a program sets. */
 export const flagBits = (defs: WireDefinitions, flags: ObjectFlags): number =>
   (flags.mutable ? defs.headFlags.mutable : 0) |
-  (flags.updResetable ? defs.headFlags.updResetable : 0) |
   (flags.retentive ? defs.headFlags.retentive : 0) |
   (flags.usrProtected ? defs.headFlags.usrProtected : 0)
 
