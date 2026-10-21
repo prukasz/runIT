@@ -6,8 +6,10 @@
 #include "esp32s3_gpio_pwm.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
+#include "esp_private/esp_gpio_reserve.h"
 #include "esp_timer.h"
 #include "soc/soc_caps.h"
+#include "soc/usb_pins.h"
 #include "sys_event.h"
 #include "sys_pins.h"
 #include "utils.h"
@@ -155,10 +157,12 @@ static err_h configure_digital(const gpio_t* c, const esp32s3_gpio_pin_t* p) {
   return ERR_ESP(gpio_config(&cfg));
 }
 
-// Puts an unconfigured pin into `mode` (lock held); its slot goes live only when that worked.
+// Puts an unconfigured pin into `mode` (lock held); its slot goes live only when that worked. A pin a native
+// peripheral holds (reserved in ESP-IDF: flash, PSRAM, an I2C or SPI bus, USB) is refused.
 static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode) {
   const esp32s3_gpio_pin_t* existing = esp32s3_gpio_pin(pin);
   ERR_CHECK(existing == NULL, ERR_IO_PIN_IN_USE, .id = c->base.id, .pin = pin, .mode = existing->pin_mode);
+  ERR_CHECK(!esp_gpio_is_reserved(BIT64(pin)), ERR_DEV_PIN_LOCKED, .id = c->base.id, .pin = pin);
   esp32s3_gpio_pin_t* p = &s_gpio.pin[pin];
   *p = (esp32s3_gpio_pin_t){.io_num = pin, .pin_mode = (sys_io_mode_e)mode};
   ERR_TRY(mode == SYS_IO_MODE_ADC   ? configure_adc(c, p)
@@ -501,6 +505,17 @@ static err_h create(void* ctx, const void* cfg) {
   ERR_CHECK(s_gpio.dev == NULL, ERR_DEV_ID_TAKEN, .id = s_gpio.dev->base.id);
   sys_pins_state_init(&c->pins, 0);
   c->pins.available = SOC_GPIO_VALID_GPIO_MASK;  // not contiguous: GPIO 22-25 don't exist on the S3
+#if CONFIG_USJ_ENABLE_USB_SERIAL_JTAG
+  // The USB-Serial-JTAG holds D- / D+ without reserving them in ESP-IDF: reserved here for it.
+  (void)esp_gpio_reserve(BIT64(USBPHY_DM_NUM) | BIT64(USBPHY_DP_NUM));
+#endif
+  // The pins the native peripherals hold (the I2C buses are up before the devices) show as locked; SET_MODE checks
+  // the reservation again, for a peripheral started later.
+  for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
+    if ((c->pins.available & BIT64(pin)) && esp_gpio_is_reserved(BIT64(pin))) {
+      c->pins.locked |= BIT64(pin);
+    }
+  }
 
   // Once per boot: REMOVE leaves the service installed (a second install answers ESP_ERR_INVALID_STATE).
   const esp_err_t rc = gpio_install_isr_service(0);
