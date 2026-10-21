@@ -233,22 +233,16 @@ bool vm_acc_walk_fresh(const vm_accessor_t* acc) {
 // ===========================================================================
 
 /*
-A pointer slot is the only place an object is *owned*, so it is the only place
-a reference count moves -- which is why both link entry points write through
-here rather than storing the handle themselves.
-
-The new child is retained before the old one is released. A program re-linking
-a cell to something that lives inside the tree it is replacing would otherwise
-free the subtree the new handle points into, one statement before installing
-it. Both calls fall straight out on an arena object (one bit -- see
-vm_obj_dyn_get_id), so a program's whole load-time wiring pays nothing for this.
+A pointer cell is the only place a heap object is owned (vm_obj_dyn.h: a tree), so every link writes through here.
+The child is checked and taken first (a heap child must have no owner, so it cannot be inside the tree being replaced),
+then the tree that held the cell is freed. Arena children pass the check on one bit, so a program's load-time wiring
+pays nothing for it.
 */
 err_h slot_store(vm_obj_h owner, vm_obj_h* cell, vm_obj_h child) {
   vm_obj_h prev = *cell;
   if (prev == child) return NULL;  // already there: no churn, and no news to publish
-  ERR_TRY(vm_obj_dyn_check_link(owner, cell, child));
+  ERR_TRY(vm_obj_dyn_take(owner, child));
 
-  vm_obj_dyn_retain(child);
   *cell = child;
   vm_obj_dyn_release(prev);
 
@@ -392,21 +386,20 @@ err_h vm_internal_clone_shape(vm_obj_h* out, vm_obj_h src, uint8_t depth) {
 
   if ((vm_obj_t_e)h.d.obj_t == VM_OBJ_PTR) {
     vm_obj_h* sk = (vm_obj_h*)src->payload;
-    vm_obj_h* dk = (vm_obj_h*)o->payload;
     uint16_t n = vm_obj_get_items_cnt(src);
     for (uint16_t i = 0; i < n; i++) {
       if (!sk[i]) continue;  // unwired in the source, unwired in the copy
       vm_obj_h kid = NULL;
       err_h e = vm_internal_clone_shape(&kid, sk[i], (uint8_t)(depth + 1));
+      if (!e) e = vm_obj_dyn_adopt(o, i, kid);
       if (unlikely(e)) {
         /* Half-built, and owned by nothing: releasing the root takes every
            child with it, so a rejected clone leaks neither a slot nor a byte
            -- the same rule vm_obj_create() follows for a rejected shape. */
+        vm_obj_dyn_release(kid);
         vm_obj_dyn_release(o);
         return e;
       }
-      dk[i] = kid;
-      vm_obj_dyn_retain(kid);
     }
   }
 

@@ -198,7 +198,7 @@ static track_t* track_get(vm_obj_h o, bool* is_new) {
     if (s_track[i].obj == o) {
       track_t* t = &s_track[i];
       /* A heap handle can be freed and handed to another heap object. */
-      if ((t->id & VM_OBJ_ID_DYN_BIT) && g_vm_dyn[t->id & (uint16_t)~VM_OBJ_ID_DYN_BIT].obj != o) {
+      if ((t->id & VM_OBJ_ID_DYN_BIT) && vm_obj_dyn_get_by_id(t->id & (uint16_t)~VM_OBJ_ID_DYN_BIT) != o) {
         t->id = vm_obj_get_id(o);
         *is_new = true;
       } else {

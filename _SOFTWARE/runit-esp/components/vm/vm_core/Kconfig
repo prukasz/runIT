@@ -131,10 +131,11 @@ menu "VM Configuration"
                 Upper ceiling of live dynamically registered objects on the heap.
 
         config VM_DYN_MAX_DEPTH
-            int "Maximum dynamic DAG ownership depth"
+            int "Maximum heap object nesting depth"
             default 16
             help
-                Maximum allowed ownership path depth in dynamic object graph.
+                Heap levels a tree of heap objects may have (a parsed message, a CLONE's copy), counted from the
+                arena cell it hangs in. Bounds the walks over such a tree; deeper is refused when the tree is linked.
 
         #@limit @alias Subscribed objects @unit objects
         config VM_SUB_MAX_SUBSCRIBERS

@@ -67,7 +67,7 @@ bool vm_obj_shape_matches(vm_obj_h a, vm_obj_h b);
 bool vm_obj_schema_matches(vm_obj_h a, vm_obj_h b);
 
 /** @brief Build a dynamic tree shaped like `src`, values left zero.
- *  Reference count zero -- owned by nothing until a pointer slot takes it, so
+ *  Owned by nothing until a pointer cell takes it (vm_obj_dyn.h), so
  *  link it in the same call or release it. Tags are carried over, since a
  *  by-name accessor onto the copy has to keep working. */
 MUST_USE err_h vm_obj_clone_shape(vm_obj_h* out, vm_obj_h src);

@@ -269,7 +269,7 @@
       "hint": "Check the loop limits."
     },
     "ERR_VM_OBJ_OWNERSHIP": {
-      "message": "Values refer to each other in a loop or too deep (at most {limit})"
+      "message": "A value is already placed elsewhere, would contain itself, or is nested too deep (at most {limit})"
     },
     "ERR_VM_OBJ_USR_PROTECTED": {
       "message": "{obj_id} cannot be changed from the app",

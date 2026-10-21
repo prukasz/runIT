@@ -168,8 +168,8 @@ static void clear_upd(void) {
     if (o && o->head.f.upd_resetable) o->head.f.upd = 0;
   }
 
-  /* Dynamic objects are not in the registry -- they are heap-allocated behind
-     a refcount and reached through a parent's pointer slot -- but a parsed
+  /* Heap objects are not in the registry -- they are reached through a
+     parent's pointer cell (vm_obj_dyn.h) -- but a parsed
      message is exactly the kind of thing a downstream block waits on, so they
      have to be swept too or freshness would work for arena objects only. */
   for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {

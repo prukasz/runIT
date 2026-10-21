@@ -3956,7 +3956,7 @@
               "size": 1
             }
           ],
-          "message": "Values refer to each other in a loop or too deep (at most {limit})"
+          "message": "A value is already placed elsewhere, would contain itself, or is nested too deep (at most {limit})"
         },
         {
           "code": 43,
