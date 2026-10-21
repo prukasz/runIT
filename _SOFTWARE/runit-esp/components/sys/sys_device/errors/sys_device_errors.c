@@ -88,18 +88,16 @@ bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
 }
 
 // Any action ID (0 = none; it may be recorded later), importance NONE..CRITICAL.
-err_h sys_device_policy_set(uint16_t id, const uint8_t* args) {
-  sys_device_error_policy_t p;
-  memcpy(&p, args, sizeof(p));
-  SYS_DEV_CHECK_IN_RANGE(id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
+err_h sys_device_policy_set(uint16_t id, const sys_device_error_policy_t* p) {
+  SYS_DEV_CHECK_IN_RANGE(id, p->importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   for (uint32_t i = 0; i < SYS_DEVICE_ERR_LEVELS; i++) {
-    ERR_CHECK(!is_response(p.actions[i]) || response_known(p.actions[i]), ERR_DEV_BAD_ARG);
+    ERR_CHECK(!is_response(p->actions[i]) || response_known(p->actions[i]), ERR_DEV_BAD_ARG);
   }
   taskENTER_CRITICAL(&s_policy_mux);
   const uint32_t i = policy_find(id);
   const bool found = i != s_policies.count;
   if (found) {
-    s_policies.e[i].policy = p;
+    s_policies.e[i].policy = *p;
   }
   taskEXIT_CRITICAL(&s_policy_mux);
   ERR_CHECK(found, ERR_DEV_NOT_FOUND, .id = id);

@@ -11,8 +11,8 @@ void sys_device_policy_add(uint16_t id);
 /** @brief The instance is gone: its policy is forgotten. Registry lock held. */
 void sys_device_policy_remove(uint16_t id);
 
-/** @brief ERROR_POLICY write: `args` is a sys_device_error_policy_t (ERR_DEV_RANGE for an importance past CRITICAL). */
-err_h sys_device_policy_set(uint16_t id, const uint8_t* args);
+/** @brief ERROR_POLICY write (ERR_DEV_RANGE for an importance past CRITICAL). */
+err_h sys_device_policy_set(uint16_t id, const sys_device_error_policy_t* p);
 
 /** @brief ERROR_POLICY read: answers the policy. */
 err_h sys_device_policy_reply(uint16_t id, uint8_t* out, uint32_t out_cap, uint32_t* out_len);

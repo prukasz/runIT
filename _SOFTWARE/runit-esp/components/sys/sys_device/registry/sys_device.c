@@ -63,16 +63,6 @@ static const sys_device_type_t* find_type(uint16_t type) {
   return NULL;
 }
 
-// The handler of `op` in the type's table, or NULL.
-static const sys_device_op_t* type_op(const sys_device_type_t* t, uint16_t op) {
-  for (uint32_t i = 0; i < t->op_count; i++) {
-    if (t->ops[i].op == op) {
-      return &t->ops[i];
-    }
-  }
-  return NULL;
-}
-
 // Index of `id`, or s_reg.dev_count if it isn't registered.
 static uint32_t find_dev(uint16_t id) {
   for (uint32_t i = 0; i < s_reg.dev_count; i++) {
@@ -163,41 +153,41 @@ static void state_changed(uint16_t id, bool suspended) {
 }
 
 /* ----------------------------------------------------------------------------
- * The registry's ops: the same on every device, never in a type's table. `i` is the device's index (lock held); the
- * args are checked to be exactly `args_size` bytes before.
+ * The registry's ops: the same on every device, never in a type's table. Written like a driver's (OP_READ / OP_WRITE,
+ * a sys_device_op_t table), but their ctx is the instance's entry (dev_t_, lock held), not the device's struct.
  * ------------------------------------------------------------------------- */
 
 // SUSPEND: the hook makes the hardware safe, the registry owns the flag (set even when the hook failed: a half-safe
 // device refuses writes).
-static err_h op_suspend(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  sys_device_base_t* base = s_reg.devs[i].ctx;
-  const bool was = base->suspended;
-  const err_h err = s_reg.devs[i].type->suspend(base);
-  base->suspended = true;
+OP_WRITE(SYS_DEVICE, SUSPEND) {
+  const dev_t_* d = ctx;
+  const bool was = d->ctx->suspended;
+  const err_h err = d->type->suspend(d->ctx);
+  d->ctx->suspended = true;
   if (!was) {
-    state_changed(base->id, true);
+    state_changed(d->id, true);
   }
   return err;
 }
 
 // RESUME: only while suspended; a failing hook leaves the device suspended.
-static err_h op_resume(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  sys_device_base_t* base = s_reg.devs[i].ctx;
-  if (!base->suspended) {
+OP_WRITE(SYS_DEVICE, RESUME) {
+  const dev_t_* d = ctx;
+  if (!d->ctx->suspended) {
     return NULL;
   }
-  const err_h err = s_reg.devs[i].type->resume(base);
+  const err_h err = d->type->resume(d->ctx);
   if (err == NULL) {
-    base->suspended = false;
-    state_changed(base->id, false);
+    d->ctx->suspended = false;
+    state_changed(d->id, false);
   }
   return err;
 }
 
-// Refused for a board device and while another device uses it. Otherwise the hardware is released, the instance unregistered and freed, even
-// if uninstall() failed.
-static err_h op_remove(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  const dev_t_ d = s_reg.devs[i];
+// Refused for a board device and while another device uses it. Otherwise the hardware is released, the instance
+// unregistered and freed, even if uninstall() failed.
+OP_WRITE(SYS_DEVICE, REMOVE) {
+  const dev_t_ d = *(const dev_t_*)ctx;  // a copy: the entry moves when the table shrinks
   ERR_CHECK(!d.system, ERR_DEV_SYSTEM, .id = d.id);
   const uint32_t user = find_user(d.id);
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
@@ -211,98 +201,84 @@ static err_h op_remove(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t o
   return err;
 }
 
-static err_h op_info(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  const sys_device_info_t info = {.type_id = s_reg.devs[i].type->type, .suspended = s_reg.devs[i].ctx->suspended};
+OP_READ(SYS_DEVICE, INFO) {
+  const dev_t_* d = ctx;
+  const sys_device_info_t info = {.type_id = d->type->type, .suspended = d->ctx->suspended};
   return cmd_reply(out, out_cap, out_len, &info, sizeof(info));
 }
 
-static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
-
 // ERROR_POLICY: the policy is kept and checked in sys_device_errors.c. Allowed while suspended: it configures the
 // registry, not the device.
-static err_h op_set_policy(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  return sys_device_policy_set(s_reg.devs[i].id, args);
+OP_WRITE(SYS_DEVICE, ERROR_POLICY) {
+  return sys_device_policy_set(((const dev_t_*)ctx)->id, args);
 }
 
-static err_h op_get_policy(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  return sys_device_policy_reply(s_reg.devs[i].id, out, out_cap, out_len);
+OP_READ(SYS_DEVICE, ERROR_POLICY) {
+  return sys_device_policy_reply(((const dev_t_*)ctx)->id, out, out_cap, out_len);
 }
 
-typedef err_h (*registry_op_f)(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+static err_h SYS_DEVICE_r_OPS(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,
+                              uint32_t* out_len);
 
-// One side per row; ERROR_POLICY has two.
-static const struct {
-  uint16_t op;
-  uint8_t dir;
-  uint16_t args_size;
-  registry_op_f fn;
-} k_registry_ops[] = {
-    {SYS_DEVICE_OP_SUSPEND, CMD_DIR_WRITE, 0, op_suspend},
-    {SYS_DEVICE_OP_RESUME, CMD_DIR_WRITE, 0, op_resume},
-    {SYS_DEVICE_OP_REMOVE, CMD_DIR_WRITE, 0, op_remove},
-    {SYS_DEVICE_OP_INFO, CMD_DIR_READ, 0, op_info},
-    {SYS_DEVICE_OP_OPS, CMD_DIR_READ, 0, op_ops},
-    {SYS_DEVICE_OP_ERROR_POLICY, CMD_DIR_WRITE, sizeof(sys_device_error_policy_t), op_set_policy},
-    {SYS_DEVICE_OP_ERROR_POLICY, CMD_DIR_READ, 0, op_get_policy},
+static const sys_device_op_t k_registry_ops[] = {
+    OP_ENTRY_W(SYS_DEVICE, SUSPEND),  OP_ENTRY_W(SYS_DEVICE, RESUME),  OP_ENTRY_W(SYS_DEVICE, REMOVE),
+    OP_ENTRY_R(SYS_DEVICE, INFO),     OP_ENTRY_R(SYS_DEVICE, OPS),     OP_ENTRY(SYS_DEVICE, ERROR_POLICY),
 };
+
+// The row of `op` in a table, or NULL.
+static const sys_device_op_t* find_op(const sys_device_op_t* ops, uint32_t count, uint16_t op) {
+  for (uint32_t i = 0; i < count; i++) {
+    if (ops[i].op == op) {
+      return &ops[i];
+    }
+  }
+  return NULL;
+}
+
+// The device runs this op of its type's table (has_op: not every wiring gives every op).
+static bool device_has_op(const dev_t_* d, uint16_t op) {
+  return d->type->has_op == NULL || d->type->has_op(d->ctx, op);
+}
 
 #define SIDE_READ  0x01u  // OPS: the op has a read side
 #define SIDE_WRITE 0x02u  // ... a write side
 
-// The device runs this op of its type's table (has_op: not every wiring gives every op).
-static bool device_has_op(uint32_t i, uint16_t op) {
-  const sys_device_type_t* t = s_reg.devs[i].type;
-  return t->has_op == NULL || t->has_op(s_reg.devs[i].ctx, op);
+// OPS rows of a table: [op u16][sides u8] per op (with `wired`: per op the device runs, has_op).
+static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t count, bool wired, uint8_t* out,
+                        uint32_t out_cap, uint32_t* pos) {
+  for (uint32_t k = 0; k < count; k++) {
+    if (wired && !device_has_op(d, ops[k].op)) continue;
+    const uint8_t sides = (ops[k].read != NULL ? SIDE_READ : 0) | (ops[k].write != NULL ? SIDE_WRITE : 0);
+    ERR_TRY(cmd_append(out, out_cap, pos, &ops[k].op, sizeof(uint16_t)));  // little-endian target
+    ERR_TRY(cmd_append(out, out_cap, pos, &sides, sizeof(sides)));
+  }
+  return NULL;
 }
 
-// OPS: [op u16][sides u8] per op, the registry's, then the type's table (the ops this device runs).
-static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  const sys_device_type_t* t = s_reg.devs[i].type;
+// OPS: the registry's ops, then the type's table (the ops this device runs).
+OP_READ(SYS_DEVICE, OPS) {
+  const dev_t_* d = ctx;
   uint32_t pos = 0;
-  for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
-    if (k > 0 && k_registry_ops[k - 1].op == k_registry_ops[k].op) continue;  // the second side of the same op
-    uint8_t sides = 0;
-    for (uint32_t j = k; j < ARRAY_LEN(k_registry_ops) && k_registry_ops[j].op == k_registry_ops[k].op; j++) {
-      sides |= k_registry_ops[j].dir == CMD_DIR_READ ? SIDE_READ : SIDE_WRITE;
-    }
-    ERR_TRY(cmd_append(out, out_cap, &pos, &k_registry_ops[k].op, sizeof(uint16_t)));  // little-endian target
-    ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
-  }
-  for (uint32_t k = 0; k < t->op_count; k++) {
-    if (!device_has_op(i, t->ops[k].op)) continue;
-    const uint8_t sides = (t->ops[k].read != NULL ? SIDE_READ : 0) | (t->ops[k].write != NULL ? SIDE_WRITE : 0);
-    ERR_TRY(cmd_append(out, out_cap, &pos, &t->ops[k].op, sizeof(uint16_t)));
-    ERR_TRY(cmd_append(out, out_cap, &pos, &sides, sizeof(sides)));
-  }
+  ERR_TRY(append_ops(d, k_registry_ops, ARRAY_LEN(k_registry_ops), false, out, out_cap, &pos));
+  ERR_TRY(append_ops(d, d->type->ops, d->type->op_count, true, out, out_cap, &pos));
   *out_len = pos;
   return NULL;
 }
 
-static bool registry_op(uint16_t op) {
-  for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
-    if (k_registry_ops[k].op == op) return true;
-  }
-  return false;
-}
-
-// Any op but CREATE, on a registered device: the registry's, else the type's.
+// Any op but CREATE, on a registered device: the registry's (ctx = the entry), else the type's (ctx = its struct).
 static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
                     uint32_t out_cap, uint32_t* out_len) {
-  if (registry_op(op)) {
-    for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
-      if (k_registry_ops[k].op == op && k_registry_ops[k].dir == dir) {
-        const uint16_t need = k_registry_ops[k].args_size;
-        ERR_CHECK(args_len == need, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = need);
-        return k_registry_ops[k].fn(i, args, out, out_cap, out_len);
-      }
-    }
-    return ERR_NEW(ERR_CMD_DIRECTION, .dir = dir);
+  dev_t_* d = &s_reg.devs[i];
+  const sys_device_op_t* row = find_op(k_registry_ops, ARRAY_LEN(k_registry_ops), op);
+  void* ctx = d;
+  if (row == NULL) {
+    row = find_op(d->type->ops, d->type->op_count, op);
+    ERR_CHECK(row != NULL && device_has_op(d, op), ERR_DEV_UNKNOWN_OP, .op = op);
+    ctx = d->ctx;
   }
-  const sys_device_op_t* row = type_op(s_reg.devs[i].type, op);
-  ERR_CHECK(row != NULL && device_has_op(i, op), ERR_DEV_UNKNOWN_OP, .op = op);
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
-  return fn(s_reg.devs[i].ctx, args, args_len, out, out_cap, out_len);
+  return fn(ctx, args, args_len, out, out_cap, out_len);
 }
 
 /* ---- Types ---- */
@@ -314,7 +290,7 @@ void sys_device_type_register(const sys_device_type_t* type) {
   assert(type->ctx_size >= sizeof(sys_device_base_t) && "the device's struct starts with sys_device_base_t");
   assert(type->suspend != NULL && type->resume != NULL && "a device type must have a SUSPEND and a RESUME hook");
   for (uint32_t k = 0; k < ARRAY_LEN(k_registry_ops); k++) {
-    assert(type_op(type, k_registry_ops[k].op) == NULL &&
+    assert(find_op(type->ops, type->op_count, k_registry_ops[k].op) == NULL &&
            "a registry op in a type's table (SUSPEND / RESUME are the type's hooks, the rest the registry's)");
   }
   assert(find_type(type->type) == NULL && "device type registered twice");
