@@ -75,7 +75,7 @@ Which pins a device has and which are locked. A pin another device depends on (P
 
 ## Events
 
-The IO events (`SYS_IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0; the table and delivery are in SYS_EVENT.MD) are raised for a pin armed with INTR, with channel = pin:
+The IO events (`IO_EVENTS`: RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE = `0x0100`–`0x0103`, flags 0; the table and delivery are in SYS_EVENT.MD) are raised for a pin armed with INTR, with channel = pin:
 
 - **GPIO ESP** (`device_gpio_esp`): RISING / FALLING from its pin ISR; ADC_OUTSIDE / ADC_INSIDE from its ADC task, deferred.
 - **TCA6424A** (`device_tca6424a`): its ON_EVENT runs on the INT pin's falling edge, reads the input port and publishes the edges of the pins armed with an edge mode. Nothing while suspended.

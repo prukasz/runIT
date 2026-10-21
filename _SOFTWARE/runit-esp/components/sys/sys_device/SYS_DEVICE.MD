@@ -83,7 +83,7 @@ Internal callers use `sys_device_call(id, dir, op, args, len, out, cap, &out_len
 
 The registry owns each device's `suspended` flag, so it is the one that sees it change: on SUSPEND of a device that was not suspended, and on a RESUME that worked. It tells the **state listener** the app sets (`sys_device_set_state_listener(fn)`, boot only; `fn(id, suspended)`), like the VM stop and the action runner, so `sys_device` doesn't depend on `sys_event`. A sweep (SUSPEND or RESUME of every device: the router's `0xFFFF` sweeps, the safe state, a critical fault's response) makes **one** call at its end with `SYS_DEVICE_ID_NONE` when any device changed, not one per device (the event queue is 16 deep and a safe state runs on the urgent task). The call is made under the registry lock, in the op's task: the listener must not wait.
 
-runit's listener publishes the device contract's events, `SYS_DEVICE_EVENTS` in `sys_device.h` (`SUSPENDED` `0x0000`, `RESUMED` `0x0001`, both NOTIFY; the IDs `DEVICE_EV_*` are made in `sys_event.h`, which has the flag values). The app gets them on the events stream (SYS_EVENT.MD) and follows a device's state without asking INFO; source `0xFFFF` means "every device".
+runit's listener publishes the device contract's events, `SYS_DEVICE_EVENTS` in `sys_device.h` (`SUSPENDED` `0x0000`, `RESUMED` `0x0001`, both NOTIFY; the IDs `SYS_DEVICE_EV_*` are made in `sys_event.h` with `SYS_EVENTS_DECLARE(SYS_DEVICE)`, which has the flag values). The app gets them on the events stream (SYS_EVENT.MD) and follows a device's state without asking INFO; source `0xFFFF` means "every device".
 
 ## Guards
 

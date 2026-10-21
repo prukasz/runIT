@@ -17,16 +17,11 @@ extern "C" {
 /* Events of the vreg contract (sys_event.h "Events tables"); channel 0. The
  * faults matter to the user (NOTIFY); READY is code flow (a program waiting for
  * its rail after SET_ENABLE / a higher SET_VOLTAGE, which return at once). */
-#define SYS_POWER_VREG_EVENTS(X)   \
-  X(OVP,   0x00, SYS_EVENT_NOTIFY) \
-  X(OCP,   0x01, SYS_EVENT_NOTIFY) \
-  X(SCP,   0x02, SYS_EVENT_NOTIFY) \
-  X(READY, 0x03, 0)
-
-#define SYS_POWER_VREG__EV(name, n, flags) \
-  VREG_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_VREG, n), VREG_EV_##name##_FLAGS = (flags),
-
-enum { SYS_POWER_VREG_EVENTS(SYS_POWER_VREG__EV) };
+#define VREG_EVENTS(X, P)             \
+  X(P, OVP,   0x00, SYS_EVENT_NOTIFY) \
+  X(P, OCP,   0x01, SYS_EVENT_NOTIFY) \
+  X(P, SCP,   0x02, SYS_EVENT_NOTIFY) \
+  X(P, READY, 0x03, 0)
 
 typedef struct __attribute__((packed)) {
   uint8_t enable;       /**< 1 = Output enabled, 0 = Output disabled */
@@ -53,6 +48,7 @@ typedef struct __attribute__((packed)) {
   X(P, CURRENT, 0x02, sys_device_none_t, vreg_current_args_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(VREG, SYS_DEVICE_CONTRACT_POWER_VREG)
+SYS_EVENTS_DECLARE(VREG)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

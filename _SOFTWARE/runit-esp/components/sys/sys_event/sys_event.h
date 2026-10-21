@@ -73,21 +73,18 @@ typedef struct __attribute__((packed)) {
 /* ----------------------------------------------------------------------------
  * Events tables
  *
- * A contract lists its events once, next to its ops: X(NAME, n, flags), e.g.
- *   #define SYS_IO_EVENTS(X) X(RISING, 0x00, 0) X(FALLING, 0x01, 0)
- *   #define SYS_IO__EV(name, n, flags) IO_EV_##name = SYS_EVENT_ID(SYS_DEVICE_CONTRACT_IO, n), \
- *                                      IO_EV_##name##_FLAGS = (flags),
- *   enum { SYS_IO_EVENTS(SYS_IO__EV) };
+ * A contract lists its events once, next to its ops: the table P_EVENTS of rows X(P, NAME, n, flags), and
+ * SYS_EVENTS_DECLARE(P) (sys_device.h) after its SYS_DEVICE_CONTRACT_DECLARE (the ID from P_CONTRACT), e.g.
+ *   #define IO_EVENTS(X, P) X(P, RISING, 0x00, 0) X(P, FALLING, 0x01, 0)
+ *   SYS_EVENTS_DECLARE(IO)  // IO_EV_RISING = 0x0100, IO_EV_RISING_FLAGS = 0, ...
  * flags = SYS_EVENT_NOTIFY for events that matter to the user (an over-current,
  * a fault), 0 for the ones that only drive code (an edge, an alert pin).
  * Publishing with SYS_EVENT_PUBLISH takes the flags from the table.
  * ------------------------------------------------------------------------- */
 
-/* The device contract's events (SYS_DEVICE_EVENTS, sys_device.h): its table sits with its ops, its IDs here, where the flag
- * values are (sys_device is below sys_event). */
-#define SYS_DEVICE__EV(name, n, flags) \
-  DEVICE_EV_##name = SYS_EVENT_ID(SYS_DEVICE_CONTRACT_DEVICE, n), DEVICE_EV_##name##_FLAGS = (flags),
-enum { SYS_DEVICE_EVENTS(SYS_DEVICE__EV) };
+/* The device contract's events (SYS_DEVICE_EVENTS, sys_device.h): its table sits with its ops, its IDs here, where the
+ * flag values are (sys_device is below sys_event). */
+SYS_EVENTS_DECLARE(SYS_DEVICE)
 
 /**
  * @brief Publishes event NAME of the table with prefix PFX (IO_EV_NAME, IO_EV_NAME_FLAGS).

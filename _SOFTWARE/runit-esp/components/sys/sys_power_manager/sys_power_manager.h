@@ -77,18 +77,16 @@ typedef enum {
  * The device events it answers (VREG, monitor) are the devices' own.
  * ------------------------------------------------------------------------- */
 
-#define SYS_POWER_MANAGER_EVENTS(X)           \
-  X(SOURCE_CHANGED,   0x00, SYS_EVENT_NOTIFY) \
-  X(BATTERY_LOW,      0x01, SYS_EVENT_NOTIFY) \
-  X(BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
-  X(BUDGET_EXCEEDED,  0x03, SYS_EVENT_NOTIFY) \
-  X(INPUT_OVP,        0x04, SYS_EVENT_NOTIFY) \
-  X(PD_FIXED,         0x05, SYS_EVENT_NOTIFY)
+#define PWRM_EVENTS(X, P)                        \
+  X(P, SOURCE_CHANGED,   0x00, SYS_EVENT_NOTIFY) \
+  X(P, BATTERY_LOW,      0x01, SYS_EVENT_NOTIFY) \
+  X(P, BATTERY_CRITICAL, 0x02, SYS_EVENT_NOTIFY) \
+  X(P, BUDGET_EXCEEDED,  0x03, SYS_EVENT_NOTIFY) \
+  X(P, INPUT_OVP,        0x04, SYS_EVENT_NOTIFY) \
+  X(P, PD_FIXED,         0x05, SYS_EVENT_NOTIFY)
 
-#define SYS_POWER_MANAGER__EV(name, n, flags) \
-  PWRM_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MANAGER, n), PWRM_EV_##name##_FLAGS = (flags),
-
-enum { SYS_POWER_MANAGER_EVENTS(SYS_POWER_MANAGER__EV) };
+enum { PWRM_CONTRACT = SYS_DEVICE_CONTRACT_POWER_MANAGER };  // events only: the manager has no ops
+SYS_EVENTS_DECLARE(PWRM)
 
 /* ----------------------------------------------------------------------------
  * Board description (static, from the board config)

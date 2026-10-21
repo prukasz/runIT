@@ -24,14 +24,9 @@ typedef enum sys_power_alert_e {
 /* Events of the monitor contract (sys_event.h "Events tables"), published by a
  * device for an armed alert; channel = the measured channel, value = mA. The n of
  * each event is the sys_power_alert_e that armed it. Both matter to the user: NOTIFY. */
-#define SYS_POWER_MONITOR_EVENTS(X)       \
-  X(OCP_WARNING,  0x00, SYS_EVENT_NOTIFY) \
-  X(OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)
-
-#define SYS_POWER_MONITOR__EV(name, n, flags) \
-  PMON_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, n), PMON_EV_##name##_FLAGS = (flags),
-
-enum { SYS_POWER_MONITOR_EVENTS(SYS_POWER_MONITOR__EV) };
+#define PMON_EVENTS(X, P)                    \
+  X(P, OCP_WARNING,  0x00, SYS_EVENT_NOTIFY) \
+  X(P, OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)
 
 typedef struct __attribute__((packed)) {
   uint8_t channel;  /**< Measured channel index */
@@ -57,6 +52,7 @@ typedef struct __attribute__((packed)) {
   X(P, POWER,   0x03, pmon_channel_args_t, int32_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(PMON, SYS_DEVICE_CONTRACT_POWER_MONITOR)
+SYS_EVENTS_DECLARE(PMON)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

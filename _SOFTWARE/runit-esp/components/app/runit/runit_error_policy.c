@@ -56,7 +56,8 @@ static void error_sink(err_h chain, const err_cmd_t* cmd) {
  * NOTIFY, so the app knows of a safe state or a fault response without asking. Under the registry lock: the event goes out
  * inline (the events connector, then the listeners: none of them waits for a device lock held elsewhere). */
 static void device_state_changed(uint16_t id, bool suspended) {
-  const err_h err = suspended ? SYS_EVENT_PUBLISH(DEVICE, SUSPENDED, id, 0, 0) : SYS_EVENT_PUBLISH(DEVICE, RESUMED, id, 0, 0);
+  const err_h err = suspended ? SYS_EVENT_PUBLISH(SYS_DEVICE, SUSPENDED, id, 0, 0)
+                              : SYS_EVENT_PUBLISH(SYS_DEVICE, RESUMED, id, 0, 0);
   if (err != NULL) {
     err_report(err);
   }

@@ -27,7 +27,7 @@ typedef struct __attribute__((packed)) {  // 18 B
 } sys_event_t;
 ```
 
-- **Event IDs belong to contracts**: a contract lists its events next to its ops, `X(NAME, n, flags)` (the `SYS_*_EVENTS` tables in the contract headers, e.g. `SYS_IO_EVENTS` in `sys_io.h` → `IO_EV_FALLING` = `0x0101`, `IO_EV_FALLING_FLAGS`). A device's own events are `0xFFxx`. n `0xFF` is never used (wildcard).
+- **Event IDs belong to contracts**: a contract lists its events next to its ops, in the table `P_EVENTS` of rows `X(P, NAME, n, flags)`, and `SYS_EVENTS_DECLARE(P)` (`sys_device.h`) makes the IDs from its `P_CONTRACT` (e.g. `IO_EVENTS` in `sys_io.h` → `IO_EV_FALLING` = `0x0101`, `IO_EV_FALLING_FLAGS`). The power manager has events but no ops, so it sets `PWRM_CONTRACT` itself. A device's own events are `0xFFxx`. n `0xFF` is never used (wildcard).
 - **`SYS_EVENT_NOTIFY`** in the table = an event that matters to the user (over-current, a fault), not one that only drives code (an edge, an alert pin). `SYS_EVENT_PUBLISH(PFX, NAME, src, ch, val)` takes the flags from the table, so a publisher can't get them wrong.
 - **No loop guard**: a listener that republishes (TCA6424A, TPS55289, INA3221 on their INT / alert pin) subscribes to one exact source and channel, and that pin's device exists before it (`sys_device_use`), so a chain of republishes is finite (pin of the ESP → TCA → TPS → power manager) and can't close into a cycle. Keep that rule for a new republisher.
 
@@ -52,7 +52,7 @@ typedef struct __attribute__((packed)) {  // 18 B
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
 
-Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `DEVICE_EV_*` are made here, where the flag values are).
+Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `SYS_DEVICE_EV_*` are made here, where the flag values are).
 
 ## Publishing
 

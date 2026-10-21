@@ -53,15 +53,11 @@ SYS_DEVICE_CONTRACT_DECLARE(HBRIDGE, SYS_DEVICE_CONTRACT_HBRIDGE)
 
 /* Events of the contract (sys_event.h "Events tables"): a channel fault, published by the driver; channel = the
  * channel, value = its current in mA. A fault is something the user must see: NOTIFY. */
-#define SYS_HBRIDGE_EVENTS(X) \
-  X(OVERCURRENT, 0x00, SYS_EVENT_NOTIFY) \
-  X(THERMAL_OR_UVLO, 0x01, SYS_EVENT_NOTIFY) \
-  X(EXTERNAL, 0x02, SYS_EVENT_NOTIFY)
-
-#define SYS_HBRIDGE__EV(name, n, flags) \
-  HBRIDGE_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_HBRIDGE, n), HBRIDGE_EV_##name##_FLAGS = (flags),
-
-enum { SYS_HBRIDGE_EVENTS(SYS_HBRIDGE__EV) };
+#define HBRIDGE_EVENTS(X, P)                    \
+  X(P, OVERCURRENT,     0x00, SYS_EVENT_NOTIFY) \
+  X(P, THERMAL_OR_UVLO, 0x01, SYS_EVENT_NOTIFY) \
+  X(P, EXTERNAL,        0x02, SYS_EVENT_NOTIFY)
+SYS_EVENTS_DECLARE(HBRIDGE)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

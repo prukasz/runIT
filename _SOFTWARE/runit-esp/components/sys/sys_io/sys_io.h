@@ -51,16 +51,11 @@ typedef enum sys_io_intr_mode_e {
 /* Events of the IO contract (sys_event.h "Events tables"), published by a
  * device for a pin armed with CONFIGURE_INTR; channel = pin. Flags 0: an edge
  * is code flow (an alert pin, the VM), not something to show by itself. */
-#define SYS_IO_EVENTS(X)  \
-  X(RISING,      0x00, 0) \
-  X(FALLING,     0x01, 0) \
-  X(ADC_OUTSIDE, 0x02, 0) \
-  X(ADC_INSIDE,  0x03, 0)
-
-#define SYS_IO__EV(name, n, flags) \
-  IO_EV_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n), IO_EV_##name##_FLAGS = (flags),
-
-enum { SYS_IO_EVENTS(SYS_IO__EV) };
+#define IO_EVENTS(X, P)      \
+  X(P, RISING,      0x00, 0) \
+  X(P, FALLING,     0x01, 0) \
+  X(P, ADC_OUTSIDE, 0x02, 0) \
+  X(P, ADC_INSIDE,  0x03, 0)
 
 typedef struct __attribute__((packed)) {
   uint8_t pin;  /**< Device pin index */
@@ -134,6 +129,7 @@ typedef struct __attribute__((packed)) {
   X(P, VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(IO, SYS_DEVICE_CONTRACT_IO)
+SYS_EVENTS_DECLARE(IO)
 
 /**
  * @brief Pin of a device. In a create struct a pin that is not used is
