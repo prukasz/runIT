@@ -2,10 +2,11 @@
 
 /**
  * @file router_ids.h
- * @brief Root router keys - the one place they are assigned. Never renumber;
- * add new ones at the end. 0 is invalid. Links are registered under an ID
- * the app assigns: today the transport IDs of sys_connector.h (transport_e),
- * which the router doesn't include or use.
+ * @brief Root router keys - the one place they are assigned (wire format: never renumber, add new ones at the
+ * end, 0 is invalid). The app layer binds a key to a module router with router_register (runit.c); modules don't
+ * register themselves. ROUTER_KEY_EVENT is only the shape of the events stream: it has no router. Links are
+ * registered under an ID the app assigns: today the transport IDs of sys_connector.h (transport_e), which the
+ * router doesn't include or use.
  */
 
 /* Root keys: first key of every command, after [seq][flags]. */
