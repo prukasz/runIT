@@ -8,8 +8,8 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 | `errors/sys_log_errors.h` | `ERR_SYS_LOG_MAP`, the module's error tags (included by `sys_log.h`) |
 | `errors/errors_log.json` | The error messages |
 | `sys_log.c` | The `vprintf` hook, the options and their defaults, the error history and its sending. `ERR_MOD_SYS_LOG` = 13 |
-| `sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08 |
-| `contract_log.json` | The router's descriptor (CONFIG, ERRORS and the options) |
+| `router/sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08 |
+| `router/contract_log.json` | The router's descriptor (CONFIG, ERRORS and the options) |
 | `Kconfig` | `SYS_LOG_LINE_MAX` (160): the line buffer of the hook |
 | `AGENTS.md` | Rules for changing this folder |
 

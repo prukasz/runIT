@@ -8,8 +8,8 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 | `errors/sys_power_manager_errors.h` | `ERR_SYS_POWER_MANAGER_MAP`, the module's error tags (included by `sys_power_manager.h`) |
 | `errors/errors_power_manager.json` | The error messages |
 | `sys_power_manager.c` | Task, budget, the POWER_VREG guard, source, battery, response matrix, settings. `WHOLE_ARCHIVE` (error tag registration) |
-| `sys_power_manager_router.c/.h` | Remote interface, `ROUTER_KEY_POWER` = 0x0A |
-| `contract_power_manager.json` | The router's descriptor (`templates/`) |
+| `router/sys_power_manager_router.c/.h` | Remote interface, `ROUTER_KEY_POWER` = 0x0A |
+| `router/contract_power_manager.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Task, period (1 s), rails (4), budget step (250 mW), input warning (90 %), battery hysteresis (3 %) |
 | `AGENTS.md` | Rules for changing this folder |
 

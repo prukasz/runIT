@@ -8,8 +8,8 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 |---|---|
 | `sys_system.h` | `sys_safe_reason_e`, `SYS_SYSTEM_OP_RESTART`, the safe state and dead-man API, `sys_system_init` |
 | `sys_system.c` | Safe state (handler, leave, note), dead-man (timer, config), the router watch |
-| `sys_system_router.h` / `.c` | `sys_system_router` (`ROUTER_KEY_SYS`): the ops below |
-| `contract_sys.json` | The service descriptor of the ops |
+| `router/sys_system_router.h` / `.c` | `sys_system_router` (`ROUTER_KEY_SYS`): the ops below |
+| `router/contract_sys.json` | The service descriptor of the ops |
 | `Kconfig` | `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (dead-man at boot, default 0 = off) |
 | `AGENTS.md` | Rules for changing this folder |
 

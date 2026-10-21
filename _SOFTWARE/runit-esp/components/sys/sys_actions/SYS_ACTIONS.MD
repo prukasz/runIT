@@ -14,8 +14,8 @@ The store holds four kinds of record, told apart by the class in the ID: the use
 | `errors/sys_actions_errors.h` | `ERR_SYS_ACTIONS_MAP`, the module's error tags (included by `sys_actions.h`) |
 | `errors/errors_actions.json` | The error messages |
 | `sys_actions.c` | NVS store, run, recorder (tap), upload |
-| `sys_actions_router.c/.h` | `actions` router (`ROUTER_KEY_ACTIONS` = 0x06), op IDs `SYS_ACTIONS_OP_*` |
-| `contract_actions.json` | Contract descriptor for the actions router |
+| `router/sys_actions_router.c/.h` | `actions` router (`ROUTER_KEY_ACTIONS` = 0x06), op IDs `SYS_ACTIONS_OP_*` |
+| `router/contract_actions.json` | Contract descriptor for the actions router |
 | `Kconfig` | Partition, largest record, largest device record, nesting depth |
 
 A change to `contract_actions.json`, to an op number, to an error tag, or to a marked `#ref-*` group here also changes what the app reads. Update `templates/` with it: `sh templates/sync.sh` regenerates `enums.json` and `errors.json`, refreshes `runit-app/generated/services/contract_actions.json`, and validates everything ([templates/AGENTS.md](../../../../templates/AGENTS.md)). Commit with `--check` green.

@@ -8,8 +8,8 @@ Component `components/sys/sys_i2c/`. Wraps the ESP-IDF `i2c_master` driver; erro
 | `errors/sys_i2c_errors.h` | `ERR_SYS_I2C_MAP`, the module's error tags (included by `sys_i2c.h`) |
 | `errors/errors_sys_i2c.json` | The error messages |
 | `sys_i2c.c` | The bus table (from Kconfig), the address map, the transfers |
-| `sys_i2c_router.h/.c` | Remote diagnostics (`ROUTER_KEY_I2C` = 0x02) and the wire layouts of its ops |
-| `contract_i2c.json` | The I2C router's descriptor (ops, args, answers) |
+| `router/sys_i2c_router.h/.c` | Remote diagnostics (`ROUTER_KEY_I2C` = 0x02) and the wire layouts of its ops |
+| `router/contract_i2c.json` | The I2C router's descriptor (ops, args, answers) |
 | `Kconfig` | Buses, timeouts, the remote bus and raw access |
 | `AGENTS.md` | Rules for changing this folder |
 

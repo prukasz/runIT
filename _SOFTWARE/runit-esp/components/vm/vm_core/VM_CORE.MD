@@ -15,7 +15,7 @@ vm_core/
   loader/    load state machine, vm_wire.h (every wire record)
   sub/       telemetry subscriptions (vm_sub.c)
   retain/    retained values (vm_retain.c)
-  vm_router.c/.h   the remote interface (ROUTER_KEY_VM = 0x0B), vm_init, vm_stop_on_fault
+  router/    vm_router.c/.h, contract_vm.json: the remote interface (ROUTER_KEY_VM = 0x0B), vm_init, vm_stop_on_fault
 ```
 
 Includes are by bare filename; every folder is on the include path (`CMakeLists.txt`). The component builds at `-O2` (hot path) and is linked `WHOLE_ARCHIVE` (tag registration).
