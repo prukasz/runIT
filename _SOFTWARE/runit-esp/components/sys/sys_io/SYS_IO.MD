@@ -4,7 +4,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 | File | Contents |
 |---|---|
-| `sys_io.h` | The `SYS_IO_CONTRACT` table (op IDs, handler / entry macros), arg structs, the read answer helpers `sys_io_reply_level` / `sys_io_reply_voltage`, `sys_io_mode_e`, `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), `sys_io_pin_t`, wrappers |
+| `sys_io.h` | The `IO_OPERATIONS` table (op IDs, handler / entry macros), arg structs, the read answer helpers `sys_io_reply_level` / `sys_io_reply_voltage`, `sys_io_mode_e`, `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), `sys_io_pin_t`, wrappers |
 | `errors/sys_io_errors.h` | `ERR_SYS_IO_MAP`, the module's error tags (included by `sys_io.h`) |
 | `errors/errors_sys_io.json` | The error messages |
 | `sys_io.c` | The wrappers |
@@ -19,7 +19,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Ops
 
-`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian structs. The contract is the table `SYS_IO_CONTRACT(X, P)` (`X(P, NAME, number, key_t, value_t)`, prefix `IO`): `IO_OP_<NAME>`, `IO_key_<NAME>_t` / `IO_value_<NAME>_t`, `OP_READ(IO, NAME)` / `OP_WRITE(IO, NAME)` and `OP_ENTRY(IO, NAME)` / `OP_ENTRY_R` / `OP_ENTRY_W` all come from it (SYS_DEVICE.MD, "Contract tables"). An RW op's read takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which).
+`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian structs. The contract is the table `IO_OPERATIONS(X, P)` (`X(P, NAME, number, key_t, value_t)`, prefix `IO`): `IO_OP_<NAME>`, `IO_key_<NAME>_t` / `IO_value_<NAME>_t`, `OP_READ(IO, NAME)` / `OP_WRITE(IO, NAME)` and `OP_ENTRY(IO, NAME)` / `OP_ENTRY_R` / `OP_ENTRY_W` all come from it (SYS_DEVICE.MD, "Contract tables"). An RW op's read takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which).
 
 | Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|

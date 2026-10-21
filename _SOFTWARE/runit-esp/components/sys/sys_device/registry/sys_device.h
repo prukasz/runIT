@@ -19,10 +19,10 @@ extern "C" {
  * Op = [contract u8][op u8]: 0x00xx the device (lifecycle, below), 0x01xx-0xFExx a contract (IDs below, the one place
  * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). An op has a read side, a write side or both
  * (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes (the mirror, CMD.MD).
- * A contract is ONE table X(P, NAME, n, key_t, value_t); SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID) gives
- * P_CONTRACT, P_OP_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t, and OP_READ(P, NAME) / OP_WRITE(P, NAME) (the handlers) and
- * OP_ENTRY(P, NAME) (both sides), OP_ENTRY_R, OP_ENTRY_W (one) use them, so an op number can't be paired with another
- * op's struct (SYS_DEVICE_LIFECYCLE below is the pattern; sys_io.h, sys_pins.h contracts).
+ * A contract is ONE table P_OPERATIONS of X(P, NAME, n, key_t, value_t); SYS_DEVICE_CONTRACT_DECLARE(P, contract ID)
+ * gives P_CONTRACT, P_OP_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t, and OP_READ(P, NAME) / OP_WRITE(P, NAME) (the
+ * handlers) and OP_ENTRY(P, NAME) (both sides), OP_ENTRY_R, OP_ENTRY_W (one) use them, so an op number can't be paired
+ * with another op's struct (SYS_DEVICE_OPERATIONS below is the pattern; sys_io.h, sys_pins.h contracts).
  *
  * Locking: one recursive lock covers the registry and every call into a device. An op must not sleep or wait for
  * anything but its own I/O, and a driver must not hold a lock of its own across sys_device_call() or
@@ -111,28 +111,27 @@ typedef struct __attribute__((packed)) {
  * (answered as a list, so its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and
  * ERROR_POLICY are the registry's for every device: a driver's op table lists none of them.
  */
-#define SYS_DEVICE_LIFECYCLE(X, P)                                          \
-  X(P, RESET,        0x01, sys_device_none_t, sys_device_none_t)            \
-  X(P, SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)            \
-  X(P, RESUME,       0x03, sys_device_none_t, sys_device_none_t)            \
-  X(P, REMOVE,       0x04, sys_device_none_t, sys_device_none_t)            \
-  X(P, INFO,         0x05, sys_device_none_t, sys_device_info_t)            \
-  X(P, OPS,          0x06, sys_device_none_t, sys_device_none_t)            \
+#define SYS_DEVICE_OPERATIONS(X, P)                                      \
+  X(P, RESET,        0x01, sys_device_none_t, sys_device_none_t)         \
+  X(P, SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)         \
+  X(P, RESUME,       0x03, sys_device_none_t, sys_device_none_t)         \
+  X(P, REMOVE,       0x04, sys_device_none_t, sys_device_none_t)         \
+  X(P, INFO,         0x05, sys_device_none_t, sys_device_info_t)         \
+  X(P, OPS,          0x06, sys_device_none_t, sys_device_none_t)         \
   X(P, ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
 
-/* The contract tables' expansion, shared by every contract: SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID) on a
- * table X(P, NAME, n, key_t, value_t) gives P_CONTRACT (the ID), P_OP_<NAME> and the types P_key_<NAME>_t,
- * P_value_<NAME>_t. */
+/* The contract tables' expansion, shared by every contract: SYS_DEVICE_CONTRACT_DECLARE(P, contract ID) on the table
+ * P_OPERATIONS(X, P) gives P_CONTRACT (the ID), P_OP_<NAME> and the types P_key_<NAME>_t, P_value_<NAME>_t. */
 #define SYS_DEVICE__ID(P, name, n, key_t, value_t) P##_OP_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
 #define SYS_DEVICE__TYPES(P, name, n, key_t, value_t) \
   typedef key_t P##_key_##name##_t;                   \
   typedef value_t P##_value_##name##_t;
-#define SYS_DEVICE_CONTRACT_DECLARE(table, P, contract)         \
-  enum { P##_CONTRACT = (contract), table(SYS_DEVICE__ID, P) }; \
-  table(SYS_DEVICE__TYPES, P)
+#define SYS_DEVICE_CONTRACT_DECLARE(P, contract)                         \
+  enum { P##_CONTRACT = (contract), P##_OPERATIONS(SYS_DEVICE__ID, P) }; \
+  P##_OPERATIONS(SYS_DEVICE__TYPES, P)
 
 enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00) };  // CREATE: [type u16][create struct]
-SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE_LIFECYCLE, SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 
 /* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app

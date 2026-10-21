@@ -48,12 +48,12 @@ typedef struct __attribute__((packed)) {
  * driver writes OP_READ(PD, NAME) / OP_WRITE(PD, NAME) and lists OP_ENTRY(PD, NAME), OP_ENTRY_R, OP_ENTRY_W
  * (SYS_DEVICE.MD "Contract tables"). Sides: SETTINGS RW, OPTIONS R, LIMITS R. Numbers are never reused.
  */
-#define SYS_POWER_USB_PD_CONTRACT(X, P)                              \
+#define PD_OPERATIONS(X, P)                                          \
   X(P, SETTINGS, 0x00, sys_device_none_t, pd_settings_args_t)        \
   X(P, OPTIONS,  0x01, sys_device_none_t, sys_power_usb_pd_option_t) \
   X(P, LIMITS,   0x02, sys_device_none_t, sys_power_usb_pd_limits_t)
 
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_USB_PD_CONTRACT, PD, SYS_DEVICE_CONTRACT_POWER_USB_PD)
+SYS_DEVICE_CONTRACT_DECLARE(PD, SYS_DEVICE_CONTRACT_POWER_USB_PD)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

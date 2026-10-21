@@ -59,7 +59,7 @@ A device's class is the set of ops it answers, with their sides (OPS returns it)
 
 ### Contract tables (X-macros)
 
-A contract is written once, as a table `X(P, NAME, op number, key_t, value_t)` with a prefix `P` (`SYS_DEVICE_LIFECYCLE` here with `SYS_DEVICE`, `SYS_IO_CONTRACT` in `sys_io.h` with `IO`, `SYS_PINS_CONTRACT` in `sys_pins.h`, `SYS_EVENT_CONTRACT` in `sys_event.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). `SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID)` expands it (`IO_CONTRACT` = the ID, `IO_OP_<NAME>`, the typedefs); the handler and row macros `OP_READ`, `OP_WRITE`, `OP_ENTRY`, `OP_ENTRY_R`, `OP_ENTRY_W` are shared by every contract. The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `P` and `NAME`:
+A contract is written once, as a table `P_OPERATIONS` of rows `X(P, NAME, op number, key_t, value_t)`, where `P` is the contract's prefix (`SYS_DEVICE_OPERATIONS` here with `SYS_DEVICE`, `IO_OPERATIONS` in `sys_io.h` with `IO`, `PINS_OPERATIONS` in `sys_pins.h`, `EVENT_OPERATIONS` in `sys_event.h`, the power contracts in `sys_power_*.h`, `HBRIDGE_OPERATIONS`). `SYS_DEVICE_CONTRACT_DECLARE(P, contract ID)` (`SYS_DEVICE_CONTRACT_DECLARE(IO, SYS_DEVICE_CONTRACT_IO)`) expands it (`IO_CONTRACT` = the ID, `IO_OP_<NAME>`, the typedefs); the handler and row macros `OP_READ`, `OP_WRITE`, `OP_ENTRY`, `OP_ENTRY_R`, `OP_ENTRY_W` are shared by every contract. The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `P` and `NAME`:
 
 | Generated | Example |
 |---|---|

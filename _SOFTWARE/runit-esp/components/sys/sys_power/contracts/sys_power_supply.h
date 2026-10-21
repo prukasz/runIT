@@ -29,10 +29,10 @@ typedef struct __attribute__((packed)) {
  * SUPPLY_value_<NAME>_t; a driver writes OP_READ(SUPPLY, NAME) / OP_WRITE(SUPPLY, NAME) and lists OP_ENTRY(SUPPLY,
  * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: SOURCE RW. Numbers are never reused.
  */
-#define SYS_POWER_SUPPLY_CONTRACT(X, P) \
+#define SUPPLY_OPERATIONS(X, P)                               \
   X(P, SOURCE, 0x00, sys_device_none_t, supply_select_args_t)
 
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_SUPPLY_CONTRACT, SUPPLY, SYS_DEVICE_CONTRACT_POWER_SUPPLY)
+SYS_DEVICE_CONTRACT_DECLARE(SUPPLY, SYS_DEVICE_CONTRACT_POWER_SUPPLY)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

@@ -4,7 +4,7 @@ Component `components/sys/sys_hbridge/`. A contract, not a module with state: op
 
 | File | Contents |
 |---|---|
-| `sys_hbridge.h` | The contract table `SYS_HBRIDGE_CONTRACT` (prefix `HBRIDGE`: `OP_READ(HBRIDGE, …)`, `OP_ENTRY_W(HBRIDGE, …)`), the fault reasons, the events table, the wrappers |
+| `sys_hbridge.h` | The contract table `HBRIDGE_OPERATIONS` (prefix `HBRIDGE`: `OP_READ(HBRIDGE, …)`, `OP_ENTRY_W(HBRIDGE, …)`), the fault reasons, the events table, the wrappers |
 | `sys_hbridge.c` | The wrappers (`sys_device_write` of the op, `sys_device_read` for CURRENT; nothing else) |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
 | `AGENTS.md` | Rules for changing this folder |

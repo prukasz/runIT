@@ -47,12 +47,12 @@ typedef struct __attribute__((packed)) {
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: ENABLE W, VOLTAGE W, CURRENT W. Numbers are never
  * reused.
  */
-#define SYS_POWER_VREG_CONTRACT(X, P)                         \
+#define VREG_OPERATIONS(X, P)                                 \
   X(P, ENABLE,  0x00, sys_device_none_t, vreg_enable_args_t)  \
   X(P, VOLTAGE, 0x01, sys_device_none_t, vreg_voltage_args_t) \
   X(P, CURRENT, 0x02, sys_device_none_t, vreg_current_args_t)
 
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_VREG_CONTRACT, VREG, SYS_DEVICE_CONTRACT_POWER_VREG)
+SYS_DEVICE_CONTRACT_DECLARE(VREG, SYS_DEVICE_CONTRACT_POWER_VREG)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

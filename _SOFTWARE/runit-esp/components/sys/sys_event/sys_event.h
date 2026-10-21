@@ -102,9 +102,9 @@ enum { SYS_DEVICE_EVENTS(SYS_DEVICE__EV) };
  * ------------------------------------------------------------------------- */
 
 // The contract's only op, a write (OP_WRITE(EVENT, ON_EVENT), OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t.
-#define SYS_EVENT_CONTRACT(X, P) X(P, ON_EVENT, 0x00, sys_device_none_t, sys_event_t)
+#define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_none_t, sys_event_t)
 
-SYS_DEVICE_CONTRACT_DECLARE(SYS_EVENT_CONTRACT, EVENT, SYS_DEVICE_CONTRACT_EVENT)
+SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
 
 /* ----------------------------------------------------------------------------
  * C API
