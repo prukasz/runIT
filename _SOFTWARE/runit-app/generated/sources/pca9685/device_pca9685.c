@@ -66,13 +66,13 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
 OP_WRITE(IO, LEVEL) {
   pca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
 
 OP_WRITE(IO, TOGGLE) {
   pca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return chip_set_duty(c, args->pin, c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
 }
 
@@ -86,7 +86,7 @@ OP_READ(IO, LEVEL) {
 
 OP_WRITE(IO, PWM_DUTY) {
   pca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
   return chip_set_duty(c, args->pin, (uint16_t)args->duty);
 }
@@ -94,7 +94,6 @@ OP_WRITE(IO, PWM_DUTY) {
 // One frequency for all 16 channels: `pin` is not used.
 OP_WRITE(IO, PWM_FREQ) {
   pca_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
   return chip_set_frequency(c, (uint16_t)args->frequency_Hz);
 }
@@ -106,7 +105,6 @@ SYS_PINS_STATE_HANDLERS(pca_t)
 // The owner of a locked channel (a bridge driver on CH 8-15) drives it here; the IO writes refuse it.
 OP_WRITE(PINS, LOCKED_LEVEL) {
   pca_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
@@ -129,7 +127,6 @@ static err_h uninstall(void* ctx) {
 
 OP_WRITE(SYS_DEVICE, RESET) {
   pca_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   for (uint8_t ch = 0; ch < PCA9685_CHANNELS; ch++) {
     ERR_TRY(chip_set_duty(c, ch, 0));
   }
@@ -180,6 +177,4 @@ static const sys_device_op_t k_ops[] = {
     SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W(PINS, LOCKED_LEVEL),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t), .ctx_size = sizeof(pca_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, pca_t, k_ops)

@@ -45,7 +45,7 @@ An op has a read side, a write side or both. With both, the read takes the key (
 |---|---|---|---|
 | `0x0000` CREATE `[type u16][create struct]` | W | the ID is free | `ERR_DEV_BAD_ID`, `ID_TAKEN`, `TABLE_FULL`, `TYPE_UNKNOWN`, `ERR_CMD_BAD_LEN` (struct size); the driver's failure wrapped in `ERR_DEV_INSTALL{id, type}` after `uninstall()` |
 | `0x0001` RESET | W | lifecycle (driver) | outputs off, defaults |
-| `0x0002` SUSPEND | W | lifecycle (driver), **required** | outputs safe; the device refuses writes (`ERR_DEV_SUSPENDED`) until RESUME, and counts as suspended even if a step failed |
+| `0x0002` SUSPEND | W | lifecycle (driver), **required** | outputs safe; until RESUME the registry refuses every write of the type's table (`ERR_DEV_SUSPENDED`) but the rows marked `OP_ENTRY_W_ALWAYS` (`.always = true`: event deliveries, a pin's owner, settings that drive nothing, internal timers), and the device counts as suspended even if a step failed |
 | `0x0003` RESUME | W | lifecycle (driver), **required** | a failing resume leaves it suspended |
 | `0x0004` REMOVE | W | generic | refused for a board device (`ERR_DEV_SYSTEM{id}`) and while another device uses it (`ERR_DEV_IN_USE{id, user}`); else `uninstall()`, unregistered, freed (also when `uninstall()` failed: its error is returned) |
 | `0x0005` INFO → `{u16 type_id, u8 suspended}` | R | generic | from the type and `sys_device_base_t` |

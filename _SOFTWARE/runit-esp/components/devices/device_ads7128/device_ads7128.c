@@ -415,7 +415,6 @@ OP_WRITE(IO, MODE) {
    threshold of 0 mV up means "no high limit": full scale never trips the comparator. */
 OP_WRITE(IO, INTR) {
   ads_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   const sys_io_intr_cfg_t* cfg = &args->cfg;
   ERR_CHECK(cfg->mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE, ERR_CMD_BAD_ARG);
@@ -460,7 +459,6 @@ OP_WRITE(IO, INTR) {
 // The channel's comparator off.
 OP_WRITE(IO, RESET) {
   ads_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   c->intr_modes[args->pin] = SYS_IO_INTR_DISABLE;
   c->alert_active_mask &= (uint8_t)~(1u << args->pin);
@@ -486,7 +484,6 @@ static err_h uninstall(void* ctx) {
 // Back to the chip's defaults: every comparator off.
 OP_WRITE(SYS_DEVICE, RESET) {
   ads_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   memset(c->intr_modes, SYS_IO_INTR_DISABLE, sizeof(c->intr_modes));
   c->alert_active_mask = 0;
   return chip_reset(c);
@@ -539,9 +536,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET),
     OP_ENTRY_R(IO, VOLTAGE),  OP_ENTRY_W(IO, MODE),  OP_ENTRY_W(IO, INTR),
-    OP_ENTRY_W(IO, RESET),    OP_ENTRY_W(EVENT, ON_EVENT),
+    OP_ENTRY_W(IO, RESET),    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_ADS7128, .cfg_size = sizeof(ads7128_cfg_t), .ctx_size = sizeof(ads_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(ADS7128, ads7128_cfg_t, ads_t, k_ops)

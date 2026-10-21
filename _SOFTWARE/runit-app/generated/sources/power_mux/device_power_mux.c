@@ -46,7 +46,6 @@ static err_h mux_apply(mux_t* c, sys_power_supply_source_e target) {
 
 OP_WRITE(SUPPLY, SOURCE) {
   mux_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->source, SYS_POWER_SUPPLY_OFF, SYS_POWER_SUPPLY_B);
   c->wanted = (sys_power_supply_source_e)args->source;
   return mux_apply(c, c->wanted);
@@ -63,7 +62,6 @@ OP_READ(SUPPLY, SOURCE) {
 /* Back to the create state: both sources off, nothing wanted. */
 OP_WRITE(SYS_DEVICE, RESET) {
   mux_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   c->wanted = SYS_POWER_SUPPLY_OFF;
   return mux_apply(c, SYS_POWER_SUPPLY_OFF);
 }
@@ -139,6 +137,4 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY(SUPPLY, SOURCE),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_POWER_MUX, .cfg_size = sizeof(power_mux_cfg_t), .ctx_size = sizeof(mux_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(POWER_MUX, power_mux_cfg_t, mux_t, k_ops)

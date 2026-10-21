@@ -38,7 +38,7 @@ Example: the level of pin 4 of device 3, `[05][00][03 00][00 01][04]` → `[04][
 - **Frequency:** a device with one frequency for all pins (PCA9685) ignores `pin`.
 - **Modes** (`sys_io_mode_e`): input (plain / pull-up / pull-down), output (push-pull / open-drain / open-drain + pull-up), PWM, ADC, DAC. A device refuses a mode it can't do.
 - **Interrupts** (`sys_io_intr_cfg_t`, 10 bytes): `{u8 mode, u8 debounce, sys_io_adc_window_t adc}`. Modes: disable, rising / falling / both edges, ADC window outside / inside. `adc` = `{u16 threshold_up_mV, u16 threshold_down_mV, u16 hysteresis_mV, u16 event_counter_threshold}`, read only by the window modes. The config only arms the pin.
-- The device does the checks: `ERR_DEV_SUSPENDED` on writes while suspended, `ERR_DEV_BAD_PIN`, `ERR_DEV_RANGE` (value the chip would reject, never clamped).
+- The registry refuses writes while the device is suspended (`ERR_DEV_SUSPENDED`, SYS_DEVICE.MD); the device does the other checks: `ERR_DEV_BAD_PIN`, `ERR_DEV_RANGE` (value the chip would reject, never clamped).
 
 ## Errors (`ERR_MOD_SYS_IO` = 7, `errors/sys_io_errors.h`)
 
@@ -65,7 +65,7 @@ Which pins a device has and which are locked. A pin another device depends on (P
 | `0x0201` LOCKED | R | `sys_pins_locked(dev, &mask)` | → u64: the locked ones |
 | `0x0202` LOCK | W | `sys_pins_lock(p)` | `{u8 pin}` (`ERR_DEV_PIN_LOCKED` if already locked) |
 | `0x0203` UNLOCK | W | `sys_pins_unlock(p)` | `{u8 pin}` (an unlocked pin stays unlocked) |
-| `0x0204` LOCKED_LEVEL | W | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` (the owner's op: a device refuses it while suspended, `ERR_DEV_SUSPENDED`) |
+| `0x0204` LOCKED_LEVEL | W | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` (the owner's op: PCA9685 and TCA6424A refuse it while suspended, `ERR_DEV_SUSPENDED`; GPIO ESP takes it, its SUSPEND leaves locked pins to their owner) |
 
 - A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; LOCKED_LEVEL writes the pin and stays the device's own.
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.

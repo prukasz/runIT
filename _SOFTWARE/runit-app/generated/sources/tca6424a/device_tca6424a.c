@@ -116,7 +116,7 @@ OP_WRITE(EVENT, ON_EVENT) {
 
 OP_WRITE(IO, MODE) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   ERR_CHECK(args->mode == SYS_IO_MODE_INPUT || args->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
             .id = c->base.id, .pin = args->pin, .mode = args->mode);
   return chip_set_config(c, 1UL << args->pin, args->mode == SYS_IO_MODE_INPUT ? (1UL << args->pin) : 0);
@@ -125,13 +125,13 @@ OP_WRITE(IO, MODE) {
 OP_WRITE(IO, LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
 
 OP_WRITE(IO, TOGGLE) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return chip_set_pins(c, 1UL << args->pin, (chip_output(c) & (1UL << args->pin)) ? 0 : (1UL << args->pin));
 }
 
@@ -150,7 +150,7 @@ OP_READ(IO, LEVEL) {
 // The pin back to its power-on state: input, latch low, interrupt disarmed.
 OP_WRITE(IO, RESET) {
   tca_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   c->intr_mode[args->pin] = SYS_IO_INTR_DISABLE;
   ERR_TRY(chip_set_pins(c, 1UL << args->pin, 0));
   return chip_set_config(c, 1UL << args->pin, 1UL << args->pin);
@@ -160,7 +160,7 @@ OP_WRITE(IO, RESET) {
 OP_WRITE(IO, INTR) {
   tca_t* c = ctx;
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = args->pin);
   c->intr_mode[args->pin] = args->cfg.mode;
   return NULL;
@@ -174,7 +174,6 @@ SYS_PINS_STATE_HANDLERS(tca_t)
 OP_WRITE(PINS, LOCKED_LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
@@ -185,7 +184,6 @@ OP_WRITE(PINS, LOCKED_LEVEL) {
    pin another device drives (a rail's EN, an LM73100 enable, PCA9685 OE) keeps its level. The chip is not reset. */
 OP_WRITE(SYS_DEVICE, RESET) {
   tca_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   const uint32_t free_pins = ~(uint32_t)c->pins.locked & PINS_MASK;
   memset(c->intr_mode, SYS_IO_INTR_DISABLE, sizeof(c->intr_mode));
   ERR_TRY(chip_set_pins(c, free_pins, 0));
@@ -273,9 +271,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(IO, MODE),    OP_ENTRY(IO, LEVEL),  OP_ENTRY_W(IO, TOGGLE),
     OP_ENTRY_W(IO, RESET),   OP_ENTRY_W(IO, INTR),
     SYS_PINS_STATE_ENTRIES,  OP_ENTRY_W(PINS, LOCKED_LEVEL),
-    OP_ENTRY_W(EVENT, ON_EVENT),
+    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TCA6424A, .cfg_size = sizeof(tca6424a_cfg_t), .ctx_size = sizeof(tca_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(TCA6424A, tca6424a_cfg_t, tca_t, k_ops)

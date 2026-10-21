@@ -202,7 +202,7 @@ static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode, bool* adc
 
 OP_WRITE(IO, MODE) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   bool adc_changed = false;
   LOCK();
   err_h err = configure_pin(c, args->pin, args->mode, &adc_changed);
@@ -215,7 +215,7 @@ OP_WRITE(IO, MODE) {
 
 OP_WRITE(IO, RESET) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return release_pin(args->pin);
 }
 
@@ -237,13 +237,13 @@ static err_h drive(const gpio_t* c, uint8_t pin, int level) {
 OP_WRITE(IO, LEVEL) {
   gpio_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return drive(c, args->pin, args->level);
 }
 
 OP_WRITE(IO, TOGGLE) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   return drive(c, args->pin, LEVEL_TOGGLE);
 }
 
@@ -343,7 +343,7 @@ static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_
 OP_WRITE(IO, INTR) {
   gpio_t* c = ctx;
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   esp_pin_obj_t* pin_obj;
   LOCK();
   err_h err = pin_configured(c, args->pin, &pin_obj);
@@ -378,7 +378,7 @@ static err_h pwm_result(const gpio_t* c, esp_err_t rc, uint8_t pin, uint32_t fre
 
 OP_WRITE(IO, PWM_FREQ) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, ESP_PWM_FREQ_MIN_HZ, ESP_PWM_FREQ_MAX_HZ);
   err_h err;
   LOCK();
@@ -392,7 +392,7 @@ OP_WRITE(IO, PWM_FREQ) {
 
 OP_WRITE(IO, PWM_DUTY) {
   gpio_t* c = ctx;
-  ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+  ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
   err_h err;
   LOCK();
@@ -526,13 +526,11 @@ static err_h create(void* ctx, const void* cfg) {
 
 // No SET_VOLTAGE (a DAC does that). OPS lists this table.
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W_ALWAYS(SYS_DEVICE, RESET),
     OP_ENTRY(IO, LEVEL),       OP_ENTRY_W(IO, TOGGLE),  OP_ENTRY_W(IO, PWM_DUTY),
     OP_ENTRY_W(IO, PWM_FREQ),  OP_ENTRY_W(IO, MODE),    OP_ENTRY_W(IO, RESET),
     OP_ENTRY_R(IO, VOLTAGE),   OP_ENTRY_W(IO, INTR),
-    SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W(PINS, LOCKED_LEVEL),
+    SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W_ALWAYS(PINS, LOCKED_LEVEL),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_GPIO_ESP, .cfg_size = sizeof(gpio_esp_cfg_t), .ctx_size = sizeof(gpio_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(GPIO_ESP, gpio_esp_cfg_t, gpio_t, k_ops)

@@ -346,7 +346,6 @@ OP_WRITE(EVENT, ON_EVENT) {
 
 OP_WRITE(HBRIDGE, DRIVE) {
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   const int32_t min = c->topology == DRV8962_TOPOLOGY_2_FULL_BRIDGES ? -SYS_HBRIDGE_DRIVE_MAX : 0;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->drive, min, SYS_HBRIDGE_DRIVE_MAX);
@@ -355,14 +354,12 @@ OP_WRITE(HBRIDGE, DRIVE) {
 
 OP_WRITE(HBRIDGE, BRAKE) {
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   return chip_brake(c, args->channel);
 }
 
 OP_WRITE(HBRIDGE, COAST) {
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   return chip_coast(c, args->channel);
 }
@@ -416,7 +413,6 @@ SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
   (void)out_cap;
   (void)out_len;
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   const uint32_t old = c->current_limit_mA;
   c->current_limit_mA = args->limit_mA;
@@ -434,7 +430,6 @@ SYS_DEVICE_HANDLER(clear_fault_h, hbridge_channel_args_t) {
   (void)out_cap;
   (void)out_len;
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   if (has_pin(c, DRV8962_PIN_NSLEEP)) {
     ERR_TRY(set_locked_pin(c, DRV8962_PIN_NSLEEP, false));
@@ -471,7 +466,6 @@ SYS_DEVICE_HANDLER(set_settings_h, drv8962_settings_t) {
   (void)out_cap;
   (void)out_len;
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   ERR_CHECK(args->turn_off_at_ocp <= 1, ERR_CMD_BAD_ARG);
@@ -535,7 +529,6 @@ static err_h uninstall(void* ctx) {
 // Every channel braked (outputs on, inputs low).
 OP_WRITE(SYS_DEVICE, RESET) {
   drv_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   err_h err = NULL;
   for (uint8_t i = 0; i < channel_count(c); i++) {
     ERR_KEEP_FIRST(err, chip_brake(c, i));
@@ -678,14 +671,12 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(HBRIDGE, COAST),
     OP_ENTRY_R(HBRIDGE, CURRENT),
     OP_ENTRY_R(PMON, CURRENT),
-    OP_ENTRY_W(EVENT, ON_EVENT),
+    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
     /* Device own ops */
-    {DRV8962_OP_CURRENT_LIMIT, NULL, set_current_limit_h},
-    {DRV8962_OP_CLEAR_FAULT, NULL, clear_fault_h},
-    {DRV8962_OP_FAULT, get_fault_h, NULL},
-    {DRV8962_OP_SETTINGS, get_settings_h, set_settings_h},
+    {.op = DRV8962_OP_CURRENT_LIMIT, .write = set_current_limit_h},
+    {.op = DRV8962_OP_CLEAR_FAULT, .write = clear_fault_h},
+    {.op = DRV8962_OP_FAULT, .read = get_fault_h},
+    {.op = DRV8962_OP_SETTINGS, .read = get_settings_h, .write = set_settings_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DRV8962, .cfg_size = sizeof(drv8962_cfg_t), .ctx_size = sizeof(drv_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       .has_op = has_op, SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(DRV8962, drv8962_cfg_t, drv_t, k_ops, .has_op = has_op)

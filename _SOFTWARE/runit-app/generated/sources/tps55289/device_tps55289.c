@@ -300,7 +300,6 @@ static err_h tps_set_enable(tps_t* c, bool state) {
 // On: returns once the rise started; VREG_EV_READY when the output is settled.
 OP_WRITE(VREG, ENABLE) {
   tps_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
   return tps_set_enable(c, args->enable);
 }
@@ -309,7 +308,6 @@ OP_WRITE(VREG, ENABLE) {
 // output off: written at once. During a rise the ramp just follows the new target.
 OP_WRITE(VREG, VOLTAGE) {
   tps_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
   c->last_voltage_mV = (uint16_t)args->voltage_mV;
   if (!tps_powered(c)) {
@@ -335,7 +333,6 @@ OP_WRITE(VREG, VOLTAGE) {
 // During a rise only stored: the end of the rise writes it.
 OP_WRITE(VREG, CURRENT) {
   tps_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
   c->last_current_limit_mA = (uint16_t)args->current_mA;
   if (!tps_powered(c) || c->rise != RISE_IDLE) {
@@ -352,7 +349,6 @@ SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
   (void)out_cap;
   (void)out_len;
   tps_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->fault_mask, 0, TPS55289_FAULT_ALL);
   ERR_CHECK(args->hiccup <= 1 && args->discharge <= 1, ERR_CMD_BAD_ARG);
@@ -413,7 +409,6 @@ OP_WRITE(EVENT, ON_EVENT) {
    an EN pin the chip stays powered, so the protection is written now. */
 OP_WRITE(SYS_DEVICE, RESET) {
   tps_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;
   c->prot = k_default_protection;
@@ -507,13 +502,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET),
     OP_ENTRY_W(VREG, ENABLE),  OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
-    OP_ENTRY_W(EVENT, ON_EVENT),
+    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
     /* Internal rise timer op */
-    {TPS_OP_RISE_STEP, NULL, rise_step_h},
+    {.op = TPS_OP_RISE_STEP, .write = rise_step_h, .always = true},
     /* Device own ops */
-    {TPS55289_OP_PROTECTION, get_protection_h, set_protection_h},
+    {.op = TPS55289_OP_PROTECTION, .read = get_protection_h, .write = set_protection_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TPS55289, .cfg_size = sizeof(tps55289_cfg_t), .ctx_size = sizeof(tps_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(TPS55289, tps55289_cfg_t, tps_t, k_ops)

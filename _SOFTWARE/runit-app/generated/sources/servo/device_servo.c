@@ -91,7 +91,6 @@ SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
   (void)out_cap;
   (void)out_len;
   servo_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   return servo_move(c, (int32_t)c->cfg.default_pos * 10);
 }
 
@@ -111,7 +110,6 @@ SYS_DEVICE_HANDLER(set_h, servo_set_t) {
   (void)out_cap;
   (void)out_len;
   servo_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   int32_t pos_x10;
   ERR_TRY(servo_decode(c, args->value_x10, &pos_x10));
   return servo_move(c, pos_x10);
@@ -131,7 +129,6 @@ SYS_DEVICE_HANDLER(release_h, sys_device_none_t) {
   (void)out_cap;
   (void)out_len;
   servo_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   return servo_stop(c);
 }
 
@@ -154,7 +151,6 @@ static err_h uninstall(void* ctx) {
 
 OP_WRITE(SYS_DEVICE, RESET) {
   servo_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   c->trim = 0;
   return servo_stop(c);
 }
@@ -218,13 +214,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET),
     /* Device own ops */
-    {SERVO_OP_HOME, NULL, home_h},
-    {SERVO_OP_TRIM, NULL, set_trim_h},
-    {SERVO_OP_TARGET, NULL, set_h},
-    {SERVO_OP_PULSE, get_pulse_h, NULL},
-    {SERVO_OP_RELEASE, NULL, release_h},
+    {.op = SERVO_OP_HOME, .write = home_h},
+    {.op = SERVO_OP_TRIM, .write = set_trim_h, .always = true},
+    {.op = SERVO_OP_TARGET, .write = set_h},
+    {.op = SERVO_OP_PULSE, .read = get_pulse_h},
+    {.op = SERVO_OP_RELEASE, .write = release_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_SERVO, .cfg_size = sizeof(servo_cfg_t), .ctx_size = sizeof(servo_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(SERVO, servo_cfg_t, servo_t, k_ops)

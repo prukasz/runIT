@@ -280,6 +280,10 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, u
   }
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
+  // A suspended device takes no write of its type's table but the ones marked always (an event, a pin's owner).
+  if (ctx == d->ctx && dir == CMD_DIR_WRITE && !row->always) {
+    ERR_TRY(sys_device_check_active(d->ctx));
+  }
   return fn(ctx, args, args_len, out, out_cap, out_len);
 }
 

@@ -47,7 +47,8 @@ SYS_DEVICE_CONTRACT_DECLARE(PINS, SYS_DEVICE_CONTRACT_PINS)
 
 /* ----------------------------------------------------------------------------
  * For the device: the pin state and its checks. The device keeps one sys_pins_state_t, calls
- * sys_pins_state_check_free() (or sys_pins_check_writable()) before every write, and answers the PINS ops with
+ * sys_pins_state_check_free() before every write (the registry has refused it already while the device is
+ * suspended), and answers the PINS ops with
  * SYS_PINS_STATE_HANDLERS below.
  * ------------------------------------------------------------------------- */
 
@@ -65,8 +66,8 @@ MUST_USE err_h sys_pins_state_check(const sys_pins_state_t* s, uint16_t dev_id, 
 /** @brief Before a write: ERR_DEV_BAD_PIN unless the pin exists, ERR_DEV_PIN_LOCKED if it is locked. */
 MUST_USE err_h sys_pins_state_check_free(const sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
 /**
- * @brief Before a write to one of a device's pins: ERR_DEV_SUSPENDED while the device is suspended, then
- * sys_pins_state_check_free() (the pin exists and no one locked it). Reads use the plain check.
+ * @brief Before a write the registry lets through while suspended (OP_ENTRY_W_ALWAYS) that must still refuse here:
+ * ERR_DEV_SUSPENDED while the device is suspended, then sys_pins_state_check_free(). Reads use the plain check.
  */
 MUST_USE err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin);
 
@@ -95,7 +96,7 @@ MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len,
     return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                                \
   }
 #define SYS_PINS_STATE_ENTRIES \
-  OP_ENTRY_R(PINS, AVAILABLE), OP_ENTRY_R(PINS, LOCKED), OP_ENTRY_W(PINS, LOCK), OP_ENTRY_W(PINS, UNLOCK)
+  OP_ENTRY_R(PINS, AVAILABLE), OP_ENTRY_R(PINS, LOCKED), OP_ENTRY_W_ALWAYS(PINS, LOCK), OP_ENTRY_W_ALWAYS(PINS, UNLOCK)
 
 /* ----------------------------------------------------------------------------
  * For everyone else: wrappers over sys_device_call

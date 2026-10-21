@@ -214,14 +214,12 @@ SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
 
 OP_WRITE(VREG, ENABLE) {
   ap_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   const uint8_t flag = args->enable ? OUTPUT_ON : OUTPUT_OFF;
   return sys_i2c_reg_write(&c->i2c, CMD_SYSTEM, &flag, 1);
 }
 
 OP_WRITE(VREG, VOLTAGE) {
   ap_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, args->voltage_mV, c->last_current_mA));
   c->last_voltage_mV = args->voltage_mV;
   return NULL;
@@ -229,7 +227,6 @@ OP_WRITE(VREG, VOLTAGE) {
 
 OP_WRITE(VREG, CURRENT) {
   ap_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, c->last_voltage_mV, args->current_mA));
   c->last_current_mA = args->current_mA;
   return NULL;
@@ -239,7 +236,6 @@ OP_WRITE(VREG, CURRENT) {
 
 OP_WRITE(PD, SETTINGS) {
   ap_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, args->voltage_mV, args->current_mA));
   c->last_voltage_mV = args->voltage_mV;
   c->last_current_mA = args->current_mA;
@@ -414,14 +410,12 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W_ALWAYS(SYS_DEVICE, RESET),
     OP_ENTRY_W(VREG, ENABLE),   OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
     OP_ENTRY(PD, SETTINGS),     OP_ENTRY_R(PD, OPTIONS),    OP_ENTRY_R(PD, LIMITS),
     OP_ENTRY_R(PMON, VOLTAGE),  OP_ENTRY_R(PMON, CURRENT),  OP_ENTRY_R(PMON, POWER),
     /* Internal keepalive timer op */
-    {AP_OP_KEEPALIVE, NULL, keepalive_h},
+    {.op = AP_OP_KEEPALIVE, .write = keepalive_h, .always = true},
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_AP33772S, .cfg_size = sizeof(ap33772s_cfg_t), .ctx_size = sizeof(ap_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(AP33772S, ap33772s_cfg_t, ap_t, k_ops)

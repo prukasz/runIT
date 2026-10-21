@@ -78,7 +78,6 @@ static err_h check_channel(const dac_t* c, uint8_t pin) {
 // The channel's output off (Hi-Z), its set voltage forgotten.
 OP_WRITE(IO, RESET) {
   dac_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   ERR_TRY(chip_set_power(c, c->power_on_mask & ~(1u << args->pin)));
   c->code[args->pin] = 0;
@@ -87,7 +86,6 @@ OP_WRITE(IO, RESET) {
 
 OP_WRITE(IO, VOLTAGE) {
   dac_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, 0, DAC53202_VREF_MV);
   return chip_set_voltage_mV(c, args->pin, (uint32_t)args->voltage_mV);
@@ -118,7 +116,6 @@ static err_h uninstall(void* ctx) {
 // Both outputs off (Hi-Z), the set voltages forgotten.
 OP_WRITE(SYS_DEVICE, RESET) {
   dac_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(chip_set_power(c, 0));
   memset(c->code, 0, sizeof(c->code));
   return NULL;
@@ -159,6 +156,4 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(IO, RESET),  OP_ENTRY(IO, VOLTAGE),
 };
 
-SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DAC53202, .cfg_size = sizeof(dac53202_cfg_t), .ctx_size = sizeof(dac_t),
-                       .create = create, .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook,
-                       SYS_DEVICE_OPS(k_ops))
+SYS_DEVICE_TYPE_DEFINE(DAC53202, dac53202_cfg_t, dac_t, k_ops)

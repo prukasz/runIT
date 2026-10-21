@@ -124,9 +124,14 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
  * OP_ENTRY lists both sides, OP_ENTRY_R / OP_ENTRY_W one. */
 #define OP_READ(P, name)    SYS_DEVICE_HANDLER(P##_r_##name, P##_key_##name##_t)
 #define OP_WRITE(P, name)   SYS_DEVICE_HANDLER(P##_w_##name, P##_value_##name##_t)
-#define OP_ENTRY(P, name)   {P##_OP_##name, P##_r_##name, P##_w_##name}
-#define OP_ENTRY_R(P, name) {P##_OP_##name, P##_r_##name, NULL}
-#define OP_ENTRY_W(P, name) {P##_OP_##name, NULL, P##_w_##name}
+#define OP_ENTRY(P, name)   {.op = P##_OP_##name, .read = P##_r_##name, .write = P##_w_##name}
+#define OP_ENTRY_R(P, name) {.op = P##_OP_##name, .read = P##_r_##name}
+#define OP_ENTRY_W(P, name) {.op = P##_OP_##name, .write = P##_w_##name}
+
+/* A write a suspended device still takes (an event delivery, a pin's owner, a setting that drives nothing): the
+ * registry refuses every other write of a type's table while the device is suspended (ERR_DEV_SUSPENDED). An own
+ * op's row says the same with `.always = true`. */
+#define OP_ENTRY_W_ALWAYS(P, name) {.op = P##_OP_##name, .write = P##_w_##name, .always = true}
 
 /* Widened to int64 in a function: at the call the compiler would see a u8's range and warn (-Wtype-limits, u8 >= 0). */
 static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
@@ -153,7 +158,7 @@ static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
  */
 typedef struct {
   uint16_t id;
-  bool suspended;     // fault safe state: writes refused (sys_device_check_active) until RESUME
+  bool suspended;     // fault safe state: the registry refuses writes until RESUME (OP_ENTRY_W_ALWAYS aside)
   uint8_t dep_count;  // sys_device_use()
   uint16_t deps[CONFIG_SYS_DEVICE_MAX_DEPS];  // the devices this one uses, each once
 } sys_device_base_t;
@@ -166,6 +171,7 @@ typedef struct {
   uint16_t op;
   cmd_f read;
   cmd_f write;
+  bool always;  // the write runs while the device is suspended (OP_ENTRY_W_ALWAYS); else ERR_DEV_SUSPENDED
 } sys_device_op_t;
 
 /**
@@ -194,26 +200,28 @@ typedef struct {
   bool (*has_op)(const void* ctx, uint16_t op);
 } sys_device_type_t;
 
-#define SYS_DEVICE_OPS(table) .ops = (table), .op_count = (uint16_t)ARRAY_LEN(table)
-
 /** @brief Adds a type. Called by SYS_DEVICE_TYPE_DEFINE before app_main; asserts on a misdefined type. */
 void sys_device_type_register(const sys_device_type_t* type);
 
 /**
- * @brief Defines the driver's type and registers it before app_main. The
- * driver's component must be linked as WHOLE_ARCHIVE: nothing references it,
- * and the linker would drop the registration.
- * @usage SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t),
- *                               .ctx_size = sizeof(pca_t), .create = create, .uninstall = uninstall,
- *                               .suspend = suspend, .resume = resume, SYS_DEVICE_OPS(k_ops));
+ * @brief Defines the driver's type SYS_DEVICE_TYPE_<NAME> and registers it before app_main. The driver names its
+ * hooks create, uninstall, suspend_hook and resume_hook; `table` is its op table; anything else of sys_device_type_t
+ * (has_op) follows as designated initializers. The driver's component must be linked as WHOLE_ARCHIVE: nothing
+ * references it, and the linker would drop the registration.
+ * @usage SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, pca_t, k_ops)
+ *        SYS_DEVICE_TYPE_DEFINE(DRV8962, drv8962_cfg_t, drv_t, k_ops, .has_op = has_op)
  */
-#define SYS_DEVICE_TYPE_DEFINE(...)                                                \
-  static const sys_device_type_t s_sys_device_type = {__VA_ARGS__};                \
-  __attribute__((constructor)) static void s_sys_device_type_register(void) {      \
-    sys_device_type_register(&s_sys_device_type);                                  \
+#define SYS_DEVICE_TYPE_DEFINE(NAME, cfg_t, ctx_t, table, ...)                                                \
+  static const sys_device_type_t s_sys_device_type = {                                                        \
+      .type = SYS_DEVICE_TYPE_##NAME, .cfg_size = sizeof(cfg_t), .ctx_size = sizeof(ctx_t), .create = create, \
+      .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook, .ops = (table),                 \
+      .op_count = (uint16_t)ARRAY_LEN(table), __VA_ARGS__};                                                   \
+  __attribute__((constructor)) static void s_sys_device_type_register(void) {                                 \
+    sys_device_type_register(&s_sys_device_type);                                                             \
   }
 
-/** @brief Before a write: ERR_DEV_SUSPENDED while the device is suspended. */
+/** @brief ERR_DEV_SUSPENDED while the device is suspended: for a write the registry lets through (OP_ENTRY_W_ALWAYS)
+ *  that still refuses in some cases, and for a read the chip can't answer while suspended. */
 static inline MUST_USE err_h sys_device_check_active(const sys_device_base_t* dev) {
   ERR_CHECK(!dev->suspended, ERR_DEV_SUSPENDED, .id = dev->id);
   return NULL;
