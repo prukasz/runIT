@@ -29,7 +29,7 @@ export const OBJ_WIDTH: Readonly<Record<ObjType, { readonly wire: number; readon
 /** Longest object tag (`VM_OBJ_NAME_MAX`: the name length is 4 bits in the object head). */
 export const NAME_MAX = 15
 
-/** "No id": an unwired pin, no ENO. The board refuses it as the id of a new object, accessor or block (`VM_ID_NONE`, `VM_BLOCK_NO_ID`). */
+/** "No id": an unwired pin, no ENO. The board refuses it as the id of a new object, accessor or block (`VM_ID_NONE`). */
 export const ID_NONE = 0xffff
 
 /** Bytes of the object head on the wire (`VM_OBJ_HEAD_WIRE_SIZE`) and in memory (`sizeof(vm_obj_head_t)`). */

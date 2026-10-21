@@ -55,7 +55,7 @@ static MUST_USE err_h ownership_height(ownership_check_t* check, uint16_t id, ui
     for (uint16_t i = 0; i < vm_obj_get_items_cnt(o); i++) {
       vm_obj_h kid = &kids[i] == check->cell ? check->child : kids[i];
       uint16_t kid_id = vm_obj_dyn_get_id(kid);
-      if (kid_id == VM_DYN_NO_ID) continue;  // arena children have program lifetime
+      if (kid_id == VM_ID_NONE) continue;  // arena children have program lifetime
       ERR_TRY(ownership_height(check, kid_id, (uint8_t)(depth + 1)));
       uint8_t next = (uint8_t)(check->height[kid_id] + 1);
       if (next > height) height = next;
@@ -71,7 +71,7 @@ static MUST_USE err_h ownership_height(ownership_check_t* check, uint16_t id, ui
 
 static void dyn_release(vm_obj_h o, uint8_t depth) {
   uint16_t id = vm_obj_dyn_get_id(o);
-  if (id == VM_DYN_NO_ID) return;  // arena object or NULL; o must not be a freed handle
+  if (id == VM_ID_NONE) return;  // arena object or NULL; o must not be a freed handle
 
   if (g_vm_dyn[id].ref_cnt > 1) {
     g_vm_dyn[id].ref_cnt--;
@@ -149,7 +149,7 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
 void vm_obj_dyn_retain(vm_obj_h o) {
   // no-op on an arena object, so link paths need no type test of their own
   uint16_t id = vm_obj_dyn_get_id(o);
-  if (id != VM_DYN_NO_ID) g_vm_dyn[id].ref_cnt++;
+  if (id != VM_ID_NONE) g_vm_dyn[id].ref_cnt++;
 }
 
 void vm_obj_dyn_release(vm_obj_h o) {

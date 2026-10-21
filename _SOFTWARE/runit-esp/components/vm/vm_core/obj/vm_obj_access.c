@@ -145,7 +145,7 @@ uint16_t vm_obj_get_id(vm_obj_h obj) {
   if (!obj) return VM_ID_NONE;
   if (vm_obj_is_dynamic(obj)) {
     uint16_t did = vm_obj_dyn_get_id(obj);
-    return (did != VM_DYN_NO_ID) ? (did | VM_OBJ_ID_DYN_BIT) : VM_ID_NONE;
+    return (did != VM_ID_NONE) ? (did | VM_OBJ_ID_DYN_BIT) : VM_ID_NONE;
   }
   const vm_registry_t* g = &g_vm_store.reg[VM_REG_OBJ];
   if (g && g->items) {

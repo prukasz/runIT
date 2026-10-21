@@ -57,7 +57,7 @@ typedef struct vm_exec_status_t {
 /** Stable snapshot of the first critical device fault since acknowledgment. */
 typedef struct vm_exec_fault_status_t {
   bool     latched;
-  uint16_t device_id;  // the device whose critical error it was; VM_FAULT_NO_DEVICE if none
+  uint16_t device_id;  // the device whose critical error it was; SYS_DEVICE_ID_NONE if none
   uint32_t root_tag;   // the chain's root cause (an ERR_TAG value)
   uint32_t occurrences;
 } vm_exec_fault_status_t;
@@ -102,8 +102,6 @@ MUST_USE err_h vm_exec_stop(void);
  * @return true only for the first fault in the current latched episode.
  */
 bool vm_exec_fault_latch(uint16_t device_id, uint32_t root_tag);
-
-#define VM_FAULT_NO_DEVICE 0xFFFFu
 
 /** @brief Copy the persistent critical-fault snapshot. */
 vm_exec_fault_status_t vm_exec_fault_status(void);

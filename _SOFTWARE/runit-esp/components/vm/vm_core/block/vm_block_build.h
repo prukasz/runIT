@@ -17,10 +17,10 @@ typedef struct vm_block_cfg_t {
   uint8_t  on_error;    // VM_BLK_ERR_STOP / _CONTINUE
   uint16_t custom_len;  // Private state length (zeroed on creation)
 
-  const uint16_t* in_acc_ids;   // in_cnt accessor IDs (VM_BLOCK_NO_ID for unwired pin)
+  const uint16_t* in_acc_ids;   // in_cnt accessor IDs (VM_ID_NONE for unwired pin)
   const uint16_t* out_obj_ids;  // q_cnt object IDs
   const uint16_t* en_acc_ids;   // en_cnt accessor IDs
-  uint16_t        eno_obj_id;   // ENO object ID (VM_BLOCK_NO_ID if none)
+  uint16_t        eno_obj_id;   // ENO object ID (VM_ID_NONE if none)
   const void*     custom_data;  // Initial custom payload (copied if non-NULL)
 } vm_block_cfg_t;
 

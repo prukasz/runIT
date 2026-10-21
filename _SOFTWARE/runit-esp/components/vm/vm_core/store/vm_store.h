@@ -3,8 +3,6 @@
 #include "vm_err.h"
 #include "errors.h"
 
-#define VM_ID_NONE        0xFFFFu       // Allocate without binding to registry
-
 //#ref-enum @alias VM registry
 typedef enum vm_reg_e {
   VM_REG_OBJ = 0,  //@alias Objects @description The program's variables and their elements

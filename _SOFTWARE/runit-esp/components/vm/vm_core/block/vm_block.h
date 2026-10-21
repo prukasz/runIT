@@ -3,8 +3,6 @@
 #include "vm_err.h"
 #include "vm_obj_access.h"
 
-/** @brief Sentinel for unwired pin or absent ENO. */
-#define VM_BLOCK_NO_ID 0xFFFFu
 /*
  * VM Block Execution Model & API
  *

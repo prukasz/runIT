@@ -20,7 +20,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   /* NO_ID on an input means the pin is deliberately unwired -- the block uses
      its own constant. Any other id must resolve. */
   for (uint8_t i = 0; i < cfg->in_cnt; i++) {
-    if (cfg->in_acc_ids[i] == VM_BLOCK_NO_ID) continue;
+    if (cfg->in_acc_ids[i] == VM_ID_NONE) continue;
     if (!vm_accessor_get_by_id(cfg->in_acc_ids[i])) {
       return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->in_acc_ids[i], .slot = i, .kind = VM_REF_KIND_IN);
     }
@@ -46,7 +46,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
 
   /* ENO stays optional, and is the one place NO_ID is still meaningful. */
   vm_obj_h eno = NULL;
-  if (cfg->eno_obj_id != VM_BLOCK_NO_ID) {
+  if (cfg->eno_obj_id != VM_ID_NONE) {
     eno = vm_obj_get_by_id(cfg->eno_obj_id);
     if (!eno || !eno->head.f.mutable || (vm_obj_t_e)eno->head.d.obj_t != VM_OBJ_B || eno->head.payload_size < 1) {
       return ERR_NEW(ERR_VM_BLK_BAD_REF, .blk_id = cfg->block_idx, .ref_id = cfg->eno_obj_id, .slot = 0, .kind = VM_REF_KIND_ENO);
@@ -92,7 +92,7 @@ err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   const vm_accessor_t** ins = vm_block_get_inputs(b);
   for (uint8_t i = 0; i < cfg->in_cnt; i++) {
     // NO_ID stays NULL: the pin exists, nothing is wired to it
-    ins[i] = (cfg->in_acc_ids[i] == VM_BLOCK_NO_ID) ? NULL : vm_accessor_get_by_id(cfg->in_acc_ids[i]);
+    ins[i] = (cfg->in_acc_ids[i] == VM_ID_NONE) ? NULL : vm_accessor_get_by_id(cfg->in_acc_ids[i]);
   }
 
   vm_obj_h* outs = vm_block_get_outputs(b);

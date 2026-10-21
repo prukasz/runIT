@@ -224,7 +224,7 @@ static track_t* track_get(vm_obj_h o, bool* is_new) {
 
 /* Wire ID of an object, from its entry when it has one. */
 static uint16_t wire_id(vm_obj_h o) {
-  if (!o) return VM_OBJ_ID_NONE;
+  if (!o) return VM_ID_NONE;
   uint32_t i = slot_of(o);
   while (s_track[i].obj) {
     if (s_track[i].obj == o) return s_track[i].id;
@@ -378,7 +378,7 @@ static void walk(vm_obj_h o, uint8_t depth) {
 
   bool is_new;
   track_t* t = track_get(o, &is_new);
-  if (!t || t->id == VM_OBJ_ID_NONE) return;
+  if (!t || t->id == VM_ID_NONE) return;
   if (t->head & SUB_SEEN) return;
   t->head |= SUB_SEEN;
 

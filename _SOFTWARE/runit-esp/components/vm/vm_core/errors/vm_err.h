@@ -6,7 +6,7 @@
 
 /* Errors of the VM core (module ERR_MOD_VM). Tag numbers are new in this tree; never renumber, append at the end.
  * Payloads are limited to ERR_DATA_MAX bytes. `obj_id` / `parent_id` carry the failing object ID (or
- * VM_OBJ_ID_DYN_BIT | dyn_id, or VM_OBJ_ID_NONE) for vm_obj_lookup_by_id(). */
+ * VM_OBJ_ID_DYN_BIT | dyn_id, or VM_ID_NONE) for vm_obj_lookup_by_id(). */
 
 //#ref-defines vm_ref_kind @alias Block wiring point @prefix VM_REF_KIND_
 #define VM_REF_KIND_IN  0   //@alias Input @description An input pin: an accessor
@@ -83,12 +83,14 @@ ERR_TAGS_DECLARE(ERR_VM_MAP)
 /** @brief Reports a new error at once (end of a chain nobody returns: the pass, a task, a callback). */
 #define VM_RAISE(...) err_report(ERR_NEW(__VA_ARGS__))
 
-/* Object ID constants and the names the debug output uses for the VM enums. */
-#define VM_OBJ_ID_NONE    0xFFFFu
+/* No ID, in every ID space of the VM: an unwired pin, no ENO, no object, an object not in a register. Never a
+ * registry slot (the store allocates without binding under it). A heap object's ID is VM_OBJ_ID_DYN_BIT | its slot.
+ * Also the names the debug output uses for the VM enums. */
+#define VM_ID_NONE        0xFFFFu
 #define VM_OBJ_ID_DYN_BIT 0x8000u
 
 static inline void vm_format_obj_id(uint16_t id, char* buf, size_t buf_size) {
-  if (id == VM_OBJ_ID_NONE) {
+  if (id == VM_ID_NONE) {
     snprintf(buf, buf_size, "NONE");
   } else if (id & VM_OBJ_ID_DYN_BIT) {
     snprintf(buf, buf_size, "dyn#%u", (unsigned)(id & (uint16_t)~VM_OBJ_ID_DYN_BIT));

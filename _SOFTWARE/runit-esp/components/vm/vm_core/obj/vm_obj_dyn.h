@@ -15,10 +15,6 @@
 #define VM_OWNERSHIP_CYCLE 0u
 #define VM_OWNERSHIP_DEPTH 1u
 
-/** @brief "Not in the register" -- what vm_obj_dyn_get_id() returns for an object
- *  that is not registered, including every arena object. */
-#define VM_DYN_NO_ID 0xFFFFu
-
 typedef struct vm_obj_dyn_meta_t {
   uint32_t ref_cnt;  // parents holding this object; freed at zero
   vm_obj_h obj;      // NULL marks a free slot -- the table is sparse
@@ -40,7 +36,7 @@ static inline bool vm_obj_is_dynamic(vm_obj_h o) {
 }
 
 /**
- * @brief This object's slot in the dynamic register, or VM_DYN_NO_ID.
+ * @brief This object's slot in the dynamic register, or VM_ID_NONE when it is not registered (every arena object).
  *
  * Requires a live object handle (or NULL); never call with a released handle.
  * Found by comparing pointers, which is why nothing is bolted onto the object
@@ -56,11 +52,11 @@ static inline bool vm_obj_is_dynamic(vm_obj_h o) {
  * register.
  */
 static inline uint16_t vm_obj_dyn_get_id(vm_obj_h o) {
-  if (!o || !o->head.f.dynamic) return VM_DYN_NO_ID;
+  if (!o || !o->head.f.dynamic) return VM_ID_NONE;
   for (uint16_t i = 0; i < CONFIG_VM_DYN_MAX; i++) {
     if (g_vm_dyn[i].obj == o) return i;
   }
-  return VM_DYN_NO_ID;
+  return VM_ID_NONE;
 }
 
 /** @brief Direct register access by ID, for teardown, telemetry and debug listings.
