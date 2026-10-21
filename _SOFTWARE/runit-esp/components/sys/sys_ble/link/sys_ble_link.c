@@ -76,7 +76,6 @@ static uint32_t link_max_frame(void) {
 }
 
 static const router_link_t k_link = {
-    .name = "ble",
     .send = link_send,
     .max_frame = link_max_frame,
 };

@@ -28,7 +28,7 @@ U_TASK_DEFINE(router_work_task_h, CONFIG_ROUTER_WORK_TASK_STACK);
 U_TASK_DEFINE(router_urgent_task_h, CONFIG_ROUTER_URGENT_TASK_STACK);
 
 // Link 0: frames from the board itself (router_inject). No send: answers go nowhere.
-static const router_link_t k_internal_link = {.name = "internal"};
+static const router_link_t k_internal_link = {.send = NULL};
 
 static struct {
   const router_link_t* links[CONFIG_ROUTER_MAX_LINKS + 1];  // index = link ID, 0 unused; written at boot
@@ -84,12 +84,11 @@ static err_cmd_t frame_cmd(uint8_t link_id, const uint8_t* frame, uint32_t len) 
   };
 }
 
-/* Ends a command's chain: logged with the command ("cmd uart seq 7 flags 00
+/* Ends a command's chain: logged with the command ("cmd link 1 seq 7 flags 00
  * req 02 02 00") and handed to the error sink with the command as origin. */
-static void report_cmd_error(const router_link_t* link, const err_cmd_t* cmd, err_h err) {
+static void report_cmd_error(const err_cmd_t* cmd, err_h err) {
   char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
-  int pos = snprintf(ctx, sizeof(ctx), "cmd %s seq %u flags %02x req", link->name != NULL ? link->name : "?",
-                     cmd->seq, cmd->flags);
+  int pos = snprintf(ctx, sizeof(ctx), "cmd link %u seq %u flags %02x req", cmd->link, cmd->seq, cmd->flags);
   uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
   for (uint32_t i = 0; i < shown && pos > 0 && (size_t)pos < sizeof(ctx); i++) {
     pos += snprintf(ctx + pos, sizeof(ctx) - pos, " %02x", cmd->req[i]);
@@ -114,7 +113,7 @@ static void answer(const router_link_t* link, const err_cmd_t* cmd, err_h err, u
     err_report(link->send(resp, RESP_HDR_BYTES + data_len));
   }
   if (err != NULL) {
-    report_cmd_error(link, cmd, err);
+    report_cmd_error(cmd, err);
   }
 }
 
@@ -154,7 +153,7 @@ static bool enqueue(bool urgent, uint8_t link_id, const uint8_t* head, uint32_t 
 static void reject(const router_link_t* link, uint8_t link_id, const uint8_t* frame, uint32_t len, err_h err) {
   const err_cmd_t cmd = frame_cmd(link_id, frame, len);
   if (len == 0) {
-    report_cmd_error(link, &cmd, err);
+    report_cmd_error(&cmd, err);
     return;
   }
   uint8_t resp[REJECT_RESP_BYTES];

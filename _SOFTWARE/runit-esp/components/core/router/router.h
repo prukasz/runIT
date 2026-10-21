@@ -148,7 +148,6 @@ MUST_USE err_h router_init(void);
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-  const char* name;
   /** Sends one response frame to the link's client. Both router tasks call it. NULL only for the internal link. */
   MUST_USE err_h (*send)(const uint8_t* frame, uint32_t len);
   /** Largest frame the link carries right now; NULL = CONFIG_ROUTER_FRAME_MAX. */

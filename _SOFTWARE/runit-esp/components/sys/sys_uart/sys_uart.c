@@ -60,7 +60,6 @@ static err_h provider_send(uint32_t endpoint, const uint8_t* frame, uint32_t len
 }
 
 static const router_link_t k_link = {
-    .name = "uart",
     .send = link_send,
     .max_frame = NULL,  // CONFIG_ROUTER_FRAME_MAX
 };

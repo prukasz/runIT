@@ -99,7 +99,7 @@ src 1: [link u8][seq u8][flags u8]               (after the stamp)
 - Chain: `payload` is the packed `err_data_<TAG>_t` as is (`len` from the tag table, 0 for an unknown tag). A node's severity is not sent: it is its tag's, which the app reads from `errors.json` with the payload's fields.
 - The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when the link's frame is small; the chain gets the rest (its own truncated bit).
 - The chain starts with the route (`ERR_ROUTER_KEY{key}` per level, NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
-- Command errors end in `err_report_ex(err, ctx_line, &cmd)`: the log gets a context line before the chain (`cmd uart seq 7 flags 00 req 02 00 02 00`) and the sink gets the command, so the errors stream carries the same record as the response.
+- Command errors end in `err_report_ex(err, ctx_line, &cmd)`: the log gets a context line before the chain (`cmd link 1 seq 7 flags 00 req 02 00 02 00`: the link ID, `transport_e`) and the sink gets the command, so the errors stream carries the same record as the response.
 - `src 0` (internal: device task, timer, boot) has no command header.
 
 Example (a router ERROR answer) — scan of bus 0 (only bus 1 is open):

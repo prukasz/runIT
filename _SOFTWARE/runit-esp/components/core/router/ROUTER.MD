@@ -53,7 +53,7 @@ link RX task ── router_submit(link, frame) ──► copy into ring buffer
                                                          └─► router_route ─► answer ─► link->send
 ```
 
-- Links: `router_link_register(id, &{name, send, max_frame})` at boot, never removed. One client per link: the answer goes back to the link. `send` must be thread-safe (both tasks answer).
+- Links: `router_link_register(id, &{send, max_frame})` at boot, never removed. One client per link: the answer goes back to the link. `send` must be thread-safe (both tasks answer).
 - `router_submit` copies the frame into the ring buffer and never blocks. A frame that cannot be queued (bad length: `ERR_ROUTER_FRAME_LEN`, ring full: `ERR_ROUTER_QUEUE_FULL`) is answered with an error right away and reported with its command; `router_submit` then returns NULL.
 - Each task has its own static response buffer. Errors of routed frames are answered (error record) and reported with their command (log + errors stream).
 
