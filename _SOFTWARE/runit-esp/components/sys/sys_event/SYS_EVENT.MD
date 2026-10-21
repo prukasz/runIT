@@ -21,7 +21,7 @@ typedef struct __attribute__((packed)) {  // 18 B
   uint16_t source;   // device ID
   uint16_t event;    // SYS_EVENT_ID(contract, n) = [contract u8][n u8], like ops
   uint8_t  channel;  // pin / channel, 0 when none
-  uint8_t  flags;    // SYS_EVENT_NOTIFY, SYS_EVENT_DEFER
+  uint8_t  flags;    // the events table's: SYS_EVENT_NOTIFY or 0
   int32_t  value;    // level, mV, mA ... per event
   uint64_t t_ms;     // set by sys_event_publish: the board's clock in ms (board_time_now_ms: UTC once a client set it, else the time since the start)
 } sys_event_t;
@@ -52,18 +52,18 @@ typedef struct __attribute__((packed)) {  // 18 B
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
 
-Publishers: ESP32-S3 GPIO (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `SYS_DEVICE_EV_*` are made here, where the flag values are).
+Publishers: ESP32-S3 GPIO (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; its table `SYS_DEVICE_EVENTS` and its IDs `SYS_DEVICE_EV_*` are in `sys_device.h`, with `SYS_EVENT_NOTIFY`, so the registry layer below sys_event declares them).
 
 ## Publishing
 
 `sys_event_publish(&ev)`:
 
-1. `t_ms` is set from the board's clock (TIME.MD), the same time as an error record's stamp. In an ISR the clock can't be read (it takes a lock): the event gets `SYS_EVENT_FROM_ISR` and the uptime, and the event task turns it into the clock's time before anything else sees it.
+1. `t_ms` is set from the board's clock (TIME.MD), the same time as an error record's stamp. In an ISR the clock can't be read (it takes a lock): the event is queued with the uptime, and the event task turns it into the clock's time before anything else sees it.
 2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (18 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u64]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. It has no dir byte: it is an outbound frame, not a request. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
-3. Inline listeners, table order.
-4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
+3. The device listeners, inline, table order.
+4. One copy queued if a function listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 
-**`SYS_EVENT_DEFER`** (flag 0x02, set by the publisher) defers everything the same way, from a task: for background tasks an op may wait for (ESP32-S3 GPIO's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller.
+**`sys_event_publish_deferred(&ev)`** defers everything the same way, from a task: for background tasks an op may wait for (ESP32-S3 GPIO's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller. What the event task still has to do with a queued event (everything, or only the function listeners) is the queue item's, never the event's `flags`: the app sees exactly what the events table says.
 
 **From an ISR** everything is deferred: the event is queued and the task does notify, inline, then queued. An ISR never gets an error; a drop is counted and reported by the task (`ERR_EVENT_QUEUE_FULL {source 0xFFFF, dropped n}`).
 
@@ -73,24 +73,24 @@ Listener errors are wrapped in `ERR_EVENT_DELIVERY {source, event, channel, devi
 
 ```c
 uint8_t h;
-ERR_TRY(sys_event_subscribe(&(sys_event_sub_t){
-    .source = 0, .event = IO_EV_FALLING, .channel = 21,   // TCA6424A ALERT on GPIO 21 of the ESP
-    .inline_call = true,
-    .device = c->id,                                      // → its ON_EVENT
-}, &h));
+// a device on the TCA6424A ALERT, GPIO 21 of the ESP: its ON_EVENT, inline
+ERR_TRY(sys_event_subscribe_device(0, IO_EV_FALLING, 21, c->id, &h));
+// a module that lives forever: fn(ev, ctx) in the event task
+ERR_TRY(sys_event_subscribe_fn(SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_EVENT, SYS_EVENT_ANY_CHANNEL, on_event, NULL, &h));
 /* teardown: ERR_TRY(sys_event_unsubscribe(h)); */
 ```
 
 - **Match**: `source` exact or `SYS_EVENT_ANY_SOURCE` (0xFFFF); `event` exact, `SYS_EVENT_ANY_EVENT` (0xFFFF) or `(contract << 8) | SYS_EVENT_ANY_IN` (any event of a contract); `channel` exact or `SYS_EVENT_ANY_CHANNEL` (0xFF).
 - **Match function**: `sys_event_matches(source, event, channel, &ev)` is the rule above as a function, for code that filters events itself (the VM's `ON_EVENT` block); the subscription table uses the same one.
-- **Inline** (`inline_call`): in the publisher's task before publish returns. May block on I/O (I2C), never on a delay or timeout. **Queued**: the event task (`CONFIG_SYS_EVENT_TASK_PRIO`, default 6: above router work, below urgent).
-- **Target device** (`device` ≠ `SYS_DEVICE_ID_NONE`): `sys_device_write(device, EVENT_OP_ON_EVENT, &ev, sizeof(ev))`. The EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03) has one op, `EVENT_OP_ON_EVENT` = 0x0300, a write, in the one-row table `EVENT_OPERATIONS`; `OP_WRITE(EVENT, ON_EVENT)` / `OP_ENTRY_W(EVENT, ON_EVENT)`, args = `sys_event_t`. A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
-- **Target fn** (`device` = `SYS_DEVICE_ID_NONE`): `fn(ev, ctx)`. Only for modules that live forever (the VM, the power manager). The matching slot is copied out under a spinlock and the function is called without it, so an unsubscribe doesn't wait for a delivery in progress.
+- **Where it runs** follows from what the listener is, not from a caller's choice, so it can't run where it would deadlock. **A device** (`sys_event_subscribe_device`) runs **inline**, in the publisher's task before publish returns: the registry lock is recursive, so this is safe in any publisher, a device op included. It may block on I/O (I2C), never on a delay or timeout.
+- **A function** (`sys_event_subscribe_fn`) runs in the **event task** (`CONFIG_SYS_EVENT_TASK_PRIO`, default 6: above router work, below urgent): a module with locks of its own (the power manager: its lock, then the registry's) would take them inside a device op, against that order.
+- **Device delivery**: `sys_device_write(device, EVENT_OP_ON_EVENT, &ev, sizeof(ev))`. The EVENT contract (`SYS_DEVICE_CONTRACT_EVENT` = 0x03) has one op, `EVENT_OP_ON_EVENT` = 0x0300, a write, in the one-row table `EVENT_OPERATIONS`; `OP_WRITE(EVENT, ON_EVENT)` / `OP_ENTRY_W(EVENT, ON_EVENT)`, args = `sys_event_t`. A removed device answers `ERR_DEV_NOT_FOUND`: no dangling context, and the registry mutex keeps a delivery and REMOVE apart.
+- **Function delivery**: `fn(ev, ctx)`. Only for modules that live forever (the VM, the power manager). The matching slot is copied out under a spinlock and the function is called without it, so an unsubscribe doesn't wait for a delivery in progress.
 - `CONFIG_SYS_EVENT_MAX_SUBS` (32, up to 255) slots; the handle is the slot; `ERR_EVENT_TABLE_FULL` when none is free.
 
 ## The VM
 
-The VM subscribes once to every event (a queued wildcard listener, `vm_event_init`, booted after `sys_event_init`). It copies them into a per-pass buffer; an `ON_EVENT` block matches that buffer with `sys_event_matches` (VM_BLOCKS.MD, VM_CORE.MD). A program therefore reacts to any event, NOTIFY or not.
+The VM subscribes once to every event (a function listener on every event, `vm_event_init`, booted after `sys_event_init`). It copies them into a per-pass buffer; an `ON_EVENT` block matches that buffer with `sys_event_matches` (VM_BLOCKS.MD, VM_CORE.MD). A program therefore reacts to any event, NOTIFY or not.
 
 ## The app
 

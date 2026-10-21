@@ -5,16 +5,16 @@ menu "sys_event"
         default 32
         range 4 255
         help
-          Listeners made by C code (devices, VM, power manager), inline or
-          queued.
+          Listeners made by C code: devices (inline) and functions (the VM,
+          the power manager; the event task).
 
     config SYS_EVENT_QUEUE_LEN
         int "Queue (events)"
         default 16
         range 4 128
         help
-          Events waiting for the event task (queued listeners, events from
-          ISRs and SYS_EVENT_DEFER publishes). A full queue drops the event.
+          Events waiting for the event task (for the function listeners,
+          events from ISRs and deferred publishes). A full queue drops the event.
 
     config SYS_EVENT_TASK_PRIO
         int "Task priority"
@@ -28,6 +28,7 @@ menu "sys_event"
         default 4096
         range 3072 32768
         help
-          Runs queued listeners: device ON_EVENT ops (I2C), the power manager.
+          Runs the function listeners (the VM, the power manager) and every
+          listener of an ISR or deferred event: device ON_EVENT ops (I2C).
 
 endmenu

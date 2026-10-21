@@ -107,17 +107,19 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 
 /* A contract's events table P_EVENTS of rows X(P, NAME, n, flags) (sys_event.h "Events tables") gives
  * P_EV_<NAME> = (P_CONTRACT << 8) | n and P_EV_<NAME>_FLAGS. Here, below sys_event, so every contract can use it. */
+#define SYS_EVENT_NOTIFY 0x01u  // an event's flag, from its table: sent on the events connector (what the app gets)
 #define SYS_EVENT__ID(P, name, n, flags) \
   P##_EV_##name = SYS_DEVICE_OP(P##_CONTRACT, n), P##_EV_##name##_FLAGS = (flags),
 #define SYS_EVENTS_DECLARE(P) enum { P##_EVENTS(SYS_EVENT__ID, P) };
 
 /* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
- * learns of a safe state or a fault response without asking. The IDs are made in sys_event.h (SYS_DEVICE_EV_*), which
- * has the flag values; this layer only reports the change (sys_device_set_state_listener). */
+ * learns of a safe state or a fault response without asking. This layer only reports the change
+ * (sys_device_set_state_listener); runit publishes the event. */
 #define SYS_DEVICE_EVENTS(X, P)           \
   X(P, SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
   X(P, RESUMED,   0x01, SYS_EVENT_NOTIFY)
+SYS_EVENTS_DECLARE(SYS_DEVICE)
 
 /* The handlers and op-table rows of op NAME of the contract with prefix P (OP_WRITE(SYS_DEVICE, RESET),
  * OP_ENTRY_R(PD, LIMITS)): OP_READ / OP_WRITE write the side's cmd_f (the read parses the key, the write the value),

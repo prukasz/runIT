@@ -24,14 +24,9 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
 }
 
 err_h vm_event_init(void) {
-  const sys_event_sub_t all = {.source = SYS_EVENT_ANY_SOURCE,
-                               .event = SYS_EVENT_ANY_EVENT,
-                               .channel = SYS_EVENT_ANY_CHANNEL,
-                               .inline_call = false,
-                               .device = SYS_DEVICE_ID_NONE,
-                               .fn = on_event};
   uint8_t handle;
-  return sys_event_subscribe(&all, &handle);
+  return sys_event_subscribe_fn(SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_EVENT, SYS_EVENT_ANY_CHANNEL, on_event, NULL,
+                                &handle);
 }
 
 void vm_event_drain(void) {

@@ -52,20 +52,13 @@ extern "C" {
 #define SYS_EVENT_ANY_IN      0xFFu        // low byte of `event`: any event of that contract (n 0xFF is never used)
 #define SYS_EVENT_ANY_CHANNEL 0xFFu   // any channel
 
-/* flags */
-#define SYS_EVENT_NOTIFY 0x01u  // sent on the events connector (the only events the app gets)
-#define SYS_EVENT_DEFER  0x02u   // set by the publisher, not by a table: everything is delivered in the event task
-                                // (the task clears it first: a listener or the stream never sees it)
-#define SYS_EVENT_FROM_ISR 0x04u  // set by sys_event_publish in an ISR: t_ms is still the uptime (the clock can't be read there);
-                                  // the task turns it into the clock's time and clears the flag first
-
 /* One occurrence. Copied into the queue, passed as the ON_EVENT args and sent as the events stream record, so packed
    and without pointers. */
 typedef struct __attribute__((packed)) {
   uint16_t source;  // device ID
   uint16_t event;   // SYS_EVENT_ID(contract, n)
   uint8_t channel;  // pin / channel on that device, 0 when it has none
-  uint8_t flags;    // SYS_EVENT_NOTIFY | SYS_EVENT_DEFER
+  uint8_t flags;    // the events table's: SYS_EVENT_NOTIFY (sys_device.h) or 0
   int32_t value;    // level, mV, mA, ... per event
   uint64_t t_ms;    // set by sys_event_publish: the board's clock in ms, UTC once a client set it (board_time_now_ms)
 } sys_event_t;
@@ -81,10 +74,6 @@ typedef struct __attribute__((packed)) {
  * a fault), 0 for the ones that only drive code (an edge, an alert pin).
  * Publishing with SYS_EVENT_PUBLISH takes the flags from the table.
  * ------------------------------------------------------------------------- */
-
-/* The device contract's events (SYS_DEVICE_EVENTS, sys_device.h): its table sits with its ops, its IDs here, where the
- * flag values are (sys_device is below sys_event). */
-SYS_EVENTS_DECLARE(SYS_DEVICE)
 
 /**
  * @brief Publishes event NAME of the table with prefix PFX (IO_EV_NAME, IO_EV_NAME_FLAGS).
@@ -111,46 +100,51 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
 MUST_USE err_h sys_event_init(void);
 
 /**
- * @brief Listener callback (target FN).
+ * @brief A function listener.
  * @param event Borrowed; copy it to keep it.
  * @return An error is reported by the dispatcher; other listeners still run.
  */
 typedef err_h (*sys_event_handler_f)(const sys_event_t* event, void* ctx);
 
-typedef struct {
-  /* Match: exact or SYS_EVENT_ANY_* / SYS_EVENT_ANY_IN. */
-  uint16_t source;
-  uint16_t event;
-  uint8_t channel;
-  bool inline_call;  // in the publisher's task (else: the event task)
-  /* Target: a device (its ON_EVENT), or fn when device is SYS_DEVICE_ID_NONE. */
-  uint16_t device;
-  sys_event_handler_f fn;
-  void* ctx;
-} sys_event_sub_t;
+/* A subscription matches `source`, `event` and `channel`, each exact or SYS_EVENT_ANY_* / SYS_EVENT_ANY_IN. Where the
+ * listener runs follows from what it is, so a listener can't run where it would deadlock:
+ *  - a device (its ON_EVENT) runs inline, in the publisher's task before publish returns: the registry lock is
+ *    recursive, so it is safe in any publisher, a device op included. It may block on I/O (I2C), never on a delay.
+ *  - a function runs in the event task: a module with locks of its own (the power manager) would take them inside a
+ *    device op, against the lock order. Only for modules that live forever (the VM, the power manager). */
 
 /**
- * @brief Adds a listener.
+ * @brief Adds device `device` as a listener: its ON_EVENT (sys_device_write) gets the matching events, inline.
  * @param handle Its handle, for sys_event_unsubscribe().
- * @return ERR_EVENT_BAD_ARG with no target, ERR_EVENT_TABLE_FULL when all
- *         CONFIG_SYS_EVENT_MAX_SUBS are used.
+ * @return ERR_EVENT_BAD_ARG for SYS_DEVICE_ID_NONE, ERR_EVENT_TABLE_FULL when all CONFIG_SYS_EVENT_MAX_SUBS are used.
  */
-MUST_USE err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle);
+MUST_USE err_h sys_event_subscribe_device(uint16_t source, uint16_t event, uint8_t channel, uint16_t device,
+                                          uint8_t* handle);
+
+/**
+ * @brief Adds `fn(event, ctx)` as a listener, run by the event task.
+ * @return ERR_EVENT_BAD_ARG for a NULL fn, ERR_EVENT_TABLE_FULL when all CONFIG_SYS_EVENT_MAX_SUBS are used.
+ */
+MUST_USE err_h sys_event_subscribe_fn(uint16_t source, uint16_t event, uint8_t channel, sys_event_handler_f fn,
+                                      void* ctx, uint8_t* handle);
 
 /** @brief Removes a listener. It may still get an event already being delivered (a device target can't dangle). */
 MUST_USE err_h sys_event_unsubscribe(uint8_t handle);
 
 /**
- * @brief Publishes an event: sets t_ms, sends it to the events connector if it has SYS_EVENT_NOTIFY, runs the inline
- * listeners (table order), then queues one copy if a queued listener matches.
- *
- * From an ISR, or with SYS_EVENT_DEFER in the flags, all of it is deferred to the event task. A task that an op may
- * wait for must set DEFER: an inline listener run there could need the device lock that op holds (SYS_DEVICE.MD
- * "Concurrency"). An ISR drop is counted and reported by the task.
- * @return ERR_EVENT_QUEUE_FULL when the queued (or deferred) copy didn't fit. Listener failures are reported, not
- *         returned.
+ * @brief Publishes an event: sets t_ms, sends it to the events connector if it has SYS_EVENT_NOTIFY, runs the device
+ * listeners (table order), then queues one copy for the function listeners if one matches. From an ISR all of it is
+ * deferred to the event task; a drop there is counted and reported by the task.
+ * @return ERR_EVENT_QUEUE_FULL when the queued copy didn't fit. Listener failures are reported, not returned.
  */
 MUST_USE err_h sys_event_publish(const sys_event_t* event);
+
+/**
+ * @brief sys_event_publish with all of it in the event task. For a task an op may wait for (the ESP32-S3 GPIO's ADC
+ * task): a device listener run there could need the registry lock that op holds (SYS_DEVICE.MD "Concurrency").
+ * @return ERR_EVENT_QUEUE_FULL when it didn't fit.
+ */
+MUST_USE err_h sys_event_publish_deferred(const sys_event_t* event);
 
 /**
  * @brief The match rule of a subscription: @p source, @p event and @p channel against an event, each exact or

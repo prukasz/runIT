@@ -187,11 +187,10 @@ static void process(const uint8_t* frame, uint32_t len) {
     }
     esp32s3_gpio_unlock();
   }
-  /* SYS_EVENT_DEFER: a listener run here that needs the registry lock would wait for an op that may be waiting for
+  /* Deferred: a device listener run here that needs the registry lock would wait for an op that may be waiting for
      adc_mutex. Nobody to return to: a failed publish (queue full) is reported. */
   for (uint8_t i = 0; i < due_count; i++) {
-    due[i].flags |= SYS_EVENT_DEFER;
-    err_report(sys_event_publish(&due[i]));
+    err_report(sys_event_publish_deferred(&due[i]));
   }
 }
 

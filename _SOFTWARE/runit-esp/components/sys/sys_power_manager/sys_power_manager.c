@@ -780,15 +780,10 @@ err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_stat
   ERR_TRY(sys_device_set_guard(SYS_DEVICE_CONTRACT_POWER_VREG, vreg_guard));
   // Every event of the two contracts, queued (the event task): filtered in on_event.
   uint8_t handle;
-  const sys_event_sub_t vreg = {.source = SYS_EVENT_ANY_SOURCE,
-                                .event = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_VREG, SYS_EVENT_ANY_IN),
-                                .channel = SYS_EVENT_ANY_CHANNEL,
-                                .device = SYS_DEVICE_ID_NONE,
-                                .fn = on_event};
-  ERR_TRY(sys_event_subscribe(&vreg, &handle));
-  sys_event_sub_t pmon = vreg;
-  pmon.event = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_POWER_MONITOR, SYS_EVENT_ANY_IN);
-  ERR_TRY(sys_event_subscribe(&pmon, &handle));
+  ERR_TRY(sys_event_subscribe_fn(SYS_EVENT_ANY_SOURCE, SYS_EVENT_ID(VREG_CONTRACT, SYS_EVENT_ANY_IN),
+                                 SYS_EVENT_ANY_CHANNEL, on_event, NULL, &handle));
+  ERR_TRY(sys_event_subscribe_fn(SYS_EVENT_ANY_SOURCE, SYS_EVENT_ID(PMON_CONTRACT, SYS_EVENT_ANY_IN),
+                                 SYS_EVENT_ANY_CHANNEL, on_event, NULL, &handle));
 
   s_pm.recompute = true;
   U_TASK_START(sys_pwrm_task_h, power_task, NULL, CONFIG_SYS_POWER_MANAGER_TASK_PRIO);

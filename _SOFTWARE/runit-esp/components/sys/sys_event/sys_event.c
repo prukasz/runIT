@@ -9,19 +9,34 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_EVENT, "event", ERR_SYS_EVENT_MAP)
 
 _Static_assert(CONFIG_SYS_EVENT_MAX_SUBS <= 255, "subscription handles are u8");
 
+/* A subscription: a device listener (device set, inline) or a function listener (fn set, the event task). */
 typedef struct {
   bool used;
-  sys_event_sub_t sub;
-} sub_slot_t;
+  uint8_t channel;
+  uint16_t source;
+  uint16_t event;
+  uint16_t device;  // SYS_DEVICE_ID_NONE: a function listener
+  sys_event_handler_f fn;
+  void* ctx;
+} sub_t;
 
-/* The queue holds events. One with SYS_EVENT_DEFER (set by the publisher, or here for an ISR) has had nothing done
-   yet: the task does notify and the inline listeners too. One without it was published inline: only the queued
-   listeners are left. The task clears the flag before delivering, so no listener or stream record sees it. */
-U_QUEUE_DEFINE(sys_event_queue, CONFIG_SYS_EVENT_QUEUE_LEN, sizeof(sys_event_t));
+/* What the event task still has to do with a queued event. */
+typedef enum {
+  STAGE_QUEUED,    // published inline: only the function listeners are left
+  STAGE_DEFERRED,  // nothing done yet: notify, the device listeners, the function listeners
+  STAGE_FROM_ISR,  // as DEFERRED, and t_ms is still the uptime (the clock can't be read in an ISR)
+} stage_e;
+
+typedef struct {
+  sys_event_t ev;
+  uint8_t stage;  // stage_e
+} queued_t;
+
+U_QUEUE_DEFINE(sys_event_queue, CONFIG_SYS_EVENT_QUEUE_LEN, sizeof(queued_t));
 U_TASK_DEFINE(sys_event_task_h, CONFIG_SYS_EVENT_TASK_STACK);
 
 static struct {
-  sub_slot_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock
+  sub_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock
   /* ISR events the queue couldn't take. Counts up and wraps; only the ISR side writes it, the task reads it (an
      aligned u32 is read and written whole) and reports what it has not reported yet. */
   volatile uint32_t isr_drops;
@@ -49,43 +64,44 @@ bool sys_event_matches(uint16_t source, uint16_t event, uint8_t channel, const s
   return event == e->event;
 }
 
-static bool sub_matches(const sub_slot_t* s, const sys_event_t* e, bool inline_call) {
-  return s->used && s->sub.inline_call == inline_call && sys_event_matches(s->sub.source, s->sub.event, s->sub.channel, e);
+// A used slot of the kind asked for (device listeners or function listeners) that matches the event.
+static bool sub_matches(const sub_t* s, const sys_event_t* e, bool devices) {
+  return s->used && (s->device != SYS_DEVICE_ID_NONE) == devices &&
+         sys_event_matches(s->source, s->event, s->channel, e);
 }
 
 /* Copies subscription i if it matches. One slot per lock: a copy of the whole table would take
    CONFIG_SYS_EVENT_MAX_SUBS x 16 B of the publisher's stack (an esp_timer task, a router task). */
-static bool take_sub(uint32_t i, const sys_event_t* e, bool inline_call, sys_event_sub_t* out) {
+static bool take_sub(uint32_t i, const sys_event_t* e, bool devices, sub_t* out) {
   U_CRITICAL_ENTER(s_lock);
-  const bool hit = sub_matches(&s_event.subs[i], e, inline_call);
+  const bool hit = sub_matches(&s_event.subs[i], e, devices);
   if (hit) {
-    *out = s_event.subs[i].sub;
+    *out = s_event.subs[i];
   }
   U_CRITICAL_EXIT(s_lock);
   return hit;
 }
 
 // A listener's failure is reported with the event; the other listeners still run.
-static void deliver(const sys_event_sub_t* sub, const sys_event_t* e) {
-  err_h err = sub->device != SYS_DEVICE_ID_NONE
-                  ? sys_device_write(sub->device, EVENT_OP_ON_EVENT, e, sizeof(*e))
-                  : sub->fn(e, sub->ctx);
+static void deliver(const sub_t* sub, const sys_event_t* e) {
+  err_h err = sub->device != SYS_DEVICE_ID_NONE ? sys_device_write(sub->device, EVENT_OP_ON_EVENT, e, sizeof(*e))
+                                                : sub->fn(e, sub->ctx);
   if (err != NULL) {
     err_report(ERR_WRAP(err, ERR_EVENT_DELIVERY, .source = e->source, .event = e->event, .channel = e->channel,
                         .device = sub->device));
   }
 }
 
-static void run_listeners(const sys_event_t* e, bool inline_call) {
-  sys_event_sub_t sub;
+static void run_listeners(const sys_event_t* e, bool devices) {
+  sub_t sub;
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS; i++) {
-    if (take_sub(i, e, inline_call, &sub)) {
+    if (take_sub(i, e, devices, &sub)) {
       deliver(&sub, e);
     }
   }
 }
 
-static bool any_queued(const sys_event_t* e) {
+static bool any_fn_listener(const sys_event_t* e) {
   bool any = false;
   U_CRITICAL_ENTER(s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !any; i++) {
@@ -108,7 +124,7 @@ static void notify(const sys_event_t* e) {
 }
 
 // What runs where the event is published, or in the task for a deferred one: notify first (whatever the listeners
-// do, an action stopping the board, the cause is out), then the inline listeners.
+// do, an error policy stopping the board, the cause is out), then the device listeners.
 static void deliver_inline(const sys_event_t* e) {
   notify(e);
   run_listeners(e, true);
@@ -118,13 +134,19 @@ static void deliver_inline(const sys_event_t* e) {
  * Publish and the event task
  * ------------------------------------------------------------------------- */
 
+static err_h enqueue(const sys_event_t* ev, stage_e stage) {
+  const queued_t q = {.ev = *ev, .stage = stage};
+  ERR_CHECK(xQueueSend(sys_event_queue, &q, NO_WAIT) == pdTRUE, ERR_EVENT_QUEUE_FULL, .source = ev->source,
+            .event = ev->event, .dropped = 1);
+  return NULL;
+}
+
 // ISR: the whole delivery goes to the task; a drop is counted, never an error (an ISR can't report).
 static void publish_from_isr(const sys_event_t* event) {
-  sys_event_t ev = *event;
-  ev.flags |= SYS_EVENT_DEFER | SYS_EVENT_FROM_ISR;
-  ev.t_ms = board_time_uptime_ms();  // the clock takes a lock: the event task converts it
+  queued_t q = {.ev = *event, .stage = STAGE_FROM_ISR};
+  q.ev.t_ms = board_time_uptime_ms();  // the clock takes a lock: the event task converts it
   BaseType_t woken = pdFALSE;
-  if (xQueueSendFromISR(sys_event_queue, &ev, &woken) != pdTRUE) {
+  if (xQueueSendFromISR(sys_event_queue, &q, &woken) != pdTRUE) {
     s_event.isr_drops++;
   }
   portYIELD_FROM_ISR(woken);
@@ -138,26 +160,24 @@ err_h sys_event_publish(const sys_event_t* event) {
     return NULL;
   }
   ERR_CHECK(event != NULL, ERR_EVENT_BAD_ARG);
-
   sys_event_t ev = *event;
   ev.t_ms = board_time_now_ms();
-  // DEFER: the whole delivery in the event task. Else notify and the inline listeners now, then one queued copy.
-  if (!(ev.flags & SYS_EVENT_DEFER)) {
-    deliver_inline(&ev);
-    if (!any_queued(&ev)) {
-      return NULL;
-    }
-  }
-  ERR_CHECK(xQueueSend(sys_event_queue, &ev, NO_WAIT) == pdTRUE, ERR_EVENT_QUEUE_FULL, .source = ev.source,
-            .event = ev.event, .dropped = 1);
-  return NULL;
+  deliver_inline(&ev);
+  return any_fn_listener(&ev) ? enqueue(&ev, STAGE_QUEUED) : NULL;
+}
+
+err_h sys_event_publish_deferred(const sys_event_t* event) {
+  ERR_CHECK(event != NULL, ERR_EVENT_BAD_ARG);
+  sys_event_t ev = *event;
+  ev.t_ms = board_time_now_ms();
+  return enqueue(&ev, STAGE_DEFERRED);
 }
 
 static void event_task(void* arg) {
   (void)arg;
-  sys_event_t ev;
+  queued_t q;
   while (1) {
-    if (xQueueReceive(sys_event_queue, &ev, WAIT_FOREVER) != pdTRUE) {
+    if (xQueueReceive(sys_event_queue, &q, WAIT_FOREVER) != pdTRUE) {
       continue;
     }
     const uint32_t dropped = s_event.isr_drops - s_event.isr_drops_reported;  // unsigned: right across the wrap
@@ -166,15 +186,13 @@ static void event_task(void* arg) {
       err_report(ERR_NEW(ERR_EVENT_QUEUE_FULL, .source = SYS_EVENT_ANY_SOURCE, .event = SYS_EVENT_ANY_EVENT,
                          .dropped = dropped));
     }
-    if (ev.flags & SYS_EVENT_FROM_ISR) {
-      ev.flags &= (uint8_t)~SYS_EVENT_FROM_ISR;
-      ev.t_ms = board_time_at_uptime_ms(ev.t_ms);
+    if (q.stage == STAGE_FROM_ISR) {
+      q.ev.t_ms = board_time_at_uptime_ms(q.ev.t_ms);
     }
-    if (ev.flags & SYS_EVENT_DEFER) {
-      ev.flags &= (uint8_t)~SYS_EVENT_DEFER;
-      deliver_inline(&ev);
+    if (q.stage != STAGE_QUEUED) {
+      deliver_inline(&q.ev);
     }
-    run_listeners(&ev, false);
+    run_listeners(&q.ev, false);
   }
 }
 
@@ -186,17 +204,16 @@ err_h sys_event_init(void) {
 }
 
 /* ----------------------------------------------------------------------------
- * Subscriptions (C)
+ * Subscriptions
  * ------------------------------------------------------------------------- */
 
-err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle) {
-  ERR_CHECK(sub != NULL && handle != NULL && (sub->device != SYS_DEVICE_ID_NONE || sub->fn != NULL),
-            ERR_EVENT_BAD_ARG);
+static err_h add(const sub_t* sub, uint8_t* handle) {
+  ERR_CHECK(handle != NULL, ERR_EVENT_BAD_ARG);
   bool added = false;
   U_CRITICAL_ENTER(s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !added; i++) {
     if (!s_event.subs[i].used) {
-      s_event.subs[i] = (sub_slot_t){.used = true, .sub = *sub};
+      s_event.subs[i] = *sub;
       *handle = (uint8_t)i;
       added = true;
     }
@@ -204,6 +221,26 @@ err_h sys_event_subscribe(const sys_event_sub_t* sub, uint8_t* handle) {
   U_CRITICAL_EXIT(s_lock);
   ERR_CHECK(added, ERR_EVENT_TABLE_FULL);
   return NULL;
+}
+
+err_h sys_event_subscribe_device(uint16_t source, uint16_t event, uint8_t channel, uint16_t device,
+                                 uint8_t* handle) {
+  ERR_CHECK(device != SYS_DEVICE_ID_NONE, ERR_EVENT_BAD_ARG);
+  const sub_t sub = {.used = true, .source = source, .event = event, .channel = channel, .device = device};
+  return add(&sub, handle);
+}
+
+err_h sys_event_subscribe_fn(uint16_t source, uint16_t event, uint8_t channel, sys_event_handler_f fn, void* ctx,
+                             uint8_t* handle) {
+  ERR_CHECK(fn != NULL, ERR_EVENT_BAD_ARG);
+  const sub_t sub = {.used = true,
+                     .source = source,
+                     .event = event,
+                     .channel = channel,
+                     .device = SYS_DEVICE_ID_NONE,
+                     .fn = fn,
+                     .ctx = ctx};
+  return add(&sub, handle);
 }
 
 err_h sys_event_unsubscribe(uint8_t handle) {

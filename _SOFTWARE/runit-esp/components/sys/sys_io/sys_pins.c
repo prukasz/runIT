@@ -86,10 +86,8 @@ err_h sys_pins_take_input(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pi
   ERR_TRY(sys_device_use(dev, pin.device));
   ERR_TRY(sys_io_prepare_input(pin));
   p->used = true;
-  if (event != 0) {  // inline: the owner's ON_EVENT runs in the publisher's task (an I2C read, no delay)
-    const sys_event_sub_t sub = {.source = pin.device, .event = event, .channel = pin.pin, .inline_call = true,
-                                 .device = dev->id};
-    ERR_TRY(sys_event_subscribe(&sub, &p->sub));
+  if (event != 0) {  // the owner's ON_EVENT, inline: in the publisher's task (an I2C read, no delay)
+    ERR_TRY(sys_event_subscribe_device(pin.device, event, pin.pin, dev->id, &p->sub));
     p->subscribed = true;
   }
   const sys_io_intr_cfg_t cfg = {.mode = mode};

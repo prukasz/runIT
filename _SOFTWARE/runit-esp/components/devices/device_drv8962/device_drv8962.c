@@ -637,9 +637,8 @@ static err_h create(void* ctx, const void* cfg_in) {
     if (!has_pin(c, idx)) {
       continue;
     }
-    const sys_event_sub_t sub = {.source = c->pin[idx].device, .event = IO_EV_RISING, .channel = c->pin[idx].pin,
-                                 .inline_call = true, .device = c->base.id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->ipropi_sub[b]));
+    ERR_TRY(sys_event_subscribe_device(c->pin[idx].device, IO_EV_RISING, c->pin[idx].pin, c->base.id,
+                                       &c->ipropi_sub[b]));
     c->ipropi_subscribed |= (uint8_t)(1u << b);
   }
   ERR_TRY(arm_ipropi_all(c));
@@ -651,9 +650,8 @@ static err_h create(void* ctx, const void* cfg_in) {
   if (has_pin(c, DRV8962_PIN_NFAULT)) {
     ERR_TRY(sys_io_prepare_input(c->pin[DRV8962_PIN_NFAULT]));
     c->used_mask |= (uint16_t)(1u << DRV8962_PIN_NFAULT);
-    const sys_event_sub_t sub = {.source = c->pin[DRV8962_PIN_NFAULT].device, .event = IO_EV_FALLING,
-                                 .channel = c->pin[DRV8962_PIN_NFAULT].pin, .inline_call = true, .device = c->base.id};
-    ERR_TRY(sys_event_subscribe(&sub, &c->nfault_sub));
+    ERR_TRY(sys_event_subscribe_device(c->pin[DRV8962_PIN_NFAULT].device, IO_EV_FALLING,
+                                       c->pin[DRV8962_PIN_NFAULT].pin, c->base.id, &c->nfault_sub));
     c->nfault_subscribed = true;
     const sys_io_intr_cfg_t intr_cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE};
     ERR_TRY(sys_io_configure_intr(c->pin[DRV8962_PIN_NFAULT], &intr_cfg));
