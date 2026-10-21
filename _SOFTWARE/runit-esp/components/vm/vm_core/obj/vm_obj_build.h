@@ -37,12 +37,6 @@ typedef struct vm_accessor_t vm_accessor_t;
  *         - ERR_VM_OBJ_RETENTIVE_PTR: Pointer types cannot be retentive.
  *         - ERR_VM_REG_OOB / ERR_VM_REG_DUP: Registry ID invalid or already taken.
  *         - ERR_VM_ALLOC_EXHAUSTED: Arena out of memory.
- *
- * @code
- * vm_obj_h temp;
- * vm_obj_head_t h = vm_make_obj_head(VM_OBJ_F, 1, VM_OBJ_F_MUTABLE, 4);
- * ERR_TRY(vm_obj_create(&temp, 3, &h, "temp"));
- * @endcode
  */
 MUST_USE err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const char* name);
 

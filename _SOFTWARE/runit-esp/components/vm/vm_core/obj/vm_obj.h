@@ -13,7 +13,7 @@
  * Logic Flow:
  *   1. Types & Core Data Structures (Enums, Bitflags, Head & Object structs, assertions)
  *   2. Helpers (Type table lookups, element shifts, width determination, validation)
- *   3. Target APIs (Object constructor vm_make_obj_head, geometry, payload & tag accessors)
+ *   3. Target APIs (geometry, payload & tag accessors)
  */
 
 // ===========================================================================
@@ -131,20 +131,8 @@ static inline uint8_t vm_type_width(vm_obj_t_e t) {
 }
 
 // ===========================================================================
-// 3. Target APIs (Object Inspection & Head Construction)
+// 3. Target APIs (Object Inspection)
 // ===========================================================================
-
-// A head for `count` elements of `type`; the name is clipped to VM_OBJ_NAME_MAX.
-static inline vm_obj_head_t vm_make_obj_head(vm_obj_t_e type, uint16_t count, uint8_t flags, uint8_t name_len) {
-  return (vm_obj_head_t){
-      .payload_size = (uint16_t)(count << vm_type_shift(type)),
-      .d            = {.obj_t = type, .name_size = name_len > VM_OBJ_NAME_MAX ? VM_OBJ_NAME_MAX : name_len},
-      .f            = {.mutable       = !!(flags & VM_OBJ_F_MUTABLE),
-                       .upd_resetable = !!(flags & VM_OBJ_F_UPD_RESETABLE),
-                       .retentive     = !!(flags & VM_OBJ_F_RETENTIVE),
-                       .usr_protected = !!(flags & VM_OBJ_F_USR_PROTECTED)},
-  };
-}
 
 static inline uint16_t vm_obj_get_payload_size(vm_obj_h obj) {
   return obj->head.payload_size;
