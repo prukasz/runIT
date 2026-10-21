@@ -175,9 +175,9 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY_W(RESET),
-    IO_ENTRY(LEVEL),          IO_ENTRY_W(TOGGLE),
-    IO_ENTRY_W(PWM_DUTY),       IO_ENTRY_W(PWM_FREQ),
-    SYS_PINS_STATE_ENTRIES,           PINS_ENTRY_W(LOCKED_LEVEL),
+    IO_ENTRY(LEVEL),         IO_ENTRY_W(TOGGLE),
+    IO_ENTRY_W(PWM_DUTY),    IO_ENTRY_W(PWM_FREQ),
+    SYS_PINS_STATE_ENTRIES,  PINS_ENTRY_W(LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_PCA9685, .cfg_size = sizeof(pca9685_cfg_t), .ctx_size = sizeof(pca_t),

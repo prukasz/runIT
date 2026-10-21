@@ -506,7 +506,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY_W(RESET),
-    VREG_ENTRY_W(ENABLE),  VREG_ENTRY_W(VOLTAGE),   VREG_ENTRY_W(CURRENT),
+    VREG_ENTRY_W(ENABLE),  VREG_ENTRY_W(VOLTAGE),  VREG_ENTRY_W(CURRENT),
     EVENT_ENTRY_W(ON_EVENT),
     /* Internal rise timer op */
     {TPS_OP_RISE_STEP, NULL, rise_step_h},

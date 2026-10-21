@@ -156,7 +156,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY_W(RESET),
-    IO_ENTRY_W(RESET),     IO_ENTRY(VOLTAGE),
+    IO_ENTRY_W(RESET),  IO_ENTRY(VOLTAGE),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DAC53202, .cfg_size = sizeof(dac53202_cfg_t), .ctx_size = sizeof(dac_t),

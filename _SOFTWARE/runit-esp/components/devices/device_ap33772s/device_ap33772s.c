@@ -414,9 +414,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),       VREG_ENTRY_W(ENABLE),
-    VREG_ENTRY_W(VOLTAGE),    VREG_ENTRY_W(CURRENT),   PD_ENTRY(SETTINGS),     PD_ENTRY_R(OPTIONS),
-    PD_ENTRY_R(LIMITS),       PMON_ENTRY_R(VOLTAGE),   PMON_ENTRY_R(CURRENT),    PMON_ENTRY_R(POWER),
+    DEVICE_ENTRY_W(RESET),
+    VREG_ENTRY_W(ENABLE),   VREG_ENTRY_W(VOLTAGE),  VREG_ENTRY_W(CURRENT),
+    PD_ENTRY(SETTINGS),     PD_ENTRY_R(OPTIONS),    PD_ENTRY_R(LIMITS),
+    PMON_ENTRY_R(VOLTAGE),  PMON_ENTRY_R(CURRENT),  PMON_ENTRY_R(POWER),
     /* Internal keepalive timer op */
     {AP_OP_KEEPALIVE, NULL, keepalive_h},
 };

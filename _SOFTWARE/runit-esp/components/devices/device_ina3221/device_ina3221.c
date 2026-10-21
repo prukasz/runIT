@@ -333,8 +333,9 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),   PMON_ENTRY_R(VOLTAGE),
-    PMON_ENTRY_R(CURRENT), PMON_ENTRY_R(POWER),   PMON_ENTRY_W(ALERT),  EVENT_ENTRY_W(ON_EVENT),
+    DEVICE_ENTRY_W(RESET),
+    PMON_ENTRY_R(VOLTAGE),  PMON_ENTRY_R(CURRENT),  PMON_ENTRY_R(POWER),
+    PMON_ENTRY_W(ALERT),    EVENT_ENTRY_W(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_INA3221, .cfg_size = sizeof(ina3221_cfg_t), .ctx_size = sizeof(ina_t),

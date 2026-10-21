@@ -527,9 +527,10 @@ static err_h create(void* ctx, const void* cfg) {
 // No SET_VOLTAGE (a DAC does that). OPS lists this table.
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY_W(RESET),
-    IO_ENTRY(LEVEL),     IO_ENTRY_W(TOGGLE),        IO_ENTRY_W(PWM_DUTY),
-    IO_ENTRY_W(PWM_FREQ),  IO_ENTRY_W(MODE),        IO_ENTRY_W(RESET),            IO_ENTRY_R(VOLTAGE),
-    IO_ENTRY_W(INTR), SYS_PINS_STATE_ENTRIES,      PINS_ENTRY_W(LOCKED_LEVEL),
+    IO_ENTRY(LEVEL),         IO_ENTRY_W(TOGGLE),   IO_ENTRY_W(PWM_DUTY),
+    IO_ENTRY_W(PWM_FREQ),    IO_ENTRY_W(MODE),     IO_ENTRY_W(RESET),
+    IO_ENTRY_R(VOLTAGE),     IO_ENTRY_W(INTR),
+    SYS_PINS_STATE_ENTRIES,  PINS_ENTRY_W(LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_GPIO_ESP, .cfg_size = sizeof(gpio_esp_cfg_t), .ctx_size = sizeof(gpio_t),

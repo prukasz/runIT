@@ -538,8 +538,8 @@ static err_h create(void* ctx, const void* cfg_in) {
 
 static const sys_device_op_t k_ops[] = {
     DEVICE_ENTRY_W(RESET),
-    IO_ENTRY_R(VOLTAGE), IO_ENTRY_W(MODE),          IO_ENTRY_W(INTR),
-    IO_ENTRY_W(RESET),       EVENT_ENTRY_W(ON_EVENT),
+    IO_ENTRY_R(VOLTAGE),  IO_ENTRY_W(MODE),  IO_ENTRY_W(INTR),
+    IO_ENTRY_W(RESET),    EVENT_ENTRY_W(ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_ADS7128, .cfg_size = sizeof(ads7128_cfg_t), .ctx_size = sizeof(ads_t),
