@@ -94,7 +94,7 @@ SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
   return servo_move(c, (int32_t)c->cfg.default_pos * 10);
 }
 
-// Takes effect with the next move, the servo stays where it is. Not an output write: allowed while suspended.
+// Takes effect with the next move, the servo stays where it is.
 SYS_DEVICE_HANDLER(set_trim_h, servo_trim_t) {
   (void)out;
   (void)out_cap;
@@ -215,7 +215,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET),
     /* Device own ops */
     {.op = SERVO_OP_HOME, .write = home_h},
-    {.op = SERVO_OP_TRIM, .write = set_trim_h, .always = true},
+    {.op = SERVO_OP_TRIM, .write = set_trim_h},
     {.op = SERVO_OP_TARGET, .write = set_h},
     {.op = SERVO_OP_PULSE, .read = get_pulse_h},
     {.op = SERVO_OP_RELEASE, .write = release_h},

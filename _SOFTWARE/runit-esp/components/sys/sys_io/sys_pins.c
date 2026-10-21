@@ -63,11 +63,6 @@ err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level) {
   return sys_device_write(p.device, PINS_OP_LOCKED_LEVEL, &a, sizeof(a));
 }
 
-err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin) {
-  ERR_TRY(sys_device_check_active(base));
-  return sys_pins_state_check_free(pins, base->id, pin);
-}
-
 /* ----------------------------------------------------------------------------
  * A device's own pins (sys_pins.h): take / drive / release in one order for every driver.
  * ------------------------------------------------------------------------- */

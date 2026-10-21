@@ -408,14 +408,14 @@ OP_WRITE(IO, PWM_DUTY) {
 
 SYS_PINS_STATE_HANDLERS(gpio_t)
 
-// The owner of a locked pin (PCA9685 OE, a chip RST) drives it here. SUSPEND leaves locked pins to their owner,
-// so this works while the device is suspended; on an unlocked pin it is a plain write.
+// The owner of a locked pin (PCA9685 OE, a chip RST) drives it here; on an unlocked pin it is a plain write. A write:
+// refused while suspended (the sweeps suspend the owners first and resume them last).
 OP_WRITE(PINS, LOCKED_LEVEL) {
   gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   if ((c->pins.locked & (1ULL << args->pin)) == 0) {
-    ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
+    ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   }
   return drive(c, args->pin, args->level);
 }
@@ -526,11 +526,11 @@ static err_h create(void* ctx, const void* cfg) {
 
 // No SET_VOLTAGE (a DAC does that). OPS lists this table.
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W_ALWAYS(SYS_DEVICE, RESET),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
     OP_ENTRY(IO, LEVEL),       OP_ENTRY_W(IO, TOGGLE),  OP_ENTRY_W(IO, PWM_DUTY),
     OP_ENTRY_W(IO, PWM_FREQ),  OP_ENTRY_W(IO, MODE),    OP_ENTRY_W(IO, RESET),
     OP_ENTRY_R(IO, VOLTAGE),   OP_ENTRY_W(IO, INTR),
-    SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W_ALWAYS(PINS, LOCKED_LEVEL),
+    SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W(PINS, LOCKED_LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(GPIO_ESP, gpio_esp_cfg_t, gpio_t, k_ops)

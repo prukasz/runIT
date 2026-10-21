@@ -128,9 +128,9 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 #define OP_ENTRY_R(P, name) {.op = P##_OP_##name, .read = P##_r_##name}
 #define OP_ENTRY_W(P, name) {.op = P##_OP_##name, .write = P##_w_##name}
 
-/* A write a suspended device still takes (an event delivery, a pin's owner, a setting that drives nothing): the
- * registry refuses every other write of a type's table while the device is suspended (ERR_DEV_SUSPENDED). An own
- * op's row says the same with `.always = true`. */
+/* A suspended device refuses every write of its type's table (ERR_DEV_SUSPENDED) and answers every read. The only
+ * writes it still takes are the firmware's own plumbing, never a command: an event delivery, an internal timer, a pin
+ * lock taken or released by another device. Those rows are OP_ENTRY_W_ALWAYS, an own op's `.always = true`. */
 #define OP_ENTRY_W_ALWAYS(P, name) {.op = P##_OP_##name, .write = P##_w_##name, .always = true}
 
 /* Widened to int64 in a function: at the call the compiler would see a u8's range and warn (-Wtype-limits, u8 >= 0). */
@@ -171,7 +171,7 @@ typedef struct {
   uint16_t op;
   cmd_f read;
   cmd_f write;
-  bool always;  // the write runs while the device is suspended (OP_ENTRY_W_ALWAYS); else ERR_DEV_SUSPENDED
+  bool always;  // plumbing: the write runs while the device is suspended (OP_ENTRY_W_ALWAYS); else ERR_DEV_SUSPENDED
 } sys_device_op_t;
 
 /**
@@ -219,13 +219,6 @@ void sys_device_type_register(const sys_device_type_t* type);
   __attribute__((constructor)) static void s_sys_device_type_register(void) {                                 \
     sys_device_type_register(&s_sys_device_type);                                                             \
   }
-
-/** @brief ERR_DEV_SUSPENDED while the device is suspended: for a write the registry lets through (OP_ENTRY_W_ALWAYS)
- *  that still refuses in some cases, and for a read the chip can't answer while suspended. */
-static inline MUST_USE err_h sys_device_check_active(const sys_device_base_t* dev) {
-  ERR_CHECK(!dev->suspended, ERR_DEV_SUSPENDED, .id = dev->id);
-  return NULL;
-}
 
 /* ----------------------------------------------------------------------------
  * Calls

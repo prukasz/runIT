@@ -65,7 +65,7 @@ Which pins a device has and which are locked. A pin another device depends on (P
 | `0x0201` LOCKED | R | `sys_pins_locked(dev, &mask)` | → u64: the locked ones |
 | `0x0202` LOCK | W | `sys_pins_lock(p)` | `{u8 pin}` (`ERR_DEV_PIN_LOCKED` if already locked) |
 | `0x0203` UNLOCK | W | `sys_pins_unlock(p)` | `{u8 pin}` (an unlocked pin stays unlocked) |
-| `0x0204` LOCKED_LEVEL | W | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` (the owner's op: PCA9685 and TCA6424A refuse it while suspended, `ERR_DEV_SUSPENDED`; GPIO ESP takes it, its SUSPEND leaves locked pins to their owner) |
+| `0x0204` LOCKED_LEVEL | W | `sys_pins_set_locked_level(p, level)` | `{u8 pin, u8 level}` (the owner's op; a write, so refused while the device is suspended, `ERR_DEV_SUSPENDED`: the sweeps suspend the owner before the pin's device and resume it after) |
 
 - A device keeps one `sys_pins_state_t` (`sys_pins_state_init(&s, count)`), calls `sys_pins_state_check_free` before every write (`check` for reads) and answers the PINS ops: AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so `SYS_PINS_STATE_HANDLERS(ctx_t)` writes them (struct with `base` and `pins` members) and `SYS_PINS_STATE_ENTRIES` lists their table rows; LOCKED_LEVEL writes the pin and stays the device's own.
 - "Reserved" pins are locked pins. A device reports every pin the chip has in AVAILABLE and nothing is reserved by the driver; whoever uses a pin for something else (a bridge driver on PWM channels, a chip RST) locks it, and LOCKED says what is taken. Free pins = `AVAILABLE & ~LOCKED`. Which pins get locked is board configuration, not driver code.

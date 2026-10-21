@@ -395,7 +395,6 @@ OP_WRITE(EVENT, ON_EVENT) {
 // A read: refused while suspended (the sequencer is stopped).
 OP_READ(IO, VOLTAGE) {
   ads_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
   uint16_t code = 0;
   ERR_TRY(chip_read_channel(c, args->pin, &code));

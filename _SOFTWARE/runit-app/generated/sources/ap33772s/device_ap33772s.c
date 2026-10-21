@@ -410,7 +410,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W_ALWAYS(SYS_DEVICE, RESET),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
     OP_ENTRY_W(VREG, ENABLE),   OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
     OP_ENTRY(PD, SETTINGS),     OP_ENTRY_R(PD, OPTIONS),    OP_ENTRY_R(PD, LIMITS),
     OP_ENTRY_R(PMON, VOLTAGE),  OP_ENTRY_R(PMON, CURRENT),  OP_ENTRY_R(PMON, POWER),

@@ -135,14 +135,15 @@ OP_WRITE(IO, TOGGLE) {
   return chip_set_pins(c, 1UL << args->pin, (chip_output(c) & (1UL << args->pin)) ? 0 : (1UL << args->pin));
 }
 
-// Reads the chip: refused while it is in reset.
+// Reads the chip; while suspended (the chip may be held in reset) the levels of the last read.
 OP_READ(IO, LEVEL) {
   tca_t* c = ctx;
-  ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
-  uint32_t levels;
-  ERR_TRY(chip_get_pins(c, &levels));
-  c->cached_inputs = levels;
+  uint32_t levels = c->cached_inputs;
+  if (!c->base.suspended) {
+    ERR_TRY(chip_get_pins(c, &levels));
+    c->cached_inputs = levels;
+  }
   const uint8_t level = (levels & (1UL << args->pin)) != 0;
   return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
 }

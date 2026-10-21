@@ -65,11 +65,6 @@ MUST_USE err_h sys_pins_state_check(const sys_pins_state_t* s, uint16_t dev_id, 
 
 /** @brief Before a write: ERR_DEV_BAD_PIN unless the pin exists, ERR_DEV_PIN_LOCKED if it is locked. */
 MUST_USE err_h sys_pins_state_check_free(const sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
-/**
- * @brief Before a write the registry lets through while suspended (OP_ENTRY_W_ALWAYS) that must still refuse here:
- * ERR_DEV_SUSPENDED while the device is suspended, then sys_pins_state_check_free(). Reads use the plain check.
- */
-MUST_USE err_h sys_pins_check_writable(const sys_device_base_t* base, const sys_pins_state_t* pins, uint8_t pin);
 
 MUST_USE err_h sys_pins_state_lock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
 MUST_USE err_h sys_pins_state_unlock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
