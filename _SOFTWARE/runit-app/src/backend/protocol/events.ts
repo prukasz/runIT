@@ -23,7 +23,7 @@ export interface BoardEvent {
   readonly channel: number
   readonly flags: number
   readonly value: number
-  /** The board's uptime when it was published. */
+  /** The board's clock when it was published: UTC ms once a client set it (`TIME`), else the time since the start (before 2020). */
   readonly tMs: number
 }
 

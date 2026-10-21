@@ -11,8 +11,8 @@ const C = (path: string) => readFileSync(new URL(`../../../runit-esp/components/
 const frame = (fields: Record<string, number>) => Uint8Array.from([defs.keys.event!, defs.eventNotify, ...encodeFields(layout, fields)])
 
 describe('events from the board', () => {
-  it('sys_event_t is the 14 bytes of SYS_EVENT.MD', () => {
-    expect(layout.fixed).toBe(14)
+  it('sys_event_t is the 18 bytes of SYS_EVENT.MD', () => {
+    expect(layout.fixed).toBe(18)
     expect(C('sys/sys_event/sys_event.h')).toMatch(/#define SYS_EVENT_OP_NOTIFY 0x0*(\w+)u/)
   })
 

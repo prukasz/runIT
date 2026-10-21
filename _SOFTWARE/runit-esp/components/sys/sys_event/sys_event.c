@@ -1,9 +1,9 @@
 #include "sys_event.h"
-#include "esp_timer.h"
 #include "router_ids.h"
 #include "sdkconfig.h"
 #include "sys_connector.h"
 #include "utils.h"
+#include "board_time.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_EVENT, "event", ERR_SYS_EVENT_MAP)
 
@@ -96,7 +96,7 @@ static bool any_queued(const sys_event_t* e) {
 }
 
 /* On the events connector, when NOTIFY: a frame in the command shape, [ROUTER_KEY_EVENT][SYS_EVENT_OP_NOTIFY] and the
- * event itself (sys_event_t, 14 B packed). A full connector queue drops it (like the errors stream: reporting that
+ * event itself (sys_event_t, 18 B packed). A full connector queue drops it (like the errors stream: reporting that
  * would add traffic to the same queue). */
 static void notify(const sys_event_t* e) {
   if (!(e->flags & SYS_EVENT_NOTIFY)) {
@@ -118,15 +118,11 @@ static void deliver_inline(const sys_event_t* e) {
  * Publish and the event task
  * ------------------------------------------------------------------------- */
 
-static uint32_t now_ms(void) {
-  return (uint32_t)(esp_timer_get_time() / 1000);
-}
-
 // ISR: the whole delivery goes to the task; a drop is counted, never an error (an ISR can't report).
 static void publish_from_isr(const sys_event_t* event) {
   sys_event_t ev = *event;
-  ev.flags |= SYS_EVENT_DEFER;
-  ev.t_ms = now_ms();
+  ev.flags |= SYS_EVENT_DEFER | SYS_EVENT_FROM_ISR;
+  ev.t_ms = board_time_uptime_ms();  // the clock takes a lock: the event task converts it
   BaseType_t woken = pdFALSE;
   if (xQueueSendFromISR(sys_event_queue, &ev, &woken) != pdTRUE) {
     s_event.isr_drops++;
@@ -144,7 +140,7 @@ err_h sys_event_publish(const sys_event_t* event) {
   ERR_CHECK(event != NULL, ERR_EVENT_BAD_ARG);
 
   sys_event_t ev = *event;
-  ev.t_ms = now_ms();
+  ev.t_ms = board_time_now_ms();
   // DEFER: the whole delivery in the event task. Else notify and the inline listeners now, then one queued copy.
   if (!(ev.flags & SYS_EVENT_DEFER)) {
     deliver_inline(&ev);
@@ -169,6 +165,10 @@ static void event_task(void* arg) {
       s_event.isr_drops_reported += dropped;
       err_report(ERR_NEW(ERR_EVENT_QUEUE_FULL, .source = SYS_EVENT_ANY_SOURCE, .event = SYS_EVENT_ANY_EVENT,
                          .dropped = dropped));
+    }
+    if (ev.flags & SYS_EVENT_FROM_ISR) {
+      ev.flags &= (uint8_t)~SYS_EVENT_FROM_ISR;
+      ev.t_ms = board_time_at_uptime_ms(ev.t_ms);
     }
     if (ev.flags & SYS_EVENT_DEFER) {
       ev.flags &= (uint8_t)~SYS_EVENT_DEFER;

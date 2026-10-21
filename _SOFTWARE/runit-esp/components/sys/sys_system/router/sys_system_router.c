@@ -1,10 +1,9 @@
 #include "sys_system_router.h"
 
-#include <sys/time.h>
-
 #include "esp_log.h"
 #include "esp_system.h"
 #include "sys_system.h"
+#include "board_time.h"
 
 #define TAG __FILE_NAME__
 
@@ -46,11 +45,6 @@ typedef struct __attribute__((packed)) {
   uint8_t reason;   /**< sys_safe_reason_e of the last entry; 0 = not in the safe state */
   uint32_t for_ms;  /**< Time since that entry */
 } sys_safe_t;
-
-// No battery clock: the time is a client's gift, kept over a software restart (the RTC counter runs on) and lost with the power. The
-// system clock is kept (settimeofday), so every consumer that reads it (an error record, a block) sees one time. A clock that was never set
-// counts from 1970 at the start: anything before 2020 is "not set".
-#define CLOCK_SET_AFTER_MS 1577836800000ull  // 2020-01-01 UTC
 
 static void restart_now(TimerHandle_t t) {
   (void)t;
@@ -97,16 +91,12 @@ ROUTER_OP_NOARGS(op_bye) {
 }
 
 ROUTER_OP(op_time_set, sys_time_t) {
-  const struct timeval tv = {.tv_sec = (time_t)(args->unix_ms / 1000u), .tv_usec = (suseconds_t)((args->unix_ms % 1000u) * 1000u)};
-  ERR_CHECK(settimeofday(&tv, NULL) == 0, ERR_CMD_BAD_ARG);
+  ERR_CHECK(board_time_set(args->unix_ms), ERR_CMD_BAD_ARG);
   return NULL;
 }
 
 ROUTER_OP_NOARGS(op_time_get) {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  const uint64_t now_ms = (uint64_t)tv.tv_sec * 1000u + (uint64_t)tv.tv_usec / 1000u;
-  const sys_time_t r = {.unix_ms = now_ms >= CLOCK_SET_AFTER_MS ? now_ms : 0};
+  const sys_time_t r = {.unix_ms = board_time_unix_ms()};
   return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
 }
 

@@ -56,6 +56,8 @@ extern "C" {
 #define SYS_EVENT_NOTIFY 0x01u  // sent on the events connector (the only events the app gets)
 #define SYS_EVENT_DEFER  0x02u   // set by the publisher, not by a table: everything is delivered in the event task
                                 // (the task clears it first: a listener or the stream never sees it)
+#define SYS_EVENT_FROM_ISR 0x04u  // set by sys_event_publish in an ISR: t_ms is still the uptime (the clock can't be read there);
+                                  // the task turns it into the clock's time and clears the flag first
 
 /* One occurrence. Copied into the queue, passed as the ON_EVENT args and sent as the events stream record, so packed
    and without pointers. */
@@ -65,7 +67,7 @@ typedef struct __attribute__((packed)) {
   uint8_t channel;  // pin / channel on that device, 0 when it has none
   uint8_t flags;    // SYS_EVENT_NOTIFY | SYS_EVENT_DEFER
   int32_t value;    // level, mV, mA, ... per event
-  uint32_t t_ms;    // set by sys_event_publish
+  uint64_t t_ms;    // set by sys_event_publish: the board's clock in ms, UTC once a client set it (board_time_now_ms)
 } sys_event_t;
 
 /* ----------------------------------------------------------------------------

@@ -17,13 +17,13 @@ Component `components/sys/sys_event/`. One publisher, any number of listeners: a
 ## Event
 
 ```c
-typedef struct __attribute__((packed)) {  // 14 B
+typedef struct __attribute__((packed)) {  // 18 B
   uint16_t source;   // device ID
   uint16_t event;    // SYS_EVENT_ID(contract, n) = [contract u8][n u8], like ops
   uint8_t  channel;  // pin / channel, 0 when none
   uint8_t  flags;    // SYS_EVENT_NOTIFY, SYS_EVENT_DEFER
   int32_t  value;    // level, mV, mA ... per event
-  uint32_t t_ms;     // set by sys_event_publish (esp_timer)
+  uint64_t t_ms;     // set by sys_event_publish: the board's clock in ms (board_time_now_ms: UTC once a client set it, else the time since the start)
 } sys_event_t;
 ```
 
@@ -58,8 +58,8 @@ Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6
 
 `sys_event_publish(&ev)`:
 
-1. `t_ms` is set.
-2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (14 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u32]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. It has no dir byte: it is an outbound frame, not a request. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
+1. `t_ms` is set from the board's clock (TIME.MD), the same time as an error record's stamp. In an ISR the clock can't be read (it takes a lock): the event gets `SYS_EVENT_FROM_ISR` and the uptime, and the event task turns it into the clock's time before anything else sees it.
+2. **NOTIFY → events connector** (`SYS_CONNECTOR_EVENTS` = 3, stream `0x06`), first: whatever the listeners do next (an action stopping the board), the cause is already out. Frame in the command shape (like the VM telemetry, VM_CORE.MD): `[ROUTER_KEY_EVENT 0x07][SYS_EVENT_OP_NOTIFY 0x01]` and the event itself, `sys_event_t` (18 B: `[source u16][event u16][channel u8][flags u8][value i32][t_ms u64]`). Key 0x07 has no router: it only names the frame, so an app decoder reads it with its `[key][op][struct]` table. It has no dir byte: it is an outbound frame, not a request. The op is published (`event_op` in `enums.json`) and the struct is the EVENT contract's (`contract_event.json`, the arguments of ON_EVENT); the app decodes it in `runit-app/src/backend/protocol/events.ts`. A full connector queue drops it silently (like the errors stream).
 3. Inline listeners, table order.
 4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 

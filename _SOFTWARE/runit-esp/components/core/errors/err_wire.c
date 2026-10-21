@@ -1,6 +1,5 @@
-#include <sys/time.h>
-
 #include "err_internal.h"
+#include "board_time.h"
 
 #define RECORD_INTERNAL_HDR (1u + ERR_RECORD_STAMP_BYTES)  // src, stamp
 #define RECORD_COMMAND_HDR  (RECORD_INTERNAL_HDR + 4u)      // ... link, seq, flags, req_len
@@ -14,10 +13,8 @@ uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t ca
   if (buf == NULL || cap < (cmd == NULL ? RECORD_INTERNAL_HDR : RECORD_COMMAND_HDR) + 1) {
     return 0;
   }
-  // The time of the report: the system clock, UTC in ms (it counts from the start until a client sets it).
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  const uint64_t now_ms = (uint64_t)tv.tv_sec * 1000u + (uint64_t)tv.tv_usec / 1000u;
+  // The time of the report: the board's clock, UTC in ms (it counts from the start until a client sets it).
+  const uint64_t now_ms = board_time_now_ms();
   uint32_t pos = 0;
   buf[pos++] = cmd == NULL ? ERR_RECORD_SRC_INTERNAL : ERR_RECORD_SRC_COMMAND;
   memcpy(buf + pos, &now_ms, ERR_RECORD_STAMP_BYTES);  // little-endian target

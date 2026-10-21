@@ -10,7 +10,7 @@ A plug-and-play board for hobbyists. The board exposes what it has (devices, con
 
 | Layer | Components | May depend on |
 |---|---|---|
-| core | `utils`, `errors`, `cmd`, `router` | ESP-IDF only (and earlier core) |
+| core | `utils`, `time`, `errors`, `cmd`, `router` | ESP-IDF only (and earlier core) |
 | sys | `sys_connector`, `sys_uart`, `sys_ble`, `sys_log`, `sys_i2c`, `sys_event`, `sys_device`, `sys_io`, `sys_power`, `sys_hbridge`, `sys_power_manager`, `sys_actions`, `sys_project` | core, earlier sys |
 | devices | `devices/device_<chip>` (one driver each), `devices/devices` | core, sys (the contracts they implement, `sys_i2c`, `sys_io` for pins) |
 | vm | `vm_core`, then `vm_blocks` | core, sys; `vm_blocks` also the devices whose own ops it has a block for |

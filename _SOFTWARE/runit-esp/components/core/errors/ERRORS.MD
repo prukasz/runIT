@@ -89,7 +89,7 @@ Rules:
 
 ```
 [src u8]                                    0 internal (no request), 1 command
-[unix_ms u64 LE]                            the board's clock when it was reported (ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
+[unix_ms u64 LE]                            the board's clock when it was reported (`board_time_now_ms`, TIME.MD; ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
 src 1: [link u8][seq u8][flags u8]               (after the stamp)
        [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
        [request]     key, dir, keys + payload as received (no seq / flags)

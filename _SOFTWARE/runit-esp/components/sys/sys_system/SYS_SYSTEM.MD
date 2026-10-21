@@ -48,7 +48,7 @@ Requests are `[0x01][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x03` RESTART | W | – (restart ~100 ms after the answer) |
 | `0x04` DEADMAN | RW | `u32 timeout_ms, u8 on_link_lost` |
 | `0x06` BYE | W | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
-| `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: the system clock (`settimeofday`; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set) |
+| `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: sets the board's clock (`board_time_set`, TIME.MD; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set) |
 | `0x09` SAFE | R | → `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
 | `0x0A` SAFE_LEAVE | W | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
 

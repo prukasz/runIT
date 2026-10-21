@@ -1108,8 +1108,8 @@ STREAM_EVENTS = 0x06
 
 def event_records(link: Link, t: float) -> list[tuple]:
     """Records on the events stream since `t`: (source, event, channel, flags, value, t_ms)."""
-    return [struct.unpack("<HHBBiI", f[2:]) for f in link.stream_since(STREAM_EVENTS, t)
-            if len(f) == 16 and f[0] == 0x07 and f[1] == 0x01]
+    return [struct.unpack("<HHBBiQ", f[2:]) for f in link.stream_since(STREAM_EVENTS, t)
+            if len(f) == 20 and f[0] == 0x07 and f[1] == 0x01]
 
 
 def test_actions_after_restart(link: Link) -> None:

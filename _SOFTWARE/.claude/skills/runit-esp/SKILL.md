@@ -28,6 +28,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 |---|---|---|---|
 | core | `core/utils` | `utils.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists |
 | core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format, the error record (`err_record`, `err_cmd_t`) |
+| core | `core/time` | `TIME.MD` | the board's clock (`board_time_*`): set by a client, UTC once set, the uptime; everything that needs the time takes it from here |
 | core | `core/cmd` | `CMD.MD` | the command handler type, the direction (read / write sides, the mirror), `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
 | core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, watch |
 | sys | `sys/sys_connector` | `SYS_CONNECTOR.MD` | outbound streams, transport providers (`transport_e`), bindings |
