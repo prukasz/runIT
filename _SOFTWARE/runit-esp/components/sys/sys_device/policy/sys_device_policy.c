@@ -6,9 +6,7 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 #include "sys_device.h"
-#include "sys_device_internal.h"
-
-ERR_MODULE_DEFINE(ERR_MOD_SYS_DEVICE, "sys_device", ERR_SYS_DEVICE_MAP)
+#include "sys_device_policy_internal.h"
 
 #define TAG __FILE_NAME__
 

@@ -1,6 +1,6 @@
 #pragma once
 
-/* Private to this component: what the registry (sys_device.c) asks of the error policy (sys_device_errors.c), which
+/* Private to this component: what the registry (sys_device.c) asks of the error policy (sys_device_policy.c), which
  * keeps the policies by device ID. */
 
 #include "sys_device.h"

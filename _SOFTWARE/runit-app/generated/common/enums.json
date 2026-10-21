@@ -296,7 +296,7 @@
       "alias": "Device Response",
       "kind": "defines",
       "prefix": "SYS_DEVICE_RESPONSE_",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_RESPONSE_SUSPEND",
@@ -701,7 +701,7 @@
     "sys_device_fault_stage_e": {
       "alias": "Fault Response Stage",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_FAULT_STAGE_VM_STOP",
@@ -726,7 +726,7 @@
     "sys_device_importance_e": {
       "alias": "Device Error Importance",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_IMPORTANCE_NONE",

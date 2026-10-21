@@ -1,9 +1,11 @@
 #include "sys_device.h"
-#include "sys_device_internal.h"
+#include "sys_device_policy_internal.h"
 
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 #include "utils.h"
+
+ERR_MODULE_DEFINE(ERR_MOD_SYS_DEVICE, "sys_device", ERR_SYS_DEVICE_MAP)
 
 // A type ID listed twice in sys_device_types.h is a duplicate case label: a compile error.
 #define SYS_DEVICE__TYPE_CASE(name, id) \
@@ -207,7 +209,7 @@ OP_READ(SYS_DEVICE, INFO) {
   return cmd_reply(out, out_cap, out_len, &info, sizeof(info));
 }
 
-// ERROR_POLICY: the policy is kept and checked in sys_device_errors.c. Allowed while suspended: it configures the
+// ERROR_POLICY: the policy is kept and checked in sys_device_policy.c. Allowed while suspended: it configures the
 // registry, not the device.
 OP_WRITE(SYS_DEVICE, ERROR_POLICY) {
   return sys_device_policy_set(((const dev_t_*)ctx)->id, args);

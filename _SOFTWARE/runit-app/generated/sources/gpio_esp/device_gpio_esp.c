@@ -338,7 +338,7 @@ static err_h arm_adc(const gpio_t* c, esp_pin_obj_t* pin_obj, const sys_io_intr_
 }
 
 /* Digital pin (input or output): RISING / FALLING / BOTH edges from the ISR, value = level. ADC pin: RISING
- * (>= up), FALLING (<= down), ADC_OUTSIDE, ADC_INSIDE from the ADC task, value = mV. Events: SYS_IO_EVENTS,
+ * (>= up), FALLING (<= down), ADC_OUTSIDE, ADC_INSIDE from the ADC task, value = mV. Events: IO_EVENTS,
  * channel = pin. Re-arming replaces the old config. */
 OP_WRITE(IO, INTR) {
   gpio_t* c = ctx;
