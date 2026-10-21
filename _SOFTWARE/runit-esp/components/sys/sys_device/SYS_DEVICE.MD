@@ -10,10 +10,12 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 
 | File | Contents |
 |---|---|
-| `sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_DEFINE`, `ERR_SYS_DEVICE_MAP`, calls and sweeps |
+| `sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_DEFINE`, calls and sweeps |
+| `sys_device_errors.h` | `ERR_SYS_DEVICE_MAP`, the module's error tags (included by `sys_device.h`) |
 | `sys_device_types.h` | **The type IDs**, one X-macro list (`SYS_DEVICE_TYPE_LIST` → `SYS_DEVICE_TYPE_<NAME>`); a duplicate fails to compile |
 | `sys_device.c` | Types, instances (creation order), generic ops, calls, sweeps. Depends on `cmd` only |
-| `sys_device_errors.c` | The error policy: the walk over a reported chain and the response (below) |
+| `sys_device_errors.c` | The error module (`ERR_MODULE_DEFINE`) and the error policy: the policies by device ID, the walk over a reported chain and the response (below) |
+| `sys_device_internal.h` | Private: what the registry asks of the policy (a policy added or removed with its instance, the ERROR_POLICY ops) |
 | `sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[dir u8][id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
 | `Kconfig` | `SYS_DEVICE_MAX` (32 instances), `SYS_DEVICE_TYPES` (16), `SYS_DEVICE_MAX_DEPS` (4 devices one device may use), `SYS_DEVICE_GUARDS` (2 contracts with a guard) |
 | `SYS_DEVICE_NEW.md` | Adding a device: a driver on this registry |
@@ -122,7 +124,7 @@ Rule: CRITICAL at any importance but NONE, else `severity + importance > 4`. `ac
 
 **Response** (here too): CRITICAL → the VM stopped (`vm_stop_on_fault`), then every device suspended (`sys_device_sweep(SYS_DEVICE_OP_SUSPEND)`), then the device's action for that severity through the **action runner** the app sets (`sys_device_set_action_runner`, so `sys_device` doesn't know `sys_actions`). runit's runner queues it on the router (`sys_actions_request`, normal priority) and refuses an action whose own failure (`ERR_ACTION_STEP{id}`) is in the chain. Without a runner actions don't run; CRITICAL still suspends. A failed response is wrapped in `ERR_DEV_FAULT_RESPONSE{id, sev, stage, action}` and returned to the sink, which logs it and sends it as a record, never reports it (no policy on it).
 
-**Locks**: the walk reads a policy under a short critical section (`s_table_mux`), not the registry lock, so a reporting task never waits for an op in progress. The response itself (the SUSPEND sweep) takes the registry lock.
+**Locks**: the walk reads a policy under a short critical section (`s_policy_mux`, the policy table's own), not the registry lock, so a reporting task never waits for an op in progress. The response itself (the SUSPEND sweep) takes the registry lock.
 
 ## Errors (`ERR_MOD_SYS_DEVICE` = 6)
 

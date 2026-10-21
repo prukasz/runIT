@@ -1,10 +1,9 @@
 #include "sys_device.h"
+#include "sys_device_internal.h"
 
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 #include "utils.h"
-
-ERR_MODULE_DEFINE(ERR_MOD_SYS_DEVICE, "sys_device", ERR_SYS_DEVICE_MAP)
 
 // A type ID listed twice in sys_device_types.h is a duplicate case label: a compile error.
 #define SYS_DEVICE__TYPE_CASE(name, id) \
@@ -22,8 +21,7 @@ typedef struct {
   uint16_t id;
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
-  sys_device_error_policy_t policy;  // ERROR_POLICY write; read by the error path under s_table_mux
-  bool system;                       // the board's own (sys_device_mark_system): never removed
+  bool system;  // the board's own (sys_device_mark_system): never removed
 } dev_t_;
 
 typedef struct {
@@ -48,17 +46,11 @@ static struct {
   bool creating;  // a create() is running: another CREATE from inside it would break the table's invariants
 } s_reg;  // zero at the start (.bss)
 
-/* The error path reads a device's policy without the registry lock (an op holding it may wait for the reporting
- * task). Changes of the table (add, remove) and of a policy take this one too, briefly. */
-static portMUX_TYPE s_table_mux = portMUX_INITIALIZER_UNLOCKED;
-
 /* One recursive lock for the registry and for every call into a device (sys_device.h "Locking"). */
 U_RECURSIVE_MUTEX_DEFINE(sys_device_mutex);
 
 #define LOCK() U_RECURSIVE_MUTEX_LOCK(sys_device_mutex, WAIT_FOREVER)
 #define UNLOCK() U_RECURSIVE_MUTEX_UNLOCK(sys_device_mutex)
-
-static const sys_device_error_policy_t k_policy_default = {.importance = SYS_DEVICE_IMPORTANCE_LOW};
 
 /* ---- Lookups (lock held) ---- */
 
@@ -149,25 +141,13 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
     free(ctx);
     return ERR_WRAP(err, ERR_DEV_INSTALL, .id = id, .type = type_id);
   }
-  taskENTER_CRITICAL(&s_table_mux);
   // newest last
-  s_reg.devs[s_reg.dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx, .policy = k_policy_default};
-  taskEXIT_CRITICAL(&s_table_mux);
+  s_reg.devs[s_reg.dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx};
+  sys_device_policy_add(id);
   return NULL;
 }
 
-/* ---- Error policy and state listener ---- */
-
-bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
-  taskENTER_CRITICAL(&s_table_mux);
-  const uint32_t i = find_dev(id);
-  const bool found = i != s_reg.dev_count;
-  if (found) {
-    *out = s_reg.devs[i].policy;
-  }
-  taskEXIT_CRITICAL(&s_table_mux);
-  return found;
-}
+/* ---- State listener ---- */
 
 void sys_device_set_state_listener(sys_device_state_f fn) {
   s_reg.state_listener = fn;
@@ -222,12 +202,11 @@ static err_h op_remove(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t o
   const uint32_t user = find_user(d.id);
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
   err_h err = d.type->uninstall(d.ctx);
-  taskENTER_CRITICAL(&s_table_mux);
   const uint32_t j = find_dev(d.id);  // re-found: uninstall called other devices
   // keeps the creation order
   memmove(&s_reg.devs[j], &s_reg.devs[j + 1], (s_reg.dev_count - j - 1) * sizeof(s_reg.devs[0]));
   s_reg.dev_count--;
-  taskEXIT_CRITICAL(&s_table_mux);
+  sys_device_policy_remove(d.id);
   free(d.ctx);
   return err;
 }
@@ -239,20 +218,14 @@ static err_h op_info(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out
 
 static err_h op_ops(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
-// Any action ID (0 = none; it may be recorded later), importance NONE..CRITICAL. Allowed while suspended: it
-// configures the registry, not the device.
+// ERROR_POLICY: the policy is kept and checked in sys_device_errors.c. Allowed while suspended: it configures the
+// registry, not the device.
 static err_h op_set_policy(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  sys_device_error_policy_t p;
-  memcpy(&p, args, sizeof(p));
-  SYS_DEV_CHECK_IN_RANGE(s_reg.devs[i].id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
-  taskENTER_CRITICAL(&s_table_mux);
-  s_reg.devs[i].policy = p;
-  taskEXIT_CRITICAL(&s_table_mux);
-  return NULL;
+  return sys_device_policy_set(s_reg.devs[i].id, args);
 }
 
 static err_h op_get_policy(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
-  return cmd_reply(out, out_cap, out_len, &s_reg.devs[i].policy, sizeof(s_reg.devs[i].policy));
+  return sys_device_policy_reply(s_reg.devs[i].id, out, out_cap, out_len);
 }
 
 typedef err_h (*registry_op_f)(uint32_t i, const uint8_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
@@ -511,10 +484,8 @@ err_h sys_device_sweep(uint16_t op) {
 
 void sys_device_mark_system(void) {
   LOCK();
-  taskENTER_CRITICAL(&s_table_mux);
   for (uint32_t i = 0; i < s_reg.dev_count; i++) {
     s_reg.devs[i].system = true;
   }
-  taskEXIT_CRITICAL(&s_table_mux);
   UNLOCK();
 }

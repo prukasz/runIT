@@ -110,7 +110,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
 - A file that logs defines `#define TAG "<module>"` (or `__FILE_NAME__`). Debug output is `ESP_LOGD`.
 - File-private state lives in structs, not in loose `static` variables (no stray flags or counters): fields grouped and commented in one place, at no cost.
   - `static struct { ... } s_<module>;` holds everything that starts at zero. It has **no initializer**, so it stays in `.bss`: one non-zero field would move the whole struct, arrays included, to `.data` (a flash image copied to RAM at boot).
-  - What must start non-zero (a `portMUX` spinlock, default options read before `init`) goes in a second, small `static struct { ... } s_<module>_preset = {...};`. A single such value stays a plain `static` (`s_table_mux`).
+  - What must start non-zero (a `portMUX` spinlock, default options read before `init`) goes in a second, small `static struct { ... } s_<module>_preset = {...};`. A single such value stays a plain `static` (`s_policy_mux`).
   - Outside any struct, only what can't be a field: RTOS objects from the `U_*_DEFINE` macros, `__thread` variables, constant tables (`k_*`). Independent parts of one file may each have their own struct (`s_hooks`, `s_rx`).
 - A component with router ops exports only its `cmd_f` (`<module>_router`); `runit` registers it (ROUTER.MD).
 
