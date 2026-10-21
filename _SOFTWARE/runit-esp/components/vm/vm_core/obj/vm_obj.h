@@ -98,134 +98,85 @@ _Static_assert(offsetof(vm_obj_t, payload) == 4, "payload must follow the head w
 // 2. Helpers (Type Shifts, Widths & Validation)
 // ===========================================================================
 
-/**
- * @brief Size of type lookup table
- */
-static const uint8_t vm_obj_type_sizes[] = {
-    [VM_OBJ_NONE] = 0,
-    [VM_OBJ_PTR]  = sizeof(void*),
-    [VM_OBJ_U8]   = sizeof(uint8_t),
-    [VM_OBJ_U32]  = sizeof(uint32_t),
-    [VM_OBJ_I32]  = sizeof(int32_t),
-    [VM_OBJ_F]    = sizeof(float),
-    [VM_OBJ_B]    = sizeof(uint8_t),
-    [VM_OBJ_STR]  = sizeof(uint8_t),
-};
-
-/** @brief Shift to get payload item count from payload size, indexed by the
- *  full 4-bit obj_t field; unused encodings read as 0. */
+/* log2 of an element's width in memory, indexed by the whole 4-bit obj_t field (NONE and unused encodings: 0). */
 static const uint8_t vm_obj_type_shifts[16] = {
-    [VM_OBJ_NONE] = 0,
-    [VM_OBJ_PTR]  = 2,
-    [VM_OBJ_U8]   = 0,
-    [VM_OBJ_U32]  = 2,
-    [VM_OBJ_I32]  = 2,
-    [VM_OBJ_F]    = 2,
-    [VM_OBJ_B]    = 0,
-    [VM_OBJ_STR]  = 0,
+    [VM_OBJ_PTR] = 2,  // a pointer
+    [VM_OBJ_U32] = 2,
+    [VM_OBJ_I32] = 2,
+    [VM_OBJ_F]   = 2,
 };
 
 _Static_assert(sizeof(void*) == 4, "vm_obj_type_shifts assumes 4-byte pointers");
 
-/** @brief Element-size shift for a type id; 0 if `t` is not a real type. */
-static __always_inline uint32_t vm_type_shift(uint8_t t) {
+// A real type: PTR to STR.
+static inline bool vm_type_ok(uint8_t t) {
+  return t >= VM_OBJ_PTR && t <= VM_OBJ_STR;
+}
+
+// A stored scalar: U8 to STR (not PTR).
+static inline bool vm_type_is_scalar(uint8_t t) {
+  return t >= VM_OBJ_U8 && t <= VM_OBJ_STR;
+}
+
+static inline uint32_t vm_type_shift(uint8_t t) {
   return vm_obj_type_shifts[t & 0x0Fu];
 }
 
-/** @brief True if `t` is a real type: VM_OBJ_PTR..VM_OBJ_STR. */
-static __always_inline bool vm_type_ok(uint8_t t) {
-  return (uint8_t)(t - 1u) <= (uint8_t)(VM_OBJ_STR - 1u);
-}
-
-/** @brief Byte width of an element of type `t`. */
-static __always_inline uint8_t vm_type_width(vm_obj_t_e t) {
-  return ((uint8_t)t < sizeof(vm_obj_type_sizes) / sizeof(vm_obj_type_sizes[0])) ? vm_obj_type_sizes[t] : 0;
-}
-
-/** @brief True if `t` is a stored scalar type: VM_OBJ_U8..VM_OBJ_STR. */
-static __always_inline bool vm_type_is_scalar(uint8_t t) {
-  return (uint8_t)(t - VM_OBJ_U8) <= (uint8_t)(VM_OBJ_STR - VM_OBJ_U8);
+// Bytes of one element in memory; 0 for a type that is not real.
+static inline uint8_t vm_type_width(vm_obj_t_e t) {
+  return vm_type_ok(t) ? (uint8_t)(1u << vm_type_shift(t)) : 0;
 }
 
 // ===========================================================================
 // 3. Target APIs (Object Inspection & Head Construction)
 // ===========================================================================
 
-/**
- * @brief Construct a vm_obj_head_t descriptor from parameters.
- *
- * Automatically computes payload_size from item_count and type width.
- *
- * @param type vm_obj_t_e element type (e.g. VM_OBJ_F, VM_OBJ_U32, VM_OBJ_PTR).
- * @param item_count Number of elements (scalar is 1).
- * @param flags Flag bits (VM_OBJ_F_MUTABLE, etc.).
- * @param name_len Length of tag (0..15).
- */
-static __always_inline vm_obj_head_t vm_make_obj_head(vm_obj_t_e type, uint16_t item_count, uint8_t flags, uint8_t name_len) {
-  vm_obj_head_t h   = {0};
-  h.payload_size    = (uint16_t)(item_count << vm_type_shift((uint8_t)type));
-  h.d.obj_t         = (uint8_t)type;
-  h.d.name_size     = (uint8_t)(name_len > VM_OBJ_NAME_MAX ? VM_OBJ_NAME_MAX : name_len);
-  h.f.mutable       = (flags & VM_OBJ_F_MUTABLE) != 0;
-  h.f.upd_resetable = (flags & VM_OBJ_F_UPD_RESETABLE) != 0;
-  h.f.retentive     = (flags & VM_OBJ_F_RETENTIVE) != 0;
-  h.f.usr_protected = (flags & VM_OBJ_F_USR_PROTECTED) != 0;
-  return h;
+// A head for `count` elements of `type`; the name is clipped to VM_OBJ_NAME_MAX.
+static inline vm_obj_head_t vm_make_obj_head(vm_obj_t_e type, uint16_t count, uint8_t flags, uint8_t name_len) {
+  return (vm_obj_head_t){
+      .payload_size = (uint16_t)(count << vm_type_shift(type)),
+      .d            = {.obj_t = type, .name_size = name_len > VM_OBJ_NAME_MAX ? VM_OBJ_NAME_MAX : name_len},
+      .f            = {.mutable       = !!(flags & VM_OBJ_F_MUTABLE),
+                       .upd_resetable = !!(flags & VM_OBJ_F_UPD_RESETABLE),
+                       .retentive     = !!(flags & VM_OBJ_F_RETENTIVE),
+                       .usr_protected = !!(flags & VM_OBJ_F_USR_PROTECTED)},
+  };
 }
 
-/**
- * @brief Payload size getter
- */
-static __always_inline uint16_t vm_obj_get_payload_size(vm_obj_h obj) {
+static inline uint16_t vm_obj_get_payload_size(vm_obj_h obj) {
   return obj->head.payload_size;
 }
 
-/**
- * @brief Safe object item size getter
- */
-static __always_inline uint8_t vm_obj_get_type_size(vm_obj_h obj) {
-  return vm_type_width((vm_obj_t_e)obj->head.d.obj_t);
+// Bytes of one element; 0 for a type that is not real.
+static inline uint8_t vm_obj_get_type_size(vm_obj_h obj) {
+  return vm_type_width(obj->head.d.obj_t);
 }
 
-/**
- * @brief Total items count calculated from payload size and object type size
- */
-static __always_inline uint16_t vm_obj_get_items_cnt(vm_obj_h obj) {
-  uint8_t t = obj->head.d.obj_t;
-  if (unlikely(!vm_type_ok(t))) return 0;
-  return (uint16_t)(vm_obj_get_payload_size(obj) >> vm_type_shift(t));
+// Elements in the payload; 0 for a type that is not real.
+static inline uint16_t vm_obj_get_items_cnt(vm_obj_h obj) {
+  return vm_type_ok(obj->head.d.obj_t) ? (uint16_t)(obj->head.payload_size >> vm_type_shift(obj->head.d.obj_t)) : 0;
 }
 
-/**
- * @brief Total size that is allocated, including header, payload, and tag
- */
-static __always_inline uint32_t vm_obj_get_total_size(vm_obj_h obj) {
+// Head, payload and tag.
+static inline uint32_t vm_obj_get_total_size(vm_obj_h obj) {
   return (uint32_t)sizeof(vm_obj_head_t) + obj->head.payload_size + obj->head.d.name_size;
 }
 
-/**
- * @brief Payload getter as uint8_t ptr
- */
-static __always_inline uint8_t* vm_obj_get_payload_ptr(vm_obj_h obj) {
+// The payload; NULL when it is empty.
+static inline uint8_t* vm_obj_get_payload_ptr(vm_obj_h obj) {
   return obj->head.payload_size != 0 ? obj->payload : NULL;
 }
 
-/**
- * @brief Address of element `i`, or NULL if `i` is past the end, `t` is not a
- *        real type, or `i` exceeds UINT16_MAX.
- */
-static __always_inline uint8_t* vm_obj_get_elem_ptr(vm_obj_h obj, uint32_t i) {
-  uint8_t t = obj->head.d.obj_t;
+// Address of element `i`; NULL past the end or for a type that is not real.
+static inline uint8_t* vm_obj_get_elem_ptr(vm_obj_h obj, uint32_t i) {
+  const uint8_t t = obj->head.d.obj_t;
   if (unlikely(!vm_type_ok(t) || i > UINT16_MAX)) return NULL;
-  uint32_t off = i << vm_type_shift(t);
-  if (unlikely(off >= obj->head.payload_size)) return NULL;
-  return obj->payload + off;
+  const uint32_t off = i << vm_type_shift(t);
+  return likely(off < obj->head.payload_size) ? obj->payload + off : NULL;
 }
 
-/**
- * @brief Tag getter
- */
-static __always_inline const char* vm_obj_get_tag(vm_obj_h obj, uint8_t* out_len) {
+// The tag and its length in *out_len; NULL for an object without a name.
+static inline const char* vm_obj_get_tag(vm_obj_h obj, uint8_t* out_len) {
   if (!obj->head.f.tagged) return NULL;
   *out_len = obj->head.d.name_size;
   return (const char*)(obj->payload + obj->head.payload_size);

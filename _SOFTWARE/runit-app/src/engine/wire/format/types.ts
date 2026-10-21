@@ -14,7 +14,7 @@ export type Value = Scalar | readonly Scalar[] | Uint8Array
 
 /**
  * Bytes of one element on the wire and in the board's memory. A PTR element is its child's u16 object id on the wire and a
- * 4-byte pointer in memory (`VM_OBJ_PTR_WIRE_SIZE`, `vm_obj_type_sizes` in vm_obj.h). `payload_size` counts memory bytes.
+ * 4-byte pointer in memory (`VM_OBJ_PTR_WIRE_SIZE`, `vm_obj_type_shifts` in vm_obj.h). `payload_size` counts memory bytes.
  */
 export const OBJ_WIDTH: Readonly<Record<ObjType, { readonly wire: number; readonly mem: number }>> = {
   ptr: { wire: 2, mem: 4 },
