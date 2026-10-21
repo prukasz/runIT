@@ -11,7 +11,7 @@ export interface WireDefinitions {
   readonly ops: Readonly<Record<'reset' | 'open' | 'addObjects' | 'setData' | 'addAccessors' | 'addBlock' | 'subscribe' | 'exec' | 'speed', number>>
   /** `vm_obj_t_e`. */
   readonly objTypes: Readonly<Record<ObjType, number>>
-  /** `vm_wire_head_flag`: the bits of the object head's flag byte the app may set. */
+  /** `vm_obj_flag`: the bits of the object head's flag byte the app may set. */
   readonly headFlags: Readonly<Record<'mutable' | 'updResetable' | 'retentive' | 'usrProtected', number>>
   /** `vm_blk_en_mode_e`. */
   readonly enMode: Readonly<Record<'any' | 'all', number>>
@@ -31,12 +31,12 @@ export const WIRE_SYMBOLS = {
     symbols: { ptr: 'VM_OBJ_PTR', u8: 'VM_OBJ_U8', u32: 'VM_OBJ_U32', i32: 'VM_OBJ_I32', f32: 'VM_OBJ_F', bool: 'VM_OBJ_B', str: 'VM_OBJ_STR' },
   },
   headFlags: {
-    enum: 'vm_wire_head_flag',
+    enum: 'vm_obj_flag',
     symbols: {
-      mutable: 'VM_WIRE_HEAD_F_MUTABLE',
-      updResetable: 'VM_WIRE_HEAD_F_UPD_RESETABLE',
-      retentive: 'VM_WIRE_HEAD_F_RETENTIVE',
-      usrProtected: 'VM_WIRE_HEAD_F_USR_PROTECTED',
+      mutable: 'VM_OBJ_F_MUTABLE',
+      updResetable: 'VM_OBJ_F_UPD_RESETABLE',
+      retentive: 'VM_OBJ_F_RETENTIVE',
+      usrProtected: 'VM_OBJ_F_USR_PROTECTED',
     },
   },
   enMode: { enum: 'vm_blk_en_mode_e', symbols: { any: 'VM_BLK_EN_ANY', all: 'VM_BLK_EN_ALL' } },

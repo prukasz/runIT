@@ -1863,6 +1863,50 @@
         }
       ]
     },
+    "vm_obj_flag": {
+      "alias": "Object Flags",
+      "kind": "defines",
+      "prefix": "VM_OBJ_F_",
+      "source_file": "runit-esp/components/vm/vm_core/obj/vm_obj.h",
+      "members": [
+        {
+          "name": "VM_OBJ_F_MUTABLE",
+          "value": 1,
+          "alias": "Writable",
+          "description": "Writable at run time"
+        },
+        {
+          "name": "VM_OBJ_F_UPD_RESETABLE",
+          "value": 4,
+          "alias": "Fresh-tracked",
+          "description": "Freshness cleared at end of pass"
+        },
+        {
+          "name": "VM_OBJ_F_TAGGED",
+          "value": 8,
+          "alias": "Named by the board",
+          "description": "Named by the board"
+        },
+        {
+          "name": "VM_OBJ_F_RETENTIVE",
+          "value": 16,
+          "alias": "Retained",
+          "description": "Retained after restart"
+        },
+        {
+          "name": "VM_OBJ_F_DYNAMIC",
+          "value": 32,
+          "alias": "Heap object",
+          "description": "Heap object"
+        },
+        {
+          "name": "VM_OBJ_F_USR_PROTECTED",
+          "value": 64,
+          "alias": "User-protected",
+          "description": "User runtime writes refused"
+        }
+      ]
+    },
     "vm_obj_t_e": {
       "alias": "VM Data Type",
       "kind": "enum",
@@ -2052,50 +2096,6 @@
           "value": 3,
           "alias": "Hours",
           "description": "3,600,000 ms"
-        }
-      ]
-    },
-    "vm_wire_head_flag": {
-      "alias": "Object Flags",
-      "kind": "defines",
-      "prefix": "VM_WIRE_HEAD_F_",
-      "source_file": "runit-esp/components/vm/vm_core/loader/vm_wire.h",
-      "members": [
-        {
-          "name": "VM_WIRE_HEAD_F_MUTABLE",
-          "value": 1,
-          "alias": "Writable",
-          "description": "Writable at run time"
-        },
-        {
-          "name": "VM_WIRE_HEAD_F_UPD_RESETABLE",
-          "value": 4,
-          "alias": "Fresh-tracked",
-          "description": "Freshness cleared at end of pass"
-        },
-        {
-          "name": "VM_WIRE_HEAD_F_TAGGED",
-          "value": 8,
-          "alias": "Named by the board",
-          "description": "Named by the board"
-        },
-        {
-          "name": "VM_WIRE_HEAD_F_RETENTIVE",
-          "value": 16,
-          "alias": "Retained",
-          "description": "Retained after restart"
-        },
-        {
-          "name": "VM_WIRE_HEAD_F_DYNAMIC",
-          "value": 32,
-          "alias": "Heap object",
-          "description": "Heap object"
-        },
-        {
-          "name": "VM_WIRE_HEAD_F_USR_PROTECTED",
-          "value": 64,
-          "alias": "User-protected",
-          "description": "User runtime writes refused"
         }
       ]
     }
@@ -2357,6 +2357,12 @@
     "VM_LOAD_OPEN": "vm_load_state_e",
     "VM_OBJ_B": "vm_obj_t_e",
     "VM_OBJ_F": "vm_obj_t_e",
+    "VM_OBJ_F_DYNAMIC": "vm_obj_flag",
+    "VM_OBJ_F_MUTABLE": "vm_obj_flag",
+    "VM_OBJ_F_RETENTIVE": "vm_obj_flag",
+    "VM_OBJ_F_TAGGED": "vm_obj_flag",
+    "VM_OBJ_F_UPD_RESETABLE": "vm_obj_flag",
+    "VM_OBJ_F_USR_PROTECTED": "vm_obj_flag",
     "VM_OBJ_I32": "vm_obj_t_e",
     "VM_OBJ_NONE": "vm_obj_t_e",
     "VM_OBJ_PTR": "vm_obj_t_e",
@@ -2380,12 +2386,6 @@
     "VM_TIMER_UNIT_HR": "vm_timer_unit_e",
     "VM_TIMER_UNIT_MIN": "vm_timer_unit_e",
     "VM_TIMER_UNIT_MS": "vm_timer_unit_e",
-    "VM_TIMER_UNIT_SEC": "vm_timer_unit_e",
-    "VM_WIRE_HEAD_F_DYNAMIC": "vm_wire_head_flag",
-    "VM_WIRE_HEAD_F_MUTABLE": "vm_wire_head_flag",
-    "VM_WIRE_HEAD_F_RETENTIVE": "vm_wire_head_flag",
-    "VM_WIRE_HEAD_F_TAGGED": "vm_wire_head_flag",
-    "VM_WIRE_HEAD_F_UPD_RESETABLE": "vm_wire_head_flag",
-    "VM_WIRE_HEAD_F_USR_PROTECTED": "vm_wire_head_flag"
+    "VM_TIMER_UNIT_SEC": "vm_timer_unit_e"
   }
 }

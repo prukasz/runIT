@@ -39,13 +39,16 @@ typedef enum vm_obj_t_e {
   VM_OBJ_STR  = 7,  //@alias Text @description Text string (wire: 1B, mem: 1B)
 } vm_obj_t_e;
 
-/**
- * @brief Object creation and descriptor flags.
- */
-#define VM_OBJ_F_MUTABLE       (1u << 0)
-#define VM_OBJ_F_UPD_RESETABLE (1u << 1)
-#define VM_OBJ_F_RETENTIVE     (1u << 2)
-#define VM_OBJ_F_USR_PROTECTED (1u << 3)
+/* The object's flags: the bits of vm_obj_head_t.f in its order, and the flag byte of the wire head (vm_wire.h). The
+ * app sets mutable, upd_resetable, retentive and usr_protected; tagged and dynamic are the board's. */
+//#ref-defines vm_obj_flag @alias Object Flags @prefix VM_OBJ_F_
+#define VM_OBJ_F_MUTABLE       (1u << 0)  //@alias Writable @description Writable at run time
+#define VM_OBJ_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description Freshness cleared at end of pass
+#define VM_OBJ_F_TAGGED        (1u << 3)  //@alias Named by the board @description Named by the board
+#define VM_OBJ_F_RETENTIVE     (1u << 4)  //@alias Retained @description Retained after restart
+#define VM_OBJ_F_DYNAMIC       (1u << 5)  //@alias Heap object @description Heap object
+#define VM_OBJ_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
+// Bit 1 is `upd` (runtime state) and bit 7 is unused: on the wire both are sent as 0 and ignored when read.
 
 /* The head is four bytes on the wire too, but in an explicit layout (vm_wire_head_t, vm_wire.h), not as the
  * compiler lays out vm_obj_head_t. */

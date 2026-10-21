@@ -36,19 +36,10 @@ _Static_assert(sizeof(vm_wire_open_t) == 10, "OPEN body is 10 bytes");
 /* The object head on the wire: four bytes, explicit layout, not the compiler's bitfield layout.
  *   [0..1] u16 payload_size (LE)
  *   [2]    bits 0..3 element type (vm_obj_t_e), bits 4..7 name length (0..15)
- *   [3]    flags, VM_WIRE_HEAD_F_*
+ *   [3]    flags, the object's VM_OBJ_F_* (vm_obj.h)
  * Built and read only with vm_wire_head_pack / _unpack. */
 #define VM_WIRE_HEAD_TYPE_MASK  0x0Fu
 #define VM_WIRE_HEAD_NAME_SHIFT 4u
-
-//#ref-defines vm_wire_head_flag @alias Object Flags @prefix VM_WIRE_HEAD_F_
-#define VM_WIRE_HEAD_F_MUTABLE       (1u << 0)  //@alias Writable @description Writable at run time
-#define VM_WIRE_HEAD_F_UPD_RESETABLE (1u << 2)  //@alias Fresh-tracked @description Freshness cleared at end of pass
-#define VM_WIRE_HEAD_F_TAGGED        (1u << 3)  //@alias Named by the board @description Named by the board
-#define VM_WIRE_HEAD_F_RETENTIVE     (1u << 4)  //@alias Retained @description Retained after restart
-#define VM_WIRE_HEAD_F_DYNAMIC       (1u << 5)  //@alias Heap object @description Heap object
-#define VM_WIRE_HEAD_F_USR_PROTECTED (1u << 6)  //@alias User-protected @description User runtime writes refused
-// Bits 1 and 7 are not used: they are sent as 0 and ignored when read (`upd` is runtime state, never on the wire).
 
 typedef struct __packed {
   uint16_t payload_size;
@@ -70,10 +61,10 @@ static inline vm_obj_head_t vm_wire_head_unpack(const vm_wire_head_t* w) {
   h.payload_size = w->payload_size;
   h.d.obj_t = w->type_name & VM_WIRE_HEAD_TYPE_MASK;
   h.d.name_size = (uint8_t)(w->type_name >> VM_WIRE_HEAD_NAME_SHIFT);
-  h.f.mutable = (w->flags & VM_WIRE_HEAD_F_MUTABLE) != 0;
-  h.f.upd_resetable = (w->flags & VM_WIRE_HEAD_F_UPD_RESETABLE) != 0;
-  h.f.retentive = (w->flags & VM_WIRE_HEAD_F_RETENTIVE) != 0;
-  h.f.usr_protected = (w->flags & VM_WIRE_HEAD_F_USR_PROTECTED) != 0;
+  h.f.mutable = (w->flags & VM_OBJ_F_MUTABLE) != 0;
+  h.f.upd_resetable = (w->flags & VM_OBJ_F_UPD_RESETABLE) != 0;
+  h.f.retentive = (w->flags & VM_OBJ_F_RETENTIVE) != 0;
+  h.f.usr_protected = (w->flags & VM_OBJ_F_USR_PROTECTED) != 0;
   return h;
 }
 
@@ -81,9 +72,9 @@ static inline vm_obj_head_t vm_wire_head_unpack(const vm_wire_head_t* w) {
 static inline vm_wire_head_t vm_wire_head_pack(const vm_obj_head_t* h, uint8_t name_len) {
   vm_wire_head_t w = {.payload_size = h->payload_size,
                       .type_name = (uint8_t)((h->d.obj_t & VM_WIRE_HEAD_TYPE_MASK) | (name_len << VM_WIRE_HEAD_NAME_SHIFT))};
-  w.flags = (uint8_t)((h->f.mutable ? VM_WIRE_HEAD_F_MUTABLE : 0) | (h->f.upd_resetable ? VM_WIRE_HEAD_F_UPD_RESETABLE : 0) |
-                      (name_len ? VM_WIRE_HEAD_F_TAGGED : 0) | (h->f.retentive ? VM_WIRE_HEAD_F_RETENTIVE : 0) |
-                      (h->f.dynamic ? VM_WIRE_HEAD_F_DYNAMIC : 0) | (h->f.usr_protected ? VM_WIRE_HEAD_F_USR_PROTECTED : 0));
+  w.flags = (uint8_t)((h->f.mutable ? VM_OBJ_F_MUTABLE : 0) | (h->f.upd_resetable ? VM_OBJ_F_UPD_RESETABLE : 0) |
+                      (name_len ? VM_OBJ_F_TAGGED : 0) | (h->f.retentive ? VM_OBJ_F_RETENTIVE : 0) |
+                      (h->f.dynamic ? VM_OBJ_F_DYNAMIC : 0) | (h->f.usr_protected ? VM_OBJ_F_USR_PROTECTED : 0));
   return w;
 }
 
