@@ -1,22 +1,13 @@
 #pragma once
 
-#include "utils.h"
+#include "errors.h"
 
-#include "esp_err.h"
+/* The ADC of the pins in ADC mode: one continuous conversion over their ADC1 channels, read by a task that filters
+ * each pin's reading (esp32s3_gpio_pin_t.hw.adc.last_mV) and raises its armed thresholds as IO events. */
 
-esp_err_t esp32s3_gpio_adc_start(void);
+/** @brief Starts the ADC task (once; it idles while no pin is in ADC mode). */
+MUST_USE err_h esp32s3_gpio_adc_start(void);
 
-/**
- * @brief Dynamically changes active channels
- *
- * @return ESP_OK on success, or an error code on failure of driver
- */
-esp_err_t esp32s3_gpio_adc_update_channels(void);
-
-/**
- * @brief Get voltage from cached values of active pin
- * @param pin The GPIO pin number.
- * @param out_mV Pointer to result
- * @return ESP_OK on success, ESP_ERR_INVALID_ARG if pin uninitialized.
- */
-esp_err_t esp32s3_gpio_adc_get_mV(uint8_t pin, int32_t* out_mV);
+/** @brief Rebuilds the conversion for the pins now in ADC mode. After a pin enters or leaves ADC mode; the lock of the
+ *  pins not held. */
+MUST_USE err_h esp32s3_gpio_adc_update_channels(void);

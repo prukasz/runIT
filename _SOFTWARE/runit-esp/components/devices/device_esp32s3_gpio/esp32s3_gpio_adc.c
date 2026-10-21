@@ -1,19 +1,10 @@
 #include "esp32s3_gpio_adc.h"
 
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
-#include "esp_adc/adc_continuous.h"
-#include "esp_err.h"
-#include "errors.h"
 #include "esp32s3_gpio_pin.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_continuous.h"
 #include "sys_event.h"
 #include "utils.h"
-
-#define RETURN_ON_ERROR(x)                   \
-  do {                                       \
-    esp_err_t __err_rc = (x);                \
-    if (__err_rc != ESP_OK) return __err_rc; \
-  } while (0)
 
 #define ADC_FRAME_SIZE_BYTES 256
 #define ADC_SAMPLE_RATE_HZ   20000
@@ -21,131 +12,98 @@
 #define ADC_TASK_PRIORITY    5
 #define ADC_CHANNELS         10  // ADC1 on the ESP32-S3
 
+/* Guards the conversion: a rebuild (a device op) and a read (the task) never overlap. Never taken with the lock of
+ * the pins held, nor the other way round. */
 U_MUTEX_DEFINE(adc_mutex);
 U_TASK_DEFINE(adc_processing_task, 4096);
-U_BINARY_SEM_DEFINE(adc_sync_sem);
 
-static struct {
-  adc_continuous_handle_t handle;  // NULL while no channel is sampled
-  uint16_t channels_mask;          // the channels the hardware is (to be) set up for
-  bool running;
-  volatile bool needs_reconfig;  // set by a pin change, cleared by the task once the hardware is rebuilt
-} s_adc;
+static adc_continuous_handle_t s_handle;  // NULL while no pin is in ADC mode
 
-// Safely tears down and rebuilds the ADC hardware (background task, adc_mutex held).
-static esp_err_t reconfigure_adc_hardware(uint16_t channel_mask) {
-  if (s_adc.handle != NULL) {
-    if (s_adc.running) {
-      RETURN_ON_ERROR(adc_continuous_stop(s_adc.handle));
-      s_adc.running = false;
-    }
-    RETURN_ON_ERROR(adc_continuous_deinit(s_adc.handle));
-    s_adc.handle = NULL;
-  }
-
-  if (channel_mask == 0) return ESP_OK;
-
-  adc_digi_pattern_config_t adc_pattern[ADC_CHANNELS];
-  uint8_t pattern_count = 0;
-
-  for (uint8_t i = 0; i < ADC_CHANNELS; i++) {
-    if (channel_mask & (1U << i)) {
-      adc_pattern[pattern_count] = (adc_digi_pattern_config_t){
-          .atten = ADC_ATTEN_DB_12,
-          .channel = i,
-          .unit = ADC_UNIT_1,
-          .bit_width = SOC_ADC_DIGI_MAX_BITWIDTH,
-      };
-      pattern_count++;
+// The ADC1 channels of the pins in ADC mode.
+static uint16_t active_channels(void) {
+  uint16_t mask = 0;
+  esp32s3_gpio_lock();
+  for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
+    const esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
+    if (p != NULL && p->pin_mode == SYS_IO_MODE_ADC) {
+      mask |= (uint16_t)(1u << p->hw.adc.channel);
     }
   }
+  esp32s3_gpio_unlock();
+  return mask;
+}
 
-  adc_continuous_handle_cfg_t handle_cfg = {
-      .max_store_buf_size = 4096,
-      .conv_frame_size = ADC_FRAME_SIZE_BYTES,
-  };
-  RETURN_ON_ERROR(adc_continuous_new_handle(&handle_cfg, &s_adc.handle));
-
-  adc_continuous_config_t adc_config = {
-      .pattern_num = pattern_count,
-      .adc_pattern = adc_pattern,
+// The conversion torn down, then started again over `mask` (adc_mutex held). A failure leaves it stopped.
+static err_h rebuild(uint16_t mask) {
+  if (s_handle != NULL) {
+    err_h err = ERR_ESP(adc_continuous_stop(s_handle));
+    ERR_KEEP_FIRST(err, ERR_ESP(adc_continuous_deinit(s_handle)));
+    s_handle = NULL;
+    ERR_TRY(err);
+  }
+  if (mask == 0) {
+    return NULL;
+  }
+  adc_digi_pattern_config_t pattern[ADC_CHANNELS];
+  uint8_t count = 0;
+  for (uint8_t ch = 0; ch < ADC_CHANNELS; ch++) {
+    if (mask & (1u << ch)) {
+      pattern[count++] = (adc_digi_pattern_config_t){
+          .atten = ADC_ATTEN_DB_12, .channel = ch, .unit = ADC_UNIT_1, .bit_width = SOC_ADC_DIGI_MAX_BITWIDTH};
+    }
+  }
+  const adc_continuous_handle_cfg_t handle_cfg = {.max_store_buf_size = 4096, .conv_frame_size = ADC_FRAME_SIZE_BYTES};
+  ERR_TRY_ESP(adc_continuous_new_handle(&handle_cfg, &s_handle));
+  const adc_continuous_config_t cfg = {
+      .pattern_num = count,
+      .adc_pattern = pattern,
       .sample_freq_hz = ADC_SAMPLE_RATE_HZ,
       .conv_mode = ADC_CONV_SINGLE_UNIT_1,
       .format = ADC_DIGI_OUTPUT_FORMAT_TYPE2,
   };
-
-  RETURN_ON_ERROR(adc_continuous_config(s_adc.handle, &adc_config));
-  RETURN_ON_ERROR(adc_continuous_start(s_adc.handle));
-  s_adc.running = true;
-  return ESP_OK;
-}
-
-// ADC1 channels of the pins in ADC mode. Takes gpio_mutex.
-static uint16_t compute_active_channels_mask(void) {
-  uint16_t mask = 0;
-  if (U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER) == pdTRUE) {
-    for (int i = 0; i < GPIO_NUM_MAX; i++) {
-      esp32s3_gpio_pin_t* pin_obj = pin_obj_get(i);
-      if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
-        adc_unit_t unit;
-        adc_channel_t chan;
-        if (adc_continuous_io_to_channel(i, &unit, &chan) == ESP_OK && unit == ADC_UNIT_1) {
-          mask |= (1U << chan);
-        }
-      }
-    }
-    U_MUTEX_UNLOCK(gpio_mutex);
+  err_h err = ERR_ESP(adc_continuous_config(s_handle, &cfg));
+  if (err == NULL) {
+    err = ERR_ESP(adc_continuous_start(s_handle));
   }
-  return mask;
+  if (err != NULL) {
+    (void)adc_continuous_deinit(s_handle);  // the cause above is what gets reported
+    s_handle = NULL;
+  }
+  return err;
 }
 
-esp_err_t esp32s3_gpio_adc_update_channels(void) {
-  if (U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
-  s_adc.channels_mask = compute_active_channels_mask();
-
-  // Consume any leftover semaphore token to prevent an early return
-  xSemaphoreTake(adc_sync_sem, 0);
-
-  s_adc.needs_reconfig = true;
-  U_MUTEX_UNLOCK(adc_mutex);
-
-  xSemaphoreTake(adc_sync_sem, WAIT_FOREVER);
-  return ESP_OK;
+err_h esp32s3_gpio_adc_update_channels(void) {
+  const uint16_t mask = active_channels();
+  (void)U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER);
+  const err_h err = rebuild(mask);
+  (void)U_MUTEX_UNLOCK(adc_mutex);
+  return err;
 }
 
-// Filters the new samples of one pin and converts them to mV (gpio_mutex held).
-static void process_adc_channel(uint32_t sum, uint16_t count, esp32s3_gpio_pin_t* pin_obj) {
-  if (count == 0) return;
-
-  float coarse_raw = (float)sum / count;
-  pin_adc_data_t* adc_cfg = &pin_obj->hw.adc_cfg;
-  if (!adc_cfg->primed) {
+// Filters the new samples of one pin and converts them to mV (the lock of the pins held).
+static void filter(pin_adc_data_t* adc, uint32_t sum, uint16_t count) {
+  const float average = (float)sum / count;
+  if (!adc->primed) {
     // Seeded with the first average: from 0 the filter would take ~30 readings to settle, and a FALLING / window
     // alert armed right after SET_MODE would fire on that climb.
-    adc_cfg->internal_raw_filtered = coarse_raw;
-    adc_cfg->primed = true;
+    adc->raw_filtered = average;
+    adc->primed = true;
   }
-  adc_cfg->internal_raw_filtered = (ADC_IIR_ALPHA * coarse_raw) + ((1.0f - ADC_IIR_ALPHA) * adc_cfg->internal_raw_filtered);
-
-  if (adc_cfg->cali_handle == NULL) return;
-
-  int voltage_mV = 0;
-  // Background task, no caller to report to: keep the last good reading.
-  if (adc_cali_raw_to_voltage(adc_cfg->cali_handle, (int)adc_cfg->internal_raw_filtered, &voltage_mV) != ESP_OK) return;
-
-  adc_cfg->adc_last_read_mV = (uint16_t)voltage_mV;
+  adc->raw_filtered = (ADC_IIR_ALPHA * average) + ((1.0f - ADC_IIR_ALPHA) * adc->raw_filtered);
+  int mV = 0;
+  // No caller to report to: a failed conversion keeps the last good reading.
+  if (adc_cali_raw_to_voltage(adc->cali_handle, (int)adc->raw_filtered, &mV) == ESP_OK) {
+    adc->last_mV = (uint16_t)mV;
+  }
 }
 
-/* Thresholds of an armed ADC pin (gpio_mutex held), on its latest reading. Fires once the condition has held for
- * event_counter_threshold readings in a row (0 counts as 1), then stays quiet until the reading is back past the
- * hysteresis. Returns true and fills *ev when an event is due: the caller posts it after releasing gpio_mutex. */
-static bool check_thresholds(esp32s3_gpio_pin_t* pin_obj, sys_event_t* ev) {
-  pin_adc_data_t* adc_cfg = &pin_obj->hw.adc_cfg;
-  const sys_io_intr_cfg_t* intr = &pin_obj->intr;
-  if (intr->mode == SYS_IO_INTR_DISABLE) {
-    return false;
-  }
-  const int32_t mV = adc_cfg->adc_last_read_mV;
+/* Thresholds of an armed ADC pin (the lock of the pins held), on its latest reading. Fires once the condition has
+ * held for event_counter_threshold readings in a row (0 counts as 1), then stays quiet until the reading is back past
+ * the hysteresis. Returns true and fills *ev when an event is due: the caller posts it after the lock is released. */
+static bool check_thresholds(esp32s3_gpio_pin_t* p, sys_event_t* ev) {
+  pin_adc_data_t* adc = &p->hw.adc;
+  const sys_io_intr_cfg_t* intr = &p->intr;
+  const int32_t mV = adc->last_mV;
   const int32_t up = intr->adc.threshold_up_mV;
   const int32_t down = intr->adc.threshold_down_mV;
   const int32_t hyst = intr->adc.hysteresis_mV;
@@ -179,111 +137,86 @@ static bool check_thresholds(esp32s3_gpio_pin_t* pin_obj, sys_event_t* ev) {
       flags = IO_EV_FALLING_FLAGS;
       break;
     default:
-      return false;  // CONFIGURE_INTR refuses the other modes on an ADC pin
+      return false;  // disarmed; INTR refuses the other modes on an ADC pin
   }
 
-  if (adc_cfg->alert_active) {
+  if (adc->alert_active) {
     if (cleared) {
-      adc_cfg->alert_active = false;
+      adc->alert_active = false;
     }
     return false;
   }
   if (!met) {
-    adc_cfg->past_count = 0;
+    adc->past_count = 0;
     return false;
   }
   const uint16_t needed = intr->adc.event_counter_threshold > 0 ? intr->adc.event_counter_threshold : 1;
-  if (++adc_cfg->past_count < needed) {
+  if (++adc->past_count < needed) {
     return false;
   }
-  adc_cfg->alert_active = true;
-  adc_cfg->past_count = 0;
-  *ev = (sys_event_t){.source = esp32s3_gpio_device_id, .event = event, .channel = pin_obj->io_num, .flags = flags,
-                      .value = mV};
+  adc->alert_active = true;
+  adc->past_count = 0;
+  *ev = (sys_event_t){
+      .source = esp32s3_gpio_device_id(), .event = event, .channel = p->io_num, .flags = flags, .value = mV};
   return true;
 }
 
-static void adc_processing_task_function(void* pvParameters) {
-  (void)pvParameters;
-  uint8_t raw_buffer[ADC_FRAME_SIZE_BYTES];
-  uint32_t ret_num = 0;
-
-  while (1) {
-    if (s_adc.needs_reconfig) {
-      if (U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) == pdTRUE) {
-        // A failed rebuild leaves the ADC stopped; the caller has no way to hear of it, the readings just stay as they were.
-        (void)reconfigure_adc_hardware(s_adc.channels_mask);
-        s_adc.needs_reconfig = false;
-        xSemaphoreGive(adc_sync_sem);
-        U_MUTEX_UNLOCK(adc_mutex);
+// One frame: summed per channel, then every ADC pin filtered and its thresholds checked.
+static void process(const uint8_t* frame, uint32_t len) {
+  uint32_t sums[ADC_CHANNELS] = {0};
+  uint16_t counts[ADC_CHANNELS] = {0};
+  for (uint32_t i = 0; i < len; i += SOC_ADC_DIGI_RESULT_BYTES) {
+    const adc_digi_output_data_t* d = (const adc_digi_output_data_t*)&frame[i];
+    if (d->type2.channel < ADC_CHANNELS) {
+      sums[d->type2.channel] += d->type2.data;
+      counts[d->type2.channel]++;
+    }
+  }
+  sys_event_t due[ADC_CHANNELS];  // one ADC1 channel per pin, so at most one event each
+  uint8_t due_count = 0;
+  if (esp32s3_gpio_try_lock(MSEC(5))) {
+    for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
+      esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
+      if (p == NULL || p->pin_mode != SYS_IO_MODE_ADC || counts[p->hw.adc.channel] == 0) {
+        continue;
+      }
+      filter(&p->hw.adc, sums[p->hw.adc.channel], counts[p->hw.adc.channel]);
+      if (due_count < ADC_CHANNELS && check_thresholds(p, &due[due_count])) {
+        due_count++;
       }
     }
+    esp32s3_gpio_unlock();
+  }
+  /* SYS_EVENT_DEFER: a listener run here that needs the registry lock would wait for an op that may be waiting for
+     adc_mutex. Nobody to return to: a failed publish (queue full) is reported. */
+  for (uint8_t i = 0; i < due_count; i++) {
+    due[i].flags |= SYS_EVENT_DEFER;
+    err_report(sys_event_publish(&due[i]));
+  }
+}
 
-    if (s_adc.running && s_adc.handle != NULL && !s_adc.needs_reconfig) {
-      esp_err_t ret = adc_continuous_read(s_adc.handle, raw_buffer, ADC_FRAME_SIZE_BYTES, &ret_num, MSEC(10));
-
-      if (ret == ESP_OK || ret == ESP_ERR_INVALID_STATE) {
-        uint32_t channel_sums[ADC_CHANNELS] = {0};
-        uint16_t channel_counts[ADC_CHANNELS] = {0};
-
-        for (int i = 0; i < (int)ret_num; i += SOC_ADC_DIGI_RESULT_BYTES) {
-          adc_digi_output_data_t* p = (adc_digi_output_data_t*)&raw_buffer[i];
-          uint8_t chan = p->type2.channel;
-
-          if (chan < ADC_CHANNELS) {
-            channel_sums[chan] += p->type2.data;
-            channel_counts[chan]++;
-          }
-        }
-
-        sys_event_t due[ADC_CHANNELS];  // one ADC1 channel per pin, so at most one event each
-        uint8_t due_count = 0;
-        if (U_MUTEX_LOCK(gpio_mutex, MSEC(5)) == pdTRUE) {
-          for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
-            esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
-            if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
-              adc_unit_t unit;
-              adc_channel_t chan;
-              if (adc_continuous_io_to_channel(pin, &unit, &chan) == ESP_OK && unit == ADC_UNIT_1) {
-                process_adc_channel(channel_sums[chan], channel_counts[chan], pin_obj);
-                if (channel_counts[chan] > 0 && due_count < ADC_CHANNELS && check_thresholds(pin_obj, &due[due_count])) {
-                  due_count++;
-                }
-              }
-            }
-          }
-          U_MUTEX_UNLOCK(gpio_mutex);
-        }
-        /* SYS_EVENT_DEFER: SET_MODE / RESET wait for this task (esp32s3_gpio_adc_update_channels) while
-           holding the device lock, so a listener run here that needs the lock would deadlock. Nobody to
-           return to: a failed publish (queue full) is reported. */
-        for (uint8_t i = 0; i < due_count; i++) {
-          due[i].flags |= SYS_EVENT_DEFER;
-          err_report(sys_event_publish(&due[i]));
-        }
-      }
+static void adc_task(void* arg) {
+  (void)arg;
+  uint8_t frame[ADC_FRAME_SIZE_BYTES];
+  while (1) {
+    uint32_t len = 0;
+    esp_err_t rc = ESP_OK;
+    (void)U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER);
+    if (s_handle != NULL) {
+      rc = adc_continuous_read(s_handle, frame, sizeof(frame), &len, MSEC(10));
+    }
+    (void)U_MUTEX_UNLOCK(adc_mutex);
+    // INVALID_STATE: the driver's buffer overflowed (the task fell behind), the frame read is still good.
+    if ((rc == ESP_OK || rc == ESP_ERR_INVALID_STATE) && len > 0) {
+      process(frame, len);
     }
     vTaskDelay(MSEC(10));
   }
 }
 
-esp_err_t esp32s3_gpio_adc_start(void) {
+err_h esp32s3_gpio_adc_start(void) {
   if (adc_processing_task == NULL) {
-    U_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, ADC_TASK_PRIORITY, 0);
+    U_TASK_START_ON_CORE(adc_processing_task, adc_task, NULL, ADC_TASK_PRIORITY, 0);
   }
-  return ESP_OK;
-}
-
-esp_err_t esp32s3_gpio_adc_get_mV(uint8_t pin, int32_t* out_mV) {
-  if (out_mV == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
-  esp_err_t err = ESP_OK;
-  if (U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
-  esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
-  if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
-    err = ESP_ERR_INVALID_ARG;
-  } else {
-    *out_mV = pin_obj->hw.adc_cfg.adc_last_read_mV;
-  }
-  U_MUTEX_UNLOCK(gpio_mutex);
-  return err;
+  return NULL;
 }

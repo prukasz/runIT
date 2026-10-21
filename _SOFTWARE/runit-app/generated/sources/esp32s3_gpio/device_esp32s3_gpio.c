@@ -1,13 +1,12 @@
 #include "device_esp32s3_gpio.h"
 
 #include "driver/gpio.h"
-#include "esp_adc/adc_cali.h"
+#include "esp32s3_gpio_adc.h"
+#include "esp32s3_gpio_pin.h"
+#include "esp32s3_gpio_pwm.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
-#include "esp32s3_gpio_adc.h"
-#include "esp32s3_gpio_pwm.h"
 #include "esp_timer.h"
-#include "esp32s3_gpio_pin.h"
 #include "soc/soc_caps.h"
 #include "sys_event.h"
 #include "sys_pins.h"
@@ -15,23 +14,45 @@
 
 #define DEBOUNCE_US ((int64_t)CONFIG_DEVICE_ESP32S3_GPIO_DEBOUNCE_MS * 1000)
 
-esp32s3_gpio_pin_t pin_pool[GPIO_NUM_MAX];
-uint64_t configured_pins;
-uint16_t esp32s3_gpio_device_id;
-
-/* Guards pin_pool / configured_pins and the PWM pools against the ADC task. Every
- * call into the device is already serialized by sys_device; this one is for the task. */
-U_MUTEX_DEFINE(gpio_mutex);
-
-#define LOCK() ((void)U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER))
-#define UNLOCK() ((void)U_MUTEX_UNLOCK(gpio_mutex))
-
 typedef struct {
   sys_device_base_t base;  // first: id, suspended
   sys_pins_state_t pins;
 } gpio_t;
 
-static gpio_t* s_gpio;  // the ESP's pins are a singleton: the pin pool is the real state
+/* The chip's pins are one device, and its real state is this table: shared with the ISR and the ADC task, so it is
+ * not in the device's struct. */
+static struct {
+  esp32s3_gpio_pin_t pin[GPIO_NUM_MAX];
+  uint64_t configured;  // bit per pin: its slot is live
+  gpio_t* dev;          // the instance (a second CREATE is refused)
+  uint16_t device_id;   // the source of the pin events
+} s_gpio;
+
+/* Guards s_gpio against the ADC task. Every call into the device is already serialized by sys_device. */
+U_MUTEX_DEFINE(gpio_mutex);
+
+esp32s3_gpio_pin_t* esp32s3_gpio_pin(uint8_t pin) {
+  return pin < GPIO_NUM_MAX && (s_gpio.configured & (1ULL << pin)) ? &s_gpio.pin[pin] : NULL;
+}
+
+void esp32s3_gpio_lock(void) {
+  (void)U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
+}
+
+bool esp32s3_gpio_try_lock(TickType_t ticks) {
+  return U_MUTEX_LOCK(gpio_mutex, ticks) == pdTRUE;
+}
+
+void esp32s3_gpio_unlock(void) {
+  (void)U_MUTEX_UNLOCK(gpio_mutex);
+}
+
+uint16_t esp32s3_gpio_device_id(void) {
+  return s_gpio.device_id;
+}
+
+#define LOCK()   esp32s3_gpio_lock()
+#define UNLOCK() esp32s3_gpio_unlock()
 
 // Mode -> ESP-IDF gpio_config_t fields. GPIO_MODE_DISABLE (0) marks a mode this
 // table doesn't support, so validity is a single lookup.
@@ -61,141 +82,120 @@ static bool is_digital(sys_io_mode_e mode) {
   return mode <= SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP;
 }
 
-static bool is_pwm(sys_io_mode_e mode) {
-  return mode == SYS_IO_MODE_PWM;
-}
-
 static bool is_digital_output(sys_io_mode_e mode) {
   return mode == SYS_IO_MODE_OUTPUT_PUSH_PULL || mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN ||
          mode == SYS_IO_MODE_OUTPUT_OPEN_DRAIN_PULLUP;
 }
 
-// The pin's object (gpio_mutex held), or ERR_IO_PIN_UNCONFIGURED.
-static err_h pin_configured(const gpio_t* c, uint8_t pin, esp32s3_gpio_pin_t** obj) {
-  *obj = pin_obj_get(pin);
-  ERR_CHECK(*obj != NULL, ERR_IO_PIN_UNCONFIGURED, .id = c->base.id, .pin = pin);
+static bool is_pwm(sys_io_mode_e mode) {
+  return mode == SYS_IO_MODE_PWM;
+}
+
+static bool is_adc(sys_io_mode_e mode) {
+  return mode == SYS_IO_MODE_ADC;
+}
+
+// The pin's state (lock held), or ERR_IO_PIN_UNCONFIGURED.
+static err_h pin_configured(const gpio_t* c, uint8_t pin, esp32s3_gpio_pin_t** p) {
+  *p = esp32s3_gpio_pin(pin);
+  ERR_CHECK(*p != NULL, ERR_IO_PIN_UNCONFIGURED, .id = c->base.id, .pin = pin);
   return NULL;
 }
 
-// Like pin_configured, and the pin's mode must be one `mode_ok` accepts: else ERR_IO_WRONG_MODE (gpio_mutex held).
-static err_h pin_in_mode(const gpio_t* c, uint8_t pin, bool (*mode_ok)(sys_io_mode_e), esp32s3_gpio_pin_t** obj) {
-  ERR_TRY(pin_configured(c, pin, obj));
-  ERR_CHECK(mode_ok((*obj)->pin_mode), ERR_IO_WRONG_MODE, .id = c->base.id, .pin = pin, .mode = (*obj)->pin_mode);
+// Like pin_configured, and the pin's mode must be one `mode_ok` accepts: else ERR_IO_WRONG_MODE (lock held).
+static err_h pin_in_mode(const gpio_t* c, uint8_t pin, bool (*mode_ok)(sys_io_mode_e), esp32s3_gpio_pin_t** p) {
+  ERR_TRY(pin_configured(c, pin, p));
+  ERR_CHECK(mode_ok((*p)->pin_mode), ERR_IO_WRONG_MODE, .id = c->base.id, .pin = pin, .mode = (*p)->pin_mode);
   return NULL;
-}
-
-static uint64_t configured_mask(void) {
-  LOCK();
-  const uint64_t mask = configured_pins;
-  UNLOCK();
-  return mask;
 }
 
 /* ---- Pin setup and release ---- */
 
-// The pin back to unconfigured. Every step runs; the first failure is returned.
-static err_h release_pin(uint8_t pin) {
-  bool was_adc = false;
-  bool was_configured = false;
-  adc_cali_handle_t cali_handle = NULL;
-  esp_err_t pwm_err = ESP_OK;
-  esp_err_t isr_err = ESP_OK;
+// ADC1 at 12 dB, curve-fitting calibration; the ADC task samples it once the channels are updated.
+static err_h configure_adc(const gpio_t* c, esp32s3_gpio_pin_t* p) {
+  adc_unit_t unit = 0;
+  ERR_CHECK(adc_continuous_io_to_channel(p->io_num, &unit, &p->hw.adc.channel) == ESP_OK && unit == ADC_UNIT_1,
+            ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = p->io_num);
+  const adc_cali_curve_fitting_config_t cali = {
+      .unit_id = ADC_UNIT_1,
+      .chan = p->hw.adc.channel,
+      .atten = ADC_ATTEN_DB_12,
+      .bitwidth = SOC_ADC_DIGI_MAX_BITWIDTH,
+  };
+  return ERR_ESP(adc_cali_create_scheme_curve_fitting(&cali, &p->hw.adc.cali_handle));
+}
 
-  LOCK();
-  esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
-  if (pin_obj != NULL) {
-    was_configured = true;
-    was_adc = (pin_obj->pin_mode == SYS_IO_MODE_ADC);
-    cali_handle = pin_obj->hw.adc_cfg.cali_handle;
-    // Under the lock: the channel and timer pools are shared by every PWM pin.
-    if (pin_obj->pin_mode == SYS_IO_MODE_PWM) {
-      pwm_err = esp32s3_gpio_pwm_release(pin_obj);
-    }
-    // Before the slot is cleared: the ISR reads it.
-    if (is_digital(pin_obj->pin_mode) && pin_obj->intr.mode != SYS_IO_INTR_DISABLE) {
-      isr_err = gpio_isr_handler_remove((gpio_num_t)pin);
-    }
-    configured_pins &= ~(1ULL << pin);
-    memset(pin_obj, 0, sizeof(*pin_obj));
-  }
-  UNLOCK();
-
-  if (!was_configured) {
-    return NULL;
-  }
-
-  err_h err = NULL;
-  ERR_KEEP_FIRST(err, ERR_ESP(pwm_err));
-  ERR_KEEP_FIRST(err, ERR_ESP(isr_err));
-  ERR_KEEP_FIRST(err, ERR_ESP(gpio_reset_pin((gpio_num_t)pin)));
-  if (was_adc) {
-    if (cali_handle != NULL) {
-      ERR_KEEP_FIRST(err, ERR_ESP(adc_cali_delete_scheme_curve_fitting(cali_handle)));
-    }
-    ERR_KEEP_FIRST(err, ERR_ESP(esp32s3_gpio_adc_update_channels()));
+// A channel reserved, the pin held low until the first frequency or duty write binds a timer. Not gpio_config(): it
+// reserves an output pin, and LEDC then warns the pin is taken.
+static err_h configure_pwm(const gpio_t* c, esp32s3_gpio_pin_t* p) {
+  const gpio_num_t pin = (gpio_num_t)p->io_num;
+  ERR_CHECK((SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << pin)) != 0, ERR_IO_MODE_UNSUPPORTED, .id = c->base.id,
+            .pin = p->io_num, .mode = SYS_IO_MODE_PWM);
+  ERR_TRY(esp32s3_gpio_pwm_claim(p));
+  err_h err = ERR_ESP(gpio_set_level(pin, 0));
+  if (err == NULL) err = ERR_ESP(gpio_set_pull_mode(pin, GPIO_FLOATING));
+  if (err == NULL) err = ERR_ESP(gpio_set_direction(pin, GPIO_MODE_OUTPUT));
+  if (err != NULL) {
+    ERR_KEEP_FIRST(err, esp32s3_gpio_pwm_release(p));  // only frees the channel: no timer is bound yet
   }
   return err;
 }
 
-// Puts an unconfigured pin into `mode` (gpio_mutex held). *adc_changed: the ADC channel set must be refreshed
-// afterwards, outside the lock (it takes gpio_mutex again).
-static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode, bool* adc_changed) {
-  esp32s3_gpio_pin_t* existing = pin_obj_get(pin);
-  ERR_CHECK(existing == NULL, ERR_IO_PIN_IN_USE, .id = c->base.id, .pin = pin, .mode = existing->pin_mode);
-
-  esp32s3_gpio_pin_t* new_pin = &pin_pool[pin];
-  memset(new_pin, 0, sizeof(*new_pin));
-  new_pin->io_num = pin;
-  new_pin->pin_mode = (sys_io_mode_e)mode;
-
-  if (mode == SYS_IO_MODE_ADC) {
-    adc_channel_t channel = 0;
-    adc_unit_t unit = 0;
-    ERR_CHECK(adc_continuous_io_to_channel(pin, &unit, &channel) == ESP_OK && unit == ADC_UNIT_1,
-              ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = pin);
-    adc_cali_curve_fitting_config_t cali_config = {
-        .unit_id = ADC_UNIT_1,
-        .chan = channel,
-        .atten = ADC_ATTEN_DB_12,
-        .bitwidth = SOC_ADC_DIGI_MAX_BITWIDTH,
-    };
-    ERR_TRY_ESP(adc_cali_create_scheme_curve_fitting(&cali_config, &new_pin->hw.adc_cfg.cali_handle));
-    configured_pins |= (1ULL << pin);
-    *adc_changed = true;
-    return NULL;
-  }
-
-  if (mode == SYS_IO_MODE_PWM) {
-    ERR_CHECK((SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << pin)) != 0, ERR_IO_MODE_UNSUPPORTED, .id = c->base.id,
-              .pin = pin, .mode = mode);
-    ERR_CHECK(esp32s3_gpio_pwm_claim(new_pin) == ESP_OK, ERR_IO_PWM_CHANNELS_EXHAUSTED, .id = c->base.id, .pin = pin,
-              .channels = ESP32S3_GPIO_PWM_CHANNELS);
-    // Held low until the first frequency or duty write binds a timer. Not gpio_config():
-    // it reserves an output pin, and LEDC then warns the pin is taken.
-    esp_err_t rc = gpio_set_level((gpio_num_t)pin, 0);
-    if (rc == ESP_OK) rc = gpio_set_pull_mode((gpio_num_t)pin, GPIO_FLOATING);
-    if (rc == ESP_OK) rc = gpio_set_direction((gpio_num_t)pin, GPIO_MODE_OUTPUT);
-    if (rc != ESP_OK) {
-      (void)esp32s3_gpio_pwm_release(new_pin);  // only frees the channel: no timer is bound yet
-      return ERR_ESP(rc);
-    }
-    configured_pins |= (1ULL << pin);
-    return NULL;
-  }
-
+static err_h configure_digital(const gpio_t* c, const esp32s3_gpio_pin_t* p) {
+  const uint8_t mode = p->pin_mode;
   ERR_CHECK(mode < ARRAY_LEN(k_gpio_mode_map) && k_gpio_mode_map[mode].mode != GPIO_MODE_DISABLE,
-            ERR_IO_MODE_UNSUPPORTED, .id = c->base.id, .pin = pin, .mode = mode);
-  gpio_config_t cfg = {
-      .pin_bit_mask = (1ULL << pin),
+            ERR_IO_MODE_UNSUPPORTED, .id = c->base.id, .pin = p->io_num, .mode = mode);
+  const gpio_config_t cfg = {
+      .pin_bit_mask = (1ULL << p->io_num),
       .mode = k_gpio_mode_map[mode].mode,
       .pull_up_en = k_gpio_mode_map[mode].pull_up,
       .pull_down_en = k_gpio_mode_map[mode].pull_down,
       .intr_type = GPIO_INTR_DISABLE,
   };
-  ERR_TRY_ESP(gpio_config(&cfg));
-  new_pin->hw.gpio_cfg = cfg;
-  configured_pins |= (1ULL << pin);
+  return ERR_ESP(gpio_config(&cfg));
+}
+
+// Puts an unconfigured pin into `mode` (lock held); its slot goes live only when that worked.
+static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode) {
+  const esp32s3_gpio_pin_t* existing = esp32s3_gpio_pin(pin);
+  ERR_CHECK(existing == NULL, ERR_IO_PIN_IN_USE, .id = c->base.id, .pin = pin, .mode = existing->pin_mode);
+  esp32s3_gpio_pin_t* p = &s_gpio.pin[pin];
+  *p = (esp32s3_gpio_pin_t){.io_num = pin, .pin_mode = (sys_io_mode_e)mode};
+  ERR_TRY(mode == SYS_IO_MODE_ADC   ? configure_adc(c, p)
+          : mode == SYS_IO_MODE_PWM ? configure_pwm(c, p)
+                                    : configure_digital(c, p));
+  s_gpio.configured |= 1ULL << pin;
   return NULL;
+}
+
+// The pin back to unconfigured. Every step runs; the first failure is returned.
+static err_h release_pin(uint8_t pin) {
+  LOCK();
+  esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
+  if (p == NULL) {
+    UNLOCK();
+    return NULL;
+  }
+  const bool was_adc = p->pin_mode == SYS_IO_MODE_ADC;
+  const adc_cali_handle_t cali = was_adc ? p->hw.adc.cali_handle : NULL;
+  err_h err = NULL;
+  // Under the lock: the PWM pools are shared by every PWM pin, and the ISR reads the slot until it is cleared.
+  if (p->pin_mode == SYS_IO_MODE_PWM) {
+    ERR_KEEP_FIRST(err, esp32s3_gpio_pwm_release(p));
+  }
+  if (is_digital(p->pin_mode) && p->intr.mode != SYS_IO_INTR_DISABLE) {
+    ERR_KEEP_FIRST(err, ERR_ESP(gpio_isr_handler_remove((gpio_num_t)pin)));
+  }
+  s_gpio.configured &= ~(1ULL << pin);
+  memset(p, 0, sizeof(*p));
+  UNLOCK();
+
+  ERR_KEEP_FIRST(err, ERR_ESP(gpio_reset_pin((gpio_num_t)pin)));
+  if (was_adc) {
+    ERR_KEEP_FIRST(err, ERR_ESP(adc_cali_delete_scheme_curve_fitting(cali)));
+    ERR_KEEP_FIRST(err, esp32s3_gpio_adc_update_channels());
+  }
+  return err;
 }
 
 /* ---- IO contract ---- */
@@ -203,12 +203,11 @@ static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode, bool* adc
 OP_WRITE(IO, MODE) {
   gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
-  bool adc_changed = false;
   LOCK();
-  err_h err = configure_pin(c, args->pin, args->mode, &adc_changed);
+  err_h err = configure_pin(c, args->pin, args->mode);
   UNLOCK();
-  if (err == NULL && adc_changed) {
-    err = ERR_ESP(esp32s3_gpio_adc_update_channels());
+  if (err == NULL && args->mode == SYS_IO_MODE_ADC) {
+    err = esp32s3_gpio_adc_update_channels();  // without the lock: it takes it again
   }
   return err;
 }
@@ -223,9 +222,9 @@ OP_WRITE(IO, RESET) {
 
 // Drives a push-pull / open-drain pin to `level` (0, 1 or LEVEL_TOGGLE). The caller has checked who may write it.
 static err_h drive(const gpio_t* c, uint8_t pin, int level) {
-  esp32s3_gpio_pin_t* pin_obj;
+  esp32s3_gpio_pin_t* p;
   LOCK();
-  err_h err = pin_in_mode(c, pin, is_digital_output, &pin_obj);
+  err_h err = pin_in_mode(c, pin, is_digital_output, &p);
   if (err == NULL) {
     const int to = level == LEVEL_TOGGLE ? gpio_get_level((gpio_num_t)pin) == 0 : level;
     err = ERR_ESP(gpio_set_level((gpio_num_t)pin, (uint32_t)to));
@@ -247,25 +246,29 @@ OP_WRITE(IO, TOGGLE) {
   return drive(c, args->pin, LEVEL_TOGGLE);
 }
 
-// A read: allowed while suspended and on a locked pin.
+// A read: answered on a locked pin too.
 OP_READ(IO, LEVEL) {
   const gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
-  esp32s3_gpio_pin_t* pin_obj;
+  esp32s3_gpio_pin_t* p;
   LOCK();
-  err_h err = pin_in_mode(c, args->pin, is_digital, &pin_obj);
-  const uint8_t level = err == NULL ? (gpio_get_level((gpio_num_t)args->pin) != 0) : 0;
+  err_h err = pin_in_mode(c, args->pin, is_digital, &p);
+  const bool level = err == NULL && gpio_get_level((gpio_num_t)args->pin) != 0;
   UNLOCK();
   ERR_TRY(err);
-  return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
+  return sys_io_reply_level(args->pin, level, out, out_cap, out_len);
 }
 
-// esp32s3_gpio_adc_get_mV() checks that the pin is configured in ADC mode.
+// The ADC task's latest filtered reading.
 OP_READ(IO, VOLTAGE) {
   const gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
-  int32_t mV = 0;
-  ERR_CHECK(esp32s3_gpio_adc_get_mV(args->pin, &mV) == ESP_OK, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = args->pin);
+  esp32s3_gpio_pin_t* p;
+  LOCK();
+  err_h err = pin_in_mode(c, args->pin, is_adc, &p);
+  const int32_t mV = err == NULL ? p->hw.adc.last_mV : 0;
+  UNLOCK();
+  ERR_TRY(err);
   return sys_io_reply_voltage(args->pin, mV, out, out_cap, out_len);
 }
 
@@ -292,7 +295,7 @@ static void pin_isr(void* arg) {
   // A one-edge mode publishes its own edge (the level may have bounced back already); both edges: the level now.
   const bool rising = mode == SYS_IO_INTR_MODE_RISING_EDGE ||
                       (mode == SYS_IO_INTR_MODE_BOTH_EDGES && gpio_get_level((gpio_num_t)pin->io_num) != 0);
-  const sys_event_t ev = {.source = esp32s3_gpio_device_id,
+  const sys_event_t ev = {.source = s_gpio.device_id,
                           .event = rising ? IO_EV_RISING : IO_EV_FALLING,
                           .channel = pin->io_num,
                           .flags = rising ? IO_EV_RISING_FLAGS : IO_EV_FALLING_FLAGS,
@@ -301,39 +304,39 @@ static void pin_isr(void* arg) {
   (void)err;
 }
 
-// Arms / disarms a digital pin's edge interrupt (gpio_mutex held).
-static err_h arm_digital(const gpio_t* c, esp32s3_gpio_pin_t* pin_obj, const sys_io_intr_cfg_t* cfg) {
-  const gpio_num_t pin = (gpio_num_t)pin_obj->io_num;
+// Arms / disarms a digital pin's edge interrupt (lock held).
+static err_h arm_digital(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_cfg_t* cfg) {
+  const gpio_num_t pin = (gpio_num_t)p->io_num;
   if (cfg->mode == SYS_IO_INTR_DISABLE) {
-    pin_obj->intr = *cfg;
+    p->intr = *cfg;
     err_h err = ERR_ESP(gpio_isr_handler_remove(pin));
     ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_intr_type(pin, GPIO_INTR_DISABLE)));
     return err;
   }
   ERR_CHECK(cfg->mode < ARRAY_LEN(k_gpio_intr_map) && k_gpio_intr_map[cfg->mode] != GPIO_INTR_DISABLE,
-            ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = pin_obj->io_num);
-  pin_obj->intr = *cfg;
-  pin_obj->last_isr_us = 0;
+            ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = p->io_num);
+  p->intr = *cfg;
+  p->last_isr_us = 0;
   err_h err = ERR_ESP(gpio_set_intr_type(pin, k_gpio_intr_map[cfg->mode]));
   if (err == NULL) {
-    err = ERR_ESP(gpio_isr_handler_add(pin, pin_isr, pin_obj));  // enables the interrupt; replaces an earlier handler
+    err = ERR_ESP(gpio_isr_handler_add(pin, pin_isr, p));  // enables the interrupt; replaces an earlier handler
   }
   if (err != NULL) {
-    pin_obj->intr.mode = SYS_IO_INTR_DISABLE;
+    p->intr.mode = SYS_IO_INTR_DISABLE;
     (void)gpio_isr_handler_remove(pin);  // only clears the slot; the cause above is what gets reported
   }
   return err;
 }
 
-// Arms / disarms an ADC pin's thresholds (gpio_mutex held); the ADC task checks them on every reading.
-static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* pin_obj, const sys_io_intr_cfg_t* cfg) {
-  ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = pin_obj->io_num);
+// Arms / disarms an ADC pin's thresholds (lock held); the ADC task checks them on every reading.
+static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_cfg_t* cfg) {
+  ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->base.id, .pin = p->io_num);
   if (cfg->mode == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || cfg->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
     SYS_DEV_CHECK_IN_RANGE(c->base.id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
   }
-  pin_obj->intr = *cfg;
-  pin_obj->hw.adc_cfg.alert_active = false;
-  pin_obj->hw.adc_cfg.past_count = 0;
+  p->intr = *cfg;
+  p->hw.adc.alert_active = false;
+  p->hw.adc.past_count = 0;
   return NULL;
 }
 
@@ -344,47 +347,31 @@ OP_WRITE(IO, INTR) {
   gpio_t* c = ctx;
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
-  esp32s3_gpio_pin_t* pin_obj;
+  esp32s3_gpio_pin_t* p;
   LOCK();
-  err_h err = pin_configured(c, args->pin, &pin_obj);
+  err_h err = pin_configured(c, args->pin, &p);
   if (err == NULL) {
-    if (pin_obj->pin_mode == SYS_IO_MODE_ADC) {
-      err = arm_adc(c, pin_obj, &args->cfg);
-    } else if (is_digital(pin_obj->pin_mode)) {
-      err = arm_digital(c, pin_obj, &args->cfg);
+    if (p->pin_mode == SYS_IO_MODE_ADC) {
+      err = arm_adc(c, p, &args->cfg);
+    } else if (is_digital(p->pin_mode)) {
+      err = arm_digital(c, p, &args->cfg);
     } else {
-      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = args->pin, .mode = pin_obj->pin_mode);
+      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = args->pin, .mode = p->pin_mode);
     }
   }
   UNLOCK();
   return err;
 }
 
-// The pin's object if it is in PWM mode (gpio_mutex held), else sets *err.
-static esp32s3_gpio_pin_t* pwm_pin(const gpio_t* c, uint8_t pin, err_h* err) {
-  esp32s3_gpio_pin_t* pin_obj;
-  *err = pin_in_mode(c, pin, is_pwm, &pin_obj);
-  return *err == NULL ? pin_obj : NULL;
-}
-
-// A pool refusal (no free timer) is reported as such; anything else is a driver failure.
-static err_h pwm_result(const gpio_t* c, esp_err_t rc, uint8_t pin, uint32_t frequency_Hz) {
-  if (rc == ESP_ERR_NOT_FOUND) {
-    return ERR_NEW(ERR_IO_PWM_TIMERS_EXHAUSTED, .id = c->base.id, .pin = pin, .timers = ESP32S3_GPIO_PWM_TIMERS,
-                   .frequency_Hz = frequency_Hz);
-  }
-  return ERR_ESP(rc);
-}
-
 OP_WRITE(IO, PWM_FREQ) {
   gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
-  err_h err;
+  esp32s3_gpio_pin_t* p;
   LOCK();
-  esp32s3_gpio_pin_t* pin_obj = pwm_pin(c, args->pin, &err);
-  if (pin_obj != NULL) {
-    err = pwm_result(c, esp32s3_gpio_pwm_set_frequency(pin_obj, args->frequency_Hz), args->pin, args->frequency_Hz);
+  err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
+  if (err == NULL) {
+    err = esp32s3_gpio_pwm_set_frequency(p, args->frequency_Hz);
   }
   UNLOCK();
   return err;
@@ -394,11 +381,11 @@ OP_WRITE(IO, PWM_DUTY) {
   gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
-  err_h err;
+  esp32s3_gpio_pin_t* p;
   LOCK();
-  esp32s3_gpio_pin_t* pin_obj = pwm_pin(c, args->pin, &err);
-  if (pin_obj != NULL) {
-    err = pwm_result(c, esp32s3_gpio_pwm_set_duty(pin_obj, args->duty), args->pin, CONFIG_DEVICE_ESP32S3_GPIO32S3_GPIO_PWM_DEFAULT_FREQ_HZ);
+  err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
+  if (err == NULL) {
+    err = esp32s3_gpio_pwm_set_duty(p, (uint16_t)args->duty);
   }
   UNLOCK();
   return err;
@@ -422,12 +409,14 @@ OP_WRITE(PINS, LOCKED_LEVEL) {
 
 /* ---- Lifecycle ---- */
 
-// Releases every pin (locked ones too when `all`). Every pin is tried.
+// Releases every configured pin (locked ones too when `all`). Every pin is tried.
 static err_h release_pins(const gpio_t* c, bool all) {
+  LOCK();
+  const uint64_t mask = s_gpio.configured & (all ? ~0ULL : ~c->pins.locked);
+  UNLOCK();
   err_h err = NULL;
-  const uint64_t mask = configured_mask();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
-    if ((mask & (1ULL << pin)) && (all || (c->pins.locked & (1ULL << pin)) == 0)) {
+    if (mask & (1ULL << pin)) {
       ERR_KEEP_FIRST(err, release_pin(pin));
     }
   }
@@ -442,29 +431,29 @@ OP_WRITE(SYS_DEVICE, RESET) {
 
 /* Fault safe state of the pins that belong to the user: PWM at duty 0, push-pull outputs low, open-drain outputs
  * released. Inputs and ADC pins have nothing to make safe. A pin locked by another device is left to that device
- * (it makes it safe in its own SUSPEND). The state is kept for RESUME; writes are refused (ERR_DEV_SUSPENDED)
- * while suspended, so it can't go stale. Every pin is reached even if one fails. */
+ * (it makes it safe in its own SUSPEND). The state is kept for RESUME; writes are refused while suspended, so it
+ * can't go stale. Every pin is reached even if one fails. */
 static err_h suspend_hook(void* ctx) {
   gpio_t* c = ctx;
   err_h err = NULL;
   LOCK();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
-    esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
-    if (pin_obj == NULL || pin_obj->suspended || (c->pins.locked & (1ULL << pin))) {
+    esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
+    if (p == NULL || p->suspended || (c->pins.locked & (1ULL << pin))) {
       continue;
     }
-    if (pin_obj->pin_mode == SYS_IO_MODE_PWM) {
-      if (pin_obj->hw.pwm_cfg.duty == 0) {
+    if (p->pin_mode == SYS_IO_MODE_PWM) {
+      if (p->hw.pwm.duty == 0) {
         continue;  // already off (and possibly no timer bound yet)
       }
-      pin_obj->hw.pwm_cfg.saved_duty = pin_obj->hw.pwm_cfg.duty;
-      pin_obj->suspended = true;
-      ERR_KEEP_FIRST(err, ERR_ESP(esp32s3_gpio_pwm_set_duty(pin_obj, 0)));
-    } else if (is_digital_output(pin_obj->pin_mode)) {
-      pin_obj->saved_level = gpio_get_level((gpio_num_t)pin) != 0;
-      pin_obj->suspended = true;
+      p->hw.pwm.saved_duty = p->hw.pwm.duty;
+      p->suspended = true;
+      ERR_KEEP_FIRST(err, esp32s3_gpio_pwm_set_duty(p, 0));
+    } else if (is_digital_output(p->pin_mode)) {
+      p->saved_level = gpio_get_level((gpio_num_t)pin) != 0;
+      p->suspended = true;
       // Open-drain: released (high); push-pull: low.
-      ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_level((gpio_num_t)pin, pin_obj->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL)));
+      ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_level((gpio_num_t)pin, p->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL)));
     }
   }
   UNLOCK();
@@ -478,14 +467,14 @@ static err_h resume_hook(void* ctx) {
   err_h err = NULL;
   LOCK();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
-    esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
-    if (pin_obj == NULL || !pin_obj->suspended) {
+    esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
+    if (p == NULL || !p->suspended) {
       continue;
     }
-    err_h step = pin_obj->pin_mode == SYS_IO_MODE_PWM ? ERR_ESP(esp32s3_gpio_pwm_set_duty(pin_obj, pin_obj->hw.pwm_cfg.saved_duty))
-                                                      : ERR_ESP(gpio_set_level((gpio_num_t)pin, pin_obj->saved_level));
+    err_h step = p->pin_mode == SYS_IO_MODE_PWM ? esp32s3_gpio_pwm_set_duty(p, p->hw.pwm.saved_duty)
+                                                : ERR_ESP(gpio_set_level((gpio_num_t)pin, p->saved_level));
     if (step == NULL) {
-      pin_obj->suspended = false;
+      p->suspended = false;
     }
     ERR_KEEP_FIRST(err, step);
   }
@@ -499,8 +488,8 @@ static err_h resume_hook(void* ctx) {
 static err_h uninstall(void* ctx) {
   gpio_t* c = ctx;
   err_h err = release_pins(c, true);
-  if (s_gpio == c) {
-    s_gpio = NULL;
+  if (s_gpio.dev == c) {
+    s_gpio.dev = NULL;
   }
   return err;
 }
@@ -509,16 +498,16 @@ static err_h uninstall(void* ctx) {
 static err_h create(void* ctx, const void* cfg) {
   (void)cfg;
   gpio_t* c = ctx;
-  ERR_CHECK(s_gpio == NULL, ERR_DEV_ID_TAKEN, .id = s_gpio->base.id);
+  ERR_CHECK(s_gpio.dev == NULL, ERR_DEV_ID_TAKEN, .id = s_gpio.dev->base.id);
   sys_pins_state_init(&c->pins, 0);
   c->pins.available = SOC_GPIO_VALID_GPIO_MASK;  // not contiguous: GPIO 22-25 don't exist on the S3
 
   // Once per boot: REMOVE leaves the service installed (a second install answers ESP_ERR_INVALID_STATE).
   const esp_err_t rc = gpio_install_isr_service(0);
-  ERR_TRY(ERR_ESP(rc == ESP_ERR_INVALID_STATE ? ESP_OK : rc));
-  ERR_TRY(ERR_ESP(esp32s3_gpio_adc_start()));
-  esp32s3_gpio_device_id = c->base.id;
-  s_gpio = c;
+  ERR_TRY_ESP(rc == ESP_ERR_INVALID_STATE ? ESP_OK : rc);
+  ERR_TRY(esp32s3_gpio_adc_start());
+  s_gpio.device_id = c->base.id;
+  s_gpio.dev = c;
   return NULL;
 }
 
