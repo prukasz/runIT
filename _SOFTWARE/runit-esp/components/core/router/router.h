@@ -2,9 +2,9 @@
 
 #include "cmd.h"
 #include "errors.h"
+#include "router_errors.h"
 #include "router_ids.h"
 #include "utils.h"
-#include "router_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,17 +14,21 @@ extern "C" {
  * ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and
  * the error record are errors.h's. */
 
+/* ----------------------------------------------------------------------------
+ * Wire: request flags and response status
+ * ------------------------------------------------------------------------- */
+
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT 0x01u  //@alias Urgent @description Run on the urgent task, next to (not behind) normal frames
 
 //#ref-enum @alias Response Status
 typedef enum {
-  ROUTER_STATUS_OK = 0,  //@alias OK @description The command succeeded; the answer's data follows
+  ROUTER_STATUS_OK = 0,     //@alias OK @description The command succeeded; the answer's data follows
   ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
 
 /* ----------------------------------------------------------------------------
- * Routing
+ * Command tables
  * ------------------------------------------------------------------------- */
 
 /** @brief A root key and its module router. */
@@ -46,7 +50,8 @@ typedef struct {
 #define ROUTER_RW(code, read, write) {(code), (read), (write)}
 
 /**
- * @brief Calls the entry of `table` whose key is in[0], with the same `ctx`, and wraps a failure in ERR_ROUTER_KEY{key}.
+ * @brief Calls the entry of `table` whose key is in[0], with the same `ctx`, and wraps a failure in
+ * ERR_ROUTER_KEY{key}.
  */
 MUST_USE err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, const uint8_t* in, uint32_t in_len,
                            uint8_t* out, uint32_t out_cap, uint32_t* out_len);
@@ -81,45 +86,49 @@ MUST_USE err_h router_args_tail(const uint8_t* in, uint32_t in_len, void* hdr, u
  * ------------------------------------------------------------------------- */
 
 // Op with a fixed-size payload `args_t` (packed struct).
-#define ROUTER_OP(fn, args_t)                                           \
-  static err_h fn##_body(void* ctx, const args_t* args, CMD_OUT_PARAMS); \
-  static err_h fn(CMD_F_PARAMS) {                                   \
-    args_t args;                                                           \
-    ERR_TRY(router_args(in, in_len, &args, sizeof(args)));                    \
-    return fn##_body(ctx, &args, out, out_cap, out_len);                   \
-  }                                                                     \
+#define ROUTER_OP(fn, args_t)                                                                               \
+  static err_h fn##_body(void* ctx, const args_t* args, CMD_OUT_PARAMS);                                    \
+  static err_h fn(CMD_F_PARAMS) {                                                                           \
+    args_t args;                                                                                            \
+    ERR_TRY(router_args(in, in_len, &args, sizeof(args)));                                                  \
+    return fn##_body(ctx, &args, out, out_cap, out_len);                                                    \
+  }                                                                                                         \
   static err_h fn##_body(void* ctx, const args_t* args, CMD_OUT_PARAMS)
 
 // Op without payload.
-#define ROUTER_OP_NOARGS(fn)                               \
-  static err_h fn##_body(void* ctx, CMD_OUT_PARAMS);   \
-  static err_h fn(CMD_F_PARAMS) {                      \
-    ERR_TRY(router_args(in, in_len, NULL, 0));             \
-    return fn##_body(ctx, out, out_cap, out_len);          \
-  }                                                        \
+#define ROUTER_OP_NOARGS(fn)                                                                                \
+  static err_h fn##_body(void* ctx, CMD_OUT_PARAMS);                                                        \
+  static err_h fn(CMD_F_PARAMS) {                                                                           \
+    ERR_TRY(router_args(in, in_len, NULL, 0));                                                              \
+    return fn##_body(ctx, out, out_cap, out_len);                                                           \
+  }                                                                                                         \
   static err_h fn##_body(void* ctx, CMD_OUT_PARAMS)
 
 // Op with a fixed header `hdr_t` and a variable tail (name, data).
-#define ROUTER_OP_TAIL(fn, hdr_t)                                                                        \
+#define ROUTER_OP_TAIL(fn, hdr_t)                                                                           \
   static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len,              \
-                         CMD_OUT_PARAMS);                                                            \
-  static err_h fn(CMD_F_PARAMS) {                                                                    \
+                         CMD_OUT_PARAMS);                                                                   \
+  static err_h fn(CMD_F_PARAMS) {                                                                           \
     hdr_t args;                                                                                             \
-    const uint8_t* tail;                                                                                 \
-    uint32_t tail_len;                                                                                   \
-    ERR_TRY(router_args_tail(in, in_len, &args, sizeof(args), &tail, &tail_len));                              \
+    const uint8_t* tail;                                                                                    \
+    uint32_t tail_len;                                                                                      \
+    ERR_TRY(router_args_tail(in, in_len, &args, sizeof(args), &tail, &tail_len));                           \
     return fn##_body(ctx, &args, tail, tail_len, out, out_cap, out_len);                                    \
-  }                                                                                                      \
+  }                                                                                                         \
   static err_h fn##_body(void* ctx, const hdr_t* args, const uint8_t* tail, uint32_t tail_len, CMD_OUT_PARAMS)
+
+/* ----------------------------------------------------------------------------
+ * Module routers and the dispatcher
+ * ------------------------------------------------------------------------- */
 
 // Declares a module router in its header.
 #define ROUTER_MODULE_DECLARE(fn) MUST_USE err_h fn(CMD_F_PARAMS)
 
 // Defines the module router `fn`: consumes its own key and runs the command of `table` (router_call_op). Prefix
 // `static` for a file-local one.
-#define ROUTER_MODULE(fn, table)                                                                    \
-  err_h fn(CMD_F_PARAMS) {                                                                      \
-    return router_call_op(table, ARRAY_LEN(table), ctx, in + 1, in_len - 1, out, out_cap, out_len); \
+#define ROUTER_MODULE(fn, table)                                                                            \
+  err_h fn(CMD_F_PARAMS) {                                                                                  \
+    return router_call_op(table, ARRAY_LEN(table), ctx, in + 1, in_len - 1, out, out_cap, out_len);         \
   }
 
 /** @brief Binds a root key (router_ids.h) to a module router (called with ctx NULL). Boot only, before router_init. */
@@ -131,8 +140,11 @@ MUST_USE err_h router_register(uint8_t key, cmd_f fn);
  */
 MUST_USE err_h router_route(const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
 
+/** @brief Starts the urgent and work tasks. Module routers are registered before; links before or after. */
+MUST_USE err_h router_init(void);
+
 /* ----------------------------------------------------------------------------
- * Links and dispatch. One client per link.
+ * Links. One client per link.
  * ------------------------------------------------------------------------- */
 
 typedef struct {
@@ -203,9 +215,6 @@ void router_set_watch(const router_watch_t* watch);
 
 /** @brief Runs the watch's `urgent` on the urgent task, soon. Any task or a timer callback, not an ISR. */
 void router_wake_urgent(void);
-
-/** @brief Starts the urgent and work tasks. Module routers are registered before; links before or after. */
-MUST_USE err_h router_init(void);
 
 #ifdef __cplusplus
 }
