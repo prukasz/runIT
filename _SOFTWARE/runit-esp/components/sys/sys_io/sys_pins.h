@@ -30,31 +30,21 @@ typedef struct __attribute__((packed)) {
 } pins_level_args_t;
 
 /**
- * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). From it come PINS_OP_<NAME>, pins_key_<NAME>_t, pins_value_<NAME>_t, PINS_READ(NAME) /
- * PINS_WRITE(NAME) and PINS_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: AVAILABLE R,
- * LOCKED R, LOCK W, UNLOCK W, LOCKED_LEVEL W. Numbers are never reused.
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives PINS_OP_<NAME>, PINS_key_<NAME>_t and
+ * PINS_value_<NAME>_t; a driver writes OP_READ(PINS, NAME) / OP_WRITE(PINS, NAME) and lists OP_ENTRY(PINS, NAME),
+ * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: AVAILABLE R, LOCKED R, LOCK W, UNLOCK W,
+ * LOCKED_LEVEL W. Numbers are never reused.
  */
-#define SYS_PINS_CONTRACT(X)                                \
-  X(AVAILABLE,    0x00, sys_device_none_t, uint64_t)        \
-  X(LOCKED,       0x01, sys_device_none_t, uint64_t)        \
-  X(LOCK,         0x02, sys_device_none_t, pins_pin_args_t) \
-  X(UNLOCK,       0x03, sys_device_none_t, pins_pin_args_t) \
-  X(LOCKED_LEVEL, 0x04, sys_device_none_t, pins_level_args_t)
+#define SYS_PINS_CONTRACT(X, P)                                \
+  X(P, AVAILABLE,    0x00, sys_device_none_t, uint64_t)        \
+  X(P, LOCKED,       0x01, sys_device_none_t, uint64_t)        \
+  X(P, LOCK,         0x02, sys_device_none_t, pins_pin_args_t) \
+  X(P, UNLOCK,       0x03, sys_device_none_t, pins_pin_args_t) \
+  X(P, LOCKED_LEVEL, 0x04, sys_device_none_t, pins_level_args_t)
 
-#define SYS_PINS__ID(name, n, key_t, value_t) PINS_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_PINS, n),
-#define SYS_PINS__TYPES(name, n, key_t, value_t) \
-  typedef key_t pins_key_##name##_t;             \
-  typedef value_t pins_value_##name##_t;
-
-enum { SYS_PINS_CONTRACT(SYS_PINS__ID) };
-SYS_PINS_CONTRACT(SYS_PINS__TYPES)
-
-#define PINS_READ(name)    SYS_DEVICE_READ(pins, name)
-#define PINS_WRITE(name)   SYS_DEVICE_WRITE(pins, name)
-#define PINS_ENTRY(name)   SYS_DEVICE_ENTRY(PINS_OP_##name, pins, name)
-#define PINS_ENTRY_R(name) SYS_DEVICE_ENTRY_R(PINS_OP_##name, pins, name)
-#define PINS_ENTRY_W(name) SYS_DEVICE_ENTRY_W(PINS_OP_##name, pins, name)
+#define PINS_CONTRACT SYS_DEVICE_CONTRACT_PINS
+SYS_DEVICE_CONTRACT_DECLARE(SYS_PINS_CONTRACT, PINS)
 
 /* ----------------------------------------------------------------------------
  * For the device: the pin state and its checks. The device keeps one sys_pins_state_t, calls
@@ -92,20 +82,21 @@ MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len,
  * `pins` (sys_pins_state_t): they only read or change that state, so they are the same on every such device.
  * SYS_PINS_STATE_ENTRIES are their op table rows. LOCKED_LEVEL writes the pin, so it stays the device's own.
  * @usage SYS_PINS_STATE_HANDLERS(pca_t)
- *        static const sys_device_op_t k_ops[] = {..., SYS_PINS_STATE_ENTRIES, PINS_ENTRY_W(LOCKED_LEVEL)};
+ *        static const sys_device_op_t k_ops[] = {..., SYS_PINS_STATE_ENTRIES, OP_ENTRY_W(PINS, LOCKED_LEVEL)};
  */
-#define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                        \
-  PINS_READ(AVAILABLE) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.available); } \
-  PINS_READ(LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
-  PINS_WRITE(LOCK) {                                                                                          \
-    ctx_t* c = ctx;                                                                                           \
-    return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                              \
-  }                                                                                                           \
-  PINS_WRITE(UNLOCK) {                                                                                        \
-    ctx_t* c = ctx;                                                                                           \
-    return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                            \
+#define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                            \
+  OP_READ(PINS, AVAILABLE) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.available); } \
+  OP_READ(PINS, LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
+  OP_WRITE(PINS, LOCK) {                                                                                          \
+    ctx_t* c = ctx;                                                                                               \
+    return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                                  \
+  }                                                                                                               \
+  OP_WRITE(PINS, UNLOCK) {                                                                                        \
+    ctx_t* c = ctx;                                                                                               \
+    return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                                \
   }
-#define SYS_PINS_STATE_ENTRIES PINS_ENTRY_R(AVAILABLE), PINS_ENTRY_R(LOCKED), PINS_ENTRY_W(LOCK), PINS_ENTRY_W(UNLOCK)
+#define SYS_PINS_STATE_ENTRIES \
+  OP_ENTRY_R(PINS, AVAILABLE), OP_ENTRY_R(PINS, LOCKED), OP_ENTRY_W(PINS, LOCK), OP_ENTRY_W(PINS, UNLOCK)
 
 /* ----------------------------------------------------------------------------
  * For everyone else: wrappers over sys_device_call

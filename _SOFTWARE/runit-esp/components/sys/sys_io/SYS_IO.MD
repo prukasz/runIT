@@ -19,7 +19,7 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 
 ## Ops
 
-`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian structs. The contract is the table `SYS_IO_CONTRACT(X)` (`X(NAME, number, key_t, value_t)`): `IO_OP_<NAME>`, `io_key_<NAME>_t` / `io_value_<NAME>_t`, `IO_READ(NAME)` / `IO_WRITE(NAME)` and `IO_ENTRY(NAME)` / `_ENTRY_R` / `_ENTRY_W` all come from it (SYS_DEVICE.MD, "Contract tables"). An RW op's read takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which).
+`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian structs. The contract is the table `SYS_IO_CONTRACT(X, P)` (`X(P, NAME, number, key_t, value_t)`, prefix `IO`): `IO_OP_<NAME>`, `IO_key_<NAME>_t` / `IO_value_<NAME>_t`, `OP_READ(IO, NAME)` / `OP_WRITE(IO, NAME)` and `OP_ENTRY(IO, NAME)` / `OP_ENTRY_R` / `OP_ENTRY_W` all come from it (SYS_DEVICE.MD, "Contract tables"). An RW op's read takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which).
 
 | Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|

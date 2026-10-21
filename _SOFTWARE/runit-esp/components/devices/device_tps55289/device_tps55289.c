@@ -298,7 +298,7 @@ static err_h tps_set_enable(tps_t* c, bool state) {
 /* ---- POWER_VREG contract ---- */
 
 // On: returns once the rise started; VREG_EV_READY when the output is settled.
-VREG_WRITE(ENABLE) {
+OP_WRITE(VREG, ENABLE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
@@ -307,7 +307,7 @@ VREG_WRITE(ENABLE) {
 
 // Higher on a running rail: a rise (ramp at the soft-rise limit, settle, VREG_EV_READY). Lower, or the
 // output off: written at once. During a rise the ramp just follows the new target.
-VREG_WRITE(VOLTAGE) {
+OP_WRITE(VREG, VOLTAGE) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
@@ -333,7 +333,7 @@ VREG_WRITE(VOLTAGE) {
 }
 
 // During a rise only stored: the end of the rise writes it.
-VREG_WRITE(CURRENT) {
+OP_WRITE(VREG, CURRENT) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
@@ -386,7 +386,7 @@ SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
 /* ---- EVENT contract: FB/INT fell (our only subscription) ---- */
 
 // Publishes each fault of the status register. OCP during a rise is the inrush.
-EVENT_WRITE(ON_EVENT) {
+OP_WRITE(EVENT, ON_EVENT) {
   (void)args;
   tps_t* c = ctx;
   if (!tps_powered(c)) {
@@ -411,7 +411,7 @@ EVENT_WRITE(ON_EVENT) {
 
 /* Back to the create defaults: rail off (EN low), 5 V / minimum current / default protection wanted. Without
    an EN pin the chip stays powered, so the protection is written now. */
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   tps_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
@@ -505,9 +505,9 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
-    VREG_ENTRY_W(ENABLE),  VREG_ENTRY_W(VOLTAGE),  VREG_ENTRY_W(CURRENT),
-    EVENT_ENTRY_W(ON_EVENT),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W(VREG, ENABLE),  OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
+    OP_ENTRY_W(EVENT, ON_EVENT),
     /* Internal rise timer op */
     {TPS_OP_RISE_STEP, NULL, rise_step_h},
     /* Device own ops */

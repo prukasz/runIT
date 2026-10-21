@@ -101,12 +101,11 @@ enum { SYS_DEVICE_EVENTS(SYS_DEVICE__EV) };
  * The EVENT contract (0x03xx): a device that listens to events answers ON_EVENT
  * ------------------------------------------------------------------------- */
 
-// The contract's only op, a write (no table: one op doesn't need the X-macro). Args = sys_event_t.
-#define EVENT_OP_ON_EVENT SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_EVENT, 0x00)
-typedef sys_event_t event_value_ON_EVENT_t;
+// The contract's only op, a write (OP_WRITE(EVENT, ON_EVENT), OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t.
+#define SYS_EVENT_CONTRACT(X, P) X(P, ON_EVENT, 0x00, sys_device_none_t, sys_event_t)
 
-#define EVENT_WRITE(name)   SYS_DEVICE_WRITE(event, name)
-#define EVENT_ENTRY_W(name) SYS_DEVICE_ENTRY_W(EVENT_OP_##name, event, name)
+#define EVENT_CONTRACT SYS_DEVICE_CONTRACT_EVENT
+SYS_DEVICE_CONTRACT_DECLARE(SYS_EVENT_CONTRACT, EVENT)
 
 /* ----------------------------------------------------------------------------
  * C API

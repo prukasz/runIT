@@ -2,8 +2,8 @@
 #include "sys_power_monitor.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(pmon_key_VOLTAGE_t) == 1 && sizeof(pmon_key_CURRENT_t) == 1 &&
-                   sizeof(pmon_key_POWER_t) == 1 && sizeof(pmon_value_ALERT_t) == 6,
+_Static_assert(sizeof(PMON_key_VOLTAGE_t) == 1 && sizeof(PMON_key_CURRENT_t) == 1 &&
+                   sizeof(PMON_key_POWER_t) == 1 && sizeof(PMON_value_ALERT_t) == 6,
                "a POWER_MONITOR op's argument struct changed: update the table of the POWER_MONITOR block");
 
 static const vm_dev_op_t k_ops[] = {

@@ -86,7 +86,7 @@ static err_h chip_release_all(tca_t* c) {
 
 /* Reads the inputs and publishes each armed pin's edge (value = the new level). The
    INT line is released by the read. While suspended the chip is in reset: its INT edge isn't an input change. */
-EVENT_WRITE(ON_EVENT) {
+OP_WRITE(EVENT, ON_EVENT) {
   (void)args;
   tca_t* c = ctx;
   if (c->base.suspended) {
@@ -114,7 +114,7 @@ EVENT_WRITE(ON_EVENT) {
 
 /* ---- IO contract ---- */
 
-IO_WRITE(MODE) {
+OP_WRITE(IO, MODE) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   ERR_CHECK(args->mode == SYS_IO_MODE_INPUT || args->mode == SYS_IO_MODE_OUTPUT_PUSH_PULL, ERR_IO_MODE_UNSUPPORTED,
@@ -122,21 +122,21 @@ IO_WRITE(MODE) {
   return chip_set_config(c, 1UL << args->pin, args->mode == SYS_IO_MODE_INPUT ? (1UL << args->pin) : 0);
 }
 
-IO_WRITE(LEVEL) {
+OP_WRITE(IO, LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
 
-IO_WRITE(TOGGLE) {
+OP_WRITE(IO, TOGGLE) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   return chip_set_pins(c, 1UL << args->pin, (chip_output(c) & (1UL << args->pin)) ? 0 : (1UL << args->pin));
 }
 
 // Reads the chip: refused while it is in reset.
-IO_READ(LEVEL) {
+OP_READ(IO, LEVEL) {
   tca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
@@ -148,7 +148,7 @@ IO_READ(LEVEL) {
 }
 
 // The pin back to its power-on state: input, latch low, interrupt disarmed.
-IO_WRITE(RESET) {
+OP_WRITE(IO, RESET) {
   tca_t* c = ctx;
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
   c->intr_mode[args->pin] = SYS_IO_INTR_DISABLE;
@@ -157,7 +157,7 @@ IO_WRITE(RESET) {
 }
 
 // Edges only: the INT line reports changes of the input port, there is no ADC and no filter (`debounce` is ignored).
-IO_WRITE(INTR) {
+OP_WRITE(IO, INTR) {
   tca_t* c = ctx;
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_check_writable(&c->base, &c->pins, args->pin));
@@ -171,7 +171,7 @@ IO_WRITE(INTR) {
 SYS_PINS_STATE_HANDLERS(tca_t)
 
 // The owner of a locked pin (a rail's EN, a bridge's sleep, PCA9685 OE) drives it here; the IO writes refuse it.
-PINS_WRITE(LOCKED_LEVEL) {
+OP_WRITE(PINS, LOCKED_LEVEL) {
   tca_t* c = ctx;
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_device_check_active(&c->base));
@@ -183,7 +183,7 @@ PINS_WRITE(LOCKED_LEVEL) {
 
 /* Unlocked pins back to power-on: inputs, latch low, interrupts disarmed. Locked pins are left to their owners: a
    pin another device drives (a rail's EN, an LM73100 enable, PCA9685 OE) keeps its level. The chip is not reset. */
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   tca_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   const uint32_t free_pins = ~(uint32_t)c->pins.locked & PINS_MASK;
@@ -269,11 +269,11 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
-    IO_ENTRY_W(MODE),       IO_ENTRY(LEVEL),     IO_ENTRY_W(TOGGLE),
-      IO_ENTRY_W(RESET),         IO_ENTRY_W(INTR),
-    SYS_PINS_STATE_ENTRIES,   PINS_ENTRY_W(LOCKED_LEVEL),
-    EVENT_ENTRY_W(ON_EVENT),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W(IO, MODE),    OP_ENTRY(IO, LEVEL),  OP_ENTRY_W(IO, TOGGLE),
+    OP_ENTRY_W(IO, RESET),   OP_ENTRY_W(IO, INTR),
+    SYS_PINS_STATE_ENTRIES,  OP_ENTRY_W(PINS, LOCKED_LEVEL),
+    OP_ENTRY_W(EVENT, ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_TCA6424A, .cfg_size = sizeof(tca6424a_cfg_t), .ctx_size = sizeof(tca_t),

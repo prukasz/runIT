@@ -2,7 +2,7 @@
 #include "sys_power_usb_pd.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(pd_value_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limits_t) == 8,
+_Static_assert(sizeof(PD_value_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limits_t) == 8,
                "a POWER_USB_PD struct changed: update the table of the POWER_USB_PD block");
 
 static const vm_dev_op_t k_ops[] = {

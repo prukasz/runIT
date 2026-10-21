@@ -152,7 +152,7 @@ static err_h uninstall(void* ctx) {
   return err;
 }
 
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   servo_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   c->trim = 0;
@@ -216,7 +216,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
     /* Device own ops */
     {SERVO_OP_HOME, NULL, home_h},
     {SERVO_OP_TRIM, NULL, set_trim_h},

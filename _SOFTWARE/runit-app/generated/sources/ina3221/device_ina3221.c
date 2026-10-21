@@ -147,7 +147,7 @@ static err_h check_channel(const ina_t* c, uint8_t ch) {
   return NULL;
 }
 
-PMON_READ(VOLTAGE) {
+OP_READ(PMON, VOLTAGE) {
   ina_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
@@ -155,7 +155,7 @@ PMON_READ(VOLTAGE) {
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
-PMON_READ(CURRENT) {
+OP_READ(PMON, CURRENT) {
   ina_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
@@ -163,7 +163,7 @@ PMON_READ(CURRENT) {
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
 }
 
-PMON_READ(POWER) {
+OP_READ(PMON, POWER) {
   ina_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV, mA;
@@ -173,7 +173,7 @@ PMON_READ(POWER) {
   return cmd_reply(out, out_cap, out_len, &mW, sizeof(mW));
 }
 
-PMON_WRITE(ALERT) {
+OP_WRITE(PMON, ALERT) {
   ina_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
@@ -249,7 +249,7 @@ static err_h on_flags(ina_t* c) {
   return err;
 }
 
-EVENT_WRITE(ON_EVENT) {
+OP_WRITE(EVENT, ON_EVENT) {
   ina_t* c = ctx;
   for (int i = 0; i < 2; i++) {
     if (!sys_io_pin_valid(c->pin[i].pin) || args->source != c->pin[i].pin.device || args->channel != c->pin[i].pin.pin) {
@@ -268,7 +268,7 @@ EVENT_WRITE(ON_EVENT) {
 
 /* ---- Lifecycle ---- */
 
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   ina_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(chip_reset(c));
@@ -333,8 +333,9 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),   PMON_ENTRY_R(VOLTAGE),
-    PMON_ENTRY_R(CURRENT), PMON_ENTRY_R(POWER),   PMON_ENTRY_W(ALERT),  EVENT_ENTRY_W(ON_EVENT),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_R(PMON, VOLTAGE),  OP_ENTRY_R(PMON, CURRENT),  OP_ENTRY_R(PMON, POWER),
+    OP_ENTRY_W(PMON, ALERT),    OP_ENTRY_W(EVENT, ON_EVENT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_INA3221, .cfg_size = sizeof(ina3221_cfg_t), .ctx_size = sizeof(ina_t),

@@ -49,17 +49,17 @@ err_h sys_pins_locked(uint16_t device, uint64_t* mask) {
 }
 
 err_h sys_pins_lock(sys_io_pin_t p) {
-  const pins_value_LOCK_t a = {.pin = p.pin};
+  const PINS_value_LOCK_t a = {.pin = p.pin};
   return sys_device_write(p.device, PINS_OP_LOCK, &a, sizeof(a));
 }
 
 err_h sys_pins_unlock(sys_io_pin_t p) {
-  const pins_value_UNLOCK_t a = {.pin = p.pin};
+  const PINS_value_UNLOCK_t a = {.pin = p.pin};
   return sys_device_write(p.device, PINS_OP_UNLOCK, &a, sizeof(a));
 }
 
 err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level) {
-  const pins_value_LOCKED_LEVEL_t a = {.pin = p.pin, .level = level};
+  const PINS_value_LOCKED_LEVEL_t a = {.pin = p.pin, .level = level};
   return sys_device_write(p.device, PINS_OP_LOCKED_LEVEL, &a, sizeof(a));
 }
 

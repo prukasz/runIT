@@ -212,14 +212,14 @@ SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
 
 /* ---- POWER_VREG: the sink's output switch and a wanted voltage / current ---- */
 
-VREG_WRITE(ENABLE) {
+OP_WRITE(VREG, ENABLE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   const uint8_t flag = args->enable ? OUTPUT_ON : OUTPUT_OFF;
   return sys_i2c_reg_write(&c->i2c, CMD_SYSTEM, &flag, 1);
 }
 
-VREG_WRITE(VOLTAGE) {
+OP_WRITE(VREG, VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, args->voltage_mV, c->last_current_mA));
@@ -227,7 +227,7 @@ VREG_WRITE(VOLTAGE) {
   return NULL;
 }
 
-VREG_WRITE(CURRENT) {
+OP_WRITE(VREG, CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, c->last_voltage_mV, args->current_mA));
@@ -237,7 +237,7 @@ VREG_WRITE(CURRENT) {
 
 /* ---- POWER_USB_PD ---- */
 
-PD_WRITE(SETTINGS) {
+OP_WRITE(PD, SETTINGS) {
   ap_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(negotiate(c, args->voltage_mV, args->current_mA));
@@ -247,7 +247,7 @@ PD_WRITE(SETTINGS) {
 }
 
 // The last request the charger took (a refused one is not kept). A read: allowed while suspended.
-PD_READ(SETTINGS) {
+OP_READ(PD, SETTINGS) {
   (void)args;
   const ap_t* c = ctx;
   const pd_settings_args_t a = {.voltage_mV = c->last_voltage_mV, .current_mA = c->last_current_mA};
@@ -279,7 +279,7 @@ static bool pdo_option(const ap_t* c, uint8_t slot, sys_power_usb_pd_option_t* o
   return true;
 }
 
-PD_READ(OPTIONS) {
+OP_READ(PD, OPTIONS) {
   (void)args;
   ap_t* c = ctx;
   ERR_TRY(read_pdos(c));
@@ -294,7 +294,7 @@ PD_READ(OPTIONS) {
 }
 
 // The highest-voltage offer sets the limits.
-PD_READ(LIMITS) {
+OP_READ(PD, LIMITS) {
   (void)args;
   ap_t* c = ctx;
   ERR_TRY(read_pdos(c));
@@ -331,7 +331,7 @@ static err_h read_current_mA(ap_t* c, int32_t* mA) {
   return NULL;
 }
 
-PMON_READ(VOLTAGE) {
+OP_READ(PMON, VOLTAGE) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
@@ -339,7 +339,7 @@ PMON_READ(VOLTAGE) {
   return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
 }
 
-PMON_READ(CURRENT) {
+OP_READ(PMON, CURRENT) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
@@ -347,7 +347,7 @@ PMON_READ(CURRENT) {
   return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
 }
 
-PMON_READ(POWER) {
+OP_READ(PMON, POWER) {
   ap_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV, mA;
@@ -360,7 +360,7 @@ PMON_READ(POWER) {
 /* ---- Lifecycle: the output is the board's own supply (the sink input), so reset / suspend / resume leave it alone:
  * switching it off in a fault would cut power to the ESP (brownout, tested 2026-10-01). ---- */
 
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   (void)ctx, (void)args, (void)out, (void)out_cap, (void)out_len;
   return NULL;
 }
@@ -414,10 +414,10 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
-    VREG_ENTRY_W(ENABLE),   VREG_ENTRY_W(VOLTAGE),  VREG_ENTRY_W(CURRENT),
-    PD_ENTRY(SETTINGS),     PD_ENTRY_R(OPTIONS),    PD_ENTRY_R(LIMITS),
-    PMON_ENTRY_R(VOLTAGE),  PMON_ENTRY_R(CURRENT),  PMON_ENTRY_R(POWER),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W(VREG, ENABLE),   OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
+    OP_ENTRY(PD, SETTINGS),     OP_ENTRY_R(PD, OPTIONS),    OP_ENTRY_R(PD, LIMITS),
+    OP_ENTRY_R(PMON, VOLTAGE),  OP_ENTRY_R(PMON, CURRENT),  OP_ENTRY_R(PMON, POWER),
     /* Internal keepalive timer op */
     {AP_OP_KEEPALIVE, NULL, keepalive_h},
 };

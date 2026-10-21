@@ -37,30 +37,20 @@ typedef struct __attribute__((packed)) {
 } hbridge_drive_args_t;
 
 /**
- * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). From it come HBRIDGE_OP_<NAME>, hbridge_key_<NAME>_t, hbridge_value_<NAME>_t,
- * HBRIDGE_READ(NAME) / HBRIDGE_WRITE(NAME) and HBRIDGE_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract
- * tables"). Sides: DRIVE W, BRAKE W, COAST W, CURRENT R. Numbers are never reused.
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives HBRIDGE_OP_<NAME>, HBRIDGE_key_<NAME>_t and
+ * HBRIDGE_value_<NAME>_t; a driver writes OP_READ(HBRIDGE, NAME) / OP_WRITE(HBRIDGE, NAME) and lists OP_ENTRY(HBRIDGE,
+ * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: DRIVE W, BRAKE W, COAST W, CURRENT R. Numbers
+ * are never reused.
  */
-#define SYS_HBRIDGE_CONTRACT(X)                                    \
-  X(DRIVE,   0x00, sys_device_none_t,      hbridge_drive_args_t)   \
-  X(BRAKE,   0x01, sys_device_none_t,      hbridge_channel_args_t) \
-  X(COAST,   0x02, sys_device_none_t,      hbridge_channel_args_t) \
-  X(CURRENT, 0x03, hbridge_channel_args_t, int32_t)
+#define SYS_HBRIDGE_CONTRACT(X, P)                                    \
+  X(P, DRIVE,   0x00, sys_device_none_t,      hbridge_drive_args_t)   \
+  X(P, BRAKE,   0x01, sys_device_none_t,      hbridge_channel_args_t) \
+  X(P, COAST,   0x02, sys_device_none_t,      hbridge_channel_args_t) \
+  X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t)
 
-#define SYS_HBRIDGE__ID(name, n, key_t, value_t) HBRIDGE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_HBRIDGE, n),
-#define SYS_HBRIDGE__TYPES(name, n, key_t, value_t) \
-  typedef key_t hbridge_key_##name##_t;             \
-  typedef value_t hbridge_value_##name##_t;
-
-enum { SYS_HBRIDGE_CONTRACT(SYS_HBRIDGE__ID) };
-SYS_HBRIDGE_CONTRACT(SYS_HBRIDGE__TYPES)
-
-#define HBRIDGE_READ(name)    SYS_DEVICE_READ(hbridge, name)
-#define HBRIDGE_WRITE(name)   SYS_DEVICE_WRITE(hbridge, name)
-#define HBRIDGE_ENTRY(name)   SYS_DEVICE_ENTRY(HBRIDGE_OP_##name, hbridge, name)
-#define HBRIDGE_ENTRY_R(name) SYS_DEVICE_ENTRY_R(HBRIDGE_OP_##name, hbridge, name)
-#define HBRIDGE_ENTRY_W(name) SYS_DEVICE_ENTRY_W(HBRIDGE_OP_##name, hbridge, name)
+#define HBRIDGE_CONTRACT SYS_DEVICE_CONTRACT_HBRIDGE
+SYS_DEVICE_CONTRACT_DECLARE(SYS_HBRIDGE_CONTRACT, HBRIDGE)
 
 /* Events of the contract (sys_event.h "Events tables"): a channel fault, published by the driver; channel = the
  * channel, value = its current in mA. A fault is something the user must see: NOTIFY. */

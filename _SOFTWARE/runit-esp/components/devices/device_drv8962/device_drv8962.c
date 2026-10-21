@@ -281,7 +281,7 @@ static err_h on_ipropi_over(drv_t* c, uint8_t bridge) {
 /* nFAULT fell: finds the faulted channels, then publishes them. The chip says only "something is wrong", so the
    currents decide: a channel at its limit, else the one channel that was driving, else a chip-wide shutdown (thermal
    or supply). The publish comes last: an inline listener may call back into this device. */
-EVENT_WRITE(ON_EVENT) {
+OP_WRITE(EVENT, ON_EVENT) {
   (void)args;
   drv_t* c = ctx;
   if (c->base.suspended) {
@@ -344,7 +344,7 @@ EVENT_WRITE(ON_EVENT) {
 
 /* ---- HBRIDGE contract ---- */
 
-HBRIDGE_WRITE(DRIVE) {
+OP_WRITE(HBRIDGE, DRIVE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
@@ -353,14 +353,14 @@ HBRIDGE_WRITE(DRIVE) {
   return chip_set_drive(c, args->channel, args->drive);
 }
 
-HBRIDGE_WRITE(BRAKE) {
+OP_WRITE(HBRIDGE, BRAKE) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
   return chip_brake(c, args->channel);
 }
 
-HBRIDGE_WRITE(COAST) {
+OP_WRITE(HBRIDGE, COAST) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->channel));
@@ -369,7 +369,7 @@ HBRIDGE_WRITE(COAST) {
 
 /* A read, allowed while suspended. A channel over its limit is latched and braked here too (the fault line is edge
    triggered: a reading may be the first to see it) and published. */
-HBRIDGE_READ(CURRENT) {
+OP_READ(HBRIDGE, CURRENT) {
   drv_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA = 0;
@@ -386,7 +386,7 @@ HBRIDGE_READ(CURRENT) {
    an IPROPI pin wired (has_op); a channel without its pins answers ERR_POWER_BAD_CHANNEL. A read, allowed while
    suspended. ---- */
 
-PMON_READ(CURRENT) {
+OP_READ(PMON, CURRENT) {
   drv_t* c = ctx;
   ERR_CHECK(args->channel < channel_count(c) && channel_sensed(c, args->channel), ERR_POWER_BAD_CHANNEL,
             .id = c->base.id, .channel = args->channel);
@@ -533,7 +533,7 @@ static err_h uninstall(void* ctx) {
 }
 
 // Every channel braked (outputs on, inputs low).
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   drv_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   err_h err = NULL;
@@ -672,13 +672,13 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
-    HBRIDGE_ENTRY_W(DRIVE),
-    HBRIDGE_ENTRY_W(BRAKE),
-    HBRIDGE_ENTRY_W(COAST),
-    HBRIDGE_ENTRY_R(CURRENT),
-    PMON_ENTRY_R(CURRENT),
-    EVENT_ENTRY_W(ON_EVENT),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W(HBRIDGE, DRIVE),
+    OP_ENTRY_W(HBRIDGE, BRAKE),
+    OP_ENTRY_W(HBRIDGE, COAST),
+    OP_ENTRY_R(HBRIDGE, CURRENT),
+    OP_ENTRY_R(PMON, CURRENT),
+    OP_ENTRY_W(EVENT, ON_EVENT),
     /* Device own ops */
     {DRV8962_OP_CURRENT_LIMIT, NULL, set_current_limit_h},
     {DRV8962_OP_CLEAR_FAULT, NULL, clear_fault_h},

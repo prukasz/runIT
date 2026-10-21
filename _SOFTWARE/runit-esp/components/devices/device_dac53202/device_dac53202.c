@@ -76,7 +76,7 @@ static err_h check_channel(const dac_t* c, uint8_t pin) {
 /* ---- IO contract ---- */
 
 // The channel's output off (Hi-Z), its set voltage forgotten.
-IO_WRITE(RESET) {
+OP_WRITE(IO, RESET) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
@@ -85,7 +85,7 @@ IO_WRITE(RESET) {
   return NULL;
 }
 
-IO_WRITE(VOLTAGE) {
+OP_WRITE(IO, VOLTAGE) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(check_channel(c, args->pin));
@@ -95,7 +95,7 @@ IO_WRITE(VOLTAGE) {
 
 // The last set voltage (from its code, so the 10-bit rounding shows), 0 for a channel that is off. A read: allowed
 // while suspended.
-IO_READ(VOLTAGE) {
+OP_READ(IO, VOLTAGE) {
   dac_t* c = ctx;
   ERR_TRY(check_channel(c, args->pin));
   const int32_t mV = (int32_t)(((uint32_t)c->code[args->pin] * DAC53202_VREF_MV + CODE_MAX / 2) / CODE_MAX);
@@ -116,7 +116,7 @@ static err_h uninstall(void* ctx) {
 }
 
 // Both outputs off (Hi-Z), the set voltages forgotten.
-DEVICE_WRITE(RESET) {
+OP_WRITE(SYS_DEVICE, RESET) {
   dac_t* c = ctx;
   ERR_TRY(sys_device_check_active(&c->base));
   ERR_TRY(chip_set_power(c, 0));
@@ -155,8 +155,8 @@ static err_h create(void* ctx, const void* cfg_in) {
 /* ---- Type ---- */
 
 static const sys_device_op_t k_ops[] = {
-    DEVICE_ENTRY_W(RESET),
-    IO_ENTRY_W(RESET),  IO_ENTRY(VOLTAGE),
+    OP_ENTRY_W(SYS_DEVICE, RESET),
+    OP_ENTRY_W(IO, RESET),  OP_ENTRY(IO, VOLTAGE),
 };
 
 SYS_DEVICE_TYPE_DEFINE(.type = SYS_DEVICE_TYPE_DAC53202, .cfg_size = sizeof(dac53202_cfg_t), .ctx_size = sizeof(dac_t),

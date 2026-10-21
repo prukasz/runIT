@@ -3,8 +3,8 @@
 #include "vm_blocks.h"
 
 _Static_assert(SYS_HBRIDGE_DRIVE_MAX == 4095, "the HBRIDGE block's scale (percent to steps) assumes 12 bits");
-_Static_assert(sizeof(hbridge_value_DRIVE_t) == 3 && sizeof(hbridge_value_BRAKE_t) == 1 &&
-                   sizeof(hbridge_value_COAST_t) == 1 && sizeof(hbridge_key_CURRENT_t) == 1,
+_Static_assert(sizeof(HBRIDGE_value_DRIVE_t) == 3 && sizeof(HBRIDGE_value_BRAKE_t) == 1 &&
+                   sizeof(HBRIDGE_value_COAST_t) == 1 && sizeof(HBRIDGE_key_CURRENT_t) == 1,
                "an HBRIDGE op's argument struct changed: update the table of the HBRIDGE block");
 
 static const vm_dev_op_t k_ops[] = {

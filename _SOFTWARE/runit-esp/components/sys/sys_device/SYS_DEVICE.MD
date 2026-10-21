@@ -30,7 +30,7 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 ```
 boot:    SYS_DEVICE_TYPE_DEFINE in device_pca9685.c registers type 0x0041 (a constructor)
 create:  [05][01][03 00][00 00][41 00][cfg]  -> size check, calloc(ctx_size), id = 3, create(ctx, cfg), add (3, 0x0041, ctx)
-use:     [05][01][03 00][03 01][pin u8][duty u32] -> ID 3 -> its type's op table -> IO_WRITE(PWM_DUTY)(ctx, args)
+use:     [05][01][03 00][03 01][pin u8][duty u32] -> ID 3 -> its type's op table -> OP_WRITE(IO, PWM_DUTY)(ctx, args)
 remove:  [05][01][03 00][04 00]              -> uninstall(ctx), unregister, free
 ```
 
@@ -59,16 +59,16 @@ A device's class is the set of ops it answers, with their sides (OPS returns it)
 
 ### Contract tables (X-macros)
 
-A contract is written once, as a table `X(NAME, op number, key_t, value_t)` (`SYS_DEVICE_LIFECYCLE` here, `SYS_IO_CONTRACT` in `sys_io.h`, `SYS_PINS_CONTRACT` in `sys_pins.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `NAME`:
+A contract is written once, as a table `X(P, NAME, op number, key_t, value_t)` with a prefix `P` and its ID in `P_CONTRACT` (`SYS_DEVICE_LIFECYCLE` here with `SYS_DEVICE`, `SYS_IO_CONTRACT` in `sys_io.h` with `IO`, `SYS_PINS_CONTRACT` in `sys_pins.h`, `SYS_EVENT_CONTRACT` in `sys_event.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). `SYS_DEVICE_CONTRACT_DECLARE(table, P)` expands it; the handler and row macros `OP_READ`, `OP_WRITE`, `OP_ENTRY`, `OP_ENTRY_R`, `OP_ENTRY_W` are shared by every contract. The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `P` and `NAME`:
 
 | Generated | Example |
 |---|---|
 | op ID | `IO_OP_LEVEL` = `0x0100` |
-| key / value typedefs | `io_key_LEVEL_t` = `io_pin_args_t`, `io_value_LEVEL_t` = `io_level_args_t` |
-| handler macros | `IO_READ(LEVEL) { … args->pin … }` (parses the key), `IO_WRITE(LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args`, `out…` |
-| table rows | `IO_ENTRY(LEVEL)` (both sides), `IO_ENTRY_R(LEVEL)`, `IO_ENTRY_W(LEVEL)` (one) |
+| key / value typedefs | `IO_key_LEVEL_t` = `io_pin_args_t`, `IO_value_LEVEL_t` = `io_level_args_t` |
+| handler macros | `OP_READ(IO, LEVEL) { … args->pin … }` (parses the key), `OP_WRITE(IO, LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args`, `out…` |
+| table rows | `OP_ENTRY(IO, LEVEL)` (both sides), `OP_ENTRY_R(IO, LEVEL)`, `OP_ENTRY_W(IO, LEVEL)` (one) |
 
-The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, its generator macros (see `sys_pins.h`) and a `SYS_DEVICE_CONTRACT_*` ID. Numbers inside a table are never reused.
+The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, its `P_CONTRACT` (a `SYS_DEVICE_CONTRACT_*` ID) and `SYS_DEVICE_CONTRACT_DECLARE` (see `sys_pins.h`). Numbers inside a table are never reused.
 
 Internal callers use `sys_device_call(id, dir, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`). `sys_device_write(id, op, args, len)` is the write side with no answer; `sys_device_read(id, op, key, len, out, size)` the read side of a getter whose answer has a fixed size, `ERR_CMD_BAD_LEN` unless the device answered exactly `size` bytes.
 

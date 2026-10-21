@@ -117,34 +117,24 @@ typedef struct __attribute__((packed)) {
 } io_intr_args_t;
 
 /**
- * @brief The contract, once: X(NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). From it come IO_OP_<NAME>, io_key_<NAME>_t, io_value_<NAME>_t, IO_READ(NAME) /
- * IO_WRITE(NAME) and IO_ENTRY(NAME), _ENTRY_R, _ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: LEVEL RW, TOGGLE W,
- * PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE RW. Numbers are never reused.
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
+ * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives IO_OP_<NAME>, IO_key_<NAME>_t and IO_value_<NAME>_t; a
+ * driver writes OP_READ(IO, NAME) / OP_WRITE(IO, NAME) and lists OP_ENTRY(IO, NAME), OP_ENTRY_R, OP_ENTRY_W
+ * (SYS_DEVICE.MD "Contract tables"). Sides: LEVEL RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W,
+ * VOLTAGE RW. Numbers are never reused.
  */
-#define SYS_IO_CONTRACT(X)                              \
-  X(LEVEL,    0x00, io_pin_args_t,     io_level_args_t) \
-  X(TOGGLE,   0x01, sys_device_none_t, io_pin_args_t)   \
-  X(PWM_DUTY, 0x03, sys_device_none_t, io_duty_args_t)  \
-  X(PWM_FREQ, 0x04, sys_device_none_t, io_freq_args_t)  \
-  X(MODE,     0x05, sys_device_none_t, io_mode_args_t)  \
-  X(RESET,    0x06, sys_device_none_t, io_pin_args_t)   \
-  X(INTR,     0x07, sys_device_none_t, io_intr_args_t)  \
-  X(VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
+#define SYS_IO_CONTRACT(X, P)                              \
+  X(P, LEVEL,    0x00, io_pin_args_t,     io_level_args_t) \
+  X(P, TOGGLE,   0x01, sys_device_none_t, io_pin_args_t)   \
+  X(P, PWM_DUTY, 0x03, sys_device_none_t, io_duty_args_t)  \
+  X(P, PWM_FREQ, 0x04, sys_device_none_t, io_freq_args_t)  \
+  X(P, MODE,     0x05, sys_device_none_t, io_mode_args_t)  \
+  X(P, RESET,    0x06, sys_device_none_t, io_pin_args_t)   \
+  X(P, INTR,     0x07, sys_device_none_t, io_intr_args_t)  \
+  X(P, VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
 
-#define SYS_IO__ID(name, n, key_t, value_t) IO_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_IO, n),
-#define SYS_IO__TYPES(name, n, key_t, value_t) \
-  typedef key_t io_key_##name##_t;             \
-  typedef value_t io_value_##name##_t;
-
-enum { SYS_IO_CONTRACT(SYS_IO__ID) };
-SYS_IO_CONTRACT(SYS_IO__TYPES)
-
-#define IO_READ(name)    SYS_DEVICE_READ(io, name)
-#define IO_WRITE(name)   SYS_DEVICE_WRITE(io, name)
-#define IO_ENTRY(name)   SYS_DEVICE_ENTRY(IO_OP_##name, io, name)
-#define IO_ENTRY_R(name) SYS_DEVICE_ENTRY_R(IO_OP_##name, io, name)
-#define IO_ENTRY_W(name) SYS_DEVICE_ENTRY_W(IO_OP_##name, io, name)
+#define IO_CONTRACT SYS_DEVICE_CONTRACT_IO
+SYS_DEVICE_CONTRACT_DECLARE(SYS_IO_CONTRACT, IO)
 
 /**
  * @brief Pin of a device. In a create struct a pin that is not used is

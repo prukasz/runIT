@@ -19,10 +19,10 @@ extern "C" {
  * Op = [contract u8][op u8]: 0x00xx the device (lifecycle, below), 0x01xx-0xFExx a contract (IDs below, the one place
  * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). An op has a read side, a write side or both
  * (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes (the mirror, CMD.MD).
- * A contract is ONE table X(NAME, n, key_t, value_t) that gives <PREFIX>_OP_<NAME>, <prefix>_key_<NAME>_t,
- * <prefix>_value_<NAME>_t, <PREFIX>_READ(NAME) / <PREFIX>_WRITE(NAME) (the handlers) and <PREFIX>_ENTRY(NAME) (both
- * sides), _ENTRY_R, _ENTRY_W (one), so an op number can't be paired with another op's struct (SYS_DEVICE_LIFECYCLE below
- * is the pattern; sys_io.h, sys_pins.h contracts).
+ * A contract is ONE table X(P, NAME, n, key_t, value_t) and its ID in P_CONTRACT; SYS_DEVICE_CONTRACT_DECLARE(table, P)
+ * gives P_OP_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t, and OP_READ(P, NAME) / OP_WRITE(P, NAME) (the handlers) and
+ * OP_ENTRY(P, NAME) (both sides), OP_ENTRY_R, OP_ENTRY_W (one) use them, so an op number can't be paired with another
+ * op's struct (SYS_DEVICE_LIFECYCLE below is the pattern; sys_io.h, sys_pins.h contracts).
  *
  * Locking: one recursive lock covers the registry and every call into a device. An op must not sleep or wait for
  * anything but its own I/O, and a driver must not hold a lock of its own across sys_device_call() or
@@ -106,27 +106,33 @@ typedef struct __attribute__((packed)) {
 } sys_device_info_t;
 
 /**
- * @brief Device contract (0x00xx): the lifecycle, X(NAME, n, key_t, value_t). CREATE (0x00, write) is not in the
- * table: it has no instance yet. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS (answered as a list, so
+ * @brief Device contract (0x00xx, prefix SYS_DEVICE): the lifecycle, X(P, NAME, n, key_t, value_t). CREATE (0x00,
+ * write) is not in the table: it has no instance yet. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS (answered as a list, so
  * its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and ERROR_POLICY are the
  * registry's for every device: a driver's op table lists none of them.
  */
-#define SYS_DEVICE_LIFECYCLE(X)                                          \
-  X(RESET,        0x01, sys_device_none_t, sys_device_none_t)            \
-  X(SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)            \
-  X(RESUME,       0x03, sys_device_none_t, sys_device_none_t)            \
-  X(REMOVE,       0x04, sys_device_none_t, sys_device_none_t)            \
-  X(INFO,         0x05, sys_device_none_t, sys_device_info_t)            \
-  X(OPS,          0x06, sys_device_none_t, sys_device_none_t)            \
-  X(ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
+#define SYS_DEVICE_LIFECYCLE(X, P)                                          \
+  X(P, RESET,        0x01, sys_device_none_t, sys_device_none_t)            \
+  X(P, SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)            \
+  X(P, RESUME,       0x03, sys_device_none_t, sys_device_none_t)            \
+  X(P, REMOVE,       0x04, sys_device_none_t, sys_device_none_t)            \
+  X(P, INFO,         0x05, sys_device_none_t, sys_device_info_t)            \
+  X(P, OPS,          0x06, sys_device_none_t, sys_device_none_t)            \
+  X(P, ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
 
-#define SYS_DEVICE__ID(name, n, key_t, value_t) SYS_DEVICE_OP_##name = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, n),
-#define SYS_DEVICE__TYPES(name, n, key_t, value_t) \
-  typedef key_t sys_device_key_##name##_t;          \
-  typedef value_t sys_device_value_##name##_t;
+/* The contract tables' expansion, shared by every contract: a table X(P, NAME, n, key_t, value_t) with prefix P and
+ * its contract ID in P_CONTRACT gives P_OP_<NAME> and the types P_key_<NAME>_t, P_value_<NAME>_t. */
+#define SYS_DEVICE__ID(P, name, n, key_t, value_t) P##_OP_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
+#define SYS_DEVICE__TYPES(P, name, n, key_t, value_t) \
+  typedef key_t P##_key_##name##_t;                   \
+  typedef value_t P##_value_##name##_t;
+#define SYS_DEVICE_CONTRACT_DECLARE(table, P) \
+  enum { table(SYS_DEVICE__ID, P) };          \
+  table(SYS_DEVICE__TYPES, P)
 
-enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00), SYS_DEVICE_LIFECYCLE(SYS_DEVICE__ID) };  // CREATE: [type u16][create struct]
-SYS_DEVICE_LIFECYCLE(SYS_DEVICE__TYPES)
+#define SYS_DEVICE_CONTRACT SYS_DEVICE_CONTRACT_DEVICE
+enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00) };  // CREATE: [type u16][create struct]
+SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE_LIFECYCLE, SYS_DEVICE)
 
 /* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
@@ -136,16 +142,14 @@ SYS_DEVICE_LIFECYCLE(SYS_DEVICE__TYPES)
   X(SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
   X(RESUMED, 0x01, SYS_EVENT_NOTIFY)
 
-/* The handlers and op-table rows of a contract op: <P>_READ / <P>_WRITE write the side's cmd_f (the read parses the
- * key, the write the value), <P>_ENTRY lists both sides, _ENTRY_R / _ENTRY_W one. */
-#define SYS_DEVICE_READ(p, name)  SYS_DEVICE_HANDLER(p##_r_##name, p##_key_##name##_t)
-#define SYS_DEVICE_WRITE(p, name) SYS_DEVICE_HANDLER(p##_w_##name, p##_value_##name##_t)
-#define SYS_DEVICE_ENTRY(op, p, name)   {(op), p##_r_##name, p##_w_##name}
-#define SYS_DEVICE_ENTRY_R(op, p, name) {(op), p##_r_##name, NULL}
-#define SYS_DEVICE_ENTRY_W(op, p, name) {(op), NULL, p##_w_##name}
-
-#define DEVICE_WRITE(name)   SYS_DEVICE_WRITE(sys_device, name)
-#define DEVICE_ENTRY_W(name) SYS_DEVICE_ENTRY_W(SYS_DEVICE_OP_##name, sys_device, name)
+/* The handlers and op-table rows of op NAME of the contract with prefix P (OP_WRITE(SYS_DEVICE, RESET),
+ * OP_ENTRY_R(PD, LIMITS)): OP_READ / OP_WRITE write the side's cmd_f (the read parses the key, the write the value),
+ * OP_ENTRY lists both sides, OP_ENTRY_R / OP_ENTRY_W one. */
+#define OP_READ(P, name)    SYS_DEVICE_HANDLER(P##_r_##name, P##_key_##name##_t)
+#define OP_WRITE(P, name)   SYS_DEVICE_HANDLER(P##_w_##name, P##_value_##name##_t)
+#define OP_ENTRY(P, name)   {P##_OP_##name, P##_r_##name, P##_w_##name}
+#define OP_ENTRY_R(P, name) {P##_OP_##name, P##_r_##name, NULL}
+#define OP_ENTRY_W(P, name) {P##_OP_##name, NULL, P##_w_##name}
 
 /* Widened to int64 in a function: at the call the compiler would see a u8's range and warn (-Wtype-limits, u8 >= 0). */
 static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
