@@ -6,12 +6,12 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 
 | File | Contents |
 |---|---|
-| `sys_ble.h` | Public API, runIT UUIDs, fragment header, buffer size macro, error tags |
-| `sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
-| `sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
-| `sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
-| `sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (router link and connector provider) |
-| `sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
+| `core/sys_ble.h` | Public API, runIT UUIDs, fragment header, buffer size macro, error tags |
+| `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
+| `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
+| `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
+| `link/sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (router link and connector provider) |
+| `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Name, appearance, BLE task, TX item limit, apply delay, connection listeners |
 | `AGENTS.md` | Rules for changing this folder |

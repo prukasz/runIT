@@ -768,8 +768,8 @@
       "id": 4,
       "name": "sys_ble",
       "symbol": "ERR_MOD_SYS_BLE",
-      "source_file": "runit-esp/components/sys/sys_ble/sys_ble.h",
-      "texts_file": "runit-esp/components/sys/sys_ble/errors_sys_ble.json",
+      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
+      "texts_file": "runit-esp/components/sys/sys_ble/core/errors_sys_ble.json",
       "tags": [
         {
           "code": 1,

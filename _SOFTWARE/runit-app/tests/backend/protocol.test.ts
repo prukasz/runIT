@@ -10,7 +10,7 @@ const source = (path: string) => readFileSync(fileURLToPath(new URL(`../../../ru
 
 describe('the numbers come from the firmware', () => {
   it('the runIT UUIDs and the fragment bits equal sys_ble.h', () => {
-    const header = source('components/sys/sys_ble/sys_ble.h')
+    const header = source('components/sys/sys_ble/core/sys_ble.h')
     const define = (name: string) => Number(new RegExp(`#define\\s+${name}\\s+(0x[0-9A-Fa-f]+)`).exec(header)?.[1])
     expect(defs.gatt).toEqual({
       service: define('SYS_BLE_SVC_RUNIT'),

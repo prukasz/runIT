@@ -39,7 +39,7 @@
       "alias": "Fragment header",
       "kind": "defines",
       "prefix": "SYS_BLE_FRAG_",
-      "source_file": "runit-esp/components/sys/sys_ble/sys_ble.h",
+      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
       "members": [
         {
           "name": "SYS_BLE_FRAG_LAST",
@@ -65,7 +65,7 @@
       "alias": "runIT GATT UUIDs",
       "kind": "defines",
       "prefix": "SYS_BLE_",
-      "source_file": "runit-esp/components/sys/sys_ble/sys_ble.h",
+      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
       "members": [
         {
           "name": "SYS_BLE_SVC_RUNIT",
@@ -916,7 +916,7 @@
     "sys_power_alert_e": {
       "alias": "Current Alert",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/sys_power_monitor.h",
+      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_monitor.h",
       "members": [
         {
           "name": "SYS_POWER_ALERT_OCP_WARNING",
@@ -1114,7 +1114,7 @@
     "sys_power_supply_source_e": {
       "alias": "Supply Source",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/sys_power_supply.h",
+      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_supply.h",
       "members": [
         {
           "name": "SYS_POWER_SUPPLY_OFF",
@@ -1139,7 +1139,7 @@
     "sys_power_usb_pd_option_type_e": {
       "alias": "USB-PD Option Type",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/sys_power_usb_pd.h",
+      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_usb_pd.h",
       "members": [
         {
           "name": "SYS_POWER_USB_PD_OPTION_FIXED",

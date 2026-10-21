@@ -5,10 +5,10 @@ Not a module with state: sets of device ops that mean the same on every device t
 | File | Contents |
 |---|---|
 | `sys_power.h` | Errors (`ERR_MOD_SYS_POWER` = 10), `sys_power_mW()` |
-| `sys_power_monitor.h` | POWER_MONITOR: contract table, events, `sys_power_alert_e` (`//#ref-enum`), wrappers |
-| `sys_power_vreg.h` | POWER_VREG: contract table, events, wrappers |
-| `sys_power_supply.h` | POWER_SUPPLY: contract table, `sys_power_supply_source_e` (`//#ref-enum`), wrappers |
-| `sys_power_usb_pd.h` | POWER_USB_PD: contract table, option and limits structs, wrappers |
+| `contracts/sys_power_monitor.h` | POWER_MONITOR: contract table, events, `sys_power_alert_e` (`//#ref-enum`), wrappers |
+| `contracts/sys_power_vreg.h` | POWER_VREG: contract table, events, wrappers |
+| `contracts/sys_power_supply.h` | POWER_SUPPLY: contract table, `sys_power_supply_source_e` (`//#ref-enum`), wrappers |
+| `contracts/sys_power_usb_pd.h` | POWER_USB_PD: contract table, option and limits structs, wrappers |
 | `sys_power.c` | The error module and the wrappers. `WHOLE_ARCHIVE`: a device raises `ERR_POWER_*` without calling a wrapper, and the tag registration must not be dropped |
 | `contract_power_*.json` | The descriptors of the four contracts |
 | `AGENTS.md` | Rules for changing this folder |
