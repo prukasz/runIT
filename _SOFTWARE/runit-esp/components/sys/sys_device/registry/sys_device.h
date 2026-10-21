@@ -75,6 +75,14 @@ typedef struct __attribute__((packed)) {
 } sys_device_error_policy_t;
 
 /**
+ * @brief Responses the policy runs on the failing device itself, in place of a record (SYS_DEVICE.MD "Error policy"):
+ * a value of `actions[]` in class 0xFF, which sys_actions keeps free of records. No record per device is needed.
+ */
+//#ref-defines device_response @alias Device Response @prefix SYS_DEVICE_RESPONSE_
+#define SYS_DEVICE_RESPONSE_SUSPEND 0xFF000001u  //@alias Suspend this device @description Suspends the device that failed
+#define SYS_DEVICE_RESPONSE_RESET   0xFF000002u  //@alias Reset this device @description Resets the device that failed to its power-on state
+
+/**
  * @brief Writes a contract op's cmd_f: parses the payload (exactly
  * sizeof(args_t) bytes, else ERR_CMD_BAD_LEN) and runs the body that follows.
  * The body sees ctx (the device's struct), a (const args_t*), out, out_cap,

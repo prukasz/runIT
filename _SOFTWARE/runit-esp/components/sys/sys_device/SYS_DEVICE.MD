@@ -120,7 +120,14 @@ Each instance has `{importance, actions[4]}` (`sys_device_error_policy_t`, the a
 
 A CRITICAL error first stops the VM (`sys_device_set_vm_stop`, the app registers `vm_stop_on_fault`; stage `VM_STOP` of `ERR_DEV_FAULT_RESPONSE`), so the program stops writing, then suspends every device.
 
-Rule: CRITICAL at any importance but NONE, else `severity + importance > 4`. `actions[i]` is the record ID (sys_actions, u32; 0 = none) for severity LOW, MEDIUM, HIGH, CRITICAL.
+Rule: CRITICAL at any importance but NONE, else `severity + importance > 4`. `actions[i]` is, for severity LOW, MEDIUM, HIGH, CRITICAL, either a record ID (sys_actions, u32; 0 = none) or one of the policy's own responses on the device that failed, so no record per device is needed:
+
+| Value | `SYS_DEVICE_RESPONSE_*` | Runs |
+|---|---|---|
+| `0xFF000001` | SUSPEND | SUSPEND of the failing device |
+| `0xFF000002` | RESET | RESET of the failing device (power-on state; a suspended device refuses it, so after a CRITICAL error, which suspends every device first, it reports `ERR_DEV_SUSPENDED`) |
+
+Class `0xFF` is the responses' and holds no records; ERROR_POLICY refuses any other value in it (`ERR_DEV_BAD_ARG`). A response runs in the task that reported the error, like the system response; its failure is `ERR_DEV_FAULT_RESPONSE` like an action's.
 
 **Walk** (`sys_device_handle_error`, called by the app's error sink for every reported chain, before the record is sent and whatever `send_errors` says): from the outermost node; a device is an `ERR_DEV_ID{id}` node (the registry wraps every failed call in one, so every device error has one). Each device once, at its first mention, with `err_chain_sev` **from its node down** (the highest severity of its node and its causes; `ERR_DEV_ID` / `ERR_DEV_OP` are NONE and add nothing). A device at NONE ends the walk. A device that no longer exists (a failed CREATE) gets a response only for a critical error, without an action. A critical node above every device goes to the system response.
 

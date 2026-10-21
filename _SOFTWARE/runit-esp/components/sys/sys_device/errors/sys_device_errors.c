@@ -32,6 +32,17 @@ static struct {
 } s_policies;  // zero at the start (.bss)
 static portMUX_TYPE s_policy_mux = portMUX_INITIALIZER_UNLOCKED;
 
+// A value of `actions[]` in this class is a response of the policy itself, not a record.
+#define RESPONSE_CLASS 0xFFu
+
+static bool is_response(uint32_t action) {
+  return (action >> 24) == RESPONSE_CLASS;
+}
+
+static bool response_known(uint32_t action) {
+  return action == SYS_DEVICE_RESPONSE_SUSPEND || action == SYS_DEVICE_RESPONSE_RESET;
+}
+
 // Per task: a response that reports an error (a sweep's second failure) must not run the policy again.
 static __thread bool s_in_handler;
 
@@ -81,6 +92,9 @@ err_h sys_device_policy_set(uint16_t id, const uint8_t* args) {
   sys_device_error_policy_t p;
   memcpy(&p, args, sizeof(p));
   SYS_DEV_CHECK_IN_RANGE(id, p.importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
+  for (uint32_t i = 0; i < SYS_DEVICE_ERR_LEVELS; i++) {
+    ERR_CHECK(!is_response(p.actions[i]) || response_known(p.actions[i]), ERR_DEV_BAD_ARG);
+  }
   taskENTER_CRITICAL(&s_policy_mux);
   const uint32_t i = policy_find(id);
   const bool found = i != s_policies.count;
@@ -134,13 +148,25 @@ static err_h system_fault(uint16_t id) {
   return response;
 }
 
+// The device's own response: the op on the device that failed (a write like any other, so the registry lock is taken).
+static err_h run_response(uint16_t id, uint32_t action) {
+  switch (action) {
+    case SYS_DEVICE_RESPONSE_SUSPEND:
+      return sys_device_write(id, SYS_DEVICE_OP_SUSPEND, NULL, 0);
+    case SYS_DEVICE_RESPONSE_RESET:
+      return sys_device_write(id, SYS_DEVICE_OP_RESET, NULL, 0);
+    default:
+      return ERR_NEW(ERR_DEV_BAD_ARG);
+  }
+}
+
 // An admitted error of device `id`: the system response first, then its action for that severity.
 static err_h device_fault(uint16_t id, uint8_t sev, uint32_t action, err_h chain) {
   err_h response = sev == ERR_SEV_CRITICAL ? system_fault(id) : NULL;
-  if (action == 0 || s_hooks.run_action == NULL) {
+  if (action == 0 || (!is_response(action) && s_hooks.run_action == NULL)) {
     return response;
   }
-  err_h err = s_hooks.run_action(action, chain);
+  err_h err = is_response(action) ? run_response(id, action) : s_hooks.run_action(action, chain);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = sev, .stage = SYS_DEVICE_FAULT_STAGE_ACTION,
                    .action = action);

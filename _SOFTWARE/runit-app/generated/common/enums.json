@@ -292,6 +292,26 @@
         }
       ]
     },
+    "device_response": {
+      "alias": "Device Response",
+      "kind": "defines",
+      "prefix": "SYS_DEVICE_RESPONSE_",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_RESPONSE_SUSPEND",
+          "value": 4278190081,
+          "alias": "Suspend this device",
+          "description": "Suspends the device that failed"
+        },
+        {
+          "name": "SYS_DEVICE_RESPONSE_RESET",
+          "value": 4278190082,
+          "alias": "Reset this device",
+          "description": "Resets the device that failed to its power-on state"
+        }
+      ]
+    },
     "drv8962_topology_e": {
       "alias": "DRV8962 Topology",
       "kind": "enum",
@@ -2173,6 +2193,8 @@
     "SYS_DEVICE_IMPORTANCE_LOW": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_MEDIUM": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_NONE": "sys_device_importance_e",
+    "SYS_DEVICE_RESPONSE_RESET": "device_response",
+    "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
     "SYS_EVENT_OP_NOTIFY": "event_op",
     "SYS_HBRIDGE_FAULT_EXTERNAL": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_NONE": "sys_hbridge_fault_reason_e",

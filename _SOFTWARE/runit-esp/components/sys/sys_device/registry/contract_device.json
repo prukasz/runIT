@@ -175,7 +175,7 @@
               "raw_type": "u32",
               "size": 16,
               "offset": 1,
-              "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
+              "description": "What runs for an admitted error of severity low, medium, high, critical: a record, or a response of the policy on the failing device (SYS_DEVICE_RESPONSE_*); 0: none"
             }
           ]
         }
@@ -200,7 +200,7 @@
               "raw_type": "u32",
               "size": 16,
               "offset": 1,
-              "description": "The record run for an admitted error of severity low, medium, high, critical (0: none)"
+              "description": "What runs for an admitted error of severity low, medium, high, critical: a record, or a response of the policy on the failing device (SYS_DEVICE_RESPONSE_*); 0: none"
             }
           ],
           "struct": "sys_device_error_policy_t"

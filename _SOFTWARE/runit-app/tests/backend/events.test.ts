@@ -31,10 +31,10 @@ describe('events from the board', () => {
   })
 
   it('the device contract describes the events of SYS_DEVICE_EVENTS in sys_device.h, NOTIFY as there', () => {
-    const table = C('sys/sys_device/sys_device.h').match(/#define SYS_DEVICE_EVENTS\(X\)((?:.*\\\r?\n)*.*)/)![1]!
+    const table = C('sys/sys_device/registry/sys_device.h').match(/#define SYS_DEVICE_EVENTS\(X\)((?:.*\\\r?\n)*.*)/)![1]!
     const rows = [...table.matchAll(/X\((\w+),\s*(0x[0-9A-Fa-f]+),\s*(\w+)\)/g)].map((m) => ({ id: m[1], code: Number(m[2]), notify: m[3] === 'SYS_EVENT_NOTIFY' }))
     const lifecycle = catalog.byContractId.get(catalog.lifecycleContractId!)!
-    const json = JSON.parse(C('sys/sys_device/contract_device.json')) as { events: { id: string; code: number; notify: boolean }[] }
+    const json = JSON.parse(C('sys/sys_device/registry/contract_device.json')) as { events: { id: string; code: number; notify: boolean }[] }
     expect(rows.length).toBeGreaterThan(0)
     expect(json.events.map((e) => ({ id: e.id, code: e.code, notify: e.notify }))).toEqual(rows.map((r) => ({ ...r, code: (lifecycle.contractId! << 8) | r.code })))
   })

@@ -43,7 +43,7 @@ System IDs (class `0x01`):
 | `0x01000007` `SYS_ACTIONS_ID_CONN` | data streams and bindings | connector |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
 
-Any client may write any class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
+Class `0xFF` holds no records: an error policy's `actions[]` use it for the policy's own responses (`SYS_DEVICE_RESPONSE_*`, SYS_DEVICE.MD "Error policy"). Any client may write any other class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
 
 **Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][0x01][level, mirror, trace, errors, logs]` (log CONFIG). The write applies the value live and stores nothing. Persistence is the app uploading (or recording) the record.
 

@@ -125,8 +125,10 @@ function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState
   // The four levels a policy answers: LOW to CRITICAL (NONE marks a context node, not a failure).
   const severities = (enums.err_sev_e?.members ?? []).filter((m) => /^ERR_SEV_(LOW|MEDIUM|HIGH|CRITICAL)$/.test(m.name))
   const admitted = admittedSeverities(policy.importance, severities)
-  // The actions a severity can run: the project's, and the firmware's own (suspend all, reset all, ...), each under its origin.
+  // What a severity can run: the policy's own responses on this device, the firmware's own actions (suspend all, reset all, ...) and
+  // the project's, each under its origin.
   const actions: Choice<number>[] = [
+    ...(enums.device_response?.members ?? []).map((m): Choice<number> => ({ value: m.value, label: m.alias ?? m.name, group: 'This device', ...(m.description ? { description: m.description } : {}) })),
     ...onboardActions().map((a): Choice<number> => ({ value: a.id, label: a.alias.replace(/^Onboard action: /, '').replace(/^./, (c) => c.toUpperCase()), group: 'Board' })),
     ...state.project.actions.map((a): Choice<number> => ({ value: a.id, label: a.name, group: 'Project' })),
   ]
