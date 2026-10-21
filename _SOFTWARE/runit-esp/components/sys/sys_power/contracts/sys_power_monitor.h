@@ -56,8 +56,7 @@ typedef struct __attribute__((packed)) {
   X(P, ALERT,   0x02, sys_device_none_t,   pmon_alert_args_t) \
   X(P, POWER,   0x03, pmon_channel_args_t, int32_t)
 
-#define PMON_CONTRACT SYS_DEVICE_CONTRACT_POWER_MONITOR
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_MONITOR_CONTRACT, PMON)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_MONITOR_CONTRACT, PMON, SYS_DEVICE_CONTRACT_POWER_MONITOR)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

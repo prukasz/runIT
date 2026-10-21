@@ -133,8 +133,7 @@ typedef struct __attribute__((packed)) {
   X(P, INTR,     0x07, sys_device_none_t, io_intr_args_t)  \
   X(P, VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
 
-#define IO_CONTRACT SYS_DEVICE_CONTRACT_IO
-SYS_DEVICE_CONTRACT_DECLARE(SYS_IO_CONTRACT, IO)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_IO_CONTRACT, IO, SYS_DEVICE_CONTRACT_IO)
 
 /**
  * @brief Pin of a device. In a create struct a pin that is not used is

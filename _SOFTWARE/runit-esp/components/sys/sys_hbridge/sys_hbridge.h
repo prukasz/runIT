@@ -49,8 +49,7 @@ typedef struct __attribute__((packed)) {
   X(P, COAST,   0x02, sys_device_none_t,      hbridge_channel_args_t) \
   X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t)
 
-#define HBRIDGE_CONTRACT SYS_DEVICE_CONTRACT_HBRIDGE
-SYS_DEVICE_CONTRACT_DECLARE(SYS_HBRIDGE_CONTRACT, HBRIDGE)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_HBRIDGE_CONTRACT, HBRIDGE, SYS_DEVICE_CONTRACT_HBRIDGE)
 
 /* Events of the contract (sys_event.h "Events tables"): a channel fault, published by the driver; channel = the
  * channel, value = its current in mA. A fault is something the user must see: NOTIFY. */

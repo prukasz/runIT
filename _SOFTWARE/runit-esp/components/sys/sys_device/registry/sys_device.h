@@ -19,8 +19,8 @@ extern "C" {
  * Op = [contract u8][op u8]: 0x00xx the device (lifecycle, below), 0x01xx-0xFExx a contract (IDs below, the one place
  * they are assigned), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). An op has a read side, a write side or both
  * (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes (the mirror, CMD.MD).
- * A contract is ONE table X(P, NAME, n, key_t, value_t) and its ID in P_CONTRACT; SYS_DEVICE_CONTRACT_DECLARE(table, P)
- * gives P_OP_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t, and OP_READ(P, NAME) / OP_WRITE(P, NAME) (the handlers) and
+ * A contract is ONE table X(P, NAME, n, key_t, value_t); SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID) gives
+ * P_CONTRACT, P_OP_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t, and OP_READ(P, NAME) / OP_WRITE(P, NAME) (the handlers) and
  * OP_ENTRY(P, NAME) (both sides), OP_ENTRY_R, OP_ENTRY_W (one) use them, so an op number can't be paired with another
  * op's struct (SYS_DEVICE_LIFECYCLE below is the pattern; sys_io.h, sys_pins.h contracts).
  *
@@ -107,9 +107,9 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Device contract (0x00xx, prefix SYS_DEVICE): the lifecycle, X(P, NAME, n, key_t, value_t). CREATE (0x00,
- * write) is not in the table: it has no instance yet. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS (answered as a list, so
- * its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and ERROR_POLICY are the
- * registry's for every device: a driver's op table lists none of them.
+ * write) is not in the table: it has no instance yet. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS
+ * (answered as a list, so its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and
+ * ERROR_POLICY are the registry's for every device: a driver's op table lists none of them.
  */
 #define SYS_DEVICE_LIFECYCLE(X, P)                                          \
   X(P, RESET,        0x01, sys_device_none_t, sys_device_none_t)            \
@@ -120,19 +120,19 @@ typedef struct __attribute__((packed)) {
   X(P, OPS,          0x06, sys_device_none_t, sys_device_none_t)            \
   X(P, ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
 
-/* The contract tables' expansion, shared by every contract: a table X(P, NAME, n, key_t, value_t) with prefix P and
- * its contract ID in P_CONTRACT gives P_OP_<NAME> and the types P_key_<NAME>_t, P_value_<NAME>_t. */
+/* The contract tables' expansion, shared by every contract: SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID) on a
+ * table X(P, NAME, n, key_t, value_t) gives P_CONTRACT (the ID), P_OP_<NAME> and the types P_key_<NAME>_t,
+ * P_value_<NAME>_t. */
 #define SYS_DEVICE__ID(P, name, n, key_t, value_t) P##_OP_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
 #define SYS_DEVICE__TYPES(P, name, n, key_t, value_t) \
   typedef key_t P##_key_##name##_t;                   \
   typedef value_t P##_value_##name##_t;
-#define SYS_DEVICE_CONTRACT_DECLARE(table, P) \
-  enum { table(SYS_DEVICE__ID, P) };          \
+#define SYS_DEVICE_CONTRACT_DECLARE(table, P, contract)         \
+  enum { P##_CONTRACT = (contract), table(SYS_DEVICE__ID, P) }; \
   table(SYS_DEVICE__TYPES, P)
 
-#define SYS_DEVICE_CONTRACT SYS_DEVICE_CONTRACT_DEVICE
 enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00) };  // CREATE: [type u16][create struct]
-SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE_LIFECYCLE, SYS_DEVICE)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE_LIFECYCLE, SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 
 /* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
  * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app

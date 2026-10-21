@@ -53,8 +53,7 @@ typedef struct __attribute__((packed)) {
   X(P, OPTIONS,  0x01, sys_device_none_t, sys_power_usb_pd_option_t) \
   X(P, LIMITS,   0x02, sys_device_none_t, sys_power_usb_pd_limits_t)
 
-#define PD_CONTRACT SYS_DEVICE_CONTRACT_POWER_USB_PD
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_USB_PD_CONTRACT, PD)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_USB_PD_CONTRACT, PD, SYS_DEVICE_CONTRACT_POWER_USB_PD)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

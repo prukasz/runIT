@@ -59,7 +59,7 @@ A device's class is the set of ops it answers, with their sides (OPS returns it)
 
 ### Contract tables (X-macros)
 
-A contract is written once, as a table `X(P, NAME, op number, key_t, value_t)` with a prefix `P` and its ID in `P_CONTRACT` (`SYS_DEVICE_LIFECYCLE` here with `SYS_DEVICE`, `SYS_IO_CONTRACT` in `sys_io.h` with `IO`, `SYS_PINS_CONTRACT` in `sys_pins.h`, `SYS_EVENT_CONTRACT` in `sys_event.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). `SYS_DEVICE_CONTRACT_DECLARE(table, P)` expands it; the handler and row macros `OP_READ`, `OP_WRITE`, `OP_ENTRY`, `OP_ENTRY_R`, `OP_ENTRY_W` are shared by every contract. The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `P` and `NAME`:
+A contract is written once, as a table `X(P, NAME, op number, key_t, value_t)` with a prefix `P` (`SYS_DEVICE_LIFECYCLE` here with `SYS_DEVICE`, `SYS_IO_CONTRACT` in `sys_io.h` with `IO`, `SYS_PINS_CONTRACT` in `sys_pins.h`, `SYS_EVENT_CONTRACT` in `sys_event.h`, the power contracts in `sys_power_*.h`, `SYS_HBRIDGE_CONTRACT`). `SYS_DEVICE_CONTRACT_DECLARE(table, P, contract ID)` expands it (`IO_CONTRACT` = the ID, `IO_OP_<NAME>`, the typedefs); the handler and row macros `OP_READ`, `OP_WRITE`, `OP_ENTRY`, `OP_ENTRY_R`, `OP_ENTRY_W` are shared by every contract. The read takes `key_t` and answers `value_t`; the write takes `value_t`. Everything is keyed by `P` and `NAME`:
 
 | Generated | Example |
 |---|---|
@@ -68,7 +68,7 @@ A contract is written once, as a table `X(P, NAME, op number, key_t, value_t)` w
 | handler macros | `OP_READ(IO, LEVEL) { … args->pin … }` (parses the key), `OP_WRITE(IO, LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args`, `out…` |
 | table rows | `OP_ENTRY(IO, LEVEL)` (both sides), `OP_ENTRY_R(IO, LEVEL)`, `OP_ENTRY_W(IO, LEVEL)` (one) |
 
-The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, its `P_CONTRACT` (a `SYS_DEVICE_CONTRACT_*` ID) and `SYS_DEVICE_CONTRACT_DECLARE` (see `sys_pins.h`). Numbers inside a table are never reused.
+The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. A new contract = a table, a `SYS_DEVICE_CONTRACT_*` ID and one `SYS_DEVICE_CONTRACT_DECLARE` line (see `sys_pins.h`). Numbers inside a table are never reused.
 
 Internal callers use `sys_device_call(id, dir, op, args, len, out, cap, &out_len)`: the same call without a transport, the args used in place (no copy, no size limit). The contract wrappers (`sys_io_set_level(pin, level)`, ...) are built on it, and so are event listeners with a device target, device timers (TPS55289's rise steps) and the board creating its devices (op CREATE, args `[type][cfg]`). `sys_device_write(id, op, args, len)` is the write side with no answer; `sys_device_read(id, op, key, len, out, size)` the read side of a getter whose answer has a fixed size, `ERR_CMD_BAD_LEN` unless the device answered exactly `size` bytes.
 

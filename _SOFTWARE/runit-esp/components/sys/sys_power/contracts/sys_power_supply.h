@@ -32,8 +32,7 @@ typedef struct __attribute__((packed)) {
 #define SYS_POWER_SUPPLY_CONTRACT(X, P) \
   X(P, SOURCE, 0x00, sys_device_none_t, supply_select_args_t)
 
-#define SUPPLY_CONTRACT SYS_DEVICE_CONTRACT_POWER_SUPPLY
-SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_SUPPLY_CONTRACT, SUPPLY)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_POWER_SUPPLY_CONTRACT, SUPPLY, SYS_DEVICE_CONTRACT_POWER_SUPPLY)
 
 /**
  * @brief Wrappers: the sys_device_call of the op, nothing else.

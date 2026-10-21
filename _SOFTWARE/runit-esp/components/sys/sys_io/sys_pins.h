@@ -43,8 +43,7 @@ typedef struct __attribute__((packed)) {
   X(P, UNLOCK,       0x03, sys_device_none_t, pins_pin_args_t) \
   X(P, LOCKED_LEVEL, 0x04, sys_device_none_t, pins_level_args_t)
 
-#define PINS_CONTRACT SYS_DEVICE_CONTRACT_PINS
-SYS_DEVICE_CONTRACT_DECLARE(SYS_PINS_CONTRACT, PINS)
+SYS_DEVICE_CONTRACT_DECLARE(SYS_PINS_CONTRACT, PINS, SYS_DEVICE_CONTRACT_PINS)
 
 /* ----------------------------------------------------------------------------
  * For the device: the pin state and its checks. The device keeps one sys_pins_state_t, calls
