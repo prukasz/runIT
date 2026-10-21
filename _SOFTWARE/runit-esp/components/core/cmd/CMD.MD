@@ -6,7 +6,9 @@ Component `components/core/cmd/`. The smallest common layer for command handling
 
 | File | Role |
 |---|---|
-| `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `cmd_dir_e`, `ERR_CMD_MAP`, `cmd_side`, `cmd_reply`, `cmd_append`, `cmd_name_arg` |
+| `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `cmd_dir_e`, `cmd_side`, `cmd_reply`, `cmd_append`, `cmd_name_arg` |
+| `errors/cmd_errors.h` | `ERR_CMD_MAP`, the module's error tags (included by `cmd.h`) |
+| `errors/errors_cmd.json` | The error messages |
 | `cmd.c` | Error module (`ERR_MOD_CMD` = 11) and helpers. Linked `WHOLE_ARCHIVE`: constructor registers error tags |
 | `CMakeLists.txt` | Component registration (`WHOLE_ARCHIVE`, requires `errors` `utils`) |
 | `AGENTS.md` | Rules for changing this folder |

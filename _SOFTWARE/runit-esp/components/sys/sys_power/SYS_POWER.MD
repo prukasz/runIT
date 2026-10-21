@@ -4,7 +4,9 @@ Not a module with state: sets of device ops that mean the same on every device t
 
 | File | Contents |
 |---|---|
-| `sys_power.h` | Errors (`ERR_MOD_SYS_POWER` = 10), `sys_power_mW()` |
+| `sys_power.h` | `sys_power_mW()` |
+| `errors/sys_power_errors.h` | `ERR_SYS_POWER_MAP`, the module's error tags (included by `sys_power.h`) |
+| `errors/errors_sys_power.json` | The error messages |
 | `contracts/sys_power_monitor.h` | POWER_MONITOR: contract table, events, `sys_power_alert_e` (`//#ref-enum`), wrappers |
 | `contracts/sys_power_vreg.h` | POWER_VREG: contract table, events, wrappers |
 | `contracts/sys_power_supply.h` | POWER_SUPPLY: contract table, `sys_power_supply_source_e` (`//#ref-enum`), wrappers |
@@ -93,6 +95,6 @@ A power mux: two switched sources into one load (the LM73100 ideal diodes of an 
 
 The power manager is its own component: SYS_POWER_MANAGER.MD.
 
-## Errors (`ERR_MOD_SYS_POWER` = 10, `sys_power.h`)
+## Errors (`ERR_MOD_SYS_POWER` = 10, `errors/sys_power_errors.h`)
 
 Besides the shared `ERR_DEV_*` (RANGE, SUSPENDED): `ERR_POWER_BAD_CHANNEL {id, channel}`, `ERR_POWER_ALERT_UNSUPPORTED {id, channel, alert}`, `ERR_POWER_EXT_FEEDBACK {id}` (a regulator strapped for an external divider: its output can't be set in mV; TPS55289), `ERR_POWER_NO_PROFILE {id, voltage_mV, lowest_mV}` (a USB-PD source offers no profile at or below the voltage; `lowest_mV` is its lowest fixed offer (5 V when it offers none); AP33772S).

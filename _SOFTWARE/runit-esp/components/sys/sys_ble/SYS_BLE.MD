@@ -6,7 +6,9 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 
 | File | Contents |
 |---|---|
-| `core/sys_ble.h` | Public API, runIT UUIDs, fragment header, buffer size macro, error tags |
+| `core/sys_ble.h` | Public API, runIT UUIDs, fragment header, buffer size macro |
+| `errors/sys_ble_errors.h` | `ERR_SYS_BLE_MAP`, the module's error tags (included by `sys_ble.h`) |
+| `errors/errors_sys_ble.json` | The error messages |
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |

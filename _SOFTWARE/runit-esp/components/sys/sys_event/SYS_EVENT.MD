@@ -6,7 +6,9 @@ Component `components/sys/sys_event/`. One publisher, any number of listeners: a
 
 | File | Role |
 |---|---|
-| `sys_event.h` | `sys_event_t`, event IDs and flags, `SYS_EVENT_PUBLISH`, the EVENT contract (`ON_EVENT`), C API, error tags |
+| `sys_event.h` | `sys_event_t`, event IDs and flags, `SYS_EVENT_PUBLISH`, the EVENT contract (`ON_EVENT`), C API |
+| `errors/sys_event_errors.h` | `ERR_SYS_EVENT_MAP`, the module's error tags (included by `sys_event.h`) |
+| `errors/errors_event.json` | The error messages |
 | `sys_event.c` | Subscription table, publish, notify, event task |
 | `contract_event.json` | The EVENT contract descriptor (`ON_EVENT` and the `sys_event_t` fields) |
 | `Kconfig` | Subscriptions, queue, task |

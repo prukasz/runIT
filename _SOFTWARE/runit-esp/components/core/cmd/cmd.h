@@ -2,6 +2,7 @@
 
 #include "errors.h"
 #include "utils.h"
+#include "cmd_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,18 +42,6 @@ typedef enum {
 // The parameters of a cmd_f, for the macros that declare or write one.
 #define CMD_OUT_PARAMS uint8_t *out, uint32_t out_cap, uint32_t *out_len
 #define CMD_F_PARAMS   void *ctx, const uint8_t *in, uint32_t in_len, CMD_OUT_PARAMS
-
-/* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_CMD)
- * ------------------------------------------------------------------------- */
-
-#define ERR_CMD_MAP(X)                                                                                    \
-  X(ERR_CMD_BAD_LEN,   ERR_TAG(ERR_MOD_CMD, 1), ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */ \
-  X(ERR_CMD_OUT_FULL,  ERR_TAG(ERR_MOD_CMD, 2), ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */ \
-  X(ERR_CMD_BAD_ARG,   ERR_TAG(ERR_MOD_CMD, 3), ERR_SEV_HIGH, {}) /* invalid argument value */ \
-  X(ERR_CMD_DIRECTION, ERR_TAG(ERR_MOD_CMD, 4), ERR_SEV_HIGH, { uint8_t dir; }) /* the command has no such side, or dir is neither read nor write */
-
-ERR_TAGS_DECLARE(ERR_CMD_MAP)
 
 /**
  * @brief The side of a command that `dir` asks for (`read` or `write`, NULL = the command has none).

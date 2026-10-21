@@ -3,6 +3,7 @@
 #include "cmd.h"
 #include "errors.h"
 #include "utils.h"
+#include "sys_log_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,15 +40,6 @@ typedef struct __attribute__((packed)) {
   uint8_t send_errors;    /**< 1 = send error records on errors stream, 0 = disabled */
   uint8_t send_logs;      /**< 1 = send log lines on logs stream, 0 = disabled */
 } sys_log_cfg_t;
-
-/* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_SYS_LOG)
- * ------------------------------------------------------------------------- */
-
-#define ERR_SYS_LOG_MAP(X)                                                                                    \
-  X(ERR_LOG_BAD_LEVEL, ERR_TAG(ERR_MOD_SYS_LOG, 1), ERR_SEV_HIGH, { uint8_t level; uint8_t max; }) /* above CONFIG_LOG_MAXIMUM_LEVEL */
-
-ERR_TAGS_DECLARE(ERR_SYS_LOG_MAP)
 
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line

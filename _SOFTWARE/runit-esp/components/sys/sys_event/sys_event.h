@@ -2,6 +2,7 @@
 
 #include "errors.h"
 #include "sys_device.h"
+#include "sys_event_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,19 +105,6 @@ typedef sys_event_t event_value_ON_EVENT_t;
 
 #define EVENT_WRITE(name)   SYS_DEVICE_WRITE(event, name)
 #define EVENT_ENTRY_W(name) SYS_DEVICE_ENTRY_W(EVENT_OP_##name, event, name)
-
-/* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_SYS_EVENT).
- * ------------------------------------------------------------------------- */
-
-#define ERR_SYS_EVENT_MAP(X)                                                                                     \
-  X(ERR_EVENT_QUEUE_FULL, ERR_TAG(ERR_MOD_SYS_EVENT, 2), ERR_SEV_LOW,    { uint16_t source; uint16_t event; uint32_t dropped; }) \
-  X(ERR_EVENT_TABLE_FULL, ERR_TAG(ERR_MOD_SYS_EVENT, 3), ERR_SEV_MEDIUM, {})                                    \
-  X(ERR_EVENT_NOT_FOUND,  ERR_TAG(ERR_MOD_SYS_EVENT, 4), ERR_SEV_MEDIUM, { uint8_t id; }) /* subscription handle */ \
-  X(ERR_EVENT_BAD_ARG,    ERR_TAG(ERR_MOD_SYS_EVENT, 5), ERR_SEV_HIGH,   {})                                    \
-  X(ERR_EVENT_DELIVERY,   ERR_TAG(ERR_MOD_SYS_EVENT, 8), ERR_SEV_NONE,   { uint16_t source; uint16_t event; uint8_t channel; uint16_t device; }) /* context: a listener failed */
-
-ERR_TAGS_DECLARE(ERR_SYS_EVENT_MAP)
 
 /* ----------------------------------------------------------------------------
  * C API

@@ -39,7 +39,7 @@ Generators are named `generate_<what>.py`, take `--check` and share their helper
 
 ### Errors: what a user reads, what an error is about
 
-Each error module has `errors_<module name>.json` next to the header of its map (`runit-esp/components/sys/sys_i2c/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
+Each error module has `errors_<module name>.json` next to the header of its map, in the `errors/` folder of its component (`runit-esp/components/sys/sys_i2c/errors/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
 
 ```json
 { "module": "ERR_MOD_SYS_IO", "errors": {

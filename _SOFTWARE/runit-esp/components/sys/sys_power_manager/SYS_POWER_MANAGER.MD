@@ -4,7 +4,9 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 
 | File | Contents |
 |---|---|
-| `sys_power_manager.h` | Enums, manager events (`PWRM_EV_*`), board description, settings and status structs, `ERR_SYS_POWER_MANAGER_MAP` (`ERR_MOD_SYS_POWER_MANAGER` = 14), API |
+| `sys_power_manager.h` | Enums, manager events (`PWRM_EV_*`), board description, settings and status structs, API |
+| `errors/sys_power_manager_errors.h` | `ERR_SYS_POWER_MANAGER_MAP`, the module's error tags (included by `sys_power_manager.h`) |
+| `errors/errors_power_manager.json` | The error messages |
 | `sys_power_manager.c` | Task, budget, the POWER_VREG guard, source, battery, response matrix, settings. `WHOLE_ARCHIVE` (error tag registration) |
 | `sys_power_manager_router.c/.h` | Remote interface, `ROUTER_KEY_POWER` = 0x0A |
 | `contract_power_manager.json` | The router's descriptor (`templates/`) |

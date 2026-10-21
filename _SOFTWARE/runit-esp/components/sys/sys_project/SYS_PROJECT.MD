@@ -6,7 +6,9 @@ Component `components/sys/sys_project/`. The pipeline that saves a whole **proje
 
 | File | Role |
 |---|---|
-| `sys_project.h` | API, ID macro `SYS_PROJECT_ID`, the section IDs, the boot option `sys_project_boot_e`, error tags, the info and mark structs |
+| `sys_project.h` | API, ID macro `SYS_PROJECT_ID`, the section IDs, the boot option `sys_project_boot_e`, the info and mark structs |
+| `errors/sys_project_errors.h` | `ERR_SYS_PROJECT_MAP`, the module's error tags (included by `sys_project.h`) |
+| `errors/errors_project.json` | The error messages |
 | `sys_project.c` | The stream parser, staging, commit, run, info, erase, boot |
 | `sys_project_router.c/.h` | `project` router (`ROUTER_KEY_PROJECT` = 0x0C), op IDs `SYS_PROJECT_OP_*` |
 | `contract_project.json` | Service contract definition (RPC commands and schemas) |

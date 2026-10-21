@@ -6,7 +6,9 @@ Component `components/core/router/`. Every remote command (phone, test host, int
 
 | File | Role |
 |---|---|
-| `router.h` | Wire format, error tags, routing helpers, links, tap, watch. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
+| `router.h` | Wire format, routing helpers, links, tap, watch. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
+| `errors/router_errors.h` | `ERR_ROUTER_MAP`, the module's error tags (included by `router.h`) |
+| `errors/errors_router.json` | The error messages |
 | `router_ids.h` | Root keys (`ROUTER_KEY_*`) |
 | `router.c` | Root table, `router_route`, `router_call` / `router_call_op` / `router_args` / `router_args_tail` (op macros in `router.h`) |
 | `router_dispatch.c` | Links, `router_submit`, urgent + work tasks, responses, tap, watch |

@@ -10,7 +10,9 @@ The store holds four kinds of record, told apart by the class in the ID: the use
 
 | File | Role |
 |---|---|
-| `sys_actions.h` | API, ID classes, system IDs, error tags, `g_sys_actions_tap` |
+| `sys_actions.h` | API, ID classes, system IDs, `g_sys_actions_tap` |
+| `errors/sys_actions_errors.h` | `ERR_SYS_ACTIONS_MAP`, the module's error tags (included by `sys_actions.h`) |
+| `errors/errors_actions.json` | The error messages |
 | `sys_actions.c` | NVS store, run, recorder (tap), upload |
 | `sys_actions_router.c/.h` | `actions` router (`ROUTER_KEY_ACTIONS` = 0x06), op IDs `SYS_ACTIONS_OP_*` |
 | `contract_actions.json` | Contract descriptor for the actions router |

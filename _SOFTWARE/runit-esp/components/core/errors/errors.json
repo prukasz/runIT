@@ -168,8 +168,8 @@
       "id": 1,
       "name": "sys_i2c",
       "symbol": "ERR_MOD_SYS_I2C",
-      "source_file": "runit-esp/components/sys/sys_i2c/sys_i2c.h",
-      "texts_file": "runit-esp/components/sys/sys_i2c/errors_sys_i2c.json",
+      "source_file": "runit-esp/components/sys/sys_i2c/errors/sys_i2c_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_i2c/errors/errors_sys_i2c.json",
       "tags": [
         {
           "code": 1,
@@ -563,8 +563,8 @@
       "id": 2,
       "name": "router",
       "symbol": "ERR_MOD_ROUTER",
-      "source_file": "runit-esp/components/core/router/router.h",
-      "texts_file": "runit-esp/components/core/router/errors_router.json",
+      "source_file": "runit-esp/components/core/router/errors/router_errors.h",
+      "texts_file": "runit-esp/components/core/router/errors/errors_router.json",
       "tags": [
         {
           "code": 1,
@@ -725,8 +725,8 @@
       "id": 3,
       "name": "sys_uart",
       "symbol": "ERR_MOD_SYS_UART",
-      "source_file": "runit-esp/components/sys/sys_uart/sys_uart.h",
-      "texts_file": "runit-esp/components/sys/sys_uart/errors_sys_uart.json",
+      "source_file": "runit-esp/components/sys/sys_uart/errors/sys_uart_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_uart/errors/errors_sys_uart.json",
       "tags": [
         {
           "code": 1,
@@ -768,8 +768,8 @@
       "id": 4,
       "name": "sys_ble",
       "symbol": "ERR_MOD_SYS_BLE",
-      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
-      "texts_file": "runit-esp/components/sys/sys_ble/core/errors_sys_ble.json",
+      "source_file": "runit-esp/components/sys/sys_ble/errors/sys_ble_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_ble/errors/errors_sys_ble.json",
       "tags": [
         {
           "code": 1,
@@ -1089,8 +1089,8 @@
       "id": 5,
       "name": "sys_connector",
       "symbol": "ERR_MOD_SYS_CONNECTOR",
-      "source_file": "runit-esp/components/sys/sys_connector/sys_connector.h",
-      "texts_file": "runit-esp/components/sys/sys_connector/errors_sys_connector.json",
+      "source_file": "runit-esp/components/sys/sys_connector/errors/sys_connector_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_connector/errors/errors_sys_connector.json",
       "tags": [
         {
           "code": 1,
@@ -1741,8 +1741,8 @@
       "id": 7,
       "name": "sys_io",
       "symbol": "ERR_MOD_SYS_IO",
-      "source_file": "runit-esp/components/sys/sys_io/sys_io.h",
-      "texts_file": "runit-esp/components/sys/sys_io/errors_sys_io.json",
+      "source_file": "runit-esp/components/sys/sys_io/errors/sys_io_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_io/errors/errors_sys_io.json",
       "tags": [
         {
           "code": 1,
@@ -2005,8 +2005,8 @@
       "id": 8,
       "name": "actions",
       "symbol": "ERR_MOD_SYS_ACTIONS",
-      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
-      "texts_file": "runit-esp/components/sys/sys_actions/errors_actions.json",
+      "source_file": "runit-esp/components/sys/sys_actions/errors/sys_actions_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_actions/errors/errors_actions.json",
       "tags": [
         {
           "code": 1,
@@ -2261,8 +2261,8 @@
       "id": 9,
       "name": "event",
       "symbol": "ERR_MOD_SYS_EVENT",
-      "source_file": "runit-esp/components/sys/sys_event/sys_event.h",
-      "texts_file": "runit-esp/components/sys/sys_event/errors_event.json",
+      "source_file": "runit-esp/components/sys/sys_event/errors/sys_event_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_event/errors/errors_event.json",
       "tags": [
         {
           "code": 2,
@@ -2375,8 +2375,8 @@
       "id": 10,
       "name": "sys_power",
       "symbol": "ERR_MOD_SYS_POWER",
-      "source_file": "runit-esp/components/sys/sys_power/sys_power.h",
-      "texts_file": "runit-esp/components/sys/sys_power/errors_sys_power.json",
+      "source_file": "runit-esp/components/sys/sys_power/errors/sys_power_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_power/errors/errors_sys_power.json",
       "tags": [
         {
           "code": 1,
@@ -2497,8 +2497,8 @@
       "id": 11,
       "name": "cmd",
       "symbol": "ERR_MOD_CMD",
-      "source_file": "runit-esp/components/core/cmd/cmd.h",
-      "texts_file": "runit-esp/components/core/cmd/errors_cmd.json",
+      "source_file": "runit-esp/components/core/cmd/errors/cmd_errors.h",
+      "texts_file": "runit-esp/components/core/cmd/errors/errors_cmd.json",
       "tags": [
         {
           "code": 1,
@@ -2581,8 +2581,8 @@
       "id": 13,
       "name": "log",
       "symbol": "ERR_MOD_SYS_LOG",
-      "source_file": "runit-esp/components/sys/sys_log/sys_log.h",
-      "texts_file": "runit-esp/components/sys/sys_log/errors_log.json",
+      "source_file": "runit-esp/components/sys/sys_log/errors/sys_log_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_log/errors/errors_log.json",
       "tags": [
         {
           "code": 1,
@@ -2614,8 +2614,8 @@
       "id": 14,
       "name": "power_manager",
       "symbol": "ERR_MOD_SYS_POWER_MANAGER",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
-      "texts_file": "runit-esp/components/sys/sys_power_manager/errors_power_manager.json",
+      "source_file": "runit-esp/components/sys/sys_power_manager/errors/sys_power_manager_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_power_manager/errors/errors_power_manager.json",
       "tags": [
         {
           "code": 1,
@@ -4421,8 +4421,8 @@
       "id": 16,
       "name": "project",
       "symbol": "ERR_MOD_SYS_PROJECT",
-      "source_file": "runit-esp/components/sys/sys_project/sys_project.h",
-      "texts_file": "runit-esp/components/sys/sys_project/errors_project.json",
+      "source_file": "runit-esp/components/sys/sys_project/errors/sys_project_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_project/errors/errors_project.json",
       "tags": [
         {
           "code": 1,

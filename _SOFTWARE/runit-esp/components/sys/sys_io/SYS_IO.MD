@@ -5,6 +5,8 @@ Not a module with state: a set of device ops (contract `SYS_DEVICE_CONTRACT_IO` 
 | File | Contents |
 |---|---|
 | `sys_io.h` | The `SYS_IO_CONTRACT` table (op IDs, handler / entry macros), arg structs, the read answer helpers `sys_io_reply_level` / `sys_io_reply_voltage`, `sys_io_mode_e`, `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), `sys_io_pin_t`, wrappers |
+| `errors/sys_io_errors.h` | `ERR_SYS_IO_MAP`, the module's error tags (included by `sys_io.h`) |
+| `errors/errors_sys_io.json` | The error messages |
 | `sys_io.c` | The wrappers |
 | `sys_pins.h` / `sys_pins.c` | The PINS contract (below): table, pin-state helper for devices, wrappers, a device's own pins |
 | `contract_io.json`, `contract_pins.json` | The descriptors of the two contracts (checked against the tables by `templates/sync.sh`) |
@@ -38,7 +40,7 @@ Example: the level of pin 4 of device 3, `[05][00][03 00][00 01][04]` → `[04][
 - **Interrupts** (`sys_io_intr_cfg_t`, 10 bytes): `{u8 mode, u8 debounce, sys_io_adc_window_t adc}`. Modes: disable, rising / falling / both edges, ADC window outside / inside. `adc` = `{u16 threshold_up_mV, u16 threshold_down_mV, u16 hysteresis_mV, u16 event_counter_threshold}`, read only by the window modes. The config only arms the pin.
 - The device does the checks: `ERR_DEV_SUSPENDED` on writes while suspended, `ERR_DEV_BAD_PIN`, `ERR_DEV_RANGE` (value the chip would reject, never clamped).
 
-## Errors (`ERR_MOD_SYS_IO` = 7, `sys_io.h`)
+## Errors (`ERR_MOD_SYS_IO` = 7, `errors/sys_io_errors.h`)
 
 What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOCKED, RANGE, SUSPENDED): `ERR_IO_PIN_IN_USE {id, pin, mode}` (MODE of a configured pin), `PIN_UNCONFIGURED {id, pin}`, `WRONG_MODE {id, pin, mode}` (the op doesn't fit the pin's mode), `MODE_UNSUPPORTED {id, pin, mode}`, `FEATURE_UNSUPPORTED {id, pin}`, `PWM_CHANNELS_EXHAUSTED {id, pin, channels}`, `PWM_TIMERS_EXHAUSTED {id, pin, timers, frequency_Hz}`, `BAD_READING {id, pin}` (an ADC did not return the channel asked for).
 

@@ -16,7 +16,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `err_log.c` | `err_log`, `err_log_ctx`, `err_log_enable` — chain formatting to `ESP_LOG` |
 | `err_wire.c` | `err_record`: the error record, a chain with its command, as bytes |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
-| `errors_core.json` | The user messages of this module's tags (and their hints: what to do) (each module has its `errors_<module>.json` next to its map) |
+| `errors_core.json` | The user messages of this module's tags (and their hints: what to do) (each module has its `errors_<module>.json` in the `errors/` folder of its component, next to its map `<component>_errors.h`) |
 | `CMakeLists.txt` | Component registration and source files |
 | `Kconfig` | Configuration for call-site info, pool size, line buffer length, module limits |
 | `AGENTS.md` | Rules for changing this folder |

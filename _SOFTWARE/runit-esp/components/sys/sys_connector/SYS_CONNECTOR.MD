@@ -17,7 +17,9 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 
 | File | Role |
 |---|---|
-| `sys_connector.h` | IDs (`//#ref-enum`), stream bytes, provider ops, API, error tags |
+| `sys_connector.h` | IDs (`//#ref-enum`), stream bytes, provider ops, API |
+| `errors/sys_connector_errors.h` | `ERR_SYS_CONNECTOR_MAP`, the module's error tags (included by `sys_connector.h`) |
+| `errors/errors_sys_connector.json` | The error messages |
 | `sys_connector.c` | Registry, providers, bindings, queue + connector task |
 | `sys_connector_router.c/.h` | `conn` router (`ROUTER_KEY_CONN` = 0x04) |
 | `Kconfig` | Slots, bindings, providers, frame max, queue, task |

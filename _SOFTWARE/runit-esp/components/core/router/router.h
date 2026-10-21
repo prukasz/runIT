@@ -4,6 +4,7 @@
 #include "errors.h"
 #include "router_ids.h"
 #include "utils.h"
+#include "router_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,22 +22,6 @@ typedef enum {
   ROUTER_STATUS_OK = 0,  //@alias OK @description The command succeeded; the answer's data follows
   ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
-
-/* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_ROUTER)
- * ------------------------------------------------------------------------- */
-
-#define ERR_ROUTER_MAP(X)                                                                                    \
-  X(ERR_ROUTER_KEY,         ERR_TAG(ERR_MOD_ROUTER, 1),  ERR_SEV_NONE,   { uint8_t key; }) /* context only: route step */ \
-  X(ERR_ROUTER_NO_KEY,      ERR_TAG(ERR_MOD_ROUTER, 2),  ERR_SEV_HIGH,   {}) /* input ended where a key was expected */ \
-  X(ERR_ROUTER_UNKNOWN_KEY, ERR_TAG(ERR_MOD_ROUTER, 3),  ERR_SEV_HIGH,   { uint8_t key; })                  \
-  X(ERR_ROUTER_KEY_TAKEN,   ERR_TAG(ERR_MOD_ROUTER, 6),  ERR_SEV_HIGH,   { uint8_t key; })                  \
-  X(ERR_ROUTER_TABLE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 7),  ERR_SEV_HIGH,   { uint8_t key; })                  \
-  X(ERR_ROUTER_BAD_LINK,    ERR_TAG(ERR_MOD_ROUTER, 8),  ERR_SEV_HIGH,   { uint8_t link; }) /* unknown, unregistered or taken */ \
-  X(ERR_ROUTER_QUEUE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 9),  ERR_SEV_MEDIUM, { uint8_t link; uint8_t urgent; }) /* frame dropped */ \
-  X(ERR_ROUTER_FRAME_LEN,   ERR_TAG(ERR_MOD_ROUTER, 10), ERR_SEV_MEDIUM, { uint8_t link; uint16_t len; uint16_t max; }) /* frame too short or too long */
-
-ERR_TAGS_DECLARE(ERR_ROUTER_MAP)
 
 /* ----------------------------------------------------------------------------
  * Routing

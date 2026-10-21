@@ -10,7 +10,9 @@ Component `components/sys/sys_uart/`. Makes the console UART (GPIO 43/44 via the
 
 | File | Role |
 |---|---|
-| `sys_uart.h` | API, endpoint macro `SYS_UART_ENDPOINT`, error tags |
+| `sys_uart.h` | API, endpoint macro `SYS_UART_ENDPOINT` |
+| `errors/sys_uart_errors.h` | `ERR_SYS_UART_MAP`, the module's error tags (included by `sys_uart.h`) |
+| `errors/errors_sys_uart.json` | The error messages |
 | `sys_uart.c` | Line framing, RX task, router link and connector provider |
 | `Kconfig` | RX task priority, stack size, driver RX buffer |
 | `AGENTS.md` | Rules for changing this folder |
