@@ -208,7 +208,7 @@
       "alias": "Device Contract",
       "kind": "defines",
       "prefix": "SYS_DEVICE_CONTRACT_",
-      "source_file": "runit-esp/components/sys/sys_device/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_CONTRACT_DEVICE",
@@ -282,7 +282,7 @@
       "alias": "Device ID",
       "kind": "defines",
       "prefix": "SYS_DEVICE_ID_",
-      "source_file": "runit-esp/components/sys/sys_device/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_ID_NONE",
@@ -681,7 +681,7 @@
     "sys_device_fault_stage_e": {
       "alias": "Fault Response Stage",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_FAULT_STAGE_VM_STOP",
@@ -706,7 +706,7 @@
     "sys_device_importance_e": {
       "alias": "Device Error Importance",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/sys_device.h",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_IMPORTANCE_NONE",

@@ -1310,8 +1310,8 @@
       "id": 6,
       "name": "sys_device",
       "symbol": "ERR_MOD_SYS_DEVICE",
-      "source_file": "runit-esp/components/sys/sys_device/sys_device_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_device/errors_sys_device.json",
+      "source_file": "runit-esp/components/sys/sys_device/errors/sys_device_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_device/errors/errors_sys_device.json",
       "tags": [
         {
           "code": 1,

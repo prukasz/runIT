@@ -10,13 +10,15 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 
 | File | Contents |
 |---|---|
-| `sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_DEFINE`, calls and sweeps |
-| `sys_device_errors.h` | `ERR_SYS_DEVICE_MAP`, the module's error tags (included by `sys_device.h`) |
-| `sys_device_types.h` | **The type IDs**, one X-macro list (`SYS_DEVICE_TYPE_LIST` → `SYS_DEVICE_TYPE_<NAME>`); a duplicate fails to compile |
-| `sys_device.c` | Types, instances (creation order), generic ops, calls, sweeps. Depends on `cmd` only |
-| `sys_device_errors.c` | The error module (`ERR_MODULE_DEFINE`) and the error policy: the policies by device ID, the walk over a reported chain and the response (below) |
-| `sys_device_internal.h` | Private: what the registry asks of the policy (a policy added or removed with its instance, the ERROR_POLICY ops) |
-| `sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[dir u8][id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
+| `registry/sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_DEFINE`, calls and sweeps |
+| `registry/sys_device_types.h` | **The type IDs**, one X-macro list (`SYS_DEVICE_TYPE_LIST` → `SYS_DEVICE_TYPE_<NAME>`); a duplicate fails to compile |
+| `registry/sys_device.c` | Types, instances (creation order), generic ops, calls, sweeps. Depends on `cmd` only |
+| `registry/contract_device.json` | The device contract's descriptor (lifecycle ops) |
+| `errors/sys_device_errors.h` | `ERR_SYS_DEVICE_MAP`, the module's error tags (included by `sys_device.h`) |
+| `errors/sys_device_errors.c` | The error module (`ERR_MODULE_DEFINE`) and the error policy: the policies by device ID, the walk over a reported chain and the response (below) |
+| `errors/sys_device_internal.h` | Private: what the registry asks of the policy (a policy added or removed with its instance, the ERROR_POLICY ops) |
+| `errors/errors_sys_device.json` | The error messages |
+| `router/sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[dir u8][id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
 | `Kconfig` | `SYS_DEVICE_MAX` (32 instances), `SYS_DEVICE_TYPES` (16), `SYS_DEVICE_MAX_DEPS` (4 devices one device may use), `SYS_DEVICE_GUARDS` (2 contracts with a guard) |
 | `SYS_DEVICE_NEW.md` | Adding a device: a driver on this registry |
 | `AGENTS.md` | Rules for changing this folder |
