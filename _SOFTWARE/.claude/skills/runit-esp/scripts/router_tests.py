@@ -358,11 +358,11 @@ OUT_PIN, PWM_PIN = 4, 5  # free on the devkit and the runIT board
 
 def test_gpio(link: Link, target: str) -> None:
     r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    check(f"CREATE GPIO ESP id {GPIO_ID}", r is not None and r.ok, str(r))
+    check(f"CREATE ESP32-S3 GPIO id {GPIO_ID}", r is not None and r.ok, str(r))
     if r is None or not r.ok:
         return
     r = dev(link, 1, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    check("second GPIO ESP -> ERR_DEV_ID_TAKEN", err_cause(r) == "ERR_DEV_ID_TAKEN", str(r))
+    check("second ESP32-S3 GPIO -> ERR_DEV_ID_TAKEN", err_cause(r) == "ERR_DEV_ID_TAKEN", str(r))
     r = dev(link, GPIO_ID, OP_INFO)
     check("INFO: type 0x0040", r is not None and r.ok and r.data == struct.pack("<HB", GPIO_TYPE, 0), str(r))
     ops = ops_of(dev(link, GPIO_ID, OP_OPS))
@@ -434,7 +434,7 @@ def test_gpio(link: Link, target: str) -> None:
     check("the locked pin survived RESET", r is not None and r.ok, str(r))
 
     r = dev(link, GPIO_ID, OP_REMOVE)
-    check("REMOVE GPIO ESP", r is not None and r.ok, str(r))
+    check("REMOVE ESP32-S3 GPIO", r is not None and r.ok, str(r))
     r = dev(link, GPIO_ID, OP_INFO)
     check("INFO after REMOVE -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
@@ -481,10 +481,10 @@ MUX_A_PIN, MUX_B_PIN = 6, 7  # free on the devkit and the runIT board
 
 
 def test_power_mux(link: Link, target: str) -> None:
-    """The mux switches two GPIO ESP pins (own GPIO device, removed at the end). Levels are read back on a board only:
+    """The mux switches two ESP32-S3 GPIO pins (own GPIO device, removed at the end). Levels are read back on a board only:
     QEMU has no GPIO readback."""
     r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    check("power mux: CREATE GPIO ESP for its pins", r is not None and r.ok, str(r))
+    check("power mux: CREATE ESP32-S3 GPIO for its pins", r is not None and r.ok, str(r))
     if r is None or not r.ok:
         return
 
@@ -633,7 +633,7 @@ def test_device(link: Link) -> None:
     check("CREATE OE on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
     # Dependencies are declared, not ID-ordered: OE on a higher ID passes once that device exists
     r = dev(link, 9, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    check("CREATE GPIO ESP at id 9", r is not None and r.ok, str(r))
+    check("CREATE ESP32-S3 GPIO at id 9", r is not None and r.ok, str(r))
     r = create_pca(link, 3, 1, 0x40, oe=struct.pack("<HB", 9, 4))  # nothing on bus 1: fails later, at the probe
     check("CREATE OE on a higher id gets past the dependency check",
           r is not None and not r.ok and err_cause(r) not in ("ERR_DEV_NOT_FOUND", "ERR_DEV_IN_USE"), str(r))
@@ -1247,7 +1247,7 @@ ACT_MED, ACT_HIGH = 201, 200  # actions run by the policy: each sets another log
 
 def test_error_policy(link: Link) -> None:
     r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
-    check("policy: GPIO ESP present", r is not None and (r.ok or err_cause(r) == "ERR_DEV_ID_TAKEN"), str(r))
+    check("policy: ESP32-S3 GPIO present", r is not None and (r.ok or err_cause(r) == "ERR_DEV_ID_TAKEN"), str(r))
     for aid, level in ((ACT_HIGH, 2), (ACT_MED, 1)):
         act(link, A_REMOVE, u32(aid))
         r = upload(link, aid, image(log_frame(level, 1, 1, 1, 1)))

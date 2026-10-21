@@ -389,8 +389,8 @@ window.KIT = {
     ]
    },
    {
-    "id": "gpio_esp",
-    "label": "ESP32 native GPIO",
+    "id": "esp32s3_gpio",
+    "label": "ESP32-S3 GPIO",
     "typeId": 64,
     "tags": [
      "gpio",
@@ -783,10 +783,10 @@ window.KIT = {
   "project": [
    {
     "id": 0,
-    "type": "gpio_esp",
+    "type": "esp32s3_gpio",
     "system": true,
-    "name": "ESP32 GPIO",
-    "typeLabel": "ESP32 native GPIO"
+    "name": "ESP32-S3 GPIO",
+    "typeLabel": "ESP32-S3 GPIO"
    },
    {
     "id": 1,
@@ -822,145 +822,145 @@ window.KIT = {
    {
     "value": "0:0",
     "label": "Pin 0",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:1",
     "label": "Pin 1",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:2",
     "label": "Pin 2",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:3",
     "label": "Pin 3",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:4",
     "label": "Pin 4",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:5",
     "label": "Pin 5",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:6",
     "label": "Pin 6",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:7",
     "label": "Pin 7",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:8",
     "label": "Pin 8",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:9",
     "label": "Pin 9",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:10",
     "label": "Pin 10",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:11",
     "label": "Pin 11",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:12",
     "label": "Pin 12",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:13",
     "label": "Pin 13",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:14",
     "label": "Pin 14",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:15",
     "label": "Pin 15",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:16",
     "label": "Pin 16",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:17",
     "label": "Pin 17",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:18",
     "label": "Pin 18",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:19",
     "label": "Pin 19",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:20",
     "label": "Pin 20",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:21",
     "label": "Pin 21",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:22",
     "label": "Pin 22",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
     "value": "0:23",
     "label": "Pin 23",
-    "group": "ESP32 GPIO",
+    "group": "ESP32-S3 GPIO",
     "hint": "input · input_pullup"
    },
    {
@@ -1252,7 +1252,7 @@ window.KIT = {
     "In Expander",
     "In IO pins: Level"
    ],
-   "command": "Device command 0x6301 (ESP32 GPIO)",
+   "command": "Device command 0x6301 (ESP32-S3 GPIO)",
    "chain": [
     {
      "name": "ERR_ROUTER_KEY",

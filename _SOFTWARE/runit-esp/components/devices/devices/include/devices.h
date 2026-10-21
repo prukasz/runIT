@@ -8,7 +8,7 @@
 #include "device_ap33772s.h"
 #include "device_dac53202.h"
 #include "device_drv8962.h"
-#include "device_gpio_esp.h"
+#include "device_esp32s3_gpio.h"
 #include "device_ina3221.h"
 #include "device_pca9685.h"
 #include "device_power_mux.h"

@@ -115,7 +115,7 @@ static err_h create_device(uint16_t id, uint16_t type, const void* cfg, uint32_t
 #if CONFIG_RUNIT_BOARD_DEVKIT
 
 err_h runit_board_devices_init(void) {
-  return create_device(DEVICE_ID_GPIO_ESP, SYS_DEVICE_TYPE_GPIO_ESP, NULL, 0);
+  return create_device(DEVICE_ID_ESP32S3_GPIO, SYS_DEVICE_TYPE_ESP32S3_GPIO, NULL, 0);
 }
 
 #else
@@ -145,12 +145,12 @@ static void drv8962_pins_none(drv8962_cfg_t* cfg) {
 
 err_h runit_board_devices_init(void) {
   // The base everything stands on: without the ESP pins and the expander nothing else can be created.
-  ERR_TRY(create_device(DEVICE_ID_GPIO_ESP, SYS_DEVICE_TYPE_GPIO_ESP, NULL, 0));
+  ERR_TRY(create_device(DEVICE_ID_ESP32S3_GPIO, SYS_DEVICE_TYPE_ESP32S3_GPIO, NULL, 0));
   const tca6424a_cfg_t tca = {
       .i2c_bus = SYS_I2C_BUS_0,
       .i2c_addr = RUNIT_BOARD_TCA_ADDR,
-      .intr_pin = BOARD_PIN(DEVICE_ID_GPIO_ESP, RUNIT_BOARD_TCA_INT_ESP_PIN),
-      .rst_pin = BOARD_PIN(DEVICE_ID_GPIO_ESP, RUNIT_BOARD_TCA_RST_ESP_PIN),
+      .intr_pin = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, RUNIT_BOARD_TCA_INT_ESP_PIN),
+      .rst_pin = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, RUNIT_BOARD_TCA_RST_ESP_PIN),
   };
   ERR_TRY(create_device(DEVICE_ID_TCA6424A, SYS_DEVICE_TYPE_TCA6424A, &tca, sizeof(tca)));
   // The LEDs (push-pull outputs, high = on). Pin 22 must be an output too: left as an input it floats and toggles
@@ -173,7 +173,7 @@ err_h runit_board_devices_init(void) {
   CREATE_CHIP(&first, "power mux DRV8962 #2", DEVICE_ID_SUPPLY_DRV8962_1, SYS_DEVICE_TYPE_POWER_MUX, mux_drv2);
 
   const ads7128_cfg_t ads = {.i2c_bus = SYS_I2C_BUS_0, .i2c_addr = 0x10,
-                             .intr_pin = BOARD_PIN(DEVICE_ID_GPIO_ESP, RUNIT_BOARD_ADS_ALERT_ESP_PIN),
+                             .intr_pin = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, RUNIT_BOARD_ADS_ALERT_ESP_PIN),
                              .full_scale_mV = RUNIT_BOARD_ADS_FULL_SCALE_MV};
   CREATE_CHIP(&first, "ADS7128", DEVICE_ID_ADS7128, SYS_DEVICE_TYPE_ADS7128, ads);
 
@@ -212,9 +212,9 @@ err_h runit_board_devices_init(void) {
   drv8962_pins_none(&drv1);
   static const uint8_t k_drv1_in[4] = {21, 47, 48, 45}, k_drv1_en[4] = {38, 39, 2, 1}, k_drv1_ipropi[4] = {7, 6, 5, 4};
   for (uint8_t i = 0; i < 4; i++) {
-    drv1.pin[DRV8962_PIN_IN1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_in[i]);
-    drv1.pin[DRV8962_PIN_EN1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_en[i]);
-    drv1.pin[DRV8962_PIN_IPROPI1 + i] = BOARD_PIN(DEVICE_ID_GPIO_ESP, k_drv1_ipropi[i]);
+    drv1.pin[DRV8962_PIN_IN1 + i] = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, k_drv1_in[i]);
+    drv1.pin[DRV8962_PIN_EN1 + i] = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, k_drv1_en[i]);
+    drv1.pin[DRV8962_PIN_IPROPI1 + i] = BOARD_PIN(DEVICE_ID_ESP32S3_GPIO, k_drv1_ipropi[i]);
   }
   drv1.pin[DRV8962_PIN_NSLEEP] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_NSLEEP);
   drv1.pin[DRV8962_PIN_NFAULT] = BOARD_PIN(DEVICE_ID_TCA6424A, RUNIT_BOARD_TCA_DRV1_NFAULT);

@@ -97,9 +97,9 @@ One recursive mutex covers the registry and every call into a device. It is need
 Per-device locks were considered and not taken: REMOVE during a call would need reference counts, and an inline event published inside an op may reach a higher ID (lock order). With short ops the single lock costs one I2C sequence of waiting.
 
 Rules (they keep the lock short and deadlock-free):
-- **A background task that an op may wait for publishes with `SYS_EVENT_DEFER` in the event's flags** (everything deferred to the event task), never inline: an inline listener run in that task could need the lock the waiting op holds. GPIO ESP's ADC task does this (MODE / RESET wait for it to rebuild the ADC channel set).
+- **A background task that an op may wait for publishes with `SYS_EVENT_DEFER` in the event's flags** (everything deferred to the event task), never inline: an inline listener run in that task could need the lock the waiting op holds. ESP32-S3 GPIO's ADC task does this (MODE / RESET wait for it to rebuild the ADC channel set).
 - **An op must not sleep or wait for anything but its own I/O.** A long sequence runs as steps: a timer calls `sys_device_call(id, OWN_OP)` for each step (TPS55289 rise). The bounded waits are a chip's start-up after a power pin (TPS55289 EN, 10 ms) and the power mux's break-before-make pause (1..100 ms, configured).
-- **A driver must not hold a lock of its own while it calls `sys_device_call` or `sys_event_publish`** (a listener may call back into it: GPIO ESP collects ADC events under `gpio_mutex` and publishes them after).
+- **A driver must not hold a lock of its own while it calls `sys_device_call` or `sys_event_publish`** (a listener may call back into it: ESP32-S3 GPIO collects ADC events under `gpio_mutex` and publishes them after).
 
 ## Adding a device
 

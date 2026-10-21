@@ -678,7 +678,7 @@ export const showAnswer = (command: CommandDef, side: Side, value: unknown, name
 
 /** The device contract's commands the view sends by itself (`contract_device.json`); `devices.test.ts` holds them against the catalog. */
 /** The types a project cannot add more of: the chip's own GPIO, which the board already has (board.json). */
-export const SINGLE_TYPES: ReadonlySet<string> = new Set(['gpio_esp'])
+export const SINGLE_TYPES: ReadonlySet<string> = new Set(['esp32s3_gpio'])
 
 export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME', policy: 'ERROR_POLICY' } as const
 

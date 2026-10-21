@@ -1,11 +1,11 @@
-#include "esp_adc_config.h"
+#include "esp32s3_gpio_adc.h"
 
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "esp_adc/adc_continuous.h"
 #include "esp_err.h"
 #include "errors.h"
-#include "gpio_esp_pin.h"
+#include "esp32s3_gpio_pin.h"
 #include "sys_event.h"
 #include "utils.h"
 
@@ -85,7 +85,7 @@ static uint16_t compute_active_channels_mask(void) {
   uint16_t mask = 0;
   if (U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER) == pdTRUE) {
     for (int i = 0; i < GPIO_NUM_MAX; i++) {
-      esp_pin_obj_t* pin_obj = pin_obj_get(i);
+      esp32s3_gpio_pin_t* pin_obj = pin_obj_get(i);
       if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
         adc_unit_t unit;
         adc_channel_t chan;
@@ -99,7 +99,7 @@ static uint16_t compute_active_channels_mask(void) {
   return mask;
 }
 
-esp_err_t esp_adc_update_active_channels(void) {
+esp_err_t esp32s3_gpio_adc_update_channels(void) {
   if (U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
   s_adc.channels_mask = compute_active_channels_mask();
 
@@ -114,7 +114,7 @@ esp_err_t esp_adc_update_active_channels(void) {
 }
 
 // Filters the new samples of one pin and converts them to mV (gpio_mutex held).
-static void process_adc_channel(uint32_t sum, uint16_t count, esp_pin_obj_t* pin_obj) {
+static void process_adc_channel(uint32_t sum, uint16_t count, esp32s3_gpio_pin_t* pin_obj) {
   if (count == 0) return;
 
   float coarse_raw = (float)sum / count;
@@ -139,7 +139,7 @@ static void process_adc_channel(uint32_t sum, uint16_t count, esp_pin_obj_t* pin
 /* Thresholds of an armed ADC pin (gpio_mutex held), on its latest reading. Fires once the condition has held for
  * event_counter_threshold readings in a row (0 counts as 1), then stays quiet until the reading is back past the
  * hysteresis. Returns true and fills *ev when an event is due: the caller posts it after releasing gpio_mutex. */
-static bool check_thresholds(esp_pin_obj_t* pin_obj, sys_event_t* ev) {
+static bool check_thresholds(esp32s3_gpio_pin_t* pin_obj, sys_event_t* ev) {
   pin_adc_data_t* adc_cfg = &pin_obj->hw.adc_cfg;
   const sys_io_intr_cfg_t* intr = &pin_obj->intr;
   if (intr->mode == SYS_IO_INTR_DISABLE) {
@@ -198,7 +198,7 @@ static bool check_thresholds(esp_pin_obj_t* pin_obj, sys_event_t* ev) {
   }
   adc_cfg->alert_active = true;
   adc_cfg->past_count = 0;
-  *ev = (sys_event_t){.source = gpio_esp_device_id, .event = event, .channel = pin_obj->io_num, .flags = flags,
+  *ev = (sys_event_t){.source = esp32s3_gpio_device_id, .event = event, .channel = pin_obj->io_num, .flags = flags,
                       .value = mV};
   return true;
 }
@@ -240,7 +240,7 @@ static void adc_processing_task_function(void* pvParameters) {
         uint8_t due_count = 0;
         if (U_MUTEX_LOCK(gpio_mutex, MSEC(5)) == pdTRUE) {
           for (int pin = 0; pin < GPIO_NUM_MAX; pin++) {
-            esp_pin_obj_t* pin_obj = pin_obj_get(pin);
+            esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
             if (pin_obj && pin_obj->pin_mode == SYS_IO_MODE_ADC) {
               adc_unit_t unit;
               adc_channel_t chan;
@@ -254,7 +254,7 @@ static void adc_processing_task_function(void* pvParameters) {
           }
           U_MUTEX_UNLOCK(gpio_mutex);
         }
-        /* SYS_EVENT_DEFER: SET_MODE / RESET wait for this task (esp_adc_update_active_channels) while
+        /* SYS_EVENT_DEFER: SET_MODE / RESET wait for this task (esp32s3_gpio_adc_update_channels) while
            holding the device lock, so a listener run here that needs the lock would deadlock. Nobody to
            return to: a failed publish (queue full) is reported. */
         for (uint8_t i = 0; i < due_count; i++) {
@@ -267,18 +267,18 @@ static void adc_processing_task_function(void* pvParameters) {
   }
 }
 
-esp_err_t esp_adc_start(void) {
+esp_err_t esp32s3_gpio_adc_start(void) {
   if (adc_processing_task == NULL) {
     U_TASK_START_ON_CORE(adc_processing_task, adc_processing_task_function, NULL, ADC_TASK_PRIORITY, 0);
   }
   return ESP_OK;
 }
 
-esp_err_t esp_adc_get_mV(uint8_t pin, int32_t* out_mV) {
+esp_err_t esp32s3_gpio_adc_get_mV(uint8_t pin, int32_t* out_mV) {
   if (out_mV == NULL || pin >= GPIO_NUM_MAX) return ESP_ERR_INVALID_ARG;
   esp_err_t err = ESP_OK;
   if (U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER) != pdTRUE) return ESP_FAIL;
-  esp_pin_obj_t* pin_obj = pin_obj_get(pin);
+  esp32s3_gpio_pin_t* pin_obj = pin_obj_get(pin);
   if (pin_obj == NULL || pin_obj->pin_mode != SYS_IO_MODE_ADC) {
     err = ESP_ERR_INVALID_ARG;
   } else {

@@ -64,7 +64,7 @@ INA_CH = {TPS_A_ID: 2, TPS_B_ID: 0}  # INA3221 channel of each rail (HARDWARE.md
 
 # Every onboard chip the firmware creates at boot, in its creation order (runit_board_cfg.c): (id, type, name)
 BOOT_CHIPS = [
-    (0, 0x40, "GPIO ESP"), (1, 0x42, "TCA6424A"), (7, 0x4A, "power mux #1"), (8, 0x4A, "power mux #2"), (2, 0x47, "ADS7128"),
+    (0, 0x40, "ESP32-S3 GPIO"), (1, 0x42, "TCA6424A"), (7, 0x4A, "power mux #1"), (8, 0x4A, "power mux #2"), (2, 0x47, "ADS7128"),
     (3, 0x41, "PCA9685"), (10, 0x43, "TPS55289 rail A"), (11, 0x43, "TPS55289 rail B"), (12, 0x44, "INA3221"),
     (13, 0x45, "AP33772S"), (4, 0x46, "DAC53202"), (5, 0x49, "DRV8962 #1"), (6, 0x49, "DRV8962 #2"),
 ]
@@ -210,7 +210,7 @@ def safe_reason(link: Link) -> int | None:
 
 def test_boot(link: Link) -> None:
     """What the firmware creates by itself: the ESP GPIO, the TCA6424A, and the status LED lit."""
-    for dev_id, type_id, name in ((GPIO_ID, GPIO_TYPE, "GPIO ESP"), (TCA_ID, TCA_TYPE, "TCA6424A")):
+    for dev_id, type_id, name in ((GPIO_ID, GPIO_TYPE, "ESP32-S3 GPIO"), (TCA_ID, TCA_TYPE, "TCA6424A")):
         r = dev(link, dev_id, OP_INFO)
         check(f"boot created {name} {dev_id}", r is not None and r.ok and r.data == struct.pack("<HB", type_id, 0), str(r))
     if exists(link, TCA_ID):
@@ -521,7 +521,7 @@ def test_drv1(link: Link) -> None:
     o = ops(link, DRV1_ID)
     check("OPS: the H-bridge ops and POWER_MONITOR CURRENT (IPROPI wired)", has_ops(o, {HB_DRIVE: SIDE_W, HB_CURRENT: SIDE_R, PMON_CURRENT: SIDE_R}), show_ops(o))
     mask = locked(link, GPIO_ID) or 0
-    check("GPIO ESP locks EN1-4 (38 39 2 1)", all(mask & (1 << p) for p in (38, 39, 2, 1)), hex(mask))
+    check("ESP32-S3 GPIO locks EN1-4 (38 39 2 1)", all(mask & (1 << p) for p in (38, 39, 2, 1)), hex(mask))
     en = tuple(level(link, GPIO_ID, p) for p in (38, 39, 2, 1))
     check("braked since boot (EN1-4 high)", en == (1, 1, 1, 1), str(en))
     for drive in (300, -300, 0):

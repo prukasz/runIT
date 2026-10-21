@@ -4,7 +4,7 @@ import { openBoard } from './harness'
 import type { Board } from './harness'
 
 /* The onboard devices and their ids (runit-esp/components/app/runit, RUNIT.MD "Boot"). */
-const ONBOARD: Record<number, string> = { 0: 'gpio_esp', 1: 'tca6424a', 2: 'ads7128', 3: 'pca9685', 4: 'dac53202', 5: 'drv8962', 6: 'drv8962', 7: 'power_mux', 8: 'power_mux', 10: 'tps55289', 11: 'tps55289', 12: 'ina3221', 13: 'ap33772s' }
+const ONBOARD: Record<number, string> = { 0: 'esp32s3_gpio', 1: 'tca6424a', 2: 'ads7128', 3: 'pca9685', 4: 'dac53202', 5: 'drv8962', 6: 'drv8962', 7: 'power_mux', 8: 'power_mux', 10: 'tps55289', 11: 'tps55289', 12: 'ina3221', 13: 'ap33772s' }
 const LED = 23 // TCA6424A pin 23: the status LED, lit once the boot got far enough
 
 const catalog = bundledServiceCatalog()
@@ -103,7 +103,7 @@ describe('devices', () => {
   })
 
   it('a second device with an id in use is refused, and nothing changes', async () => {
-    const error = await refused(board.services.create(0, 'gpio_esp'))
+    const error = await refused(board.services.create(0, 'esp32s3_gpio'))
     expect(error.record).toBeDefined()
     expect((await board.services.device(0, 'DEVICE', 'INFO')).value).toMatchObject({ type_id: 64 })
   })

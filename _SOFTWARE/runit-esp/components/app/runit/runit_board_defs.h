@@ -5,7 +5,7 @@
 /* Device IDs of the onboard chips, created at boot by runit_board_devices_init (runit_board_cfg.c). Published for the app
  * (board/generate-board.py): the name each one is shown by, and its type from the create call. */
 //#ref-defines board_device @alias Board devices @prefix DEVICE_ID_
-#define DEVICE_ID_GPIO_ESP         0u  //@alias ESP32 GPIO @description the ESP32-S3's own pins
+#define DEVICE_ID_ESP32S3_GPIO     0u  //@alias ESP32-S3 GPIO @description the ESP32-S3's own pins
 #define DEVICE_ID_TCA6424A         1u  //@alias GPIO expander @description TCA6424A, 24 pins (LEDs, interrupts, enables)
 #define DEVICE_ID_ADS7128          2u  //@alias ADC @description ADS7128, 8 inputs scaled to 20 V
 #define DEVICE_ID_PCA9685          3u  //@alias PWM expander @description PCA9685 (servo headers CH 0..7, DRV8962 #2 on CH 8..15)

@@ -473,7 +473,7 @@
         "default_mode": {
           "type": "string",
           "enum": ["input", "input_pullup", "input_pulldown", "output", "output_od", "pwm", "adc", "dac"],
-          "description": "Tryb, w którym piny są zaraz po resecie układu, bez SET_MODE (TCA6424A: input, ADS7128: adc). Bez tego pola pin nie ma trybu, dopóki SET_MODE go nie ustawi (GPIO ESP). Aplikacja z tego wie, w jakim stanie jest pin i które polecenia dla niego oferować."
+          "description": "Tryb, w którym piny są zaraz po resecie układu, bez SET_MODE (TCA6424A: input, ADS7128: adc). Bez tego pola pin nie ma trybu, dopóki SET_MODE go nie ustawi (ESP32-S3 GPIO). Aplikacja z tego wie, w jakim stanie jest pin i które polecenia dla niego oferować."
         },
         "fixed_modes": {
           "type": "boolean",

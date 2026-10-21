@@ -4,14 +4,14 @@
 
 #include "esp_err.h"
 
-esp_err_t esp_adc_start(void);
+esp_err_t esp32s3_gpio_adc_start(void);
 
 /**
  * @brief Dynamically changes active channels
  *
  * @return ESP_OK on success, or an error code on failure of driver
  */
-esp_err_t esp_adc_update_active_channels(void);
+esp_err_t esp32s3_gpio_adc_update_channels(void);
 
 /**
  * @brief Get voltage from cached values of active pin
@@ -19,4 +19,4 @@ esp_err_t esp_adc_update_active_channels(void);
  * @param out_mV Pointer to result
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG if pin uninitialized.
  */
-esp_err_t esp_adc_get_mV(uint8_t pin, int32_t* out_mV);
+esp_err_t esp32s3_gpio_adc_get_mV(uint8_t pin, int32_t* out_mV);

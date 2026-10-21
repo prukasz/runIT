@@ -95,7 +95,7 @@ Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23
 
 ### Contract ops per device (from generated catalog)
 
-- **GPIO ESP / TCA6424A** — set mode, release, write level, toggle, read, edge interrupt; ESP also ADC read.
+- **ESP32-S3 GPIO / TCA6424A** — set mode, release, write level, toggle, read, edge interrupt; ESP also ADC read.
 - **ADS7128** — read channel (mV), configure window comparator alert, reset channel. ADC-only in firmware.
 - **PCA9685** — set duty (clamped to 4095), set frequency (shared), level → off/full duty, turn off.
 - **DAC53202** — set voltage, read back last voltage, power off channel.

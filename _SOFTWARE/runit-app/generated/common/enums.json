@@ -106,9 +106,9 @@
       "source_file": "runit-esp/components/app/runit/runit_board_defs.h",
       "members": [
         {
-          "name": "DEVICE_ID_GPIO_ESP",
+          "name": "DEVICE_ID_ESP32S3_GPIO",
           "value": 0,
-          "alias": "ESP32 GPIO",
+          "alias": "ESP32-S3 GPIO",
           "description": "the ESP32-S3's own pins"
         },
         {
@@ -2108,7 +2108,7 @@
     "DEVICE_ID_DAC53202": "board_device",
     "DEVICE_ID_DRV8962_0": "board_device",
     "DEVICE_ID_DRV8962_1": "board_device",
-    "DEVICE_ID_GPIO_ESP": "board_device",
+    "DEVICE_ID_ESP32S3_GPIO": "board_device",
     "DEVICE_ID_INA3221": "board_device",
     "DEVICE_ID_PCA9685": "board_device",
     "DEVICE_ID_SUPPLY_DRV8962_0": "board_device",

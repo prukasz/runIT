@@ -66,11 +66,11 @@
   "devices": [
     {
       "id": 0,
-      "symbol": "DEVICE_ID_GPIO_ESP",
-      "name": "ESP32 GPIO",
-      "alias": "ESP32 GPIO",
-      "type": "SYS_DEVICE_TYPE_GPIO_ESP",
-      "descriptor": "device_gpio_esp",
+      "symbol": "DEVICE_ID_ESP32S3_GPIO",
+      "name": "ESP32-S3 GPIO",
+      "alias": "ESP32-S3 GPIO",
+      "type": "SYS_DEVICE_TYPE_ESP32S3_GPIO",
+      "descriptor": "device_esp32s3_gpio",
       "description": "The ESP32-S3's own pins",
       "role": "mcu_gpio"
     }

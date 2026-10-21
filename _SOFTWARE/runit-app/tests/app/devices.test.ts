@@ -46,7 +46,7 @@ describe('the devices of the view', () => {
   it('names a pin #n, the descriptor\'s name only a hint', () => {
     expect(pinNumber(22)).toBe('#22')
     expect(pinHint({ type: catalog.devices.get('tca6424a') }, 22)).toBe('P26')
-    expect(pinHint({ type: catalog.devices.get('gpio_esp') }, 21)).toBeUndefined()
+    expect(pinHint({ type: catalog.devices.get('esp32s3_gpio') }, 21)).toBeUndefined()
   })
 
   it("a pin the user named is called by that name in a command and in a pin reference", () => {
@@ -169,14 +169,14 @@ describe('the devices of the view', () => {
   })
 
   it('the pins the board keeps (I2C, strapping, the expander lines) are reserved; the others are not', () => {
-    const esp = board.devices.find((d) => d.descriptor === 'device_gpio_esp')!.id
+    const esp = board.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!.id
     for (const pin of [15, 16, 40, 41]) expect(isReserved(board, esp, pin), `pin ${pin}`).toBe(true)
     expect(isReserved(board, esp, 3)).toBe(false)
   })
 
   const interrupt = (mode: number, debounce: boolean) => ({ mode, debounce, upMv: 0, downMv: 0, hysteresisMv: 0, count: 0 })
   it("a user pin's start settings round trip through the start commands; an interrupt of mode 0 and an unset mode have no step", () => {
-    const esp = board.devices.find((d) => d.descriptor === 'device_gpio_esp')!.id
+    const esp = board.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!.id
     const modes = bundledEnums().sys_io_mode_e!.members
     const intr = bundledEnums().sys_io_intr_mode_e!.members
     const rising = intr.find((m) => m.name === 'SYS_IO_INTR_MODE_RISING_EDGE')!.value
@@ -199,7 +199,7 @@ describe('the devices of the view', () => {
   })
 
   it('a start command of an edge interrupt shows its mode, not the window fields an ADC window takes', () => {
-    const esp = board.devices.find((d) => d.descriptor === 'device_gpio_esp')!.id
+    const esp = board.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!.id
     const rising = bundledEnums().sys_io_intr_mode_e!.members.find((m) => m.name === 'SYS_IO_INTR_MODE_RISING_EDGE')!.value
     const [step] = withPinStart([], esp, 5, { interrupt: interrupt(rising, true) })
     expect(describeStep(catalog, step!, () => undefined, pinNamer([])).args).not.toMatch(/threshold|Hysteresis/)
@@ -222,7 +222,7 @@ describe('the devices of the view', () => {
 })
 
 describe('the pins a command is offered', () => {
-  const gpio = deviceList(emptyProject('x'), catalog, board).find((d) => d.type?.id === 'gpio_esp')!
+  const gpio = deviceList(emptyProject('x'), catalog, board).find((d) => d.type?.id === 'esp32s3_gpio')!
   const withStart = (steps: ProjectFile['devices'][number]['defaults']): typeof gpio => ({ ...gpio, defaults: steps ?? [] })
   const mode = (name: string) => bundledEnums().sys_io_mode_e!.members.find((m) => m.name === name)!.value
   const io = (command: string, args: Record<string, number>) => ({ kind: 'device' as const, device: gpio.id, contract: 'IO', command, args })
@@ -311,7 +311,7 @@ describe('a MODE write with nothing to choose', () => {
     const ioCommands = (type: string) => commandGroups(catalog, catalog.devices.get(type)).find((g) => g.entry.id === 'IO')?.commands.map((c) => c.command.id) ?? []
     expect(ioCommands('ads7128')).not.toContain('MODE')
     expect(ioCommands('ads7128')).toContain('VOLTAGE')
-    expect(ioCommands('gpio_esp')).toContain('MODE')
+    expect(ioCommands('esp32s3_gpio')).toContain('MODE')
   })
 })
 
@@ -321,7 +321,7 @@ describe('IO commands a device\'s pins can never take', () => {
     const catalog = bundledServiceCatalog()
     const io = (type: string) => commandGroups(catalog, catalog.devices.get(type)).find((g) => g.entry.id === 'IO')?.commands.map(sideLabel) ?? []
     expect(io('ads7128')).toEqual(['Reset pin', 'Interrupt', 'Voltage: read'])
-    expect(io('gpio_esp')).toEqual(expect.arrayContaining(['Level: write', 'PWM duty', 'Mode']))
+    expect(io('esp32s3_gpio')).toEqual(expect.arrayContaining(['Level: write', 'PWM duty', 'Mode']))
     expect(io('dac53202')).toEqual(['Reset pin', 'Voltage: read', 'Voltage: write'])
   })
 })

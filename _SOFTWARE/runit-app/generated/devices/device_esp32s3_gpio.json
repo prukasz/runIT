@@ -1,13 +1,13 @@
 {
-  "$schema": "../../../../templates/device.schema.json",
+  "$schema": "../../../templates/device.schema.json",
   "schemaVersion": 3,
   "kind": "device-definition",
-  "id": "gpio_esp",
-  "alias": "ESP32 native GPIO",
+  "id": "esp32s3_gpio",
+  "alias": "ESP32-S3 GPIO",
   "description": "ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.",
   "type_id": 64,
   "type": {
-    "symbol": "SYS_DEVICE_TYPE_GPIO_ESP",
+    "symbol": "SYS_DEVICE_TYPE_ESP32S3_GPIO",
     "id": 64
   },
   "protocols": [
@@ -22,7 +22,7 @@
   ],
   "datasheet": "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
   "config": {
-    "struct": "gpio_esp_cfg_t",
+    "struct": "esp32s3_gpio_cfg_t",
     "size": 0,
     "fields": []
   },

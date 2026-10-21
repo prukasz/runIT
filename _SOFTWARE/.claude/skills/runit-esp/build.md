@@ -61,7 +61,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_gpio_esp`.
+Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 
@@ -125,7 +125,7 @@ python router_tests.py --port socket://localhost:5555 --target qemu
 
 Expected under QEMU: I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` (no devices / pull-ups), a GPIO `LEVEL` read back fails (no GPIO readback).
 
-**QEMU hangs at boot because `esp_adc` is linked** (device_gpio_esp's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached; it returns early from that constructor on every boot (so the RESTART test works too):
+**QEMU hangs at boot because `esp_adc` is linked** (device_esp32s3_gpio's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached; it returns early from that constructor on every boot (so the RESTART test works too):
 
 ```powershell
 xtensa-esp32s3-elf-gdb -batch -x qemu_skip_adc_cal.gdb ..\..\..\..\runit-esp\build_qemu\runIT.elf   # C:\Espressif\tools\xtensa-esp-elf-gdb\<ver>\xtensa-esp-elf-gdb\bin

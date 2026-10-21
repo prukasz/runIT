@@ -8,9 +8,9 @@ extern "C" {
 #endif
 
 /**
- * @brief ESP32 native GPIO configuration struct (singleton, takes no configuration).
+ * @brief ESP32-S3 GPIO configuration struct (singleton, takes no configuration).
  */
-typedef sys_device_none_t gpio_esp_cfg_t;
+typedef sys_device_none_t esp32s3_gpio_cfg_t;
 
 #ifdef __cplusplus
 }

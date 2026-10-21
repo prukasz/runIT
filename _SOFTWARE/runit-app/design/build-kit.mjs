@@ -42,7 +42,7 @@ try {
     }
   })
   const projectDevices = [
-    { id: 0, type: 'gpio_esp', system: true },
+    { id: 0, type: 'esp32s3_gpio', system: true },
     { id: 1, type: 'tca6424a', system: true },
     { id: 3, type: 'pca9685', system: true },
     { id: 4, type: 'dac53202', system: true, suspended: true },

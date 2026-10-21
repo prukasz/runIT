@@ -14,13 +14,13 @@ typedef struct {
   uint16_t past_count;    /* consecutive readings meeting the condition (event_counter_threshold) */
 } pin_adc_data_t;
 
-// PWM-specific storage (esp_pwm.h). Duty is on the contract scale
+// PWM-specific storage (esp32s3_gpio_pwm.h). Duty is on the contract scale
 // (0..IO_PWM_DUTY_MAX), whatever resolution the pin's timer runs at.
 typedef struct {
   uint32_t frequency_Hz; /* of the pin's timer; 0 until one is bound */
   uint16_t duty;         /* applied */
   uint8_t channel;       /* LEDC channel, reserved by set_mode */
-  uint8_t timer;         /* LEDC timer, ESP_PWM_TIMER_NONE until the first frequency or duty */
+  uint8_t timer;         /* LEDC timer, ESP32S3_GPIO_PWM_TIMER_NONE until the first frequency or duty */
   uint16_t saved_duty;   /* duty to bring back after a suspend */
 } pin_pwm_data_t;
 
@@ -37,17 +37,17 @@ typedef struct {
   bool saved_level;  /* output level to bring back after a suspend */
   sys_io_intr_cfg_t intr;  /* CONFIGURE_INTR: edges (ISR) on a digital pin, thresholds (ADC task) on an ADC pin */
   int64_t last_isr_us;     /* last accepted edge, for debounce */
-} esp_pin_obj_t;
+} esp32s3_gpio_pin_t;
 
 // Static pin pool: one slot per GPIO, indexed by pin number. `configured_pins` is
 // the source of truth for "is this slot live". Hold gpio_mutex around any
 // read/write of pin_pool[] or configured_pins: the ADC task reads them too.
-extern esp_pin_obj_t pin_pool[GPIO_NUM_MAX];
+extern esp32s3_gpio_pin_t pin_pool[GPIO_NUM_MAX];
 extern uint64_t configured_pins;
 extern SemaphoreHandle_t gpio_mutex;
-extern uint16_t gpio_esp_device_id;  // source of the pin events: the ISR and the ADC task have no struct
+extern uint16_t esp32s3_gpio_device_id;  // source of the pin events: the ISR and the ADC task have no struct
 
 // The pin's object if configured, else NULL. Caller holds gpio_mutex.
-static inline esp_pin_obj_t* pin_obj_get(uint8_t pin) {
+static inline esp32s3_gpio_pin_t* pin_obj_get(uint8_t pin) {
   return (pin < GPIO_NUM_MAX && (configured_pins & (1ULL << pin))) ? &pin_pool[pin] : NULL;
 }

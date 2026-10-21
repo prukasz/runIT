@@ -1,6 +1,6 @@
-menu "Device: ESP32 native GPIO"
+menu "Device: ESP32-S3 GPIO"
 
-    config DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ
+    config DEVICE_ESP32S3_GPIO_PWM_DEFAULT_FREQ_HZ
         int "PWM frequency before one is set (Hz)"
         range 5 5000000
         default 1000
@@ -9,7 +9,7 @@ menu "Device: ESP32 native GPIO"
             frequency. Pins share LEDC timers by frequency, so pins left at this
             default use one timer between them.
 
-    config DEVICE_GPIO_ESP_PWM_TIMER_MASK
+    config DEVICE_ESP32S3_GPIO_PWM_TIMER_MASK
         hex "LEDC timers PWM pins may use (bit per timer)"
         range 0x1 0xF
         default 0xF
@@ -21,7 +21,7 @@ menu "Device: ESP32 native GPIO"
             once. Other LEDC users must use the APB clock too: on the ESP32-S3
             every LEDC timer shares one clock source.
 
-    config DEVICE_GPIO_ESP_PWM_CHANNEL_MASK
+    config DEVICE_ESP32S3_GPIO_PWM_CHANNEL_MASK
         hex "LEDC channels PWM pins may use (bit per channel)"
         range 0x1 0xFF
         default 0xFF
@@ -31,7 +31,7 @@ menu "Device: ESP32 native GPIO"
             of pins that can run PWM at once. Clear the bits of channels another
             LEDC user needs.
 
-    config DEVICE_GPIO_ESP_DEBOUNCE_MS
+    config DEVICE_ESP32S3_GPIO_DEBOUNCE_MS
         int "Debounce time of pin interrupts (ms)"
         range 1 1000
         default 50

@@ -39,7 +39,7 @@ How the macros work:
 | 7 | `U_RINGBUFFER_DEFINE` doesn't check that the size is 4-aligned | `_Static_assert((buffer_size) % 4 == 0, ...)` |
 | 8 | `U_QUEUE_SEND_ISR` ignores a full queue | Return the send result |
 
-Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`) and `esp_adc_config.c` (`U_TASK_DEFINE(adc_processing_task, 4096)`) hard-code their stack sizes: move them to Kconfig.
+Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`) and `esp32s3_gpio_adc.c` (`U_TASK_DEFINE(adc_processing_task, 4096)`) hard-code their stack sizes: move them to Kconfig.
 
 ## 2. Constants and configuration
 
@@ -101,7 +101,6 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
 
 | Area | Deviation | Should be |
 |---|---|---|
-| `device_gpio_esp` | `esp_pwm.c` / `esp_adc_config.c` use the `esp_*` prefix (the IDF namespace) | `gpio_esp_*` |
 | `vm_core` | `vm_internal_*` helpers declared in public headers (`vm_obj_access.h` macros use them) | a private header or a module prefix |
 | Function-pointer typedefs | `vm_block_fn`, `vm_block_verify_fn`, `runit_boot_step_fn` | `vm_block_f`, `vm_block_verify_f`, `runit_boot_step_f` |
 

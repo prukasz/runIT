@@ -52,7 +52,7 @@ typedef struct __attribute__((packed)) {  // 18 B
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
 
-Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `SYS_DEVICE_EV_*` are made here, where the flag values are).
+Publishers: ESP32-S3 GPIO (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; the table is `SYS_DEVICE_EVENTS` in `sys_device.h`, its IDs `SYS_DEVICE_EV_*` are made here, where the flag values are).
 
 ## Publishing
 
@@ -63,7 +63,7 @@ Publishers: GPIO ESP (IO edges from its ISR, ADC events from its ADC task), TCA6
 3. Inline listeners, table order.
 4. One copy queued if a queued listener matches (`ERR_EVENT_QUEUE_FULL` otherwise).
 
-**`SYS_EVENT_DEFER`** (flag 0x02, set by the publisher) defers everything the same way, from a task: for background tasks an op may wait for (GPIO ESP's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller.
+**`SYS_EVENT_DEFER`** (flag 0x02, set by the publisher) defers everything the same way, from a task: for background tasks an op may wait for (ESP32-S3 GPIO's ADC task), so no listener ever runs in them (SYS_DEVICE.MD "Concurrency"). Queue full → `ERR_EVENT_QUEUE_FULL` to the caller.
 
 **From an ISR** everything is deferred: the event is queued and the task does notify, inline, then queued. An ISR never gets an error; a drop is counted and reported by the task (`ERR_EVENT_QUEUE_FULL {source 0xFFFF, dropped n}`).
 

@@ -1,11 +1,11 @@
-#include "esp_pwm.h"
+#include "esp32s3_gpio_pwm.h"
 #include "driver/ledc.h"
 #include "sdkconfig.h"
 
 #define PWM_MODE LEDC_LOW_SPEED_MODE
 
-_Static_assert((CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK >> SOC_LEDC_TIMER_NUM) == 0, "PWM timer mask names a timer this chip doesn't have");
-_Static_assert((CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK >> SOC_LEDC_CHANNEL_NUM) == 0, "PWM channel mask names a channel this chip doesn't have");
+_Static_assert((CONFIG_DEVICE_ESP32S3_GPIO_PWM_TIMER_MASK >> SOC_LEDC_TIMER_NUM) == 0, "PWM timer mask names a timer this chip doesn't have");
+_Static_assert((CONFIG_DEVICE_ESP32S3_GPIO_PWM_CHANNEL_MASK >> SOC_LEDC_CHANNEL_NUM) == 0, "PWM channel mask names a channel this chip doesn't have");
 
 static struct {
   struct {
@@ -19,21 +19,21 @@ static struct {
 /* Finest resolution the clock gives at this frequency (divider >= 1). */
 static uint8_t resolution_bits(uint32_t frequency_Hz) {
   uint8_t bits = 0;
-  while (bits < SOC_LEDC_TIMER_BIT_WIDTH && ((uint64_t)frequency_Hz << (bits + 1)) <= ESP_PWM_SRC_CLK_HZ) bits++;
+  while (bits < SOC_LEDC_TIMER_BIT_WIDTH && ((uint64_t)frequency_Hz << (bits + 1)) <= ESP32S3_GPIO_PWM_SRC_CLK_HZ) bits++;
   return bits;
 }
 
-/* Device duty -> timer counts; ESP_PWM_DUTY_FULL gives 2^bits (always on). */
+/* Device duty -> timer counts; ESP32S3_GPIO_PWM_DUTY_FULL gives 2^bits (always on). */
 static uint32_t hw_duty(uint16_t duty, uint8_t bits) {
-  return (uint32_t)((((uint64_t)duty << bits) + ESP_PWM_DUTY_FULL / 2) / ESP_PWM_DUTY_FULL);
+  return (uint32_t)((((uint64_t)duty << bits) + ESP32S3_GPIO_PWM_DUTY_FULL / 2) / ESP32S3_GPIO_PWM_DUTY_FULL);
 }
 
 static uint8_t find_timer(bool in_use, uint32_t frequency_Hz) {
   for (uint8_t t = 0; t < SOC_LEDC_TIMER_NUM; t++) {
-    if (!(CONFIG_DEVICE_GPIO_ESP_PWM_TIMER_MASK & (1u << t))) continue;  // kept for another LEDC user
+    if (!(CONFIG_DEVICE_ESP32S3_GPIO_PWM_TIMER_MASK & (1u << t))) continue;  // kept for another LEDC user
     if (in_use ? (s_pwm.timer[t].users && s_pwm.timer[t].frequency_Hz == frequency_Hz) : !s_pwm.timer[t].users) return t;
   }
-  return ESP_PWM_TIMER_NONE;
+  return ESP32S3_GPIO_PWM_TIMER_NONE;
 }
 
 /* (Re)configure timer t at frequency_Hz; its users are left to the caller. */
@@ -71,9 +71,9 @@ static esp_err_t timer_drop(uint8_t t) {
 /* Route the pin's channel to timer t at the pin's duty. The first bind configures
    the channel (and takes the pin); a move only switches the timer, since
    configuring again would re-reserve a pin LEDC already holds. */
-static esp_err_t channel_bind(const esp_pin_obj_t* pin, uint8_t t) {
+static esp_err_t channel_bind(const esp32s3_gpio_pin_t* pin, uint8_t t) {
   const pin_pwm_data_t* p = &pin->hw.pwm_cfg;
-  if (p->timer != ESP_PWM_TIMER_NONE) {
+  if (p->timer != ESP32S3_GPIO_PWM_TIMER_NONE) {
     esp_err_t err = ledc_bind_channel_timer(PWM_MODE, (ledc_channel_t)p->channel, (ledc_timer_t)t);
     if (err == ESP_OK) err = ledc_set_duty(PWM_MODE, (ledc_channel_t)p->channel, hw_duty(p->duty, s_pwm.timer[t].bits));
     return err != ESP_OK ? err : ledc_update_duty(PWM_MODE, (ledc_channel_t)p->channel);
@@ -89,29 +89,29 @@ static esp_err_t channel_bind(const esp_pin_obj_t* pin, uint8_t t) {
   return ledc_channel_config(&cfg);
 }
 
-static esp_err_t channel_write_duty(const esp_pin_obj_t* pin) {
+static esp_err_t channel_write_duty(const esp32s3_gpio_pin_t* pin) {
   const pin_pwm_data_t* p = &pin->hw.pwm_cfg;
   esp_err_t err = ledc_set_duty(PWM_MODE, (ledc_channel_t)p->channel, hw_duty(p->duty, s_pwm.timer[p->timer].bits));
   return err != ESP_OK ? err : ledc_update_duty(PWM_MODE, (ledc_channel_t)p->channel);
 }
 
-esp_err_t esp_pwm_claim(esp_pin_obj_t* pin) {
+esp_err_t esp32s3_gpio_pwm_claim(esp32s3_gpio_pin_t* pin) {
   for (uint8_t c = 0; c < SOC_LEDC_CHANNEL_NUM; c++) {
-    if (!(CONFIG_DEVICE_GPIO_ESP_PWM_CHANNEL_MASK & (1u << c)) || (s_pwm.channels_used & (1u << c))) continue;
+    if (!(CONFIG_DEVICE_ESP32S3_GPIO_PWM_CHANNEL_MASK & (1u << c)) || (s_pwm.channels_used & (1u << c))) continue;
     s_pwm.channels_used |= 1u << c;
-    pin->hw.pwm_cfg = (pin_pwm_data_t){.channel = c, .timer = ESP_PWM_TIMER_NONE};
+    pin->hw.pwm_cfg = (pin_pwm_data_t){.channel = c, .timer = ESP32S3_GPIO_PWM_TIMER_NONE};
     return ESP_OK;
   }
   return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t esp_pwm_set_frequency(esp_pin_obj_t* pin, uint32_t frequency_Hz) {
+esp_err_t esp32s3_gpio_pwm_set_frequency(esp32s3_gpio_pin_t* pin, uint32_t frequency_Hz) {
   pin_pwm_data_t* p = &pin->hw.pwm_cfg;
   uint8_t own = p->timer;
-  if (own != ESP_PWM_TIMER_NONE && s_pwm.timer[own].frequency_Hz == frequency_Hz) return ESP_OK;
+  if (own != ESP32S3_GPIO_PWM_TIMER_NONE && s_pwm.timer[own].frequency_Hz == frequency_Hz) return ESP_OK;
 
   uint8_t target = find_timer(true, frequency_Hz);
-  if (target == ESP_PWM_TIMER_NONE && own != ESP_PWM_TIMER_NONE && s_pwm.timer[own].users == 1) {
+  if (target == ESP32S3_GPIO_PWM_TIMER_NONE && own != ESP32S3_GPIO_PWM_TIMER_NONE && s_pwm.timer[own].users == 1) {
     // No other pin on this timer: retune it in place, then rescale the duty to the new resolution.
     esp_err_t err = timer_start(own, frequency_Hz);
     if (err != ESP_OK) return err;
@@ -119,10 +119,10 @@ esp_err_t esp_pwm_set_frequency(esp_pin_obj_t* pin, uint32_t frequency_Hz) {
     return channel_write_duty(pin);
   }
 
-  bool fresh = target == ESP_PWM_TIMER_NONE;
+  bool fresh = target == ESP32S3_GPIO_PWM_TIMER_NONE;
   if (fresh) {
     target = find_timer(false, 0);
-    if (target == ESP_PWM_TIMER_NONE) return ESP_ERR_NOT_FOUND;
+    if (target == ESP32S3_GPIO_PWM_TIMER_NONE) return ESP_ERR_NOT_FOUND;
     esp_err_t err = timer_start(target, frequency_Hz);
     if (err != ESP_OK) return err;
   }
@@ -134,24 +134,24 @@ esp_err_t esp_pwm_set_frequency(esp_pin_obj_t* pin, uint32_t frequency_Hz) {
   s_pwm.timer[target].users++;
   p->timer = target;
   p->frequency_Hz = frequency_Hz;
-  return own != ESP_PWM_TIMER_NONE ? timer_drop(own) : ESP_OK;
+  return own != ESP32S3_GPIO_PWM_TIMER_NONE ? timer_drop(own) : ESP_OK;
 }
 
-esp_err_t esp_pwm_set_duty(esp_pin_obj_t* pin, uint32_t duty) {
+esp_err_t esp32s3_gpio_pwm_set_duty(esp32s3_gpio_pin_t* pin, uint32_t duty) {
   pin_pwm_data_t* p = &pin->hw.pwm_cfg;
   uint16_t previous = p->duty;
   p->duty = (uint16_t)duty;
-  if (p->timer != ESP_PWM_TIMER_NONE) return channel_write_duty(pin);
+  if (p->timer != ESP32S3_GPIO_PWM_TIMER_NONE) return channel_write_duty(pin);
   // First write without a frequency: bind at the default one (the bind applies the duty).
-  esp_err_t err = esp_pwm_set_frequency(pin, CONFIG_DEVICE_GPIO_ESP_PWM_DEFAULT_FREQ_HZ);
+  esp_err_t err = esp32s3_gpio_pwm_set_frequency(pin, CONFIG_DEVICE_ESP32S3_GPIO_PWM_DEFAULT_FREQ_HZ);
   if (err != ESP_OK) p->duty = previous;
   return err;
 }
 
-esp_err_t esp_pwm_release(esp_pin_obj_t* pin) {
+esp_err_t esp32s3_gpio_pwm_release(esp32s3_gpio_pin_t* pin) {
   pin_pwm_data_t* p = &pin->hw.pwm_cfg;
   esp_err_t first = ESP_OK;
-  if (p->timer != ESP_PWM_TIMER_NONE) {
+  if (p->timer != ESP32S3_GPIO_PWM_TIMER_NONE) {
     esp_err_t err = ledc_stop(PWM_MODE, (ledc_channel_t)p->channel, 0);
     if (first == ESP_OK) first = err;
     ledc_channel_config_t cfg = {.speed_mode = PWM_MODE, .channel = (ledc_channel_t)p->channel, .deconfigure = true};
@@ -159,7 +159,7 @@ esp_err_t esp_pwm_release(esp_pin_obj_t* pin) {
     if (first == ESP_OK) first = err;
     err = timer_drop(p->timer);
     if (first == ESP_OK) first = err;
-    p->timer = ESP_PWM_TIMER_NONE;
+    p->timer = ESP32S3_GPIO_PWM_TIMER_NONE;
   }
   s_pwm.channels_used &= ~(1u << p->channel);
   return first;

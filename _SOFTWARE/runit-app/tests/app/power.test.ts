@@ -62,7 +62,7 @@ describe('a devkit board (board_devkit.json)', () => {
     const { deviceList } = await import('../../src/app/devices/devices')
     const { emptyProject } = await import('../../src/app/project/projectFile')
     const board = bundledBoard('devkit')
-    expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_gpio_esp']])
+    expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_esp32s3_gpio']])
     expect(board.pinSetup).toEqual([])
     expect(board.power).toEqual({ rails: [] })
     expect(defaultReadings(board).map((r) => [r.read.command, r.field])).toEqual([['STATUS', 'source'], ['STATUS', 'input_mV']])

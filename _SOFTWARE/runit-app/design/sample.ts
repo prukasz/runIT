@@ -40,7 +40,7 @@ export const brokenVariables: Variable[] = [
 
 /** The devices of the kit's project by id: the names the user gave them (the errors and pills show these). */
 export const sampleDevices = new Map<number, string>([
-  [0, 'ESP32 GPIO'],
+  [0, 'ESP32-S3 GPIO'],
   [1, 'Expander'],
   [3, 'Servo driver'],
   [4, 'Analog out'],
