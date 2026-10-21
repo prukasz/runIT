@@ -9,10 +9,9 @@
  * Logic Flow:
  *   1. Permission validation (vm_internal_obj_writable)
  *   2. Read & index conversion (vm_get_as_*, payload_as_index)
- *   3. Accessor resolution walk (vm_internal_acc_resolve_deep, vm_internal_obj_resolve)
- *   4. Store conversion & dynamic slot management (boxed_ptr, vm_internal_store_converted, slot_store)
+ *   3. Accessor walk (vm_acc_walk, vm_acc_walk_fresh): the accessors without a cached payload
+ *   4. Dynamic slot management (slot_store)
  *   5. Tree comparison, copy, clone, and link engines (copy_values, copy_tree, vm_internal_shape_matches, vm_internal_obj_copy_content, vm_internal_obj_copy_direct, vm_internal_clone_shape, vm_internal_obj_clone_into, vm_internal_obj_link)
- *   6. Internal scalar setter (vm_internal_obj_set_scalar_at)
  */
 
 // ===========================================================================
@@ -152,22 +151,10 @@ static MUST_USE err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, const 
 // 3. Accessor Resolution Walk
 // ===========================================================================
 
-/* Everything vm_acc_resolve_fast() misses funnels through vm_internal_acc_resolve_deep(), which walks
-   an accessor's index chain and returns both the payload and its owner object
-   -- only the walk itself has both in hand at once. */
-
-// Resolution walks the accessor and returns the payload with its owner;
-// mutability/permission gating is handled at the mutating operations.
-err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out) {
+/* The accessors vm_acc_resolve() cannot take from their cache: a walk of the index chain, returning the payload and its
+   owner object (only the walk has both in hand at once). Permissions are checked by the operations that write. */
+err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out) {
   ERR_CHECK(acc != NULL, ERR_VM_BAD_ARG);
-  if (acc->flags & VM_ACC_F_CACHED) {
-    if (!acc->c_payload.owner) return vm_err_null_obj(acc->id, acc->count, VM_ID_NONE);
-    if (!acc->c_payload.ptr || !acc->c_payload.count) return ERR_NEW(ERR_VM_OBJ_EMPTY, .type = acc->c_payload.type);
-    if (!vm_type_ok(acc->c_payload.type)) return ERR_NEW(ERR_VM_OBJ_BAD_TYPE, .type = acc->c_payload.type);
-  }
-  if (acc->count) ERR_CHECK(acc->indices != NULL, ERR_VM_BAD_ARG);
-  *out = (vm_obj_payload_t){.ptr = NULL, .owner = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
-
   if (unlikely(depth >= CONFIG_VM_ACCESSOR_MAX_DEPTH)) return vm_err_depth(acc->id);
 
   vm_obj_h obj = vm_obj_get_by_id(acc->id);
@@ -179,16 +166,14 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
     uint32_t index = UINT32_MAX;
     switch (idx->kind) {
       case VM_IDX_REF: {
-        // Try the non-recursive fast path first: it's the common case
-        // (object(9), a step-table element) and the recursive call is the
-        // expensive part of a by-ref chain, not the read. The depth check
-        // comes first because the fast path resolves a level without a
-        // frame -- letting it take the last level would let MAX_DEPTH+1
-        // fit in MAX_DEPTH frames.
+        // The position, read through another accessor: usually a cached one (a variable), else one more level.
         vm_obj_payload_t sub;
         err_h e = NULL;
-        if (!(depth + 1 < CONFIG_VM_ACCESSOR_MAX_DEPTH && vm_acc_resolve_fast(idx->ref, &sub)))
-          e = vm_internal_acc_resolve_deep(idx->ref, depth + 1, &sub);
+        if (likely(idx->ref->flags & VM_ACC_F_CACHED)) {
+          sub = idx->ref->c_payload;
+        } else {
+          e = vm_acc_walk(idx->ref, (uint8_t)(depth + 1), &sub);
+        }
         if (!e) e = payload_as_index(&index, sub, idx->ref);
         if (unlikely(e)) return vm_err_index_failed(e, acc->id, i);
         break;
@@ -233,54 +218,19 @@ err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_o
   return NULL;
 }
 
-err_h vm_internal_obj_resolve(const vm_accessor_t* acc, vm_obj_payload_t* out) {
-  if (likely(vm_acc_resolve_fast(acc, out))) return NULL;
-  return vm_internal_acc_resolve_deep(acc, 0, out);
+bool vm_acc_walk_fresh(const vm_accessor_t* acc) {
+  vm_obj_payload_t p;
+  err_h e = vm_acc_walk(acc, 0, &p);
+  if (unlikely(e)) {
+    err_free(e);
+    return false;
+  }
+  return p.owner->head.f.upd;
 }
 
 // ===========================================================================
-// 4. Store Conversion & Dynamic Slot Management
+// 4. Dynamic Slot Management
 // ===========================================================================
-
-static const void* boxed_ptr(const vm_val_t* v, vm_obj_t_e type) {
-  switch (type) {
-    case VM_OBJ_U8: case VM_OBJ_B: case VM_OBJ_STR: return &v->u8;
-    case VM_OBJ_U32: return &v->u32;
-    case VM_OBJ_I32: return &v->i32;
-    case VM_OBJ_F: return &v->f;
-    default: return NULL;
-  }
-}
-
-err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
-  const void* src = boxed_ptr(&v, src_type);
-  if (!src) return vm_obj_not_scalar_err(vm_obj_get_id(owner), src_type, err_id);
-  switch (slot.type) {
-    case VM_OBJ_B: {
-      bool value;
-      VM_INTERNAL_LOAD_SCALAR(&value, src_type, src);
-      *(uint8_t*)slot.ptr = value;
-      break;
-    }
-    case VM_OBJ_U8:
-    case VM_OBJ_STR:
-      VM_INTERNAL_LOAD_SCALAR((uint8_t*)slot.ptr, src_type, src);
-      break;
-    case VM_OBJ_U32:
-      VM_INTERNAL_LOAD_SCALAR((uint32_t*)slot.ptr, src_type, src);
-      break;
-    case VM_OBJ_I32:
-      VM_INTERNAL_LOAD_SCALAR((int32_t*)slot.ptr, src_type, src);
-      break;
-    case VM_OBJ_F:
-      VM_INTERNAL_LOAD_SCALAR((float*)slot.ptr, src_type, src);
-      break;
-    default:
-      return vm_obj_not_scalar_err(vm_obj_get_id(owner), slot.type, err_id);
-  }
-  owner->head.f.upd = 1;
-  return NULL;
-}
 
 /*
 A pointer slot is the only place an object is *owned*, so it is the only place
@@ -394,8 +344,8 @@ bool vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool schem
 
 err_h vm_internal_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target, bool user) {
   vm_obj_payload_t src, dst;
-  ERR_TRY(vm_internal_obj_resolve(source, &src));
-  ERR_TRY(vm_internal_obj_resolve(target, &dst));
+  ERR_TRY(vm_acc_resolve(source, &src));
+  ERR_TRY(vm_acc_resolve(target, &dst));
   ERR_TRY(copy_tree(src, dst, dst.owner, 0, false, user));
   return copy_tree(src, dst, dst.owner, 0, true, user);
 }
@@ -471,7 +421,7 @@ err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_
   ERR_TRY(vm_obj_get_obj(&src, source));
 
   vm_obj_payload_t slot;
-  ERR_TRY(vm_internal_obj_resolve(target, &slot));
+  ERR_TRY(vm_acc_resolve(target, &slot));
   ERR_TRY(vm_internal_obj_writable(slot.owner, user));
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
     return vm_err_expected_ptr(target->id, target->count, (uint8_t)slot.type, vm_obj_get_id(slot.owner));
@@ -503,7 +453,7 @@ err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* targ
   ERR_TRY(vm_obj_get_obj(&c, child));
 
   vm_obj_payload_t slot;
-  ERR_TRY(vm_internal_obj_resolve(target, &slot));
+  ERR_TRY(vm_acc_resolve(target, &slot));
   ERR_TRY(vm_internal_obj_writable(slot.owner, user));
 
   if (unlikely(slot.type != VM_OBJ_PTR || !slot.ptr)) {
@@ -511,16 +461,4 @@ err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* targ
   }
 
   return slot_store(slot.owner, (vm_obj_h*)slot.ptr, c);
-}
-
-// ===========================================================================
-// 6. Internal Scalar Setter
-// ===========================================================================
-
-err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index, vm_val_t v, vm_obj_t_e type, bool user) {
-  vm_obj_payload_t p;
-  ERR_TRY(vm_internal_obj_resolve(target, &p));
-  ERR_TRY(vm_internal_obj_writable(p.owner, user));
-  if (index >= p.count) return vm_err_chain_oob(target->id, target->count, index, vm_obj_get_id(p.owner));
-  return vm_internal_store_inline(p.owner, vm_payload_get_at(p, (uint16_t)index), v, type, target->id);
 }

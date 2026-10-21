@@ -28,7 +28,7 @@ void vm_blk_on_event(vm_block_h b) {
   }
 
   if (b->cfg.q_cnt > VM_OUT_ON_EVENT_VALUE) {
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(value, vm_block_get_outputs(b)[VM_OUT_ON_EVENT_VALUE], 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR(value, vm_block_get_outputs(b)[VM_OUT_ON_EVENT_VALUE]), b);
   }
   vm_block_set_eno(b, !vm_block_failed(b));
 }

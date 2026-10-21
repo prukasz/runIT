@@ -291,33 +291,10 @@ bool vm_block_triggered(vm_block_h b);
 bool vm_block_en_triggered(vm_block_h b);
 
 /**
- * @brief Freshness (`upd`) belongs to the owning object; unresolved pins fail closed silently.
- */
-static inline bool vm_block_pin_fresh(const vm_accessor_t* acc) {
-  if (!acc) return false;
-
-  if (likely(acc->flags & VM_ACC_F_CACHED)) {
-    return acc->c_payload.owner && acc->c_payload.owner->head.f.upd;
-  }
-
-  vm_obj_payload_t r;
-  if (vm_acc_resolve_fast(acc, &r)) {
-    return r.owner && r.owner->head.f.upd;
-  }
-
-  vm_obj_h o = NULL;
-  err_h error = vm_obj_get_owner(&o, acc);
-  if (error) { err_free(error); return false; }
-  if (!o) return false;
-  return o->head.f.upd != 0;
-}
-
-/**
- * @brief True if specific input pin carries fresh data.
+ * @brief True if input pin @p pin carries fresh data (`upd` of the object it points into, vm_acc_fresh).
  */
 static inline bool vm_block_input_fresh(vm_block_h b, uint8_t pin) {
-  if (unlikely(pin >= b->cfg.in_cnt)) return false;
-  return vm_block_pin_fresh(vm_block_get_inputs(b)[pin]);
+  return pin < b->cfg.in_cnt && vm_acc_fresh(vm_block_get_inputs(b)[pin]);
 }
 
 /** @brief Trigger from one source pin (ignoring destination/parameter inputs) or a firing enable.

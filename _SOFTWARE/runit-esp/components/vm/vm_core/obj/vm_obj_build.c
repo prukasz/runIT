@@ -14,7 +14,7 @@
  *      - Accessor allocation & registry bind (vm_accessor_create)
  *      - Index slot helper (index_slot)
  *      - Accessor index setters (vm_accessor_set_literal, vm_accessor_set_ref, vm_accessor_set_name)
- *      - Accessor cache pre-resolution (vm_accessor_cache_build)
+ *      - Accessor check and fixed-path resolution (vm_accessor_bind)
  */
 
 // ===========================================================================
@@ -148,31 +148,25 @@ err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, ui
   return NULL;
 }
 
-bool vm_accessor_cache_build(vm_accessor_t* acc) {
-  if (!acc) return false;
-
+err_h vm_accessor_bind(vm_accessor_t* acc) {
+  ERR_CHECK(acc != NULL, ERR_VM_BAD_ARG);
   acc->flags &= (uint8_t)~VM_ACC_F_CACHED;
 
-  // Multi-level chains cannot be cached: child pointers (a.b.c) can be dynamically repointed/cloned at runtime
-  if (acc->count > 1) return false;
-
-  // Root object must already exist in registry
+  // Objects load before accessors: a root that isn't there now never will be
   vm_obj_h obj = vm_obj_get_by_id(acc->id);
-  if (!obj) return false;
+  if (!obj) return vm_err_unknown_id(acc->id);
 
   if (acc->count == 0) {
-    // Whole-object direct address: payload starts at fixed offset 0
-    acc->c_payload = vm_make_payload(obj);
-  } else {
-    // Dynamic ref (VM_IDX_REF) or tag scan (VM_IDX_NAME) cannot be cached: index changes or requires search
-    if (acc->indices[0].kind != VM_IDX_LITERAL) return false;
-    // Declared literal index must be within object capacity
+    acc->c_payload = vm_make_payload(obj);  // the whole object
+  } else if (acc->count == 1 && acc->indices[0].kind == VM_IDX_LITERAL) {
+    // One element of the root. An arena object never moves, so the address holds for the whole load.
     uint8_t* p = vm_obj_get_elem_ptr(obj, acc->indices[0].value);
-    if (!p) return false;
-    acc->c_payload = (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0};
+    if (!p) return vm_err_chain_oob(acc->id, 0, acc->indices[0].value, acc->id);
+    acc->c_payload = (vm_obj_payload_t){.ptr = p, .owner = obj, .count = 1, .type = (uint8_t)obj->head.d.obj_t};
+  } else {
+    // A REF or NAME step, or a step past the root: a PTR cell on the way can be re-linked at run time, so it is walked
+    return NULL;
   }
-
-  acc->c_payload.owner = obj;
   acc->flags |= VM_ACC_F_CACHED;
-  return true;
+  return NULL;
 }

@@ -132,7 +132,7 @@ void vm_blk_timer(vm_block_h b) {
   memcpy(vm_block_get_custom_data(b), &state, sizeof(state));
   vm_block_set_eno(b, q);
   if (b->cfg.q_cnt > VM_OUT_TIMER_ET) {
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(state.elapsed, vm_block_get_outputs(b)[VM_OUT_TIMER_ET], 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR(state.elapsed, vm_block_get_outputs(b)[VM_OUT_TIMER_ET]), b);
   }
 }
 

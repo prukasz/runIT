@@ -13,7 +13,7 @@ typedef struct vm_accessor_t vm_accessor_t;
  *
  * Logic Flow:
  *   1. Object Construction (vm_obj_create, vm_obj_shape, vm_obj_init)
- *   2. Accessor Construction & Caching (vm_accessor_create, vm_accessor_set_*, vm_accessor_cache_build)
+ *   2. Accessor Construction & Caching (vm_accessor_create, vm_accessor_set_*, vm_accessor_bind)
  */
 
 // ===========================================================================
@@ -116,12 +116,12 @@ MUST_USE err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_acc
 MUST_USE err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, uint8_t name_len);
 
 /**
- * @brief Pre-resolve an immutable accessor target into its resolution cache.
+ * @brief Checks a built accessor against the loaded objects and resolves its path once if the path is fixed.
  *
- * Pre-resolves whole-object accessors or single literal indices on root objects.
- * Caches target payload and owner for 4-load fast path execution.
+ * The root must exist. A fixed path (no steps, or one literal step on the root) is resolved here into the accessor's
+ * cache (VM_ACC_F_CACHED), which vm_acc_resolve() returns from then on; one that doesn't resolve is refused, so no
+ * fixed path fails at run time. Any other path is walked when used.
  *
- * @param[in,out] acc Accessor to cache.
- * @return true if successfully cached, false if dynamic, chained, or uncachable.
+ * @return err_h NULL, ERR_VM_ACCESSOR_UNKNOWN_ID (no root) or ERR_VM_ACCESSOR_OOB (the literal step is past the end).
  */
-bool vm_accessor_cache_build(vm_accessor_t* acc);
+MUST_USE err_h vm_accessor_bind(vm_accessor_t* acc);

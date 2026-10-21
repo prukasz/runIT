@@ -8,8 +8,8 @@ import type { IndexStep } from '../wire/format/types'
 
 /*
  * Paths to accessors. An accessor on the board is a root object and index steps; one with no steps, or one literal step on
- * the root, is "cached" at load and read in a few loads (`vm_acc_resolve_fast`, `vm_accessor_cache_build`), anything else
- * walks. So a path is folded into its root wherever the walk is the same every time:
+ * the root, is resolved at load and read in a few loads (`vm_accessor_bind`, `vm_acc_resolve`), anything else walks
+ * (`vm_acc_walk`). So a path is folded into its root wherever the walk is the same every time:
  *
  *   motors[1][2]  ->  root = the object of motors[1], step [2]
  *

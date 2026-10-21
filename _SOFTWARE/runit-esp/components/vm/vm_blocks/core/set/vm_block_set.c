@@ -13,7 +13,7 @@ static void set_constant(vm_block_h b, vm_block_set_data_t* d, const vm_accessor
   bool fire = b->cfg.en_cnt ? vm_block_en_triggered(b) : !(d->flags & VM_SET_F_DONE);
   if (fire) {
     IF_BLOCK_ENABLED(b) {
-      BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX_USR(d->value, dst, 0), b);
+      BLOCK_CALL(VM_OBJ_SET_SCALAR_USR(d->value, dst), b);
       if (likely(!vm_block_failed(b))) {
         d->flags |= VM_SET_F_DONE;
         vm_block_set_eno(b, true);

@@ -251,9 +251,7 @@ static MUST_USE err_h add_accessor_unlocked(uint16_t acc_id, uint16_t root_obj_i
     return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_ADD_ACCESSORS, .need = (uint16_t)off, .got = idx_len);
   }
 
-  // Pre-resolve cache if root object is available
-  (void)vm_accessor_cache_build(acc);
-  return NULL;
+  return vm_accessor_bind(acc);  // the root exists; a fixed path is resolved now or refused
 }
 
 err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_count, const uint8_t* idx_data,

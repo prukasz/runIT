@@ -75,15 +75,13 @@ typedef struct {
 
 _Static_assert(sizeof(vm_index_t) == 8, "index step size feeds the arena size (OPEN's total_size)");
 
-#define VM_IDX_BY_NAME(str) {.kind = VM_IDX_NAME, .name_len = (uint8_t)(sizeof(str) - 1), .name = (str)}
-
 /* An accessor, in memory. Its wire form is vm_wire_acc_t (vm_wire.h). */
 struct vm_accessor_t {
   uint16_t          id;         // root object ID
   uint8_t           count;      // index steps
   uint8_t           flags;      // VM_ACC_F_*
   const vm_index_t* indices;    // count steps, right after the accessor in the arena
-  vm_obj_payload_t  c_payload;  // resolution cache (VM_ACC_F_CACHED)
+  vm_obj_payload_t  c_payload;  // VM_ACC_F_CACHED: the fixed path, resolved at load (never changes: arena objects stay put)
 };
 
 _Static_assert(sizeof(struct vm_accessor_t) == 20, "accessor header size feeds the RAM budget");
@@ -113,19 +111,6 @@ static inline vm_obj_h vm_obj_lookup_by_id(uint16_t id) {
   return vm_obj_get_by_id(id);
 }
 
-/** @brief Element `i` of an already-resolved payload, bounds-checked. */
-static __always_inline vm_obj_payload_t vm_payload_get_at(vm_obj_payload_t p, uint16_t i) {
-  if (unlikely(!p.ptr || !vm_type_ok((uint8_t)p.type) || i >= p.count)) {
-    return (vm_obj_payload_t){.ptr = NULL, .owner = NULL, .count = 0, .type = VM_OBJ_NONE, ._pad = 0};
-  }
-  return (vm_obj_payload_t){
-      .ptr   = (uint8_t*)p.ptr + ((size_t)i << vm_type_shift((uint8_t)p.type)),
-      .owner = p.owner,
-      .count = 1,
-      .type  = p.type,
-  };
-}
-
 /** @brief A whole object as a payload. */
 static __always_inline vm_obj_payload_t vm_make_payload(vm_obj_h obj) {
   if (unlikely(!obj)) return (vm_obj_payload_t){0};
@@ -138,67 +123,34 @@ static __always_inline vm_obj_payload_t vm_make_payload(vm_obj_h obj) {
   };
 }
 
-// --- Resolution Helper (Fast Path) ---
+// --- Resolution (the hot path) ---
+
+/* Walks an accessor's steps (vm_obj_access_internal.c): every accessor without a cached payload. `depth` counts the
+ * REF steps followed into other accessors (CONFIG_VM_ACCESSOR_MAX_DEPTH). */
+MUST_USE err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out);
+
+/* Freshness of an accessor that has to be walked; one that doesn't resolve is not fresh (vm_obj_access_internal.c). */
+bool vm_acc_walk_fresh(const vm_accessor_t* acc);
 
 /**
- * @brief Fast inline resolution for cached or shallow literal accessors.
- * Resolves whole objects (count=0), single literal indices (obj[i]), and 2-level
- * literal chains through pointer arrays (box[0][i]) directly without frame setup.
- * Returns false on cache-miss or complex shapes so caller falls back to out-of-line vm_internal_acc_resolve_deep().
+ * @brief Where an accessor points. An accessor whose path is fixed (no steps, or one literal step on its root) was
+ * resolved at load (VM_ACC_F_CACHED, vm_accessor_bind) and costs a flag test and a copy; anything else is walked.
  */
-static __always_inline bool vm_acc_resolve_fast(const vm_accessor_t* acc, vm_obj_payload_t* out) {
-  if (unlikely(!acc)) return false;
-
-  // 1. Cached path: return pre-resolved payload immediately
-  if (likely(acc->flags & VM_ACC_F_CACHED)) {
-    if (unlikely(!acc->c_payload.ptr)) return false;
+static __always_inline MUST_USE err_h vm_acc_resolve(const vm_accessor_t* acc, vm_obj_payload_t* out) {
+  if (likely(acc != NULL && (acc->flags & VM_ACC_F_CACHED))) {
     *out = acc->c_payload;
-    return true;
+    return NULL;
   }
+  return vm_acc_walk(acc, 0, out);
+}
 
-  // 2. Fetch root object from store registry
-  vm_obj_h obj = vm_obj_get_by_id(acc->id);
-  if (unlikely(!obj)) return false;
-
-  uint8_t n = acc->count;
-  // Whole-object accessor: payload spans all elements
-  if (n == 0) {
-    *out = vm_make_payload(obj);
-    return true;
+/**
+ * @brief True when the object the accessor points into was written this pass (`upd` of its owner). An unwired pin
+ * (NULL) or one that doesn't resolve is not fresh, and says nothing: the block reports it when it reads the pin.
+ */
+static __always_inline bool vm_acc_fresh(const vm_accessor_t* acc) {
+  if (likely(acc != NULL && (acc->flags & VM_ACC_F_CACHED))) {
+    return acc->c_payload.owner->head.f.upd;
   }
-  // Deep chains (>2) fall back to recursive vm_internal_acc_resolve_deep()
-  if (unlikely(n > 2)) return false;
-
-  const vm_index_t* idx = acc->indices;
-  // Dynamic ref (VM_IDX_REF) or tag scan (VM_IDX_NAME) require full walk
-  if (unlikely(!idx || idx[0].kind != VM_IDX_LITERAL)) return false;
-
-  uint32_t index = idx[0].value;
-  if (unlikely(index > UINT16_MAX)) return false;
-
-  // 3. Two-level chain: traverse intermediate PTR array directly
-  if (n == 2) {
-    if (unlikely(idx[1].kind != VM_IDX_LITERAL || (uint8_t)obj->head.d.obj_t != VM_OBJ_PTR)) return false;
-    uint32_t cell_off = index << 2;
-    if (unlikely(cell_off >= obj->head.payload_size)) return false;
-    obj = *(vm_obj_h*)(obj->payload + cell_off);
-    if (unlikely(!obj)) return false;
-    index = idx[1].value;
-    if (unlikely(index > UINT16_MAX)) return false;
-  }
-
-  // 4. Resolve leaf element: compute byte offset from element type shift
-  uint8_t t = (uint8_t)obj->head.d.obj_t;
-  if (unlikely(!vm_type_ok(t))) return false;
-
-  uint32_t off = index << vm_type_shift(t);
-  if (unlikely(off >= obj->head.payload_size)) return false;
-
-  *out = (vm_obj_payload_t){
-      .ptr   = obj->payload + off,
-      .owner = obj,
-      .count = 1,
-      .type  = t,
-  };
-  return true;
+  return acc != NULL && vm_acc_walk_fresh(acc);
 }

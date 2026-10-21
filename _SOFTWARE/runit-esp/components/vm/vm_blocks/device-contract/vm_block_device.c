@@ -209,11 +209,11 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
       vm_obj_h q = vm_block_get_outputs(b)[i];
       if (result_is_u8(op)) {
         const uint8_t r = result[i];
-        BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
+        BLOCK_CALL(VM_OBJ_SET_SCALAR(r, q), b);
       } else {
         int32_t r;
         memcpy(&r, result + i * sizeof(r), sizeof(r));
-        BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(r, q, 0), b);
+        BLOCK_CALL(VM_OBJ_SET_SCALAR(r, q), b);
       }
     }
   } else {

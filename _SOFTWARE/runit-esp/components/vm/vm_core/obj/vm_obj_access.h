@@ -10,65 +10,35 @@
  * macros in vm_obj_access_internal.h; both are included here, so consumers include only this.
  *
  * Logic Flow:
- *   1. Target consumer macros (VM_OBJ_SCALAR_GET, VM_OBJ_SET_SCALAR, VM_PAYLOAD_GET_VAL, etc.)
+ *   1. Target consumer macros (VM_OBJ_SCALAR_GET, VM_OBJ_SET_SCALAR, VM_OBJ_SET_SCALAR_USR)
  *   2. Target C APIs (read, copy, clone, link, publish, and publication)
  */
 
 // --- Target Consumer Macros ---
 
-/** @brief Read scalar at index `idx` (in payload) into a typed lvalue.
- * NULL/unresolved accessors, out-of-bounds index, empty payloads and non-scalar types
- * return an error and preserve output. The output expression is evaluated only after validation. */
-#define VM_OBJ_SCALAR_GET_AT_IDX(output, source, idx)                             \
-  ({                                                                              \
-    const vm_accessor_t* __sgi_a = (source);                                      \
-    vm_obj_payload_t     __p;                                                     \
-    err_h                __e = vm_internal_get_scalar_slot(__sgi_a, (idx), &__p); \
-    if (!__e) VM_INTERNAL_LOAD_SCALAR(&(output), (vm_obj_t_e)__p.type, __p.ptr);  \
-    __e;                                                                          \
+/** @brief Reads the scalar the accessor `source` points at (its first element) into a typed lvalue, converted. An
+ * unresolved accessor, an empty or a non-scalar payload return an error and leave `output` as it was. */
+#define VM_OBJ_SCALAR_GET(output, source)                                                \
+  ({                                                                                     \
+    vm_obj_payload_t __sg_p;                                                             \
+    err_h            __sg_e = vm_acc_scalar((source), &__sg_p);                          \
+    if (!__sg_e) VM_INTERNAL_LOAD_SCALAR(&(output), (vm_obj_t_e)__sg_p.type, __sg_p.ptr); \
+    __sg_e;                                                                              \
   })
 
-/** @brief Read the first addressed scalar into a typed lvalue. */
-#define VM_OBJ_SCALAR_GET(output, source) VM_OBJ_SCALAR_GET_AT_IDX((output), (source), 0)
+/** @brief A block's write of `source` to an object it produces (`obj`, an output), converted to the stored type. */
+#define VM_OBJ_SET_SCALAR(source, obj) vm_internal_set_scalar((obj), VM_VAL_OF(source), VM_TYPE_OF(source))
 
-/** @brief Checked payload read; returns err_h and preserves output on failure. */
-#define VM_PAYLOAD_GET_VAL(output, payload)                                               \
-  ({                                                                                      \
-    vm_obj_payload_t __pv_p = (payload);                                                  \
-    err_h            __pv_e = vm_internal_scalar_payload_check(__pv_p, NULL, VM_ID_NONE); \
-    if (!__pv_e) VM_INTERNAL_LOAD_SCALAR(&(output), (vm_obj_t_e)__pv_p.type, __pv_p.ptr); \
-    __pv_e;                                                                               \
-  })
-
-/** @brief Index relative to an accessor's resolved payload, or an owned object. */
-#define VM_OBJ_SET_SCALAR_AT_IDX(source, target, index) \
-  _Generic((target),                                    \
-      vm_obj_h: vm_internal_set_scalar_direct,          \
-      default:  vm_internal_set_scalar_slot)((target), (index), VM_VAL_OF(source), VM_TYPE_OF(source))
-
-/** @brief Write scalar `source` into `target`, converting to stored type. */
-#define VM_OBJ_SET_SCALAR(source, target) VM_OBJ_SET_SCALAR_AT_IDX((source), (target), 0)
-
-/** @brief User-directed write: index relative to target, requiring mutable and rejecting usr_protected. */
-#define VM_OBJ_SET_SCALAR_AT_IDX_USR(source, target, index) \
-  _Generic((target),                                         \
-      vm_obj_h: vm_internal_set_scalar_direct_usr,          \
-      default:  vm_internal_set_scalar_slot_usr)((target), (index), VM_VAL_OF(source), VM_TYPE_OF(source))
-
-/** @brief User-directed write: require mutable and reject usr_protected. */
-#define VM_OBJ_SET_SCALAR_USR(source, target) VM_OBJ_SET_SCALAR_AT_IDX_USR((source), (target), 0)
+/** @brief A user's write (SET) of `source` through the accessor `acc`: refused for an object that is not mutable or is
+ * usr_protected. */
+#define VM_OBJ_SET_SCALAR_USR(source, acc) vm_internal_set_scalar_usr((acc), VM_VAL_OF(source), VM_TYPE_OF(source))
 
 
 // --- Target C APIs (Out-of-Line Subsystem Functions) ---
 
 // Read
-MUST_USE err_h vm_obj_get_payload(vm_obj_payload_t* target, const vm_accessor_t* source);
+/** @brief The object an accessor names; a path ending on a PTR element names the object in that cell. */
 MUST_USE err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source);
-/** @brief Object owning the addressed bytes; never follows a trailing PTR. */
-MUST_USE err_h vm_obj_get_owner(vm_obj_h* target, const vm_accessor_t* source);
-/** @brief Resolve a parent object and find its child by exact byte-length tag.
- * Failure preserves *target. name need not be NUL-terminated. */
-MUST_USE err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char* name, size_t name_len);
 
 // Write
 /** Clear without publishing freshness. Failure still returns an error. */

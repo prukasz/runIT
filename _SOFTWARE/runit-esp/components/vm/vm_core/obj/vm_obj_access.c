@@ -6,7 +6,7 @@
  * Object Access & Resolution Public APIs
  *
  * Logic Flow:
- *   1. Read APIs (vm_obj_get_payload, vm_obj_get_obj, vm_obj_get_owner, vm_obj_get_child)
+ *   1. Read APIs (vm_obj_get_obj)
  *   2. Write APIs (vm_obj_clear_quiet)
  *   3. Copy & Clone APIs (vm_obj_copy_content, vm_obj_shape_matches, vm_obj_schema_matches, vm_obj_clone_shape, vm_obj_clone_into)
  *   4. Link APIs (vm_obj_link, vm_obj_link_direct)
@@ -17,17 +17,11 @@
 // 1. Read APIs
 // ===========================================================================
 
-err_h vm_obj_get_payload(vm_obj_payload_t* target, const vm_accessor_t* source) {
-  ERR_CHECK(target != NULL, ERR_VM_BAD_ARG);
-  *target = (vm_obj_payload_t){0};  // deterministic output on resolution failure
-  return vm_internal_obj_resolve(source, target);
-}
-
 err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
   ERR_CHECK(target != NULL, ERR_VM_BAD_ARG);
   *target = NULL;
   vm_obj_payload_t p;
-  ERR_TRY(vm_internal_obj_resolve(source, &p));
+  ERR_TRY(vm_acc_resolve(source, &p));
 
   // A chain landing on a pointer element means "the object behind this
   // slot" (the point of a switch/demux cell), so follow it. `count > 0`
@@ -43,33 +37,6 @@ err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
   }
 
   *target = p.owner;
-  return NULL;
-}
-
-err_h vm_obj_get_owner(vm_obj_h* target, const vm_accessor_t* source) {
-  ERR_CHECK(target != NULL, ERR_VM_BAD_ARG);
-  *target = NULL;
-  vm_obj_payload_t p;
-  ERR_TRY(vm_internal_obj_resolve(source, &p));
-  *target = p.owner;
-  return NULL;
-}
-
-err_h vm_obj_get_child(vm_obj_h* target, const vm_accessor_t* parent, const char* name, size_t name_len) {
-  ERR_CHECK(target != NULL, ERR_VM_BAD_ARG);
-  ERR_CHECK(name != NULL, ERR_VM_BAD_ARG);
-  vm_obj_h obj;
-  ERR_TRY(vm_obj_get_obj(&obj, parent));
-  if (obj->head.d.obj_t != VM_OBJ_PTR) return vm_err_expected_ptr(parent->id, parent->count, obj->head.d.obj_t, vm_obj_get_id(obj));
-  int32_t index = name_len <= VM_OBJ_NAME_MAX ? find_child_by_name(obj, name, (uint8_t)name_len) : -1;
-  if (index < 0) {
-    char   tag[VM_OBJ_NAME_MAX + 1];
-    size_t n = name_len < VM_OBJ_NAME_MAX ? name_len : VM_OBJ_NAME_MAX;
-    memcpy(tag, name, n);
-    tag[n] = '\0';
-    return vm_err_name_not_found(parent->id, parent->count, tag, n);
-  }
-  *target = ((vm_obj_h*)obj->payload)[index];
   return NULL;
 }
 

@@ -3,13 +3,10 @@
 
 /* Shared object engines for the block permission boundary. Not consumer APIs. */
 MUST_USE err_h vm_internal_obj_writable(vm_obj_h obj, bool user);
-MUST_USE err_h vm_internal_obj_resolve(const vm_accessor_t* acc, vm_obj_payload_t* out);
-MUST_USE err_h vm_internal_acc_resolve_deep(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out);
 MUST_USE err_h vm_internal_obj_copy_content(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
 MUST_USE err_h vm_internal_obj_copy_direct(vm_obj_h src, vm_obj_h dst, bool user);
 MUST_USE err_h vm_internal_obj_clone_into(const vm_accessor_t* source, const vm_accessor_t* target, bool user);
 MUST_USE err_h vm_internal_obj_link(const vm_accessor_t* child, const vm_accessor_t* target, bool user);
-MUST_USE err_h vm_internal_obj_set_scalar_at(const vm_accessor_t* target, uint32_t index, vm_val_t v, vm_obj_t_e type, bool user);
 
 /* Internal tree comparison, clone, and slot manipulation engines */
 bool  vm_internal_shape_matches(vm_obj_h a, vm_obj_h b, uint8_t depth, bool schema);
@@ -68,19 +65,11 @@ bool     vm_get_as_bool(vm_obj_t_e type, const void* src);
 /* Errors are returned, never emitted here: the top caller owns reporting. */
 MUST_USE err_h vm_internal_scalar_payload_check(vm_obj_payload_t p, vm_obj_h owner, uint16_t id);
 
-static __always_inline err_h vm_internal_resolve_payload(const vm_accessor_t* acc, vm_obj_payload_t* out) {
-  if (likely(vm_acc_resolve_fast(acc, out))) return NULL;
-  return vm_internal_acc_resolve_deep(acc, 0, out);
-}
-
-static __always_inline err_h vm_internal_get_scalar_slot(const vm_accessor_t* acc, uint32_t idx, vm_obj_payload_t* out) {
-  err_h e = vm_internal_resolve_payload(acc, out);
+// The scalar an accessor points at (its first element): an error for an empty or non-scalar payload.
+static __always_inline err_h vm_acc_scalar(const vm_accessor_t* acc, vm_obj_payload_t* out) {
+  err_h e = vm_acc_resolve(acc, out);
   if (unlikely(e)) return e;
-  if (unlikely(!out->ptr || !out->count || !vm_type_is_scalar(out->type))) {
-    return vm_internal_scalar_payload_check(*out, out->owner, acc ? acc->id : 0);
-  }
-  if (unlikely(idx >= out->count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(out->owner));
-  if (idx != 0) *out = vm_payload_get_at(*out, (uint16_t)idx);
+  if (unlikely(!out->count || !vm_type_is_scalar(out->type))) return vm_internal_scalar_payload_check(*out, out->owner, acc->id);
   return NULL;
 }
 
@@ -101,37 +90,6 @@ static __always_inline err_h vm_internal_get_scalar_slot(const vm_accessor_t* ac
         char: likely(__ls_t == VM_OBJ_STR) ? *(const char*)__ls_s : vm_get_as_char(__ls_t, __ls_s));        \
   } while (0)
 
-// --- Internal Store Helpers ---
-
-MUST_USE err_h vm_internal_store_converted(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id);
-
-static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_payload_t slot, vm_val_t v, vm_obj_t_e src_type, uint16_t err_id) {
-  if (unlikely(!owner || !owner->head.f.mutable)) return vm_obj_not_mutable_err(vm_obj_get_id(owner));
-  if (unlikely(!slot.ptr || !slot.count)) return vm_obj_oob_err(vm_obj_get_id(owner), 0);
-  if (unlikely(!vm_type_is_scalar(src_type))) return vm_obj_not_scalar_err(vm_obj_get_id(owner), src_type, err_id);
-  if (likely(slot.type == src_type)) {
-    switch (src_type) {
-      case VM_OBJ_F:
-        *(float*)slot.ptr = v.f;
-        break;
-      case VM_OBJ_U8:
-      case VM_OBJ_B:
-      case VM_OBJ_STR:
-        *(uint8_t*)slot.ptr = v.u8;
-        break;
-      case VM_OBJ_U32:
-      case VM_OBJ_I32:
-        *(uint32_t*)slot.ptr = v.u32;
-        break;
-      default:
-        return vm_obj_not_scalar_err(vm_obj_get_id(owner), slot.type, err_id);
-    }
-    owner->head.f.upd = 1;
-    return NULL;
-  }
-  return vm_internal_store_converted(owner, slot, v, src_type, err_id);
-}
-
 // --- Type & Value Boxing Helpers ---
 
 #define VM_TYPE_OF(x) _Generic((x), uint8_t: VM_OBJ_U8, char: VM_OBJ_STR, uint32_t: VM_OBJ_U32, int32_t: VM_OBJ_I32, float: VM_OBJ_F, bool: VM_OBJ_B)
@@ -145,45 +103,38 @@ static __always_inline err_h vm_internal_store_inline(vm_obj_h owner, vm_obj_pay
       bool:     (vm_val_t){.u8 = (uint8_t)(x)}, \
       char:     (vm_val_t){.u8 = (uint8_t)(x)})
 
-// --- Inline Direct & Slot Setters ---
+// --- Scalar store ---
 
-static __always_inline err_h vm_internal_set_scalar_direct(vm_obj_h obj, uint32_t index, vm_val_t v, vm_obj_t_e src_type) {
+/* Stores `v` (of type `src_type`, every member of vm_val_t starts at its address) into the scalar of type `type` at
+ * `ptr` in `owner`, converted, and marks the owner fresh. `src_type` is a constant at every call (VM_TYPE_OF), so the
+ * same type folds to a plain store. */
+static __always_inline err_h vm_internal_store(vm_obj_h owner, void* ptr, uint8_t type, vm_val_t v, vm_obj_t_e src_type) {
+  switch (type) {
+    case VM_OBJ_F:   VM_INTERNAL_LOAD_SCALAR((float*)ptr, src_type, &v);    break;
+    case VM_OBJ_U32: VM_INTERNAL_LOAD_SCALAR((uint32_t*)ptr, src_type, &v); break;
+    case VM_OBJ_I32: VM_INTERNAL_LOAD_SCALAR((int32_t*)ptr, src_type, &v);  break;
+    case VM_OBJ_U8:
+    case VM_OBJ_STR: VM_INTERNAL_LOAD_SCALAR((uint8_t*)ptr, src_type, &v);  break;
+    case VM_OBJ_B:   VM_INTERNAL_LOAD_SCALAR((bool*)ptr, src_type, &v);     break;
+    default:         return vm_obj_not_scalar_err(vm_obj_get_id(owner), (vm_obj_t_e)type, VM_ID_NONE);
+  }
+  owner->head.f.upd = 1;
+  return NULL;
+}
+
+// A block's write to an object it produces (an output): its first element; usr_protected does not apply.
+static __always_inline err_h vm_internal_set_scalar(vm_obj_h obj, vm_val_t v, vm_obj_t_e src_type) {
   if (unlikely(obj == NULL)) return vm_obj_null_obj_err();
   if (unlikely(!obj->head.f.mutable)) return vm_obj_not_mutable_err(vm_obj_get_id(obj));
-  uint8_t* p = vm_obj_get_elem_ptr(obj, index);
-  if (unlikely(p == NULL)) return vm_obj_oob_err(vm_obj_get_id(obj), index);
-  return vm_internal_store_inline(obj, (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0}, v, src_type, VM_ID_NONE);
+  return vm_internal_store(obj, obj->payload, obj->head.d.obj_t, v, src_type);  // never empty (vm_obj_shape)
 }
 
-static __always_inline err_h vm_internal_set_scalar_direct_usr(vm_obj_h obj, uint32_t index, vm_val_t v, vm_obj_t_e src_type) {
-  if (unlikely(obj == NULL)) return vm_obj_null_obj_err();
-  if (unlikely(!obj->head.f.mutable || obj->head.f.usr_protected)) return vm_internal_obj_writable(obj, true);
-  uint8_t* p = vm_obj_get_elem_ptr(obj, index);
-  if (unlikely(p == NULL)) return vm_obj_oob_err(vm_obj_get_id(obj), index);
-  return vm_internal_store_inline(obj, (vm_obj_payload_t){.ptr = p, .count = 1, .type = (uint8_t)obj->head.d.obj_t, ._pad = 0}, v, src_type, VM_ID_NONE);
-}
-
-static __always_inline err_h vm_internal_set_scalar_slot(const vm_accessor_t* acc, uint32_t idx, vm_val_t v, vm_obj_t_e src_type) {
+// A user's write (SET) through an accessor: the target must be mutable and not usr_protected.
+static __always_inline err_h vm_internal_set_scalar_usr(const vm_accessor_t* acc, vm_val_t v, vm_obj_t_e src_type) {
   vm_obj_payload_t p;
-  if (likely(vm_acc_resolve_fast(acc, &p))) {
-    if (idx != 0) {
-      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(p.owner));
-      p = vm_payload_get_at(p, (uint16_t)idx);
-    }
-    return vm_internal_store_inline(p.owner, p, v, src_type, acc ? acc->id : 0);
-  }
-  return vm_internal_obj_set_scalar_at(acc, idx, v, src_type, false);
-}
-
-static __always_inline err_h vm_internal_set_scalar_slot_usr(const vm_accessor_t* acc, uint32_t idx, vm_val_t v, vm_obj_t_e src_type) {
-  vm_obj_payload_t p;
-  if (likely(vm_acc_resolve_fast(acc, &p))) {
-    if (unlikely(!p.owner || !p.owner->head.f.mutable || p.owner->head.f.usr_protected)) return vm_internal_obj_writable(p.owner, true);
-    if (idx != 0) {
-      if (unlikely(idx >= p.count)) return vm_err_chain_oob(acc ? acc->id : 0, 0, idx, vm_obj_get_id(p.owner));
-      p = vm_payload_get_at(p, (uint16_t)idx);
-    }
-    return vm_internal_store_inline(p.owner, p, v, src_type, acc ? acc->id : 0);
-  }
-  return vm_internal_obj_set_scalar_at(acc, idx, v, src_type, true);
+  err_h e = vm_acc_resolve(acc, &p);
+  if (unlikely(e)) return e;
+  if (unlikely(!p.owner->head.f.mutable || p.owner->head.f.usr_protected)) return vm_internal_obj_writable(p.owner, true);
+  if (unlikely(!p.count)) return vm_obj_oob_err(vm_obj_get_id(p.owner), 0);
+  return vm_internal_store(p.owner, p.ptr, p.type, v, src_type);
 }

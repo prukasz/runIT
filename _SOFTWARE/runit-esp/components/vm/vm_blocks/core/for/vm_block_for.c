@@ -64,7 +64,7 @@ void vm_blk_for(vm_block_h b) {
     }
 
     if (idx) {
-      err_h e = VM_OBJ_SET_SCALAR_AT_IDX(i, idx, 0);
+      err_h e = VM_OBJ_SET_SCALAR(i, idx);
       if (unlikely(e)) {
         vm_block_report_error(e, b);
         return;

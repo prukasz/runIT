@@ -239,6 +239,8 @@ def t_wire_acc(vm: Vm) -> None:
         ("a step count that the bytes do not cover", (0, 0, 2, struct.pack("<BI", 0, 3)), "ERR_VM_LOAD_SHORT_RECORD"),
         ("trailing bytes after the steps", (0, 0, 1, struct.pack("<BI", 0, 3) + b"\x00"), "ERR_VM_LOAD_SHORT_RECORD"),
         ("a literal step cut short", (0, 0, 1, b"\x00\x01\x00"), "ERR_VM_LOAD_SHORT_RECORD"),
+        ("a root object that does not exist", (0, 77, 0, b""), "ERR_VM_ACCESSOR_UNKNOWN_ID"),
+        ("a literal step past the end of its root", (0, 0, 1, struct.pack("<BI", 0, 4)), "ERR_VM_ACCESSOR_OOB"),
     ):
         prog()
         r = acc(*args)
@@ -250,9 +252,6 @@ def t_wire_acc(vm: Vm) -> None:
     acc(0, 0, 0, b"")
     r = acc(0, 0, 0, b"")
     check("the same accessor id twice -> ERR_VM_REG_DUP", cause(r) == "ERR_VM_REG_DUP", str(r))
-    prog()
-    r = acc(0, 77, 0, b"")
-    check("an accessor on an object that does not exist loads (it is resolved when used)", ok(r), str(r))
     vm.reset()
 
 

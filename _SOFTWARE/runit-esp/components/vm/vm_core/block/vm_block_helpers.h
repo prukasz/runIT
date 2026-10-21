@@ -50,7 +50,7 @@ static inline void vm_block_drive_gate(vm_block_h b, uint8_t pin, bool state) {
     vm_block_check(b, vm_obj_clear_quiet(q));
   else {
     uint8_t one = 1;
-    BLOCK_CALL(VM_OBJ_SET_SCALAR_AT_IDX(one, q, 0), b);
+    BLOCK_CALL(VM_OBJ_SET_SCALAR(one, q), b);
   }
 }
 

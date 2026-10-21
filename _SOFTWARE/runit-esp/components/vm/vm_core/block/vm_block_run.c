@@ -16,7 +16,7 @@ claiming a range -- so each one is paid for only by the blocks that use it.
 bool vm_block_triggered(vm_block_h b) {
   const vm_accessor_t** ins = vm_block_get_inputs(b);
   for (uint8_t i = 0; i < b->cfg.in_cnt; i++) {
-    if (vm_block_pin_fresh(ins[i])) {
+    if (vm_acc_fresh(ins[i])) {
       b->cfg.rt |= VM_BLK_RT_TRIGGERED;
       return true;
     }
@@ -32,7 +32,7 @@ bool vm_block_en_triggered(vm_block_h b) {
      report; vm_block_is_enabled() reports it when the body asks. */
   const vm_accessor_t** en = vm_block_get_en_list(b);
   for (uint8_t i = 0; i < b->cfg.en_cnt; i++) {
-    if (!vm_block_pin_fresh(en[i])) continue;
+    if (!vm_acc_fresh(en[i])) continue;
     bool  v = false;
     err_h e = VM_OBJ_SCALAR_GET(v, en[i]);
     if (unlikely(e)) {
