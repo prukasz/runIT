@@ -250,8 +250,8 @@ static err_h create(void* ctx, const void* cfg_in) {
 
   /* RST released before the probe: after a safe state (suspend holds the chip in reset) an ESP restart finds RST
      still low, and a chip in reset doesn't answer the probe. */
-  if (sys_io_pin_valid(cfg->rst_pin)) {
-    ERR_TRY(sys_pins_take_output(&c->base, &c->rst, cfg->rst_pin, true));
+  ERR_TRY(sys_pins_take_output(&c->base, &c->rst, cfg->rst_pin, true));
+  if (c->rst.locked) {
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
 
