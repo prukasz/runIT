@@ -67,12 +67,27 @@ err_h sys_pins_set_locked_level(sys_io_pin_t p, bool level) {
  * A device's own pins (sys_pins.h): take / drive / release in one order for every driver.
  * ------------------------------------------------------------------------- */
 
-err_h sys_pins_take_output(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, bool level) {
+// The owner's ON_EVENT on the pin's `event`, inline: in the publisher's task (an I2C read, no delay).
+static err_h subscribe(sys_device_base_t* dev, sys_pins_owned_t* p, uint16_t event) {
+  if (event == 0) return NULL;
+  ERR_TRY(sys_event_subscribe_device(p->pin.device, event, p->pin.pin, dev->id, &p->sub));
+  p->subscribed = true;
+  return NULL;
+}
+
+err_h sys_pins_take(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, sys_io_mode_e mode,
+                    uint16_t event) {
   p->pin = pin;  // SYS_IO_PIN_NONE stays NONE: the struct's pin is what the driver checks
   if (!sys_io_pin_valid(pin)) return NULL;
   ERR_TRY(sys_device_use(dev, pin.device));
-  ERR_TRY(sys_io_set_mode(pin, SYS_IO_MODE_OUTPUT_PUSH_PULL));
+  ERR_TRY(sys_io_prepare(pin, mode));
   p->used = true;
+  return subscribe(dev, p, event);
+}
+
+err_h sys_pins_take_output(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, bool level) {
+  ERR_TRY(sys_pins_take(dev, p, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL, 0));
+  if (!sys_io_pin_valid(pin)) return NULL;
   ERR_TRY(sys_io_set_level(pin, level));
   ERR_TRY(sys_pins_lock(pin));
   p->locked = true;
@@ -86,10 +101,7 @@ err_h sys_pins_take_input(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pi
   ERR_TRY(sys_device_use(dev, pin.device));
   ERR_TRY(sys_io_prepare_input(pin));
   p->used = true;
-  if (event != 0) {  // the owner's ON_EVENT, inline: in the publisher's task (an I2C read, no delay)
-    ERR_TRY(sys_event_subscribe_device(pin.device, event, pin.pin, dev->id, &p->sub));
-    p->subscribed = true;
-  }
+  ERR_TRY(subscribe(dev, p, event));
   const sys_io_intr_cfg_t cfg = {.mode = mode};
   ERR_TRY(sys_io_configure_intr(pin, &cfg));
   ERR_TRY(sys_pins_lock(pin));
@@ -112,7 +124,7 @@ err_h sys_pins_release(sys_pins_owned_t* p) {
     p->locked = false;
   }
   if (p->used) {
-    if (!p->keep) ERR_KEEP_FIRST(err, sys_io_reset(p->pin));
+    if (!p->keep) ERR_KEEP_FIRST(err, sys_io_release(p->pin));
     p->used = false;
   }
   return err;

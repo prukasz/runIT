@@ -48,12 +48,13 @@ What a device with pins reports besides the shared `ERR_DEV_*` (BAD_PIN, PIN_LOC
 
 A driver keeps one `sys_pins_owned_t` per pin it uses (zeroed = unused) and lets the shared functions do the take, drive and release:
 
+- `sys_pins_take(dev, p, pin, mode, event)`: use the pin's device, `mode`, subscribe `event` to the owner's ON_EVENT (inline; `0` = none); not locked: the owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's thresholds). DRV8962's IN, VREF and IPROPI.
 - `sys_pins_take_output(dev, p, pin, level)`: use the pin's device, output mode, level, lock.
 - `sys_pins_take_input(dev, p, pin, event, mode)`: use, input, subscribe `event` to the owner's ON_EVENT (inline; `0` = none), interrupt `mode`, lock.
 - `sys_pins_drive(p, level)`: drive a pin the owner locked; a pin that is not locked is left alone, so teardown can call it without checking.
 - `sys_pins_release(p)`: unsubscribe, unlock, reset the mode. Set `p->keep = true` after the take to leave an output as it is.
 
-An invalid pin (`SYS_IO_PIN_NONE`) is stored as NONE and does nothing, so an optional pin needs no check at the call site. Teardown: drive the level the chip needs, then release.
+An invalid pin (`SYS_IO_PIN_NONE`) is stored as NONE and does nothing, so an optional pin needs no check at the call site. Setting and resetting the mode tolerate a device without MODE / RESET (fixed-function pins: PCA9685 channels, DAC outputs: `sys_io_prepare`, `sys_io_release`). Teardown: drive the level the chip needs, then release.
 
 ## Pins contract (`0x02xx`, `sys_pins.h`)
 

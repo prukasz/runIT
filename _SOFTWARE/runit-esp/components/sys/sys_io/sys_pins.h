@@ -119,6 +119,14 @@ typedef struct {
   bool keep;        // release leaves it as it is (an output the chip needs at a level): set after the take
 } sys_pins_owned_t;
 
+/**
+ * @brief A pin in `mode`, not locked: its owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's
+ * thresholds). Its events `event` reach the owner's ON_EVENT (0 = no subscription). A device without SET_MODE
+ * (fixed-function pins: PCA9685 channels, DAC outputs) is fine.
+ */
+MUST_USE err_h sys_pins_take(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, sys_io_mode_e mode,
+                             uint16_t event);
+
 /** @brief An output at `level`, locked for its owner. */
 MUST_USE err_h sys_pins_take_output(sys_device_base_t* dev, sys_pins_owned_t* p, sys_io_pin_t pin, bool level);
 
