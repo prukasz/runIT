@@ -210,9 +210,10 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
 
   /**
    * Run, in one of three modes. The program of the project is compiled and loaded into the board (`loadProgram`: from OPEN, each
-   * frame answered, again from OPEN when the link fails), the telemetry asked for (live: the blocks' When done and the variables,
-   * debug: every block output too, at the slow-motion factor), then the program started (`leaveSafeState` with `EXEC normal`, so it
-   * also leaves a safe stop). A program that is paused and is the one loaded, in the same mode, is only resumed.
+   * frame answered, again from OPEN when the link fails), the telemetry asked for (live and debug: the blocks' When done, the
+   * variables and the block outputs; debug at the slow-motion factor), then the program started (`leaveSafeState` with `EXEC
+   * normal`, so it also leaves a safe stop). A program that is paused and is the one loaded, in the same mode, is only resumed.
+   * Every mode compiles with `allEnableOuts`, so the program Play loads is the one the live view watches (`watchLive`).
    */
   const run = useCallback((mode: RunMode = 'run', slow = 1, how: Stepping = 'continuous', stepMs = STEP_MS_BOARD) => {
     if (!connected) return
@@ -220,7 +221,7 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     if (real && board.mode === 'VM_RUN_FROZEN' && loaded?.program === program && (mode === 'run' || (loaded.mode === mode && loaded.slow === slow))) return act(() => exec('resume'))
     return act(async () => {
       if (program.blocks.length === 0 && program.variables.length === 0) throw new Error('The program is empty: add a block or a variable first.')
-      const result = engine.compile(program, { allEnableOuts: mode !== 'run' })
+      const result = engine.compile(program, { allEnableOuts: true })
       if (!result.ok) throw new Error(refusal(result))
       // Nothing from an earlier program may be read as this one's.
       stopWatching()
@@ -239,6 +240,27 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
       setSimulated(true)
     })
   }, [connected, real, board, loaded, program, act, exec, engine, link, stopWatching])
+  /**
+   * The eye. On the running program this session loaded, unchanged since: watch it as it runs, by asking for its telemetry
+   * (`SUBSCRIBE`), nothing loaded again; pressed again, stop watching (an empty subscription) and let it run. Otherwise (nothing
+   * loaded here, or the project changed) load it and run it watched.
+   */
+  const watchLive = useCallback(() => {
+    if (!connected) return
+    if (watch.current?.mode === 'live') {
+      stopWatching()
+      return act(() => sendProgram(link, [engine.subscribe([])]))
+    }
+    if (!(running && loaded !== undefined && loaded.program === program && real)) return run('live')
+    return act(async () => {
+      const result = engine.compile(program, { allEnableOuts: true })
+      if (!result.ok) throw new Error(refusal(result))
+      stopWatching()
+      const plan = engine.watch(result, 'flow')
+      watch.current = { result, reader: engine.telemetry(result), plan, mode: 'live' }
+      await sendProgram(link, [engine.subscribe(plan.ids)])
+    })
+  }, [connected, running, loaded, program, real, run, act, engine, link, stopWatching])
   /** Debug controls on the started program: change how it steps (`normal`, `scan`, `block`), go on by one pass (`once`) or one block (`next`), back to the start (`restart`). */
   const control = useCallback((command: Extract<ExecCommand, 'normal' | 'scan' | 'block' | 'once' | 'next' | 'restart'>) => (real ? act(async () => {
     // The VM is still on its way to the next stop when the command is answered: ask again shortly for which block it parks before.
@@ -307,6 +329,7 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     canStop: !busy && running,
     canSafeStop: connected && !busy,
     run,
+    watchLive,
     control,
     slowTo,
     stepping,

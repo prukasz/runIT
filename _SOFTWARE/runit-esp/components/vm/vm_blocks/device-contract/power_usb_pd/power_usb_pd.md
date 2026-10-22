@@ -20,7 +20,7 @@ Asks the source for a voltage and a current.
 
 | Pin | Meaning |
 |---|---|
-| Voltage (input) | in mV. Unwired: the value set in the block's settings. |
+| Voltage (input) | in volts. Unwired: the value set in the block's settings. |
 | Current (input) | in mA. Unwired: the value set in the block's settings. |
 
 ### Read offer
@@ -29,7 +29,7 @@ Reads the highest-voltage offer of the source.
 
 | Pin | Meaning |
 |---|---|
-| Voltage (output) | in mV. |
+| Voltage (output) | in volts. |
 | Current (output) | in mA. |
 
 ## Behaviour

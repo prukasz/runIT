@@ -81,6 +81,10 @@ export function useBlocks(project: ReturnType<typeof useProject>, engine: Engine
       catalog,
       project: program,
       deviceName: (id) => byId.get(id)?.name,
+      deviceSuspended: (id) => {
+        const live = devices.live.get(id)
+        return live?.state === 'present' && live.suspended
+      },
       pinName: devices.pinName,
       eventName: (device, code) => {
         const contracts = device === undefined ? [...devices.catalog.contracts.keys()] : byId.get(device)?.type?.contracts ?? []
@@ -93,7 +97,7 @@ export function useBlocks(project: ReturnType<typeof useProject>, engine: Engine
       actionName: (id) => actions.get(id),
       language: (type) => engine.expression(type),
     }
-  }, [catalog, program, devices.devices, devices.pinName, devices.catalog, project.project.actions, engine])
+  }, [catalog, program, devices.devices, devices.pinName, devices.catalog, devices.live, project.project.actions, engine])
 
   const selected = selectedIds.length === 1 ? program.blocks.find((b) => b.id === selectedIds[0]) : undefined
 

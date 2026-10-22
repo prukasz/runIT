@@ -21,7 +21,7 @@ Drives a channel: positive forward, negative reverse (a half bridge only forward
 | Pin | Meaning |
 |---|---|
 | Channel (input) | a number. Unwired: the value set in the block's settings. |
-| Drive (input) | in %; -100 to 100. Unwired: the value set in the block's settings. |
+| Drive (input) | in %; -100 to 100, a value past it is taken as 100 (or -100). Unwired: the value set in the block's settings. |
 
 ### Brake
 
@@ -52,4 +52,4 @@ Reads the current of a channel.
 
 - A **setting** is sent on the first enabled pass and whenever one of its values changes; an **action** once on each rising edge of the enable; a **reading** on every enabled pass (gate it with Every to read less often) and written to the outputs.
 - ENO is on while the device accepts the calls (a setting or a reading), or pulses on the pass an action was sent. A failed call is reported and ENO goes off.
-- The device checks the values and refuses what it cannot do; nothing is clamped.
+- Drive is held to -100..100 %: a value past it drives at full speed, and a warning says which value was held (once, until the drive is back in range). The device checks the other values and refuses what it cannot do (a reverse drive on a half bridge).

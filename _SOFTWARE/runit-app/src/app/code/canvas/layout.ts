@@ -213,12 +213,20 @@ export const pinAnchor = (at: Point, shape: BlockShape, end: { readonly side: 'i
 
 /* ---- wires ---- */
 
+/**
+ * The height a When done band leaves and enters a block at: the middle of the header and the first pin row, the same for every block,
+ * so two blocks whose tops are level (they snap to the grid) are joined by a straight band, and the smallest block (one row) is
+ * crossed symmetrically. Half way down a block without pins.
+ */
+export const flowY = (at: Point, shape: BlockShape): number => at.y + Math.min(shape.height, HEADER + ROW) / 2
+
 const ARROW_LENGTH = 22
 const ARROW_HALF = 15
 const BAND_HALF = 6
-const WHOLE_HALF = 12
-const WHOLE_HEAD_HALF = 24
-const WHOLE_HEAD_LENGTH = 30
+// When done: a broad band, so it reads as "runs this block", never as a wire into one of its pins
+const WHOLE_HALF = 26
+const WHOLE_HEAD_HALF = 46
+const WHOLE_HEAD_LENGTH = 40
 
 /** A wire reaches forward by half the gap (at least 40); running back it swings out and under both ends. */
 const reach = (from: number, to: number): { readonly dx: number; readonly back: boolean } =>
@@ -245,7 +253,7 @@ export const ribbon = (from: RibbonSpan, to: RibbonSpan, at: number, whole = fal
   const { dx, back } = reach(from.x, to.x)
   const end = to.x - ARROW_LENGTH
   if (whole) {
-    // block to block: a thick band of even width from the middle of the source block, with a broad arrow head
+    // block to block: a thick band of even width from `from`'s middle (flowY), with a broad arrow head
     const y0 = (from.top + from.bottom) / 2
     const headEnd = to.x - WHOLE_HEAD_LENGTH
     const head = `L ${headEnd} ${at - WHOLE_HEAD_HALF} L ${to.x} ${at} L ${headEnd} ${at + WHOLE_HEAD_HALF} L ${headEnd} ${at + WHOLE_HALF}`

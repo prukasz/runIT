@@ -76,7 +76,8 @@
   X(ERR_VM_LOAD_INCOMPLETE, ERR_TAG(ERR_MOD_VM, 59), ERR_SEV_LOW, { uint8_t kind; uint16_t id; }) \
   X(ERR_VM_NO_MEM, ERR_TAG(ERR_MOD_VM, 60), ERR_SEV_HIGH, { uint32_t size; }) \
   X(ERR_VM_BAD_ARG, ERR_TAG(ERR_MOD_VM, 61), ERR_SEV_HIGH, {  }) \
-  X(ERR_VM_RANGE, ERR_TAG(ERR_MOD_VM, 62), ERR_SEV_LOW, { uint32_t val; uint32_t min; uint32_t max; }) /* a count or value outside its limits */
+  X(ERR_VM_RANGE, ERR_TAG(ERR_MOD_VM, 62), ERR_SEV_LOW, { uint32_t val; uint32_t min; uint32_t max; }) /* a count or value outside its limits */ \
+  X(ERR_VM_DEV_HELD, ERR_TAG(ERR_MOD_VM, 63), ERR_SEV_MEDIUM, { uint16_t block_idx; uint8_t field; float value; float min; float max; }) /* a device block's value held to its limit */
 
 ERR_TAGS_DECLARE(ERR_VM_MAP)
 

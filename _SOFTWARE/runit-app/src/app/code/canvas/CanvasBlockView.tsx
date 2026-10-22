@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { doneKey, outputKey, variableKey, variantOf } from '@engine'
 import type { BlockInstance, ObjectPath, Source } from '@engine'
-import { TypeLead } from '@ui/components'
+import { Badge, TypeLead } from '@ui/components'
 import { chipLabel, deviceLine, fieldText, formulaParts, headline, pinsOf, sourceLabel } from '../blocks'
 import type { BlockContext, BlockPin, PinTarget } from '../blocks'
 import { pinLead } from '../PathEditor'
@@ -60,6 +60,7 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
   const title = type?.alias ?? `Unknown ${block.type}`
   const head = headline(ctx, block, true)
   const device = deviceLine(ctx, block)
+  const suspended = typeof block.device === 'number' && ctx.deviceSuspended?.(block.device) === true
   const formula = formulaParts(ctx, block)
   const outputLabel = block.outputs[0] ? sourceLabel(ctx, { kind: 'variable', path: block.outputs[0].path }) : shape.outputs[0]?.title ?? 'Result'
   const at = drag?.at ?? (offset ? { x: place.x + offset.x, y: place.y + offset.y } : place)
@@ -194,7 +195,12 @@ export function CanvasBlockView({ block, ctx, category, at: place, shape, select
         <div className="canvas-block-side is-in">{shape.inputs.map((pin) => pinView(pin, false))}</div>
         <div className="canvas-block-side is-out">{shape.outputs.map((pin) => pinView(pin, true))}</div>
       </div>
-      {device !== undefined && <div className={`canvas-block-summary is-device ${block.device === null || block.device === undefined ? 'is-missing' : ''}`} title={`Device: ${device}`}>{device}</div>}
+      {device !== undefined && (
+        <div className={`canvas-block-summary is-device ${block.device === null || block.device === undefined ? 'is-missing' : ''}`} title={`Device: ${device}${suspended ? ' (suspended)' : ''}`}>
+          <span className="canvas-block-device-name">{device}</span>
+          {suspended && <Badge tone="warning" size="compact" title="Suspended on the board: its outputs are safe and it refuses writes until resumed">suspended</Badge>}
+        </div>
+      )}
       {formula && (
         <div className="canvas-block-summary is-formula">
           {formula.state !== 'ok' ? (

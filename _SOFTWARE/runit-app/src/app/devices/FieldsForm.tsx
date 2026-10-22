@@ -176,9 +176,11 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
       onChange={(event) => { const parts = event.target.value.trim().split(/[\s,]+/).filter(Boolean).map((h) => parseInt(h, 16)); if (parts.every((b) => b >= 0 && b <= 0xff)) onChange(parts) }} />
   }
   const [lo, hi] = RAW_RANGE[field.rawType] ?? [undefined, undefined]
-  const min = field.min ?? lo
-  const max = field.max ?? hi
-  const integer = field.rawType !== 'float' && field.rawType !== 'double'
+  // A scaled field shows the wire value divided by its scale: a servo's position in degrees, tenths on the wire.
+  const scale = field.scale ?? 1
+  const min = field.min ?? (lo === undefined ? undefined : lo / scale)
+  const max = field.max ?? (hi === undefined ? undefined : hi / scale)
+  const integer = field.rawType !== 'float' && field.rawType !== 'double' && scale === 1
   const width = WIDTH[field.rawType] ?? 1
   const count = field.size !== undefined ? field.size / width : 1
   if (count > 1) {
@@ -193,7 +195,7 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
   const shown = value !== undefined && value !== null ? Number(value) : typeof field.default === 'number' ? field.default : undefined
   // A number with a range the descriptor marks as a slider (`control: slider`), when the user wants sliders.
   if (field.control === 'slider' && prefs.sliders && min !== undefined && max !== undefined) {
-    const step = field.step ?? (integer ? 1 : (max - min) / 100)
+    const step = field.step ?? (integer ? 1 : scale !== 1 ? 1 / scale : (max - min) / 100)
     return <Slider label={label} disabled={disabled} error={missing} value={shown} min={min} max={max} step={step} format={(n) => `${n}${field.unit ? ` ${field.unit}` : ''}`} onChange={onChange} />
   }
   return <NumberField aria-label={label} disabled={disabled} value={shown} min={min} max={max} integer={integer} onCommit={onChange} />

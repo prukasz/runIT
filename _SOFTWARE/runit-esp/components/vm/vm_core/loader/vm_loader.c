@@ -1,5 +1,7 @@
 #include "vm_loader.h"
 #include "vm_err.h"
+#include "vm_block_ids.h"
+#include "vm_event.h"
 #include "vm_exec.h"
 #include "vm_sub.h"
 #include "vm_wire.h"
@@ -271,6 +273,7 @@ static MUST_USE err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* 
 
   vm_block_h blk = NULL;
   ERR_TRY(vm_block_create(&blk, blk_id, cfg));
+  if (cfg->block_type == VM_BLK_ON_EVENT) vm_event_listen(true);  // the program reads events: queue them
   return NULL;
 }
 

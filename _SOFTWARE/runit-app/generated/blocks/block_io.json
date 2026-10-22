@@ -149,12 +149,19 @@
     {
       "id": "get_voltage",
       "alias": "Read voltage",
-      "description": "Reads the voltage of an analog pin, in millivolts. The device refuses it unless the pin is in ADC mode.",
+      "description": "Reads the voltage of an analog pin, in volts. The device refuses it unless the pin is in ADC mode.",
       "op": "VOLTAGE",
       "dir": "read",
       "args": {
         "pin": {
           "required": true
+        }
+      },
+      "returns": {
+        "voltage_mV": {
+          "alias": "Voltage",
+          "unit": "V",
+          "scale": 1000
         }
       },
       "activation": {
@@ -168,12 +175,17 @@
     {
       "id": "set_voltage",
       "alias": "Set voltage",
-      "description": "Drives an analog output pin to a voltage, in millivolts. The device refuses it unless the pin is in DAC mode.",
+      "description": "Drives an analog output pin to a voltage, in volts. The device refuses it unless the pin is in DAC mode.",
       "op": "VOLTAGE",
       "dir": "write",
       "args": {
         "pin": {
           "required": true
+        },
+        "voltage_mV": {
+          "alias": "Voltage",
+          "unit": "V",
+          "scale": 1000
         }
       },
       "header": {

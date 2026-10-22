@@ -3,7 +3,7 @@ import type { BlockInstance, ObjectPath, Source } from '@engine'
 import { useLive } from '../../run/live'
 import { sameTarget, wiresOf } from '../blocks'
 import type { BlockPin, PinTarget, Wire } from '../blocks'
-import { CHIP_HEIGHT, CHIP_WIDTH, chipFor, curve, pinAnchor, ribbon } from './layout'
+import { CHIP_HEIGHT, CHIP_WIDTH, chipFor, curve, flowY, pinAnchor, ribbon } from './layout'
 import type { BlockShape, CanvasLayout, Point, RibbonSpan } from './layout'
 
 /*
@@ -95,12 +95,12 @@ export function CanvasWires({ blocks, layout, place, shapeOf, selected, draft, c
         const level = held === undefined ? '' : held ? 'is-true' : 'is-false'
         if (wire.to.side === 'en') {
           const fromSpan: RibbonSpan = wire.from.pin === 'eno'
-            ? { x: sourceAt.x + sourceShape.width, top: sourceAt.y + 1, bottom: sourceAt.y + sourceShape.height - 1 }
+            ? { x: sourceAt.x + sourceShape.width, top: flowY(sourceAt, sourceShape), bottom: flowY(sourceAt, sourceShape) }
             : { x: from.x, top: from.y - 2.5, bottom: from.y + 2.5 }
           const toSpan: RibbonSpan = { x: targetAt.x, top: targetAt.y + 1, bottom: targetAt.y + targetShape.height - 1 }
           return (
             <g key={key} className={`canvas-wire is-ribbon ${wireClass(wire)} ${selectedKey === key ? 'is-selected' : ''} ${lit ? 'is-live' : ''} ${level}`}>
-              <path className="canvas-ribbon" d={ribbon(fromSpan, toSpan, pinAnchor(targetAt, targetShape, 'en').y, wire.from.pin === 'eno')} onPointerDown={select} />
+              <path className="canvas-ribbon" d={ribbon(fromSpan, toSpan, wire.from.pin === 'eno' ? flowY(targetAt, targetShape) : pinAnchor(targetAt, targetShape, 'en').y, wire.from.pin === 'eno')} onPointerDown={select} />
             </g>
           )
         }

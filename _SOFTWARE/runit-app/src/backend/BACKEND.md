@@ -41,7 +41,7 @@ await services.call('SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, {
 await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })               // { timeout_ms: 500, on_link_lost: true }: the mirror
 await services.device(3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, { side: 'write' })   // a choice by its label, an enum by its member name
 await services.device(3, 'IO', 'LEVEL', { pin: 22 }, { side: 'read' })          // { pin: 22, level: 1 }: the key, then the value
-await services.device(9, 'servo', 'target', { value_x10: 900 })                  // a device type's own op
+await services.device(9, 'servo', 'target', { value_x10: 90 })                   // a device type's own op (90°: a field's `scale` 10 makes it 900 on the wire)
 await services.create(20, 'servo', { pwm_pin: { device: 3, pin: 0 }, … })        // the fields of device_servo.json's config; a pin is { device, pin }
 storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE', { pin: 22 }).request)])   // the same request in a record
 readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                  // a frame read back: { device, entry, command, side, args } or { …, create: { type, config } }
@@ -98,7 +98,7 @@ const reader = engine.telemetry(result)                               // result 
 link.on('telemetry', (data) => { for (const v of reader.read(data)?.values ?? []) show(v.variable, v.value) })
 await sendProgram(link, [engine.subscribe(ids)])                      // the board sends everything once, then what changed
 await sendProgram(link, engine.write(result, [{ variable: 'x', value: 5 }]))   // a runtime write, applied at the next pass
-const plan = engine.watch(compiledWithAllEnableOuts, 'flow')                    // what to subscribe to for a live view (`full`: every block output too): plan.ids, plan.targets
+const plan = engine.watch(compiledWithAllEnableOuts, 'flow')                    // what to subscribe to for a live view (When done, variables, block outputs): plan.ids, plan.targets
 ```
 
 The board samples at the end of a pass; stepped by block (`EXEC block`) it also samples at every stop before a block, and `VM STATUS` `next_block` names the block the next `NEXT` runs (VM_CORE.MD "Remote"). Which stepping is selected is not in STATUS: after a requested pass the board is `VM_RUN_FROZEN` with the scan mode still selected, so a client keeps the mode it selected itself (the app: `useVm`).

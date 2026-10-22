@@ -67,7 +67,17 @@ static int32_t scaled(const vm_dev_op_t* op, uint8_t i, float f) {
   return (int32_t)(x < lo ? lo : x > hi ? hi : x);
 }
 
-// A constant of the state as the field's value: a scaled field keeps a float.
+// A field with a limit is saturated to it: -lim..lim, 0..lim for an unsigned field.
+static int32_t limited(const vm_dev_op_t* op, uint8_t i, int32_t v) {
+  const int32_t lim = op->lim[i];
+  if (lim <= 0) {
+    return v;
+  }
+  const int32_t lo = op->ftype[i] == VM_DEV_F_U8 || op->ftype[i] == VM_DEV_F_U32 ? 0 : -lim;
+  return v < lo ? lo : v > lim ? lim : v;
+}
+
+// A constant of the state as the field's value (not yet limited): a scaled field keeps a float.
 static int32_t const_value(const vm_dev_op_t* op, uint8_t i, int32_t raw) {
   if (op->scale[i] <= 0.0f) {
     return raw;
@@ -77,16 +87,22 @@ static int32_t const_value(const vm_dev_op_t* op, uint8_t i, int32_t raw) {
   return scaled(op, i, f);
 }
 
-// The value of field `i`: its input when wired, else the constant. Out: the field as an i32 (u32 kept as its bits).
-static err_h field_get(vm_block_h b, const vm_dev_op_t* op, const vm_block_device_data_t* d, uint8_t i, int32_t* out) {
+// The value of field `i` as read: its input when wired, else the constant. Out: the field as an i32 (u32 kept as its bits)
+// and, for a scaled field, the value in the block's unit.
+static err_h field_read(vm_block_h b, const vm_dev_op_t* op, const vm_block_device_data_t* d, uint8_t i, int32_t* out,
+                        float* shown) {
   const vm_accessor_t* in = vm_block_optional_in(b, i);
   if (in == NULL) {
+    if (op->scale[i] > 0.0f) {
+      memcpy(shown, &d->k[i], sizeof(*shown));
+    }
     *out = const_value(op, i, d->k[i]);
     return NULL;
   }
   if (op->scale[i] > 0.0f) {
     float f = 0;
     ERR_TRY(VM_OBJ_SCALAR_GET(f, in));
+    *shown = f;
     *out = scaled(op, i, f);
     return NULL;
   }
@@ -112,6 +128,28 @@ static err_h field_get(vm_block_h b, const vm_dev_op_t* op, const vm_block_devic
     default:
       return VM_OBJ_SCALAR_GET(*out, in);
   }
+}
+
+// The value of field `i`, saturated to the field's limit. A value it held is reported once while it stays held.
+static err_h field_get(vm_block_h b, const vm_dev_op_t* op, vm_block_device_data_t* d, uint8_t i, int32_t* out,
+                       bool* held) {
+  float shown = 0;
+  ERR_TRY(field_read(b, op, d, i, out, &shown));
+  const int32_t v = limited(op, i, *out);
+  if (v == *out) {
+    return NULL;
+  }
+  *held = true;
+  if (!(d->flags & VM_DEV_F_HELD)) {
+    d->flags |= VM_DEV_F_HELD;
+    const float unit = op->scale[i] > 0.0f ? op->scale[i] : 1.0f;
+    const int32_t lo = limited(op, i, INT32_MIN);
+    VM_BLK_EMIT_ERR(ERR_VM_DEV_HELD, .block_idx = b->cfg.block_idx, .field = i,
+                    .value = op->scale[i] > 0.0f ? shown : (float)*out, .min = (float)lo / unit,
+                    .max = (float)op->lim[i] / unit);
+  }
+  *out = v;
+  return NULL;
 }
 
 // Packs the fields into the op's packed argument struct (little-endian, the wire form). Returns its length.
@@ -150,7 +188,7 @@ static void idle_send(vm_block_h b, vm_block_device_data_t* d, const vm_dev_cont
   }
   int32_t v[VM_DEV_FIELDS_MAX] = {0};
   for (uint8_t i = 0; i < op->nfield; i++) {
-    v[i] = i < c->naddr ? d->last[i] : const_value(op, i, d->idle_k[i - c->naddr]);
+    v[i] = i < c->naddr ? d->last[i] : limited(op, i, const_value(op, i, d->idle_k[i - c->naddr]));
   }
   BLOCK_CALL(call(d, op, v, NULL), b);
   if (!vm_block_failed(b)) {
@@ -180,11 +218,15 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
   d->flags &= (uint8_t)~VM_DEV_F_IDLE;
 
   int32_t v[VM_DEV_FIELDS_MAX] = {0};
+  bool held = false;
   for (uint8_t i = 0; i < op->nfield; i++) {
-    if (!vm_block_check(b, field_get(b, op, d, i, &v[i]))) {
+    if (!vm_block_check(b, field_get(b, op, d, i, &v[i], &held))) {
       vm_block_set_eno(b, false);
       return;
     }
+  }
+  if (!held) {
+    d->flags &= (uint8_t)~VM_DEV_F_HELD;  // back in range: the next held value is reported again
   }
 
   bool fired = true;
@@ -210,6 +252,11 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
       if (result_is_u8(op)) {
         const uint8_t r = result[i];
         BLOCK_CALL(VM_OBJ_SET_SCALAR(r, q), b);
+      } else if (op->rscale[i] > 0.0f) {
+        int32_t r;
+        memcpy(&r, result + i * sizeof(r), sizeof(r));
+        const float f = (float)r / op->rscale[i];
+        BLOCK_CALL(VM_OBJ_SET_SCALAR(f, q), b);
       } else {
         int32_t r;
         memcpy(&r, result + i * sizeof(r), sizeof(r));

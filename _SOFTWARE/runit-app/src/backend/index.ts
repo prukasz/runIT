@@ -10,7 +10,7 @@
  */
 export { appBoardKind, bundledBlockTypes, bundledBoard, bundledEnums, onboardActionIds, onboardActions, bundledLinkDefinitions, bundledServiceCatalog, errorCatalog, errorIdKinds, errorSeverities, linkDefinitions } from './definitions'
 export type { BoardDescriptor, BoardDevice, BoardKind, BoardPin, BoardPower, PowerProbe, ErrorField, ErrorInfo, IdKindInfo, LinkDefinitions } from './definitions'
-export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rawWidth, readValue, withRanges } from './catalog/codec'
+export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rangesForConfig, rawWidth, readValue, withRanges } from './catalog/codec'
 export type { Choice, FieldInput, FieldRanges, FieldRecord, FieldValue, FieldValues, Layout, PinRef, RawType, WireField } from './catalog/codec'
 export { isMirror, ServiceCatalog, SIDES, sideOf, sidesOf } from './catalog/services'
 export type { CatalogEntry, CommandDef, CommandSide, DeviceChannels, DevicePins, DevicePreset, DescriptorFile, EntryKind, EventDef, Returns, Side } from './catalog/services'

@@ -158,6 +158,14 @@ void vm_exec_run_range(uint16_t start, uint16_t end);
 void vm_exec_set_sample_hook(void (*hook)(void));
 
 /**
+ * @brief err_report() of @p chain from inside a pass, with the block watchdog paused.
+ *
+ * Reporting logs the chain to the console, which takes tens of ms: that is not the block's time, so the block being
+ * timed starts a fresh token afterwards instead of being reported hung.
+ */
+void vm_exec_report(err_h chain);
+
+/**
  * @brief Queues record @p id (a sys_actions ID, u32) to run on a router task.
  *
  * A block never runs a record on the VM task: it may rewind or unload the VM itself, and a replay outlasts the

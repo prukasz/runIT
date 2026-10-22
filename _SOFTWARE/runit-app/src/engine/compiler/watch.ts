@@ -6,9 +6,10 @@ import type { CompileResult } from './compile'
  * What to ask the board to send while the program runs (SUBSCRIBE, VM_CORE.MD "Telemetry is the same command"). The board follows a
  * subscribed object and everything its PTR children reach (8 levels), so a folder is one id for all of its variables.
  *
- *   flow   what a live view shows: every variable, and each block's When done (the block acted on this pass). Needs a program
- *          compiled with `allEnableOuts`, or only the blocks something reads have one.
- *   full   a debug view: the same, and the value of every block output (the block's own objects included).
+ *   flow   what a live view shows: every variable, each block's When done (the block acted on this pass) and the value of every
+ *          block output (the block's own objects included, last: the first left out when the board takes no more). Needs a
+ *          program compiled with `allEnableOuts`, or only the blocks something reads have a When done.
+ *   full   a debug view: the same.
  *
  * A target is a name for what an object stands for in the project (`watchKey`): a variable, a block's output, a block's When done.
  * One object can be several (a block that writes a variable).
@@ -48,14 +49,10 @@ export const watchPlan = (result: CompileResult, detail: WatchDetail, limits: Vm
   // Priority: the flow, then the variables, then the block outputs.
   for (const [key, object] of result.ids.outputs) if (key.endsWith(':eno')) want(object, doneKey(key.slice(0, -4)))
   for (const [variable, object] of result.ids.variables) want(object, variableKey(variable))
-  if (detail === 'full') for (const [key, object] of result.ids.outputs) if (!key.endsWith(':eno')) {
+  // An output the user named is the variable's object: its output key goes to the same object.
+  for (const [key, object] of result.ids.outputs) if (!key.endsWith(':eno')) {
     const at = key.lastIndexOf(':out')
     want(object, outputKey(key.slice(0, at), Number(key.slice(at + 4))))
-  }
-  // An output the user named is the variable's object: its output key goes to the same object in the `flow` view too.
-  if (detail === 'flow') for (const [key, object] of result.ids.outputs) if (!key.endsWith(':eno') && targets.has(object)) {
-    const at = key.lastIndexOf(':out')
-    targets.get(object)!.push(outputKey(key.slice(0, at), Number(key.slice(at + 4))))
   }
 
   const children = new Map<number, number[]>()

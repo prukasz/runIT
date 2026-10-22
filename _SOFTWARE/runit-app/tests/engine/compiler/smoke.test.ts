@@ -10,7 +10,7 @@ describe('the engine over the bundled descriptors', () => {
   })
 
   it('knows the whole palette', () => {
-    expect(engine.catalog.blocks).toHaveLength(22)
+    expect(engine.catalog.blocks).toHaveLength(23)
     expect(engine.catalog.warnings).toEqual([])
   })
 })

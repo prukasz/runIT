@@ -185,7 +185,7 @@ describe('requests', () => {
   })
 
   it("a device type's own command is in the own contract", () => {
-    const call = deviceCall(defs, catalog, 9, 'servo', 'target', { value_x10: -900 })
+    const call = deviceCall(defs, catalog, 9, 'servo', 'target', { value_x10: -90 })
     expect(hex(call.request.payload!)).toBe('0900' + hex(Uint8Array.of(catalog.device('servo').commands.get('target')!.op, catalog.ownContractId!)) + '7cfc')
   })
 

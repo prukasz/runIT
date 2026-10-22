@@ -41,14 +41,14 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 - Suspended / no bindings: dropped, NULL. Queue full: `ERR_CONN_QUEUE_FULL` (callers on the log / error path drop it silently).
 - Any task can send, including one holding a transport's lock or one inside logging, without deadlock or re-entry.
 - Per binding the task checks the provider's current limit: too long → `ERR_CONN_TOO_LONG`, not sent there, never cut. `sys_connector_max_payload(id)` gives producers the smallest limit − 1 (calls the providers; not from a task holding a transport lock).
-- Errors in the task are **logged only** (`err_log`): reporting them would queue an error record back into this task and could loop.
+- Errors in the task are **logged only** (`err_log`): reporting them would queue an error record back into this task and could loop. A provider that keeps failing (its queue full) is logged once, then again only after it has sent a frame.
 - `send` to a connector that doesn't exist fails with `ERR_CONN_NOT_FOUND`. A payload longer than `CONFIG_SYS_CONNECTOR_FRAME_MAX - 1` is refused at `send` (`ERR_CONN_TOO_LONG`, provider 0), before it is queued.
 
 ## Adding a transport
 
 A transport is a router link and a connector provider under one ID (`transport_e`, `sys_connector.h`). Its provider side is one `sys_connector_provider_t`:
 
-- `send(endpoint, frame, len)`: sends one frame, stream byte included. Runs only on the connector task.
+- `send(endpoint, frame, len)`: hands one frame (stream byte included) to the transport's own TX queue and returns; the transport's own task puts it on the wire (UART: its TX task; BLE: the characteristic's TX buffer and the BLE task). It never waits for the line itself, only for room in that queue, bounded (UART 1 s, BLE 20 ms): a full queue holds this task, so its own queue fills and producers are refused rather than frames lost unseen. Runs only on the connector task.
 - `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for `CONFIG_SYS_CONNECTOR_FRAME_MAX`. Asked by `sys_connector_max_payload`, which any task may call except one holding this transport's lock.
 - `endpoint` is the transport's own address: UART uses `SYS_UART_ENDPOINT` (0), BLE uses the characteristic UUID (`SYS_BLE_CHR_RUNIT_TX`, `SYS_BLE_CHR_RUNIT_LOGS`, or a user one).
 

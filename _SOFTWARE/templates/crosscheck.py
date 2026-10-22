@@ -284,15 +284,17 @@ class Checker:
     def controls_check(self):
         """A field's `control` needs what it draws: a slider a number with min and max, a switch a choice of two options."""
         is_contract = False
+        ranged = set()  # fields of a device's commands its `ranges` give a range
 
         def walk(node, path, where):
             if isinstance(node, dict):
                 control = node.get("control")
                 if control == "slider" and node.get("type") not in ("number", "integer"):
                     self.error(path, where, "control slider needs a number field")
-                # A contract's field may leave the range to the device (`ranges`); anywhere else it has its own.
-                if control == "slider" and not ("min" in node and "max" in node) and not is_contract:
-                    self.error(path, where, "control slider needs min and max (a contract field may take them from the device's ranges)")
+                # A contract's field may leave the range to the device (`ranges`), and so may a device's own command field that
+                # its `ranges` name; anywhere else it has its own.
+                if control == "slider" and not ("min" in node and "max" in node) and not is_contract and node.get("id") not in ranged:
+                    self.error(path, where, "control slider needs min and max (or a `ranges` entry: a contract field takes them from the device)")
                 if control == "switch" and not (node.get("type") == "choice" and len(node.get("options", [])) == 2):
                     self.error(path, where, "control switch needs a choice field with exactly two options")
                 for key, value in node.items():
@@ -302,6 +304,7 @@ class Checker:
                     walk(item, path, f"{where}/{item['id']}" if isinstance(item, dict) and "id" in item and "control" in item else where)
         for path, document in list(self.contracts.values()) + list(self.devices.values()):
             is_contract = document.get("kind") != "device-definition"
+            ranged = {key.split(".", 1)[1] for key in document.get("ranges", {})}
             walk(document, path, document["id"])
         for path, document in self.devices.values():
             provides = document.get("provides", {})
@@ -322,6 +325,11 @@ class Checker:
                 fields = [f for s in sides for part in ("args", "returns") for f in (commands[command][s].get(part) or {}).get("fields", [])]
                 if not any(f["id"] == field for f in fields):
                     self.error(path, f"ranges/{key}", "names no field of a command of the device's contracts or of its own commands")
+                config_ids = {f["id"] for f in (document.get("config") or {}).get("fields", [])}
+                for i, entry in enumerate(r.get("by_config", [])):
+                    for name in list(entry["when"]) + [v for v in (entry["min"], entry["max"]) if isinstance(v, str)]:
+                        if name not in config_ids:
+                            self.error(path, f"ranges/{key}/by_config/{i}", f"'{name}' is not a config field of the device")
                 if r["min"] >= r["max"]:
                     self.error(path, f"ranges/{key}", "min must be below max")
 

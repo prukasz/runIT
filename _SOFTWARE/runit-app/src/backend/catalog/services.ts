@@ -462,6 +462,7 @@ export class ServiceCatalog {
         ...(num(f.min) !== undefined ? { min: num(f.min) } : {}),
         ...(num(f.max) !== undefined ? { max: num(f.max) } : {}),
         ...(num(f.step) !== undefined ? { step: num(f.step) } : {}),
+        ...(num(f.scale) !== undefined && num(f.scale)! > 0 ? { scale: num(f.scale) } : {}),
         ...(f.control === 'slider' || f.control === 'switch' ? { control: f.control } : {}),
         ...(f.default !== undefined ? { default: f.default } : {}),
         optional: f.optional === true,

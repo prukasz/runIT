@@ -5,7 +5,7 @@ import { draftForVariable, newBlock, toPath } from '@engine'
 import type { BlockInstance, ObjectPath, Source } from '@engine'
 import { MenuOption, OptionMenu, TypeLead } from '@ui/components'
 import { useErrors } from '../../console/useConsole'
-import { blockDiagnostics, blockPinName, blockSource, chipLabel, connect, disconnect, fits, isBlockTarget, pinsOf, sameTarget, sentBy, sourceLabel } from '../blocks'
+import { blockDiagnostics, blockPinName, blockSource, chipLabel, connect, connectWithFlow, disconnect, fits, isBlockTarget, pinsOf, sameTarget, sentBy, sourceLabel } from '../blocks'
 import type { BlockPin, PinTarget, Sent, Wire } from '../blocks'
 import { BLOCK_DRAG_TYPE } from '../BlockPalette'
 import type { BlocksState } from '../useBlocks'
@@ -405,7 +405,7 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
       const source = blockSource(draft.from.block, draft.from.pin)
       const hit = pinAtPoint(event.clientX, event.clientY, draft.from.block)
       if (hit && hit.side !== 'out' && takes(hit, source)) {
-        blocks.update(hit.block, (b) => connect(b, hit, source))
+        blocks.update(hit.block, (b) => connectWithFlow(list, b, hit, source))
         setDraft(undefined)
         return
       }
@@ -455,7 +455,7 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
       program: { ...p.program, blocks: p.program.blocks.map((b) => {
         let next = b
         if (from && !sameTarget(from, target) && b.id === from.block) next = disconnect(next, from)
-        if (b.id === target.block) next = connect(next, target, picker.source)
+        if (b.id === target.block) next = connectWithFlow(p.program.blocks, next, target, picker.source)
         return next
       }) },
     }))
@@ -541,8 +541,9 @@ export function CanvasSurface({ blocks, picked, onPickedUsed, onBackgroundClick,
   ] : []
   const linkInto = (row: PickerRow) => {
     if (!link || !sentSource) return
-    blocks.update(row.target.block, (b) => connect(b, row.target, sentSource))
+    blocks.update(row.target.block, (b) => connectWithFlow(list, b, row.target, sentSource))
     setLink(undefined)
+    blocks.select(undefined)  // the link is made: neither block stays selected, so the next tap does not link again
   }
 
   const pickerBlock = picker ? byId(picker.block) : undefined

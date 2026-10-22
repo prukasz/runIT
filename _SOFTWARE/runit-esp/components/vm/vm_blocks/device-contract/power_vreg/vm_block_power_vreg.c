@@ -8,7 +8,12 @@ _Static_assert(sizeof(VREG_value_ENABLE_t) == 1 && sizeof(VREG_value_VOLTAGE_t) 
 
 static const vm_dev_op_t k_ops[] = {
     VM_DEV_OP(VREG_OP_ENABLE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    VM_DEV_OP(VREG_OP_VOLTAGE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U32),
+    {.op = VREG_OP_VOLTAGE,
+     .act = VM_DEV_ACT_CHANGE,
+     .result = VM_DEV_R_NONE,
+     .nfield = 1,
+     .ftype = {VM_DEV_F_U32},
+     .scale = {1000.0f}},  // voltage in volts (mV on the wire)
     VM_DEV_OP(VREG_OP_CURRENT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U32),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};

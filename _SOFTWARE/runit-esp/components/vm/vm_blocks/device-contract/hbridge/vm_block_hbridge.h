@@ -19,8 +19,9 @@
  *  GET_CURRENT           channel                         i32 mA   READ
  *
  *  Drive is a float, -100..100 % (a half bridge 0..100), from the input and from the constant alike: the block turns
- *  it into the contract's 12-bit steps (x40.95, rounded, saturated); the device range-checks. Idle: `idle_op` BRAKE or
- *  COAST (0 = hold what the bridge has) is sent once when the enable falls, for the channel last driven.
+ *  it into the contract's 12-bit steps (x40.95, rounded) saturated to ±4095 (±100 %, reported once: ERR_VM_DEV_HELD);
+ *  the device checks the rest (a negative drive on a half bridge). Idle: `idle_op` BRAKE or COAST (0 = hold what the
+ *  bridge has) is sent once when the enable falls, for the channel last driven.
  */
 
 /* Load-time check of the block's state and shape; the body, called every pass. */

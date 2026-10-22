@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createEngine, newBlock } from '@engine'
 import type { BlockInstance, Project, Variable } from '@engine'
-import { blockName, chipLabel, connect, copyBlocks, disconnect, fits, formulaText, groupCount, headline, headlineText, newBlockId, pinsOf, removeBlocks, sentBy, sourceLabel, wiresOf, withGroupCount } from '../../src/app/code/blocks'
+import { blockName, chipLabel, connect, connectWithFlow, copyBlocks, disconnect, fits, formulaText, groupCount, headline, headlineText, newBlockId, pinsOf, removeBlocks, sentBy, sourceLabel, wiresOf, withGroupCount } from '../../src/app/code/blocks'
 import type { BlockContext } from '../../src/app/code/blocks'
 import { scopesOf } from '../../src/app/code/canvas/scopes'
-import { blockShape, collides, FORMULA_ROW, freeSpot, nearestFreeSpot, GRID, HEADER, pinAnchor, positionOf, readLayout, screenToCanvas, zoomAt } from '../../src/app/code/canvas/layout'
+import { blockShape, collides, flowY, pinViews, FORMULA_ROW, freeSpot, nearestFreeSpot, GRID, HEADER, pinAnchor, positionOf, readLayout, screenToCanvas, zoomAt } from '../../src/app/code/canvas/layout'
 
 const engine = createEngine()
 const variables: Variable[] = [
@@ -41,6 +41,12 @@ describe('blocks: ids and names', () => {
     expect(sourceLabel(ctx, { kind: 'variable', path: { root: 'f1', steps: [{ kind: 'name', name: 'angle' }] } })).toBe('arm.angle')
     expect(sourceLabel(ctx, { kind: 'eno', block: 'p1' })).toBe('Every.Tick')
     expect(sourceLabel(ctx, { kind: 'output', block: 'e1', pin: 0 })).toBe(`${engine.catalog.get('expr')!.alias}.${pinsOf(engine.catalog, blocks[1]!)!.outputs[0]!.pin.alias}`)
+  })
+
+  it('an output that writes a variable reads as the variable, its pin keeps its own name', () => {
+    const writer = newBlock('e1', 'expr', { outputs: [{ path: { root: 'v1', steps: [] } }] })
+    expect(sourceLabel(context([writer]), { kind: 'output', block: 'e1', pin: 0 })).toBe('speed')
+    expect(pinViews(context([writer]), writer).outputs[0]!.quiet).toBeUndefined()
   })
 
   it('a long label is cut from its start for a chip', () => {
@@ -115,6 +121,23 @@ describe('blocks: wiring', () => {
   })
 })
 
+describe('blocks: a wire keeps the flow', () => {
+  const out = { kind: 'output', block: 'e1', pin: 0 } as const
+  const into = { block: 'h1', side: 'in', index: 1 } as const
+  it('a block with no Run when also runs on the When done of the block it reads', () => {
+    const blocks = [newBlock('e1', 'expr'), newBlock('h1', 'hbridge')]
+    expect(connectWithFlow(blocks, blocks[1]!, into, out).enables).toEqual([{ kind: 'eno', block: 'e1' }])
+  })
+  it('not over a Run when of its own, a loop back, or a block that sends something when its enable falls', () => {
+    const own = newBlock('h1', 'hbridge', { enables: [{ kind: 'variable', path: { root: 'v3', steps: [] } }] })
+    expect(connectWithFlow([newBlock('e1', 'expr'), own], own, into, out).enables).toEqual(own.enables)
+    const back = [newBlock('e1', 'expr', { enables: [{ kind: 'eno', block: 'h1' }] }), newBlock('h1', 'hbridge')]
+    expect(connectWithFlow(back, back[1]!, into, out).enables).toEqual([])
+    const braking = newBlock('h1', 'hbridge', { values: { idle: 2305 } })
+    expect(connectWithFlow([newBlock('e1', 'expr'), braking], braking, into, out).enables).toEqual([])
+  })
+})
+
 describe('blocks: the header', () => {
   it('fills the descriptor\'s words with the values, the device and the pin by their names', () => {
     const io = newBlock('io1', 'io', { variant: 'set_level', device: 1, values: { pin: 22 } })
@@ -137,6 +160,15 @@ describe('blocks: the header', () => {
 })
 
 describe('canvas layout', () => {
+  it('a When done band meets blocks of any height at one height: level when their tops are, centred on a one-row block', () => {
+    const ctx = context([])
+    const short = blockShape(ctx, newBlock('p1', 'periodic'))
+    const tall = blockShape(ctx, newBlock('h1', 'hbridge'))
+    expect(short.height).not.toBe(tall.height)
+    expect(flowY({ x: 0, y: 100 }, short)).toBe(flowY({ x: 400, y: 100 }, tall))
+    expect(flowY({ x: 0, y: 100 }, short)).toBe(100 + short.height / 2)
+  })
+
   it('a block is on the grid, at least six cells wide, with a row for its formula', () => {
     const plain = newBlock('p1', 'periodic')
     const formula = newBlock('e1', 'expr', { editor: { text: 'in0 + 1' } })

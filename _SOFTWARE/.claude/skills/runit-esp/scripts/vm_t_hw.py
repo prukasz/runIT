@@ -270,8 +270,8 @@ def t_dev_fail(vm: Vm) -> None:
 def t_pmon(vm: Vm) -> None:
     p = Prog()
     ch = p.u8(1)
-    mv, ma, mw = p.i32(), p.i32(), p.i32()
-    mv0, mvx = p.i32(), p.i32()
+    mv, ma, mw = p.f(), p.i32(), p.i32()  # a voltage is volts in the block (a float), a current mA
+    mv0, mvx = p.f(), p.f()
     e1, e2, e3 = p.b(), p.b(), p.b()
     p.block("POWER_MONITOR", ins=[None], outs=[mv], eno=e1, state=dev_state(INA_ID, PM_VOLTAGE, k=(1,)))      # the channel from the state: the input
     p.block("POWER_MONITOR", ins=[None], outs=[ma], eno=e2, state=dev_state(INA_ID, PM_CURRENT, k=(1,)))
@@ -282,14 +282,14 @@ def t_pmon(vm: Vm) -> None:
         return
     g = vm.step([mv, ma, mw, mv0, mvx, e1, e2, e3])
     v = vm.vals(g, mv)
-    check("the board input voltage (channel 1) is about 5 V", v is not None and 4000 <= v <= 6000, f"{v} mV")
+    check("the board input voltage (channel 1) is about 5 V, in volts", v is not None and 4.0 <= v <= 6.0, f"{v} V")
     check("... ENO true on the three reads", (vm.vals(g, e1), vm.vals(g, e2), vm.vals(g, e3)) == (1, 1, 1))
     check("the current and the power are numbers of the right sign and size (mA / mW)", abs(vm.vals(g, ma)) < 6000 and abs(vm.vals(g, mw)) < 30000, f"{vm.vals(g, ma)} mA {vm.vals(g, mw)} mW")
-    check("a channel from a pin overrides the state's (pin 1 -> the input again)", vm.vals(g, mv0) is not None and abs(vm.vals(g, mv0) - v) < 400, f"{vm.vals(g, mv0)} vs {v}")
-    check("channel 0 (rail B, off) reads less than the input", vm.vals(g, mvx) is not None and vm.vals(g, mvx) < v - 1000, f"{vm.vals(g, mvx)}")
+    check("a channel from a pin overrides the state's (pin 1 -> the input again)", vm.vals(g, mv0) is not None and abs(vm.vals(g, mv0) - v) < 0.4, f"{vm.vals(g, mv0)} vs {v}")
+    check("channel 0 (rail B, off) reads less than the input", vm.vals(g, mvx) is not None and vm.vals(g, mvx) < v - 1.0, f"{vm.vals(g, mvx)}")
     vm.write(ch, 2)
     g = vm.step([mv0])
-    check("the pin changes to channel 2 (rail A): the block reads that channel", vm.vals(g, mv0) is not None and vm.vals(g, mv0) < v - 1000, f"{vm.vals(g, mv0)}")
+    check("the pin changes to channel 2 (rail A): the block reads that channel", vm.vals(g, mv0) is not None and vm.vals(g, mv0) < v - 1.0, f"{vm.vals(g, mv0)}")
     vm.reset()
 
 
@@ -381,3 +381,55 @@ def t_on_event(vm: Vm) -> None:
     p.block("ON_EVENT", state=ev_state(0, 0xFFFF, 0xFF))
     check("ON_EVENT with no output and no ENO loads", vm.load(p) is None)
     vm.reset()
+
+
+@test("events/the queue: none without ON_EVENT, one overflow report per run", hw=True)
+def t_event_queue(vm: Vm) -> None:
+    if not pin_free(vm):
+        return
+    dev_call(vm, GPIO_ID, IO_MODE, bytes([PIN, 3]))
+    set_level(vm, 1)
+    r = dev_call(vm, GPIO_ID, IO_INTR, bytes([PIN]) + struct.pack("<BBHHHH", 3, 0, 0, 0, 0, 0))  # both edges, no debounce
+    check("both edges of the pin raise events", ok(r), str(r))
+
+    def edges(n: int) -> None:  # n events, more than the queue holds (CONFIG_VM_EVENT_DEPTH 30)
+        for i in range(n):
+            set_level(vm, i % 2)
+        time.sleep(0.2)
+
+    def overflows(t: float) -> int:
+        return sum(1 for rec in vm.link.error_records_since(t) if "ERR_VM_EVENT_OVERFLOW" in rec.names())
+
+    p = Prog()
+    p.block("SET", ins=[None, p.f()], state=f32(1.0) + bytes(4))
+    if loaded(vm, p, X_SCAN, "a program with no ON_EVENT"):
+        t = vm.link.mark()
+        edges(40)
+        vm.step([])
+        time.sleep(0.3)
+        check("a program that reads no event queues none: 40 edges, no overflow reported", overflows(t) == 0, str(overflows(t)))
+        vm.reset()
+
+    p = Prog()
+    p.block("ON_EVENT", outs=[p.i32()], state=ev_state(GPIO_ID, 0xFFFF, PIN))
+    if loaded(vm, p, X_SCAN, "a program with an ON_EVENT block"):
+        t = vm.link.mark()
+        edges(40)
+        vm.step([])
+        time.sleep(0.3)
+        check("with an ON_EVENT block 40 edges overflow the queue: reported once", overflows(t) == 1, str(overflows(t)))
+        t = vm.link.mark()
+        edges(40)
+        vm.step([])
+        time.sleep(0.3)
+        check("... more drops on the next pass are the same run: not reported again", overflows(t) == 0, str(overflows(t)))
+        vm.step([])
+        t = vm.link.mark()
+        edges(40)
+        vm.step([])
+        time.sleep(0.3)
+        check("... after a pass without a drop a new run is reported again", overflows(t) == 1, str(overflows(t)))
+        vm.reset()
+    set_level(vm, 0)
+    pin_release(vm)
+

@@ -33,6 +33,8 @@ export interface BlockContext {
   readonly eventName: (device: number | undefined, code: number) => string | undefined
   readonly actionName: (id: number) => string | undefined
   readonly language: (type: string) => ExpressionLanguage | undefined
+  /** The board has the device suspended now (safe state, a fault, a SUSPEND): its blocks say so. Unknown (no board): false. */
+  readonly deviceSuspended?: (id: number) => boolean
 }
 
 /* ---- ids and names ---- */
@@ -75,6 +77,9 @@ export const blockPinName = (catalog: Catalog, block: BlockInstance | undefined,
 export const sourceLabel = (ctx: Pick<BlockContext, 'catalog' | 'project'>, source: Source): string => {
   if (source.kind === 'variable') return formatPath(ctx.project.variables, source.path)
   const block = ctx.project.blocks.find((b) => b.id === source.block)
+  // An output that writes a variable is that variable: the board reads the same object.
+  const written = source.kind === 'output' ? block?.outputs[source.pin] : undefined
+  if (written) return formatPath(ctx.project.variables, written.path)
   return `${blockName(ctx.catalog, ctx.project.blocks, source.block)}.${blockPinName(ctx.catalog, block, source.kind === 'eno' ? 'eno' : source.pin)}`
 }
 
@@ -117,6 +122,23 @@ export const connect = (block: BlockInstance, target: PinTarget, source: Source)
   const inputs = Array.from({ length: Math.max(block.inputs.length, target.index + 1) }, (_, i) => block.inputs[i] ?? null)
   inputs[target.index] = source
   return { ...block, inputs }
+}
+
+/**
+ * `connect`, keeping the flow: an output of another block wired onto an input of a block with no Run when also gives it that block's
+ * When done, so it runs on the passes the value is made, as the blocks before it do. Not when the source block reads this one (that
+ * would close a loop), and not for a block that sends something when its enable falls (When disabled: Brake, Coast): it would send
+ * it after every pass of the source.
+ */
+export const connectWithFlow = (blocks: readonly BlockInstance[], block: BlockInstance, target: PinTarget, source: Source): BlockInstance => {
+  const next = connect(block, target, source)
+  if (target.side !== 'in' || source.kind !== 'output' || source.block === block.id || block.enables.length > 0 || next === block) return next
+  const producer = blocks.find((b) => b.id === source.block)
+  const readsThis = (s: Source | null) => !!s && s.kind !== 'variable' && s.block === block.id
+  if (!producer || [...producer.inputs, ...producer.enables].some(readsThis)) return next
+  const idle = block.values?.idle
+  if (typeof idle === 'number' && idle !== 0) return next
+  return { ...next, enables: [{ kind: 'eno', block: source.block }] }
 }
 
 /** Takes off what a pin holds: an input or an output back to nothing, one enable (by position) or all of them. */

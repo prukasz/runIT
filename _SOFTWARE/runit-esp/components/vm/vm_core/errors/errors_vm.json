@@ -382,6 +382,10 @@
     },
     "ERR_VM_RANGE": {
       "message": "{val} is outside {min}..{max}"
+    },
+    "ERR_VM_DEV_HELD": {
+      "message": "{block_idx}: {value} is outside {min}..{max}, the nearest end is sent",
+      "hint": "Bring the value into the range shown; until then the device runs at the end of its range."
     }
   }
 }

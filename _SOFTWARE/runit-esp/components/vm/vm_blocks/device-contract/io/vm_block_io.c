@@ -18,8 +18,18 @@ static const vm_dev_op_t k_ops[] = {
     VM_DEV_OP(IO_OP_PWM_FREQ, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U8, VM_DEV_F_U32),
     VM_DEV_OP(IO_OP_MODE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U8, VM_DEV_F_U8),
     VM_DEV_OP(IO_OP_RESET, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    VM_DEV_OP(IO_OP_VOLTAGE, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),
-    VM_DEV_OP(IO_OP_VOLTAGE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U8, VM_DEV_F_I32),
+    {.op = IO_OP_VOLTAGE,
+     .act = VM_DEV_ACT_READ,
+     .result = VM_DEV_R_I32,
+     .nfield = 1,
+     .ftype = {VM_DEV_F_U8},
+     .rscale = {1000.0f}},  // pin; the voltage out in volts (mV on the wire)
+    {.op = IO_OP_VOLTAGE,
+     .act = VM_DEV_ACT_CHANGE,
+     .result = VM_DEV_R_NONE,
+     .nfield = 2,
+     .ftype = {VM_DEV_F_U8, VM_DEV_F_I32},
+     .scale = {0, 1000.0f}},  // pin, voltage in volts (mV on the wire)
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 1};
 

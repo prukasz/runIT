@@ -314,6 +314,16 @@
         "hints": { "$ref": "#/$defs/valueSettings/properties/hints" }
       }
     },
+    "returnOverride": {
+      "type": "object",
+      "description": "How one value a contract command returns shows on the block's output in this variant.",
+      "additionalProperties": false,
+      "properties": {
+        "alias": { "type": "string", "minLength": 1, "description": "Replaces the contract's label of the value." },
+        "unit": { "type": "string", "description": "The unit of the output, when it is not the contract's (volts where the contract has millivolts)." },
+        "scale": { "type": "number", "exclusiveMinimum": 0, "description": "The wire value is the shown value times scale, as for an argument: the output is a float, the wire value / scale (millivolts to volts: 1000). The block's table on the board holds the same number (`rscale`, vm_block_device.h)." }
+      }
+    },
     "pin": {
       "type": "object",
       "required": ["id", "alias", "value"],
@@ -376,6 +386,7 @@
             "description": "Strona polecenia `op`, którą wariant wywołuje: read wypełnia wyjścia, write steruje urządzeniem. Konieczne, gdy polecenie ma obie strony."
           },
         "args": { "type": "object", "propertyNames": { "$ref": "#/$defs/argId" }, "additionalProperties": { "$ref": "#/$defs/argOverride" }, "description": "Per argument of 'op' (by the argument's id in the contract): fixed value, input mode, hidden, hints. An argument not listed behaves as the contract says, with input 'optional'." },
+        "returns": { "type": "object", "propertyNames": { "$ref": "#/$defs/argId" }, "additionalProperties": { "$ref": "#/$defs/returnOverride" }, "description": "Per value of what 'op' returns (by the field's id in the contract, 'result' for a single value): its output's alias, unit and scale. A value not listed is the contract's, in wire units." },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" }, "description": "The variant's own values (for a custom operation)." },
         "activation": { "$ref": "#/$defs/activation" },
         "header": { "$ref": "#/$defs/header" },

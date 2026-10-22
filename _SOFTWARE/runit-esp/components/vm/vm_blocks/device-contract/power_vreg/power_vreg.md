@@ -28,7 +28,7 @@ Sets the wanted output voltage.
 
 | Pin | Meaning |
 |---|---|
-| Voltage (input) | in mV. Unwired: the value set in the block's settings. |
+| Voltage (input) | in volts. Unwired: the value set in the block's settings. |
 
 ### Current limit
 

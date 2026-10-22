@@ -21,7 +21,8 @@ with VM_BLOCK_TYPE_DEFINE (vm_blocks.h); this header only holds the list so the 
 #define VM_BLK_PERIODIC 13    // Every
 #define VM_BLK_ACTION   14      // Run Action
 #define VM_BLK_ON_EVENT 15    // On Event
-/* 10, 11, 16..20 are unused. The device blocks are one per contract and take numbers from 32. */
+#define VM_BLK_MAP      16         // Map
+/* 10, 11, 17..20 are unused. The device blocks are one per contract and take numbers from 32. */
 #define VM_BLK_IO            32             // IO contract: pins
 #define VM_BLK_HBRIDGE       33        // HBRIDGE contract: motor channels
 #define VM_BLK_POWER_MONITOR 34  // POWER_MONITOR contract: measured channels

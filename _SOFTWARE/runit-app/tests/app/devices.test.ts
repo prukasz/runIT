@@ -19,7 +19,7 @@ const project: ProjectFile = {
   devices: [{
     id: 20, type: 'servo', name: 'Left servo',
     config: { pwm_pin: { device: pwm.id, pin: 2 }, servo_type: 0, byte_mode: 0, invert: 1, angle_min_deg: 0, angle_max_deg: 180, default_pos: 90, min_us: 500, max_us: 2400, deadband_us: 0 },
-    defaults: [{ kind: 'device', device: 20, contract: 'servo', command: 'target', args: { value_x10: 450 } }],
+    defaults: [{ kind: 'device', device: 20, contract: 'servo', command: 'target', args: { value_x10: 45 } }],
   }],
   boardDefaults: [{ device: expander.id, steps: [{ kind: 'device', device: expander.id, contract: 'IO', command: 'LEVEL', args: { pin: 22, level: 1 } }] }],
   actions: [{ id: 10, name: 'Wave', steps: [{ kind: 'device', device: 20, contract: 'servo', command: 'home' }, { kind: 'frame', bytes: [defs.keys.sys!, defs.dir.write, 0x02] }] }],
@@ -342,6 +342,15 @@ describe('the ranges a device gives its commands', () => {
     expect(voltage.fields[0]).toMatchObject({ control: 'slider' })
     expect(voltage.fields[0]!.max).toBeUndefined()
     expect(withRanges(voltage, 'VOLTAGE', rail.ranges)!.fields[0]).toMatchObject({ min: 4000, max: 20000, step: 100, control: 'slider' })
+  })
+  it("a servo's target follows its config, in degrees / percent: an angle servo its angles, a continuous one -100..100 %, byte steering 0..255", () => {
+    const servo = (config: Record<string, number>) => deviceList({ ...emptyProject('Servo'), devices: [{ id: 30, type: 'servo', name: 'S', config }] }, catalog, board).find((d) => d.id === 30)!
+    expect(servo({}).ranges?.['target.value_x10']).toEqual({ min: 0, max: 180, step: 1 })
+    expect(servo({ angle_min_deg: -90, angle_max_deg: 90 }).ranges?.['target.value_x10']).toEqual({ min: -90, max: 90, step: 1 })
+    expect(servo({ servo_type: 1 }).ranges?.['target.value_x10']).toEqual({ min: -100, max: 100, step: 1 })
+    expect(servo({ byte_mode: 1 }).ranges?.['target.value_x10']).toEqual({ min: 0, max: 255, step: 1 })
+    const target = catalog.devices.get('servo')!.commands.get('target')!.write!.args!
+    expect(withRanges(target, 'target', servo({}).ranges)!.fields[0]).toMatchObject({ min: 0, max: 180, control: 'slider', scale: 10 })
   })
   it('a command without a range keeps its layout', () => {
     const voltage = catalog.contracts.get('POWER_VREG')!.commands.get('VOLTAGE')!.write!.args!

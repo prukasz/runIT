@@ -82,7 +82,7 @@ Reads the voltage of an analog pin.
 | Pin | Meaning |
 |---|---|
 | Pin (input) | a number. Unwired: the value set in the block's settings. |
-| Voltage (output) | in mV. |
+| Voltage (output) | in volts. |
 
 ### Set voltage
 
@@ -91,7 +91,7 @@ Drives an analog output pin to a voltage.
 | Pin | Meaning |
 |---|---|
 | Pin (input) | a number. Unwired: the value set in the block's settings. |
-| Voltage (input) | in mV. Unwired: the value set in the block's settings. |
+| Voltage (input) | in volts. Unwired: the value set in the block's settings. |
 
 ## Behaviour
 

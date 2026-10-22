@@ -36,11 +36,14 @@
     {
       "id": "set_settings",
       "alias": "Request",
-      "description": "Asks the source for a voltage and a current.",
+      "description": "Asks the source for a voltage, in volts, and a current, in milliamps.",
       "op": "SETTINGS",
       "dir": "write",
       "args": {
         "voltage_mV": {
+          "alias": "Voltage",
+          "unit": "V",
+          "scale": 1000,
           "required": true,
           "input": "optional",
           "accepts": [
@@ -64,8 +67,15 @@
     {
       "id": "get_limits",
       "alias": "Read offer",
-      "description": "Reads the highest-voltage offer of the source: its voltage in millivolts and its current in milliamps.",
+      "description": "Reads the highest-voltage offer of the source: its voltage in volts and its current in milliamps.",
       "op": "LIMITS",
+      "returns": {
+        "voltage_mV": {
+          "alias": "Voltage",
+          "unit": "V",
+          "scale": 1000
+        }
+      },
       "activation": {
         "kind": "enabled",
         "text": "Reads on every pass while enabled; gate it with a periodic block to read less often."

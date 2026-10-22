@@ -16,8 +16,8 @@ const filesUnder = (dir: string, ext: string): string[] =>
   })
 
 describe('the catalog from generated/', () => {
-  it('has all 22 blocks and needs no assumption', () => {
-    expect(catalog.blocks).toHaveLength(22)
+  it('has all 23 blocks and needs no assumption', () => {
+    expect(catalog.blocks).toHaveLength(23)
     expect(catalog.warnings).toEqual([])
   })
 
@@ -239,6 +239,16 @@ describe('blocks as the UI and the compiler read them', () => {
       }
     }
     expect(checked).toBeGreaterThan(30)
+  })
+
+  it('a voltage is volts in a block: a float output and a float input, a current stays mA', () => {
+    const outputs = (block: string, variant: string) => shapeOf(catalog.require(block), variant).outputs.map((p) => (p.kind === 'pin' ? p.value : p.kind))
+    expect(outputs('io', 'get_voltage')).toEqual(['float'])
+    expect(outputs('power_monitor', 'get_voltage')).toEqual(['float'])
+    expect(outputs('power_monitor', 'get_current')).toEqual(['int'])
+    expect(outputs('power_usb_pd', 'get_limits')).toEqual(['float', 'int'])
+    const volt = shapeOf(catalog.require('power_vreg'), 'set_voltage').inputs.find((p) => p.kind === 'pin' && p.id === 'voltage_mV')
+    expect(volt?.kind === 'pin' && volt.value).toBe('float')
   })
 
   it('a scaled argument is a float input', () => {

@@ -67,7 +67,8 @@
    outline is whole at any zoom. */
 .canvas-block-summary { display: flex; align-items: center; flex: none; min-width: 0; height: 30px; padding: 0 10px; border-top: 1px solid var(--divider); overflow: hidden; color: var(--muted); font: 11px/16px ui-monospace, SFMono-Regular, Consolas, monospace; }
 .canvas-block-summary.is-formula { height: auto; min-height: 30px; padding-top: 5px; padding-bottom: 5px; box-sizing: border-box; color: var(--active); }
-.canvas-block-summary.is-device { color: var(--muted); font-family: inherit; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-block-summary.is-device { gap: 6px; color: var(--muted); font-family: inherit; white-space: nowrap; }
+.canvas-block-device-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .canvas-block-summary.is-device.is-missing { color: var(--error); font-style: italic; }
 .canvas-block-summary .is-unwired { font-style: italic; color: var(--muted); }
 .canvas-formula-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 5px; min-width: 0; white-space: nowrap; }

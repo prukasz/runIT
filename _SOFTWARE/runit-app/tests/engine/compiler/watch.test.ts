@@ -28,15 +28,15 @@ describe('the telemetry a live view asks for', () => {
     expect(plan.targets.get(idOf('z'))).toEqual(expect.arrayContaining([variableKey('z'), outputKey('e', 0)]))
   })
 
-  it("leaves a block's own output out of the flow view and keeps it in the full one", () => {
+  it("watches a block's own output in the live view too, after the variables", () => {
     const p = project([num('x'), flag('on')], [blk('e', 'expr', { groups: { inputs: 1 }, editor: { text: 'in0 * 2' }, inputs: [read('x')], enables: [read('on')] })])
     const result = engine.compile(p, { allEnableOuts: true })
     expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true)
     const own = result.ids.outputs.get(outputKey('e', 0))!
-    expect(watchPlan(result, 'flow').ids).not.toContain(own)
-    const full = watchPlan(result, 'full')
-    expect(full.ids).toContain(own)
-    expect(full.targets.get(own)).toEqual([outputKey('e', 0)])
+    const flow = watchPlan(result, 'flow')
+    expect(flow.ids).toContain(own)
+    expect(flow.targets.get(own)).toEqual([outputKey('e', 0)])
+    expect(flow.ids.indexOf(own)).toBeGreaterThan(flow.ids.indexOf(result.ids.variables.get('x')!))
   })
 
   it("drops what the board's limits do not let it follow, the flow first", () => {

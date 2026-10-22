@@ -1,0 +1,155 @@
+{
+  "$schema": "../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "map",
+  "wire_id": 16,
+  "alias": "Map",
+  "description": "Maps a value from one range onto another: X from In min..In max gives Y from Out min..Out max, along a straight line or a curve (logarithmic, exponential, square, square root, S).",
+  "category": "data",
+  "order": 15,
+  "tags": [
+    "scale",
+    "range",
+    "rescale",
+    "convert",
+    "linear",
+    "interpolate",
+    "remap",
+    "clamp",
+    "limit",
+    "logarithmic",
+    "exponential",
+    "curve",
+    "ease"
+  ],
+  "integration": "core",
+  "state_len": 20,
+  "activation": {
+    "kind": "enabled",
+    "text": "Computes on every pass while enabled, so Y always follows X. Not enabled, Y keeps its last value."
+  },
+  "eno": {
+    "alias": "Done",
+    "description": "On every pass Y was written."
+  },
+  "header": {
+    "subtitle": "{in_min}..{in_max} → {out_min}..{out_max} {curve}"
+  },
+  "body": [
+    "{in_min}..{in_max} → {out_min}..{out_max}",
+    "{curve}"
+  ],
+  "inputs": [
+    {
+      "id": "x",
+      "alias": "X",
+      "description": "The value to map.",
+      "value": "float",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "y",
+      "alias": "Y",
+      "description": "X mapped onto Out min..Out max.",
+      "value": "float",
+      "required": true
+    }
+  ],
+  "fields": [
+    {
+      "id": "in_min",
+      "alias": "In min",
+      "description": "The value of X that gives Out min.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 0,
+      "size": 4,
+      "default": 0
+    },
+    {
+      "id": "in_max",
+      "alias": "In max",
+      "description": "The value of X that gives Out max. Not the same as In min; below it, the map runs the other way.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 4,
+      "size": 4,
+      "default": 100
+    },
+    {
+      "id": "out_min",
+      "alias": "Out min",
+      "description": "Y when X is In min.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 8,
+      "size": 4,
+      "default": 0
+    },
+    {
+      "id": "out_max",
+      "alias": "Out max",
+      "description": "Y when X is In max. Below Out min, Y falls as X rises.",
+      "type": "number",
+      "raw_type": "float",
+      "offset": 12,
+      "size": 4,
+      "default": 100
+    },
+    {
+      "id": "clamp",
+      "alias": "Stay in range",
+      "description": "On: X is held to In min..In max first, so Y never leaves Out min..Out max. Off: a linear map goes on past the ends; any other curve is always held.",
+      "type": "boolean",
+      "raw_type": "u8",
+      "offset": 16,
+      "size": 1,
+      "default": true
+    },
+    {
+      "id": "curve",
+      "alias": "Curve",
+      "description": "How Y follows X between the ends. Each curve has its inverse, so a value mapped one way and back is the same.",
+      "type": "enum",
+      "raw_type": "u8",
+      "offset": 17,
+      "size": 1,
+      "options": [
+        {
+          "value": 0,
+          "alias": "Linear",
+          "description": "A straight line."
+        },
+        {
+          "value": 1,
+          "alias": "Logarithmic",
+          "description": "Rises fast, then flattens: log10(1 + 9t). The inverse of Exponential."
+        },
+        {
+          "value": 2,
+          "alias": "Exponential",
+          "description": "Starts slow, then rises fast: (10^t − 1) / 9. The inverse of Logarithmic."
+        },
+        {
+          "value": 3,
+          "alias": "Square",
+          "description": "A gentle start with fine control at low values: t². The inverse of Square root."
+        },
+        {
+          "value": 4,
+          "alias": "Square root",
+          "description": "A steep start: √t. The inverse of Square."
+        },
+        {
+          "value": 5,
+          "alias": "S-curve",
+          "description": "Eases in and out: 3t² − 2t³."
+        }
+      ],
+      "default": 0
+    }
+  ]
+}

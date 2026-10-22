@@ -6,8 +6,13 @@ _Static_assert(sizeof(PD_value_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limit
                "a POWER_USB_PD struct changed: update the table of the POWER_USB_PD block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(PD_OP_SETTINGS, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 2, VM_DEV_F_U32, VM_DEV_F_U32),
-    {.op = PD_OP_LIMITS, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_I32X2, .nfield = 0},
+    {.op = PD_OP_SETTINGS,
+     .act = VM_DEV_ACT_CHANGE,
+     .result = VM_DEV_R_NONE,
+     .nfield = 2,
+     .ftype = {VM_DEV_F_U32, VM_DEV_F_U32},
+     .scale = {1000.0f, 0}},  // voltage in volts (mV on the wire), current in mA
+    {.op = PD_OP_LIMITS, .act = VM_DEV_ACT_READ, .result = VM_DEV_R_I32X2, .nfield = 0, .rscale = {1000.0f, 0}},  // V, mA
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

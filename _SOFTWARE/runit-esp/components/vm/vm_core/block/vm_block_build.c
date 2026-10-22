@@ -1,6 +1,7 @@
 #include "vm_block_build.h"
 #include "vm_err.h"
 #include "vm_blocks.h"
+#include "vm_exec.h"
 
 err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
   ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
@@ -124,5 +125,19 @@ void vm_block_report_error(err_h cause, vm_block_h b) {
      to set it, or cfg.on_error would be honoured for some failures and not
      others depending on which macro the block author reached for. */
   vm_block_mark_failed(b);
-  err_report(ERR_WRAP(cause, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
+  /* A pass runs every few ms: a block that keeps failing would send the same record each time, flood the errors
+     stream and the history, and rerun the device's error policy. Its first failure stands for the episode. */
+  const uint32_t tag = err_root_tag(cause);
+  const uint8_t key = (uint8_t)(tag ^ (tag >> 16));
+  if ((b->cfg.rt & VM_BLK_RT_REPORTED) && b->cfg.err_key == key) {
+    err_free(cause);
+    return;
+  }
+  b->cfg.rt |= VM_BLK_RT_REPORTED;
+  b->cfg.err_key = key;
+  vm_block_emit(ERR_WRAP(cause, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
+}
+
+void vm_block_emit(err_h chain) {
+  vm_exec_report(chain);
 }

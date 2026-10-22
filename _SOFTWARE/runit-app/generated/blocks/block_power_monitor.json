@@ -37,11 +37,18 @@
     {
       "id": "get_voltage",
       "alias": "Read voltage",
-      "description": "Reads the voltage of a channel, in millivolts.",
+      "description": "Reads the voltage of a channel, in volts.",
       "op": "VOLTAGE",
       "args": {
         "channel": {
           "required": true
+        }
+      },
+      "returns": {
+        "result": {
+          "alias": "Voltage",
+          "unit": "V",
+          "scale": 1000
         }
       },
       "activation": {

@@ -24,6 +24,7 @@ static struct {
   conn_t conns[CONFIG_SYS_CONNECTOR_MAX];
   const sys_connector_provider_t* providers[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // index = ID
   uint8_t frame[CONFIG_SYS_CONNECTOR_FRAME_MAX];                                     // task only
+  bool failing[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // task only: the provider's last send failed (logged once)
 } s_conn;
 
 #define LOCK() U_MUTEX_LOCK(sys_connector_mutex, WAIT_FOREVER)
@@ -248,7 +249,8 @@ err_h sys_connector_send(uint8_t id, const void* data, uint32_t len) {
 }
 
 /* Errors here are logged, never reported: a report goes to the errors
- * connector, i.e. back into this task, and could loop. */
+ * connector, i.e. back into this task, and could loop. A provider that keeps
+ * failing (its queue full) is logged once, until it sends again. */
 static void send_frame(uint8_t id, const uint8_t* frame, uint32_t len) {
   sys_connector_info_t c;
   if (!snapshot(id, &c) || c.suspended) {  // may have changed since queued
@@ -267,10 +269,11 @@ static void send_frame(uint8_t id, const uint8_t* frame, uint32_t len) {
         err = ERR_WRAP(err, ERR_CONN_SEND, .id = id, .provider = pid, .endpoint = c.bindings[i].endpoint);
       }
     }
-    if (err != NULL) {
+    if (err != NULL && !s_conn.failing[pid]) {
       err_log(err);
-      err_free(err);
     }
+    s_conn.failing[pid] = err != NULL;
+    err_free(err);
   }
 }
 

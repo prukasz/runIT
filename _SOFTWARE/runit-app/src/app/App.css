@@ -37,9 +37,11 @@
 .bar-note { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .bar-note.is-error { color: var(--color-red-soft); }
 
-/* The safe stop is the one button that must not be missed: the stop colour and a thin light line inside its edge (drawn inside, so
-   it takes no room). */
-.shell button.safe-stop { box-shadow: inset 0 0 0 3px var(--status-lost), inset 0 0 0 4px var(--status-on); }
+/* The safe stop is the one button that must not be missed, and must not be taken for the program's Pause: a road stop
+   sign, an octagon with the word on it. */
+.shell button.safe-stop { clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%); border-radius: 0; }
+.shell .safe-stop-dock { margin-top: auto; padding-top: 8px; }
+.shell .safe-stop-label { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; line-height: 1; color: var(--status-on); }
 
 /* The Project screen */
 .project-screen { height: 100%; overflow: auto; padding: 20px 24px 32px; }
@@ -101,3 +103,6 @@
 .shell .side-panel-icons .safe-state-button { color: var(--color-red); background: color-mix(in srgb, var(--color-red) 18%, transparent); animation: safe-state-pulse 1.2s ease-in-out infinite; }
 @keyframes safe-state-pulse { 50% { background: transparent; } }
 .safe-state-button svg { width: 18px; height: 18px; }
+
+/* The Devices view inside the click that brings the live test back (App.tsx): no box of its own. */
+.devices-focus { display: contents; }

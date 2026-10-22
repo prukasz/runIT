@@ -46,9 +46,9 @@
     {
       "id": "set_voltage",
       "alias": "Voltage",
-      "description": "Sets the wanted output voltage; the output follows when it is on. The regulator keeps it while the output is off. A higher voltage returns at once: wait for the ready event. The power manager may refuse it against the power budget.",
+      "description": "Sets the wanted output voltage, in volts; the output follows when it is on. The regulator keeps it while the output is off. A higher voltage returns at once: wait for the ready event. The power manager may refuse it against the power budget.",
       "op": "VOLTAGE",
-      "args": { "voltage_mV": { "required": true, "input": "optional", "accepts": ["number", "accessor"] } },
+      "args": { "voltage_mV": { "alias": "Voltage", "unit": "V", "scale": 1000, "required": true, "input": "optional", "accepts": ["number", "accessor"] } },
       "header": { "subtitle": "Voltage {voltage_mV}" }
     },
     {

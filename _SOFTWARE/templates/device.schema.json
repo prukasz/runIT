@@ -154,7 +154,23 @@
         "properties": {
           "min": { "type": "number" },
           "max": { "type": "number" },
-          "step": { "type": "number", "exclusiveMinimum": 0 }
+          "step": { "type": "number", "exclusiveMinimum": 0 },
+          "by_config": {
+            "type": "array",
+            "description": "The range by the device's config: the first entry whose `when` holds (every config field equals its value) replaces min, max and step; none holds: the range above. min / max are a number or the id of a config field, times `scale` (a servo's angle_min_deg x 10).",
+            "items": {
+              "type": "object",
+              "required": ["when", "min", "max"],
+              "additionalProperties": false,
+              "properties": {
+                "when": { "type": "object", "minProperties": 1, "additionalProperties": { "type": ["number", "string", "boolean"] } },
+                "min": { "type": ["number", "string"] },
+                "max": { "type": ["number", "string"] },
+                "scale": { "type": "number" },
+                "step": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
         }
       }
     },
@@ -420,6 +436,11 @@
         "step": {
           "type": "number",
           "description": "Dla type='number': krok wartości."
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Dla type='number': wartość na drucie to wartość pokazana razy scale (pozycja serwa: dziesiąte części stopnia na drucie, stopnie w aplikacji; scale 10). min, max, step i zakresy urządzenia (`ranges`) są w jednostce pokazanej."
         },
         "control": {
           "type": "string",

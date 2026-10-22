@@ -13,7 +13,8 @@ static const vm_dev_op_t k_ops[] = {
      .result = VM_DEV_R_NONE,
      .nfield = 2,
      .ftype = {VM_DEV_F_U8, VM_DEV_F_I16},
-     .scale = {0, 40.95f}},  // channel, drive: percent in the block, 12-bit steps on the wire
+     .scale = {0, 40.95f},  // channel, drive: percent in the block, 12-bit steps on the wire
+     .lim = {0, SYS_HBRIDGE_DRIVE_MAX}},  // drive saturated to ±100 %
     VM_DEV_OP(HBRIDGE_OP_BRAKE, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
     VM_DEV_OP(HBRIDGE_OP_COAST, VM_DEV_ACT_EDGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
     VM_DEV_OP(HBRIDGE_OP_CURRENT, VM_DEV_ACT_READ, VM_DEV_R_I32, 1, VM_DEV_F_U8),

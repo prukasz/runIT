@@ -1,4 +1,4 @@
-"""VM suite, part 2: the flow blocks (IF, SWITCH, FOR), the data blocks (SET, CLONE), the state blocks (EDGE, LATCH) and the
+"""VM suite, part 2: the flow blocks (IF, SWITCH, FOR), the data blocks (SET, CLONE, MAP), the state blocks (EDGE, LATCH) and the
 time blocks (TIMER, PERIODIC), and the blocks that start records and listen to events (ACTION). Run through vm_suite.py."""
 
 from __future__ import annotations
@@ -570,6 +570,92 @@ def t_clone(vm: Vm) -> None:
     t = vm.link.mark()
     g = vm.step([e], {gate: True})
     check("a cell that is not a pointer: ENO 0 and an error", vm.vals(g, e) == 0 and wait_err(vm.link, t, "ERR_VM_BLOCK_FAILED") is not None, str(vm.vals(g, e)))
+    vm.reset()
+
+
+# =====================================================================================================================
+# MAP
+# =====================================================================================================================
+
+
+MAP_CURVES = {"linear": 0, "log": 1, "exp": 2, "square": 3, "sqrt": 4, "smooth": 5}
+
+
+def map_state(in_min: float, in_max: float, out_min: float, out_max: float, clamp: int = 1, curve: int = 0) -> bytes:
+    return struct.pack("<4fBB2x", in_min, in_max, out_min, out_max, clamp, curve)
+
+
+@test("data/map")
+def t_map(vm: Vm) -> None:
+    p = Prog()
+    x = p.f(0.0)
+    gate = p.b(True)
+    cases = {}
+
+    def mapping(name, state):
+        y, eno = p.f(), p.b()
+        p.block("MAP", ins=[x], outs=[y], ens=[gate], eno=eno, state=state)
+        cases[name] = (y, eno)
+
+    mapping("0..1023 -> -100..100", map_state(0, 1023, -100, 100))
+    mapping("0..100 -> 100..0 (downwards)", map_state(0, 100, 100, 0))
+    mapping("0..10 -> 0..100, not held", map_state(0, 10, 0, 100, clamp=0))
+    if not loaded(vm, p):
+        return
+    ids = [i for pair in cases.values() for i in pair] + [x, gate]
+    rows = [  # x, then Y of each mapping
+        (0.0, [-100.0, 100.0, 0.0]),
+        (1023.0, [100.0, 0.0, 10230.0]),
+        (511.5, [0.0, 0.0, 5115.0]),
+        (30.0, [-94.13490, 70.0, 300.0]),
+        (2000.0, [100.0, 0.0, 20000.0]),
+        (-50.0, [-100.0, 100.0, -500.0]),
+    ]
+    for xv, want in rows:
+        g = vm.step(ids, {x: xv})
+        got = [vm.vals(g, y) for y, _ in cases.values()]
+        enos = [vm.vals(g, e) for _, e in cases.values()]
+        check(f"MAP x = {xv}: {want} (held to the range unless told not to), ENO on", all(close(a, b, 1e-3) for a, b in zip(got, want)) and enos == [1, 1, 1], f"{got} eno={enos}")
+    # the curves: 0..100 -> 0..100 at x = 50 (t = 0.5), and log there and exp back give x again
+    p2 = Prog()
+    x2 = p2.f(50.0)
+    curved = {}
+    for name, c in MAP_CURVES.items():
+        y = p2.f()
+        p2.block("MAP", ins=[x2], outs=[y], state=map_state(0, 100, 0, 100, curve=c))
+        curved[name] = y
+    back = p2.f()
+    p2.block("MAP", ins=[curved["log"]], outs=[back], state=map_state(0, 100, 0, 100, curve=MAP_CURVES["exp"]))
+    if loaded(vm, p2, what="MAP curves program"):
+        want = {"linear": 50.0, "log": 100 * math.log10(5.5), "exp": 100 * (10 ** 0.5 - 1) / 9, "square": 25.0,
+                "sqrt": 100 * math.sqrt(0.5), "smooth": 50.0}
+        g = vm.step(list(curved.values()) + [back])
+        got = {n: vm.vals(g, y) for n, y in curved.items()}
+        check(f"MAP curves at t = 0.5: {want}", all(close(got[n], want[n], 1e-3) for n in want), str(got))
+        check("MAP Logarithmic then Exponential gives X back", close(vm.vals(g, back), 50.0, 1e-3), str(vm.vals(g, back)))
+        vm.reset()
+    if not loaded(vm, p, what="MAP program again"):
+        return
+    y0 = vm.vals(vm.step(ids), cases["0..1023 -> -100..100"][0])
+    g = vm.step(ids, {gate: False, x: 0.0})
+    check("a MAP not enabled keeps Y, ENO off", close(vm.vals(g, cases["0..1023 -> -100..100"][0]), y0) and vm.vals(g, cases["0..1023 -> -100..100"][1]) == 0, str(vm.vals(g, cases["0..1023 -> -100..100"][0])))
+    vm.reset()
+
+    def shape(name, **kw):
+        p = Prog()
+        a, b = p.f(1.0), p.f(0.0)
+        p.block("MAP", ins=kw.get("ins", [a]), outs=kw.get("outs", [b]), state=kw.get("state", map_state(0, 1, 0, 1)))
+        r = vm.load(p)
+        check(f"MAP {name} -> ERR_VM_BLK_BAD_SHAPE", cause(r) == "ERR_VM_BLK_BAD_SHAPE", str(r))
+
+    shape("with In min = In max", state=map_state(5, 5, 0, 1))
+    shape("with a NaN end", state=struct.pack("<I", 0x7FC00000) + map_state(0, 1, 0, 1)[4:])
+    shape("with an infinite end", state=map_state(0, 1, 0, 1)[:12] + struct.pack("<I", 0x7F800000) + bytes(4))
+    shape("with stay-in-range 2", state=map_state(0, 1, 0, 1, clamp=2))
+    shape("with an unknown curve", state=map_state(0, 1, 0, 1, curve=len(MAP_CURVES)))
+    shape("with no output", outs=[])
+    shape("with an unwired X", ins=[None])
+    shape("with a state shorter than 20 bytes", state=bytes(16))
     vm.reset()
 
 

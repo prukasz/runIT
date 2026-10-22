@@ -128,6 +128,10 @@ const field = (raw: Json, enums: EnumTables, override?: Json): Field => {
   const id = str(raw.id) ?? ''
   const mode = inputMode(override?.input) ?? inputMode(raw.input) ?? 'none'
   const fixed = scalar(override?.fixed) ?? scalar(raw.fixed)
+  // A block's scale over a contract argument: the argument's range is in wire units, the block's value in its own.
+  const over = num(override?.scale)
+  const rescale = over !== undefined && over !== 0 && num(raw.scale) === undefined ? over : 1
+  const shown = (v: number | undefined) => (v === undefined || rescale === 1 ? v : Number((v / rescale).toPrecision(9)))
   return defined({
     id,
     alias: str(override?.alias) ?? str(raw.alias) ?? str(raw.label) ?? id,
@@ -136,9 +140,9 @@ const field = (raw: Json, enums: EnumTables, override?: Json): Field => {
     enum: str(raw.enum),
     options: options(raw, enums),
     default: scalar(raw.default),
-    min: num(raw.min),
-    max: num(raw.max),
-    step: num(raw.step),
+    min: shown(num(raw.min)),
+    max: shown(num(raw.max)),
+    step: shown(num(raw.step)),
     unit: str(override?.unit) ?? str(raw.unit),
     rawType: rawType(raw.raw_type),
     size: num(raw.size),
@@ -228,38 +232,31 @@ const signal = (v: unknown): Signal | undefined => {
   return defined({ alias, description, required: bool(o.required) })
 }
 
-/** Output pins for what a command returns: one per field of a struct, else one pin for the single value. */
-const outputsOfReturns = (returns: unknown): readonly PinSpec[] => {
+/**
+ * Output pins for what a command returns: one per field of a struct, else one pin `result` for the single value. A variant's
+ * `returns` override renames a value, and with a `scale` makes it a float in the block's unit (the board divides: `rscale`).
+ */
+const outputsOfReturns = (returns: unknown, overrides?: Json): readonly PinSpec[] => {
   const r = obj(returns)
   if (!r) return []
   const fields = list(r.fields).flatMap((f) => (obj(f) ? [obj(f) as Json] : []))
   const kindOf = (type: unknown): ValueKind => (type === 'float' ? 'float' : type === 'bool' ? 'bool' : 'int')
-  if (fields.length > 0) {
-    return fields.map(
-      (f): Pin => ({
-        kind: 'pin',
-        id: str(f.id) ?? 'result',
-        alias: str(f.label) ?? str(f.alias) ?? str(f.id) ?? 'Result',
-        ...(str(f.description) !== undefined ? { description: str(f.description) as string } : {}),
-        value: kindOf(f.raw_type),
-        required: false,
-        writes: false,
-        hints: [],
-      }),
-    )
-  }
-  return [
-    {
+  const pin = (id: string, label: string | undefined, description: string | undefined, type: unknown): Pin => {
+    const over = obj(overrides?.[id])
+    const scale = num(over?.scale)
+    return {
       kind: 'pin',
-      id: 'result',
-      alias: str(r.label) ?? 'Result',
-      ...(str(r.description) !== undefined ? { description: str(r.description) as string } : {}),
-      value: kindOf(r.type),
+      id,
+      alias: str(over?.alias) ?? label ?? id,
+      ...(description !== undefined ? { description } : {}),
+      value: scale !== undefined && scale !== 0 ? 'float' : kindOf(type),
       required: false,
       writes: false,
       hints: [],
-    },
-  ]
+    }
+  }
+  if (fields.length > 0) return fields.map((f) => pin(str(f.id) ?? 'result', str(f.label) ?? str(f.alias), str(f.description), f.raw_type))
+  return [pin('result', str(r.label) ?? 'Result', str(r.description), r.type)]
 }
 
 /** The argument fields of a side of a command: `args.fields`, or `args` itself when it is a list. */
@@ -302,6 +299,7 @@ const resolveOperation = (
   commandId: string,
   sideId: string | undefined,
   argOverrides: Json | undefined,
+  returnOverrides: Json | undefined,
   enums: EnumTables,
 ): Resolved | string => {
   const command = commands.find((c) => c.id === commandId)
@@ -324,7 +322,7 @@ const resolveOperation = (
     const mode = inputMode(obj(argOverrides?.[base.id])?.input) ?? (base.fixed !== undefined ? 'none' : 'optional')
     return { ...base, input: mode } satisfies Field
   })
-  return { operation: { source, of, command: commandId, dir, value }, fields, outputs: sideName === 'read' ? outputsOfReturns(returnsWithoutKey(side)) : outputsOfReturns(side.returns) }
+  return { operation: { source, of, command: commandId, dir, value }, fields, outputs: outputsOfReturns(sideName === 'read' ? returnsWithoutKey(side) : side.returns, returnOverrides) }
 }
 
 const category = (v: unknown): Category => {
@@ -363,9 +361,9 @@ const blockType = (raw: GeneratedBlock, input: GeneratedInput, warnings: string[
     let unsupported: string | undefined
     if (opId !== undefined) {
       const result = contract
-        ? resolveOperation('contract', contract.id, num(contract.contract_id), contract.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), input.enums)
+        ? resolveOperation('contract', contract.id, num(contract.contract_id), contract.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), obj(rawVariant.returns), input.enums)
         : deviceDescriptor
-          ? resolveOperation('device', deviceDescriptor.id, ownContractId(input.enums), deviceDescriptor.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), input.enums)
+          ? resolveOperation('device', deviceDescriptor.id, ownContractId(input.enums), deviceDescriptor.commands ?? [], opId, str(rawVariant.dir), obj(rawVariant.args), obj(rawVariant.returns), input.enums)
           : `no contract or device to resolve '${opId}' in`
       if (typeof result === 'string') unsupported = result
       else resolved = result

@@ -12,6 +12,6 @@ Spec: `VM_CORE.MD` (this folder). The palette: `../vm_blocks/VM_BLOCKS.MD`.
 - There is no freshness: a block acts on every pass it is enabled, and an event is a one-pass pulse value (VM_CORE.MD "Rules"). Do not add hidden per-pass state that a block reads instead of a value.
 - A block never keeps a pointer to a heap object (`vm_obj_dyn`) in its state across passes: the tree may be replaced and freed by the next pass. Read it through its accessor every time.
 - Actions are requested (`vm_exec_request_action`), never run inside a pass.
-- Errors that end where they are raised use `VM_RAISE`; block errors go through `BLOCK_CALL` / `vm_block_report_error`, so they carry the block.
+- Errors that end where they are raised use `VM_RAISE`; block errors go through `BLOCK_CALL` / `vm_block_report_error` (one report per episode, VM_CORE.MD) or `VM_BLK_EMIT_ERR`, so they carry the block and the watchdog does not count the reporting. A block never calls `err_report` itself.
 - The component builds at `-O2` and links `WHOLE_ARCHIVE` (the error tags register from a constructor): keep both in `CMakeLists.txt`.
 - New behaviour gets a case in `.claude/skills/runit-esp/scripts/vm_suite.py`.

@@ -288,7 +288,8 @@ export class ErrorInterpreter {
       const member = this.enums[field.enum_ref]?.members.find((m) => m.value === value)
       if (member) return member.alias ?? member.name
     }
-    return field.unit ? `${value} ${field.unit}` : String(value)
+    const shown = field.type === 'f32' ? Number(value.toPrecision(7)) : value  // a float32 has about 7 digits
+    return field.unit ? `${shown} ${field.unit}` : String(shown)
   }
 }
 

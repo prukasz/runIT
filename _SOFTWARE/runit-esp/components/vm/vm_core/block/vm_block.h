@@ -43,6 +43,7 @@ typedef enum vm_blk_on_error_e {
 /** @brief Runtime status flags (per call, or sticky across the load). */
 #define VM_BLK_RT_SPAN      (1u << 1u)  // Block claimed an execution range (vm_block_claim_span)
 #define VM_BLK_RT_FAULT     (1u << 2u)  // This call failed (vm_block_report_error / vm_block_mark_failed); read by on_error
+#define VM_BLK_RT_REPORTED  (1u << 3u)  // Sticky: an error was reported (cfg.err_key) and no call has passed since
 #define VM_BLK_RT_SPAN_BAD  (1u << 7u)  // Sticky: malformed span reported once per load
 
 #define VM_BLK_RT_PER_CALL (VM_BLK_RT_SPAN | VM_BLK_RT_FAULT)
@@ -75,12 +76,13 @@ typedef struct vm_block_data_t {
     uint8_t  on_error;    // [7]      VM_BLK_ERR_STOP / _CONTINUE
     uint16_t custom_len;  // [8..9]   Private custom_data byte length
     uint8_t  rt;          // [10]     Runtime status bits (VM_BLK_RT_*)
+    uint8_t  err_key;     // [11]     Runtime: the root tag of the error last reported, folded to a byte
     vm_obj_h eno;         // [12..15] Output ENO object (NULL if none)
   } cfg;
   uint8_t data[];
 } vm_block_data_t;
 
-_Static_assert(sizeof(struct vm_block_data_t) == 16, "custom_len and rt must stay inside alignment padding before eno");
+_Static_assert(sizeof(struct vm_block_data_t) == 16, "custom_len, rt and err_key must stay inside alignment padding before eno");
 
 typedef vm_block_data_t* vm_block_h;
 
@@ -236,8 +238,17 @@ static inline bool vm_block_failed(vm_block_h b) {
   return (b->cfg.rt & VM_BLK_RT_FAULT) != 0;
 }
 
-/** @brief Reports @p cause wrapped with the block's identity and marks this call failed. */
+/**
+ * @brief Marks this call failed and reports @p cause wrapped with the block's identity, once per episode.
+ *
+ * An episode lasts while the block keeps failing with the same root cause: the first failure is reported, the
+ * repeats are freed unreported (they still fail the call, so cfg.on_error acts). A call that passes, another root
+ * cause or a new start of the program (vm_exec_control) ends it.
+ */
 void vm_block_report_error(err_h cause, vm_block_h b);
+
+/** @brief Reports @p chain from a block body; the block watchdog does not count the time reporting takes. */
+void vm_block_emit(err_h chain);
 
 /**
  * @brief Evaluates block enable status across en_cnt sources (0 = always enabled).
@@ -303,4 +314,4 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 
 #define VM_BLK_ERR_NEW(tag_name, ...) ERR_NEW(tag_name, __VA_ARGS__)
 
-#define VM_BLK_EMIT_ERR(tag_name, ...) err_report(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))
+#define VM_BLK_EMIT_ERR(tag_name, ...) vm_block_emit(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))

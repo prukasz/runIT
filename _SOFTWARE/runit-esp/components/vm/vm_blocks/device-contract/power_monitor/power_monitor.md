@@ -21,7 +21,7 @@ Reads the voltage of a channel.
 | Pin | Meaning |
 |---|---|
 | Channel (input) | a number. Unwired: the value set in the block's settings. |
-| Voltage (output) | in mV. |
+| Voltage (output) | in volts. |
 
 ### Read current
 

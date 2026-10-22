@@ -19,7 +19,7 @@ const payload = (name: string, values: Record<string, number> = {}): number[] =>
   const out = new Array<number>(info.fields.reduce((n, f) => Math.max(n, f.offset + f.size), 0)).fill(0)
   for (const f of info.fields) {
     const v = values[f.name] ?? 0
-    const bytes = f.size === 1 ? [v & 0xff] : f.size === 2 ? u16(v) : u32(v)
+    const bytes = f.type === 'f32' ? [...new Uint8Array(Float32Array.of(v).buffer)] : f.size === 1 ? [v & 0xff] : f.size === 2 ? u16(v) : u32(v)
     out.splice(f.offset, f.size, ...bytes)
   }
   return out
@@ -62,6 +62,16 @@ describe('errors.json', () => {
 
 describe('reading an error', () => {
   const interpreter = new ErrorInterpreter({ resolve: deviceRefs(new Map([[3, 'Left motor']])) })
+
+  it('no device (the source of the board events) reads as the board, never as its id', () => {
+    const report = interpreter.read(record([['ERR_VM_EVENT_OVERFLOW', { source: 0xffff, depth: 16, dropped: 3 }]]))!
+    expect(report.message).toBe('Too many events from the board: 3 dropped (queue of 16)')
+  })
+
+  it('a float field reads as the number it was, not its float32 digits', () => {
+    const report = interpreter.read(record([['ERR_VM_DEV_HELD', { block_idx: 0, field: 1, value: 12.3, min: -100, max: 100 }]]))!
+    expect(report.message).toMatch(/: 12\.3 is outside -100\.\.100, the nearest end is sent$/)
+  })
 
   it('a device command: the route, the device and its pin, the message with names, enum aliases and the command', () => {
     const op = 0x0101 // IO contract, op 1

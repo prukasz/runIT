@@ -1,6 +1,6 @@
 import type { CompileResult } from '@engine/compiler'
 import type { Project, Variable } from '@engine/model'
-import { bundledBlockTypes } from '../definitions'
+import { bundledBlockTypes, bundledEnums } from '../definitions'
 import type { Ref, RefResolver, RefTarget } from './interpret'
 
 /*
@@ -95,8 +95,15 @@ export const programRefs = (project: Project, result: Pick<CompileResult, 'ids' 
   }
 }
 
-/** The app's devices by ID -> name: devices, and the pins and channels of a device the error names (named `Pin 5` by errors.json). */
+/** `SYS_DEVICE_ID_NONE` (enums.json, group `device_id`): no device, the source of the board's own events (the power manager, a sweep). */
+const NO_DEVICE = bundledEnums().device_id?.members.find((m) => m.name === 'SYS_DEVICE_ID_NONE')?.value
+
+/**
+ * The app's devices by ID -> name: devices, and the pins and channels of a device the error names (named `Pin 5` by errors.json).
+ * No device (`SYS_DEVICE_ID_NONE`) is the board itself.
+ */
 export const deviceRefs = (devices: ReadonlyMap<number, string>): RefResolver => (ref) => {
+  if (ref.kind === 'device' && ref.id === NO_DEVICE) return { label: 'the board' }
   if (ref.kind === 'device') {
     const name = devices.get(ref.id)
     return name === undefined ? undefined : { label: name, target: { kind: 'device', device: ref.id } satisfies AppTarget }

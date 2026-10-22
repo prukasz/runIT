@@ -1,4 +1,4 @@
-import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, readDeviceFrame, requestFrame, sidesOf } from '@backend'
+import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, readDeviceFrame, requestFrame, sidesOf } from '@backend'
 import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
 import type { BoardDefaults, ProjectAction, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 
@@ -139,12 +139,12 @@ const listDevices = (project: ProjectFile, catalog: ServiceCatalog, board: Board
       uses: d.pins.map((p) => ({ field: /^\w+/.exec(p.use)?.[0] ?? p.use, use: useLabel(type, p.use), pin: { device: p.device, pin: p.pin }, ...(p.description ? { description: p.description } : {}) })),
       pinAliases: aliasesOf(project, d.id),
       defaults,
-      ...(type?.ranges || d.ranges ? { ranges: { ...type?.ranges, ...d.ranges } } : {}),
+      ...(type?.ranges || d.ranges ? { ranges: rangesForConfig({ ...type?.ranges, ...d.ranges }, withConfigDefaults(type, { ...(d.config as FieldValues), ...(liveStep?.kind === 'device' ? liveStep.args : {}) })) } : {}),
     }
   }),
   ...creationOrder(project.devices.map((d): DeviceInfo => {
     const type = catalog.devices.get(d.type)
-    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [], ...(type?.ranges ? { ranges: type.ranges } : {}) }
+    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [], ...(type?.ranges ? { ranges: rangesForConfig(type.ranges, withConfigDefaults(type, d.config ?? {})) } : {}) }
   })),
 ]
 
@@ -158,6 +158,12 @@ export const USER_I2C_BUS = 'user'
 export const isBusField = (field: WireField): boolean => field.enum === 'sys_i2c_bus_e'
 
 /** The config a new project device starts from: its I2C bus is the user bus. */
+/** A device's config with the descriptor's default for every field it does not set: what the device runs with. */
+const withConfigDefaults = (type: CatalogEntry | undefined, config: FieldValues): FieldValues => ({
+  ...Object.fromEntries((type?.config?.fields ?? []).filter((f) => f.default !== undefined).map((f) => [f.id, f.default as FieldValues[string]])),
+  ...config,
+})
+
 export const baseConfig = (type: CatalogEntry | undefined, board: BoardDescriptor): FieldValues => {
   const bus = board.i2cBuses.find((b) => b.name === USER_I2C_BUS)
   const field = type?.config?.fields.find(isBusField)

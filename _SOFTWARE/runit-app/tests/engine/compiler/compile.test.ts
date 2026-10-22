@@ -118,6 +118,23 @@ describe('a device block', () => {
     bits.setFloat32(0, 50, true)
     expect(state.getInt32(8 + 4, true)).toBe(bits.getInt32(0, true))
   })
+
+  it('a map keeps its four ends in its state as floats, and stays in range unless told not to', () => {
+    const r = build(project([num('x'), num('y')], [blk('m', 'map', { inputs: [read('x')], outputs: [{ path: { root: 'y', steps: [] } }], values: { in_min: 0, in_max: 1023, out_min: -100, out_max: 100 } })]))
+    const state = view(r.ir!.blocks[0]!.state)
+    expect([0, 4, 8, 12].map((at) => state.getFloat32(at, true))).toEqual([0, 1023, -100, 100])
+    expect(state.getUint8(16)).toBe(1)
+    expect(state.getUint8(17)).toBe(0)
+    const log = build(project([num('x'), num('y')], [blk('m', 'map', { inputs: [read('x')], outputs: [{ path: { root: 'y', steps: [] } }], values: { curve: 1 } })]))
+    expect(view(log.ir!.blocks[0]!.state).getUint8(17)).toBe(1)
+  })
+
+  it('a scaled argument is bounded in the shown unit, not in wire steps', () => {
+    const at = (drive: number) => engine.compile(project([], [blk('hb', 'hbridge', { variant: 'set_drive', device: 2, values: { channel: 0, drive } })])).ok
+    expect(at(100)).toBe(true)
+    expect(at(-100)).toBe(true)
+    expect(at(255)).toBe(false)
+  })
 })
 
 describe('what the compiler refuses, and says', () => {

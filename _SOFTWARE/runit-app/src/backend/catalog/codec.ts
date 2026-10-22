@@ -47,6 +47,8 @@ export interface WireField {
   readonly min?: number
   readonly max?: number
   readonly step?: number
+  /** The wire value is the shown value times `scale` (`scale` of the descriptor): min, max, step and the values are in the shown unit. */
+  readonly scale?: number
   /** What the app may draw instead of the field's own control (`control`): a slider for a number with a range, a switch for a choice of two. */
   readonly control?: 'slider' | 'switch'
   readonly default?: unknown
@@ -67,17 +69,57 @@ export interface WireField {
   readonly pinNone?: PinRef
 }
 
-/** The range a device gives a field of one of its commands (`ranges` of its descriptor or of its board.json entry), by `COMMAND.field`. */
-export type FieldRanges = Readonly<Record<string, { readonly min: number; readonly max: number; readonly step?: number }>>
+/** One entry of a range that follows the device's config: when every field of `when` holds, min / max (a number, or a config field's id, times `scale`). */
+export interface RangeByConfig {
+  readonly when: Readonly<Record<string, unknown>>
+  readonly min: number | string
+  readonly max: number | string
+  readonly scale?: number
+  readonly step?: number
+}
+
+/**
+ * The range a device gives a field of one of its commands (`ranges` of its descriptor or of its board.json entry), by `COMMAND.field`.
+ * `byConfig` (a descriptor's `by_config`) is resolved against one device's config by `rangesForConfig`.
+ */
+export type FieldRanges = Readonly<Record<string, { readonly min: number; readonly max: number; readonly step?: number; readonly byConfig?: readonly RangeByConfig[] }>>
 
 /** The `ranges` of a descriptor as `FieldRanges`: an entry without a numeric min and max below it is left out. */
 export const parseRanges = (json: unknown): FieldRanges => {
   const out: Record<string, FieldRanges[string]> = {}
   if (json && typeof json === 'object') {
     for (const [key, value] of Object.entries(json)) {
-      const r = value as { min?: unknown; max?: unknown; step?: unknown } | null
-      if (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min < r.max) out[key] = { min: r.min, max: r.max, ...(typeof r.step === 'number' && r.step > 0 ? { step: r.step } : {}) }
+      const r = value as { min?: unknown; max?: unknown; step?: unknown; by_config?: unknown } | null
+      if (!(r && typeof r.min === 'number' && typeof r.max === 'number' && r.min < r.max)) continue
+      const byConfig = (Array.isArray(r.by_config) ? r.by_config : []).flatMap((e): RangeByConfig[] => {
+        const entry = e as { when?: unknown; min?: unknown; max?: unknown; scale?: unknown; step?: unknown } | null
+        const end = (v: unknown) => typeof v === 'number' || typeof v === 'string'
+        if (!entry || !entry.when || typeof entry.when !== 'object' || !end(entry.min) || !end(entry.max)) return []
+        return [{ when: entry.when as Record<string, unknown>, min: entry.min as number | string, max: entry.max as number | string,
+          ...(typeof entry.scale === 'number' ? { scale: entry.scale } : {}), ...(typeof entry.step === 'number' && entry.step > 0 ? { step: entry.step } : {}) }]
+      })
+      out[key] = { min: r.min, max: r.max, ...(typeof r.step === 'number' && r.step > 0 ? { step: r.step } : {}), ...(byConfig.length > 0 ? { byConfig } : {}) }
     }
+  }
+  return out
+}
+
+/**
+ * The ranges for one device: each entry with `byConfig` takes the first one whose `when` holds in `config` (a config field's id as an
+ * end reads its value, times `scale`), else its own min and max. A value the config does not have (yet) leaves the entry's own.
+ */
+export const rangesForConfig = (ranges: FieldRanges, config: Readonly<Record<string, unknown>>): FieldRanges => {
+  const out: Record<string, FieldRanges[string]> = {}
+  for (const [key, r] of Object.entries(ranges)) {
+    const hit = r.byConfig?.find((e) => Object.entries(e.when).every(([field, value]) => config[field] === value))
+    // A number is the end itself; a config field's id is its value, times scale.
+    const end = (v: number | string): number | undefined => (typeof v === 'number' ? v : typeof config[v] === 'number' ? (config[v] as number) * (hit?.scale ?? 1) : undefined)
+    const min = hit ? end(hit.min) : r.min
+    const max = hit ? end(hit.max) : r.max
+    const step = hit?.step ?? r.step
+    out[key] = min !== undefined && max !== undefined && min !== max
+      ? { min: Math.min(min, max), max: Math.max(min, max), ...(step !== undefined ? { step } : {}) }
+      : { min: r.min, max: r.max, ...(r.step !== undefined ? { step: r.step } : {}) }
   }
   return out
 }
@@ -151,7 +193,16 @@ const numberOf = (field: WireField, input: FieldInput): number | bigint => {
 }
 
 const writeNumber = (view: DataView, at: number, field: WireField, input: FieldInput): void => {
-  const value = numberOf(field, input)
+  const shown = numberOf(field, input)
+  // A scaled field: its range is in the shown unit, the wire takes the shown value times scale (rounded for an integer).
+  if (field.scale !== undefined && field.scale !== 1) {
+    const n = Number(shown)
+    if (field.min !== undefined && n < field.min) throw new PayloadError(`${field.id} = ${n} is below ${field.min}.`)
+    if (field.max !== undefined && n > field.max) throw new PayloadError(`${field.id} = ${n} is above ${field.max}.`)
+    const wire = n * field.scale
+    return writeNumber(view, at, { ...field, scale: undefined, min: undefined, max: undefined }, isFloat(field.rawType) ? wire : Math.round(wire))
+  }
+  const value = shown
   const raw = field.rawType
   if (isFloat(raw)) {
     const n = Number(value)
@@ -327,5 +378,7 @@ const readPins = (data: Uint8Array, field: WireField): FieldValue => {
 /** The fields of a payload by id. */
 export const decodeFields = (layout: Layout, data: Uint8Array): FieldRecord => {
   if (data.length < layout.fixed) throw new PayloadError(`The answer is ${data.length} bytes; its layout needs ${layout.fixed}.`)
-  return Object.fromEntries(layout.fields.map((f) => [f.id, f.pinRef ? readPins(data, f) : readValue(data, f.offset, f.rawType, f.size, f.type === 'boolean')]))
+  const shown = (f: WireField, v: FieldValue): FieldValue =>
+    f.scale === undefined || f.scale === 1 ? v : typeof v === 'number' ? v / f.scale : Array.isArray(v) ? (v as unknown[]).map((x) => (typeof x === 'number' ? x / f.scale! : x)) as FieldValue : v
+  return Object.fromEntries(layout.fields.map((f) => [f.id, f.pinRef ? readPins(data, f) : shown(f, readValue(data, f.offset, f.rawType, f.size, f.type === 'boolean'))]))
 }

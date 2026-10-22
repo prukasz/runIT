@@ -66,7 +66,7 @@
     {
       "id": "set_drive",
       "alias": "Drive",
-      "description": "Drives a motor channel at a speed in percent: negative is reverse, a half bridge takes 0 to 100. A wired drive wins over the one in the body; a value out of range is an error, never clamped.",
+      "description": "Drives a motor channel at a speed in percent: negative is reverse, a half bridge takes 0 to 100. A wired drive wins over the one in the body; a value past -100..100 is held to it (full speed) and reported once as a warning.",
       "op": "DRIVE",
       "args": {
         "channel": {

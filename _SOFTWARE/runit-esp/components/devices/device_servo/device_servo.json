@@ -194,6 +194,23 @@
     "logic_voltage_mV": 3300,
     "max_current_mA": 1000
   },
+  "ranges": {
+    "target.value_x10": {
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "by_config": [
+        { "when": { "byte_mode": 1 }, "min": 0, "max": 255, "step": 1 },
+        { "when": { "servo_type": 0 }, "min": "angle_min_deg", "max": "angle_max_deg", "step": 1 }
+      ]
+    },
+    "trim.trim": {
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "by_config": [{ "when": { "servo_type": 1 }, "min": -200, "max": 200, "step": 5 }]
+    }
+  },
   "presets": [
     {
       "id": "sg90",
@@ -245,7 +262,8 @@
               "raw_type": "i16",
               "size": 2,
               "label": "Trim offset",
-              "unit": "deg"
+              "description": "Added to every move: degrees for an angle servo, microseconds of pulse for a continuous one (moves its stop point)",
+              "control": "slider"
             }
           ]
         }
@@ -266,7 +284,10 @@
               "type": "number",
               "raw_type": "i16",
               "size": 2,
-              "label": "Position (x10)"
+              "label": "Position",
+              "description": "Degrees for an angle servo, speed in percent (-100 to 100) for a continuous one, 0 to 255 with byte steering",
+              "scale": 10,
+              "control": "slider"
             }
           ]
         }

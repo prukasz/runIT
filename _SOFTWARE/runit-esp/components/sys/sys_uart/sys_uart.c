@@ -20,11 +20,20 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_UART, "sys_uart", ERR_SYS_UART_MAP)
 #define LINE_LEN_MAX    (LINE_PREFIX_LEN + 2u * CONFIG_ROUTER_FRAME_MAX)
 #define READ_CHUNK      64u
 #define READ_WAIT_MS    10u
+/* A frame waits this long for room in the TX queue. A stream frame waits too: the connector task stalls, its own queue
+   fills and the producer is refused (and sends again, as the telemetry sampler does), instead of losing the frame here
+   without anyone knowing. No producer waits: sys_connector_send never blocks. */
+#define SEND_WAIT_MS 1000u
+
+_Static_assert(CONFIG_SYS_UART_TX_QUEUE % 4 == 0, "SYS_UART_TX_QUEUE must be a multiple of 4");
 
 U_TASK_DEFINE(sys_uart_rx_task_h, CONFIG_SYS_UART_TASK_STACK);
+U_TASK_DEFINE(sys_uart_tx_task_h, CONFIG_SYS_UART_TX_TASK_STACK);
+U_RINGBUFFER_DEFINE(sys_uart_tx_rb, CONFIG_SYS_UART_TX_QUEUE, RINGBUF_TYPE_NOSPLIT);
 
 /* ----------------------------------------------------------------------------
- * TX: router link (answers) and connector provider (streams), same line format
+ * TX: router link (answers) and connector provider (streams), same line format. Both only queue the frame; the TX task
+ * writes the lines, so no sender waits for the 115200 baud console (the answers keep their order with the streams).
  * ------------------------------------------------------------------------- */
 
 static void write_line(const uint8_t* frame, uint32_t len) {
@@ -47,16 +56,32 @@ static void write_line(const uint8_t* frame, uint32_t len) {
   funlockfile(stdout);
 }
 
-static err_h link_send(const uint8_t* frame, uint32_t len) {
-  write_line(frame, len);
+static err_h queue_line(const uint8_t* frame, uint32_t len, TickType_t wait) {
+  ERR_CHECK(xRingbufferSend(sys_uart_tx_rb, frame, len, wait) == pdTRUE, ERR_UART_TX_FULL, .len = (uint16_t)len);
   return NULL;
+}
+
+static void tx_task(void* arg) {
+  (void)arg;
+  while (1) {
+    size_t size = 0;
+    uint8_t* item = xRingbufferReceive(sys_uart_tx_rb, &size, WAIT_FOREVER);
+    if (item != NULL) {
+      write_line(item, (uint32_t)size);
+      vRingbufferReturnItem(sys_uart_tx_rb, item);
+    }
+  }
+}
+
+static err_h link_send(const uint8_t* frame, uint32_t len) {
+  return queue_line(frame, len, MSEC(SEND_WAIT_MS));
 }
 
 // The connector's `endpoint` is the one address a UART has, SYS_UART_ENDPOINT: a connector bound elsewhere is refused
 // instead of writing to the wrong place.
 static err_h provider_send(uint32_t endpoint, const uint8_t* frame, uint32_t len) {
   ERR_CHECK(endpoint == SYS_UART_ENDPOINT, ERR_UART_BAD_ENDPOINT, .endpoint = endpoint);
-  return link_send(frame, len);
+  return queue_line(frame, len, MSEC(SEND_WAIT_MS));
 }
 
 static const router_link_t k_link = {
@@ -171,6 +196,9 @@ err_h sys_uart_init(void) {
 #endif
   ERR_TRY(router_link_register(TRANSPORT_UART, &k_link));
   ERR_TRY(sys_connector_register_provider(TRANSPORT_UART, &k_provider));
+  if (sys_uart_tx_task_h == NULL) {
+    U_TASK_START(sys_uart_tx_task_h, tx_task, NULL, CONFIG_SYS_UART_TX_TASK_PRIO);
+  }
   if (sys_uart_rx_task_h == NULL) {
     U_TASK_START(sys_uart_rx_task_h, rx_task, NULL, CONFIG_SYS_UART_TASK_PRIO);
   }

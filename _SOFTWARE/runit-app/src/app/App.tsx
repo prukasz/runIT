@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, OctagonX, PanelLeft, PanelRight, Bug, Eye, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, Square, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -212,6 +212,13 @@ export function App() {
   useEffect(() => {
     if (showsNothing) panels.setRightOpen(false)
   }, [showsNothing])
+  // A click in the Devices view's panel of the selected device brings its live test back in the right panel, over the connection
+  // or the debug panel (a new selection does it by itself, above).
+  const showDeviceTest = () => {
+    if (testDevice === undefined || (panels.rightOpen && !covered)) return
+    setConnectionOpen(false); setDebugOpen(false)
+    panels.setRightOpen(true)
+  }
 
   const { tone, Icon: LinkIcon, title: linkTitle } = available ? LINK_VIEW[state] : { tone: 'status-warn', Icon: BluetoothOff, title: 'This browser has no Web Bluetooth' }
   // The details panel is open only while it has something to show (so far the connection panel); closing that collapses it.
@@ -239,31 +246,35 @@ export function App() {
   const screens = SCREENS[view]
   const [mode, setMode] = view === 'Devices' ? [devicesMode, setDevicesMode] : [codeMode, setCodeMode]
 
-  // The right toolbar. Open header: Run, Stop, the connection, and the safe stop in the corner while the program runs. Collapsed:
-  // the corner of the header is the connection, or the safe stop while the program runs; the column under it is Run and Stop,
-  // with the connection on top of them while the safe stop has its corner.
+  // The right toolbar. Open header: Run (Pause while the program runs), the eye, the bug, the console, the connection, and the safe
+  // stop last while the program runs. Collapsed: the corner of the header is always the connection; the column under it is Run /
+  // Pause, the eye, the bug and the console, and the safe stop at its foot while the program runs. Nothing moves when it appears.
   const runButtons = (
     <>
-      <button className={vm.canRun ? 'status-ok' : ''} aria-label="Run" data-help="Loads the program into the board and runs it." disabled={!vm.canRun}
-        title={vm.stale ? 'The program changed: load it again and run it' : vm.running ? 'The program is running' : !vm.canRun ? 'Connect the board to run the program' : 'Load the program into the board and run it'} onClick={() => void vm.run('run')}>
-        <Play aria-hidden="true" />
-      </button>
-      <button className={vm.live.mode === 'live' ? 'selected' : ''} aria-label="Live view" aria-pressed={vm.live.mode === 'live'} data-help="Runs the program and shows which blocks act and what the variables hold, as it happens." disabled={!vm.canWatch}
-        title={vm.live.mode === 'live' && !vm.stale ? 'Watching the program live (press to load it again)' : !vm.canWatch ? 'Connect the board to watch the program' : 'Run the program and watch the flow and the variables live'} onClick={() => void vm.run('live')}>
+      {vm.running ? (
+        <button className="status-lost" aria-label="Pause" data-help="Pauses the program on the board; Run goes on from where it paused." disabled={!vm.canStop}
+          title={vm.stale ? 'Pause the program: it changed, Run then loads the new one' : vm.real ? 'Pause the program on the board' : 'Pause (a simulation)'} onClick={() => void vm.stop()}>
+          <Pause aria-hidden="true" />
+        </button>
+      ) : (
+        <button className={vm.canRun ? 'status-ok' : ''} aria-label="Run" data-help="Loads the program into the board and runs it; while it runs, this is Stop." disabled={!vm.canRun}
+          title={!vm.canRun ? 'Connect the board to run the program' : 'Load the program into the board and run it'} onClick={() => void vm.run('run')}>
+          <Play aria-hidden="true" />
+        </button>
+      )}
+      <button className={vm.live.mode === 'live' ? 'selected' : ''} aria-label="Live view" aria-pressed={vm.live.mode === 'live'} data-help="Shows which blocks act and what the variables and the outputs hold, as it happens. On a running program it only starts watching it." disabled={!vm.canWatch}
+        title={vm.live.mode === 'live' ? 'Watching the program live (press to stop watching; it keeps running)' : !vm.canWatch ? 'Connect the board to watch the program' : vm.running && !vm.stale ? 'Watch the running program live' : 'Run the program and watch it live'} onClick={() => void vm.watchLive()}>
         <Eye aria-hidden="true" />
       </button>
       <button className={vm.live.mode === 'debug' || (debugOpen && panels.rightOpen) ? 'selected' : ''} aria-label="Debug" aria-pressed={debugOpen && panels.rightOpen} data-help="Debug: step by step or loop by loop, in slow motion, with every block's output."
         title="Debug: stepping, slow motion and every block's output" onClick={openDebug}>
         <Bug aria-hidden="true" />
       </button>
-      <button className={vm.canStop ? 'status-lost' : ''} aria-label="Stop" data-help="Pauses the program on the board." title={!vm.canStop ? 'The program is not running' : vm.real ? 'Pause the program on the board' : 'Stop (a simulation)'} disabled={!vm.canStop} onClick={() => void vm.stop()}>
-        <Square aria-hidden="true" />
-      </button>
     </>
   )
   const safeStopButton = (
     <button className="status-lost safe-stop" aria-label="Safe stop" title="Safe stop: the board stops the program and switches off everything" disabled={!vm.canSafeStop} onClick={() => void vm.safeStop()}>
-      <OctagonX aria-hidden="true" />
+      <span className="safe-stop-label" aria-hidden="true">STOP</span>
     </button>
   )
   const linkButton = (
@@ -396,7 +407,7 @@ export function App() {
           {view === 'Console'
             ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} />
             : view === 'Devices' && mode === 'details'
-            ? <DevicesScreen state={devices} />
+            ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} /></div>
             : view === 'Code' && mode === 'details'
             ? (codePalette === 'blocks' ? <BlocksList blocks={blocks} /> : <VariablesEditor code={pickVariable} />)
             : view === 'Code'
@@ -430,7 +441,7 @@ export function App() {
                 <div className="header-icons">{runButtons}{consoleButton}{linkButton}{vm.running && safeStopButton}</div>
               </>
             )
-            : vm.running ? safeStopButton : linkButton}
+            : linkButton}
         </div>
         {panels.rightOpen
           ? (
@@ -452,7 +463,7 @@ export function App() {
               {connectionOpen && <ConnectionPanel state={state} device={device} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
             </div>
           )
-          : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{vm.running && linkButton}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} /></div>}
+          : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} />{vm.running && <div className="safe-stop-dock">{safeStopButton}</div>}</div>}
       </DetailsPanel>
       <HelpOverlay on={help} />
     </WorkspaceShell>

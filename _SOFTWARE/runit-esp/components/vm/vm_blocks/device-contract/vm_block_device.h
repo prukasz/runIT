@@ -17,6 +17,9 @@
  *  - An input that is not wired uses its constant from the state (`k`). A wired input is converted to the field's type
  *    (rounded, saturated); the device range-checks. A field with a scale (HBRIDGE drive: percent, wire steps = x40.95)
  *    takes a float, in the block's unit, from the input and from the constant alike (the constant is stored as a float).
+ *    A field with a limit (`lim`: HBRIDGE drive, ±4095 steps = ±100 %) is saturated to it instead, input and constant
+ *    alike: a speed past full is full speed, not a failed call. The first held value is reported (ERR_VM_DEV_HELD, in
+ *    the block's unit: 255 % for a drive), then not again until a pass sends every value in range.
  *  - Operations come in three kinds (vm_dev_act_e):
  *      CHANGE  a setting: sent on the first enabled pass and whenever an argument changed (write-on-change);
  *      EDGE    an action (toggle, brake, coast, reset): sent once per rising edge of the enable;
@@ -24,7 +27,9 @@
  *  - While the block is not enabled it can send one idle operation of the same contract (`idle_op`, 0 = hold what
  *    the device has): the address fields (pin / channel; none for a contract of a single thing) are the ones last sent, the other fields are `idle_k`.
  *  - A read result is output 0; a result of several values (USB_PD limits, a fault, the TPS55289 protection) fills
- *    outputs 0, 1, ... in the order the device answers.
+ *    outputs 0, 1, ... in the order the device answers. A result with an `rscale` is a float in the block's unit: the
+ *    wire value divided by it (a voltage: mV on the wire, volts on the output). Voltages are volts in the blocks, inputs
+ *    (scale 1000) and outputs alike; currents stay mA.
  *  - ENO: a CHANGE / READ block is true while its device accepts the calls this pass; an EDGE block pulses on the pass
  *    it fired. A failed call is reported and clears ENO.
  *
@@ -65,6 +70,8 @@ typedef struct vm_dev_op_t {
   uint8_t nfield;                  // argument fields (the first is the address: pin / channel)
   uint8_t ftype[VM_DEV_FIELDS_MAX];  // vm_dev_ftype_e
   float scale[VM_DEV_FIELDS_MAX];    // 0: the field is in wire units; else the block's value is a float that is multiplied by it
+  int32_t lim[VM_DEV_FIELDS_MAX];    // 0: the device range-checks; else the wire value is saturated to -lim..lim (0..lim unsigned)
+  float rscale[VM_DEV_FIELDS_MAX];   // per result: 0: output i is the wire value; else a float, the wire value / rscale (mV -> V: 1000)
 } vm_dev_op_t;
 
 /* A table row: op ID, kind, result, field count and the field types (scale 0: wire units). */
@@ -80,6 +87,7 @@ typedef struct vm_dev_contract_t {
 #define VM_DEV_F_PREV_EN (1u << 0)  // the enable was true last pass
 #define VM_DEV_F_SENT    (1u << 1)     // `last` holds what the device was told
 #define VM_DEV_F_IDLE    (1u << 2)     // the idle operation was sent since the enable fell
+#define VM_DEV_F_HELD    (1u << 3)     // a value held to its limit was reported; cleared on a pass with none held
 
 typedef struct __attribute__((aligned(4))) {
   uint16_t device_id;  // The device the block works on.
