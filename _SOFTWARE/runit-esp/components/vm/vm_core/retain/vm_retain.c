@@ -17,26 +17,44 @@ U_TASK_DEFINE(vm_retain_task_h, CONFIG_VM_RETAIN_TASK_STACK);
 
 /* The retained snapshot is one NVS blob. The default partition is initialised by the BLE stack as well; a second
    nvs_flash_init is a no-op that returns ESP_OK. */
-static nvs_handle_t s_nvs;
-static bool s_nvs_ready;
+static struct {
+  nvs_handle_t nvs;
+  bool nvs_ready;
+
+  /* Capture buffer: written by the VM task at a pass end, or by a control task
+     while the VM is quiescent -- never both at once. */
+  uint8_t stage[CONFIG_VM_RETAIN_MAX_BYTES];
+  size_t stage_len;
+
+  /* Last snapshot handed to the retain task (under vm_retain_mutex). */
+  uint8_t last[CONFIG_VM_RETAIN_MAX_BYTES];
+  size_t last_len;
+  bool dirty;  // last not written yet
+
+  uint32_t budget;               // record bytes the loaded program reserved
+  volatile bool restore_pending;  // loaded, not started yet
+  volatile bool active;           // started, not torn down or cleared: saving allowed
+  uint64_t next_ms;
+  bool retry;  // hand-over failed (retain task busy): try on the next pass
+} s_retain;
 
 static err_h retain_nvs_open(void) {
-  if (s_nvs_ready) return NULL;
+  if (s_retain.nvs_ready) return NULL;
   esp_err_t rc = nvs_flash_init();
   if (rc == ESP_ERR_NVS_NO_FREE_PAGES || rc == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     ERR_TRY_ESP(nvs_flash_erase());
     rc = nvs_flash_init();
   }
   ERR_TRY_ESP(rc);
-  ERR_TRY_ESP(nvs_open(VM_RETAIN_NS, NVS_READWRITE, &s_nvs));
-  s_nvs_ready = true;
+  ERR_TRY_ESP(nvs_open(VM_RETAIN_NS, NVS_READWRITE, &s_retain.nvs));
+  s_retain.nvs_ready = true;
   return NULL;
 }
 
 static err_h retain_store(const void* data, size_t len) {
   ERR_TRY(retain_nvs_open());
-  ERR_TRY_ESP(nvs_set_blob(s_nvs, VM_RETAIN_KEY, data, len));
-  return ERR_ESP(nvs_commit(s_nvs));
+  ERR_TRY_ESP(nvs_set_blob(s_retain.nvs, VM_RETAIN_KEY, data, len));
+  return ERR_ESP(nvs_commit(s_retain.nvs));
 }
 
 // `found` false when nothing is stored (not an error).
@@ -44,11 +62,11 @@ static err_h retain_load(void* buf, size_t cap, size_t* len, bool* found) {
   *found = false;
   ERR_TRY(retain_nvs_open());
   size_t stored = 0;
-  esp_err_t rc = nvs_get_blob(s_nvs, VM_RETAIN_KEY, NULL, &stored);
+  esp_err_t rc = nvs_get_blob(s_retain.nvs, VM_RETAIN_KEY, NULL, &stored);
   if (rc == ESP_ERR_NVS_NOT_FOUND) return NULL;
   ERR_TRY_ESP(rc);
   ERR_CHECK(stored <= cap, ERR_VM_RETAIN_CORRUPT, .offset = (uint32_t)stored);
-  ERR_TRY_ESP(nvs_get_blob(s_nvs, VM_RETAIN_KEY, buf, &stored));
+  ERR_TRY_ESP(nvs_get_blob(s_retain.nvs, VM_RETAIN_KEY, buf, &stored));
   *len = stored;
   *found = true;
   return NULL;
@@ -56,31 +74,15 @@ static err_h retain_load(void* buf, size_t cap, size_t* len, bool* found) {
 
 static err_h retain_erase(void) {
   ERR_TRY(retain_nvs_open());
-  esp_err_t rc = nvs_erase_key(s_nvs, VM_RETAIN_KEY);
+  esp_err_t rc = nvs_erase_key(s_retain.nvs, VM_RETAIN_KEY);
   if (rc != ESP_ERR_NVS_NOT_FOUND) ERR_TRY_ESP(rc);
-  return ERR_ESP(nvs_commit(s_nvs));
+  return ERR_ESP(nvs_commit(s_retain.nvs));
 }
 
-/* Guards s_last / s_last_len / s_dirty and the s_active change on clear. The
+/* Guards s_retain.last / s_retain.last_len / s_retain.dirty and the s_retain.active change on clear. The
    VM task only ever try-locks it, so a flash write in progress never stalls a
    pass: the capture is handed over on a later pass instead. */
 U_MUTEX_DEFINE(vm_retain_mutex);
-
-/* Capture buffer: written by the VM task at a pass end, or by a control task
-   while the VM is quiescent -- never both at once. */
-static uint8_t s_stage[CONFIG_VM_RETAIN_MAX_BYTES];
-static size_t s_stage_len;
-
-/* Last snapshot handed to the retain task (under vm_retain_mutex). */
-static uint8_t s_last[CONFIG_VM_RETAIN_MAX_BYTES];
-static size_t s_last_len;
-static bool s_dirty;  // s_last not written yet
-
-static uint32_t s_budget;               // record bytes the loaded program reserved
-static volatile bool s_restore_pending;  // loaded, not started yet
-static volatile bool s_active;           // started, not torn down or cleared: saving allowed
-static uint64_t s_next_ms;
-static bool s_retry;  // hand-over failed (retain task busy): try on the next pass
 
 /* Serialize every retentive object; the load-time budget guarantees it fits. */
 static size_t capture(uint8_t* buf) {
@@ -113,12 +115,12 @@ static size_t capture(uint8_t* buf) {
 static bool hand_over(bool wait) {
   if (!U_MUTEX_LOCK(vm_retain_mutex, wait ? WAIT_FOREVER : 0)) return false;
   bool changed = false;
-  if (s_active) {
-    changed = s_stage_len != s_last_len || memcmp(s_stage, s_last, s_stage_len) != 0;
+  if (s_retain.active) {
+    changed = s_retain.stage_len != s_retain.last_len || memcmp(s_retain.stage, s_retain.last, s_retain.stage_len) != 0;
     if (changed) {
-      memcpy(s_last, s_stage, s_stage_len);
-      s_last_len = s_stage_len;
-      s_dirty = true;
+      memcpy(s_retain.last, s_retain.stage, s_retain.stage_len);
+      s_retain.last_len = s_retain.stage_len;
+      s_retain.dirty = true;
     }
   }
   U_MUTEX_UNLOCK(vm_retain_mutex);
@@ -183,9 +185,9 @@ static void vm_retain_task(void* arg) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
     err_h err = NULL;
-    if (s_dirty) {
-      err = retain_store(s_last, s_last_len);
-      if (!err) s_dirty = false;  // on failure it stays dirty and goes out with the next change
+    if (s_retain.dirty) {
+      err = retain_store(s_retain.last, s_retain.last_len);
+      if (!err) s_retain.dirty = false;  // on failure it stays dirty and goes out with the next change
     }
     U_MUTEX_UNLOCK(vm_retain_mutex);
     err_report(err);
@@ -201,76 +203,76 @@ err_h vm_retain_init(void) {
 }
 
 void vm_retain_on_open(void) {
-  s_budget = 0;
-  s_active = false;
-  s_restore_pending = true;
+  s_retain.budget = 0;
+  s_retain.active = false;
+  s_retain.restore_pending = true;
 }
 
 void vm_retain_on_reset(void) {
-  s_budget = 0;
-  s_active = false;
-  s_restore_pending = false;
+  s_retain.budget = 0;
+  s_retain.active = false;
+  s_retain.restore_pending = false;
 }
 
 err_h vm_retain_reserve(uint16_t obj_id, const vm_obj_head_t* head) {
   ERR_CHECK(head != NULL, ERR_VM_BAD_ARG);
   if (!head->f.retentive) return NULL;
   if (head->d.name_size == 0) return ERR_NEW(ERR_VM_RETAIN_UNNAMED, .obj_id = obj_id);
-  const uint32_t used = s_budget ? s_budget : RETAIN_HDR_LEN;
+  const uint32_t used = s_retain.budget ? s_retain.budget : RETAIN_HDR_LEN;
   const uint32_t need = used + RETAIN_REC_FIXED + head->d.name_size + head->payload_size;
   if (need > CONFIG_VM_RETAIN_MAX_BYTES) {
     return ERR_NEW(ERR_VM_RETAIN_TOO_BIG, .obj_id = obj_id, .need = need, .max = CONFIG_VM_RETAIN_MAX_BYTES);
   }
-  s_budget = need;
+  s_retain.budget = need;
   return NULL;
 }
 
 err_h vm_retain_restore(void) {
-  if (!s_restore_pending) return NULL;
-  s_restore_pending = false;
+  if (!s_retain.restore_pending) return NULL;
+  s_retain.restore_pending = false;
 
   size_t len = 0;
   bool found = false;
-  err_h err = retain_load(s_stage, sizeof(s_stage), &len, &found);
-  if (!err && found) err = apply(s_stage, len);
+  err_h err = retain_load(s_retain.stage, sizeof(s_retain.stage), &len, &found);
+  if (!err && found) err = apply(s_retain.stage, len);
 
   /* What the objects hold now is what is stored: no rewrite on the first
      period unless something changes. Saving starts even if the restore
      failed, so the program's values are kept from here on. */
-  s_stage_len = capture(s_stage);
+  s_retain.stage_len = capture(s_retain.stage);
   U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
-  memcpy(s_last, s_stage, s_stage_len);
-  s_last_len = s_stage_len;
-  s_dirty = false;
-  s_active = true;
+  memcpy(s_retain.last, s_retain.stage, s_retain.stage_len);
+  s_retain.last_len = s_retain.stage_len;
+  s_retain.dirty = false;
+  s_retain.active = true;
   U_MUTEX_UNLOCK(vm_retain_mutex);
-  s_next_ms = 0;
-  s_retry = false;
+  s_retain.next_ms = 0;
+  s_retain.retry = false;
 
   ERR_TRY(err);
   return NULL;
 }
 
 void vm_retain_on_pass(uint64_t now_ms) {
-  if (!s_active) return;
-  if (s_next_ms == 0) s_next_ms = now_ms + RETAIN_PERIOD_MS;
-  if (!s_retry && now_ms < s_next_ms) return;
-  s_next_ms = now_ms + RETAIN_PERIOD_MS;
-  s_stage_len = capture(s_stage);
-  s_retry = !hand_over(false);
+  if (!s_retain.active) return;
+  if (s_retain.next_ms == 0) s_retain.next_ms = now_ms + RETAIN_PERIOD_MS;
+  if (!s_retain.retry && now_ms < s_retain.next_ms) return;
+  s_retain.next_ms = now_ms + RETAIN_PERIOD_MS;
+  s_retain.stage_len = capture(s_retain.stage);
+  s_retain.retry = !hand_over(false);
 }
 
 void vm_retain_save_stopped(void) {
-  if (!s_active) return;
-  s_stage_len = capture(s_stage);
+  if (!s_retain.active) return;
+  s_retain.stage_len = capture(s_retain.stage);
   (void)hand_over(true);
 }
 
 err_h vm_retain_clear(void) {
   U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
-  s_active = false;  // until the next start: the next start begins from uploaded values
-  s_dirty = false;
-  s_last_len = 0;
+  s_retain.active = false;  // until the next start: the next start begins from uploaded values
+  s_retain.dirty = false;
+  s_retain.last_len = 0;
   err_h err = retain_erase();
   U_MUTEX_UNLOCK(vm_retain_mutex);
   ERR_TRY(err);

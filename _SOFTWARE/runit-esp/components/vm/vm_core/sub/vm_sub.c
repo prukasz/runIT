@@ -34,12 +34,14 @@
  * ------------------------------------------------------------------------- */
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
-static uint16_t s_pending_ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];
-static uint16_t s_pending_count;
-static bool s_pending;
+static struct {
+  uint16_t pending_ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];  // staged list
+  uint16_t pending_count;
+  bool pending;                                         // a staged list waits for the VM task
 
-static uint16_t s_subscribed_ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];
-static uint16_t s_sub_count;
+  uint16_t subscribed_ids[CONFIG_VM_SUB_MAX_SUBSCRIBERS];  // the list the sample scans
+  uint16_t sub_count;
+} s_list;
 
 /* ---------------------------------------------------------------------------
  * Tracking table
@@ -76,9 +78,11 @@ typedef struct {
   uint16_t resume; /* with SUB_LOST: the first element not delivered */
 } track_t;
 
-static track_t s_track[SUB_SLOTS];
-static uint16_t s_track_count;
-static bool s_track_full_reported;
+static struct {
+  track_t slots[SUB_SLOTS];
+  uint16_t count;
+  bool full_reported;
+} s_track;
 
 /* ---------------------------------------------------------------------------
  * Frames
@@ -101,9 +105,11 @@ typedef struct {
   uint8_t packet;
 } sub_frame_t;
 
-static sub_frame_t s_desc;
-static sub_frame_t s_value;
-static bool s_refused; /* the transport refused a frame in this sample */
+static struct {
+  sub_frame_t desc;
+  sub_frame_t value;
+  bool refused; /* the transport refused a frame in this sample */
+} s_frames;
 
 static inline void put_u16(uint8_t* p, uint16_t v) {
   p[0] = (uint8_t)(v & 0xFFu);
@@ -130,12 +136,12 @@ static void frame_send(sub_frame_t* f) {
   ESP_LOGD(TAG, "TX 0x%02X: %u records (%u bytes)", (unsigned)f->packet, (unsigned)f->count, (unsigned)f->len);
   err_h err = sys_connector_send(SYS_CONNECTOR_TELEMETRY, f->buf, f->len);
   if (err) {
-    s_refused = true;
+    s_frames.refused = true;
     frame_lost(f);
     err_report(err);
-    if (f == &s_desc) { /* pending values may reference what was just lost */
-      frame_lost(&s_value);
-      frame_init(&s_value, s_value.packet);
+    if (f == &s_frames.desc) { /* pending values may reference what was just lost */
+      frame_lost(&s_frames.value);
+      frame_init(&s_frames.value, s_frames.value.packet);
     }
   }
   frame_init(f, f->packet);
@@ -143,8 +149,8 @@ static void frame_send(sub_frame_t* f) {
 
 /* Send describes, then the values that may reference them. */
 static void flush_values(void) {
-  frame_send(&s_desc);
-  frame_send(&s_value);
+  frame_send(&s_frames.desc);
+  frame_send(&s_frames.value);
 }
 
 /* Room for `need` more bytes and one more record in f. */
@@ -184,18 +190,18 @@ static inline uint32_t slot_of(vm_obj_h o) {
 }
 
 static void track_clear(void) {
-  memset(s_track, 0, sizeof(s_track));
-  s_track_count = 0;
-  s_track_full_reported = false;
+  memset(s_track.slots, 0, sizeof(s_track.slots));
+  s_track.count = 0;
+  s_track.full_reported = false;
 }
 
 /* The entry for o, created if missing. *is_new tells the caller nothing has
    been sent for it yet. NULL when the table is full. */
 static track_t* track_get(vm_obj_h o, bool* is_new) {
   uint32_t i = slot_of(o);
-  while (s_track[i].obj) {
-    if (s_track[i].obj == o) {
-      track_t* t = &s_track[i];
+  while (s_track.slots[i].obj) {
+    if (s_track.slots[i].obj == o) {
+      track_t* t = &s_track.slots[i];
       /* A heap handle can be freed and handed to another heap object. */
       if ((t->id & VM_OBJ_ID_DYN_BIT) && vm_obj_dyn_get_by_id(t->id & (uint16_t)~VM_OBJ_ID_DYN_BIT) != o) {
         t->id = vm_obj_get_id(o);
@@ -208,25 +214,25 @@ static track_t* track_get(vm_obj_h o, bool* is_new) {
     i = (i + 1u) % SUB_SLOTS;
   }
 
-  if (s_track_count >= CONFIG_VM_SUB_MAX_TRACKED) {
-    if (!s_track_full_reported) {
-      s_track_full_reported = true;
+  if (s_track.count >= CONFIG_VM_SUB_MAX_TRACKED) {
+    if (!s_track.full_reported) {
+      s_track.full_reported = true;
       VM_RAISE(ERR_VM_SUB_TRACK_FULL, .max = CONFIG_VM_SUB_MAX_TRACKED);
     }
     return NULL;
   }
-  s_track[i] = (track_t){.obj = o, .value = 0, .id = vm_obj_get_id(o), .head = 0, .resume = 0};
-  s_track_count++;
+  s_track.slots[i] = (track_t){.obj = o, .value = 0, .id = vm_obj_get_id(o), .head = 0, .resume = 0};
+  s_track.count++;
   *is_new = true;
-  return &s_track[i];
+  return &s_track.slots[i];
 }
 
 /* Wire ID of an object, from its entry when it has one. */
 static uint16_t wire_id(vm_obj_h o) {
   if (!o) return VM_ID_NONE;
   uint32_t i = slot_of(o);
-  while (s_track[i].obj) {
-    if (s_track[i].obj == o) return s_track[i].id;
+  while (s_track.slots[i].obj) {
+    if (s_track.slots[i].obj == o) return s_track.slots[i].id;
     i = (i + 1u) % SUB_SLOTS;
   }
   return vm_obj_get_id(o);
@@ -246,7 +252,7 @@ static void track_lose(track_t* t, uint16_t start) {
 /* Rare path (a refused frame): a scan of the table per record. */
 static void track_mark_lost(uint16_t id, uint16_t start) {
   for (uint32_t i = 0; i < SUB_SLOTS; i++) {
-    if (s_track[i].obj && s_track[i].id == id) track_lose(&s_track[i], start);
+    if (s_track.slots[i].obj && s_track.slots[i].id == id) track_lose(&s_track.slots[i], start);
   }
 }
 
@@ -272,12 +278,12 @@ static void frame_lost(const sub_frame_t* f) {
    Backward-shift deletion keeps every probe chain intact without tombstones. */
 static void track_sweep(void) {
   for (uint32_t i = 0; i < SUB_SLOTS;) {
-    if (!s_track[i].obj) {
+    if (!s_track.slots[i].obj) {
       i++;
       continue;
     }
-    if (s_track[i].head & SUB_SEEN) {
-      s_track[i].head &= (uint16_t)~SUB_SEEN;
+    if (s_track.slots[i].head & SUB_SEEN) {
+      s_track.slots[i].head &= (uint16_t)~SUB_SEEN;
       i++;
       continue;
     }
@@ -285,17 +291,17 @@ static void track_sweep(void) {
     uint32_t j = i;
     for (;;) {
       j = (j + 1u) % SUB_SLOTS;
-      if (!s_track[j].obj) break;
-      uint32_t home = slot_of(s_track[j].obj);
+      if (!s_track.slots[j].obj) break;
+      uint32_t home = slot_of(s_track.slots[j].obj);
       /* Entry j may move into the hole if its home is not in (hole, j]. */
       bool stays = (hole <= j) ? (hole < home && home <= j) : (hole < home || home <= j);
       if (!stays) {
-        s_track[hole] = s_track[j];
+        s_track.slots[hole] = s_track.slots[j];
         hole = j;
       }
     }
-    s_track[hole].obj = NULL;
-    s_track_count--;
+    s_track.slots[hole].obj = NULL;
+    s_track.count--;
     /* Slot i now holds a shifted entry (or is free): look at it again. */
   }
 }
@@ -310,18 +316,18 @@ static void emit_describe(track_t* t, vm_obj_h o) {
   uint16_t id = t->id;
   uint8_t name_len = o->head.f.tagged ? o->head.d.name_size : 0;
   size_t need = SUB_DESC_HDR_LEN + name_len;
-  if (!frame_fits(&s_desc, need)) frame_send(&s_desc);
-  if (s_refused || !frame_fits(&s_desc, need)) { /* held back, or the link can't carry it */
+  if (!frame_fits(&s_frames.desc, need)) frame_send(&s_frames.desc);
+  if (s_frames.refused || !frame_fits(&s_frames.desc, need)) { /* held back, or the link can't carry it */
     track_lose(t, 0);
     return;
   }
 
   vm_wire_obj_t rec = {.id = id, .head = vm_wire_head_pack(&o->head, name_len)};
-  uint8_t* p = s_desc.buf + s_desc.len;
+  uint8_t* p = s_frames.desc.buf + s_frames.desc.len;
   memcpy(p, &rec, sizeof(rec));
   if (name_len) memcpy(p + SUB_DESC_HDR_LEN, o->payload + o->head.payload_size, name_len);
-  s_desc.len += need;
-  s_desc.count++;
+  s_frames.desc.len += need;
+  s_frames.desc.count++;
 }
 
 /* Value records: vm_wire_data_t, then the data. An object larger than a frame
@@ -336,18 +342,18 @@ static void emit_value(track_t* t, vm_obj_h o, uint16_t from) {
 
   uint16_t start = from < items ? from : 0;
   do {
-    if (!frame_fits(&s_value, SUB_VALUE_HDR_LEN + (items ? elem : 0))) flush_values();
-    if (s_refused || !frame_fits(&s_value, SUB_VALUE_HDR_LEN + (items ? elem : 0))) { /* held back, or the link can't carry one element */
+    if (!frame_fits(&s_frames.value, SUB_VALUE_HDR_LEN + (items ? elem : 0))) flush_values();
+    if (s_frames.refused || !frame_fits(&s_frames.value, SUB_VALUE_HDR_LEN + (items ? elem : 0))) { /* held back, or the link can't carry one element */
       track_lose(t, start);
       return;
     }
 
-    size_t room = (s_value.cap - s_value.len - SUB_VALUE_HDR_LEN) / elem;
+    size_t room = (s_frames.value.cap - s_frames.value.len - SUB_VALUE_HDR_LEN) / elem;
     uint16_t n = (uint16_t)((items - start) < room ? (items - start) : room);
     uint16_t byte_len = (uint16_t)(n * elem);
 
     vm_wire_data_t rec = {.id = id, .start_idx = start, .byte_len = byte_len};
-    uint8_t* p = s_value.buf + s_value.len;
+    uint8_t* p = s_frames.value.buf + s_frames.value.len;
     memcpy(p, &rec, sizeof(rec));
     if (is_ptr) {
       vm_obj_h* children = (vm_obj_h*)o->payload;
@@ -357,8 +363,8 @@ static void emit_value(track_t* t, vm_obj_h o, uint16_t from) {
     } else if (byte_len) {
       memcpy(p + SUB_VALUE_HDR_LEN, o->payload + (size_t)start * elem, byte_len);
     }
-    s_value.len += SUB_VALUE_HDR_LEN + byte_len;
-    s_value.count++;
+    s_frames.value.len += SUB_VALUE_HDR_LEN + byte_len;
+    s_frames.value.count++;
     start = (uint16_t)(start + n);
   } while (start < items);
 }
@@ -430,24 +436,24 @@ static void walk(vm_obj_h o, uint8_t depth) {
    at the next sample (the table starts empty). */
 static void take_pending(void) {
   portENTER_CRITICAL(&s_mux);
-  bool pending = s_pending;
+  bool pending = s_list.pending;
   if (pending) {
-    memcpy(s_subscribed_ids, s_pending_ids, (size_t)s_pending_count * sizeof(uint16_t));
-    s_sub_count = s_pending_count;
-    s_pending = false;
+    memcpy(s_list.subscribed_ids, s_list.pending_ids, (size_t)s_list.pending_count * sizeof(uint16_t));
+    s_list.sub_count = s_list.pending_count;
+    s_list.pending = false;
   }
   portEXIT_CRITICAL(&s_mux);
   if (pending) track_clear();
 }
 
 static void sample(void) {
-  if (s_sub_count == 0) return;
+  if (s_list.sub_count == 0) return;
 
-  s_refused = false;
-  frame_init(&s_desc, VM_OP_ADD_OBJECTS);
-  frame_init(&s_value, VM_OP_DATA);
-  for (uint16_t i = 0; i < s_sub_count; i++) {
-    walk(vm_obj_lookup_by_id(s_subscribed_ids[i]), 0);
+  s_frames.refused = false;
+  frame_init(&s_frames.desc, VM_OP_ADD_OBJECTS);
+  frame_init(&s_frames.value, VM_OP_DATA);
+  for (uint16_t i = 0; i < s_list.sub_count; i++) {
+    walk(vm_obj_lookup_by_id(s_list.subscribed_ids[i]), 0);
   }
   flush_values();
   track_sweep();
@@ -469,9 +475,9 @@ err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
   if (count) ERR_CHECK(ids != NULL, ERR_VM_BAD_ARG);
 
   portENTER_CRITICAL(&s_mux);
-  if (count) memcpy(s_pending_ids, ids, (size_t)count * sizeof(uint16_t));
-  s_pending_count = count;
-  s_pending = true;
+  if (count) memcpy(s_list.pending_ids, ids, (size_t)count * sizeof(uint16_t));
+  s_list.pending_count = count;
+  s_list.pending = true;
   portEXIT_CRITICAL(&s_mux);
   ESP_LOGD(TAG, "subscribed to %u objects", (unsigned)count);
 
@@ -517,19 +523,19 @@ void vm_sub_scan(void) {
 
 void vm_sub_reset(void) {
   portENTER_CRITICAL(&s_mux);
-  s_pending = false;
-  s_pending_count = 0;
-  s_sub_count = 0;
+  s_list.pending = false;
+  s_list.pending_count = 0;
+  s_list.sub_count = 0;
   portEXIT_CRITICAL(&s_mux);
   track_clear();
   ESP_LOGD(TAG, "subscriptions cleared");
 }
 
 uint16_t vm_sub_count(void) {
-  return s_sub_count;
+  return s_list.sub_count;
 }
 
 const uint16_t* vm_sub_get_ids(uint16_t* out_count) {
-  if (out_count) *out_count = s_sub_count;
-  return s_subscribed_ids;
+  if (out_count) *out_count = s_list.sub_count;
+  return s_list.subscribed_ids;
 }
