@@ -24,3 +24,7 @@ sdkconfig.old
 # graphify: keep only graph.json in git
 graphify-out/*
 !graphify-out/graph.json
+
+# Working notes, not uploaded
+/displays.md
+/displays_spi.md

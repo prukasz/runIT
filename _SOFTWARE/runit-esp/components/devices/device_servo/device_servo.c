@@ -221,4 +221,16 @@ static const sys_device_op_t k_ops[] = {
     {.op = SERVO_OP_RELEASE, .write = release_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(SERVO, servo_cfg_t, servo_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_SERVO,
+    .cfg_size  = sizeof(servo_cfg_t),
+    .ctx_size  = sizeof(servo_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

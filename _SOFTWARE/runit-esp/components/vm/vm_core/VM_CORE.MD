@@ -89,7 +89,7 @@ Sending: only objects whose value changed since last sent (value hash), everythi
 | Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue. An event lives exactly one pass; `ON_EVENT` matches the snapshot by source, event and channel with `sys_event_matches`. A full queue drops the event; each pass reports the drops since the last one as `ERR_VM_EVENT_OVERFLOW` (count and the last source) |
 | Telemetry | `sys_connector_send(SYS_CONNECTOR_TELEMETRY)`; frame header `[ROUTER_KEY_VM][op][count]` (above) |
 | Retained values | One NVS blob `vm/retain` in the default partition (`vm_retain.c`). Kept by name (a retentive object must be named), type and size; saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task, on teardown (RESET, OPEN) and in the safe state; restored on the first start after a load; `EXEC` RETAIN_CLEAR forgets them. A program retaining more than `CONFIG_VM_RETAIN_MAX_BYTES` is refused at load |
-| Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_DEFINE`). The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
+| Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_REGISTER`). The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
 
 ## Boot and safe state (RUNIT.MD)
 

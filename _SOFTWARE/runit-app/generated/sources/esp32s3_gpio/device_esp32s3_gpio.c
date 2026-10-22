@@ -537,4 +537,16 @@ static const sys_device_op_t k_ops[] = {
     SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W(PINS, LOCKED_LEVEL),
 };
 
-SYS_DEVICE_TYPE_DEFINE(ESP32S3_GPIO, esp32s3_gpio_cfg_t, gpio_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_ESP32S3_GPIO,
+    .cfg_size  = sizeof(esp32s3_gpio_cfg_t),
+    .ctx_size  = sizeof(gpio_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

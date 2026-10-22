@@ -177,4 +177,16 @@ static const sys_device_op_t k_ops[] = {
     SYS_PINS_STATE_ENTRIES,    OP_ENTRY_W(PINS, LOCKED_LEVEL),
 };
 
-SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, pca_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_PCA9685,
+    .cfg_size  = sizeof(pca9685_cfg_t),
+    .ctx_size  = sizeof(pca_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

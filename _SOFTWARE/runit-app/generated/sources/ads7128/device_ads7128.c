@@ -538,4 +538,16 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(IO, RESET),    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
 };
 
-SYS_DEVICE_TYPE_DEFINE(ADS7128, ads7128_cfg_t, ads_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_ADS7128,
+    .cfg_size  = sizeof(ads7128_cfg_t),
+    .ctx_size  = sizeof(ads_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

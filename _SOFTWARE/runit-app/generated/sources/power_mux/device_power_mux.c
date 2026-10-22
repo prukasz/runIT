@@ -137,4 +137,16 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY(SUPPLY, SOURCE),
 };
 
-SYS_DEVICE_TYPE_DEFINE(POWER_MUX, power_mux_cfg_t, mux_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_POWER_MUX,
+    .cfg_size  = sizeof(power_mux_cfg_t),
+    .ctx_size  = sizeof(mux_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

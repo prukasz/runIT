@@ -1,4 +1,4 @@
-# WHOLE_ARCHIVE: the type registers itself (SYS_DEVICE_TYPE_DEFINE) and nothing else references it.
+# WHOLE_ARCHIVE: the type registers itself (SYS_DEVICE_TYPE_REGISTER) and nothing else references it.
 idf_component_register(
     SRCS "esp32s3_gpio_pwm.c" "device_esp32s3_gpio.c" "esp32s3_gpio_adc.c"
     INCLUDE_DIRS "."

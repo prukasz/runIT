@@ -38,6 +38,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 | `runit-app/generated/` | The descriptors the firmware publishes, read by the app; written only by the generators (`templates/AGENTS.md`) |
 | `templates/` | Descriptor schemas, the generators and `sync.sh` (shared by firmware and app) |
 | `tools/`, `.claude/`, `graphify-out/` | Shared tooling, skills and notes, the code graph |
+| `how-to-runit.md` | The reader's guide to running runIT (in Polish): board choice, firmware and app commands |
 | `runit.code-workspace` | The VS Code workspace: the repo and `runit-esp` as its own folder, so the ESP-IDF extension sees the project (`runit-esp` build.md §5) |
 
 **Layers** (a group depends only on the ones before it): `core` → `sys` → `devices` → `vm`; `app/runit` composes them (router keys, boot order). Components are found through `EXTRA_COMPONENT_DIRS` in `runit-esp/CMakeLists.txt`: a new component goes into the group of its layer, and no path is listed anywhere else.

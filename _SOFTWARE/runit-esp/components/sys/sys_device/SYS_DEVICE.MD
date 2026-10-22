@@ -10,7 +10,7 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 
 | File | Contents |
 |---|---|
-| `registry/sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_DEFINE`, calls and sweeps |
+| `registry/sys_device.h` | Op convention, lifecycle table, `sys_device_base_t`, `sys_device_type_t`, `SYS_DEVICE_TYPE_REGISTER`, calls and sweeps |
 | `registry/sys_device_types.h` | **The type IDs**, one X-macro list (`SYS_DEVICE_TYPE_LIST` → `SYS_DEVICE_TYPE_<NAME>`); a duplicate fails to compile |
 | `registry/sys_device.c` | Types, instances (creation order), the registry's ops, calls, sweeps, the error module (`ERR_MODULE_DEFINE`). Depends on `cmd` only |
 | `registry/contract_device.json` | The device contract's descriptor (lifecycle ops) |
@@ -21,7 +21,7 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 | `policy/sys_device_policy_internal.h` | Private: what the registry asks of the policy (a policy added or removed with its instance, the ERROR_POLICY ops) |
 | `router/sys_device_router.c/.h` | The remote interface (`ROUTER_KEY_DEVICE` = 0x05): parses `[dir u8][id u16][op u16][args]` and calls `sys_device_call`. The only file here that includes the router; the app (`runit.c`) includes its header, nothing else does |
 | `Kconfig` | `SYS_DEVICE_MAX` (32 instances), `SYS_DEVICE_TYPES` (16), `SYS_DEVICE_MAX_DEPS` (4 devices one device may use), `SYS_DEVICE_GUARDS` (2 contracts with a guard) |
-| `SYS_DEVICE_NEW.md` | Adding a device: a driver on this registry |
+| `SYS_DEVICE_DRIVER.MD` | Adding a device: a driver on this registry |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Commands
@@ -29,7 +29,7 @@ The driver keeps its state (suspended included), builds and releases its hardwar
 `[0x05][dir u8][device id u16 LE][op u16 LE][args]` (`dir` 0 read, 1 write; ROUTER.MD). A failure is wrapped in `ERR_DEV_ID{id}` and `ERR_DEV_OP{op, dir}`, so the chain reads `KEY 05` → `ERR_DEV_ID` → `ERR_DEV_OP` → cause (`ERR_DEV_NOT_FOUND` comes without the op node: nothing ran). IDs are `0..0xFFFE`; `0xFFFF` (`SYS_DEVICE_ID_NONE`, published as `device_id`) is "no device" in pin references and in the sweeps below. There is no list op: an app probes IDs with INFO and reads what each answers with OPS.
 
 ```
-boot:    SYS_DEVICE_TYPE_DEFINE in device_pca9685.c registers type 0x0041 (a constructor)
+boot:    SYS_DEVICE_TYPE_REGISTER in device_pca9685.c registers type 0x0041 (a constructor)
 create:  [05][01][03 00][00 00][41 00][cfg]  -> size check, calloc(ctx_size), id = 3, create(ctx, cfg), add (3, 0x0041, ctx)
 use:     [05][01][03 00][03 01][pin u8][duty u32] -> ID 3 -> its type's op table -> OP_WRITE(IO, PWM_DUTY)(ctx, args)
 remove:  [05][01][03 00][04 00]              -> uninstall(ctx), unregister, free
@@ -103,7 +103,7 @@ Rules (they keep the lock short and deadlock-free):
 
 ## Adding a device
 
-How to write a driver (type ID, struct, ops, create / uninstall, hooks, registration) is in `SYS_DEVICE_NEW.md`.
+How to write a driver (type ID, struct, ops, create / uninstall, hooks, registration) is in `SYS_DEVICE_DRIVER.MD`.
 
 ## Error policy
 

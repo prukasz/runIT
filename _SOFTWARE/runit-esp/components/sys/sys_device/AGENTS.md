@@ -1,6 +1,6 @@
 # sys_device
 
-Spec: `SYS_DEVICE.MD` (this folder). Writing a driver: `SYS_DEVICE_NEW.md`.
+Spec: `SYS_DEVICE.MD` (this folder). Writing a driver: `SYS_DEVICE_DRIVER.MD`.
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
 - Op numbers, contract IDs (`SYS_DEVICE_CONTRACT_*`), device type IDs (`registry/sys_device_types.h`) and error tags are wire format or stored IDs: do not renumber them. Add new ones at the end.

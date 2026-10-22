@@ -509,4 +509,16 @@ static const sys_device_op_t k_ops[] = {
     {.op = TPS55289_OP_PROTECTION, .read = get_protection_h, .write = set_protection_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(TPS55289, tps55289_cfg_t, tps_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_TPS55289,
+    .cfg_size  = sizeof(tps55289_cfg_t),
+    .ctx_size  = sizeof(tps_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

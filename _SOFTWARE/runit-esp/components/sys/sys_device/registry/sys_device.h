@@ -12,7 +12,7 @@ extern "C" {
 
 /**
  * @brief Device registry (SYS_DEVICE.MD): the device types (each driver registers its own with
- * SYS_DEVICE_TYPE_DEFINE) and the instances (ID, type, struct). The registry does CREATE (size check, allocation,
+ * SYS_DEVICE_TYPE_REGISTER) and the instances (ID, type, struct). The registry does CREATE (size check, allocation,
  * rollback), REMOVE, INFO and OPS for every device and runs any other op from the type's op table; the driver builds
  * and releases its hardware, keeps its state and makes its outputs safe on SUSPEND. A failure is wrapped in
  * ERR_DEV_ID{id} and ERR_DEV_OP{op}.
@@ -178,7 +178,7 @@ typedef struct {
 
 /**
  * @brief A device type: everything the registry needs to make, run and remove
- * its instances. Defined once per driver with SYS_DEVICE_TYPE_DEFINE.
+ * its instances. Filled once per driver, every field named, and registered with SYS_DEVICE_TYPE_REGISTER.
  */
 typedef struct {
   uint16_t type;      // SYS_DEVICE_TYPE_* (sys_device_types.h)
@@ -202,24 +202,19 @@ typedef struct {
   bool (*has_op)(const void* ctx, uint16_t op);
 } sys_device_type_t;
 
-/** @brief Adds a type. Called by SYS_DEVICE_TYPE_DEFINE before app_main; asserts on a misdefined type. */
+/** @brief Adds a type. Called by SYS_DEVICE_TYPE_REGISTER before app_main; asserts on a misdefined type. */
 void sys_device_type_register(const sys_device_type_t* type);
 
 /**
- * @brief Defines the driver's type SYS_DEVICE_TYPE_<NAME> and registers it before app_main. The driver names its
- * hooks create, uninstall, suspend_hook and resume_hook; `table` is its op table; anything else of sys_device_type_t
- * (has_op) follows as designated initializers. The driver's component must be linked as WHOLE_ARCHIVE: nothing
- * references it, and the linker would drop the registration.
- * @usage SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, pca_t, k_ops)
- *        SYS_DEVICE_TYPE_DEFINE(DRV8962, drv8962_cfg_t, drv_t, k_ops, .has_op = has_op)
+ * @brief Registers the driver's sys_device_type_t `type` before app_main (a constructor). The driver fills the struct
+ * itself, every hook named. Its component must be linked as WHOLE_ARCHIVE: nothing references it, and the linker would
+ * drop the registration.
+ * @usage static const sys_device_type_t k_type = {.type = SYS_DEVICE_TYPE_PCA9685, .create = create, ...};
+ *        SYS_DEVICE_TYPE_REGISTER(k_type)
  */
-#define SYS_DEVICE_TYPE_DEFINE(NAME, cfg_t, ctx_t, table, ...)                                                \
-  static const sys_device_type_t s_sys_device_type = {                                                        \
-      .type = SYS_DEVICE_TYPE_##NAME, .cfg_size = sizeof(cfg_t), .ctx_size = sizeof(ctx_t), .create = create, \
-      .uninstall = uninstall, .suspend = suspend_hook, .resume = resume_hook, .ops = (table),                 \
-      .op_count = (uint16_t)ARRAY_LEN(table), __VA_ARGS__};                                                   \
-  __attribute__((constructor)) static void s_sys_device_type_register(void) {                                 \
-    sys_device_type_register(&s_sys_device_type);                                                             \
+#define SYS_DEVICE_TYPE_REGISTER(type)                                        \
+  __attribute__((constructor)) static void s_sys_device_type_register(void) { \
+    sys_device_type_register(&(type));                                        \
   }
 
 /* ----------------------------------------------------------------------------

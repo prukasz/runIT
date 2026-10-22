@@ -275,4 +275,16 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
 };
 
-SYS_DEVICE_TYPE_DEFINE(TCA6424A, tca6424a_cfg_t, tca_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_TCA6424A,
+    .cfg_size  = sizeof(tca6424a_cfg_t),
+    .ctx_size  = sizeof(tca_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

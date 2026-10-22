@@ -618,4 +618,17 @@ static const sys_device_op_t k_ops[] = {
     {.op = DRV8962_OP_SETTINGS, .read = get_settings_h, .write = set_settings_h},
 };
 
-SYS_DEVICE_TYPE_DEFINE(DRV8962, drv8962_cfg_t, drv_t, k_ops, .has_op = has_op)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_DRV8962,
+    .cfg_size  = sizeof(drv8962_cfg_t),
+    .ctx_size  = sizeof(drv_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+    .has_op    = has_op,
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

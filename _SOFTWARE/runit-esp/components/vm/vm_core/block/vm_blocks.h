@@ -3,7 +3,7 @@
 /*
 The palette: every block type this firmware can run, as a table of pointers indexed by block type (vm_block_ids.h).
 A block type declares itself with VM_BLOCK_TYPE_DEFINE in its own file and registers before app_main, the way a device
-driver does (SYS_DEVICE_TYPE_DEFINE); nothing central lists the blocks. The component that holds the block files is
+driver does (SYS_DEVICE_TYPE_REGISTER); nothing central lists the blocks. The component that holds the block files is
 linked WHOLE_ARCHIVE, because nothing references a block and the linker would drop the registration.
 */
 

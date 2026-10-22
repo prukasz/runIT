@@ -156,4 +156,16 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(IO, RESET),  OP_ENTRY(IO, VOLTAGE),
 };
 
-SYS_DEVICE_TYPE_DEFINE(DAC53202, dac53202_cfg_t, dac_t, k_ops)
+static const sys_device_type_t k_type = {
+    .type      = SYS_DEVICE_TYPE_DAC53202,
+    .cfg_size  = sizeof(dac53202_cfg_t),
+    .ctx_size  = sizeof(dac_t),
+    .create    = create,
+    .uninstall = uninstall,
+    .suspend   = suspend_hook,
+    .resume    = resume_hook,
+    .ops       = k_ops,
+    .op_count  = ARRAY_LEN(k_ops),
+};
+
+SYS_DEVICE_TYPE_REGISTER(k_type)

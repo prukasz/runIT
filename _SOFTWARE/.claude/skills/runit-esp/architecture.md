@@ -18,7 +18,7 @@ A plug-and-play board for hobbyists. The board exposes what it has (devices, con
 
 Rules:
 - A lower layer never includes a higher one. Where it must call up, the higher layer **registers** a function at boot (§5), always from `runit`.
-- Self-registration by constructor exists only for tables of types: device types (`SYS_DEVICE_TYPE_DEFINE`), block types (`VM_BLOCK_TYPE_DEFINE`), error tag maps (`ERR_MODULE_DEFINE`). Those components are linked `WHOLE_ARCHIVE`.
+- Self-registration by constructor exists only for tables of types: device types (`SYS_DEVICE_TYPE_REGISTER`), block types (`VM_BLOCK_TYPE_DEFINE`), error tag maps (`ERR_MODULE_DEFINE`). Those components are linked `WHOLE_ARCHIVE`.
 - Declare only real dependencies in CMake (`REQUIRES` / `PRIV_REQUIRES`).
 
 ## 3. Boot
