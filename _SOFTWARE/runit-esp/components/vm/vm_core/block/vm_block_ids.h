@@ -33,5 +33,6 @@ with VM_BLOCK_TYPE_DEFINE (vm_blocks.h); this header only holds the list so the 
 #define VM_BLK_SERVO    39          // the servo device's own ops: position, home, release
 #define VM_BLK_DRV8962  40        // the DRV8962's own ops: current limit, fault
 #define VM_BLK_TPS55289 41       // the TPS55289's own ops: protection
+#define VM_BLK_DC_MOTOR 42       // the DC motor device's own ops: speed, stop, brake, coast, readings
 
 #define VM_BLOCK_TYPES_MAX 64  // the palette holds ids below this

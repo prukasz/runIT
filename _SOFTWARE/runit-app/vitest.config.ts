@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@generated': at('./generated'),
+      '@library': at('../library'),
       '@engine': at('./src/engine'),
       '@backend': at('./src/backend'),
       '@ui': at('./src/ui'),

@@ -1,0 +1,598 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "pca9685_breakout",
+  "name": "PWM expander breakout (PCA9685)",
+  "category": "module",
+  "description": "16 PWM channels on I2C, each with a servo header (PWM, V+, GND). Logic from VCC (3.3-5 V); the servos from V+ (the terminal or the V+ pin), which only runs to the headers.",
+  "tags": [
+    "pwm",
+    "servo",
+    "i2c",
+    "devkit"
+  ],
+  "size_mm": {
+    "w": 62.5,
+    "h": 25.4
+  },
+  "device": {
+    "type": "pca9685",
+    "preset": "servo_50hz"
+  },
+  "nets": [
+    {
+      "id": "vcc",
+      "label": "VCC (logic)",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 2300,
+        "max": 5500,
+        "nominal": 3300
+      },
+      "current_mA": {
+        "typical": 10,
+        "peak": 15
+      }
+    },
+    {
+      "id": "vplus",
+      "label": "V+ (servos)",
+      "role": "through",
+      "max_mA": 5000
+    }
+  ],
+  "connectors": [
+    {
+      "id": "ctrl_in",
+      "label": "Control (in)",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 5.4,
+        "y": 12.9
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "oe",
+          "label": "OE",
+          "config": "oe_pin"
+        },
+        {
+          "id": "scl",
+          "label": "SCL",
+          "bus": {
+            "type": "i2c",
+            "line": "scl"
+          }
+        },
+        {
+          "id": "sda",
+          "label": "SDA",
+          "bus": {
+            "type": "i2c",
+            "line": "sda"
+          }
+        },
+        {
+          "id": "vcc",
+          "label": "VCC",
+          "net": "vcc"
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        }
+      ]
+    },
+    {
+      "id": "vplus_in",
+      "label": "Servo power",
+      "type": "screw_terminal",
+      "pitch_mm": 3.5,
+      "rotation": 0,
+      "at": {
+        "x": 44.5,
+        "y": 19.6
+      },
+      "pins": [
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        }
+      ]
+    },
+    {
+      "id": "ch0",
+      "label": "Channel 0",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 9.5,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch1",
+      "label": "Channel 1",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 12.04,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch2",
+      "label": "Channel 2",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 14.58,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch3",
+      "label": "Channel 3",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 17.12,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch4",
+      "label": "Channel 4",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 22.2,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 4
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch5",
+      "label": "Channel 5",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 24.74,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch6",
+      "label": "Channel 6",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 27.28,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch7",
+      "label": "Channel 7",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 29.82,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 7
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch8",
+      "label": "Channel 8",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 34.9,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 8
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch9",
+      "label": "Channel 9",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 37.44,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 9
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch10",
+      "label": "Channel 10",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 39.98,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch11",
+      "label": "Channel 11",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 42.52,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 11
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch12",
+      "label": "Channel 12",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 47.6,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch13",
+      "label": "Channel 13",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 50.14,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch14",
+      "label": "Channel 14",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 52.68,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 14
+          }
+        }
+      ]
+    },
+    {
+      "id": "ch15",
+      "label": "Channel 15",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 55.22,
+        "y": 1.8
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vplus",
+          "label": "V+",
+          "net": "vplus"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": "self",
+            "pin": 15
+          }
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

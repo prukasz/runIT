@@ -3,7 +3,7 @@ import { ChoiceField, FormGrid, FormRow, NumberField, Slider, Switch, TextField,
 import type { Choice } from '@ui/components'
 import { bundledServiceCatalog } from '@backend'
 import type { BoardDescriptor, FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
-import { deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNotes, pinReady, usedBy } from './devices'
+import { deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import { useAppPrefs } from '../appSettings/AppPrefs'
 
@@ -134,9 +134,10 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
         unavailableLabel={(i) => `Channel ${i + 1}`} onChange={(i) => i !== undefined && onChange(i)} />
     }
   }
-  // A device by its ID (a `device` field), one of the view's; an ID the view does not have stays shown.
+  // A device by its ID (a `device` field), one of the view's with the contract it requires; an ID the view does not have stays shown.
   if (field.type === 'device') {
-    const choices = [...(PIN_NONE ? [{ value: PIN_NONE.device, label: 'None' }] : []), ...context.devices.map((d): Choice<number> => ({ value: d.id, label: d.name }))]
+    const fits = context.devices.filter((d) => !field.requiresContract || d.type?.contracts.includes(field.requiresContract))
+    const choices = [...(PIN_NONE ? [{ value: PIN_NONE.device, label: 'None' }] : []), ...fits.map((d): Choice<number> => ({ value: d.id, label: d.name }))]
     return <ChoiceField<number> aria-label={label} disabled={disabled} value={typeof value === 'number' ? value : undefined} choices={choices} placeholder="Choose a device"
       unavailableLabel={(id) => `Device ${id}`} onChange={(id) => id !== undefined && onChange(id)} />
   }
@@ -150,7 +151,10 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
       : target && devicePins(target)
       ? Array.from({ length: devicePins(target)!.count }, (_, pin): Choice<number> => {
           const hint = pinHint(target, pin)
-          return { value: pin, label: pinChoiceLabel(context.devices, target.id, pin), ...(hint ? { description: hint } : {}) }
+          // A pin the board does not name takes the type's name for it (a motor driver's channel: Bridge A (OUT1+OUT2)).
+          const typeName = target.pinAliases.has(pin) ? undefined : devicePins(target)!.labels?.[pin]
+          const label = pinChoiceLabel(context.devices, target.id, pin)
+          return { value: pin, label: typeName && label === pinNumber(pin) ? `${label} ${typeName}` : label, ...(hint ? { description: hint } : {}) }
         })
       : []
     return <ChoiceField<number> aria-label={label} disabled={disabled || (!target && !none)} value={typeof value === 'number' ? value : undefined} choices={choices} placeholder="Choose a pin"

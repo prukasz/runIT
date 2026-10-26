@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32.2 30.8" width="32.2mm" height="30.8mm">
+<rect x="0" y="3.66" width="32.2" height="4.88" rx="1" fill="#2f6db5" opacity="0.85"/>
+<circle cx="2.35" cy="6.10" r="1" fill="#1d1f22"/>
+<circle cx="29.85" cy="6.10" r="1" fill="#1d1f22"/>
+<rect x="4.70" y="0" width="22.8" height="12.2" rx="1.2" fill="#2f6db5" stroke="#1d1f22" stroke-width="0.3"/>
+<circle cx="10.86" cy="6.10" r="5.12" fill="#000" opacity="0.18"/>
+<rect x="3.36" y="4.50" width="15.00" height="3.2" rx="1.6" fill="#f2f2f2" stroke="#9aa0a6" stroke-width="0.25"/>
+<circle cx="10.86" cy="6.10" r="2" fill="#f2f2f2" stroke="#9aa0a6" stroke-width="0.25"/>
+<circle cx="10.86" cy="6.10" r="0.7" fill="#9aa0a6"/>
+<text x="19.75" y="7.10" font-family="sans-serif" font-size="3.00" font-weight="700" fill="#fff" text-anchor="middle">SG90</text>
+</svg>

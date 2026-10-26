@@ -16,8 +16,8 @@ const filesUnder = (dir: string, ext: string): string[] =>
   })
 
 describe('the catalog from generated/', () => {
-  it('has all 23 blocks and needs no assumption', () => {
-    expect(catalog.blocks).toHaveLength(23)
+  it('has all 24 blocks and needs no assumption', () => {
+    expect(catalog.blocks).toHaveLength(24)
     expect(catalog.warnings).toEqual([])
   })
 
@@ -199,6 +199,11 @@ describe('blocks as the UI and the compiler read them', () => {
     expect(servo.variants.map((v) => [v.id, v.operation?.command])).toEqual([['position', 'target'], ['home', 'home'], ['release', 'release'], ['trim', 'trim']])
     // the position is the command's one argument, scaled to tenths of a degree: one input, no second field
     expect(servo.variants[0]!.fields.map((f) => [f.id, f.scale])).toEqual([['value_x10', 10]])
+    const motor = catalog.require('dc_motor')
+    expect(motor.variants.map((v) => [v.id, v.operation?.command])).toEqual([['speed', 'speed'], ['stop', 'stop'], ['brake', 'brake'], ['coast', 'coast'],
+      ['get_output', 'output'], ['get_current', 'current'], ['get_stalled', 'stalled']])
+    // the speed is a percent, tenths on the wire
+    expect(motor.variants[0]!.fields.map((f) => [f.id, f.scale])).toEqual([['speed_x10', 10]])
   })
 
   it('a variant the descriptor gives no operation for is marked unsupported, not guessed', () => {

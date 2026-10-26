@@ -1,0 +1,75 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "servo_fs90r",
+  "name": "Continuous servo (FS90R)",
+  "category": "actuator",
+  "description": "Micro servo that turns all the way round at a speed: 4.8-6 V, about 150 mA, 800 mA stalled.",
+  "tags": [
+    "servo",
+    "pwm",
+    "micro",
+    "continuous"
+  ],
+  "size_mm": {
+    "w": 32.3,
+    "h": 31.1
+  },
+  "device": {
+    "type": "servo",
+    "preset": "continuous_360"
+  },
+  "nets": [
+    {
+      "id": "vcc",
+      "label": "VCC",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 4800,
+        "max": 6000,
+        "nominal": 5000
+      },
+      "current_mA": {
+        "typical": 150,
+        "peak": 800
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "lead",
+      "label": "Servo cable",
+      "type": "wire",
+      "rotation": 0,
+      "from": {
+        "x": 27.75,
+        "y": 6.25
+      },
+      "at": {
+        "x": 13.61,
+        "y": 28.5
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "color": "#6b4226",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "VCC",
+          "color": "#d7263d",
+          "net": "vcc"
+        },
+        {
+          "id": "sig",
+          "label": "PWM",
+          "color": "#f4a020",
+          "config": "pwm_pin"
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

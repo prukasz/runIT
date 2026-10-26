@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 82 45" width="82mm" height="45mm">
+<defs>
+<linearGradient id="can" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#868c94"/><stop offset="0.18" stop-color="#d6dade"/><stop offset="0.32" stop-color="#f5f6f8"/>
+<stop offset="0.55" stop-color="#c2c7cd"/><stop offset="0.85" stop-color="#959ba3"/><stop offset="1" stop-color="#6b7179"/>
+</linearGradient>
+<linearGradient id="gear" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#767c84"/><stop offset="0.3" stop-color="#c6cbd1"/><stop offset="0.55" stop-color="#a7adb4"/>
+<stop offset="1" stop-color="#5d636b"/>
+</linearGradient>
+<linearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#8a9098"/><stop offset="0.4" stop-color="#eef0f2"/><stop offset="1" stop-color="#6c7279"/>
+</linearGradient>
+<linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#1d1f22"/><stop offset="0.35" stop-color="#4a4e55"/><stop offset="1" stop-color="#16181b"/>
+</linearGradient>
+</defs>
+<rect x="0.5" y="15.5" width="12" height="6" rx="0.4" fill="url(#shaft)" stroke="#666b73" stroke-width="0.25"/>
+<rect x="0.5" y="15.5" width="9" height="1.6" fill="#dfe2e6" stroke="#666b73" stroke-width="0.2"/>
+<rect x="12" y="13" width="2.5" height="11" rx="0.5" fill="url(#gear)" stroke="#666b73" stroke-width="0.25"/>
+<rect x="14.5" y="0" width="21.5" height="37" rx="1.5" fill="url(#gear)" stroke="#5d636b" stroke-width="0.35"/>
+<line x1="22" y1="0.3" x2="22" y2="36.7" stroke="#5d636b" stroke-width="0.3"/>
+<line x1="29" y1="0.3" x2="29" y2="36.7" stroke="#5d636b" stroke-width="0.3"/>
+<rect x="36" y="1.75" width="30" height="33.5" rx="1" fill="url(#can)" stroke="#666b73" stroke-width="0.35"/>
+<rect x="36" y="1.75" width="2" height="33.5" fill="url(#gear)" stroke="#666b73" stroke-width="0.25"/>
+<rect x="63.5" y="1.75" width="2.5" height="33.5" fill="url(#can)" stroke="#666b73" stroke-width="0.25"/>
+<rect x="66" y="5" width="4" height="27" rx="1.2" fill="url(#cap)" stroke="#16181b" stroke-width="0.3"/>
+<rect x="69.5" y="15.5" width="1.5" height="1.6" fill="#c9a24a" stroke="#7a5f22" stroke-width="0.2"/>
+<rect x="69.5" y="19.9" width="1.5" height="1.6" fill="#c9a24a" stroke="#7a5f22" stroke-width="0.2"/>
+<text x="51" y="19.8" font-family="sans-serif" font-size="3.6" font-weight="700" fill="#3a3e44" text-anchor="middle">12 V</text>
+</svg>

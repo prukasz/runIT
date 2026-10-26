@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, Play, Redo2, ScrollText, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -11,7 +11,6 @@ import { DebugPanel } from './run/DebugPanel'
 import { useRunSettings } from './run/useRunSettings'
 import { LiveContext } from './run/live'
 import { ProjectScreen } from './project/ProjectScreen'
-import { projectCounts } from './project/projectFile'
 import { useProject } from './project/useProject'
 import { useEffect, useMemo, useState } from 'react'
 import { DevicesExplorer } from './devices/DevicesExplorer'
@@ -42,6 +41,11 @@ import { SafeStateButton, SafeStateNotice } from './SafeState'
 import { PowerDisplayScreen } from './power/PowerDisplayScreen'
 import { defaultReadings } from './power/powerDisplay'
 import type { CodeState } from './code/useCode'
+import { useHardware } from './hardware/useHardware'
+import { HardwareCanvas } from './hardware/HardwareCanvas'
+import { HardwarePalette } from './hardware/HardwarePalette'
+import { HardwareDetails } from './hardware/HardwareDetails'
+import { PartCreator } from './hardware/PartCreator'
 
 /** The screens, as tabs along the top of the left panel (the Console's on the right). */
 const VIEWS = [
@@ -54,7 +58,7 @@ type ViewName = (typeof VIEWS)[number]['name']
 
 /**
  * Code and Devices each have two screens, switched by the first button of the action bar: the details (lists and forms) and the
- * canvas (a drawing). Both screens of Code and the details of Devices are written; the canvas of Devices says what it will hold.
+ * canvas (a drawing): Code's canvas holds the blocks, Devices' the board and the parts wired to it (hardware/).
  */
 const SCREEN_MODES = ['details', 'canvas'] as const
 type ScreenMode = (typeof SCREEN_MODES)[number]
@@ -89,12 +93,12 @@ function ViewTabs({ view, onView }: { view: ViewName; onView: (view: ViewName) =
   )
 }
 
-/** The left panel of the Project view: the project's name, whether it is saved, what it holds. */
-function ProjectSummary({ name, unsaved, counts }: { name: string; unsaved: boolean; counts: ReturnType<typeof projectCounts> }) {
+/** The top of the Project view's left panel: the project's name and whether it is saved; a click opens its landing page. */
+function ProjectSummary({ name, unsaved, selected, onOpen }: { name: string; unsaved: boolean; selected: boolean; onOpen: () => void }) {
   return (
-    <div className="project-summary">
+    <div className={`project-summary ${selected ? 'is-selected' : ''}`.trim()} role="button" tabIndex={0} aria-pressed={selected} title="The project: its file, what it holds, what the board holds"
+      onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } }}>
       <PanelHeader title={name}>{unsaved && <Badge tone="warning">unsaved</Badge>}</PanelHeader>
-      <p>{counts.variables} variables · {counts.blocks} blocks · {counts.devices} devices · {counts.actions} actions</p>
     </div>
   )
 }
@@ -129,6 +133,7 @@ export function App() {
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
   const devices = useDevices(link, state, project, autoSync)
   const blocks = useBlocks(project, code.engine, devices)
+  const hardware = useHardware(project, devices)
   const [codePalette, setCodePalette] = usePersistedChoice<CodePalette>('runit.code.palette', CODE_PALETTES.map(([key]) => key), 'variables')
   // A variable picked in the centre (its entry) is what the right panel shows; one picked in the tree feeds the selected block's pins.
   const pickVariable: CodeState = { ...code, select: (id) => { blocks.select(undefined); code.select(id) } }
@@ -138,7 +143,12 @@ export function App() {
   // The board's settings, read as soon as the link is up (the Project screen shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
-  const [projectTab, setProjectTab] = usePersistedChoice<string>('runit.project.tab', [PROJECT_TAB, POWER_TAB, APP_TAB, ...settingTabs.map((s) => s.service.id)], PROJECT_TAB)
+  // The Project view opens on its landing page (the project); a settings tab is a page reached from it, not remembered.
+  const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
+  const showView = (next: ViewName) => {
+    if (next === 'Project' && view !== 'Project') setProjectTab(PROJECT_TAB)
+    setView(next)
+  }
   const appZoom = useAppZoom()
   const tabSection = settingTabs.find((s) => s.service.id === projectTab)
   // What the Live power display reads: the project's, else the board's default.
@@ -186,26 +196,34 @@ export function App() {
   const pinContext = { devices: devices.devices, board: devices.board }
   const nameOf = (id: number) => devices.devices.find((d) => d.id === id)?.name ?? 'Board'
   // The Devices view's test panel: the selected device's operations, in the details panel while the connection is not open there.
-  const testDevice = view === 'Devices' ? devices.selectedDevice : undefined
+  // On its canvas the panel shows what is selected there instead (a part, a pin, a wire, the board's power).
+  const onDevicesCanvas = view === 'Devices' && devicesMode === 'canvas'
+  const testDevice = view === 'Devices' && !onDevicesCanvas ? devices.selectedDevice : undefined
+  const hardwareKey = onDevicesCanvas && hardware.selection && !hardware.creator ? `hw:${hardware.selection.kind}:${'id' in hardware.selection ? hardware.selection.id : hardware.selection.key}` : undefined
   const testId = testDevice?.id
   // The Code view's details panel: the selected block, else the selected variable.
   const codeBlock = view === 'Code' ? blocks.selected?.id : undefined
   const codeVariable = view === 'Code' && codeBlock === undefined ? code.selected?.variable.id : undefined
-  const detailsKey = testId !== undefined ? `device:${testId}` : codeBlock !== undefined ? `block:${codeBlock}` : codeVariable !== undefined ? `variable:${codeVariable}` : undefined
+  const detailsKey = hardwareKey ?? (testId !== undefined ? `device:${testId}` : undefined) ?? (codeBlock !== undefined ? `block:${codeBlock}` : codeVariable !== undefined ? `variable:${codeVariable}` : undefined)
   // The details panel is open while it has something to show: a device or a variable chosen opens its panel (in place of the
   // connection panel), nothing left to show closes it.
   const showsNothing = !covered && detailsKey === undefined
-  // On the canvas of Code a selection opens nothing (the panel would cover the blocks being linked): the panel follows the
-  // selection while it is open, and a double-click on a block or the toolbar's pencil opens it, or hides it when it already shows
-  // that block (`toggleDetails`).
+  // On a canvas (Code's, Devices') a selection opens nothing, so the canvas and the left panel never move under the pointer: the
+  // panel follows the selection while it is open, and a double-click on a block or a part or the toolbar's pencil opens it, or
+  // hides it when it already shows that block (`toggleDetails`).
   const onCodeCanvas = view === 'Code' && codeMode === 'canvas'
+  const onCanvas = onCodeCanvas || onDevicesCanvas
+  const openDetails = () => {
+    setConnectionOpen(false); setDebugOpen(false)
+    panels.setRightOpen(true)
+  }
   const toggleDetails = (block?: string) => {
     const showing = panels.rightOpen && !covered && detailsKey !== undefined && (block === undefined || codeBlock === block)
     setConnectionOpen(false); setDebugOpen(false)
     panels.setRightOpen(!showing)
   }
   useEffect(() => {
-    if (detailsKey === undefined || onCodeCanvas) return
+    if (detailsKey === undefined || onCanvas) return
     setConnectionOpen(false); setDebugOpen(false)
     panels.setRightOpen(true)
   }, [detailsKey])
@@ -246,9 +264,10 @@ export function App() {
   const screens = SCREENS[view]
   const [mode, setMode] = view === 'Devices' ? [devicesMode, setDevicesMode] : [codeMode, setCodeMode]
 
-  // The right toolbar. Open header: Run (Pause while the program runs), the eye, the bug, the console, the connection, and the safe
-  // stop last while the program runs. Collapsed: the corner of the header is always the connection; the column under it is Run /
-  // Pause, the eye, the bug and the console, and the safe stop at its foot while the program runs. Nothing moves when it appears.
+  // The right toolbar. Open header: Run (Pause while the program runs), the eye, the bug, Write, the console, the connection, and
+  // the safe stop last while the program runs. Collapsed: the corner of the header is always the connection; the column under it is
+  // Run / Pause, the eye, the bug, Write and the console, and the safe stop at its foot while the program runs. Nothing moves when
+  // it appears. Write sends the project to the board from every view; Read (into the project) stays in the action bar.
   const runButtons = (
     <>
       {vm.running ? (
@@ -269,6 +288,10 @@ export function App() {
       <button className={vm.live.mode === 'debug' || (debugOpen && panels.rightOpen) ? 'selected' : ''} aria-label="Debug" aria-pressed={debugOpen && panels.rightOpen} data-help="Debug: step by step or loop by loop, in slow motion, with every block's output."
         title="Debug: stepping, slow motion and every block's output" onClick={openDebug}>
         <Bug aria-hidden="true" />
+      </button>
+      <button aria-label="Write to the board" data-help="Writes the project to the board: the settings it keeps, its devices, their start commands, the program and the actions." title={state === 'connected' ? (devices.pending ? 'Write to the board: there are changes to write (the devices, their start commands, the program and the actions)' : 'Write to the board: the devices, their start commands, the program and the actions (the stored project)') : 'Connect the board first'}
+        className={devices.pending ? 'toolbar-pending' : undefined} disabled={state !== 'connected' || devices.busy !== undefined} onClick={devices.write}>
+        <HardDriveUpload aria-hidden="true" />
       </button>
     </>
   )
@@ -293,7 +316,7 @@ export function App() {
     <WorkspaceShell className={`theme-${theme} ${panels.resizing ? 'is-resizing' : ''}`}>
       <ExplorerPanel open={panels.leftOpen} width={panels.left}>
         <div className="side-panel-header left-strip">
-          {panels.leftOpen && <ViewTabs view={view} onView={setView} />}
+          {panels.leftOpen && <ViewTabs view={view} onView={showView} />}
           <button className="panel-toggle" aria-label={panels.leftOpen ? 'Collapse left panel' : 'Expand left panel'} onClick={() => panels.setLeftOpen(!panels.leftOpen)}>
             <PanelLeft aria-hidden="true" />
           </button>
@@ -304,7 +327,7 @@ export function App() {
               {view === 'Project'
                 ? (
                   <>
-                    <ProjectSummary name={project.project.name} unsaved={project.unsaved} counts={projectCounts(project.project)} />
+                    <ProjectSummary name={project.project.name} unsaved={project.unsaved} selected={projectTab === PROJECT_TAB} onOpen={() => setProjectTab(PROJECT_TAB)} />
                     <SettingsTabs sections={settingTabs} state={boardSettings} tab={projectTab} onTab={setProjectTab} />
                   </>
                 )
@@ -316,13 +339,13 @@ export function App() {
                   </>
                 )
                 : view === 'Devices'
-                ? <DevicesExplorer state={devices} />
+                ? (devicesMode === 'canvas' ? <HardwarePalette state={hardware} /> : <DevicesExplorer state={devices} />)
                 : view === 'Console'
                 ? <ConsoleExplorer state={board} jumps={jumps} subject={consoleSubject} onSubject={setConsoleSubject} />
                 : <div className="view-placeholder"><h2>{current.title}</h2><p>{current.note}</p></div>}
             </div>
           )
-          : <div className="side-panel-icons"><ViewTabs view={view} onView={(next) => { setView(next); panels.setLeftOpen(true) }} /></div>}
+          : <div className="side-panel-icons"><ViewTabs view={view} onView={(next) => { showView(next); panels.setLeftOpen(true) }} /></div>}
       </ExplorerPanel>
 
       {panels.leftOpen && (
@@ -344,17 +367,39 @@ export function App() {
               <button aria-label="Redo" data-help="Redoes the change that was undone (Ctrl+Y)." title="Redo (Ctrl+Y)" disabled={!project.canRedo} onClick={project.redo}><Redo2 aria-hidden="true" /></button>
               {(view === 'Devices' || view === 'Project') && (
                 <>
-                  <button aria-label="Write to the board" data-help="Writes the project to the board: the settings it keeps, its devices, their start commands, the program and the actions." title={state === 'connected' ? (devices.pending ? 'Write to the board: there are changes to write (the devices, their start commands, the program and the actions)' : 'Write to the board: the devices, their start commands, the program and the actions (the stored project)') : 'Connect the board first'}
-                    className={devices.pending ? 'toolbar-pending' : undefined} disabled={state !== 'connected' || devices.busy !== undefined} onClick={devices.write}>
-                    <HardDriveUpload aria-hidden="true" />
-                  </button>
                   <button aria-label="Read from the board" data-help="Reads the settings, devices, start commands and actions the board keeps into the project. Undo goes back." title={state === 'connected' ? 'Read from the board: the devices, their start commands and the actions it keeps (Undo goes back)' : 'Connect the board first'}
                     disabled={state !== 'connected' || devices.busy !== undefined} onClick={devices.read}>
                     <HardDriveDownload aria-hidden="true" />
                   </button>
-                  {view === 'Devices' && (
+                  {view === 'Devices' && !onDevicesCanvas && (
                     <button className="toolbar-danger" aria-label="Remove the device from the project" data-help="Removes the selected device from the project. It leaves the board at the next write." title="Remove the selected device from the project (it leaves the board at the next write)"
                       disabled={!devices.selectedDevice || devices.selectedDevice.system} onClick={() => devices.selectedDevice && devices.removeDevice(devices.selectedDevice.id)}>
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  )}
+                  {onDevicesCanvas && (
+                    <>
+                      <button aria-label="Make a part" data-help="Opens the part creator: a devkit, a module or a board of your own, traced from a picture." title="The part creator: a devkit, a module, a board of your own"
+                        className={hardware.creator ? 'selected' : undefined} aria-pressed={!!hardware.creator} onClick={() => (hardware.creator ? hardware.closeCreator() : hardware.openCreator())}>
+                        <PenTool aria-hidden="true" />
+                      </button>
+                      <button aria-label="Turn left" data-help="Turns the selected part, the board, or the part being placed a quarter to the left (Shift+R or Shift+Space on the canvas does the same)." title="Turn left (Shift+R or Shift+Space)"
+                        disabled={!hardware.canTurn || !!hardware.creator} onClick={() => hardware.turnSelected(-90)}>
+                        <RotateCcw aria-hidden="true" />
+                      </button>
+                      <button aria-label="Turn right" data-help="Turns the selected part, the board, or the part being placed a quarter to the right (R or Space on the canvas does the same)." title="Turn right (R or Space)"
+                        disabled={!hardware.canTurn || !!hardware.creator} onClick={() => hardware.turnSelected(90)}>
+                        <RotateCw aria-hidden="true" />
+                      </button>
+                      <button aria-label="Edit the selection" data-help="Opens the details of the selected part, pin or wire in the right panel, or hides them; a double-click on a part does the same." title="Edit: show or hide the details of the selection (double-click a part)"
+                        className={panels.rightOpen && !covered && detailsKey !== undefined ? 'selected' : undefined} aria-pressed={panels.rightOpen && !covered && detailsKey !== undefined} disabled={detailsKey === undefined} onClick={() => toggleDetails()}>
+                        <Pencil aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                  {onDevicesCanvas && (
+                    <button className="toolbar-danger" aria-label="Remove the selection from the canvas" data-help="Removes the selected part (with its wires and its device), wire, or the wires of the selected pin (Delete on the canvas does the same)." title="Remove the selected part, wire or pin's wires (Delete)"
+                      disabled={!hardware.selection || (hardware.selection.kind === 'item' && hardware.selection.id === 'board')} onClick={() => hardware.remove()}>
                       <Trash2 aria-hidden="true" />
                     </button>
                   )}
@@ -391,8 +436,8 @@ export function App() {
                 </button>
               )}
               <span className="toolbar-spacer" />
-              {(view === 'Devices' || view === 'Project') && devices.busy && <span className="bar-note" role="status">{devices.busy.step}… {devices.busy.done}/{devices.busy.total}</span>}
-              {(view === 'Devices' || view === 'Project') && !devices.busy && devices.note && <span className={`bar-note ${devices.note.tone === 'error' ? 'is-error' : ''}`} role="status" title={devices.note.text} onClick={devices.clearNote}>{devices.note.text}</span>}
+              {devices.busy && <span className="bar-note" role="status">{devices.busy.step}… {devices.busy.done}/{devices.busy.total}</span>}
+              {!devices.busy && devices.note && <span className={`bar-note ${devices.note.tone === 'error' ? 'is-error' : ''}`} role="status" title={devices.note.text} onClick={devices.clearNote}>{devices.note.text}</span>}
               {vm.progress && <span className="bar-note" role="status">{vm.progress}</span>}
               {vm.error && <span className="bar-note is-error" role="status" title={vm.error}>{vm.error}</span>}
               <button className={`help-toggle ${help ? 'selected' : ''}`.trim()} aria-label="Help" aria-pressed={help} title={help ? 'Hide the help' : 'Help: outlines on the fields and buttons of this screen, a click shows what each does'} onClick={() => setHelp(!help)}>
@@ -410,6 +455,8 @@ export function App() {
             ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} /></div>
             : view === 'Code' && mode === 'details'
             ? (codePalette === 'blocks' ? <BlocksList blocks={blocks} /> : <VariablesEditor code={pickVariable} />)
+            : view === 'Devices' && mode === 'canvas'
+            ? (hardware.creator ? <PartCreator key={hardware.creator.part?.id ?? 'new'} state={hardware} catalog={devices.catalog} board={devices.board} /> : <HardwareCanvas state={hardware} onOpenDetails={openDetails} />)
             : view === 'Code'
             ? <CanvasSurface blocks={blocks} picked={pickedPath} onPickedUsed={() => code.select(undefined)} onToggleDetails={toggleDetails} />
             : screens
@@ -454,6 +501,7 @@ export function App() {
               {!covered && testDevice && (devices.pinSelection?.device === testDevice.id
                 ? <PinPanel key={`${testDevice.id}/${devices.pinSelection.pin}`} device={testDevice} pin={devices.pinSelection.pin} state={devices} />
                 : <DeviceTestPanel key={testDevice.id} device={testDevice} state={devices} />)}
+              {!covered && hardwareKey !== undefined && <HardwareDetails state={hardware} onOpenDevice={(id) => { setDevicesMode('details'); devices.select({ kind: 'device', id }) }} />}
               {!covered && codeBlock !== undefined && <BlockDetails key={codeBlock} blocks={blocks} code={code} />}
               {!covered && codeVariable !== undefined && <VariableDetails code={code} />}
               {debugOpen && !connectionOpen && <DebugPanel settings={runSettings} canStart={vm.canWatch} stale={vm.stale} running={vm.running} stepping={vm.stepping} watching={vm.live.mode === 'debug'} {...(vm.progress ? { progress: vm.progress } : {})}

@@ -1,0 +1,69 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "motor_dc_tt",
+  "name": "DC gear motor (TT, 3-6 V)",
+  "category": "actuator",
+  "description": "The yellow TT gear motor of small robots: 3-6 V, about 200 mA running, 1.5 A stalled. Two leads to the two outputs of one bridge.",
+  "tags": [
+    "motor",
+    "dc",
+    "gear",
+    "tt"
+  ],
+  "device": {
+    "type": "dc_motor",
+    "preset": "tt_6v"
+  },
+  "size_mm": {
+    "w": 70,
+    "h": 40
+  },
+  "nets": [
+    {
+      "id": "motor",
+      "label": "Motor",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 3000,
+        "max": 6000,
+        "nominal": 6000
+      },
+      "current_mA": {
+        "typical": 200,
+        "peak": 1500
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "leads",
+      "label": "Motor leads",
+      "type": "wire",
+      "rotation": 0,
+      "from": {
+        "x": 65.5,
+        "y": 19.3
+      },
+      "at": {
+        "x": 58,
+        "y": 37.5
+      },
+      "pins": [
+        {
+          "id": "a",
+          "label": "M+",
+          "color": "#d7263d",
+          "motor": "a"
+        },
+        {
+          "id": "b",
+          "label": "M-",
+          "color": "#1d1f22",
+          "motor": "b"
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

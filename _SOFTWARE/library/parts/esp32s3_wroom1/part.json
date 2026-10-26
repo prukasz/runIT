@@ -1,0 +1,516 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "esp32s3_wroom1",
+  "name": "ESP32-S3-WROOM-1 module",
+  "category": "chip",
+  "description": "The ESP32-S3 module with its 40 castellated pads (pad 41 under it is GND): the MCU of a board made in the PCB creator. Its GPIO pads are pins of device 0.",
+  "tags": [
+    "esp32-s3",
+    "mcu",
+    "wifi",
+    "ble"
+  ],
+  "size_mm": {
+    "w": 18.0,
+    "h": 25.5
+  },
+  "nets": [
+    {
+      "id": "v3v3",
+      "label": "3V3",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 3000,
+        "max": 3600,
+        "nominal": 3300
+      },
+      "current_mA": {
+        "typical": 100,
+        "peak": 500
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "pads",
+      "label": "Pads",
+      "type": "pad",
+      "at": {
+        "x": 0.4,
+        "y": 8.6
+      },
+      "pins": [
+        {
+          "id": "p1",
+          "label": "GND",
+          "at": {
+            "x": 0.4,
+            "y": 8.6
+          },
+          "gnd": true
+        },
+        {
+          "id": "p2",
+          "label": "3V3",
+          "at": {
+            "x": 0.4,
+            "y": 9.87
+          },
+          "net": "v3v3"
+        },
+        {
+          "id": "p3",
+          "label": "EN",
+          "at": {
+            "x": 0.4,
+            "y": 11.14
+          },
+          "nc": true
+        },
+        {
+          "id": "p4",
+          "label": "IO4",
+          "at": {
+            "x": 0.4,
+            "y": 12.41
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 4
+          }
+        },
+        {
+          "id": "p5",
+          "label": "IO5",
+          "at": {
+            "x": 0.4,
+            "y": 13.68
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 5
+          }
+        },
+        {
+          "id": "p6",
+          "label": "IO6",
+          "at": {
+            "x": 0.4,
+            "y": 14.95
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 6
+          }
+        },
+        {
+          "id": "p7",
+          "label": "IO7",
+          "at": {
+            "x": 0.4,
+            "y": 16.22
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 7
+          }
+        },
+        {
+          "id": "p8",
+          "label": "IO15",
+          "at": {
+            "x": 0.4,
+            "y": 17.49
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 15
+          }
+        },
+        {
+          "id": "p9",
+          "label": "IO16",
+          "at": {
+            "x": 0.4,
+            "y": 18.76
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 16
+          }
+        },
+        {
+          "id": "p10",
+          "label": "IO17",
+          "at": {
+            "x": 0.4,
+            "y": 20.03
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 17
+          }
+        },
+        {
+          "id": "p11",
+          "label": "IO18",
+          "at": {
+            "x": 0.4,
+            "y": 21.3
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 18
+          }
+        },
+        {
+          "id": "p12",
+          "label": "IO8",
+          "at": {
+            "x": 0.4,
+            "y": 22.57
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 8
+          }
+        },
+        {
+          "id": "p13",
+          "label": "IO19",
+          "at": {
+            "x": 0.4,
+            "y": 23.84
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 19
+          }
+        },
+        {
+          "id": "p14",
+          "label": "IO20",
+          "at": {
+            "x": 0.4,
+            "y": 25.11
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 20
+          }
+        },
+        {
+          "id": "p15",
+          "label": "IO3",
+          "at": {
+            "x": 2.015,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 3
+          }
+        },
+        {
+          "id": "p16",
+          "label": "IO46",
+          "at": {
+            "x": 3.285,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 46
+          }
+        },
+        {
+          "id": "p17",
+          "label": "IO9",
+          "at": {
+            "x": 4.555,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 9
+          }
+        },
+        {
+          "id": "p18",
+          "label": "IO10",
+          "at": {
+            "x": 5.825,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 10
+          }
+        },
+        {
+          "id": "p19",
+          "label": "IO11",
+          "at": {
+            "x": 7.095,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 11
+          }
+        },
+        {
+          "id": "p20",
+          "label": "IO12",
+          "at": {
+            "x": 8.365,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 12
+          }
+        },
+        {
+          "id": "p21",
+          "label": "IO13",
+          "at": {
+            "x": 9.635,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 13
+          }
+        },
+        {
+          "id": "p22",
+          "label": "IO14",
+          "at": {
+            "x": 10.905,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 14
+          }
+        },
+        {
+          "id": "p23",
+          "label": "IO21",
+          "at": {
+            "x": 12.175,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 21
+          }
+        },
+        {
+          "id": "p24",
+          "label": "IO47",
+          "at": {
+            "x": 13.445,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 47
+          }
+        },
+        {
+          "id": "p25",
+          "label": "IO48",
+          "at": {
+            "x": 14.715,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 48
+          }
+        },
+        {
+          "id": "p26",
+          "label": "IO45",
+          "at": {
+            "x": 15.985,
+            "y": 25.1
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 45
+          }
+        },
+        {
+          "id": "p27",
+          "label": "IO0",
+          "at": {
+            "x": 17.6,
+            "y": 25.11
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 0
+          }
+        },
+        {
+          "id": "p28",
+          "label": "IO35",
+          "at": {
+            "x": 17.6,
+            "y": 23.84
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 35
+          }
+        },
+        {
+          "id": "p29",
+          "label": "IO36",
+          "at": {
+            "x": 17.6,
+            "y": 22.57
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 36
+          }
+        },
+        {
+          "id": "p30",
+          "label": "IO37",
+          "at": {
+            "x": 17.6,
+            "y": 21.3
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 37
+          }
+        },
+        {
+          "id": "p31",
+          "label": "IO38",
+          "at": {
+            "x": 17.6,
+            "y": 20.03
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 38
+          }
+        },
+        {
+          "id": "p32",
+          "label": "IO39",
+          "at": {
+            "x": 17.6,
+            "y": 18.76
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 39
+          }
+        },
+        {
+          "id": "p33",
+          "label": "IO40",
+          "at": {
+            "x": 17.6,
+            "y": 17.49
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 40
+          }
+        },
+        {
+          "id": "p34",
+          "label": "IO41",
+          "at": {
+            "x": 17.6,
+            "y": 16.22
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 41
+          }
+        },
+        {
+          "id": "p35",
+          "label": "IO42",
+          "at": {
+            "x": 17.6,
+            "y": 14.95
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 42
+          }
+        },
+        {
+          "id": "p36",
+          "label": "RXD0",
+          "at": {
+            "x": 17.6,
+            "y": 13.68
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 44
+          }
+        },
+        {
+          "id": "p37",
+          "label": "TXD0",
+          "at": {
+            "x": 17.6,
+            "y": 12.41
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 43
+          }
+        },
+        {
+          "id": "p38",
+          "label": "IO2",
+          "at": {
+            "x": 17.6,
+            "y": 11.14
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 2
+          }
+        },
+        {
+          "id": "p39",
+          "label": "IO1",
+          "at": {
+            "x": 17.6,
+            "y": 9.87
+          },
+          "device_pin": {
+            "device": 0,
+            "pin": 1
+          }
+        },
+        {
+          "id": "p40",
+          "label": "GND",
+          "at": {
+            "x": 17.6,
+            "y": 8.6
+          },
+          "gnd": true
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

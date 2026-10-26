@@ -19,7 +19,8 @@
   X(ADS7128,      0x0047)  /* components/devices/device_ads7128 */      \
   X(SERVO,        0x0048)  /* components/devices/device_servo */        \
   X(DRV8962,      0x0049)  /* components/devices/device_drv8962 */      \
-  X(POWER_MUX,    0x004A)  /* components/devices/device_power_mux */
+  X(POWER_MUX,    0x004A)  /* components/devices/device_power_mux */     \
+  X(DC_MOTOR,     0x004B)  /* components/devices/device_dc_motor */
 
 #define SYS_DEVICE__TYPE_ENUM(name, id) SYS_DEVICE_TYPE_##name = (id),
 

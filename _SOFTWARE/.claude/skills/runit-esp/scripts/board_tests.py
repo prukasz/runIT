@@ -4,7 +4,7 @@
 
 The firmware creates every onboard chip at boot and marks them the board's own: they can't be removed
 (ERR_DEV_SYSTEM). The checks run on those instances (DAC53202, ADS7128, the two DRV8962, TCA6424A, the power chips);
-only a servo (id 20) and refused creates on a spare id (30) are created here, and removed again. The H-bridge motor
+only a servo (id 20), a DC motor (id 21) and refused creates on a spare id (30) are created here, and removed again. The H-bridge motor
 supplies (the power muxes) and the rails are never switched on unless `--energise` (dry: nothing connected), so no
 load is driven.
 
@@ -40,6 +40,8 @@ HB_DRIVE, HB_BRAKE, HB_COAST, HB_CURRENT = 0x0900, 0x0901, 0x0902, 0x0903
 SERVO_HOME, SERVO_TRIM, SERVO_TARGET, SERVO_PULSE, SERVO_RELEASE = 0xFF00, 0xFF01, 0xFF02, 0xFF03, 0xFF04  # W W W R W
 DRV_CURRENT_LIMIT, DRV_CLEAR_FAULT, DRV_FAULT, DRV_SETTINGS = 0xFF00, 0xFF01, 0xFF02, 0xFF03  # W W R RW
 TPS_PROTECTION = 0xFF01  # RW
+DCM_SPEED, DCM_OUTPUT, DCM_STOP, DCM_BRAKE, DCM_COAST = 0xFF00, 0xFF01, 0xFF02, 0xFF03, 0xFF04  # RW R W W W
+DCM_SETTINGS, DCM_CURRENT, DCM_STALLED = 0xFF05, 0xFF06, 0xFF07  # RW R R
 SIDE_R, SIDE_W = 0x01, 0x02  # OPS: the sides of an op
 
 # ---- module routers (generated/services/) ----
@@ -51,10 +53,11 @@ KEY_POWER_MGR, PW_CONFIG, PW_STATUS = 0x0A, 0x01, 0x07  # CONFIG RW, STATUS R
 
 # ---- the board (runit-esp/components/app/runit/board.json) ----
 GPIO_TYPE, PCA_TYPE, TCA_TYPE, TPS_TYPE, INA_TYPE, AP_TYPE = 0x40, 0x41, 0x42, 0x43, 0x44, 0x45
-DAC_TYPE, ADS_TYPE, SERVO_TYPE, DRV_TYPE, MUX_TYPE = 0x46, 0x47, 0x48, 0x49, 0x4A
+DAC_TYPE, ADS_TYPE, SERVO_TYPE, DRV_TYPE, MUX_TYPE, DCM_TYPE = 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B
 GPIO_ID, TCA_ID, ADS_ID, PCA_ID, DAC_ID, DRV1_ID, DRV2_ID = 0, 1, 2, 3, 4, 5, 6
 MUX1_ID, MUX2_ID, TPS_A_ID, TPS_B_ID, INA_ID, AP_ID = 7, 8, 10, 11, 12, 13
 SERVO_ID = 20  # created by the tests (on PCA CH 0)
+MOTOR_ID = 21  # a DC motor created by the tests (on DRV8962 #1 channel 0)
 SPARE_ID = 30  # creates that must be refused, and the create / remove cycles
 NONE = struct.pack("<HB", 0xFFFF, 0xFF)
 DRV_LIMIT_MA = 2000  # RUNIT_BOARD_DRV8962_LIMIT_MA: the board's chopping limit of both bridges
@@ -409,6 +412,108 @@ def test_servo(link: Link) -> None:
     remove(link, SERVO_ID)
     r = dev(link, SERVO_ID, OP_INFO)
     check("after REMOVE the servo is gone", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
+
+
+def dcm_settings(invert: int = 0, stop: int = 0, max_pct: int = 80, min_pct: int = 20, dead: int = 2, trim: int = 0,
+                 up_ms: int = 200, down_ms: int = 100, pause_ms: int = 0, stall_mA: int = 0, stall_ms: int = 500) -> bytes:
+    """dc_motor_settings_t."""
+    return struct.pack("<BBBBBbHHHHH", invert, stop, max_pct, min_pct, dead, trim, up_ms, down_ms, pause_ms, stall_mA, stall_ms)
+
+
+def dcm_cfg(channel: int = 0, one_way: int = 0, **settings) -> bytes:
+    """dc_motor_cfg_t: the bridge (DRV8962 #1), its channel, one way, then the settings."""
+    return struct.pack("<HBB", DRV1_ID, channel, one_way) + dcm_settings(**settings)
+
+
+def dcm_output(link: Link) -> int | None:
+    return i32(dev(link, MOTOR_ID, DCM_OUTPUT, dir=READ))
+
+
+def dcm_speed(link: Link, x10: int) -> Response | None:
+    return dev(link, MOTOR_ID, DCM_SPEED, struct.pack("<h", x10), dir=WRITE)
+
+
+def test_dc_motor(link: Link) -> None:
+    """A DC motor on DRV8962 #1 channel 0 (its IPROPI is read): the ramps, the dead zone, through stop on reversing, stop,
+    brake, the settings, the safe state. The motor supply stays off: the bridge is driven, nothing turns."""
+    t0 = link.mark()
+    for what, cfg, want in (("top speed 0", dcm_cfg(max_pct=0), "ERR_DEV_RANGE"),
+                            ("start speed over the top speed", dcm_cfg(max_pct=40, min_pct=50), "ERR_DEV_RANGE"),
+                            ("a 10001 ms ramp", dcm_cfg(up_ms=10001), "ERR_DEV_RANGE"),
+                            ("one way and reversed", dcm_cfg(one_way=1, invert=1), "ERR_CMD_BAD_ARG"),
+                            ("channel 2 of a two-channel driver", dcm_cfg(channel=2), "ERR_DEV_BAD_PIN")):
+        r = create(link, MOTOR_ID, DCM_TYPE, cfg)
+        check(f"CREATE DC motor with {what} -> {want}", err_cause(r) == want, str(r))
+        discard(link, MOTOR_ID)
+    r = create(link, MOTOR_ID, DCM_TYPE, dcm_cfg())
+    if not check("CREATE DC motor on DRV8962 #1 ch0 (20..80 %, ramps 200 / 100 ms, dead zone 2 %)", r is not None and r.ok, str(r)):
+        return
+    o = ops(link, MOTOR_ID)
+    check("OPS: speed and settings both sides, output / current / stalled reads, stop / brake / coast writes",
+          has_ops(o, {DCM_SPEED: SIDE_R | SIDE_W, DCM_SETTINGS: SIDE_R | SIDE_W, DCM_OUTPUT: SIDE_R, DCM_CURRENT: SIDE_R,
+                      DCM_STALLED: SIDE_R, DCM_STOP: SIDE_W, DCM_BRAKE: SIDE_W, DCM_COAST: SIDE_W}), show_ops(o))
+    check("stopped at create", dcm_output(link) == 0, str(dcm_output(link)))
+
+    r = dcm_speed(link, 500)
+    first = dcm_output(link)
+    check("SPEED 50 %: the ramp starts, no jump", r is not None and r.ok and first is not None and 0 < first < 500, f"{r} {first}")
+    time.sleep(0.4)
+    check("after the 200 ms ramp: 50 %", dcm_output(link) == 500, str(dcm_output(link)))
+    r = dev(link, MOTOR_ID, DCM_SPEED, dir=READ)
+    check("SPEED reads 50 % back", r is not None and r.ok and r.data == struct.pack("<h", 500), str(r))
+
+    dcm_speed(link, -500)
+    mid = dcm_output(link)
+    check("SPEED -50 %: through stop first (not reversed yet)", mid is not None and mid >= 0, str(mid))
+    time.sleep(0.5)
+    check("then -50 %", dcm_output(link) == -500, str(dcm_output(link)))
+
+    dcm_speed(link, 15)
+    time.sleep(0.3)
+    check("1.5 % is in the 2 % dead zone: stopped", dcm_output(link) == 0, str(dcm_output(link)))
+    r = dcm_speed(link, 1001)
+    check("SPEED 100.1 % -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+
+    dcm_speed(link, 1000)
+    time.sleep(0.4)
+    r = dev(link, MOTOR_ID, DCM_STOP, dir=WRITE)
+    check("STOP: down the ramp", r is not None and r.ok and (dcm_output(link) or 0) > 0, f"{r} {dcm_output(link)}")
+    time.sleep(0.3)
+    check("STOP: stopped after the ramp", dcm_output(link) == 0, str(dcm_output(link)))
+    dcm_speed(link, 1000)
+    time.sleep(0.4)
+    r = dev(link, MOTOR_ID, DCM_BRAKE, dir=WRITE)
+    check("BRAKE: stopped at once", r is not None and r.ok and dcm_output(link) == 0, f"{r} {dcm_output(link)}")
+
+    s = dcm_settings(invert=1, stop=1, max_pct=60, min_pct=10, dead=5, trim=-5, up_ms=0, down_ms=0, pause_ms=50, stall_mA=3000, stall_ms=300)
+    r = dev(link, MOTOR_ID, DCM_SETTINGS, s, dir=WRITE)
+    back = dev(link, MOTOR_ID, DCM_SETTINGS, dir=READ)
+    check("SETTINGS written and read back", r is not None and r.ok and back is not None and back.data == s, f"{r} {back}")
+    dcm_speed(link, 700)
+    check("no ramp (0 ms): at the speed at once", dcm_output(link) == 700, str(dcm_output(link)))
+    r = dev(link, MOTOR_ID, DCM_SETTINGS, dcm_settings(min_pct=90), dir=WRITE)
+    check("SETTINGS with the start speed over the top -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    check("CURRENT reads (IPROPI)", i32(dev(link, MOTOR_ID, DCM_CURRENT, dir=READ)) is not None, "")
+    r = dev(link, MOTOR_ID, DCM_STALLED, dir=READ)
+    check("not stalled (nothing connected)", r is not None and r.ok and r.data == bytes([0]), str(r))
+
+    r = dev(link, MOTOR_ID, OP_SUSPEND)
+    check("SUSPEND: stopped at once", r is not None and r.ok and dcm_output(link) == 0, f"{r} {dcm_output(link)}")
+    r = dcm_speed(link, 300)
+    check("SPEED while suspended -> ERR_DEV_SUSPENDED", err_cause(r) == "ERR_DEV_SUSPENDED", str(r))
+    r = dev(link, MOTOR_ID, OP_RESUME)
+    check("RESUME: still stopped until a new speed", r is not None and r.ok and dcm_output(link) == 0, f"{r} {dcm_output(link)}")
+    remove(link, MOTOR_ID)
+
+    r = create(link, MOTOR_ID, DCM_TYPE, dcm_cfg(one_way=1))
+    check("CREATE a one-way motor", r is not None and r.ok, str(r))
+    r = dcm_speed(link, -100)
+    check("one way: SPEED -10 % -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
+    remove(link, MOTOR_ID)
+    time.sleep(0.3)
+    expected = ("ERR_DEV_RANGE", "ERR_CMD_BAD_ARG", "ERR_DEV_BAD_PIN", "ERR_DEV_SUSPENDED")
+    unexpected = [e for e in new_errors(link, t0) if not any(tag in e for tag in expected)]
+    check("no other error records in the DC motor section", unexpected == [], str(unexpected))
 
 
 def drv_cfg(topology: int, pins: list[bytes], pwm_hz: int, limit_mA: int) -> bytes:
@@ -995,7 +1100,7 @@ def main() -> int:
     ap.add_argument("--boot-wait", type=float, default=15.0)
     ap.add_argument("--echo", action="store_true")
     ap.add_argument("--energise", action="store_true", help="switch the power muxes and the rails on with nothing connected (dry)")
-    ap.add_argument("--skip", default="", help="comma list: boot,rails,dac,ads,servo,drv2,drv1,tca,power,safe,cycles,errors")
+    ap.add_argument("--skip", default="", help="comma list: boot,rails,dac,ads,servo,drv2,drv1,motor,tca,power,safe,cycles,errors")
     a = ap.parse_args()
     skip = set(a.skip.split(","))
 
@@ -1023,6 +1128,8 @@ def main() -> int:
             test_drv2(link)
         if "drv1" not in skip:
             test_drv1(link)
+        if "motor" not in skip:
+            test_dc_motor(link)
         if "tca" not in skip:
             test_tca(link)
         if "power" not in skip:

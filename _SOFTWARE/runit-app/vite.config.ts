@@ -13,12 +13,13 @@ export default defineConfig(({ mode }) => ({
   base: './',
   plugins: [react()],
   resolve: {
-    alias: { '@generated': at('./generated'), '@engine': at('./src/engine'), '@backend': at('./src/backend'), '@ui': at('./src/ui') },
+    alias: { '@generated': at('./generated'), '@library': at('../library'), '@engine': at('./src/engine'), '@backend': at('./src/backend'), '@ui': at('./src/ui') },
   },
   server: {
     // A fixed port away from Vite's default, which other local projects use. localhost is a secure context (Web Bluetooth).
     port: mode === 'devkit' ? DEV_PORTS.devkit : DEV_PORTS.pcb,
     strictPort: true,
-    fs: { allow: ['.'] },
+    // The hardware library (the parts of the Devices canvas) lives beside the app, in _SOFTWARE/library.
+    fs: { allow: ['.', '../library'] },
   },
 }))

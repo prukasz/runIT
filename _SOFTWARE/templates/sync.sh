@@ -1,6 +1,6 @@
 #!/bin/sh
 # Regenerates enums.json, limits.json and errors.json, copies the descriptors into runit-app/generated/, then checks all against their schemas
-# and the references between them (crosscheck.py).
+# and the references between them (crosscheck.py), and the hardware library's parts (check_library.py).
 #   templates/sync.sh            regenerate and validate
 #   templates/sync.sh --check    only fail when a generated file is out of date (CI), then validate
 # Runs with the Python of the repository's .venv (Windows or POSIX layout), else `python`; PYTHON=<interpreter> overrides.
@@ -19,3 +19,4 @@ fi
 "$PY" templates/generate_bundle.py "$@"
 "$PY" templates/validate_schemas.py
 "$PY" templates/crosscheck.py
+"$PY" templates/check_library.py

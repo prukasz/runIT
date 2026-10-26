@@ -1,0 +1,124 @@
+/* The Devices canvas (HardwareCanvas.tsx), its palette (HardwarePalette.tsx), its details (HardwareDetails.tsx) and the part creator (PartCreator.tsx). */
+.hw-canvas { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: var(--background); cursor: grab; touch-action: none; user-select: none; outline: none; }
+.hw-canvas.is-placing { cursor: copy; }
+/* The shell sizes every svg as an icon: the canvas's drawing fills its box. */
+.hw-canvas > svg.hw-svg { display: block; width: 100%; height: 100%; }
+.hw-grid-line { fill: none; stroke: color-mix(in srgb, var(--divider) 55%, transparent); stroke-width: 1; }
+
+.hw-part { cursor: grab; }
+.hw-part-hit { fill: transparent; }
+.hw-part-outline { fill: none; stroke: transparent; stroke-width: 0.35; pointer-events: none; }
+.hw-part:hover .hw-part-outline { stroke: color-mix(in srgb, var(--accent) 40%, transparent); }
+.hw-part.is-selected .hw-part-outline { stroke: var(--accent); stroke-dasharray: 1.2 0.8; }
+.hw-part.has-problem .hw-part-outline { stroke: var(--color-red); }
+.hw-part-label { fill: var(--active); font-weight: 600; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--background); stroke-width: 0.5; }
+.hw-chip rect { fill: #2b2d31; stroke: #4a4d53; stroke-width: 0.2; }
+.hw-chip text { fill: #d6d9de; text-anchor: middle; dominant-baseline: middle; font-family: sans-serif; pointer-events: none; }
+
+/* The standard connectors, at their true size (mm). */
+.hw-goldpin-base { fill: #1d1f22; stroke: #34373b; stroke-width: 0.12; }
+.hw-goldpin-pin { fill: #e3b341; }
+.hw-goldpin-hole { fill: #000; }
+.hw-screw > rect { fill: #3f8fd2; stroke: #2a6aa3; stroke-width: 0.25; }
+.hw-screw-head { fill: #d5d9df; stroke: #8a909a; stroke-width: 0.2; }
+.hw-screw-slot { stroke: #6d737d; stroke-width: 0.3; stroke-linecap: round; }
+.hw-xt60 > path { fill: #ef7a00; stroke: #9a4f0d; stroke-width: 0.3; }
+.hw-xt60-pin { fill: #f1deb0; stroke: #a5885a; stroke-width: 0.25; }
+.hw-usbc > rect { fill: #eef0f3; stroke: #9aa0a8; stroke-width: 0.25; }
+.hw-pad rect { fill: #e3b341; }
+.hw-lead > rect { fill: #1d1f22; stroke: #3a3d42; stroke-width: 0.15; }
+.hw-lead-wire { fill: none; stroke-width: 0.7; stroke-linecap: round; }
+
+/* Pins: the hit targets, and what a picked pin says of each. */
+.hw-pin { fill: transparent; stroke: transparent; stroke-width: 0.35; cursor: crosshair; }
+.hw-pin:hover { fill: color-mix(in srgb, var(--accent) 25%, transparent); stroke: var(--accent); }
+.hw-pin.is-wired { stroke: color-mix(in srgb, var(--active) 35%, transparent); stroke-width: 0.2; }
+.hw-pin.is-picked { fill: color-mix(in srgb, var(--accent) 35%, transparent); stroke: var(--accent); stroke-width: 0.5; }
+.hw-pin.is-ok { fill: color-mix(in srgb, var(--status-ok) 35%, transparent); stroke: var(--status-ok); stroke-width: 0.45; animation: hw-pulse 1.2s ease-in-out infinite; }
+.hw-canvas.is-picking .hw-pin.is-no { fill: color-mix(in srgb, var(--background) 45%, transparent); }
+@keyframes hw-pulse { 50% { stroke-opacity: 0.35; } }
+
+/* Wires: red power, dark ground, amber signals, violet buses, brown motor leads. */
+.hw-wire { cursor: pointer; }
+.hw-wire-hit { fill: none; stroke: transparent; }
+.hw-wire-outline { fill: none; stroke: var(--background); stroke-width: 1.05; stroke-linecap: round; opacity: 0.85; }
+.hw-wire-core { fill: none; stroke-width: 0.6; stroke-linecap: round; }
+.hw-wire.is-power .hw-wire-core { stroke: #e0453a; }
+.hw-wire.is-gnd .hw-wire-core { stroke: #6b7280; }
+.hw-wire.is-signal .hw-wire-core { stroke: #f4a020; }
+.hw-wire.is-bus .hw-wire-core { stroke: #9b59d0; }
+.hw-wire.is-motor .hw-wire-core { stroke: #c47a2c; }
+.hw-wire.is-selected .hw-wire-outline { stroke: var(--accent); stroke-width: 1.5; opacity: 1; }
+.hw-wire-draft { stroke: var(--accent); stroke-width: 0.5; stroke-dasharray: 1 0.8; pointer-events: none; }
+/* The part being placed, under the pointer: itself, faded, in a dashed outline. */
+.hw-ghost { opacity: .6; pointer-events: none; }
+.hw-ghost > rect { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: 0.4; stroke-dasharray: 1.5 1; }
+
+.hw-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 8px 14px; border: 1px dashed var(--divider); border-radius: 8px; background: color-mix(in srgb, var(--panel) 85%, transparent); color: var(--muted); font-size: 12px; pointer-events: none; }
+.hw-hint.is-top { top: 14px; transform: translateX(-50%); }
+.hw-note { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); max-width: 70%; padding: 6px 12px; border: 1px solid var(--divider); border-radius: 7px; background: var(--panel); box-shadow: 0 2px 8px var(--shadow); color: var(--active); font-size: 12px; cursor: pointer; }
+.hw-ruler { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 11px; pointer-events: none; }
+.hw-ruler-bar { height: 6px; border: 1.5px solid var(--active); border-top: none; box-sizing: border-box; }
+.hw-tools { position: absolute; right: 10px; bottom: 8px; display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--divider); border-radius: 7px; background: var(--panel); box-shadow: 0 2px 8px var(--shadow); cursor: default; }
+.hw-tools button { width: 28px; height: 28px; }
+.hw-tools svg { width: 15px; height: 15px; }
+.shell .hw-tools .hw-zoom-value { width: auto; min-width: 52px; padding: 0 4px; color: var(--active); font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* The palette */
+.hw-palette { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.hw-palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; padding: 2px 0 6px; }
+.hw-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--divider); border-radius: 7px; background: var(--panel); color: var(--active); font-size: 11px; text-align: center; cursor: grab; }
+.hw-tile:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--divider)); }
+.hw-tile.is-armed { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.hw-tile img { width: 100%; height: 56px; object-fit: contain; pointer-events: none; }
+.hw-tile-name { line-height: 1.25; }
+.hw-tile-meta { color: var(--muted); font-size: 10px; }
+
+/* The details */
+.hw-path { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.hw-path li { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 6px 0 6px 14px; border-left: 2px solid color-mix(in srgb, #e0453a 60%, var(--divider)); font-size: 12px; }
+.hw-path li::before { content: ''; position: absolute; left: -5px; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: #e0453a; }
+.hw-path-name { color: var(--active); font-weight: 600; }
+.hw-path-value { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.hw-path-sub { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.hw-problems { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.hw-problems li { padding: 5px 8px; border-left: 3px solid var(--color-orange); border-radius: 3px; background: color-mix(in srgb, var(--color-orange) 10%, var(--panel)); color: var(--active); }
+.hw-problems li.is-error { border-left-color: var(--color-red); background: color-mix(in srgb, var(--color-red) 10%, var(--panel)); }
+.hw-kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 12px; }
+.hw-kv dt { color: var(--muted); }
+.hw-kv dd { margin: 0; color: var(--active); }
+.hw-preview { width: 100%; max-height: 160px; object-fit: contain; }
+
+/* The part creator */
+.hw-creator { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; height: 100%; min-height: 0; }
+.hw-creator-form { overflow-y: auto; padding: 12px; border-right: 1px solid var(--divider); }
+.hw-creator-stage { position: relative; min-width: 0; min-height: 0; }
+.hw-creator-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.hw-pin-rows { display: flex; flex-direction: column; gap: 4px; }
+.hw-pin-row { display: grid; grid-template-columns: 26px 1fr 1.4fr; align-items: center; gap: 6px; font-size: 12px; }
+.hw-pin-row.is-selected { outline: 1px solid var(--accent); border-radius: 4px; }
+.hw-pin-index { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.hw-creator .hw-canvas { cursor: default; }
+.hw-photo { opacity: 0.55; }
+.hw-connector-hit { fill: transparent; stroke: transparent; cursor: move; }
+.hw-connector-hit.is-selected { stroke: var(--accent); stroke-width: 0.3; stroke-dasharray: 0.8 0.5; }
+
+/* The magnifier (PinLoupe.tsx): the spot round a tap drawn large, every pin in it named. */
+.hw-loupe-spot { fill: color-mix(in srgb, var(--color-orange) 14%, transparent); stroke: var(--color-orange); pointer-events: none; }
+.hw-loupe { position: absolute; z-index: 20; display: flex; flex-direction: column; overflow: hidden; border: 2px solid var(--color-orange); border-radius: 10px; background: var(--background); box-shadow: 0 8px 28px var(--shadow); cursor: default; }
+.hw-loupe:focus { outline: none; }
+.hw-loupe-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 30px; padding: 0 4px 0 10px; border-bottom: 1px solid var(--divider); background: var(--panel); color: var(--active); font-size: 12px; font-weight: 600; }
+.hw-loupe-head > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hw-loupe-head em { margin-left: 6px; color: var(--muted); font-size: 10px; font-style: normal; font-weight: 400; }
+.shell .hw-loupe-head button { flex: none; width: 24px; height: 24px; }
+.shell .hw-loupe-head svg { width: 14px; height: 14px; }
+.hw-loupe > svg { display: block; cursor: pointer; }
+.hw-loupe .hw-pin { stroke: color-mix(in srgb, var(--active) 55%, transparent); stroke-width: 0.12; fill: color-mix(in srgb, var(--accent) 10%, transparent); }
+.hw-loupe .hw-pin:hover { fill: color-mix(in srgb, var(--accent) 45%, transparent); stroke: var(--accent); stroke-width: 0.25; }
+.hw-loupe .hw-pin.is-ok { stroke-width: 0.25; }
+.hw-loupe .hw-pin.is-picked { stroke-width: 0.3; }
+.hw-loupe .hw-part-label { display: none; }
+.hw-loupe-label { fill: var(--active); stroke: var(--background); paint-order: stroke; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.hw-loupe-label.is-ok { fill: var(--status-ok); }
+.hw-loupe-label.is-no { fill: var(--muted); opacity: .6; }
+.hw-loupe-label.is-picked { fill: var(--accent); }

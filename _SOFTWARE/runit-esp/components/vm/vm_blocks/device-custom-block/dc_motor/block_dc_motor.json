@@ -1,0 +1,190 @@
+{
+  "$schema": "../../../../../../templates/vm-block.schema.json",
+  "schemaVersion": 3,
+  "kind": "vm-block",
+  "id": "dc_motor",
+  "wire_id": 42,
+  "alias": "DC motor",
+  "description": "Runs a DC motor at a speed: it gets there along its ramps, goes through stop when it changes direction, and can stop, brake or coast. Reads the speed it runs at, its current and whether it stalled.",
+  "category": "device",
+  "order": 21,
+  "tags": [
+    "motor",
+    "dc",
+    "motion",
+    "speed",
+    "ramp"
+  ],
+  "integration": "custom",
+  "state_len": 56,
+  "device": {
+    "device_type": "dc_motor"
+  },
+  "activation": {
+    "kind": "enabled",
+    "text": "Runs every pass while enabled: a speed is sent when it changes, stop, brake and coast once on each rising enable, a reading on every pass."
+  },
+  "header": {
+    "subtitle": "{variant} {device}"
+  },
+  "body": [
+    "{device}",
+    "Disabled: {idle}"
+  ],
+  "fields": [
+    {
+      "id": "idle",
+      "alias": "When disabled",
+      "description": "What the block does once when it stops being enabled.",
+      "type": "enum",
+      "options": [
+        {
+          "value": 0,
+          "alias": "Keep running",
+          "description": "Leave the motor at the speed it has."
+        },
+        {
+          "value": 65282,
+          "alias": "Stop",
+          "description": "Slow down to stop along the ramp."
+        },
+        {
+          "value": 65283,
+          "alias": "Brake",
+          "description": "Stop at once, shorting the motor."
+        },
+        {
+          "value": 65284,
+          "alias": "Coast",
+          "description": "Stop driving at once: the motor rolls free."
+        }
+      ],
+      "default": 65282
+    }
+  ],
+  "variants": [
+    {
+      "id": "speed",
+      "alias": "Speed",
+      "description": "Runs the motor at a speed in percent: negative is reverse. The motor gets there along its ramps, through stop when the direction changes. Sent only when it changes; a value past -100..100 is held to it (full speed) and reported once as a warning.",
+      "op": "speed",
+      "dir": "write",
+      "header": {
+        "subtitle": "Run at {speed_x10}"
+      },
+      "args": {
+        "speed_x10": {
+          "alias": "Speed",
+          "unit": "%",
+          "scale": 10,
+          "required": true,
+          "input": "optional",
+          "accepts": [
+            "number",
+            "accessor"
+          ],
+          "hints": [
+            {
+              "text": "Full reverse to full forward",
+              "min": -100,
+              "max": 100,
+              "unit": "%",
+              "when": {
+                "field": "device.one_way",
+                "equals": 0
+              }
+            },
+            {
+              "text": "One direction: stop to full",
+              "min": 0,
+              "max": 100,
+              "unit": "%",
+              "when": {
+                "field": "device.one_way",
+                "equals": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "stop",
+      "alias": "Stop",
+      "op": "stop",
+      "description": "Slows the motor down to stop along its ramp, then brakes or coasts as set, once on each rising enable.",
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Stops once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Stop {device}"
+      }
+    },
+    {
+      "id": "brake",
+      "alias": "Brake",
+      "op": "brake",
+      "description": "Stops the motor at once, no ramp, shorting it, once on each rising enable.",
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Brakes once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Brake {device}"
+      }
+    },
+    {
+      "id": "coast",
+      "alias": "Coast",
+      "op": "coast",
+      "description": "Stops driving the motor at once, no ramp: it rolls free. Once on each rising enable.",
+      "activation": {
+        "kind": "enable-rising",
+        "text": "Coasts once each time the block is enabled."
+      },
+      "header": {
+        "subtitle": "Coast {device}"
+      }
+    },
+    {
+      "id": "get_output",
+      "alias": "Read speed",
+      "op": "output",
+      "description": "Reads the speed the motor runs at now, in percent (where its ramp is).",
+      "activation": {
+        "kind": "enabled",
+        "text": "Reads on every pass while enabled."
+      },
+      "header": {
+        "subtitle": "Speed of {device}"
+      }
+    },
+    {
+      "id": "get_current",
+      "alias": "Read current",
+      "op": "current",
+      "description": "Reads the motor's current, in milliamps.",
+      "activation": {
+        "kind": "enabled",
+        "text": "Reads on every pass while enabled."
+      },
+      "header": {
+        "subtitle": "Current of {device}"
+      }
+    },
+    {
+      "id": "get_stalled",
+      "alias": "Read stall",
+      "op": "stalled",
+      "description": "Reads whether a stall stopped the motor since its speed was last set: 1 = stalled. The stall is also an event an On event block can react to.",
+      "activation": {
+        "kind": "enabled",
+        "text": "Reads on every pass while enabled."
+      },
+      "header": {
+        "subtitle": "Stall of {device}"
+      }
+    }
+  ]
+}

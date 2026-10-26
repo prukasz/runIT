@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /*
@@ -74,10 +76,22 @@ const createWindow = () => {
   ipcMain.handle('ble:gesture', async (event) => {
     if (own(event)) await window.webContents.executeJavaScript('globalThis.__runitGesture?.()', true)
   })
+  // A part made in the creator, saved into the hardware library: _SOFTWARE/library/parts/<id>/ when the app runs from the
+  // repository (`npm run app`: the dev server picks it up at once), else the user's own library folder. Answers the folder.
+  ipcMain.handle('library:save', async (event, part) => {
+    if (!own(event) || typeof part?.id !== 'string' || !/^[a-z0-9_]+$/.test(part.id) || typeof part.json !== 'string' || typeof part.svg !== 'string') return null
+    const root = process.env.RUNIT_DEV_URL ? at('../../library/parts') : join(app.getPath('userData'), 'library', 'parts')
+    const folder = join(root, part.id)
+    await mkdir(folder, { recursive: true })
+    await writeFile(join(folder, 'part.json'), part.json)
+    await writeFile(join(folder, 'part.svg'), part.svg)
+    return folder
+  })
   window.on('closed', () => {
     ipcMain.removeAllListeners('ble:want')
     ipcMain.removeAllListeners('ble:select')
     ipcMain.removeHandler('ble:gesture')
+    ipcMain.removeHandler('library:save')
     ipcMain.removeHandler('zoom:get')
     ipcMain.removeAllListeners('zoom:set')
   })

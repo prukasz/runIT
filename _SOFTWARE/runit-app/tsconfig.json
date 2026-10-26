@@ -16,6 +16,7 @@
     "noEmit": true,
     "paths": {
       "@generated/*": ["./generated/*"],
+      "@library/*": ["../library/*"],
       "@engine": ["./src/engine/index.ts"],
       "@backend": ["./src/backend/index.ts"],
       "@backend/*": ["./src/backend/*"],

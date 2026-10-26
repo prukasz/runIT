@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('runitDesktop', {
   want: (id) => ipcRenderer.send('ble:want', id ?? null),
   select: (id) => ipcRenderer.send('ble:select', id ?? ''),
   gesture: () => ipcRenderer.invoke('ble:gesture'),
+  saveLibraryPart: (part) => ipcRenderer.invoke('library:save', part),
   getZoom: () => ipcRenderer.invoke('zoom:get'),
   setZoom: (factor) => ipcRenderer.send('zoom:set', factor),
   onZoom: (handler) => {

@@ -1,6 +1,6 @@
 # runIT — _SOFTWARE
 
-Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE). `_SOFTWARE` holds two projects, each in its own folder: the firmware in `runit-esp/` (the ESP-IDF project: `components/`, `main/`, `CMakeLists.txt`, `sdkconfig`, `partitions.csv`) and the app in `runit-app/`; what they share stays here (`templates/`, `tools/`, `.claude/`, `graphify-out/`). The app is being written in `runit-app/` (so far the VM engine, the BLE link, the UI kit, the app's frame, the Project screen, the Devices view and the Code view (variables, blocks, the canvas), in a browser or as the Electron desktop app; read its `AGENTS.md`); it reads what the firmware publishes in `runit-app/generated/`.
+Plug-and-play framework for hobbyists: ESP32-S3 firmware (ESP-IDF, FreeRTOS), a PLC-style VM uploaded over BLE, and an app (remote, debugger, configurator, block IDE). `_SOFTWARE` holds two projects, each in its own folder: the firmware in `runit-esp/` (the ESP-IDF project: `components/`, `main/`, `CMakeLists.txt`, `sdkconfig`, `partitions.csv`) and the app in `runit-app/`; what they share stays here (`templates/`, `library/` (the hardware library of the Devices canvas: boards, devkits, servos, motors; `library/LIBRARY.md`), `tools/`, `.claude/`, `graphify-out/`). The app is being written in `runit-app/` (so far the VM engine, the BLE link, the UI kit, the app's frame, the Project screen, the Devices view and its canvas (the board and the parts wired to it, the part creator) and the Code view (variables, blocks, the canvas), in a browser or as the Electron desktop app; read its `AGENTS.md`); it reads what the firmware publishes in `runit-app/generated/`.
 
 ## Start of session
 
@@ -9,7 +9,7 @@ Load the `runit-root` skill first. It holds the vision, hardware and repo map. T
 | Task touches | Skill | Code root |
 |---|---|---|
 | Firmware (C, devices, VM, BLE, errors, build/flash) | `runit-esp` | `runit-esp/components/`, `runit-esp/main/` |
-| Descriptors, schemas and their generators | `runit-templates` | `templates/` |
+| Descriptors, schemas and their generators; the hardware library's parts | `runit-templates` | `templates/`, `library/` |
 | The app (VM engine, BLE link, UI kit) | none yet: `runit-app/AGENTS.md`, `runit-app/src/engine/ENGINE.md`, `runit-app/src/backend/BACKEND.md` | `runit-app/` |
 
 Durable notes and gotchas: `.claude/memory.md`.
@@ -22,5 +22,5 @@ Code graph: `graphify-out/` (firmware C with preprocessed headers, the app's Typ
 - Layers: `core` → `sys` → `devices` → `vm`; `runit-esp/components/app/runit` composes them. A component depends only on earlier layers.
 - Build commands for this machine are in `runit-esp` (`build.md`); the generic ESP-IDF command fails here.
 - An app UI shows names, never `obj-…` IDs, and builds from the shared parts in `runit-app/src/ui/components` (`npm run check:ui`; a hook reports raw markup after each edit).
-- Descriptors (`device_*.json`, `contract_*.json`, `errors.json`, the `errors_<module>.json` messages) follow `templates/*.schema.json`. `runit-esp/build/` and `graphify-out/` are not edited by hand.
+- Descriptors (`device_*.json`, `contract_*.json`, `errors.json`, the `errors_<module>.json` messages) and the library's `part.json` follow `templates/*.schema.json`. `runit-esp/build/` and `graphify-out/` are not edited by hand.
 - Match the surrounding code style. C is formatted by hand (`runit-esp/.clang-format` has formatting off): 120 columns, `#define` values aligned in a column, the arguments of an X table (`X(NAME, 0x00, args_t)`) and the backslashes of a multi-line macro too, no `// clang-format` markers.

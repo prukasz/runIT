@@ -1,0 +1,710 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "dc_motor",
+  "alias": "DC motor",
+  "description": "A brushed DC motor on one channel of a motor driver. It speeds up and slows down along ramps, never in one jump, goes through stop when it changes direction, ignores a dead zone round stop, starts at the speed where it turns, keeps under a top speed and can be trimmed and reversed. It can stop itself when it stalls.",
+  "type_id": 75,
+  "type": {
+    "symbol": "SYS_DEVICE_TYPE_DC_MOTOR",
+    "id": 75
+  },
+  "protocols": [
+    "pwm"
+  ],
+  "tags": [
+    "motor",
+    "dc",
+    "motion"
+  ],
+  "config": {
+    "struct": "dc_motor_cfg_t",
+    "size": 20,
+    "fields": [
+      {
+        "id": "bridge",
+        "label": "Motor driver",
+        "description": "The motor driver the motor is wired to (a device with the H-bridge contract)",
+        "offset": 0,
+        "size": 2,
+        "type": "device",
+        "requires_contract": "HBRIDGE",
+        "raw_type": "u16"
+      },
+      {
+        "id": "channel",
+        "label": "Channel",
+        "description": "The driver's channel the motor is on: a bridge (OUT1+OUT2, OUT3+OUT4), or one output when the driver runs half bridges",
+        "offset": 2,
+        "size": 1,
+        "type": "pin",
+        "raw_type": "u8",
+        "default": 0
+      },
+      {
+        "id": "one_way",
+        "label": "One direction",
+        "description": "A motor on a half bridge (one lead to ground): forward only",
+        "offset": 3,
+        "size": 1,
+        "type": "choice",
+        "control": "switch",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "Off",
+            "value": 0
+          },
+          {
+            "label": "On",
+            "value": 1
+          }
+        ],
+        "default": 0
+      },
+      {
+        "id": "invert",
+        "label": "Reverse direction",
+        "description": "Swaps forward and reverse, instead of swapping the motor's wires",
+        "offset": 4,
+        "size": 1,
+        "type": "choice",
+        "control": "switch",
+        "raw_type": "u8",
+        "options": [
+          {
+            "label": "Off",
+            "value": 0
+          },
+          {
+            "label": "On",
+            "value": 1
+          }
+        ],
+        "default": 0
+      },
+      {
+        "id": "stop_mode",
+        "label": "At stop",
+        "description": "What the motor does at speed 0: brake (stops fast and holds) or coast (rolls to a stop)",
+        "offset": 5,
+        "size": 1,
+        "type": "enum",
+        "enum": "dc_motor_stop_e",
+        "raw_type": "u8",
+        "default": 0
+      },
+      {
+        "id": "max_pct",
+        "label": "Top speed",
+        "description": "The highest drive: a motor rated under the supply runs at most this (a 6 V motor on 12 V: 50 %)",
+        "offset": 6,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8",
+        "unit": "%",
+        "min": 1,
+        "max": 100,
+        "default": 100,
+        "control": "slider"
+      },
+      {
+        "id": "min_pct",
+        "label": "Start speed",
+        "description": "The drive where the motor starts turning: any speed past the dead zone starts here, so the motor never just hums. At most the top speed",
+        "offset": 7,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8",
+        "unit": "%",
+        "min": 0,
+        "max": 60,
+        "default": 0,
+        "control": "slider"
+      },
+      {
+        "id": "deadzone_pct",
+        "label": "Dead zone",
+        "description": "A speed under it is a stop (joystick or slider noise round the middle)",
+        "offset": 8,
+        "size": 1,
+        "type": "number",
+        "raw_type": "u8",
+        "unit": "%",
+        "min": 0,
+        "max": 20,
+        "default": 2,
+        "control": "slider"
+      },
+      {
+        "id": "trim_pct",
+        "label": "Trim",
+        "description": "Scales the drive by this many percent, to match the motor to its pair (a robot that drives straight)",
+        "offset": 9,
+        "size": 1,
+        "type": "number",
+        "raw_type": "i8",
+        "unit": "%",
+        "min": -20,
+        "max": 20,
+        "default": 0,
+        "control": "slider"
+      },
+      {
+        "id": "ramp_up_ms",
+        "label": "Ramp up",
+        "description": "Time from stop to full speed: the motor speeds up along it, never in one jump. 0 = at once",
+        "offset": 10,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "unit": "ms",
+        "min": 0,
+        "max": 10000,
+        "default": 300
+      },
+      {
+        "id": "ramp_down_ms",
+        "label": "Ramp down",
+        "description": "Time from full speed to stop. 0 = at once",
+        "offset": 12,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "unit": "ms",
+        "min": 0,
+        "max": 10000,
+        "default": 200
+      },
+      {
+        "id": "reverse_pause_ms",
+        "label": "Reverse pause",
+        "description": "A change of direction goes through stop and waits this long there (spares the gearbox, no current spike)",
+        "offset": 14,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "unit": "ms",
+        "min": 0,
+        "max": 2000,
+        "default": 100
+      },
+      {
+        "id": "stall_mA",
+        "label": "Stall current",
+        "description": "A current at or over it, held for the stall time, is a stall: the motor stops and a STALL event is sent. Needs the bridge channel's current sense. 0 = not watched",
+        "offset": 16,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "unit": "mA",
+        "min": 0,
+        "max": 10000,
+        "default": 0
+      },
+      {
+        "id": "stall_ms",
+        "label": "Stall time",
+        "description": "How long the stall current lasts before the motor stops (past the start-up surge)",
+        "offset": 18,
+        "size": 2,
+        "type": "number",
+        "raw_type": "u16",
+        "unit": "ms",
+        "min": 50,
+        "max": 5000,
+        "default": 500
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE"
+  ],
+  "ranges": {
+    "speed.speed_x10": {
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "by_config": [
+        {
+          "when": {
+            "one_way": 1
+          },
+          "min": 0,
+          "max": 100,
+          "step": 1
+        }
+      ]
+    }
+  },
+  "presets": [
+    {
+      "id": "tt_6v",
+      "label": "TT gear motor (3-6 V)",
+      "description": "Yellow TT gear motor of small robots",
+      "values": {
+        "min_pct": 20,
+        "deadzone_pct": 3,
+        "ramp_up_ms": 300,
+        "ramp_down_ms": 200,
+        "reverse_pause_ms": 100
+      }
+    },
+    {
+      "id": "gear_12v",
+      "label": "Gear motor 37 mm (12 V)",
+      "description": "Metal gear motor (JGB37-520 class)",
+      "values": {
+        "min_pct": 10,
+        "deadzone_pct": 2,
+        "ramp_up_ms": 500,
+        "ramp_down_ms": 300,
+        "reverse_pause_ms": 200,
+        "stall_mA": 2500,
+        "stall_ms": 500
+      }
+    }
+  ],
+  "commands": [
+    {
+      "id": "speed",
+      "op": 0,
+      "symbol": "DC_MOTOR_OP_SPEED",
+      "label": "Speed",
+      "description": "The speed the motor runs at: it gets there along the ramps",
+      "read": {
+        "description": "The speed last set (where the motor is going)",
+        "returns": {
+          "struct": "dc_motor_speed_t",
+          "label": "Speed",
+          "fields": [
+            {
+              "id": "speed_x10",
+              "label": "Speed",
+              "description": "Percent: -100 (full reverse) to 100 (full forward); 0 to 100 for a motor on one direction",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 0,
+              "scale": 10,
+              "unit": "%",
+              "control": "slider"
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Sets the speed; a change of direction goes through stop",
+        "args": {
+          "struct": "dc_motor_speed_t",
+          "fields": [
+            {
+              "id": "speed_x10",
+              "label": "Speed",
+              "description": "Percent: -100 (full reverse) to 100 (full forward); 0 to 100 for a motor on one direction",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 0,
+              "scale": 10,
+              "unit": "%",
+              "control": "slider"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "output",
+      "op": 1,
+      "symbol": "DC_MOTOR_OP_OUTPUT",
+      "label": "Output",
+      "description": "Where the ramp is now: the speed the motor is running at",
+      "read": {
+        "returns": {
+          "struct": "int32_t",
+          "label": "Output",
+          "fields": [
+            {
+              "id": "output_x10",
+              "label": "Output",
+              "description": "Percent the motor runs at now",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 0,
+              "scale": 10,
+              "unit": "%"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "stop",
+      "op": 2,
+      "symbol": "DC_MOTOR_OP_STOP",
+      "label": "Stop",
+      "description": "Slows down to stop along the ramp, then brakes or coasts (At stop)",
+      "write": {}
+    },
+    {
+      "id": "brake",
+      "op": 3,
+      "symbol": "DC_MOTOR_OP_BRAKE",
+      "label": "Brake",
+      "description": "Stops at once, no ramp: shorts the motor",
+      "write": {}
+    },
+    {
+      "id": "coast",
+      "op": 4,
+      "symbol": "DC_MOTOR_OP_COAST",
+      "label": "Coast",
+      "description": "Stops driving at once, no ramp: the motor rolls free",
+      "write": {}
+    },
+    {
+      "id": "settings",
+      "op": 5,
+      "symbol": "DC_MOTOR_OP_SETTINGS",
+      "label": "Settings",
+      "description": "The motor's settings, changed live. The read answers them.",
+      "read": {
+        "returns": {
+          "struct": "dc_motor_settings_t",
+          "label": "Settings",
+          "fields": [
+            {
+              "id": "invert",
+              "label": "Reverse direction",
+              "description": "Swaps forward and reverse, instead of swapping the motor's wires",
+              "offset": 0,
+              "size": 1,
+              "type": "choice",
+              "control": "switch",
+              "raw_type": "u8",
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "id": "stop_mode",
+              "label": "At stop",
+              "description": "What the motor does at speed 0: brake (stops fast and holds) or coast (rolls to a stop)",
+              "offset": 1,
+              "size": 1,
+              "type": "enum",
+              "enum": "dc_motor_stop_e",
+              "raw_type": "u8"
+            },
+            {
+              "id": "max_pct",
+              "label": "Top speed",
+              "description": "The highest drive: a motor rated under the supply runs at most this (a 6 V motor on 12 V: 50 %)",
+              "offset": 2,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 1,
+              "max": 100,
+              "control": "slider"
+            },
+            {
+              "id": "min_pct",
+              "label": "Start speed",
+              "description": "The drive where the motor starts turning: any speed past the dead zone starts here, so the motor never just hums. At most the top speed",
+              "offset": 3,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 0,
+              "max": 60,
+              "control": "slider"
+            },
+            {
+              "id": "deadzone_pct",
+              "label": "Dead zone",
+              "description": "A speed under it is a stop (joystick or slider noise round the middle)",
+              "offset": 4,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 0,
+              "max": 20,
+              "control": "slider"
+            },
+            {
+              "id": "trim_pct",
+              "label": "Trim",
+              "description": "Scales the drive by this many percent, to match the motor to its pair (a robot that drives straight)",
+              "offset": 5,
+              "size": 1,
+              "type": "number",
+              "raw_type": "i8",
+              "unit": "%",
+              "min": -20,
+              "max": 20,
+              "control": "slider"
+            },
+            {
+              "id": "ramp_up_ms",
+              "label": "Ramp up",
+              "description": "Time from stop to full speed: the motor speeds up along it, never in one jump. 0 = at once",
+              "offset": 6,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "ramp_down_ms",
+              "label": "Ramp down",
+              "description": "Time from full speed to stop. 0 = at once",
+              "offset": 8,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "reverse_pause_ms",
+              "label": "Reverse pause",
+              "description": "A change of direction goes through stop and waits this long there (spares the gearbox, no current spike)",
+              "offset": 10,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 2000
+            },
+            {
+              "id": "stall_mA",
+              "label": "Stall current",
+              "description": "A current at or over it, held for the stall time, is a stall: the motor stops and a STALL event is sent. Needs the bridge channel's current sense. 0 = not watched",
+              "offset": 12,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "mA",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "stall_ms",
+              "label": "Stall time",
+              "description": "How long the stall current lasts before the motor stops (past the start-up surge)",
+              "offset": 14,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 50,
+              "max": 5000
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Changes them at once: the dead zone on the speed already set, the top speed and the trim on the drive",
+        "args": {
+          "struct": "dc_motor_settings_t",
+          "fields": [
+            {
+              "id": "invert",
+              "label": "Reverse direction",
+              "description": "Swaps forward and reverse, instead of swapping the motor's wires",
+              "offset": 0,
+              "size": 1,
+              "type": "choice",
+              "control": "switch",
+              "raw_type": "u8",
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "id": "stop_mode",
+              "label": "At stop",
+              "description": "What the motor does at speed 0: brake (stops fast and holds) or coast (rolls to a stop)",
+              "offset": 1,
+              "size": 1,
+              "type": "enum",
+              "enum": "dc_motor_stop_e",
+              "raw_type": "u8"
+            },
+            {
+              "id": "max_pct",
+              "label": "Top speed",
+              "description": "The highest drive: a motor rated under the supply runs at most this (a 6 V motor on 12 V: 50 %)",
+              "offset": 2,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 1,
+              "max": 100,
+              "control": "slider"
+            },
+            {
+              "id": "min_pct",
+              "label": "Start speed",
+              "description": "The drive where the motor starts turning: any speed past the dead zone starts here, so the motor never just hums. At most the top speed",
+              "offset": 3,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 0,
+              "max": 60,
+              "control": "slider"
+            },
+            {
+              "id": "deadzone_pct",
+              "label": "Dead zone",
+              "description": "A speed under it is a stop (joystick or slider noise round the middle)",
+              "offset": 4,
+              "size": 1,
+              "type": "number",
+              "raw_type": "u8",
+              "unit": "%",
+              "min": 0,
+              "max": 20,
+              "control": "slider"
+            },
+            {
+              "id": "trim_pct",
+              "label": "Trim",
+              "description": "Scales the drive by this many percent, to match the motor to its pair (a robot that drives straight)",
+              "offset": 5,
+              "size": 1,
+              "type": "number",
+              "raw_type": "i8",
+              "unit": "%",
+              "min": -20,
+              "max": 20,
+              "control": "slider"
+            },
+            {
+              "id": "ramp_up_ms",
+              "label": "Ramp up",
+              "description": "Time from stop to full speed: the motor speeds up along it, never in one jump. 0 = at once",
+              "offset": 6,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "ramp_down_ms",
+              "label": "Ramp down",
+              "description": "Time from full speed to stop. 0 = at once",
+              "offset": 8,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "reverse_pause_ms",
+              "label": "Reverse pause",
+              "description": "A change of direction goes through stop and waits this long there (spares the gearbox, no current spike)",
+              "offset": 10,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 0,
+              "max": 2000
+            },
+            {
+              "id": "stall_mA",
+              "label": "Stall current",
+              "description": "A current at or over it, held for the stall time, is a stall: the motor stops and a STALL event is sent. Needs the bridge channel's current sense. 0 = not watched",
+              "offset": 12,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "mA",
+              "min": 0,
+              "max": 10000
+            },
+            {
+              "id": "stall_ms",
+              "label": "Stall time",
+              "description": "How long the stall current lasts before the motor stops (past the start-up surge)",
+              "offset": 14,
+              "size": 2,
+              "type": "number",
+              "raw_type": "u16",
+              "unit": "ms",
+              "min": 50,
+              "max": 5000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "current",
+      "op": 6,
+      "symbol": "DC_MOTOR_OP_CURRENT",
+      "label": "Current",
+      "description": "The current through the motor, from the driver's channel",
+      "read": {
+        "returns": {
+          "type": "i32",
+          "unit": "mA",
+          "label": "Current"
+        }
+      }
+    },
+    {
+      "id": "stalled",
+      "op": 7,
+      "symbol": "DC_MOTOR_OP_STALLED",
+      "label": "Stalled",
+      "description": "Whether a stall stopped the motor since the speed was last set",
+      "read": {
+        "returns": {
+          "type": "u8",
+          "label": "Stalled"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "stall",
+      "label": "Stall",
+      "description": "The motor drew the stall current for the stall time and stopped itself; the value is the current in mA"
+    }
+  ]
+}

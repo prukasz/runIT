@@ -30,7 +30,8 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 - Output freely adjustable **4.5–20 V**, set remotely.
 - Short-circuit and overload protection, programmable current limit.
 - Direct outputs on the board — each rail doubles as an adjustable bench-style PSU.
-- One of the two rails also supplies the PWM headers (see 2.4).
+- Rail A also supplies the PWM headers (see 2.4).
+- On the board the rails' outputs are marked REG1 = Rail B (TPS55289 at 0x75, device 11) and REG2 = Rail A (TPS55289 at 0x74, device 10).
 
 ### 2.3 PowerIO
 - **4 configurable H-bridges (8 outputs)** — 2× DRV8962, up to 20 V / 5 A per output, **100 W** total.
@@ -41,7 +42,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ### 2.4 PWM expander (PCA9685)
 - **8 dedicated channels** (CH 0–7) with 3-pin servo headers — servos and ESCs without using any other channels.
-- Header supply comes from **one of the two TPS55289 rails**, so the servo voltage is adjustable, not a fixed 5 V.
+- Header supply comes from **Rail A (REG2)**, so the servo voltage is adjustable, not a fixed 5 V (the Devices canvas sets it to 5 V unless what is connected needs otherwise).
 - CH 8–15 are internal: they drive the second DRV8962.
 
 ### 2.5 Protection
@@ -60,6 +61,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ### 2.7 Connectors
 - Screw terminals (power, loads) + goldpin headers (servos, sensors).
+- The board is 86.25 × 140 mm (Keep-Out layer of the Gerbers), four 4.5 mm mounting holes 5 mm from the edges. Screw terminals are on a 5.0 mm pitch, goldpin headers on 2.54 mm. Every connector's place is in the library's board part (`library/parts/runit_board_r1/part.json`, from the drill file in `_HARDWARE/Project Outputs`): AIN0–7 along the top edge, 3V3 / GND top left, user I2C (3V3 SDA SCL GND) and GPIO (IO46 IO18 IO17 IO3) and UART (3V3 RX TX GND) headers on the left, SPI (3V3 CS1 MISO SCK MOSI CS0 GND GND) in the middle, the servo headers (GND, REG2, PWM per channel, CH0 at the top) bottom left, DRV #1 and DRV #2 outputs and the power outputs (GND REG2 GND REG1 GND VS) on the right edge, USB-C, the 5–20 V screw input and the XT60 (its + on the chamfered side, the right) on the bottom edge. The UART and SPI headers are plain ESP GPIOs (their pin numbers are still to be written down).
 
 ## 3. Onboard device catalog (firmware view)
 
@@ -130,7 +132,7 @@ Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23
 - INA3221 monitors both TPS55289 rails and the whole-board power.
 - PCA9685: CH 0–7 exposed, CH 8–15 drive the second DRV8962.
 - DAC53202 sets DRV8962 VREF — separate channel per DRV8962.
-- PWM header supply comes from one of the two TPS55289 rails.
+- PWM header supply comes from Rail A (REG2); REG1 is Rail B.
 - H-bridge rating: 100 W.
 - TCA 7 = DRV8962 OCPM (both chips).
 - INA3221 channels (measured): ch0 = rail B (TPS55289 0x75), ch1 = board input (shunt reversed by design), ch2 = rail A (0x74).
@@ -138,4 +140,3 @@ Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23
 ## 7. Deferred questions (not needed for now)
 
 - DRV8962 IPROPI resistor value (3.09 kΩ assumed).
-- Which of the two TPS55289 rails feeds the PWM headers.

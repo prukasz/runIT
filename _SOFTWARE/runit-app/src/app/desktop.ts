@@ -20,6 +20,8 @@ export interface Desktop {
   /** The scale changed from the keyboard (Ctrl + / Ctrl − / Ctrl 0) or by `setZoom`. */
   onZoom(handler: (factor: number) => void): () => void
   onDevices(handler: (devices: readonly ScanResult[]) => void): () => void
+  /** Writes a part of the creator into the hardware library (part.json and part.svg); answers the folder, null when refused. */
+  saveLibraryPart(part: { id: string; json: string; svg: string }): Promise<string | null>
 }
 
 const scope = globalThis as { runitDesktop?: Desktop; __runitGesture?: () => void }

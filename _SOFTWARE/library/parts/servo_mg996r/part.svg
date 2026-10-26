@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54.5 38.3" width="54.5mm" height="38.3mm">
+<rect x="0" y="5.91" width="54.5" height="7.88" rx="1" fill="#202226" opacity="0.85"/>
+<circle cx="3.45" cy="9.85" r="1" fill="#1d1f22"/>
+<circle cx="51.05" cy="9.85" r="1" fill="#1d1f22"/>
+<rect x="6.90" y="0" width="40.7" height="19.7" rx="1.2" fill="#202226" stroke="#1d1f22" stroke-width="0.3"/>
+<circle cx="17.89" cy="9.85" r="8.27" fill="#000" opacity="0.18"/>
+<rect x="6.89" y="8.25" width="22.00" height="3.2" rx="1.6" fill="#f2f2f2" stroke="#9aa0a6" stroke-width="0.25"/>
+<circle cx="17.89" cy="9.85" r="2" fill="#f2f2f2" stroke="#9aa0a6" stroke-width="0.25"/>
+<circle cx="17.89" cy="9.85" r="0.7" fill="#9aa0a6"/>
+<text x="33.76" y="10.85" font-family="sans-serif" font-size="3.00" font-weight="700" fill="#fff" text-anchor="middle">MG996R</text>
+</svg>

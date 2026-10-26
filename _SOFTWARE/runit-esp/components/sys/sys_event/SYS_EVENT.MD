@@ -51,8 +51,9 @@ typedef struct __attribute__((packed)) {  // 18 B
 | HBRIDGE (`0x09`) | `OVERCURRENT` | `0x0900` | NOTIFY | mA |
 | | `THERMAL_OR_UVLO` | `0x0901` | NOTIFY | mA |
 | | `EXTERNAL` | `0x0902` | NOTIFY | mA |
+| DC motor device (own, `0xFF`) | `STALL` | `0xFF00` | NOTIFY | mA (the motor stopped itself) |
 
-Publishers: ESP32-S3 GPIO (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; its table `SYS_DEVICE_EVENTS` and its IDs `SYS_DEVICE_EV_*` are in `sys_device.h`, with `SYS_EVENT_NOTIFY`, so the registry layer below sys_event declares them).
+Publishers: ESP32-S3 GPIO (IO edges from its ISR, ADC events from its ADC task), TCA6424A (IO edges of its input port), ADS7128 (ADC window events), TPS55289 (VREG), INA3221 (PMON), DRV8962 (HBRIDGE), the DC motor (its own STALL), the power manager (POWER_MANAGER) and runit for the registry (DEVICE: the state listener of SYS_DEVICE.MD "Suspended and resumed"; its table `SYS_DEVICE_EVENTS` and its IDs `SYS_DEVICE_EV_*` are in `sys_device.h`, with `SYS_EVENT_NOTIFY`, so the registry layer below sys_event declares them).
 
 ## Publishing
 

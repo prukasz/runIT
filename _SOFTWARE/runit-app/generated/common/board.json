@@ -837,7 +837,7 @@
       "name": "PWM 0 (Servo 0)",
       "type": "servo_header",
       "group": "servos",
-      "description": "Dedicated 3-pin RC servo header 0: PWM signal, adjustable VCC rail, GND",
+      "description": "Dedicated 3-pin RC servo header 0: PWM signal, VCC from REG2 (Rail A), GND",
       "pins": [
         {
           "name": "SIG",
@@ -848,7 +848,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -872,7 +872,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -896,7 +896,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -920,7 +920,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -944,7 +944,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -968,7 +968,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -992,7 +992,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -1016,7 +1016,7 @@
         {
           "name": "VCC",
           "kind": "power_out",
-          "rail": "rail_b"
+          "rail": "rail_a"
         },
         {
           "name": "GND",
@@ -1110,15 +1110,15 @@
     },
     {
       "id": "reg1_out",
-      "name": "Rail A Output",
+      "name": "REG1 output (Rail B)",
       "type": "screw_terminal",
       "group": "power_rails",
-      "description": "Regulated output from TPS55289 Rail A (4.5-20V, up to 5A)",
+      "description": "Regulated output REG1 from TPS55289 Rail B (4.5-20V, up to 5A)",
       "pins": [
         {
           "name": "V+",
           "kind": "power_out",
-          "rail": "rail_a",
+          "rail": "rail_b",
           "mV_min": 4500,
           "mV_max": 20000,
           "mA_max": 5000
@@ -1131,15 +1131,15 @@
     },
     {
       "id": "reg2_out",
-      "name": "Rail B Output",
+      "name": "REG2 output (Rail A)",
       "type": "screw_terminal",
       "group": "power_rails",
-      "description": "Regulated output from TPS55289 Rail B (4.5-20V, up to 5A)",
+      "description": "Regulated output REG2 from TPS55289 Rail A (4.5-20V, up to 5A); the servo headers are on it too",
       "pins": [
         {
           "name": "V+",
           "kind": "power_out",
-          "rail": "rail_b",
+          "rail": "rail_a",
           "mV_min": 4500,
           "mV_max": 20000,
           "mA_max": 5000

@@ -6,6 +6,7 @@ import type { useProject } from '../project/useProject'
 import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
 import { EMPTY_LAYOUT } from '../code/canvas/layout'
+import { forgetDevice } from '../hardware/apply'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
 import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
@@ -66,7 +67,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
 
   // What the board holds, as the project was at the last write or read: a difference is something to write (the toolbar's Write).
   // The canvas and the power display are the app's own: moving a block or changing what the display reads is nothing to write.
-  const snapshot = useMemo(() => serializeProject({ ...project.project, canvas: EMPTY_LAYOUT, powerDisplay: undefined }), [project.project])
+  const snapshot = useMemo(() => serializeProject({ ...project.project, canvas: EMPTY_LAYOUT, powerDisplay: undefined, hardware: undefined }), [project.project])
   const [synced, setSynced] = useState<string | undefined>()
   useEffect(() => { setSynced((s) => s ?? snapshot) }, [snapshot])
   const pending = synced !== undefined && synced !== snapshot
@@ -192,7 +193,8 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   }, [edit, project.project, board])
 
   const removeDevice = useCallback((id: number) => {
-    edit((p) => ({ ...p, devices: p.devices.filter((d) => d.id !== id) }))
+    // Its part leaves the Devices canvas too, with its wires.
+    edit((p) => ({ ...p, devices: p.devices.filter((d) => d.id !== id), hardware: forgetDevice(p.hardware, id) }))
     setSelection((s) => (s?.kind === 'device' && s.id === id ? undefined : s))
   }, [edit])
 

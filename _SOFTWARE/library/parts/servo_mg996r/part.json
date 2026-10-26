@@ -1,0 +1,77 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "servo_mg996r",
+  "name": "Standard servo (MG996R)",
+  "category": "actuator",
+  "description": "Metal-gear standard servo, 180 degrees: 4.8-7.2 V, about 500 mA moving, 2.5 A stalled.",
+  "tags": [
+    "servo",
+    "pwm",
+    "standard"
+  ],
+  "size_mm": {
+    "w": 54.5,
+    "h": 38.3
+  },
+  "device": {
+    "type": "servo",
+    "preset": "sg90",
+    "config": {
+      "max_us": 2500
+    }
+  },
+  "nets": [
+    {
+      "id": "vcc",
+      "label": "VCC",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 4800,
+        "max": 7200,
+        "nominal": 6000
+      },
+      "current_mA": {
+        "typical": 500,
+        "peak": 2500
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "lead",
+      "label": "Servo cable",
+      "type": "wire",
+      "rotation": 0,
+      "from": {
+        "x": 47.6,
+        "y": 9.85
+      },
+      "at": {
+        "x": 24.71,
+        "y": 35.7
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "color": "#6b4226",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "VCC",
+          "color": "#d7263d",
+          "net": "vcc"
+        },
+        {
+          "id": "sig",
+          "label": "PWM",
+          "color": "#f4a020",
+          "config": "pwm_pin"
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

@@ -154,38 +154,38 @@
 <text x="10" y="682" text-anchor="middle" class="lbl" font-size="8">GND</text>
 <text x="40" y="682" text-anchor="middle" class="lbl" font-size="8">REG2</text>
 <text x="70" y="682" text-anchor="middle" class="lbl" font-size="8">PWM</text>
-<g id="pwm7-gnd"><title>Kanał 7: GND</title><rect x="5" y="693" width="10" height="10" class="gold"/><circle cx="10" cy="698" r="2" class="hole"/></g>
-<g id="pwm7-reg2"><title>Kanał 7: REG2</title><rect x="35" y="693" width="10" height="10" class="gold"/><circle cx="40" cy="698" r="2" class="hole"/></g>
-<g id="pwm7-pwm"><title>Kanał 7: PWM</title><rect x="65" y="693" width="10" height="10" class="gold"/><circle cx="70" cy="698" r="2" class="hole"/></g>
-<text x="92" y="701" text-anchor="start" class="lbl" font-size="8.5">CH7</text>
-<g id="pwm6-gnd"><title>Kanał 6: GND</title><rect x="5" y="711" width="10" height="10" class="gold"/><circle cx="10" cy="716" r="2" class="hole"/></g>
-<g id="pwm6-reg2"><title>Kanał 6: REG2</title><rect x="35" y="711" width="10" height="10" class="gold"/><circle cx="40" cy="716" r="2" class="hole"/></g>
-<g id="pwm6-pwm"><title>Kanał 6: PWM</title><rect x="65" y="711" width="10" height="10" class="gold"/><circle cx="70" cy="716" r="2" class="hole"/></g>
-<text x="92" y="719" text-anchor="start" class="lbl" font-size="8.5">CH6</text>
-<g id="pwm5-gnd"><title>Kanał 5: GND</title><rect x="5" y="729" width="10" height="10" class="gold"/><circle cx="10" cy="734" r="2" class="hole"/></g>
-<g id="pwm5-reg2"><title>Kanał 5: REG2</title><rect x="35" y="729" width="10" height="10" class="gold"/><circle cx="40" cy="734" r="2" class="hole"/></g>
-<g id="pwm5-pwm"><title>Kanał 5: PWM</title><rect x="65" y="729" width="10" height="10" class="gold"/><circle cx="70" cy="734" r="2" class="hole"/></g>
-<text x="92" y="737" text-anchor="start" class="lbl" font-size="8.5">CH5</text>
-<g id="pwm4-gnd"><title>Kanał 4: GND</title><rect x="5" y="747" width="10" height="10" class="gold"/><circle cx="10" cy="752" r="2" class="hole"/></g>
-<g id="pwm4-reg2"><title>Kanał 4: REG2</title><rect x="35" y="747" width="10" height="10" class="gold"/><circle cx="40" cy="752" r="2" class="hole"/></g>
-<g id="pwm4-pwm"><title>Kanał 4: PWM</title><rect x="65" y="747" width="10" height="10" class="gold"/><circle cx="70" cy="752" r="2" class="hole"/></g>
-<text x="92" y="755" text-anchor="start" class="lbl" font-size="8.5">CH4</text>
-<g id="pwm3-gnd"><title>Kanał 3: GND</title><rect x="5" y="765" width="10" height="10" class="gold"/><circle cx="10" cy="770" r="2" class="hole"/></g>
-<g id="pwm3-reg2"><title>Kanał 3: REG2</title><rect x="35" y="765" width="10" height="10" class="gold"/><circle cx="40" cy="770" r="2" class="hole"/></g>
-<g id="pwm3-pwm"><title>Kanał 3: PWM</title><rect x="65" y="765" width="10" height="10" class="gold"/><circle cx="70" cy="770" r="2" class="hole"/></g>
-<text x="92" y="773" text-anchor="start" class="lbl" font-size="8.5">CH3</text>
-<g id="pwm2-gnd"><title>Kanał 2: GND</title><rect x="5" y="783" width="10" height="10" class="gold"/><circle cx="10" cy="788" r="2" class="hole"/></g>
-<g id="pwm2-reg2"><title>Kanał 2: REG2</title><rect x="35" y="783" width="10" height="10" class="gold"/><circle cx="40" cy="788" r="2" class="hole"/></g>
-<g id="pwm2-pwm"><title>Kanał 2: PWM</title><rect x="65" y="783" width="10" height="10" class="gold"/><circle cx="70" cy="788" r="2" class="hole"/></g>
-<text x="92" y="791" text-anchor="start" class="lbl" font-size="8.5">CH2</text>
-<g id="pwm1-gnd"><title>Kanał 1: GND</title><rect x="5" y="801" width="10" height="10" class="gold"/><circle cx="10" cy="806" r="2" class="hole"/></g>
-<g id="pwm1-reg2"><title>Kanał 1: REG2</title><rect x="35" y="801" width="10" height="10" class="gold"/><circle cx="40" cy="806" r="2" class="hole"/></g>
-<g id="pwm1-pwm"><title>Kanał 1: PWM</title><rect x="65" y="801" width="10" height="10" class="gold"/><circle cx="70" cy="806" r="2" class="hole"/></g>
-<text x="92" y="809" text-anchor="start" class="lbl" font-size="8.5">CH1</text>
-<g id="pwm0-gnd"><title>Kanał 0: GND</title><rect x="5" y="819" width="10" height="10" class="gold"/><circle cx="10" cy="824" r="2" class="hole"/></g>
-<g id="pwm0-reg2"><title>Kanał 0: REG2</title><rect x="35" y="819" width="10" height="10" class="gold"/><circle cx="40" cy="824" r="2" class="hole"/></g>
-<g id="pwm0-pwm"><title>Kanał 0: PWM</title><rect x="65" y="819" width="10" height="10" class="gold"/><circle cx="70" cy="824" r="2" class="hole"/></g>
-<text x="92" y="827" text-anchor="start" class="lbl" font-size="8.5">CH0</text>
+<g id="pwm0-gnd"><title>Kanał 0: GND</title><rect x="5" y="693" width="10" height="10" class="gold"/><circle cx="10" cy="698" r="2" class="hole"/></g>
+<g id="pwm0-reg2"><title>Kanał 0: REG2 (Rail A)</title><rect x="35" y="693" width="10" height="10" class="gold"/><circle cx="40" cy="698" r="2" class="hole"/></g>
+<g id="pwm0-pwm"><title>Kanał 0: PWM</title><rect x="65" y="693" width="10" height="10" class="gold"/><circle cx="70" cy="698" r="2" class="hole"/></g>
+<text x="92" y="701" text-anchor="start" class="lbl" font-size="8.5">CH0</text>
+<g id="pwm1-gnd"><title>Kanał 1: GND</title><rect x="5" y="711" width="10" height="10" class="gold"/><circle cx="10" cy="716" r="2" class="hole"/></g>
+<g id="pwm1-reg2"><title>Kanał 1: REG2 (Rail A)</title><rect x="35" y="711" width="10" height="10" class="gold"/><circle cx="40" cy="716" r="2" class="hole"/></g>
+<g id="pwm1-pwm"><title>Kanał 1: PWM</title><rect x="65" y="711" width="10" height="10" class="gold"/><circle cx="70" cy="716" r="2" class="hole"/></g>
+<text x="92" y="719" text-anchor="start" class="lbl" font-size="8.5">CH1</text>
+<g id="pwm2-gnd"><title>Kanał 2: GND</title><rect x="5" y="729" width="10" height="10" class="gold"/><circle cx="10" cy="734" r="2" class="hole"/></g>
+<g id="pwm2-reg2"><title>Kanał 2: REG2 (Rail A)</title><rect x="35" y="729" width="10" height="10" class="gold"/><circle cx="40" cy="734" r="2" class="hole"/></g>
+<g id="pwm2-pwm"><title>Kanał 2: PWM</title><rect x="65" y="729" width="10" height="10" class="gold"/><circle cx="70" cy="734" r="2" class="hole"/></g>
+<text x="92" y="737" text-anchor="start" class="lbl" font-size="8.5">CH2</text>
+<g id="pwm3-gnd"><title>Kanał 3: GND</title><rect x="5" y="747" width="10" height="10" class="gold"/><circle cx="10" cy="752" r="2" class="hole"/></g>
+<g id="pwm3-reg2"><title>Kanał 3: REG2 (Rail A)</title><rect x="35" y="747" width="10" height="10" class="gold"/><circle cx="40" cy="752" r="2" class="hole"/></g>
+<g id="pwm3-pwm"><title>Kanał 3: PWM</title><rect x="65" y="747" width="10" height="10" class="gold"/><circle cx="70" cy="752" r="2" class="hole"/></g>
+<text x="92" y="755" text-anchor="start" class="lbl" font-size="8.5">CH3</text>
+<g id="pwm4-gnd"><title>Kanał 4: GND</title><rect x="5" y="765" width="10" height="10" class="gold"/><circle cx="10" cy="770" r="2" class="hole"/></g>
+<g id="pwm4-reg2"><title>Kanał 4: REG2 (Rail A)</title><rect x="35" y="765" width="10" height="10" class="gold"/><circle cx="40" cy="770" r="2" class="hole"/></g>
+<g id="pwm4-pwm"><title>Kanał 4: PWM</title><rect x="65" y="765" width="10" height="10" class="gold"/><circle cx="70" cy="770" r="2" class="hole"/></g>
+<text x="92" y="773" text-anchor="start" class="lbl" font-size="8.5">CH4</text>
+<g id="pwm5-gnd"><title>Kanał 5: GND</title><rect x="5" y="783" width="10" height="10" class="gold"/><circle cx="10" cy="788" r="2" class="hole"/></g>
+<g id="pwm5-reg2"><title>Kanał 5: REG2 (Rail A)</title><rect x="35" y="783" width="10" height="10" class="gold"/><circle cx="40" cy="788" r="2" class="hole"/></g>
+<g id="pwm5-pwm"><title>Kanał 5: PWM</title><rect x="65" y="783" width="10" height="10" class="gold"/><circle cx="70" cy="788" r="2" class="hole"/></g>
+<text x="92" y="791" text-anchor="start" class="lbl" font-size="8.5">CH5</text>
+<g id="pwm6-gnd"><title>Kanał 6: GND</title><rect x="5" y="801" width="10" height="10" class="gold"/><circle cx="10" cy="806" r="2" class="hole"/></g>
+<g id="pwm6-reg2"><title>Kanał 6: REG2 (Rail A)</title><rect x="35" y="801" width="10" height="10" class="gold"/><circle cx="40" cy="806" r="2" class="hole"/></g>
+<g id="pwm6-pwm"><title>Kanał 6: PWM</title><rect x="65" y="801" width="10" height="10" class="gold"/><circle cx="70" cy="806" r="2" class="hole"/></g>
+<text x="92" y="809" text-anchor="start" class="lbl" font-size="8.5">CH6</text>
+<g id="pwm7-gnd"><title>Kanał 7: GND</title><rect x="5" y="819" width="10" height="10" class="gold"/><circle cx="10" cy="824" r="2" class="hole"/></g>
+<g id="pwm7-reg2"><title>Kanał 7: REG2 (Rail A)</title><rect x="35" y="819" width="10" height="10" class="gold"/><circle cx="40" cy="824" r="2" class="hole"/></g>
+<g id="pwm7-pwm"><title>Kanał 7: PWM</title><rect x="65" y="819" width="10" height="10" class="gold"/><circle cx="70" cy="824" r="2" class="hole"/></g>
+<text x="92" y="827" text-anchor="start" class="lbl" font-size="8.5">CH7</text>
 <text x="330" y="906" text-anchor="middle" class="head" font-size="9.5">Zasilanie 5–20 V – do wyboru:</text>
 <g id="usbc"><title>USB-C PD 100 W</title><rect x="83" y="950" width="5" height="14" rx="1.5" class="usb-leg"/><rect x="150" y="950" width="5" height="14" rx="1.5" class="usb-leg"/><rect x="88" y="944" width="62" height="56" rx="5" class="usb"/><rect x="99" y="949" width="14" height="4" rx="2" class="usb-in"/><rect x="125" y="949" width="14" height="4" rx="2" class="usb-in"/><rect x="92" y="992" width="54" height="3" rx="1.5" class="usb-in"/><line x1="92" y1="1000" x2="146" y2="1000" class="usb-edge"/></g>
 <text x="119" y="925" text-anchor="middle" class="lbl" font-size="9.5">USB-C PD</text>
@@ -204,7 +204,7 @@
 <text x="339" y="984" text-anchor="middle" class="espt" font-size="8.5">XT60</text>
 <g id="pwrout1-gnd" transform="translate(616 608.75) rotate(90)"><title>Wyjście zasilania 1: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
 <text x="538" y="629" text-anchor="end" class="lbl" font-size="9">GND</text>
-<g id="pwrout2-reg2" transform="translate(616 644.75) rotate(90)"><title>Wyjście zasilania 2: REG2</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
+<g id="pwrout2-reg2" transform="translate(616 644.75) rotate(90)"><title>Wyjście zasilania 2: REG2 (Rail A)</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
 <text x="538" y="665" text-anchor="end" class="lbl" font-size="9">REG2</text>
 <g id="pwrout3-gnd" transform="translate(616 680.75) rotate(90)"><title>Wyjście zasilania 3: GND</title><rect x="0" y="0" width="34.5" height="64" rx="2" class="body"/><rect x="2" y="60" width="30.5" height="2" rx="1" class="hl"/><rect x="9.25" y="2" width="16" height="6" rx="1.5" class="entry"/><circle cx="17.25" cy="31" r="13.5" class="well"/><circle cx="17.25" cy="31" r="11" class="screw"/><circle cx="17.25" cy="31" r="7.5" class="screw-ring"/><line x1="10.25" y1="29" x2="24.25" y2="33" class="slot"/></g>
 <text x="538" y="701" text-anchor="end" class="lbl" font-size="9">GND</text>

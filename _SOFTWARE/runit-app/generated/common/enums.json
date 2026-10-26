@@ -204,6 +204,25 @@
         }
       ]
     },
+    "dc_motor_stop_e": {
+      "alias": "DC Motor Stop",
+      "kind": "enum",
+      "source_file": "runit-esp/components/devices/device_dc_motor/device_dc_motor.h",
+      "members": [
+        {
+          "name": "DC_MOTOR_STOP_BRAKE",
+          "value": 0,
+          "alias": "Brake",
+          "description": "Shorts the motor: it stops fast and holds"
+        },
+        {
+          "name": "DC_MOTOR_STOP_COAST",
+          "value": 1,
+          "alias": "Coast",
+          "description": "Releases the motor: it rolls to a stop"
+        }
+      ]
+    },
     "device_contract": {
       "alias": "Device Contract",
       "kind": "defines",
@@ -2097,6 +2116,8 @@
   "symbols": {
     "CMD_DIR_READ": "cmd_dir_e",
     "CMD_DIR_WRITE": "cmd_dir_e",
+    "DC_MOTOR_STOP_BRAKE": "dc_motor_stop_e",
+    "DC_MOTOR_STOP_COAST": "dc_motor_stop_e",
     "DEVICE_ID_ADS7128": "board_device",
     "DEVICE_ID_AP33772S": "board_device",
     "DEVICE_ID_DAC53202": "board_device",

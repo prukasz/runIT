@@ -1,0 +1,1050 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "runit_board_r1",
+  "name": "runIT board (rev 1)",
+  "category": "board",
+  "description": "The runIT controller board, 86.25 x 140 mm. Connector places from the board's drill file (_HARDWARE, Project Outputs), its devices from board.json.",
+  "tags": [
+    "board",
+    "esp32-s3"
+  ],
+  "board": {
+    "name": "runIT",
+    "revision": 1
+  },
+  "size_mm": {
+    "w": 86.25,
+    "h": 140.0
+  },
+  "graphic": "part.svg",
+  "nets": [
+    {
+      "id": "vbus",
+      "label": "USB VBUS",
+      "role": "internal",
+      "max_mA": 5000
+    },
+    {
+      "id": "vext",
+      "label": "External input (XT60 / screw)",
+      "role": "internal",
+      "voltage_mV": {
+        "min": 5000,
+        "max": 20000
+      },
+      "max_mA": 5500
+    },
+    {
+      "id": "vin",
+      "label": "Board input",
+      "role": "source",
+      "max_mA": 5500,
+      "monitor": {
+        "device": 12,
+        "channel": 1
+      }
+    },
+    {
+      "id": "v3v3",
+      "label": "3.3 V",
+      "role": "source",
+      "voltage_mV": {
+        "min": 3300,
+        "max": 3300,
+        "nominal": 3300
+      },
+      "max_mA": 1000
+    },
+    {
+      "id": "rail_a",
+      "label": "Rail A",
+      "role": "source",
+      "max_mA": 5000,
+      "monitor": {
+        "device": 12,
+        "channel": 2
+      }
+    },
+    {
+      "id": "rail_b",
+      "label": "Rail B",
+      "role": "source",
+      "max_mA": 5000,
+      "monitor": {
+        "device": 12,
+        "channel": 0
+      }
+    },
+    {
+      "id": "vm1",
+      "label": "Motor driver 1 supply",
+      "role": "internal",
+      "max_mA": 10000
+    },
+    {
+      "id": "vm2",
+      "label": "Motor driver 2 supply",
+      "role": "internal",
+      "max_mA": 10000
+    }
+  ],
+  "connectors": [
+    {
+      "id": "ain",
+      "label": "Analog inputs AIN0-AIN7 (0-20 V)",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 0,
+      "at": {
+        "x": 17.186,
+        "y": 4.187
+      },
+      "pins": [
+        {
+          "id": "ain0",
+          "label": "AIN0",
+          "device_pin": {
+            "device": 2,
+            "pin": 0
+          },
+          "description": "ADS7128 channel 0, 0-20 V"
+        },
+        {
+          "id": "ain1",
+          "label": "AIN1",
+          "device_pin": {
+            "device": 2,
+            "pin": 1
+          },
+          "description": "ADS7128 channel 1, 0-20 V"
+        },
+        {
+          "id": "ain2",
+          "label": "AIN2",
+          "device_pin": {
+            "device": 2,
+            "pin": 2
+          },
+          "description": "ADS7128 channel 2, 0-20 V"
+        },
+        {
+          "id": "ain3",
+          "label": "AIN3",
+          "device_pin": {
+            "device": 2,
+            "pin": 3
+          },
+          "description": "ADS7128 channel 3, 0-20 V"
+        },
+        {
+          "id": "ain4",
+          "label": "AIN4",
+          "device_pin": {
+            "device": 2,
+            "pin": 4
+          },
+          "description": "ADS7128 channel 4, 0-20 V"
+        },
+        {
+          "id": "ain5",
+          "label": "AIN5",
+          "device_pin": {
+            "device": 2,
+            "pin": 5
+          },
+          "description": "ADS7128 channel 5, 0-20 V"
+        },
+        {
+          "id": "ain6",
+          "label": "AIN6",
+          "device_pin": {
+            "device": 2,
+            "pin": 6
+          },
+          "description": "ADS7128 channel 6, 0-20 V"
+        },
+        {
+          "id": "ain7",
+          "label": "AIN7",
+          "device_pin": {
+            "device": 2,
+            "pin": 7
+          },
+          "description": "ADS7128 channel 7, 0-20 V"
+        }
+      ]
+    },
+    {
+      "id": "pwr_3v3",
+      "label": "3.3 V output",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 270,
+      "at": {
+        "x": 4.581,
+        "y": 18.0
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "3v3",
+          "label": "3V3",
+          "net": "v3v3"
+        }
+      ]
+    },
+    {
+      "id": "user_i2c",
+      "label": "User I2C",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 1.5,
+        "y": 29.71
+      },
+      "pins": [
+        {
+          "id": "3v3",
+          "label": "3V3",
+          "net": "v3v3"
+        },
+        {
+          "id": "sda",
+          "label": "SDA",
+          "bus": {
+            "type": "i2c",
+            "line": "sda",
+            "bus": 1
+          },
+          "description": "ESP pin 40"
+        },
+        {
+          "id": "scl",
+          "label": "SCL",
+          "bus": {
+            "type": "i2c",
+            "line": "scl",
+            "bus": 1
+          },
+          "description": "ESP pin 41"
+        },
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        }
+      ]
+    },
+    {
+      "id": "gpio",
+      "label": "GPIO",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 8.0,
+        "y": 29.71
+      },
+      "pins": [
+        {
+          "id": "io46",
+          "label": "IO46",
+          "device_pin": {
+            "device": 0,
+            "pin": 46
+          }
+        },
+        {
+          "id": "io18",
+          "label": "IO18",
+          "device_pin": {
+            "device": 0,
+            "pin": 18
+          }
+        },
+        {
+          "id": "io17",
+          "label": "IO17",
+          "device_pin": {
+            "device": 0,
+            "pin": 17
+          }
+        },
+        {
+          "id": "io3",
+          "label": "IO3",
+          "device_pin": {
+            "device": 0,
+            "pin": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": "uart",
+      "label": "UART",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 1.5,
+        "y": 41.92
+      },
+      "pins": [
+        {
+          "id": "3v3",
+          "label": "3V3",
+          "net": "v3v3"
+        },
+        {
+          "id": "rx",
+          "label": "RX",
+          "bus": {
+            "type": "uart",
+            "line": "rx"
+          }
+        },
+        {
+          "id": "tx",
+          "label": "TX",
+          "bus": {
+            "type": "uart",
+            "line": "tx"
+          }
+        },
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        }
+      ]
+    },
+    {
+      "id": "spi",
+      "label": "SPI",
+      "type": "goldpin",
+      "rotation": 90,
+      "at": {
+        "x": 27.0,
+        "y": 55.09
+      },
+      "pins": [
+        {
+          "id": "3v3",
+          "label": "3V3",
+          "net": "v3v3"
+        },
+        {
+          "id": "cs1",
+          "label": "CS1",
+          "bus": {
+            "type": "spi",
+            "line": "cs"
+          }
+        },
+        {
+          "id": "miso",
+          "label": "MISO",
+          "bus": {
+            "type": "spi",
+            "line": "miso"
+          }
+        },
+        {
+          "id": "sck",
+          "label": "SCK",
+          "bus": {
+            "type": "spi",
+            "line": "sck"
+          }
+        },
+        {
+          "id": "mosi",
+          "label": "MOSI",
+          "bus": {
+            "type": "spi",
+            "line": "mosi"
+          }
+        },
+        {
+          "id": "cs0",
+          "label": "CS0",
+          "bus": {
+            "type": "spi",
+            "line": "cs"
+          }
+        },
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "gnd2",
+          "label": "GND",
+          "gnd": true
+        }
+      ]
+    },
+    {
+      "id": "pwm0",
+      "label": "Servo header CH0",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 96.835
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 0
+          },
+          "description": "PCA9685 CH0"
+        }
+      ]
+    },
+    {
+      "id": "pwm1",
+      "label": "Servo header CH1",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 99.375
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 1
+          },
+          "description": "PCA9685 CH1"
+        }
+      ]
+    },
+    {
+      "id": "pwm2",
+      "label": "Servo header CH2",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 101.915
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 2
+          },
+          "description": "PCA9685 CH2"
+        }
+      ]
+    },
+    {
+      "id": "pwm3",
+      "label": "Servo header CH3",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 104.455
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 3
+          },
+          "description": "PCA9685 CH3"
+        }
+      ]
+    },
+    {
+      "id": "pwm4",
+      "label": "Servo header CH4",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 106.995
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 4
+          },
+          "description": "PCA9685 CH4"
+        }
+      ]
+    },
+    {
+      "id": "pwm5",
+      "label": "Servo header CH5",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 109.535
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 5
+          },
+          "description": "PCA9685 CH5"
+        }
+      ]
+    },
+    {
+      "id": "pwm6",
+      "label": "Servo header CH6",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 112.075
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 6
+          },
+          "description": "PCA9685 CH6"
+        }
+      ]
+    },
+    {
+      "id": "pwm7",
+      "label": "Servo header CH7",
+      "type": "goldpin",
+      "rotation": 0,
+      "at": {
+        "x": 1.482,
+        "y": 114.615
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "pwm",
+          "label": "PWM",
+          "device_pin": {
+            "device": 3,
+            "pin": 7
+          },
+          "description": "PCA9685 CH7"
+        }
+      ]
+    },
+    {
+      "id": "drv1",
+      "label": "Motor driver 1 (DRV8962 #1)",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 90,
+      "at": {
+        "x": 82.0,
+        "y": 12.25
+      },
+      "pins": [
+        {
+          "id": "out1",
+          "label": "OUT1",
+          "hbridge": {
+            "device": 5,
+            "channel": 0,
+            "supply": "vm1"
+          }
+        },
+        {
+          "id": "out2",
+          "label": "OUT2",
+          "hbridge": {
+            "device": 5,
+            "channel": 1,
+            "supply": "vm1"
+          }
+        },
+        {
+          "id": "out3",
+          "label": "OUT3",
+          "hbridge": {
+            "device": 5,
+            "channel": 2,
+            "supply": "vm1"
+          }
+        },
+        {
+          "id": "out4",
+          "label": "OUT4",
+          "hbridge": {
+            "device": 5,
+            "channel": 3,
+            "supply": "vm1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "drv2",
+      "label": "Motor driver 2 (DRV8962 #2)",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 90,
+      "at": {
+        "x": 82.0,
+        "y": 56.25
+      },
+      "pins": [
+        {
+          "id": "out1",
+          "label": "OUT1",
+          "hbridge": {
+            "device": 6,
+            "channel": 0,
+            "supply": "vm2"
+          }
+        },
+        {
+          "id": "out2",
+          "label": "OUT2",
+          "hbridge": {
+            "device": 6,
+            "channel": 1,
+            "supply": "vm2"
+          }
+        },
+        {
+          "id": "out3",
+          "label": "OUT3",
+          "hbridge": {
+            "device": 6,
+            "channel": 2,
+            "supply": "vm2"
+          }
+        },
+        {
+          "id": "out4",
+          "label": "OUT4",
+          "hbridge": {
+            "device": 6,
+            "channel": 3,
+            "supply": "vm2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pwr_out",
+      "label": "Power outputs",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 90,
+      "at": {
+        "x": 82.0,
+        "y": 87.75
+      },
+      "pins": [
+        {
+          "id": "gnd1",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "reg2",
+          "label": "REG2",
+          "net": "rail_a",
+          "description": "Rail A"
+        },
+        {
+          "id": "gnd2",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "reg1",
+          "label": "REG1",
+          "net": "rail_b",
+          "description": "Rail B"
+        },
+        {
+          "id": "gnd3",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vs",
+          "label": "VS",
+          "net": "vin",
+          "description": "The board input, after the eFuses"
+        }
+      ]
+    },
+    {
+      "id": "pwr_in",
+      "label": "Power input 5-20 V",
+      "type": "screw_terminal",
+      "pitch_mm": 5.0,
+      "rotation": 180,
+      "at": {
+        "x": 45.0,
+        "y": 135.75
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "vin",
+          "label": "5-20V",
+          "net": "vext"
+        }
+      ]
+    },
+    {
+      "id": "xt60",
+      "label": "XT60 input 5-20 V",
+      "type": "xt60",
+      "rotation": 0,
+      "at": {
+        "x": 53.5,
+        "y": 135.55
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        },
+        {
+          "id": "plus",
+          "label": "+",
+          "net": "vext",
+          "description": "The chamfered side"
+        }
+      ]
+    },
+    {
+      "id": "usb",
+      "label": "USB-C (PD up to 20 V / 5 A, USB-Serial-JTAG)",
+      "type": "usb_c",
+      "rotation": 0,
+      "at": {
+        "x": 13.92,
+        "y": 136.6
+      },
+      "pins": [
+        {
+          "id": "vbus",
+          "label": "VBUS",
+          "net": "vbus"
+        },
+        {
+          "id": "dm",
+          "label": "D-",
+          "bus": {
+            "type": "usb",
+            "line": "dm"
+          }
+        },
+        {
+          "id": "dp",
+          "label": "D+",
+          "bus": {
+            "type": "usb",
+            "line": "dp"
+          }
+        },
+        {
+          "id": "gnd",
+          "label": "GND",
+          "gnd": true
+        }
+      ]
+    }
+  ],
+  "power": {
+    "elements": [
+      {
+        "id": "src_usb",
+        "kind": "source",
+        "label": "USB-C PD",
+        "out": "vbus",
+        "device": 13,
+        "voltage_mV": {
+          "min": 5000,
+          "max": 20000
+        },
+        "levels_mV": [
+          5000,
+          9000,
+          12000,
+          15000,
+          20000
+        ],
+        "max_mA": 5000,
+        "description": "A USB-C PD charger: the AP33772S asks it for the voltage"
+      },
+      {
+        "id": "src_ext",
+        "kind": "source",
+        "label": "External supply",
+        "out": "vext",
+        "voltage_mV": {
+          "min": 5000,
+          "max": 20000
+        },
+        "max_mA": 5500,
+        "description": "A battery or a PSU on the XT60 or the screw terminal"
+      },
+      {
+        "id": "efuse_usb",
+        "kind": "fuse",
+        "label": "eFuse USB (TPS259474)",
+        "in": "vbus",
+        "out": "vin",
+        "max_mA": 5000,
+        "ok_pin": {
+          "device": 1,
+          "pin": 3
+        }
+      },
+      {
+        "id": "efuse_ext",
+        "kind": "fuse",
+        "label": "eFuse input (TPS259474)",
+        "in": "vext",
+        "out": "vin",
+        "max_mA": 5500,
+        "ok_pin": {
+          "device": 1,
+          "pin": 4
+        }
+      },
+      {
+        "id": "buck_3v3",
+        "kind": "regulator",
+        "label": "3.3 V buck",
+        "in": "vin",
+        "out": "v3v3",
+        "voltage_mV": {
+          "min": 3300,
+          "max": 3300
+        },
+        "max_mA": 1000,
+        "efficiency_pct": 85
+      },
+      {
+        "id": "logic",
+        "kind": "load",
+        "label": "ESP32-S3 and the chips",
+        "in": "v3v3",
+        "current_mA": {
+          "typical": 150,
+          "peak": 500
+        }
+      },
+      {
+        "id": "reg_a",
+        "kind": "regulator",
+        "label": "Rail A (TPS55289)",
+        "in": "vin",
+        "out": "rail_a",
+        "device": 10,
+        "adjustable": true,
+        "voltage_mV": {
+          "min": 4500,
+          "max": 20000,
+          "step": 100
+        },
+        "max_mA": 5000,
+        "efficiency_pct": 90
+      },
+      {
+        "id": "reg_b",
+        "kind": "regulator",
+        "label": "Rail B (TPS55289)",
+        "in": "vin",
+        "out": "rail_b",
+        "device": 11,
+        "adjustable": true,
+        "voltage_mV": {
+          "min": 4500,
+          "max": 20000,
+          "step": 100
+        },
+        "max_mA": 5000,
+        "efficiency_pct": 90
+      },
+      {
+        "id": "mux_drv1",
+        "kind": "mux",
+        "label": "Motor 1 supply (LM73100)",
+        "in": [
+          "vin",
+          "rail_b"
+        ],
+        "inputs": [
+          "Board input",
+          "Rail B"
+        ],
+        "out": "vm1",
+        "device": 7,
+        "max_mA": 10000
+      },
+      {
+        "id": "mux_drv2",
+        "kind": "mux",
+        "label": "Motor 2 supply (LM73100)",
+        "in": [
+          "vin",
+          "rail_a"
+        ],
+        "inputs": [
+          "Board input",
+          "Rail A"
+        ],
+        "out": "vm2",
+        "device": 8,
+        "max_mA": 10000
+      },
+      {
+        "id": "drv1",
+        "kind": "load",
+        "label": "Motor driver 1 (DRV8962)",
+        "in": "vm1",
+        "device": 5,
+        "current_mA": {
+          "typical": 5,
+          "peak": 10
+        }
+      },
+      {
+        "id": "drv2",
+        "kind": "load",
+        "label": "Motor driver 2 (DRV8962)",
+        "in": "vm2",
+        "device": 6,
+        "current_mA": {
+          "typical": 5,
+          "peak": 10
+        }
+      }
+    ],
+    "limits": {
+      "max_mA": 5500,
+      "max_mV": 20000
+    }
+  }
+}

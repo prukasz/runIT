@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schemas/part.schema.json",
+  "title": "runIT library part",
+  "description": "A physical thing of the hardware canvas (library/parts/<id>/part.json): a board, a module (a devkit / breakout), a chip, an actuator, a sensor or a passive part. Its drawing is part.svg beside it, in millimetres. Its connectors are standard components (goldpin headers, screw terminals, wire leads...) placed on it; each pin says what it is: ground, a power net of the part, a pin of a device, a config pin of the part's own device, a bus line, an H-bridge output or a motor lead. The power section is the part's own flow of energy (sources, fuses, regulators, muxes, loads) between its nets. LIBRARY.md describes it.",
+  "type": "object",
+  "required": ["kind", "id", "name", "category", "size_mm", "graphic", "connectors"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "part" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$", "description": "The part's id: the name of its folder." },
+    "name": { "type": "string", "description": "What the palette and the canvas call it." },
+    "category": { "type": "string", "enum": ["board", "module", "chip", "actuator", "sensor", "passive", "power"], "description": "The palette's group. A board is what the project's devices sit on; a module carries a device of its own (a PCA9685 breakout); a chip is a bare IC or module for the PCB creator." },
+    "description": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "board": {
+      "type": "object",
+      "description": "A board part: the board.json it draws (name and revision): the canvas shows it for a project on that board.",
+      "required": ["name", "revision"],
+      "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "revision": { "type": "integer" } }
+    },
+    "size_mm": {
+      "type": "object",
+      "required": ["w", "h"],
+      "additionalProperties": false,
+      "properties": { "w": { "type": "number", "exclusiveMinimum": 0 }, "h": { "type": "number", "exclusiveMinimum": 0 } }
+    },
+    "graphic": { "type": "string", "description": "The drawing beside part.json (part.svg), viewBox in mm (0 0 w h). Connectors are not in it: the app draws them from 'connectors', at their true size." },
+    "device": {
+      "type": "object",
+      "description": "The device the part is: placing it on the canvas adds a project device of this type, with the preset's values and then 'config'.",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "description": "A device descriptor's id (servo, pca9685)." },
+        "preset": { "type": "string", "description": "A preset of the descriptor (its 'presets')." },
+        "config": { "type": "object", "description": "Config values by field id, over the preset's.", "additionalProperties": true }
+      }
+    },
+    "nets": {
+      "type": "array",
+      "description": "The part's power nets. A pin with 'net' is on one; its role says whether the part takes power there, gives it, or only passes it on (a breakout's V+ that runs to its servo headers).",
+      "items": { "$ref": "#/$defs/net" }
+    },
+    "connectors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/connector" }
+    },
+    "power": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How energy flows inside the part (a board): elements between its nets.",
+      "properties": {
+        "elements": { "type": "array", "items": { "$ref": "#/$defs/element" } },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_mA": { "type": "number", "description": "The whole input's limit." },
+            "max_mV": { "type": "number" }
+          }
+        }
+      }
+    },
+    "chips": {
+      "type": "array",
+      "description": "Generic chips drawn on a board (the PCB creator): a labelled rectangle, optionally a device of the board.",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "at", "size_mm"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "type": { "type": "string", "description": "A device descriptor's id, or a library part's id (esp32s3_wroom1)." },
+          "device": { "type": "integer", "description": "The board device it is (board.json id)." },
+          "at": { "$ref": "#/$defs/point" },
+          "size_mm": { "$ref": "#/properties/size_mm" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "min": { "type": "number" }, "max": { "type": "number" }, "nominal": { "type": "number" }, "step": { "type": "number" } }
+    },
+    "net": {
+      "type": "object",
+      "required": ["id", "label", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "role": { "type": "string", "enum": ["sink", "source", "through", "internal"], "description": "sink: the part takes power here (a servo's VCC); source: the part gives it (a board's rail, driven by an element of 'power'); through: it only passes power between its pins (a breakout's V+); internal: a board net no pin reaches." },
+        "voltage_mV": { "$ref": "#/$defs/range", "description": "A sink: what it accepts (nominal: what it wants). A source: what it can give." },
+        "current_mA": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "A sink: what it draws.",
+          "properties": { "typical": { "type": "number" }, "peak": { "type": "number" } }
+        },
+        "max_mA": { "type": "number", "description": "A source or through net: the most it carries." },
+        "monitor": {
+          "type": "object",
+          "required": ["device", "channel"],
+          "additionalProperties": false,
+          "description": "A power monitor channel that measures this net.",
+          "properties": { "device": { "type": "integer" }, "channel": { "type": "integer" } }
+        }
+      }
+    },
+    "pin": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "description": "One pin of a connector. At most one of gnd / net / device_pin / config / bus / hbridge / motor / nc says what it is.",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "at": { "$ref": "#/$defs/point", "description": "A pad connector only: where the pin is, in the part's mm." },
+        "color": { "type": "string", "description": "A wire lead's colour." },
+        "gnd": { "const": true },
+        "net": { "type": "string", "description": "A power net of the part ('nets')." },
+        "device_pin": {
+          "type": "object",
+          "required": ["device", "pin"],
+          "additionalProperties": false,
+          "description": "A pin of a device that something can use: a board device by its id, or the part's own device ('self').",
+          "properties": { "device": { "oneOf": [{ "type": "integer" }, { "const": "self" }] }, "pin": { "type": "integer" } }
+        },
+        "config": { "type": "string", "description": "A pin-reference config field of the part's own device: the pin this one is wired to goes there (a servo's pwm_pin)." },
+        "bus": {
+          "type": "object",
+          "required": ["type", "line"],
+          "additionalProperties": false,
+          "properties": {
+            "type": { "type": "string", "enum": ["i2c", "spi", "uart", "usb"] },
+            "line": { "type": "string", "enum": ["sda", "scl", "mosi", "miso", "sck", "cs", "tx", "rx", "dp", "dm"] },
+            "bus": { "type": "integer", "description": "A board's bus number (board.json i2c_buses). A part that needs a bus leaves it out: its device's bus follows the wire." }
+          }
+        },
+        "hbridge": {
+          "type": "object",
+          "required": ["device", "channel"],
+          "additionalProperties": false,
+          "description": "An H-bridge output (OUT1 = channel 0); 'supply' is the net that powers it.",
+          "properties": { "device": { "type": "integer" }, "channel": { "type": "integer" }, "supply": { "type": "string" } }
+        },
+        "motor": { "type": "string", "enum": ["a", "b"], "description": "A lead of a motor: the two go to the two outputs of one bridge. Its draw is the part's 'motor' net (role sink)." },
+        "nc": { "const": true }
+      }
+    },
+    "connector": {
+      "type": "object",
+      "required": ["id", "type", "at", "pins"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "type": { "type": "string", "enum": ["goldpin", "goldpin_female", "screw_terminal", "wire", "xt60", "usb_c", "pad"], "description": "A standard component: the app draws it at its true size (goldpins 2.54 mm)." },
+        "at": { "$ref": "#/$defs/point", "description": "The centre of its first pin, in the part's mm (a wire: where its plug is)." },
+        "rotation": { "type": "integer", "enum": [0, 90, 180, 270], "description": "0: pins run left to right." },
+        "pitch_mm": { "type": "number", "description": "Screw terminal only: 3.5, 5.0 or 5.08 (goldpins are always 2.54)." },
+        "rows": { "type": "integer", "minimum": 1, "description": "Goldpin: rows of pins (pins are listed row by row)." },
+        "from": { "$ref": "#/$defs/point", "description": "A wire: where it leaves the part." },
+        "pins": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/pin" } }
+      }
+    },
+    "element": {
+      "type": "object",
+      "required": ["id", "kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["source", "fuse", "regulator", "mux", "load"], "description": "source: energy enters (USB PD, an input); fuse: an eFuse between two nets; regulator: makes 'out' from 'in'; mux: 'out' from one of 'in'; load: what the part itself draws from 'in'." },
+        "label": { "type": "string" },
+        "in": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" }, "minItems": 2 }] },
+        "out": { "type": "string" },
+        "device": { "type": "integer", "description": "The board device that is it (a regulator's VOLTAGE, a mux's SOURCE, a USB PD sink)." },
+        "voltage_mV": { "$ref": "#/$defs/range", "description": "A source or regulator: what it can give." },
+        "adjustable": { "type": "boolean", "description": "A regulator the board sets (POWER_VREG VOLTAGE): the canvas sets it for what is connected." },
+        "levels_mV": { "type": "array", "items": { "type": "number" }, "description": "A source that gives only these voltages (the fixed levels of USB PD)." },
+        "max_mA": { "type": "number" },
+        "efficiency_pct": { "type": "number" },
+        "current_mA": { "type": "object", "additionalProperties": false, "properties": { "typical": { "type": "number" }, "peak": { "type": "number" } } },
+        "inputs": { "type": "array", "items": { "type": "string" }, "description": "A mux: the name of each input, in the order of 'in' (the POWER_SUPPLY SOURCE value)." },
+        "ok_pin": { "type": "object", "required": ["device", "pin"], "additionalProperties": false, "properties": { "device": { "type": "integer" }, "pin": { "type": "integer" } } },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

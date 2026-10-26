@@ -1,0 +1,74 @@
+{
+  "$schema": "../../../templates/part.schema.json",
+  "kind": "part",
+  "id": "servo_sg90",
+  "name": "Micro servo (SG90)",
+  "category": "actuator",
+  "description": "9 g analog micro servo, 180 degrees: 4.8-6 V, about 150 mA moving, 650 mA stalled.",
+  "tags": [
+    "servo",
+    "pwm",
+    "micro"
+  ],
+  "size_mm": {
+    "w": 32.2,
+    "h": 30.8
+  },
+  "device": {
+    "type": "servo",
+    "preset": "sg90"
+  },
+  "nets": [
+    {
+      "id": "vcc",
+      "label": "VCC",
+      "role": "sink",
+      "voltage_mV": {
+        "min": 4800,
+        "max": 6000,
+        "nominal": 5000
+      },
+      "current_mA": {
+        "typical": 150,
+        "peak": 650
+      }
+    }
+  ],
+  "connectors": [
+    {
+      "id": "lead",
+      "label": "Servo cable",
+      "type": "wire",
+      "rotation": 0,
+      "from": {
+        "x": 27.5,
+        "y": 6.1
+      },
+      "at": {
+        "x": 13.56,
+        "y": 28.2
+      },
+      "pins": [
+        {
+          "id": "gnd",
+          "label": "GND",
+          "color": "#6b4226",
+          "gnd": true
+        },
+        {
+          "id": "vcc",
+          "label": "VCC",
+          "color": "#d7263d",
+          "net": "vcc"
+        },
+        {
+          "id": "sig",
+          "label": "PWM",
+          "color": "#f4a020",
+          "config": "pwm_pin"
+        }
+      ]
+    }
+  ],
+  "graphic": "part.svg"
+}

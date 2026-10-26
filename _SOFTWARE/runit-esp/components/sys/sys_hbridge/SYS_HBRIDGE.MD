@@ -48,4 +48,6 @@ A system-wide response to a bridge fault (as the power manager gives a supply fa
 |---|---|
 | HBRIDGE | DRV8962 (`components/devices/device_drv8962`) |
 
+A motor on a channel is the DC motor device (`components/devices/device_dc_motor`): it drives the channel through these ops (DRIVE, BRAKE, COAST, CURRENT) with its ramps, dead zone, start and top speed, trim, reversing through stop and stall stop. The contract stays the raw output; the HBRIDGE block drives a channel directly, the DC motor block the motor.
+
 The VM reaches the contract through the HBRIDGE block (`components/vm/vm_blocks/device-contract/hbridge`, VM_BLOCKS.MD).

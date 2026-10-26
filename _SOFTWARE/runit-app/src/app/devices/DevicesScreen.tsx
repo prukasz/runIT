@@ -12,6 +12,7 @@ import { DevicePage } from './DevicePage'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { StepList } from './StepList'
+import { isCanvasStep } from '../hardware/apply'
 import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, SINGLE_TYPES, startSettings, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState } from './useDevices'
@@ -167,6 +168,7 @@ function StartCard({ device, state }: { device: DeviceInfo; state: DevicesState 
         )
       })}
       <StepList steps={device.defaults.filter(kept)} state={state} showDevice={false}
+        locked={(s) => (isCanvasStep(state.project, device.id, s) ? 'Set by the Devices canvas for what is wired to it: change it there' : undefined)}
         onChange={(steps) => state.setDefaults(device, (all) => [...all.filter((s) => !kept(s)), ...steps])} empty="Add in side panel." />
     </Card>
   )

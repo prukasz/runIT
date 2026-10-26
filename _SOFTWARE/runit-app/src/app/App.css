@@ -51,8 +51,10 @@
 .project-problems { margin: 6px 0 0; padding-left: 18px; color: var(--color-red-soft); font-size: 12px; }
 .project-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--muted); }
 .project-counts .badge + .badge { margin-left: 10px; }
-.project-summary { padding: 12px 14px; }
-.project-summary p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.project-summary { padding: 12px 14px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.project-summary:hover { border-color: color-mix(in srgb, var(--accent) 32%, var(--divider)); background: var(--hover); }
+.project-summary.is-selected { border-color: color-mix(in srgb, var(--accent) 55%, var(--divider)); background: color-mix(in srgb, var(--accent) 16%, var(--panel)); box-shadow: inset 3px 0 var(--accent); }
+.project-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* The toolbar's remove: red, as the device's own remove was. */
 .shell .toolbar-danger { color: var(--color-red); }
 /* Write is green while the board does not hold the project. */
@@ -66,7 +68,8 @@
 .settings-actions { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .settings-group-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .settings-list { margin: 0; padding-left: 18px; font-size: 13px; }
-.settings-tabs { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.settings-tabs { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.settings-tabs .palette-section-header:not(:first-child) { margin-top: 8px; }
 /* The response matrix: one row per event kind, one column per target. */
 .settings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .settings-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 8px 4px 0; white-space: nowrap; }

@@ -139,6 +139,8 @@ export interface BoardDevice {
 /** What board.json says of the board: its devices, the pins set up at boot and the pins nothing else may take. */
 export interface BoardDescriptor {
   readonly name: string
+  /** The board's revision (board.json): with the name, which drawing of the hardware library is this board. */
+  readonly revision: number
   readonly devices: readonly BoardDevice[]
   readonly i2cBuses: readonly { readonly bus: number; readonly name: string; readonly description?: string }[]
   /** The pins the boot sets up: their `sys_io_mode_e` member name and what they are for. */
@@ -172,6 +174,7 @@ export const appBoardKind = (): BoardKind => (import.meta.env.VITE_RUNIT_BOARD =
 export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor => {
   const json = (kind === 'devkit' ? devkitBoardJson : boardJson) as unknown as {
     name: string
+    revision: number
     devices: { id: number; name: string; description?: string; descriptor: string; ranges?: unknown; pins?: { use: string; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
     i2c_buses?: { bus: number; name: string; description?: string }[]
     pin_setup?: { device: number; pin: number; mode: string; label: string; description?: string }[]
@@ -183,6 +186,7 @@ export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor 
   }
   return {
     name: json.name,
+    revision: json.revision,
     devices: json.devices.map((d) => ({ id: d.id, name: d.name, ...(d.description ? { description: d.description } : {}), descriptor: d.descriptor, pins: d.pins ?? [], config: d.config ?? {}, ...(d.i2c ? { i2c: { bus: d.i2c.bus, address: d.i2c.address } } : {}), ...(Object.keys(parseRanges(d.ranges)).length > 0 ? { ranges: parseRanges(d.ranges) } : {}) })),
     i2cBuses: json.i2c_buses ?? [],
     pinSetup: json.pin_setup ?? [],
