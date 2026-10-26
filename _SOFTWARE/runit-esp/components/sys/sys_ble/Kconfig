@@ -49,4 +49,21 @@ menu "sys_ble"
         default 4
         range 1 16
 
+    config SYS_BLE_ANSWER_WAIT_MS
+        int "Answer wait (ms)"
+        default 100
+        range 1 5000
+        help
+          How long a router answer waits for room in the TX characteristic's
+          buffer.
+
+    config SYS_BLE_STREAM_WAIT_MS
+        int "Stream frame wait (ms)"
+        default 20
+        range 1 5000
+        help
+          How long a stream frame (the connector task) waits for room in its
+          characteristic's buffer: short, so a slow client holds the other
+          streams back as little as possible.
+
 endmenu

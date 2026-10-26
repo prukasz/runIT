@@ -112,7 +112,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 
 - `CONFIG_ROUTER_FRAME_MAX` (default 512 bytes): maximum frame length accepted and produced.
 - `CONFIG_ROUTER_MAX_KEYS` (default 16): maximum registered root keys.
-- `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4).
+- `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4); the data connectors bind to the same links, and `sys_connector.c` checks at build time that every `transport_e` fits.
 - Inbound ring buffers: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB).
 - Concurrency: urgent task (priority 15) and work task (priority 5) run concurrently; module routers must be thread-safe.
 

@@ -7,7 +7,7 @@ Spec: `SYS_CONNECTOR.MD` (this folder).
 - Changing `transport_e`, the system connectors, the error map or `contract_connector.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
 - Commands and their answers never go through connectors. They use router links (ROUTER.MD).
 - `sys_connector_send` never blocks and never calls a provider. A link's `send` with `answer` false runs only on the connector task.
-- Providers are the router's links (`router_link_get`): the connector keeps no transport registry of its own.
+- Providers are the router's links (`router_link_get`): the connector keeps no transport registry of its own. A new `transport_e` member gets its `_Static_assert` line (ID within `CONFIG_ROUTER_MAX_LINKS`) at the top of `sys_connector.c`.
 - `sys_connector.h` is what other components use; what only the component's router uses is in `internal/sys_connector_internal.h`, off the public include path.
 - Provider `max_frame` runs inside `sys_connector_max_payload`, so any task may call that, except one holding a transport's lock.
 - Errors in the connector task are logged (`err_log`), never reported: a report would queue a record back into this task and loop.

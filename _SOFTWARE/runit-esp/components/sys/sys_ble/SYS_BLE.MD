@@ -15,7 +15,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `link/sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (the router link, also the connectors' provider) |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
-| `Kconfig` | Name, appearance, BLE task, TX item limit, apply delay, connection listeners |
+| `Kconfig` | Name, appearance, BLE task, TX item limit, apply delay, connection listeners, the link's answer and stream waits |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Boot
@@ -51,7 +51,7 @@ single-packet frame: C0 <frame>
 
 ## Connector provider
 
-`TRANSPORT_BLE` is one router link (`sys_ble_link_init`), which the connectors use as their provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, answers to TX (`answer_endpoint`), `send` = `sys_ble_char_send(uuid, frame, 100 ms for an answer, 20 ms for a stream frame)`, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`components/app/runit/runit_board_cfg.c`): logs and errors → LOGS 0xFFE3; telemetry and events → TX 0xFFE1. A user connector can be bound to any user characteristic with TX. No VM block writes to a characteristic yet.
+`TRANSPORT_BLE` is one router link (`sys_ble_link_init`), which the connectors use as their provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, answers to TX (`answer_endpoint`), `send` = `sys_ble_char_send(uuid, frame, wait)`, the wait `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms) for an answer, `CONFIG_SYS_BLE_STREAM_WAIT_MS` (20 ms) for a stream frame, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`components/app/runit/runit_board_cfg.c`): logs and errors → LOGS 0xFFE3; telemetry and events → TX 0xFFE1. A user connector can be bound to any user characteristic with TX. No VM block writes to a characteristic yet.
 
 ## Data paths
 

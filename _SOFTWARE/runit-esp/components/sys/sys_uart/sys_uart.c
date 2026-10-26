@@ -20,10 +20,6 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_UART, "sys_uart", ERR_SYS_UART_MAP)
 #define LINE_LEN_MAX    (LINE_PREFIX_LEN + 2u * CONFIG_ROUTER_FRAME_MAX)
 #define READ_CHUNK      64u
 #define READ_WAIT_MS    10u
-/* A frame waits this long for room in the TX queue. A stream frame waits too: the connector task stalls, its own queue
-   fills and the producer is refused (and sends again, as the telemetry sampler does), instead of losing the frame here
-   without anyone knowing. No producer waits: sys_connector_send never blocks. */
-#define SEND_WAIT_MS 1000u
 
 _Static_assert(CONFIG_SYS_UART_TX_QUEUE % 4 == 0, "SYS_UART_TX_QUEUE must be a multiple of 4");
 
@@ -78,7 +74,7 @@ static void tx_task(void* arg) {
 static err_h link_send(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer) {
   (void)answer;
   ERR_CHECK(endpoint == SYS_UART_ENDPOINT, ERR_UART_BAD_ENDPOINT, .endpoint = endpoint);
-  return queue_line(frame, len, MSEC(SEND_WAIT_MS));
+  return queue_line(frame, len, MSEC(CONFIG_SYS_UART_SEND_WAIT_MS));
 }
 
 static const router_link_t k_link = {

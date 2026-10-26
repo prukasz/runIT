@@ -5,6 +5,16 @@
 
 #define CONN_BYTE 1u  // a frame is [connector][payload]: the payload is the frame less this byte
 
+// The router's answer byte (router Kconfig) is not a system connector's: the client could not tell them apart.
+_Static_assert(CONFIG_ROUTER_RESPONSE_STREAM != SYS_CONNECTOR_LOGS &&
+                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_CONNECTOR_ERRORS &&
+                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_CONNECTOR_TELEMETRY &&
+                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_CONNECTOR_EVENTS,
+               "CONFIG_ROUTER_RESPONSE_STREAM is a system connector's byte");
+// Every transport is a router link: its ID within 1..CONFIG_ROUTER_MAX_LINKS (one line per transport_e member).
+_Static_assert(TRANSPORT_UART <= CONFIG_ROUTER_MAX_LINKS, "TRANSPORT_UART above CONFIG_ROUTER_MAX_LINKS");
+_Static_assert(TRANSPORT_BLE <= CONFIG_ROUTER_MAX_LINKS, "TRANSPORT_BLE above CONFIG_ROUTER_MAX_LINKS");
+
 static void conn_task(void* arg);
 
 U_MUTEX_DEFINE(sys_connector_mutex);

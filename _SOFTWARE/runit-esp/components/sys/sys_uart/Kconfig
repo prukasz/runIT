@@ -45,4 +45,16 @@ menu "sys_uart"
         default 3072
         range 2048 16384
 
+    config SYS_UART_SEND_WAIT_MS
+        int "Send wait (ms)"
+        default 1000
+        range 10 10000
+        help
+          How long a frame (an answer or a stream frame alike) waits for room
+          in the TX queue, then ERR_UART_TX_FULL. A stream frame waiting stalls
+          the connector task: its own queue fills and the producer is refused
+          (and sends again, as the telemetry sampler does), instead of losing
+          the frame here unseen. No producer waits: sys_connector_send never
+          blocks.
+
 endmenu
