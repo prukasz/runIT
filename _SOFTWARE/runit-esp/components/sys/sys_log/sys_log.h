@@ -43,10 +43,10 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
- * end, cut to CONFIG_SYS_LOG_LINE_MAX, to connector `connector_id`; then applies the defaults (INFO, mirror on, trace
- * on, send errors on, send logs on). Boot step, after sys_connector_init().
+ * end, cut to CONFIG_SYS_LOG_LINE_MAX, to connector `connector`; then applies the defaults (INFO,
+ * mirror on, trace on, send errors on, send logs on). Boot step, after sys_connector_init().
  */
-MUST_USE err_h sys_log_init(uint8_t connector_id);
+MUST_USE err_h sys_log_init(uint8_t connector);
 
 /**
  * @brief Applies the options at once (not stored: the app saves the SET frame as a record).

@@ -81,10 +81,9 @@ static void apply(void) {
   esp_log_level_set("*", (esp_log_level_t)s_log_preset.cfg.level);
 }
 
-err_h sys_log_init(uint8_t connector_id) {
-  sys_connector_info_t info;
-  ERR_TRY(sys_connector_info(connector_id, &info));  // exists
-  s_log.conn = connector_id;
+err_h sys_log_init(uint8_t connector) {
+  ERR_CHECK(sys_connector_exists(connector), ERR_CONN_NOT_FOUND, .connector = connector);
+  s_log.conn = connector;
   if (s_log.console == NULL) {
     s_log.console = esp_log_set_vprintf(log_vprintf);
   }
@@ -119,7 +118,8 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
   }
   portEXIT_CRITICAL(&s_log_preset.history_lock);
   if (s_log_preset.cfg.send_errors) {
-    err_free(sys_connector_send(SYS_CONNECTOR_ERRORS, record, len));  // a full queue drops it: reporting would loop
+    // a full queue drops it: reporting would loop
+    err_free(sys_connector_send(SYS_CONNECTOR_ERRORS, record, len));
   }
 }
 

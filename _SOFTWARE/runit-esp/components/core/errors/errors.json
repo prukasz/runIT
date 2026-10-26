@@ -95,10 +95,6 @@
       "alias": "Link",
       "description": "A router link (a transport connection)"
     },
-    "connector": {
-      "alias": "Connector",
-      "description": "A data connector by its ID"
-    },
     "transport": {
       "alias": "Transport",
       "description": "A transport provider"
@@ -108,9 +104,9 @@
       "description": "A 16-bit BLE UUID",
       "format": "hex"
     },
-    "stream": {
-      "alias": "Stream",
-      "description": "A stream byte"
+    "connector": {
+      "alias": "Connector",
+      "description": "A data connector by its byte (the stream byte of its frames)"
     },
     "contract": {
       "alias": "Contract",
@@ -1111,24 +1107,6 @@
       "texts_file": "runit-esp/components/sys/sys_connector/errors/errors_sys_connector.json",
       "tags": [
         {
-          "code": 1,
-          "tag": 327681,
-          "name": "ERR_CONN_BAD_ID",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
-            }
-          ],
-          "description": "outside 0..CONFIG_SYS_CONNECTOR_MAX-1",
-          "message": "{id} is not a valid connector"
-        },
-        {
           "code": 2,
           "tag": 327682,
           "name": "ERR_CONN_NOT_FOUND",
@@ -1136,14 +1114,14 @@
           "size": 1,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
               "id_kind": "connector"
             }
           ],
-          "message": "{id} does not exist"
+          "message": "{connector} does not exist"
         },
         {
           "code": 3,
@@ -1153,15 +1131,15 @@
           "size": 1,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
               "id_kind": "connector"
             }
           ],
-          "message": "{id} already exists",
-          "hint": "Choose another stream ID."
+          "message": "{connector} already exists",
+          "hint": "Choose another connector."
         },
         {
           "code": 4,
@@ -1171,7 +1149,7 @@
           "size": 1,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
@@ -1179,7 +1157,7 @@
             }
           ],
           "description": "system connector: no remove, keeps one binding",
-          "message": "{id} belongs to the system and cannot be changed that way",
+          "message": "{connector} belongs to the system and cannot be changed that way",
           "hint": "A system stream keeps one transport: bind another before you unbind this one."
         },
         {
@@ -1208,14 +1186,14 @@
           "size": 1,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
               "id_kind": "connector"
             }
           ],
-          "message": "{id} cannot be bound to more transports",
+          "message": "{connector} cannot be bound to more transports",
           "hint": "Unbind a transport first."
         },
         {
@@ -1226,7 +1204,7 @@
           "size": 6,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
@@ -1253,7 +1231,7 @@
             }
           ],
           "description": "frame not sent there",
-          "message": "{id}: {len} bytes are too long for {provider} (at most {max})",
+          "message": "{connector}: {len} bytes are too long for {provider} (at most {max})",
           "hint": "Send less at once."
         },
         {
@@ -1264,7 +1242,7 @@
           "size": 3,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
@@ -1278,7 +1256,7 @@
             }
           ],
           "description": "payload dropped",
-          "message": "{id} is full: {len} bytes were dropped",
+          "message": "{connector} is full: {len} bytes were dropped",
           "hint": "Send less often."
         },
         {
@@ -1298,7 +1276,7 @@
           "size": 6,
           "fields": [
             {
-              "name": "id",
+              "name": "connector",
               "type": "u8",
               "offset": 0,
               "size": 1,
@@ -1320,7 +1298,26 @@
           ],
           "description": "context: provider send failed",
           "context": true,
-          "message": "While {id} sent over {provider}"
+          "message": "While {connector} sent over {provider}"
+        },
+        {
+          "code": 11,
+          "tag": 327691,
+          "name": "ERR_CONN_FULL",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "connector",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "description": "every CONFIG_SYS_CONNECTOR_MAX slot taken",
+          "message": "No room for {connector}: every connector slot is taken",
+          "hint": "Remove a connector first."
         }
       ]
     },

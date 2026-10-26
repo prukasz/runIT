@@ -188,15 +188,16 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
   const create = catalog.command(entry, STREAMS.create).write!.args!
   const bind = catalog.command(entry, STREAMS.bind)
   const streams = state.streamsOf()
-  const ids = bundledEnums().sys_connector_id_e?.members ?? []
-  const appBase = ids.find((m) => m.name.endsWith('_APP_BASE'))?.value ?? 4
-  const streamNames = new Map((bundledEnums().stream_byte?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
+  // The board's four are named by the group `connector`; the project's by its own label.
+  const streamNames = new Map((bundledEnums().connector?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
+  const byteName = (stream: number) => `Stream 0x${stream.toString(16).toUpperCase().padStart(2, '0')}`
+  const title = (s: DataStream) => (s.system ? streamNames.get(s.stream) : s.name) || byteName(s.stream)
   // A stream is sent on a characteristic that notifies or indicates: the board's and the project's.
   const chars = [...(state.live.gatt ?? []).filter((s) => s.locked), ...state.gattServices()].flatMap((s) => s.characteristics).filter((c) => c.notify || c.indicate)
   const uuidNames = new Map((bundledEnums().ble_runit_uuid?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
   const charChoices: Choice<number>[] = chars.map((c) => ({ value: c.uuid, label: `${hex(c.uuid)} ${uuidNames.get(c.uuid) ?? c.name}`.trim() }))
   const set = (next: readonly DataStream[]) => state.changeStreams(next)
-  const setStream = (id: number, change: (s: DataStream) => DataStream) => set(streams.map((s) => (s.id === id ? change(s) : s)))
+  const setStream = (at: number, change: (s: DataStream) => DataStream) => set(streams.map((s, i) => (i === at ? change(s) : s)))
   const bleTransport = transports().find((t) => /ble/i.test(bundledEnums().transport_e?.members.find((m) => m.value === t.value)?.name ?? ''))?.value
   return (
     <>
@@ -205,20 +206,25 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
           onApply={() => state.applyStreams(section)} onDrop={() => state.dropStreams()} /></span>}>
         <FieldError>{state.error(section.service.id)}</FieldError>
       </Card>
-      {streams.map((s) => (
-        <Card key={s.id} title={s.name || `Stream ${s.id}`} help={s.system ? "One of the board's own streams: it can be sent elsewhere or paused, not removed." : undefined}
+      {streams.map((s, at) => (
+        <Card key={at} title={title(s)} help={s.system ? "One of the board's own streams: it can be sent elsewhere or paused, not removed." : undefined}
           actions={(
             <span className="settings-actions">
-              {s.system ? <Badge tone="system">the board's</Badge> : <Button size="sm" title="Remove this stream" onClick={() => set(streams.filter((o) => o.id !== s.id))}><Trash2 aria-hidden="true" />Remove</Button>}
+              {s.system ? <Badge tone="system">the board's</Badge> : <Button size="sm" title="Remove this stream" onClick={() => set(streams.filter((_, i) => i !== at))}><Trash2 aria-hidden="true" />Remove</Button>}
             </span>
           )}>
           <FormGrid>
             {s.system
-              ? <FormRow label={create.fields.find((f) => f.id === 'stream')?.label ?? 'Stream'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
-              : <FieldsForm grid={false} layout={create} values={{ id: s.id, stream: s.stream, name: s.name }} context={context} hide={(f) => f.id === 'id'}
-                  onChange={(v) => setStream(s.id, (o) => ({ ...o, stream: Number(v.stream ?? o.stream), name: String(v.name ?? o.name).slice(0, 15) }))} />}
+              ? <FormRow label={create.fields.find((f) => f.id === 'connector')?.label ?? 'Connector'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
+              : <>
+                  <FormRow label="Name" note="The project's own label: the board keeps no name.">
+                    <TextField value={s.name ?? ''} placeholder={byteName(s.stream)} aria-label={`${title(s)}: name`} onChange={(e) => setStream(at, (o) => ({ ...o, name: e.currentTarget.value }))} />
+                  </FormRow>
+                  <FieldsForm grid={false} layout={create} values={{ connector: s.stream }} context={context}
+                    onChange={(v) => setStream(at, (o) => ({ ...o, stream: Number(v.connector ?? o.stream) }))} />
+                </>}
             <FormRow label={catalog.command(entry, STREAMS.suspend).label} note={catalog.command(entry, STREAMS.suspend).description}>
-              <Switch label={s.suspended ? 'Paused' : 'Sending'} checked={s.suspended} onChange={(suspended) => setStream(s.id, (o) => ({ ...o, suspended }))} />
+              <Switch label={s.suspended ? 'Paused' : 'Sending'} checked={s.suspended} onChange={(suspended) => setStream(at, (o) => ({ ...o, suspended }))} />
             </FormRow>
           </FormGrid>
           {transports().map((t) => {
@@ -228,12 +234,12 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
               <FormGrid key={t.value}>
                 <FormRow label={t.label} note={bind.description}>
                   <Switch label={binding ? 'Sent' : 'Not sent'} checked={binding !== undefined} disabled={last}
-                    onChange={(on) => setStream(s.id, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
+                    onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
                 </FormRow>
                 {binding && t.value === bleTransport && (
                   <FormRow label={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.label ?? 'Endpoint'} note={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.description}>
-                    <ChoiceField<number> aria-label={`${s.name}: characteristic`} value={binding.endpoint} choices={charChoices} unavailableLabel={(u) => hex(u)}
-                      onChange={(endpoint) => endpoint !== undefined && setStream(s.id, (o) => ({ ...o, bindings: o.bindings.map((b) => (b.provider === t.value ? { ...b, endpoint } : b)) }))} />
+                    <ChoiceField<number> aria-label={`${title(s)}: characteristic`} value={binding.endpoint} choices={charChoices} unavailableLabel={(u) => hex(u)}
+                      onChange={(endpoint) => endpoint !== undefined && setStream(at, (o) => ({ ...o, bindings: o.bindings.map((b) => (b.provider === t.value ? { ...b, endpoint } : b)) }))} />
                   </FormRow>
                 )}
               </FormGrid>
@@ -243,11 +249,9 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
       ))}
       <div className="project-actions">
         <Button onClick={() => {
-          let id = appBase
-          while (streams.some((s) => s.id === id)) id++
           let stream = 0x10
           while (streams.some((s) => s.stream === stream) || streamNames.has(stream)) stream++
-          set([...streams, { id, stream, name: `stream ${id}`, system: false, suspended: false, bindings: [] }])
+          set([...streams, { stream, system: false, suspended: false, bindings: [] }])
         }}><Plus aria-hidden="true" />{catalog.command(entry, STREAMS.create).label}</Button>
       </div>
     </>

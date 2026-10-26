@@ -94,9 +94,10 @@ export interface StreamBinding {
 
 /** A data stream (connector): the board's own (logs, errors, telemetry, events) or the project's. */
 export interface DataStream {
-  readonly id: number
-  readonly name: string
+  /** Its connector on the board (`connector` of the commands): the byte that starts each of its frames. */
   readonly stream: number
+  /** The project's label of its own stream; the board keeps none (the board's four are named by the group `connector`). */
+  readonly name?: string
   readonly system: boolean
   readonly suspended: boolean
   readonly bindings: readonly StreamBinding[]

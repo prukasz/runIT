@@ -204,6 +204,38 @@
         }
       ]
     },
+    "connector": {
+      "alias": "Connectors",
+      "kind": "defines",
+      "prefix": "SYS_CONNECTOR_",
+      "source_file": "runit-esp/components/sys/sys_connector/config/sys_connector_config.h",
+      "members": [
+        {
+          "name": "SYS_CONNECTOR_TELEMETRY",
+          "value": 2,
+          "alias": "Telemetry",
+          "description": "Telemetry: the VM's subscribed values"
+        },
+        {
+          "name": "SYS_CONNECTOR_LOGS",
+          "value": 3,
+          "alias": "Logs",
+          "description": "The log lines"
+        },
+        {
+          "name": "SYS_CONNECTOR_ERRORS",
+          "value": 4,
+          "alias": "Errors",
+          "description": "The error records"
+        },
+        {
+          "name": "SYS_CONNECTOR_EVENTS",
+          "value": 6,
+          "alias": "Events",
+          "description": "The event notifications"
+        }
+      ]
+    },
     "dc_motor_stop_e": {
       "alias": "DC Motor Stop",
       "kind": "enum",
@@ -639,81 +671,6 @@
           "value": 16777224,
           "alias": "USB-PD request",
           "description": "USB-PD request: the PD write"
-        }
-      ]
-    },
-    "stream_byte": {
-      "alias": "Stream Bytes",
-      "kind": "defines",
-      "prefix": "SYS_CONNECTOR_STREAM_",
-      "source_file": "runit-esp/components/sys/sys_connector/sys_connector.h",
-      "members": [
-        {
-          "name": "SYS_CONNECTOR_STREAM_TELEMETRY",
-          "value": 2,
-          "alias": "Telemetry",
-          "description": "Telemetry frame stream byte"
-        },
-        {
-          "name": "SYS_CONNECTOR_STREAM_LOGS",
-          "value": 3,
-          "alias": "Logs",
-          "description": "Log frame stream byte"
-        },
-        {
-          "name": "SYS_CONNECTOR_STREAM_ERRORS",
-          "value": 4,
-          "alias": "Errors",
-          "description": "Error record stream byte"
-        },
-        {
-          "name": "SYS_CONNECTOR_STREAM_RESPONSE",
-          "value": 5,
-          "alias": "Response",
-          "description": "Command response stream byte"
-        },
-        {
-          "name": "SYS_CONNECTOR_STREAM_EVENTS",
-          "value": 6,
-          "alias": "Events",
-          "description": "Event notification stream byte"
-        }
-      ]
-    },
-    "sys_connector_id_e": {
-      "alias": "Data Stream",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_connector/sys_connector.h",
-      "members": [
-        {
-          "name": "SYS_CONNECTOR_LOGS",
-          "value": 0,
-          "alias": "Logs",
-          "description": "System log stream"
-        },
-        {
-          "name": "SYS_CONNECTOR_ERRORS",
-          "value": 1,
-          "alias": "Errors",
-          "description": "Error records stream"
-        },
-        {
-          "name": "SYS_CONNECTOR_TELEMETRY",
-          "value": 2,
-          "alias": "Telemetry",
-          "description": "Telemetry stream"
-        },
-        {
-          "name": "SYS_CONNECTOR_EVENTS",
-          "value": 3,
-          "alias": "Events",
-          "description": "Events stream"
-        },
-        {
-          "name": "SYS_CONNECTOR_APP_BASE",
-          "value": 4,
-          "alias": "First user stream",
-          "description": "First user stream ID"
         }
       ]
     },
@@ -1259,7 +1216,7 @@
     "transport_e": {
       "alias": "Transport",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_connector/sys_connector.h",
+      "source_file": "runit-esp/components/sys/sys_connector/config/sys_connector_config.h",
       "members": [
         {
           "name": "TRANSPORT_UART",
@@ -2178,16 +2135,10 @@
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
-    "SYS_CONNECTOR_APP_BASE": "sys_connector_id_e",
-    "SYS_CONNECTOR_ERRORS": "sys_connector_id_e",
-    "SYS_CONNECTOR_EVENTS": "sys_connector_id_e",
-    "SYS_CONNECTOR_LOGS": "sys_connector_id_e",
-    "SYS_CONNECTOR_STREAM_ERRORS": "stream_byte",
-    "SYS_CONNECTOR_STREAM_EVENTS": "stream_byte",
-    "SYS_CONNECTOR_STREAM_LOGS": "stream_byte",
-    "SYS_CONNECTOR_STREAM_RESPONSE": "stream_byte",
-    "SYS_CONNECTOR_STREAM_TELEMETRY": "stream_byte",
-    "SYS_CONNECTOR_TELEMETRY": "sys_connector_id_e",
+    "SYS_CONNECTOR_ERRORS": "connector",
+    "SYS_CONNECTOR_EVENTS": "connector",
+    "SYS_CONNECTOR_LOGS": "connector",
+    "SYS_CONNECTOR_TELEMETRY": "connector",
     "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
     "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
     "SYS_DEVICE_CONTRACT_HBRIDGE": "device_contract",

@@ -65,6 +65,9 @@ extern "C" {
  * @brief Static ESP-IDF ring buffer. `type` is RINGBUF_TYPE_*.
  */
 #define U_RINGBUFFER_DEFINE(name, buffer_size, type)                                             \
+  /* xRingbufferCreateStatic asserts this at boot; checked at build time here */                 \
+  _Static_assert((type) == RINGBUF_TYPE_BYTEBUF || (buffer_size) % 4 == 0,                       \
+                 #name ": a NOSPLIT / ALLOWSPLIT size is a multiple of 4");                      \
   static uint8_t _##name##_storage[(buffer_size)] __attribute__((aligned(4)));                   \
   static StaticRingbuffer_t _##name##_struct;                                                    \
   RingbufHandle_t name = NULL;                                                                   \

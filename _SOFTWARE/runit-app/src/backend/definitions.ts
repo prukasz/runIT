@@ -15,7 +15,7 @@ import type { DescriptorFile } from './catalog/services'
  * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
  * direction byte, flags,
  * status and the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
- * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`limits.json`), the errors (`errors.json`: tags, fields, message
+ * groups `ble_runit_uuid` and `ble_frag`), the largest frame and the response stream byte (`limits.json`), the errors (`errors.json`: tags, fields, message
  * templates, what an id field refers to) and the enum groups their fields name (`bundledEnums`); and every
  * command of every router (the service, contract and device descriptors, `bundledServiceCatalog`). Nothing here is a number
  * typed in by hand; a symbol the firmware stops publishing stops the load with a message that names it.
@@ -26,7 +26,7 @@ export interface LinkDefinitions {
   readonly keys: Readonly<Record<string, number>>
   /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
-  /** The first byte of a frame says which stream it belongs to. */
+  /** The first byte of a frame says which stream it belongs to; `response` is `CONFIG_ROUTER_RESPONSE_STREAM` (`limits.json`). */
   readonly streams: { readonly response: number; readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number }
@@ -63,7 +63,7 @@ const opDirsOf = (contract: ContractFile, dir: LinkDefinitions['dir']): Record<s
 
 export const linkDefinitions = (
   enums: EnumTables,
-  frameMax: number,
+  router: { readonly frameMax: number; readonly responseStream: number },
   contracts: { readonly actions: ContractFile; readonly project: ContractFile } = { actions: actionsContract as ContractFile, project: projectContract as ContractFile },
 ): LinkDefinitions => {
   const keys = enums.router_key
@@ -73,11 +73,11 @@ export const linkDefinitions = (
     keys: Object.fromEntries(keys.members.map((m) => [m.name.replace(/^ROUTER_KEY_/, '').toLowerCase(), m.value])),
     dir,
     streams: {
-      response: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_RESPONSE'),
-      telemetry: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_TELEMETRY'),
-      logs: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_LOGS'),
-      errors: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_ERRORS'),
-      events: value(enums, 'stream_byte', 'SYS_CONNECTOR_STREAM_EVENTS'),
+      response: router.responseStream,
+      telemetry: value(enums, 'connector', 'SYS_CONNECTOR_TELEMETRY'),
+      logs: value(enums, 'connector', 'SYS_CONNECTOR_LOGS'),
+      errors: value(enums, 'connector', 'SYS_CONNECTOR_ERRORS'),
+      events: value(enums, 'connector', 'SYS_CONNECTOR_EVENTS'),
     },
     status: { ok: value(enums, 'router_status_e', 'ROUTER_STATUS_OK'), error: value(enums, 'router_status_e', 'ROUTER_STATUS_ERROR') },
     flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT') },
@@ -101,7 +101,7 @@ export const linkDefinitions = (
     },
     ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
     opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
-    frameMax,
+    frameMax: router.frameMax,
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),
     projectBoot: {
       none: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_NONE'),
@@ -218,9 +218,13 @@ export const onboardActionIds = (): ReadonlySet<number> => new Set(onboardAction
 
 /** The definitions of the bundled firmware descriptors. */
 export const bundledLinkDefinitions = (): LinkDefinitions => {
-  const limit = (limitsJson as unknown as { limits: Record<string, { value: number }> }).limits.ROUTER_FRAME_MAX
-  if (!limit) throw new Error("generated/common/limits.json has no limit 'ROUTER_FRAME_MAX'.")
-  return linkDefinitions(bundledEnums(), limit.value)
+  const limits = (limitsJson as unknown as { limits: Record<string, { value: number }> }).limits
+  const limit = (name: string): number => {
+    const l = limits[name]
+    if (!l) throw new Error(`generated/common/limits.json has no limit '${name}'.`)
+    return l.value
+  }
+  return linkDefinitions(bundledEnums(), { frameMax: limit('ROUTER_FRAME_MAX'), responseStream: limit('ROUTER_RESPONSE_STREAM') })
 }
 
 /* ---- every command ---- */

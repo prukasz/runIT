@@ -39,6 +39,13 @@
       "unit": "bytes",
       "source_file": "runit-esp/components/core/router/Kconfig"
     },
+    "ROUTER_RESPONSE_STREAM": {
+      "config": "CONFIG_ROUTER_RESPONSE_STREAM",
+      "value": 5,
+      "alias": "Response stream byte",
+      "description": "First byte of every response frame, so clients can tell answers from other streams on the same link.",
+      "source_file": "runit-esp/components/core/router/Kconfig"
+    },
     "VM_EXEC_MAX_SPAN_DEPTH": {
       "config": "CONFIG_VM_EXEC_MAX_SPAN_DEPTH",
       "value": 4,

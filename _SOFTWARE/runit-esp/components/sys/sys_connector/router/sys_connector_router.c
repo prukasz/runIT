@@ -3,16 +3,17 @@
 #include "sdkconfig.h"
 #include "sys_connector.h"
 
-/*   key  op        request                                response
- *   0x01 CREATE    { u8 id, u8 stream }, name (NUL-ended)  -
- *   0x02 REMOVE    { u8 id }                              -
- *   0x03 BIND      { u8 id, u8 provider, u32 endpoint }   -
- *   0x04 UNBIND    { u8 id, u8 provider }                 -
- *   0x05 SUSPEND   { u8 id }                              -
- *   0x06 RESUME    { u8 id }                              -
- *   0x07 INFO      -                                      [count u8] then per connector:
- *                                                         { u8 id, u8 stream, u8 flags (bit0 system, bit1 suspended),
- *                                                           u8 n, n × { u8 provider, u32 endpoint }, name (NUL-ended) } */
+/*   key  op        request                                       response
+ *   0x01 CREATE    { u8 connector }                              -
+ *   0x02 REMOVE    { u8 connector }                              -
+ *   0x03 BIND      { u8 connector, u8 provider, u32 endpoint }   -
+ *   0x04 UNBIND    { u8 connector, u8 provider }                 -
+ *   0x05 SUSPEND   { u8 connector }                              -
+ *   0x06 RESUME    { u8 connector }                              -
+ *   0x07 INFO      -                                             [count u8] then per connector:
+ *                                                                { u8 connector, u8 flags (bit0 system, bit1 suspended),
+ *                                                                  u8 n, n × { u8 provider, u32 endpoint } }
+ * A connector is its stream byte: the first byte of every frame it sends. */
 
 #define OP_CREATE  0x01u
 #define OP_REMOVE  0x02u
@@ -26,72 +27,58 @@
 #define INFO_SUSPENDED (1u << 1)
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;      /**< Connector stream ID */
-  uint8_t stream;  /**< Stream byte */
-} create_t;
+  uint8_t connector;  /**< The connector (its stream byte) */
+} connector_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;  /**< Connector stream ID */
-} id_t_;
-
-typedef struct __attribute__((packed)) {
-  uint8_t id;        /**< Connector stream ID */
-  uint8_t provider;  /**< transport_e */
-  uint32_t endpoint; /**< Transport endpoint */
+  uint8_t connector;  /**< The connector (its stream byte) */
+  uint8_t provider;   /**< transport_e */
+  uint32_t endpoint;  /**< The provider's address */
 } bind_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t id;        /**< Connector stream ID */
-  uint8_t provider;  /**< transport_e */
+  uint8_t connector;  /**< The connector (its stream byte) */
+  uint8_t provider;   /**< transport_e */
 } unbind_t;
 
-ROUTER_OP_TAIL(op_create, create_t) {
-  const char* name;
-  ERR_TRY(cmd_name_arg(tail, tail_len, &name));
-  return sys_connector_create(args->id, args->stream, name);
+ROUTER_OP(op_create, connector_t) {
+  return sys_connector_create(args->connector);
 }
 
-ROUTER_OP(op_remove, id_t_) {
-  return sys_connector_remove(args->id);
+ROUTER_OP(op_remove, connector_t) {
+  return sys_connector_remove(args->connector);
 }
 
 ROUTER_OP(op_bind, bind_t) {
-  return sys_connector_bind(args->id, args->provider, args->endpoint);
+  return sys_connector_bind(args->connector, args->provider, args->endpoint);
 }
 
 ROUTER_OP(op_unbind, unbind_t) {
-  return sys_connector_unbind(args->id, args->provider);
+  return sys_connector_unbind(args->connector, args->provider);
 }
 
-ROUTER_OP(op_suspend, id_t_) {
-  return sys_connector_suspend(args->id);
+ROUTER_OP(op_suspend, connector_t) {
+  return sys_connector_set_suspended(args->connector, true);
 }
 
-ROUTER_OP(op_resume, id_t_) {
-  return sys_connector_resume(args->id);
+ROUTER_OP(op_resume, connector_t) {
+  return sys_connector_set_suspended(args->connector, false);
 }
 
 ROUTER_OP_NOARGS(op_info) {
   uint32_t pos = 1;  // out[0] = count, written last
   ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
-  uint8_t count = 0;
-  for (uint8_t id = 0; id < CONFIG_SYS_CONNECTOR_MAX; id++) {
-    sys_connector_info_t i;
-    err_h err = sys_connector_info(id, &i);
-    if (err != NULL) {
-      err_free(err);  // slot not used
-      continue;
-    }
-    const uint8_t head[4] = {i.id, i.stream,
-                             (uint8_t)((i.system ? INFO_SYSTEM : 0) | (i.suspended ? INFO_SUSPENDED : 0)),
-                             i.binding_count};
+  sys_connector_info_t list[CONFIG_SYS_CONNECTOR_MAX];
+  uint8_t count = sys_connector_list(list);
+  for (uint8_t n = 0; n < count; n++) {
+    const sys_connector_info_t* i = &list[n];
+    const uint8_t head[3] = {i->connector, (uint8_t)((i->system ? INFO_SYSTEM : 0) | (i->suspended ? INFO_SUSPENDED : 0)),
+                             i->binding_count};
     ERR_TRY(cmd_append(out, out_cap, &pos, head, sizeof(head)));
-    for (uint8_t b = 0; b < i.binding_count; b++) {
-      ERR_TRY(cmd_append(out, out_cap, &pos, &i.bindings[b].provider, 1));
-      ERR_TRY(cmd_append(out, out_cap, &pos, &i.bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
+    for (uint8_t b = 0; b < i->binding_count; b++) {
+      ERR_TRY(cmd_append(out, out_cap, &pos, &i->bindings[b].provider, 1));
+      ERR_TRY(cmd_append(out, out_cap, &pos, &i->bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
     }
-    ERR_TRY(cmd_append(out, out_cap, &pos, i.name, (uint32_t)strlen(i.name) + 1));
-    count++;
   }
   out[0] = count;
   *out_len = pos;

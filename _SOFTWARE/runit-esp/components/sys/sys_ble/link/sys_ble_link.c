@@ -95,7 +95,6 @@ static uint32_t provider_max_frame(uint32_t endpoint) {
 }
 
 static const sys_connector_provider_t k_provider = {
-    .name = "ble",
     .send = provider_send,
     .max_frame = provider_max_frame,
 };

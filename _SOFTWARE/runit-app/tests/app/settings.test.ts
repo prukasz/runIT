@@ -5,7 +5,7 @@ import { emptySettings } from '../../src/app/project/projectFile'
 import { decodeGattList, gattApply, gattFromRecord, gattRecord } from '../../src/app/settings/gatt'
 import { groupValues, sameValues, settingSections } from '../../src/app/settings/settings'
 import { settingsFromRecords, settingsRecords } from '../../src/app/settings/settingsRecords'
-import { decodeStreamsInfo, streamsApply, streamsFromRecord, streamsRecord } from '../../src/app/settings/streams'
+import { decodeStreamsInfo, sameStreams, streamsApply, streamsFromRecord, streamsRecord } from '../../src/app/settings/streams'
 
 const catalog = bundledServiceCatalog()
 const problems: string[] = []
@@ -78,8 +78,8 @@ describe('the board settings from the service descriptors', () => {
 describe('the settings the project keeps, as records of the stored project', () => {
   const gatt: GattService[] = [{ uuid: 0xee00, primary: true, characteristics: [{ uuid: 0xee01, name: 'temp', write: false, indicate: false, notify: true, framed: false, tx: 96, rx: 0 }] }]
   const streams: DataStream[] = [
-    { id: 0, name: 'logs', stream: 3, system: true, suspended: false, bindings: [{ provider: 2, endpoint: 0xffe3 }] },
-    { id: 4, name: 'mine', stream: 0x10, system: false, suspended: true, bindings: [{ provider: 1, endpoint: 0 }] },
+    { stream: 3, system: true, suspended: false, bindings: [{ provider: 2, endpoint: 0xffe3 }] },
+    { stream: 0x10, name: 'mine', system: false, suspended: true, bindings: [{ provider: 1, endpoint: 0 }] },
   ]
 
   it('builds the GATT record as SYS_BLE.MD shows it: the service, its characteristic, APPLY', () => {
@@ -102,10 +102,12 @@ describe('the settings the project keeps, as records of the stored project', () 
     const ids = streamsRecord(catalog, streams).map((f) => f[2])
     const op = (id: string) => catalog.command(catalog.service('CONNECTOR'), id).op
     expect(ids).toEqual([op('BIND'), op('UNBIND'), op('CREATE'), op('BIND'), op('UNBIND'), op('SUSPEND')])
-    const info = Uint8Array.of(1, 0, 3, 1, 2, 1, 0, 0, 0, 0, 2, 0xe3, 0xff, 0, 0, 0x6c, 0x6f, 0x67, 0x73, 0)
+    const info = Uint8Array.of(1, 3, 1, 2, 1, 0, 0, 0, 0, 2, 0xe3, 0xff, 0, 0)
     const live = decodeStreamsInfo(info)
-    expect(live).toEqual([{ id: 0, stream: 3, name: 'logs', system: true, suspended: false, bindings: [{ provider: 1, endpoint: 0 }, { provider: 2, endpoint: 0xffe3 }] }])
-    expect(streamsFromRecord(catalog, streamsRecord(catalog, streams), live)).toEqual(streams)
+    expect(live).toEqual([{ stream: 3, system: true, suspended: false, bindings: [{ provider: 1, endpoint: 0 }, { provider: 2, endpoint: 0xffe3 }] }])
+    // the board keeps no name: a stream read back from the record has none
+    expect(streamsFromRecord(catalog, streamsRecord(catalog, streams), live)).toEqual(streams.map(({ name: _, ...s }) => s))
+    expect(sameStreams(streamsFromRecord(catalog, streamsRecord(catalog, streams), live), streams)).toBe(true)
     expect(streamsApply(catalog, live, streams).map((c) => c.command.id)).toEqual(['UNBIND', 'CREATE', 'BIND', 'SUSPEND'])
   })
 
@@ -126,7 +128,7 @@ describe('the settings the project keeps, as records of the stored project', () 
     expect(sameValues(group('LOG.CONFIG')!.layout, back.values['LOG.CONFIG']!, settings.values['LOG.CONFIG'])).toBe(true)
     expect(back.tables['POWER_MANAGER.MATRIX']).toEqual(rows)
     expect(back.gatt).toEqual(gatt)
-    expect(back.streams).toEqual(streams)
+    expect(back.streams).toEqual(streams.map(({ name: _, ...s }) => s)) // the board keeps no name
   })
 
   it('writes nothing for what the project does not keep', () => {

@@ -3,7 +3,7 @@
 Spec: `ROUTER.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Root keys in `router_ids.h` (`ROUTER_KEY_*`), response stream byte `CONFIG_ROUTER_RESPONSE_STREAM` (0x05), response status codes (`ROUTER_STATUS_OK` = 0, `ROUTER_STATUS_ERROR` = 1), are wire format. Do not renumber root keys or alter response framing. The ERROR answer's data is the error record of `errors` (ERRORS.MD "Error record"); the dispatcher fills its `err_cmd_t`.
+- Root keys in `router_ids.h` (`ROUTER_KEY_*`), response stream byte `CONFIG_ROUTER_RESPONSE_STREAM` (0x05; `#@limit`, so the app reads it from `limits.json`: a change runs `sh templates/sync.sh`), response status codes (`ROUTER_STATUS_OK` = 0, `ROUTER_STATUS_ERROR` = 1), are wire format. Do not renumber root keys or alter response framing. The ERROR answer's data is the error record of `errors` (ERRORS.MD "Error record"); the dispatcher fills its `err_cmd_t`.
 - Error tags in `ERR_ROUTER_MAP` (`ERR_MOD_ROUTER` = 2) are wire format: do not renumber them. Changing them requires `sh templates/sync.sh` (regenerates `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green. Payload and direction errors (`ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIRECTION`) belong to `cmd` (`ERR_MOD_CMD` = 11).
 - Root registration: `router_register(key, fn)` occurs at boot before `router_init()`. Modules do not register themselves; the application (`main`) registers module routers.
 - The direction byte after the root key (`[seq][flags][key][dir]`, ROUTER.MD "Wire format") is wire format: every request has it, stream frames don't.

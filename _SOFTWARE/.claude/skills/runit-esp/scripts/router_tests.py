@@ -232,48 +232,45 @@ def test_i2c(link: Link, target: str) -> None:
 
 
 def test_conn(link: Link) -> None:
-    def info() -> dict[int, dict]:
+    def info() -> dict[int, dict]:  # by connector
         r = link.request(bytes([KEY_CONN, 0x07]))
         out = {}
         if not (r and r.ok):
             return out
         d, pos = r.data, 1
         for _ in range(d[0]):
-            cid, stream, flags, n = d[pos : pos + 4]
-            pos += 4
+            connector, flags, n = d[pos : pos + 3]
+            pos += 3
             binds = []
             for _ in range(n):
                 prov, ep = struct.unpack_from("<BI", d, pos)
                 pos += 5
                 binds.append((prov, ep))
-            end = d.index(0, pos)
-            out[cid] = {"stream": stream, "flags": flags, "binds": binds, "name": d[pos:end].decode()}
-            pos = end + 1
+            out[connector] = {"flags": flags, "binds": binds}
         return out
 
     i = info()
-    check("conn INFO: 4 system connectors", all(k in i for k in (0, 1, 2, 3)), str(i))
-    if 1 in i:
-        check("errors -> UART + BLE 0xFFE3", sorted(i[1]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE3)], str(i[1]))
-    if 3 in i:
-        check("events: stream 0x06 -> UART + BLE 0xFFE1", i[3]["name"] == "events" and i[3]["stream"] == 0x06
-              and sorted(i[3]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE1)], str(i[3]))
+    check("conn INFO: 4 system connectors (0x02 0x03 0x04 0x06)", all(k in i and i[k]["flags"] & 1 for k in (2, 3, 4, 6)), str(i))
+    if 4 in i:
+        check("errors 0x04 -> UART + BLE 0xFFE3", sorted(i[4]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE3)], str(i[4]))
+    if 6 in i:
+        check("events 0x06 -> UART + BLE 0xFFE1", sorted(i[6]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE1)], str(i[6]))
 
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([3, 0x10]) + b"temp\0")
-    check("conn CREATE on the events ID -> ERR_CONN_PROTECTED", err_cause(r) == "ERR_CONN_PROTECTED", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([4, 0x10]) + b"temp\0")
-    check("conn CREATE user 4", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_CONN, 0x03]), payload=struct.pack("<BBI", 4, TRANSPORT_UART, 0))
-    check("conn BIND 4 -> UART", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x06]))
+    check("conn CREATE on the events byte -> ERR_CONN_EXISTS", err_cause(r) == "ERR_CONN_EXISTS", str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x05]))
+    check("conn CREATE on the answer byte -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x10]))
+    check("conn CREATE user 0x10", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_CONN, 0x03]), payload=struct.pack("<BBI", 0x10, TRANSPORT_UART, 0))
+    check("conn BIND 0x10 -> UART", r is not None and r.ok, str(r))
     i = info()
-    check("conn INFO shows 'temp'", 4 in i and i[4]["name"] == "temp" and i[4]["binds"] == [(TRANSPORT_UART, 0)], str(i.get(4)))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([1, 0x10]) + b"x\0")
-    check("conn CREATE on a system ID -> ERR_CONN_PROTECTED", err_cause(r) == "ERR_CONN_PROTECTED", str(r))
-    r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([1]))
+    check("conn INFO shows user 0x10", 0x10 in i and not i[0x10]["flags"] & 1 and i[0x10]["binds"] == [(TRANSPORT_UART, 0)], str(i.get(0x10)))
+    r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x04]))
     check("conn REMOVE errors -> ERR_CONN_PROTECTED", err_cause(r) == "ERR_CONN_PROTECTED", str(r))
-    r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([4]))
-    check("conn REMOVE user 4", r is not None and r.ok, str(r))
-    check("conn INFO: 4 gone", 4 not in info())
+    r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x10]))
+    check("conn REMOVE user 0x10", r is not None and r.ok, str(r))
+    check("conn INFO: 0x10 gone", 0x10 not in info())
 
 
 def test_ble(link: Link, target: str) -> None:

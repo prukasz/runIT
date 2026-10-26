@@ -120,10 +120,9 @@
         "project_section",
         "router_key",
         "link",
-        "connector",
         "transport",
         "ble_uuid",
-        "stream",
+        "connector",
         "contract",
         "error_tag",
         "esp_err"

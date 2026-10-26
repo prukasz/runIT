@@ -17,7 +17,7 @@ Use dynamic creation only for objects whose count or lifetime is decided at runt
 | `U_MUTEX_DEFINE(name)` / `U_RECURSIVE_MUTEX_DEFINE` | mutex | `U_MUTEX_LOCK(h, ticks)` returns true on success |
 | `U_BINARY_SEM_DEFINE`, `U_COUNTING_SEM_DEFINE(name, max, init)` | semaphores | `U_SEM_GIVE_ISR` yields if needed |
 | `U_QUEUE_DEFINE(name, len, item_size)` | queue | `U_QUEUE_SEND/RECEIVE/PEEK`, `_ISR` variant |
-| `U_RINGBUFFER_DEFINE(name, size, type)` | ESP ring buffer | size must be a multiple of 4 |
+| `U_RINGBUFFER_DEFINE(name, size, type)` | ESP ring buffer | a NOSPLIT / ALLOWSPLIT size is a multiple of 4 (`_Static_assert` in the macro) |
 | `U_STREAM_BUFFER_DEFINE`, `U_MESSAGE_BUFFER_DEFINE` | stream / message buffer | usable capacity is **size − 1** (open fix 4) |
 | `U_EVENT_GROUP_DEFINE`, `U_TIMER_DEFINE`, `U_SPINLOCK_DEFINE` | event group, software timer, spinlock | `U_EVENT_*`, `U_TIMER_*`, `U_CRITICAL_*` |
 | `U_TASK_DEFINE(name, stack)` + `U_TASK_START[_ON_CORE]` | task (stack + TCB static) | the stack size is in **bytes** (`StackType_t` is `uint8_t` on ESP-IDF); the task starts only at `U_TASK_START` |
@@ -36,7 +36,6 @@ How the macros work:
 | 2 | `U_TASK_START` doesn't check whether the task already runs | Put the `if (name == NULL)` guard inside the macro |
 | 3 | `U_TASK_DEFINE(name, stack_words)`: the value is bytes on ESP-IDF | Rename the parameter to `stack_bytes` |
 | 4 | Static stream / message buffers hold `size − 1` bytes | Allocate and pass `size + 1` |
-| 7 | `U_RINGBUFFER_DEFINE` doesn't check that the size is 4-aligned | `_Static_assert((buffer_size) % 4 == 0, ...)` |
 | 8 | `U_QUEUE_SEND_ISR` ignores a full queue | Return the send result |
 
 Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`) and `esp32s3_gpio_adc.c` (`U_TASK_DEFINE(adc_processing_task, 4096)`) hard-code their stack sizes: move them to Kconfig.

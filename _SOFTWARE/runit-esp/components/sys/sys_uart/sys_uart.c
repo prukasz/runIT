@@ -90,7 +90,6 @@ static const router_link_t k_link = {
 };
 
 static const sys_connector_provider_t k_provider = {
-    .name = "uart",
     .send = provider_send,
     .max_frame = NULL,  // CONFIG_SYS_CONNECTOR_FRAME_MAX
 };

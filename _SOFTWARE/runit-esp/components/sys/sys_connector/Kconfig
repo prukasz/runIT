@@ -5,8 +5,8 @@ menu "sys_connector"
         default 8
         range 5 32
         help
-          Registry slots: 4 system connectors (logs, errors, telemetry,
-          events) and user connectors from SYS_CONNECTOR_APP_BASE (4).
+          Registry slots: the 4 system connectors (logs, errors, telemetry,
+          events) and the user connectors.
 
     config SYS_CONNECTOR_BINDINGS
         int "Bindings per connector"
@@ -25,16 +25,16 @@ menu "sys_connector"
         default 512
         range 64 4096
         help
-          Largest frame (stream byte included) a connector sends. Static
-          buffer of this size in the connector task.
+          Largest frame (connector byte included) a connector sends.
 
     config SYS_CONNECTOR_QUEUE_SIZE
         int "Queue (bytes)"
-        default 4096
+        default 4608
         range 1024 32768
         help
-          Ring buffer of payloads waiting for the connector task; each takes
-          its length + ~12 bytes. A full queue drops sends. Multiple of 4.
+          Ring buffer of frames waiting for the connector task; each takes
+          its length + ~12 bytes, and the frame being sent keeps its room
+          until every binding has it. A full queue drops sends. Multiple of 4.
 
     config SYS_CONNECTOR_TASK_PRIO
         int "Task priority"

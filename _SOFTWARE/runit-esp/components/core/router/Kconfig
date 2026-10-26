@@ -10,6 +10,7 @@ menu "router"
           frame built (stream byte included). A link may report a smaller
           limit at runtime (BLE MTU).
 
+    #@limit @alias Response stream byte
     config ROUTER_RESPONSE_STREAM
         hex "Response stream byte"
         default 0x05
