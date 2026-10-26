@@ -54,17 +54,18 @@ err_h router_link_register(uint8_t link_id, const router_link_t* link) {
   return NULL;
 }
 
+const router_link_t* router_link_get(uint8_t link_id) {
+  return link_id > 0 && link_id <= CONFIG_ROUTER_MAX_LINKS ? s_dispatch.links[link_id] : NULL;
+}
+
 // A registered link, or the internal one for ROUTER_LINK_INTERNAL.
 static const router_link_t* link_get(uint8_t link_id) {
-  if (link_id == ROUTER_LINK_INTERNAL) {
-    return &k_internal_link;
-  }
-  return link_id <= CONFIG_ROUTER_MAX_LINKS ? s_dispatch.links[link_id] : NULL;
+  return link_id == ROUTER_LINK_INTERNAL ? &k_internal_link : router_link_get(link_id);
 }
 
 // Response frame size the link carries right now, at most `buf_size`.
 static uint32_t link_cap(const router_link_t* link, uint32_t buf_size) {
-  uint32_t cap = link->max_frame != NULL ? link->max_frame() : CONFIG_ROUTER_FRAME_MAX;
+  uint32_t cap = link->max_frame != NULL ? link->max_frame(link->answer_endpoint) : CONFIG_ROUTER_FRAME_MAX;
   cap = cap < buf_size ? cap : buf_size;
   return cap > RESP_HDR_BYTES ? cap : RESP_HDR_BYTES;
 }
@@ -110,7 +111,7 @@ static void answer(const router_link_t* link, const err_cmd_t* cmd, err_h err, u
     data_len = err_record(cmd, err, resp + RESP_HDR_BYTES, cap - RESP_HDR_BYTES);
   }
   if (link->send != NULL) {
-    err_report(link->send(resp, RESP_HDR_BYTES + data_len));
+    err_report(link->send(link->answer_endpoint, resp, RESP_HDR_BYTES + data_len, true));
   }
   if (err != NULL) {
     report_cmd_error(cmd, err);

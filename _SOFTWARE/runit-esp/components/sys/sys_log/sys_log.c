@@ -14,7 +14,6 @@ _Static_assert(CONFIG_LOG_DEFAULT_LEVEL <= LEVEL_MAX, "the default log level is 
 // The state, zero at the start (.bss).
 static struct {
   vprintf_like_t console;  // what ESP_LOG wrote to before the hook
-  uint8_t conn;            // the logs connector
   /* The error history: a ring of the latest records, written by whoever reports (any task) and read by the router.
    * A critical section (s_log_preset.history_lock) keeps a record whole; it holds a copy of at most
    * SYS_LOG_RECORD_MAX bytes, never a report. */
@@ -68,7 +67,7 @@ static int log_vprintf(const char* fmt, va_list args) {
       size_t len = (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1;
       len = clean_line(line, len);
       if (len > 0) {
-        err_free(sys_connector_send(s_log.conn, line, (uint32_t)len));  // dropped, not reported: would log
+        err_free(sys_connector_send(SYS_CONNECTOR_LOGS, line, (uint32_t)len));  // dropped, not reported: would log
       }
     }
   }
@@ -81,9 +80,7 @@ static void apply(void) {
   esp_log_level_set("*", (esp_log_level_t)s_log_preset.cfg.level);
 }
 
-err_h sys_log_init(uint8_t connector) {
-  ERR_CHECK(sys_connector_exists(connector), ERR_CONN_NOT_FOUND, .connector = connector);
-  s_log.conn = connector;
+err_h sys_log_init(void) {
   if (s_log.console == NULL) {
     s_log.console = esp_log_set_vprintf(log_vprintf);
   }

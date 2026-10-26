@@ -31,14 +31,14 @@ Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror on, trac
 
 ## The hook
 
-`sys_log_init(connector)` installs `esp_log_set_vprintf` (log version 1: one `vprintf` per line). Per line:
+`sys_log_init()` installs `esp_log_set_vprintf` (log version 1: one `vprintf` per line). Per line:
 
 1. The console, if `mirror_serial`.
 2. A copy to the logs connector, if `send_logs`, but not from an ISR, not before the scheduler runs, and not from the connector task itself (its own logs would loop). The copy has no ANSI colour sequences and no line end, and is cut to `SYS_LOG_LINE_MAX`. The line is formatted on the logging task's stack. `sys_connector_send` never blocks: a full queue drops the line, silently.
 
 ## Boot
 
-`streams` (connector, error sink) → `log` (`sys_log_init(SYS_CONNECTOR_LOGS)`: the hook, then the defaults). Lines logged between `streams` and `log` go to the console only. Boot steps: runit.c.
+`streams` (connector, error sink) → `log` (`sys_log_init()`: the hook, then the defaults). Lines logged between `streams` and `log` go to the console only. Boot steps: runit.c.
 
 ## Remote (`ROUTER_KEY_LOG` = 0x08)
 

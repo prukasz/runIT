@@ -6,8 +6,8 @@
 #include "sys_ble_priv.h"
 #include "sys_connector.h"
 
-#define LINK_SEND_WAIT_MS     100u     // answer waits this long for TX buffer space
-#define PROVIDER_SEND_WAIT_MS 20u  // stream frame (connector task) waits this long
+#define ANSWER_WAIT_MS 100u  // a router answer waits this long for TX buffer space
+#define STREAM_WAIT_MS 20u   // a stream frame (connector task) waits this long
 #define TX_FRAMES             4u            // frames the TX / LOGS buffers hold
 #define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer
 
@@ -64,39 +64,23 @@ static void on_conn(bool connected, int32_t reason) {
 }
 
 /* ----------------------------------------------------------------------------
- * TX: router link
+ * TX: the link - endpoint = characteristic UUID: answers go to TX, a stream to
+ * any characteristic (LOGS, TX, or a user one a program streams on)
  * ------------------------------------------------------------------------- */
 
-static err_h link_send(const uint8_t* frame, uint32_t len) {
-  return sys_ble_char_send(SYS_BLE_CHR_RUNIT_TX, frame, len, LINK_SEND_WAIT_MS);
+static err_h link_send(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer) {
+  ERR_CHECK(endpoint <= UINT16_MAX, ERR_BLE_NOT_FOUND, .uuid = 0);
+  return sys_ble_char_send((uint16_t)endpoint, frame, len, answer ? ANSWER_WAIT_MS : STREAM_WAIT_MS);
 }
 
-static uint32_t link_max_frame(void) {
-  return (uint32_t)sys_ble_char_max_payload(SYS_BLE_CHR_RUNIT_TX);
+static uint32_t link_max_frame(uint32_t endpoint) {
+  return endpoint <= UINT16_MAX ? (uint32_t)sys_ble_char_max_payload((uint16_t)endpoint) : 0;
 }
 
 static const router_link_t k_link = {
     .send = link_send,
     .max_frame = link_max_frame,
-};
-
-/* ----------------------------------------------------------------------------
- * TX: connector provider - endpoint = characteristic UUID, so a stream can go
- * to any characteristic (LOGS, TX, or a user one a program streams on)
- * ------------------------------------------------------------------------- */
-
-static err_h provider_send(uint32_t endpoint, const uint8_t* frame, uint32_t len) {
-  ERR_CHECK(endpoint <= UINT16_MAX, ERR_BLE_NOT_FOUND, .uuid = 0);
-  return sys_ble_char_send((uint16_t)endpoint, frame, len, PROVIDER_SEND_WAIT_MS);
-}
-
-static uint32_t provider_max_frame(uint32_t endpoint) {
-  return endpoint <= UINT16_MAX ? (uint32_t)sys_ble_char_max_payload((uint16_t)endpoint) : 0;
-}
-
-static const sys_connector_provider_t k_provider = {
-    .send = provider_send,
-    .max_frame = provider_max_frame,
+    .answer_endpoint = SYS_BLE_CHR_RUNIT_TX,
 };
 
 /* ----------------------------------------------------------------------------
@@ -138,6 +122,5 @@ err_h sys_ble_link_init(void) {
   ERR_TRY(sys_ble_char_set_rx_handler(SYS_BLE_CHR_RUNIT_RX, rx_packet, NULL));
   ERR_TRY(sys_ble_add_conn_listener(on_conn));
   ERR_TRY(router_link_register(TRANSPORT_BLE, &k_link));
-  ERR_TRY(sys_connector_register_provider(TRANSPORT_BLE, &k_provider));
   return NULL;
 }

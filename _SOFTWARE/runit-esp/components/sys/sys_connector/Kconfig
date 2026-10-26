@@ -13,13 +13,6 @@ menu "sys_connector"
         default 3
         range 1 8
 
-    config SYS_CONNECTOR_PROVIDERS_MAX
-        int "Highest provider ID"
-        default 4
-        range 2 16
-        help
-          Providers register under their transport ID 1..this.
-
     config SYS_CONNECTOR_FRAME_MAX
         int "Largest frame (bytes)"
         default 512

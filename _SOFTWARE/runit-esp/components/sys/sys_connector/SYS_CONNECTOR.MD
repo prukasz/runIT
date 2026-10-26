@@ -17,7 +17,8 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 
 | File | Role |
 |---|---|
-| `sys_connector.h` | Provider ops, API (includes `sys_connector_config.h`) |
+| `sys_connector.h` | The API for the rest of the firmware: init, bind, send, max payload, is-task (includes `sys_connector_config.h`) |
+| `internal/sys_connector_internal.h` | What only the component's router uses: create, remove, unbind, suspend, the state for INFO (`PRIV_INCLUDE_DIRS`) |
 | `config/sys_connector_config.h` | Transport IDs (`transport_e`), the system connectors (`SYS_CONNECTOR_*`, group `connector`; the router's answer byte is `CONFIG_ROUTER_RESPONSE_STREAM`): `//#ref-enum` / `//#ref-defines`, wire format |
 | `errors/sys_connector_errors.h` | `ERR_SYS_CONNECTOR_MAP`, the module's error tags (included by `sys_connector.h`) |
 | `errors/sys_connector_errors.c` | `ERR_MODULE_DEFINE`: the tags registered (the component is linked `WHOLE_ARCHIVE`, since nothing references this file) |
@@ -29,7 +30,7 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 ## Model
 
 - **Connectors**: a connector is one byte, the only number it has, and every frame it sends starts with it. System (created by `sys_connector_init`, flag `system`): `SYS_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04, `_EVENTS` 0x06 (SYS_EVENT.MD notify records). A user connector (CREATE) takes any other byte except the router's answer byte (`CONFIG_ROUTER_RESPONSE_STREAM`, 0x05 by default: `ERR_CONN_BAD_ARG`); a byte that has a connector already: `ERR_CONN_EXISTS`. One byte, one connector, so a receiver always tells the streams apart. The registry is an array of `CONFIG_SYS_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the four system ones included; a CREATE with none free: `ERR_CONN_FULL`.
-- **Providers** register under their **transport ID** (`transport_e` in `sys_connector_config.h`: `TRANSPORT_UART` 1, `TRANSPORT_BLE` 2; 3 is kept for MQTT over Wi-Fi, listed once it has a provider, since the app offers every listed transport) — the same ID as the transport's router link. Ops: `send(endpoint, frame, len)`, optional `max_frame(endpoint)`. UART endpoint 0 (`SYS_UART_ENDPOINT`); BLE endpoint = characteristic UUID (any characteristic of the BLE link).
+- **Providers** are the router's links (ROUTER.MD): a transport registers once, `router_link_register(TRANSPORT_…, &link)`, and a binding names it by its **transport ID** (`transport_e` in `sys_connector_config.h`: `TRANSPORT_UART` 1, `TRANSPORT_BLE` 2; 3 is kept for MQTT over Wi-Fi, listed once it has a provider, since the app offers every listed transport). The connector calls the link's `send(endpoint, frame, len, false)` and `max_frame(endpoint)`. UART endpoint 0 (`SYS_UART_ENDPOINT`); BLE endpoint = characteristic UUID (any characteristic of the BLE link).
 - **Frame cap**: one cap for every connector, `CONFIG_SYS_CONNECTOR_FRAME_MAX`. A provider's `max_frame` can lower it per endpoint; there is no per-connector cap.
 - **Bindings**: up to `CONFIG_SYS_CONNECTOR_BINDINGS` per connector, one per provider (binding again re-addresses).
 - **System connectors**: can't be removed and keep their last binding (`ERR_CONN_PROTECTED`; bind the new one first). Suspending them is allowed (free a slow link).
@@ -47,13 +48,13 @@ Component `components/sys/sys_connector/`. A **connector** is a logical outbound
 
 ## Adding a transport
 
-A transport is a router link and a connector provider under one ID (`transport_e`, `sys_connector_config.h`). Its provider side is one `sys_connector_provider_t`:
+A transport is one `router_link_t` (ROUTER.MD), registered once with `router_link_register(TRANSPORT_…, &link)`: the router sends its answers through it, the connectors their streams.
 
-- `send(endpoint, frame, len)`: hands one frame (stream byte included) to the transport's own TX queue and returns; the transport's own task puts it on the wire (UART: its TX task; BLE: the characteristic's TX buffer and the BLE task). It never waits for the line itself, only for room in that queue, bounded (UART 1 s, BLE 20 ms): a full queue holds this task, so its own queue fills and producers are refused rather than frames lost unseen. Runs only on the connector task.
-- `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for `CONFIG_SYS_CONNECTOR_FRAME_MAX`. Asked by `sys_connector_max_payload`, which any task may call except one holding this transport's lock.
-- `endpoint` is the transport's own address: UART uses `SYS_UART_ENDPOINT` (0), BLE uses the characteristic UUID (`SYS_BLE_CHR_RUNIT_TX`, `SYS_BLE_CHR_RUNIT_LOGS`, or a user one).
+- `send(endpoint, frame, len, answer)`: hands one frame to the transport's own TX queue and returns; the transport's own task puts it on the wire (UART: its TX task; BLE: the characteristic's TX buffer and the BLE task). It never waits for the line itself, only for room in that queue, bounded (UART 1 s; BLE 100 ms for an answer, 20 ms for a stream frame, `answer` false): a full queue holds the connector task, so its own queue fills and producers are refused rather than frames lost unseen.
+- `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for no limit of its own (the connector's `CONFIG_SYS_CONNECTOR_FRAME_MAX`). Asked by `sys_connector_max_payload`, which any task may call except one holding this transport's lock.
+- `endpoint` is the transport's own address: UART uses `SYS_UART_ENDPOINT` (0), BLE uses the characteristic UUID (`SYS_BLE_CHR_RUNIT_TX`, `SYS_BLE_CHR_RUNIT_LOGS`, or a user one); `answer_endpoint` is where the router's answers go.
 
-Register it at boot with `sys_connector_register_provider(TRANSPORT_…, &provider)`, before the bindings. The ID must be in `1..CONFIG_SYS_CONNECTOR_PROVIDERS_MAX`; a new transport gets its ID in `transport_e`, and the `transport_e` change goes through `templates/` (AGENTS.md). Then bind connectors to it with `sys_connector_bind`.
+A new transport gets its ID in `transport_e` (within `1..CONFIG_ROUTER_MAX_LINKS`), and the `transport_e` change goes through `templates/` (AGENTS.md). Then bind connectors to it with `sys_connector_bind`.
 
 ## Limits
 
@@ -61,14 +62,13 @@ Register it at boot with `sys_connector_register_provider(TRANSPORT_…, &provid
 |---|---|---|
 | `CONFIG_SYS_CONNECTOR_MAX` | 8 | connector slots, the 4 system ones included |
 | `CONFIG_SYS_CONNECTOR_BINDINGS` | 3 | bindings per connector |
-| `CONFIG_SYS_CONNECTOR_PROVIDERS_MAX` | 4 | provider IDs |
 | `CONFIG_SYS_CONNECTOR_FRAME_MAX` | 512 | largest frame, stream byte included |
 | `CONFIG_SYS_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every binding has it |
 | `CONFIG_SYS_CONNECTOR_TASK_PRIO` / `_STACK` | 4 / 4096 | the connector task |
 
 ## Diagnostics
 
-`sys_connector_list(out)` copies every connector's state (`sys_connector_info_t`: the connector, its flags and bindings) under one lock: the router's INFO (below), which the app reads to bring the board's streams to the project's. `sys_connector_exists(connector)` only says whether it exists.
+`sys_connector_list(out)` copies every connector's state (`sys_connector_info_t`: the connector, its flags and bindings) under one lock: the router's INFO (below), which the app reads to bring the board's streams to the project's.
 
 ## Errors stream
 
@@ -78,7 +78,7 @@ The errors stream does not suppress repeats: every record is sent.
 
 ## Logs stream
 
-Filled by `sys_log` (SYS_LOG.MD, `sys_log_init(SYS_CONNECTOR_LOGS)`), which owns the ESP_LOG hook and the line buffer `CONFIG_SYS_LOG_LINE_MAX`. The connector only exports `sys_connector_is_task()` so the hook can skip the connector task's own lines.
+Filled by `sys_log` (SYS_LOG.MD, `sys_log_init()`, on `SYS_CONNECTOR_LOGS`), which owns the ESP_LOG hook and the line buffer `CONFIG_SYS_LOG_LINE_MAX`. The connector only exports `sys_connector_is_task()` so the hook can skip the connector task's own lines.
 
 ## Remote (`sys_connector_router`, root key `ROUTER_KEY_CONN` = 0x04)
 

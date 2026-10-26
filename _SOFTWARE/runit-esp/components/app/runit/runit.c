@@ -76,7 +76,7 @@ static err_h streams_init(void) {
 
 // ESP_LOG to the console and the logs connector, with the stored options.
 static err_h log_init(void) {
-  return sys_log_init(SYS_CONNECTOR_LOGS);
+  return sys_log_init();
 }
 
 static err_h router_setup(void) {

@@ -12,7 +12,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
-| `link/sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (router link and connector provider) |
+| `link/sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (the router link, also the connectors' provider) |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Name, appearance, BLE task, TX item limit, apply delay, connection listeners |
@@ -20,7 +20,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 
 ## Boot
 
-`ble link` (`sys_ble_link_init`) builds the runIT service and registers the router link and the connector provider. It runs after `router` and before `stream bindings`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `system devices`. Boot steps: `components/app/runit/runit.c`.
+`ble link` (`sys_ble_link_init`) builds the runIT service and registers the router link. It runs after `router` and before `stream bindings`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `system devices`. Boot steps: `components/app/runit/runit.c`.
 
 ## The GATT table
 
@@ -51,7 +51,7 @@ single-packet frame: C0 <frame>
 
 ## Connector provider
 
-`sys_ble_link_init` registers `TRANSPORT_BLE` as a connector provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, `send` = `sys_ble_char_send(uuid, frame, 20 ms)`, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`components/app/runit/runit_board_cfg.c`): logs and errors → LOGS 0xFFE3; telemetry and events → TX 0xFFE1. A user connector can be bound to any user characteristic with TX. No VM block writes to a characteristic yet.
+`TRANSPORT_BLE` is one router link (`sys_ble_link_init`), which the connectors use as their provider (SYS_CONNECTOR.MD): **endpoint = characteristic UUID**, answers to TX (`answer_endpoint`), `send` = `sys_ble_char_send(uuid, frame, 100 ms for an answer, 20 ms for a stream frame)`, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`components/app/runit/runit_board_cfg.c`): logs and errors → LOGS 0xFFE3; telemetry and events → TX 0xFFE1. A user connector can be bound to any user characteristic with TX. No VM block writes to a characteristic yet.
 
 ## Data paths
 

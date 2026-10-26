@@ -1,7 +1,7 @@
 #include "sys_connector_router.h"
 
 #include "sdkconfig.h"
-#include "sys_connector.h"
+#include "sys_connector_internal.h"
 
 /*   key  op        request                                       response
  *   0x01 CREATE    { u8 connector }                              -

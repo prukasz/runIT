@@ -73,25 +73,18 @@ static void tx_task(void* arg) {
   }
 }
 
-static err_h link_send(const uint8_t* frame, uint32_t len) {
-  return queue_line(frame, len, MSEC(SEND_WAIT_MS));
-}
-
-// The connector's `endpoint` is the one address a UART has, SYS_UART_ENDPOINT: a connector bound elsewhere is refused
-// instead of writing to the wrong place.
-static err_h provider_send(uint32_t endpoint, const uint8_t* frame, uint32_t len) {
+// The one address a UART has is SYS_UART_ENDPOINT: a connector bound elsewhere is refused instead of writing to the
+// wrong place. Answers and streams wait alike.
+static err_h link_send(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer) {
+  (void)answer;
   ERR_CHECK(endpoint == SYS_UART_ENDPOINT, ERR_UART_BAD_ENDPOINT, .endpoint = endpoint);
   return queue_line(frame, len, MSEC(SEND_WAIT_MS));
 }
 
 static const router_link_t k_link = {
     .send = link_send,
-    .max_frame = NULL,  // CONFIG_ROUTER_FRAME_MAX
-};
-
-static const sys_connector_provider_t k_provider = {
-    .send = provider_send,
-    .max_frame = NULL,  // CONFIG_SYS_CONNECTOR_FRAME_MAX
+    .max_frame = NULL,  // the router's / connector's frame max
+    .answer_endpoint = SYS_UART_ENDPOINT,
 };
 
 /* ----------------------------------------------------------------------------
@@ -194,7 +187,6 @@ err_h sys_uart_init(void) {
   }
 #endif
   ERR_TRY(router_link_register(TRANSPORT_UART, &k_link));
-  ERR_TRY(sys_connector_register_provider(TRANSPORT_UART, &k_provider));
   if (sys_uart_tx_task_h == NULL) {
     U_TASK_START(sys_uart_tx_task_h, tx_task, NULL, CONFIG_SYS_UART_TX_TASK_PRIO);
   }

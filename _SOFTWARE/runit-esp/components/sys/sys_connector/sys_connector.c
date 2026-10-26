@@ -1,5 +1,6 @@
-#include "sys_connector.h"
+#include "router.h"
 #include "sdkconfig.h"
+#include "sys_connector_internal.h"
 #include "utils.h"
 
 #define CONN_BYTE 1u  // a frame is [connector][payload]: the payload is the frame less this byte
@@ -13,8 +14,7 @@ U_TASK_DEFINE(sys_connector_task_h, CONFIG_SYS_CONNECTOR_TASK_STACK);
 static struct {
   sys_connector_info_t conns[CONFIG_SYS_CONNECTOR_MAX];  // conns[0..count-1]: the connectors, in no order
   uint8_t count;
-  const sys_connector_provider_t* providers[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // index = ID
-  bool failing[CONFIG_SYS_CONNECTOR_PROVIDERS_MAX + 1];  // task only: the provider's last send failed (logged once)
+  bool failing[CONFIG_ROUTER_MAX_LINKS + 1];  // task only, by provider: its last send failed (logged once)
 } s_conn;
 
 #define LOCK() U_MUTEX_LOCK(sys_connector_mutex, WAIT_FOREVER)
@@ -27,23 +27,6 @@ bool sys_connector_is_task(void) {
 /* ----------------------------------------------------------------------------
  * Registry
  * ------------------------------------------------------------------------- */
-
-static bool provider_id_ok(uint8_t provider_id) {
-  return provider_id > 0 && provider_id <= CONFIG_SYS_CONNECTOR_PROVIDERS_MAX;
-}
-
-err_h sys_connector_register_provider(uint8_t provider_id, const sys_connector_provider_t* provider) {
-  ERR_CHECK(provider != NULL && provider->send != NULL, ERR_CONN_BAD_ARG);
-  ERR_CHECK(provider_id_ok(provider_id), ERR_CONN_NO_PROVIDER, .provider = provider_id);
-  LOCK();
-  bool slot_free = s_conn.providers[provider_id] == NULL;
-  if (slot_free) {
-    s_conn.providers[provider_id] = provider;
-  }
-  UNLOCK();
-  ERR_CHECK(slot_free, ERR_CONN_NO_PROVIDER, .provider = provider_id);
-  return NULL;
-}
 
 /* `connector`, NULL when it does not exist. Under the lock. */
 static sys_connector_info_t* find(uint8_t connector) {
@@ -131,8 +114,7 @@ static int find_binding(const sys_connector_info_t* c, uint8_t provider_id) {
 }
 
 err_h sys_connector_bind(uint8_t connector, uint8_t provider_id, uint32_t endpoint) {
-  ERR_CHECK(provider_id_ok(provider_id) && s_conn.providers[provider_id] != NULL, ERR_CONN_NO_PROVIDER,
-            .provider = provider_id);
+  ERR_CHECK(router_link_get(provider_id) != NULL, ERR_CONN_NO_PROVIDER, .provider = provider_id);
   sys_connector_info_t* c;
   ERR_TRY(lock_conn(connector, &c));
   int i = find_binding(c, provider_id);
@@ -169,13 +151,6 @@ err_h sys_connector_set_suspended(uint8_t connector, bool suspended) {
   return NULL;
 }
 
-bool sys_connector_exists(uint8_t connector) {
-  LOCK();
-  bool exists = find(connector) != NULL;
-  UNLOCK();
-  return exists;
-}
-
 uint8_t sys_connector_list(sys_connector_info_t out[CONFIG_SYS_CONNECTOR_MAX]) {
   LOCK();
   uint8_t count = s_conn.count;
@@ -188,9 +163,10 @@ uint8_t sys_connector_list(sys_connector_info_t out[CONFIG_SYS_CONNECTOR_MAX]) {
  * Data
  * ------------------------------------------------------------------------- */
 
-/* The largest frame (connector byte included) the binding takes now, at most CONFIG_SYS_CONNECTOR_FRAME_MAX. */
+/* The largest frame (connector byte included) the binding takes now, at most CONFIG_SYS_CONNECTOR_FRAME_MAX. Links
+ * are never removed, so a bound provider exists. */
 static uint32_t provider_frame_max(uint8_t provider_id, uint32_t endpoint) {
-  const sys_connector_provider_t* p = s_conn.providers[provider_id];
+  const router_link_t* p = router_link_get(provider_id);
   uint32_t max = p->max_frame != NULL ? p->max_frame(endpoint) : CONFIG_SYS_CONNECTOR_FRAME_MAX;
   return max < CONFIG_SYS_CONNECTOR_FRAME_MAX ? max : CONFIG_SYS_CONNECTOR_FRAME_MAX;
 }
@@ -249,7 +225,7 @@ static void deliver(const uint8_t* frame, uint32_t len) {
       err = ERR_NEW(ERR_CONN_TOO_LONG, .connector = c.connector, .provider = pid, .len = (uint16_t)len,
                     .max = (uint16_t)max);
     } else {
-      err = s_conn.providers[pid]->send(c.bindings[i].endpoint, frame, len);
+      err = router_link_get(pid)->send(c.bindings[i].endpoint, frame, len, false);
       if (err != NULL) {
         err = ERR_WRAP(err, ERR_CONN_SEND, .connector = c.connector, .provider = pid,
                        .endpoint = c.bindings[i].endpoint);

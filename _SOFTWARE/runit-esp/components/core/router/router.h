@@ -144,18 +144,28 @@ MUST_USE err_h router_route(const uint8_t* in, uint32_t in_len, uint8_t* out, ui
 MUST_USE err_h router_init(void);
 
 /* ----------------------------------------------------------------------------
- * Links. One client per link.
+ * Links: the transports (UART, BLE, ...), registered once. The router sends its answers to `answer_endpoint`; the
+ * data connectors (sys_connector) send their streams through the same link to the endpoints they are bound to.
  * ------------------------------------------------------------------------- */
 
 typedef struct {
-  /** Sends one response frame to the link's client. Both router tasks call it. NULL only for the internal link. */
-  MUST_USE err_h (*send)(const uint8_t* frame, uint32_t len);
-  /** Largest frame the link carries right now; NULL = CONFIG_ROUTER_FRAME_MAX. */
-  uint32_t (*max_frame)(void);
+  /**
+   * Sends one frame to `endpoint` (the transport's own address: BLE characteristic UUID, UART 0). `answer`: a router
+   * answer, which may wait longer for room than a stream frame (the transport decides how long). The router tasks and
+   * the connector task call it. NULL only for the internal link.
+   */
+  MUST_USE err_h (*send)(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer);
+  /** Largest frame `endpoint` carries right now; NULL = no limit of its own (the caller's frame max). */
+  uint32_t (*max_frame)(uint32_t endpoint);
+  /** Where the router's answers go. */
+  uint32_t answer_endpoint;
 } router_link_t;
 
 /** @brief Registers a link under its ID (transport_e). Boot only; links are never removed. */
 MUST_USE err_h router_link_register(uint8_t link_id, const router_link_t* link);
+
+/** @brief The link registered under `link_id` (1..CONFIG_ROUTER_MAX_LINKS), NULL when there is none. */
+const router_link_t* router_link_get(uint8_t link_id);
 
 /**
  * @brief Queues one request frame from a link (copied). The link's task, not an ISR. A frame that can't be queued

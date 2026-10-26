@@ -18,7 +18,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | Step | Does |
 |---|---|
 | streams | `sys_connector_init`, then `runit_error_wiring_init` (fault handlers, error sink) |
-| log | `sys_log_init(SYS_CONNECTOR_LOGS)`: the ESP_LOG hook with the stored options |
+| log | `sys_log_init()`: the ESP_LOG hook on the logs connector, with the stored options |
 | actions, events | `sys_actions_init`, `sys_event_init` |
 | onboard actions | `runit_onboard_actions_init` (below) |
 | power | `runit_board_power_init`: `sys_power_manager_init` with the board's layout (`runit_board_cfg.c`, IDs and limits in `runit_board_defs.h`; a devkit: no rails, monitor or sink, only the USB limits) and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
