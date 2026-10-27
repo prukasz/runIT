@@ -1,6 +1,6 @@
-menu "sys_connector"
+menu "sys_data_connector"
 
-    config SYS_CONNECTOR_MAX
+    config SYS_DATA_CONNECTOR_MAX
         int "Connectors"
         default 8
         range 5 32
@@ -8,19 +8,19 @@ menu "sys_connector"
           Registry slots: the 4 system connectors (logs, errors, telemetry,
           events) and the user connectors.
 
-    config SYS_CONNECTOR_BINDINGS
+    config SYS_DATA_CONNECTOR_BINDINGS
         int "Bindings per connector"
         default 3
         range 1 8
 
-    config SYS_CONNECTOR_FRAME_MAX
+    config SYS_DATA_CONNECTOR_FRAME_MAX
         int "Largest frame (bytes)"
         default 512
         range 64 4096
         help
           Largest frame (connector byte included) a connector sends.
 
-    config SYS_CONNECTOR_QUEUE_SIZE
+    config SYS_DATA_CONNECTOR_QUEUE_SIZE
         int "Queue (bytes)"
         default 4608
         range 1024 32768
@@ -29,14 +29,14 @@ menu "sys_connector"
           its length + ~12 bytes, and the frame being sent keeps its room
           until every binding has it. A full queue drops sends. Multiple of 4.
 
-    config SYS_CONNECTOR_TASK_PRIO
+    config SYS_DATA_CONNECTOR_TASK_PRIO
         int "Task priority"
         default 4
         range 1 24
         help
           Below the router tasks: streams wait, commands don't.
 
-    config SYS_CONNECTOR_TASK_STACK
+    config SYS_DATA_CONNECTOR_TASK_STACK
         int "Task stack (bytes)"
         default 4096
         range 2048 32768

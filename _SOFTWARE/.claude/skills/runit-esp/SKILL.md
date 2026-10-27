@@ -31,7 +31,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | core | `core/time` | `TIME.MD` | the board's clock (`board_time_*`): set by a client, UTC once set, the uptime; everything that needs the time takes it from here |
 | core | `core/cmd` | `CMD.MD` | the command handler type, the direction (read / write sides, the mirror), `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
 | core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, watch |
-| sys | `sys/sys_connector` | `SYS_CONNECTOR.MD` | outbound streams (connectors), their bindings to the router links (`transport_e`) |
+| sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | outbound streams (connectors), their bindings to the router links (`transport_e`) |
 | sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console command link; BLE (GATT, MTU, fragment framing) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |

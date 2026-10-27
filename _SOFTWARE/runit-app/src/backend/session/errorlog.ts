@@ -8,7 +8,7 @@ import type { RunitLink } from './link'
 /*
  * The errors of a board, kept for a user: what came on the errors stream (the board's error history: every reported chain,
  * internal ones too) and what came back as ERROR answers. The board does not suppress repeats and sends a command's error
- * both as the answer and on the stream (SYS_CONNECTOR.MD "Errors stream"), so:
+ * both as the answer and on the stream (SYS_DATA_CONNECTOR.MD "Errors stream"), so:
  *
  *   - the same record twice (the same command: link and seq, and the same chain) within `duplicateMs` is one;
  *   - the same error again (the same chain, `ErrorReport.key`) is the same entry: its count and time go up and it is unread

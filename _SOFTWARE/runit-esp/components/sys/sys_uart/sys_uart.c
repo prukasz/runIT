@@ -3,7 +3,7 @@
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
 #include "router.h"
-#include "sys_connector.h"
+#include "sys_data_connector.h"
 #include "sdkconfig.h"
 
 #define USB_JTAG (CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG || CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG)

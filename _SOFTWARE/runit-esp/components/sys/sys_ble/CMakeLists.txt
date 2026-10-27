@@ -4,5 +4,5 @@ idf_component_register(
     SRCS "core/sys_ble.c" "core/sys_ble_stack.c" "link/sys_ble_link.c" "router/sys_ble_router.c"
     INCLUDE_DIRS "core" "link" "router" "errors"
     REQUIRES errors bt
-    PRIV_REQUIRES cmd router utils log nvs_flash esp_ringbuf sys_connector
+    PRIV_REQUIRES cmd router utils log nvs_flash esp_ringbuf sys_data_connector
 )

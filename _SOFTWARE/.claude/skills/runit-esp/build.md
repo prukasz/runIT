@@ -61,7 +61,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
+Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_data_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 

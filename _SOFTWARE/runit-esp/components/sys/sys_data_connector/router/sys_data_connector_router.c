@@ -1,7 +1,7 @@
-#include "sys_connector_router.h"
+#include "sys_data_connector_router.h"
 
 #include "sdkconfig.h"
-#include "sys_connector_internal.h"
+#include "sys_data_connector_internal.h"
 
 /*   key  op        request                                       response
  *   0x01 CREATE    { u8 connector }                              -
@@ -42,36 +42,36 @@ typedef struct __attribute__((packed)) {
 } unbind_t;
 
 ROUTER_OP(op_create, connector_t) {
-  return sys_connector_create(args->connector);
+  return sys_data_connector_create(args->connector);
 }
 
 ROUTER_OP(op_remove, connector_t) {
-  return sys_connector_remove(args->connector);
+  return sys_data_connector_remove(args->connector);
 }
 
 ROUTER_OP(op_bind, bind_t) {
-  return sys_connector_bind(args->connector, args->provider, args->endpoint);
+  return sys_data_connector_bind(args->connector, args->provider, args->endpoint);
 }
 
 ROUTER_OP(op_unbind, unbind_t) {
-  return sys_connector_unbind(args->connector, args->provider);
+  return sys_data_connector_unbind(args->connector, args->provider);
 }
 
 ROUTER_OP(op_suspend, connector_t) {
-  return sys_connector_set_suspended(args->connector, true);
+  return sys_data_connector_set_suspended(args->connector, true);
 }
 
 ROUTER_OP(op_resume, connector_t) {
-  return sys_connector_set_suspended(args->connector, false);
+  return sys_data_connector_set_suspended(args->connector, false);
 }
 
 ROUTER_OP_NOARGS(op_info) {
   uint32_t pos = 1;  // out[0] = count, written last
   ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
-  sys_connector_info_t list[CONFIG_SYS_CONNECTOR_MAX];
-  uint8_t count = sys_connector_list(list);
+  sys_data_connector_info_t list[CONFIG_SYS_DATA_CONNECTOR_MAX];
+  uint8_t count = sys_data_connector_list(list);
   for (uint8_t n = 0; n < count; n++) {
-    const sys_connector_info_t* i = &list[n];
+    const sys_data_connector_info_t* i = &list[n];
     const uint8_t head[3] = {i->connector, (uint8_t)((i->system ? INFO_SYSTEM : 0) | (i->suspended ? INFO_SUSPENDED : 0)),
                              i->binding_count};
     ERR_TRY(cmd_append(out, out_cap, &pos, head, sizeof(head)));
@@ -95,4 +95,4 @@ static const router_op_t k_ops[] = {
     ROUTER_R(OP_INFO, op_info),
 };
 
-ROUTER_MODULE(sys_connector_router, k_ops)
+ROUTER_MODULE(sys_data_connector_router, k_ops)

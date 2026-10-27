@@ -12,7 +12,7 @@ idf_component_register(
          "retain/vm_retain.c"
          "router/vm_router.c"
     INCLUDE_DIRS "." "errors" "store" "obj" "block" "exec" "loader" "sub" "retain" "router"
-    REQUIRES errors utils cmd router freertos esp_timer esp_ringbuf sys_event sys_connector sys_actions
+    REQUIRES errors utils cmd router freertos esp_timer esp_ringbuf sys_event sys_data_connector sys_actions
     PRIV_REQUIRES log nvs_flash
     WHOLE_ARCHIVE
 )

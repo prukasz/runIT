@@ -33,7 +33,7 @@ ROUTER_MODULE_DECLARE(vm_router);
 
 /**
  * @brief Starts the VM: the event subscription, telemetry, retained values, the supervisor task (stopped until a
- * program starts it). Boot step, after sys_event_init, sys_connector_init and the router setup.
+ * program starts it). Boot step, after sys_event_init, sys_data_connector_init and the router setup.
  */
 MUST_USE err_h vm_init(void);
 

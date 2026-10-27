@@ -53,7 +53,7 @@ link RX task ── router_submit(link, frame) ──► copy into ring buffer
                                                          └─► router_route ─► answer ─► link->send
 ```
 
-- Links: `router_link_register(id, &{send, max_frame, answer_endpoint})` at boot, never removed; `router_link_get(id)` gives one. A link is a whole transport: the router sends its answers to `answer_endpoint` (`send(answer_endpoint, frame, len, true)`), the data connectors their streams to the endpoints they are bound to (SYS_CONNECTOR.MD). One client per link: the answer goes back to the link. `send` must be thread-safe (both router tasks and the connector task call it).
+- Links: `router_link_register(id, &{send, max_frame, answer_endpoint})` at boot, never removed; `router_link_get(id)` gives one. A link is a whole transport: the router sends its answers to `answer_endpoint` (`send(answer_endpoint, frame, len, true)`), the data connectors their streams to the endpoints they are bound to (SYS_DATA_CONNECTOR.MD). One client per link: the answer goes back to the link. `send` must be thread-safe (both router tasks and the connector task call it).
 - `router_submit` copies the frame into the ring buffer and never blocks. A frame that cannot be queued (bad length: `ERR_ROUTER_FRAME_LEN`, ring full: `ERR_ROUTER_QUEUE_FULL`) is answered with an error right away and reported with its command; `router_submit` then returns NULL.
 - Each task has its own static response buffer. Errors of routed frames are answered (error record) and reported with their command (log + errors stream).
 
@@ -92,7 +92,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x01` sys | `sys_system_router` | SYS_SYSTEM.MD (ping, stop, restart, dead-man, clock, safe state) |
 | `0x02` i2c | `sys_i2c_router` | SYS_I2C.MD "Remote" |
 | `0x03` ble | `sys_ble_router` | SYS_BLE.MD "Remote" |
-| `0x04` conn | `sys_connector_router` | SYS_CONNECTOR.MD "Remote" |
+| `0x04` conn | `sys_data_connector_router` | SYS_DATA_CONNECTOR.MD "Remote" |
 | `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[dir][id u16][op u16][args]` |
 | `0x06` actions | `sys_actions_router` | SYS_ACTIONS.MD |
 | `0x07` event | – (no router) | frame shape of the events stream: `[0x07][0x01 NOTIFY][sys_event_t]`, SYS_EVENT.MD |
@@ -112,7 +112,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 
 - `CONFIG_ROUTER_FRAME_MAX` (default 512 bytes): maximum frame length accepted and produced.
 - `CONFIG_ROUTER_MAX_KEYS` (default 16): maximum registered root keys.
-- `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4); the data connectors bind to the same links, and `sys_connector.c` checks at build time that every `transport_e` fits.
+- `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4); the data connectors bind to the same links, and `sys_data_connector.c` checks at build time that every `transport_e` fits.
 - Inbound ring buffers: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB).
 - Concurrency: urgent task (priority 15) and work task (priority 5) run concurrently; module routers must be thread-safe.
 

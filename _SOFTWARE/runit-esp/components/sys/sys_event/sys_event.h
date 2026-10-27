@@ -96,7 +96,7 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
  * C API
  * ------------------------------------------------------------------------- */
 
-/** @brief Starts the event task. Boot, after sys_connector_init (notify needs the events connector). */
+/** @brief Starts the event task. Boot, after sys_data_connector_init (notify needs the events connector). */
 MUST_USE err_h sys_event_init(void);
 
 /**

@@ -10,8 +10,8 @@
 #include "sys_ble.h"
 #include "sys_ble_link.h"
 #include "sys_ble_router.h"
-#include "sys_connector.h"
-#include "sys_connector_router.h"
+#include "sys_data_connector.h"
+#include "sys_data_connector_router.h"
 #include "sys_device.h"
 #include "sys_device_router.h"
 #include "sys_event.h"
@@ -70,7 +70,7 @@ static err_h mark_system_devices(void) {
 
 // The connectors, then the error policy and sink that send to them.
 static err_h streams_init(void) {
-  ERR_TRY(sys_connector_init());
+  ERR_TRY(sys_data_connector_init());
   return runit_error_wiring_init();
 }
 
@@ -83,7 +83,7 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_SYS, sys_system_router));
   ERR_TRY(router_register(ROUTER_KEY_I2C, sys_i2c_router));
   ERR_TRY(router_register(ROUTER_KEY_BLE, sys_ble_router));
-  ERR_TRY(router_register(ROUTER_KEY_CONN, sys_connector_router));
+  ERR_TRY(router_register(ROUTER_KEY_CONN, sys_data_connector_router));
   ERR_TRY(router_register(ROUTER_KEY_DEVICE, sys_device_router));
   ERR_TRY(router_register(ROUTER_KEY_ACTIONS, sys_actions_router));
   ERR_TRY(router_register(ROUTER_KEY_LOG, sys_log_router));

@@ -44,7 +44,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 - Compile-time checks: payload fits a node, no duplicate tag IDs. Registration asserts: tag belongs to the module, module ID is unique, and count fits `ERRORS_MAX_MODULES`.
 - Module IDs (`ERR_MOD_*`) are assigned only in `err_modules.h` (the list, in order; a new module takes the next number, none is renumbered or reused).
 - A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
-- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_connector`).
+- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_data_connector`).
 
 ## Creating and propagating
 
@@ -79,13 +79,13 @@ Rules:
 ## Reporting (end of a chain)
 
 - `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the `err_cmd_t` it belongs to, NULL for an internal error), frees it.
-- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors connector (SYS_CONNECTOR.MD) and in the history (SYS_LOG.MD).
+- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors connector (SYS_DATA_CONNECTOR.MD) and in the history (SYS_LOG.MD).
 - The sink must not report errors itself (loop); code on the reporting path (connector task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.
 
 ## Error record
 
-`err_record(cmd, chain, buf, cap)` (`err_wire.c`): a chain with the command it belongs to (`err_cmd_t`, NULL for an internal error). The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_CONNECTOR.MD) and the kept history (SYS_LOG.MD ERRORS).
+`err_record(cmd, chain, buf, cap)` (`err_wire.c`): a chain with the command it belongs to (`err_cmd_t`, NULL for an internal error). The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_DATA_CONNECTOR.MD) and the kept history (SYS_LOG.MD ERRORS).
 
 ```
 [src u8]                                    0 internal (no request), 1 command

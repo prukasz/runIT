@@ -1,7 +1,7 @@
 #include "sys_event.h"
 #include "router_ids.h"
 #include "sdkconfig.h"
-#include "sys_connector.h"
+#include "sys_data_connector.h"
 #include "utils.h"
 #include "board_time.h"
 
@@ -120,7 +120,7 @@ static void notify(const sys_event_t* e) {
   }
   uint8_t frame[2 + sizeof(*e)] = {ROUTER_KEY_EVENT, SYS_EVENT_OP_NOTIFY};
   memcpy(frame + 2, e, sizeof(*e));
-  err_free(sys_connector_send(SYS_CONNECTOR_EVENTS, frame, sizeof(frame)));
+  err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS, frame, sizeof(frame)));
 }
 
 // What runs where the event is published, or in the task for a deferred one: notify first (whatever the listeners

@@ -207,29 +207,29 @@
     "connector": {
       "alias": "Connectors",
       "kind": "defines",
-      "prefix": "SYS_CONNECTOR_",
-      "source_file": "runit-esp/components/sys/sys_connector/config/sys_connector_config.h",
+      "prefix": "SYS_DATA_CONNECTOR_",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
       "members": [
         {
-          "name": "SYS_CONNECTOR_TELEMETRY",
+          "name": "SYS_DATA_CONNECTOR_TELEMETRY",
           "value": 2,
           "alias": "Telemetry",
           "description": "Telemetry: the VM's subscribed values"
         },
         {
-          "name": "SYS_CONNECTOR_LOGS",
+          "name": "SYS_DATA_CONNECTOR_LOGS",
           "value": 3,
           "alias": "Logs",
           "description": "The log lines"
         },
         {
-          "name": "SYS_CONNECTOR_ERRORS",
+          "name": "SYS_DATA_CONNECTOR_ERRORS",
           "value": 4,
           "alias": "Errors",
           "description": "The error records"
         },
         {
-          "name": "SYS_CONNECTOR_EVENTS",
+          "name": "SYS_DATA_CONNECTOR_EVENTS",
           "value": 6,
           "alias": "Events",
           "description": "The event notifications"
@@ -1216,7 +1216,7 @@
     "transport_e": {
       "alias": "Transport",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_connector/config/sys_connector_config.h",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
       "members": [
         {
           "name": "TRANSPORT_UART",
@@ -2135,10 +2135,10 @@
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
-    "SYS_CONNECTOR_ERRORS": "connector",
-    "SYS_CONNECTOR_EVENTS": "connector",
-    "SYS_CONNECTOR_LOGS": "connector",
-    "SYS_CONNECTOR_TELEMETRY": "connector",
+    "SYS_DATA_CONNECTOR_ERRORS": "connector",
+    "SYS_DATA_CONNECTOR_EVENTS": "connector",
+    "SYS_DATA_CONNECTOR_LOGS": "connector",
+    "SYS_DATA_CONNECTOR_TELEMETRY": "connector",
     "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
     "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
     "SYS_DEVICE_CONTRACT_HBRIDGE": "device_contract",

@@ -43,8 +43,8 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
- * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs connector (SYS_CONNECTOR_LOGS); then applies the defaults (INFO,
- * mirror on, trace on, send errors on, send logs on). Boot step, after sys_connector_init().
+ * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs connector (SYS_DATA_CONNECTOR_LOGS); then applies the defaults (INFO,
+ * mirror on, trace on, send errors on, send logs on). Boot step, after sys_data_connector_init().
  */
 MUST_USE err_h sys_log_init(void);
 
@@ -63,7 +63,7 @@ void sys_log_get(sys_log_cfg_t* out);
 /**
  * @brief An error record (err_record): kept in the history the app reads with ERRORS (the latest
  * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped) and, with send_errors on, sent on the errors stream
- * (SYS_CONNECTOR_ERRORS). Any task; never reports (the error sink calls it for every error).
+ * (SYS_DATA_CONNECTOR_ERRORS). Any task; never reports (the error sink calls it for every error).
  */
 void sys_log_error(const uint8_t* record, uint32_t len);
 

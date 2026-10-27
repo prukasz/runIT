@@ -6,7 +6,7 @@
 #include "runit_board_defs.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
-#include "sys_connector.h"
+#include "sys_data_connector.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
@@ -23,18 +23,18 @@ static const struct {
   uint8_t provider;
   uint32_t endpoint;
 } k_bindings[] = {
-    {SYS_CONNECTOR_ERRORS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_CONNECTOR_TELEMETRY, TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_CONNECTOR_EVENTS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_CONNECTOR_LOGS,      TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
-    {SYS_CONNECTOR_ERRORS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
-    {SYS_CONNECTOR_TELEMETRY, TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
-    {SYS_CONNECTOR_EVENTS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
+    {SYS_DATA_CONNECTOR_ERRORS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
+    {SYS_DATA_CONNECTOR_TELEMETRY, TRANSPORT_UART, SYS_UART_ENDPOINT},
+    {SYS_DATA_CONNECTOR_EVENTS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
+    {SYS_DATA_CONNECTOR_LOGS,      TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
+    {SYS_DATA_CONNECTOR_ERRORS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
+    {SYS_DATA_CONNECTOR_TELEMETRY, TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
+    {SYS_DATA_CONNECTOR_EVENTS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
 };
 
 err_h runit_board_connector_bindings_init(void) {
   for (size_t i = 0; i < ARRAY_LEN(k_bindings); i++) {
-    ERR_TRY(sys_connector_bind(k_bindings[i].connector, k_bindings[i].provider, k_bindings[i].endpoint));
+    ERR_TRY(sys_data_connector_bind(k_bindings[i].connector, k_bindings[i].provider, k_bindings[i].endpoint));
   }
   return NULL;
 }

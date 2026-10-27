@@ -1101,10 +1101,10 @@
     },
     {
       "id": 5,
-      "name": "sys_connector",
-      "symbol": "ERR_MOD_SYS_CONNECTOR",
-      "source_file": "runit-esp/components/sys/sys_connector/errors/sys_connector_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_connector/errors/errors_sys_connector.json",
+      "name": "sys_data_connector",
+      "symbol": "ERR_MOD_SYS_DATA_CONNECTOR",
+      "source_file": "runit-esp/components/sys/sys_data_connector/errors/sys_data_connector_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_data_connector/errors/errors_sys_data_connector.json",
       "tags": [
         {
           "code": 2,
@@ -1315,7 +1315,7 @@
               "id_kind": "connector"
             }
           ],
-          "description": "every CONFIG_SYS_CONNECTOR_MAX slot taken",
+          "description": "every CONFIG_SYS_DATA_CONNECTOR_MAX slot taken",
           "message": "No room for {connector}: every connector slot is taken",
           "hint": "Remove a connector first."
         }

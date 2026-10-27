@@ -3,7 +3,7 @@ import type { ServiceCall, ServiceCatalog } from '@backend'
 import type { DataStream, StreamBinding } from '../project/projectFile'
 
 /*
- * The data streams (SYS_CONNECTOR.MD): the board's own four (logs, errors, telemetry, events: never created or removed, only
+ * The data streams (SYS_DATA_CONNECTOR.MD): the board's own four (logs, errors, telemetry, events: never created or removed, only
  * bound, unbound and paused) and the project's. The commands and fields are the connector descriptor's (`contract_connector.json`),
  * the transports `transport_e` (enums.json); this file knows which command does what and the layout of INFO's answer.
  *

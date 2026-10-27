@@ -3,7 +3,7 @@
 #include "vm_err.h"
 #include "freertos/FreeRTOS.h"
 #include "router_ids.h"
-#include "sys_connector.h"
+#include "sys_data_connector.h"
 #include "vm_router.h"
 #include "utils.h"
 #include "vm_exec.h"
@@ -124,7 +124,7 @@ static void frame_init(sub_frame_t* f, uint8_t packet) {
   f->len = SUB_FRAME_HDR_LEN;
   f->count = 0;
   /* Re-read per frame: the telemetry transport's limit follows the link (BLE MTU). */
-  size_t transport = sys_connector_max_payload(SYS_CONNECTOR_TELEMETRY);
+  size_t transport = sys_data_connector_max_payload(SYS_DATA_CONNECTOR_TELEMETRY);
   f->cap = transport < sizeof(f->buf) ? transport : sizeof(f->buf);
 }
 
@@ -134,7 +134,7 @@ static void frame_send(sub_frame_t* f) {
   if (f->count == 0) return;
   f->buf[2] = f->count;
   ESP_LOGD(TAG, "TX 0x%02X: %u records (%u bytes)", (unsigned)f->packet, (unsigned)f->count, (unsigned)f->len);
-  err_h err = sys_connector_send(SYS_CONNECTOR_TELEMETRY, f->buf, f->len);
+  err_h err = sys_data_connector_send(SYS_DATA_CONNECTOR_TELEMETRY, f->buf, f->len);
   if (err) {
     s_frames.refused = true;
     frame_lost(f);

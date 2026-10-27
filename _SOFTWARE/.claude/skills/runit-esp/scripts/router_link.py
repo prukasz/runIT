@@ -31,7 +31,7 @@ STREAM_ERRORS = 0x04
 FLAG_URGENT = 0x01
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
-# Root keys (router_ids.h) and transports (transport_e in sys_connector_config.h)
+# Root keys (router_ids.h) and transports (transport_e in sys_data_connector_config.h)
 KEY_SYS, KEY_I2C, KEY_BLE, KEY_CONN, KEY_DEVICE, KEY_ACTIONS = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
 TRANSPORT_UART, TRANSPORT_BLE = 1, 2
 SEV_NAMES = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]

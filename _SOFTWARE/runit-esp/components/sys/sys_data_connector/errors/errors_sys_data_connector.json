@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_CONNECTOR",
+  "module": "ERR_MOD_SYS_DATA_CONNECTOR",
   "errors": {
     "ERR_CONN_NOT_FOUND": {
       "message": "{connector} does not exist"

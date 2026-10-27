@@ -31,7 +31,7 @@ menu "router"
         default 4
         range 1 16
         help
-          Links (the transports: transport_e in sys_connector_config.h) are
+          Links (the transports: transport_e in sys_data_connector_config.h) are
           registered under IDs 1..ROUTER_MAX_LINKS. The data connectors bind
           to the same links, so this also bounds their providers.
 

@@ -54,7 +54,7 @@ menu "sys_uart"
           in the TX queue, then ERR_UART_TX_FULL. A stream frame waiting stalls
           the connector task: its own queue fills and the producer is refused
           (and sends again, as the telemetry sampler does), instead of losing
-          the frame here unseen. No producer waits: sys_connector_send never
+          the frame here unseen. No producer waits: sys_data_connector_send never
           blocks.
 
 endmenu

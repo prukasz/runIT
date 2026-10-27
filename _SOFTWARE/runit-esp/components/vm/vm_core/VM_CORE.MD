@@ -70,7 +70,7 @@ The object head on the wire is an explicit 4-byte layout (`vm_wire_head_t`, `vm_
 
 ### Telemetry is the same command
 
-A telemetry frame sent by `vm_sub.c` on the telemetry connector (`SYS_CONNECTOR_TELEMETRY`) is a write of this router without `seq` / `flags` and without the direction byte (a stream frame has no side):
+A telemetry frame sent by `vm_sub.c` on the telemetry connector (`SYS_DATA_CONNECTOR_TELEMETRY`) is a write of this router without `seq` / `flags` and without the direction byte (a stream frame has no side):
 
 ```
 values        [0x0B][0x04 DATA][u8 count] count × (vm_wire_data_t, data)
@@ -89,7 +89,7 @@ Sending: only objects whose value changed since last sent (value hash), everythi
 | Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): `runit` registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended; `EXEC` ACK_FAULT clears the latch |
 | Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` (queued, run on a router task, never inside a pass); the VM sits above sys_actions |
 | Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue, only while the loaded program has an `ON_EVENT` block (the loader turns it on, `vm_event_listen`; a load turns it off): a program that reads no event queues none, so a burst (a safe stop suspends every device, an event each) drops and reports nothing. An event lives exactly one pass; `ON_EVENT` matches the snapshot by source, event and channel with `sys_event_matches`. A full queue drops the event; the first pass of a run of passes with drops reports them as `ERR_VM_EVENT_OVERFLOW` (count and the last source), the next only after a pass without a drop |
-| Telemetry | `sys_connector_send(SYS_CONNECTOR_TELEMETRY)`; frame header `[ROUTER_KEY_VM][op][count]` (above) |
+| Telemetry | `sys_data_connector_send(SYS_DATA_CONNECTOR_TELEMETRY)`; frame header `[ROUTER_KEY_VM][op][count]` (above) |
 | Retained values | One NVS blob `vm/retain` in the default partition (`vm_retain.c`). Kept by name (a retentive object must be named), type and size; saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task, on teardown (RESET, OPEN) and in the safe state; restored on the first start after a load; `EXEC` RETAIN_CLEAR forgets them. A program retaining more than `CONFIG_VM_RETAIN_MAX_BYTES` is refused at load |
 | Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_REGISTER`). The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
 

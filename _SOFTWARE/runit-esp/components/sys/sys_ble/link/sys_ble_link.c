@@ -4,7 +4,7 @@
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_ble_priv.h"
-#include "sys_connector.h"
+#include "sys_data_connector.h"
 
 #define TX_FRAMES             4u            // frames the TX / LOGS buffers hold
 #define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer

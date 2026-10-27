@@ -145,7 +145,7 @@ MUST_USE err_h router_init(void);
 
 /* ----------------------------------------------------------------------------
  * Links: the transports (UART, BLE, ...), registered once. The router sends its answers to `answer_endpoint`; the
- * data connectors (sys_connector) send their streams through the same link to the endpoints they are bound to.
+ * data connectors (sys_data_connector) send their streams through the same link to the endpoints they are bound to.
  * ------------------------------------------------------------------------- */
 
 typedef struct {

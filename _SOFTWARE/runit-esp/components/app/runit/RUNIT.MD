@@ -17,7 +17,7 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 
 | Step | Does |
 |---|---|
-| streams | `sys_connector_init`, then `runit_error_wiring_init` (fault handlers, error sink) |
+| streams | `sys_data_connector_init`, then `runit_error_wiring_init` (fault handlers, error sink) |
 | log | `sys_log_init()`: the ESP_LOG hook on the logs connector, with the stored options |
 | actions, events | `sys_actions_init`, `sys_event_init` |
 | onboard actions | `runit_onboard_actions_init` (below) |

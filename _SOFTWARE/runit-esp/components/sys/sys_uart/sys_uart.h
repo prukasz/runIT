@@ -25,7 +25,7 @@ extern "C" {
  * @brief Installs the console drivers (stdout moves to the UART driver),
  * registers the router link and the connector provider (both TRANSPORT_UART)
  * and starts the RX task. Call once, after router_init() and
- * sys_connector_init().
+ * sys_data_connector_init().
  */
 MUST_USE err_h sys_uart_init(void);
 
