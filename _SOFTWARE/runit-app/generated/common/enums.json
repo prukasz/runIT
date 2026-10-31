@@ -204,6 +204,26 @@
         }
       ]
     },
+    "cmd_frame": {
+      "alias": "Frame size",
+      "kind": "defines",
+      "prefix": "CMD_",
+      "source_file": "runit-esp/components/core/cmd/cmd.h",
+      "members": [
+        {
+          "name": "CMD_FRAME_MAX",
+          "value": 512,
+          "alias": "Largest frame",
+          "description": "Bytes of a whole frame, its header included"
+        },
+        {
+          "name": "CMD_HEAD",
+          "value": 5,
+          "alias": "Frame header",
+          "description": "Bytes a frame keeps for its header in front of its data"
+        }
+      ]
+    },
     "connector": {
       "alias": "Connectors",
       "kind": "defines",
@@ -2073,6 +2093,8 @@
   "symbols": {
     "CMD_DIR_READ": "cmd_dir_e",
     "CMD_DIR_WRITE": "cmd_dir_e",
+    "CMD_FRAME_MAX": "cmd_frame",
+    "CMD_HEAD": "cmd_frame",
     "DC_MOTOR_STOP_BRAKE": "dc_motor_stop_e",
     "DC_MOTOR_STOP_COAST": "dc_motor_stop_e",
     "DEVICE_ID_ADS7128": "board_device",

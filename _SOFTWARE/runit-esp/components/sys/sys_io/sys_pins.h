@@ -70,7 +70,7 @@ MUST_USE err_h sys_pins_state_lock(sys_pins_state_t* s, uint16_t dev_id, uint8_t
 MUST_USE err_h sys_pins_state_unlock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin);
 
 /** @brief The answer of AVAILABLE / LOCKED. */
-MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, uint64_t mask);
+MUST_USE err_h sys_pins_reply(cmd_out_t* out, uint64_t mask);
 
 /**
  * @brief AVAILABLE, LOCKED, LOCK and UNLOCK of a device whose struct has the members `base` (sys_device_base_t) and
@@ -80,8 +80,8 @@ MUST_USE err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len,
  *        static const sys_device_op_t k_ops[] = {..., SYS_PINS_STATE_ENTRIES, OP_ENTRY_W(PINS, LOCKED_LEVEL)};
  */
 #define SYS_PINS_STATE_HANDLERS(ctx_t)                                                                            \
-  OP_READ(PINS, AVAILABLE) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.available); } \
-  OP_READ(PINS, LOCKED) { return sys_pins_reply(out, out_cap, out_len, ((const ctx_t*)ctx)->pins.locked); }       \
+  OP_READ(PINS, AVAILABLE) { return sys_pins_reply(out, ((const ctx_t*)ctx)->pins.available); }                   \
+  OP_READ(PINS, LOCKED) { return sys_pins_reply(out, ((const ctx_t*)ctx)->pins.locked); }                         \
   OP_WRITE(PINS, LOCK) {                                                                                          \
     ctx_t* c = ctx;                                                                                               \
     return sys_pins_state_lock(&c->pins, c->base.id, args->pin);                                                  \

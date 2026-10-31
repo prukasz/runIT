@@ -399,7 +399,7 @@ OP_READ(IO, VOLTAGE) {
   uint16_t code = 0;
   ERR_TRY(chip_read_channel(c, args->pin, &code));
   const int32_t mV = (int32_t)code_to_mV(c, code);
-  return sys_io_reply_voltage(args->pin, mV, out, out_cap, out_len);
+  return sys_io_reply_voltage(args->pin, mV, out);
 }
 
 // Channels are analog inputs out of reset and this device has nothing else, so the only mode that can be honoured is ADC.

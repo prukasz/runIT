@@ -2104,8 +2104,8 @@
               "size": 2
             }
           ],
-          "description": "upload write out of order",
-          "message": "The upload is out of order (at {got}, expected {want})"
+          "description": "upload write out of order, read past the image",
+          "message": "Wrong offset {got}: an upload expects {want}, a read takes at most the record's {want} bytes"
         },
         {
           "code": 7,

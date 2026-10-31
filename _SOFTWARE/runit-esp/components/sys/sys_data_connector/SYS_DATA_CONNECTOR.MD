@@ -31,7 +31,7 @@ Component `components/sys/sys_data_connector/`. A **connector** is a logical out
 
 - **Connectors**: a connector is one byte, the only number it has, and every frame it sends starts with it. The build checks that `CONFIG_ROUTER_RESPONSE_STREAM` is not a system connector's byte. System (created by `sys_data_connector_init`, flag `system`): `SYS_DATA_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04, `_EVENTS` 0x06 (SYS_EVENT.MD notify records). A user connector (CREATE) takes any other byte except the router's answer byte (`CONFIG_ROUTER_RESPONSE_STREAM`, 0x05 by default: `ERR_CONN_BAD_ARG`); a byte that has a connector already: `ERR_CONN_EXISTS`. One byte, one connector, so a receiver always tells the streams apart. The registry is an array of `CONFIG_SYS_DATA_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the four system ones included; a CREATE with none free: `ERR_CONN_FULL`.
 - **Providers** are the router's links (ROUTER.MD): a transport registers once, `router_link_register(TRANSPORT_…, &link)`, and a binding names it by its **transport ID** (`transport_e` in `sys_data_connector_config.h`: `TRANSPORT_UART` 1, `TRANSPORT_BLE` 2; 3 is kept for MQTT over Wi-Fi, listed once it has a provider, since the app offers every listed transport). The connector calls the link's `send(endpoint, frame, len, false)` and `max_frame(endpoint)`. UART endpoint 0 (`SYS_UART_ENDPOINT`); BLE endpoint = characteristic UUID (any characteristic of the BLE link).
-- **Frame cap**: one cap for every connector, `CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX`. A provider's `max_frame` can lower it per endpoint; there is no per-connector cap.
+- **Frame cap**: one cap for every connector, `CMD_FRAME_MAX` (`cmd.h`, CMD.MD "Frame size"). A provider's `max_frame` can lower it per endpoint; there is no per-connector cap.
 - **Bindings**: up to `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` per connector, one per provider (binding again re-addresses).
 - **System connectors**: can't be removed and keep their last binding (`ERR_CONN_PROTECTED`; bind the new one first). Suspending them is allowed (free a slow link).
 - **Telemetry** is produced by the VM subscriptions (`vm_sub.c`).
@@ -44,14 +44,14 @@ Component `components/sys/sys_data_connector/`. A **connector** is a logical out
 - Any task can send, including one holding a transport's lock or one inside logging, without deadlock or re-entry.
 - Per binding the task checks the provider's current limit: too long → `ERR_CONN_TOO_LONG`, not sent there, never cut. `sys_data_connector_max_payload(connector)` gives producers the smallest limit − 1 (calls the providers; not from a task holding a transport lock).
 - Errors in the task are **logged only** (`err_log`): reporting them would queue an error record back into this task and could loop. A provider that keeps failing (its queue full) is logged once, then again only after it has sent a frame.
-- `send` to a connector that doesn't exist fails with `ERR_CONN_NOT_FOUND`. A payload longer than `CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX - 1` is refused at `send` (`ERR_CONN_TOO_LONG`, provider 0), before it is queued.
+- `send` to a connector that doesn't exist fails with `ERR_CONN_NOT_FOUND`. A payload longer than `CMD_FRAME_MAX - 1` is refused at `send` (`ERR_CONN_TOO_LONG`, provider 0), before it is queued.
 
 ## Adding a transport
 
 A transport is one `router_link_t` (ROUTER.MD), registered once with `router_link_register(TRANSPORT_…, &link)`: the router sends its answers through it, the connectors their streams.
 
 - `send(endpoint, frame, len, answer)`: hands one frame to the transport's own TX queue and returns; the transport's own task puts it on the wire (UART: its TX task; BLE: the characteristic's TX buffer and the BLE task). It never waits for the line itself, only for room in that queue, bounded, in the transport's Kconfig (UART `CONFIG_SYS_UART_SEND_WAIT_MS`, 1 s; BLE `CONFIG_SYS_BLE_ANSWER_WAIT_MS`, 100 ms for an answer, and `CONFIG_SYS_BLE_STREAM_WAIT_MS`, 20 ms for a stream frame, `answer` false): a full queue holds the connector task, so its own queue fills and producers are refused rather than frames lost unseen.
-- `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for no limit of its own (the connector's `CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX`). Asked by `sys_data_connector_max_payload`, which any task may call except one holding this transport's lock.
+- `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for no limit of its own (`CMD_FRAME_MAX`). Asked by `sys_data_connector_max_payload`, which any task may call except one holding this transport's lock.
 - `endpoint` is the transport's own address: UART uses `SYS_UART_ENDPOINT` (0), BLE uses the characteristic UUID (`SYS_BLE_CHR_RUNIT_TX`, `SYS_BLE_CHR_RUNIT_LOGS`, or a user one); `answer_endpoint` is where the router's answers go.
 
 A new transport gets its ID in `transport_e` and its line in the `_Static_assert`s at the top of `sys_data_connector.c`, which keep every ID within `1..CONFIG_ROUTER_MAX_LINKS` (the build fails, not the boot); the `transport_e` change goes through `templates/` (AGENTS.md). Then bind connectors to it with `sys_data_connector_bind`.
@@ -62,7 +62,6 @@ A new transport gets its ID in `transport_e` and its line in the `_Static_assert
 |---|---|---|
 | `CONFIG_SYS_DATA_CONNECTOR_MAX` | 8 | connector slots, the 4 system ones included |
 | `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` | 3 | bindings per connector |
-| `CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX` | 512 | largest frame, stream byte included |
 | `CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every binding has it |
 | `CONFIG_SYS_DATA_CONNECTOR_TASK_PRIO` / `_STACK` | 4 / 4096 | the connector task |
 

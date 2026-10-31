@@ -32,7 +32,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `0xFFE3` | runit LOGS | notify | TX 4 frames | yes | logs and errors connectors |
 | `0xFFE4` | runit Status | notify | TX 512 B | no | created; nothing sends on it yet |
 
-"4 frames" is `SYS_BLE_BUFF_SIZE_FOR(CONFIG_ROUTER_FRAME_MAX, 4)`. The UUIDs and the fragment header bits are published to the app: the groups `ble_runit_uuid` and `ble_frag` in `runit-app/generated/common/enums.json` (markers in `sys_ble.h`). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
+"4 frames" is `SYS_BLE_BUFF_SIZE_FOR(CMD_FRAME_MAX, 4)`. The UUIDs and the fragment header bits are published to the app: the groups `ble_runit_uuid` and `ble_frag` in `runit-app/generated/common/enums.json` (markers in `sys_ble.h`). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
 
 ## Framing
 
@@ -44,9 +44,9 @@ single-packet frame: C0 <frame>
 3-packet frame:      40 <…>  01 <…>  82 <…>
 ```
 
-- **TX**: an item (a whole frame, up to `CONFIG_SYS_BLE_TX_ITEM_MAX`, default 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
+- **TX**: an item (a whole frame, up to `CMD_FRAME_MAX`, 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
 - **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST submits the frame: `router_submit(TRANSPORT_BLE, frame)`.
-- A router frame of up to `CONFIG_ROUTER_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
+- A frame of up to `CMD_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
 - An unframed characteristic sends one item per packet (item ≤ MTU − 3).
 
 ## Connector provider

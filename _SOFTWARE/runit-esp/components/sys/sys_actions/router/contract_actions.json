@@ -191,11 +191,11 @@
       "id": "READ",
       "op": 7,
       "symbol": "SYS_ACTIONS_OP_READ",
-      "label": "Read the action's frames",
-      "description": "Sends back the stored frames of the action (one answer frame per recorded command).",
+      "label": "Read the action's image",
+      "description": "Sends back the stored image of the action from the given offset, as many bytes as fit in one answer (none at the end). Read from 0 up to INFO's size and check its CRC-32.",
       "read": {
         "args": {
-          "struct": "id_args_t",
+          "struct": "read_t",
           "fields": [
             {
               "id": "id",
@@ -204,6 +204,27 @@
               "raw_type": "u32",
               "size": 4,
               "offset": 0
+            },
+            {
+              "id": "offset",
+              "label": "Offset",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 4,
+              "unit": "B"
+            }
+          ]
+        },
+        "returns": {
+          "description": "The image's bytes from the offset",
+          "fields": [
+            {
+              "id": "data",
+              "label": "Image bytes",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Bytes of the record image from the offset (runs to the end of the frame)"
             }
           ]
         }

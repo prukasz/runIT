@@ -206,7 +206,7 @@ OP_WRITE(SYS_DEVICE, REMOVE) {
 OP_READ(SYS_DEVICE, INFO) {
   const dev_t_* d = ctx;
   const sys_device_info_t info = {.type_id = d->type->type, .suspended = d->ctx->suspended};
-  return cmd_reply(out, out_cap, out_len, &info, sizeof(info));
+  return cmd_reply(out, &info, sizeof(info));
 }
 
 // ERROR_POLICY: the policy is kept and checked in sys_device_policy.c. Allowed while suspended: it configures the
@@ -216,11 +216,10 @@ OP_WRITE(SYS_DEVICE, ERROR_POLICY) {
 }
 
 OP_READ(SYS_DEVICE, ERROR_POLICY) {
-  return sys_device_policy_reply(((const dev_t_*)ctx)->id, out, out_cap, out_len);
+  return sys_device_policy_reply(((const dev_t_*)ctx)->id, out);
 }
 
-static err_h SYS_DEVICE_r_OPS(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,
-                              uint32_t* out_len);
+static err_h SYS_DEVICE_r_OPS(CMD_F_PARAMS);
 
 static const sys_device_op_t k_registry_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, SUSPEND),  OP_ENTRY_W(SYS_DEVICE, RESUME),  OP_ENTRY_W(SYS_DEVICE, REMOVE),
@@ -246,13 +245,12 @@ static bool device_has_op(const dev_t_* d, uint16_t op) {
 #define SIDE_WRITE 0x02u  // ... a write side
 
 // OPS rows of a table: [op u16][sides u8] per op (with `wired`: per op the device runs, has_op).
-static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t count, bool wired, uint8_t* out,
-                        uint32_t out_cap, uint32_t* pos) {
+static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t count, bool wired, cmd_out_t* out) {
   for (uint32_t k = 0; k < count; k++) {
     if (wired && !device_has_op(d, ops[k].op)) continue;
     const uint8_t sides = (ops[k].read != NULL ? SIDE_READ : 0) | (ops[k].write != NULL ? SIDE_WRITE : 0);
-    ERR_TRY(cmd_append(out, out_cap, pos, &ops[k].op, sizeof(uint16_t)));  // little-endian target
-    ERR_TRY(cmd_append(out, out_cap, pos, &sides, sizeof(sides)));
+    ERR_TRY(cmd_append(out, &ops[k].op, sizeof(uint16_t)));  // little-endian target
+    ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
   }
   return NULL;
 }
@@ -260,16 +258,12 @@ static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t co
 // OPS: the registry's ops, then the type's table (the ops this device runs).
 OP_READ(SYS_DEVICE, OPS) {
   const dev_t_* d = ctx;
-  uint32_t pos = 0;
-  ERR_TRY(append_ops(d, k_registry_ops, ARRAY_LEN(k_registry_ops), false, out, out_cap, &pos));
-  ERR_TRY(append_ops(d, d->type->ops, d->type->op_count, true, out, out_cap, &pos));
-  *out_len = pos;
-  return NULL;
+  ERR_TRY(append_ops(d, k_registry_ops, ARRAY_LEN(k_registry_ops), false, out));
+  return append_ops(d, d->type->ops, d->type->op_count, true, out);
 }
 
 // Any op but CREATE, on a registered device: the registry's (ctx = the entry), else the type's (ctx = its struct).
-static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
-                    uint32_t out_cap, uint32_t* out_len) {
+static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out_t* out) {
   dev_t_* d = &s_reg.devs[i];
   const sys_device_op_t* row = find_op(k_registry_ops, ARRAY_LEN(k_registry_ops), op);
   void* ctx = d;
@@ -284,7 +278,7 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, const uint8_t* args, u
   if (ctx == d->ctx && dir == CMD_DIR_WRITE && !row->always) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
   }
-  return fn(ctx, args, args_len, out, out_cap, out_len);
+  return fn(ctx, args, out);
 }
 
 /* ---- Types ---- */
@@ -341,7 +335,9 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
   } else if (!found) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = id);
   } else {
-    err = run_op(i, dir, op, args, args_len, out, out_cap, out_len);
+    cmd_out_t o = {.data = out, .cap = out_cap};
+    err = run_op(i, dir, op, (cmd_in_t){args, args_len}, &o);
+    *out_len = o.len;
   }
   UNLOCK();
   if (op == SYS_DEVICE_OP_CREATE || found) {

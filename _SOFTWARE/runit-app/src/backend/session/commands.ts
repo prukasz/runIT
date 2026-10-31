@@ -80,10 +80,7 @@ export interface CommandClientOptions {
 interface Pending {
   readonly request: Request
   readonly options: CommandOptions
-  /** Answers still to come (more than one when the op answers in parts). */
-  remaining: number
-  readonly parts: Uint8Array[]
-  readonly resolve: (parts: Uint8Array[]) => void
+  readonly resolve: (data: Uint8Array) => void
   readonly reject: (error: Error) => void
   seq?: number
   sentAt?: number
@@ -116,17 +113,12 @@ export class CommandClient {
   }
 
   /** The router's output for the request. */
-  async request(request: Request, options: CommandOptions = {}): Promise<Uint8Array> {
-    return (await this.requestParts(request, 1, options))[0]!
-  }
-
-  /** For an op that answers in `count` parts (the same seq, one OK answer each; an ERROR answer ends the series). */
-  requestParts(request: Request, count: number, options: CommandOptions = {}): Promise<Uint8Array[]> {
+  request(request: Request, options: CommandOptions = {}): Promise<Uint8Array> {
     if (this.closed) return Promise.reject(new CommandError('The command client is closed.', 'closed'))
     const length = 2 + request.keys.length + (request.payload?.length ?? 0)
     if (length > this.defs.frameMax) return Promise.reject(new CommandError(`A request of ${length} bytes is over the ${this.defs.frameMax} the board takes.`, 'too-long'))
     return new Promise((resolve, reject) => {
-      const entry: Pending = { request, options, remaining: Math.max(1, count), parts: [], resolve, reject }
+      const entry: Pending = { request, options, resolve, reject }
       if (request.urgent) {
         const firstNormal = this.queue.findIndex((e) => !e.request.urgent)
         this.queue.splice(firstNormal < 0 ? this.queue.length : firstNormal, 0, entry)
@@ -155,15 +147,10 @@ export class CommandClient {
     }
     this.timeouts = 0
     const data = response.data.slice()
-    if (response.ok && --entry.remaining > 0) {
-      entry.parts.push(data)
-      this.restartTimer(response.seq, entry) // the series goes on: the wait counts from the last part
-      return
-    }
     clearTimeout(entry.timer)
     this.inFlight.delete(response.seq)
     this.emit({ type: 'answer', seq: response.seq, ok: response.ok, data, label: entry.options.label, sentAt: entry.sentAt ?? this.now(), at: this.now() })
-    if (response.ok) entry.resolve([...entry.parts, data])
+    if (response.ok) entry.resolve(data)
     else entry.reject(this.deviceError(response.seq, data, entry))
     this.pump()
   }

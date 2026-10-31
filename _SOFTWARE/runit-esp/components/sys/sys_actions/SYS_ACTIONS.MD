@@ -1,6 +1,6 @@
 # sys_actions — stored command lists
 
-Component `components/sys/sys_actions/`. One store for everything the board keeps as commands. A **record** is a list of router frames stored in NVS under a 32-bit **ID**, replayed through `router_route`. A record is filled by **recording** a client's live frames (router tap) or by **uploading** the whole image, and read back frame by frame, exactly as stored.
+Component `components/sys/sys_actions/`. One store for everything the board keeps as commands. A **record** is a list of router frames stored in NVS under a 32-bit **ID**, replayed through `router_route`. A record is filled by **recording** a client's live frames (router tap) or by **uploading** the whole image, and read back by offset, the image exactly as stored.
 
 The store holds four kinds of record, told apart by the class in the ID: the user's **actions**, the **settings** of the system modules (log, power, BLE, data streams), the **install and default commands** of each device, and the **project** (see [SYS_PROJECT.MD](../sys_project/SYS_PROJECT.MD)).
 
@@ -47,7 +47,7 @@ Class `0xFF` holds no records: an error policy's `actions[]` use it for the poli
 
 **Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][0x01][level, mirror, trace, errors, logs]` (log CONFIG). The write applies the value live and stores nothing. Persistence is the app uploading (or recording) the record.
 
-**Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CONFIG_ROUTER_FRAME_MAX - 2` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
+**Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CMD_DATA_MAX` (507) bytes (CMD.MD "Frame size"). The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
 
 **Storage.** Namespace `actions` in the `project` partition (`CONFIG_SYS_ACTIONS_PARTITION`, 512 KB), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one blob per record. One `nvs_set_blob` per store; NVS keeps the old value until the new one is complete. A partition NVS can't use (no free pages, new version) is erased at init.
 The store checks framing only, not content. A frame the router can't take fails at its step (`ERR_ROUTER_UNKNOWN_KEY` for an unknown key).
@@ -97,7 +97,7 @@ Requests are `[0x06][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). READ, I
 | `0x04` BEGIN | `u32 id, u16 len` | – |
 | `0x05` WRITE | `u16 offset`, data | – (offset = bytes so far) |
 | `0x06` COMMIT | `u32 crc32` | – (checks length, CRC and framing; stores, replacing the ID) |
-| `0x07` READ | `u32 id` | **one answer packet per frame**, in order, each exactly the frame as recorded or uploaded (from its key, with its dir; no length prefix). `x` frames in, `x` packets back, then nothing more. All carry the READ's `seq`; the client counts them with the `count` of INFO / RECORD_STOP. A failure (`ERR_ACTION_NOT_FOUND`, a frame that doesn't fit the link → `ERR_CMD_OUT_FULL`, a damaged image) is an error answer with that `seq` and ends the read |
+| `0x07` READ | `u32 id, u16 offset` | the image from `offset`: as many bytes as are left, at most what one answer holds; empty at the end. Read again from `offset` + the bytes got. `ERR_ACTION_NOT_FOUND`; `ERR_ACTION_OFFSET {got, want}` for an offset past the image (`want` = its size) |
 | `0x08` INFO | `u32 id` | info |
 | `0x09` LIST | `u32 start` | `u16 total` (all stored records), then u32 IDs ascending from `start`, up to 48 and as many as fit. Ask again from the last ID + 1 |
 | `0x0A` REMOVE | `u32 id` | – |
@@ -107,7 +107,7 @@ Requests are `[0x06][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). READ, I
 
 `REMOVE` takes one ID. To clear one group only, list the IDs (`sys_actions_list`) and remove them one by one, as `sys_project`'s `clear_bank` does. REMOVE_ALL erases the stored records only. Devices and settings already running stay as they are until the board restarts; after a restart the board starts from its defaults, with no stored project and no device records.
 
-READ is the mirror of recording and upload: the frames that went in come out, one packet each. The packets before the last go out with `router_answer_part` (see ROUTER.MD); the last one is the op's own answer. An answer has 3 header bytes where a request has 2, so a recorded frame of the largest size does not fit an answer (`ERR_CMD_OUT_FULL`). So does any frame longer than the link carries (BLE before the MTU exchange).
+READ is the mirror of an upload's WRITEs: the image that went in comes out, by offset, page by page, as large as the link carries (BLE before the MTU exchange: small pages). A client reads from 0 up to INFO's `bytes`, checks the image against INFO's `crc32` and splits it into its frames (each exactly as recorded or uploaded, from its key, with its dir). In C, `sys_actions_read(id, offset, buf, cap, &len)` is the same read, and `sys_actions_dump(id, fn, ctx)` walks a record frame by frame (`sys_project` reads its marks so).
 
 **Examples**
 - Record "blink" as user action 5 without running it, over UART: `06 01 02 05 00 00 00 00` (RECORD_START id 5, execute 0), then the device writes, then `06 01 03` (RECORD_STOP → info). Run it: `06 01 01 05 00 00 00`.

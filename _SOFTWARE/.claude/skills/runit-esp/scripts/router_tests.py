@@ -839,16 +839,34 @@ def upload(link: Link, aid: int, img: bytes, chunk: int = 64, crc: int | None = 
     return act(link, A_COMMIT, struct.pack("<I", zlib.crc32(img) if crc is None else crc))
 
 
-def readback(link: Link, aid: int, count: int) -> list[Response]:
-    """READ: one answer packet per recorded frame, the frame exactly as recorded."""
-    return link.request_many(bytes([KEY_ACTIONS, A_READ]), u32(aid), count)
-
-
 def info(link: Link, aid: int) -> tuple[int, int, int] | None:
     r = act(link, A_INFO, u32(aid))
     if r is None or not r.ok or len(r.data) != 8:
         return None
     return struct.unpack("<HHI", r.data)
+
+
+def readback(link: Link, aid: int) -> list[bytes] | None:
+    """READ by offset from 0 up to INFO's size, the CRC checked, split into its frames (each exactly as recorded);
+    None when a read fails or the image doesn't match."""
+    i = info(link, aid)
+    if i is None:
+        return None
+    size, _, crc = i
+    img = b""
+    while len(img) < size:
+        r = act(link, A_READ, u32(aid) + struct.pack("<H", len(img)))
+        if r is None or not r.ok or not r.data:
+            return None
+        img += r.data
+    if len(img) != size or zlib.crc32(img) != crc:
+        return None
+    frames, pos = [], 0
+    while pos < len(img):
+        (n,) = struct.unpack_from("<H", img, pos)
+        frames.append(img[pos + 2 : pos + 2 + n])
+        pos += 2 + n
+    return frames
 
 
 def actions_list(link: Link, start: int = 0) -> tuple[int, list[int]] | None:
@@ -883,14 +901,20 @@ def test_actions(link: Link) -> None:
         b, c, crc = struct.unpack("<HHI", r.data)
         check("recording kept 1 frame (read, failed and sys frames skipped)", (b, c) == (len(want), 1), f"{b} B, {c} frames")
         check("RECORD_STOP crc = zlib crc32", crc == zlib.crc32(want), str(r))
-    got = readback(link, T1, 1)
-    check("READ 1 = 1 packet, the frame as recorded (with dir)", [p.data for p in got] == [LOG_DEFAULT_FRAME] and got[0].ok,
-          str(got))
+    got = readback(link, T1)
+    check("READ by offset = the image of 1 frame, as recorded (with dir)", got == [LOG_DEFAULT_FRAME], str(got))
     two = [CONN_INFO, CONN_INFO + b"\x00"]
     r = upload(link, T3, image(*two))
-    got = readback(link, T3, 2)
-    check("upload 2 frames to a system-class ID, READ = 2 packets in order, as uploaded", r is not None and r.ok and [p.data for p in got] == two, str(got))
-    r = act(link, A_READ, u32(KEEP))
+    got = readback(link, T3)
+    check("upload 2 frames to a system-class ID, READ = the 2 frames in order, as uploaded", r is not None and r.ok and got == two, str(got))
+    size = len(image(*two))
+    r = act(link, A_READ, u32(T3) + struct.pack("<H", 3))
+    check("READ from offset 3 = the image from byte 3", r is not None and r.ok and r.data == image(*two)[3:], str(r))
+    r = act(link, A_READ, u32(T3) + struct.pack("<H", size))
+    check("READ at the image's end = empty answer", r is not None and r.ok and r.data == b"", str(r))
+    r = act(link, A_READ, u32(T3) + struct.pack("<H", size + 1))
+    check("READ past the image -> ERR_ACTION_OFFSET", err_cause(r) == "ERR_ACTION_OFFSET", str(r))
+    r = act(link, A_READ, u32(KEEP) + struct.pack("<H", 0))
     check("READ of a missing record -> ERR_ACTION_NOT_FOUND", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
     r = act(link, A_READ, bytes([KEEP]))
     check("READ with a 1-byte ID -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
@@ -1227,13 +1251,13 @@ def test_settings(link: Link) -> None:
     act(link, A_REMOVE, u32(REC_LOG))
     r = upload(link, REC_LOG, image(cfg))
     check("settings: the log CONFIG write saved as record 0x01000001", r is not None and r.ok, str(r))
-    got = readback(link, REC_LOG, 1)
-    check("settings: READ = the log CONFIG write exactly", [p.data for p in got] == [cfg], str(got))
+    got = readback(link, REC_LOG)
+    check("settings: READ = the log CONFIG write exactly", got == [cfg], str(got))
     log_set(link, *LOG_DEFAULT)
     r = act(link, A_RUN, u32(REC_LOG))
     check("settings: RUN applies it (log level 2, errors off)", r is not None and r.ok and log_get(link) == (2, 1, 0, 0, 1), str(r))
     log_set(link, *LOG_DEFAULT)
-    check("settings: the live write did not change the record", [p.data for p in readback(link, REC_LOG, 1)] == [cfg])
+    check("settings: the live write did not change the record", readback(link, REC_LOG) == [cfg])
     act(link, A_REMOVE, u32(REC_LOG))
 
 

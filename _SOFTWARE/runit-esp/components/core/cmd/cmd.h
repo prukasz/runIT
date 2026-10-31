@@ -1,32 +1,54 @@
 #pragma once
 
+#include "cmd_errors.h"
 #include "errors.h"
 #include "utils.h"
-#include "cmd_errors.h"
+
+/**
+ * @file cmd.h
+ * @brief What a command handler is (CMD.MD), with no transport and no routing: the handler, the direction, the answer
+ * and the frame size every limit comes from. The router and the device registry both build on it and don't know each
+ * other, so a device compiles without the router.
+ * @usage static err_h my_read(void* ctx, cmd_in_t in, cmd_out_t* out) { return cmd_reply(out, &v, sizeof(v)); }
+ */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* The frame size (CMD.MD "Frame size"): one for every link, buffer and stored frame, the same on the board and the
+   client, so nothing is sized per link. */
+//#ref-defines cmd_frame @alias Frame size @prefix CMD_
+#define CMD_FRAME_MAX 512u  //@alias Largest frame @description Bytes of a whole frame, its header included
+#define CMD_HEAD      5u    //@alias Frame header @description Bytes a frame keeps for its header in front of its data
+
+// What a frame carries after its header: a request's command, an answer's data, a stream frame's [connector][payload].
+#define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)
+
+/** @brief A handler's input: the router passes [code][args], the device registry the args only. */
+typedef struct {
+  const uint8_t* data;
+  uint32_t len;
+} cmd_in_t;
+
+/** @brief A handler's answer buffer. */
+typedef struct {
+  uint8_t* data;
+  uint32_t cap;  /**< What the answer may hold: what cmd_reply() fills at most; longer data is paged by its command
+                      (CMD.MD "The handler") */
+  uint32_t len;  /**< Written by the handler; 0 = empty answer */
+} cmd_out_t;
+
 /**
- * @brief What a command handler is, with no transport and no routing: the
- * handler type, the answer helper and the errors every handler raises for a
- * bad payload (CMD.MD). The router (key tables, links, dispatch) and the
- * device registry (op tables) both build on it and don't know each other, so a
- * device compiles without the router.
- *
- * @param ctx     What the caller hands down: the router's ctx (NULL from the
- *                root), or a device's struct from the registry.
- * @param in      The input the handler is called with (what that is is the
- *                caller's convention: the router passes its key first, the
- *                device registry passes the args only).
- * @param in_len  Bytes in `in`.
- * @param out     Answer buffer.
- * @param out_cap Size of `out`.
- * @param out_len Bytes written to `out` (set on success; untouched = empty answer).
+ * @brief A command handler, the same for the router's modules and the devices' ops.
+ * @param ctx  NULL from the router root; the device's struct from the registry.
+ * @param in   The input.
+ * @param out  The answer.
  * @return NULL on success, otherwise the error chain.
  */
-typedef MUST_USE err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+typedef MUST_USE err_h (*cmd_f)(void* ctx, cmd_in_t in, cmd_out_t* out);
+
+#define CMD_F_PARAMS void *ctx, cmd_in_t in, cmd_out_t *out  // for the macros that write a cmd_f
 
 /**
  * @brief Which side of a command a request runs: the byte after the root key of every request (ROUTER.MD "Wire
@@ -39,37 +61,25 @@ typedef enum {
   CMD_DIR_WRITE = 1,  //@alias Write @description Sets a value or runs an action
 } cmd_dir_e;
 
-// The parameters of a cmd_f, for the macros that declare or write one.
-#define CMD_OUT_PARAMS uint8_t *out, uint32_t out_cap, uint32_t *out_len
-#define CMD_F_PARAMS   void *ctx, const uint8_t *in, uint32_t in_len, CMD_OUT_PARAMS
-
 /**
- * @brief The side of a command that `dir` asks for (`read` or `write`, NULL = the command has none).
- * @return ERR_CMD_DIRECTION for a missing side or a dir that is neither CMD_DIR_READ nor CMD_DIR_WRITE.
+ * @brief The side of a command that `dir` asks for (NULL `read` / `write`: the command has none).
+ * @return NULL when found; ERR_CMD_DIRECTION for a missing side or a dir that is neither read nor write.
  */
 MUST_USE err_h cmd_side(cmd_f read, cmd_f write, uint8_t dir, cmd_f* fn);
 
 /**
- * @brief Writes the answer to `out`.
- * @return ERR_CMD_OUT_FULL if it does not fit.
- * @usage return cmd_reply(out, out_cap, out_len, &value, sizeof(value));
+ * @brief Writes the whole answer.
+ * @return NULL when written; ERR_CMD_OUT_FULL (more than out->cap).
+ * @usage return cmd_reply(out, &value, sizeof(value));
  */
-MUST_USE err_h cmd_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, const void* data, uint32_t len);
+MUST_USE err_h cmd_reply(cmd_out_t* out, const void* data, uint32_t len);
 
 /**
- * @brief Appends `len` bytes to `out` at `*pos` and advances `*pos`: for an answer built in pieces.
- * @return ERR_CMD_OUT_FULL if they do not fit `cap`.
- * @usage uint32_t pos = 0; ERR_TRY(cmd_append(out, out_cap, &pos, &head, sizeof(head))); *out_len = pos;
+ * @brief Appends to the answer (out->len grows): an answer built in pieces.
+ * @return NULL when appended; ERR_CMD_OUT_FULL.
+ * @usage ERR_TRY(cmd_append(out, &head, sizeof(head))); ERR_TRY(cmd_append(out, name, name_len));
  */
-MUST_USE err_h cmd_append(uint8_t* out, uint32_t cap, uint32_t* pos, const void* data, uint32_t len);
-
-/**
- * @brief A name that is the whole tail of a command: NUL-terminated, nothing after the NUL.
- * @param tail     The tail bytes, `tail_len` >= 1.
- * @param name     Set to `tail`, as a C string.
- * @return ERR_CMD_BAD_ARG if the last byte is not the only NUL.
- */
-MUST_USE err_h cmd_name_arg(const uint8_t* tail, uint32_t tail_len, const char** name);
+MUST_USE err_h cmd_append(cmd_out_t* out, const void* data, uint32_t len);
 
 #ifdef __cplusplus
 }

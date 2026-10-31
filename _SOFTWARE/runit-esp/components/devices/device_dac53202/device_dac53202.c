@@ -97,7 +97,7 @@ OP_READ(IO, VOLTAGE) {
   dac_t* c = ctx;
   ERR_TRY(check_channel(c, args->pin));
   const int32_t mV = (int32_t)(((uint32_t)c->code[args->pin] * DAC53202_VREF_MV + CODE_MAX / 2) / CODE_MAX);
-  return sys_io_reply_voltage(args->pin, mV, out, out_cap, out_len);
+  return sys_io_reply_voltage(args->pin, mV, out);
 }
 
 /* ---- Lifecycle ---- */

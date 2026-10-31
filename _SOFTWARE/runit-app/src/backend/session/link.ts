@@ -188,12 +188,6 @@ export class RunitLink {
     return this.commands.request(request, options)
   }
 
-  /** For an op that answers in several parts. */
-  async requestParts(request: Request, count: number, options?: CommandOptions): Promise<Uint8Array[]> {
-    await this.ready()
-    return this.commands.requestParts(request, count, options)
-  }
-
   /* ---- events ---- */
 
   onStatus(handler: (status: LinkStatus) => void): () => void {

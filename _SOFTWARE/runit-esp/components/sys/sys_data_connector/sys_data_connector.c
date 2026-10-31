@@ -173,12 +173,12 @@ uint8_t sys_data_connector_list(sys_data_connector_info_t out[CONFIG_SYS_DATA_CO
  * Data
  * ------------------------------------------------------------------------- */
 
-/* The largest frame (connector byte included) the binding takes now, at most CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX. Links
- * are never removed, so a bound provider exists. */
+/* The largest frame (connector byte included) the binding takes now, at most CMD_FRAME_MAX. Links are never removed,
+ * so a bound provider exists. */
 static uint32_t provider_frame_max(uint8_t provider_id, uint32_t endpoint) {
   const router_link_t* p = router_link_get(provider_id);
-  uint32_t max = p->max_frame != NULL ? p->max_frame(endpoint) : CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX;
-  return max < CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX ? max : CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX;
+  uint32_t max = p->max_frame != NULL ? p->max_frame(endpoint) : CMD_FRAME_MAX;
+  return max < CMD_FRAME_MAX ? max : CMD_FRAME_MAX;
 }
 
 uint32_t sys_data_connector_max_payload(uint8_t connector) {
@@ -187,7 +187,7 @@ uint32_t sys_data_connector_max_payload(uint8_t connector) {
     return 0;
   }
   // Providers are asked outside the lock: they take their own.
-  uint32_t max = CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX;
+  uint32_t max = CMD_FRAME_MAX;
   for (uint8_t i = 0; i < c.binding_count; i++) {
     uint32_t m = provider_frame_max(c.bindings[i].provider, c.bindings[i].endpoint);
     max = m < max ? m : max;
@@ -197,8 +197,8 @@ uint32_t sys_data_connector_max_payload(uint8_t connector) {
 
 err_h sys_data_connector_send(uint8_t connector, const void* data, uint32_t len) {
   ERR_CHECK(data != NULL || len == 0, ERR_CONN_BAD_ARG);
-  ERR_CHECK(CONN_BYTE + len <= CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX, ERR_CONN_TOO_LONG, .connector = connector, .provider = 0,
-            .len = (uint16_t)len, .max = CONFIG_SYS_DATA_CONNECTOR_FRAME_MAX - CONN_BYTE);
+  ERR_CHECK(CONN_BYTE + len <= CMD_FRAME_MAX, ERR_CONN_TOO_LONG, .connector = connector, .provider = 0,
+            .len = (uint16_t)len, .max = CMD_FRAME_MAX - CONN_BYTE);
   sys_data_connector_info_t c;
   ERR_CHECK(copy_conn(connector, &c), ERR_CONN_NOT_FOUND, .connector = connector);
   if (c.suspended || c.binding_count == 0) {

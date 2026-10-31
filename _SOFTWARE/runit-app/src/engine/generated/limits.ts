@@ -1,5 +1,6 @@
-import { LIMIT_SYMBOLS } from '../wire/load/limits'
+import { FRAME_MAX_SYMBOL, LIMIT_SYMBOLS } from '../wire/load/limits'
 import type { VmLimits } from '../wire/load/limits'
+import type { EnumTables } from './wire'
 
 /** The shape of generated/common/limits.json that this adapter reads. */
 export interface GeneratedLimits {
@@ -18,3 +19,10 @@ export const limitsFromGenerated = (published: GeneratedLimits): Partial<VmLimit
       return [key, limit.value]
     }),
   ) as Partial<VmLimits>
+
+/** The largest frame: cmd.h's `CMD_FRAME_MAX`, published in generated/common/enums.json (group `cmd_frame`). */
+export const frameMaxFromGenerated = (enums: EnumTables): number => {
+  const member = enums[FRAME_MAX_SYMBOL.group]?.members.find((m) => m.name === FRAME_MAX_SYMBOL.name)
+  if (!member) throw new Error(`generated/common/enums.json has no '${FRAME_MAX_SYMBOL.name}' in group '${FRAME_MAX_SYMBOL.group}' (cmd.h).`)
+  return member.value
+}

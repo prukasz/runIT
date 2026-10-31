@@ -214,7 +214,6 @@ class Link:
         self.logs: list[tuple[float, str]] = []
         self.streams: list[tuple[float, int, bytes]] = []
         self.responses: dict[int, Response] = {}
-        self._parts: dict[int, list[Response]] = {}  # request_many: every answer of a seq, in order
         self._seq = 0
         self._lock = threading.Lock()
         self._stop = False
@@ -273,8 +272,6 @@ class Link:
                 if frame and frame[0] == STREAM_RESPONSE and len(frame) >= 3:
                     resp = Response(frame[1], frame[2], frame[3:], now)
                     self.responses[frame[1]] = resp
-                    if frame[1] in self._parts:
-                        self._parts[frame[1]].append(resp)
                 elif frame:
                     self.streams.append((now, frame[0], frame[1:]))
             return
@@ -301,23 +298,6 @@ class Link:
             self.responses.pop(seq, None)
         self.send_frame(bytes([seq, FLAG_URGENT if urgent else 0]) + (keys if raw else frame(keys, dir)) + payload)
         return self.wait_response(seq, timeout)
-
-    def request_many(self, keys: bytes, payload: bytes, count: int, timeout: float = 2.0) -> list[Response]:
-        """A command answered with `count` packets (actions READ): all of them in order, or what came (an error
-        answer ends it early)."""
-        seq = self.next_seq()
-        with self._lock:
-            self._parts[seq] = []
-        self.send_frame(bytes([seq, 0]) + frame(keys) + payload)
-        end = time.time() + timeout
-        while time.time() < end:
-            with self._lock:
-                got = self._parts[seq]
-                if len(got) >= count or any(not r.ok for r in got):
-                    break
-            time.sleep(0.01)
-        with self._lock:
-            return self._parts.pop(seq)
 
     def wait_response(self, seq: int, timeout: float = 2.0) -> Response | None:
         end = time.time() + timeout

@@ -149,8 +149,12 @@ const store = (board: FakeBoard) => {
       const image = frameImage(frames)
       return send(answer(seq!, [image.length & 0xff, image.length >> 8, frames.length & 0xff, frames.length >> 8, ...u32(crc32(image))]))
     }
-    if (key === defs.keys.actions && op === defs.ops.actions.READ) for (const f of records.get(id) ?? []) send(answer(seq!, [...f]))
-    else if (key === defs.keys.actions && op === defs.ops.actions.LIST) {
+    if (key === defs.keys.actions && op === defs.ops.actions.READ) {
+      const frames = records.get(id)
+      if (!frames) return send(answer(seq!, [], false))
+      const offset = frame[9]! | (frame[10]! << 8)
+      send(answer(seq!, [...frameImage(frames).subarray(offset, offset + 64)])) // a small page: the reader asks again from where it got to
+    } else if (key === defs.keys.actions && op === defs.ops.actions.LIST) {
       const ids = [...records.keys()].sort((a, b) => a - b).filter((i) => i >= id)
       send(answer(seq!, [records.size & 0xff, records.size >> 8, ...ids.flatMap(u32)]))
     } else send(answer(seq!))

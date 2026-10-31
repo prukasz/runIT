@@ -2,7 +2,7 @@ import enumsJson from '@generated/common/enums.json'
 import limitsJson from '@generated/common/limits.json'
 import vmContractJson from '@generated/services/contract_vm.json'
 import type { GeneratedInput } from '../catalog/fromGenerated'
-import { limitsFromGenerated } from './limits'
+import { frameMaxFromGenerated, limitsFromGenerated } from './limits'
 import type { GeneratedLimits } from './limits'
 import { wireDefinitions } from './wire'
 import type { EnumTables, VmContract } from './wire'
@@ -14,7 +14,7 @@ import type { EnumTables, VmContract } from './wire'
 
 export type { ContractCommand, EnumMember, EnumTable, EnumTables, VmContract } from './wire'
 export { wireDefinitions } from './wire'
-export { limitsFromGenerated } from './limits'
+export { frameMaxFromGenerated, limitsFromGenerated } from './limits'
 export type { GeneratedLimits } from './limits'
 
 /** The firmware's enums as generated/common/enums.json publishes them. */
@@ -23,8 +23,11 @@ export const generatedEnums = (enumsJson as unknown as { enums: EnumTables }).en
 /** The wire numbers of the bundled firmware descriptors. */
 export const loadWireDefinitions = () => wireDefinitions(generatedEnums, vmContractJson as unknown as VmContract)
 
-/** The limits of the bundled firmware configuration (generated/common/limits.json: the `#@limit` options of the Kconfig). */
-export const loadLimits = () => limitsFromGenerated(limitsJson as unknown as GeneratedLimits)
+/**
+ * The limits of the bundled firmware configuration (generated/common/limits.json: the `#@limit` options of the Kconfig) and
+ * the frame size (cmd.h, generated/common/enums.json).
+ */
+export const loadLimits = () => ({ ...limitsFromGenerated(limitsJson as unknown as GeneratedLimits), frameMax: frameMaxFromGenerated(generatedEnums) })
 
 /*
  * The descriptor files themselves. Vite resolves the globs at build time, so a new `block_*.json` / `contract_*.json` /

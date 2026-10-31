@@ -40,7 +40,7 @@ ROUTER_OP_NOARGS(op_info) {
     };
     memcpy(r[b].used, i.used, sizeof(r[b].used));
   }
-  return cmd_reply(out, out_cap, out_len, r, sizeof(r));
+  return cmd_reply(out, r, sizeof(r));
 }
 
 ROUTER_OP(op_scan, sys_i2c_bus_args_t) {
@@ -56,7 +56,7 @@ ROUTER_OP(op_scan, sys_i2c_bus_args_t) {
       return err;  // stuck bus or driver failure: the rest of the scan would fail too
     }
   }
-  return cmd_reply(out, out_cap, out_len, &res, sizeof(res));
+  return cmd_reply(out, &res, sizeof(res));
 }
 
 ROUTER_OP(op_reset, sys_i2c_bus_args_t) {
@@ -81,15 +81,15 @@ ROUTER_OP(op_raw_read, sys_i2c_raw_read_args_t) {
   const sys_i2c_raw_write_args_t head = {.bus = args->bus, .addr = args->addr, .reg = args->reg};
   const uint32_t need = sizeof(head) + args->len;
   ERR_TRY(check_remote_bus(args->bus));
-  ERR_CHECK(args->len > 0 && need <= out_cap, ERR_CMD_OUT_FULL, .need = (uint16_t)need, .cap = (uint16_t)out_cap);
+  ERR_CHECK(args->len > 0 && need <= out->cap, ERR_CMD_OUT_FULL, .need = (uint16_t)need, .cap = (uint16_t)out->cap);
 
   sys_i2c_dev_t dev;
   sys_i2c_dev_init(&dev, args->bus, args->addr, RAW_SPEED_HZ);
   ERR_TRY(sys_i2c_dev_add(&dev));
-  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, args->reg, out + sizeof(head), args->len));
+  err_h err = raw_finish(&dev, sys_i2c_reg_read(&dev, args->reg, out->data + sizeof(head), args->len));
   if (err == NULL) {
-    memcpy(out, &head, sizeof(head));
-    *out_len = need;
+    memcpy(out->data, &head, sizeof(head));
+    out->len = need;
   }
   return err;
 }
@@ -100,7 +100,7 @@ ROUTER_OP_TAIL(op_raw_write, sys_i2c_raw_write_args_t) {
   sys_i2c_dev_t dev;
   sys_i2c_dev_init(&dev, args->bus, args->addr, RAW_SPEED_HZ);
   ERR_TRY(sys_i2c_dev_add(&dev));
-  return raw_finish(&dev, sys_i2c_reg_write(&dev, args->reg, tail, tail_len));
+  return raw_finish(&dev, sys_i2c_reg_write(&dev, args->reg, tail.data, tail.len));
 }
 
 static const router_op_t k_ops[] = {

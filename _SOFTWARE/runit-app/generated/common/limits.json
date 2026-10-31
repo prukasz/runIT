@@ -31,14 +31,6 @@
       "description": "ID of the onboard action that restarts the board (sys RESTART). The firmware writes it at every boot.",
       "source_file": "runit-esp/components/app/runit/Kconfig"
     },
-    "ROUTER_FRAME_MAX": {
-      "config": "CONFIG_ROUTER_FRAME_MAX",
-      "value": 512,
-      "alias": "Largest frame",
-      "description": "Largest request frame accepted from a link, and the largest response frame built (stream byte included). A link may report a smaller limit at runtime (BLE MTU).",
-      "unit": "bytes",
-      "source_file": "runit-esp/components/core/router/Kconfig"
-    },
     "ROUTER_RESPONSE_STREAM": {
       "config": "CONFIG_ROUTER_RESPONSE_STREAM",
       "value": 5,

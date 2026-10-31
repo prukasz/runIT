@@ -15,14 +15,14 @@ extern "C" {
  * power) and the default commands of each device.
  *
  * A record is filled by recording a client's live commands (the router tap)
- * or by uploading the whole image, and read back frame by frame, as it was
- * recorded. Nothing replays by itself: the VM or the app calls RUN. A record
+ * or by uploading the whole image, and read back by offset, the image as it
+ * was stored. Nothing replays by itself: the VM or the app calls RUN. A record
  * runs only on a router task: a remote RUN, or router_inject of a RUN frame
  * (sys_actions_request) from anywhere else. So a replay never interleaves with
  * live normal frames, and an urgent STOP still overtakes it.
  *
  * Image: frames back to back, each [u16 len LE][keys + payload] (what
- * router_route takes: no seq / flags), 1..CONFIG_ROUTER_FRAME_MAX - 2 bytes.
+ * router_route takes: no seq / flags), 1..CMD_DATA_MAX bytes.
  */
 
 /* ----------------------------------------------------------------------------
@@ -134,11 +134,18 @@ void sys_actions_abort(void);
 
 MUST_USE err_h sys_actions_info(uint32_t id, sys_actions_info_t* out);
 
+/**
+ * @brief Copies the stored image from byte `offset` into `buf`: as many bytes as are left, at most `cap` (`*len`; 0 at
+ * the end). The mirror of an upload's writes; the image is what INFO's CRC covers.
+ * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_OFFSET for an offset past the image.
+ */
+MUST_USE err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len);
+
 /** @brief Called once per frame, in order: the frame exactly as recorded (keys + payload), borrowed. */
 typedef err_h (*sys_actions_frame_f)(const uint8_t* frame, uint16_t len, bool last, void* ctx);
 
 /**
- * @brief Reads a record back frame by frame, as it was recorded or uploaded: `fn` for every frame, in order, until
+ * @brief Walks a record frame by frame, as it was recorded or uploaded: `fn` for every frame, in order, until
  * one fails (that error is returned). ERR_ACTION_NOT_FOUND, ERR_ACTION_BAD_FRAME for a stored image that is damaged.
  */
 MUST_USE err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx);

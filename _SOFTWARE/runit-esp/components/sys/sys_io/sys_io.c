@@ -87,12 +87,12 @@ err_h sys_io_set_pwm_frequency(sys_io_pin_t p, uint32_t frequency_Hz) {
   return sys_device_write(p.device, IO_OP_PWM_FREQ, &a, sizeof(a));
 }
 
-err_h sys_io_reply_level(uint8_t pin, bool level, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+err_h sys_io_reply_level(uint8_t pin, bool level, cmd_out_t* out) {
   const io_level_args_t a = {.pin = pin, .level = level};
-  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
+  return cmd_reply(out, &a, sizeof(a));
 }
 
-err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, cmd_out_t* out) {
   const io_voltage_args_t a = {.pin = pin, .voltage_mV = voltage_mV};
-  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
+  return cmd_reply(out, &a, sizeof(a));
 }

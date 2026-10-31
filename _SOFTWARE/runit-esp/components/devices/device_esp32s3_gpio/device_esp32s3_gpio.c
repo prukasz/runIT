@@ -260,7 +260,7 @@ OP_READ(IO, LEVEL) {
   const bool level = err == NULL && gpio_get_level((gpio_num_t)args->pin) != 0;
   UNLOCK();
   ERR_TRY(err);
-  return sys_io_reply_level(args->pin, level, out, out_cap, out_len);
+  return sys_io_reply_level(args->pin, level, out);
 }
 
 // The ADC task's latest filtered reading.
@@ -273,7 +273,7 @@ OP_READ(IO, VOLTAGE) {
   const int32_t mV = err == NULL ? p->hw.adc.last_mV : 0;
   UNLOCK();
   ERR_TRY(err);
-  return sys_io_reply_voltage(args->pin, mV, out, out_cap, out_len);
+  return sys_io_reply_voltage(args->pin, mV, out);
 }
 
 /* ---- Pin interrupts ---- */

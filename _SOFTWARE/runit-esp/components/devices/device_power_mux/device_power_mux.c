@@ -54,7 +54,7 @@ OP_WRITE(SUPPLY, SOURCE) {
 OP_READ(SUPPLY, SOURCE) {
   (void)args;
   const uint8_t source = (uint8_t)((mux_t*)ctx)->source;
-  return cmd_reply(out, out_cap, out_len, &source, sizeof(source));
+  return cmd_reply(out, &source, sizeof(source));
 }
 
 /* ---- Lifecycle ---- */

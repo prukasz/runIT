@@ -21,9 +21,7 @@
   static err_h name(CMD_F_PARAMS) {                                          \
     (void)ctx;                                                               \
     (void)out;                                                               \
-    (void)out_cap;                                                           \
-    (void)out_len;                                                           \
-    return name##_body(in + 1, in_len - 1);                                  \
+    return name##_body(in.data + 1, in.len - 1);                             \
   }                                                                          \
   static err_h name##_body(const uint8_t* body, size_t len)
 
@@ -232,7 +230,6 @@ VM_OP_FN(op_speed) {
 static err_h op_status(CMD_F_PARAMS) {
   (void)ctx;
   (void)in;
-  (void)in_len;
   const vm_exec_status_t run = vm_exec_status();
   const vm_exec_fault_status_t fault = vm_exec_fault_status();
   err_h incomplete = vm_loader_verify_complete();
@@ -252,12 +249,12 @@ static err_h op_status(CMD_F_PARAMS) {
       .next_block = run.waiting ? run.next_block : (run.mode == VM_RUN_BLOCK && !run.scan_active) ? 0 : UINT16_MAX,
   };
   if (incomplete) err_free(incomplete);
-  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+  return cmd_reply(out, &r, sizeof(r));
 }
 
 // OPEN replaces a running program, so it always counts for the fail-closed rule.
 static err_h op_open_closed(CMD_F_PARAMS) {
-  return load_result(op_open(ctx, in, in_len, out, out_cap, out_len), VM_OP_OPEN, true);
+  return load_result(op_open(ctx, in, out), VM_OP_OPEN, true);
 }
 
 err_h vm_init(void) {

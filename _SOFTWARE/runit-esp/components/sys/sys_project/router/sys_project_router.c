@@ -40,7 +40,7 @@ ROUTER_OP(op_begin, begin_t) {
 }
 
 ROUTER_OP_TAIL(op_write, write_t) {
-  return sys_project_write(args->offset, tail, tail_len);
+  return sys_project_write(args->offset, tail.data, tail.len);
 }
 
 ROUTER_OP(op_commit, commit_t) {
@@ -55,7 +55,7 @@ ROUTER_OP_NOARGS(op_abort) {
 ROUTER_OP_NOARGS(op_info) {
   sys_project_info_t i;
   ERR_TRY(sys_project_info(&i));
-  return cmd_reply(out, out_cap, out_len, &i, sizeof(i));
+  return cmd_reply(out, &i, sizeof(i));
 }
 
 ROUTER_OP_NOARGS(op_run) {
@@ -76,7 +76,7 @@ ROUTER_OP(op_options, options_t) {
 
 ROUTER_OP_NOARGS(op_options_get) {
   const options_t o = {.boot = sys_project_get_boot()};
-  return cmd_reply(out, out_cap, out_len, &o, sizeof(o));
+  return cmd_reply(out, &o, sizeof(o));
 }
 
 ROUTER_OP(op_section, section_t) {

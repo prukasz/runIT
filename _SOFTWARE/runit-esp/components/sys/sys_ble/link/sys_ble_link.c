@@ -9,15 +9,12 @@
 #define TX_FRAMES             4u            // frames the TX / LOGS buffers hold
 #define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer
 
-_Static_assert(CONFIG_SYS_BLE_TX_ITEM_MAX >= CONFIG_ROUTER_FRAME_MAX,
-               "SYS_BLE_TX_ITEM_MAX must hold a whole router frame");
-
 /* ----------------------------------------------------------------------------
  * RX: framed packets -> one frame -> router_submit (host task only)
  * ------------------------------------------------------------------------- */
 
 static struct {
-  uint8_t buf[CONFIG_ROUTER_FRAME_MAX];
+  uint8_t buf[CMD_FRAME_MAX];
   size_t len;
   uint8_t expected;  // counter of the next packet
   bool active;       // inside a frame
@@ -86,7 +83,7 @@ static const router_link_t k_link = {
  * ------------------------------------------------------------------------- */
 
 err_h sys_ble_link_init(void) {
-  const size_t frames = SYS_BLE_BUFF_SIZE_FOR(CONFIG_ROUTER_FRAME_MAX, TX_FRAMES);
+  const size_t frames = SYS_BLE_BUFF_SIZE_FOR(CMD_FRAME_MAX, TX_FRAMES);
   ERR_TRY(sys_ble_service_create(&(sys_ble_svc_cfg_t){.uuid = SYS_BLE_SVC_RUNIT, .is_primary = true}));
   ERR_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, &(sys_ble_char_cfg_t){
                                                      .uuid = SYS_BLE_CHR_RUNIT_RX,

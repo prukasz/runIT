@@ -57,19 +57,18 @@ typedef struct __attribute__((packed)) {
 /**
  * @brief Writes a contract op's cmd_f: parses the payload (exactly
  * sizeof(args_t) bytes, else ERR_CMD_BAD_LEN) and runs the body that follows.
- * The body sees ctx (the device's struct), a (const args_t*), out, out_cap,
- * out_len. `in` is the payload only: the registry strips the op.
+ * The body sees ctx (the device's struct), args (const args_t*) and out. `in`
+ * is the payload only: the registry strips the op.
  */
 #define SYS_DEVICE_HANDLER(fn, args_t)                                                                            \
-  static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len);       \
-  static err_h fn(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap,                  \
-                  uint32_t* out_len) {                                                                            \
+  static err_h fn##_body(void* ctx, const args_t* args, cmd_out_t* out);                                          \
+  static err_h fn(CMD_F_PARAMS) {                                                                                 \
     args_t args;                                                                                                  \
-    ERR_CHECK(in_len == sizeof(args), ERR_CMD_BAD_LEN, .got = (uint16_t)in_len, .need = (uint16_t)sizeof(args)); \
-    memcpy(&args, in, sizeof(args));                                                                              \
-    return fn##_body(ctx, &args, out, out_cap, out_len);                                                          \
+    ERR_CHECK(in.len == sizeof(args), ERR_CMD_BAD_LEN, .got = (uint16_t)in.len, .need = (uint16_t)sizeof(args));  \
+    memcpy(&args, in.data, sizeof(args));                                                                         \
+    return fn##_body(ctx, &args, out);                                                                            \
   }                                                                                                               \
-  static err_h fn##_body(void* ctx, const args_t* args, uint8_t* out, uint32_t out_cap, uint32_t* out_len)
+  static err_h fn##_body(void* ctx, const args_t* args, cmd_out_t* out)
 
 /** @brief INFO answer. */
 typedef struct __attribute__((packed)) {

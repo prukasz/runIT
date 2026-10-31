@@ -151,8 +151,8 @@ static inline bool sys_io_pin_valid(sys_io_pin_t p) {
 }
 
 /** @brief A device's answer to a LEVEL / VOLTAGE read: the write's struct for the pin (the mirror). */
-MUST_USE err_h sys_io_reply_level(uint8_t pin, bool level, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
-MUST_USE err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+MUST_USE err_h sys_io_reply_level(uint8_t pin, bool level, cmd_out_t* out);
+MUST_USE err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, cmd_out_t* out);
 
 MUST_USE err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode);
 MUST_USE err_h sys_io_reset(sys_io_pin_t p);

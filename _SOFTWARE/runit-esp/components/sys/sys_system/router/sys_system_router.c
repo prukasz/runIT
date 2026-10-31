@@ -55,7 +55,7 @@ U_TIMER_DEFINE(sys_restart_timer, MSEC(RESTART_DELAY_MS), false, restart_now);
 
 ROUTER_OP_NOARGS(op_ping) {
   const uint32_t uptime_ms = (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount());
-  return cmd_reply(out, out_cap, out_len, &uptime_ms, sizeof(uptime_ms));
+  return cmd_reply(out, &uptime_ms, sizeof(uptime_ms));
 }
 
 ROUTER_OP_NOARGS(op_stop) {
@@ -79,7 +79,7 @@ ROUTER_OP_NOARGS(op_deadman_get) {
   bool on_link_lost;
   sys_system_deadman_get(&timeout_ms, &on_link_lost);
   const sys_deadman_t r = {.timeout_ms = timeout_ms, .on_link_lost = on_link_lost};
-  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+  return cmd_reply(out, &r, sizeof(r));
 }
 
 // The client is leaving on purpose (its Disconnect, its window closing): the board goes on with what it runs, and a dead-man the client
@@ -97,7 +97,7 @@ ROUTER_OP(op_time_set, sys_time_t) {
 
 ROUTER_OP_NOARGS(op_time_get) {
   const sys_time_t r = {.unix_ms = board_time_unix_ms()};
-  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+  return cmd_reply(out, &r, sizeof(r));
 }
 
 ROUTER_OP_NOARGS(op_safe_get) {
@@ -105,7 +105,7 @@ ROUTER_OP_NOARGS(op_safe_get) {
   uint32_t for_ms;
   sys_system_safe_state_get(&reason, &for_ms);
   const sys_safe_t r = {.reason = reason, .for_ms = for_ms};
-  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+  return cmd_reply(out, &r, sizeof(r));
 }
 
 ROUTER_OP_NOARGS(op_safe_leave) {

@@ -12,7 +12,7 @@
 #define NAMESPACE "actions"
 #define KEY_LEN   10u                               // "a" + 8 hex digits + NUL
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
-#define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
+#define FRAME_MAX CMD_DATA_MAX  // keys + payload: what a frame carries after its header
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_ACTIONS, "actions", ERR_SYS_ACTIONS_MAP)
 
@@ -165,7 +165,7 @@ err_h sys_actions_init(void) {
  * Run
  * ------------------------------------------------------------------------- */
 
-// Routes every frame of a checked image; answers go to `scratch` (CONFIG_ROUTER_FRAME_MAX) and are dropped. Stops at
+// Routes every frame of a checked image; answers go to `scratch` (CMD_DATA_MAX) and are dropped. Stops at
 // the first failure, or with `keep_going` runs them all, reports the later failures and returns the first.
 static err_h replay(uint32_t id, const uint8_t* img, uint16_t count, uint8_t* scratch, bool keep_going) {
   err_h first = NULL;
@@ -173,8 +173,8 @@ static err_h replay(uint32_t id, const uint8_t* img, uint16_t count, uint8_t* sc
   for (uint16_t step = 0; step < count; step++) {
     uint16_t flen;
     memcpy(&flen, img + pos, LEN_BYTES);
-    uint32_t out_len = 0;
-    err_h err = router_route(img + pos + LEN_BYTES, flen, scratch, CONFIG_ROUTER_FRAME_MAX, &out_len);
+    cmd_out_t out = {.data = scratch, .cap = CMD_DATA_MAX};
+    err_h err = router_route((cmd_in_t){img + pos + LEN_BYTES, flen}, &out);
     pos += LEN_BYTES + flen;
     if (err == NULL) {
       continue;
@@ -199,7 +199,7 @@ err_h sys_actions_run(uint32_t id, bool keep_going) {
   uint8_t* blob;
   size_t len;
   uint16_t count;
-  ERR_TRY(load_checked(id, CONFIG_ROUTER_FRAME_MAX, &blob, &len, &count));
+  ERR_TRY(load_checked(id, CMD_DATA_MAX, &blob, &len, &count));
   s_depth++;
   err_h err = replay(id, blob, count, blob + len, keep_going);
   s_depth--;
@@ -447,6 +447,22 @@ err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
   info_of(blob, len, count, out);
   free(blob);
   return NULL;
+}
+
+err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len) {
+  ERR_CHECK(buf != NULL && len != NULL, ERR_ACTION_BAD_ARG);
+  uint8_t* blob;
+  size_t size;
+  ERR_TRY(load(id, 0, &blob, &size));
+  err_h err = NULL;
+  if (offset > size) {
+    err = ERR_NEW(ERR_ACTION_OFFSET, .got = offset, .want = (uint16_t)size);
+  } else {
+    *len = size - offset < cap ? (uint32_t)(size - offset) : cap;
+    memcpy(buf, blob + offset, *len);
+  }
+  free(blob);
+  return err;
 }
 
 err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx) {

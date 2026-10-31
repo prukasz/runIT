@@ -7,7 +7,7 @@
   X(ERR_ACTION_BUSY,       ERR_TAG(ERR_MOD_SYS_ACTIONS, 3),  ERR_SEV_MEDIUM, {}) /* a recording or upload is open */ \
   X(ERR_ACTION_NO_SESSION, ERR_TAG(ERR_MOD_SYS_ACTIONS, 4),  ERR_SEV_MEDIUM, {}) /* no recording / upload of that kind open */ \
   X(ERR_ACTION_TOO_BIG,    ERR_TAG(ERR_MOD_SYS_ACTIONS, 5),  ERR_SEV_MEDIUM, { uint16_t len; uint16_t max; }) \
-  X(ERR_ACTION_OFFSET,     ERR_TAG(ERR_MOD_SYS_ACTIONS, 6),  ERR_SEV_MEDIUM, { uint16_t got; uint16_t want; }) /* upload write out of order */ \
+  X(ERR_ACTION_OFFSET,     ERR_TAG(ERR_MOD_SYS_ACTIONS, 6),  ERR_SEV_MEDIUM, { uint16_t got; uint16_t want; }) /* upload write out of order, read past the image */ \
   X(ERR_ACTION_INCOMPLETE, ERR_TAG(ERR_MOD_SYS_ACTIONS, 7),  ERR_SEV_MEDIUM, { uint16_t got; uint16_t want; }) /* commit before every byte came */ \
   X(ERR_ACTION_CRC,        ERR_TAG(ERR_MOD_SYS_ACTIONS, 8),  ERR_SEV_MEDIUM, { uint32_t got; uint32_t want; }) \
   X(ERR_ACTION_BAD_FRAME,  ERR_TAG(ERR_MOD_SYS_ACTIONS, 9),  ERR_SEV_MEDIUM, { uint16_t offset; }) /* image framing broken there */ \

@@ -29,8 +29,8 @@ err_h sys_pins_state_unlock(sys_pins_state_t* s, uint16_t dev_id, uint8_t pin) {
   return NULL;
 }
 
-err_h sys_pins_reply(uint8_t* out, uint32_t out_cap, uint32_t* out_len, uint64_t mask) {
-  return cmd_reply(out, out_cap, out_len, &mask, sizeof(mask));  // little-endian CPU
+err_h sys_pins_reply(cmd_out_t* out, uint64_t mask) {
+  return cmd_reply(out, &mask, sizeof(mask));  // little-endian CPU
 }
 
 /* ---- Wrappers ---- */

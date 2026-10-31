@@ -88,8 +88,6 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
 SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
   (void)args;
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   servo_t* c = ctx;
   return servo_move(c, (int32_t)c->cfg.default_pos * 10);
 }
@@ -97,8 +95,6 @@ SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
 // Takes effect with the next move, the servo stays where it is.
 SYS_DEVICE_HANDLER(set_trim_h, servo_trim_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   servo_t* c = ctx;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->trim, -SERVO_TRIM_MAX, SERVO_TRIM_MAX);
   c->trim = args->trim;
@@ -107,8 +103,6 @@ SYS_DEVICE_HANDLER(set_trim_h, servo_trim_t) {
 
 SYS_DEVICE_HANDLER(set_h, servo_set_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   servo_t* c = ctx;
   int32_t pos_x10;
   ERR_TRY(servo_decode(c, args->value_x10, &pos_x10));
@@ -120,14 +114,12 @@ SYS_DEVICE_HANDLER(get_pulse_h, sys_device_none_t) {
   (void)args;
   const servo_t* c = ctx;
   const uint16_t pulse = c->base.suspended ? 0 : c->pulse_us;
-  return cmd_reply(out, out_cap, out_len, &pulse, sizeof(pulse));
+  return cmd_reply(out, &pulse, sizeof(pulse));
 }
 
 SYS_DEVICE_HANDLER(release_h, sys_device_none_t) {
   (void)args;
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   servo_t* c = ctx;
   return servo_stop(c);
 }

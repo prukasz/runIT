@@ -31,17 +31,17 @@ response  [0x05][seq][status][data]        (CONFIG_ROUTER_RESPONSE_STREAM)
 
 ## Routing
 
-- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. The root calls `router_call(table, n, ctx, in, …)`, which looks up the key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. A module router consumes its key and calls `router_call_op(k_ops, n, ctx, in + 1, in_len - 1, …)` on `[dir][code][args]`: it finds the code's row, takes the side `dir` asks for (`cmd_side`), calls it with `[code][args]` and wraps a failure in `ERR_ROUTER_KEY{code}`. So every level shows in the error chain.
+- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. The root calls `router_call(table, n, ctx, in, …)`, which looks up the key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. A module router consumes its key and calls `router_call_op(k_ops, n, ctx, {in.data + 1, in.len - 1}, out)` on `[dir][code][args]`: it finds the code's row, takes the side `dir` asks for (`cmd_side`), calls it with `[code][args]` and wraps a failure in `ERR_ROUTER_KEY{code}`. So every level shows in the error chain.
 - **Command table**: `router_op_t {code, read, write}`, one row per command: `ROUTER_R(code, fn)`, `ROUTER_W(code, fn)` or `ROUTER_RW(code, read, write)` (NULL = no such side). What each side takes and answers: CMD.MD "Read and write".
 - **Writing ops**: the native C API stays the source (typed, no packing on internal calls, callbacks and handles); an op only adapts it. Use the macros, not hand-written `cmd_f`s:
   - `ROUTER_OP(fn, args_t) { … }`: fixed packed payload, the body gets `args` (`const args_t*`).
   - `ROUTER_OP_NOARGS(fn) { … }`: no payload.
-  - `ROUTER_OP_TAIL(fn, hdr_t) { … }`: header plus a variable tail (`tail`, `tail_len` ≥ 1), e.g. a NUL-ended name or data bytes.
+  - `ROUTER_OP_TAIL(fn, hdr_t) { … }`: header plus a variable tail (`tail`, a `cmd_in_t` of ≥ 1 byte), e.g. a NUL-ended name or data bytes.
   - `ROUTER_MODULE(fn, k_ops)`: writes the module's `cmd_f` over its command table (`router_call_op`; prefix `static` for a file-local one); `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
-  Bodies also see `ctx`, `out`, `out_cap`, `out_len` (answer with `cmd_reply`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API.
+  Bodies also see `ctx` and `out` (answer with `cmd_reply` / `cmd_append`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API.
 - Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`main`). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`).
-- `out_cap` is limited to what the origin link carries right now; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big).
-- `router_route(in, …)` is also the entry point for replaying stored action frames.
+- `out->cap` is limited to what the origin link carries right now, less the answer's header; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big). A command answers once: data longer than that is paged by the command (CMD.MD "The handler").
+- `router_route(in, out)` is also the entry point for replaying stored action frames.
 - **Concurrency**: urgent and normal frames run concurrently on two tasks, so module routers must be thread-safe.
 
 ## Dispatcher
@@ -62,7 +62,6 @@ link RX task ── router_submit(link, frame) ──► copy into ring buffer
 - **Link 0 (`ROUTER_LINK_INTERNAL`)** is the board itself. `router_inject(req, len, urgent)` queues a request without seq / flags (`[key][dir]…[payload]`; seq from an internal counter, flags from `urgent`) on the same rings and tasks as link frames; answers are dropped (the internal link has no `send`), errors are still reported (link `internal`). Injected frames are not shown to the watch (they prove no client is alive). Task context, never blocks (`ERR_ROUTER_QUEUE_FULL`, `ERR_ROUTER_FRAME_LEN`). `router_submit` refuses link 0.
 - **Tap** `router_set_tap(&{take, seen})` (boot, by the app): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a frame that was not taken. Both run on the routing task for every link. Used by the actions recorder (SYS_ACTIONS.MD).
 - **Origin** `router_origin()`: the command the calling task is routing (link, seq, request), NULL outside the router tasks; inside a replay it is still the outer command.
-- **More than one answer** `router_answer_part(out, len)`: sends the first `len` bytes of the op's own `out` buffer as an extra OK answer (same `seq` and link) before the op returns. A command that answers with several packets sends all but the last this way and returns the last (actions READ: one packet per recorded frame). The client matches by `seq` and knows the count; an error answer ends the series.
 
 ### Watch
 
@@ -110,7 +109,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 
 ## Limits
 
-- `CONFIG_ROUTER_FRAME_MAX` (default 512 bytes): maximum frame length accepted and produced.
+- `CMD_FRAME_MAX` (512 bytes, `cmd.h`, CMD.MD "Frame size"): the largest frame accepted and produced; the response buffers hold one.
 - `CONFIG_ROUTER_MAX_KEYS` (default 16): maximum registered root keys.
 - `CONFIG_ROUTER_MAX_LINKS` (default 4): maximum registered transport links (IDs 1..4); the data connectors bind to the same links, and `sys_data_connector.c` checks at build time that every `transport_e` fits.
 - Inbound ring buffers: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB).

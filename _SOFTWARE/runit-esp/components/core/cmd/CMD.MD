@@ -1,12 +1,12 @@
 # cmd — what a command handler is
 
-Component `components/core/cmd/`. The smallest common layer for command handling: the **handler type**, the **direction** (read or write), the **answer helpers** and the **errors a handler raises for a bad payload or a missing side**. No transport, no keys, no registry.
+Component `components/core/cmd/`. The smallest common layer for command handling: the **handler**, the **direction** (read or write), the **answer**, the **frame size** every limit comes from and the **errors a handler raises for a bad payload or a missing side**. No transport, no keys, no registry.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `cmd.h` | `cmd_f`, `CMD_OUT_PARAMS` / `CMD_F_PARAMS`, `cmd_dir_e`, `cmd_side`, `cmd_reply`, `cmd_append`, `cmd_name_arg` |
+| `cmd.h` | The handler (`cmd_in_t`, `cmd_out_t`, `cmd_f`, `CMD_F_PARAMS`), `cmd_dir_e`, `cmd_side`, `cmd_reply`, `cmd_append`, the frame size (`CMD_FRAME_MAX`, `CMD_HEAD`, `CMD_DATA_MAX`) |
 | `errors/cmd_errors.h` | `ERR_CMD_MAP`, the module's error tags (included by `cmd.h`) |
 | `errors/errors_cmd.json` | The error messages |
 | `cmd.c` | Error module (`ERR_MOD_CMD` = 11) and helpers. Linked `WHOLE_ARCHIVE`: constructor registers error tags |
@@ -33,15 +33,36 @@ The router depends on `cmd`. Each `sys_*` module with a remote interface has its
 ## The handler
 
 ```c
-typedef err_h (*cmd_f)(void* ctx, const uint8_t* in, uint32_t in_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+typedef err_h (*cmd_f)(void* ctx, cmd_in_t in, cmd_out_t* out);
 ```
 
-- `in`: input buffer. The router passes the command's code first (the `ROUTER_OP*` macros strip it); the device registry passes the args only (contract handler macros parse `sizeof(args)` bytes).
-- `ctx`: context pointer. NULL from the router root, or the device's struct from the device registry.
-- `out` / `out_cap` / `out_len`: response buffer. Untouched `out_len` means an empty response.
-- `cmd_reply`: writes a single contiguous response and verifies buffer capacity (`ERR_CMD_OUT_FULL`).
-- `cmd_append`: appends pieces to `out` advancing `*pos` (`ERR_CMD_OUT_FULL`).
-- `cmd_name_arg`: verifies that a trailing name argument is strictly NUL-terminated with no bytes following the NUL (`ERR_CMD_BAD_ARG`).
+Bytes in, bytes out, the error chain. `CMD_F_PARAMS` is the parameter list, for the macros that write a `cmd_f`.
+
+- `ctx`: NULL from the router root, or the device's struct from the device registry.
+- `in` (`{data, len}`): what the caller passes. The router passes the command's code first, `[code][args]` (the `ROUTER_OP*` macros strip it); the device registry passes the args only (the contract handler macros parse `sizeof(args)` bytes).
+- `out` (`{data, cap, len}`): the answer. `cap` is what the answer may hold (from the router: what the origin link carries now, less the answer's header; at most `CMD_DATA_MAX`), `len` what the handler wrote (0: an empty answer).
+- `cmd_reply(out, data, len)` writes the whole answer, `cmd_append(out, data, len)` a piece after what is there; both `ERR_CMD_OUT_FULL` past `cap`.
+
+A command has one answer, at most `cap`. Data longer than that is paged by the command itself, which takes in its request where to start (a `start` id, an `offset`) and answers one page: actions LIST from a `start` ID, actions READ from an `offset`.
+
+## Frame size
+
+`CMD_FRAME_MAX` (512) is the largest whole frame on every link, and `CMD_HEAD` (5) the room a frame keeps for its header in front of its data. They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
+
+```
+CMD_FRAME_MAX
+ ├─ a link: a request frame it takes, an answer or stream frame it sends; its buffers hold one
+ │    (BLE: a framed characteristic's item, sys_ble; UART: the frame and its hex line, sys_uart)
+ ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
+ │    the answer buffer of a replay
+ └─ a connector's frame [connector][payload]: a payload ≤ CMD_FRAME_MAX − 1
+```
+
+The headers in use fit `CMD_HEAD`: a request's `[seq][flags]` (2), an answer's `[stream][seq][status]` (3). A link may carry less right now (`max_frame`, a BLE MTU): the router's answers and the connectors' frames are cut to that (ROUTER.MD, SYS_DATA_CONNECTOR.MD).
+
+## Long work
+
+A handler waits on nothing but its own I/O (a flash write, an I2C transfer): it runs on a router task, and a device op under the registry's lock (SYS_DEVICE.MD "Concurrency"). What takes long or waits on something outside is a **job**: its write starts it and answers at once; its progress and its end come on a stream, or by a read.
 
 ## Read and write
 

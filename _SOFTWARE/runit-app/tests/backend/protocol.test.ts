@@ -29,10 +29,10 @@ describe('the numbers come from the firmware', () => {
     expect(defs.keys.ble).toBe(0x03)
   })
 
-  it('the response stream equals CONFIG_ROUTER_RESPONSE_STREAM and the frame limit equals CONFIG_ROUTER_FRAME_MAX', () => {
+  it('the response stream equals CONFIG_ROUTER_RESPONSE_STREAM and the frame limit equals CMD_FRAME_MAX', () => {
     const kconfig = source('components/core/router/Kconfig')
     expect(Number(/config ROUTER_RESPONSE_STREAM[\s\S]*?default (0x[0-9a-fA-F]+)/.exec(kconfig)?.[1])).toBe(defs.streams.response)
-    expect(Number(/config ROUTER_FRAME_MAX[\s\S]*?default (\d+)/.exec(kconfig)?.[1])).toBe(defs.frameMax)
+    expect(Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(source('components/core/cmd/cmd.h'))?.[1])).toBe(defs.frameMax)
   })
 })
 

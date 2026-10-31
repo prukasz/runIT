@@ -15,4 +15,4 @@ void sys_device_policy_remove(uint16_t id);
 err_h sys_device_policy_set(uint16_t id, const sys_device_error_policy_t* p);
 
 /** @brief ERROR_POLICY read: answers the policy. */
-err_h sys_device_policy_reply(uint16_t id, uint8_t* out, uint32_t out_cap, uint32_t* out_len);
+err_h sys_device_policy_reply(uint16_t id, cmd_out_t* out);

@@ -197,7 +197,7 @@ static err_h check_settings(const motor_t* c, const dc_motor_settings_t* s, uint
 /* ---- Own ops ---- */
 
 SYS_DEVICE_HANDLER(set_speed_h, dc_motor_speed_t) {
-  (void)out, (void)out_cap, (void)out_len;
+  (void)out;
   motor_t* c = ctx;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
   set_target(c, args->speed_x10);
@@ -209,42 +209,42 @@ SYS_DEVICE_HANDLER(get_speed_h, sys_device_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const dc_motor_speed_t speed = {.speed_x10 = c->target_x10};
-  return cmd_reply(out, out_cap, out_len, &speed, sizeof(speed));
+  return cmd_reply(out, &speed, sizeof(speed));
 }
 
 SYS_DEVICE_HANDLER(get_output_h, sys_device_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const int32_t output_x10 = c->out / X10_TO_FULL;
-  return cmd_reply(out, out_cap, out_len, &output_x10, sizeof(output_x10));
+  return cmd_reply(out, &output_x10, sizeof(output_x10));
 }
 
 SYS_DEVICE_HANDLER(stop_h, sys_device_none_t) {
-  (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out;
   motor_t* c = ctx;
   set_target(c, 0);
   return motor_tick(c);
 }
 
 SYS_DEVICE_HANDLER(brake_h, sys_device_none_t) {
-  (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out;
   return stop_now(ctx, DC_MOTOR_STOP_BRAKE);
 }
 
 SYS_DEVICE_HANDLER(coast_h, sys_device_none_t) {
-  (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out;
   return stop_now(ctx, DC_MOTOR_STOP_COAST);
 }
 
 SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
   (void)args;
   const motor_t* c = ctx;
-  return cmd_reply(out, out_cap, out_len, &c->cfg.settings, sizeof(c->cfg.settings));
+  return cmd_reply(out, &c->cfg.settings, sizeof(c->cfg.settings));
 }
 
 // Takes effect at once: the dead zone on the speed already set, the ceiling and the trim on the drive.
 SYS_DEVICE_HANDLER(set_settings_h, dc_motor_settings_t) {
-  (void)out, (void)out_cap, (void)out_len;
+  (void)out;
   motor_t* c = ctx;
   ERR_TRY(check_settings(c, args, c->cfg.one_way));
   c->cfg.settings = *args;
@@ -259,19 +259,19 @@ SYS_DEVICE_HANDLER(get_current_h, sys_device_none_t) {
   const motor_t* c = ctx;
   int32_t mA = 0;
   ERR_TRY(sys_hbridge_get_current_mA(c->cfg.bridge, c->cfg.channel, &mA));
-  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+  return cmd_reply(out, &mA, sizeof(mA));
 }
 
 SYS_DEVICE_HANDLER(get_stalled_h, sys_device_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const uint8_t stalled = c->stalled ? 1 : 0;
-  return cmd_reply(out, out_cap, out_len, &stalled, sizeof(stalled));
+  return cmd_reply(out, &stalled, sizeof(stalled));
 }
 
 // The timer's step: runs while suspended too (the registry lets it through), and then does nothing.
 SYS_DEVICE_HANDLER(tick_h, sys_device_none_t) {
-  (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out;
   motor_t* c = ctx;
   if (c->base.suspended) {
     return timer_stop(c);

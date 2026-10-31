@@ -14,7 +14,7 @@
 #define NAMESPACE "project"
 #define KEY_BOOT  "boot"
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
-#define FRAME_MAX (CONFIG_ROUTER_FRAME_MAX - 2u)  // keys + payload: a link frame without [seq][flags]
+#define FRAME_MAX CMD_DATA_MAX  // keys + payload: what a frame carries after its header
 #define HDR       3u                              // [key][dir][code] in front of a command's args
 #define RUN_FRAME (HDR + 4u)                      // [key][dir][code][u32 id]
 

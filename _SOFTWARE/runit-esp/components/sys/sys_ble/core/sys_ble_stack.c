@@ -25,7 +25,7 @@ void ble_store_config_init(void);
 U_TASK_DEFINE(sys_ble_task_h, CONFIG_SYS_BLE_TASK_STACK);
 
 static uint8_t s_own_addr_type;
-static uint8_t s_tx_scratch[CONFIG_SYS_BLE_TX_ITEM_MAX];  // BLE task only
+static uint8_t s_tx_scratch[CMD_FRAME_MAX];  // BLE task only
 
 static int gap_event(struct ble_gap_event* event, void* arg);
 

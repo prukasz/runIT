@@ -15,7 +15,7 @@ import type { DescriptorFile } from './catalog/services'
  * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
  * direction byte, flags,
  * status and the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
- * groups `ble_runit_uuid` and `ble_frag`), the largest frame and the response stream byte (`limits.json`), the errors (`errors.json`: tags, fields, message
+ * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`enums.json`, group `cmd_frame`) and the response stream byte (`limits.json`), the errors (`errors.json`: tags, fields, message
  * templates, what an id field refers to) and the enum groups their fields name (`bundledEnums`); and every
  * command of every router (the service, contract and device descriptors, `bundledServiceCatalog`). Nothing here is a number
  * typed in by hand; a symbol the firmware stops publishing stops the load with a message that names it.
@@ -38,7 +38,7 @@ export interface LinkDefinitions {
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
   /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
   readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
-  /** `CONFIG_ROUTER_FRAME_MAX`: the largest request (and response) frame. A link may carry less. */
+  /** `CMD_FRAME_MAX` (cmd.h): the largest request (and response) frame. A link may carry less. */
   readonly frameMax: number
   /** The op of an event frame on the events stream (`SYS_EVENT_OP_NOTIFY`, group `event_op`): `[event key][NOTIFY][sys_event_t]`. */
   readonly eventNotify: number
@@ -63,7 +63,7 @@ const opDirsOf = (contract: ContractFile, dir: LinkDefinitions['dir']): Record<s
 
 export const linkDefinitions = (
   enums: EnumTables,
-  router: { readonly frameMax: number; readonly responseStream: number },
+  router: { readonly responseStream: number },
   contracts: { readonly actions: ContractFile; readonly project: ContractFile } = { actions: actionsContract as ContractFile, project: projectContract as ContractFile },
 ): LinkDefinitions => {
   const keys = enums.router_key
@@ -101,7 +101,7 @@ export const linkDefinitions = (
     },
     ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
     opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
-    frameMax: router.frameMax,
+    frameMax: value(enums, 'cmd_frame', 'CMD_FRAME_MAX'),
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),
     projectBoot: {
       none: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_NONE'),
@@ -224,7 +224,7 @@ export const bundledLinkDefinitions = (): LinkDefinitions => {
     if (!l) throw new Error(`generated/common/limits.json has no limit '${name}'.`)
     return l.value
   }
-  return linkDefinitions(bundledEnums(), { frameMax: limit('ROUTER_FRAME_MAX'), responseStream: limit('ROUTER_RESPONSE_STREAM') })
+  return linkDefinitions(bundledEnums(), { responseStream: limit('ROUTER_RESPONSE_STREAM') })
 }
 
 /* ---- every command ---- */

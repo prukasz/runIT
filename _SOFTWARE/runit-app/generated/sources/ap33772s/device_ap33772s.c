@@ -201,7 +201,7 @@ static void keepalive_cb(void* arg) {
 }
 
 SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
-  (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)args, (void)out;
   ap_t* c = ctx;
   if (!c->avs_active) {
     return NULL;
@@ -247,7 +247,7 @@ OP_READ(PD, SETTINGS) {
   (void)args;
   const ap_t* c = ctx;
   const pd_settings_args_t a = {.voltage_mV = c->last_voltage_mV, .current_mA = c->last_current_mA};
-  return cmd_reply(out, out_cap, out_len, &a, sizeof(a));
+  return cmd_reply(out, &a, sizeof(a));
 }
 
 // Source PDO `slot` (1-based) as an option; false if the slot is empty.
@@ -286,7 +286,7 @@ OP_READ(PD, OPTIONS) {
       count++;
     }
   }
-  return cmd_reply(out, out_cap, out_len, options, count * (uint32_t)sizeof(options[0]));
+  return cmd_reply(out, options, count * (uint32_t)sizeof(options[0]));
 }
 
 // The highest-voltage offer sets the limits.
@@ -303,7 +303,7 @@ OP_READ(PD, LIMITS) {
       limits = (sys_power_usb_pd_limits_t){.voltage_mV = option.max_mV, .current_mA = option.max_mA};
     }
   }
-  return cmd_reply(out, out_cap, out_len, &limits, sizeof(limits));
+  return cmd_reply(out, &limits, sizeof(limits));
 }
 
 /* ---- POWER_MONITOR: the sink's output, one channel (0). Readings are allowed while suspended. ---- */
@@ -332,7 +332,7 @@ OP_READ(PMON, VOLTAGE) {
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
   ERR_TRY(read_voltage_mV(c, &mV));
-  return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
+  return cmd_reply(out, &mV, sizeof(mV));
 }
 
 OP_READ(PMON, CURRENT) {
@@ -340,7 +340,7 @@ OP_READ(PMON, CURRENT) {
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
   ERR_TRY(read_current_mA(c, &mA));
-  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+  return cmd_reply(out, &mA, sizeof(mA));
 }
 
 OP_READ(PMON, POWER) {
@@ -350,14 +350,14 @@ OP_READ(PMON, POWER) {
   ERR_TRY(read_voltage_mV(c, &mV));
   ERR_TRY(read_current_mA(c, &mA));
   const int32_t mW = sys_power_mW(mV, mA);
-  return cmd_reply(out, out_cap, out_len, &mW, sizeof(mW));
+  return cmd_reply(out, &mW, sizeof(mW));
 }
 
 /* ---- Lifecycle: the output is the board's own supply (the sink input), so reset / suspend / resume leave it alone:
  * switching it off in a fault would cut power to the ESP (brownout, tested 2026-10-01). ---- */
 
 OP_WRITE(SYS_DEVICE, RESET) {
-  (void)ctx, (void)args, (void)out, (void)out_cap, (void)out_len;
+  (void)ctx, (void)args, (void)out;
   return NULL;
 }
 

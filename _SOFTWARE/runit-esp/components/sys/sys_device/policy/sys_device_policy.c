@@ -102,10 +102,10 @@ err_h sys_device_policy_set(uint16_t id, const sys_device_error_policy_t* p) {
   return NULL;
 }
 
-err_h sys_device_policy_reply(uint16_t id, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+err_h sys_device_policy_reply(uint16_t id, cmd_out_t* out) {
   sys_device_error_policy_t p;
   ERR_CHECK(sys_device_error_policy_get(id, &p), ERR_DEV_NOT_FOUND, .id = id);
-  return cmd_reply(out, out_cap, out_len, &p, sizeof(p));
+  return cmd_reply(out, &p, sizeof(p));
 }
 
 void sys_device_set_vm_stop(sys_device_vm_stop_f fn) {

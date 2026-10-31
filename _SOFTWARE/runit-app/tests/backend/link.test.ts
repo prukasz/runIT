@@ -44,23 +44,6 @@ describe('commands', () => {
     await link.close()
   })
 
-  it('an op that answers in parts gets all of them (one seq), and an ERROR ends the series', async () => {
-    const board = new FakeBoard()
-    board.respond = (frame, send) => {
-      send(answer(frame[0]!, [1]))
-      send(answer(frame[0]!, [2]))
-      send(answer(frame[0]!, [3]))
-    }
-    const link = await linkTo(board)
-    expect((await link.requestParts(PING, 3)).map((p) => p[0])).toEqual([1, 2, 3])
-    board.respond = (frame, send) => {
-      send(answer(frame[0]!, [1]))
-      send(answer(frame[0]!, [], false))
-    }
-    await expect(link.requestParts(PING, 3)).rejects.toMatchObject({ code: 'device-error' })
-    await link.close()
-  })
-
   it('an ERROR answer rejects with the decoded record', async () => {
     const board = new FakeBoard()
     board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x01, 0x05], false)) // internal, clock 0; ERR_ROUTER_KEY key 5

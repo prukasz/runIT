@@ -15,13 +15,6 @@
 _Static_assert(CONFIG_ROUTER_WORK_QUEUE_SIZE % 4 == 0, "ROUTER_WORK_QUEUE_SIZE must be a multiple of 4");
 _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SIZE must be a multiple of 4");
 
-// What a router task is routing: the command, its link and that task's response buffer (router_answer_part).
-typedef struct {
-  const err_cmd_t* cmd;
-  const router_link_t* link;
-  uint8_t* resp;
-} route_t;
-
 U_RINGBUFFER_DEFINE(router_work_rb, CONFIG_ROUTER_WORK_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_RINGBUFFER_DEFINE(router_urgent_rb, CONFIG_ROUTER_URGENT_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_TASK_DEFINE(router_work_task_h, CONFIG_ROUTER_WORK_TASK_STACK);
@@ -36,11 +29,11 @@ static struct {
   const router_watch_t* watch;
   uint8_t inject_seq;  // seq of injected frames (diagnostics only)
   // One response buffer per task: the two tasks build answers at the same time.
-  uint8_t resp_work[CONFIG_ROUTER_FRAME_MAX];
-  uint8_t resp_urgent[CONFIG_ROUTER_FRAME_MAX];
+  uint8_t resp_work[CMD_FRAME_MAX];
+  uint8_t resp_urgent[CMD_FRAME_MAX];
 } s_dispatch;
 
-static __thread const route_t* s_route;  // per router task: what it is routing, NULL between frames
+static __thread const err_cmd_t* s_route;  // per router task: the command it is routing, NULL between frames
 
 /* ----------------------------------------------------------------------------
  * Links
@@ -65,7 +58,7 @@ static const router_link_t* link_get(uint8_t link_id) {
 
 // Response frame size the link carries right now, at most `buf_size`.
 static uint32_t link_cap(const router_link_t* link, uint32_t buf_size) {
-  uint32_t cap = link->max_frame != NULL ? link->max_frame(link->answer_endpoint) : CONFIG_ROUTER_FRAME_MAX;
+  uint32_t cap = link->max_frame != NULL ? link->max_frame(link->answer_endpoint) : CMD_FRAME_MAX;
   cap = cap < buf_size ? cap : buf_size;
   return cap > RESP_HDR_BYTES ? cap : RESP_HDR_BYTES;
 }
@@ -166,9 +159,9 @@ err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len) {
   ERR_CHECK(link != NULL && link_id != ROUTER_LINK_INTERNAL, ERR_ROUTER_BAD_LINK, .link = link_id);
   ERR_CHECK(frame != NULL || len == 0, ERR_CMD_BAD_ARG);
 
-  if (len < REQ_MIN_BYTES || len > CONFIG_ROUTER_FRAME_MAX) {
+  if (len < REQ_MIN_BYTES || len > CMD_FRAME_MAX) {
     reject(link, link_id, frame, len,
-           ERR_NEW(ERR_ROUTER_FRAME_LEN, .link = link_id, .len = (uint16_t)len, .max = CONFIG_ROUTER_FRAME_MAX));
+           ERR_NEW(ERR_ROUTER_FRAME_LEN, .link = link_id, .len = (uint16_t)len, .max = CMD_FRAME_MAX));
     return NULL;
   }
   const router_watch_t* w = s_dispatch.watch;
@@ -185,8 +178,8 @@ err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len) {
 
 err_h router_inject(const uint8_t* req, uint32_t len, bool urgent) {
   ERR_CHECK(req != NULL && len > 0, ERR_CMD_BAD_ARG);
-  ERR_CHECK(len <= CONFIG_ROUTER_FRAME_MAX - REQ_HDR_BYTES, ERR_ROUTER_FRAME_LEN, .link = ROUTER_LINK_INTERNAL,
-            .len = (uint16_t)(len + REQ_HDR_BYTES), .max = CONFIG_ROUTER_FRAME_MAX);
+  ERR_CHECK(len <= CMD_FRAME_MAX - REQ_HDR_BYTES, ERR_ROUTER_FRAME_LEN, .link = ROUTER_LINK_INTERNAL,
+            .len = (uint16_t)(len + REQ_HDR_BYTES), .max = CMD_FRAME_MAX);
   const uint8_t head[REQ_HDR_BYTES] = {__atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
                                        urgent ? ROUTER_FLAG_URGENT : 0};
   ERR_CHECK(enqueue(urgent, ROUTER_LINK_INTERNAL, head, REQ_HDR_BYTES, req, len), ERR_ROUTER_QUEUE_FULL,
@@ -203,17 +196,7 @@ void router_set_tap(const router_tap_t* tap) {
 }
 
 const err_cmd_t* router_origin(void) {
-  return s_route != NULL ? s_route->cmd : NULL;
-}
-
-err_h router_answer_part(const uint8_t* out, uint32_t len) {
-  const route_t* r = s_route;
-  ERR_CHECK(r != NULL, ERR_CMD_BAD_ARG);
-  if (out != r->resp + RESP_HDR_BYTES) {
-    return NULL;  // a replay (an action's nested route): its answers are dropped
-  }
-  answer(r->link, r->cmd, NULL, r->resp, 0, len);
-  return NULL;
+  return s_route;
 }
 
 /* ----------------------------------------------------------------------------
@@ -240,20 +223,19 @@ static void process(const uint8_t* item, size_t size, uint8_t* resp) {
   const router_link_t* link = link_get(link_id);  // links are never removed
 
   const err_cmd_t cmd = frame_cmd(link_id, frame, len);
-  uint32_t cap = link_cap(link, CONFIG_ROUTER_FRAME_MAX);
-  uint32_t data_len = 0;
+  uint32_t cap = link_cap(link, CMD_FRAME_MAX);
+  cmd_out_t out = {.data = resp + RESP_HDR_BYTES, .cap = cap - RESP_HDR_BYTES};
   err_h err = NULL;
   const router_tap_t* tap = s_dispatch.tap;
   if (tap == NULL || tap->take == NULL || !tap->take(&cmd)) {
-    const route_t route = {.cmd = &cmd, .link = link, .resp = resp};
-    s_route = &route;
-    err = router_route(cmd.req, cmd.req_len, resp + RESP_HDR_BYTES, cap - RESP_HDR_BYTES, &data_len);
+    s_route = &cmd;
+    err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
     s_route = NULL;
     if (tap != NULL && tap->seen != NULL) {
       tap->seen(&cmd, err);
     }
   }
-  answer(link, &cmd, err, resp, cap, data_len);
+  answer(link, &cmd, err, resp, cap, out.len);
 }
 
 static void work_task(void* arg) {

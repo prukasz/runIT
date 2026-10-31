@@ -13,13 +13,6 @@ menu "sys_data_connector"
         default 3
         range 1 8
 
-    config SYS_DATA_CONNECTOR_FRAME_MAX
-        int "Largest frame (bytes)"
-        default 512
-        range 64 4096
-        help
-          Largest frame (connector byte included) a connector sends.
-
     config SYS_DATA_CONNECTOR_QUEUE_SIZE
         int "Queue (bytes)"
         default 4608

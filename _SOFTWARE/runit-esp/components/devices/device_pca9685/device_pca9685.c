@@ -81,7 +81,7 @@ OP_READ(IO, LEVEL) {
   pca_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   const uint8_t level = c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2;
-  return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
+  return sys_io_reply_level(args->pin, level != 0, out);
 }
 
 OP_WRITE(IO, PWM_DUTY) {

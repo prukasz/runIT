@@ -152,7 +152,7 @@ OP_READ(PMON, VOLTAGE) {
   ERR_TRY(check_channel(c, args->channel));
   int32_t mV;
   ERR_TRY(chip_read_bus_mV(c, args->channel, &mV));
-  return cmd_reply(out, out_cap, out_len, &mV, sizeof(mV));
+  return cmd_reply(out, &mV, sizeof(mV));
 }
 
 OP_READ(PMON, CURRENT) {
@@ -160,7 +160,7 @@ OP_READ(PMON, CURRENT) {
   ERR_TRY(check_channel(c, args->channel));
   int32_t mA;
   ERR_TRY(chip_read_current_mA(c, args->channel, &mA));
-  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+  return cmd_reply(out, &mA, sizeof(mA));
 }
 
 OP_READ(PMON, POWER) {
@@ -170,7 +170,7 @@ OP_READ(PMON, POWER) {
   ERR_TRY(chip_read_bus_mV(c, args->channel, &mV));
   ERR_TRY(chip_read_current_mA(c, args->channel, &mA));
   const int32_t mW = sys_power_mW(mV, mA);
-  return cmd_reply(out, out_cap, out_len, &mW, sizeof(mW));
+  return cmd_reply(out, &mW, sizeof(mW));
 }
 
 OP_WRITE(PMON, ALERT) {

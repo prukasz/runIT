@@ -66,7 +66,7 @@ A contract is written once, as a table `P_OPERATIONS` of rows `X(P, NAME, op num
 |---|---|
 | op ID | `IO_OP_LEVEL` = `0x0100` |
 | key / value typedefs | `IO_key_LEVEL_t` = `io_pin_args_t`, `IO_value_LEVEL_t` = `io_level_args_t` |
-| handler macros | `OP_READ(IO, LEVEL) { … args->pin … }` (parses the key), `OP_WRITE(IO, LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args`, `out…` |
+| handler macros | `OP_READ(IO, LEVEL) { … args->pin … }` (parses the key), `OP_WRITE(IO, LEVEL) { … args->level … }` (parses the value); exactly `sizeof` bytes, else `ERR_CMD_BAD_LEN`; the body sees `ctx`, `args` and `out` (`cmd_out_t`: answer with `cmd_reply`) |
 | table rows | `OP_ENTRY(IO, LEVEL)` (both sides), `OP_ENTRY_R(IO, LEVEL)`, `OP_ENTRY_W(IO, LEVEL)` (one) |
 
 The handler's struct and the row's op ID both come from `NAME`, so an op can't be registered with another op's struct, and a device doesn't spell any struct. The registry strips the op and hands the handler the args only. The registry's own ops (SUSPEND, RESUME, REMOVE, INFO, OPS, ERROR_POLICY) are written the same way, `OP_WRITE(SYS_DEVICE, SUSPEND)` in a `sys_device_op_t` table, with the instance's registry entry as `ctx`; a call looks in that table first, then in the type's. A new contract = a table, a `SYS_DEVICE_CONTRACT_*` ID and one `SYS_DEVICE_CONTRACT_DECLARE` line (see `sys_pins.h`). Numbers inside a table are never reused.

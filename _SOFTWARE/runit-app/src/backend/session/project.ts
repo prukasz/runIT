@@ -212,12 +212,23 @@ export const recordInfo = async (link: RunitLink, id: number): Promise<RecordInf
   return { bytes: data[0]! | (data[1]! << 8), count: data[2]! | (data[3]! << 8), crc: readU32(data, 4) }
 }
 
-/** The frames of a record, as stored: READ answers one packet per frame. */
+/**
+ * The frames of a record, as stored: READ answers the image from an offset, as many bytes as fit, so the image is read from 0
+ * up to INFO's `bytes`, checked against its CRC and split into its frames.
+ */
 export const readRecord = async (link: RunitLink, id: number): Promise<Uint8Array[]> => {
-  const { count } = await recordInfo(link, id)
-  if (count === 0) return []
-  const parts = await link.requestParts({ keys: [link.defs.keys.actions!, link.defs.dir.read, link.defs.ops.actions.READ!], payload: u32(id) }, count, { timeoutMs: 10_000, label: `actions READ ${id.toString(16)}` })
-  return parts.map((p) => p.slice())
+  const info = await recordInfo(link, id)
+  const image = new Uint8Array(info.bytes)
+  for (let at = 0; at < info.bytes; ) {
+    const data = await action(link, 'READ', concat(u32(id), Uint8Array.of(at & 0xff, at >> 8)), 10_000)
+    if (data.length === 0 || at + data.length > info.bytes) throw new Error(`Record ${id.toString(16)}: READ at ${at} gave ${data.length} bytes of ${info.bytes}.`)
+    image.set(data, at)
+    at += data.length
+  }
+  if (crc32(image) !== info.crc) throw new Error(`Record ${id.toString(16)}: the image read back does not match its CRC.`)
+  const frames = parseImage(image)
+  if (!frames) throw new Error(`Record ${id.toString(16)}: the image read back is not a list of frames.`)
+  return frames
 }
 
 /** Every stored record id, ascending. */

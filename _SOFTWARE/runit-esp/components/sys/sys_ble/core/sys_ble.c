@@ -368,7 +368,7 @@ static size_t max_payload_locked(const sys_ble_char_node_t* c) {
   }
   size_t limit = xRingbufferGetMaxItemSize(c->tx_rb);
   if (c->cfg.is_framed) {
-    return limit < CONFIG_SYS_BLE_TX_ITEM_MAX ? limit : CONFIG_SYS_BLE_TX_ITEM_MAX;
+    return limit < CMD_FRAME_MAX ? limit : CMD_FRAME_MAX;
   }
   size_t link = (size_t)((g_ble.is_connected ? g_ble.mtu : BLE_ATT_MTU_MAX) - SYS_BLE_ATT_HDR_LEN);
   return limit < link ? limit : link;

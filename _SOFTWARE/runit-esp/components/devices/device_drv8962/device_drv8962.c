@@ -390,7 +390,7 @@ OP_READ(HBRIDGE, CURRENT) {
   if (!c->base.suspended && current_at_or_over(mA, c->current_limit_mA)) {
     ERR_TRY(latch_overcurrent(c, args->channel));
   }
-  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+  return cmd_reply(out, &mA, sizeof(mA));
 }
 
 /* ---- POWER_MONITOR: a channel's current from its IPROPI pins (full bridge: the larger half bridge). Offered only with
@@ -403,7 +403,7 @@ OP_READ(PMON, CURRENT) {
             .id = c->base.id, .channel = args->channel);
   int32_t mA = 0;
   ERR_TRY(read_channel_current_mA(c, args->channel, &mA));
-  return cmd_reply(out, out_cap, out_len, &mA, sizeof(mA));
+  return cmd_reply(out, &mA, sizeof(mA));
 }
 
 // The POWER_MONITOR ops need an IPROPI pin; the others are always there.
@@ -424,8 +424,6 @@ static bool has_op(const void* ctx, uint16_t op) {
 
 SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   drv_t* c = ctx;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);
   ERR_TRY(apply_limit(c, args->limit_mA));
@@ -435,8 +433,6 @@ SYS_DEVICE_HANDLER(set_current_limit_h, drv8962_limit_t) {
 // nSLEEP low for 30 us resets the chip's fault latches (every channel's); only the asked channel is cleared here.
 SYS_DEVICE_HANDLER(clear_fault_h, hbridge_channel_args_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   drv_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   if (has_pin(c, DRV8962_PIN_NSLEEP)) {
@@ -454,7 +450,7 @@ SYS_DEVICE_HANDLER(get_fault_h, hbridge_channel_args_t) {
   const drv_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
   const drv8962_fault_t fault = {.fault = c->ch[args->channel].fault, .reason = c->ch[args->channel].reason};
-  return cmd_reply(out, out_cap, out_len, &fault, sizeof(fault));
+  return cmd_reply(out, &fault, sizeof(fault));
 }
 
 // The live settings, as the write takes them. A read: answered while suspended.
@@ -463,7 +459,7 @@ SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
   const drv_t* c = ctx;
   const drv8962_settings_t s = {
       .topology = c->topology, .current_limit_mA = c->current_limit_mA, .turn_off_at_ocp = c->turn_off_at_ocp};
-  return cmd_reply(out, out_cap, out_len, &s, sizeof(s));
+  return cmd_reply(out, &s, sizeof(s));
 }
 
 /* The settings create takes, changed without a new CREATE. The limit goes to VREF (nothing is kept when that fails). A
@@ -471,8 +467,6 @@ SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
    brakes every channel of the new one, as create does. */
 SYS_DEVICE_HANDLER(set_settings_h, drv8962_settings_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   drv_t* c = ctx;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->topology, 0, DRV8962_TOPOLOGY_4_HALF_BRIDGES);
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->current_limit_mA, 0, DRV8962_CURRENT_LIMIT_MAX_MA);

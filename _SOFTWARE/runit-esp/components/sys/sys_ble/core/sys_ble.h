@@ -47,7 +47,7 @@ extern "C" {
  * @brief Buffer size (bytes) holding `count` items of up to `item_max` bytes.
  * A no-split ring buffer takes one item of at most about half its size, so a
  * buffer sized in plain bytes holds items of only ~half that.
- * @usage .tx_buffer_size = SYS_BLE_BUFF_SIZE_FOR(CONFIG_ROUTER_FRAME_MAX, 4)
+ * @usage .tx_buffer_size = SYS_BLE_BUFF_SIZE_FOR(CMD_FRAME_MAX, 4)
  */
 #define SYS_BLE_BUFF_SIZE_FOR(item_max, count) \
   (((((size_t)(item_max) + 3u) & ~(size_t)3u) + SYS_BLE_BUFF_ITEM_HDR) * ((count) < 2u ? 2u : (size_t)(count)))

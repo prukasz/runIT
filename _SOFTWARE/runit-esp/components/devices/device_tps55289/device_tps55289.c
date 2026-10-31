@@ -346,8 +346,6 @@ OP_WRITE(VREG, CURRENT) {
 // Stored and, while the chip is powered, written at once; otherwise written with the next enable.
 SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   tps_t* c = ctx;
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->fault_mask, 0, TPS55289_FAULT_ALL);
@@ -359,15 +357,13 @@ SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
 SYS_DEVICE_HANDLER(get_protection_h, sys_device_none_t) {
   (void)args;
   const tps_t* c = ctx;
-  return cmd_reply(out, out_cap, out_len, &c->prot, sizeof(c->prot));
+  return cmd_reply(out, &c->prot, sizeof(c->prot));
 }
 
 // A failed step ends the rise where it is (soft-rise limit kept); the timer reports the error.
 SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
   (void)args;
   (void)out;
-  (void)out_cap;
-  (void)out_len;
   tps_t* c = ctx;
   if (c->base.suspended || c->rise == RISE_IDLE) {
     return NULL;

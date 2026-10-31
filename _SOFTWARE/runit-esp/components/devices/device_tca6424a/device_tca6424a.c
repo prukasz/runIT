@@ -145,7 +145,7 @@ OP_READ(IO, LEVEL) {
     c->cached_inputs = levels;
   }
   const uint8_t level = (levels & (1UL << args->pin)) != 0;
-  return sys_io_reply_level(args->pin, level != 0, out, out_cap, out_len);
+  return sys_io_reply_level(args->pin, level != 0, out);
 }
 
 // The pin back to its power-on state: input, latch low, interrupt disarmed.

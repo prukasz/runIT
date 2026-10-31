@@ -1,15 +1,5 @@
 menu "router"
 
-    #@limit @alias Largest frame @unit bytes
-    config ROUTER_FRAME_MAX
-        int "Largest frame (bytes)"
-        default 512
-        range 64 4096
-        help
-          Largest request frame accepted from a link, and the largest response
-          frame built (stream byte included). A link may report a smaller
-          limit at runtime (BLE MTU).
-
     #@limit @alias Response stream byte
     config ROUTER_RESPONSE_STREAM
         hex "Response stream byte"

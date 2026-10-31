@@ -2,6 +2,7 @@
 
 /* Shared between sys_ble.c (registry, data) and sys_ble_stack.c (NimBLE). */
 
+#include "cmd.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/ringbuf.h"
 #include "host/ble_gatt.h"

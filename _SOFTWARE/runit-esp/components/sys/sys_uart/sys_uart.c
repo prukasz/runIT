@@ -17,7 +17,7 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_UART, "sys_uart", ERR_SYS_UART_MAP)
 #define USB_JTAG_TX_BUF 64u  // the driver needs one; TX goes through stdout
 #define LINE_PREFIX     "#R:"
 #define LINE_PREFIX_LEN (sizeof(LINE_PREFIX) - 1u)
-#define LINE_LEN_MAX    (LINE_PREFIX_LEN + 2u * CONFIG_ROUTER_FRAME_MAX)
+#define LINE_LEN_MAX    (LINE_PREFIX_LEN + 2u * CMD_FRAME_MAX)
 #define READ_CHUNK      64u
 #define READ_WAIT_MS    10u
 
@@ -98,7 +98,7 @@ static line_rx_t s_uart_rx;
 #if USB_JTAG
 static line_rx_t s_usb_rx;
 #endif
-static uint8_t s_frame[CONFIG_ROUTER_FRAME_MAX];  // RX task only
+static uint8_t s_frame[CMD_FRAME_MAX];  // RX task only
 
 static int hex_nibble(char c) {
   if (c >= '0' && c <= '9') {

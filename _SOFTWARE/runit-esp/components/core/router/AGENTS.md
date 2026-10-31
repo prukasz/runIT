@@ -10,7 +10,7 @@ Spec: `ROUTER.MD` (this folder).
 - Command tables and op macros:
   - A module's commands are a `router_op_t` table of `ROUTER_R` / `ROUTER_W` / `ROUTER_RW` rows; `ROUTER_MODULE` runs it (`router_call_op`: the side `dir` asks for, a failure wrapped in `ERR_ROUTER_KEY{code}`). A command with both sides follows the mirror (CMD.MD "Read and write").
   - Write each side with `ROUTER_OP`, `ROUTER_OP_NOARGS` or `ROUTER_OP_TAIL`: they parse payloads and enforce exact size matching via `router_args` / `router_args_tail`.
-  - Handlers write responses using `cmd_reply` or `cmd_append`; leaving `out_len` untouched produces an empty response.
+  - Handlers write responses using `cmd_reply` or `cmd_append`; `out->len` 0 is an empty response. One answer per command: no op sends extra packets.
 - Concurrency & dispatcher tasks:
   - Normal frames run on the work task (`CONFIG_ROUTER_WORK_TASK_PRIO` = 5); frames flagged with `ROUTER_FLAG_URGENT` run on the urgent task (`CONFIG_ROUTER_URGENT_TASK_PRIO` = 15).
   - Module routers must be thread-safe when accessing shared resources.
@@ -18,8 +18,7 @@ Spec: `ROUTER.MD` (this folder).
 - Links: one client per link, registered at boot (`router_link_register`, before or after `router_init`) and never removed. The answer goes back to the link the frame came from.
 - Internal link & injection:
   - `ROUTER_LINK_INTERNAL` (0) is reserved for the board itself (`router_inject`). Injected frames run on router tasks, are not shown to the watch, and discard response payloads.
-- Multi-packet answers & taps:
-  - `router_answer_part` sends intermediate OK packets with matching `seq` before the final answer return.
+- Taps and origin:
   - `router_set_tap` provides global command inspection (`take` / `seen`), used by action recording (`sys_actions`).
   - `router_origin()` returns the command currently executing on the calling router task.
 - Watch:

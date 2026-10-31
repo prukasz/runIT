@@ -66,22 +66,19 @@ ROUTER_OP(op_resume, connector_t) {
 }
 
 ROUTER_OP_NOARGS(op_info) {
-  uint32_t pos = 1;  // out[0] = count, written last
-  ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
   sys_data_connector_info_t list[CONFIG_SYS_DATA_CONNECTOR_MAX];
   uint8_t count = sys_data_connector_list(list);
+  ERR_TRY(cmd_append(out, &count, sizeof(count)));
   for (uint8_t n = 0; n < count; n++) {
     const sys_data_connector_info_t* i = &list[n];
     const uint8_t head[3] = {i->connector, (uint8_t)((i->system ? INFO_SYSTEM : 0) | (i->suspended ? INFO_SUSPENDED : 0)),
                              i->binding_count};
-    ERR_TRY(cmd_append(out, out_cap, &pos, head, sizeof(head)));
+    ERR_TRY(cmd_append(out, head, sizeof(head)));
     for (uint8_t b = 0; b < i->binding_count; b++) {
-      ERR_TRY(cmd_append(out, out_cap, &pos, &i->bindings[b].provider, 1));
-      ERR_TRY(cmd_append(out, out_cap, &pos, &i->bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
+      ERR_TRY(cmd_append(out, &i->bindings[b].provider, 1));
+      ERR_TRY(cmd_append(out, &i->bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
     }
   }
-  out[0] = count;
-  *out_len = pos;
   return NULL;
 }
 

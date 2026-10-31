@@ -74,9 +74,16 @@ ROUTER_OP(op_svc_remove, svc_remove_t) {
   return sys_ble_service_remove(args->uuid);
 }
 
+// A name that is the whole tail: NUL-terminated, nothing after the NUL.
+static err_h name_arg(cmd_in_t tail, const char** name) {
+  ERR_CHECK(tail.data[tail.len - 1] == '\0' && strlen((const char*)tail.data) == tail.len - 1, ERR_CMD_BAD_ARG);
+  *name = (const char*)tail.data;
+  return NULL;
+}
+
 ROUTER_OP_TAIL(op_char_create, char_create_t) {
   const char* desc;
-  ERR_TRY(cmd_name_arg(tail, tail_len, &desc));
+  ERR_TRY(name_arg(tail, &desc));
   ERR_CHECK(args->is_write <= 1 && args->is_indicate <= 1 && args->is_notify <= 1 && args->is_framed <= 1, ERR_CMD_BAD_ARG);
   const sys_ble_char_cfg_t cfg = {
       .uuid = args->uuid,
@@ -103,13 +110,11 @@ ROUTER_OP_NOARGS(op_status) {
   sys_ble_status_t s;
   ERR_TRY(sys_ble_get_status(&s));
   const status_t r = {.is_connected = s.is_connected, .mtu = s.mtu, .rx_overflow_count = s.rx_overflow_count};
-  return cmd_reply(out, out_cap, out_len, &r, sizeof(r));
+  return cmd_reply(out, &r, sizeof(r));
 }
 
 typedef struct {
-  uint8_t* out;
-  uint32_t cap;
-  uint32_t pos;
+  cmd_out_t* out;
   uint32_t count_at;  // the characteristic count of the service being listed
   uint8_t services;
 } list_ctx_t;
@@ -119,9 +124,9 @@ static err_h list_one(void* ctx_, const sys_ble_svc_cfg_t* svc, bool locked, con
   if (chr == NULL) {
     const uint8_t head[4] = {(uint8_t)(svc->uuid & 0xFFu), (uint8_t)(svc->uuid >> 8),
                              (uint8_t)((svc->is_primary ? LIST_PRIMARY : 0u) | (locked ? LIST_LOCKED : 0u)), 0};
-    ctx->count_at = ctx->pos + 3;
+    ctx->count_at = ctx->out->len + 3;
     ctx->services++;
-    return cmd_append(ctx->out, ctx->cap, &ctx->pos, head, sizeof(head));
+    return cmd_append(ctx->out, head, sizeof(head));
   }
   const uint8_t head[3] = {(uint8_t)(chr->uuid & 0xFFu), (uint8_t)(chr->uuid >> 8),
                            (uint8_t)((chr->is_write ? LIST_WRITE : 0u) | (chr->is_indicate ? LIST_INDICATE : 0u) |
@@ -129,20 +134,20 @@ static err_h list_one(void* ctx_, const sys_ble_svc_cfg_t* svc, bool locked, con
   const uint32_t tx = (uint32_t)chr->tx_buffer_size;
   const uint32_t rx = (uint32_t)chr->rx_buffer_size;
   const char* name = chr->desc != NULL ? chr->desc : "";
-  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, head, sizeof(head)));
-  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, &tx, sizeof(tx)));  // LE on the ESP32
-  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, &rx, sizeof(rx)));
-  ERR_TRY(cmd_append(ctx->out, ctx->cap, &ctx->pos, name, (uint32_t)strlen(name) + 1));
-  ctx->out[ctx->count_at]++;
+  ERR_TRY(cmd_append(ctx->out, head, sizeof(head)));
+  ERR_TRY(cmd_append(ctx->out, &tx, sizeof(tx)));  // LE on the ESP32
+  ERR_TRY(cmd_append(ctx->out, &rx, sizeof(rx)));
+  ERR_TRY(cmd_append(ctx->out, name, (uint32_t)strlen(name) + 1));
+  ctx->out->data[ctx->count_at]++;
   return NULL;
 }
 
 ROUTER_OP_NOARGS(op_list) {
-  ERR_CHECK(out_cap > 0, ERR_CMD_OUT_FULL, .need = 1, .cap = 0);
-  list_ctx_t list = {.out = out, .cap = out_cap, .pos = 1};  // out[0] = count, written last
+  const uint8_t count = 0;  // written last
+  ERR_TRY(cmd_append(out, &count, sizeof(count)));
+  list_ctx_t list = {.out = out};
   ERR_TRY(sys_ble_table_visit(list_one, &list));
-  out[0] = list.services;
-  *out_len = list.pos;
+  out->data[0] = list.services;
   return NULL;
 }
 

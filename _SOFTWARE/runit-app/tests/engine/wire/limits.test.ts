@@ -2,19 +2,21 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createEngine, DEFAULT_LIMITS } from '@engine'
-import { limitsFromGenerated, loadLimits } from '@engine/generated'
+import { frameMaxFromGenerated, limitsFromGenerated, loadLimits } from '@engine/generated'
 import { dataChunk, FRAME_OVERHEAD, frameCapacity, frameFill, LIMIT_SYMBOLS } from '@engine/wire/load/limits'
 import { blk, build, engine, flag, num, project, read } from '../helpers'
 
 /*
  * The limits come from the firmware: generated/common/limits.json is the `#@limit` options of the Kconfig with the values the
- * firmware is built with (templates/generate_limits.py). These tests hold the engine's numbers against that file, the file
- * against sdkconfig, and the frame arithmetic against the router's C.
+ * firmware is built with (templates/generate_limits.py), and the frame size is cmd.h's `CMD_FRAME_MAX` (enums.json). These tests
+ * hold the engine's numbers against those files, the files against sdkconfig and cmd.h, and the frame arithmetic against the
+ * router's C.
  */
 
 const root = fileURLToPath(new URL('../../../../runit-esp/', import.meta.url))
 const text = (path: string) => readFileSync(root + path, 'utf8')
 const sdkconfig = new Map([...text('sdkconfig').matchAll(/^CONFIG_(\w+)=(-?\d+)$/gm)].map((m) => [m[1]!, Number(m[2])]))
+const cmdFrameMax = Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(text('components/core/cmd/cmd.h'))?.[1])
 
 describe('limits from generated/', () => {
   it('every limit the engine checks is published, and equals the value the firmware is built with', () => {
@@ -26,20 +28,21 @@ describe('limits from generated/', () => {
 
   it('the defaults of an engine built by hand are the published limits', () => {
     const published = loadLimits()
-    for (const key of Object.keys(LIMIT_SYMBOLS)) {
+    for (const key of [...Object.keys(LIMIT_SYMBOLS), 'frameMax']) {
       expect(DEFAULT_LIMITS[key as keyof typeof DEFAULT_LIMITS], key).toBe(published[key as keyof typeof published])
     }
   })
 
   it('createEngine uses the published limits, and lets the app override them', () => {
     expect(engine.limits.maxIn).toBe(sdkconfig.get('VM_BLOCK_MAX_IN'))
-    expect(engine.limits.frameMax).toBe(sdkconfig.get('ROUTER_FRAME_MAX'))
+    expect(engine.limits.frameMax).toBe(cmdFrameMax)
     expect(createEngine({ limits: { frameMax: 244 } }).limits.frameMax).toBe(244)
     expect(createEngine({ limits: { frameMax: 244 } }).limits.maxIn).toBe(engine.limits.maxIn)
   })
 
   it('an option the firmware stopped publishing names itself, instead of a number being guessed', () => {
     expect(() => limitsFromGenerated({ limits: {} })).toThrow(/no limit '[A-Z_]+'/)
+    expect(() => frameMaxFromGenerated({})).toThrow(/CMD_FRAME_MAX/)
   })
 })
 
@@ -48,7 +51,7 @@ describe('the frame the board takes', () => {
     const dispatch = text('components/core/router/router_dispatch.c')
     expect(/#define\s+REQ_HDR_BYTES\s+(\d+)u/.exec(dispatch)?.[1]).toBe('2')
     expect(FRAME_OVERHEAD).toBe(2 + 3)
-    expect(frameCapacity(DEFAULT_LIMITS)).toBe(sdkconfig.get('ROUTER_FRAME_MAX')! - 5)
+    expect(frameCapacity(DEFAULT_LIMITS)).toBe(cmdFrameMax - 5)
   })
 
   it('the packing policy stays inside what a frame holds, and gives way to a smaller frame', () => {

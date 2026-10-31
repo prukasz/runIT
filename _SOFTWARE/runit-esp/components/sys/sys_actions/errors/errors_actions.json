@@ -17,7 +17,7 @@
       "hint": "Split the action into smaller ones."
     },
     "ERR_ACTION_OFFSET": {
-      "message": "The upload is out of order (at {got}, expected {want})"
+      "message": "Wrong offset {got}: an upload expects {want}, a read takes at most the record's {want} bytes"
     },
     "ERR_ACTION_INCOMPLETE": {
       "message": "The upload is incomplete ({got} of {want} bytes)",
