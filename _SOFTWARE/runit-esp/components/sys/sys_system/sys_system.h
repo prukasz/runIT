@@ -73,7 +73,8 @@ void sys_system_deadman_get(uint32_t* timeout_ms, bool* on_link_lost);
 void sys_system_link_lost(void);
 
 /**
- * @brief Watches the router's links (router_set_watch) and arms the dead-man with its boot default. Boot, before router_init.
+ * @brief Watches the frames of the router's links (router_link_on_frame) and arms the dead-man with its boot default.
+ * Boot, before router_init.
  */
 MUST_USE err_h sys_system_init(void);
 

@@ -470,5 +470,5 @@ err_h sys_project_boot(void) {
   const bool run = info.boot == SYS_PROJECT_BOOT_RUN;
   ESP_LOGI(TAG, "boot: %s the stored project", run ? "running" : "loading");
   const uint8_t op = run ? SYS_PROJECT_OP_RUN : SYS_PROJECT_OP_LOAD;
-  return router_inject((const uint8_t[]){ROUTER_KEY_PROJECT, CMD_DIR_WRITE, op}, HDR, false);
+  return router_inject((cmd_in_t){(const uint8_t[]){ROUTER_KEY_PROJECT, CMD_DIR_WRITE, op}, HDR}, 0, NULL, NULL);
 }

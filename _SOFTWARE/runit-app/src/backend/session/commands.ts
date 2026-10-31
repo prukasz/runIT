@@ -115,8 +115,9 @@ export class CommandClient {
   /** The router's output for the request. */
   request(request: Request, options: CommandOptions = {}): Promise<Uint8Array> {
     if (this.closed) return Promise.reject(new CommandError('The command client is closed.', 'closed'))
-    const length = 2 + request.keys.length + (request.payload?.length ?? 0)
-    if (length > this.defs.frameMax) return Promise.reject(new CommandError(`A request of ${length} bytes is over the ${this.defs.frameMax} the board takes.`, 'too-long'))
+    const length = request.keys.length + (request.payload?.length ?? 0)
+    const max = this.defs.frameMax - this.defs.frameHead
+    if (length > max) return Promise.reject(new CommandError(`A request of ${length} bytes is over the ${max} the board takes.`, 'too-long'))
     return new Promise((resolve, reject) => {
       const entry: Pending = { request, options, resolve, reject }
       if (request.urgent) {

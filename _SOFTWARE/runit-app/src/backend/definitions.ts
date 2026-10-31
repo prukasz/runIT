@@ -38,8 +38,10 @@ export interface LinkDefinitions {
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
   /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
   readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
-  /** `CMD_FRAME_MAX` (cmd.h): the largest request (and response) frame. A link may carry less. */
+  /** `CMD_FRAME_MAX` (cmd.h): the largest frame on a link. A link may carry less. */
   readonly frameMax: number
+  /** `CMD_HEAD` (cmd.h): the room a frame keeps for its header; a request (keys and payload) is at most `frameMax - frameHead`. */
+  readonly frameHead: number
   /** The op of an event frame on the events stream (`SYS_EVENT_OP_NOTIFY`, group `event_op`): `[event key][NOTIFY][sys_event_t]`. */
   readonly eventNotify: number
   /** What the board does with the stored project when it starts and right after a save (`sys_project_boot_e`). */
@@ -102,6 +104,7 @@ export const linkDefinitions = (
     ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
     opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
     frameMax: value(enums, 'cmd_frame', 'CMD_FRAME_MAX'),
+    frameHead: value(enums, 'cmd_frame', 'CMD_HEAD'),
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),
     projectBoot: {
       none: value(enums, 'sys_project_boot_e', 'SYS_PROJECT_BOOT_NONE'),

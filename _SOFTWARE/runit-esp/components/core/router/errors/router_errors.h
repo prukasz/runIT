@@ -13,7 +13,8 @@
   X(ERR_ROUTER_KEY_TAKEN,   ERR_TAG(ERR_MOD_ROUTER, 6),  ERR_SEV_HIGH,   { uint8_t key; })                  \
   X(ERR_ROUTER_TABLE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 7),  ERR_SEV_HIGH,   { uint8_t key; })                  \
   X(ERR_ROUTER_BAD_LINK,    ERR_TAG(ERR_MOD_ROUTER, 8),  ERR_SEV_HIGH,   { uint8_t link; }) /* unknown, unregistered or taken */ \
-  X(ERR_ROUTER_QUEUE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 9),  ERR_SEV_MEDIUM, { uint8_t link; uint8_t urgent; }) /* frame dropped */ \
-  X(ERR_ROUTER_FRAME_LEN,   ERR_TAG(ERR_MOD_ROUTER, 10), ERR_SEV_MEDIUM, { uint8_t link; uint16_t len; uint16_t max; }) /* frame too short or too long */
+  X(ERR_ROUTER_QUEUE_FULL,  ERR_TAG(ERR_MOD_ROUTER, 9),  ERR_SEV_MEDIUM, { uint8_t link; uint8_t urgent; }) /* command not queued */ \
+  X(ERR_ROUTER_FRAME_LEN,   ERR_TAG(ERR_MOD_ROUTER, 10), ERR_SEV_MEDIUM, { uint8_t link; uint16_t len; uint16_t max; }) /* request or frame too short or too long */ \
+  X(ERR_ROUTER_BUSY,        ERR_TAG(ERR_MOD_ROUTER, 11), ERR_SEV_MEDIUM, {}) /* router_run_urgent: another fn waits to run */
 
 ERR_TAGS_DECLARE(ERR_ROUTER_MAP)

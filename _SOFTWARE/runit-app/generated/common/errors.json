@@ -681,7 +681,7 @@
               "size": 1
             }
           ],
-          "description": "frame dropped",
+          "description": "command not queued",
           "message": "The board is busy: a command from {link} was dropped",
           "hint": "Send commands less often."
         },
@@ -712,8 +712,18 @@
               "size": 2
             }
           ],
-          "description": "frame too short or too long",
-          "message": "A frame of {len} bytes from {link} was refused (at most {max})"
+          "description": "request or frame too short or too long",
+          "message": "A command of {len} bytes from {link} was refused (at most {max})"
+        },
+        {
+          "code": 11,
+          "tag": 131083,
+          "name": "ERR_ROUTER_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "router_run_urgent: another fn waits to run",
+          "message": "Urgent work could not start: other urgent work waits to run"
         }
       ]
     },

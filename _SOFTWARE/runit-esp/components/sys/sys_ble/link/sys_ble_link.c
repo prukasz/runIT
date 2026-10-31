@@ -10,7 +10,7 @@
 #define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer
 
 /* ----------------------------------------------------------------------------
- * RX: framed packets -> one frame -> router_submit (host task only)
+ * RX: framed packets -> one frame -> router_link_receive (host task only)
  * ------------------------------------------------------------------------- */
 
 static struct {
@@ -47,7 +47,7 @@ static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
 
   if (hdr & SYS_BLE_FRAG_LAST) {
     s_rx.active = false;
-    sys_ble_report(router_submit(TRANSPORT_BLE, s_rx.buf, (uint32_t)s_rx.len));
+    sys_ble_report(router_link_receive(TRANSPORT_BLE, s_rx.buf, (uint32_t)s_rx.len));
   }
 }
 

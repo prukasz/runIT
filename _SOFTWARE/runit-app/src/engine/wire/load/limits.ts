@@ -37,10 +37,10 @@ export interface VmLimits {
 }
 
 /**
- * What the router puts in front of a VM frame's payload: `[seq][flags]` (`REQ_HDR` in router_dispatch.c), the root key
- * (`ROUTER_KEY_VM`), the direction byte and the op. A test reads `REQ_HDR` from the C.
+ * What a frame puts in front of a VM frame's payload: the room for its header (`CMD_HEAD` in cmd.h), the root key
+ * (`ROUTER_KEY_VM`), the direction byte and the op. A test reads `CMD_HEAD` from the C.
  */
-export const FRAME_OVERHEAD = 5
+export const FRAME_OVERHEAD = 5 + 3
 
 /** The most payload one frame of this board holds. */
 export const frameCapacity = (limits: VmLimits): number => limits.frameMax - FRAME_OVERHEAD

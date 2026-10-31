@@ -211,7 +211,7 @@ err_h sys_actions_request(uint32_t id, bool urgent) {
   ERR_TRY(check_id(id));
   uint8_t req[3 + sizeof(id)] = {ROUTER_KEY_ACTIONS, CMD_DIR_WRITE, SYS_ACTIONS_OP_RUN};
   memcpy(req + 3, &id, sizeof(id));  // LE on the ESP32
-  return router_inject(req, sizeof(req), urgent);
+  return router_inject((cmd_in_t){req, sizeof(req)}, urgent ? ROUTER_FLAG_URGENT : 0, NULL, NULL);
 }
 
 /* ----------------------------------------------------------------------------

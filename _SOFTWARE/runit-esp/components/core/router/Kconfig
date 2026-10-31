@@ -30,15 +30,16 @@ menu "router"
         default 4096
         range 1024 32768
         help
-          Ring buffer for normal frames waiting for the work task. Each frame
-          takes its length plus up to 12 bytes. Multiple of 4.
+          Ring buffer of normal commands waiting for the work task: each takes
+          its request, a 12-byte header (answer callback, its ctx, origin) and
+          the ring's own header. Multiple of 4.
 
     config ROUTER_URGENT_QUEUE_SIZE
         int "Urgent queue (bytes)"
         default 1024
         range 256 8192
         help
-          Ring buffer for frames flagged urgent. Multiple of 4.
+          Ring buffer of commands flagged urgent. Multiple of 4.
 
     config ROUTER_WORK_TASK_PRIO
         int "Work task priority"
@@ -50,22 +51,23 @@ menu "router"
         default 6144
         range 3072 32768
         help
-          Runs the module routers of normal frames.
+          Runs the module routers of normal commands and their answer
+          callbacks.
 
     config ROUTER_URGENT_TASK_PRIO
         int "Urgent task priority"
         default 15
         range 1 24
         help
-          Above every task that may run a long command, so an urgent frame
-          (stop) never waits behind one.
+          Above every task that may run a long command, so an urgent one
+          (stop) never waits behind it.
 
     config ROUTER_URGENT_TASK_STACK
         int "Urgent task stack (bytes)"
         default 6144
         range 3072 32768
         help
-          Runs urgent frames and the watch (router_set_watch: the safe-state
+          Runs urgent commands and router_run_urgent (the safe-state
           handler on a dead-man or a lost link).
 
 endmenu

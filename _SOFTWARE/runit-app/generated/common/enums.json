@@ -522,7 +522,13 @@
           "name": "ROUTER_FLAG_URGENT",
           "value": 1,
           "alias": "Urgent",
-          "description": "Run on the urgent task, next to (not behind) normal frames"
+          "description": "Runs on the urgent task, next to normal commands"
+        },
+        {
+          "name": "ROUTER_FLAG_NOREPLY",
+          "value": 2,
+          "alias": "No reply",
+          "description": "No answer; a failure goes to the errors stream"
         }
       ]
     },
@@ -2121,6 +2127,7 @@
     "ERR_SEV_LOW": "err_sev_e",
     "ERR_SEV_MEDIUM": "err_sev_e",
     "ERR_SEV_NONE": "err_sev_e",
+    "ROUTER_FLAG_NOREPLY": "router_flag",
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_KEY_ACTIONS": "router_key",
     "ROUTER_KEY_BLE": "router_key",

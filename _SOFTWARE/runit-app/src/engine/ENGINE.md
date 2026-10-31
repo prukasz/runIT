@@ -90,7 +90,7 @@ What the program never held does not come back: descriptions, the names of block
 | Telemetry and run-time writes | `VM_CORE.MD` "Telemetry is the same command" (`vm_wire.h` records) | `tests/backend/telemetry.test.ts` decodes frames captured from a board and the write frame the board accepted |
 | Recovering a project | the records of `vm_wire.h`, `layoutVariables` and the compiler read backwards | `recover.test.ts`: every block and variant of the palette compiles, is recovered and compiles to the same bytes (`exact`) |
 | Limits | `generated/common/limits.json`: the options marked `#@limit` in the Kconfig of `vm_core`, `router` and `app/runit`, with the values the firmware is built with (`templates/generate_limits.py`); the frame size `CMD_FRAME_MAX` from `enums.json` (group `cmd_frame`) | `limits.test.ts`: the file equals `sdkconfig`, the frame size `cmd.h`, `DEFAULT_LIMITS` equals the files |
-| Frame size | `CMD_FRAME_MAX` (`cmd.h`, group `cmd_frame` of `enums.json`) less `[seq][flags]` and `[key][dir][op]` of a VM command | `limits.test.ts` reads `CMD_FRAME_MAX` from `cmd.h` and `REQ_HDR` from `router_dispatch.c`; a link that carries less passes `limits: { frameMax }` |
+| Frame size | `CMD_FRAME_MAX` (`cmd.h`, group `cmd_frame` of `enums.json`) less the frame's header room `CMD_HEAD` and `[key][dir][op]` of a VM command | `limits.test.ts` reads `CMD_FRAME_MAX` and `CMD_HEAD` from `cmd.h`; a link that carries less passes `limits: { frameMax }` |
 
 ## Extending it
 

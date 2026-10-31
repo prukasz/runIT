@@ -45,7 +45,7 @@ single-packet frame: C0 <frame>
 ```
 
 - **TX**: an item (a whole frame, up to `CMD_FRAME_MAX`, 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
-- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST submits the frame: `router_submit(TRANSPORT_BLE, frame)`.
+- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST hands the frame to the router: `router_link_receive(TRANSPORT_BLE, frame)`.
 - A frame of up to `CMD_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
 - An unframed characteristic sends one item per packet (item ≤ MTU − 3).
 

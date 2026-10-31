@@ -108,7 +108,7 @@ config VM_BLOCK_MAX_IN
         Maximum number of input accessors allowed for a single VM execution block.
 ```
 
-`generate_limits.py` writes `runit-app/generated/common/limits.json` with the value the firmware is built with (`sdkconfig`, like `generate_enums.py`) and the first paragraph of the `help` as the description. `@alias` is required, `@unit` optional; nothing unmarked is published (task priorities and stack sizes are not limits a program can hit). Change the value (`idf.py menuconfig`, then `idf.py reconfigure`) and run `sh templates/sync.sh`. The app reads the file; what it derives (the payload of a frame is `CMD_FRAME_MAX`, group `cmd_frame` of `enums.json`, less `[seq][flags]` and `[key][dir][op]` of a VM command) is its own arithmetic, checked against the C by its tests.
+`generate_limits.py` writes `runit-app/generated/common/limits.json` with the value the firmware is built with (`sdkconfig`, like `generate_enums.py`) and the first paragraph of the `help` as the description. `@alias` is required, `@unit` optional; nothing unmarked is published (task priorities and stack sizes are not limits a program can hit). Change the value (`idf.py menuconfig`, then `idf.py reconfigure`) and run `sh templates/sync.sh`. The app reads the file; what it derives (the payload of a frame is `CMD_FRAME_MAX`, group `cmd_frame` of `enums.json`, less `CMD_HEAD` and `[key][dir][op]` of a VM command) is its own arithmetic, checked against the C by its tests.
 
 ## Core versus scanned
 

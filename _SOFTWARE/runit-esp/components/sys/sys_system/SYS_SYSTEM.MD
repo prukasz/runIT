@@ -29,12 +29,12 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 
 ## Dead-man
 
-Runtime only, not stored: `sys_system_deadman_set(timeout_ms, on_link_lost)`, 0 = off; at boot `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (off). `sys_system_init` (boot, before `router_init`) sets the router's watch (ROUTER.MD "Watch") and arms the default.
+Runtime only, not stored: `sys_system_deadman_set(timeout_ms, on_link_lost)`, 0 = off; at boot `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (off). `sys_system_init` (boot, before `router_init`) hooks the links' frames (`router_link_on_frame`, ROUTER.MD "Links") and arms the default.
 
-- Any frame from any link (`frame`) re-arms a one-shot timer; frames the board injects itself (link 0) do not.
+- Any frame from any link re-arms a one-shot timer; the commands the board injects itself (link 0) do not.
 - On expiry the safe state is entered once, until the next frame re-arms it.
 - With `on_link_lost`, `sys_system_link_lost()` enters it at once. The app calls it when a link loses its client (`runit`: a BLE disconnect, through `sys_ble_add_conn_listener`).
-- The timer and a lost link only note the reason and call `router_wake_urgent()`; the router's urgent task (`urgent`) enters the safe state, since the handler may block on I/O.
+- The timer and a lost link only note the reason and call `router_run_urgent()`; the router's urgent task enters the safe state, since the handler may block on I/O.
 - `BYE` turns it off: the client leaves on purpose and the board goes on with what it runs.
 
 ## Remote (`ROUTER_KEY_SYS` = 0x01)

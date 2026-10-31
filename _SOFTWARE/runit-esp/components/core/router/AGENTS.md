@@ -11,16 +11,15 @@ Spec: `ROUTER.MD` (this folder).
   - A module's commands are a `router_op_t` table of `ROUTER_R` / `ROUTER_W` / `ROUTER_RW` rows; `ROUTER_MODULE` runs it (`router_call_op`: the side `dir` asks for, a failure wrapped in `ERR_ROUTER_KEY{code}`). A command with both sides follows the mirror (CMD.MD "Read and write").
   - Write each side with `ROUTER_OP`, `ROUTER_OP_NOARGS` or `ROUTER_OP_TAIL`: they parse payloads and enforce exact size matching via `router_args` / `router_args_tail`.
   - Handlers write responses using `cmd_reply` or `cmd_append`; `out->len` 0 is an empty response. One answer per command: no op sends extra packets.
-- Concurrency & dispatcher tasks:
-  - Normal frames run on the work task (`CONFIG_ROUTER_WORK_TASK_PRIO` = 5); frames flagged with `ROUTER_FLAG_URGENT` run on the urgent task (`CONFIG_ROUTER_URGENT_TASK_PRIO` = 15).
+- Commands and tasks:
+  - The core (`router_dispatch.c`) knows commands (`err_cmd_t`), not frames: every command comes with its `done` callback and `ctx`, and the router keeps nothing of who sent it. `router_submit` never blocks; what it can't queue it returns, and the caller answers it.
+  - Normal commands run on the work task (`CONFIG_ROUTER_WORK_TASK_PRIO` = 5); commands flagged with `ROUTER_FLAG_URGENT` run on the urgent task (`CONFIG_ROUTER_URGENT_TASK_PRIO` = 15). Each task calls the command's `done` after it, from its own buffer (`CMD_HEAD` bytes of room in front of the data). NOREPLY or `done` NULL: no answer; a failure is reported either way.
   - Module routers must be thread-safe when accessing shared resources.
-  - The watch's `urgent` (`router_set_watch`, after `router_wake_urgent`) executes on the urgent task.
-- Links: one client per link, registered at boot (`router_link_register`, before or after `router_init`) and never removed. The answer goes back to the link the frame came from.
-- Internal link & injection:
-  - `ROUTER_LINK_INTERNAL` (0) is reserved for the board itself (`router_inject`). Injected frames run on router tasks, are not shown to the watch, and discard response payloads.
+  - `router_run_urgent(fn)` runs `fn` once on the urgent task (`ERR_ROUTER_BUSY` while another waits).
+- Links (`router_link.c`): one client per link, registered at boot (`router_link_register`, before or after `router_init`) and never removed. `router_link_receive` makes the command of a link's frame, and its `done` frames the answer back to that link (`[0x05][seq][status][data]`). The frame header lives only there.
+- The board's own commands: `router_inject` submits on `ROUTER_LINK_INTERNAL` (0), seq from the router's counter; the link hook (`router_link_on_frame`) never sees them.
 - Taps and origin:
   - `router_set_tap` provides global command inspection (`take` / `seen`), used by action recording (`sys_actions`).
-  - `router_origin()` returns the command currently executing on the calling router task.
-- Watch:
-  - The router only reports link frames and the urgent wake to the watch (`router_watch_t`). What they mean (the dead-man, the safe state) lives in `sys_system` (SYS_SYSTEM.MD); keep it out of the router.
+  - `router_origin()` returns the command currently executing on the calling router task; `router_is_task()` tells a router task.
+- The router reports link frames (`router_link_on_frame`) and runs urgent work (`router_run_urgent`); what they mean (the dead-man, the safe state) lives in `sys_system` (SYS_SYSTEM.MD). Keep it out of the router.
 

@@ -62,13 +62,16 @@ void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms) {
 /* ----------------------------------------------------------------------------
  * Dead-man
  *
- * The timer and a lost link only note the reason and wake the router's urgent
- * task (the handler may block on I/O); the task enters the safe state.
+ * The timer and a lost link only note the reason and run on_urgent on the
+ * router's urgent task (router_run_urgent: the handler may block on I/O), which
+ * enters the safe state.
  * ------------------------------------------------------------------------- */
+
+static void on_urgent(void);
 
 static void trigger(sys_safe_reason_e reason) {
   __atomic_fetch_or(&s_sys.pending, 1u << reason, __ATOMIC_RELAXED);
-  router_wake_urgent();
+  err_report(router_run_urgent(on_urgent));
 }
 
 static void deadman_expired(TimerHandle_t t) {
@@ -125,10 +128,8 @@ static void on_urgent(void) {
   }
 }
 
-static const router_watch_t k_watch = {.frame = on_frame, .urgent = on_urgent};
-
 err_h sys_system_init(void) {
-  router_set_watch(&k_watch);
+  router_link_on_frame(on_frame);
   uint32_t timeout_ms;
   bool link_lost;
   sys_system_deadman_get(&timeout_ms, &link_lost);

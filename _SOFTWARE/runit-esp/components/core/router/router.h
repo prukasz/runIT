@@ -10,16 +10,18 @@
 extern "C" {
 #endif
 
-/* Remote commands: links, the dispatcher and the tree of module routers. Wire format, dispatcher and watch:
- * ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and
- * the error record are errors.h's. */
+/* The commands of this board: the tree of module routers, the two tasks that run them and the links they come from.
+ * Each command comes with the callback its answer goes to (router_done_f). ROUTER.MD. The handler type, cmd_reply
+ * and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and the error record are errors.h's. */
 
 /* ----------------------------------------------------------------------------
  * Wire: request flags and response status
  * ------------------------------------------------------------------------- */
 
+// A command's flags (err_cmd_t.flags), the byte after a request's seq.
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
-#define ROUTER_FLAG_URGENT 0x01u  //@alias Urgent @description Run on the urgent task, next to (not behind) normal frames
+#define ROUTER_FLAG_URGENT  (1u << 0)  //@alias Urgent @description Runs on the urgent task, next to normal commands
+#define ROUTER_FLAG_NOREPLY (1u << 1)  //@alias No reply @description No answer; a failure goes to the errors stream
 
 //#ref-enum @alias Response Status
 typedef enum {
@@ -113,7 +115,7 @@ MUST_USE err_h router_args_tail(cmd_in_t in, void* hdr, uint32_t size, cmd_in_t*
   static err_h fn##_body(void* ctx, const hdr_t* args, cmd_in_t tail, cmd_out_t* out)
 
 /* ----------------------------------------------------------------------------
- * Module routers and the dispatcher
+ * Module routers and the root table
  * ------------------------------------------------------------------------- */
 
 // Declares a module router in its header.
@@ -130,8 +132,9 @@ MUST_USE err_h router_args_tail(cmd_in_t in, void* hdr, uint32_t size, cmd_in_t*
 MUST_USE err_h router_register(uint8_t key, cmd_f fn);
 
 /**
- * @brief Routes one command (`in` starts at the root key): the dispatcher, and the replay of stored frames. Urgent and
- * normal frames run at the same time, so module routers must be thread-safe.
+ * @brief Routes one command (`in` starts at the root key) on the calling task: the router tasks, and the replay of
+ * stored frames (actions, project). Urgent and normal commands run at the same time, so module routers must be
+ * thread-safe.
  */
 MUST_USE err_h router_route(cmd_in_t in, cmd_out_t* out);
 
@@ -139,18 +142,96 @@ MUST_USE err_h router_route(cmd_in_t in, cmd_out_t* out);
 MUST_USE err_h router_init(void);
 
 /* ----------------------------------------------------------------------------
- * Links: the transports (UART, BLE, ...), registered once. The router sends its answers to `answer_endpoint`; the
- * data connectors (sys_data_connector) send their streams through the same link to the endpoints they are bound to.
+ * Commands in, answers out: every command comes with the callback its answer goes to, so the router keeps nothing of
+ * who sent it.
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief Where a command's answer goes (a link's framer, a module that wants the answer). On the router task that ran
+ * the command; never for a NOREPLY one. It may wait for room on the way back, at most its own bound.
+ * @param ctx     The submitter's.
+ * @param cmd     The command answered (its link, seq, flags, request).
+ * @param status  router_status_e.
+ * @param data    The answer (OK) or the error record (ERROR), in the task's own buffer: the CMD_HEAD bytes in front of
+ *                it are the callback's to write (a frame's header), so the answer is framed without a copy.
+ * @param len     Bytes in `data`, at most CMD_DATA_MAX.
+ * @return NULL; else an error the router reports with the command (the answer is lost: a reader retries).
+ */
+typedef MUST_USE err_h (*router_done_f)(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data,
+                                        uint32_t len);
+
+/**
+ * @brief Queues one command: `cmd` and its request are copied, so both may go after the call. Never blocks; any task
+ * but an ISR, a link's RX task too.
+ * @param cmd   The origin (link, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
+ * @param done  Where its answer goes; NULL: nowhere (a failure is reported only).
+ * @param ctx   Given to `done`.
+ * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL: not queued, the caller answers it.
+ */
+MUST_USE err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx);
+
+/**
+ * @brief Queues a command of the board itself: router_submit on ROUTER_LINK_INTERNAL with seq from the router's own
+ * counter (the actions, the project's start).
+ * @param req    [key][dir][...].
+ * @param flags  ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.
+ * @param done   Where its answer goes; NULL: nowhere.
+ * @param ctx    Given to `done`.
+ * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL.
+ */
+MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx);
+
+#define ROUTER_LINK_INTERNAL 0u  // err_cmd_t.link of the board's own commands (router_inject)
+
+/* ----------------------------------------------------------------------------
+ * Tap, origin
+ * ------------------------------------------------------------------------- */
+
+/** Sees every command the tasks route (the board's own too), on the routing task. */
+typedef struct {
+  /** Before routing. true = taken: answered OK with no data and not routed. */
+  bool (*take)(const err_cmd_t* cmd);
+  /** After routing a command that wasn't taken. `result` is borrowed. */
+  void (*seen)(const err_cmd_t* cmd, err_h result);
+} router_tap_t;
+
+/** @brief Sets the tap (one; NULL removes it). Boot only. */
+void router_set_tap(const router_tap_t* tap);
+
+/**
+ * @brief The command the calling task is routing, valid until its handler returns. Inside a replay: the outer one.
+ * @return The origin; NULL outside the router tasks.
+ */
+const err_cmd_t* router_origin(void);
+
+/** @brief True when the caller runs on a router task (urgent or work): what waits for an answer must not run there. */
+bool router_is_task(void);
+
+/* ----------------------------------------------------------------------------
+ * Urgent work: what must not wait behind a command (the safe state of sys_system)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief Runs `fn` on the urgent task, soon, once: called again before it ran, it still runs once. Any task or a
+ * timer callback, not an ISR. `fn` may block on I/O.
+ * @return NULL when queued; ERR_ROUTER_BUSY (another fn waits to run).
+ */
+MUST_USE err_h router_run_urgent(void (*fn)(void));
+
+/* ----------------------------------------------------------------------------
+ * Links: the transports (UART, BLE, ...), registered once. A link's request frame is [seq][flags][request], its answer
+ * [stream][seq][status][data] (router_link.c submits the one and frames the other). The data connectors
+ * (sys_data_connector) send their streams through the same link to the endpoints they are bound to.
  * ------------------------------------------------------------------------- */
 
 typedef struct {
   /**
    * Sends one frame to `endpoint` (the transport's own address: BLE characteristic UUID, UART 0). `answer`: a router
    * answer, which may wait longer for room than a stream frame (the transport decides how long). The router tasks and
-   * the connector task call it. NULL only for the internal link.
+   * the connector task call it.
    */
   MUST_USE err_h (*send)(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer);
-  /** Largest frame `endpoint` carries right now; NULL = no limit of its own (the caller's frame max). */
+  /** Largest frame `endpoint` carries right now; NULL = no limit of its own (CMD_FRAME_MAX). */
   uint32_t (*max_frame)(uint32_t endpoint);
   /** Where the router's answers go. */
   uint32_t answer_endpoint;
@@ -163,55 +244,18 @@ MUST_USE err_h router_link_register(uint8_t link_id, const router_link_t* link);
 const router_link_t* router_link_get(uint8_t link_id);
 
 /**
- * @brief Queues one request frame from a link (copied). The link's task, not an ISR. A frame that can't be queued
- * (bad length, queue full) is answered with an error right away and reported; NULL is returned then.
+ * @brief Submits one request frame from a link (copied); its answer goes back to the link's `answer_endpoint`. The
+ * link's task, not an ISR. A frame the router does not queue (bad length, queue full) is answered with an error right
+ * away and reported; NULL is returned then.
  * @return Only misuse: ERR_ROUTER_BAD_LINK, ERR_CMD_BAD_ARG.
  */
-MUST_USE err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len);
-
-/* ----------------------------------------------------------------------------
- * Internal link, tap and origin
- * ------------------------------------------------------------------------- */
-
-#define ROUTER_LINK_INTERNAL 0u  // the board itself: answers dropped, errors reported, not shown to the watch
+MUST_USE err_h router_link_receive(uint8_t link_id, const uint8_t* frame, uint32_t len);
 
 /**
- * @brief Queues keys + payload (no seq / flags) from the board itself on the internal link. Never blocks. Task
- * context, not an ISR.
- * @return ERR_ROUTER_FRAME_LEN (too long for a frame), ERR_ROUTER_QUEUE_FULL.
+ * @brief Calls `fn` for every frame a link receives, before it is submitted, on the link's task: the dead-man of
+ * sys_system (a client is alive). One; NULL removes it. Boot only, before router_init.
  */
-MUST_USE err_h router_inject(const uint8_t* req, uint32_t len, bool urgent);
-
-/** Sees every frame the dispatcher routes (every link, also the internal one), on the routing task. */
-typedef struct {
-  /** Before routing. true = taken: answered OK with no data and not routed. */
-  bool (*take)(const err_cmd_t* cmd);
-  /** After routing a frame that wasn't taken. `result` is borrowed. */
-  void (*seen)(const err_cmd_t* cmd, err_h result);
-} router_tap_t;
-
-/** @brief Sets the tap (one; NULL removes it). Boot only. */
-void router_set_tap(const router_tap_t* tap);
-
-/** @brief The command the calling task is routing; NULL outside the router tasks. Inside a replay: the outer one. */
-const err_cmd_t* router_origin(void);
-
-/* ----------------------------------------------------------------------------
- * Watch: for the module that watches the clients (the dead-man, sys_system.h).
- * ------------------------------------------------------------------------- */
-
-typedef struct {
-  /** A frame arrived from a link (not the internal one), before it is queued. The link's task. */
-  void (*frame)(void);
-  /** After router_wake_urgent, on the urgent task (may block on I/O). */
-  void (*urgent)(void);
-} router_watch_t;
-
-/** @brief Sets the watch (one; NULL removes it). Members may be NULL. Boot only, before router_init. */
-void router_set_watch(const router_watch_t* watch);
-
-/** @brief Runs the watch's `urgent` on the urgent task, soon. Any task or a timer callback, not an ISR. */
-void router_wake_urgent(void);
+void router_link_on_frame(void (*fn)(void));
 
 #ifdef __cplusplus
 }

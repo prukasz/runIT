@@ -17,7 +17,7 @@ const linkTo = async (board: FakeBoard, options: ConstructorParameters<typeof Ru
 }
 
 describe('commands', () => {
-  it('sends a request and returns the answer; a frame of up to 511 B is one write, one of 512 B two', async () => {
+  it('sends a request and returns the answer; the largest request is one write', async () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board)
@@ -25,9 +25,9 @@ describe('commands', () => {
     const big = Uint8Array.from({ length: 480 }, (_, i) => i & 0xff)
     expect(await link.request({ ...PING, payload: big })).toEqual(big)
     expect(board.packets.slice(1)).toEqual([485]) // a 484 B frame: one packet, the header on it
-    const max = new Uint8Array(defs.frameMax - 4).fill(7)
+    const max = new Uint8Array(defs.frameMax - defs.frameHead - 2).fill(7) // keys and payload: CMD_DATA_MAX
     expect(await link.request({ ...PING, payload: max })).toEqual(max)
-    expect(board.packets.slice(2)).toEqual([512, 2]) // 512 B: 511 data bytes and 1 (the ATT value limit is 512)
+    expect(board.packets.slice(2)).toEqual([2 + max.length + 3]) // [seq][flags], the two keys and the fragment byte
     await link.close()
   })
 
@@ -73,7 +73,7 @@ describe('commands', () => {
   it('refuses a request over the board frame limit without sending it', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
-    await expect(link.request({ ...PING, payload: new Uint8Array(defs.frameMax) })).rejects.toMatchObject({ code: 'too-long' })
+    await expect(link.request({ ...PING, payload: new Uint8Array(defs.frameMax - defs.frameHead - 1) })).rejects.toMatchObject({ code: 'too-long' })
     expect(board.requests).toHaveLength(0)
     await link.close()
   })

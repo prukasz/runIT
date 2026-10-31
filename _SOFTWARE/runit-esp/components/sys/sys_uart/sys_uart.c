@@ -79,7 +79,7 @@ static err_h link_send(uint32_t endpoint, const uint8_t* frame, uint32_t len, bo
 
 static const router_link_t k_link = {
     .send = link_send,
-    .max_frame = NULL,  // the router's / connector's frame max
+    .max_frame = NULL,  // CMD_FRAME_MAX
     .answer_endpoint = SYS_UART_ENDPOINT,
 };
 
@@ -134,7 +134,7 @@ static void rx_line(const char* line, size_t len, bool overflow) {
     }
     s_frame[i] = (uint8_t)((hi << 4) | lo);
   }
-  err_report(router_submit(TRANSPORT_UART, s_frame, (uint32_t)size));
+  err_report(router_link_receive(TRANSPORT_UART, s_frame, (uint32_t)size));
 }
 
 static void rx_bytes(line_rx_t* rx, const uint8_t* data, int count) {

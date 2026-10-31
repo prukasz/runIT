@@ -1,16 +1,14 @@
 #include "esp_log.h"
 #include "router.h"
+#include "router_priv.h"
 #include "sdkconfig.h"
 
 #define TAG __FILE_NAME__
 
-#define REQ_HDR_BYTES     2u                    // [seq][flags]
-#define REQ_MIN_BYTES     (REQ_HDR_BYTES + 2u)  // ... a root key and the direction
-#define RESP_HDR_BYTES    3u                   // [stream][seq][status]
-#define REJECT_RESP_BYTES 64u               // error answers sent from router_submit (link task stack)
+#define REQ_MIN_BYTES 2u  // a root key and the direction
 
-#define NOTIFY_FRAME (1u << 0)  // urgent task: a frame in the urgent ring
-#define NOTIFY_WATCH (1u << 1)  // urgent task: run the watch's `urgent`
+#define NOTIFY_CMD    (1u << 0)  // urgent task: a command in the urgent ring
+#define NOTIFY_URGENT (1u << 1)  // urgent task: run the fn of router_run_urgent
 
 _Static_assert(CONFIG_ROUTER_WORK_QUEUE_SIZE % 4 == 0, "ROUTER_WORK_QUEUE_SIZE must be a multiple of 4");
 _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SIZE must be a multiple of 4");
@@ -20,67 +18,33 @@ U_RINGBUFFER_DEFINE(router_urgent_rb, CONFIG_ROUTER_URGENT_QUEUE_SIZE, RINGBUF_T
 U_TASK_DEFINE(router_work_task_h, CONFIG_ROUTER_WORK_TASK_STACK);
 U_TASK_DEFINE(router_urgent_task_h, CONFIG_ROUTER_URGENT_TASK_STACK);
 
-// Link 0: frames from the board itself (router_inject). No send: answers go nowhere.
-static const router_link_t k_internal_link = {.send = NULL};
+// A queued command: this header, then its request.
+typedef struct {
+  router_done_f done;
+  void* ctx;
+  uint8_t link;
+  uint8_t seq;
+  uint8_t flags;
+} item_t;
 
 static struct {
-  const router_link_t* links[CONFIG_ROUTER_MAX_LINKS + 1];  // index = link ID, 0 unused; written at boot
   const router_tap_t* tap;
-  const router_watch_t* watch;
-  uint8_t inject_seq;  // seq of injected frames (diagnostics only)
-  // One response buffer per task: the two tasks build answers at the same time.
-  uint8_t resp_work[CMD_FRAME_MAX];
-  uint8_t resp_urgent[CMD_FRAME_MAX];
+  void (*urgent_fn)(void);  // router_run_urgent: the fn waiting to run, NULL when none
+  uint8_t inject_seq;       // seq of the board's own commands (diagnostics only)
+  // One answer buffer per task (the two run at the same time): CMD_HEAD bytes for the done's header, then the data.
+  uint8_t buf_work[CMD_FRAME_MAX];
+  uint8_t buf_urgent[CMD_FRAME_MAX];
 } s_dispatch;
 
-static __thread const err_cmd_t* s_route;  // per router task: the command it is routing, NULL between frames
+static __thread const err_cmd_t* s_route;  // per router task: the command it is routing, NULL between commands
 
 /* ----------------------------------------------------------------------------
- * Links
+ * Reporting
  * ------------------------------------------------------------------------- */
-
-err_h router_link_register(uint8_t link_id, const router_link_t* link) {
-  ERR_CHECK(link != NULL && link->send != NULL, ERR_CMD_BAD_ARG);
-  ERR_CHECK(link_id > 0 && link_id <= CONFIG_ROUTER_MAX_LINKS, ERR_ROUTER_BAD_LINK, .link = link_id);
-  ERR_CHECK(s_dispatch.links[link_id] == NULL, ERR_ROUTER_BAD_LINK, .link = link_id);
-  s_dispatch.links[link_id] = link;
-  return NULL;
-}
-
-const router_link_t* router_link_get(uint8_t link_id) {
-  return link_id > 0 && link_id <= CONFIG_ROUTER_MAX_LINKS ? s_dispatch.links[link_id] : NULL;
-}
-
-// A registered link, or the internal one for ROUTER_LINK_INTERNAL.
-static const router_link_t* link_get(uint8_t link_id) {
-  return link_id == ROUTER_LINK_INTERNAL ? &k_internal_link : router_link_get(link_id);
-}
-
-// Response frame size the link carries right now, at most `buf_size`.
-static uint32_t link_cap(const router_link_t* link, uint32_t buf_size) {
-  uint32_t cap = link->max_frame != NULL ? link->max_frame(link->answer_endpoint) : CMD_FRAME_MAX;
-  cap = cap < buf_size ? cap : buf_size;
-  return cap > RESP_HDR_BYTES ? cap : RESP_HDR_BYTES;
-}
-
-/* ----------------------------------------------------------------------------
- * Answers
- * ------------------------------------------------------------------------- */
-
-// The command a frame of `len` bytes describes; short frames give what they have.
-static err_cmd_t frame_cmd(uint8_t link_id, const uint8_t* frame, uint32_t len) {
-  return (err_cmd_t){
-      .req = len > REQ_HDR_BYTES ? frame + REQ_HDR_BYTES : NULL,
-      .req_len = len > REQ_HDR_BYTES ? len - REQ_HDR_BYTES : 0,
-      .link = link_id,
-      .seq = len > 0 ? frame[0] : 0,
-      .flags = len > 1 ? frame[1] : 0,
-  };
-}
 
 /* Ends a command's chain: logged with the command ("cmd link 1 seq 7 flags 00
  * req 02 02 00") and handed to the error sink with the command as origin. */
-static void report_cmd_error(const err_cmd_t* cmd, err_h err) {
+void router_report_cmd(const err_cmd_t* cmd, err_h err) {
   char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
   int pos = snprintf(ctx, sizeof(ctx), "cmd link %u seq %u flags %02x req", cmd->link, cmd->seq, cmd->flags);
   uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
@@ -93,24 +57,6 @@ static void report_cmd_error(const err_cmd_t* cmd, err_h err) {
   err_report_ex(err, ctx, cmd);
 }
 
-/* Builds [stream][seq][status][data] in `resp` (data already after the header
- * when OK; the error record when `err`), sends it and reports `err`. */
-static void answer(const router_link_t* link, const err_cmd_t* cmd, err_h err, uint8_t* resp, uint32_t cap,
-                   uint32_t data_len) {
-  resp[0] = CONFIG_ROUTER_RESPONSE_STREAM;
-  resp[1] = cmd->seq;
-  resp[2] = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
-  if (err != NULL) {
-    data_len = err_record(cmd, err, resp + RESP_HDR_BYTES, cap - RESP_HDR_BYTES);
-  }
-  if (link->send != NULL) {
-    err_report(link->send(link->answer_endpoint, resp, RESP_HDR_BYTES + data_len, true));
-  }
-  if (err != NULL) {
-    report_cmd_error(cmd, err);
-  }
-}
-
 /* ----------------------------------------------------------------------------
  * Queue: router_submit and router_inject
  * ------------------------------------------------------------------------- */
@@ -121,74 +67,40 @@ static void notify_urgent(uint32_t bits) {
   }
 }
 
-/* Copies [link][head][body] into the urgent or work ring and wakes the urgent
- * task. false when the ring is full. */
-static bool enqueue(bool urgent, uint8_t link_id, const uint8_t* head, uint32_t head_len, const uint8_t* body,
-                    uint32_t body_len) {
+err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx) {
+  ERR_CHECK(cmd != NULL && (cmd->req != NULL || cmd->req_len == 0), ERR_CMD_BAD_ARG);
+  ERR_CHECK(cmd->req_len >= REQ_MIN_BYTES && cmd->req_len <= CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .link = cmd->link,
+            .len = (uint16_t)cmd->req_len, .max = CMD_DATA_MAX);
+
+  const bool urgent = (cmd->flags & ROUTER_FLAG_URGENT) != 0;
   RingbufHandle_t rb = urgent ? router_urgent_rb : router_work_rb;
   void* slot = NULL;
-  if (xRingbufferSendAcquire(rb, &slot, 1 + head_len + body_len, 0) != pdTRUE) {
-    return false;
-  }
-  ((uint8_t*)slot)[0] = link_id;
-  memcpy((uint8_t*)slot + 1, head, head_len);
-  if (body_len > 0) {
-    memcpy((uint8_t*)slot + 1 + head_len, body, body_len);
-  }
+  ERR_CHECK(xRingbufferSendAcquire(rb, &slot, sizeof(item_t) + cmd->req_len, 0) == pdTRUE, ERR_ROUTER_QUEUE_FULL,
+            .link = cmd->link, .urgent = urgent);
+  const item_t item = {.done = done, .ctx = ctx, .link = cmd->link, .seq = cmd->seq, .flags = cmd->flags};
+  memcpy(slot, &item, sizeof(item));
+  memcpy((uint8_t*)slot + sizeof(item), cmd->req, cmd->req_len);
   xRingbufferSendComplete(rb, slot);
   if (urgent) {
-    notify_urgent(NOTIFY_FRAME);
-  }
-  return true;
-}
-
-/* A frame that was not queued: answered when it has a seq to answer to, and
- * reported with its command. */
-static void reject(const router_link_t* link, uint8_t link_id, const uint8_t* frame, uint32_t len, err_h err) {
-  const err_cmd_t cmd = frame_cmd(link_id, frame, len);
-  if (len == 0) {
-    report_cmd_error(&cmd, err);
-    return;
-  }
-  uint8_t resp[REJECT_RESP_BYTES];
-  answer(link, &cmd, err, resp, link_cap(link, sizeof(resp)), 0);
-}
-
-err_h router_submit(uint8_t link_id, const uint8_t* frame, uint32_t len) {
-  const router_link_t* link = link_get(link_id);
-  ERR_CHECK(link != NULL && link_id != ROUTER_LINK_INTERNAL, ERR_ROUTER_BAD_LINK, .link = link_id);
-  ERR_CHECK(frame != NULL || len == 0, ERR_CMD_BAD_ARG);
-
-  if (len < REQ_MIN_BYTES || len > CMD_FRAME_MAX) {
-    reject(link, link_id, frame, len,
-           ERR_NEW(ERR_ROUTER_FRAME_LEN, .link = link_id, .len = (uint16_t)len, .max = CMD_FRAME_MAX));
-    return NULL;
-  }
-  const router_watch_t* w = s_dispatch.watch;
-  if (w != NULL && w->frame != NULL) {
-    w->frame();
-  }
-
-  bool urgent = (frame[1] & ROUTER_FLAG_URGENT) != 0;
-  if (!enqueue(urgent, link_id, frame, len, NULL, 0)) {
-    reject(link, link_id, frame, len, ERR_NEW(ERR_ROUTER_QUEUE_FULL, .link = link_id, .urgent = urgent));
+    notify_urgent(NOTIFY_CMD);
   }
   return NULL;
 }
 
-err_h router_inject(const uint8_t* req, uint32_t len, bool urgent) {
-  ERR_CHECK(req != NULL && len > 0, ERR_CMD_BAD_ARG);
-  ERR_CHECK(len <= CMD_FRAME_MAX - REQ_HDR_BYTES, ERR_ROUTER_FRAME_LEN, .link = ROUTER_LINK_INTERNAL,
-            .len = (uint16_t)(len + REQ_HDR_BYTES), .max = CMD_FRAME_MAX);
-  const uint8_t head[REQ_HDR_BYTES] = {__atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
-                                       urgent ? ROUTER_FLAG_URGENT : 0};
-  ERR_CHECK(enqueue(urgent, ROUTER_LINK_INTERNAL, head, REQ_HDR_BYTES, req, len), ERR_ROUTER_QUEUE_FULL,
-            .link = ROUTER_LINK_INTERNAL, .urgent = urgent);
-  return NULL;
+err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) {
+  ERR_CHECK(req.data != NULL && req.len > 0, ERR_CMD_BAD_ARG);
+  const err_cmd_t cmd = {
+      .req = req.data,
+      .req_len = req.len,
+      .link = ROUTER_LINK_INTERNAL,
+      .seq = __atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
+      .flags = flags,
+  };
+  return router_submit(&cmd, done, ctx);
 }
 
 /* ----------------------------------------------------------------------------
- * Tap and origin
+ * Tap, origin, urgent work
  * ------------------------------------------------------------------------- */
 
 void router_set_tap(const router_tap_t* tap) {
@@ -199,32 +111,37 @@ const err_cmd_t* router_origin(void) {
   return s_route;
 }
 
-/* ----------------------------------------------------------------------------
- * Watch
- * ------------------------------------------------------------------------- */
-
-void router_set_watch(const router_watch_t* watch) {
-  s_dispatch.watch = watch;
+bool router_is_task(void) {
+  TaskHandle_t self = xTaskGetCurrentTaskHandle();
+  return self == router_work_task_h || self == router_urgent_task_h;
 }
 
-void router_wake_urgent(void) {
-  notify_urgent(NOTIFY_WATCH);
+err_h router_run_urgent(void (*fn)(void)) {
+  ERR_CHECK(fn != NULL, ERR_CMD_BAD_ARG);
+  void (*none)(void) = NULL;
+  if (!__atomic_compare_exchange_n(&s_dispatch.urgent_fn, &none, fn, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+    ERR_CHECK(none == fn, ERR_ROUTER_BUSY);  // the same fn already waits: it runs once
+  }
+  notify_urgent(NOTIFY_URGENT);
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
  * Tasks
  * ------------------------------------------------------------------------- */
 
-// Routes one queued item [link][frame] and answers it. Frame length checked by router_submit.
-static void process(const uint8_t* item, size_t size, uint8_t* resp) {
-  const uint8_t link_id = item[0];
-  const uint8_t* frame = item + 1;
-  uint32_t len = (uint32_t)(size - 1);
-  const router_link_t* link = link_get(link_id);  // links are never removed
-
-  const err_cmd_t cmd = frame_cmd(link_id, frame, len);
-  uint32_t cap = link_cap(link, CMD_FRAME_MAX);
-  cmd_out_t out = {.data = resp + RESP_HDR_BYTES, .cap = cap - RESP_HDR_BYTES};
+// Routes one queued command, hands its answer to its done and reports what failed.
+static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
+  item_t item;
+  memcpy(&item, slot, sizeof(item));
+  const err_cmd_t cmd = {
+      .req = slot + sizeof(item),
+      .req_len = (uint32_t)(size - sizeof(item)),
+      .link = item.link,
+      .seq = item.seq,
+      .flags = item.flags,
+  };
+  cmd_out_t out = {.data = buf + CMD_HEAD, .cap = CMD_DATA_MAX};
   err_h err = NULL;
   const router_tap_t* tap = s_dispatch.tap;
   if (tap == NULL || tap->take == NULL || !tap->take(&cmd)) {
@@ -235,17 +152,27 @@ static void process(const uint8_t* item, size_t size, uint8_t* resp) {
       tap->seen(&cmd, err);
     }
   }
-  answer(link, &cmd, err, resp, cap, out.len);
+  if (item.done != NULL && !(item.flags & ROUTER_FLAG_NOREPLY)) {
+    uint32_t len = err != NULL ? err_record(&cmd, err, out.data, out.cap) : out.len;
+    uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
+    err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
+    if (lost != NULL) {
+      router_report_cmd(&cmd, lost);
+    }
+  }
+  if (err != NULL) {
+    router_report_cmd(&cmd, err);
+  }
 }
 
 static void work_task(void* arg) {
   (void)arg;
   while (1) {
     size_t size = 0;
-    uint8_t* item = xRingbufferReceive(router_work_rb, &size, WAIT_FOREVER);
-    if (item != NULL) {
-      process(item, size, s_dispatch.resp_work);
-      vRingbufferReturnItem(router_work_rb, item);
+    uint8_t* slot = xRingbufferReceive(router_work_rb, &size, WAIT_FOREVER);
+    if (slot != NULL) {
+      process(slot, size, s_dispatch.buf_work);
+      vRingbufferReturnItem(router_work_rb, slot);
     }
   }
 }
@@ -253,20 +180,20 @@ static void work_task(void* arg) {
 static void urgent_task(void* arg) {
   (void)arg;
   while (1) {
-    // Drain first: frames may have been queued before the task started.
+    // Drain first: commands may have been queued before the task started.
     size_t size = 0;
-    uint8_t* item;
-    while ((item = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT)) != NULL) {
-      process(item, size, s_dispatch.resp_urgent);
-      vRingbufferReturnItem(router_urgent_rb, item);
+    uint8_t* slot;
+    while ((slot = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT)) != NULL) {
+      process(slot, size, s_dispatch.buf_urgent);
+      vRingbufferReturnItem(router_urgent_rb, slot);
+    }
+    void (*fn)(void) = __atomic_exchange_n(&s_dispatch.urgent_fn, NULL, __ATOMIC_ACQ_REL);
+    if (fn != NULL) {
+      fn();
     }
 
     uint32_t bits = 0;
     U_NOTIFY_AWAIT(WAIT_FOREVER, &bits);
-    const router_watch_t* w = s_dispatch.watch;
-    if ((bits & NOTIFY_WATCH) && w != NULL && w->urgent != NULL) {
-      w->urgent();
-    }
   }
 }
 

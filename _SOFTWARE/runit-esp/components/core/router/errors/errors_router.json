@@ -25,7 +25,10 @@
       "hint": "Send commands less often."
     },
     "ERR_ROUTER_FRAME_LEN": {
-      "message": "A frame of {len} bytes from {link} was refused (at most {max})"
+      "message": "A command of {len} bytes from {link} was refused (at most {max})"
+    },
+    "ERR_ROUTER_BUSY": {
+      "message": "Urgent work could not start: other urgent work waits to run"
     }
   }
 }

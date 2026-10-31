@@ -40,7 +40,7 @@ Bytes in, bytes out, the error chain. `CMD_F_PARAMS` is the parameter list, for 
 
 - `ctx`: NULL from the router root, or the device's struct from the device registry.
 - `in` (`{data, len}`): what the caller passes. The router passes the command's code first, `[code][args]` (the `ROUTER_OP*` macros strip it); the device registry passes the args only (the contract handler macros parse `sizeof(args)` bytes).
-- `out` (`{data, cap, len}`): the answer. `cap` is what the answer may hold (from the router: what the origin link carries now, less the answer's header; at most `CMD_DATA_MAX`), `len` what the handler wrote (0: an empty answer).
+- `out` (`{data, cap, len}`): the answer. `cap` is what the answer may hold (from the router: `CMD_DATA_MAX`), `len` what the handler wrote (0: an empty answer).
 - `cmd_reply(out, data, len)` writes the whole answer, `cmd_append(out, data, len)` a piece after what is there; both `ERR_CMD_OUT_FULL` past `cap`.
 
 A command has one answer, at most `cap`. Data longer than that is paged by the command itself, which takes in its request where to start (a `start` id, an `offset`) and answers one page: actions LIST from a `start` ID, actions READ from an `offset`.
@@ -58,7 +58,7 @@ CMD_FRAME_MAX
  └─ a connector's frame [connector][payload]: a payload ≤ CMD_FRAME_MAX − 1
 ```
 
-The headers in use fit `CMD_HEAD`: a request's `[seq][flags]` (2), an answer's `[stream][seq][status]` (3). A link may carry less right now (`max_frame`, a BLE MTU): the router's answers and the connectors' frames are cut to that (ROUTER.MD, SYS_DATA_CONNECTOR.MD).
+The headers in use fit `CMD_HEAD`: a request's `[seq][flags]` (2), an answer's `[stream][seq][status]` (3). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A link may carry less right now (`max_frame`): a connector's frame is checked against that (SYS_DATA_CONNECTOR.MD).
 
 ## Long work
 

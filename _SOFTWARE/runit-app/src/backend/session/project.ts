@@ -160,7 +160,7 @@ export const saveProject = async (link: RunitLink, content: ProjectContent, opti
   const stream = projectStream(defs, content)
   const crc = crc32(stream)
   await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of(options.boot ?? defs.projectBoot.none)))
-  const chunk = defs.frameMax - 2 - 3 - 4 // [seq][flags][key][dir][op] and the offset
+  const chunk = defs.frameMax - defs.frameHead - 3 - 4 // the frame's header, [key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < stream.length; at += chunk) {
     writes.push({ keys: [defs.keys.project!, defs.dir.write, defs.ops.project.WRITE!], payload: concat(u32(at), stream.subarray(at, at + chunk)) })
@@ -200,7 +200,7 @@ export const storeRecord = async (link: RunitLink, id: number, frames: readonly 
   const defs = link.defs
   const image = frameImage(frames)
   await action(link, 'BEGIN', concat(u32(id), Uint8Array.of(image.length & 0xff, image.length >> 8)))
-  const chunk = defs.frameMax - 2 - 3 - 2 // [seq][flags][key][dir][op] and the offset
+  const chunk = defs.frameMax - defs.frameHead - 3 - 2 // the frame's header, [key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < image.length; at += chunk) writes.push({ keys: [defs.keys.actions!, defs.dir.write, defs.ops.actions.WRITE!], payload: concat(Uint8Array.of(at & 0xff, at >> 8), image.subarray(at, at + chunk)) })
   await sendInOrder(link, writes, options)

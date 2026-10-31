@@ -146,7 +146,7 @@ def test_router_errors(link: Link) -> None:
         str(r),
     )
 
-    # Frame without a root key, and a root key without the direction byte: rejected by router_submit, answered all the same.
+    # Frame without a root key, and a root key without the direction byte: refused by router_submit, answered by the link all the same.
     seq = link.next_seq()
     link.send_frame(bytes([seq, 0x00]))
     r = link.wait_response(seq)
