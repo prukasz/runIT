@@ -107,9 +107,10 @@ uint32_t err_root_tag(err_h chain);
  * Core tags (module 0)
  * ------------------------------------------------------------------------- */
 
-#define ERR_CORE_MAP(X)                                                                         \
-  X(ERR_POOL_EMPTY, ERR_TAG(ERR_MOD_CORE, 1), ERR_SEV_LOW, {}) /* no block for a new error */ \
-  X(ERR_ESP_ERR, ERR_TAG(ERR_MOD_CORE, 2), ERR_SEV_HIGH, { esp_err_t code; }) /* ESP-IDF call failed */
+#define ERR_CORE_MAP(X)                                                                                         \
+  X(ERR_POOL_EMPTY, ERR_TAG(ERR_MOD_CORE, 1), ERR_SEV_LOW,    {}) /* no block for a new error */                \
+  X(ERR_ESP_ERR,    ERR_TAG(ERR_MOD_CORE, 2), ERR_SEV_HIGH,   { esp_err_t code; }) /* ESP-IDF call failed */    \
+  X(ERR_RECORD_CUT, ERR_TAG(ERR_MOD_CORE, 3), ERR_SEV_MEDIUM, { uint16_t len; }) /* err_record_parse: cut short */
 
 ERR_TAGS_DECLARE(ERR_CORE_MAP)
 
@@ -156,13 +157,13 @@ void err_log_enable(bool on);
  * The command an error belongs to
  * ------------------------------------------------------------------------- */
 
-/** A command as it came in: its link, seq, flags and request (keys + payload, no seq / flags). The router fills it. */
+/** A command as it came in: its request (keys + payload) and its origin. Whoever submits it to the router fills it. */
 typedef struct {
   const uint8_t* req;  // may be NULL when req_len is 0
   uint32_t req_len;
-  uint8_t link;
-  uint8_t seq;
-  uint8_t flags;
+  uint16_t seq;        // the sender's counter, in every answer
+  uint8_t src;         // who sent it: a board or client id; ROUTER_SRC_SELF (0xFE) for the board's own commands
+  uint8_t flags;       // ROUTER_FLAG_*
 } err_cmd_t;
 
 /* ----------------------------------------------------------------------------
@@ -204,8 +205,18 @@ typedef enum {
 #define ERR_RECORD_REQ_CUT     0x80u  //@alias Request cut @description Bit 7 of request length: request was cut to fit, more was sent
 #define ERR_RECORD_STAMP_BYTES 8u  //@alias Time stamp bytes @description The u64 LE UTC time in ms (the board's clock) right after the source byte; counts from the start while no client has set the clock (before 2020: not a date)
 
+/** @brief An error record's command header (after the stamp): who sent the command, and which one. */
+typedef struct __attribute__((packed)) {
+  uint8_t from;     /**< err_cmd_t.src: a board or client id; 0xFE for the board itself */
+  uint16_t seq;     /**< err_cmd_t.seq: the sender's counter */
+  uint8_t flags;    /**< ROUTER_FLAG_* */
+  uint8_t req_len;  /**< Bits 0-6: request bytes that follow, bit 7: cut (ERR_RECORD_REQ_CUT) */
+} err_record_cmd_t;
+
+_Static_assert(sizeof(err_record_cmd_t) == 5, "record command header");
+
 /**
- * @brief Encodes an error record into `buf`: [src][stamp] (+ [link][seq][flags][req_len][request] for a command), then
+ * @brief Encodes an error record into `buf`: [src][stamp] (+ err_record_cmd_t and the request for a command), then
  * the chain, outermost node first: [count u8, bit 7 = cut] and per node [tag u32 LE][len u8][payload]
  * (the packed err_data_<TAG>_t; len 0 for an unknown tag). The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and
  * further when `cap` is small; nodes that don't fit are left out and bit 7 is set. Does not free the chain.
@@ -213,6 +224,17 @@ typedef enum {
  * @return Bytes written (0 only when cap is too small for the header).
  */
 uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
+
+/**
+ * @brief Makes a record's chain a chain again, its nodes outermost first; a tag this board doesn't know keeps its
+ * payload as is (cut to ERR_DATA_MAX). The source and the command header are skipped. With the pool short, the
+ * outermost nodes are left out.
+ * @param data   The record.
+ * @param len    Bytes in `data`.
+ * @param chain  Out: the chain (NULL when it has no node).
+ * @return NULL when parsed; ERR_RECORD_CUT (a record cut short).
+ */
+MUST_USE err_h err_record_parse(const uint8_t* data, uint32_t len, err_h* chain);
 
 #ifdef __cplusplus
 }

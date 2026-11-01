@@ -10,6 +10,8 @@ import time
 
 import serial
 
+from router_link import LineSplitter
+
 port = sys.argv[1]
 secs = float(sys.argv[2]) if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else 8.0
 
@@ -36,6 +38,7 @@ if s is None:
     print(f"--- {port} did not come back within 5 s ---")
     sys.exit(1)
 
+lines = LineSplitter()  # the console is binary: text as it is, each frame as one line
 end = time.time() + secs
 total = 0
 while time.time() < end:
@@ -51,7 +54,7 @@ while time.time() < end:
         continue
     if data:
         total += len(data)
-        sys.stdout.write(data.decode("utf-8", errors="replace"))
+        sys.stdout.write(lines.feed(data))
         sys.stdout.flush()
 s.close()
 print(f"\n--- captured {total} bytes in {secs:.0f}s on {port} ---")

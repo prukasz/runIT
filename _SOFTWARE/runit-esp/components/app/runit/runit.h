@@ -20,7 +20,7 @@ typedef struct {
 
 /**
  * @brief Runs the boot sequence. A failing step is reported and the boot goes on, so one missing piece (no BLE
- * controller under QEMU, no I2C pull-ups) doesn't take the command links down with it.
+ * controller under QEMU, no I2C pull-ups) doesn't take the clients' sessions down with it.
  * @return The first failure (owned, not reported yet: the caller reports it), or NULL. The others are reported.
  */
 MUST_USE err_h runit_start(void);

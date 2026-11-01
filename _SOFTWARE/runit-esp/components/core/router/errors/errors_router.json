@@ -17,15 +17,12 @@
     "ERR_ROUTER_TABLE_FULL": {
       "message": "No room to register {key}"
     },
-    "ERR_ROUTER_BAD_LINK": {
-      "message": "{link} is not a connection the board knows"
-    },
     "ERR_ROUTER_QUEUE_FULL": {
-      "message": "The board is busy: a command from {link} was dropped",
+      "message": "The board is busy: a command from {src} was dropped",
       "hint": "Send commands less often."
     },
     "ERR_ROUTER_FRAME_LEN": {
-      "message": "A command of {len} bytes from {link} was refused (at most {max})"
+      "message": "A command of {len} bytes from {src} was refused (at most {max})"
     },
     "ERR_ROUTER_BUSY": {
       "message": "Urgent work could not start: other urgent work waits to run"

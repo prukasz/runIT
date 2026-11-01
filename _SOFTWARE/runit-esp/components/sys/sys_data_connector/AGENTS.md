@@ -3,14 +3,13 @@
 Spec: `SYS_DATA_CONNECTOR.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- Transport IDs (`transport_e`) and the system connectors (`SYS_DATA_CONNECTOR_*`) live in `sys_data_connector_config.h` and are wire format: never renumber them. A connector is one byte, the first byte of its frames: the API, the commands and the errors call it `connector`, a binding is `provider` + `endpoint`. Error tags are wire format too (code 1 is unused: never assign it).
-- Changing `transport_e`, the system connectors, the error map or `contract_connector.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
-- Commands and their answers never go through connectors. They use router links (ROUTER.MD).
-- `sys_data_connector_send` never blocks and never calls a provider. A link's `send` with `answer` false runs only on the connector task.
-- Providers are the router's links (`router_link_get`): the connector keeps no transport registry of its own. A new `transport_e` member gets its `_Static_assert` line (ID within `CONFIG_ROUTER_MAX_LINKS`) at the top of `sys_data_connector.c`.
+- The system connectors (`SYS_DATA_CONNECTOR_*`), the binding and connector flags and states live in `sys_data_connector_config.h` and are wire format: never renumber them. 0x05 is kept for the watches' entries. Error tags are wire format too (codes 1, 5 and 10 are unused: never assign them).
+- Changing the config groups, the error map or `contract_connector.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green. The app's `src/app/settings/streams.ts` reads LIST's layout and builds BIND / UNBIND: keep it in step.
+- Commands and their answers never go through connectors: they are the session's (SYS_SESSION.MD).
+- `sys_data_connector_send` never blocks and never calls a provider or the session. Only the connector task sends, and always `NOWAIT`: one slow target never holds the others.
+- A binding is its provider's one user (`sys_data_provider_open`); the connector opens and closes it. A subscriber is a peer id, taken from the command's `src` (`router_origin()`), never from the payload. Gone peers (`sys_session_on_gone`) lose their subscriptions.
 - `sys_data_connector.h` is what other components use; what only the component's router uses is in `internal/sys_data_connector_internal.h`, off the public include path.
-- Provider `max_frame` runs inside `sys_data_connector_max_payload`, so any task may call that, except one holding a transport's lock.
+- No call into a provider or the session under the connector's lock: copy what is needed, release, send, then write the results back by provider and by peer.
 - Errors in the connector task are logged (`err_log`), never reported: a report would queue a record back into this task and loop.
-- A frame that a binding can't carry is dropped there (`ERR_CONN_TOO_LONG`), never cut.
-- The system connectors (logs, errors, telemetry, events) can't be removed. Keep at least one binding on them.
-- One byte, one connector: `create` refuses a byte that has one (the system ones exist from init) and `sys_data_connector_create` the router's answer byte (`CONFIG_ROUTER_RESPONSE_STREAM`).
+- A frame that a binding can't carry is dropped there (`ERR_PROV_TOO_LONG`), never cut.
+- The system connectors (logs, errors, telemetry, events) can't be removed.

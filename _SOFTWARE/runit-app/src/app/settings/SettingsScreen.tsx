@@ -198,7 +198,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
   const charChoices: Choice<number>[] = chars.map((c) => ({ value: c.uuid, label: `${hex(c.uuid)} ${uuidNames.get(c.uuid) ?? c.name}`.trim() }))
   const set = (next: readonly DataStream[]) => state.changeStreams(next)
   const setStream = (at: number, change: (s: DataStream) => DataStream) => set(streams.map((s, i) => (i === at ? change(s) : s)))
-  const bleTransport = transports().find((t) => /ble/i.test(bundledEnums().transport_e?.members.find((m) => m.value === t.value)?.name ?? ''))?.value
+  const bleTransport = transports().find((t) => /ble/i.test(bundledEnums().sys_data_provider_link_e?.members.find((m) => m.value === t.value)?.name ?? ''))?.value
   return (
     <>
       <Card title={section.title} help={section.service.description}
@@ -215,7 +215,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
           )}>
           <FormGrid>
             {s.system
-              ? <FormRow label={create.fields.find((f) => f.id === 'connector')?.label ?? 'Connector'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
+              ? <FormRow label={create.fields.find((f) => f.id === 'id')?.label ?? 'Connector'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
               : <>
                   <FormRow label="Name" note="The project's own label: the board keeps no name.">
                     <TextField value={s.name ?? ''} placeholder={byteName(s.stream)} aria-label={`${title(s)}: name`} onChange={(e) => setStream(at, (o) => ({ ...o, name: e.currentTarget.value }))} />
@@ -237,7 +237,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
                     onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
                 </FormRow>
                 {binding && t.value === bleTransport && (
-                  <FormRow label={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.label ?? 'Endpoint'} note={bind.write?.args?.fields.find((f) => f.id === 'endpoint')?.description}>
+                  <FormRow label={bind.write?.args?.fields.find((f) => f.id === 'channel')?.label ?? 'Channel'} note={bind.write?.args?.fields.find((f) => f.id === 'channel')?.description}>
                     <ChoiceField<number> aria-label={`${title(s)}: characteristic`} value={binding.endpoint} choices={charChoices} unavailableLabel={(u) => hex(u)}
                       onChange={(endpoint) => endpoint !== undefined && setStream(at, (o) => ({ ...o, bindings: o.bindings.map((b) => (b.provider === t.value ? { ...b, endpoint } : b)) }))} />
                   </FormRow>

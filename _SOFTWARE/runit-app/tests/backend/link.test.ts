@@ -17,17 +17,18 @@ const linkTo = async (board: FakeBoard, options: ConstructorParameters<typeof Ru
 }
 
 describe('commands', () => {
-  it('sends a request and returns the answer; the largest request is one write', async () => {
+  it('sends a request and returns the answer; the largest request is two writes', async () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board)
     expect([...(await link.request({ ...PING, payload: Uint8Array.of(1, 2, 3) }))]).toEqual([1, 2, 3])
     const big = Uint8Array.from({ length: 480 }, (_, i) => i & 0xff)
     expect(await link.request({ ...PING, payload: big })).toEqual(big)
-    expect(board.packets.slice(1)).toEqual([485]) // a 484 B frame: one packet, the header on it
+    expect(board.packets.slice(1)).toEqual([488]) // a 487 B frame: one packet, the fragment byte on it
     const max = new Uint8Array(defs.frameMax - defs.frameHead - 2).fill(7) // keys and payload: CMD_DATA_MAX
     expect(await link.request({ ...PING, payload: max })).toEqual(max)
-    expect(board.packets.slice(2)).toEqual([2 + max.length + 3]) // [seq][flags], the two keys and the fragment byte
+    expect(defs.frameHead + 2 + max.length).toBe(defs.frameMax) // the session header, the two keys, the payload: CMD_FRAME_MAX
+    expect(board.packets.slice(2)).toEqual([512, 2]) // with the fragment byte one over the 512 B a write carries
     await link.close()
   })
 
@@ -114,15 +115,15 @@ describe('commands', () => {
 })
 
 describe('streams', () => {
-  it('routes frames that are not answers by their stream byte, without it', async () => {
+  it('routes stream frames by their connector byte, without it; the LOGS characteristic carries the log lines as they are', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
     const seen: [string | undefined, number[]][] = []
     link.onStream((f) => seen.push([f.name, [...f.data]]))
-    board.notify(Uint8Array.of(defs.streams.telemetry, 1, 2, 3))
-    board.notify(Uint8Array.of(defs.streams.logs, 9), defs.gatt.logs)
-    board.notify(Uint8Array.of(defs.streams.errors, 7))
-    board.notify(Uint8Array.of(defs.streams.events, 5))
+    board.stream(defs.streams.telemetry, [1, 2, 3])
+    board.notify(Uint8Array.of(9), defs.gatt.logs)
+    board.stream(defs.streams.errors, [7])
+    board.stream(defs.streams.events, [5])
     await until(() => seen.length === 4)
     expect(seen).toEqual([['telemetry', [1, 2, 3]], ['logs', [9]], ['errors', [7]], ['events', [5]]])
     await link.close()
@@ -133,10 +134,10 @@ describe('streams', () => {
     const link = await linkTo(board)
     const seen: number[] = []
     link.onStream((f) => seen.push(f.data.length))
-    board.notify(new Uint8Array(100).fill(defs.streams.telemetry), defs.gatt.tx)
+    board.stream(defs.streams.telemetry, new Uint8Array(99).fill(1))
     board.notify(new Uint8Array(60).fill(defs.streams.logs), defs.gatt.logs)
     await until(() => seen.length === 2)
-    expect(seen.sort((a, b) => a - b)).toEqual([59, 99])
+    expect(seen.sort((a, b) => a - b)).toEqual([60, 99])
     await link.close()
   })
 

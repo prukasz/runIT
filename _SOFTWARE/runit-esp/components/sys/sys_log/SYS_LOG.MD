@@ -18,16 +18,16 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 | Field | Values | Effect |
 |---|---|---|
 | `level` | 0 .. `CONFIG_LOG_MAXIMUM_LEVEL` (3 = INFO here) | `esp_log_level_set("*", level)`. **0 blocks every ESP_LOG line**, console and logs connector. Above the compile-time ceiling: `ERR_LOG_BAD_LEVEL{level, max}`, since a level IDF compiled out would silently do nothing |
-| `mirror_serial` | 0 / 1 | 1: a line goes to the console (UART / USB-Serial-JTAG). 0: not to the console; a line still reaches the logs connector if `send_logs` is 1 |
+| `mirror_serial` | 0 / 1 | 1: a line also goes to the console (UART / USB-Serial-JTAG) as text, between the binary frames (SYS_UART.MD). 0 (the default): not to the console; a line still reaches the logs connector if `send_logs` is 1, which is how a console client gets it (its session subscribes LOGS) |
 | `send_errors` | 0 / 1 | 1: a reported error chain is sent as a record on the errors stream (ERRORS.MD). 0: no record is sent (`sys_log_error` checks it) |
-| `send_logs` | 0 / 1 | 1: every log line is also sent as text to the logs connector (BLE, or any connector bound to it). 0: no line is sent to a connector |
+| `send_logs` | 0 / 1 | 1: every log line is also sent as text to the logs connector (the BLE LOGS characteristic it is bound to, the clients subscribed to it). 0: no line is sent to a connector |
 | `trace_errors` | 0 / 1 | 1: a reported error chain is also printed as log lines (`err_log`). 0: no chain lines (`err_log_enable(false)`). Independent of `send_errors` |
 
 The text of a chain goes through ESP_LOG, so with `trace_errors` on it reaches the console and the logs connector like any other line.
 
-What no option can silence: the command link (`#R:` frames from sys_uart, which don't go through ESP_LOG), the error records, and the ROM / bootloader output before the application runs.
+What no option can silence: the session's frames on the console (SYS_UART.MD: they don't go through ESP_LOG), the error records, and the ROM / bootloader output before the application runs.
 
-Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror on, trace on, send errors on, send logs on.
+Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror off (the console is a binary line), trace on, send errors on, send logs on.
 
 ## The hook
 
@@ -49,7 +49,7 @@ Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
 | `0x01` CONFIG | RW | write: `sys_log_cfg_t`: `{u8 level, mirror_serial, trace_errors, send_errors, send_logs}` (the four flags 0 / 1, else `ERR_CMD_BAD_ARG`) | read: `sys_log_cfg_t`, the options in force; write: – (applied at once; nothing is stored) |
 | `0x03` ERRORS | R | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ERRORS.MD "Error record"); only `total` for an index past the end |
 
-Example, level 0 with the console and both connector streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The link adds its own frame header (ROUTER.MD).
+Example, level 0 with the console and both connector streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
 CONFIG's write applies the options at once and stores nothing. The app keeps that write frame as the record `SYS_ACTIONS_ID_LOG` (saved with the upload or the recording, SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
 

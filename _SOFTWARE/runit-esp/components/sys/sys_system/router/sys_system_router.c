@@ -33,8 +33,7 @@
 #define RESTART_DELAY_MS 100u  // lets the answer leave before the restart
 
 typedef struct __attribute__((packed)) {
-  uint32_t timeout_ms;   /**< Time without a command before the safe state in ms (0 = off) */
-  uint8_t on_link_lost;  /**< 1 = enter safe state on link lost, 0 = ignore */
+  uint32_t timeout_ms;  /**< The clients' sessions' timeout in ms; their end is the safe state (0 = off) */
 } sys_deadman_t;
 
 typedef struct __attribute__((packed)) {
@@ -69,23 +68,18 @@ ROUTER_OP_NOARGS(op_restart) {
 }
 
 ROUTER_OP(op_deadman_set, sys_deadman_t) {
-  ERR_CHECK(args->on_link_lost <= 1, ERR_CMD_BAD_ARG);
-  sys_system_deadman_set(args->timeout_ms, args->on_link_lost != 0);
-  return NULL;
+  return sys_system_deadman_set(args->timeout_ms);
 }
 
 ROUTER_OP_NOARGS(op_deadman_get) {
-  uint32_t timeout_ms;
-  bool on_link_lost;
-  sys_system_deadman_get(&timeout_ms, &on_link_lost);
-  const sys_deadman_t r = {.timeout_ms = timeout_ms, .on_link_lost = on_link_lost};
+  const sys_deadman_t r = {.timeout_ms = sys_system_deadman_get()};
   return cmd_reply(out, &r, sizeof(r));
 }
 
 // The client is leaving on purpose (its Disconnect, its window closing): the board goes on with what it runs, and a dead-man the client
-// armed must not stop it for the silence that follows. A link that drops without it (power, range) is still a lost link.
+// armed must not stop it for the silence that follows. A link that drops without it (power, range) ends its session.
 ROUTER_OP_NOARGS(op_bye) {
-  sys_system_deadman_set(0, false);
+  ERR_TRY(sys_system_deadman_set(0));
   ESP_LOGI(TAG, "client left: dead-man off");
   return NULL;
 }

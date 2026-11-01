@@ -22,7 +22,7 @@ const board = () => {
 
 const sysOps = (b: FakeBoard, op: number) => b.requests.filter((f) => f[2] === defs.keys.sys && f[4] === op) // [seq][flags][key][dir][op]
 
-const start = async (b: FakeBoard, options: { timeoutMs?: number; onLinkLost?: boolean; heartbeatMs?: number } = {}) => {
+const start = async (b: FakeBoard, options: { timeoutMs?: number; heartbeatMs?: number } = {}) => {
   const link = new RunitLink(b, { timeoutMs: 200, reconnect: { delaysMs: [0, 1, 2], openTimeoutMs: 50 } })
   await link.connect(b.device)
   const deadman = new DeadMan(link, { timeoutMs: 120, heartbeatMs: 30, ...options })
@@ -34,20 +34,20 @@ const start = async (b: FakeBoard, options: { timeoutMs?: number; onLinkLost?: b
 
 describe('the dead-man', () => {
   it('names commands and fields the descriptor has', () => {
-    expect(sys.commands.get(DEADMAN_COMMANDS.set)!.write!.args!.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.timeout, DEADMAN_COMMANDS.onLinkLost])
+    expect(sys.commands.get(DEADMAN_COMMANDS.set)!.write!.args!.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.timeout])
     const ping = sys.commands.get(DEADMAN_COMMANDS.ping)!.read!.returns
     expect(ping?.kind === 'struct' && ping.layout.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.uptime])
   })
 
-  it('is armed when it starts: the DEADMAN write (urgent) with the timeout and the link-lost flag, then PING', async () => {
+  it('is armed when it starts: the DEADMAN write (urgent) with the timeout, then PING', async () => {
     const b = board()
     const { link, deadman, events } = await start(b)
     const set = sysOps(b, SET)[0]!
     expect(set[1]).toBe(defs.flags.urgent)
     expect(set[3]).toBe(defs.dir.write)
-    expect([...set.subarray(5)]).toEqual([...u32(120), 1])
+    expect([...set.subarray(5)]).toEqual([...u32(120)])
     expect(sysOps(b, PING)).toHaveLength(1)
-    expect(events).toEqual([{ type: 'armed', timeoutMs: 120, onLinkLost: true }])
+    expect(events).toEqual([{ type: 'armed', timeoutMs: 120 }])
     await deadman.stop()
     await link.close()
   })
@@ -101,13 +101,13 @@ describe('the dead-man', () => {
     await link.close()
   })
 
-  it('without link-lost, a short drop is no lapse', async () => {
+  it('a drop shorter than the timeout is a lapse by the lost link, not by silence', async () => {
     const b = board()
-    const { link, deadman, events } = await start(b, { onLinkLost: false, timeoutMs: 600, heartbeatMs: 100 })
+    const { link, deadman, events } = await start(b, { timeoutMs: 600, heartbeatMs: 100 })
     b.drop()
     await until(() => sysOps(b, SET).length === 2 && sysOps(b, PING).length >= 2, 500)
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(events.filter((e) => e.type === 'lapsed')).toEqual([])
+    expect(events.filter((e) => e.type === 'lapsed').map((e) => e.type === 'lapsed' && e.reason)).toEqual(['link-lost'])
     await deadman.stop()
     await link.close()
   })
@@ -116,7 +116,7 @@ describe('the dead-man', () => {
     const b = board()
     const { link, deadman } = await start(b)
     await deadman.stop()
-    expect([...sysOps(b, SET).at(-1)!.subarray(5)]).toEqual([...u32(0), 0])
+    expect([...sysOps(b, SET).at(-1)!.subarray(5)]).toEqual([...u32(0)])
     expect(deadman.active).toBe(false)
     await link.close()
   })

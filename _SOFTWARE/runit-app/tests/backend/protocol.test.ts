@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { decodeErrorRecord, decodeResponse, encodeRequest, errorCatalog, fragment, Reassembler } from '@backend'
+import { decodeErrorRecord, decodeFrame, decodeHello, decodeResponse, encodeHello, encodeRequest, errorCatalog, fragment, Reassembler } from '@backend'
 import { defs } from './fakes'
 
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -29,36 +29,49 @@ describe('the numbers come from the firmware', () => {
     expect(defs.keys.ble).toBe(0x03)
   })
 
-  it('the response stream equals CONFIG_ROUTER_RESPONSE_STREAM and the frame limit equals CMD_FRAME_MAX', () => {
-    const kconfig = source('components/core/router/Kconfig')
-    expect(Number(/config ROUTER_RESPONSE_STREAM[\s\S]*?default (0x[0-9a-fA-F]+)/.exec(kconfig)?.[1])).toBe(defs.streams.response)
-    expect(Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(source('components/core/cmd/cmd.h'))?.[1])).toBe(defs.frameMax)
+  it('the session header is CMD_HEAD and the frame limit equals CMD_FRAME_MAX', () => {
+    const cmd = source('components/core/cmd/cmd.h')
+    expect(Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(cmd)?.[1])).toBe(defs.frameMax)
+    expect(Number(/#define\s+CMD_HEAD\s+(\d+)u/.exec(cmd)?.[1])).toBe(5)
+    const config = source('components/sys/sys_session/config/sys_session_config.h')
+    expect(Number(/#define\s+SYS_SESSION_VERSION\s+(\d+)u/.exec(config)?.[1])).toBe(defs.session.version)
   })
 })
 
-describe('requests and responses (ROUTER.MD examples)', () => {
-  it('encodes [seq][flags][keys][payload]', () => {
-    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.i2c!, 0x02], payload: Uint8Array.of(0) }))).toBe('07 00 02 02 00') // i2c SCAN bus 0
-    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.sys!, 0x01], urgent: true }))).toBe('07 01 01 01') // sys PING, urgent
-    expect(() => encodeRequest(defs, 256, { keys: [1] })).toThrow(RangeError)
-    expect(() => encodeRequest(defs, 0, { keys: [] })).toThrow(RangeError)
+describe('frames of the session (SYS_SESSION.MD examples)', () => {
+  const to = { dst: 0x00, src: 0xf0 }
+  it('encodes a request: [frame byte][dst][src][seq u16][keys][payload]', () => {
+    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.i2c!, 0x02], payload: Uint8Array.of(0) }, to))).toBe('00 00 f0 07 00 02 02 00') // i2c SCAN bus 0
+    expect(hex(encodeRequest(defs, 0x1234, { keys: [defs.keys.sys!, 0x01], urgent: true }, to))).toBe('01 00 f0 34 12 01 01') // sys PING, urgent
+    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.sys!, 0x01], noReply: true }, to)).slice(0, 2)).toBe('02')
+    expect(() => encodeRequest(defs, 0x10000, { keys: [1] }, to)).toThrow(RangeError)
+    expect(() => encodeRequest(defs, 0, { keys: [] }, to)).toThrow(RangeError)
   })
 
-  it('decodes an answer of the response stream, and ignores any other stream', () => {
-    expect(decodeResponse(defs, bytes('05 07 00 10 00 00 00'))).toMatchObject({ seq: 7, ok: true })
-    expect([...decodeResponse(defs, bytes('05 07 00 10 00 00 00'))!.data]).toEqual([0x10, 0, 0, 0])
-    expect(decodeResponse(defs, bytes('05 07 01'))).toMatchObject({ ok: false })
-    expect(decodeResponse(defs, bytes('02 07 00 01'))).toBeUndefined() // telemetry
-    expect(decodeResponse(defs, bytes('05 07'))).toBeUndefined()
+  it('decodes an answer (kind 1, status in bit 2), and nothing else', () => {
+    expect(decodeResponse(defs, bytes('40 f0 00 07 00 10 00 00 00'))).toMatchObject({ seq: 7, ok: true })
+    expect([...decodeResponse(defs, bytes('40 f0 00 07 00 10 00 00 00'))!.data]).toEqual([0x10, 0, 0, 0])
+    expect(decodeResponse(defs, bytes('44 f0 00 07 01'))).toMatchObject({ seq: 0x107, ok: false })
+    expect(decodeResponse(defs, bytes('80 f0 00 07 00 02 01'))).toBeUndefined() // a stream frame (telemetry)
+    expect(decodeResponse(defs, bytes('40 f0 00 07'))).toBeUndefined()
+    expect(decodeFrame(defs, bytes('80 f0 00 07 00 02 01'))).toMatchObject({ kind: defs.session.kind.stream, seq: 7 })
   })
 
-  it('decodes the error record of the ROUTER.MD example, naming the tags from errors.json', () => {
-    const frame = bytes('05 07 01 01 40 8d 1b 5e 9b 01 00 00 01 07 00 03 02 02 00 03 01 00 02 00 01 02 01 00 02 00 01 02 10 00 01 00 01 00')
+  it('a client HELLO asks for an id; the board HELLO gives it', () => {
+    const mine = encodeHello(defs, 60000)
+    expect(mine[0]).toBe(defs.session.control.hello)
+    expect(decodeHello(defs, mine)).toMatchObject({ version: defs.session.version, boardId: defs.session.id.none, yourId: defs.session.id.none, timeoutMs: 60000 })
+    const board = Uint8Array.from([defs.session.control.hello, 1, 0x00, 0xf0, 1, 2, 3, 4, 5, 6, 0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0, 0, 0, 0, 0, 0xb8, 0x0b, 0])
+    expect(decodeHello(defs, board)).toEqual({ version: 1, boardId: 0, yourId: 0xf0, bootId: 0x12345678, timeoutMs: 3000 })
+  })
+
+  it('decodes the error record of the ERRORS.MD example, naming the tags from errors.json', () => {
+    const frame = bytes('44 f0 00 07 00 01 40 8d 1b 5e 9b 01 00 00 f0 07 00 00 03 02 02 00 03 01 00 02 00 01 02 01 00 02 00 01 02 10 00 01 00 01 00')
     const response = decodeResponse(defs, frame)!
     const record = decodeErrorRecord(defs, response.data, errorCatalog())!
     expect(record.source).toBe('command')
     expect(record.time).toBe(0x19b5e1b8d40) // the board's clock, UTC ms
-    expect(record.command).toMatchObject({ link: 1, seq: 7, flags: 0, requestCut: false })
+    expect(record.command).toMatchObject({ sender: 0xf0, seq: 7, flags: 0, requestCut: false })
     expect(hex(record.command!.request)).toBe('02 02 00')
     expect(record.chain.map((n) => n.info?.name)).toEqual(['ERR_ROUTER_KEY', 'ERR_ROUTER_KEY', 'ERR_I2C_REMOTE_DENIED'])
     expect(record.chain[0]!.fields).toEqual({ key: 2 })

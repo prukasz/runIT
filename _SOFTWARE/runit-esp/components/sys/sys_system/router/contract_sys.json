@@ -55,9 +55,9 @@
       "op": 4,
       "symbol": "OP_DEADMAN",
       "label": "Dead-man",
-      "description": "Sets how long the board waits for a command before it enters its safe state by itself, and whether a lost link does it at once. 0 = off: the board then runs its program on its own, offline, with no client. Runtime only: after a restart the board is as built (off by default).",
+      "description": "Sets the dead-man: the timeout of the clients' sessions, whose end (silence that long, the link lost) enters the safe state. 0 = off: the board then runs its program on its own, with no client. Runtime only: after a restart the board is as built (off by default).",
       "read": {
-        "description": "Returns the current timeout and whether a lost link triggers the safe state.",
+        "description": "Returns the dead-man time (0 = off).",
         "returns": {
           "struct": "sys_deadman_t",
           "fields": [
@@ -70,24 +70,15 @@
               "offset": 0,
               "unit": "ms",
               "min": 0,
-              "max": 600000,
-              "description": "Time without a command before the safe state (0 = off). The app asks the board about every second while it is connected, so 3000 or more does not trip a connected board; a board with no client is tripped by any value but 0."
-            },
-            {
-              "id": "on_link_lost",
-              "label": "React to a lost link",
-              "type": "boolean",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "1 = enter the safe state at once when the BLE connection drops (the program then stops: leave it off for a board that should keep running without the app)"
+              "max": 60000,
+              "description": "The clients' sessions' timeout (0 = off, else 150..60000). A client sends something at least every third of it (its session's PING), so a connected client never trips it."
             }
           ],
-          "description": "Communication watchdog settings"
+          "description": "Dead-man settings"
         }
       },
       "write": {
-        "description": "Sets how long the board waits for a command before it enters its safe state by itself, and whether a lost link does it at once. 0 = off: the board then runs its program on its own, offline, with no client. Runtime only: after a restart the board is as built (off by default).",
+        "description": "Sets the dead-man: the timeout of the clients' sessions, whose end (silence that long, the link lost) enters the safe state. 0 = off: the board then runs its program on its own, with no client. Runtime only: after a restart the board is as built (off by default).",
         "args": {
           "struct": "sys_deadman_t",
           "fields": [
@@ -100,17 +91,8 @@
               "offset": 0,
               "unit": "ms",
               "min": 0,
-              "max": 600000,
-              "description": "Time without a command before the safe state (0 = off). The app asks the board about every second while it is connected, so 3000 or more does not trip a connected board; a board with no client is tripped by any value but 0."
-            },
-            {
-              "id": "on_link_lost",
-              "label": "React to a lost link",
-              "type": "boolean",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "1 = enter the safe state at once when the BLE connection drops (the program then stops: leave it off for a board that should keep running without the app)"
+              "max": 60000,
+              "description": "The clients' sessions' timeout (0 = off, else 150..60000). A client sends something at least every third of it (its session's PING), so a connected client never trips it."
             }
           ]
         }
@@ -130,7 +112,9 @@
       "symbol": "OP_TIME",
       "label": "Clock",
       "description": "The board's wall clock (UTC, milliseconds since 1970). The board has no battery clock: the app sets it whenever it connects; the read answers 0 until a client set it since the power came on.",
-      "tags": ["app"],
+      "tags": [
+        "app"
+      ],
       "read": {
         "returns": {
           "struct": "sys_time_t",

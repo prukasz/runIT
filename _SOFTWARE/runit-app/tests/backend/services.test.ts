@@ -136,9 +136,9 @@ describe('the catalog', () => {
 
 describe('requests', () => {
   it('a service command: [key][dir][op][args], laid out by the descriptor', () => {
-    const call = serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, 'write')
+    const call = serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write')
     expect(call.request.keys).toEqual([defs.keys.sys, defs.dir.write, catalog.service('SYS').commands.get('DEADMAN')!.op])
-    expect(hex(call.request.payload!)).toBe('f401000001')
+    expect(hex(call.request.payload!)).toBe('f4010000')
     expect(defs.dir).toEqual({ read: 0, write: 1 }) // cmd_dir_e, cmd.h
   })
 
@@ -146,7 +146,7 @@ describe('requests', () => {
     const read = serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read')
     expect(read.request.keys).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('DEADMAN')!.op])
     expect(read.request.payload!.length).toBe(0)
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true })).toThrow(/say which one/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 })).toThrow(/say which one/)
     expect(serviceCall(catalog, 'SYS', 'PING').request.keys[1]).toBe(defs.dir.read)
     expect(serviceCall(catalog, 'SYS', 'STOP').request.keys[1]).toBe(defs.dir.write)
     expect(() => serviceCall(catalog, 'SYS', 'PING', undefined, 'write')).toThrow(/no write side/)
@@ -245,9 +245,9 @@ describe('requests', () => {
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1 }, 'write')).toThrow(/on_link_lost is missing/)
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1, on_link_lost: 0, extra: 1 }, 'write')).toThrow(/No field extra/)
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: -1, on_link_lost: 0 }, 'write')).toThrow(PayloadError)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', {}, 'write')).toThrow(/timeout_ms is missing/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1, extra: 1 }, 'write')).toThrow(/No field extra/)
+    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: -1 }, 'write')).toThrow(PayloadError)
     expect(() => deviceCall(defs, catalog, 0, 'IO', 'LEVEL', { pin: 1, level: 'Middle' }, 'write')).toThrow(/'Middle' is not a value of level/)
     expect(() => serviceCall(catalog, 'SYS', 'PING', { x: 1 })).toThrow(/takes no arguments/)
     expect(() => serviceCall(catalog, 'NOPE', 'PING')).toThrow(/No service NOPE/)
@@ -257,8 +257,8 @@ describe('requests', () => {
 describe('answers', () => {
   it('a struct by field id, booleans as booleans', () => {
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'PING'), Uint8Array.of(0xd2, 0x04, 0, 0))).toEqual({ uptime_ms: 1234 })
-    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read'), Uint8Array.of(0xf4, 1, 0, 0, 1))).toEqual({ timeout_ms: 500, on_link_lost: true })
-    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, 'write'), new Uint8Array())).toBeUndefined() // a write answers no data
+    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read'), Uint8Array.of(0xf4, 1, 0, 0))).toEqual({ timeout_ms: 500 })
+    expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write'), new Uint8Array())).toBeUndefined() // a write answers no data
   })
 
   it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 26 bytes)', () => {
@@ -293,7 +293,7 @@ describe('answers', () => {
   })
 
   it('a value that leads the answer is read from the front; bytes stay bytes', () => {
-    expect(decodeAnswer(serviceCall(catalog, 'CONNECTOR', 'INFO'), Uint8Array.of(3, 9, 9))).toBe(3)
+    expect(decodeAnswer(serviceCall(catalog, 'CONNECTOR', 'LIST'), Uint8Array.of(3, 9, 9))).toBe(3)
     expect(decodeAnswer(serviceCall(catalog, 'BLE', 'LIST'), Uint8Array.of(1, 2))).toEqual(Uint8Array.of(1, 2))
   })
 })

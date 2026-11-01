@@ -1,0 +1,59 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_SESSION",
+  "errors": {
+    "ERR_SESSION_VERSION": {
+      "message": "The other board speaks frame format {got}, this one {mine}",
+      "hint": "Update both boards to the same firmware."
+    },
+    "ERR_SESSION_NONE": {
+      "message": "A frame from {src} came before it said who it is",
+      "hint": "It is asked to say it again; nothing to do."
+    },
+    "ERR_SESSION_ID_TAKEN": {
+      "message": "Two boards have the id {board}",
+      "hint": "Give one of them another id."
+    },
+    "ERR_SESSION_NO_ROUTE": {
+      "message": "Board {dst} cannot be reached from here"
+    },
+    "ERR_SESSION_DENIED": {
+      "message": "{src} may only read on this board"
+    },
+    "ERR_SESSION_TIMEOUT": {
+      "message": "Board {dst} did not answer",
+      "hint": "A write may still have run: read the value back."
+    },
+    "ERR_SESSION_PEER_DOWN": {
+      "message": "The connection to board {board} was lost"
+    },
+    "ERR_SESSION_NOT_FRAMED": {
+      "message": "{link} {channel} cannot carry a board's connection",
+      "hint": "Use a connection with runIT framing."
+    },
+    "ERR_SESSION_PARENT_TAKEN": {
+      "message": "This board already has a connection towards the root"
+    },
+    "ERR_SESSION_CLIENT": {
+      "message": "Only a board without a connection towards the root takes an app connection"
+    },
+    "ERR_SESSION_FULL": {
+      "message": "No room for another board connection",
+      "hint": "Remove one first."
+    },
+    "ERR_SESSION_CALLS_FULL": {
+      "message": "Too many requests to other boards at once"
+    },
+    "ERR_REMOTE": {
+      "message": "On board {board}"
+    },
+    "ERR_SESSION_BUSY": {
+      "message": "Board {dst} is still answering earlier requests",
+      "hint": "It is sent again later; nothing to do."
+    },
+    "ERR_SESSION_WOULD_BLOCK": {
+      "message": "A wait for another board's answer was asked where nothing may wait",
+      "hint": "A firmware fault: report it."
+    }
+  }
+}

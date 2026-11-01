@@ -14,22 +14,31 @@ import type { DescriptorFile } from './catalog/services'
 /*
  * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
  * direction byte, flags,
- * status and the stream bytes (`enums.json`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
- * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`enums.json`, group `cmd_frame`) and the response stream byte (`limits.json`), the errors (`errors.json`: tags, fields, message
+ * status and the stream bytes (`enums.json`), the session's frame byte, kinds, control ops, ids and version (`enums.json`,
+ * groups `session_*`, `sys_session_*`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
+ * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`enums.json`, group `cmd_frame`), the errors (`errors.json`: tags, fields, message
  * templates, what an id field refers to) and the enum groups their fields name (`bundledEnums`); and every
  * command of every router (the service, contract and device descriptors, `bundledServiceCatalog`). Nothing here is a number
  * typed in by hand; a symbol the firmware stops publishing stops the load with a message that names it.
  */
 
 export interface LinkDefinitions {
-  /** Root keys by name (`sys`, `ble`, `vm`, ...): the first key of a request after `[seq][flags]`. */
+  /** Root keys by name (`sys`, `ble`, `vm`, ...): the first key of a request after the session's header. */
   readonly keys: Readonly<Record<string, number>>
   /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
-  /** The first byte of a frame says which stream it belongs to; `response` is `CONFIG_ROUTER_RESPONSE_STREAM` (`limits.json`). */
-  readonly streams: { readonly response: number; readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
+  /** The connectors: the first byte of a stream frame says which one it is (`connector`). */
+  readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
   readonly status: { readonly ok: number; readonly error: number }
-  readonly flags: { readonly urgent: number }
+  readonly flags: { readonly urgent: number; readonly noReply: number }
+  /** The session (SYS_SESSION.MD "Frames"): the frame byte's bits, the kinds, the control ops, the ids, the version. */
+  readonly session: {
+    readonly version: number
+    readonly frame: { readonly flags: number; readonly status: number; readonly kind: number }
+    readonly kind: { readonly request: number; readonly answer: number; readonly stream: number; readonly control: number }
+    readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number }
+    readonly id: { readonly none: number; readonly self: number; readonly broadcast: number }
+  }
   readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly status: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The error record's header (ERRORS.MD "Error record"). */
@@ -65,7 +74,6 @@ const opDirsOf = (contract: ContractFile, dir: LinkDefinitions['dir']): Record<s
 
 export const linkDefinitions = (
   enums: EnumTables,
-  router: { readonly responseStream: number },
   contracts: { readonly actions: ContractFile; readonly project: ContractFile } = { actions: actionsContract as ContractFile, project: projectContract as ContractFile },
 ): LinkDefinitions => {
   const keys = enums.router_key
@@ -75,14 +83,37 @@ export const linkDefinitions = (
     keys: Object.fromEntries(keys.members.map((m) => [m.name.replace(/^ROUTER_KEY_/, '').toLowerCase(), m.value])),
     dir,
     streams: {
-      response: router.responseStream,
       telemetry: value(enums, 'connector', 'SYS_DATA_CONNECTOR_TELEMETRY'),
       logs: value(enums, 'connector', 'SYS_DATA_CONNECTOR_LOGS'),
       errors: value(enums, 'connector', 'SYS_DATA_CONNECTOR_ERRORS'),
       events: value(enums, 'connector', 'SYS_DATA_CONNECTOR_EVENTS'),
     },
     status: { ok: value(enums, 'router_status_e', 'ROUTER_STATUS_OK'), error: value(enums, 'router_status_e', 'ROUTER_STATUS_ERROR') },
-    flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT') },
+    flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT'), noReply: value(enums, 'router_flag', 'ROUTER_FLAG_NOREPLY') },
+    session: {
+      version: value(enums, 'session_version', 'SYS_SESSION_VERSION'),
+      frame: {
+        flags: value(enums, 'session_frame', 'SYS_SESSION_FRAME_FLAGS'),
+        status: value(enums, 'session_frame', 'SYS_SESSION_FRAME_STATUS'),
+        kind: value(enums, 'session_frame', 'SYS_SESSION_FRAME_KIND'),
+      },
+      kind: {
+        request: value(enums, 'sys_session_kind_e', 'SYS_SESSION_REQUEST'),
+        answer: value(enums, 'sys_session_kind_e', 'SYS_SESSION_ANSWER'),
+        stream: value(enums, 'sys_session_kind_e', 'SYS_SESSION_STREAM'),
+        control: value(enums, 'sys_session_kind_e', 'SYS_SESSION_CONTROL'),
+      },
+      control: {
+        hello: value(enums, 'sys_session_control_e', 'SYS_SESSION_HELLO'),
+        ping: value(enums, 'sys_session_control_e', 'SYS_SESSION_PING'),
+        noSession: value(enums, 'sys_session_control_e', 'SYS_SESSION_NO_SESSION'),
+      },
+      id: {
+        none: value(enums, 'session_id', 'SYS_SESSION_ID_NONE'),
+        self: value(enums, 'session_id', 'SYS_SESSION_ID_SELF'),
+        broadcast: value(enums, 'session_id', 'SYS_SESSION_ID_BROADCAST'),
+      },
+    },
     gatt: {
       service: value(enums, 'ble_runit_uuid', 'SYS_BLE_SVC_RUNIT'),
       tx: value(enums, 'ble_runit_uuid', 'SYS_BLE_CHR_RUNIT_TX'),
@@ -220,15 +251,7 @@ export const onboardActions = (): readonly OnboardAction[] =>
 export const onboardActionIds = (): ReadonlySet<number> => new Set(onboardActions().map((a) => a.id))
 
 /** The definitions of the bundled firmware descriptors. */
-export const bundledLinkDefinitions = (): LinkDefinitions => {
-  const limits = (limitsJson as unknown as { limits: Record<string, { value: number }> }).limits
-  const limit = (name: string): number => {
-    const l = limits[name]
-    if (!l) throw new Error(`generated/common/limits.json has no limit '${name}'.`)
-    return l.value
-  }
-  return linkDefinitions(bundledEnums(), { responseStream: limit('ROUTER_RESPONSE_STREAM') })
-}
+export const bundledLinkDefinitions = (): LinkDefinitions => linkDefinitions(bundledEnums())
 
 /* ---- every command ---- */
 

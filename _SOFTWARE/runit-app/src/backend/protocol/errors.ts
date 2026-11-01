@@ -5,7 +5,7 @@ import type { ErrorField, ErrorInfo, LinkDefinitions } from '../definitions'
  *
  *   [src u8]   0 internal (no request), 1 command
  *   [time u64 LE]  the board's clock (UTC ms) when it was reported; before 2020 the clock was never set: a time since the start
- *   src 1: [link u8][seq u8][flags u8][req_len u8: bits 0-6 length, bit 7 cut][request]
+ *   src 1: [from u8][seq u16][flags u8][req_len u8: bits 0-6 length, bit 7 cut][request]   (err_record_cmd_t: who sent it)
  *   [chain]    [count u8: bits 0-6, bit 7 cut] then per node [tag u32][len u8][payload]; a node's severity is its tag's (errors.json)
  *
  * The chain starts with the route (one `ERR_ROUTER_KEY` per level) and ends with the root cause.
@@ -28,7 +28,8 @@ export interface ErrorRecord {
   readonly source: 'internal' | 'command'
   /** The board's clock when it reported the error (ms): UTC when it is at least CLOCK_SET_AFTER_MS, else since the start. */
   readonly time: number
-  readonly command?: { readonly link: number; readonly seq: number; readonly flags: number; readonly request: Uint8Array; readonly requestCut: boolean }
+  /** The command: `sender` the peer id that sent it (a client's, or 0xFE the board itself), its seq and flags, its request. */
+  readonly command?: { readonly sender: number; readonly seq: number; readonly flags: number; readonly request: Uint8Array; readonly requestCut: boolean }
   readonly chain: readonly ErrorNode[]
   readonly chainCut: boolean
   /** The root cause: the last node. */
@@ -72,11 +73,11 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   const time = Number(stamp)
   let command: ErrorRecord['command']
   if (source === 'command') {
-    if (data.length < at + 4) return undefined
-    const lengthByte = data[at + 3]!
+    if (data.length < at + 5) return undefined
+    const lengthByte = data[at + 4]!
     const length = lengthByte & 0x7f
-    const header = { link: data[at]!, seq: data[at + 1]!, flags: data[at + 2]! }
-    at += 4
+    const header = { sender: data[at]!, seq: view.getUint16(at + 1, true), flags: data[at + 3]! }
+    at += 5
     if (data.length < at + length) return undefined
     command = { ...header, request: data.slice(at, at + length), requestCut: (lengthByte & defs.errorRecord.requestCut) !== 0 }
     at += length

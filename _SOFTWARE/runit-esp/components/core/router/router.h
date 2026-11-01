@@ -10,24 +10,29 @@
 extern "C" {
 #endif
 
-/* The commands of this board: the tree of module routers, the two tasks that run them and the links they come from.
- * Each command comes with the callback its answer goes to (router_done_f). ROUTER.MD. The handler type, cmd_reply
- * and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and the error record are errors.h's. */
+/* The commands of this board, not their frames: the tree of module routers and the two tasks that run them. Whoever
+ * hands the router a command (the session, the board itself) gives the callback its answer goes to (router_done_f).
+ * ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and
+ * the error record are errors.h's. */
 
 /* ----------------------------------------------------------------------------
- * Wire: request flags and response status
+ * A command's flags and an answer's status
  * ------------------------------------------------------------------------- */
 
-// A command's flags (err_cmd_t.flags), the byte after a request's seq.
+/* A command's flags (err_cmd_t.flags): the one definition of them. The session's frame byte carries them at these
+   bits (SYS_SESSION.MD "Frames"). */
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT  (1u << 0)  //@alias Urgent @description Runs on the urgent task, next to normal commands
 #define ROUTER_FLAG_NOREPLY (1u << 1)  //@alias No reply @description No answer; a failure goes to the errors stream
 
+/** @brief What an answer is: the session carries it in its frame byte. */
 //#ref-enum @alias Response Status
 typedef enum {
   ROUTER_STATUS_OK = 0,     //@alias OK @description The command succeeded; the answer's data follows
   ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
+
+#define ROUTER_SRC_SELF 0xFEu  // err_cmd_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
 
 /* ----------------------------------------------------------------------------
  * Command tables
@@ -138,7 +143,7 @@ MUST_USE err_h router_register(uint8_t key, cmd_f fn);
  */
 MUST_USE err_h router_route(cmd_in_t in, cmd_out_t* out);
 
-/** @brief Starts the urgent and work tasks. Module routers are registered before; links before or after. */
+/** @brief Starts the urgent and work tasks. Module routers are registered before. */
 MUST_USE err_h router_init(void);
 
 /* ----------------------------------------------------------------------------
@@ -147,10 +152,10 @@ MUST_USE err_h router_init(void);
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Where a command's answer goes (a link's framer, a module that wants the answer). On the router task that ran
+ * @brief Where a command's answer goes (the session's framer, a module that wants the answer). On the router task that ran
  * the command; never for a NOREPLY one. It may wait for room on the way back, at most its own bound.
  * @param ctx     The submitter's.
- * @param cmd     The command answered (its link, seq, flags, request).
+ * @param cmd     The command answered (its src, seq, flags, request).
  * @param status  router_status_e.
  * @param data    The answer (OK) or the error record (ERROR), in the task's own buffer: the CMD_HEAD bytes in front of
  *                it are the callback's to write (a frame's header), so the answer is framed without a copy.
@@ -162,8 +167,8 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const err_cmd_t* cmd, uint8_t
 
 /**
  * @brief Queues one command: `cmd` and its request are copied, so both may go after the call. Never blocks; any task
- * but an ISR, a link's RX task too.
- * @param cmd   The origin (link, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
+ * but an ISR, a provider driver's RX task too.
+ * @param cmd   The origin (src, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
  * @param done  Where its answer goes; NULL: nowhere (a failure is reported only).
  * @param ctx   Given to `done`.
  * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL: not queued, the caller answers it.
@@ -171,8 +176,8 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const err_cmd_t* cmd, uint8_t
 MUST_USE err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx);
 
 /**
- * @brief Queues a command of the board itself: router_submit on ROUTER_LINK_INTERNAL with seq from the router's own
- * counter (the actions, the project's start).
+ * @brief Queues a command of the board itself: router_submit with src ROUTER_SRC_SELF and seq from the router's own
+ * counter (the actions, the project's start, a call of the board to itself).
  * @param req    [key][dir][...].
  * @param flags  ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.
  * @param done   Where its answer goes; NULL: nowhere.
@@ -181,7 +186,11 @@ MUST_USE err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx
  */
 MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx);
 
-#define ROUTER_LINK_INTERNAL 0u  // err_cmd_t.link of the board's own commands (router_inject)
+/**
+ * @brief Ends a command's chain: logged with the command ("cmd src f0 seq 7 flags 00 req 02 02 00") and handed to the
+ * error sink with it (its record on the errors stream). For a command the router refused, by whoever answers it.
+ */
+void router_report_cmd(const err_cmd_t* cmd, err_h err);
 
 /* ----------------------------------------------------------------------------
  * Tap, origin
@@ -217,45 +226,6 @@ bool router_is_task(void);
  * @return NULL when queued; ERR_ROUTER_BUSY (another fn waits to run).
  */
 MUST_USE err_h router_run_urgent(void (*fn)(void));
-
-/* ----------------------------------------------------------------------------
- * Links: the transports (UART, BLE, ...), registered once. A link's request frame is [seq][flags][request], its answer
- * [stream][seq][status][data] (router_link.c submits the one and frames the other). The data connectors
- * (sys_data_connector) send their streams through the same link to the endpoints they are bound to.
- * ------------------------------------------------------------------------- */
-
-typedef struct {
-  /**
-   * Sends one frame to `endpoint` (the transport's own address: BLE characteristic UUID, UART 0). `answer`: a router
-   * answer, which may wait longer for room than a stream frame (the transport decides how long). The router tasks and
-   * the connector task call it.
-   */
-  MUST_USE err_h (*send)(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer);
-  /** Largest frame `endpoint` carries right now; NULL = no limit of its own (CMD_FRAME_MAX). */
-  uint32_t (*max_frame)(uint32_t endpoint);
-  /** Where the router's answers go. */
-  uint32_t answer_endpoint;
-} router_link_t;
-
-/** @brief Registers a link under its ID (transport_e). Boot only; links are never removed. */
-MUST_USE err_h router_link_register(uint8_t link_id, const router_link_t* link);
-
-/** @brief The link registered under `link_id` (1..CONFIG_ROUTER_MAX_LINKS), NULL when there is none. */
-const router_link_t* router_link_get(uint8_t link_id);
-
-/**
- * @brief Submits one request frame from a link (copied); its answer goes back to the link's `answer_endpoint`. The
- * link's task, not an ISR. A frame the router does not queue (bad length, queue full) is answered with an error right
- * away and reported; NULL is returned then.
- * @return Only misuse: ERR_ROUTER_BAD_LINK, ERR_CMD_BAD_ARG.
- */
-MUST_USE err_h router_link_receive(uint8_t link_id, const uint8_t* frame, uint32_t len);
-
-/**
- * @brief Calls `fn` for every frame a link receives, before it is submitted, on the link's task: the dead-man of
- * sys_system (a client is alive). One; NULL removes it. Boot only, before router_init.
- */
-void router_link_on_frame(void (*fn)(void));
 
 #ifdef __cplusplus
 }

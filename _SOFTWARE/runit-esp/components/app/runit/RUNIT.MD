@@ -6,26 +6,28 @@ Component `components/app/runit/`. The application: the boot sequence, the safe 
 |---|---|
 | `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the safe-state handler and leave of `sys_system` |
 | `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy"), the error sink, and the registry's state listener, which publishes the DEVICE events `SUSPENDED` / `RESUMED` (SYS_DEVICE.MD "Suspended and resumed") |
-| `runit_board_cfg.h/.c` | `runit_board_connector_bindings_init()`: which stream goes to which transport; `runit_board_power_init()`: the power layout |
+| `runit_board_cfg.h/.c` | `runit_board_connector_bindings_init()`: the logs connector on the BLE LOGS characteristic; `runit_board_power_init()`: the power layout |
 | `runit_board_defs.h` | Onboard device IDs and power limits of board rev 1; the devkit's power limits |
 | `board.json`, `board_devkit.json` | What the app knows of the board (templates/AGENTS.md): the PCB's devices, pins, power and terminals; the devkit's device 0, reserved pins and USB limits. Kept in step with `runit_board_cfg.c` by hand |
 | `Kconfig` | `RUNIT_BLE_START`: off for QEMU. `RUNIT_BOARD`: the runIT PCB (default), an ESP32-S3 devkit (only the ESP GPIO, no power layout; `sdkconfig.devkit.defaults`) or no devices (QEMU and the test suites; `sdkconfig.qemu.defaults`) |
 
 ## Boot
 
-In order; a failing step is logged and the boot goes on (one missing piece, such as no BLE controller under QEMU or no I2C pull-ups, doesn't take the command links down). `runit_start()` returns the first failure for `main` to report and reports the others. Ends with the log line `runIT up (N boot step(s) failed)` (the test suites wait for it).
+In order; a failing step is logged and the boot goes on (one missing piece, such as no BLE controller under QEMU or no I2C pull-ups, doesn't take the clients' sessions down). `runit_start()` returns the first failure for `main` to report and reports the others. Ends with the log line `runIT up (N boot step(s) failed)`; a client sees the boot as a new session (a new `boot_id` in the board's HELLO, SYS_SESSION.MD).
 
 | Step | Does |
 |---|---|
+| session | `sys_session_init` (SYS_SESSION.MD): the board id from NVS, the boot id, the timer. First: the connectors and the dead-man listen for its gone peers |
 | streams | `sys_data_connector_init`, then `runit_error_wiring_init` (fault handlers, error sink) |
 | log | `sys_log_init()`: the ESP_LOG hook on the logs connector, with the stored options |
 | actions, events | `sys_actions_init`, `sys_event_init` |
 | onboard actions | `runit_onboard_actions_init` (below) |
 | power | `runit_board_power_init`: `sys_power_manager_init` with the board's layout (`runit_board_cfg.c`, IDs and limits in `runit_board_defs.h`; a devkit: no rails, monitor or sink, only the USB limits) and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
-| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man and the router watch), the BLE connection listener that tells `sys_system` the link is lost, `router_init` |
+| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man: a listener of the session's gone peers), `router_init`. The provider (`ROUTER_KEY_PROVIDER`) and session (`ROUTER_KEY_SESSION`) routers too |
 | vm | `vm_init` (VM_CORE.MD): the event subscription, telemetry, retained values, the supervisor task. After the router (a program is loaded and run through `ROUTER_KEY_VM`) |
-| uart, ble link | the two command links / stream providers |
-| stream bindings | `runit_board_connector_bindings_init` |
+| uart, ble link | the providers: the UART console, the runIT BLE pair and LOGS (SYS_UART.MD, SYS_BLE.MD) |
+| stream bindings | `runit_board_connector_bindings_init`: the logs connector bound to the BLE LOGS characteristic. Every other stream goes to the clients that subscribe to it |
+| sessions | a client session (full access) on the UART console and on the runIT BLE pair, then `sys_data_provider_mark_system`: the providers so far are the board's own |
 | i2c | `sys_i2c_init` |
 | devices | `runit_board_devices_init`, by `CONFIG_RUNIT_BOARD`: a devkit (`RUNIT_BOARD_DEVKIT`) gets only the ESP GPIO (ID 0); no devices (`RUNIT_BOARD_BARE`) skips the step. The PCB (`RUNIT_BOARD_PCB`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed, 10 mOhm shunts), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 50 Hz: the servos share the frequency); both as two full bridges, every channel braked, the chip's one current limit 2 A (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
 | system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; the REMOVE sweep (`sys_device_sweep`) leaves it |
@@ -49,7 +51,7 @@ Run with `06 01 01 <id u32>` (actions RUN, a write), or name the ID in a device'
 
 ## Safe state
 
-`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_sweep(SUSPEND)`). `sys_system` calls it on STOP, dead-man and link lost (SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE` (a read). The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_sweep(RESUME)`, oldest first); the client starts the program again (VM EXEC).
+`runit_enter_safe_state()`: the VM stopped (`vm_exec_stop`, retained values saved), then every device suspended (`sys_device_sweep(SUSPEND)`). `sys_system` calls it on STOP and the dead-man (a client's session ended while armed, SYS_SYSTEM.MD); the power manager's response "safe state" goes through it too (`runit_power_safe_state` → `sys_system_enter_safe_state(SYS_SAFE_POWER)`), so every entry is noted with its reason for SYS `SAFE` (a read). The way out is SYS `SAFE_LEAVE`: `safe_leave` resumes every device (`sys_device_sweep(RESUME)`, oldest first); the client starts the program again (VM EXEC).
 
 ## Error policy wiring
 

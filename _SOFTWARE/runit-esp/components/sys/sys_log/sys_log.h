@@ -24,7 +24,7 @@ extern "C" {
  *                  0: nothing is sent (the chain may still be printed, see trace_errors);
  *   send_logs      1: every log line is also sent as text to the logs connector (BLE),
  *                  0: log lines stay on the console.
- * The command link ("#R:" lines) and the error records don't go through ESP_LOG,
+ * The session's frames on the console and the error records don't go through ESP_LOG,
  * so no setting here can silence them.
  */
 
@@ -44,7 +44,7 @@ typedef struct __attribute__((packed)) {
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
  * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs connector (SYS_DATA_CONNECTOR_LOGS); then applies the defaults (INFO,
- * mirror on, trace on, send errors on, send logs on). Boot step, after sys_data_connector_init().
+ * mirror off, trace on, send errors on, send logs on). Boot step, after sys_data_connector_init().
  */
 MUST_USE err_h sys_log_init(void);
 

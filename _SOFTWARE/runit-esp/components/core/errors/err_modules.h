@@ -10,7 +10,7 @@
 #define ERR_MOD_CORE               0u  // errors itself (errors.h)
 #define ERR_MOD_SYS_I2C            1u  // components/sys/sys_i2c
 #define ERR_MOD_ROUTER             2u  // components/core/router
-#define ERR_MOD_SYS_UART           3u  // components/sys/sys_uart
+// 3 is unused: never assign it (sys_uart is a provider's driver: its errors are ERR_PROV_*).
 #define ERR_MOD_SYS_BLE            4u  // components/sys/sys_ble
 #define ERR_MOD_SYS_DATA_CONNECTOR 5u  // components/sys/sys_data_connector
 #define ERR_MOD_SYS_DEVICE         6u  // components/sys/sys_device (also the errors shared by all devices)
@@ -24,3 +24,5 @@
 #define ERR_MOD_SYS_POWER_MANAGER  14u // components/sys/sys_power_manager (budget, source, battery, responses)
 #define ERR_MOD_VM                 15u // components/vm/vm_core (the program runtime: store, objects, accessors, blocks, loader, exec)
 #define ERR_MOD_SYS_PROJECT        16u // components/sys/sys_project (the stored project: stream in, staged records, run)
+#define ERR_MOD_SYS_DATA_PROVIDER  17u // components/sys/sys_data_provider (the ways bytes go out and come in)
+#define ERR_MOD_SYS_SESSION        18u // components/sys/sys_session (the frames, the peers, the dead-man)

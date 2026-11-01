@@ -8,7 +8,7 @@ import { accessorRecord, blockRecord, dataRecord, objectRecord, openRecord, subs
 import { OBJ_WIDTH } from '../format/types'
 import type { ExecCommand } from '../format/types'
 
-/** One command of the VM router: the op and its payload (the router adds `[seq][flags][ROUTER_KEY_VM][op]`). */
+/** One command of the VM router: the op and its payload (the link adds the session's header and `[ROUTER_KEY_VM][dir][op]`). */
 export interface LoadFrame {
   readonly op: number
   readonly payload: Uint8Array

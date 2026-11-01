@@ -1,0 +1,539 @@
+<title>Ścieżka danych runIT</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; each mechanism is a short sequence diagram (who talks to whom, top to bottom in time), then its steps with the reason for each. */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --ink: #18212a;
+  --muted: #586472;
+  --line: #c7cfd8;
+  --band: #e8ecf0;
+  --accent: #a8541f;
+  --accent-soft: #f6e6da;
+  --ok: #1d7356;
+  --warn: #9a6200;
+  --open: #6a7380;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10151a; --surface: #172029; --ink: #e2e8ee; --muted: #98a4b1; --line: #2f3b47; --band: #141c24;
+    --accent: #e3925c; --accent-soft: #3a2517; --ok: #4fc29a; --warn: #e2aa45; --open: #8f99a5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10151a; --surface: #172029; --ink: #e2e8ee; --muted: #98a4b1; --line: #2f3b47; --band: #141c24;
+  --accent: #e3925c; --accent-soft: #3a2517; --ok: #4fc29a; --warn: #e2aa45; --open: #8f99a5;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 72px;
+  display: grid;
+  gap: 56px;
+}
+.page > * { min-width: 0; }
+header { display: grid; gap: 12px; max-width: 72ch; }
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 600; line-height: 1.1; }
+h2 { font-size: 24px; font-weight: 600; line-height: 1.2; }
+h3 { font-size: 18px; font-weight: 600; line-height: 1.25; }
+p { margin: 0; max-width: 72ch; }
+.lead { font-size: 17px; color: var(--muted); }
+code { font-family: var(--font-mono); font-size: 0.88em; }
+section { display: grid; gap: 16px; }
+section > * { min-width: 0; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend svg { width: 34px; min-width: 0; height: 18px; flex: none; }
+
+figure { margin: 0; display: grid; gap: 10px; }
+.scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.scroll svg { display: block; width: 100%; min-width: 720px; height: auto; }
+figcaption { font-size: 13.5px; color: var(--muted); max-width: 82ch; }
+
+/* SVG parts, styled from the page so both themes hold */
+.head { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 5; }
+.t { font-family: var(--font-body); font-size: 13px; font-weight: 600; fill: var(--ink); }
+.s { font-family: var(--font-body); font-size: 11px; fill: var(--muted); }
+.m { font-family: var(--font-body); font-size: 12px; fill: var(--ink); }
+.m.hot { fill: var(--accent); font-weight: 600; }
+.edge { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+.edge.hot { stroke: var(--accent); stroke-width: 1.8; }
+.edge.ret { stroke-dasharray: 6 4; }
+.mk { fill: var(--muted); }
+.mk.hot { fill: var(--accent); }
+
+.parts { display: grid; gap: 0; }
+.row { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 4px 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.row > * { min-width: 0; }
+.row .k { font-weight: 600; }
+.row .k small { display: block; font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--muted); }
+.row p { font-size: 14.5px; }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: step; max-width: 78ch; }
+ol.steps li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 8px; counter-increment: step; }
+ol.steps li::before { content: counter(step); grid-row: span 2; font-family: var(--font-mono); font-size: 13px; color: var(--accent); padding-top: 2px; }
+ol.steps b { font-weight: 600; }
+ol.steps .why { color: var(--muted); font-size: 14px; }
+
+ul.notes { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 78ch; }
+ul.notes li::marker { color: var(--accent); }
+
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+td.n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td:first-child { white-space: nowrap; }
+
+.pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.pill.ok { color: var(--ok); }
+.pill.warn { color: var(--warn); }
+.pill.open { color: var(--open); border-style: dashed; }
+
+.open-list { display: grid; gap: 28px; }
+.open-list h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .row { grid-template-columns: 1fr; }
+}
+.scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">runIT · _wire_draft · stan na 31.10.2026</div>
+    <h1>Ścieżka danych runIT</h1>
+    <p class="lead">Jak komenda z aplikacji dochodzi do urządzenia na innej płytce, jak wraca odpowiedź i co płytki wysyłają same z siebie. Każdy krok ma tu powód; szczegóły sterowników są w dokumentach komponentów.</p>
+    <div class="legend" aria-label="Legenda">
+      <span><svg viewBox="0 0 34 18" aria-hidden="true"><rect class="head" x="1" y="2" width="32" height="14" rx="3"/></svg>uczestnik</span>
+      <span><svg viewBox="0 0 34 18" aria-hidden="true"><line class="life" x1="17" y1="0" x2="17" y2="18"/></svg>jego oś czasu (w dół)</span>
+      <span><svg viewBox="0 0 34 18" aria-hidden="true"><line class="edge hot" x1="2" y1="9" x2="32" y2="9"/></svg>komenda, dane</span>
+      <span><svg viewBox="0 0 34 18" aria-hidden="true"><line class="edge ret" x1="2" y1="9" x2="32" y2="9"/></svg>odpowiedź, strumień</span>
+      <span><svg viewBox="0 0 34 18" aria-hidden="true"><rect class="box" x="1" y="2" width="32" height="14" rx="3"/></svg>co się dzieje w środku</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Cała droga</h2>
+    <p>Aplikacja ustawia serwo, które jest podłączone do płytki 0x02. Płytka 0x00 tylko przekazuje ramki. Odpowiedź wraca tą samą drogą, a strumienie (zdarzenia, błędy, odczyty) płytka wysyła sama, bez pytania.</p>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 320" role="img" aria-label="Diagram sekwencji: aplikacja wysyła komendę z dst 0x02 przez BLE do płytki 0x00, która przekazuje ją przez UART do płytki 0x02; płytka 0x02 wykonuje op serwa; odpowiedź OK albo ERROR wraca do aplikacji; płytka 0x02 wysyła też strumień zdarzeń, błędów i wartości. Płytka 0x00 przekazuje po dst i nic nie pamięta.">
+          <defs>
+            <marker id="o-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="o-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk hot" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <line class="life" x1="130" y1="76" x2="130" y2="308"/>
+          <line class="life" x1="380" y1="76" x2="380" y2="308"/>
+          <line class="life" x1="630" y1="76" x2="630" y2="308"/>
+          <line class="life" x1="880" y1="76" x2="880" y2="308"/>
+          <rect class="head" x="40" y="20" width="180" height="56" rx="4"/><text class="t" x="130" y="44" text-anchor="middle">Aplikacja</text><text class="s" x="130" y="62" text-anchor="middle">klient 0xF0</text>
+          <rect class="head" x="290" y="20" width="180" height="56" rx="4"/><text class="t" x="380" y="44" text-anchor="middle">Płytka 0x00</text><text class="s" x="380" y="62" text-anchor="middle">root, tylko przekazuje</text>
+          <rect class="head" x="540" y="20" width="180" height="56" rx="4"/><text class="t" x="630" y="44" text-anchor="middle">Płytka 0x02</text><text class="s" x="630" y="62" text-anchor="middle">ma serwo</text>
+          <rect class="head" x="790" y="20" width="180" height="56" rx="4"/><text class="t" x="880" y="44" text-anchor="middle">Serwo</text><text class="s" x="880" y="62" text-anchor="middle">urządzenie 0x0010</text>
+          <text class="s" x="255" y="52" text-anchor="middle">BLE</text>
+          <text class="s" x="505" y="52" text-anchor="middle">UART</text>
+          <line class="edge hot" x1="130" y1="118" x2="627" y2="118" marker-end="url(#o-h)"/>
+          <text class="m hot" x="255" y="110" text-anchor="middle">komenda, dst 0x02</text>
+          <text class="s" x="505" y="110" text-anchor="middle">przekazana po dst</text>
+          <line class="edge hot" x1="630" y1="160" x2="877" y2="160" marker-end="url(#o-h)"/>
+          <text class="m hot" x="755" y="152" text-anchor="middle">op urządzenia</text>
+          <line class="edge hot ret" x1="630" y1="205" x2="133" y2="205" marker-end="url(#o-h)"/>
+          <text class="m hot" x="505" y="197" text-anchor="middle">odpowiedź OK albo ERROR, dst 0xF0</text>
+          <line class="edge ret" x1="630" y1="250" x2="133" y2="250" marker-end="url(#o-a)"/>
+          <text class="m" x="505" y="242" text-anchor="middle">strumień: zdarzenia, błędy, wartości</text>
+          <rect class="box" x="280" y="268" width="200" height="34" rx="4"/><text class="s" x="380" y="289" text-anchor="middle">przekazuje po dst, nic nie pamięta</text>
+        </svg>
+      </div>
+      <figcaption>Ramka ma w nagłówku <code>dst</code> (do kogo) i <code>src</code> (od kogo). Płytka po drodze patrzy tylko na <code>dst</code>, a odpowiedź idzie na <code>src</code> komendy, więc wraca sama, bez tablicy połączeń.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Pięć elementów</h2>
+    <div class="parts">
+      <div class="row"><span class="k">Łącze<small>provider</small></span><p>Jedna droga bajtów: charakterystyka BLE, port UART, temat MQTT. Sterownik łącza oddaje całe ramki; jak je dzieli na pakiety, nikogo wyżej nie obchodzi. Łącze ma flagę <code>WIRED</code>, gdy to kabel: od niej zależą timeouty i to, czy VM może czekać.</p></div>
+      <div class="row"><span class="k">Sesja<small>sys_session</small></span><p>Rozmowa z jednym sąsiadem (rodzicem, dzieckiem, aplikacją) po jednym łączu. Komendy dla tej płytki daje routerowi, cudze ramki przekazuje dalej, pilnuje, kto zniknął. Nie ma własnego taska: pracuje tam, gdzie przyszła ramka.</p></div>
+      <div class="row"><span class="k">Router<small>router</small></span><p>Wykonuje komendy na swoich dwóch taskach. Zna komendy, nie ramki: każda przychodzi z callbackiem, który dostanie odpowiedź, więc router nie pamięta, kto pytał.</p></div>
+      <div class="row"><span class="k">Konektor<small>sys_data_connector</small></span><p>Strumień danych płytki: logi, błędy, zdarzenia, telemetria. Wysyłanie nigdy nie czeka. Kto chce strumień, subskrybuje go sam.</p></div>
+      <div class="row"><span class="k">Urządzenie zdalne<small>sys_device, sys_remote</small></span><p>Zwykłe urządzenie swojego typu (serwo, ekspander), które fizycznie jest na innej płytce. VM i sterowniki używają go jak lokalnego. Rejestr wie tylko, gdzie ono jest; wywołania, zdarzenia i błędy przenosi mały komponent <code>sys_remote</code>. W trybie <code>async</code> nie czeka na tamtą płytkę, w trybie <code>blocking</code> (tylko po kablu) czeka na odpowiedź.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Komenda na płytce</h2>
+    <p>Co się dzieje, gdy do płytki przychodzi komenda dla niej. Dwa taski, jedno przekazanie między nimi.</p>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 380" role="img" aria-label="Diagram sekwencji komendy na płytce: łącze oddaje ramkę REQUEST sesji; sesja sprawdza, czy rozmowa jest otwarta, czy ramka jest dla niej i czy nadawca może pisać; sesja wkłada kopertę do kolejki routera i od razu wraca; gdy kolejka jest pełna, odsyła ERROR od razu; router woła handler; handler zwraca NULL albo łańcuch błędów; odpowiedź OK albo ERROR idzie do src.">
+          <defs>
+            <marker id="c-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="c-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk hot" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <line class="life" x1="110" y1="66" x2="110" y2="368"/>
+          <line class="life" x1="370" y1="66" x2="370" y2="368"/>
+          <line class="life" x1="630" y1="66" x2="630" y2="368"/>
+          <line class="life" x1="880" y1="66" x2="880" y2="368"/>
+          <rect class="head" x="20" y="16" width="180" height="50" rx="4"/><text class="t" x="110" y="38" text-anchor="middle">Łącze</text><text class="s" x="110" y="55" text-anchor="middle">sterownik</text>
+          <rect class="head" x="280" y="16" width="180" height="50" rx="4"/><text class="t" x="370" y="38" text-anchor="middle">Sesja</text><text class="s" x="370" y="55" text-anchor="middle">na tasku RX łącza</text>
+          <rect class="head" x="540" y="16" width="180" height="50" rx="4"/><text class="t" x="630" y="38" text-anchor="middle">Router</text><text class="s" x="630" y="55" text-anchor="middle">task work albo urgent</text>
+          <rect class="head" x="790" y="16" width="180" height="50" rx="4"/><text class="t" x="880" y="38" text-anchor="middle">Handler</text><text class="s" x="880" y="55" text-anchor="middle">kod modułu</text>
+          <line class="edge hot" x1="110" y1="100" x2="367" y2="100" marker-end="url(#c-h)"/>
+          <text class="m hot" x="240" y="92" text-anchor="middle">ramka REQUEST</text>
+          <rect class="box" x="270" y="116" width="200" height="44" rx="4"/><text class="t" x="370" y="134" text-anchor="middle">sprawdza ramkę</text><text class="s" x="370" y="150" text-anchor="middle">otwarta? dla mnie? wolno pisać?</text>
+          <line class="edge hot" x1="370" y1="190" x2="627" y2="190" marker-end="url(#c-h)"/>
+          <text class="m hot" x="500" y="182" text-anchor="middle">koperta do kolejki</text>
+          <text class="s" x="500" y="206" text-anchor="middle">kopia; sesja wraca od razu</text>
+          <line class="edge ret" x1="370" y1="236" x2="113" y2="236" marker-end="url(#c-a)"/>
+          <text class="m" x="240" y="228" text-anchor="middle">kolejka pełna: ERROR od razu</text>
+          <line class="edge hot" x1="630" y1="268" x2="877" y2="268" marker-end="url(#c-h)"/>
+          <text class="m hot" x="755" y="260" text-anchor="middle">wykonaj</text>
+          <line class="edge hot ret" x1="880" y1="303" x2="633" y2="303" marker-end="url(#c-h)"/>
+          <text class="m hot" x="755" y="295" text-anchor="middle">wynik albo błąd</text>
+          <line class="edge hot ret" x1="630" y1="345" x2="113" y2="345" marker-end="url(#c-h)"/>
+          <text class="m hot" x="500" y="337" text-anchor="middle">odpowiedź OK albo ERROR do src</text>
+        </svg>
+      </div>
+    </figure>
+    <ol class="steps">
+      <li><b>Ramka przychodzi.</b><span class="why">Sterownik łącza oddaje sesji całą ramkę. Dzielenie na pakiety BLE czy linie UART zostaje w sterowniku.</span></li>
+      <li><b>Sesja sprawdza ramkę.</b><span class="why">Rozmowa jeszcze nie otwarta: odsyła NO_SESSION, żeby nadawca się przedstawił. Ramka dla innej płytki: przekazuje ją dalej (Między płytkami). Zapis od kogoś, kto może tylko czytać: ERROR. Dzięki temu do routera dochodzą tylko komendy, które wolno wykonać.</span></li>
+      <li><b>Sesja robi kopertę.</b><span class="why">Z nagłówka bierze <code>src</code> (dokąd wrócić z odpowiedzią), <code>seq</code> (po czym nadawca rozpozna odpowiedź) i flagi (<code>URGENT</code>, <code>NOREPLY</code>). Ta sama koperta trafia do rekordu błędu, więc każdy błąd wie, której komendy dotyczy.</span></li>
+      <li><b>Koperta idzie do kolejki routera.</b><span class="why">Sesja kopiuje komendę i od razu wraca, nie czekając na wykonanie. Gdyby czekała, łącze przestałoby odbierać i przekazywać ramki innych płytek. Kolejka pełna albo komenda za długa: nadawca od razu dostaje ERROR, zamiast czekać do timeoutu.</span></li>
+      <li><b>Router wykonuje handler.</b><span class="why">Komendy z <code>URGENT</code> idą na szybki task (priorytet 15), reszta na zwykły (5), po jednej. Stan bezpieczny nie może czekać za zwykłą komendą.</span></li>
+      <li><b>Odpowiedź wraca do <code>src</code>.</b><span class="why">Handler zwrócił NULL: OK z danymi. Zwrócił łańcuch błędów: ERROR z rekordem błędu. Ten sam task od razu wysyła odpowiedź, nic nie kopiując.</span></li>
+    </ol>
+    <p>Komendy, które płytka wysyła sama do siebie (akcje, start projektu, odczyty watchy), idą tą samą drogą od kroku 4, z <code>src</code> = <code>0xFE</code>.</p>
+  </section>
+
+  <section>
+    <h2>Ramka</h2>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 150" role="img" aria-label="Nagłówek każdej ramki ma 5 bajtów: bajt ramki (rodzaj, status, flagi), dst, src i seq; za nim treść do 507 bajtów.">
+          <text class="s" x="140" y="28" text-anchor="middle">bajt 0</text>
+          <text class="s" x="350" y="28" text-anchor="middle">1</text>
+          <text class="s" x="490" y="28" text-anchor="middle">2</text>
+          <text class="s" x="660" y="28" text-anchor="middle">3–4</text>
+          <text class="s" x="880" y="28" text-anchor="middle">5 …</text>
+          <rect class="head" x="20" y="38" width="240" height="52" rx="2"/>
+          <rect class="head" x="280" y="38" width="140" height="52" rx="2"/>
+          <rect class="head" x="420" y="38" width="140" height="52" rx="2"/>
+          <rect class="head" x="560" y="38" width="200" height="52" rx="2"/>
+          <rect class="box" x="780" y="38" width="200" height="52" rx="2"/>
+          <text class="t" x="140" y="60" text-anchor="middle">rodzaj · status · flagi</text>
+          <text class="s" x="140" y="78" text-anchor="middle">b7–6 · b2 · b1–0</text>
+          <text class="t" x="350" y="60" text-anchor="middle">dst</text><text class="s" x="350" y="78" text-anchor="middle">do kogo</text>
+          <text class="t" x="490" y="60" text-anchor="middle">src</text><text class="s" x="490" y="78" text-anchor="middle">od kogo</text>
+          <text class="t" x="660" y="60" text-anchor="middle">seq</text><text class="s" x="660" y="78" text-anchor="middle">u16, numer</text>
+          <text class="t" x="880" y="60" text-anchor="middle">treść</text><text class="s" x="880" y="78" text-anchor="middle">do 507 B</text>
+          <line class="edge" x1="20" y1="112" x2="760" y2="112"/>
+          <line class="edge" x1="20" y1="106" x2="20" y2="112"/>
+          <line class="edge" x1="760" y1="106" x2="760" y2="112"/>
+          <text class="m hot" x="390" y="132" text-anchor="middle">nagłówek: 5 B, taki sam w każdej ramce</text>
+        </svg>
+      </div>
+      <figcaption>Cała ramka ma najwyżej 512 B: 5 B nagłówka i 507 B treści. Ta liczba jest stała w protokole, taka sama na każdej płytce i w aplikacji, więc nic jej po drodze nie negocjuje. Na UART ramka zawsze idzie binarnie: zakodowana COBS, z CRC16, zakończona bajtem 0x00. Przekłamana ramka nie przechodzi CRC i ginie, więc nie wykona komendy; tekst bootloadera na porcie konsoli też nie przechodzi i narzędzie na PC pokazuje go jako tekst.</figcaption>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Rodzaj</th><th>Treść</th><th>seq</th></tr></thead>
+        <tbody>
+          <tr><td><code>REQUEST</code></td><td>komenda: <code>[key][dir][kod | id + op][args]</code></td><td>licznik nadawcy</td></tr>
+          <tr><td><code>ANSWER</code></td><td>dane; przy ERROR rekord błędu</td><td>ten sam co w komendzie</td></tr>
+          <tr><td><code>STREAM</code></td><td>ramka konektora <code>[konektor][dane]</code> albo wpisy watchy <code>[WATCHES][wpisy]</code></td><td>licznik strumienia: luka to zgubione ramki</td></tr>
+          <tr><td><code>CONTROL</code></td><td>sprawy sesji: HELLO, PING, NO_SESSION, GONE</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Id</th><th>Kto</th></tr></thead>
+        <tbody>
+          <tr><td class="n">0x00–0xEF</td><td>płytka: jej miejsce w projekcie, ustawione przez aplikację. Root to z konwencji 0x00.</td></tr>
+          <tr><td class="n">0xF0–0xFC</td><td>klient (aplikacja, host testowy): id nadaje root, gdy klient się połączy</td></tr>
+          <tr><td class="n">0xFE</td><td>płytka jako nadawca własnych komend; tylko w rekordach błędów</td></tr>
+          <tr><td class="n">0xFF</td><td>wszystkie płytki (STOP, czas); bez odpowiedzi</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Między płytkami</h2>
+    <p>Płytki tworzą drzewo: każda ma najwyżej jednego rodzica, a tylko root (płytka bez rodzica) przyjmuje aplikację. Każda płytka mówi rodzicowi, jakie płytki są pod nią, więc wie, którym łączem iść.</p>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 280" role="img" aria-label="Aplikacja 0xF0 łączy się przez BLE z rootem 0x00. Root ma dzieci 0x01 i 0x02 na UART, a 0x02 ma dziecko 0x03. Komenda z aplikacji do 0x03 idzie przez root, który widzi 0x03 pod 0x02, i dalej w dół.">
+          <defs>
+            <marker id="t-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk hot" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <rect class="box" x="20" y="112" width="160" height="56" rx="4"/>
+          <text class="t" x="34" y="136">Aplikacja</text><text class="s" x="34" y="154">klient 0xF0</text>
+          <rect class="head" x="290" y="112" width="180" height="56" rx="4"/>
+          <text class="t" x="304" y="136">Płytka 0x00</text><text class="s" x="304" y="154">root</text>
+          <rect class="head" x="620" y="26" width="160" height="56" rx="4"/>
+          <text class="t" x="634" y="50">Płytka 0x01</text><text class="s" x="634" y="68">pod nią: nic</text>
+          <rect class="head" x="620" y="198" width="160" height="56" rx="4"/>
+          <text class="t" x="634" y="222">Płytka 0x02</text><text class="s" x="634" y="240">pod nią: 0x03</text>
+          <rect class="head" x="840" y="198" width="140" height="56" rx="4"/>
+          <text class="t" x="854" y="222">Płytka 0x03</text><text class="s" x="854" y="240">dziecko 0x02</text>
+          <polyline class="edge" points="470,140 545,140 545,54 620,54"/>
+          <text class="s" x="582" y="48" text-anchor="middle">UART</text>
+          <line class="edge hot" x1="180" y1="140" x2="288" y2="140" marker-end="url(#t-h)"/>
+          <text class="s" x="234" y="158" text-anchor="middle">BLE</text>
+          <text class="m hot" x="234" y="104" text-anchor="middle">komenda dst 0x03</text>
+          <polyline class="edge hot" points="470,140 545,140 545,226 618,226" marker-end="url(#t-h)"/>
+          <text class="s" x="582" y="244" text-anchor="middle">UART</text>
+          <line class="edge hot" x1="780" y1="226" x2="838" y2="226" marker-end="url(#t-h)"/>
+          <text class="m hot" x="380" y="190" text-anchor="middle">0x03 jest pod 0x02: w dół</text>
+        </svg>
+      </div>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Ramka jest dla</th><th>Płytka</th></tr></thead>
+        <tbody>
+          <tr><td>tej płytki</td><td>komendę daje routerowi, odpowiedź oczekującemu wywołaniu, strumień słuchaczowi</td></tr>
+          <tr><td>płytki pod jednym z dzieci</td><td>wysyła ją w dół, do tego dziecka</td></tr>
+          <tr><td>kogoś innego</td><td>wysyła ją w górę, do rodzica; root: do aplikacji o tym id, a gdy jej nie ma, odsyła ERROR <code>NO_ROUTE</code></td></tr>
+          <tr><td>wszystkich (0xFF)</td><td>idzie w górę do roota, który rozsyła ją w dół; każda płytka po drodze ją wykonuje</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="notes">
+      <li>Płytka po drodze nie zapisuje nic o przekazanej ramce. Odpowiedź wraca według tych samych zasad, bo jej <code>dst</code> to <code>src</code> komendy.</li>
+      <li>Następne łącze zajęte: komenda wraca do nadawcy jako ERROR, a odpowiedź albo ramka strumienia ginie. Nadawca odpowiedzi dowie się o tym z timeoutu, odbiorca strumienia z luki w numeracji.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Odpowiedź i czekanie</h2>
+    <p>Każda komenda wysłana z płytki do innej płytki dostaje odpowiedź, więc żaden błąd nie ginie po cichu. Bez odpowiedzi (<code>NOREPLY</code>) między płytkami idzie tylko broadcast, na przykład STOP. Płytka zapamiętuje każde swoje wywołanie, dopóki nie przyjdzie odpowiedź albo nie minie czas.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Co przyszło</th><th>Wywołujący dostaje</th></tr></thead>
+        <tbody>
+          <tr><td>OK</td><td>dane odpowiedzi</td></tr>
+          <tr><td>ERROR</td><td>łańcuch błędu tamtej płytki, poprzedzony <code>ERR_REMOTE{płytka, seq}</code>: wiadomo, gdzie się zepsuło</td></tr>
+          <tr><td>nic w czasie</td><td><code>ERR_SESSION_TIMEOUT</code>: zapis mógł się wykonać, trzeba odczytać stan</td></tr>
+          <tr><td>sesja padła</td><td><code>ERR_SESSION_PEER_DOWN</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Czas na odpowiedź zależy od łącza. Kabel odpowiada w milisekundę, radio czasem w setki milisekund, więc jeden timeout dla wszystkich byłby albo za długi dla kabla, albo za krótki dla radia.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Łącze</th><th>Podróż w obie strony</th><th>Timeout</th><th>VM może czekać</th></tr></thead>
+        <tbody>
+          <tr><td>UART 2–5 Mbps, kabel</td><td class="n">0,3–0,7 ms</td><td class="n">50 ms</td><td><span class="pill ok">tak</span></td></tr>
+          <tr><td>ESP-NOW <span class="pill open">propozycja</span></td><td class="n">1–3 ms</td><td class="n">1 s</td><td><span class="pill warn">nie</span></td></tr>
+          <tr><td>MQTT, broker w sieci lokalnej</td><td class="n">5–12 ms, ogon do 300 ms</td><td class="n">1 s</td><td><span class="pill warn">nie</span></td></tr>
+          <tr><td>BLE</td><td class="n">15–50 ms</td><td class="n">1 s</td><td><span class="pill warn">nie</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="notes">
+      <li><b>Czekać na odpowiedź</b> (<code>sys_session_call_wait</code>) może konfiguracja przez każde łącze, bo tam długie czekanie nie szkodzi, oraz urządzenie zdalne w trybie <code>blocking</code>, tylko u sąsiada po kablu: czekanie trwa wtedy milisekundę, a nie podróż przez radio.</li>
+      <li>Nie czeka task łącza (na nim przychodzi odpowiedź), task konektorów ani timer sesji, a task routera nie czeka na własną płytkę (czekałby na samego siebie). Tam wywołanie kończy się błędem <code>ERR_SESSION_WOULD_BLOCK</code>. Dwie płytki czekające na siebie nawzajem kończą w timeoutach; aplikacja nie pozwala zbudować takiego cyklu.</li>
+      <li><b>Ponowienia:</b> sesja ponawia tylko odczyt. Zapis bez odpowiedzi jest zgłaszany, a blok VM sam wyśle ustawienie jeszcze raz w następnym passie. Akcji (przełącz, hamuj) nie ponawia się nigdy.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Strumienie</h2>
+    <p>Strumień to dane, które płytka wysyła sama: kto chce je dostawać, subskrybuje konektor po jego bajcie. Wysyłanie nigdy nie czeka; gdy łącze nie nadąża, ramka ginie, a odbiorca widzi lukę w numeracji.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Konektor</th><th>Bajt</th><th>Co niesie</th><th>Kto subskrybuje</th></tr></thead>
+        <tbody>
+          <tr><td><code>TELEMETRY</code></td><td class="n">0x02</td><td>wartości obserwowane przez VM</td><td>aplikacja</td></tr>
+          <tr><td><code>LOGS</code></td><td class="n">0x03</td><td>linie logu</td><td>aplikacja, konsola UART</td></tr>
+          <tr><td><code>ERRORS</code></td><td class="n">0x04</td><td>rekordy błędów, pilne</td><td>aplikacja, inne płytki</td></tr>
+          <tr><td><code>WATCHES</code></td><td class="n">0x05</td><td>to nie konektor: bajt, od którego zaczynają się wpisy watchy dla ich właściciela</td><td>nikt, idą prosto do właściciela</td></tr>
+          <tr><td><code>EVENTS</code></td><td class="n">0x06</td><td>zdarzenia ważne dla użytkownika (usterka, przeciążenie), pilne</td><td>aplikacja</td></tr>
+          <tr><td><code>EVENTS_ALL</code></td><td class="n">0x07</td><td>każde zdarzenie, także zbocze przycisku</td><td>inne płytki, podgląd w aplikacji</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="notes">
+      <li><code>EVENTS_ALL</code> bez subskrybenta nic nie kosztuje: ramka jest odrzucana, zanim trafi do kolejki. Nie jest pilny, więc seria zdarzeń nie wyprzedzi odpowiedzi na komendy. Zdarzenie z flagą <code>SYS_EVENT_LOCAL</code> (szybkie źródło, coś tylko dla słuchacza na tej płytce) nigdy tam nie trafia.</li>
+      <li><b>Lustro:</b> płytka, która chce strumień innej płytki, robi u siebie konektor-lustro i subskrybuje tamten raz. Co przyjdzie, lustro rozsyła do wszystkich swoich celów (urządzenia zdalne, temat MQTT, VM), więc strumień przechodzi łączem raz, a dostaje go każdy, kto chce. Luka w numeracji pokazuje zgubione ramki.</li>
+      <li>Konektor można też przypiąć do własnego łącza (charakterystyka BLE, port UART, temat MQTT); wtedy idą tam same dane, bez nagłówka.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Odczyt z innej płytki</h2>
+    <p>Płytka, która chce znać wartość na innej płytce, nie pyta o nią co chwilę. Dodaje tam raz <b>watch</b>: „czytaj to co 50 ms i wysyłaj mi, gdy się zmieni”. Dalej tamta płytka wysyła sama. Robi to sama, bez wiedzy tego, kto czyta: ten sam odczyt (te same bajty komendy, np. „poziom pinu 3 ekspandera 0x0020”) czytany drugi raz w ciągu 2 × <code>max_age</code> dostaje watch, a potem odpowiedź z kopii, jeśli kopia jest dość świeża. Odczyt, którego nikt nie robi przez 10 × <code>max_age</code> (najmniej 1 s), traci watch. Watch kosztuje 1–2 ramki na każde <code>max_age</code> niezależnie od liczby odczytów, więc powstaje tylko tam, gdzie czyta się mniej więcej tak często.</p>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 330" role="img" aria-label="Diagram sekwencji watcha: płytka 1 wysyła raz ADD do płytki 2 i dostaje OK; płytka 2 co 10 ms robi należny odczyt i wysyła wpis tego watcha w osobnej ramce; klient watchy na płytce 1 oddaje wpis temu, kto dodał watch; gdy nic się nie zmienia, płytka 2 milczy i wysyła wartość dopiero po czasie ciszy.">
+          <defs>
+            <marker id="w-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="w-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk hot" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <line class="life" x1="200" y1="66" x2="200" y2="318"/>
+          <line class="life" x1="800" y1="66" x2="800" y2="318"/>
+          <rect class="head" x="90" y="16" width="220" height="50" rx="4"/><text class="t" x="200" y="38" text-anchor="middle">Płytka 1</text><text class="s" x="200" y="55" text-anchor="middle">chce znać wartość</text>
+          <rect class="head" x="690" y="16" width="220" height="50" rx="4"/><text class="t" x="800" y="38" text-anchor="middle">Płytka 2</text><text class="s" x="800" y="55" text-anchor="middle">ma urządzenie</text>
+          <line class="edge hot" x1="200" y1="100" x2="797" y2="100" marker-end="url(#w-h)"/>
+          <text class="m hot" x="500" y="92" text-anchor="middle">ADD: co czytać i jak często (raz)</text>
+          <line class="edge ret" x1="800" y1="132" x2="203" y2="132" marker-end="url(#w-a)"/>
+          <text class="m" x="500" y="124" text-anchor="middle">OK</text>
+          <rect class="box" x="680" y="150" width="240" height="44" rx="4"/><text class="t" x="800" y="168" text-anchor="middle">co 10 ms: należny odczyt</text><text class="s" x="800" y="184" text-anchor="middle">jak każda komenda płytki</text>
+          <line class="edge hot ret" x1="800" y1="222" x2="203" y2="222" marker-end="url(#w-h)"/>
+          <text class="m hot" x="500" y="214" text-anchor="middle">wpis tego watcha, osobna ramka</text>
+          <rect class="box" x="70" y="238" width="260" height="44" rx="4"/><text class="t" x="200" y="256" text-anchor="middle">klient watchy: id → kto pytał</text><text class="s" x="200" y="272" text-anchor="middle">np. slot wartości urządzenia</text>
+          <line class="edge ret" x1="800" y1="304" x2="203" y2="304" marker-end="url(#w-a)"/>
+          <text class="m" x="500" y="296" text-anchor="middle">bez zmian: cisza; po czasie ciszy i tak</text>
+        </svg>
+      </div>
+    </figure>
+    <ul class="notes">
+      <li>Okres watcha liczy się w krokach po 10 ms. Każdy watch wysyła swój wpis w osobnej ramce, z własnym licznikiem, więc luka pokazuje dokładnie, który watch zgubił wpis.</li>
+      <li>Na płytce 1 wpisy odbiera <b>klient watchy</b>: sam nadaje id, wysyła ADD i pamięta, komu oddać wpis o danym id. Gdy płytka 2 zniknie i wróci, klient sam dodaje watche jeszcze raz.</li>
+      <li>Wartość, która się nie zmienia, przychodzi i tak po czasie ciszy (<code>max_silence</code>), więc milczenie nie wygląda jak awaria, a zgubiona ramka naprawia się sama.</li>
+      <li>Kolejność: odczyty watchy i komendy właściciela wykonują się po kolei na jednym tasku i wychodzą tym samym łączem. Wartość, która przyszła po odpowiedzi na zapis, była odczytana po tym zapisie.</li>
+      <li>Właściciel znika: jego watche znikają razem z nim.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Urządzenie innej płytki</h2>
+    <p>Urządzenie zdalne to zwykłe urządzenie swojego typu, utworzone z informacją, na której płytce fizycznie jest. Program VM i sterowniki się nie zmieniają, gdy urządzenie przeniesie się na inną płytkę. Aplikacja ustawia każdemu tryb:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Tryb</th><th>Wywołanie</th><th>Łącze</th><th>Do czego</th></tr></thead>
+        <tbody>
+          <tr><td><code>async</code></td><td>zapis wraca od razu, odpowiedź przychodzi później; odczyt podaje ostatnią wartość z watcha</td><td>każde</td><td>serwo, przekaźnik, wartość do obserwowania</td></tr>
+          <tr><td><code>blocking</code></td><td>czeka na odpowiedź, najwyżej 50 ms; odczyt pyta teraz</td><td>tylko sąsiad po kablu</td><td>urządzenie, którego używa inny sterownik (pin, regulator), świeży odczyt</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Poniżej zapis w trybie <code>async</code>, gdy łącze przyjmuje jeden zapis naraz.</p>
+    <figure>
+      <div class="scroll" tabindex="0">
+        <svg viewBox="0 0 1000 370" role="img" aria-label="Diagram sekwencji zapisu do urządzenia zdalnego: VM zapisuje 90 stopni, urządzenie od razu odpowiada OK i wysyła komendę do płytki 2; VM zapisuje 95 stopni i dostaje BUSY, więc blok VM trzyma 95 stopni; płytka 2 wykonuje op serwa i odsyła OK; w następnym passie blok wysyła 95 stopni.">
+          <defs>
+            <marker id="p-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="p-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk hot" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <line class="life" x1="110" y1="66" x2="110" y2="358"/>
+          <line class="life" x1="370" y1="66" x2="370" y2="358"/>
+          <line class="life" x1="630" y1="66" x2="630" y2="358"/>
+          <line class="life" x1="880" y1="66" x2="880" y2="358"/>
+          <rect class="head" x="20" y="16" width="180" height="50" rx="4"/><text class="t" x="110" y="38" text-anchor="middle">VM</text><text class="s" x="110" y="55" text-anchor="middle">płytka 1</text>
+          <rect class="head" x="280" y="16" width="180" height="50" rx="4"/><text class="t" x="370" y="38" text-anchor="middle">Serwo (zdalne)</text><text class="s" x="370" y="55" text-anchor="middle">płytka 1, async</text>
+          <rect class="head" x="540" y="16" width="180" height="50" rx="4"/><text class="t" x="630" y="38" text-anchor="middle">Płytka 2</text><text class="s" x="630" y="55" text-anchor="middle">router i handler</text>
+          <rect class="head" x="790" y="16" width="180" height="50" rx="4"/><text class="t" x="880" y="38" text-anchor="middle">Serwo</text><text class="s" x="880" y="55" text-anchor="middle">płytka 2</text>
+          <line class="edge hot" x1="110" y1="100" x2="367" y2="100" marker-end="url(#p-h)"/>
+          <text class="m hot" x="240" y="92" text-anchor="middle">zapis 90°</text>
+          <line class="edge ret" x1="370" y1="128" x2="113" y2="128" marker-end="url(#p-a)"/>
+          <text class="m" x="240" y="120" text-anchor="middle">OK: przyjęte</text>
+          <line class="edge hot" x1="370" y1="160" x2="627" y2="160" marker-end="url(#p-h)"/>
+          <text class="m hot" x="500" y="152" text-anchor="middle">komenda 90°</text>
+          <line class="edge" x1="110" y1="192" x2="367" y2="192" marker-end="url(#p-a)"/>
+          <text class="m" x="240" y="184" text-anchor="middle">zapis 95° (następny pass)</text>
+          <rect class="box" x="270" y="206" width="200" height="44" rx="4"/><text class="t" x="370" y="224" text-anchor="middle">BUSY: zapis w drodze</text><text class="s" x="370" y="240" text-anchor="middle">blok VM trzyma 95°</text>
+          <line class="edge hot" x1="630" y1="266" x2="877" y2="266" marker-end="url(#p-h)"/>
+          <text class="m hot" x="755" y="258" text-anchor="middle">op: ustaw 90°</text>
+          <line class="edge hot ret" x1="630" y1="298" x2="373" y2="298" marker-end="url(#p-h)"/>
+          <text class="m hot" x="500" y="290" text-anchor="middle">odpowiedź OK</text>
+          <line class="edge hot" x1="370" y1="336" x2="627" y2="336" marker-end="url(#p-h)"/>
+          <text class="m hot" x="500" y="328" text-anchor="middle">komenda 95° (VM wysłał ponownie)</text>
+        </svg>
+      </div>
+      <figcaption>Urządzenie zdalne niczego nie łączy: wysyła zapisy po kolei, kilka naraz, a gdy więcej nie przyjmie, odpowiada <code>BUSY</code> („później”). Co wysłać, decyduje blok VM: ustawienie wysyła tylko przy zmianie, akcję raz na zbocze, a przy <code>BUSY</code> trzyma najnowszą wartość na następny pass. Dzięki temu idzie tyle, ile łącze przyjmie, zawsze najnowsza wartość, bez zaległości.</figcaption>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>VM robi</th><th>Urządzenie zdalne</th></tr></thead>
+        <tbody>
+          <tr><td>zapis wartości</td><td>jak wyżej; zapis, który skończył się błędem albo timeoutem, blok wyśle jeszcze raz w następnym passie</td></tr>
+          <tr><td>akcja (przełącz, hamuj)</td><td>raz na zbocze; przy <code>BUSY</code> czeka w bloku do skutku, nigdy nie jest ponawiana po wysłaniu</td></tr>
+          <tr><td>odczyt</td><td>kopia z watcha, jeśli ma najwyżej <code>max_age</code>; inaczej <code>blocking</code> pyta teraz, a <code>async</code> zwraca <code>ERR_WATCH_STALE</code>. Zapis do urządzenia unieważnia jego kopie, aż przyjdzie odczyt zrobiony po zapisie.</td></tr>
+          <tr><td>czeka na zdarzenie (<code>ON_EVENT</code>)</td><td>zdarzenia urządzenia przychodzą przez lustro <code>EVENTS_ALL</code> tamtej płytki i są publikowane tutaj z lokalnym id urządzenia</td></tr>
+          <tr><td>dostaje błąd</td><td>ERROR z odpowiedzi albo z lustra <code>ERRORS</code> tamtej płytki staje się błędem urządzenia; VM widzi go przy następnym zapisie, passem później</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>B dopiero po A</h3>
+    <p>Zapis do urządzenia tej płytki kończy się w tym samym passie, a zapis do urządzenia zdalnego w trybie <code>async</code> dopiero po odpowiedzi. Gdy urządzenie B nie może ruszyć przed urządzeniem A z innej płytki, A musi być w trybie <code>blocking</code> (sąsiad po kablu): zapis A wraca, gdy się wykonał, więc B później w tym samym passie idzie po nim, a pass wydłuża się o ok. 1 ms. Przez radio nic nie czeka: krok, który musi iść po urządzeniu innej płytki, czeka w programie na jego stan (odczytaną wartość) albo działa na tamtej płytce.</p>
+    <ul class="notes">
+      <li>Gdy sterownik używa urządzenia z innej płytki (pin ekspandera, regulator), to urządzenie musi być w trybie <code>blocking</code>: sterownik dostaje wtedy odpowiedź jak od lokalnego, milisekundę później. Firmware odmawia utworzenia urządzenia, które odwołuje się do zdalnego w trybie <code>async</code>.</li>
+      <li>Szybka pętla (odczyt, obliczenie, zapis) działa na płytce swoich urządzeń. Urządzenie zdalne służy do nadzoru i koordynacji między płytkami.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Sesja i zniknięcie płytki</h2>
+    <ul class="notes">
+      <li><b>Otwarcie.</b> Obie strony wysyłają HELLO: wersję protokołu, id, MAC, losowy numer startu. Sesja otwiera się tylko przy tej samej wersji; nowy numer startu znaczy, że sąsiad się zrestartował.</li>
+      <li><b>Cisza.</b> Każda strona kończy sesję po swoim czasie ciszy (dziecko 3 s, rodzic i aplikacja: czas dead-mana) i podaje go w HELLO, więc druga strona wysyła coś najwyżej co jedną trzecią tego czasu, choćby PING.</li>
+      <li><b>Zniknięcie.</b> Koniec sesji oznacza, że sąsiad i wszystkie płytki za nim zniknęły. Root, do którego dociera każda strata, rozsyła GONE w dół, więc wie o tym każda płytka.</li>
+      <li><b>Kto sprząta.</b> Konektory kasują subskrypcje zniknętego, watche jego watche, a urządzenia zdalne na nim przechodzą w stan down. Gdy płytka wróci, lustra, watche i urządzenia zdalne wracają same.</li>
+      <li><b>Czas.</b> Aplikacja ustawia czas na roocie, a root rozsyła go broadcastem do wszystkich płytek, także co minutę. Zdarzenie niesie czas płytki, na której zaszło, i da się go porównać z innymi.</li>
+      <li><b>Błąd płytki.</b> Gdy z innej płytki giną zdarzenia albo błędy (luka w numeracji), to błąd płytki, nie urządzenia. Odpowiada na niego polityka błędów ustawiona dla tej płytki: log, zatrzymanie VM albo stan bezpieczny.</li>
+      <li><b>Dead-man.</b> To cisza sesji rodzica albo aplikacji: gdy jest uzbrojony, płytka przechodzi w stan bezpieczny, a root wysyła STOP do wszystkich płytek.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Co jeszcze otwarte</h2>
+    <div class="open-list">
+      <div class="parts">
+        <h3>Do napisania <span class="pill ok">zaprojektowane</span></h3>
+        <div class="row"><span class="k">Pliki .c</span><p>Wszystkie moduły draftu: kolejki routera, rejestr łączy, sesje z trasami, wywołaniami i czekaniem, konektory z lustrami, watche z klientem, urządzenia zdalne, binarny UART z COBS i CRC.</p></div>
+        <div class="row"><span class="k">VM</span><p><code>BUSY</code> jako „później” w silniku bloków urządzeń; w aplikacji tryb każdego urządzenia zdalnego.</p></div>
+        <div class="row"><span class="k">Reszta firmware</span><p>CREATE_REMOTE i odmowa odwołania do zdalnego <code>async</code> w <code>sys_device</code>; flaga <code>SYS_EVENT_LOCAL</code> i <code>EVENTS_ALL</code> w <code>sys_event</code>; źródło błędu „płytka” i polityka per płytka; broadcast czasu.</p></div>
+        <div class="row"><span class="k">Migracja</span><p>Jeden rozmiar ramki w całym firmware, nowa sygnatura handlerów, <code>sys_ble</code> i <code>sys_uart</code> jako sterowniki łączy.</p></div>
+      </div>
+      <div class="parts">
+        <h3>Propozycje <span class="pill warn">do rozpisania</span></h3>
+        <div class="row"><span class="k">CRC na UART</span><p>Przekłamany bajt między płytkami nie może wykonać komendy.</p></div>
+        <div class="row"><span class="k">ESP-NOW</span><p>Łącze radiowe między płytkami bez routera i brokera, około pięć razy szybsze od MQTT.</p></div>
+        <div class="row"><span class="k">MQTT</span><p>Sterownik łącza: łączem jest temat, utrata brokera to łącze w dół.</p></div>
+        <div class="row"><span class="k">OTA i flasher</span><p>Długie prace na wywołaniach i strumieniach.</p></div>
+      </div>
+    </div>
+  </section>
+</div>

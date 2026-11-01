@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_DATA_CONNECTOR",
+  "errors": {
+    "ERR_CONN_NOT_FOUND": {
+      "message": "Stream {connector} does not exist"
+    },
+    "ERR_CONN_EXISTS": {
+      "message": "Stream {connector} already exists",
+      "hint": "Choose another number."
+    },
+    "ERR_CONN_SYSTEM": {
+      "message": "Stream {connector} belongs to the board and cannot be removed"
+    },
+    "ERR_CONN_TARGETS_FULL": {
+      "message": "Stream {connector} has no room for another connection or subscriber",
+      "hint": "Remove one of them first."
+    },
+    "ERR_CONN_TOO_LONG": {
+      "message": "{len} bytes are too long for stream {connector} (at most {max})",
+      "hint": "Send less at once."
+    },
+    "ERR_CONN_QUEUE_FULL": {
+      "message": "Stream {connector} is sending faster than its connections carry: {len} bytes dropped",
+      "hint": "Send less often."
+    },
+    "ERR_CONN_BAD_ARG": {
+      "message": "Invalid stream settings"
+    },
+    "ERR_CONN_FULL": {
+      "message": "No room for stream {connector}: every slot is taken",
+      "hint": "Remove a stream first."
+    },
+    "ERR_CONN_POOL_FULL": {
+      "message": "No room for the buffers of stream {connector}: {size} bytes asked, {free} free",
+      "hint": "Keep less, or remove another stream that keeps data."
+    },
+    "ERR_CONN_NO_RX": {
+      "message": "Stream {connector} keeps nothing it receives"
+    },
+    "ERR_CONN_MIRROR_LOST": {
+      "message": "{count} frames of stream {connector} from board {board} were lost",
+      "hint": "The link to that board drops frames: check its signal or load."
+    }
+  }
+}

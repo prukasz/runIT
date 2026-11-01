@@ -224,6 +224,54 @@
         }
       ]
     },
+    "conn_bind": {
+      "alias": "Binding",
+      "kind": "defines",
+      "prefix": "SYS_DATA_CONNECTOR_BIND_",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_BIND_TX",
+          "value": 2,
+          "alias": "Send",
+          "description": "What it sends goes out on the provider"
+        }
+      ]
+    },
+    "conn_flag": {
+      "alias": "Connector flags",
+      "kind": "defines",
+      "prefix": "SYS_DATA_CONNECTOR_FLAG_",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_FLAG_URGENT",
+          "value": 1,
+          "alias": "Urgent",
+          "description": "Its frames go first on every way out"
+        }
+      ]
+    },
+    "conn_state": {
+      "alias": "Connector state",
+      "kind": "defines",
+      "prefix": "SYS_DATA_CONNECTOR_STATE_",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_STATE_SYSTEM",
+          "value": 1,
+          "alias": "System",
+          "description": "The board's own: not removed"
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_STATE_SUSPENDED",
+          "value": 2,
+          "alias": "Suspended",
+          "description": "Sends dropped"
+        }
+      ]
+    },
     "connector": {
       "alias": "Connectors",
       "kind": "defines",
@@ -246,13 +294,13 @@
           "name": "SYS_DATA_CONNECTOR_ERRORS",
           "value": 4,
           "alias": "Errors",
-          "description": "The error records"
+          "description": "The error records (urgent)"
         },
         {
           "name": "SYS_DATA_CONNECTOR_EVENTS",
           "value": 6,
           "alias": "Events",
-          "description": "The event notifications"
+          "description": "The event notifications (urgent)"
         }
       ]
     },
@@ -512,6 +560,38 @@
         }
       ]
     },
+    "prov_state": {
+      "alias": "Provider state",
+      "kind": "defines",
+      "prefix": "SYS_DATA_PROVIDER_STATE_",
+      "source_file": "runit-esp/components/sys/sys_data_provider/config/sys_data_provider_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_SYSTEM",
+          "value": 1,
+          "alias": "System",
+          "description": "The board's own: not removed"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_OPEN",
+          "value": 2,
+          "alias": "Open",
+          "description": "Taken by its one user"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_FRAMED",
+          "value": 4,
+          "alias": "Framed",
+          "description": "Its driver splits and joins frames"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_WIRED",
+          "value": 8,
+          "alias": "Wired",
+          "description": "A cable (UART, SPI): a round trip of a millisecond"
+        }
+      ]
+    },
     "router_flag": {
       "alias": "Request Flags",
       "kind": "defines",
@@ -603,6 +683,18 @@
           "value": 12,
           "alias": "Project",
           "description": "Project: save a whole project as one stream, run it, read state"
+        },
+        {
+          "name": "ROUTER_KEY_PROVIDER",
+          "value": 13,
+          "alias": "Providers",
+          "description": "Providers: the ways bytes go out and come in (list, remove, send)"
+        },
+        {
+          "name": "ROUTER_KEY_SESSION",
+          "value": 14,
+          "alias": "Sessions",
+          "description": "Sessions: this board's id, its peers (attach, detach, list)"
         }
       ]
     },
@@ -641,6 +733,96 @@
           "value": 1,
           "alias": "Continuous (360) servo",
           "description": "Continuous rotation (360) servo: speed -100..100"
+        }
+      ]
+    },
+    "session_frame": {
+      "alias": "Frame byte",
+      "kind": "defines",
+      "prefix": "SYS_SESSION_FRAME_",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_FRAME_FLAGS",
+          "value": 3,
+          "alias": "Flags",
+          "description": "Bits 0-1: ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY"
+        },
+        {
+          "name": "SYS_SESSION_FRAME_STATUS",
+          "value": 4,
+          "alias": "Status",
+          "description": "Bit 2: an answer's router_status_e (OK, ERROR)"
+        },
+        {
+          "name": "SYS_SESSION_FRAME_KIND",
+          "value": 192,
+          "alias": "Kind",
+          "description": "Bits 6-7: sys_session_kind_e"
+        }
+      ]
+    },
+    "session_id": {
+      "alias": "Peer ids",
+      "kind": "defines",
+      "prefix": "SYS_SESSION_ID_",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_ID_DEFAULT",
+          "value": 0,
+          "alias": "Default",
+          "description": "A board's id until the app sets one; the root's by convention"
+        },
+        {
+          "name": "SYS_SESSION_ID_LAST",
+          "value": 239,
+          "alias": "Last board",
+          "description": "Boards are 0x00..0xEF"
+        },
+        {
+          "name": "SYS_SESSION_ID_CLIENT_FIRST",
+          "value": 240,
+          "alias": "First client",
+          "description": "Clients (app, test host) are 0xF0..0xFC"
+        },
+        {
+          "name": "SYS_SESSION_ID_CLIENT_LAST",
+          "value": 252,
+          "alias": "Last client",
+          "description": "One per client session of the root"
+        },
+        {
+          "name": "SYS_SESSION_ID_NONE",
+          "value": 253,
+          "alias": "None",
+          "description": "A client before the root gave it an id"
+        },
+        {
+          "name": "SYS_SESSION_ID_SELF",
+          "value": 254,
+          "alias": "This board",
+          "description": "A command's src when the board runs its own (ROUTER_SRC_SELF); never in a frame's header"
+        },
+        {
+          "name": "SYS_SESSION_ID_BROADCAST",
+          "value": 255,
+          "alias": "Every board",
+          "description": "Every board (STOP, time); never answered"
+        }
+      ]
+    },
+    "session_version": {
+      "alias": "Session version",
+      "kind": "defines",
+      "prefix": "SYS_SESSION_VERSION",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_VERSION",
+          "value": 1,
+          "alias": "Version",
+          "description": "The frame format with CMD_FRAME_MAX and CMD_HEAD"
         }
       ]
     },
@@ -697,6 +879,25 @@
           "value": 16777224,
           "alias": "USB-PD request",
           "description": "USB-PD request: the PD write"
+        }
+      ]
+    },
+    "sys_data_provider_link_e": {
+      "alias": "Link",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_data_provider/config/sys_data_provider_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_PROVIDER_LINK_UART",
+          "value": 1,
+          "alias": "Serial",
+          "description": "A UART port"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_LINK_BLE",
+          "value": 2,
+          "alias": "Bluetooth LE",
+          "description": "A BLE characteristic, or the RX / TX pair"
         }
       ]
     },
@@ -1223,13 +1424,7 @@
           "name": "SYS_SAFE_DEADMAN",
           "value": 2,
           "alias": "Deadman",
-          "description": "No frame within the dead-man timeout"
-        },
-        {
-          "name": "SYS_SAFE_LINK_LOST",
-          "value": 3,
-          "alias": "Link lost",
-          "description": "The link lost its client with on_link_lost set"
+          "description": "A client's session ended (silence past the dead-man's time, its link lost)"
         },
         {
           "name": "SYS_SAFE_POWER",
@@ -1239,22 +1434,109 @@
         }
       ]
     },
-    "transport_e": {
-      "alias": "Transport",
+    "sys_session_access_e": {
+      "alias": "Peer access",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
       "members": [
         {
-          "name": "TRANSPORT_UART",
-          "value": 1,
-          "alias": "Serial",
-          "description": "Serial console UART"
+          "name": "SYS_SESSION_READ",
+          "value": 0,
+          "alias": "Read only",
+          "description": "Reads only: a write is refused (ERR_SESSION_DENIED)"
         },
         {
-          "name": "TRANSPORT_BLE",
+          "name": "SYS_SESSION_FULL",
+          "value": 1,
+          "alias": "Full",
+          "description": "Every command"
+        }
+      ]
+    },
+    "sys_session_control_e": {
+      "alias": "Control op",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_HELLO",
+          "value": 1,
+          "alias": "Hello",
+          "description": "Who I am (sys_session_hello_t): opens or updates a session"
+        },
+        {
+          "name": "SYS_SESSION_PING",
           "value": 2,
-          "alias": "Bluetooth LE",
-          "description": "Bluetooth Low Energy"
+          "alias": "Ping",
+          "description": "Nothing else to send: the session is alive"
+        },
+        {
+          "name": "SYS_SESSION_NO_SESSION",
+          "value": 3,
+          "alias": "No session",
+          "description": "A frame before the hello: send your hello again"
+        },
+        {
+          "name": "SYS_SESSION_GONE",
+          "value": 4,
+          "alias": "Gone",
+          "description": "[count][ids]: peers no longer reached; from the parent, passed down"
+        }
+      ]
+    },
+    "sys_session_kind_e": {
+      "alias": "Frame kind",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_REQUEST",
+          "value": 0,
+          "alias": "Request",
+          "description": "A command for dst; its answer goes back to src"
+        },
+        {
+          "name": "SYS_SESSION_ANSWER",
+          "value": 1,
+          "alias": "Answer",
+          "description": "The answer to the request src/seq: its status in the frame byte, then data"
+        },
+        {
+          "name": "SYS_SESSION_STREAM",
+          "value": 2,
+          "alias": "Stream",
+          "description": "One connector frame, to a peer subscribed to the connector"
+        },
+        {
+          "name": "SYS_SESSION_CONTROL",
+          "value": 3,
+          "alias": "Control",
+          "description": "The session's own: hello, ping, gone"
+        }
+      ]
+    },
+    "sys_session_peer_e": {
+      "alias": "Peer",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_PARENT",
+          "value": 0,
+          "alias": "Parent",
+          "description": "Towards the root: one at most; a board without one is the root"
+        },
+        {
+          "name": "SYS_SESSION_CHILD",
+          "value": 1,
+          "alias": "Child",
+          "description": "A board below"
+        },
+        {
+          "name": "SYS_SESSION_CLIENT",
+          "value": 2,
+          "alias": "Client",
+          "description": "The app, a test host: on a board without a parent only"
         }
       ]
     },
@@ -2138,6 +2420,8 @@
     "ROUTER_KEY_LOG": "router_key",
     "ROUTER_KEY_POWER": "router_key",
     "ROUTER_KEY_PROJECT": "router_key",
+    "ROUTER_KEY_PROVIDER": "router_key",
+    "ROUTER_KEY_SESSION": "router_key",
     "ROUTER_KEY_SYS": "router_key",
     "ROUTER_KEY_VM": "router_key",
     "ROUTER_STATUS_ERROR": "router_status_e",
@@ -2164,10 +2448,20 @@
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
+    "SYS_DATA_CONNECTOR_BIND_TX": "conn_bind",
     "SYS_DATA_CONNECTOR_ERRORS": "connector",
     "SYS_DATA_CONNECTOR_EVENTS": "connector",
+    "SYS_DATA_CONNECTOR_FLAG_URGENT": "conn_flag",
     "SYS_DATA_CONNECTOR_LOGS": "connector",
+    "SYS_DATA_CONNECTOR_STATE_SUSPENDED": "conn_state",
+    "SYS_DATA_CONNECTOR_STATE_SYSTEM": "conn_state",
     "SYS_DATA_CONNECTOR_TELEMETRY": "connector",
+    "SYS_DATA_PROVIDER_LINK_BLE": "sys_data_provider_link_e",
+    "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
+    "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
+    "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
+    "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",
+    "SYS_DATA_PROVIDER_STATE_WIRED": "prov_state",
     "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
     "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
     "SYS_DEVICE_CONTRACT_HBRIDGE": "device_contract",
@@ -2252,11 +2546,32 @@
     "SYS_PROJECT_BOOT_NONE": "sys_project_boot_e",
     "SYS_PROJECT_BOOT_RUN": "sys_project_boot_e",
     "SYS_SAFE_DEADMAN": "sys_safe_reason_e",
-    "SYS_SAFE_LINK_LOST": "sys_safe_reason_e",
     "SYS_SAFE_POWER": "sys_safe_reason_e",
     "SYS_SAFE_STOP": "sys_safe_reason_e",
-    "TRANSPORT_BLE": "transport_e",
-    "TRANSPORT_UART": "transport_e",
+    "SYS_SESSION_ANSWER": "sys_session_kind_e",
+    "SYS_SESSION_CHILD": "sys_session_peer_e",
+    "SYS_SESSION_CLIENT": "sys_session_peer_e",
+    "SYS_SESSION_CONTROL": "sys_session_kind_e",
+    "SYS_SESSION_FRAME_FLAGS": "session_frame",
+    "SYS_SESSION_FRAME_KIND": "session_frame",
+    "SYS_SESSION_FRAME_STATUS": "session_frame",
+    "SYS_SESSION_FULL": "sys_session_access_e",
+    "SYS_SESSION_GONE": "sys_session_control_e",
+    "SYS_SESSION_HELLO": "sys_session_control_e",
+    "SYS_SESSION_ID_BROADCAST": "session_id",
+    "SYS_SESSION_ID_CLIENT_FIRST": "session_id",
+    "SYS_SESSION_ID_CLIENT_LAST": "session_id",
+    "SYS_SESSION_ID_DEFAULT": "session_id",
+    "SYS_SESSION_ID_LAST": "session_id",
+    "SYS_SESSION_ID_NONE": "session_id",
+    "SYS_SESSION_ID_SELF": "session_id",
+    "SYS_SESSION_NO_SESSION": "sys_session_control_e",
+    "SYS_SESSION_PARENT": "sys_session_peer_e",
+    "SYS_SESSION_PING": "sys_session_control_e",
+    "SYS_SESSION_READ": "sys_session_access_e",
+    "SYS_SESSION_REQUEST": "sys_session_kind_e",
+    "SYS_SESSION_STREAM": "sys_session_kind_e",
+    "SYS_SESSION_VERSION": "session_version",
     "VM_BIT_AND": "vm_bit_op_e",
     "VM_BIT_BSWAP": "vm_bit_op_e",
     "VM_BIT_CLR": "vm_bit_op_e",

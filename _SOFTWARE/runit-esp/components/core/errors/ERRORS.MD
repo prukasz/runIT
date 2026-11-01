@@ -14,7 +14,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
 | `err_tags.c` | Module and tag registry, lookup |
 | `err_log.c` | `err_log`, `err_log_ctx`, `err_log_enable` — chain formatting to `ESP_LOG` |
-| `err_wire.c` | `err_record`: the error record, a chain with its command, as bytes |
+| `err_wire.c` | `err_record`: the error record, a chain with its command, as bytes; `err_record_parse`: a record made a chain again |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
 | `errors_core.json` | The user messages of this module's tags (and their hints: what to do) (each module has its `errors_<module>.json` in the `errors/` folder of its component, next to its map `<component>_errors.h`) |
 | `CMakeLists.txt` | Component registration and source files |
@@ -87,34 +87,39 @@ Rules:
 
 `err_record(cmd, chain, buf, cap)` (`err_wire.c`): a chain with the command it belongs to (`err_cmd_t`, NULL for an internal error). The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_DATA_CONNECTOR.MD) and the kept history (SYS_LOG.MD ERRORS).
 
+`err_cmd_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
+
 ```
 [src u8]                                    0 internal (no request), 1 command
 [unix_ms u64 LE]                            the board's clock when it was reported (`board_time_now_ms`, TIME.MD; ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
-src 1: [link u8][seq u8][flags u8]               (after the stamp)
-       [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut
-       [request]     key, dir, keys + payload as received (no seq / flags)
+src 1: err_record_cmd_t (5 B, after the stamp)
+       [from u8]     err_cmd_t.src: who sent the command
+       [seq u16 LE]  err_cmd_t.seq: the sender's counter
+       [flags u8]    ROUTER_FLAG_*
+       [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut (ERR_RECORD_REQ_CUT)
+       [request]     key, dir, keys + payload as received (no frame header)
 [chain]                                     [count u8, bit 7 = cut] then per node [tag u32 LE][len u8][payload len B]
 ```
 
 - Chain: `payload` is the packed `err_data_<TAG>_t` as is (`len` from the tag table, 0 for an unknown tag). A node's severity is not sent: it is its tag's, which the app reads from `errors.json` with the payload's fields.
-- The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when the link's frame is small; the chain gets the rest (its own truncated bit).
+- The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when `cap` is small; the chain gets the rest (its own truncated bit).
 - The chain starts with the route (`ERR_ROUTER_KEY{key}` per level, NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
-- Command errors end in `err_report_ex(err, ctx_line, &cmd)`: the log gets a context line before the chain (`cmd link 1 seq 7 flags 00 req 02 00 02 00`: the link ID, `transport_e`) and the sink gets the command, so the errors stream carries the same record as the response.
+- Command errors end in `err_report_ex(err, ctx_line, &cmd)` (the router's `router_report_cmd`): the log gets a context line before the chain (`cmd src f0 seq 7 flags 00 req 02 00 02 00`) and the sink gets the command, so the errors stream carries the same record as the answer, and a sender finds its own errors there by `from` and `seq`.
 - `src 0` (internal: device task, timer, boot) has no command header.
+- `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`.
 
-Example (a router ERROR answer) — scan of bus 0 (only bus 1 is open):
+Example (an ERROR answer) — scan of bus 0 (only bus 1 is open), from the client 0xF0 (SYS_SESSION.MD "Frames"):
 
 ```
-request   07 00 | 02 00 02 00                        seq 7, normal, i2c read SCAN bus 0
-response  05 07 01                                   stream, seq, ERROR
-          01 | 00 00 00 00 00 00 00 00                   command; clock not set (time since the start, here 0)
-          01 | 07 | 00                                UART, seq 7, flags 0
-          04 | 02 00 02 00                            request: 4 B
-          03                                          chain: 3 nodes
-          01 00 02 00 01 02                           ERR_ROUTER_KEY        key 02 (i2c)
-          01 00 02 00 01 02                           ERR_ROUTER_KEY        key 02 (SCAN)
-          10 00 01 00 01 00                           ERR_I2C_REMOTE_DENIED bus 0
-UART      #R:050701010000000000000000010700040200020003010002000102010002000102100001000100
+request   00 00 f0 07 00 | 02 00 02 00               REQUEST to board 0 from f0, seq 7; i2c read SCAN bus 0
+answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0, seq 7
+          01 | 00 00 00 00 00 00 00 00                command; clock not set (time since the start, here 0)
+          f0 | 07 00 | 00                            from f0, seq 7, flags 0
+          04 | 02 00 02 00                           request: 4 B
+          03                                         chain: 3 nodes
+          01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (i2c)
+          01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (SCAN)
+          10 00 01 00 01 00                          ERR_I2C_REMOTE_DENIED bus 0
 ```
 
 ## Core Errors (`ERR_MOD_CORE` = 0)
@@ -123,6 +128,7 @@ UART      #R:0507010100000000000000000107000402000200030100020001020100020001021
 |---|---|---|---|
 | `ERR_POOL_EMPTY` | LOW | – | Error node pool exhausted; static fallback node returned |
 | `ERR_ESP_ERR` | HIGH | `esp_err_t code` | Underlying ESP-IDF driver or system call failed |
+| `ERR_RECORD_CUT` | MEDIUM | `u16 len` | `err_record_parse`: a record cut short |
 
 ## Limits
 

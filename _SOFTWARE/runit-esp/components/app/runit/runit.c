@@ -12,6 +12,8 @@
 #include "sys_ble_router.h"
 #include "sys_data_connector.h"
 #include "sys_data_connector_router.h"
+#include "sys_data_provider_driver.h"
+#include "sys_data_provider_router.h"
 #include "sys_device.h"
 #include "sys_device_router.h"
 #include "sys_event.h"
@@ -22,6 +24,8 @@
 #include "sys_power_manager_router.h"
 #include "sys_project.h"
 #include "sys_project_router.h"
+#include "sys_session.h"
+#include "sys_session_router.h"
 #include "sys_system.h"
 #include "sys_system_router.h"
 #include "sys_uart.h"
@@ -39,18 +43,10 @@ void runit_enter_safe_state(void) {
   err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
 }
 
-// The safe state of sys_system (STOP, dead-man, link lost, a power fault): sys_system notes why, for SYS SAFE_GET.
+// The safe state of sys_system (STOP, dead-man, a power fault): sys_system notes why, for SYS SAFE_GET.
 static void safe_state(sys_safe_reason_e reason) {
   ESP_LOGW(TAG, "safe state (reason %d)", (int)reason);
   runit_enter_safe_state();
-}
-
-// A BLE client gone is the command link lost (the dead-man's on_link_lost).
-static void ble_conn(bool connected, int32_t reason) {
-  (void)reason;
-  if (!connected) {
-    sys_system_link_lost();
-  }
 }
 
 // SYS SAFE_LEAVE: the way out is the way in, reversed; the program is started again by the client (VM EXEC).
@@ -68,7 +64,7 @@ static err_h mark_system_devices(void) {
   return NULL;
 }
 
-// The connectors, then the error policy and sink that send to them.
+// The connectors (they listen for the session's gone peers), then the error policy and sink that send to them.
 static err_h streams_init(void) {
   ERR_TRY(sys_data_connector_init());
   return runit_error_wiring_init();
@@ -90,12 +86,21 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_POWER, sys_power_manager_router));
   ERR_TRY(router_register(ROUTER_KEY_VM, vm_router));
   ERR_TRY(router_register(ROUTER_KEY_PROJECT, sys_project_router));
+  ERR_TRY(router_register(ROUTER_KEY_PROVIDER, sys_data_provider_router));
+  ERR_TRY(router_register(ROUTER_KEY_SESSION, sys_session_router));
   router_set_tap(&g_sys_actions_tap);
   sys_system_set_safe_state(safe_state);
   sys_system_set_safe_leave(safe_leave);
   ERR_TRY(sys_system_init());
-  ERR_TRY(sys_ble_add_conn_listener(ble_conn));
   return router_init();
+}
+
+// The board's clients: the console's port and the runIT BLE pair, each a session; the providers so far are the board's.
+static err_h sessions_init(void) {
+  ERR_TRY(sys_session_attach(SYS_UART_PROVIDER, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
+  ERR_TRY(sys_session_attach(SYS_BLE_PROVIDER_RUNIT, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
+  sys_data_provider_mark_system();
+  return NULL;
 }
 
 err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, uint32_t* failed) {
@@ -120,6 +125,7 @@ err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, u
 
 err_h runit_start(void) {
   static const runit_boot_step_entry_t k_boot[] = {
+      {"session", sys_session_init},  // first: the connectors and the dead-man listen for its gone peers
       {"streams", streams_init},
       {"log", log_init},
       {"actions", sys_actions_init},
@@ -132,6 +138,7 @@ err_h runit_start(void) {
       {"uart", sys_uart_init},
       {"ble link", sys_ble_link_init},
       {"stream bindings", runit_board_connector_bindings_init},
+      {"sessions", sessions_init},
       {"i2c", sys_i2c_init},
 #if !CONFIG_RUNIT_BOARD_BARE
       {"devices", runit_board_devices_init},

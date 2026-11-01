@@ -23,13 +23,14 @@ Rules:
 
 ## 3. Boot
 
-`runit_start()` runs the boot steps in order: RUNIT.MD "Boot" (streams, log, actions and events, onboard actions, power, router, vm, the command links, stream bindings, i2c, onboard devices, system devices, ble, project). A failing step is reported and the boot goes on; the last line is `runIT up (N boot step(s) failed)`.
+`runit_start()` runs the boot steps in order: RUNIT.MD "Boot" (session, streams, log, actions and events, onboard actions, power, router, vm, the providers (uart, ble link), stream bindings, sessions, i2c, onboard devices, system devices, ble, project). A failing step is reported and the boot goes on; the last line is `runIT up (N boot step(s) failed)`.
 
 ## 4. Flows
 
-- **Inbound command:** a link (`sys_uart` `#R:` lines, `sys_ble` RX characteristic: `router_link_receive`) or the board itself (`router_inject`) → `router_submit(cmd, done, ctx)` → urgent or work task → root key (`router_ids.h`) → the module's router → its API → the answer to the command's `done` (a link frames it back). ROUTER.MD "Wire format": `[seq][flags][key][dir][code]...[payload]`, answered `[0x05][seq][status][data]` to the origin only. `dir` picks the command's read or write side; a command with both is a mirror (the read answers what the write takes, CMD.MD "Read and write").
-- **Outbound streams:** `sys_data_connector` (SYS_DATA_CONNECTOR.MD): a connector is one byte, the first byte of its frames (logs 0x03, errors 0x04, telemetry 0x02, events 0x06, user ones any other byte but 0x05), each bound to a transport (`TRANSPORT_UART`, `TRANSPORT_BLE`) by the board config. Router answers (stream byte 0x05) go back on the link the command came from, not through a connector. Frames are sized to the transport (`sys_data_connector_max_payload`).
-- **One shape both ways:** stream frames are commands without `seq` / `flags` / `dir`: an event is `[0x07][NOTIFY]...`, VM telemetry is `[0x0B][DATA | ADD_OBJECTS]...`, an error record carries the request that failed (with its `dir`). A client parses everything with one decoder, and a frame can be sent back as a write (`dir` 1 after the key) or stored in a record.
+- **Inbound command:** a provider's driver (`sys_uart`: COBS + CRC16 frames on the console; `sys_ble`: the runIT RX characteristic) delivers a whole frame to its one user, the session (SYS_SESSION.MD) → a client's REQUEST `[frame byte][dst][src][seq u16][key][dir][code]...[payload]` becomes an `err_cmd_t` → `router_submit(cmd, session_answer, NULL)` → urgent or work task → root key (`router_ids.h`) → the module's router → its API → the answer to the command's `done`: the session frames it (ANSWER, status in the frame byte, the same `seq`) back to `src`. The board's own commands: `router_inject` (src 0xFE). `dir` picks the command's read or write side; a command with both is a mirror (the read answers what the write takes, CMD.MD "Read and write").
+- **Outbound streams:** `sys_data_connector` (SYS_DATA_CONNECTOR.MD): a connector is one byte (logs 0x03, errors 0x04, telemetry 0x02, events 0x06, user ones any other byte but 0x00 and 0x05). Its targets: bindings to providers (the payload as is; the board config binds logs to the BLE LOGS characteristic) and peers subscribed over their session (SUBSCRIBE: a STREAM frame `[connector][payload]` to that client). Answers never go through a connector. Payloads are sized by `sys_data_connector_max_payload`.
+- **Sessions and the dead-man:** every client opens a session (HELLO; the board gives it its id) and keeps it with PINGs; a session that ends (silence, its provider down) makes its peer gone: its subscriptions end, and an armed dead-man enters the safe state (SYS_SYSTEM.MD).
+- **One shape both ways:** stream payloads are commands without `dir`: an event is `[0x07][NOTIFY]...`, VM telemetry is `[0x0B][DATA | ADD_OBJECTS]...`, an error record carries the request that failed (with its `dir`). A client parses everything with one decoder, and a frame can be sent back as a write (`dir` 1 after the key) or stored in a record.
 - **Errors:** a chain (ERRORS.MD) is returned up to whoever ends it; `err_report` → the sink in `runit_error_policy.c` → the device error policy (`sys_device_handle_error`, SYS_DEVICE.MD "Error policy") → an error record on the errors stream (ERRORS.MD "Error record"). Errors of a routed command are answered and reported with that command.
 - **Events:** a source publishes (`sys_event_publish`, SYS_EVENT.MD): NOTIFY events go to the events stream first, then the device listeners (inline, their ON_EVENT), then the function listeners in the event task (the VM's wildcard subscription, the power manager). A device's `suspended` flag changing (SUSPEND, RESUME, a sweep: one event for the sweep) is the DEVICE contract's `SUSPENDED` / `RESUMED`: `sys_device` tells the state listener runit sets, which publishes it (SYS_DEVICE.MD "Suspended and resumed").
 - **Devices:** `[0x05][dir][id u16][op u16][args]` → `sys_device_call` → the driver's op table; contract ops are `0xCCxx` (contract ID, op), a driver's own ops `0xFFxx` (SYS_DEVICE.MD, SYS_IO.MD, SYS_POWER.MD, SYS_HBRIDGE.MD).
@@ -41,11 +42,11 @@ Rules:
 |---|---|
 | Module routers under their root keys, the actions tap, the safe-state handler | `runit.c` (boot step `router`) |
 | Error sink, device policy action runner, VM stop on a critical device error (`vm_stop_on_fault`) | `runit_error_policy.c` (`runit_error_wiring_init`) |
-| Which stream goes to which transport | `runit_board_cfg.c` (`runit_board_connector_bindings_init`) |
+| Which stream goes to which provider (logs → BLE LOGS); the clients' sessions (UART, BLE pair) | `runit_board_cfg.c` (`runit_board_connector_bindings_init`), `runit.c` (`sessions_init`) |
 | Power layout, limits and the safe state for the power manager | `runit_board_cfg.c` (`runit_board_power_init`), `runit_board_defs.h` |
 | Onboard devices and their IDs | `runit_board_devices_init`, `runit_board_defs.h`, `board.json` |
 | The firmware's own actions (resume / suspend / reset all, hard reset) | `runit_onboard_actions.c` |
-| Safe state: VM stopped (retained values saved), then every device suspended | `runit_enter_safe_state` (`sys_system`: STOP, dead-man, link lost; critical errors) |
+| Safe state: VM stopped (retained values saved), then every device suspended | `runit_enter_safe_state` (`sys_system`: STOP, the dead-man; critical errors) |
 
 ## 6. Descriptors
 

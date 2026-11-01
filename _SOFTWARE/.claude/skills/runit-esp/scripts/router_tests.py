@@ -27,9 +27,11 @@ from router_link import (
     KEY_CONN,
     KEY_DEVICE,
     KEY_I2C,
+    KEY_PROVIDER,
+    KEY_SESSION,
     KEY_SYS,
-    TRANSPORT_BLE,
-    TRANSPORT_UART,
+    LINK_BLE,
+    LINK_UART,
     READ,
     WRITE,
     Link,
@@ -71,7 +73,15 @@ def err_cause(r: Response | None) -> str:
 
 
 def wait_boot(link: Link, timeout: float) -> bool:
-    return link.wait_log("runIT up", timeout)
+    """The board is up when its session is open (the boot's own log lines come before the streams are subscribed)."""
+    return link.wait_open(timeout)
+
+
+def wait_restart(link: Link, opens_before: int, timeout: float = 20.0) -> bool:
+    """After a restart of the board: a new session open, its streams subscribed (a short wait for the SUBSCRIBEs)."""
+    ok = link.wait_reopen(opens_before, timeout)
+    time.sleep(0.3)
+    return ok
 
 
 # sys ops (contract_sys.json)
@@ -87,8 +97,8 @@ def deadman_get(link: Link) -> Response | None:
     return link.request(bytes([KEY_SYS, SYS_DEADMAN]), dir=READ)
 
 
-def deadman_set(link: Link, ms: int, on_lost: int) -> Response | None:
-    return link.request(bytes([KEY_SYS, SYS_DEADMAN]), payload=struct.pack("<IB", ms, on_lost), dir=WRITE)
+def deadman_set(link: Link, ms: int) -> Response | None:
+    return link.request(bytes([KEY_SYS, SYS_DEADMAN]), payload=struct.pack("<I", ms), dir=WRITE)
 
 
 # ---------------------------------------------------------------------------
@@ -105,21 +115,20 @@ def test_sys(link: Link) -> None:
     check("PING with payload -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
     r = deadman_get(link)
-    ok = r is not None and r.ok and len(r.data) == 5
+    ok = r is not None and r.ok and len(r.data) == 4
     check("DEADMAN read", ok, str(r))
     if ok:
-        ms, on_lost = struct.unpack("<IB", r.data)
-        check("dead-man off at boot", ms == 0 and on_lost == 0, f"{ms} {on_lost}")
+        check("dead-man off at boot", struct.unpack("<I", r.data)[0] == 0, str(r))
 
     # BYE: the client leaves on purpose, the dead-man it armed is off.
-    r = deadman_set(link, 60000, 0)
+    r = deadman_set(link, 60000)
     check("DEADMAN write 60 s: ACK without data", r is not None and r.ok and r.data == b"", str(r))
     r = deadman_get(link)
-    check("DEADMAN read = what was written", r is not None and r.ok and r.data == struct.pack("<IB", 60000, 0), str(r))
+    check("DEADMAN read = what was written", r is not None and r.ok and r.data == struct.pack("<I", 60000), str(r))
     r = link.request(bytes([KEY_SYS, SYS_BYE]))
     check("BYE", r is not None and r.ok, str(r))
     r = deadman_get(link)
-    check("BYE disarmed the dead-man", r is not None and r.ok and len(r.data) == 5 and struct.unpack("<IB", r.data)[0] == 0, str(r))
+    check("BYE disarmed the dead-man", r is not None and r.ok and r.data == struct.pack("<I", 0), str(r))
 
     # TIME: the wall clock the client sets (read 0 = never set)
     now_ms = int(time.time() * 1000)
@@ -135,7 +144,7 @@ def test_router_errors(link: Link) -> None:
     rec = r.record if r else None
     check("unknown root key -> ERR_ROUTER_UNKNOWN_KEY", err_cause(r) == "ERR_ROUTER_UNKNOWN_KEY", str(r))
     if rec:
-        check("record: src command, link UART", rec.src == 1 and rec.link == TRANSPORT_UART, str(rec))
+        check("record: src command, from this client", rec.src == 1 and rec.sender == link.my_id, str(rec))
         check("record: echoes seq and request (key + dir)", rec.seq == r.seq and rec.request == bytes([0x7E, WRITE]), str(rec))
 
     r = link.request(bytes([KEY_SYS, 0x7E]))
@@ -146,13 +155,14 @@ def test_router_errors(link: Link) -> None:
         str(r),
     )
 
-    # Frame without a root key, and a root key without the direction byte: refused by router_submit, answered by the link all the same.
+    # Frame without a root key, and a root key without the direction byte: refused by router_submit, answered by the
+    # session all the same.
     seq = link.next_seq()
-    link.send_frame(bytes([seq, 0x00]))
+    link.send_raw(seq, 0x00, b"")
     r = link.wait_response(seq)
     check("frame without key -> ERR_ROUTER_FRAME_LEN", err_cause(r) == "ERR_ROUTER_FRAME_LEN", str(r))
     seq = link.next_seq()
-    link.send_frame(bytes([seq, 0x00, KEY_SYS]))
+    link.send_raw(seq, 0x00, bytes([KEY_SYS]))
     r = link.wait_response(seq)
     check("frame with a key but no dir -> ERR_ROUTER_FRAME_LEN", err_cause(r) == "ERR_ROUTER_FRAME_LEN", str(r))
 
@@ -164,7 +174,7 @@ def test_router_errors(link: Link) -> None:
     if r and r.record and r.record.cause:
         check("ERR_CMD_DIRECTION names the dir", r.record.cause.data == bytes([READ]), str(r.record.cause))
     r = link.request(bytes([KEY_CONN, WRITE, 0x07]), raw=True)
-    check("read-only command (conn INFO) sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
+    check("read-only command (conn LIST) sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
     r = link.request(bytes([KEY_SYS, 2, SYS_PING]), raw=True)
     check("dir 2 -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
     r = link.request(bytes([KEY_DEVICE, READ]) + struct.pack("<HH", MISSING_ID, OP_CREATE) + struct.pack("<H", GPIO_TYPE), raw=True)
@@ -187,15 +197,34 @@ def test_errors_stream(link: Link) -> None:
 
 
 def test_deadman(link: Link) -> None:
-    t = link.mark()
-    r = deadman_set(link, 300, 0)
-    check("DEADMAN write 300 ms", r is not None and r.ok, str(r))
-    fired = link.wait_log("safe state", 2.0, since=t)
-    check("dead-man fires without frames", fired)
-    r = deadman_set(link, 0, 0)
+    # 1 s: every client of the board (a BLE app too) must ping within it, at least every third of it
+    r = deadman_set(link, 1000)
+    check("DEADMAN write 1 s", r is not None and r.ok, str(r))
+    time.sleep(0.3)
+    check("the board's hello took the dead-man's time as the session's timeout", link.board_timeout_ms == 1000,
+          str(link.board_timeout_ms))
+    time.sleep(2.5)
+    check("pings keep the session (and the board out of the safe state)", safe_reason(link) == 0, str(safe_reason(link)))
+    link.silent = True  # the client goes quiet: its session ends after 1 s, the dead-man fires
+    time.sleep(2.0)
+    link.silent = False
+    opens = link.opens
+    r = link.request(bytes([KEY_SYS, SYS_SAFE]))  # answered NO_SESSION: the link opens a new session
+    check("a request after the session ended is not run (NO_SESSION)", r is None, str(r))
+    check("the session opens again", link.wait_reopen(opens, 3.0))
+    check("dead-man fired: safe state, reason DEADMAN", safe_reason(link) == 2, str(safe_reason(link)))
+    r = deadman_set(link, 0)
     check("DEADMAN write off", r is not None and r.ok, str(r))
-    r = deadman_set(link, 0, 2)
-    check("DEADMAN write bad flag -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+    link.request(bytes([KEY_SYS, SYS_SAFE_LEAVE]))
+    r = deadman_set(link, 100)
+    check("DEADMAN write below a session's timeout (150 ms) -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+    r = deadman_set(link, 60001)
+    check("DEADMAN write above 60 s -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
+
+
+def safe_reason(link: Link) -> int | None:
+    r = link.request(bytes([KEY_SYS, SYS_SAFE]))
+    return r.data[0] if r is not None and r.ok and len(r.data) == 5 else None
 
 
 def test_stop(link: Link) -> None:
@@ -231,46 +260,99 @@ def test_i2c(link: Link, target: str) -> None:
         print("      ", r)
 
 
-def test_conn(link: Link) -> None:
-    def info() -> dict[int, dict]:  # by connector
-        r = link.request(bytes([KEY_CONN, 0x07]))
-        out = {}
-        if not (r and r.ok):
-            return out
-        d, pos = r.data, 1
-        for _ in range(d[0]):
-            connector, flags, n = d[pos : pos + 3]
-            pos += 3
-            binds = []
-            for _ in range(n):
-                prov, ep = struct.unpack_from("<BI", d, pos)
-                pos += 5
-                binds.append((prov, ep))
-            out[connector] = {"flags": flags, "binds": binds}
+def conn_list(link: Link) -> dict[int, dict]:
+    """conn LIST by connector: flags, state, subscribers [(peer, dropped)], bindings [((link, channel), flags, dropped)]."""
+    r = link.request(bytes([KEY_CONN, 0x07]))
+    out = {}
+    if not (r and r.ok):
         return out
+    d, pos = r.data, 1
+    for _ in range(d[0]):
+        cid, flags, state, ns, nb = d[pos : pos + 5]
+        pos += 5
+        subs, binds = [], []
+        for _ in range(ns):
+            subs.append(struct.unpack_from("<BH", d, pos))
+            pos += 3
+        for _ in range(nb):
+            lk, ch, fl, dr = struct.unpack_from("<BIBH", d, pos)
+            pos += 8
+            binds.append(((lk, ch), fl, dr))
+        out[cid] = {"flags": flags, "state": state, "subs": subs, "binds": binds}
+    return out
 
-    i = info()
-    check("conn INFO: 4 system connectors (0x02 0x03 0x04 0x06)", all(k in i and i[k]["flags"] & 1 for k in (2, 3, 4, 6)), str(i))
+
+BIND_TX = 0x02
+SYS_UART_PROVIDER = struct.pack("<BI", LINK_UART, 0)
+LOGS_CHAR = (LINK_BLE, 0xFFE3)
+
+
+def test_conn(link: Link) -> None:
+    i = conn_list(link)
+    check("conn LIST: 4 system connectors (0x02 0x03 0x04 0x06)", all(k in i and i[k]["state"] & 1 for k in (2, 3, 4, 6)), str(i))
+    if 3 in i:
+        check("logs 0x03 -> BLE LOGS 0xFFE3", [b[0] for b in i[3]["binds"]] == [LOGS_CHAR], str(i[3]))
+    for c in (2, 3, 4, 6):
+        if c in i:
+            check(f"connector 0x{c:02x}: this client subscribed", link.my_id in [s[0] for s in i[c]["subs"]], str(i[c]))
     if 4 in i:
-        check("errors 0x04 -> UART + BLE 0xFFE3", sorted(i[4]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE3)], str(i[4]))
-    if 6 in i:
-        check("events 0x06 -> UART + BLE 0xFFE1", sorted(i[6]["binds"]) == [(TRANSPORT_UART, 0), (TRANSPORT_BLE, 0xFFE1)], str(i[6]))
+        check("errors 0x04 urgent", i[4]["flags"] & 1 == 1, str(i[4]))
 
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x06]))
+    r = link.request(bytes([KEY_CONN, 0x09]), payload=bytes([0x04]))
+    check("SUBSCRIBE again: one subscription", r is not None and r.ok and
+          [s[0] for s in conn_list(link)[4]["subs"]].count(link.my_id) == 1, str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x06, 0]))
     check("conn CREATE on the events byte -> ERR_CONN_EXISTS", err_cause(r) == "ERR_CONN_EXISTS", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x05]))
-    check("conn CREATE on the answer byte -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x10]))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x05, 0]))
+    check("conn CREATE on the watches' byte -> ERR_CONN_EXISTS", err_cause(r) == "ERR_CONN_EXISTS", str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x00, 0]))
+    check("conn CREATE 0x00 -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x10, 0]))
     check("conn CREATE user 0x10", r is not None and r.ok, str(r))
-    r = link.request(bytes([KEY_CONN, 0x03]), payload=struct.pack("<BBI", 0x10, TRANSPORT_UART, 0))
-    check("conn BIND 0x10 -> UART", r is not None and r.ok, str(r))
-    i = info()
-    check("conn INFO shows user 0x10", 0x10 in i and not i[0x10]["flags"] & 1 and i[0x10]["binds"] == [(TRANSPORT_UART, 0)], str(i.get(0x10)))
+    r = link.request(bytes([KEY_CONN, 0x03]), payload=bytes([0x10]) + SYS_UART_PROVIDER + bytes([BIND_TX]))
+    check("conn BIND 0x10 -> the UART provider: the session has it -> ERR_PROV_IN_USE", err_cause(r) == "ERR_PROV_IN_USE", str(r))
+    r = link.request(bytes([KEY_CONN, 0x09]), payload=bytes([0x10]))
+    check("conn SUBSCRIBE 0x10", r is not None and r.ok, str(r))
+    i = conn_list(link)
+    check("conn LIST shows user 0x10 with this client", 0x10 in i and not i[0x10]["state"] & 1 and
+          [s[0] for s in i[0x10]["subs"]] == [link.my_id], str(i.get(0x10)))
+    r = link.request(bytes([KEY_CONN, 0x0A]), payload=bytes([0x10]))
+    check("conn UNSUBSCRIBE 0x10", r is not None and r.ok and conn_list(link)[0x10]["subs"] == [], str(r))
     r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x04]))
-    check("conn REMOVE errors -> ERR_CONN_PROTECTED", err_cause(r) == "ERR_CONN_PROTECTED", str(r))
+    check("conn REMOVE errors -> ERR_CONN_SYSTEM", err_cause(r) == "ERR_CONN_SYSTEM", str(r))
     r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x10]))
     check("conn REMOVE user 0x10", r is not None and r.ok, str(r))
-    check("conn INFO: 0x10 gone", 0x10 not in info())
+    check("conn LIST: 0x10 gone", 0x10 not in conn_list(link))
+
+
+def test_session(link: Link) -> None:
+    r = link.request(bytes([KEY_SESSION, 0x04]))
+    ok = r is not None and r.ok and len(r.data) >= 1
+    check("session PEERS", ok, str(r))
+    if ok:
+        peers = [struct.unpack_from("<BIBBBBHB", r.data, 1 + 12 * n) for n in range(r.data[0])]
+        mine = [p for p in peers if p[0] == LINK_UART]
+        check("PEERS: the UART session is open, a client, with this client's id",
+              len(mine) == 1 and mine[0][2] == 2 and mine[0][4] == 1 and mine[0][5] == link.my_id, str(peers))
+        check("PEERS: the BLE session is attached", any(p[0] == LINK_BLE and p[1] == 0xFFE1 for p in peers), str(peers))
+    r = link.request(bytes([KEY_SESSION, 0x01]), dir=READ)
+    check("session ID read: the board's id", r is not None and r.ok and r.data == bytes([link.board_id]), str(r))
+    r = link.request(bytes([KEY_PROVIDER, 0x02]))
+    ok = r is not None and r.ok and len(r.data) >= 1
+    check("provider LIST", ok, str(r))
+    if ok:
+        provs = {struct.unpack_from("<BI", r.data, 1 + 8 * n): struct.unpack_from("<HB", r.data, 6 + 8 * n) for n in range(r.data[0])}
+        uart = provs.get((LINK_UART, 0))
+        check("UART provider: up (512), system, open, framed, wired", uart == (512, 0x0F), str(provs))
+        check("BLE providers: the runIT pair and LOGS", (LINK_BLE, 0xFFE1) in provs and LOGS_CHAR in provs, str(provs))
+    r = link.request(bytes([KEY_PROVIDER, 0x01]), payload=SYS_UART_PROVIDER)
+    check("provider REMOVE of the board's own -> ERR_PROV_SYSTEM", err_cause(r) == "ERR_PROV_SYSTEM", str(r))
+    r = link.request(bytes([KEY_SESSION, 0x02]), payload=SYS_UART_PROVIDER + bytes([1, 1]))
+    check("session ATTACH as a CHILD -> ERR_SESSION_CLIENT", err_cause(r) == "ERR_SESSION_CLIENT", str(r))
+    seq = link.next_seq()
+    link.send_raw(seq, 0, frame(bytes([KEY_SYS, SYS_PING])), dst=0x33)
+    r = link.wait_response(seq)
+    check("a request for another board -> ERR_SESSION_NO_ROUTE", err_cause(r) == "ERR_SESSION_NO_ROUTE", str(r))
 
 
 def test_ble(link: Link, target: str) -> None:
@@ -890,7 +972,7 @@ def test_actions(link: Link) -> None:
     r = log_set(link, *LOG_DEFAULT)
     check("recorded frame runs (log CONFIG write answers ACK)", r is not None and r.ok and r.data == b"", str(r))
     r = link.request(CONN_INFO_KEYS)
-    check("a read runs during a recording (conn INFO answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
+    check("a read runs during a recording (conn LIST answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
     link.request(bytes([0x7E]))  # fails: not recorded
     ping(link)  # sys: not recorded
     r = act(link, A_REC_STOP)
@@ -1142,7 +1224,7 @@ def test_actions_after_restart(link: Link) -> None:
 
 KEY_LOG = 0x08
 LOG_CONFIG = 0x01  # read + write: the write sets the options, the read answers them
-LOG_DEFAULT = (3, 1, 1, 1, 1)  # (level, mirror, trace, send_errors, send_logs)
+LOG_DEFAULT = (3, 0, 1, 1, 1)  # (level, mirror, trace, send_errors, send_logs)
 # level INFO, mirror to the console, print error chains
 
 
@@ -1204,10 +1286,15 @@ def test_log(link: Link) -> None:
     check("trace_errors off: no chain lines, the record is still sent", not printed(lines) and recorded(recs),
           f"printed {printed(lines)}, record {recorded(recs)}")
 
+    log_set(link, 3, 1, 1)
+    t, lines, recs = provoke_error(link)
+    check("mirror_serial on: the chain is also text on the console, between the frames",
+          printed(link.console_since(t)) and recorded(recs), str(link.console_since(t)))
     log_set(link, 3, 0, 1)
-    _, lines, recs = provoke_error(link)
-    check("mirror_serial off: nothing on the console, the record is still sent", not lines and recorded(recs),
-          f"{len(lines)} line(s), record {recorded(recs)}")
+    t, lines, recs = provoke_error(link)
+    check("mirror_serial off: no text on the console, the lines come on the LOGS stream, the record is still sent",
+          not link.console_since(t) and printed(lines) and recorded(recs),
+          f"{len(link.console_since(t))} console line(s), record {recorded(recs)}")
 
     log_set(link, 0, 1, 1)
     _, lines, recs = provoke_error(link)
@@ -1227,13 +1314,9 @@ def test_log(link: Link) -> None:
 
     # Not stored by the module: a live write is gone after a restart (the app keeps it as a record, tested below).
     log_set(link, 2, 0, 0, 0, 0)
+    opens = link.opens
     link.request(bytes([KEY_SYS, SYS_RESTART]))
-    up = False
-    for _ in range(40):
-        time.sleep(0.5)
-        if ping(link) is not None:
-            up = True
-            break
+    up = wait_restart(link, opens) and ping(link) is not None
     check("board answers after RESTART (silent: level 2, mirror off)", up)
     check("log options are the defaults after the restart (nothing is stored)", log_get(link) == LOG_DEFAULT,
           str(log_get(link)))
@@ -1496,10 +1579,10 @@ def test_power(link: Link) -> None:
 
 
 def test_restart(link: Link) -> None:
-    t = link.mark()
+    opens = link.opens
     r = link.request(bytes([KEY_SYS, SYS_RESTART]))
     check("RESTART answered", r is not None and r.ok, str(r))
-    check("board boots again", link.wait_log("runIT up", 20.0, since=t))
+    check("board boots again: a new session opens", wait_restart(link, opens))
     check("PING after restart", ping(link) is not None)
 
 
@@ -1533,6 +1616,7 @@ def main() -> int:
         test_stop(link)
         test_i2c(link, a.target)
         test_conn(link)
+        test_session(link)
         test_ble(link, a.target)
         if ONBOARD:
             for section in ("gpio", "power mux", "device create / remove"):

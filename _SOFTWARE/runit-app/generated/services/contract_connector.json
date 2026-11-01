@@ -6,28 +6,37 @@
   "id": "CONNECTOR",
   "router_key": 4,
   "alias": "Data stream connectors (Data Connectors)",
-  "description": "Managing the outgoing data streams (telemetry, logs, errors, events, user streams) and their bindings to transports (UART, BLE).",
+  "description": "Managing the outgoing data streams (telemetry, logs, errors, events, user streams): their bindings to providers and the peers subscribed to them.",
   "category": "system",
   "record": "SYS_ACTIONS_ID_CONN",
   "commands": [
     {
       "id": "CREATE",
       "op": 1,
-      "symbol": "OP_CREATE",
+      "symbol": "SYS_DATA_CONNECTOR_OP_CREATE",
       "label": "Create a stream",
-      "description": "Creates a user connector: a stream of frames that start with its byte.",
+      "description": "Creates a user connector: a stream named by its byte.",
       "write": {
         "args": {
-          "struct": "connector_t",
+          "struct": "create_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The new connector: a byte that is not a system connector's or the router's answer byte; it starts each of its frames"
+              "description": "The new connector: any byte but 0x00, 0x05 and a system connector's"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "SYS_DATA_CONNECTOR_FLAG_URGENT: its frames go first on every way out"
             }
           ]
         }
@@ -36,15 +45,15 @@
     {
       "id": "REMOVE",
       "op": 2,
-      "symbol": "OP_REMOVE",
+      "symbol": "SYS_DATA_CONNECTOR_OP_REMOVE",
       "label": "Remove a stream",
-      "description": "Removes a user stream and its bindings to transports.",
+      "description": "Removes a user stream, its subscriptions and its bindings.",
       "write": {
         "args": {
           "struct": "connector_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
@@ -59,15 +68,15 @@
     {
       "id": "BIND",
       "op": 3,
-      "symbol": "OP_BIND",
-      "label": "Bind to a transport",
-      "description": "Binds a stream to a transport (UART, BLE) at the given endpoint.",
+      "symbol": "SYS_DATA_CONNECTOR_OP_BIND",
+      "label": "Bind to a provider",
+      "description": "Binds a stream to a provider (a BLE characteristic, a UART port): its frames go there as they are.",
       "write": {
         "args": {
           "struct": "bind_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
@@ -76,23 +85,32 @@
               "description": "The connector"
             },
             {
-              "id": "provider",
-              "label": "Transport",
+              "id": "link",
+              "label": "Link",
               "type": "enum",
-              "enum": "transport_e",
+              "enum": "sys_data_provider_link_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "Provider (transport ID)"
+              "description": "Which driver made the provider (UART, BLE)"
             },
             {
-              "id": "endpoint",
-              "label": "Endpoint",
+              "id": "channel",
+              "label": "Channel",
               "type": "integer",
               "raw_type": "u32",
               "size": 4,
               "offset": 2,
-              "description": "The provider's endpoint (for BLE the 16-bit UUID of the characteristic, for UART 0)"
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            },
+            {
+              "id": "flags",
+              "label": "Direction",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 6,
+              "description": "SYS_DATA_CONNECTOR_BIND_TX"
             }
           ]
         }
@@ -101,15 +119,15 @@
     {
       "id": "UNBIND",
       "op": 4,
-      "symbol": "OP_UNBIND",
-      "label": "Remove a binding",
-      "description": "Removes the binding of a stream to the given transport.",
+      "symbol": "SYS_DATA_CONNECTOR_OP_UNBIND",
+      "label": "Unbind from a provider",
+      "description": "Removes a binding; the provider is free again. Link 0: every binding of the stream.",
       "write": {
         "args": {
           "struct": "unbind_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
@@ -118,14 +136,23 @@
               "description": "The connector"
             },
             {
-              "id": "provider",
-              "label": "Transport",
+              "id": "link",
+              "label": "Link",
               "type": "enum",
-              "enum": "transport_e",
+              "enum": "sys_data_provider_link_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "Provider (transport ID)"
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
             }
           ]
         }
@@ -134,7 +161,7 @@
     {
       "id": "SUSPEND",
       "op": 5,
-      "symbol": "OP_SUSPEND",
+      "symbol": "SYS_DATA_CONNECTOR_OP_SUSPEND",
       "label": "Suspend a stream",
       "description": "Stops sending frames on a stream (they are dropped without blocking the sender).",
       "write": {
@@ -142,7 +169,7 @@
           "struct": "connector_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
@@ -157,15 +184,15 @@
     {
       "id": "RESUME",
       "op": 6,
-      "symbol": "OP_RESUME",
+      "symbol": "SYS_DATA_CONNECTOR_OP_RESUME",
       "label": "Resume a stream",
-      "description": "Resumes normal sending on a suspended stream.",
+      "description": "Sends the frames of a suspended stream again.",
       "write": {
         "args": {
           "struct": "connector_t",
           "fields": [
             {
-              "id": "connector",
+              "id": "id",
               "label": "Connector",
               "type": "integer",
               "raw_type": "u8",
@@ -178,16 +205,62 @@
       }
     },
     {
-      "id": "INFO",
+      "id": "LIST",
       "op": 7,
-      "symbol": "OP_INFO",
+      "symbol": "SYS_DATA_CONNECTOR_OP_LIST",
       "label": "List the streams",
-      "description": "Returns every active connector, its state (system, suspended) and its transport bindings.",
+      "description": "Returns every connector, its state, its subscribers and its bindings.",
       "read": {
         "returns": {
           "type": "u8",
           "label": "Number of connectors",
-          "description": "Then, for each connector: the connector, flags (bit 0 system, bit 1 suspended), number of bindings and the bindings (provider, endpoint)."
+          "description": "Then, per connector: its head (id, flags, state, subscriber count, binding count), its subscribers (peer u8, dropped u16), its bindings (provider id, flags u8, dropped u16)."
+        }
+      }
+    },
+    {
+      "id": "SUBSCRIBE",
+      "op": 9,
+      "symbol": "SYS_DATA_CONNECTOR_OP_SUBSCRIBE",
+      "label": "Subscribe to a stream",
+      "description": "The peer that sends it gets the stream's frames, until UNSUBSCRIBE or its session ends.",
+      "write": {
+        "args": {
+          "struct": "connector_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The connector"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "UNSUBSCRIBE",
+      "op": 10,
+      "symbol": "SYS_DATA_CONNECTOR_OP_UNSUBSCRIBE",
+      "label": "Unsubscribe from a stream",
+      "description": "Ends the subscription of the peer that sends it.",
+      "write": {
+        "args": {
+          "struct": "connector_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The connector"
+            }
+          ]
         }
       }
     }

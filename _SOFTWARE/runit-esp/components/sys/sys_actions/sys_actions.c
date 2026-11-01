@@ -28,7 +28,7 @@ typedef struct {
   uint32_t id;
   bool execute;    // record: frames run as usual (else taken without running)
   bool overflow;   // record: a frame didn't fit; `need` = the size it would have taken
-  uint8_t link;    // record: the link of the client being recorded
+  uint8_t src;     // record: the client being recorded (its peer id)
   uint16_t len;    // image bytes so far
   uint16_t want;   // upload: announced image length
   uint16_t count;  // record: frames
@@ -88,7 +88,7 @@ static uint32_t id_of(const char* key) {
 }
 
 /* Walks an image's framing: the number of frames, or ERR_ACTION_BAD_FRAME at
- * the first frame that is empty, longer than a link frame or runs past the end. */
+ * the first frame that is empty, longer than a command or runs past the end. */
 static err_h frames_check(const uint8_t* img, uint32_t len, uint16_t* count) {
   uint32_t pos = 0;
   uint16_t n = 0;
@@ -252,7 +252,7 @@ static void record_append(const uint8_t* req, uint32_t len) {
 // Keeps the frame when it comes from the client being recorded and the recording is in mode `execute`.
 static bool record_frame(const err_cmd_t* cmd, bool execute) {
   LOCK();
-  const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.link == cmd->link;
+  const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.src == cmd->src;
   if (mine) {
     record_append(cmd->req, cmd->req_len);
   }
@@ -287,13 +287,13 @@ static err_h session_open(session_e kind, uint32_t id) {
   return NULL;
 }
 
-err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t link) {
+err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t src) {
   ERR_TRY(check_id(id));
   LOCK();
   err_h err = session_open(SESSION_RECORD, id);
   if (err == NULL) {
     s_session.execute = execute;
-    s_session.link = link;
+    s_session.src = src;
     s_recording = true;
   }
   UNLOCK();

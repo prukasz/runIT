@@ -31,12 +31,13 @@
       "description": "ID of the onboard action that restarts the board (sys RESTART). The firmware writes it at every boot.",
       "source_file": "runit-esp/components/app/runit/Kconfig"
     },
-    "ROUTER_RESPONSE_STREAM": {
-      "config": "CONFIG_ROUTER_RESPONSE_STREAM",
-      "value": 5,
-      "alias": "Response stream byte",
-      "description": "First byte of every response frame, so clients can tell answers from other streams on the same link.",
-      "source_file": "runit-esp/components/core/router/Kconfig"
+    "SYS_SESSION_TIMEOUT_MS": {
+      "config": "CONFIG_SYS_SESSION_TIMEOUT_MS",
+      "value": 3000,
+      "alias": "Session timeout",
+      "description": "A client's session with nothing received for this long ends: its peer is gone, the hello starts again. The hello tells the peer, which sends at least every third of it. The dead-man's time replaces it while armed (sys_session_set_timeout).",
+      "unit": "ms",
+      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
     },
     "VM_EXEC_MAX_SPAN_DEPTH": {
       "config": "CONFIG_VM_EXEC_MAX_SPAN_DEPTH",

@@ -1,0 +1,93 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "PROVIDER",
+  "router_key": 13,
+  "alias": "Providers",
+  "description": "The ways bytes go out of the board and come in: a BLE characteristic, a UART port.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "REMOVE",
+      "op": 1,
+      "symbol": "SYS_DATA_PROVIDER_OP_REMOVE",
+      "label": "Remove a provider",
+      "description": "Removes a provider no one uses (not the board's own).",
+      "write": {
+        "args": {
+          "struct": "sys_data_provider_id_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "LIST",
+      "op": 2,
+      "symbol": "SYS_DATA_PROVIDER_OP_LIST",
+      "label": "List the providers",
+      "description": "Returns every provider.",
+      "read": {
+        "returns": {
+          "type": "u8",
+          "label": "Number of providers",
+          "description": "Then per provider: its id (link u8, channel u32), max frame u16 (0 = down), state u8 (SYS_DATA_PROVIDER_STATE_*)."
+        }
+      }
+    },
+    {
+      "id": "SEND",
+      "op": 3,
+      "symbol": "SYS_DATA_PROVIDER_OP_SEND",
+      "label": "Send on a provider",
+      "description": "Sends one frame on a provider no user has opened.",
+      "write": {
+        "args": {
+          "struct": "sys_data_provider_id_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

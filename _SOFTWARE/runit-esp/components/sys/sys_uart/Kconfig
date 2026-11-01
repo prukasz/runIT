@@ -6,14 +6,14 @@ menu "sys_uart"
         range 1 24
         help
           Priority of the task that reads the console UART (and USB-Serial-JTAG)
-          and turns "#R:" hex lines into router frames.
+          and hands each frame (COBS, CRC16 checked) to the provider's user.
 
     config SYS_UART_TASK_STACK
         int "RX task stack (bytes)"
         default 3072
         range 2048 16384
         help
-          The line and frame buffers are static, not on this stack.
+          The frame buffers are static, not on this stack.
 
     config SYS_UART_DRIVER_RX_BUF
         int "Driver RX buffer (bytes)"
@@ -25,19 +25,22 @@ menu "sys_uart"
 
     config SYS_UART_TX_QUEUE
         int "TX queue (bytes)"
-        default 4096
+        default 8192
         range 1024 32768
         help
-          Frames waiting for the TX task (router answers and stream frames);
-          each takes its length + ~8 bytes. A frame waits up to 1 s for room,
-          then is dropped (ERR_UART_TX_FULL). Multiple of 4.
+          Frames waiting for the TX task (answers, stream frames); each takes
+          its length rounded to 4 + 8 bytes. Urgent frames have a queue of
+          their own, written first. Larger than the connector queue
+          (CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE), so a burst of stream frames
+          fills that one first and its producer is refused (and resends), not
+          lost here unseen. Multiple of 4.
 
     config SYS_UART_TX_TASK_PRIO
         int "TX task priority"
         default 2
         range 1 24
         help
-          The task that writes the queued frames as "#R:" lines. Low: the
+          The task that encodes the queued frames and writes them. Low: the
           console is slow, and nothing waits for it but the queue.
 
     config SYS_UART_TX_TASK_STACK
@@ -50,11 +53,9 @@ menu "sys_uart"
         default 1000
         range 10 10000
         help
-          How long a frame (an answer or a stream frame alike) waits for room
-          in the TX queue, then ERR_UART_TX_FULL. A stream frame waiting stalls
-          the connector task: its own queue fills and the producer is refused
-          (and sends again, as the telemetry sampler does), instead of losing
-          the frame here unseen. No producer waits: sys_data_connector_send never
-          blocks.
+          How long a send without NOWAIT (an answer) waits for room in the TX
+          queue, then ERR_PROV_BUSY; a NOWAIT send (a stream frame) is
+          ERR_PROV_BUSY at once. Also how long a frame waits for the
+          USB-Serial-JTAG host.
 
 endmenu

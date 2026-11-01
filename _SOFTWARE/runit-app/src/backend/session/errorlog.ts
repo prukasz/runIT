@@ -63,7 +63,7 @@ interface Entry {
 }
 
 const commandKey = (record: ErrorRecord): string | undefined =>
-  record.command && `${record.command.link}:${record.command.seq}`
+  record.command && `${record.command.sender}:${record.command.seq}`
 
 export class ErrorLog {
   private readonly items = new Map<string, Entry>()

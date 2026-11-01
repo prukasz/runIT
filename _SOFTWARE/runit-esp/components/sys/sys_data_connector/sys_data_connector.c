@@ -1,19 +1,12 @@
-#include "router.h"
+#include "cmd.h"
 #include "sdkconfig.h"
 #include "sys_data_connector_internal.h"
+#include "sys_session.h"
 #include "utils.h"
 
-#define CONN_BYTE 1u  // a frame is [connector][payload]: the payload is the frame less this byte
-
-// The router's answer byte (router Kconfig) is not a system connector's: the client could not tell them apart.
-_Static_assert(CONFIG_ROUTER_RESPONSE_STREAM != SYS_DATA_CONNECTOR_LOGS &&
-                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_DATA_CONNECTOR_ERRORS &&
-                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_DATA_CONNECTOR_TELEMETRY &&
-                   CONFIG_ROUTER_RESPONSE_STREAM != SYS_DATA_CONNECTOR_EVENTS,
-               "CONFIG_ROUTER_RESPONSE_STREAM is a system connector's byte");
-// Every transport is a router link: its ID within 1..CONFIG_ROUTER_MAX_LINKS (one line per transport_e member).
-_Static_assert(TRANSPORT_UART <= CONFIG_ROUTER_MAX_LINKS, "TRANSPORT_UART above CONFIG_ROUTER_MAX_LINKS");
-_Static_assert(TRANSPORT_BLE <= CONFIG_ROUTER_MAX_LINKS, "TRANSPORT_BLE above CONFIG_ROUTER_MAX_LINKS");
+#define CONN_BYTE      1u     // a subscriber's frame is [connector][payload]: the payload is the frame less this byte
+#define WATCHES_BYTE   0x05u  // the watches' entries start with it: no connector takes it
+#define PAYLOAD_MAX    (CMD_DATA_MAX - CONN_BYTE)
 
 static void conn_task(void* arg);
 
@@ -21,150 +14,244 @@ U_MUTEX_DEFINE(sys_data_connector_mutex);
 U_RINGBUFFER_DEFINE(sys_data_connector_rb, CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_TASK_DEFINE(sys_data_connector_task_h, CONFIG_SYS_DATA_CONNECTOR_TASK_STACK);
 
+// A connector: LIST's view of it, its frame counter and, per target, whether its last send failed (logged once).
+typedef struct {
+  sys_data_connector_info_t info;
+  uint16_t seq;  // frames sent to its subscribers: a gap in their seq is frames lost
+  bool sub_failing[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
+  bool bind_failing[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+} conn_t;
+
 static struct {
-  sys_data_connector_info_t conns[CONFIG_SYS_DATA_CONNECTOR_MAX];  // conns[0..count-1]: the connectors, in no order
+  conn_t conns[CONFIG_SYS_DATA_CONNECTOR_MAX];  // conns[0..count-1]: the connectors, in no order
   uint8_t count;
-  bool failing[CONFIG_ROUTER_MAX_LINKS + 1];  // task only, by provider: its last send failed (logged once)
 } s_conn;
 
-#define LOCK() U_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER)
+#define LOCK()   U_MUTEX_LOCK(sys_data_connector_mutex, WAIT_FOREVER)
 #define UNLOCK() U_MUTEX_UNLOCK(sys_data_connector_mutex)
 
 bool sys_data_connector_is_task(void) {
   return sys_data_connector_task_h != NULL && xTaskGetCurrentTaskHandle() == sys_data_connector_task_h;
 }
 
+static bool same_id(sys_data_provider_id_t a, sys_data_provider_id_t b) {
+  return a.link == b.link && a.channel == b.channel;
+}
+
 /* ----------------------------------------------------------------------------
  * Registry
  * ------------------------------------------------------------------------- */
 
-/* `connector`, NULL when it does not exist. Under the lock. */
-static sys_data_connector_info_t* find(uint8_t connector) {
+/* Connector `id`, NULL when it does not exist. Under the lock. */
+static conn_t* find(uint8_t id) {
   for (uint8_t i = 0; i < s_conn.count; i++) {
-    if (s_conn.conns[i].connector == connector) {
+    if (s_conn.conns[i].info.head.id == id) {
       return &s_conn.conns[i];
     }
   }
   return NULL;
 }
 
-static err_h create(uint8_t connector, bool system) {
+/* Takes the lock and sets *c to `id`. On an error the lock is not held. */
+static err_h lock_conn(uint8_t id, conn_t** c) {
   LOCK();
-  bool exists = find(connector) != NULL;
-  bool full = s_conn.count >= CONFIG_SYS_DATA_CONNECTOR_MAX;
-  if (!exists && !full) {
-    s_conn.conns[s_conn.count++] = (sys_data_connector_info_t){.connector = connector, .system = system};
+  *c = find(id);
+  if (*c == NULL) {
+    UNLOCK();
+    return ERR_NEW(ERR_CONN_NOT_FOUND, .connector = id);
   }
-  UNLOCK();
-  ERR_CHECK(!exists, ERR_CONN_EXISTS, .connector = connector);
-  ERR_CHECK(!full, ERR_CONN_FULL, .connector = connector);
   return NULL;
 }
 
+static err_h create(uint8_t id, uint8_t flags, bool system) {
+  LOCK();
+  const bool exists = find(id) != NULL || id == WATCHES_BYTE;
+  const bool full = s_conn.count >= CONFIG_SYS_DATA_CONNECTOR_MAX;
+  if (!exists && !full) {
+    s_conn.conns[s_conn.count++] = (conn_t){
+        .info.head = {.id = id, .flags = flags, .state = system ? SYS_DATA_CONNECTOR_STATE_SYSTEM : 0},
+    };
+  }
+  UNLOCK();
+  ERR_CHECK(!exists, ERR_CONN_EXISTS, .connector = id);
+  ERR_CHECK(!full, ERR_CONN_FULL, .connector = id);
+  return NULL;
+}
+
+// A peer gone: its subscriptions end. BROADCAST (the parent's session ended): every peer not below this board.
+static void on_gone(uint8_t peer, uint8_t via) {
+  const bool outside = peer == SYS_SESSION_ID_BROADCAST && via == SYS_SESSION_PARENT;
+  LOCK();
+  for (uint8_t i = 0; i < s_conn.count; i++) {
+    conn_t* c = &s_conn.conns[i];
+    for (uint8_t k = 0; k < c->info.head.subscribers;) {
+      const uint8_t p = c->info.subs[k].peer;
+      if (p == peer || (outside && !sys_session_below(p))) {
+        const uint8_t last = --c->info.head.subscribers;
+        c->info.subs[k] = c->info.subs[last];
+        c->sub_failing[k] = c->sub_failing[last];
+      } else {
+        k++;
+      }
+    }
+  }
+  UNLOCK();
+}
+
 err_h sys_data_connector_init(void) {
-  ERR_TRY(create(SYS_DATA_CONNECTOR_LOGS, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_ERRORS, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_TELEMETRY, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS, true));
+  ERR_TRY(create(SYS_DATA_CONNECTOR_LOGS, 0, true));
+  ERR_TRY(create(SYS_DATA_CONNECTOR_ERRORS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
+  ERR_TRY(create(SYS_DATA_CONNECTOR_TELEMETRY, 0, true));
+  ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
+  ERR_TRY(sys_session_on_gone(on_gone));
   if (sys_data_connector_task_h == NULL) {
     U_TASK_START(sys_data_connector_task_h, conn_task, NULL, CONFIG_SYS_DATA_CONNECTOR_TASK_PRIO);
   }
   return NULL;
 }
 
-err_h sys_data_connector_create(uint8_t connector) {
-  // The system connectors exist from init (ERR_CONN_EXISTS); the router's answer byte is not a connector.
-  ERR_CHECK(connector != CONFIG_ROUTER_RESPONSE_STREAM, ERR_CONN_BAD_ARG);
-  return create(connector, false);
+err_h sys_data_connector_create(uint8_t id, uint8_t flags) {
+  ERR_CHECK(id != 0 && (flags & ~SYS_DATA_CONNECTOR_FLAG_URGENT) == 0, ERR_CONN_BAD_ARG);
+  return create(id, flags, false);
 }
 
-/* Takes the lock and sets *c to `connector`. On an error the lock is not held. */
-static err_h lock_conn(uint8_t connector, sys_data_connector_info_t** c) {
-  LOCK();
-  *c = find(connector);
-  if (*c == NULL) {
-    UNLOCK();
-    return ERR_NEW(ERR_CONN_NOT_FOUND, .connector = connector);
-  }
-  return NULL;
-}
-
-/* Copies `connector` out under the lock; false when there is none. Whoever then calls a provider (send, max_frame)
- * works on the copy, without the lock: a provider may wait for its queue or take its own lock. */
-static bool copy_conn(uint8_t connector, sys_data_connector_info_t* out) {
-  LOCK();
-  const sys_data_connector_info_t* c = find(connector);
-  if (c != NULL) {
-    *out = *c;
-  }
-  UNLOCK();
-  return c != NULL;
-}
-
-err_h sys_data_connector_remove(uint8_t connector) {
-  LOCK();
-  sys_data_connector_info_t* c = find(connector);
-  bool system = c != NULL && c->system;
-  if (c != NULL && !system) {
+err_h sys_data_connector_remove(uint8_t id) {
+  sys_data_connector_binding_t binds[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  uint8_t bound = 0;
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  const bool system = c->info.head.state & SYS_DATA_CONNECTOR_STATE_SYSTEM;
+  if (!system) {
+    bound = c->info.head.bindings;
+    memcpy(binds, c->info.binds, sizeof(binds));
     *c = s_conn.conns[--s_conn.count];  // the last one takes its place
   }
   UNLOCK();
-  ERR_CHECK(c != NULL, ERR_CONN_NOT_FOUND, .connector = connector);
-  ERR_CHECK(!system, ERR_CONN_PROTECTED, .connector = connector);
+  ERR_CHECK(!system, ERR_CONN_SYSTEM, .connector = id);
+  for (uint8_t i = 0; i < bound; i++) {
+    err_report(sys_data_provider_close(binds[i].provider));
+  }
   return NULL;
 }
 
-static int find_binding(const sys_data_connector_info_t* c, uint8_t provider_id) {
-  for (int i = 0; i < c->binding_count; i++) {
-    if (c->bindings[i].provider == provider_id) {
+static int find_binding(const conn_t* c, sys_data_provider_id_t provider) {
+  for (int i = 0; i < c->info.head.bindings; i++) {
+    if (same_id(c->info.binds[i].provider, provider)) {
       return i;
     }
   }
   return -1;
 }
 
-err_h sys_data_connector_bind(uint8_t connector, uint8_t provider_id, uint32_t endpoint) {
-  ERR_CHECK(router_link_get(provider_id) != NULL, ERR_CONN_NO_PROVIDER, .provider = provider_id);
-  sys_data_connector_info_t* c;
-  ERR_TRY(lock_conn(connector, &c));
-  int i = find_binding(c, provider_id);
-  bool full = i < 0 && c->binding_count >= CONFIG_SYS_DATA_CONNECTOR_BINDINGS;
-  if (!full) {
-    if (i < 0) {
-      i = c->binding_count++;
+err_h sys_data_connector_bind(uint8_t id, sys_data_provider_id_t provider, uint8_t flags) {
+  ERR_CHECK(flags == SYS_DATA_CONNECTOR_BIND_TX, ERR_CONN_BAD_ARG);
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  int i = find_binding(c, provider);
+  if (i >= 0) {
+    c->info.binds[i].flags = flags;  // bound already: only its flags change
+    UNLOCK();
+    return NULL;
+  }
+  const bool full = c->info.head.bindings >= CONFIG_SYS_DATA_CONNECTOR_BINDINGS;
+  UNLOCK();
+  ERR_CHECK(!full, ERR_CONN_TARGETS_FULL, .connector = id);
+
+  // The provider is opened outside the lock, then the binding added if the connector is still there with room.
+  ERR_TRY(sys_data_provider_open(provider, NULL, NULL));
+  err_h err = lock_conn(id, &c);
+  if (err == NULL) {
+    if (c->info.head.bindings < CONFIG_SYS_DATA_CONNECTOR_BINDINGS) {
+      i = c->info.head.bindings++;
+      c->info.binds[i] = (sys_data_connector_binding_t){.provider = provider, .flags = flags};
+      c->bind_failing[i] = false;
+    } else {
+      err = ERR_NEW(ERR_CONN_TARGETS_FULL, .connector = id);
     }
-    c->bindings[i] = (sys_data_connector_binding_t){.provider = provider_id, .endpoint = endpoint};
+    UNLOCK();
+  }
+  if (err != NULL) {
+    err_report(sys_data_provider_close(provider));
+  }
+  return err;
+}
+
+err_h sys_data_connector_unbind(uint8_t id, sys_data_provider_id_t provider) {
+  sys_data_connector_binding_t gone[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  uint8_t count = 0;
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  for (uint8_t i = 0; i < c->info.head.bindings;) {
+    // Link 0 (no provider has it) is every binding of the connector.
+    if (provider.link == 0 || same_id(c->info.binds[i].provider, provider)) {
+      gone[count++] = c->info.binds[i];
+      const uint8_t last = --c->info.head.bindings;
+      c->info.binds[i] = c->info.binds[last];
+      c->bind_failing[i] = c->bind_failing[last];
+    } else {
+      i++;
+    }
   }
   UNLOCK();
-  ERR_CHECK(!full, ERR_CONN_BINDINGS_FULL, .connector = connector);
+  for (uint8_t i = 0; i < count; i++) {
+    err_report(sys_data_provider_close(gone[i].provider));
+  }
   return NULL;
 }
 
-err_h sys_data_connector_unbind(uint8_t connector, uint8_t provider_id) {
-  sys_data_connector_info_t* c;
-  ERR_TRY(lock_conn(connector, &c));
-  int i = find_binding(c, provider_id);
-  bool last = i >= 0 && c->system && c->binding_count == 1;
-  if (i >= 0 && !last) {
-    c->bindings[i] = c->bindings[--c->binding_count];
+err_h sys_data_connector_subscribe(uint8_t id, uint8_t peer) {
+  ERR_CHECK(peer != SYS_SESSION_ID_SELF && peer != SYS_SESSION_ID_NONE && peer != SYS_SESSION_ID_BROADCAST,
+            ERR_CONN_BAD_ARG);
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  bool known = false;
+  for (uint8_t i = 0; i < c->info.head.subscribers; i++) {
+    known |= c->info.subs[i].peer == peer;
+  }
+  const bool full = !known && c->info.head.subscribers >= CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS;
+  if (!known && !full) {
+    const uint8_t i = c->info.head.subscribers++;
+    c->info.subs[i] = (sys_data_connector_subscriber_t){.peer = peer};
+    c->sub_failing[i] = false;
   }
   UNLOCK();
-  ERR_CHECK(!last, ERR_CONN_PROTECTED, .connector = connector);
+  ERR_CHECK(!full, ERR_CONN_TARGETS_FULL, .connector = id);
   return NULL;
 }
 
-err_h sys_data_connector_set_suspended(uint8_t connector, bool suspended) {
-  sys_data_connector_info_t* c;
-  ERR_TRY(lock_conn(connector, &c));
-  c->suspended = suspended;
+err_h sys_data_connector_unsubscribe(uint8_t id, uint8_t peer) {
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  for (uint8_t i = 0; i < c->info.head.subscribers; i++) {
+    if (c->info.subs[i].peer == peer) {
+      const uint8_t last = --c->info.head.subscribers;
+      c->info.subs[i] = c->info.subs[last];
+      c->sub_failing[i] = c->sub_failing[last];
+      break;
+    }
+  }
+  UNLOCK();
+  return NULL;
+}
+
+err_h sys_data_connector_set_suspended(uint8_t id, bool suspended) {
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  if (suspended) {
+    c->info.head.state |= SYS_DATA_CONNECTOR_STATE_SUSPENDED;
+  } else {
+    c->info.head.state &= (uint8_t)~SYS_DATA_CONNECTOR_STATE_SUSPENDED;
+  }
   UNLOCK();
   return NULL;
 }
 
 uint8_t sys_data_connector_list(sys_data_connector_info_t out[CONFIG_SYS_DATA_CONNECTOR_MAX]) {
   LOCK();
-  uint8_t count = s_conn.count;
-  memcpy(out, s_conn.conns, count * sizeof(sys_data_connector_info_t));
+  const uint8_t count = s_conn.count;
+  for (uint8_t i = 0; i < count; i++) {
+    out[i] = s_conn.conns[i].info;
+  }
   UNLOCK();
   return count;
 }
@@ -173,44 +260,46 @@ uint8_t sys_data_connector_list(sys_data_connector_info_t out[CONFIG_SYS_DATA_CO
  * Data
  * ------------------------------------------------------------------------- */
 
-/* The largest frame (connector byte included) the binding takes now, at most CMD_FRAME_MAX. Links are never removed,
- * so a bound provider exists. */
-static uint32_t provider_frame_max(uint8_t provider_id, uint32_t endpoint) {
-  const router_link_t* p = router_link_get(provider_id);
-  uint32_t max = p->max_frame != NULL ? p->max_frame(endpoint) : CMD_FRAME_MAX;
-  return max < CMD_FRAME_MAX ? max : CMD_FRAME_MAX;
-}
-
-uint32_t sys_data_connector_max_payload(uint8_t connector) {
-  sys_data_connector_info_t c;
-  if (!copy_conn(connector, &c)) {
+uint32_t sys_data_connector_max_payload(uint8_t id) {
+  sys_data_connector_binding_t binds[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  LOCK();
+  const conn_t* c = find(id);
+  const uint8_t bound = c != NULL ? c->info.head.bindings : 0;
+  if (c != NULL) {
+    memcpy(binds, c->info.binds, sizeof(binds));
+  }
+  UNLOCK();
+  if (c == NULL) {
     return 0;
   }
-  // Providers are asked outside the lock: they take their own.
-  uint32_t max = CMD_FRAME_MAX;
-  for (uint8_t i = 0; i < c.binding_count; i++) {
-    uint32_t m = provider_frame_max(c.bindings[i].provider, c.bindings[i].endpoint);
-    max = m < max ? m : max;
+  // A binding gets the payload as is: its provider's max_frame, when it is up.
+  uint32_t max = PAYLOAD_MAX;
+  for (uint8_t i = 0; i < bound; i++) {
+    const uint32_t m = sys_data_provider_max_frame(binds[i].provider);
+    max = m > 0 && m < max ? m : max;
   }
-  return max > CONN_BYTE ? max - CONN_BYTE : 0;
+  return max;
 }
 
-err_h sys_data_connector_send(uint8_t connector, const void* data, uint32_t len) {
+err_h sys_data_connector_send(uint8_t id, const void* data, uint32_t len) {
   ERR_CHECK(data != NULL || len == 0, ERR_CONN_BAD_ARG);
-  ERR_CHECK(CONN_BYTE + len <= CMD_FRAME_MAX, ERR_CONN_TOO_LONG, .connector = connector, .provider = 0,
-            .len = (uint16_t)len, .max = CMD_FRAME_MAX - CONN_BYTE);
-  sys_data_connector_info_t c;
-  ERR_CHECK(copy_conn(connector, &c), ERR_CONN_NOT_FOUND, .connector = connector);
-  if (c.suspended || c.binding_count == 0) {
+  ERR_CHECK(len <= PAYLOAD_MAX, ERR_CONN_TOO_LONG, .connector = id, .len = (uint16_t)len, .max = PAYLOAD_MAX);
+  LOCK();
+  const conn_t* c = find(id);
+  const bool idle = c != NULL && ((c->info.head.state & SYS_DATA_CONNECTOR_STATE_SUSPENDED) ||
+                                  c->info.head.bindings + c->info.head.subscribers == 0);
+  UNLOCK();
+  ERR_CHECK(c != NULL, ERR_CONN_NOT_FOUND, .connector = id);
+  if (idle) {
     return NULL;
   }
 
   void* slot = NULL;
   if (xRingbufferSendAcquire(sys_data_connector_rb, &slot, CONN_BYTE + len, NO_WAIT) != pdTRUE) {
-    return ERR_NEW(ERR_CONN_QUEUE_FULL, .connector = connector, .len = (uint16_t)len);
+    return ERR_NEW(ERR_CONN_QUEUE_FULL, .connector = id, .len = (uint16_t)len);
   }
   uint8_t* item = slot;
-  item[0] = connector;
+  item[0] = id;
   if (len > 0) {
     memcpy(item + CONN_BYTE, data, len);
   }
@@ -218,35 +307,68 @@ err_h sys_data_connector_send(uint8_t connector, const void* data, uint32_t len)
   return NULL;
 }
 
-/* Errors here are logged, never reported: a report goes to the errors
- * connector, i.e. back into this task, and could loop. A provider that keeps
- * failing (its queue full) is logged once, until it sends again. */
-static void deliver(const uint8_t* frame, uint32_t len) {
-  sys_data_connector_info_t c;
-  if (!copy_conn(frame[0], &c) || c.suspended) {  // may have changed since queued
-    return;
-  }
-
-  for (uint8_t i = 0; i < c.binding_count; i++) {
-    uint8_t pid = c.bindings[i].provider;
-    uint32_t max = provider_frame_max(pid, c.bindings[i].endpoint);
-    err_h err = NULL;
-    if (len > max) {
-      err = ERR_NEW(ERR_CONN_TOO_LONG, .connector = c.connector, .provider = pid, .len = (uint16_t)len,
-                    .max = (uint16_t)max);
-    } else {
-      err = router_link_get(pid)->send(c.bindings[i].endpoint, frame, len, false);
-      if (err != NULL) {
-        err = ERR_WRAP(err, ERR_CONN_SEND, .connector = c.connector, .provider = pid,
-                       .endpoint = c.bindings[i].endpoint);
-      }
-    }
-    if (err != NULL && !s_conn.failing[pid]) {
+/* One target's result: counted as dropped when it failed, logged once until it sends again. Errors here are logged,
+ * never reported: a report goes to the errors connector, i.e. back into this task, and could loop. */
+static uint16_t account(uint16_t dropped, bool* failing, err_h err) {
+  if (err != NULL) {
+    dropped = dropped < UINT16_MAX ? dropped + 1u : UINT16_MAX;
+    if (!*failing) {
       err_log(err);
     }
-    s_conn.failing[pid] = err != NULL;
-    err_free(err);
   }
+  *failing = err != NULL;
+  err_free(err);
+  return dropped;
+}
+
+/* One queued frame, [connector][payload], to every target, NOWAIT: a busy provider loses the frame there only. The
+ * targets are copied out; the results go back to the connector by provider and by peer (it may have changed). */
+static void deliver(const uint8_t* frame, uint32_t len) {
+  LOCK();
+  conn_t* c = find(frame[0]);
+  if (c == NULL || (c->info.head.state & SYS_DATA_CONNECTOR_STATE_SUSPENDED)) {  // may have changed since queued
+    UNLOCK();
+    return;
+  }
+  const sys_data_connector_info_t info = c->info;
+  const uint16_t seq = c->seq++;
+  UNLOCK();
+  const bool urgent = info.head.flags & SYS_DATA_CONNECTOR_FLAG_URGENT;
+
+  err_h bind_err[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  for (uint8_t i = 0; i < info.head.bindings; i++) {
+    bind_err[i] = len > CONN_BYTE ? sys_data_provider_send(info.binds[i].provider, frame + CONN_BYTE, len - CONN_BYTE,
+                                                           SYS_DATA_PROVIDER_SEND_NOWAIT |
+                                                               (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0))
+                                  : NULL;
+  }
+  err_h sub_err[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
+  for (uint8_t i = 0; i < info.head.subscribers; i++) {
+    sub_err[i] = sys_session_stream(info.subs[i].peer, seq, frame, len, urgent ? ROUTER_FLAG_URGENT : 0);
+  }
+
+  LOCK();
+  c = find(frame[0]);
+  for (uint8_t i = 0; i < info.head.bindings; i++) {
+    const int at = c != NULL ? find_binding(c, info.binds[i].provider) : -1;
+    if (at >= 0) {
+      c->info.binds[at].dropped = account(c->info.binds[at].dropped, &c->bind_failing[at], bind_err[i]);
+    } else {
+      err_free(bind_err[i]);
+    }
+  }
+  for (uint8_t i = 0; i < info.head.subscribers; i++) {
+    int at = -1;
+    for (uint8_t k = 0; c != NULL && k < c->info.head.subscribers && at < 0; k++) {
+      at = c->info.subs[k].peer == info.subs[i].peer ? k : -1;
+    }
+    if (at >= 0) {
+      c->info.subs[at].dropped = account(c->info.subs[at].dropped, &c->sub_failing[at], sub_err[i]);
+    } else {
+      err_free(sub_err[i]);
+    }
+  }
+  UNLOCK();
 }
 
 static void conn_task(void* arg) {
@@ -257,7 +379,7 @@ static void conn_task(void* arg) {
     if (item == NULL) {
       continue;
     }
-    // The item is the frame, [connector][payload], sent from the queue: its room comes back once every binding has it.
+    // Sent from the queue: its room comes back once every target has it.
     deliver(item, (uint32_t)size);
     vRingbufferReturnItem(sys_data_connector_rb, item);
   }

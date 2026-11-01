@@ -7,6 +7,9 @@
     },
     "ERR_ESP_ERR": {
       "message": "A system call failed ({code})"
+    },
+    "ERR_RECORD_CUT": {
+      "message": "An error report of {len} bytes from another board was cut short"
     }
   }
 }

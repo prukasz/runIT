@@ -28,7 +28,7 @@ const payload = (name: string, values: Record<string, number> = {}): number[] =>
 /** An error record (ERRORS.MD "Error record"): a command's when `request` is given, else an internal one. */
 const record = (nodes: [string, Record<string, number>?][], request?: number[], seq = 7, time = 0): Uint8Array => {
   const stamp = [...u32(time), ...u32(0)]  // u64 LE
-  const head = request ? [defs.errorRecord.srcCommand, ...stamp, 1, seq, 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
+  const head = request ? [defs.errorRecord.srcCommand, ...stamp, 0xf0, ...u16(seq), 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
   const chain = nodes.flatMap(([name, values]) => {
     const info = catalog.get(tagOf(name))!
     const p = payload(name, values)
@@ -222,7 +222,7 @@ describe('the error log', () => {
     const changes: number[] = []
     log.onChange((entries) => changes.push(entries.length))
     log.attach(link)
-    board.notify(Uint8Array.from([defs.streams.errors, ...pinError(4)]), defs.gatt.logs)
+    board.stream(defs.streams.errors, pinError(4))
     await until(() => log.entries().length === 1)
     const failed = new CommandError('refused', 'device-error', { record: interpreter.read(record([['ERR_DEV_SUSPENDED', { id: 3 }]]))!.record })
     expect(log.addCommandError(failed)!.report.message).toBe('Left motor is suspended')

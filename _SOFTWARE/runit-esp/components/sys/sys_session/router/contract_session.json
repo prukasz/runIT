@@ -1,0 +1,157 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "SESSION",
+  "router_key": 14,
+  "alias": "Sessions",
+  "description": "This board's id and its sessions: the providers attached to a peer.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "ID",
+      "op": 1,
+      "symbol": "SYS_SESSION_OP_ID",
+      "label": "Board id",
+      "description": "This board's place in the project, kept in NVS; a new one takes effect at the next start.",
+      "read": {
+        "returns": {
+          "struct": "id_t_",
+          "description": "The board id",
+          "fields": [
+            {
+              "id": "board_id",
+              "label": "Board id",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "0..0xEF",
+              "min": 0,
+              "max": 239
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "id_t_",
+          "fields": [
+            {
+              "id": "board_id",
+              "label": "Board id",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "0..0xEF, from the next start",
+              "min": 0,
+              "max": 239
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ATTACH",
+      "op": 2,
+      "symbol": "SYS_SESSION_OP_ATTACH",
+      "label": "Attach a provider",
+      "description": "Makes a framed provider the way to a peer.",
+      "write": {
+        "args": {
+          "struct": "attach_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            },
+            {
+              "id": "peer",
+              "label": "Peer",
+              "type": "enum",
+              "enum": "sys_session_peer_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 5,
+              "description": "Where it leads: CLIENT"
+            },
+            {
+              "id": "access",
+              "label": "Access",
+              "type": "enum",
+              "enum": "sys_session_access_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 6,
+              "description": "What the peer's commands may do"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DETACH",
+      "op": 3,
+      "symbol": "SYS_SESSION_OP_DETACH",
+      "label": "Detach a provider",
+      "description": "Ends the session on a provider and closes it.",
+      "write": {
+        "args": {
+          "struct": "sys_data_provider_id_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "PEERS",
+      "op": 4,
+      "symbol": "SYS_SESSION_OP_PEERS",
+      "label": "List the sessions",
+      "description": "Returns every session.",
+      "read": {
+        "returns": {
+          "type": "u8",
+          "label": "Number of sessions",
+          "description": "Then per session: provider id (5 B), peer u8, access u8, open u8, peer id u8, timeout_ms u16, subtree u8."
+        }
+      }
+    }
+  ]
+}

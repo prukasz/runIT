@@ -47,18 +47,18 @@ A command has one answer, at most `cap`. Data longer than that is paged by the c
 
 ## Frame size
 
-`CMD_FRAME_MAX` (512) is the largest whole frame on every link, and `CMD_HEAD` (5) the room a frame keeps for its header in front of its data. They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
+`CMD_FRAME_MAX` (512) is the largest whole frame on every provider, and `CMD_HEAD` (5) the room a frame keeps for its header in front of its data: the session's header (SYS_SESSION.MD "Frames"). They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
 
 ```
 CMD_FRAME_MAX
- ├─ a link: a request frame it takes, an answer or stream frame it sends; its buffers hold one
- │    (BLE: a framed characteristic's item, sys_ble; UART: the frame and its hex line, sys_uart)
+ ├─ a framed provider: a frame it takes or sends whole; its driver's buffers hold one
+ │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, sys_uart)
  ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
  │    the answer buffer of a replay
- └─ a connector's frame [connector][payload]: a payload ≤ CMD_FRAME_MAX − 1
+ └─ a connector's frame to a subscriber [connector][payload]: a payload ≤ CMD_DATA_MAX − 1
 ```
 
-The headers in use fit `CMD_HEAD`: a request's `[seq][flags]` (2), an answer's `[stream][seq][status]` (3). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A link may carry less right now (`max_frame`): a connector's frame is checked against that (SYS_DATA_CONNECTOR.MD).
+Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A provider may carry less right now (`max_frame`, an unframed one): a connector's payload to a binding is checked against that (SYS_DATA_CONNECTOR.MD).
 
 ## Long work
 
@@ -66,7 +66,7 @@ A handler waits on nothing but its own I/O (a flash write, an I2C transfer): it 
 
 ## Read and write
 
-Every request names the side of its command it runs: the `cmd_dir_e` byte right after the root key (ROUTER.MD "Wire format"), `CMD_DIR_READ` 0 or `CMD_DIR_WRITE` 1. A command has a read side, a write side or both, each its own `cmd_f` (`router_op_t` in the router, the op tables of `sys_device`). `cmd_side(read, write, dir, &fn)` picks one: `ERR_CMD_DIRECTION{dir}` for a side the command doesn't have or a dir that is neither.
+Every request names the side of its command it runs: the `cmd_dir_e` byte right after the root key (ROUTER.MD "A command"), `CMD_DIR_READ` 0 or `CMD_DIR_WRITE` 1. A command has a read side, a write side or both, each its own `cmd_f` (`router_op_t` in the router, the op tables of `sys_device`). `cmd_side(read, write, dir, &fn)` picks one: `ERR_CMD_DIRECTION{dir}` for a side the command doesn't have or a dir that is neither.
 
 - A read changes nothing; a write sets a value or runs an action.
 - With both sides the command is a **mirror**: the read takes the key (a pin, a channel; nothing for a module's setting) and answers what the write takes. A write answers no data unless its command declares an answer. The descriptors hold the same rule: templates/AGENTS.md (`crosscheck.py` checks it).

@@ -1,0 +1,11 @@
+menu "sys_data_provider"
+
+    config SYS_DATA_PROVIDER_MAX
+        int "Providers"
+        default 8
+        range 2 32
+        help
+          Provider slots, the board's own included (the runIT BLE pair, the
+          LOGS characteristic, the UART console).
+
+endmenu

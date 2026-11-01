@@ -4,9 +4,10 @@
   python router_send.py --port socket://localhost:5555 "03 00 06"
 
 Each argument is one request: [key][dir][keys...] + payload in hex (spaces
-optional; dir 00 read, 01 write, as typed); seq and flags are added. Prefix "u " for the urgent flag, "raw " to send the bytes
-as-is (no seq/flags added). Prints the TX line, the response (decoded), and
-every stream frame and log line that arrived meanwhile.
+optional; dir 00 read, 01 write, as typed); the link opens a client session
+and puts each request in a session frame (SYS_SESSION.MD). Prefix "u " for the
+urgent flag. Prints the request, the response (decoded), and every stream frame
+and log line that arrived meanwhile.
 """
 
 from __future__ import annotations
@@ -22,8 +23,8 @@ STREAM_NAMES = {STREAM_TELEMETRY: "telemetry", STREAM_LOGS: "logs", STREAM_ERROR
 def parse(arg: str) -> tuple[str, bytes]:
     words = arg.split()
     mode = "req"
-    if words and words[0] in ("u", "raw"):
-        mode = "urgent" if words[0] == "u" else "raw"
+    if words and words[0] == "u":
+        mode = "urgent"
         words = words[1:]
     return mode, bytes.fromhex("".join(words))
 
@@ -49,14 +50,10 @@ def main() -> None:
         for arg in a.packets:
             mode, body = parse(arg)
             t0 = link.mark()
-            if mode == "raw":
-                frame, seq = body, body[0] if body else None
-            else:
-                seq = link.next_seq()
-                frame = bytes([seq, FLAG_URGENT if mode == "urgent" else 0]) + body
-            print(f">> #R:{frame.hex().upper()}" + ("   (urgent)" if mode == "urgent" else ""))
-            link.send_frame(frame)
-            resp = link.wait_response(seq, 2.0) if seq is not None else None
+            seq = link.next_seq()
+            print(f">> seq {seq} {body.hex(' ')}" + ("   (urgent)" if mode == "urgent" else ""))
+            link.send_raw(seq, FLAG_URGENT if mode == "urgent" else 0, body)
+            resp = link.wait_response(seq, 2.0)
             if resp:
                 print(f"  << {resp}  [{(resp.t - t0) * 1000:.0f} ms]")
             else:

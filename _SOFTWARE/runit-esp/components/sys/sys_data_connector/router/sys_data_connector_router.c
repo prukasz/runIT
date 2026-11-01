@@ -3,93 +3,86 @@
 #include "sdkconfig.h"
 #include "sys_data_connector_internal.h"
 
-/*   key  op        request                                       response
- *   0x01 CREATE    { u8 connector }                              -
- *   0x02 REMOVE    { u8 connector }                              -
- *   0x03 BIND      { u8 connector, u8 provider, u32 endpoint }   -
- *   0x04 UNBIND    { u8 connector, u8 provider }                 -
- *   0x05 SUSPEND   { u8 connector }                              -
- *   0x06 RESUME    { u8 connector }                              -
- *   0x07 INFO      -                                             [count u8] then per connector:
- *                                                                { u8 connector, u8 flags (bit0 system, bit1 suspended),
- *                                                                  u8 n, n × { u8 provider, u32 endpoint } }
- * A connector is its stream byte: the first byte of every frame it sends. */
-
-#define OP_CREATE  0x01u
-#define OP_REMOVE  0x02u
-#define OP_BIND    0x03u
-#define OP_UNBIND  0x04u
-#define OP_SUSPEND 0x05u
-#define OP_RESUME  0x06u
-#define OP_INFO    0x07u
-
-#define INFO_SYSTEM    (1u << 0)
-#define INFO_SUSPENDED (1u << 1)
-
 typedef struct __attribute__((packed)) {
-  uint8_t connector;  /**< The connector (its stream byte) */
+  uint8_t id;  /**< The connector */
 } connector_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t connector;  /**< The connector (its stream byte) */
-  uint8_t provider;   /**< transport_e */
-  uint32_t endpoint;  /**< The provider's address */
+  uint8_t id;     /**< The new connector */
+  uint8_t flags;  /**< SYS_DATA_CONNECTOR_FLAG_* */
+} create_t;
+
+typedef struct __attribute__((packed)) {
+  uint8_t id;                       /**< The connector */
+  sys_data_provider_id_t provider;  /**< The provider */
+  uint8_t flags;                    /**< SYS_DATA_CONNECTOR_BIND_* */
 } bind_t;
 
 typedef struct __attribute__((packed)) {
-  uint8_t connector;  /**< The connector (its stream byte) */
-  uint8_t provider;   /**< transport_e */
+  uint8_t id;                       /**< The connector */
+  sys_data_provider_id_t provider;  /**< The provider */
 } unbind_t;
 
-ROUTER_OP(op_create, connector_t) {
-  return sys_data_connector_create(args->connector);
+ROUTER_OP(op_create, create_t) {
+  return sys_data_connector_create(args->id, args->flags);
 }
 
 ROUTER_OP(op_remove, connector_t) {
-  return sys_data_connector_remove(args->connector);
+  return sys_data_connector_remove(args->id);
 }
 
 ROUTER_OP(op_bind, bind_t) {
-  return sys_data_connector_bind(args->connector, args->provider, args->endpoint);
+  return sys_data_connector_bind(args->id, args->provider, args->flags);
 }
 
 ROUTER_OP(op_unbind, unbind_t) {
-  return sys_data_connector_unbind(args->connector, args->provider);
+  return sys_data_connector_unbind(args->id, args->provider);
 }
 
 ROUTER_OP(op_suspend, connector_t) {
-  return sys_data_connector_set_suspended(args->connector, true);
+  return sys_data_connector_set_suspended(args->id, true);
 }
 
 ROUTER_OP(op_resume, connector_t) {
-  return sys_data_connector_set_suspended(args->connector, false);
+  return sys_data_connector_set_suspended(args->id, false);
 }
 
-ROUTER_OP_NOARGS(op_info) {
+ROUTER_OP_NOARGS(op_list) {
   sys_data_connector_info_t list[CONFIG_SYS_DATA_CONNECTOR_MAX];
-  uint8_t count = sys_data_connector_list(list);
+  const uint8_t count = sys_data_connector_list(list);
   ERR_TRY(cmd_append(out, &count, sizeof(count)));
   for (uint8_t n = 0; n < count; n++) {
     const sys_data_connector_info_t* i = &list[n];
-    const uint8_t head[3] = {i->connector, (uint8_t)((i->system ? INFO_SYSTEM : 0) | (i->suspended ? INFO_SUSPENDED : 0)),
-                             i->binding_count};
-    ERR_TRY(cmd_append(out, head, sizeof(head)));
-    for (uint8_t b = 0; b < i->binding_count; b++) {
-      ERR_TRY(cmd_append(out, &i->bindings[b].provider, 1));
-      ERR_TRY(cmd_append(out, &i->bindings[b].endpoint, sizeof(uint32_t)));  // LE on the ESP32
-    }
+    ERR_TRY(cmd_append(out, &i->head, sizeof(i->head)));
+    ERR_TRY(cmd_append(out, i->subs, i->head.subscribers * sizeof(i->subs[0])));
+    ERR_TRY(cmd_append(out, i->binds, i->head.bindings * sizeof(i->binds[0])));
   }
   return NULL;
 }
 
+// The subscriber is who sent the command: no peer names another.
+ROUTER_OP(op_subscribe, connector_t) {
+  const err_cmd_t* origin = router_origin();
+  ERR_CHECK(origin != NULL, ERR_CONN_BAD_ARG);
+  return sys_data_connector_subscribe(args->id, origin->src);
+}
+
+ROUTER_OP(op_unsubscribe, connector_t) {
+  const err_cmd_t* origin = router_origin();
+  ERR_CHECK(origin != NULL, ERR_CONN_BAD_ARG);
+  return sys_data_connector_unsubscribe(args->id, origin->src);
+}
+
 static const router_op_t k_ops[] = {
-    ROUTER_W(OP_CREATE, op_create),
-    ROUTER_W(OP_REMOVE, op_remove),
-    ROUTER_W(OP_BIND, op_bind),
-    ROUTER_W(OP_UNBIND, op_unbind),
-    ROUTER_W(OP_SUSPEND, op_suspend),
-    ROUTER_W(OP_RESUME, op_resume),
-    ROUTER_R(OP_INFO, op_info),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_CREATE, op_create),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_REMOVE, op_remove),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_BIND, op_bind),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_UNBIND, op_unbind),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_SUSPEND, op_suspend),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_RESUME, op_resume),
+    ROUTER_R(SYS_DATA_CONNECTOR_OP_LIST, op_list),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_SUBSCRIBE, op_subscribe),
+    ROUTER_W(SYS_DATA_CONNECTOR_OP_UNSUBSCRIBE, op_unsubscribe),
 };
 
 ROUTER_MODULE(sys_data_connector_router, k_ops)

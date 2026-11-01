@@ -157,6 +157,23 @@
           ],
           "description": "ESP-IDF call failed",
           "message": "A system call failed ({code})"
+        },
+        {
+          "code": 3,
+          "tag": 3,
+          "name": "ERR_RECORD_CUT",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "err_record_parse: cut short",
+          "message": "An error report of {len} bytes from another board was cut short"
         }
       ]
     },
@@ -643,24 +660,6 @@
           "message": "No room to register {key}"
         },
         {
-          "code": 8,
-          "tag": 131080,
-          "name": "ERR_ROUTER_BAD_LINK",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "link",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "link"
-            }
-          ],
-          "description": "unknown, unregistered or taken",
-          "message": "{link} is not a connection the board knows"
-        },
-        {
           "code": 9,
           "tag": 131081,
           "name": "ERR_ROUTER_QUEUE_FULL",
@@ -668,11 +667,10 @@
           "size": 2,
           "fields": [
             {
-              "name": "link",
+              "name": "src",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "link"
+              "size": 1
             },
             {
               "name": "urgent",
@@ -682,7 +680,7 @@
             }
           ],
           "description": "command not queued",
-          "message": "The board is busy: a command from {link} was dropped",
+          "message": "The board is busy: a command from {src} was dropped",
           "hint": "Send commands less often."
         },
         {
@@ -693,11 +691,10 @@
           "size": 5,
           "fields": [
             {
-              "name": "link",
+              "name": "src",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "link"
+              "size": 1
             },
             {
               "name": "len",
@@ -712,8 +709,8 @@
               "size": 2
             }
           ],
-          "description": "request or frame too short or too long",
-          "message": "A command of {len} bytes from {link} was refused (at most {max})"
+          "description": "request too short or too long",
+          "message": "A command of {len} bytes from {src} was refused (at most {max})"
         },
         {
           "code": 11,
@@ -724,67 +721,6 @@
           "fields": [],
           "description": "router_run_urgent: another fn waits to run",
           "message": "Urgent work could not start: other urgent work waits to run"
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "name": "sys_uart",
-      "symbol": "ERR_MOD_SYS_UART",
-      "source_file": "runit-esp/components/sys/sys_uart/errors/sys_uart_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_uart/errors/errors_sys_uart.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 196609,
-          "name": "ERR_UART_LINE_BAD",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "\"#R:\" line: odd digits, non-hex or too long",
-          "message": "A serial line of {len} characters is not a valid frame"
-        },
-        {
-          "code": 2,
-          "tag": 196610,
-          "name": "ERR_UART_BAD_ENDPOINT",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "endpoint",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "description": "connector binding to an endpoint other than 0",
-          "message": "The serial port has no endpoint {endpoint}"
-        },
-        {
-          "code": 3,
-          "tag": 196611,
-          "name": "ERR_UART_TX_FULL",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "TX queue full: the frame is not sent",
-          "message": "The serial port could not send a frame of {len} bytes: its queue is full",
-          "hint": "The console sends at 115200 baud: send less on it (fewer streams bound to it, a slower telemetry)."
         }
       ]
     },
@@ -1131,7 +1067,7 @@
               "id_kind": "connector"
             }
           ],
-          "message": "{connector} does not exist"
+          "message": "Stream {connector} does not exist"
         },
         {
           "code": 3,
@@ -1148,13 +1084,13 @@
               "id_kind": "connector"
             }
           ],
-          "message": "{connector} already exists",
-          "hint": "Choose another connector."
+          "message": "Stream {connector} already exists",
+          "hint": "Choose another number."
         },
         {
           "code": 4,
           "tag": 327684,
-          "name": "ERR_CONN_PROTECTED",
+          "name": "ERR_CONN_SYSTEM",
           "severity": 1,
           "size": 1,
           "fields": [
@@ -1166,32 +1102,13 @@
               "id_kind": "connector"
             }
           ],
-          "description": "system connector: no remove, keeps one binding",
-          "message": "{connector} belongs to the system and cannot be changed that way",
-          "hint": "A system stream keeps one transport: bind another before you unbind this one."
-        },
-        {
-          "code": 5,
-          "tag": 327685,
-          "name": "ERR_CONN_NO_PROVIDER",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "message": "{provider} is not available",
-          "hint": "Choose a transport the board has."
+          "description": "remove: a system connector",
+          "message": "Stream {connector} belongs to the board and cannot be removed"
         },
         {
           "code": 6,
           "tag": 327686,
-          "name": "ERR_CONN_BINDINGS_FULL",
+          "name": "ERR_CONN_TARGETS_FULL",
           "severity": 2,
           "size": 1,
           "fields": [
@@ -1203,15 +1120,16 @@
               "id_kind": "connector"
             }
           ],
-          "message": "{connector} cannot be bound to more transports",
-          "hint": "Unbind a transport first."
+          "description": "bind: every binding slot taken; subscribe: every subscriber slot",
+          "message": "Stream {connector} has no room for another connection or subscriber",
+          "hint": "Remove one of them first."
         },
         {
           "code": 7,
           "tag": 327687,
           "name": "ERR_CONN_TOO_LONG",
           "severity": 2,
-          "size": 6,
+          "size": 5,
           "fields": [
             {
               "name": "connector",
@@ -1221,27 +1139,20 @@
               "id_kind": "connector"
             },
             {
-              "name": "provider",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "id_kind": "transport"
-            },
-            {
               "name": "len",
               "type": "u16",
-              "offset": 2,
+              "offset": 1,
               "size": 2
             },
             {
               "name": "max",
               "type": "u16",
-              "offset": 4,
+              "offset": 3,
               "size": 2
             }
           ],
-          "description": "frame not sent there",
-          "message": "{connector}: {len} bytes are too long for {provider} (at most {max})",
+          "description": "send: past the connector's own limit",
+          "message": "{len} bytes are too long for stream {connector} (at most {max})",
           "hint": "Send less at once."
         },
         {
@@ -1266,7 +1177,7 @@
             }
           ],
           "description": "payload dropped",
-          "message": "{connector} is full: {len} bytes were dropped",
+          "message": "Stream {connector} is sending faster than its connections carry: {len} bytes dropped",
           "hint": "Send less often."
         },
         {
@@ -1276,39 +1187,7 @@
           "severity": 3,
           "size": 0,
           "fields": [],
-          "message": "A connector setting is not valid"
-        },
-        {
-          "code": 10,
-          "tag": 327690,
-          "name": "ERR_CONN_SEND",
-          "severity": 0,
-          "size": 6,
-          "fields": [
-            {
-              "name": "connector",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
-            },
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "id_kind": "transport"
-            },
-            {
-              "name": "endpoint",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            }
-          ],
-          "description": "context: provider send failed",
-          "context": true,
-          "message": "While {connector} sent over {provider}"
+          "message": "Invalid stream settings"
         },
         {
           "code": 11,
@@ -1326,8 +1205,8 @@
             }
           ],
           "description": "every CONFIG_SYS_DATA_CONNECTOR_MAX slot taken",
-          "message": "No room for {connector}: every connector slot is taken",
-          "hint": "Remove a connector first."
+          "message": "No room for stream {connector}: every slot is taken",
+          "hint": "Remove a stream first."
         }
       ]
     },
@@ -4826,6 +4705,488 @@
           ],
           "description": "not a sys_project_boot_e",
           "message": "{value} is not a start option of the project"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "sys_data_provider",
+      "symbol": "ERR_MOD_SYS_DATA_PROVIDER",
+      "source_file": "runit-esp/components/sys/sys_data_provider/errors/sys_data_provider_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_data_provider/errors/errors_sys_data_provider.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1114113,
+          "name": "ERR_PROV_NOT_FOUND",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "message": "{link} {channel} does not exist"
+        },
+        {
+          "code": 2,
+          "tag": 1114114,
+          "name": "ERR_PROV_EXISTS",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "add: the id is taken",
+          "message": "{link} {channel} already exists",
+          "hint": "Choose another characteristic or port."
+        },
+        {
+          "code": 3,
+          "tag": 1114115,
+          "name": "ERR_PROV_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_SYS_DATA_PROVIDER_MAX slot taken",
+          "message": "No room for another connection: every slot is taken",
+          "hint": "Remove one first."
+        },
+        {
+          "code": 4,
+          "tag": 1114116,
+          "name": "ERR_PROV_IN_USE",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "open, remove, remote SEND: another user has it; remove: a send in progress",
+          "message": "{link} {channel} is in use",
+          "hint": "Stop what uses it first."
+        },
+        {
+          "code": 5,
+          "tag": 1114117,
+          "name": "ERR_PROV_SYSTEM",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "remove: the board's own",
+          "message": "{link} {channel} belongs to the board and cannot be removed"
+        },
+        {
+          "code": 6,
+          "tag": 1114118,
+          "name": "ERR_PROV_DOWN",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "send: it carries nothing now",
+          "message": "{link} {channel} is not connected"
+        },
+        {
+          "code": 7,
+          "tag": 1114119,
+          "name": "ERR_PROV_TOO_LONG",
+          "severity": 2,
+          "size": 9,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 5,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 7,
+              "size": 2
+            }
+          ],
+          "description": "send: not sent, never cut",
+          "message": "{len} bytes are too long for {link} {channel} (at most {max})",
+          "hint": "Send less at once."
+        },
+        {
+          "code": 8,
+          "tag": 1114120,
+          "name": "ERR_PROV_SEND",
+          "severity": 0,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "context: the driver's send failed",
+          "context": true,
+          "message": "While sending over {link} {channel}"
+        },
+        {
+          "code": 9,
+          "tag": 1114121,
+          "name": "ERR_PROV_BUSY",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "send: the driver's queue full; raised by the driver",
+          "message": "{link} {channel} is busy: its send queue is full",
+          "hint": "Send less often, or wait for the connection to catch up."
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "sys_session",
+      "symbol": "ERR_MOD_SYS_SESSION",
+      "source_file": "runit-esp/components/sys/sys_session/errors/sys_session_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_session/errors/errors_sys_session.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1179649,
+          "name": "ERR_SESSION_VERSION",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "mine",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "hello: another format, the session stays closed",
+          "message": "The other board speaks frame format {got}, this one {mine}",
+          "hint": "Update both boards to the same firmware."
+        },
+        {
+          "code": 2,
+          "tag": 1179650,
+          "name": "ERR_SESSION_NONE",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "src",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "a frame before the hello: answered NO_SESSION",
+          "message": "A frame from {src} came before it said who it is",
+          "hint": "It is asked to say it again; nothing to do."
+        },
+        {
+          "code": 3,
+          "tag": 1179651,
+          "name": "ERR_SESSION_ID_TAKEN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "hello: two boards with one id",
+          "message": "Two boards have the id {board}",
+          "hint": "Give one of them another id."
+        },
+        {
+          "code": 4,
+          "tag": 1179652,
+          "name": "ERR_SESSION_NO_ROUTE",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "dst",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "no session leads to dst",
+          "message": "Board {dst} cannot be reached from here"
+        },
+        {
+          "code": 5,
+          "tag": 1179653,
+          "name": "ERR_SESSION_DENIED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "src",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "a write from a read-only peer",
+          "message": "{src} may only read on this board"
+        },
+        {
+          "code": 6,
+          "tag": 1179654,
+          "name": "ERR_SESSION_TIMEOUT",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "dst",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "a call without an answer",
+          "message": "Board {dst} did not answer",
+          "hint": "A write may still have run: read the value back."
+        },
+        {
+          "code": 7,
+          "tag": 1179655,
+          "name": "ERR_SESSION_PEER_DOWN",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "the session the call went through ended",
+          "message": "The connection to board {board} was lost"
+        },
+        {
+          "code": 8,
+          "tag": 1179656,
+          "name": "ERR_SESSION_NOT_FRAMED",
+          "severity": 3,
+          "size": 5,
+          "fields": [
+            {
+              "name": "link",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "channel",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            }
+          ],
+          "description": "attach: the driver does not split frames",
+          "message": "{link} {channel} cannot carry a board's connection",
+          "hint": "Use a connection with runIT framing."
+        },
+        {
+          "code": 9,
+          "tag": 1179657,
+          "name": "ERR_SESSION_PARENT_TAKEN",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "attach: a second parent",
+          "message": "This board already has a connection towards the root"
+        },
+        {
+          "code": 10,
+          "tag": 1179658,
+          "name": "ERR_SESSION_CLIENT",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "attach: a client on a board with a parent, a parent on one with clients",
+          "message": "Only a board without a connection towards the root takes an app connection"
+        },
+        {
+          "code": 11,
+          "tag": 1179659,
+          "name": "ERR_SESSION_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every session or listener slot taken",
+          "message": "No room for another board connection",
+          "hint": "Remove one first."
+        },
+        {
+          "code": 12,
+          "tag": 1179660,
+          "name": "ERR_SESSION_CALLS_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_SYS_SESSION_CALLS slot in use",
+          "message": "Too many requests to other boards at once"
+        },
+        {
+          "code": 13,
+          "tag": 1179661,
+          "name": "ERR_REMOTE",
+          "severity": 0,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "context: the chain below is that board's",
+          "context": true,
+          "message": "On board {board}"
+        },
+        {
+          "code": 14,
+          "tag": 1179662,
+          "name": "ERR_SESSION_WOULD_BLOCK",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "call_wait on a task that must not wait",
+          "message": "A wait for another board's answer was asked where nothing may wait",
+          "hint": "A firmware fault: report it."
+        },
+        {
+          "code": 15,
+          "tag": 1179663,
+          "name": "ERR_SESSION_BUSY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "dst",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "calls in flight to dst at the limit: later",
+          "message": "Board {dst} is still answering earlier requests",
+          "hint": "It is sent again later; nothing to do."
         }
       ]
     }

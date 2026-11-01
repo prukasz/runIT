@@ -1,6 +1,6 @@
-# sys_ble — BLE peripheral, runtime GATT table, router link
+# sys_ble — BLE peripheral, runtime GATT table, the runIT providers
 
-Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries the router link and the connector streams; user services and characteristics are created at runtime through the `ble` router.
+Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries two providers (SYS_DATA_PROVIDER.MD): the runIT pair, a client's session, and the LOGS characteristic; user services and characteristics are created at runtime through the `ble` router.
 
 ## Files
 
@@ -12,24 +12,24 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
-| `link/sys_ble_link.c/.h` | The runIT service, `TRANSPORT_BLE` (the router link, also the connectors' provider) |
+| `link/sys_ble_link.c/.h` | The runIT service and its two providers (`SYS_BLE_PROVIDER_RUNIT`, `SYS_BLE_PROVIDER_LOGS`): their driver |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
-| `Kconfig` | Name, appearance, BLE task, TX item limit, apply delay, connection listeners, the link's answer and stream waits |
+| `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Boot
 
-`ble link` (`sys_ble_link_init`) builds the runIT service and registers the router link. It runs after `router` and before `stream bindings`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `system devices`. Boot steps: `components/app/runit/runit.c`.
+`ble link` (`sys_ble_link_init`) builds the runIT service and adds its providers. It runs after `router` and before `stream bindings` and `sessions`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `system devices`. Boot steps: `components/app/runit/runit.c`.
 
 ## The GATT table
 
 | UUID | Name | Props | Buffer | Framed | Use |
 |---|---|---|---|---|---|
 | `0xFFE0` | runIT service | primary, **locked** | | | |
-| `0xFFE1` | runit TX | notify | TX 4 frames | yes | router answers; telemetry and events connectors |
-| `0xFFE2` | runit RX | write | RX handler | yes | router requests |
-| `0xFFE3` | runit LOGS | notify | TX 4 frames | yes | logs and errors connectors |
+| `0xFFE1` | runit TX | notify | TX 4 frames | yes | the session's frames to the client: answers, stream frames (errors, telemetry, events), control |
+| `0xFFE2` | runit RX | write | RX handler | yes | the session's frames from the client: requests, control |
+| `0xFFE3` | runit LOGS | notify | TX 4 frames | yes | the logs connector's lines as they are (no header) |
 | `0xFFE4` | runit Status | notify | TX 512 B | no | created; nothing sends on it yet |
 
 "4 frames" is `SYS_BLE_BUFF_SIZE_FOR(CMD_FRAME_MAX, 4)`. The UUIDs and the fragment header bits are published to the app: the groups `ble_runit_uuid` and `ble_frag` in `runit-app/generated/common/enums.json` (markers in `sys_ble.h`). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
@@ -45,19 +45,19 @@ single-packet frame: C0 <frame>
 ```
 
 - **TX**: an item (a whole frame, up to `CMD_FRAME_MAX`, 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
-- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST hands the frame to the router: `router_link_receive(TRANSPORT_BLE, frame)`.
+- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST hands the frame to the runIT provider's user (`sys_data_provider_deliver`: the session).
 - A frame of up to `CMD_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
 - An unframed characteristic sends one item per packet (item ≤ MTU − 3).
 
-## Connector provider
+## Providers
 
-`TRANSPORT_BLE` is one router link (`sys_ble_link_init`), which the connectors use as their provider (SYS_DATA_CONNECTOR.MD): **endpoint = characteristic UUID**, answers to TX (`answer_endpoint`), `send` = `sys_ble_char_send(uuid, frame, wait)`, the wait `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms) for an answer, `CONFIG_SYS_BLE_STREAM_WAIT_MS` (20 ms) for a stream frame, `max_frame` = `sys_ble_char_max_payload(uuid)`. Board bindings (`components/app/runit/runit_board_cfg.c`): logs and errors → LOGS 0xFFE3; telemetry and events → TX 0xFFE1. A user connector can be bound to any user characteristic with TX. No VM block writes to a characteristic yet.
+`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up (`max_frame` = `CMD_FRAME_MAX`) while a client is connected, down (0) otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs connector to LOGS (`components/app/runit/`). A characteristic created at runtime is no provider. No VM block writes to a characteristic yet.
 
 ## Data paths
 
 - **TX** `sys_ble_char_send(uuid, data, len, wait_ms)`: not connected → dropped (NULL). Queued only when it fits `sys_ble_char_max_payload(uuid)`: the TX buffer limit for a framed characteristic; for an unframed one also MTU − 3 (`ERR_BLE_TOO_LONG` otherwise). A full buffer is polled for `wait_ms`, then `ERR_BLE_TX_FULL`. Items are sent once the client has subscribed (CCCD), as notifications or indications per the characteristic. NimBLE `BLE_HS_ENOMEM` is flow control: retried every 10 ms while the same link is up.
 - **RX** buffer (`rx_buffer_size` > 0): writes are queued and polled with `sys_ble_char_rx_dequeue` (empty → NULL, length 0). A full buffer drops the write: `ERR_BLE_RX_FULL` (reported, counted in the status).
-- **RX handler** (`sys_ble_char_set_rx_handler`): each write goes to the handler on the host task, outside the registry lock. The handler must not block. This is the path of a characteristic without an RX buffer (the router link).
+- **RX handler** (`sys_ble_char_set_rx_handler`): each write goes to the handler on the host task, outside the registry lock. The handler must not block. This is the path of a characteristic without an RX buffer (the runIT RX).
 - `sys_ble_char_rx_inject`: feeds the RX path as if the peer had written the bytes (tests).
 - A buffer is a no-split ring buffer, which holds an item of about half its byte size. `SYS_BLE_BUFF_SIZE_FOR(item_max, count)` sizes it for `count` items.
 
@@ -78,7 +78,7 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 - Connection parameters: interval 7.5 ms, latency 0, supervision timeout 2 s. The central may refuse them or round them up.
 - On disconnect: TX buffers are drained, subscriptions are cleared, advertising restarts and the listeners are called.
 - Advertising carries the runIT service (0xFFE0) next to the name, so a client can filter by it. No bonding (`sm_bonding = 0`): the app reconnects by itself.
-- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The link uses it to reset reassembly; `runit` uses it to tell `sys_system` the command link is lost (`sys_system_link_lost`).
+- `sys_ble_add_conn_listener(fn)` (boot, up to `CONFIG_SYS_BLE_MAX_CONN_LISTENERS`): `fn(connected, reason)` on the host task. The runIT providers use it to reset reassembly and go up or down; a client's session ends when its provider goes down (SYS_SESSION.MD), which is the dead-man's lost link.
 - The module publishes no `sys_event` events. Connection changes reach the listeners only.
 - `sys_ble_get_status`: connected, MTU, RX overflow count.
 
@@ -98,7 +98,7 @@ Requests are `[0x03][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). STATUS 
 
 The app reads LIST to see what a save must change, so it removes only what is not wanted.
 
-Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B), then `03 01 05` (APPLY). The link adds its own frame header (ROUTER.MD).
+Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B), then `03 01 05` (APPLY). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
 ## Errors (`ERR_MOD_SYS_BLE` = 4)
 

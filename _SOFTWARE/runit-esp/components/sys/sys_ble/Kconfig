@@ -41,20 +41,12 @@ menu "sys_ble"
         range 1 16
 
     config SYS_BLE_ANSWER_WAIT_MS
-        int "Answer wait (ms)"
+        int "Send wait (ms)"
         default 100
         range 1 5000
         help
-          How long a router answer waits for room in the TX characteristic's
-          buffer.
-
-    config SYS_BLE_STREAM_WAIT_MS
-        int "Stream frame wait (ms)"
-        default 20
-        range 1 5000
-        help
-          How long a stream frame (the connector task) waits for room in its
-          characteristic's buffer: short, so a slow client holds the other
-          streams back as little as possible.
+          How long a provider's send without NOWAIT (an answer) waits for room
+          in its characteristic's buffer, then ERR_PROV_BUSY. A NOWAIT send (a
+          stream frame) is ERR_PROV_BUSY at once.
 
 endmenu

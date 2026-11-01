@@ -86,7 +86,7 @@ export interface GattService {
   readonly characteristics: readonly GattCharacteristic[]
 }
 
-/** Where a data stream is sent: a transport (`transport_e`) and its endpoint (a characteristic's UUID; 0 on the serial port). */
+/** Where a data stream is sent: a provider, its link (`sys_data_provider_link_e`) and its channel there (a characteristic's UUID; the port of a UART). */
 export interface StreamBinding {
   readonly provider: number
   readonly endpoint: number

@@ -30,7 +30,7 @@ static struct {
   sys_log_cfg_t cfg;  // the options in force, the defaults until a SET; read by every log call and reported error
   portMUX_TYPE history_lock;
 } s_log_preset = {
-    .cfg = {.level = CONFIG_LOG_DEFAULT_LEVEL, .mirror_serial = 1, .trace_errors = 1, .send_errors = 1, .send_logs = 1},
+    .cfg = {.level = CONFIG_LOG_DEFAULT_LEVEL, .mirror_serial = 0, .trace_errors = 1, .send_errors = 1, .send_logs = 1},
     .history_lock = portMUX_INITIALIZER_UNLOCKED,
 };
 

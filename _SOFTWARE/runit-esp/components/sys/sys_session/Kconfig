@@ -1,0 +1,36 @@
+menu "sys_session"
+
+    config SYS_SESSION_MAX
+        int "Sessions"
+        default 4
+        range 1 16
+        help
+          Providers attached to a peer: the board's clients.
+
+    config SYS_SESSION_GONE_LISTENERS
+        int "Gone-peer listeners"
+        default 5
+        range 1 8
+        help
+          sys_session_on_gone and sys_session_on_reached slots, each: the
+          connectors, the dead-man.
+
+    config SYS_SESSION_STREAM_LISTENERS
+        int "Stream listeners"
+        default 2
+        range 1 4
+        help
+          sys_session_on_stream slots.
+
+    #@limit @alias Session timeout @unit ms
+    config SYS_SESSION_TIMEOUT_MS
+        int "Session timeout (ms)"
+        default 3000
+        range 150 60000
+        help
+          A client's session with nothing received for this long ends: its
+          peer is gone, the hello starts again. The hello tells the peer,
+          which sends at least every third of it. The dead-man's time replaces
+          it while armed (sys_session_set_timeout).
+
+endmenu

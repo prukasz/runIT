@@ -30,9 +30,11 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format, the error record (`err_record`, `err_cmd_t`) |
 | core | `core/time` | `TIME.MD` | the board's clock (`board_time_*`): set by a client, UTC once set, the uptime; everything that needs the time takes it from here |
 | core | `core/cmd` | `CMD.MD` | the command handler type, the direction (read / write sides, the mirror), `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
-| core | `core/router` | `ROUTER.MD` | inbound frames, links, root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, watch |
-| sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | outbound streams (connectors), their bindings to the router links (`transport_e`) |
-| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console command link; BLE (GATT, MTU, fragment framing) |
+| core | `core/router` | `ROUTER.MD` | the commands of this board (`err_cmd_t` and their answer callbacks), root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, origin, urgent work |
+| sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in (a BLE characteristic, the UART), by id, one user each; their drivers (key `0x0D`) |
+| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a client on a framed provider, the frame header, HELLO / PING, client ids, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
+| sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | outbound streams (connectors): bindings to providers, peers subscribed over their session |
+| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console as a binary provider (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
 | sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |

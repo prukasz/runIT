@@ -4,6 +4,8 @@ Usage: python serial_capture.py <PORT> [seconds] [baud] [--no-reset]
 import sys, time
 import serial
 
+from router_link import LineSplitter
+
 port = sys.argv[1]
 secs = float(sys.argv[2]) if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else 15.0
 baud = int(sys.argv[3]) if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else 115200
@@ -19,13 +21,14 @@ if reset:
     s.dtr = False; s.rts = True; time.sleep(0.2)
     s.rts = False; time.sleep(0.05)
 
+lines = LineSplitter()  # the console is binary: text as it is, each frame as one line
 end = time.time() + secs
 total = 0
 while time.time() < end:
     data = s.read(4096)
     if data:
         total += len(data)
-        sys.stdout.write(data.decode("utf-8", errors="replace"))
+        sys.stdout.write(lines.feed(data))
         sys.stdout.flush()
 s.close()
 print(f"\n--- captured {total} bytes in {secs:.0f}s on {port} @ {baud} ---")

@@ -65,7 +65,7 @@ The store checks framing only, not content. A frame the router can't take fails 
 
 ## Recording
 
-`main` installs `g_sys_actions_tap` (`router_set_tap`, see [ROUTER.MD](../../core/router/ROUTER.MD)). RECORD_START records the client that sent it (its link, from `router_origin()`). Frames from other clients run as usual and are not recorded.
+`main` installs `g_sys_actions_tap` (`router_set_tap`, see [ROUTER.MD](../../core/router/ROUTER.MD)). RECORD_START records the client that sent it (its `src`, from `router_origin()`). Frames from other clients run as usual and are not recorded.
 
 - Recorded: that client's writes (dir 1), except the `sys` key (STOP, …) and the actions ops other than RUN and RUN_ALL. A RUN or RUN_ALL is recorded as itself, not as its content. Reads are never recorded: they run and answer as usual.
 - **`execute = 1`**: frames run as usual, and only those that succeed are recorded.

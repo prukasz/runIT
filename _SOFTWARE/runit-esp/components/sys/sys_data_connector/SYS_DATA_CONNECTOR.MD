@@ -1,60 +1,56 @@
 # sys_data_connector — outbound data streams (for agents)
 
-Component `components/sys/sys_data_connector/`. A **connector** is a logical outbound stream, named by one byte that is also the first byte of every frame it sends (its stream byte). It is bound to **providers** (transports) at an **endpoint**. Three numbers, then: the connector, the provider, the endpoint. Producers name only the connector. TX only: commands and their answers use router links (ROUTER.MD), not connectors.
+Component `components/sys/sys_data_connector/`. A **connector** is a named stream of data from the board's code to the outside: logs, errors, telemetry, events, a user stream. Code knows a connector by its **id**, one byte, and sends to it; producers never block. A connector has two kinds of **targets**, and what a frame looks like follows from the target:
+
+| Target | Made by | A frame goes as |
+|---|---|---|
+| a **binding** to a provider (SYS_DATA_PROVIDER.MD) | BIND (the board config, the app) | the payload as is: the provider is the connector's alone, so it names the stream |
+| a **subscriber**: a peer (the app, a test host) | SUBSCRIBE, by the peer itself | `[connector][payload]` in a session's STREAM frame (SYS_SESSION.MD "Streams"): the byte tells the peer's streams apart |
+
+Commands and their answers do not go through connectors: they are the session's, which opens its own provider.
 
 ```
- producers                       connector                        provider @ endpoint
- ─────────                       ─────────                        ───────────────────
- ESP_LOG (log capture) ───────▶  0x03 logs      ──────────────▶  BLE @ 0xFFE3
- err_report → error sink ─────▶  0x04 errors    ──────────────▶  BLE @ 0xFFE3, UART @ 0
- VM subscriptions ────────────▶  0x02 telemetry ──────────────▶  BLE @ 0xFFE1, UART @ 0
- sys_event NOTIFY events ─────▶  0x06 events    ──────────────▶  BLE @ 0xFFE1, UART @ 0
-                                 user connectors (router) ─────▶  e.g. 0x10 → BLE @ 0xEE01
-                                 (router answers 0x05 go to the origin link, not here)
+ producers                       connector                        targets
+ ─────────                       ─────────                        ───────
+ ESP_LOG (log capture) ───────▶  0x03 logs      ──────────────▶  binding: BLE LOGS 0xFFE3; subscribers
+ err_report → error sink ─────▶  0x04 errors    ──────────────▶  subscribers
+ VM subscriptions ────────────▶  0x02 telemetry ──────────────▶  subscribers
+ sys_event NOTIFY events ─────▶  0x06 events    ──────────────▶  subscribers
+                                 user connectors (router) ─────▶  e.g. 0x10 → a user characteristic
 ```
 
 ## Files
 
 | File | Role |
 |---|---|
-| `sys_data_connector.h` | The API for the rest of the firmware: init, bind, send, max payload, is-task (includes `sys_data_connector_config.h`) |
-| `internal/sys_data_connector_internal.h` | What only the component's router uses: create, remove, unbind, suspend, the state for INFO (`PRIV_INCLUDE_DIRS`) |
-| `config/sys_data_connector_config.h` | Transport IDs (`transport_e`), the system connectors (`SYS_DATA_CONNECTOR_*`, group `connector`; the router's answer byte is `CONFIG_ROUTER_RESPONSE_STREAM`): `//#ref-enum` / `//#ref-defines`, wire format |
+| `sys_data_connector.h` | The API for the rest of the firmware: init, bind, subscribe, unsubscribe, send, max payload, is-task (includes `sys_data_connector_config.h`) |
+| `internal/sys_data_connector_internal.h` | What only the component's router uses: create, remove, unbind, suspend, the state for LIST and its packed layouts (`PRIV_INCLUDE_DIRS`) |
+| `config/sys_data_connector_config.h` | The system connectors (`SYS_DATA_CONNECTOR_*`, group `connector`), a binding's flags (`conn_bind`), a connector's flags (`conn_flag`) and state (`conn_state`): `//#ref-defines`, wire format |
 | `errors/sys_data_connector_errors.h` | `ERR_SYS_DATA_CONNECTOR_MAP`, the module's error tags (included by `sys_data_connector.h`) |
 | `errors/sys_data_connector_errors.c` | `ERR_MODULE_DEFINE`: the tags registered (the component is linked `WHOLE_ARCHIVE`, since nothing references this file) |
 | `errors/errors_sys_data_connector.json` | The error messages |
-| `sys_data_connector.c` | Registry (slots found by connector), providers, bindings, queue + connector task |
+| `sys_data_connector.c` | Registry, bindings, subscribers, queue + connector task |
 | `router/sys_data_connector_router.c/.h` | `conn` router (`ROUTER_KEY_CONN` = 0x04) |
-| `Kconfig` | Slots, bindings, providers, frame max, queue, task |
+| `router/contract_connector.json` | The router's descriptor |
+| `Kconfig` | Slots, bindings, subscribers, queue, task |
 
 ## Model
 
-- **Connectors**: a connector is one byte, the only number it has, and every frame it sends starts with it. The build checks that `CONFIG_ROUTER_RESPONSE_STREAM` is not a system connector's byte. System (created by `sys_data_connector_init`, flag `system`): `SYS_DATA_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04, `_EVENTS` 0x06 (SYS_EVENT.MD notify records). A user connector (CREATE) takes any other byte except the router's answer byte (`CONFIG_ROUTER_RESPONSE_STREAM`, 0x05 by default: `ERR_CONN_BAD_ARG`); a byte that has a connector already: `ERR_CONN_EXISTS`. One byte, one connector, so a receiver always tells the streams apart. The registry is an array of `CONFIG_SYS_DATA_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the four system ones included; a CREATE with none free: `ERR_CONN_FULL`.
-- **Providers** are the router's links (ROUTER.MD): a transport registers once, `router_link_register(TRANSPORT_…, &link)`, and a binding names it by its **transport ID** (`transport_e` in `sys_data_connector_config.h`: `TRANSPORT_UART` 1, `TRANSPORT_BLE` 2; 3 is kept for MQTT over Wi-Fi, listed once it has a provider, since the app offers every listed transport). The connector calls the link's `send(endpoint, frame, len, false)` and `max_frame(endpoint)`. UART endpoint 0 (`SYS_UART_ENDPOINT`); BLE endpoint = characteristic UUID (any characteristic of the BLE link).
-- **Frame cap**: one cap for every connector, `CMD_FRAME_MAX` (`cmd.h`, CMD.MD "Frame size"). A provider's `max_frame` can lower it per endpoint; there is no per-connector cap.
-- **Bindings**: up to `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` per connector, one per provider (binding again re-addresses).
-- **System connectors**: can't be removed and keep their last binding (`ERR_CONN_PROTECTED`; bind the new one first). Suspending them is allowed (free a slow link).
+- **Connectors**: a connector is one byte. System (created by `sys_data_connector_init`, state `SYSTEM`): `SYS_DATA_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04 (urgent), `_EVENTS` 0x06 (urgent; SYS_EVENT.MD notify records). A user connector (CREATE `u8 id, u8 flags`) takes any other byte but 0x00 (`ERR_CONN_BAD_ARG`) and 0x05, kept for the watches' entries; a byte that has a connector already, or 0x05: `ERR_CONN_EXISTS`. The registry is an array of `CONFIG_SYS_DATA_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the four system ones included; a CREATE with none free: `ERR_CONN_FULL`. System connectors can't be removed (`ERR_CONN_SYSTEM`); suspending them is allowed.
+- **Flags**: `SYS_DATA_CONNECTOR_FLAG_URGENT`: every send of its frames goes to the front of the provider's queue (`SYS_DATA_PROVIDER_SEND_URGENT`, the STREAM frame's URGENT flag).
+- **Bindings**: `sys_data_connector_bind(id, provider, SYS_DATA_CONNECTOR_BIND_TX)`, up to `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` per connector. The binding opens the provider as its **one user** (SYS_DATA_PROVIDER.MD "Use"): no one else sends on it, so bytes of two senders never mix; a provider another user has (a session's: the runIT BLE pair, the UART): `ERR_PROV_IN_USE`. Bind again on the same provider: only its flags change. Unbind and remove close the providers; UNBIND of provider link 0 drops every binding of the connector. Only TX: a connector keeps nothing that comes in (`ERR_CONN_BAD_ARG` for other flags).
+- **Subscribers**: a peer subscribes itself: SUBSCRIBE `u8 id`, and the command's `src` (`router_origin()`) is the subscriber, so no peer names another. From C `sys_data_connector_subscribe(id, peer)`. SUBSCRIBE of the same peer again gives one subscription, so a client that opened its session again and subscribes again gets one stream. Up to `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` per connector (`ERR_CONN_TARGETS_FULL`); the board itself, NONE or BROADCAST: `ERR_CONN_BAD_ARG`. A subscription ends with UNSUBSCRIBE, or when the peer is gone: the connectors listen for gone peers (`sys_session_on_gone`) and drop its subscriptions.
 - **Telemetry** is produced by the VM subscriptions (`vm_sub.c`).
 
 ## Sending
 
-`sys_data_connector_send(connector, data, len)` **never blocks**: it copies `[connector][payload]`, the frame itself, into one ring buffer (`CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE`) and returns. The connector task (prio 4, below the router tasks) sends that frame to every binding straight from the queue, then gives its room back.
+`sys_data_connector_send(id, data, len)` **never blocks**: it copies `[connector][payload]` into one ring buffer (`CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE`) and returns. The connector task (prio 4, below the router tasks) sends it to every target straight from the queue (a binding gets the payload, a subscriber the whole, `seq` the connector's frame counter), then gives its room back.
 
-- Suspended / no bindings: dropped, NULL. Queue full: `ERR_CONN_QUEUE_FULL` (callers on the log / error path drop it silently).
+- Suspended / no target: dropped, NULL. Queue full: `ERR_CONN_QUEUE_FULL` (callers on the log / error path drop it silently).
 - Any task can send, including one holding a transport's lock or one inside logging, without deadlock or re-entry.
-- Per binding the task checks the provider's current limit: too long → `ERR_CONN_TOO_LONG`, not sent there, never cut. `sys_data_connector_max_payload(connector)` gives producers the smallest limit − 1 (calls the providers; not from a task holding a transport lock).
-- Errors in the task are **logged only** (`err_log`): reporting them would queue an error record back into this task and could loop. A provider that keeps failing (its queue full) is logged once, then again only after it has sent a frame.
-- `send` to a connector that doesn't exist fails with `ERR_CONN_NOT_FOUND`. A payload longer than `CMD_FRAME_MAX - 1` is refused at `send` (`ERR_CONN_TOO_LONG`, provider 0), before it is queued.
-
-## Adding a transport
-
-A transport is one `router_link_t` (ROUTER.MD), registered once with `router_link_register(TRANSPORT_…, &link)`: the router sends its answers through it, the connectors their streams.
-
-- `send(endpoint, frame, len, answer)`: hands one frame to the transport's own TX queue and returns; the transport's own task puts it on the wire (UART: its TX task; BLE: the characteristic's TX buffer and the BLE task). It never waits for the line itself, only for room in that queue, bounded, in the transport's Kconfig (UART `CONFIG_SYS_UART_SEND_WAIT_MS`, 1 s; BLE `CONFIG_SYS_BLE_ANSWER_WAIT_MS`, 100 ms for an answer, and `CONFIG_SYS_BLE_STREAM_WAIT_MS`, 20 ms for a stream frame, `answer` false): a full queue holds the connector task, so its own queue fills and producers are refused rather than frames lost unseen.
-- `max_frame(endpoint)`: the largest frame that endpoint takes now, or NULL for no limit of its own (`CMD_FRAME_MAX`). Asked by `sys_data_connector_max_payload`, which any task may call except one holding this transport's lock.
-- `endpoint` is the transport's own address: UART uses `SYS_UART_ENDPOINT` (0), BLE uses the characteristic UUID (`SYS_BLE_CHR_RUNIT_TX`, `SYS_BLE_CHR_RUNIT_LOGS`, or a user one); `answer_endpoint` is where the router's answers go.
-
-A new transport gets its ID in `transport_e` and its line in the `_Static_assert`s at the top of `sys_data_connector.c`, which keep every ID within `1..CONFIG_ROUTER_MAX_LINKS` (the build fails, not the boot); the `transport_e` change goes through `templates/` (AGENTS.md). Then bind connectors to it with `sys_data_connector_bind`.
+- **The task never waits on a driver**: every send is `NOWAIT` (`sys_data_provider_send`, `sys_session_stream`). A provider whose queue is full answers `ERR_PROV_BUSY` at once and the frame is lost on **that target only**; the other targets and connectors go on. A target's `dropped` counts every frame not sent to it (busy, down, too long, no route); LIST shows it. A subscriber sees a gap in `seq`.
+- A payload longer than `CMD_DATA_MAX − 1` (CMD.MD "Frame size") is refused at send (`ERR_CONN_TOO_LONG`). Per binding the provider checks its own `max_frame`: too long, `ERR_PROV_TOO_LONG`, not sent there, never cut. `sys_data_connector_max_payload(id)` gives producers `CMD_DATA_MAX − 1`, less when a bound provider that is up takes less (an unframed one); any task may call it.
+- Errors in the task are **logged only** (`err_log`): reporting them would queue an error record back into this task and could loop. A target that keeps failing is logged once, then again only after it has taken a frame.
 
 ## Limits
 
@@ -62,38 +58,41 @@ A new transport gets its ID in `transport_e` and its line in the `_Static_assert
 |---|---|---|
 | `CONFIG_SYS_DATA_CONNECTOR_MAX` | 8 | connector slots, the 4 system ones included |
 | `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` | 3 | bindings per connector |
-| `CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every binding has it |
-| `CONFIG_SYS_DATA_CONNECTOR_TASK_PRIO` / `_STACK` | 4 / 4096 | the connector task |
-
-## Diagnostics
-
-`sys_data_connector_list(out)` copies every connector's state (`sys_data_connector_info_t`: the connector, its flags and bindings) under one lock: the router's INFO (below), which the app reads to bring the board's streams to the project's.
+| `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` | 4 | subscribers per connector |
+| `CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every target has it. A provider's own queue is larger (UART: SYS_UART.MD), so a burst fills this one first and its producer is refused (the VM's sampler resends), not lost unseen |
+| `CONFIG_SYS_DATA_CONNECTOR_TASK_PRIO` / `_STACK` | 4 / 4096 | the connector task (it holds a whole stream frame while it goes to a subscriber) |
 
 ## Errors stream
 
-`runit_error_wiring_init()` (`runit_error_policy.c`) registers `error_sink` with `err_set_sink`. Every `err_report` / `err_report_ex` chain goes first to the device error policy, then becomes an **error record** (`err_record(cmd, chain)`, ERRORS.MD "Error record") on the errors stream (0x04). A response from the policy is logged and sent as a second record. A full queue drops the record. So command errors (src 1, with link / seq / request) and internal errors (src 0) share one stream — the error history. A client also gets its own command errors in the response; it can skip stream records with its own link + seq.
+`runit_error_wiring_init()` (`runit_error_policy.c`) registers `error_sink` with `err_set_sink`. Every `err_report` / `err_report_ex` chain goes first to the device error policy, then becomes an **error record** (`err_record(cmd, chain)`, ERRORS.MD "Error record") on the errors stream (0x04). A response from the policy is logged and sent as a second record. A full queue drops the record. So command errors (src 1, with the sender, seq and request) and internal errors (src 0) share one stream — the error history. A client also gets its own command errors in the answer; it can skip stream records by its own id + seq.
 
 The errors stream does not suppress repeats: every record is sent.
 
 ## Logs stream
 
-Filled by `sys_log` (SYS_LOG.MD, `sys_log_init()`, on `SYS_DATA_CONNECTOR_LOGS`), which owns the ESP_LOG hook and the line buffer `CONFIG_SYS_LOG_LINE_MAX`. The connector only exports `sys_data_connector_is_task()` so the hook can skip the connector task's own lines.
+Filled by `sys_log` (SYS_LOG.MD, `sys_log_init()`, on `SYS_DATA_CONNECTOR_LOGS`), which owns the ESP_LOG hook and the line buffer `CONFIG_SYS_LOG_LINE_MAX`. The board config binds it to the BLE LOGS characteristic (the lines as they are); a console client subscribes to it. The connector only exports `sys_data_connector_is_task()` so the hook can skip the connector task's own lines.
 
 ## Remote (`sys_data_connector_router`, root key `ROUTER_KEY_CONN` = 0x04)
 
-Requests are `[0x04][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). INFO is a read, the other ops writes.
+Requests are `[0x04][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). LIST is a read, the other ops writes. A provider id is `{u8 link, u32 channel}` (SYS_DATA_PROVIDER.MD "The id").
 
 | Op | Request | Response |
 |---|---|---|
-| `0x01` CREATE | `u8 connector` | – |
-| `0x02` REMOVE | `u8 connector` | – |
-| `0x03` BIND | `u8 connector, u8 provider, u32 endpoint` | – |
-| `0x04` UNBIND | `u8 connector, u8 provider` | – |
-| `0x05` SUSPEND / `0x06` RESUME | `u8 connector` | – |
-| `0x07` INFO | – | `u8 count`, per connector `u8 connector, u8 flags (bit0 system, bit1 suspended), u8 n, n × {u8 provider, u32 endpoint}` |
+| `0x01` CREATE | `u8 id, u8 flags` | – |
+| `0x02` REMOVE | `u8 id` | – |
+| `0x03` BIND | `u8 id`, provider id, `u8 flags` (`BIND_TX`) | – |
+| `0x04` UNBIND | `u8 id`, provider id (link 0: every binding) | – |
+| `0x05` SUSPEND / `0x06` RESUME | `u8 id` | – |
+| `0x07` LIST | – | `u8 count`, per connector its head `{u8 id, u8 flags, u8 state, u8 subscribers, u8 bindings}`, its subscribers `{u8 peer, u16 dropped}`, its bindings `{provider id, u8 flags, u16 dropped}` |
+| `0x09` SUBSCRIBE | `u8 id` | – (the command's `src` gets the connector's frames) |
+| `0x0A` UNSUBSCRIBE | `u8 id` | – (of the command's `src`) |
 
-Example — VM temperature stream to a user BLE characteristic (created with the `ble` router, SYS_BLE.MD): `04 01 01 10` (CREATE 0x10), `04 01 03 10 02 01 EE 00 00` (BIND 0x10 → BLE @ 0xEE01).
+`0x08` is kept for a READ of a connector's received data.
+
+Example — VM temperature stream to a user BLE characteristic (created with the `ble` router, SYS_BLE.MD): `04 01 01 10 00` (CREATE 0x10), `04 01 03 10 02 01 EE 00 00 02` (BIND 0x10 → BLE 0xEE01, TX). The app's own streams: `04 01 09 04` (SUBSCRIBE errors) once its session opens.
 
 ## Errors (`ERR_MOD_SYS_DATA_CONNECTOR` = 5)
 
-`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_PROTECTED{connector}` LOW, `_NO_PROVIDER{provider}` MEDIUM, `_BINDINGS_FULL{connector}` MEDIUM, `_TOO_LONG{connector, provider, len, max}` MEDIUM, `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_SEND{connector, provider, endpoint}` NONE (context over the provider's error), `_FULL{connector}` MEDIUM (code 11; code 1 is unused).
+Every tag but `BAD_ARG` carries the connector's id; codes 1, 5 and 10 are unused. A provider's failure (open, send) is its own `ERR_PROV_*`, which names it.
+
+`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_SYSTEM{connector}` LOW (remove: a system connector), `_TARGETS_FULL{connector}` MEDIUM (bind, subscribe), `_TOO_LONG{connector, len, max}` MEDIUM (send: past `CMD_DATA_MAX − 1`), `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_FULL{connector}` MEDIUM.

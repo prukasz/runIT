@@ -22,8 +22,8 @@ extern "C" {
 //#ref-enum @alias Safe State Reason
 typedef enum {
   SYS_SAFE_STOP = 1,  //@alias Stop @description sys STOP command
-  SYS_SAFE_DEADMAN = 2,  //@alias Deadman @description No frame within the dead-man timeout
-  SYS_SAFE_LINK_LOST = 3,  //@alias Link lost @description The link lost its client with on_link_lost set
+  SYS_SAFE_DEADMAN = 2,  //@alias Deadman @description A client's session ended (silence past the dead-man's time, its link lost)
+  // 3 is unused: never assign it.
   SYS_SAFE_POWER = 4,  //@alias Power fault @description The power manager's response to a power fault (its response matrix: safe state)
 } sys_safe_reason_e;
 
@@ -59,22 +59,20 @@ MUST_USE err_h sys_system_leave_safe_state(void);
 void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms);
 
 /**
- * @brief Runtime dead-man. `timeout_ms` 0 = off. While on, the safe state is entered when no frame arrives from any link for
- * `timeout_ms` (once; the next frame re-arms it), and on sys_system_link_lost if `on_link_lost`. Not stored: after a
- * restart it is CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS again.
+ * @brief Runtime dead-man: the silence of the clients' sessions. `timeout_ms` 0 = off (the sessions keep
+ * CONFIG_SYS_SESSION_TIMEOUT_MS); else it is their timeout (sys_session_set_timeout), and a client's session that
+ * ends (silence that long, its link lost) enters the safe state. Not stored: after a restart it is
+ * CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS again.
+ * @return NULL when set; ERR_CMD_BAD_ARG (not 0 and outside SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS).
  */
-void sys_system_deadman_set(uint32_t timeout_ms, bool on_link_lost);
-void sys_system_deadman_get(uint32_t* timeout_ms, bool* on_link_lost);
+MUST_USE err_h sys_system_deadman_set(uint32_t timeout_ms);
+
+/** @brief The dead-man's time; 0 = off. */
+uint32_t sys_system_deadman_get(void);
 
 /**
- * @brief A link lost its client (the app wires it: BLE disconnect). Enters the safe state when the dead-man is on with
- * `on_link_lost`. Any task, not an ISR.
- */
-void sys_system_link_lost(void);
-
-/**
- * @brief Watches the frames of the router's links (router_link_on_frame) and arms the dead-man with its boot default.
- * Boot, before router_init.
+ * @brief Listens for gone peers (sys_session_on_gone) and arms the dead-man with its boot default. Boot, after
+ * sys_session_init.
  */
 MUST_USE err_h sys_system_init(void);
 

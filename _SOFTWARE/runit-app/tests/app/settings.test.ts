@@ -98,11 +98,12 @@ describe('the settings the project keeps, as records of the stored project', () 
     expect(gattApply(catalog, live, gatt).map((c) => c.command.id)).toEqual(['SVC_REMOVE', 'SVC_CREATE', 'CHAR_CREATE', 'APPLY'])
   })
 
-  it('builds the streams record: the user stream created, bindings set, the transports not used unbound, a pause', () => {
+  it('builds the streams record: the user stream created, every binding dropped, then set, a pause', () => {
     const ids = streamsRecord(catalog, streams).map((f) => f[2])
     const op = (id: string) => catalog.command(catalog.service('CONNECTOR'), id).op
-    expect(ids).toEqual([op('BIND'), op('UNBIND'), op('CREATE'), op('BIND'), op('UNBIND'), op('SUSPEND')])
-    const info = Uint8Array.of(1, 3, 1, 2, 1, 0, 0, 0, 0, 2, 0xe3, 0xff, 0, 0)
+    expect(ids).toEqual([op('UNBIND'), op('BIND'), op('CREATE'), op('UNBIND'), op('BIND'), op('SUSPEND')])
+    // LIST: one stream, 0x03, system; one subscriber (0xf0); bindings UART 0 and BLE 0xFFE3
+    const info = Uint8Array.of(1, 3, 0, 1, 1, 2, 0xf0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 2, 0xe3, 0xff, 0, 0, 2, 0, 0)
     const live = decodeStreamsInfo(info)
     expect(live).toEqual([{ stream: 3, system: true, suspended: false, bindings: [{ provider: 1, endpoint: 0 }, { provider: 2, endpoint: 0xffe3 }] }])
     // the board keeps no name: a stream read back from the record has none

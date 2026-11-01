@@ -117,7 +117,7 @@ describe('the streams of the link, raw', () => {
     const reader = engine.telemetry(program())
     const seen: unknown[][] = []
     link.on('telemetry', (data) => seen.push(reader.read(data)!.values.map((v) => [v.variable, v.value])))
-    for (const frame of telemetry) board.notify(Uint8Array.of(defs.streams.telemetry, ...frame))
+    for (const frame of telemetry) board.stream(defs.streams.telemetry, frame)
     await until(() => seen.length === 3)
     expect(seen.at(-1)).toEqual([['x', 7.5], ['z', 18]])
     await link.close()
@@ -131,10 +131,10 @@ describe('the streams of the link, raw', () => {
     const errors: number[][] = []
     link.onStream((f) => all.push({ name: f.name, data: [...f.data], at: f.at }))
     link.on('errors', (data) => errors.push([...data]))
-    board.notify(Uint8Array.of(defs.streams.errors, 1, 2, 3), defs.gatt.logs)
-    board.notify(Uint8Array.of(defs.streams.logs, 4), defs.gatt.logs)
-    board.notify(Uint8Array.of(defs.streams.events, 5))
-    board.notify(Uint8Array.of(0x7f, 6)) // a stream the firmware does not publish
+    board.stream(defs.streams.errors, [1, 2, 3])
+    board.notify(Uint8Array.of(4), defs.gatt.logs)
+    board.stream(defs.streams.events, [5])
+    board.stream(0x7f, [6]) // a stream the firmware does not publish
     await until(() => all.length === 4)
     expect(all.map((f) => [f.name, f.data])).toEqual([['errors', [1, 2, 3]], ['logs', [4]], ['events', [5]], [undefined, [6]]])
     expect(errors).toEqual([[1, 2, 3]])

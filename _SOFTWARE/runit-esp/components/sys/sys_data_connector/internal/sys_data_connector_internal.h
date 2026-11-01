@@ -2,9 +2,10 @@
 
 /*
 The connector's own router (router/sys_data_connector_router.c) and nothing else: the commands that change the
-connectors at run time, and their state for INFO. Not on the component's public include path.
+connectors at run time, and their state for LIST. Not on the component's public include path.
 */
 
+#include "sdkconfig.h"
 #include "sys_data_connector.h"
 
 #ifdef __cplusplus
@@ -12,38 +13,51 @@ extern "C" {
 #endif
 
 /**
- * @brief Creates user connector `connector`. A system one: ERR_CONN_EXISTS; the router's answer byte:
- * ERR_CONN_BAD_ARG; no free slot (CONFIG_SYS_DATA_CONNECTOR_MAX): ERR_CONN_FULL.
+ * @brief Creates user connector `id`. 0x00: ERR_CONN_BAD_ARG; a system one, 0x05 (the watches'): ERR_CONN_EXISTS; no
+ * free slot (CONFIG_SYS_DATA_CONNECTOR_MAX): ERR_CONN_FULL.
+ * @param flags  SYS_DATA_CONNECTOR_FLAG_URGENT, or 0.
  */
-MUST_USE err_h sys_data_connector_create(uint8_t connector);
+MUST_USE err_h sys_data_connector_create(uint8_t id, uint8_t flags);
 
-/** @brief Removes a user connector and its bindings. System: ERR_CONN_PROTECTED. */
-MUST_USE err_h sys_data_connector_remove(uint8_t connector);
+/** @brief Removes a user connector, its subscriptions and its bindings (their providers closed). ERR_CONN_SYSTEM. */
+MUST_USE err_h sys_data_connector_remove(uint8_t id);
 
-/**
- * @brief Removes a binding (NULL when it was not bound). The last binding of a
- * system connector stays: ERR_CONN_PROTECTED (bind the new one first).
- */
-MUST_USE err_h sys_data_connector_unbind(uint8_t connector, uint8_t provider_id);
+/** @brief Removes a binding and closes its provider (NULL when it was not bound); provider link 0: every binding. */
+MUST_USE err_h sys_data_connector_unbind(uint8_t id, sys_data_provider_id_t provider);
 
 /** @brief Suspended: sends are dropped (to free a slow link); false resumes. */
-MUST_USE err_h sys_data_connector_set_suspended(uint8_t connector, bool suspended);
+MUST_USE err_h sys_data_connector_set_suspended(uint8_t id, bool suspended);
 
-/* A connector's state: the connector, its flags and bindings. */
-typedef struct {
-  uint8_t provider;  /**< transport_e */
-  uint32_t endpoint; /**< the provider's address (BLE: characteristic UUID; UART: 0) */
+/** @brief A binding as LIST sends it. */
+typedef struct __attribute__((packed)) {
+  sys_data_provider_id_t provider;
+  uint8_t flags;     /**< SYS_DATA_CONNECTOR_BIND_* */
+  uint16_t dropped;  /**< Frames not sent there: busy, down, too long */
 } sys_data_connector_binding_t;
 
+/** @brief A subscriber as LIST sends it. */
+typedef struct __attribute__((packed)) {
+  uint8_t peer;
+  uint16_t dropped;  /**< Frames not sent to it: busy, down, no route */
+} sys_data_connector_subscriber_t;
+
+/** @brief A connector's head as LIST sends it; its subscribers, then its bindings follow. */
+typedef struct __attribute__((packed)) {
+  uint8_t id;
+  uint8_t flags;        /**< SYS_DATA_CONNECTOR_FLAG_* */
+  uint8_t state;        /**< SYS_DATA_CONNECTOR_STATE_* */
+  uint8_t subscribers;
+  uint8_t bindings;
+} sys_data_connector_head_t;
+
+/** @brief A connector, copied out for LIST. */
 typedef struct {
-  uint8_t connector;  /**< the connector: its stream byte, the first byte of its frames */
-  bool system;
-  bool suspended;
-  uint8_t binding_count;
-  sys_data_connector_binding_t bindings[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  sys_data_connector_head_t head;
+  sys_data_connector_subscriber_t subs[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
+  sys_data_connector_binding_t binds[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
 } sys_data_connector_info_t;
 
-/** @brief Copies every connector out (the router's INFO); returns how many. */
+/** @brief Copies every connector out (LIST); returns how many. */
 uint8_t sys_data_connector_list(sys_data_connector_info_t out[CONFIG_SYS_DATA_CONNECTOR_MAX]);
 
 #ifdef __cplusplus

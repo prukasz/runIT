@@ -1,29 +1,11 @@
 menu "router"
 
-    #@limit @alias Response stream byte
-    config ROUTER_RESPONSE_STREAM
-        hex "Response stream byte"
-        default 0x05
-        range 0x00 0xFF
-        help
-          First byte of every response frame, so clients can tell answers from
-          other streams on the same link.
-
     config ROUTER_MAX_KEYS
         int "Root keys"
         default 16
         range 2 64
         help
           Root table slots (router_register).
-
-    config ROUTER_MAX_LINKS
-        int "Highest link ID"
-        default 4
-        range 1 16
-        help
-          Links (the transports: transport_e in sys_data_connector_config.h) are
-          registered under IDs 1..ROUTER_MAX_LINKS. The data connectors bind
-          to the same links, so this also bounds their providers.
 
     config ROUTER_WORK_QUEUE_SIZE
         int "Work queue (bytes)"
@@ -52,7 +34,7 @@ menu "router"
         range 3072 32768
         help
           Runs the module routers of normal commands and their answer
-          callbacks.
+          callbacks (the session's framer).
 
     config ROUTER_URGENT_TASK_PRIO
         int "Urgent task priority"
@@ -68,6 +50,6 @@ menu "router"
         range 3072 32768
         help
           Runs urgent commands and router_run_urgent (the safe-state
-          handler on a dead-man or a lost link).
+          handler on a dead-man).
 
 endmenu

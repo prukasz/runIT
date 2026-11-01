@@ -1,16 +1,16 @@
 import type { ErrorInfo, LinkDefinitions } from '../definitions'
 import { decodeErrorRecord } from '../protocol/errors'
 import type { ErrorRecord } from '../protocol/errors'
-import { decodeResponse, encodeRequest } from '../protocol/frames'
-import type { Request } from '../protocol/frames'
+import { encodeRequest } from '../protocol/frames'
+import type { Request, Response } from '../protocol/frames'
 
 /*
- * Commands over any link: a request gets a sequence byte, the answer is matched by it (answers may come out of order: urgent
+ * Commands over any link: a request gets a sequence number (u16, the session header's), the answer is matched by it (answers may come out of order: urgent
  * frames overtake), a command that gets no answer times out. Several commands can be on the wire at once (`maxInFlight`): the
  * board runs normal commands in the order they arrived, so pipelining saves one round trip per command without reordering
  * anything. An urgent command goes before every normal one still queued and is written even when the window is full: STOP and
  * the dead-man's heartbeat must not wait behind commands the board is slow to answer. The sequence counts on instead of reusing
- * the lowest free byte, so a late answer cannot match a newer command.
+ * the lowest free number, so a late answer cannot match a newer command.
  */
 
 export type CommandErrorCode =
@@ -60,6 +60,8 @@ export interface CommandClientOptions {
   readonly defs: LinkDefinitions
   /** Puts one whole frame on the link; rejects when it could not. */
   readonly send: (frame: Uint8Array) => Promise<void>
+  /** The session's addresses of a request: the board (`dst`) and this client's id (`src`), as the board gave it. */
+  readonly address: () => { readonly dst: number; readonly src: number }
   /** Default wait for an answer (default 2000 ms). */
   readonly timeoutMs?: number
   /** Commands on the wire at once (default 4). */
@@ -88,6 +90,7 @@ interface Pending {
 }
 
 const hex = (n: number): string => `0x${n.toString(16).toUpperCase().padStart(2, '0')}`
+const SEQ_COUNT = 0x10000
 
 export class CommandClient {
   private readonly defs: LinkDefinitions
@@ -99,7 +102,7 @@ export class CommandClient {
   private readonly queue: Pending[] = []
   private readonly inFlight = new Map<number, Pending>()
   private readonly observers = new Set<(event: CommandEvent) => void>()
-  private lastSeq = 0xff
+  private lastSeq = SEQ_COUNT - 1
   private timeouts = 0
   private closed = false
 
@@ -137,10 +140,8 @@ export class CommandClient {
     return this.queue.length + this.inFlight.size
   }
 
-  /** A frame of the response stream. Frames of other streams are not for the client. */
-  onFrame(frame: Uint8Array): void {
-    const response = decodeResponse(this.defs, frame)
-    if (!response) return
+  /** An answer frame of the session (protocol/frames.ts `decodeResponse`). */
+  onResponse(response: Response): void {
     const entry = this.inFlight.get(response.seq)
     if (!entry) {
       this.emit({ type: 'unmatched', seq: response.seq, at: this.now() })
@@ -179,7 +180,7 @@ export class CommandClient {
   }
 
   private pump(): void {
-    // an urgent command passes a full window, never the 256 sequence bytes
+    // an urgent command passes a full window, never 256 commands on the wire
     while (!this.closed && this.queue.length > 0 && (this.inFlight.size < this.maxInFlight || (this.queue[0]!.request.urgent && this.inFlight.size < 0x100))) {
       const entry = this.queue.shift()!
       entry.seq = this.nextSeq()
@@ -189,19 +190,19 @@ export class CommandClient {
   }
 
   private nextSeq(): number {
-    for (let step = 1; step <= 0x100; step++) {
-      const seq = (this.lastSeq + step) & 0xff
+    for (let step = 1; step <= SEQ_COUNT; step++) {
+      const seq = (this.lastSeq + step) % SEQ_COUNT
       if (!this.inFlight.has(seq)) {
         this.lastSeq = seq
         return seq
       }
     }
-    throw new Error('No free sequence byte.') // unreachable: maxInFlight <= 255
+    throw new Error('No free sequence number.') // unreachable: maxInFlight <= 255
   }
 
   private async write(entry: Pending): Promise<void> {
     const seq = entry.seq!
-    const frame = encodeRequest(this.defs, seq, entry.request)
+    const frame = encodeRequest(this.defs, seq, entry.request, this.options.address())
     entry.sentAt = this.now()
     try {
       await this.send(frame)

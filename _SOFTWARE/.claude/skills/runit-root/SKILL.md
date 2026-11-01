@@ -29,8 +29,8 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 |---|---|
 | `runit-esp/` | The firmware, an ESP-IDF project (build from here): `CMakeLists.txt`, `sdkconfig`, `sdkconfig.qemu.defaults`, `partitions.csv`, `.clang-format`, `.clangd`, `build/` and the folders below |
 | `runit-esp/main/` | ESP-IDF entry (`main.c`, only `runit_start()`) |
-| `runit-esp/components/core/` | Foundation, no hardware: `utils` (static RTOS macros), `time` (the board's clock), `errors` (error chain, pool, tags), `cmd` (command handler type), `router` (links, dispatch, root keys) |
-| `runit-esp/components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_system` (system commands, safe state, dead-man), `sys_io`, `sys_power`, `sys_hbridge` (contracts), `sys_power_manager`, `sys_event`, `sys_actions`, `sys_project`, `sys_data_connector`, `sys_log`, `sys_i2c`, `sys_ble`, `sys_uart` |
+| `runit-esp/components/core/` | Foundation, no hardware: `utils` (static RTOS macros), `time` (the board's clock), `errors` (error chain, pool, tags), `cmd` (command handler type), `router` (the commands, dispatch, root keys) |
+| `runit-esp/components/sys/` | System modules and the contracts devices implement: `sys_device` (registry), `sys_system` (system commands, safe state, dead-man), `sys_io`, `sys_power`, `sys_hbridge` (contracts), `sys_power_manager`, `sys_event`, `sys_actions`, `sys_project`, `sys_data_provider` (providers), `sys_session` (client sessions, frames), `sys_data_connector`, `sys_log`, `sys_i2c`, `sys_ble`, `sys_uart` |
 | `runit-esp/components/devices/` | One component per chip (`device_<chip>/`: create struct and own ops in the header, the driver in `device_<chip>.c`, descriptor `device_<chip>.json`) |
 | `runit-esp/components/vm/` | The VM: `vm_core` (runtime, loader, telemetry; key `0x0B`) and `vm_blocks` (the block palette) |
 | `runit-esp/components/app/runit/` | The application: boot steps, safe state, error policy wiring, board config and stream routing |

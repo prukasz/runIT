@@ -1,16 +1,20 @@
 #include "sys_ble_link.h"
 
-#include "router.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_ble_priv.h"
-#include "sys_data_connector.h"
+#include "sys_data_provider_driver.h"
 
-#define TX_FRAMES             4u            // frames the TX / LOGS buffers hold
-#define STATUS_BUFFER         512u      // size of the STATUS characteristic buffer
+#define TX_FRAMES     4u    // frames the TX / LOGS buffers hold
+#define STATUS_BUFFER 512u  // size of the STATUS characteristic buffer
+
+/* The two providers: the runIT pair (RX in, TX out; named by TX) and the LOGS characteristic (out only). Framed, up
+ * while a client is connected. */
+static sys_data_provider_t s_runit;
+static sys_data_provider_t s_logs;
 
 /* ----------------------------------------------------------------------------
- * RX: framed packets -> one frame -> router_link_receive (host task only)
+ * RX: framed packets -> one frame -> the runIT provider's user (host task only)
  * ------------------------------------------------------------------------- */
 
 static struct {
@@ -47,36 +51,45 @@ static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
 
   if (hdr & SYS_BLE_FRAG_LAST) {
     s_rx.active = false;
-    sys_ble_report(router_link_receive(TRANSPORT_BLE, s_rx.buf, (uint32_t)s_rx.len));
+    sys_data_provider_deliver(&s_runit, s_rx.buf, (uint32_t)s_rx.len);
   }
 }
 
+// A client is the providers' link: up while it is connected.
 static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
     s_rx.active = false;
   }
+  sys_data_provider_set_max_frame(&s_runit, connected ? CMD_FRAME_MAX : 0);
+  sys_data_provider_set_max_frame(&s_logs, connected ? CMD_FRAME_MAX : 0);
 }
 
 /* ----------------------------------------------------------------------------
- * TX: the link - endpoint = characteristic UUID: answers go to TX, a stream to
- * any characteristic (LOGS, TX, or a user one a program streams on)
+ * TX: a frame to the provider's characteristic (TX or LOGS), split into packets by the BLE task
  * ------------------------------------------------------------------------- */
 
-static err_h link_send(uint32_t endpoint, const uint8_t* frame, uint32_t len, bool answer) {
-  ERR_CHECK(endpoint <= UINT16_MAX, ERR_BLE_NOT_FOUND, .uuid = 0);
-  return sys_ble_char_send((uint16_t)endpoint, frame, len, answer ? CONFIG_SYS_BLE_ANSWER_WAIT_MS : CONFIG_SYS_BLE_STREAM_WAIT_MS);
+/* NOWAIT: only queued, a full buffer is ERR_PROV_BUSY at once; else it waits for room up to
+ * CONFIG_SYS_BLE_ANSWER_WAIT_MS. Both characteristics' buffers keep their order: URGENT goes in turn. */
+static err_h provider_send(sys_data_provider_t* self, const uint8_t* data, uint32_t len, uint8_t flags) {
+  const uint32_t wait_ms = (flags & SYS_DATA_PROVIDER_SEND_NOWAIT) ? 0 : CONFIG_SYS_BLE_ANSWER_WAIT_MS;
+  err_h err = sys_ble_char_send((uint16_t)self->id.channel, data, len, wait_ms);
+  if (err != NULL && err->tag == ERR_BLE_TX_FULL) {
+    err_free(err);
+    return ERR_NEW(ERR_PROV_BUSY, .link = self->id.link, .channel = self->id.channel);
+  }
+  return err;
 }
 
-static uint32_t link_max_frame(uint32_t endpoint) {
-  return endpoint <= UINT16_MAX ? (uint32_t)sys_ble_char_max_payload((uint16_t)endpoint) : 0;
+static err_h add_provider(sys_data_provider_t* p, uint16_t uuid) {
+  *p = (sys_data_provider_t){
+      .send = provider_send,
+      .max_frame = 0,  // up when a client connects
+      .id = {.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = uuid},
+      .state = SYS_DATA_PROVIDER_STATE_FRAMED,
+  };
+  return sys_data_provider_add(p);
 }
-
-static const router_link_t k_link = {
-    .send = link_send,
-    .max_frame = link_max_frame,
-    .answer_endpoint = SYS_BLE_CHR_RUNIT_TX,
-};
 
 /* ----------------------------------------------------------------------------
  * Init
@@ -111,11 +124,12 @@ err_h sys_ble_link_init(void) {
                                                      .tx_buffer_size = frames,
                                                      .desc = "runit LOGS",
                                                  }));
-  // The command link lives here: a runtime change would rebuild the service and drop subscriptions.
+  // The session's provider lives here: a runtime change would rebuild the service and drop subscriptions.
   ERR_TRY(sys_ble_service_lock(SYS_BLE_SVC_RUNIT));
 
   ERR_TRY(sys_ble_char_set_rx_handler(SYS_BLE_CHR_RUNIT_RX, rx_packet, NULL));
   ERR_TRY(sys_ble_add_conn_listener(on_conn));
-  ERR_TRY(router_link_register(TRANSPORT_BLE, &k_link));
+  ERR_TRY(add_provider(&s_runit, SYS_BLE_CHR_RUNIT_TX));
+  ERR_TRY(add_provider(&s_logs, SYS_BLE_CHR_RUNIT_LOGS));
   return NULL;
 }

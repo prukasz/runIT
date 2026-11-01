@@ -57,7 +57,7 @@ const concat = (...parts: readonly Uint8Array[]): Uint8Array => {
 }
 
 /**
- * A command of a system service: `serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500, on_link_lost: true }, 'write')`. `side`
+ * A command of a system service: `serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write')`. `side`
  * may be left out for a command with one side.
  */
 export const serviceCall = (catalog: ServiceCatalog, service: string, command: string, args?: CallArgs, side?: Side): ServiceCall => {

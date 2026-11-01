@@ -3,41 +3,33 @@
   "module": "ERR_MOD_SYS_DATA_CONNECTOR",
   "errors": {
     "ERR_CONN_NOT_FOUND": {
-      "message": "{connector} does not exist"
+      "message": "Stream {connector} does not exist"
     },
     "ERR_CONN_EXISTS": {
-      "message": "{connector} already exists",
-      "hint": "Choose another connector."
+      "message": "Stream {connector} already exists",
+      "hint": "Choose another number."
     },
-    "ERR_CONN_PROTECTED": {
-      "message": "{connector} belongs to the system and cannot be changed that way",
-      "hint": "A system stream keeps one transport: bind another before you unbind this one."
+    "ERR_CONN_SYSTEM": {
+      "message": "Stream {connector} belongs to the board and cannot be removed"
     },
-    "ERR_CONN_NO_PROVIDER": {
-      "message": "{provider} is not available",
-      "hint": "Choose a transport the board has."
-    },
-    "ERR_CONN_BINDINGS_FULL": {
-      "message": "{connector} cannot be bound to more transports",
-      "hint": "Unbind a transport first."
+    "ERR_CONN_TARGETS_FULL": {
+      "message": "Stream {connector} has no room for another connection or subscriber",
+      "hint": "Remove one of them first."
     },
     "ERR_CONN_TOO_LONG": {
-      "message": "{connector}: {len} bytes are too long for {provider} (at most {max})",
+      "message": "{len} bytes are too long for stream {connector} (at most {max})",
       "hint": "Send less at once."
     },
     "ERR_CONN_QUEUE_FULL": {
-      "message": "{connector} is full: {len} bytes were dropped",
+      "message": "Stream {connector} is sending faster than its connections carry: {len} bytes dropped",
       "hint": "Send less often."
     },
     "ERR_CONN_BAD_ARG": {
-      "message": "A connector setting is not valid"
-    },
-    "ERR_CONN_SEND": {
-      "message": "While {connector} sent over {provider}"
+      "message": "Invalid stream settings"
     },
     "ERR_CONN_FULL": {
-      "message": "No room for {connector}: every connector slot is taken",
-      "hint": "Remove a connector first."
+      "message": "No room for stream {connector}: every slot is taken",
+      "hint": "Remove a stream first."
     }
   }
 }

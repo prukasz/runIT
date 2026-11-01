@@ -1,6 +1,5 @@
 #include "esp_log.h"
 #include "router.h"
-#include "router_priv.h"
 #include "sdkconfig.h"
 
 #define TAG __FILE_NAME__
@@ -22,15 +21,15 @@ U_TASK_DEFINE(router_urgent_task_h, CONFIG_ROUTER_URGENT_TASK_STACK);
 typedef struct {
   router_done_f done;
   void* ctx;
-  uint8_t link;
-  uint8_t seq;
+  uint16_t seq;
+  uint8_t src;
   uint8_t flags;
 } item_t;
 
 static struct {
   const router_tap_t* tap;
   void (*urgent_fn)(void);  // router_run_urgent: the fn waiting to run, NULL when none
-  uint8_t inject_seq;       // seq of the board's own commands (diagnostics only)
+  uint16_t inject_seq;      // seq of the board's own commands
   // One answer buffer per task (the two run at the same time): CMD_HEAD bytes for the done's header, then the data.
   uint8_t buf_work[CMD_FRAME_MAX];
   uint8_t buf_urgent[CMD_FRAME_MAX];
@@ -42,11 +41,9 @@ static __thread const err_cmd_t* s_route;  // per router task: the command it is
  * Reporting
  * ------------------------------------------------------------------------- */
 
-/* Ends a command's chain: logged with the command ("cmd link 1 seq 7 flags 00
- * req 02 02 00") and handed to the error sink with the command as origin. */
 void router_report_cmd(const err_cmd_t* cmd, err_h err) {
   char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
-  int pos = snprintf(ctx, sizeof(ctx), "cmd link %u seq %u flags %02x req", cmd->link, cmd->seq, cmd->flags);
+  int pos = snprintf(ctx, sizeof(ctx), "cmd src %02x seq %u flags %02x req", cmd->src, cmd->seq, cmd->flags);
   uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
   for (uint32_t i = 0; i < shown && pos > 0 && (size_t)pos < sizeof(ctx); i++) {
     pos += snprintf(ctx + pos, sizeof(ctx) - pos, " %02x", cmd->req[i]);
@@ -69,15 +66,15 @@ static void notify_urgent(uint32_t bits) {
 
 err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx) {
   ERR_CHECK(cmd != NULL && (cmd->req != NULL || cmd->req_len == 0), ERR_CMD_BAD_ARG);
-  ERR_CHECK(cmd->req_len >= REQ_MIN_BYTES && cmd->req_len <= CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .link = cmd->link,
+  ERR_CHECK(cmd->req_len >= REQ_MIN_BYTES && cmd->req_len <= CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .src = cmd->src,
             .len = (uint16_t)cmd->req_len, .max = CMD_DATA_MAX);
 
   const bool urgent = (cmd->flags & ROUTER_FLAG_URGENT) != 0;
   RingbufHandle_t rb = urgent ? router_urgent_rb : router_work_rb;
   void* slot = NULL;
   ERR_CHECK(xRingbufferSendAcquire(rb, &slot, sizeof(item_t) + cmd->req_len, 0) == pdTRUE, ERR_ROUTER_QUEUE_FULL,
-            .link = cmd->link, .urgent = urgent);
-  const item_t item = {.done = done, .ctx = ctx, .link = cmd->link, .seq = cmd->seq, .flags = cmd->flags};
+            .src = cmd->src, .urgent = urgent);
+  const item_t item = {.done = done, .ctx = ctx, .seq = cmd->seq, .src = cmd->src, .flags = cmd->flags};
   memcpy(slot, &item, sizeof(item));
   memcpy((uint8_t*)slot + sizeof(item), cmd->req, cmd->req_len);
   xRingbufferSendComplete(rb, slot);
@@ -92,8 +89,8 @@ err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) 
   const err_cmd_t cmd = {
       .req = req.data,
       .req_len = req.len,
-      .link = ROUTER_LINK_INTERNAL,
       .seq = __atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
+      .src = ROUTER_SRC_SELF,
       .flags = flags,
   };
   return router_submit(&cmd, done, ctx);
@@ -137,8 +134,8 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
   const err_cmd_t cmd = {
       .req = slot + sizeof(item),
       .req_len = (uint32_t)(size - sizeof(item)),
-      .link = item.link,
       .seq = item.seq,
+      .src = item.src,
       .flags = item.flags,
   };
   cmd_out_t out = {.data = buf + CMD_HEAD, .cap = CMD_DATA_MAX};

@@ -5,38 +5,20 @@
 #include "runit.h"
 #include "runit_board_defs.h"
 #include "sdkconfig.h"
-#include "sys_ble.h"
+#include "sys_ble_link.h"
 #include "sys_data_connector.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 #include "sys_power_manager.h"
-#include "sys_uart.h"
 #include "utils.h"
 
 #define TAG __FILE_NAME__
 
-/* Routing: logs and errors on BLE LOGS; telemetry and events on BLE TX; errors, telemetry and events on UART (the text
- * log is on the console already). */
-static const struct {
-  uint8_t connector;
-  uint8_t provider;
-  uint32_t endpoint;
-} k_bindings[] = {
-    {SYS_DATA_CONNECTOR_ERRORS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_DATA_CONNECTOR_TELEMETRY, TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_DATA_CONNECTOR_EVENTS,    TRANSPORT_UART, SYS_UART_ENDPOINT},
-    {SYS_DATA_CONNECTOR_LOGS,      TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
-    {SYS_DATA_CONNECTOR_ERRORS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_LOGS},
-    {SYS_DATA_CONNECTOR_TELEMETRY, TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
-    {SYS_DATA_CONNECTOR_EVENTS,    TRANSPORT_BLE,  SYS_BLE_CHR_RUNIT_TX},
-};
-
+/* Routing: the log lines go as they are on the BLE LOGS characteristic. Every other stream goes to the clients that
+ * subscribe to it (SUBSCRIBE, over their session). */
 err_h runit_board_connector_bindings_init(void) {
-  for (size_t i = 0; i < ARRAY_LEN(k_bindings); i++) {
-    ERR_TRY(sys_data_connector_bind(k_bindings[i].connector, k_bindings[i].provider, k_bindings[i].endpoint));
-  }
-  return NULL;
+  return sys_data_connector_bind(SYS_DATA_CONNECTOR_LOGS, SYS_BLE_PROVIDER_LOGS, SYS_DATA_CONNECTOR_BIND_TX);
 }
 
 /* ---- Power layout ---- */

@@ -3,7 +3,7 @@
  *
  *   definitions   the link's numbers, the error tags and the descriptors, read from generated/
  *   catalog       every command of every router as the descriptors describe it, and its payload layout
- *   protocol      the router's request / response frames, the error record, the request of any catalog command
+ *   protocol      the session's frames (requests, answers, streams, HELLO), the error record, the request of any catalog command
  *   errors        an error record read for a user: messages from errors.json, the instances it is about, the app's names
  *   transport     BLE: the platform interface, framing, Web Bluetooth
  *   session       the commands, the link that keeps itself connected, sending a list in order, the catalog's commands
@@ -30,8 +30,8 @@ export type { AppTarget } from './errors/program'
 export { ErrorLog } from './session/errorlog'
 export type { ErrorEntry, ErrorFilter, ErrorLogOptions } from './session/errorlog'
 export type { ErrorNode, ErrorRecord } from './protocol/errors'
-export { decodeResponse, encodeRequest } from './protocol/frames'
-export type { Request, Response } from './protocol/frames'
+export { decodeFrame, decodeHello, decodeResponse, encodeFrame, encodeHello, encodeRequest, HEADER_BYTES, HELLO_BYTES } from './protocol/frames'
+export type { Frame, FrameHeader, Hello, Request, Response } from './protocol/frames'
 export { fragment, Reassembler } from './transport/framing'
 export type { Reassembled } from './transport/framing'
 export type { BleChannel, BleDeviceRef, BlePlatform, OpenHandlers } from './transport/types'
@@ -39,7 +39,7 @@ export { shortUuid, WebBluetoothPlatform } from './transport/webBluetooth'
 export { CommandClient, CommandError } from './session/commands'
 export type { CommandClientOptions, CommandErrorCode, CommandEvent, CommandOptions } from './session/commands'
 export { ATT_VALUE_MAX, DEFAULT_RECONNECT, RunitLink, STREAM_NAMES } from './session/link'
-export type { LinkDiagnostic, LinkOptions, LinkState, LinkStatus, ReconnectPolicy, StreamFrame, StreamName } from './session/link'
+export type { LinkDiagnostic, LinkOptions, LinkState, LinkStatus, ReconnectPolicy, SessionInfo, StreamFrame, StreamName } from './session/link'
 export { leaveSafeState, SAFE_STATE_COMMANDS } from './session/safestate'
 export type { LeaveSafeStateOptions } from './session/safestate'
 export { LOAD_COMMANDS, LoadError, loadProgram, sendInOrder, sendProgram } from './session/send'

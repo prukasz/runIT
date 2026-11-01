@@ -13,6 +13,13 @@ menu "sys_data_connector"
         default 3
         range 1 8
 
+    config SYS_DATA_CONNECTOR_SUBSCRIBERS
+        int "Subscribers per connector"
+        default 4
+        range 1 8
+        help
+          Peers subscribed to one connector (SUBSCRIBE): the app, a test host.
+
     config SYS_DATA_CONNECTOR_QUEUE_SIZE
         int "Queue (bytes)"
         default 4608
@@ -20,7 +27,7 @@ menu "sys_data_connector"
         help
           Ring buffer of frames waiting for the connector task; each takes
           its length + ~12 bytes, and the frame being sent keeps its room
-          until every binding has it. A full queue drops sends. Multiple of 4.
+          until every target has it. A full queue drops sends. Multiple of 4.
 
     config SYS_DATA_CONNECTOR_TASK_PRIO
         int "Task priority"
@@ -33,5 +40,8 @@ menu "sys_data_connector"
         int "Task stack (bytes)"
         default 4096
         range 2048 32768
+        help
+          Holds a whole stream frame (CMD_FRAME_MAX) while it goes to a
+          subscriber.
 
 endmenu

@@ -3,8 +3,10 @@ menu "sys_system"
     config SYS_SYSTEM_DEADMAN_DEFAULT_MS
         int "Dead-man timeout at boot (ms, 0 = off)"
         default 0
-        range 0 600000
+        range 0 60000
         help
-          Changed at runtime with the sys DEADMAN_SET command; not stored.
+          0, or the clients' sessions' timeout (150..60000): their end enters
+          the safe state. Changed at runtime with the sys DEADMAN command;
+          not stored.
 
 endmenu

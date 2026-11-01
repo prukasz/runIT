@@ -23,7 +23,7 @@ import time
 
 import router_tests as rt
 from router_link import KEY_DEVICE, KEY_SYS, READ, WRITE, Link, Response, frame
-from router_tests import check, err_cause, wait_boot
+from router_tests import check, err_cause, wait_boot, wait_restart
 
 # ---- device ops (generated/contracts/contract_*.json, generated/devices/device_*.json) ----
 OP_CREATE, OP_RESET, OP_SUSPEND, OP_RESUME, OP_REMOVE, OP_INFO, OP_OPS = 0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006
@@ -48,7 +48,7 @@ SIDE_R, SIDE_W = 0x01, 0x02  # OPS: the sides of an op
 SYS_STOP, SYS_RESTART, SYS_SAFE, SYS_SAFE_LEAVE = 0x02, 0x03, 0x09, 0x0A
 SAFE_STOP = 1  # sys_safe_reason_e
 KEY_LOG, LOG_CONFIG = 0x08, 0x01  # RW
-LOG_DEFAULT = (3, 1, 1, 1, 1)  # (level, mirror_serial, trace_errors, send_errors, send_logs)
+LOG_DEFAULT = (3, 0, 1, 1, 1)  # (level, mirror_serial, trace_errors, send_errors, send_logs)
 KEY_POWER_MGR, PW_CONFIG, PW_STATUS = 0x0A, 0x01, 0x07  # CONFIG RW, STATUS R
 
 # ---- the board (runit-esp/components/app/runit/board.json) ----
@@ -893,7 +893,7 @@ def test_error_transport(link: Link) -> None:
     unknown = frame(bytes([0x7E]))  # an unknown root key (goes as a write)
     t = link.mark()
     seq = link.next_seq()
-    link.send_frame(bytes([seq, 0x00]) + unknown + bytes(range(1, 120)))
+    link.send_raw(seq, 0x00, unknown + bytes(range(1, 120)))
     r = link.wait_response(seq)
     time.sleep(0.4)
     recs = [x for x in link.error_records_since(t) if x.src == 1 and x.seq == seq]
@@ -906,7 +906,7 @@ def test_error_transport(link: Link) -> None:
         seqs = []
         for _ in range(n):
             seqs.append(link.next_seq())
-            link.send_frame(bytes([seqs[-1], 0x00]) + unknown)
+            link.send_raw(seqs[-1], 0x00, unknown)
         got = {}
         end = time.time() + 6
         while time.time() < end and len(got) < n:
@@ -962,10 +962,10 @@ def test_restart_boot(link: Link) -> None:
     r = link.request(bytes([KEY_SYS, SYS_STOP]), urgent=True)
     check("STOP before the restart", r is not None and r.ok, str(r))
     time.sleep(0.5)
-    t = link.mark()
+    opens = link.opens
     r = link.request(bytes([KEY_SYS, SYS_RESTART]))
     check("RESTART answered", r is not None and r.ok, str(r))
-    check("board boots again", link.wait_log("runIT up (0 boot step(s) failed)", 25.0, since=t))
+    check("board boots again: a new session opens", wait_restart(link, opens, 25.0))
     time.sleep(1.0)
     check("after restart: not in the safe state", safe_reason(link) == 0, str(safe_reason(link)))
     test_boot_chips(link, "after restart")

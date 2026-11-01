@@ -1,5 +1,6 @@
 import { bundledLinkDefinitions, errorCatalog } from '../definitions'
 import type { ErrorInfo, LinkDefinitions } from '../definitions'
+import { decodeFrame, decodeHello, decodeResponse, encodeFrame, encodeHello } from '../protocol/frames'
 import type { Request } from '../protocol/frames'
 import { fragment, Reassembler } from '../transport/framing'
 import type { BleChannel, BleDeviceRef, BlePlatform } from '../transport/types'
@@ -7,9 +8,13 @@ import { CommandClient, CommandError } from './commands'
 import type { CommandOptions } from './commands'
 
 /*
- * The link to one board: the commands, the streams, and a connection that keeps itself up.
+ * The link to one board: a session (SYS_SESSION.MD), the commands, the streams, and a connection that keeps itself up.
  *
- *   - Opening is one call of the platform (connect, runIT service, two subscriptions); nothing is probed or waited for.
+ *   - Opening is one call of the platform (connect, runIT service, two subscriptions), then the session: this client's HELLO,
+ *     the board's in answer with the id it gave this client, then SUBSCRIBE of the errors, telemetry and events streams. The log
+ *     lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
+ *   - The session lives on PINGs: something goes to the board at least every third of its timeout (its HELLO says it). A board
+ *     that answers NO_SESSION (it restarted, or ended the session) gets a new HELLO and the streams are subscribed again.
  *   - A link that drops by itself is reopened at once (the first retry has no delay); the delays grow only when the board does
  *     not come back, to a ceiling, and never stop until `disconnect()`.
  *   - A command in flight when the link drops fails with `link-lost` (it may have run: only the caller knows whether it can be
@@ -67,6 +72,26 @@ export const ATT_VALUE_MAX = 512
 export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events'] as const
 export type StreamName = (typeof STREAM_NAMES)[number]
 
+/** The streams the link subscribes to once the session opens (logs come on their own characteristic). */
+const SUBSCRIBED: readonly StreamName[] = ['errors', 'telemetry', 'events']
+
+/** How long the board waits for this client: the host never ends the session itself. */
+const CLIENT_TIMEOUT_MS = 60_000
+/** A HELLO that gets no answer is sent again this often while the session opens. */
+const HELLO_RETRY_MS = 500
+/** The connector ops of SUBSCRIBE (SYS_DATA_CONNECTOR.MD "Remote"). */
+const CONN_SUBSCRIBE = 0x09
+
+/** The session as the board's HELLO gave it. */
+export interface SessionInfo {
+  /** This client's id: the `src` of its requests. */
+  readonly clientId: number
+  readonly boardId: number
+  readonly bootId: number
+  /** The board ends the session after this much silence. */
+  readonly timeoutMs: number
+}
+
 export interface StreamFrame {
   readonly stream: number
   /** Undefined for a stream byte the firmware does not publish. */
@@ -100,6 +125,11 @@ export class RunitLink {
   private looping = false
   private current: BleDeviceRef | undefined
   private status: LinkStatus = { state: 'idle' }
+  private sessionInfo: SessionInfo | undefined
+  private helloWaiter: ((hello: SessionInfo) => void) | undefined
+  private lastSentAt = 0
+  private pinger: ReturnType<typeof setInterval> | undefined
+  private reopening = false
 
   constructor(
     private readonly platform: BlePlatform,
@@ -113,6 +143,7 @@ export class RunitLink {
     this.commands = new CommandClient({
       defs: this.defs,
       send: (frame) => this.sendFrame(frame),
+      address: () => ({ dst: this.sessionInfo?.boardId ?? 0, src: this.sessionInfo?.clientId ?? this.defs.session.id.none }),
       errors: options.errors ?? errorCatalog(),
       timeoutMs: options.timeoutMs,
       maxInFlight: options.maxInFlight,
@@ -128,6 +159,11 @@ export class RunitLink {
 
   get device(): BleDeviceRef | undefined {
     return this.current
+  }
+
+  /** The open session; undefined while there is none. */
+  get session(): SessionInfo | undefined {
+    return this.sessionInfo
   }
 
   /* ---- connection ---- */
@@ -162,6 +198,7 @@ export class RunitLink {
     this.generation++
     const channel = this.channel
     this.channel = undefined
+    this.endSession()
     this.reassemblers = new Map()
     this.commands.cancelAll('not-connected', 'The link was disconnected.')
     this.rejectWaiters('The link was disconnected.')
@@ -247,8 +284,96 @@ export class RunitLink {
       throw new CommandError('The link was disconnected while it was opening.', 'not-connected')
     }
     this.channel = channel
+    try {
+      await this.openSession(limit)
+    } catch (error) {
+      if (this.channel === channel) this.channel = undefined
+      this.endSession()
+      await channel.close().catch(() => undefined)
+      throw error
+    }
+    if (generation !== this.generation) throw new CommandError('The link dropped while the session opened.', 'not-connected')
     this.setStatus({ state: 'connected' })
     this.resolveWaiters()
+  }
+
+  /* ---- the session ---- */
+
+  /** HELLO until the board answers with this client's id, then the streams' SUBSCRIBE; the PINGs start. */
+  private async openSession(limitMs: number): Promise<void> {
+    this.sessionInfo = undefined
+    const answered = new Promise<SessionInfo>((resolve) => (this.helloWaiter = resolve))
+    const deadline = Date.now() + limitMs
+    let info: SessionInfo | undefined
+    while (!info) {
+      if (Date.now() > deadline) throw new Error(`The board did not open a session within ${limitMs} ms.`)
+      await this.sendControl(encodeHello(this.defs, CLIENT_TIMEOUT_MS))
+      info = await Promise.race([answered, sleep(HELLO_RETRY_MS).then(() => undefined)])
+    }
+    this.sessionInfo = info
+    this.startPings()
+    for (const name of SUBSCRIBED) {
+      const keys = [this.defs.keys.conn!, this.defs.dir.write, CONN_SUBSCRIBE]
+      await this.commands.request({ keys, payload: Uint8Array.of(this.defs.streams[name]) }, { label: `SUBSCRIBE ${name}` })
+    }
+  }
+
+  private endSession(): void {
+    this.sessionInfo = undefined
+    this.helloWaiter = undefined
+    clearInterval(this.pinger)
+    this.pinger = undefined
+  }
+
+  /** A PING whenever nothing went to the board for a third of its timeout (less a margin for the radio). */
+  private startPings(): void {
+    clearInterval(this.pinger)
+    this.pinger = setInterval(() => {
+      const info = this.sessionInfo
+      if (!info || !this.channel) return
+      if (Date.now() - this.lastSentAt >= (info.timeoutMs / 3) * 0.7) void this.sendControl(Uint8Array.of(this.defs.session.control.ping)).catch(() => undefined)
+    }, 100)
+  }
+
+  private sendControl(body: Uint8Array): Promise<void> {
+    const src = this.sessionInfo?.clientId ?? this.defs.session.id.none
+    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.control, dst: this.sessionInfo?.boardId ?? 0, src, seq: 0 }, body))
+  }
+
+  private onControl(body: Uint8Array): void {
+    const hello = decodeHello(this.defs, body)
+    if (hello) {
+      if (hello.version !== this.defs.session.version) return
+      const known = this.sessionInfo
+      if (hello.yourId !== this.defs.session.id.none) {
+        const info: SessionInfo = { clientId: hello.yourId, boardId: hello.boardId, bootId: hello.bootId, timeoutMs: hello.timeoutMs || 3000 }
+        if (this.helloWaiter) {
+          this.helloWaiter(info)
+          this.helloWaiter = undefined
+        } else if (known && (known.bootId !== info.bootId || known.clientId !== info.clientId)) this.reopenSession('The board opened a new session.')
+        else this.sessionInfo = info // a new timeout (the dead-man was armed)
+      } else if (known && hello.bootId !== known.bootId) this.reopenSession('The board restarted.')
+      return
+    }
+    if (body[0] === this.defs.session.control.noSession && this.sessionInfo) this.reopenSession('The board ended the session.')
+  }
+
+  /** The board has no session for this client any more: commands on the way are lost, the session opens again. */
+  private reopenSession(reason: string): void {
+    if (this.reopening || !this.channel) return
+    this.reopening = true
+    this.endSession()
+    this.commands.cancelAll('link-lost', reason)
+    const channel = this.channel
+    this.setStatus({ state: 'reconnecting', reason, attempt: 0 })
+    this.openSession(this.policy?.openTimeoutMs ?? DEFAULT_RECONNECT.openTimeoutMs)
+      .then(() => {
+        if (this.channel !== channel) return
+        this.setStatus({ state: 'connected' })
+        this.resolveWaiters()
+      })
+      .catch((error: unknown) => this.recycle(`The session did not open again: ${errorText(error)}`))
+      .finally(() => (this.reopening = false))
   }
 
   /** The link dropped by itself. */
@@ -256,6 +381,7 @@ export class RunitLink {
     if (!this.channel) return
     this.channel = undefined
     this.generation++
+    this.endSession()
     this.reassemblers = new Map()
     this.commands.cancelAll('link-lost', `The link dropped: ${reason}`)
     if (this.wanted && this.policy) {
@@ -321,6 +447,7 @@ export class RunitLink {
     }
     const result = this.tx.then(run)
     this.tx = result.catch(() => undefined)
+    this.lastSentAt = Date.now()
     return result
   }
 
@@ -336,15 +463,22 @@ export class RunitLink {
       this.diagnosticHandlers.forEach((h) => h({ kind: 'dropped', characteristic, reason: result.dropped }))
       return
     }
-    const stream = result.frame[0]
-    if (stream === undefined) return
-    if (stream === this.defs.streams.response) {
-      this.commands.onFrame(result.frame)
+    // The LOGS characteristic carries the logs stream's payloads as they are: no session header.
+    if (characteristic === this.defs.gatt.logs) {
+      this.emitStream(this.defs.streams.logs, result.frame)
       return
     }
+    const frame = decodeFrame(this.defs, result.frame)
+    if (!frame) return
+    if (frame.kind === this.defs.session.kind.control) this.onControl(frame.body)
+    else if (frame.kind === this.defs.session.kind.answer) this.commands.onResponse(decodeResponse(this.defs, result.frame)!)
+    else if (frame.kind === this.defs.session.kind.stream && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1))
+  }
+
+  private emitStream(stream: number, data: Uint8Array): void {
     const name = this.streamNames.get(stream)
     if (!name) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
-    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data: result.frame.subarray(1), at: Date.now() }
+    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data, at: Date.now() }
     this.streamHandlers.forEach((h) => h(frame))
   }
 
