@@ -1,4 +1,4 @@
-# sys_uart — the console UART as a provider
+# sys_uart — the console UART and the board-to-board link as providers
 
 Component `components/sys/sys_uart/`. Makes the console UART (GPIO 43/44 via the board's USB-UART bridge, 115200 baud) and, when it is a console output, the native USB-Serial-JTAG, one **provider** (SYS_DATA_PROVIDER.MD): `SYS_UART_PROVIDER` = `{SYS_DATA_PROVIDER_LINK_UART, the console's port}`, framed, wired, always up (`max_frame` = `CMD_FRAME_MAX`). The board config attaches a client session to it (SYS_SESSION.MD), so the console is a client's way to the board like the BLE pair.
 
@@ -12,9 +12,9 @@ The line is **binary**: every frame goes COBS-encoded with its CRC16, between 0x
 
 | File | Role |
 |---|---|
-| `sys_uart.h` | API, `SYS_UART_PROVIDER` |
-| `sys_uart.c` | COBS and CRC16, the RX and TX tasks, the provider |
-| `Kconfig` | RX and TX tasks, the TX queue and its send wait, the driver's RX buffer |
+| `sys_uart.h` | API, `SYS_UART_PROVIDER`, `SYS_UART_LINK_PROVIDER` |
+| `sys_uart.c` | COBS and CRC16, and per port (the console, the link) its provider, rings, RX and TX tasks |
+| `Kconfig` | RX and TX tasks, the TX queue and its send wait, the driver's RX buffer; the link (`CONFIG_SYS_UART_LINK_*`) |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Operation
@@ -27,6 +27,16 @@ The line is **binary**: every frame goes COBS-encoded with its CRC16, between 0x
 
 Frame format above the line: SYS_SESSION.MD "Frames".
 
+## The link to another board
+
+`CONFIG_SYS_UART_LINK` adds a second provider, `SYS_UART_LINK_PROVIDER` = `{SYS_DATA_PROVIDER_LINK_UART, CONFIG_SYS_UART_LINK_PORT}`: a UART of its own (UART1) with the same line, framed and `WIRED`, with rings and RX and TX tasks of its own. A session attaches it as the board's parent or as a child (SYS_SESSION.MD); `RUNIT_LINK_ROOT` and `RUNIT_LINK_CHILD` do it at boot (RUNIT.MD "Boot").
+
+- **Pins**: TX GPIO 17, RX GPIO 18 (`CONFIG_SYS_UART_LINK_TX_PIN` / `_RX_PIN`), the same on both boards, so the cable crosses them (TX to RX, RX to TX) and joins the grounds. They are free on the ESP32-S3 devkit and on the runIT board (its GPIO header); the firmware uses none of them (the I2C buses are 15/16 and 40/41). They are not the pins of a flasher: the devkit's bridge is on UART0 (GPIO 43/44), the runIT board flashes over its native USB (GPIO 19/20), and neither is a strapping pin, so a cable on the link does not disturb flashing or a reset.
+- **Rate**: `CONFIG_SYS_UART_LINK_BAUD` (921600), the same on both boards. RTS / CTS pins are optional (`_RTS_PIN`, `_CTS_PIN`, -1 = none).
+- **A flash write** (NVS) stops the cache for milliseconds, longer than the UART's 128-byte FIFO takes to fill at that rate: the RX interrupt runs from IRAM (`CONFIG_UART_ISR_IN_IRAM`, set by the link overlays) and the driver's RX buffer is `CONFIG_SYS_UART_LINK_RX_BUF` (4 KB).
+- **TX**: unlike the console's, the link's TX task waits for room in the UART driver's TX buffer: nothing but its own queue waits behind it.
+- Noise on the line (a cable pulled, a board resetting) is a candidate that fails its CRC and is dropped; the session's timeouts do the rest.
+
 ## Errors
 
 No tags of its own (`ERR_MOD_SYS_UART`, 3, is unused): a send's failure is the provider's `ERR_PROV_*` (SYS_DATA_PROVIDER.MD).
@@ -37,5 +47,7 @@ No tags of its own (`ERR_MOD_SYS_UART`, 3, is unused): a send's failure is the p
 - `CONFIG_SYS_UART_TX_QUEUE` (8 KB) is larger than the connector queue, so a burst of stream frames fills that one first and its producer is refused (and resends), not lost here unseen.
 
 ## Tests
+
+`tree_tests.py` (`.claude/skills/runit-esp/scripts/`) runs over a link between two boards (build.md "Two boards on a cable").
 
 The host scripts (`router_link.py` in `.claude/skills/runit-esp/scripts/`) open a client session over this line (the same COBS and CRC16); `router_tests.py`, `board_tests.py` and `vm_suite.py` run over it. `serial_capture.py` shows the raw bytes.

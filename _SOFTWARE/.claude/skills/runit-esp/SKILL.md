@@ -35,7 +35,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on framed providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period, a change or an event, their entries sent to the one who added them (key `0x0F`) |
 | sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | outbound streams (connectors): bindings to providers, peers subscribed over their session |
-| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console as a binary provider (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
+| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console and the board-to-board link as binary providers (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
 | sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |

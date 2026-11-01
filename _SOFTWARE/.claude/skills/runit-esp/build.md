@@ -111,6 +111,18 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 
 **Devkit builds.** The tracked `sdkconfig` is the PCB's (`CONFIG_RUNIT_BOARD_PCB`). A plain ESP32-S3 devkit takes an overlay in its own build folder instead of an edit of `sdkconfig`: `idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults" build`, then `idf.py -B build_devkit -p <PORT> flash` (`RUNIT_BOARD_DEVKIT`: only the ESP GPIO as device 0, no power layout, 4 MB flash). The app for it: `npm run dev:devkit` or `npm run app:devkit` in `runit-app/` (board_devkit.json). The test suites want an empty device table instead (they create the devices, and device 0 tells them the board is the PCB): a defaults file with `CONFIG_RUNIT_BOARD_BARE=y` in the same command, in another build folder.
 
+**Two boards on a cable.** The runIT PCB is the root, an ESP32-S3 devkit its child; the boards are joined by the sys_uart link (SYS_UART.MD "The link to another board"): **PCB GPIO17 (TX) to devkit GPIO18 (RX), PCB GPIO18 (RX) to devkit GPIO17 (TX), GND to GND** (3.3 V logic, no power wire). Each board is also on the PC by its own USB, which is also how it is flashed: the link's pins are not the flasher's, so the cables do not disturb each other. Two images, each in a build folder of its own (`-B` and the paths absolute or run from `runit-esp`):
+
+```powershell
+Set-Location C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp
+idf.py -B build_link_root  -D SDKCONFIG=build_link_root/sdkconfig  -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.link_root.defaults" build
+idf.py -B build_link_child -D SDKCONFIG=build_link_child/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults;sdkconfig.link_child.defaults" build
+idf.py -B build_link_root  -p <PCB port>    flash
+idf.py -B build_link_child -p <devkit port> flash
+```
+
+The root keeps its console and BLE clients and has the link as a child session (board id 0); the child has the link as its parent session and **no client session** (board id 1, `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` until an `ID` write is kept): the host reaches it only through the root. Run `python .claude\skills\runit-esp\scripts\tree_tests.py --port <root port>` (`--loss 20` also tests unplugging the cable). The child's console still shows its log text for `serial_capture.py`; its frames are not read there. Back to a single board: flash the normal build.
+
 **QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` and no devices (`CONFIG_RUNIT_BOARD_BARE`) from `sdkconfig.qemu.defaults`:
 
 ```powershell

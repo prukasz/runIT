@@ -2,6 +2,8 @@ build/
 build_qemu/
 build_mtu/
 build_devkit/
+build_link_root/
+build_link_child/
 managed_components/
 dependencies.lock
 

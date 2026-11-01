@@ -22,9 +22,20 @@ extern "C" {
 #define SYS_UART_PROVIDER \
   ((sys_data_provider_id_t){.link = SYS_DATA_PROVIDER_LINK_UART, .channel = CONFIG_ESP_CONSOLE_UART_NUM})
 
+#if CONFIG_SYS_UART_LINK
+/**
+ * The link to another board: a UART of its own (CONFIG_SYS_UART_LINK_PORT on the pins of CONFIG_SYS_UART_LINK_TX_PIN /
+ * _RX_PIN), the same line format, framed and wired. A session attaches it as the board's parent or as one of its
+ * children (SYS_SESSION.MD).
+ */
+#define SYS_UART_LINK_PROVIDER \
+  ((sys_data_provider_id_t){.link = SYS_DATA_PROVIDER_LINK_UART, .channel = CONFIG_SYS_UART_LINK_PORT})
+#endif
+
 /**
  * @brief Installs the console drivers (stdout moves to the UART driver), adds the console's provider and starts the
- * RX and TX tasks. Call once, before the session attaches it.
+ * RX and TX tasks; with CONFIG_SYS_UART_LINK the same for the link's UART. Call once, before the session attaches
+ * them.
  */
 MUST_USE err_h sys_uart_init(void);
 

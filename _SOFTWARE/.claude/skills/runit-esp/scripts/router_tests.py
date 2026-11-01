@@ -331,7 +331,7 @@ def test_session(link: Link) -> None:
     check("session PEERS", ok, str(r))
     if ok:
         peers = [struct.unpack_from("<BIBBBBHB", r.data, 1 + 12 * n) for n in range(r.data[0])]
-        mine = [p for p in peers if p[0] == LINK_UART]
+        mine = [p for p in peers if p[0] == LINK_UART and p[2] == 2]  # the console (a link would be a parent or a child)
         check("PEERS: the UART session is open, a client, with this client's id",
               len(mine) == 1 and mine[0][2] == 2 and mine[0][4] == 1 and mine[0][5] == link.my_id, str(peers))
         check("PEERS: the BLE session is attached", any(p[0] == LINK_BLE and p[1] == 0xFFE1 for p in peers), str(peers))

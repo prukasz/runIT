@@ -205,11 +205,11 @@ The parent's session ending is told once, with `peer` `SYS_SESSION_ID_BROADCAST`
 
 ## Tests
 
-The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a client: HELLO, PING, NO_SESSION, a new session after a restart, the streams subscribed. `router_tests.py` covers PEERS, ID, ATTACH refused, a request for another board, the dead-man by the session's silence; the app's backend (`runit-app/src/backend/session/link.ts`) is the BLE client, tested by `npm run test:hw`. The tree (two boards, forwarding, calls, GONE, the broadcasts) has no test yet.
+The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a client: HELLO, PING, NO_SESSION, a new session after a restart, the streams subscribed. `router_tests.py` covers PEERS, ID, ATTACH refused, a request for another board, the dead-man by the session's silence; the app's backend (`runit-app/src/backend/session/link.ts`) is the BLE client, tested by `npm run test:hw`. `tree_tests.py` runs over two boards joined by the sys_uart link: the sessions on both ends, a ping and an ID read through the root, a board outside the tree, the root's clock on the child, a watch on the child whose entries come back through the root, the child's loss. It has not been run yet.
 
 ## Open
 
-- The cable between two boards: a UART provider on a port of its own (SYS_DATA_PROVIDER.MD), `WIRED`, with the line's rate and flow control (SYS_UART.MD). The console is the only UART provider, so a second board can be attached to a board only on a provider that exists (a BLE one is not a cable) and the tree has not run between two boards.
+- The tree has not been run between two boards yet: the cable is the sys_uart link (SYS_UART.MD "The link to another board"), checked by `tree_tests.py`.
 - The hello's descriptors' hash, board type and firmware are sent as 0.
 - Users of the stream and reached listeners and of calls to other boards: the connectors' mirrors, the watches' client, the remote devices (`_wire_draft/`).
 - OTA, the flasher: jobs on calls and streams (CMD.MD "Long work").

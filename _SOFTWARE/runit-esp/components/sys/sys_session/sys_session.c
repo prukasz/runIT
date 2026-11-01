@@ -898,13 +898,13 @@ static void on_tick(void* arg) {
 
 err_h sys_session_init(void) {
   // The board id: NVS, the default when there is none (the default partition: sys_ble initialises it again).
-  uint8_t id = SYS_SESSION_ID_DEFAULT;
+  uint8_t id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
   esp_err_t rc = nvs_flash_init();
   if (rc == ESP_OK) {
     nvs_handle_t nvs;
     if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs) == ESP_OK) {
       if (nvs_get_u8(nvs, NVS_KEY_ID, &id) != ESP_OK || id > SYS_SESSION_ID_LAST) {
-        id = SYS_SESSION_ID_DEFAULT;
+        id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
       }
       nvs_close(nvs);
     }

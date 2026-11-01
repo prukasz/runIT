@@ -59,4 +59,73 @@ menu "sys_uart"
           ERR_PROV_BUSY at once. Also how long a frame waits for the
           USB-Serial-JTAG host.
 
+    config SYS_UART_LINK
+        bool "Board-to-board link"
+        default n
+        help
+          A second UART as a provider, for a cable to another runIT board:
+          the same line format as the console (COBS and CRC16), wired, with
+          its own rings and tasks. A session attaches it as the board's
+          parent or as a child (SYS_SESSION.MD). The runIT link roles
+          (RUNIT_LINK_ROOT, RUNIT_LINK_CHILD) turn it on.
+
+    config SYS_UART_LINK_PORT
+        int "Link UART port"
+        depends on SYS_UART_LINK
+        default 1
+        range 1 2
+        help
+          The UART of the link; not the console's.
+
+    config SYS_UART_LINK_TX_PIN
+        int "Link TX pin (GPIO)"
+        depends on SYS_UART_LINK
+        default 17
+        range 0 48
+        help
+          Joined to the other board's RX pin. 17 and 18 are free on the
+          ESP32-S3 devkit and on the runIT board's GPIO header.
+
+    config SYS_UART_LINK_RX_PIN
+        int "Link RX pin (GPIO)"
+        depends on SYS_UART_LINK
+        default 18
+        range 0 48
+        help
+          Joined to the other board's TX pin. The grounds are joined too.
+
+    config SYS_UART_LINK_RTS_PIN
+        int "Link RTS pin (GPIO, -1 = none)"
+        depends on SYS_UART_LINK
+        default -1
+        range -1 48
+        help
+          With the CTS pin also set the link uses hardware flow control.
+
+    config SYS_UART_LINK_CTS_PIN
+        int "Link CTS pin (GPIO, -1 = none)"
+        depends on SYS_UART_LINK
+        default -1
+        range -1 48
+
+    config SYS_UART_LINK_BAUD
+        int "Link baud rate"
+        depends on SYS_UART_LINK
+        default 921600
+        range 115200 5000000
+        help
+          Both boards use the same. Jumper wires and long cables want the
+          lower end; 2 to 5 Mbaud needs a short cable and, on a board that
+          writes flash (NVS) while frames arrive, the ISR in IRAM
+          (CONFIG_UART_ISR_IN_IRAM) or flow control.
+
+    config SYS_UART_LINK_RX_BUF
+        int "Link driver RX buffer (bytes)"
+        depends on SYS_UART_LINK
+        default 4096
+        range 256 16384
+        help
+          Larger than the console's: a flash write stops the RX task for
+          milliseconds, and at the link's rate the buffer fills in that time.
+
 endmenu

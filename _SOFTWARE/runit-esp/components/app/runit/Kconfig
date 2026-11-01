@@ -39,6 +39,38 @@ menu "runIT"
               sdkconfig.qemu.defaults.
     endchoice
 
+    choice RUNIT_LINK_ROLE
+        prompt "Link to another board"
+        default RUNIT_LINK_NONE
+        help
+          What the sys_uart link (a second UART, CONFIG_SYS_UART_LINK_*) is in
+          the tree of boards (SYS_SESSION.MD). A board with a parent takes no
+          client: a child has no console or BLE session of its own, the app
+          reaches it through the root.
+
+        config RUNIT_LINK_NONE
+            bool "None"
+            help
+              No link: the board is alone and takes clients (the app, the
+              test scripts) on the console and on BLE.
+
+        config RUNIT_LINK_ROOT
+            bool "Root: the link leads to a child"
+            select SYS_UART_LINK
+            help
+              The board stays the root and takes its clients; the link is a
+              child session. The child's board id must differ from this
+              board's (sdkconfig.link_root.defaults).
+
+        config RUNIT_LINK_CHILD
+            bool "Child: the link leads to the parent"
+            select SYS_UART_LINK
+            help
+              The link is the board's parent session; no client session is
+              attached. Give the board an id of its own
+              (CONFIG_SYS_SESSION_BOARD_ID_DEFAULT; sdkconfig.link_child.defaults).
+    endchoice
+
     menu "Onboard action IDs"
 
         #@limit @alias Onboard action: resume all

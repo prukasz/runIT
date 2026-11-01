@@ -47,6 +47,15 @@ menu "sys_session"
           The same to the peer of a session on a WIRED provider (a cable):
           its round trip is about a millisecond.
 
+    config SYS_SESSION_BOARD_ID_DEFAULT
+        int "Board id until the app sets one"
+        default 0
+        range 0 239
+        help
+          The board's id when none is kept in NVS (ID). Two boards of one
+          tree need different ids: the child of a link takes another here
+          (sdkconfig.link_child.defaults).
+
     config SYS_SESSION_GONE_LISTENERS
         int "Gone-peer listeners"
         default 5

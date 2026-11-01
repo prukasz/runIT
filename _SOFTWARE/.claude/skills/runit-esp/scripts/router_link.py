@@ -491,13 +491,13 @@ class Link:
         self.send_session(KIND_REQUEST, flags, self.board_id if dst is None else dst, seq, body)
 
     def request(self, keys: bytes, payload: bytes = b"", urgent: bool = False, timeout: float = 2.0,
-                dir: int | None = None, raw: bool = False) -> Response | None:
+                dir: int | None = None, raw: bool = False, dst: int | None = None) -> Response | None:
         """`keys` without the direction byte (`frame` adds it; `dir` for a command with both sides). `raw`: `keys` go
-        as they are (a test of the direction byte itself)."""
+        as they are (a test of the direction byte itself). `dst`: another board of the tree (the root forwards it)."""
         seq = self.next_seq()
         with self._lock:
             self.responses.pop(seq, None)
-        self.send_raw(seq, FLAG_URGENT if urgent else 0, (keys if raw else frame(keys, dir)) + payload)
+        self.send_raw(seq, FLAG_URGENT if urgent else 0, (keys if raw else frame(keys, dir)) + payload, dst)
         return self.wait_response(seq, timeout)
 
     def wait_response(self, seq: int, timeout: float = 2.0) -> Response | None:

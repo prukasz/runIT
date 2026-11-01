@@ -1,0 +1,6 @@
+# Link overlay, the child's side (applied after sdkconfig, and after sdkconfig.devkit.defaults for a devkit): the sys_uart
+# link leads to the parent, the board takes no client session and has the board id 1 until the app sets another.
+#   idf.py -B build_link_child -D SDKCONFIG=build_link_child/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults;sdkconfig.link_child.defaults" build
+CONFIG_RUNIT_LINK_CHILD=y
+CONFIG_SYS_SESSION_BOARD_ID_DEFAULT=1
+CONFIG_UART_ISR_IN_IRAM=y

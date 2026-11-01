@@ -100,8 +100,16 @@ static err_h router_setup(void) {
 
 // The board's clients: the console's port and the runIT BLE pair, each a session; the providers so far are the board's.
 static err_h sessions_init(void) {
+#if CONFIG_RUNIT_LINK_CHILD
+  // A board with a parent takes no client: the app reaches it through the root.
+  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_PARENT, SYS_SESSION_FULL));
+#else
   ERR_TRY(sys_session_attach(SYS_UART_PROVIDER, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
   ERR_TRY(sys_session_attach(SYS_BLE_PROVIDER_RUNIT, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
+#if CONFIG_RUNIT_LINK_ROOT
+  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_CHILD, SYS_SESSION_FULL));
+#endif
+#endif
   sys_data_provider_mark_system();
   return NULL;
 }

@@ -1,0 +1,6 @@
+# Link overlay, the root's side (applied after sdkconfig): the sys_uart link leads to a child board.
+#   idf.py -B build_link_root -D SDKCONFIG=build_link_root/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.link_root.defaults" build
+# Wiring (build.md "Two boards on a cable"): TX GPIO 17 to the other board's RX GPIO 18, RX 18 to its TX 17, grounds joined.
+CONFIG_RUNIT_LINK_ROOT=y
+# The UART interrupt stays served while a flash write (NVS) stops the cache.
+CONFIG_UART_ISR_IN_IRAM=y
