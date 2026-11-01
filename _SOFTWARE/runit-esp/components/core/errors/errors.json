@@ -1209,6 +1209,56 @@
           "hint": "Remove a stream first."
         },
         {
+          "code": 12,
+          "tag": 327692,
+          "name": "ERR_CONN_POOL_FULL",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "connector",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "free",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "description": "create: CONFIG_SYS_DATA_CONNECTOR_BUF_POOL",
+          "message": "No room for stream {connector}: it needs {size} bytes of buffer and {free} are free",
+          "hint": "Make its buffer smaller, or remove a stream that has one."
+        },
+        {
+          "code": 13,
+          "tag": 327693,
+          "name": "ERR_CONN_NO_RX",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "connector",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            }
+          ],
+          "description": "read, notify, bind RX: it keeps nothing and forwards nothing",
+          "message": "Stream {connector} keeps nothing that comes in and forwards nothing",
+          "hint": "Create it with a buffer for what comes in, or with forwarding."
+        },
+        {
           "code": 14,
           "tag": 327694,
           "name": "ERR_CONN_MIRROR_LOST",
@@ -1235,7 +1285,7 @@
               "size": 2
             }
           ],
-          "description": "a mirror's frames lost on the way; codes 12 and 13 are kept",
+          "description": "a mirror's frames lost on the way",
           "message": "Stream {connector} of board {board} lost {count} frames on the way"
         }
       ]

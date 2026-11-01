@@ -15,14 +15,14 @@ extern "C" {
 /** @brief Removes a binding and closes its provider (NULL when it was not bound); provider link 0: every binding. */
 MUST_USE err_h sys_data_connector_unbind(uint8_t id, sys_data_provider_id_t provider);
 
-/** @brief Suspended: sends are dropped (to free a slow link); false resumes. */
+/** @brief Suspended: sends are dropped (to free a slow link; what comes in is still kept); false resumes. */
 MUST_USE err_h sys_data_connector_set_suspended(uint8_t id, bool suspended);
 
 /** @brief A binding as LIST sends it. */
 typedef struct __attribute__((packed)) {
   sys_data_provider_id_t provider;
   uint8_t flags;     /**< SYS_DATA_CONNECTOR_BIND_* */
-  uint16_t dropped;  /**< Frames not sent there: busy, down, too long */
+  uint16_t dropped;  /**< Frames not sent there: busy, down, too long; stops at 0xFFFF */
 } sys_data_connector_binding_t;
 
 /** @brief A subscriber as LIST sends it. */
@@ -31,11 +31,10 @@ typedef struct __attribute__((packed)) {
   uint16_t dropped;  /**< Frames not sent to it: busy, down, no route */
 } sys_data_connector_subscriber_t;
 
-/** @brief A connector's head as LIST sends it; its subscribers, then its bindings follow. */
+/** @brief A connector's head as LIST sends it: what it is, its state; its subscribers, then its bindings follow. */
 typedef struct __attribute__((packed)) {
-  uint8_t id;
-  uint8_t flags;        /**< SYS_DATA_CONNECTOR_FLAG_* */
-  uint8_t state;        /**< SYS_DATA_CONNECTOR_STATE_* */
+  sys_data_connector_cfg_t cfg;
+  uint8_t state;  /**< SYS_DATA_CONNECTOR_STATE_* */
   uint8_t subscribers;
   uint8_t bindings;
 } sys_data_connector_head_t;

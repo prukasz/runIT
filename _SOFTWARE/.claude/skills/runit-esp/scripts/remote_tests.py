@@ -20,7 +20,7 @@ import struct
 import sys
 import time
 
-from router_link import FLAG_NOREPLY, KEY_DEVICE, READ, STREAM_EVENTS, WRITE, Link, Response, frame
+from router_link import FLAG_NOREPLY, KEY_CONN, KEY_DEVICE, READ, STREAM_EVENTS, WRITE, Link, Response, frame
 from vm_lib import Prog, Vm, X_NORMAL, X_RESET, ok as vm_ok
 from vm_t_blocks import periodic_state
 from vm_t_hw import IO_LEVEL, IO_MODE, IO_RESET, IO_TOGGLE, dev_state
@@ -33,6 +33,10 @@ EV_DEVICE_SUSPENDED = 0x0000  # the DEVICE contract's event 0
 ESP32S3_GPIO = 0x0040
 ASYNC, BLOCKING = 0, 1
 LOCAL = 0x0030  # the remote twin's id on the root
+CONN_CREATE, CONN_REMOVE, CONN_READ, CONN_MIRROR = 0x01, 0x02, 0x08, 0x0B
+EVENTS_ALL = 0x07  # the child's connector of every event
+RX_LATEST, RX_FIFO = 1, 2
+MSG = struct.Struct("<IHHBBI")  # READ's head: seq, len, missed, cut, from link, from channel
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
@@ -186,6 +190,106 @@ def test_events_errors(link: Link, child: int) -> None:
     check("the twin is removed", r is not None and r.ok, str(r))
 
 
+def conn(link: Link, op: int, payload: bytes, dir: int | None = None) -> Response | None:
+    return link.request(bytes([KEY_CONN, op]), payload, dir=dir)
+
+
+def conn_read(link: Link, cid: int) -> dict | None:
+    r = conn(link, CONN_READ, bytes([cid]), dir=READ)
+    if r is None or not r.ok or len(r.data) < MSG.size:
+        return None
+    seq, length, missed, cut, lk, ch = MSG.unpack_from(r.data)
+    return {"seq": seq, "len": length, "missed": missed, "cut": cut, "from": (lk, ch), "data": bytes(r.data[MSG.size:])}
+
+
+def event_of(msg: dict | None) -> tuple[int, int] | None:
+    """(device, event) of an EVENTS_ALL frame kept by a connector: [event key][NOTIFY][sys_event_t]."""
+    return struct.unpack_from("<HH", msg["data"], 2) if msg and len(msg["data"]) >= 2 + 18 else None
+
+
+def suspend_resume(link: Link, child: int, times: int = 1) -> None:
+    """Two events of the child's device 0 each: SUSPENDED, then RESUMED."""
+    for _ in range(times):
+        dev(link, 0, SYS_DEVICE_OP_SUSPEND, dir=WRITE, dst=child)
+        dev(link, 0, SYS_DEVICE_OP_RESUME, dir=WRITE, dst=child)
+    time.sleep(0.5)
+
+
+def bad_op(link: Link, child: int) -> None:
+    """An error on the child (an op its device 0 does not have): an errors record, and a line in its log."""
+    link.send_raw(link.next_seq(), FLAG_NOREPLY, frame(bytes([KEY_DEVICE]) + struct.pack("<HH", 0, 0x0DEF), WRITE), child)
+    time.sleep(0.5)
+
+
+def conn_make(link: Link, cid: int, rx: int, size: int, child: int, remote: int) -> bool:
+    r = conn(link, CONN_CREATE, struct.pack("<BBBH", cid, rx, 0, size), dir=WRITE)
+    r2 = conn(link, CONN_MIRROR, bytes([cid, child, remote]), dir=WRITE)
+    return check(f"connector 0x{cid:02x} keeps stream 0x{remote:02x} of the child", r is not None and r.ok and r2 is not None and r2.ok, f"{r} {r2}")
+
+
+def conn_drop(link: Link, cid: int, child: int) -> None:
+    conn(link, CONN_MIRROR, bytes([cid, child, 0]), dir=WRITE)
+    conn(link, CONN_REMOVE, bytes([cid]), dir=WRITE)
+
+
+def test_connector_rx(link: Link, child: int) -> None:
+    """Mirrors of the child's streams, kept by the root's connectors: the latest, a queue in order, a full queue that
+    loses the new ones, a second mirror of one stream refused, and a pool that closes over a removed connector's buffer
+    without losing what the others hold."""
+    for cid in (0x40, 0x41, 0x42):
+        conn_drop(link, cid, child)
+    LOGS, ERRORS = 0x03, 0x04
+
+    # a queue: every event in order, then a full one
+    if not conn_make(link, 0x42, RX_FIFO, 200, child, EVENTS_ALL):
+        return
+    r = conn(link, CONN_CREATE, struct.pack("<BBBH", 0x41, RX_LATEST, 0, 64), dir=WRITE)
+    r = conn(link, CONN_MIRROR, bytes([0x41, child, EVENTS_ALL]), dir=WRITE)
+    check("a second mirror of the same stream is refused (the users of one share it)", cause(r) == "ERR_CONN_BAD_ARG", str(r))
+    conn(link, CONN_REMOVE, bytes([0x41]), dir=WRITE)
+    time.sleep(0.3)  # its mirror subscribes on the child
+    suspend_resume(link, child)
+    got = []
+    while (m := conn_read(link, 0x42)) is not None and m["len"] > 0:
+        got.append(m)
+    events = [event_of(m) for m in got]
+    check("queue: every event, the oldest first (SUSPENDED, then the one after it), then empty",
+          len(got) >= 2 and events[0] == (0, EV_DEVICE_SUSPENDED) and all(g["seq"] < h["seq"] for g, h in zip(got, got[1:])), str(events))
+    suspend_resume(link, child, 8)  # 16 events: more than 200 bytes of the queue hold
+    first = conn_read(link, 0x42)
+    check("queue: a full queue drops the new ones and counts them (missed)", first is not None and first["len"] > 0 and first["missed"] > 0, str(first))
+    conn_drop(link, 0x42, child)
+
+    # the latest of three streams, and the pool closing over the first one's buffer
+    for cid, rx, size, remote in ((0x40, RX_LATEST, 64, EVENTS_ALL), (0x41, RX_LATEST, 128, ERRORS), (0x42, RX_FIFO, 300, LOGS)):
+        if not conn_make(link, cid, rx, size, child, remote):
+            return
+    time.sleep(0.3)
+    suspend_resume(link, child)
+    bad_op(link, child)
+    a, b = conn_read(link, 0x40), conn_read(link, 0x41)
+    check("latest: the child's last event is kept (device 0, from the child's board)",
+          a is not None and a["seq"] >= 2 and event_of(a) is not None and event_of(a)[0] == 0 and a["from"] == (0, child), str(a))
+    again = conn_read(link, 0x40)
+    check("latest: a read leaves it (the same count, the same bytes)", again is not None and a is not None and
+          (again["seq"], again["data"]) == (a["seq"], a["data"]), f"{a} {again}")
+    check("latest: another stream's connector keeps its own (the error record of the bad op)",
+          b is not None and b["len"] > 0 and b["data"] != a["data"] and b["from"] == (0, child), str(b))
+    lines = conn_read(link, 0x42)
+    check("queue: the child's log lines arrive too", lines is not None and lines["len"] > 0, str(lines))
+
+    conn_drop(link, 0x40, child)
+    after = conn_read(link, 0x41)
+    check("pool: the connectors after a removed one keep what they had", b is not None and after is not None and
+          (b["seq"], b["data"]) == (after["seq"], after["data"]), f"{b} {after}")
+    bad_op(link, child)
+    newer, text = conn_read(link, 0x41), conn_read(link, 0x42)
+    check("pool: and keep receiving, with their buffers moved", newer is not None and b is not None and newer["seq"] > b["seq"] and
+          text is not None and text["len"] > 0, f"{newer} {text}")
+    for cid in (0x41, 0x42):
+        conn_drop(link, cid, child)
+
+
 DUMMY_ERRORS = [  # (name, device, op, dir, payload, the error the child's device raises)
     ("an op the device does not have", 0, 0x0DEF, WRITE, b"", "ERR_DEV_UNKNOWN_OP"),
     ("an argument of the wrong length", 0, IO_LEVEL, WRITE, b"\x04", "ERR_CMD_BAD_LEN"),
@@ -286,6 +390,7 @@ def main() -> int:
         if a.blink <= 0 or not a.keep:
             test_remote(link, a.child, a.pin)
             test_events_errors(link, a.child)
+            test_connector_rx(link, a.child)
             test_dummy_errors(link, a.child)
             test_board_errors(link)
         if a.blink > 0:

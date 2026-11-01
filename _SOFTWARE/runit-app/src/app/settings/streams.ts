@@ -28,7 +28,7 @@ const bindTx = (): number => bundledEnums().conn_bind?.members.find((m) => m.nam
 
 const u32 = (d: Uint8Array, at: number): number => (d[at]! | (d[at + 1]! << 8) | (d[at + 2]! << 16)) + d[at + 3]! * 0x1000000
 
-const HEAD_BYTES = 5 // id, flags, state, subscribers, bindings
+const HEAD_BYTES = 8 // id, keeps, flags, u16 buffer, state, subscribers, bindings
 const SUBSCRIBER_BYTES = 3 // peer, u16 dropped
 const BINDING_BYTES = 8 // link, u32 channel, flags, u16 dropped
 
@@ -37,7 +37,7 @@ export const decodeStreamsInfo = (data: Uint8Array): DataStream[] => {
   const out: DataStream[] = []
   let at = 1
   for (let n = 0; n < (data[0] ?? 0) && at + HEAD_BYTES <= data.length; n++) {
-    const [stream, , state, subscribers, count] = [data[at]!, data[at + 1]!, data[at + 2]!, data[at + 3]!, data[at + 4]!]
+    const [stream, state, subscribers, count] = [data[at]!, data[at + 5]!, data[at + 6]!, data[at + 7]!]
     at += HEAD_BYTES + subscribers * SUBSCRIBER_BYTES
     const bindings: StreamBinding[] = []
     for (let b = 0; b < count; b++, at += BINDING_BYTES) bindings.push({ provider: data[at]!, endpoint: u32(data, at + 1) })
@@ -49,6 +49,9 @@ export const decodeStreamsInfo = (data: Uint8Array): DataStream[] => {
 const call = (catalog: ServiceCatalog, command: string, args?: Record<string, number | string>): ServiceCall => serviceCall(catalog, STREAMS.service, command, args)
 
 const same = (a: StreamBinding, b: StreamBinding): boolean => a.provider === b.provider && a.endpoint === b.endpoint
+
+/** A project's stream keeps nothing that comes in (CREATE's `rx`, `flags` and `rx_size`; SYS_DATA_CONNECTOR.MD "Remote"). */
+const KEEPS_NOTHING = { rx: 0, flags: 0, rx_size: 0 }
 
 /** UNBIND of link 0: every binding of the stream (SYS_DATA_CONNECTOR.MD "Remote"). */
 const UNBIND_ALL = { link: 0, channel: 0 }
@@ -67,7 +70,7 @@ const bindSteps = (catalog: ServiceCatalog, s: DataStream, had: DataStream | und
 /** The frames of the streams record. None when the project keeps no streams. */
 export const streamsRecord = (catalog: ServiceCatalog, streams: readonly DataStream[]): Uint8Array[] =>
   streams.flatMap((s) => [
-    ...(s.system ? [] : [call(catalog, STREAMS.create, { id: s.stream, flags: 0 })]),
+    ...(s.system ? [] : [call(catalog, STREAMS.create, { id: s.stream, ...KEEPS_NOTHING })]),
     ...bindSteps(catalog, s, undefined, true),
   ]).map((c) => requestFrame(c.request))
 
@@ -79,7 +82,7 @@ export const streamsApply = (catalog: ServiceCatalog, live: readonly DataStream[
   }
   for (const s of streams) {
     const old = live.find((o) => o.stream === s.stream)
-    if (!s.system && !old) steps.push(call(catalog, STREAMS.create, { id: s.stream, flags: 0 }))
+    if (!s.system && !old) steps.push(call(catalog, STREAMS.create, { id: s.stream, ...KEEPS_NOTHING }))
     steps.push(...bindSteps(catalog, s, old, false))
   }
   return steps

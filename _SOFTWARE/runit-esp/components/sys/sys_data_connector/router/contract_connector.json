@@ -15,10 +15,10 @@
       "op": 1,
       "symbol": "SYS_DATA_CONNECTOR_OP_CREATE",
       "label": "Create a stream",
-      "description": "Creates a user connector: a stream named by its byte.",
+      "description": "Creates a user connector: a stream named by its byte, with what it keeps of what comes in.",
       "write": {
         "args": {
-          "struct": "create_t",
+          "struct": "sys_data_connector_cfg_t",
           "fields": [
             {
               "id": "id",
@@ -30,13 +30,33 @@
               "description": "The new connector: any byte but 0x00, 0x05 and a system connector's"
             },
             {
+              "id": "rx",
+              "label": "Keeps",
+              "type": "enum",
+              "enum": "sys_data_connector_rx_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "What it keeps of what comes in: nothing, the last message, or every message in order"
+            },
+            {
               "id": "flags",
               "label": "Flags",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 1,
-              "description": "SYS_DATA_CONNECTOR_FLAG_URGENT: its frames go first on every way out"
+              "offset": 2,
+              "description": "SYS_DATA_CONNECTOR_FLAG_URGENT: its frames go first on every way out; SYS_DATA_CONNECTOR_FLAG_FORWARD: what comes in goes out on the other targets"
+            },
+            {
+              "id": "rx_size",
+              "label": "Buffer",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "unit": "B",
+              "description": "Bytes of its buffer: the largest message kept (latest) or the ring (queue); 0 when it keeps nothing"
             }
           ]
         }
@@ -70,7 +90,7 @@
       "op": 3,
       "symbol": "SYS_DATA_CONNECTOR_OP_BIND",
       "label": "Bind to a provider",
-      "description": "Binds a stream to a provider (a BLE characteristic, a UART port): its frames go there as they are.",
+      "description": "Binds a stream to a provider (a BLE characteristic, a UART port): its frames go there as they are, and what comes in on the provider is kept by the stream.",
       "write": {
         "args": {
           "struct": "bind_t",
@@ -110,7 +130,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 6,
-              "description": "SYS_DATA_CONNECTOR_BIND_TX"
+              "description": "SYS_DATA_CONNECTOR_BIND_RX / _TX: which way the binding carries"
             }
           ]
         }
@@ -214,7 +234,97 @@
         "returns": {
           "type": "u8",
           "label": "Number of connectors",
-          "description": "Then, per connector: its head (id, flags, state, subscriber count, binding count), its subscribers (peer u8, dropped u16), its bindings (provider id, flags u8, dropped u16)."
+          "description": "Then, per connector: its head (id, keeps, flags, buffer u16, state, subscriber count, binding count), its subscribers (peer u8, dropped u16), its bindings (provider id, flags u8, dropped u16)."
+        }
+      }
+    },
+    {
+      "id": "READ",
+      "op": 8,
+      "symbol": "SYS_DATA_CONNECTOR_OP_READ",
+      "label": "Read what came in",
+      "description": "The message a stream kept: the last one (latest, left in place) or the oldest (queue, taken out), with its count, how many were lost and the provider it came from. Nothing kept: no bytes.",
+      "read": {
+        "args": {
+          "struct": "connector_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The connector"
+            }
+          ]
+        },
+        "returns": {
+          "description": "The message's head, then its bytes (to the end of the frame)",
+          "fields": [
+            {
+              "id": "seq",
+              "label": "Count",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "Messages come in so far, this one counted"
+            },
+            {
+              "id": "len",
+              "label": "Length",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 4,
+              "unit": "B",
+              "description": "Bytes of the message that follow"
+            },
+            {
+              "id": "missed",
+              "label": "Missed",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 6,
+              "description": "Messages lost since the last read"
+            },
+            {
+              "id": "cut",
+              "label": "Cut",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 8,
+              "description": "1 when the message was longer than the buffer and was cut"
+            },
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 9,
+              "description": "Which driver made the provider it came in on; 0 for a mirror"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 10,
+              "description": "The provider's address on that link; for a mirror the board"
+            },
+            {
+              "id": "data",
+              "label": "Message",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The message's bytes (runs to the end of the frame)"
+            }
+          ]
         }
       }
     },
@@ -259,6 +369,47 @@
               "size": 1,
               "offset": 0,
               "description": "The connector"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "MIRROR",
+      "op": 11,
+      "symbol": "SYS_DATA_CONNECTOR_OP_MIRROR",
+      "label": "Mirror a stream of another board",
+      "description": "Makes the stream the mirror of a stream of another board: what that board sends there comes in here and goes to every target of this one. Remote stream 0 ends the mirror.",
+      "write": {
+        "args": {
+          "struct": "mirror_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Connector",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The local connector, created before"
+            },
+            {
+              "id": "board",
+              "label": "Board",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "The board whose stream it mirrors"
+            },
+            {
+              "id": "remote_id",
+              "label": "Remote connector",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "Its connector there; 0 ends the mirror"
             }
           ]
         }

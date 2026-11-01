@@ -261,15 +261,15 @@ def test_i2c(link: Link, target: str) -> None:
 
 
 def conn_list(link: Link) -> dict[int, dict]:
-    """conn LIST by connector: flags, state, subscribers [(peer, dropped)], bindings [((link, channel), flags, dropped)]."""
+    """conn LIST by connector: keeps, flags, buffer, state, subscribers [(peer, dropped)], bindings [((link, channel), flags, dropped)]."""
     r = link.request(bytes([KEY_CONN, 0x07]))
     out = {}
     if not (r and r.ok):
         return out
     d, pos = r.data, 1
     for _ in range(d[0]):
-        cid, flags, state, ns, nb = d[pos : pos + 5]
-        pos += 5
+        cid, rx, flags, rx_size, state, ns, nb = struct.unpack_from("<BBBHBBB", d, pos)
+        pos += 8
         subs, binds = [], []
         for _ in range(ns):
             subs.append(struct.unpack_from("<BH", d, pos))
@@ -278,11 +278,18 @@ def conn_list(link: Link) -> dict[int, dict]:
             lk, ch, fl, dr = struct.unpack_from("<BIBH", d, pos)
             pos += 8
             binds.append(((lk, ch), fl, dr))
-        out[cid] = {"flags": flags, "state": state, "subs": subs, "binds": binds}
+        out[cid] = {"rx": rx, "flags": flags, "rx_size": rx_size, "state": state, "subs": subs, "binds": binds}
     return out
 
 
-BIND_TX = 0x02
+BIND_RX, BIND_TX = 0x01, 0x02
+RX_NONE, RX_LATEST, RX_FIFO = 0, 1, 2
+FLAG_URGENT, FLAG_FORWARD = 0x01, 0x02
+
+
+def conn_cfg(cid: int, rx: int = RX_NONE, flags: int = 0, rx_size: int = 0) -> bytes:
+    """CREATE's payload (sys_data_connector_cfg_t)."""
+    return struct.pack("<BBBH", cid, rx, flags, rx_size)
 SYS_UART_PROVIDER = struct.pack("<BI", LINK_UART, 0)
 LOGS_CHAR = (LINK_BLE, 0xFFE3)
 
@@ -301,14 +308,14 @@ def test_conn(link: Link) -> None:
     r = link.request(bytes([KEY_CONN, 0x09]), payload=bytes([0x04]))
     check("SUBSCRIBE again: one subscription", r is not None and r.ok and
           [s[0] for s in conn_list(link)[4]["subs"]].count(link.my_id) == 1, str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x06, 0]))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(0x06))
     check("conn CREATE on the events byte -> ERR_CONN_EXISTS", err_cause(r) == "ERR_CONN_EXISTS", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x05, 0]))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(0x05))
     check("conn CREATE on the watches' byte -> ERR_CONN_EXISTS", err_cause(r) == "ERR_CONN_EXISTS", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x00, 0]))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(0x00))
     check("conn CREATE 0x00 -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
-    r = link.request(bytes([KEY_CONN, 0x01]), payload=bytes([0x10, 0]))
-    check("conn CREATE user 0x10", r is not None and r.ok, str(r))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(0x10, RX_LATEST, FLAG_FORWARD, 32))
+    check("conn CREATE user 0x10 (keeps the latest, 32 bytes)", r is not None and r.ok, str(r))
     r = link.request(bytes([KEY_CONN, 0x03]), payload=bytes([0x10]) + SYS_UART_PROVIDER + bytes([BIND_TX]))
     check("conn BIND 0x10 -> the UART provider: the session has it -> ERR_PROV_IN_USE", err_cause(r) == "ERR_PROV_IN_USE", str(r))
     r = link.request(bytes([KEY_CONN, 0x09]), payload=bytes([0x10]))
@@ -316,6 +323,41 @@ def test_conn(link: Link) -> None:
     i = conn_list(link)
     check("conn LIST shows user 0x10 with this client", 0x10 in i and not i[0x10]["state"] & 1 and
           [s[0] for s in i[0x10]["subs"]] == [link.my_id], str(i.get(0x10)))
+    check("conn LIST shows what it keeps: latest, forward, 32 bytes",
+          0x10 in i and (i[0x10]["rx"], i[0x10]["flags"], i[0x10]["rx_size"]) == (RX_LATEST, FLAG_FORWARD, 32), str(i.get(0x10)))
+    r = link.request(bytes([KEY_CONN, 0x08]), payload=bytes([0x10]), dir=READ)
+    check("conn READ 0x10 before anything came in: seq 0, no bytes", r is not None and r.ok and r.data == bytes(14), str(r))
+    r = link.request(bytes([KEY_CONN, 0x08]), payload=bytes([0x04]), dir=READ)
+    check("conn READ errors 0x04 (keeps nothing) -> ERR_CONN_NO_RX", err_cause(r) == "ERR_CONN_NO_RX", str(r))
+    r = link.request(bytes([KEY_CONN, 0x08]), payload=bytes([0x7F]), dir=READ)
+    check("conn READ of no connector -> ERR_CONN_NOT_FOUND", err_cause(r) == "ERR_CONN_NOT_FOUND", str(r))
+    r = link.request(bytes([KEY_CONN, 0x03]), payload=bytes([0x04]) + SYS_UART_PROVIDER + bytes([BIND_RX]))
+    check("conn BIND RX on errors 0x04 (keeps nothing, forwards nothing) -> ERR_CONN_NO_RX", err_cause(r) == "ERR_CONN_NO_RX", str(r))
+    r = link.request(bytes([KEY_CONN, 0x03]), payload=bytes([0x10]) + SYS_UART_PROVIDER + bytes([0x04]))
+    check("conn BIND with an unknown flag -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
+    for name, cfg in [("latest with no buffer", conn_cfg(0x11, RX_LATEST, 0, 0)),
+                      ("latest past a frame", conn_cfg(0x11, RX_LATEST, 0, 600)),
+                      ("a queue no bigger than a message header", conn_cfg(0x11, RX_FIFO, 0, 12)),
+                      ("a buffer for what it keeps nothing of", conn_cfg(0x11, RX_NONE, 0, 8)),
+                      ("an unknown kind of keeping", conn_cfg(0x11, 3, 0, 8)),
+                      ("an unknown flag", conn_cfg(0x11, RX_NONE, 0x04, 0))]:
+        r = link.request(bytes([KEY_CONN, 0x01]), payload=cfg)
+        check(f"conn CREATE {name} -> ERR_CONN_BAD_ARG", err_cause(r) == "ERR_CONN_BAD_ARG", str(r))
+    # The pool: buffers come from one static pool and go back at REMOVE
+    made = []
+    for n in range(0x20, 0x30):
+        r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(n, RX_LATEST, 0, 500))
+        if r is None or not r.ok:
+            check("conn CREATE past the pool -> ERR_CONN_POOL_FULL", err_cause(r) == "ERR_CONN_POOL_FULL" and len(made) >= 2, f"{len(made)} made: {r}")
+            break
+        made.append(n)
+    else:
+        check("conn CREATE past the pool -> ERR_CONN_POOL_FULL", False, "the pool never filled")
+    for n in made:
+        link.request(bytes([KEY_CONN, 0x02]), payload=bytes([n]))
+    r = link.request(bytes([KEY_CONN, 0x01]), payload=conn_cfg(0x20, RX_LATEST, 0, 500))
+    check("conn REMOVE gives the buffers back: the same CREATE fits again", r is not None and r.ok, str(r))
+    link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x20]))
     r = link.request(bytes([KEY_CONN, 0x0A]), payload=bytes([0x10]))
     check("conn UNSUBSCRIBE 0x10", r is not None and r.ok and conn_list(link)[0x10]["subs"] == [], str(r))
     r = link.request(bytes([KEY_CONN, 0x02]), payload=bytes([0x04]))

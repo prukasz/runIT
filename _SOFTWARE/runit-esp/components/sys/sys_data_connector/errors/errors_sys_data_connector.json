@@ -31,6 +31,14 @@
       "message": "No room for stream {connector}: every slot is taken",
       "hint": "Remove a stream first."
     },
+    "ERR_CONN_POOL_FULL": {
+      "message": "No room for stream {connector}: it needs {size} bytes of buffer and {free} are free",
+      "hint": "Make its buffer smaller, or remove a stream that has one."
+    },
+    "ERR_CONN_NO_RX": {
+      "message": "Stream {connector} keeps nothing that comes in and forwards nothing",
+      "hint": "Create it with a buffer for what comes in, or with forwarding."
+    },
     "ERR_CONN_MIRROR_LOST": {
       "message": "Stream {connector} of board {board} lost {count} frames on the way"
     }

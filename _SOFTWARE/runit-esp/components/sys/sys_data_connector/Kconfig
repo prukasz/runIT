@@ -21,6 +21,15 @@ menu "sys_data_connector"
         help
           Peers subscribed to one connector (SUBSCRIBE): the app, a test host.
 
+    config SYS_DATA_CONNECTOR_BUF_POOL
+        int "Receive buffers (bytes)"
+        default 2048
+        range 0 16384
+        help
+          The buffers of every connector that keeps what comes in (LATEST: one
+          message, FIFO: a ring), taken at create from one static pool and
+          given back at remove. A create that does not fit: ERR_CONN_POOL_FULL.
+
     config SYS_DATA_CONNECTOR_QUEUE_SIZE
         int "Queue (bytes)"
         default 4608

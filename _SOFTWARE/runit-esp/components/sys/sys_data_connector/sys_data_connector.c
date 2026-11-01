@@ -15,6 +15,22 @@ U_MUTEX_DEFINE(sys_data_connector_mutex);
 U_RINGBUFFER_DEFINE(sys_data_connector_rb, CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_TASK_DEFINE(sys_data_connector_task_h, CONFIG_SYS_DATA_CONNECTOR_TASK_STACK);
 
+// The rx buffers of every connector come from one pool: [0, s_pool_used) is in use, packed, a connector's buffer is an
+// offset into it. A removed connector's buffer is closed over, so the offsets after it move down (under the lock).
+#define POOL_ROUND(n) (((uint32_t)(n) + 3u) & ~3u)
+
+static uint8_t s_pool[CONFIG_SYS_DATA_CONNECTOR_BUF_POOL] __attribute__((aligned(4)));
+static uint32_t s_pool_used;
+static volatile bool s_notify_any;  // some connector has a listener to tell
+
+// A FIFO message in its ring: this header, then its bytes.
+typedef struct __attribute__((packed)) {
+  uint32_t seq;
+  uint16_t len;
+  uint8_t cut;
+  sys_data_provider_id_t from;
+} fifo_msg_t;
+
 // A connector that mirrors one of another board (sys_data_connector_mirror).
 typedef struct {
   bool on;
@@ -26,10 +42,23 @@ typedef struct {
   void* ctx;
 } mirror_t;
 
-// A connector: LIST's view of it, its frame counter and, per target, whether its last send failed (logged once).
+// A connector: LIST's view of it, what it received, its frame counter and, per target, whether its last send failed
+// (logged once).
 typedef struct {
   sys_data_connector_info_t info;
   mirror_t mirror;
+  uint32_t rx_off;  // its buffer in the pool, rx_size bytes (none with RX_NONE)
+  uint32_t rx_seq;  // messages come in so far
+  uint16_t rx_len;  // LATEST: the last message's bytes kept
+  uint16_t rx_missed;
+  uint16_t fifo_head;  // FIFO: the oldest message's place in the ring, and the bytes in it
+  uint16_t fifo_used;
+  bool rx_cut;
+  bool rx_unread;
+  bool notify_pending;
+  sys_data_provider_id_t rx_from;
+  sys_data_connector_notify_f notify;
+  void* notify_ctx;
   uint16_t seq;  // frames sent to its subscribers: a gap in their seq is frames lost
   bool sub_failing[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
   bool bind_failing[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
@@ -58,7 +87,7 @@ static bool same_id(sys_data_provider_id_t a, sys_data_provider_id_t b) {
 /* Connector `id`, NULL when it does not exist. Under the lock. */
 static conn_t* find(uint8_t id) {
   for (uint8_t i = 0; i < s_conn.count; i++) {
-    if (s_conn.conns[i].info.head.id == id) {
+    if (s_conn.conns[i].info.head.cfg.id == id) {
       return &s_conn.conns[i];
     }
   }
@@ -76,19 +105,137 @@ static err_h lock_conn(uint8_t id, conn_t** c) {
   return NULL;
 }
 
-static err_h create(uint8_t id, uint8_t flags, bool system) {
+static err_h create(const sys_data_connector_cfg_t* cfg, bool system) {
+  const uint32_t size = cfg->rx == SYS_DATA_CONNECTOR_RX_NONE ? 0 : POOL_ROUND(cfg->rx_size);
   LOCK();
-  const bool exists = find(id) != NULL || id == SYS_DATA_CONNECTOR_WATCHES;
+  const bool exists = find(cfg->id) != NULL || cfg->id == SYS_DATA_CONNECTOR_WATCHES;
   const bool full = s_conn.count >= CONFIG_SYS_DATA_CONNECTOR_MAX;
-  if (!exists && !full) {
+  const uint32_t room = sizeof(s_pool) - s_pool_used;
+  const bool pool_full = size > room;
+  if (!exists && !full && !pool_full) {
     s_conn.conns[s_conn.count++] = (conn_t){
-        .info.head = {.id = id, .flags = flags, .state = system ? SYS_DATA_CONNECTOR_STATE_SYSTEM : 0},
+        .info.head = {.cfg = *cfg, .state = system ? SYS_DATA_CONNECTOR_STATE_SYSTEM : 0},
+        .rx_off = s_pool_used,
     };
+    s_pool_used += size;
   }
   UNLOCK();
-  ERR_CHECK(!exists, ERR_CONN_EXISTS, .connector = id);
-  ERR_CHECK(!full, ERR_CONN_FULL, .connector = id);
+  ERR_CHECK(!exists, ERR_CONN_EXISTS, .connector = cfg->id);
+  ERR_CHECK(!full, ERR_CONN_FULL, .connector = cfg->id);
+  ERR_CHECK(!pool_full, ERR_CONN_POOL_FULL, .connector = cfg->id, .size = (uint16_t)size, .free = (uint16_t)room);
   return NULL;
+}
+
+static err_h create_system(uint8_t id, uint8_t flags) {
+  const sys_data_connector_cfg_t cfg = {.id = id, .flags = flags};
+  return create(&cfg, true);
+}
+
+// A connector's buffer goes back to the pool: the ones after it move down. Under the lock, before it is removed.
+static void pool_release(const conn_t* c) {
+  if (c->info.head.cfg.rx == SYS_DATA_CONNECTOR_RX_NONE) {
+    return;
+  }
+  const uint32_t size = POOL_ROUND(c->info.head.cfg.rx_size);
+  memmove(s_pool + c->rx_off, s_pool + c->rx_off + size, s_pool_used - c->rx_off - size);
+  s_pool_used -= size;
+  for (uint8_t i = 0; i < s_conn.count; i++) {
+    conn_t* d = &s_conn.conns[i];
+    if (d != c && d->info.head.cfg.rx != SYS_DATA_CONNECTOR_RX_NONE && d->rx_off > c->rx_off) {
+      d->rx_off -= size;
+    }
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * Receiving
+ * ------------------------------------------------------------------------- */
+
+// Puts bytes in a FIFO's ring after what it holds, or takes the oldest out (dst NULL: skips them). Under the lock.
+static void ring_put(conn_t* c, const void* src, uint32_t n) {
+  const uint32_t size = c->info.head.cfg.rx_size;
+  const uint32_t at = (c->fifo_head + c->fifo_used) % size;
+  const uint32_t first = n < size - at ? n : size - at;
+  memcpy(s_pool + c->rx_off + at, src, first);
+  memcpy(s_pool + c->rx_off, (const uint8_t*)src + first, n - first);
+  c->fifo_used += (uint16_t)n;
+}
+
+static void ring_get(conn_t* c, void* dst, uint32_t n) {
+  const uint32_t size = c->info.head.cfg.rx_size;
+  const uint32_t first = n < size - c->fifo_head ? n : size - c->fifo_head;
+  if (dst != NULL) {
+    memcpy(dst, s_pool + c->rx_off + c->fifo_head, first);
+    memcpy((uint8_t*)dst + first, s_pool + c->rx_off, n - first);
+  }
+  c->fifo_head = (uint16_t)((c->fifo_head + n) % size);
+  c->fifo_used -= (uint16_t)n;
+}
+
+static uint16_t saturate(uint16_t n) {
+  return n < UINT16_MAX ? n + 1u : UINT16_MAX;
+}
+
+// One message in: kept by the connector's rx (a copy, under the lock). Returns true when a listener is to be told.
+static bool rx_store(conn_t* c, sys_data_provider_id_t from, const uint8_t* data, uint32_t len) {
+  const sys_data_connector_cfg_t* cfg = &c->info.head.cfg;
+  if (cfg->rx == SYS_DATA_CONNECTOR_RX_NONE) {
+    return false;
+  }
+  c->rx_seq++;
+  if (cfg->rx == SYS_DATA_CONNECTOR_RX_LATEST) {
+    const uint32_t n = len < cfg->rx_size ? len : cfg->rx_size;
+    memcpy(s_pool + c->rx_off, data, n);
+    c->rx_missed = c->rx_unread ? saturate(c->rx_missed) : c->rx_missed;
+    c->rx_len = (uint16_t)n;
+    c->rx_cut = len > n;
+    c->rx_from = from;
+    c->rx_unread = true;
+  } else {
+    const uint32_t room = cfg->rx_size - sizeof(fifo_msg_t);
+    const uint32_t n = len < room ? len : room;
+    if (cfg->rx_size - c->fifo_used < sizeof(fifo_msg_t) + n) {
+      c->rx_missed = saturate(c->rx_missed);  // the ring is full: the new one is dropped
+    } else {
+      const fifo_msg_t head = {.seq = c->rx_seq, .len = (uint16_t)n, .cut = len > n, .from = from};
+      ring_put(c, &head, sizeof(head));
+      ring_put(c, data, n);
+    }
+  }
+  if (c->notify == NULL) {
+    return false;
+  }
+  c->notify_pending = true;
+  s_notify_any = true;
+  return true;
+}
+
+// Marks the listener of every connector that has something to tell, then tells them (the connector task, outside the
+// lock).
+static void run_notifies(void) {
+  if (!s_notify_any) {
+    return;
+  }
+  s_notify_any = false;
+  struct {
+    sys_data_connector_notify_f fn;
+    void* ctx;
+    uint8_t id;
+    uint32_t seq;
+  } tell[CONFIG_SYS_DATA_CONNECTOR_MAX];
+  uint8_t n = 0;
+  LOCK();
+  for (uint8_t i = 0; i < s_conn.count; i++) {
+    conn_t* c = &s_conn.conns[i];
+    if (c->notify_pending && c->notify != NULL) {
+      tell[n++] = (typeof(tell[0])){c->notify, c->notify_ctx, c->info.head.cfg.id, c->rx_seq};
+    }
+    c->notify_pending = false;
+  }
+  UNLOCK();
+  for (uint8_t i = 0; i < n; i++) {
+    tell[i].fn(tell[i].ctx, tell[i].id, tell[i].seq);
+  }
 }
 
 // A peer gone: its subscriptions end. BROADCAST (the parent's session ended): every peer not below this board.
@@ -118,10 +265,16 @@ static void on_gone(uint8_t peer, uint8_t via) {
  * Mirrors
  * ------------------------------------------------------------------------- */
 
-// A mirror's input is queued with the connector's own frames, as [0][mirror id][board][seq u16][payload]: 0 is no
-// connector, so the task tells it by its first byte.
-#define MIRROR_MARK 0u
-#define MIRROR_HEAD 5u
+// What is not a connector's own frame is queued with them behind a first byte of 0 (no connector has it) and a kind:
+//   MIRROR   [0][1][mirror id][board][seq u16][payload]                  a mirror's input
+//   FORWARD  [0][2][connector][from link][from channel u32][payload]     what came in on an rx binding, to go out
+//   WAKE     [0][3]                                                      a listener is to be told
+#define MARK         0u
+#define KIND_MIRROR  1u
+#define KIND_FORWARD 2u
+#define KIND_WAKE    3u
+#define MIRROR_HEAD  6u
+#define FORWARD_HEAD 8u
 
 // The answer of a SUBSCRIBE or UNSUBSCRIBE to another board: a refusal is logged (the mirror has no frames then).
 static err_h on_mirror_answer(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
@@ -150,7 +303,7 @@ static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t l
   for (uint8_t i = 0; i < s_conn.count && mirror == 0; i++) {
     const mirror_t* m = &s_conn.conns[i].mirror;
     if (m->on && m->board == src && m->remote_id == data[0]) {
-      mirror = s_conn.conns[i].info.head.id;
+      mirror = s_conn.conns[i].info.head.cfg.id;
     }
   }
   UNLOCK();
@@ -162,11 +315,12 @@ static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t l
     return;  // the gap shows in the next frame's seq
   }
   uint8_t* item = slot;
-  item[0] = MIRROR_MARK;
-  item[1] = mirror;
-  item[2] = src;
-  item[3] = (uint8_t)seq;
-  item[4] = (uint8_t)(seq >> 8);
+  item[0] = MARK;
+  item[1] = KIND_MIRROR;
+  item[2] = mirror;
+  item[3] = src;
+  item[4] = (uint8_t)seq;
+  item[5] = (uint8_t)(seq >> 8);
   memcpy(item + MIRROR_HEAD, data + CONN_BYTE, len - CONN_BYTE);
   xRingbufferSendComplete(sys_data_connector_rb, slot);
 }
@@ -193,7 +347,11 @@ err_h sys_data_connector_mirror(uint8_t id, uint8_t board, uint8_t remote_id, sy
   ERR_CHECK(remote_id != 0 && remote_id != SYS_DATA_CONNECTOR_WATCHES && board <= SYS_SESSION_ID_LAST, ERR_CONN_BAD_ARG);
   conn_t* c;
   ERR_TRY(lock_conn(id, &c));
-  const bool bad = (c->info.head.state & SYS_DATA_CONNECTOR_STATE_SYSTEM) || c->mirror.on;
+  bool bad = (c->info.head.state & SYS_DATA_CONNECTOR_STATE_SYSTEM) || c->mirror.on;
+  for (uint8_t i = 0; i < s_conn.count; i++) {
+    const mirror_t* m = &s_conn.conns[i].mirror;
+    bad |= m->on && m->board == board && m->remote_id == remote_id;  // one mirror of a stream; its users share it
+  }
   if (!bad) {
     c->mirror = (mirror_t){.on = true, .board = board, .remote_id = remote_id, .fn = fn, .ctx = ctx};
   }
@@ -216,11 +374,11 @@ err_h sys_data_connector_unmirror(uint8_t id) {
 }
 
 err_h sys_data_connector_init(void) {
-  ERR_TRY(create(SYS_DATA_CONNECTOR_LOGS, 0, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_ERRORS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_TELEMETRY, 0, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
-  ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS_ALL, 0, true));
+  ERR_TRY(create_system(SYS_DATA_CONNECTOR_LOGS, 0));
+  ERR_TRY(create_system(SYS_DATA_CONNECTOR_ERRORS, SYS_DATA_CONNECTOR_FLAG_URGENT));
+  ERR_TRY(create_system(SYS_DATA_CONNECTOR_TELEMETRY, 0));
+  ERR_TRY(create_system(SYS_DATA_CONNECTOR_EVENTS, SYS_DATA_CONNECTOR_FLAG_URGENT));
+  ERR_TRY(create_system(SYS_DATA_CONNECTOR_EVENTS_ALL, 0));
   ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_session_on_reached(on_reached));
   ERR_TRY(sys_session_on_stream(on_stream));
@@ -230,9 +388,21 @@ err_h sys_data_connector_init(void) {
   return NULL;
 }
 
-err_h sys_data_connector_create(uint8_t id, uint8_t flags) {
-  ERR_CHECK(id != 0 && (flags & ~SYS_DATA_CONNECTOR_FLAG_URGENT) == 0, ERR_CONN_BAD_ARG);
-  return create(id, flags, false);
+err_h sys_data_connector_create(const sys_data_connector_cfg_t* cfg) {
+  ERR_CHECK(cfg != NULL && cfg->id != 0 && cfg->rx <= SYS_DATA_CONNECTOR_RX_FIFO, ERR_CONN_BAD_ARG);
+  ERR_CHECK((cfg->flags & ~(SYS_DATA_CONNECTOR_FLAG_URGENT | SYS_DATA_CONNECTOR_FLAG_FORWARD)) == 0, ERR_CONN_BAD_ARG);
+  switch (cfg->rx) {
+    case SYS_DATA_CONNECTOR_RX_NONE:
+      ERR_CHECK(cfg->rx_size == 0, ERR_CONN_BAD_ARG);
+      break;
+    case SYS_DATA_CONNECTOR_RX_LATEST:
+      ERR_CHECK(cfg->rx_size >= 1 && cfg->rx_size <= CMD_DATA_MAX, ERR_CONN_BAD_ARG);
+      break;
+    default:
+      ERR_CHECK(cfg->rx_size > sizeof(fifo_msg_t), ERR_CONN_BAD_ARG);
+      break;
+  }
+  return create(cfg, false);
 }
 
 err_h sys_data_connector_remove(uint8_t id) {
@@ -244,6 +414,7 @@ err_h sys_data_connector_remove(uint8_t id) {
   if (!system) {
     bound = c->info.head.bindings;
     memcpy(binds, c->info.binds, sizeof(binds));
+    pool_release(c);
     *c = s_conn.conns[--s_conn.count];  // the last one takes its place
   }
   UNLOCK();
@@ -263,10 +434,50 @@ static int find_binding(const conn_t* c, sys_data_provider_id_t provider) {
   return -1;
 }
 
+// What comes in on a binding of connector `ctx` (its id): the driver's RX task. A provider that goes up or down: data
+// NULL. Opened for a connector that keeps or forwards what comes in; bytes on a binding that is not RX are dropped.
+static void on_provider_rx(void* ctx, sys_data_provider_id_t from, const uint8_t* data, uint32_t len) {
+  const uint8_t id = (uint8_t)(uintptr_t)ctx;
+  bool forward = false;
+  bool tell = false;
+  LOCK();
+  conn_t* c = find(id);
+  const int at = c != NULL ? find_binding(c, from) : -1;
+  if (at >= 0 && data == NULL && c->notify != NULL) {
+    c->notify_pending = tell = true;
+    s_notify_any = true;
+  } else if (at >= 0 && data != NULL && (c->info.binds[at].flags & SYS_DATA_CONNECTOR_BIND_RX)) {
+    tell = rx_store(c, from, data, len);
+    forward = c->info.head.cfg.flags & SYS_DATA_CONNECTOR_FLAG_FORWARD;
+  }
+  UNLOCK();
+  void* slot = NULL;
+  if (forward && xRingbufferSendAcquire(sys_data_connector_rb, &slot, FORWARD_HEAD + len, NO_WAIT) == pdTRUE) {
+    uint8_t* item = slot;
+    item[0] = MARK;
+    item[1] = KIND_FORWARD;
+    item[2] = id;
+    memcpy(item + 3, &from, sizeof(from));
+    memcpy(item + FORWARD_HEAD, data, len);
+    xRingbufferSendComplete(sys_data_connector_rb, slot);
+  } else if (tell && xRingbufferSendAcquire(sys_data_connector_rb, &slot, 2, NO_WAIT) == pdTRUE) {
+    uint8_t* item = slot;  // a full queue is busy: the task tells the listener after its next item
+    item[0] = MARK;
+    item[1] = KIND_WAKE;
+    xRingbufferSendComplete(sys_data_connector_rb, slot);
+  }
+}
+
 err_h sys_data_connector_bind(uint8_t id, sys_data_provider_id_t provider, uint8_t flags) {
-  ERR_CHECK(flags == SYS_DATA_CONNECTOR_BIND_TX, ERR_CONN_BAD_ARG);
+  ERR_CHECK(flags != 0 && (flags & ~(SYS_DATA_CONNECTOR_BIND_RX | SYS_DATA_CONNECTOR_BIND_TX)) == 0, ERR_CONN_BAD_ARG);
   conn_t* c;
   ERR_TRY(lock_conn(id, &c));
+  const bool receives = c->info.head.cfg.rx != SYS_DATA_CONNECTOR_RX_NONE ||
+                        (c->info.head.cfg.flags & SYS_DATA_CONNECTOR_FLAG_FORWARD);
+  if ((flags & SYS_DATA_CONNECTOR_BIND_RX) && !receives) {
+    UNLOCK();
+    return ERR_NEW(ERR_CONN_NO_RX, .connector = id);
+  }
   int i = find_binding(c, provider);
   if (i >= 0) {
     c->info.binds[i].flags = flags;  // bound already: only its flags change
@@ -278,7 +489,7 @@ err_h sys_data_connector_bind(uint8_t id, sys_data_provider_id_t provider, uint8
   ERR_CHECK(!full, ERR_CONN_TARGETS_FULL, .connector = id);
 
   // The provider is opened outside the lock, then the binding added if the connector is still there with room.
-  ERR_TRY(sys_data_provider_open(provider, NULL, NULL));
+  ERR_TRY(sys_data_provider_open(provider, receives ? on_provider_rx : NULL, (void*)(uintptr_t)id));
   err_h err = lock_conn(id, &c);
   if (err == NULL) {
     if (c->info.head.bindings < CONFIG_SYS_DATA_CONNECTOR_BINDINGS) {
@@ -376,6 +587,56 @@ uint8_t sys_data_connector_list(sys_data_connector_info_t out[CONFIG_SYS_DATA_CO
   return count;
 }
 
+uint32_t sys_data_connector_rx_seq(uint8_t id) {
+  LOCK();
+  const conn_t* c = find(id);
+  const uint32_t seq = c != NULL ? c->rx_seq : 0;
+  UNLOCK();
+  return seq;
+}
+
+err_h sys_data_connector_read(uint8_t id, void* buf, uint32_t cap, sys_data_connector_msg_t* msg) {
+  ERR_CHECK((buf != NULL || cap == 0) && msg != NULL, ERR_CONN_BAD_ARG);
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  const uint8_t rx = c->info.head.cfg.rx;
+  *msg = (sys_data_connector_msg_t){0};
+  if (rx == SYS_DATA_CONNECTOR_RX_LATEST && c->rx_seq > 0) {
+    const uint32_t n = c->rx_len < cap ? c->rx_len : cap;
+    memcpy(buf, s_pool + c->rx_off, n);
+    *msg = (sys_data_connector_msg_t){
+        .seq = c->rx_seq, .len = (uint16_t)n, .missed = c->rx_missed, .cut = c->rx_cut || c->rx_len > cap, .from = c->rx_from};
+    c->rx_missed = 0;
+    c->rx_unread = false;
+  } else if (rx == SYS_DATA_CONNECTOR_RX_FIFO && c->fifo_used > 0) {
+    fifo_msg_t head;
+    ring_get(c, &head, sizeof(head));
+    const uint32_t n = head.len < cap ? head.len : cap;
+    ring_get(c, buf, n);
+    ring_get(c, NULL, head.len - n);  // what the reader has no room for is dropped
+    *msg = (sys_data_connector_msg_t){
+        .seq = head.seq, .len = (uint16_t)n, .missed = c->rx_missed, .cut = head.cut || head.len > cap, .from = head.from};
+    c->rx_missed = 0;
+  }
+  UNLOCK();
+  ERR_CHECK(rx != SYS_DATA_CONNECTOR_RX_NONE, ERR_CONN_NO_RX, .connector = id);
+  return NULL;
+}
+
+err_h sys_data_connector_set_notify(uint8_t id, sys_data_connector_notify_f fn, void* ctx) {
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  const bool keeps = c->info.head.cfg.rx != SYS_DATA_CONNECTOR_RX_NONE;
+  if (keeps) {
+    c->notify = fn;
+    c->notify_ctx = ctx;
+    c->notify_pending = false;
+  }
+  UNLOCK();
+  ERR_CHECK(keeps, ERR_CONN_NO_RX, .connector = id);
+  return NULL;
+}
+
 /* ----------------------------------------------------------------------------
  * Data
  * ------------------------------------------------------------------------- */
@@ -392,10 +653,10 @@ uint32_t sys_data_connector_max_payload(uint8_t id) {
   if (c == NULL) {
     return 0;
   }
-  // A binding gets the payload as is: its provider's max_frame, when it is up.
+  // A tx binding gets the payload as is: its provider's max_frame, when it is up.
   uint32_t max = PAYLOAD_MAX;
   for (uint8_t i = 0; i < bound; i++) {
-    const uint32_t m = sys_data_provider_max_frame(binds[i].provider);
+    const uint32_t m = (binds[i].flags & SYS_DATA_CONNECTOR_BIND_TX) ? sys_data_provider_max_frame(binds[i].provider) : 0;
     max = m > 0 && m < max ? m : max;
   }
   return max;
@@ -406,8 +667,11 @@ err_h sys_data_connector_send(uint8_t id, const void* data, uint32_t len) {
   ERR_CHECK(len <= PAYLOAD_MAX, ERR_CONN_TOO_LONG, .connector = id, .len = (uint16_t)len, .max = PAYLOAD_MAX);
   LOCK();
   const conn_t* c = find(id);
-  const bool idle = c != NULL && ((c->info.head.state & SYS_DATA_CONNECTOR_STATE_SUSPENDED) ||
-                                  c->info.head.bindings + c->info.head.subscribers == 0);
+  uint8_t targets = c != NULL ? c->info.head.subscribers : 0;  // and the bindings that send
+  for (uint8_t i = 0; c != NULL && i < c->info.head.bindings; i++) {
+    targets += (c->info.binds[i].flags & SYS_DATA_CONNECTOR_BIND_TX) != 0;
+  }
+  const bool idle = c != NULL && ((c->info.head.state & SYS_DATA_CONNECTOR_STATE_SUSPENDED) || targets == 0);
   UNLOCK();
   ERR_CHECK(c != NULL, ERR_CONN_NOT_FOUND, .connector = id);
   if (idle) {
@@ -442,8 +706,9 @@ static uint16_t account(uint16_t dropped, bool* failing, err_h err) {
 }
 
 /* One queued frame, [connector][payload], to every target, NOWAIT: a busy provider loses the frame there only. The
- * targets are copied out; the results go back to the connector by provider and by peer (it may have changed). */
-static void deliver(const uint8_t* frame, uint32_t len) {
+ * targets are copied out; the results go back to the connector by provider and by peer (it may have changed). A
+ * binding that does not send gets nothing, nor does `except` (the provider a forwarded frame came in on). */
+static void deliver(const uint8_t* frame, uint32_t len, const sys_data_provider_id_t* except) {
   LOCK();
   conn_t* c = find(frame[0]);
   if (c == NULL || (c->info.head.state & SYS_DATA_CONNECTOR_STATE_SUSPENDED)) {  // may have changed since queued
@@ -453,14 +718,17 @@ static void deliver(const uint8_t* frame, uint32_t len) {
   const sys_data_connector_info_t info = c->info;
   const uint16_t seq = c->seq++;
   UNLOCK();
-  const bool urgent = info.head.flags & SYS_DATA_CONNECTOR_FLAG_URGENT;
+  const bool urgent = info.head.cfg.flags & SYS_DATA_CONNECTOR_FLAG_URGENT;
 
   err_h bind_err[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
+  bool bound[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
   for (uint8_t i = 0; i < info.head.bindings; i++) {
-    bind_err[i] = len > CONN_BYTE ? sys_data_provider_send(info.binds[i].provider, frame + CONN_BYTE, len - CONN_BYTE,
-                                                           SYS_DATA_PROVIDER_SEND_NOWAIT |
-                                                               (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0))
-                                  : NULL;
+    bound[i] = (info.binds[i].flags & SYS_DATA_CONNECTOR_BIND_TX) && !(except != NULL && same_id(*except, info.binds[i].provider));
+    bind_err[i] = bound[i] && len > CONN_BYTE
+                      ? sys_data_provider_send(info.binds[i].provider, frame + CONN_BYTE, len - CONN_BYTE,
+                                               SYS_DATA_PROVIDER_SEND_NOWAIT |
+                                                   (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0))
+                      : NULL;
   }
   err_h sub_err[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
   for (uint8_t i = 0; i < info.head.subscribers; i++) {
@@ -470,7 +738,7 @@ static void deliver(const uint8_t* frame, uint32_t len) {
   LOCK();
   c = find(frame[0]);
   for (uint8_t i = 0; i < info.head.bindings; i++) {
-    const int at = c != NULL ? find_binding(c, info.binds[i].provider) : -1;
+    const int at = c != NULL && bound[i] ? find_binding(c, info.binds[i].provider) : -1;
     if (at >= 0) {
       c->info.binds[at].dropped = account(c->info.binds[at].dropped, &c->bind_failing[at], bind_err[i]);
     } else {
@@ -493,9 +761,9 @@ static void deliver(const uint8_t* frame, uint32_t len) {
 
 // A mirror's input (MIRROR_HEAD): the gap in its seq, the listener, then the frame goes to the mirror's own targets.
 static void mirror_in(uint8_t* item, uint32_t len) {
-  const uint8_t id = item[1];
-  const uint8_t board = item[2];
-  const uint16_t seq = (uint16_t)(item[3] | (item[4] << 8));
+  const uint8_t id = item[2];
+  const uint8_t board = item[3];
+  const uint16_t seq = (uint16_t)(item[4] | (item[5] << 8));
   sys_data_connector_mirror_f fn = NULL;
   void* ctx = NULL;
   uint16_t missed = 0;
@@ -507,6 +775,7 @@ static void mirror_in(uint8_t* item, uint32_t len) {
     c->mirror.have_seq = true;
     fn = c->mirror.fn;
     ctx = c->mirror.ctx;
+    (void)rx_store(c, (sys_data_provider_id_t){.link = 0, .channel = board}, item + MIRROR_HEAD, len - MIRROR_HEAD);
   }
   UNLOCK();
   if (missed > 0) {
@@ -517,7 +786,15 @@ static void mirror_in(uint8_t* item, uint32_t len) {
   }
   // [connector][payload]: the connector's id takes the place of the byte before the payload.
   item[MIRROR_HEAD - 1] = id;
-  deliver(item + MIRROR_HEAD - 1, len - MIRROR_HEAD + 1);
+  deliver(item + MIRROR_HEAD - 1, len - MIRROR_HEAD + 1, NULL);
+}
+
+// What came in on an rx binding of a connector that forwards: out to its other targets, as a send would.
+static void forward_in(uint8_t* item, uint32_t len) {
+  sys_data_provider_id_t from;
+  memcpy(&from, item + 3, sizeof(from));
+  item[FORWARD_HEAD - 1] = item[2];
+  deliver(item + FORWARD_HEAD - 1, len - FORWARD_HEAD + 1, &from);
 }
 
 static void conn_task(void* arg) {
@@ -530,11 +807,14 @@ static void conn_task(void* arg) {
       continue;
     }
     // Sent from the queue: its room comes back once every target has it.
-    if (item[0] == MIRROR_MARK) {
+    if (item[0] != MARK) {
+      deliver(item, (uint32_t)size, NULL);
+    } else if (item[1] == KIND_MIRROR) {
       mirror_in(item, (uint32_t)size);
-    } else {
-      deliver(item, (uint32_t)size);
+    } else if (item[1] == KIND_FORWARD) {
+      forward_in(item, (uint32_t)size);
     }
     vRingbufferReturnItem(sys_data_connector_rb, item);
+    run_notifies();
   }
 }

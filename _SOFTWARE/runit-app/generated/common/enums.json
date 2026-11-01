@@ -231,6 +231,12 @@
       "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
       "members": [
         {
+          "name": "SYS_DATA_CONNECTOR_BIND_RX",
+          "value": 1,
+          "alias": "Receive",
+          "description": "It takes what comes in on the provider"
+        },
+        {
           "name": "SYS_DATA_CONNECTOR_BIND_TX",
           "value": 2,
           "alias": "Send",
@@ -249,6 +255,12 @@
           "value": 1,
           "alias": "Urgent",
           "description": "Its frames go first on every way out"
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_FLAG_FORWARD",
+          "value": 2,
+          "alias": "Forward",
+          "description": "What comes in goes out on the others"
         }
       ]
     },
@@ -903,6 +915,31 @@
           "value": 16777224,
           "alias": "USB-PD request",
           "description": "USB-PD request: the PD write"
+        }
+      ]
+    },
+    "sys_data_connector_rx_e": {
+      "alias": "Receive",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+      "members": [
+        {
+          "name": "SYS_DATA_CONNECTOR_RX_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "Nothing kept (send only, or forward only)"
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_RX_LATEST",
+          "value": 1,
+          "alias": "Latest",
+          "description": "The last message, any number of readers"
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_RX_FIFO",
+          "value": 2,
+          "alias": "Queue",
+          "description": "Every message in order, one reader"
         }
       ]
     },
@@ -2532,12 +2569,17 @@
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
+    "SYS_DATA_CONNECTOR_BIND_RX": "conn_bind",
     "SYS_DATA_CONNECTOR_BIND_TX": "conn_bind",
     "SYS_DATA_CONNECTOR_ERRORS": "connector",
     "SYS_DATA_CONNECTOR_EVENTS": "connector",
     "SYS_DATA_CONNECTOR_EVENTS_ALL": "connector",
+    "SYS_DATA_CONNECTOR_FLAG_FORWARD": "conn_flag",
     "SYS_DATA_CONNECTOR_FLAG_URGENT": "conn_flag",
     "SYS_DATA_CONNECTOR_LOGS": "connector",
+    "SYS_DATA_CONNECTOR_RX_FIFO": "sys_data_connector_rx_e",
+    "SYS_DATA_CONNECTOR_RX_LATEST": "sys_data_connector_rx_e",
+    "SYS_DATA_CONNECTOR_RX_NONE": "sys_data_connector_rx_e",
     "SYS_DATA_CONNECTOR_STATE_SUSPENDED": "conn_state",
     "SYS_DATA_CONNECTOR_STATE_SYSTEM": "conn_state",
     "SYS_DATA_CONNECTOR_TELEMETRY": "connector",

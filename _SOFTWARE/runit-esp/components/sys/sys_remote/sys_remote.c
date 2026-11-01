@@ -97,9 +97,9 @@ static void on_added(uint8_t board) {
     if (s_boards[i].devices == 0) {
       s_boards[i] = (board_t){.board = board, .devices = 1};
       const uint8_t id = mirror_id(&s_boards[i]);
-      err_report(sys_data_connector_create(id, 0));
+      err_report(sys_data_connector_create(&(sys_data_connector_cfg_t){.id = id}));
       err_report(sys_data_connector_mirror(id, board, SYS_DATA_CONNECTOR_EVENTS_ALL, on_events, NULL));
-      err_report(sys_data_connector_create(id + 1, 0));
+      err_report(sys_data_connector_create(&(sys_data_connector_cfg_t){.id = (uint8_t)(id + 1)}));
       err_report(sys_data_connector_mirror(id + 1, board, SYS_DATA_CONNECTOR_ERRORS, on_errors, NULL));
       return;
     }
