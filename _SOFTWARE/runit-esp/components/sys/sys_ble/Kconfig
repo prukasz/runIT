@@ -35,6 +35,16 @@ menu "sys_ble"
           command that asked for it is answered before the Service Changed
           indication.
 
+    config SYS_BLE_USER_PROVIDERS
+        int "Providers of run-time characteristics"
+        default 2
+        range 0 8
+        help
+          A characteristic made at run time (CHAR_CREATE) that is unframed
+          and writes with no RX buffer, or has a TX buffer, is a data
+          provider (SYS_DATA_PROVIDER.MD), named {BLE, its UUID}. This many
+          can exist at once; they also take slots of CONFIG_SYS_DATA_PROVIDER_MAX.
+
     config SYS_BLE_MAX_CONN_LISTENERS
         int "Connection listeners"
         default 4

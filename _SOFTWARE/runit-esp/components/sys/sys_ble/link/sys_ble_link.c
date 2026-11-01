@@ -13,6 +13,13 @@
 static sys_data_provider_t s_runit;
 static sys_data_provider_t s_logs;
 
+// The providers of characteristics made at run time (sys_ble_link_char_add), in a static table.
+static struct {
+  sys_data_provider_t p;
+  uint16_t svc;
+  bool used;
+} s_user[CONFIG_SYS_BLE_USER_PROVIDERS];
+
 /* ----------------------------------------------------------------------------
  * RX: framed packets -> one frame -> the runIT provider's user (host task only)
  * ------------------------------------------------------------------------- */
@@ -55,7 +62,18 @@ static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
   }
 }
 
-// A client is the providers' link: up while it is connected.
+// The largest message of an unframed provider's characteristic now: what its TX buffer and the link take, a write-only
+// one the link's alone.
+static uint32_t user_max(uint16_t uuid) {
+  sys_ble_status_t status;
+  if (sys_ble_get_status(&status) != NULL || !status.is_connected) {
+    return 0;
+  }
+  const size_t tx = sys_ble_char_max_payload(uuid);
+  return tx > 0 ? (uint32_t)tx : (uint32_t)(status.mtu - SYS_BLE_ATT_HDR_LEN);
+}
+
+// A client is the providers' link: up while it is connected (the unframed ones by the MTU, which can change).
 static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
@@ -63,6 +81,11 @@ static void on_conn(bool connected, int32_t reason) {
   }
   sys_data_provider_set_max_frame(&s_runit, connected ? CMD_FRAME_MAX : 0);
   sys_data_provider_set_max_frame(&s_logs, connected ? CMD_FRAME_MAX : 0);
+  for (size_t i = 0; i < ARRAY_LEN(s_user); i++) {
+    if (s_user[i].used) {
+      sys_data_provider_set_max_frame(&s_user[i].p, connected ? user_max((uint16_t)s_user[i].p.id.channel) : 0);
+    }
+  }
 }
 
 /* ----------------------------------------------------------------------------
@@ -89,6 +112,74 @@ static err_h add_provider(sys_data_provider_t* p, uint16_t uuid) {
       .state = SYS_DATA_PROVIDER_STATE_FRAMED,
   };
   return sys_data_provider_add(p);
+}
+
+/* ----------------------------------------------------------------------------
+ * Providers of characteristics made at run time
+ * ------------------------------------------------------------------------- */
+
+// A write on the characteristic: one message to the provider's user (the BLE host task).
+static void user_rx(void* ctx, const uint8_t* data, size_t len) {
+  sys_data_provider_deliver(ctx, data, (uint32_t)len);
+}
+
+static void user_destroy(sys_data_provider_t* self) {
+  for (size_t i = 0; i < ARRAY_LEN(s_user); i++) {
+    if (&s_user[i].p == self) {
+      s_user[i].used = false;
+    }
+  }
+}
+
+err_h sys_ble_link_char_add(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
+  const bool rx = cfg->is_write && cfg->rx_buffer_size == 0;
+  const bool tx = (cfg->is_notify || cfg->is_indicate) && cfg->tx_buffer_size > 0;
+  if (cfg->is_framed || (!rx && !tx)) {
+    return NULL;
+  }
+  size_t i = 0;
+  while (i < ARRAY_LEN(s_user) && s_user[i].used) {
+    i++;
+  }
+  ERR_CHECK(i < ARRAY_LEN(s_user), ERR_BLE_NO_MEM, .uuid = cfg->uuid, .size = sizeof(s_user));
+  s_user[i].p = (sys_data_provider_t){
+      .send = provider_send,
+      .destroy = user_destroy,
+      .max_frame = user_max(cfg->uuid),
+      .id = {.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = cfg->uuid},
+  };
+  s_user[i].svc = svc_uuid;
+  s_user[i].used = true;
+  err_h err = sys_data_provider_add(&s_user[i].p);
+  if (err != NULL) {
+    s_user[i].used = false;  // not added: the id may be another provider's, which stays
+    return err;
+  }
+  if (rx) {
+    err = sys_ble_char_set_rx_handler(cfg->uuid, user_rx, &s_user[i].p);
+    if (err != NULL) {
+      err_report(sys_data_provider_remove(s_user[i].p.id));  // its destroy frees the slot
+    }
+  }
+  return err;
+}
+
+err_h sys_ble_link_char_remove(uint16_t char_uuid) {
+  for (size_t i = 0; i < ARRAY_LEN(s_user); i++) {
+    if (s_user[i].used && s_user[i].p.id.channel == char_uuid) {
+      return sys_data_provider_remove(s_user[i].p.id);
+    }
+  }
+  return NULL;
+}
+
+err_h sys_ble_link_service_remove(uint16_t svc_uuid) {
+  for (size_t i = 0; i < ARRAY_LEN(s_user); i++) {
+    if (s_user[i].used && s_user[i].svc == svc_uuid) {
+      ERR_TRY(sys_data_provider_remove(s_user[i].p.id));
+    }
+  }
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------

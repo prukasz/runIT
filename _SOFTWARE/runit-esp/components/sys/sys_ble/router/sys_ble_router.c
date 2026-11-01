@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "sys_ble.h"
+#include "sys_ble_link.h"
 
 /* Changes are staged; APPLY puts them live (with a client connected,
  * CONFIG_SYS_BLE_APPLY_DELAY_MS after its answer; the client reconnects).
@@ -71,6 +72,7 @@ ROUTER_OP(op_svc_create, svc_create_t) {
 }
 
 ROUTER_OP(op_svc_remove, svc_remove_t) {
+  ERR_TRY(sys_ble_link_service_remove(args->uuid));
   return sys_ble_service_remove(args->uuid);
 }
 
@@ -95,10 +97,16 @@ ROUTER_OP_TAIL(op_char_create, char_create_t) {
       .rx_buffer_size = args->rx_buffer_size,
       .desc = desc,
   };
-  return sys_ble_char_create(args->svc_uuid, &cfg);
+  ERR_TRY(sys_ble_char_create(args->svc_uuid, &cfg));
+  err_h err = sys_ble_link_char_add(args->svc_uuid, &cfg);
+  if (err != NULL) {
+    err_report(sys_ble_char_remove(args->svc_uuid, args->uuid));
+  }
+  return err;
 }
 
 ROUTER_OP(op_char_remove, char_remove_t) {
+  ERR_TRY(sys_ble_link_char_remove(args->uuid));
   return sys_ble_char_remove(args->svc_uuid, args->uuid);
 }
 

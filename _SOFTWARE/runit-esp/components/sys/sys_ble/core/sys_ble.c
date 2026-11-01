@@ -669,7 +669,11 @@ void sys_ble_on_disconnect(int32_t reason) {
 void sys_ble_on_mtu(uint16_t mtu) {
   BLE_LOCK();
   g_ble.mtu = mtu;
+  const bool connected = g_ble.is_connected;
   BLE_UNLOCK();
+  if (connected) {
+    notify_listeners(true, 0);  // the unframed providers' largest message follows the MTU
+  }
 }
 
 void sys_ble_on_subscribe(uint16_t attr_handle, bool subscribed) {

@@ -47,7 +47,7 @@ A frame is whole above the driver: the driver splits it into what its link carri
 | framed (the runIT BLE characteristics, UART) | `CMD_FRAME_MAX` (CMD.MD "Frame size"): the driver's buffers hold one | up, down (0) |
 | unframed (a user characteristic without the fragment header) | one packet: min(MTU − 3, `CMD_FRAME_MAX`), since the peer knows no fragments | also the MTU exchange |
 
-A session takes only a framed provider, so every frame between the board and its clients has the same limit; only a connector bound to an unframed one sizes its payloads by `max_frame` (`sys_data_connector_max_payload`). The board's providers today are all framed: the runIT BLE pair and LOGS (SYS_BLE.MD "Providers"), the UART console (SYS_UART.MD).
+A session takes only a framed provider, so every frame between the board and its clients has the same limit; only a connector bound to an unframed one sizes its payloads by `max_frame` (`sys_data_connector_max_payload`). The board's providers today are the runIT BLE pair and LOGS (framed; SYS_BLE.MD "Providers"), the UART console and link (framed; SYS_UART.MD) and the unframed providers of run-time BLE characteristics (SYS_BLE.MD "Run-time characteristics as providers"), the only ones that take data from a peer other than a session.
 
 ## Driver
 

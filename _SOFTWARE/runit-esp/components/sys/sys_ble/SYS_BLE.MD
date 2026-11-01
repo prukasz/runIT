@@ -1,6 +1,6 @@
 # sys_ble — BLE peripheral, runtime GATT table, the runIT providers
 
-Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries two providers (SYS_DATA_PROVIDER.MD): the runIT pair, a client's session, and the LOGS characteristic; user services and characteristics are created at runtime through the `ble` router.
+Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries two providers (SYS_DATA_PROVIDER.MD): the runIT pair, a client's session, and the LOGS characteristic; user services and characteristics are created at runtime through the `ble` router, and an unframed one that writes with an RX handler or has a TX buffer is a provider too (below).
 
 ## Files
 
@@ -12,7 +12,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
-| `link/sys_ble_link.c/.h` | The runIT service and its two providers (`SYS_BLE_PROVIDER_RUNIT`, `SYS_BLE_PROVIDER_LOGS`): their driver |
+| `link/sys_ble_link.c/.h` | The runIT service and its two providers (`SYS_BLE_PROVIDER_RUNIT`, `SYS_BLE_PROVIDER_LOGS`), and the providers of run-time characteristics: their driver |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait |
@@ -51,7 +51,9 @@ single-packet frame: C0 <frame>
 
 ## Providers
 
-`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up (`max_frame` = `CMD_FRAME_MAX`) while a client is connected, down (0) otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs connector to LOGS (`components/app/runit/`). A characteristic created at runtime is no provider. No VM block writes to a characteristic yet.
+`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up (`max_frame` = `CMD_FRAME_MAX`) while a client is connected, down (0) otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs connector to LOGS (`components/app/runit/`). No VM block writes to a characteristic yet.
+
+**Run-time characteristics as providers.** CHAR_CREATE (and `sys_ble_link_char_add`) makes a provider `{BLE, uuid}` of a characteristic that is **unframed** and either writes with no RX buffer (an rx provider: each write is one message to the provider's user, on the host task, at most MTU − 3 bytes) or has a TX buffer (a tx provider: `send` is one notification, `sys_ble_char_send`). A framed one, or one with neither, gets none. These providers are unframed (`FRAMED` clear), up while a client is connected, with `max_frame` the characteristic's largest item now (the TX buffer's, the MTU less the ATT header; a write-only one the MTU's): the MTU exchange tells the connection listeners again, so it follows the MTU. At most `CONFIG_SYS_BLE_USER_PROVIDERS` (a static table; they take slots of `CONFIG_SYS_DATA_PROVIDER_MAX` too): past that, or an id taken, CHAR_CREATE is refused and the characteristic is not kept. CHAR_REMOVE and SVC_REMOVE remove the providers first: one that a connector's binding or a session has open is `ERR_PROV_IN_USE` and nothing is removed. A connector binds one with BIND (SYS_DATA_CONNECTOR.MD): `BIND_RX` takes what the peer writes, `BIND_TX` notifies it.
 
 ## Data paths
 
