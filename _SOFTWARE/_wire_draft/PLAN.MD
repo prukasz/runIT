@@ -21,8 +21,8 @@ For the agent that implements the wire design. `_wire_draft/` is the specificati
 | `sys_data_provider/` | `components/sys/sys_data_provider` (moved: the draft folder can go) | b3 |
 | `sys_session/` | new `components/sys/sys_session` | b4 (client only), 3 (the rest) |
 | `sys_data_connector/` | `components/sys/sys_data_connector` | b5 (subscribers), 4 (mirrors) |
-| `sys_event/sys_event_filter.h`, `payloads.h`: sys_event | `components/sys/sys_event` | 2, 5 |
-| `sys_watch/` | new `components/sys/sys_watch` | 2 (watches), 4 (client, cached reads) |
+| `payloads.h`: sys_event (`SYS_EVENT_LOCAL`, remote events) | `components/sys/sys_event` | 5 |
+| `sys_watch/` | `components/sys/sys_watch` (the watches: moved; the draft keeps the client and the cached reads) | 2 (watches), 4 (client, cached reads) |
 | `sys_device/` | `components/sys/sys_device` | 4 |
 | `sys_remote/` | new `components/sys/sys_remote` | 4 |
 | `payloads.h`: vm_blocks, runit | `components/vm/vm_blocks`, `components/app/runit` | 4, 5 |
@@ -75,7 +75,9 @@ Risk: b4 changes the protocol at once in the firmware, the app and the scripts. 
 
 Each its own branch and commit, in this order; each starts from its spec in the draft.
 
-2. **Watches on one board** (`sys_watch/` without "Client" and "Cached reads"; `sys_event/sys_event_filter.h`): period in 10 ms ticks, ON_CHANGE, ON_EVENT, entries to the owner. The app's views stop polling. Check: the app follows a value with one ADD.
+2. **Watches on one board** (`sys_watch/` without "Client" and "Cached reads"; `sys_event_filter_t`): period in 10 ms ticks, ON_CHANGE, ON_EVENT, entries to the owner. The app's views stop polling. Check: the app follows a value with one ADD.
+
+   Status: firmware and the app's backend done on the branch `watch` (not committed yet): `components/sys/sys_watch` (key `0x0F`, module 19, `SYS_DATA_CONNECTOR_WATCHES`), `sys_event_filter_t` in `sys_event`, `contract_watch.json`, `Watches` in the app's backend. The firmware builds clean; nothing was run on the PCB and no test was run (not asked for). Not done: the app's views still poll (they move to `Watches` one by one), the board config's own watches (`SYS_SESSION_ID_SELF`), a test suite for the watches (`router_tests.py` ADD / REMOVE / LIST, an ON_CHANGE and an ON_EVENT watch, the gone owner).
 3. **Two boards over UART** (the rest of `sys_session/`): child and parent sessions, the route table, forwarding, broadcast, GONE, `sys_session_call` and `call_wait`, the timeouts by way, the calls in flight per board, the time broadcast. Check: two ESP32 on a cable; the app reaches a device of the child through the root.
 4. **Remote devices** (`sys_data_connector/` "Mirrors", `sys_watch/` "Client" and "Cached reads", `sys_device/`, `sys_remote/`, `payloads.h` vm_blocks): a VM program on board 1 drives a servo on board 2. Check: `async` and `blocking` devices, a driver whose `pin_ref` is a `blocking` remote expander.
 5. **`EVENTS_ALL`, `SYS_EVENT_LOCAL`, the board as an error source** (`payloads.h` sys_event, errors, runit). Check: ON_EVENT on board 1 fires on a button of board 2.

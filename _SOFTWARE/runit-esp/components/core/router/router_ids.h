@@ -22,3 +22,4 @@
 #define ROUTER_KEY_PROJECT  0x0Cu  //@alias Project @description Project: save a whole project as one stream, run it, read state
 #define ROUTER_KEY_PROVIDER 0x0Du  //@alias Providers @description Providers: the ways bytes go out and come in (list, remove, send)
 #define ROUTER_KEY_SESSION  0x0Eu  //@alias Sessions @description Sessions: this board's id, its peers (attach, detach, list)
+#define ROUTER_KEY_WATCH    0x0Fu  //@alias Watches @description Watches: reads this board runs by a trigger and sends by itself (add, remove, list)

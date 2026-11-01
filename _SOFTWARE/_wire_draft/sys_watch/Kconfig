@@ -1,14 +1,4 @@
-menu "sys_watch"
-
-    #@limit @alias Watches
-    config SYS_WATCH_MAX
-        int "Watches"
-        default 24
-        range 1 64
-        help
-          Reads run by a trigger, of every owner (each cached read of another
-          board is one there); each keeps its read and the CRC of its last
-          entry sent (ON_CHANGE).
+# What step 4 adds to components/sys/sys_watch/Kconfig (inside its menu):
 
     config SYS_WATCH_CLIENT_MAX
         int "Watches on other boards"
@@ -26,5 +16,3 @@ menu "sys_watch"
           A cached read's watch is removed on its board after 10 times its
           max age without a read, never sooner than this: a fast reader's
           pause does not remove and make it again.
-
-endmenu

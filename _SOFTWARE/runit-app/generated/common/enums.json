@@ -297,6 +297,12 @@
           "description": "The error records (urgent)"
         },
         {
+          "name": "SYS_DATA_CONNECTOR_WATCHES",
+          "value": 5,
+          "alias": "Watches",
+          "description": "The watches' entries, in a stream frame to their owner (no connector of this byte exists)"
+        },
+        {
           "name": "SYS_DATA_CONNECTOR_EVENTS",
           "value": 6,
           "alias": "Events",
@@ -695,6 +701,12 @@
           "value": 14,
           "alias": "Sessions",
           "description": "Sessions: this board's id, its peers (attach, detach, list)"
+        },
+        {
+          "name": "ROUTER_KEY_WATCH",
+          "value": 15,
+          "alias": "Watches",
+          "description": "Watches: reads this board runs by a trigger and sends by itself (add, remove, list)"
         }
       ]
     },
@@ -1540,6 +1552,31 @@
         }
       ]
     },
+    "sys_watch_trigger_e": {
+      "alias": "Watch trigger",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_watch/config/sys_watch_config.h",
+      "members": [
+        {
+          "name": "SYS_WATCH_PERIODIC",
+          "value": 0,
+          "alias": "Every period",
+          "description": "The read every period, its answer sent"
+        },
+        {
+          "name": "SYS_WATCH_ON_CHANGE",
+          "value": 1,
+          "alias": "On change",
+          "description": "The read every period, sent when its answer changed"
+        },
+        {
+          "name": "SYS_WATCH_ON_EVENT",
+          "value": 2,
+          "alias": "On event",
+          "description": "The read when a matching event happens, at most every period"
+        }
+      ]
+    },
     "vm_bit_op_e": {
       "alias": "Bit Expression Opcode",
       "kind": "enum",
@@ -2376,6 +2413,20 @@
           "description": "3,600,000 ms"
         }
       ]
+    },
+    "watch_to": {
+      "alias": "Watch target",
+      "kind": "defines",
+      "prefix": "SYS_WATCH_TO_",
+      "source_file": "runit-esp/components/sys/sys_watch/config/sys_watch_config.h",
+      "members": [
+        {
+          "name": "SYS_WATCH_TO_OWNER",
+          "value": 0,
+          "alias": "Owner",
+          "description": "Straight to the one who added it, in a STREAM frame"
+        }
+      ]
     }
   },
   "symbols": {
@@ -2424,6 +2475,7 @@
     "ROUTER_KEY_SESSION": "router_key",
     "ROUTER_KEY_SYS": "router_key",
     "ROUTER_KEY_VM": "router_key",
+    "ROUTER_KEY_WATCH": "router_key",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
     "SERVO_TYPE_ANGLE": "servo_type_e",
@@ -2456,6 +2508,7 @@
     "SYS_DATA_CONNECTOR_STATE_SUSPENDED": "conn_state",
     "SYS_DATA_CONNECTOR_STATE_SYSTEM": "conn_state",
     "SYS_DATA_CONNECTOR_TELEMETRY": "connector",
+    "SYS_DATA_CONNECTOR_WATCHES": "connector",
     "SYS_DATA_PROVIDER_LINK_BLE": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
@@ -2572,6 +2625,10 @@
     "SYS_SESSION_REQUEST": "sys_session_kind_e",
     "SYS_SESSION_STREAM": "sys_session_kind_e",
     "SYS_SESSION_VERSION": "session_version",
+    "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
+    "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
+    "SYS_WATCH_PERIODIC": "sys_watch_trigger_e",
+    "SYS_WATCH_TO_OWNER": "watch_to",
     "VM_BIT_AND": "vm_bit_op_e",
     "VM_BIT_BSWAP": "vm_bit_op_e",
     "VM_BIT_CLR": "vm_bit_op_e",

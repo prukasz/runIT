@@ -3,17 +3,9 @@
 #include <stdint.h>
 
 /* DRAFT: what the sessions (sys_session/) and the remote devices (sys_device/) need of modules outside _wire_draft:
- * the watches' root key and error module, the remote devices, the event flag and the remote events, the board as an
+ * the remote devices, the event flag and the remote events, the board as an
  * error source, the VM. The error record (err_cmd_t, err_record_cmd_t, err_record_parse) is in errors.h (ERRORS.MD).
  * Not built. Each section names the module it goes to. */
-
-/* ----------------------------------------------------------------------------
- * router_ids.h, err_modules.h: the watches' root key (after ROUTER_KEY_SESSION 0x0E) and error module (after
- * ERR_MOD_SYS_SESSION 18).
- *
- *   ROUTER_KEY_WATCH    0x0F   sys_watch_router              ERR_MOD_SYS_WATCH         19
- * CONFIG_ROUTER_MAX_KEYS (16) still holds it: 15 keys.
- * ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------------
  * sys_device: remote devices (sys_device/SYS_DEVICE_REMOTE.MD, sys_device_remote.h). CREATE_REMOTE (DEVICE contract,

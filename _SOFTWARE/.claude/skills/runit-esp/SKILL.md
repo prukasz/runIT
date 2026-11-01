@@ -33,6 +33,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | core | `core/router` | `ROUTER.MD` | the commands of this board (`err_cmd_t` and their answer callbacks), root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, origin, urgent work |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in (a BLE characteristic, the UART), by id, one user each; their drivers (key `0x0D`) |
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a client on a framed provider, the frame header, HELLO / PING, client ids, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
+| sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period, a change or an event, their entries sent to the one who added them (key `0x0F`) |
 | sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | outbound streams (connectors): bindings to providers, peers subscribed over their session |
 | sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console as a binary provider (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |

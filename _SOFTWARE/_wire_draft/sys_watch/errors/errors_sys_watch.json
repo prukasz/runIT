@@ -1,28 +1,10 @@
 {
-  "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_WATCH",
-  "errors": {
-    "ERR_WATCH_NOT_FOUND": {
-      "message": "Watch {id} does not exist"
-    },
-    "ERR_WATCH_NOT_READ": {
-      "message": "Watch {id} can only run a read",
-      "hint": "Choose a command that reads a value."
-    },
-    "ERR_WATCH_BAD_ARG": {
-      "message": "Invalid settings for watch {id}"
-    },
-    "ERR_WATCH_FULL": {
-      "message": "No room for another watch",
-      "hint": "Remove a watch first."
-    },
-    "ERR_WATCH_NO_VALUE": {
-      "message": "No value from board {board} yet",
-      "hint": "It comes within the device's maximum age."
-    },
-    "ERR_WATCH_STALE": {
-      "message": "The value from board {board} is {age_ms} ms old",
-      "hint": "Check the connection to that board."
-    }
+  "ERR_WATCH_NO_VALUE": {
+    "message": "No value from board {board} yet",
+    "hint": "It comes within the device's maximum age."
+  },
+  "ERR_WATCH_STALE": {
+    "message": "The value from board {board} is {age_ms} ms old",
+    "hint": "Check the connection to that board."
   }
 }

@@ -21,9 +21,10 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 | streams | `sys_data_connector_init`, then `runit_error_wiring_init` (fault handlers, error sink) |
 | log | `sys_log_init()`: the ESP_LOG hook on the logs connector, with the stored options |
 | actions, events | `sys_actions_init`, `sys_event_init` |
+| watches | `sys_watch_init` (SYS_WATCH.MD): its timer, and the listener of gone peers that ends their watches |
 | onboard actions | `runit_onboard_actions_init` (below) |
 | power | `runit_board_power_init`: `sys_power_manager_init` with the board's layout (`runit_board_cfg.c`, IDs and limits in `runit_board_defs.h`; a devkit: no rails, monitor or sink, only the USB limits) and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
-| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man: a listener of the session's gone peers), `router_init`. The provider (`ROUTER_KEY_PROVIDER`) and session (`ROUTER_KEY_SESSION`) routers too |
+| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man: a listener of the session's gone peers), `router_init`. The provider (`ROUTER_KEY_PROVIDER`), session (`ROUTER_KEY_SESSION`) and watch (`ROUTER_KEY_WATCH`) routers too |
 | vm | `vm_init` (VM_CORE.MD): the event subscription, telemetry, retained values, the supervisor task. After the router (a program is loaded and run through `ROUTER_KEY_VM`) |
 | uart, ble link | the providers: the UART console, the runIT BLE pair and LOGS (SYS_UART.MD, SYS_BLE.MD) |
 | stream bindings | `runit_board_connector_bindings_init`: the logs connector bound to the BLE LOGS characteristic. Every other stream goes to the clients that subscribe to it |

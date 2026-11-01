@@ -3683,6 +3683,13 @@ CONFIG_SYS_UART_SEND_WAIT_MS=1000
 # end of sys_uart
 
 #
+# sys_watch
+#
+# default:
+CONFIG_SYS_WATCH_MAX=24
+# end of sys_watch
+
+#
 # Device: ESP32-S3 GPIO
 #
 # default:

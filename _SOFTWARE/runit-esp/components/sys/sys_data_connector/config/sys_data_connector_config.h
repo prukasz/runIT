@@ -12,6 +12,7 @@
 #define SYS_DATA_CONNECTOR_TELEMETRY 0x02u  //@alias Telemetry @description Telemetry: the VM's subscribed values
 #define SYS_DATA_CONNECTOR_LOGS      0x03u  //@alias Logs @description The log lines
 #define SYS_DATA_CONNECTOR_ERRORS    0x04u  //@alias Errors @description The error records (urgent)
+#define SYS_DATA_CONNECTOR_WATCHES   0x05u  //@alias Watches @description The watches' entries, in a stream frame to their owner (no connector of this byte exists)
 #define SYS_DATA_CONNECTOR_EVENTS    0x06u  //@alias Events @description The event notifications (urgent)
 
 /* A binding's flags: which way it carries. Only TX is taken: a connector keeps nothing that comes in. */

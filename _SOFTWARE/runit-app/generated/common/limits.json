@@ -39,6 +39,13 @@
       "unit": "ms",
       "source_file": "runit-esp/components/sys/sys_session/Kconfig"
     },
+    "SYS_WATCH_MAX": {
+      "config": "CONFIG_SYS_WATCH_MAX",
+      "value": 24,
+      "alias": "Watches",
+      "description": "Reads run by a trigger, of every owner; each keeps its read and the CRC of its last entry sent (ON_CHANGE).",
+      "source_file": "runit-esp/components/sys/sys_watch/Kconfig"
+    },
     "VM_EXEC_MAX_SPAN_DEPTH": {
       "config": "CONFIG_VM_EXEC_MAX_SPAN_DEPTH",
       "value": 4,

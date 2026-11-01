@@ -5,7 +5,6 @@
 #include "utils.h"
 
 #define CONN_BYTE      1u     // a subscriber's frame is [connector][payload]: the payload is the frame less this byte
-#define WATCHES_BYTE   0x05u  // the watches' entries start with it: no connector takes it
 #define PAYLOAD_MAX    (CMD_DATA_MAX - CONN_BYTE)
 
 static void conn_task(void* arg);
@@ -65,7 +64,7 @@ static err_h lock_conn(uint8_t id, conn_t** c) {
 
 static err_h create(uint8_t id, uint8_t flags, bool system) {
   LOCK();
-  const bool exists = find(id) != NULL || id == WATCHES_BYTE;
+  const bool exists = find(id) != NULL || id == SYS_DATA_CONNECTOR_WATCHES;
   const bool full = s_conn.count >= CONFIG_SYS_DATA_CONNECTOR_MAX;
   if (!exists && !full) {
     s_conn.conns[s_conn.count++] = (conn_t){

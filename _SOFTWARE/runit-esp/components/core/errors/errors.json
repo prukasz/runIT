@@ -5189,6 +5189,77 @@
           "hint": "It is sent again later; nothing to do."
         }
       ]
+    },
+    {
+      "id": 19,
+      "name": "sys_watch",
+      "symbol": "ERR_MOD_SYS_WATCH",
+      "source_file": "runit-esp/components/sys/sys_watch/errors/sys_watch_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_watch/errors/errors_sys_watch.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1245185,
+          "name": "ERR_WATCH_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "Watch {id} does not exist"
+        },
+        {
+          "code": 2,
+          "tag": 1245186,
+          "name": "ERR_WATCH_NOT_READ",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "add: the request is no read",
+          "message": "Watch {id} can only run a read",
+          "hint": "Choose a command that reads a value."
+        },
+        {
+          "code": 3,
+          "tag": 1245187,
+          "name": "ERR_WATCH_BAD_ARG",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "add: id 0, period 0, a bad trigger or target, a read too long",
+          "message": "Invalid settings for watch {id}"
+        },
+        {
+          "code": 4,
+          "tag": 1245188,
+          "name": "ERR_WATCH_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_SYS_WATCH_MAX slot taken",
+          "message": "No room for another watch",
+          "hint": "Remove a watch first."
+        }
+      ]
     }
   ]
 }

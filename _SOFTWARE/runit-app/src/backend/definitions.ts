@@ -28,7 +28,7 @@ export interface LinkDefinitions {
   /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
   /** The connectors: the first byte of a stream frame says which one it is (`connector`). */
-  readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
+  readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number; readonly watches: number }
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number; readonly noReply: number }
   /** The session (SYS_SESSION.MD "Frames"): the frame byte's bits, the kinds, the control ops, the ids, the version. */
@@ -87,6 +87,7 @@ export const linkDefinitions = (
       logs: value(enums, 'connector', 'SYS_DATA_CONNECTOR_LOGS'),
       errors: value(enums, 'connector', 'SYS_DATA_CONNECTOR_ERRORS'),
       events: value(enums, 'connector', 'SYS_DATA_CONNECTOR_EVENTS'),
+      watches: value(enums, 'connector', 'SYS_DATA_CONNECTOR_WATCHES'),
     },
     status: { ok: value(enums, 'router_status_e', 'ROUTER_STATUS_OK'), error: value(enums, 'router_status_e', 'ROUTER_STATUS_ERROR') },
     flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT'), noReply: value(enums, 'router_flag', 'ROUTER_FLAG_NOREPLY') },

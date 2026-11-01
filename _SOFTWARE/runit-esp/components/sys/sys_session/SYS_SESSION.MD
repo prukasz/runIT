@@ -89,7 +89,7 @@ err_h err = router_submit(&cmd, session_answer, NULL);   // copied; never blocks
 
 A peer subscribes to a connector of this board with SUBSCRIBE (SYS_DATA_CONNECTOR.MD "Model"); the connector task then sends each frame of it with `sys_session_stream(peer, seq, data, len, flags)`: one STREAM frame (`[connector][payload]`, `seq` the connector's frame counter), `NOWAIT` (and `URGENT` when the connector is), so a busy provider is `ERR_PROV_BUSY` at once.
 
-A STREAM frame for this board goes to every stream listener (`sys_session_on_stream`, `CONFIG_SYS_SESSION_STREAM_LISTENERS`), each taking its own by the first byte. Clients send none today. A peer whose session opened is told to every `sys_session_on_reached` listener.
+A STREAM frame for this board goes to every stream listener (`sys_session_on_stream`, `CONFIG_SYS_SESSION_STREAM_LISTENERS`), each taking its own by the first byte. Clients send none today. The watches' entries to their owner are STREAM frames too, `[SYS_DATA_CONNECTOR_WATCHES][entry]` (SYS_WATCH.MD "Entries"), made by `sys_watch` and sent with `sys_session_stream` without a connector. A peer whose session opened is told to every `sys_session_on_reached` listener.
 
 ## Gone peers (and the dead-man)
 

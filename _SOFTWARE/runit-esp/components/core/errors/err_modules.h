@@ -26,3 +26,4 @@
 #define ERR_MOD_SYS_PROJECT        16u // components/sys/sys_project (the stored project: stream in, staged records, run)
 #define ERR_MOD_SYS_DATA_PROVIDER  17u // components/sys/sys_data_provider (the ways bytes go out and come in)
 #define ERR_MOD_SYS_SESSION        18u // components/sys/sys_session (the frames, the peers, the dead-man)
+#define ERR_MOD_SYS_WATCH          19u // components/sys/sys_watch (reads run by a trigger, their entries)

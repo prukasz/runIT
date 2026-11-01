@@ -1,0 +1,12 @@
+menu "sys_watch"
+
+    #@limit @alias Watches
+    config SYS_WATCH_MAX
+        int "Watches"
+        default 24
+        range 1 64
+        help
+          Reads run by a trigger, of every owner; each keeps its read and the
+          CRC of its last entry sent (ON_CHANGE).
+
+endmenu

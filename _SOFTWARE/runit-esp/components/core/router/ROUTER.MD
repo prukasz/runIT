@@ -111,6 +111,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x0C` project | `sys_project_router` | SYS_PROJECT.MD: save a whole project as one stream, run, info, erase |
 | `0x0D` provider | `sys_data_provider_router` | SYS_DATA_PROVIDER.MD "Remote" |
 | `0x0E` session | `sys_session_router` | SYS_SESSION.MD "Remote" |
+| `0x0F` watch | `sys_watch_router` | SYS_WATCH.MD "Remote" |
 
 ## Limits
 

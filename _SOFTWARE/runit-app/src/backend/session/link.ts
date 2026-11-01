@@ -69,10 +69,10 @@ export interface LinkOptions {
 /** The longest value of a GATT attribute (BLE Core spec): the largest packet one write can carry. */
 export const ATT_VALUE_MAX = 512
 
-export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events'] as const
+export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events', 'watches'] as const
 export type StreamName = (typeof STREAM_NAMES)[number]
 
-/** The streams the link subscribes to once the session opens (logs come on their own characteristic). */
+/** The streams the link subscribes to once the session opens (logs come on their own characteristic; the watches' entries come to the one who added the watch, with no subscription). */
 const SUBSCRIBED: readonly StreamName[] = ['errors', 'telemetry', 'events']
 
 /** How long the board waits for this client: the host never ends the session itself. */
@@ -98,6 +98,8 @@ export interface StreamFrame {
   readonly name?: StreamName
   /** The frame without its stream byte. */
   readonly data: Uint8Array
+  /** The stream's own counter in the session header, so a gap is frames lost; undefined on the logs characteristic (no header). */
+  readonly seq?: number
   /** When it arrived (ms since the epoch). */
   readonly at: number
 }
@@ -472,13 +474,13 @@ export class RunitLink {
     if (!frame) return
     if (frame.kind === this.defs.session.kind.control) this.onControl(frame.body)
     else if (frame.kind === this.defs.session.kind.answer) this.commands.onResponse(decodeResponse(this.defs, result.frame)!)
-    else if (frame.kind === this.defs.session.kind.stream && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1))
+    else if (frame.kind === this.defs.session.kind.stream && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1), frame.seq)
   }
 
-  private emitStream(stream: number, data: Uint8Array): void {
+  private emitStream(stream: number, data: Uint8Array, seq?: number): void {
     const name = this.streamNames.get(stream)
     if (!name) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
-    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data, at: Date.now() }
+    const frame: StreamFrame = { stream, ...(name ? { name } : {}), data, ...(seq !== undefined ? { seq } : {}), at: Date.now() }
     this.streamHandlers.forEach((h) => h(frame))
   }
 

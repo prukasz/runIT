@@ -64,6 +64,10 @@ bool sys_event_matches(uint16_t source, uint16_t event, uint8_t channel, const s
   return event == e->event;
 }
 
+bool sys_event_filter_match(const sys_event_filter_t* f, const sys_event_t* e) {
+  return sys_event_matches(f->source, f->event, f->channel, e);
+}
+
 // A used slot of the kind asked for (device listeners or function listeners) that matches the event.
 static bool sub_matches(const sub_t* s, const sys_event_t* e, bool devices) {
   return s->used && (s->device != SYS_DEVICE_ID_NONE) == devices &&

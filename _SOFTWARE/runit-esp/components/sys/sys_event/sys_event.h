@@ -152,6 +152,23 @@ MUST_USE err_h sys_event_publish_deferred(const sys_event_t* event);
  */
 bool sys_event_matches(uint16_t source, uint16_t event, uint8_t channel, const sys_event_t* e);
 
+/** @brief Which events: the three fields of a subscription as one packed value, as commands and descriptors carry it. */
+typedef struct __attribute__((packed)) {
+  uint16_t source;  /**< Device id, or SYS_EVENT_ANY_SOURCE */
+  uint16_t event;   /**< SYS_EVENT_ID, SYS_EVENT_ANY_EVENT or (contract << 8) | SYS_EVENT_ANY_IN */
+  uint8_t channel;  /**< Pin / channel, or SYS_EVENT_ANY_CHANNEL */
+} sys_event_filter_t;
+
+_Static_assert(sizeof(sys_event_filter_t) == 5, "event filter");
+
+/**
+ * @brief Whether an event passes a filter: sys_event_matches on the filter's fields. Any context, an ISR too.
+ * @param f  The filter.
+ * @param e  The event.
+ * @return true when it passes.
+ */
+bool sys_event_filter_match(const sys_event_filter_t* f, const sys_event_t* e);
+
 #ifdef __cplusplus
 }
 #endif

@@ -29,6 +29,8 @@
 #include "sys_system.h"
 #include "sys_system_router.h"
 #include "sys_uart.h"
+#include "sys_watch.h"
+#include "sys_watch_router.h"
 #include "vm_exec.h"
 #include "vm_retain.h"
 #include "vm_router.h"
@@ -88,6 +90,7 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_PROJECT, sys_project_router));
   ERR_TRY(router_register(ROUTER_KEY_PROVIDER, sys_data_provider_router));
   ERR_TRY(router_register(ROUTER_KEY_SESSION, sys_session_router));
+  ERR_TRY(router_register(ROUTER_KEY_WATCH, sys_watch_router));
   router_set_tap(&g_sys_actions_tap);
   sys_system_set_safe_state(safe_state);
   sys_system_set_safe_leave(safe_leave);
@@ -132,6 +135,7 @@ err_h runit_start(void) {
       {"project", sys_project_init},
       {"onboard actions", runit_onboard_actions_init},
       {"events", sys_event_init},
+      {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
       {"power", runit_board_power_init},  // before the router: it guards POWER_VREG
       {"router", router_setup},
       {"vm", vm_init},  // after the router: the program is loaded and run through ROUTER_KEY_VM
