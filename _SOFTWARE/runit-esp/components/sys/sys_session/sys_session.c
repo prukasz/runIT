@@ -1028,7 +1028,9 @@ static uint32_t call_frame(uint8_t* buf, uint8_t dst, uint16_t seq, uint8_t flag
   return HDR + req.len;
 }
 
-// A broadcast: up to the root, which runs it and sends it down; at the root, run here and sent down.
+/* A broadcast: up to the root, which runs it and sends it down. At the root the caller has done it itself (it is the
+ * root's STOP and clock), so it is only sent down: run here too, a broadcast of the clock would make the root set its
+ * clock, and broadcast it, for ever. */
 static err_h call_broadcast(cmd_in_t req, uint8_t flags) {
   uint8_t buf[CMD_FRAME_MAX];
   LOCK();
@@ -1039,13 +1041,7 @@ static err_h call_broadcast(cmd_in_t req, uint8_t flags) {
   if (up >= 0) {
     return send_raw(up, buf, len, send_flags(flags));
   }
-  err_h first = router_inject(req, (uint8_t)(flags | ROUTER_FLAG_NOREPLY), NULL, NULL);
-  err_h down = send_down(buf, len, flags);
-  if (first == NULL) {
-    return down;
-  }
-  err_free(down);
-  return first;
+  return send_down(buf, len, flags);
 }
 
 err_h sys_session_call(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb, void* ctx) {

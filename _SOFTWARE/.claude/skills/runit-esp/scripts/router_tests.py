@@ -348,7 +348,7 @@ def test_session(link: Link) -> None:
     r = link.request(bytes([KEY_PROVIDER, 0x01]), payload=SYS_UART_PROVIDER)
     check("provider REMOVE of the board's own -> ERR_PROV_SYSTEM", err_cause(r) == "ERR_PROV_SYSTEM", str(r))
     r = link.request(bytes([KEY_SESSION, 0x02]), payload=SYS_UART_PROVIDER + bytes([1, 1]))
-    check("session ATTACH as a CHILD -> ERR_SESSION_CLIENT", err_cause(r) == "ERR_SESSION_CLIENT", str(r))
+    check("session ATTACH of a provider that is attached already -> ERR_CMD_BAD_ARG", err_cause(r) == "ERR_CMD_BAD_ARG", str(r))
     seq = link.next_seq()
     link.send_raw(seq, 0, frame(bytes([KEY_SYS, SYS_PING])), dst=0x33)
     r = link.wait_response(seq)

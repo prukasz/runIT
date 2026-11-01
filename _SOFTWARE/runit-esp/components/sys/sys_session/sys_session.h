@@ -110,7 +110,9 @@ MUST_USE err_h sys_session_set_timeout(uint32_t ms);
  *    answer, on the RX task it came on, which ends the call. An ERROR's record has ERR_REMOTE{board, seq} before
  *    that board's chain. No answer in the timeout: ERROR with this board's record of ERR_SESSION_TIMEOUT; the
  *    session it went through ended: of ERR_SESSION_PEER_DOWN (both on the session's timer or the RX task).
- * Every call to another board is answered (SYS_SESSION.MD "Answers"): NOREPLY goes to a broadcast only. `cb`'s `data`
+ * Every call to another board is answered (SYS_SESSION.MD "Answers"): NOREPLY goes to a broadcast only. A broadcast
+ * from a board with a parent goes up to the root, which runs it and sends it down to every board; from the root it is
+ * only sent down: the root has done what it broadcasts. `cb`'s `data`
  * has CMD_HEAD writable bytes in front of it, as the router's answers have.
  * `cb`'s cmd is the call: its request (the first CONFIG_ERRORS_RECORD_REQ_MAX bytes), its seq, src this board.
  * @param dst         A board (0..SYS_SESSION_ID_LAST), this one included, or SYS_SESSION_ID_BROADCAST (NOREPLY only).

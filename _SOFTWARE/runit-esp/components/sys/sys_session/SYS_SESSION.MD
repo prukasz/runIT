@@ -44,7 +44,7 @@ A board's hello to its parent lists its **subtree** (the boards reached through 
 | a child or a client | elsewhere | up to the parent; on the root: to the client of that id, else `ERR_SESSION_NO_ROUTE` |
 | the parent | in the subtree of a child | down to that child |
 | the parent | elsewhere | dropped, `ERR_SESSION_NO_ROUTE` to the source |
-| anywhere | `0xFF` broadcast | up to the root, which runs it and sends it down to every child; each board runs it on the way down; never answered |
+| anywhere | `0xFF` broadcast | up to the root, which runs it and sends it down to every child; each board runs it on the way down; never answered. A broadcast the root itself makes (`sys_session_call`) is only sent down: the root has done what it broadcasts |
 
 A frame so goes up, then down, and never loops.
 
