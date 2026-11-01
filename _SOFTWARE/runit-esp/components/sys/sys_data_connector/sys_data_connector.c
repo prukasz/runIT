@@ -220,6 +220,7 @@ err_h sys_data_connector_init(void) {
   ERR_TRY(create(SYS_DATA_CONNECTOR_ERRORS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
   ERR_TRY(create(SYS_DATA_CONNECTOR_TELEMETRY, 0, true));
   ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
+  ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS_ALL, 0, true));
   ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_session_on_reached(on_reached));
   ERR_TRY(sys_session_on_stream(on_stream));

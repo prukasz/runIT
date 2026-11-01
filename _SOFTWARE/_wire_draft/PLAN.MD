@@ -21,7 +21,7 @@ For the agent that implements the wire design. `_wire_draft/` is the specificati
 | `sys_data_provider/` | `components/sys/sys_data_provider` (moved: the draft folder can go) | b3 |
 | `sys_session/` | `components/sys/sys_session` (moved: the draft folder is gone) | b4 (client only), 3 (the rest) |
 | `sys_data_connector/` | `components/sys/sys_data_connector` | b5 (subscribers), 4 (mirrors: built with a listener and no rx buffers; rx, forward, coalescing and the rx bindings are not) |
-| `payloads.h`: sys_event (`SYS_EVENT_LOCAL`, remote events) | `components/sys/sys_event` | 5 |
+| `payloads.h`: sys_event (`SYS_EVENT_LOCAL`, `EVENTS_ALL`) | `components/sys/sys_event` (moved) | 5 |
 | `sys_watch/` | `components/sys/sys_watch` (moved: the draft folder is gone) | 2 (watches), 4 (client, cached reads) |
 | `sys_device/` | `components/sys/sys_device` (moved: the draft folder is gone) | 4 |
 | `sys_remote/` | `components/sys/sys_remote` (moved: the draft folder is gone) | 4 |
@@ -86,6 +86,8 @@ Each its own branch and commit, in this order; each starts from its spec in the 
 
    Status: built on the branch `session` (not committed yet): the connector's mirrors (a listener, no rx buffers), the watch client and the cached reads (`sys_watch_client.c`), `CREATE_REMOTE` and the remote hook in `sys_device`, `sys_remote` (calls, the board's NOTIFY events), `ERR_SESSION_BUSY` and `ERR_WATCH_NO_VALUE` in the VM's device block. Checked on the two boards: `remote_tests.py` 23/23 (the child's GPIO as an async and a blocking device of the root, cached reads, a write making the copy old) and a program on the root (PERIODIC 1 s, TOGGLE of the remote pin) that blinks pin 4 of the devkit; `tree_tests.py` 15/15 and `router_tests.py` 231/231 on the new images. Not done: the errors of a remote device's board as that device's (a mirror of `ERRORS`) and an async write's error coming back from the device's next write, a failed CHANGE counting as not sent (needs that error), the connector's rx buffers, forward and coalescing, the `pin_ref` of a driver on a blocking remote expander (the check above) and a servo on the other board.
 5. **`EVENTS_ALL`, `SYS_EVENT_LOCAL`, the board as an error source** (`payloads.h` sys_event, errors, runit). Check: ON_EVENT on board 1 fires on a button of board 2.
+
+   Status: `EVENTS_ALL` (connector 0x07), `SYS_EVENT_LOCAL` and sys_remote's mirrors of a board's `EVENTS_ALL` and `ERRORS` (a remote device's events and errors as the device's) are built on the branch `session` (not committed yet); `remote_tests.py` checks the SUSPENDED event and an error of the child's device 0 coming to the root as the twin's. Not done: the board as an error source (`ERR_RECORD_SRC_BOARD`, a policy per board, `ERR_CONN_MIRROR_LOST` reported instead of logged), and an ON_EVENT block of the VM tried on a real button of the other board.
 
 ## Not in this plan
 

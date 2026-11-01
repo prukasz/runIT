@@ -307,6 +307,12 @@
           "value": 6,
           "alias": "Events",
           "description": "The event notifications (urgent)"
+        },
+        {
+          "name": "SYS_DATA_CONNECTOR_EVENTS_ALL",
+          "value": 7,
+          "alias": "All events",
+          "description": "Every event but the local ones: what another board mirrors"
         }
       ]
     },
@@ -2522,6 +2528,7 @@
     "SYS_DATA_CONNECTOR_BIND_TX": "conn_bind",
     "SYS_DATA_CONNECTOR_ERRORS": "connector",
     "SYS_DATA_CONNECTOR_EVENTS": "connector",
+    "SYS_DATA_CONNECTOR_EVENTS_ALL": "connector",
     "SYS_DATA_CONNECTOR_FLAG_URGENT": "conn_flag",
     "SYS_DATA_CONNECTOR_LOGS": "connector",
     "SYS_DATA_CONNECTOR_STATE_SUSPENDED": "conn_state",

@@ -111,6 +111,7 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 /* A contract's events table P_EVENTS of rows X(P, NAME, n, flags) (sys_event.h "Events tables") gives
  * P_EV_<NAME> = (P_CONTRACT << 8) | n and P_EV_<NAME>_FLAGS. Here, below sys_event, so every contract can use it. */
 #define SYS_EVENT_NOTIFY 0x01u  // an event's flag, from its table: sent on the events connector (what the app gets)
+#define SYS_EVENT_LOCAL  0x02u  // ... never on EVENTS_ALL, so never to another board (a fast source, what only an inline listener wants)
 #define SYS_EVENT__ID(P, name, n, flags) \
   P##_EV_##name = SYS_DEVICE_OP(P##_CONTRACT, n), P##_EV_##name##_FLAGS = (flags),
 #define SYS_EVENTS_DECLARE(P) enum { P##_EVENTS(SYS_EVENT__ID, P) };

@@ -16,6 +16,7 @@ Commands and their answers do not go through connectors: they are the session's,
  err_report → error sink ─────▶  0x04 errors    ──────────────▶  subscribers
  VM subscriptions ────────────▶  0x02 telemetry ──────────────▶  subscribers
  sys_event NOTIFY events ─────▶  0x06 events    ──────────────▶  subscribers
+ sys_event, all but LOCAL ────▶  0x07 events all ──────────────▶  subscribers; another board's mirror
                                  user connectors (router) ─────▶  e.g. 0x10 → a user characteristic
 ```
 
@@ -36,7 +37,7 @@ Commands and their answers do not go through connectors: they are the session's,
 
 ## Model
 
-- **Connectors**: a connector is one byte. System (created by `sys_data_connector_init`, state `SYSTEM`): `SYS_DATA_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04 (urgent), `_EVENTS` 0x06 (urgent; SYS_EVENT.MD notify records). A user connector (CREATE `u8 id, u8 flags`) takes any other byte but 0x00 (`ERR_CONN_BAD_ARG`) and 0x05 (`SYS_DATA_CONNECTOR_WATCHES`: the byte of the watches' entries in a STREAM frame to their owner, SYS_WATCH.MD); a byte that has a connector already, or 0x05: `ERR_CONN_EXISTS`. The registry is an array of `CONFIG_SYS_DATA_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the four system ones included; a CREATE with none free: `ERR_CONN_FULL`. System connectors can't be removed (`ERR_CONN_SYSTEM`); suspending them is allowed.
+- **Connectors**: a connector is one byte. System (created by `sys_data_connector_init`, state `SYSTEM`): `SYS_DATA_CONNECTOR_TELEMETRY` 0x02, `_LOGS` 0x03, `_ERRORS` 0x04 (urgent), `_EVENTS` 0x06 (urgent; SYS_EVENT.MD notify records), `_EVENTS_ALL` 0x07 (every event but the local ones). A user connector (CREATE `u8 id, u8 flags`) takes any other byte but 0x00 (`ERR_CONN_BAD_ARG`) and 0x05 (`SYS_DATA_CONNECTOR_WATCHES`: the byte of the watches' entries in a STREAM frame to their owner, SYS_WATCH.MD); a byte that has a connector already, or 0x05: `ERR_CONN_EXISTS`. The registry is an array of `CONFIG_SYS_DATA_CONNECTOR_MAX` connectors kept packed (a removed one takes the last one's place), the five system ones included; a CREATE with none free: `ERR_CONN_FULL`. System connectors can't be removed (`ERR_CONN_SYSTEM`); suspending them is allowed.
 - **Flags**: `SYS_DATA_CONNECTOR_FLAG_URGENT`: every send of its frames goes to the front of the provider's queue (`SYS_DATA_PROVIDER_SEND_URGENT`, the STREAM frame's URGENT flag).
 - **Bindings**: `sys_data_connector_bind(id, provider, SYS_DATA_CONNECTOR_BIND_TX)`, up to `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` per connector. The binding opens the provider as its **one user** (SYS_DATA_PROVIDER.MD "Use"): no one else sends on it, so bytes of two senders never mix; a provider another user has (a session's: the runIT BLE pair, the UART): `ERR_PROV_IN_USE`. Bind again on the same provider: only its flags change. Unbind and remove close the providers; UNBIND of provider link 0 drops every binding of the connector. Only TX: a connector keeps nothing that comes in (`ERR_CONN_BAD_ARG` for other flags).
 - **Subscribers**: a peer subscribes itself: SUBSCRIBE `u8 id`, and the command's `src` (`router_origin()`) is the subscriber, so no peer names another. From C `sys_data_connector_subscribe(id, peer)`. SUBSCRIBE of the same peer again gives one subscription, so a client that opened its session again and subscribes again gets one stream. Up to `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` per connector (`ERR_CONN_TARGETS_FULL`); the board itself, NONE or BROADCAST: `ERR_CONN_BAD_ARG`. A subscription ends with UNSUBSCRIBE, or when the peer is gone: the connectors listen for gone peers (`sys_session_on_gone`) and drop its subscriptions.
@@ -67,7 +68,7 @@ A **mirror** is this board's connector for a connector of another board: what th
 
 | Option | Default | Meaning |
 |---|---|---|
-| `CONFIG_SYS_DATA_CONNECTOR_MAX` | 12 | connector slots, the 4 system ones and the mirrors included (sys_remote makes one per board that has a remote device here) |
+| `CONFIG_SYS_DATA_CONNECTOR_MAX` | 16 | connector slots, the 5 system ones and the mirrors included (sys_remote makes one per board that has a remote device here) |
 | `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` | 3 | bindings per connector |
 | `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` | 4 | subscribers per connector |
 | `CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every target has it. A provider's own queue is larger (UART: SYS_UART.MD), so a burst fills this one first and its producer is refused (the VM's sampler resends), not lost unseen |

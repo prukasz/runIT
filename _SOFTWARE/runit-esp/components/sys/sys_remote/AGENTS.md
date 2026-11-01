@@ -7,4 +7,4 @@ Spec: `SYS_REMOTE.MD` (this folder).
 - The hook runs without the registry lock (a caller's own lock may be held, through a recursive take, when a remote device is a `pin_ref`): it may wait (`blocking`, a wired neighbour only) but never takes a lock that a task holding the registry lock waits for.
 - `added` / `removed` run under the registry lock: they make and end a connector and a mirror, and never wait.
 - A write's copy is made old (`sys_watch_stale`) when its answer comes, never before: the refresh read must be after the write.
-- The mirror's listener runs on the connector task: short, never blocks; the event goes on by `sys_event_publish_deferred`, to the event task.
+- The mirror's listener runs on the connector task: short, never blocks; the event goes on by `sys_event_publish_deferred`, to the event task, flagged `SYS_EVENT_LOCAL` so it is never mirrored on. An error is reported (`err_report`) from that task: the device's policy runs there.

@@ -20,7 +20,7 @@ import struct
 import sys
 import time
 
-from router_link import KEY_DEVICE, READ, WRITE, Link, Response
+from router_link import FLAG_NOREPLY, KEY_DEVICE, READ, STREAM_EVENTS, WRITE, Link, Response, frame
 from vm_lib import Prog, Vm, X_NORMAL, X_RESET, ok as vm_ok
 from vm_t_blocks import periodic_state
 from vm_t_hw import IO_LEVEL, IO_MODE, IO_RESET, IO_TOGGLE, dev_state
@@ -28,7 +28,8 @@ from vm_t_hw import IO_LEVEL, IO_MODE, IO_RESET, IO_TOGGLE, dev_state
 RESULTS: list[tuple[str, bool, str]] = []
 
 SYS_DEVICE_OP_CREATE_REMOTE, SYS_DEVICE_OP_REMOVE, SYS_DEVICE_OP_INFO = 0x0008, 0x0004, 0x0005
-SYS_DEVICE_OP_RESUME, DEVICE_ALL = 0x0003, 0xFFFF
+SYS_DEVICE_OP_SUSPEND, SYS_DEVICE_OP_RESUME, DEVICE_ALL = 0x0002, 0x0003, 0xFFFF
+EV_DEVICE_SUSPENDED = 0x0000  # the DEVICE contract's event 0
 ESP32S3_GPIO = 0x0040
 ASYNC, BLOCKING = 0, 1
 LOCAL = 0x0030  # the remote twin's id on the root
@@ -160,6 +161,31 @@ def test_remote(link: Link, child: int, pin: int) -> None:
     release(link, pin, child)
 
 
+def test_events_errors(link: Link, child: int) -> None:
+    """The child's events and errors about its device 0 are the root's about the twin."""
+    r = create_remote(link, child, ASYNC, 100)
+    if not check("the twin for the events is made", r is not None and r.ok, str(r)):
+        return
+    time.sleep(0.3)  # its mirrors subscribe on the child
+    t = link.mark()
+    dev(link, 0, SYS_DEVICE_OP_SUSPEND, dir=WRITE, dst=child)
+    time.sleep(0.5)
+    events = [p for p in link.stream_since(STREAM_EVENTS, t) if len(p) >= 2 + 18]
+    mine = [struct.unpack_from("<HH", p, 2) for p in events]
+    check("the child's SUSPENDED event comes to the root as the twin's", (LOCAL, EV_DEVICE_SUSPENDED) in mine, str(mine))
+    dev(link, DEVICE_ALL, SYS_DEVICE_OP_RESUME, dir=WRITE, dst=child)
+
+    t = link.mark()
+    link.send_raw(link.next_seq(), FLAG_NOREPLY, frame(bytes([KEY_DEVICE]) + struct.pack("<HH", 0, 0x0DEF), WRITE), child)
+    time.sleep(0.6)
+    recs = link.error_records_since(t)
+    names = [[n.name for n in rec.nodes] for rec in recs]
+    check("an error of a command on the child's device 0 comes to the root as the twin's (ERR_DEV_ID over ERR_REMOTE)",
+          any(n[:2] == ["ERR_DEV_ID", "ERR_REMOTE"] and "ERR_DEV_UNKNOWN_OP" in n for n in names), str(names))
+    r = dev(link, LOCAL, SYS_DEVICE_OP_REMOVE, dir=WRITE)
+    check("the twin is removed", r is not None and r.ok, str(r))
+
+
 def test_blink(link: Link, child: int, pin: int, seconds: float, keep: bool) -> None:
     vm = Vm(link)
     release(link, pin, child)  # the program makes the pin an output itself, through the twin
@@ -208,6 +234,7 @@ def main() -> int:
         clean(link, a.child)
         if a.blink <= 0 or not a.keep:
             test_remote(link, a.child, a.pin)
+            test_events_errors(link, a.child)
         if a.blink > 0:
             test_blink(link, a.child, a.pin, a.blink, a.keep)
     failed = [n for (n, ok, _) in RESULTS if not ok]

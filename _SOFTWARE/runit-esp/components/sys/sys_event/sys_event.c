@@ -115,16 +115,22 @@ static bool any_fn_listener(const sys_event_t* e) {
   return any;
 }
 
-/* On the events connector, when NOTIFY: a frame in the command shape, [ROUTER_KEY_EVENT][SYS_EVENT_OP_NOTIFY] and the
+/* On the events connector, when NOTIFY, and on EVENTS_ALL, unless LOCAL: a frame in the command shape, [ROUTER_KEY_EVENT][SYS_EVENT_OP_NOTIFY] and the
  * event itself (sys_event_t, 18 B packed). A full connector queue drops it (like the errors stream: reporting that
  * would add traffic to the same queue). */
 static void notify(const sys_event_t* e) {
-  if (!(e->flags & SYS_EVENT_NOTIFY)) {
+  const bool all = !(e->flags & SYS_EVENT_LOCAL);
+  if (!all && !(e->flags & SYS_EVENT_NOTIFY)) {
     return;
   }
   uint8_t frame[2 + sizeof(*e)] = {ROUTER_KEY_EVENT, SYS_EVENT_OP_NOTIFY};
   memcpy(frame + 2, e, sizeof(*e));
-  err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS, frame, sizeof(frame)));
+  if (e->flags & SYS_EVENT_NOTIFY) {
+    err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS, frame, sizeof(frame)));
+  }
+  if (all) {  // costs nothing without a subscriber: a send without a target is dropped before the queue
+    err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS_ALL, frame, sizeof(frame)));
+  }
 }
 
 // What runs where the event is published, or in the task for a deferred one: notify first (whatever the listeners

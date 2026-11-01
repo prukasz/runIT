@@ -11,7 +11,7 @@
 #include "sys_watch.h"
 #include "utils.h"
 
-#define MIRROR_FIRST 0xE0u  // the connector ids of the events mirrors: one per board, from here
+#define MIRROR_FIRST 0xE0u  // the connector ids of the mirrors: two per board (events, errors), from here
 #define ANSWER_MAX   16u    // a write's answer has no data; a little room for what a device answers anyway
 
 typedef struct {
@@ -22,7 +22,7 @@ typedef struct {
 static board_t s_boards[CONFIG_SYS_REMOTE_BOARDS];  // under the registry lock: added and removed run under it
 
 /* ----------------------------------------------------------------------------
- * Events: a remote device's events are published here as its own
+ * Events and errors: a remote device's are this board's as its own
  * ------------------------------------------------------------------------- */
 
 // A frame of the events connector of a board: [ROUTER_KEY_EVENT][NOTIFY][sys_event_t], on the connector task.
@@ -39,7 +39,38 @@ static void on_events(void* ctx, uint8_t board, const uint8_t* payload, uint32_t
     return;  // not a device this board has
   }
   ev.source = local;
+  ev.flags |= SYS_EVENT_LOCAL;  // it stays here: a board that mirrors this one asks the device's own board
   err_report(sys_event_publish_deferred(&ev));
+}
+
+/* A frame of the errors connector of a board: an error record (ERRORS.MD "Error record"). One about a command of a
+ * remote device that was not this board's (its answer brought that one) is reported here as the device's, so the
+ * device's policy answers it: ERR_DEV_ID over ERR_REMOTE over that board's chain. Other records are dropped. On the
+ * connector task. */
+static void on_errors(void* ctx, uint8_t board, const uint8_t* rec, uint32_t len, uint16_t missed) {
+  (void)ctx;
+  (void)missed;
+  const uint32_t head = 1 + ERR_RECORD_STAMP_BYTES;
+  err_record_cmd_t cmd;
+  if (len < head + sizeof(cmd) || rec[0] != ERR_RECORD_SRC_COMMAND) {
+    return;
+  }
+  memcpy(&cmd, rec + head, sizeof(cmd));
+  const uint8_t* req = rec + head + sizeof(cmd);
+  const uint32_t req_len = cmd.req_len & ~ERR_RECORD_REQ_CUT;
+  if (cmd.from == sys_session_board_id() || req_len < 4 || len < head + sizeof(cmd) + req_len ||
+      req[0] != ROUTER_KEY_DEVICE) {
+    return;
+  }
+  uint16_t remote_id;
+  memcpy(&remote_id, req + 2, sizeof(remote_id));
+  const uint16_t local = sys_device_find_remote(board, remote_id);
+  if (local == SYS_DEVICE_ID_NONE) {
+    return;
+  }
+  err_h chain = NULL;
+  err_free(err_record_parse(rec, len, &chain));
+  err_report(ERR_WRAP(ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = cmd.seq), ERR_DEV_ID, .id = local));
 }
 
 static board_t* find_board(uint8_t board) {
@@ -52,10 +83,10 @@ static board_t* find_board(uint8_t board) {
 }
 
 static uint8_t mirror_id(const board_t* b) {
-  return (uint8_t)(MIRROR_FIRST + (b - s_boards));
+  return (uint8_t)(MIRROR_FIRST + 2 * (b - s_boards));  // the events' mirror; the errors' is the next
 }
 
-// The first remote device of a board makes the mirror of its events; the last one ends it.
+// The first remote device of a board makes the mirrors of its events and errors; the last one ends them.
 static void on_added(uint8_t board) {
   board_t* b = find_board(board);
   if (b != NULL) {
@@ -67,11 +98,13 @@ static void on_added(uint8_t board) {
       s_boards[i] = (board_t){.board = board, .devices = 1};
       const uint8_t id = mirror_id(&s_boards[i]);
       err_report(sys_data_connector_create(id, 0));
-      err_report(sys_data_connector_mirror(id, board, SYS_DATA_CONNECTOR_EVENTS, on_events, NULL));
+      err_report(sys_data_connector_mirror(id, board, SYS_DATA_CONNECTOR_EVENTS_ALL, on_events, NULL));
+      err_report(sys_data_connector_create(id + 1, 0));
+      err_report(sys_data_connector_mirror(id + 1, board, SYS_DATA_CONNECTOR_ERRORS, on_errors, NULL));
       return;
     }
   }
-  // No slot: the board's remote devices work, their events are not mirrored.
+  // No slot: the board's remote devices work, their events and errors are not mirrored.
   err_report(ERR_NEW(ERR_CONN_FULL, .connector = 0));
 }
 
@@ -81,8 +114,10 @@ static void on_removed(uint8_t board) {
     return;
   }
   const uint8_t id = mirror_id(b);
-  err_report(sys_data_connector_unmirror(id));
-  err_report(sys_data_connector_remove(id));
+  for (uint8_t i = id; i <= id + 1; i++) {
+    err_report(sys_data_connector_unmirror(i));
+    err_report(sys_data_connector_remove(i));
+  }
 }
 
 /* ----------------------------------------------------------------------------
