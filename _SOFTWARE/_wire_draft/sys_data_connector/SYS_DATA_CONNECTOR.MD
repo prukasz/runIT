@@ -76,7 +76,7 @@ A peer **subscribes** itself: SUBSCRIBE `u8 id`, and the command's `src` (`route
 
 ## Mirrors
 
-A **mirror** is this board's connector for a connector of another board: what that board sends there comes in here, and goes on to every target of the mirror. So any number of this board's users (sys_remote for remote devices' events and errors, a binding to an MQTT topic, the VM reading its `rx_seq`, the app subscribed to the mirror) get one stream of another board, which crosses the link once.
+(Built in the component without the rx buffers: a mirror has a listener and its targets, and keeps nothing; the rx kinds below, forward and coalescing are not built.) A **mirror** is this board's connector for a connector of another board: what that board sends there comes in here, and goes on to every target of the mirror. So any number of this board's users (sys_remote for remote devices' events and errors, a binding to an MQTT topic, the VM reading its `rx_seq`, the app subscribed to the mirror) get one stream of another board, which crosses the link once.
 
 - `sys_data_connector_mirror(id, board, remote_id)`: makes the connector `id` (created before, with rx `LATEST` or `FIFO`) the mirror of `remote_id` on `board`, and subscribes this board there (SUBSCRIBE, a call: SYS_SESSION.MD "The board's own calls").
 - A STREAM frame `[remote_id][payload]` from `board` (the connectors' stream listener, SYS_SESSION.MD "Streams") goes into the mirror's rx as if it came on a binding: kept by its rx, the listener told, forwarded to the mirror's tx targets. Its `from` in READ is no provider: `{link 0, channel board}`.

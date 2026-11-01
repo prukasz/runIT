@@ -15,6 +15,12 @@
     "ERR_WATCH_FULL": {
       "message": "No room for another watch",
       "hint": "Remove a watch first."
+    },
+    "ERR_WATCH_NO_VALUE": {
+      "message": "No value of board {board} yet"
+    },
+    "ERR_WATCH_STALE": {
+      "message": "The last value of board {board} is {age_ms} ms old"
     }
   }
 }

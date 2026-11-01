@@ -8,6 +8,7 @@
 #include "sdkconfig.h"
 #include "sys_data_connector.h"
 #include "sys_session.h"
+#include "internal/sys_watch_internal.h"
 #include "utils.h"
 
 /* An entry's frame is [WATCHES][owner][id][status][data]: the answer's buffer has CMD_HEAD bytes in front of its data,
@@ -343,5 +344,6 @@ static void on_gone(uint8_t peer, uint8_t via) {
 err_h sys_watch_init(void) {
   const esp_timer_create_args_t args = {.callback = on_tick, .name = "sys_watch"};
   ERR_TRY(ERR_ESP(esp_timer_create(&args, &s_watch.timer)));
-  return sys_session_on_gone(on_gone);
+  ERR_TRY(sys_session_on_gone(on_gone));
+  return sys_watch_client_init();
 }

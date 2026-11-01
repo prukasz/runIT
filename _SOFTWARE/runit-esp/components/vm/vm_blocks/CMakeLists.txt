@@ -24,7 +24,7 @@ idf_component_register(
                  "device-contract/power_vreg" "device-contract/power_supply" "device-contract/power_usb_pd"
                  "device-custom-block/servo" "device-custom-block/drv8962" "device-custom-block/tps55289"
                  "device-custom-block/dc_motor"
-    REQUIRES vm_core errors utils sys_event sys_device sys_io sys_hbridge sys_power device_servo device_drv8962
+    REQUIRES vm_core errors utils sys_event sys_device sys_session sys_watch sys_io sys_hbridge sys_power device_servo device_drv8962
              device_tps55289 device_dc_motor
     WHOLE_ARCHIVE
 )

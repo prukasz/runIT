@@ -30,6 +30,9 @@
     "ERR_CONN_FULL": {
       "message": "No room for stream {connector}: every slot is taken",
       "hint": "Remove a stream first."
+    },
+    "ERR_CONN_MIRROR_LOST": {
+      "message": "Stream {connector} of board {board} lost {count} frames on the way"
     }
   }
 }

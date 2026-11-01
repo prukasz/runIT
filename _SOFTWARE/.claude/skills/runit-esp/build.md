@@ -61,7 +61,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_data_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_uart}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
+Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_data_connector,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_remote,sys_session,sys_uart,sys_watch}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 
@@ -121,7 +121,7 @@ idf.py -B build_link_root  -p <PCB port>    flash
 idf.py -B build_link_child -p <devkit port> flash
 ```
 
-The root keeps its console and BLE clients and has the link as a child session (board id 0); the child has the link as its parent session and **no client session** (board id 1, `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` until an `ID` write is kept): the host reaches it only through the root. Run `python .claude\skills\runit-esp\scripts\tree_tests.py --port <root port>` (`--loss 20` also tests unplugging the cable). The child's console still shows its log text for `serial_capture.py`; its frames are not read there. Back to a single board: flash the normal build.
+The root keeps its console and BLE clients and has the link as a child session (board id 0); the child has the link as its parent session and **no client session** (board id 1, `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` until an `ID` write is kept): the host reaches it only through the root. Run `python .claude\skills\runit-esp\scripts\tree_tests.py --port <root port>` (`--loss 20` also tests unplugging the cable), and `python .claude\skills\runit-esp\scripts\remote_tests.py --port <root port>` for the remote devices: the child's GPIO device 0 as a device of the root, async and blocking, cached reads, and `--blink 8 [--keep]` for a program on the root (a PERIODIC of 1 s and a TOGGLE) that blinks pin 4 of the child (`--pin`); `--keep` leaves it running until the root is reset. A host that went away (the dead-man) makes the root STOP every board, so the child's devices are suspended until a RESUME of every device (`[05][01][FF FF][03 00]` to the child): `remote_tests.py` does it first. The child's console still shows its log text for `serial_capture.py`; its frames are not read there. Back to a single board: flash the normal build.
 
 **QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` and no devices (`CONFIG_RUNIT_BOARD_BARE`) from `sdkconfig.qemu.defaults`:
 

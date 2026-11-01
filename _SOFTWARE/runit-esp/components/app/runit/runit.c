@@ -29,6 +29,9 @@
 #include "sys_system.h"
 #include "sys_system_router.h"
 #include "sys_uart.h"
+#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+#include "sys_remote.h"
+#endif
 #include "sys_watch.h"
 #include "sys_watch_router.h"
 #include "vm_exec.h"
@@ -144,6 +147,9 @@ err_h runit_start(void) {
       {"onboard actions", runit_onboard_actions_init},
       {"events", sys_event_init},
       {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
+#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+      {"remote devices", sys_remote_init},  // after the session, watches, connectors and events it carries a device's calls on
+#endif
       {"power", runit_board_power_init},  // before the router: it guards POWER_VREG
       {"router", router_setup},
       {"vm", vm_init},  // after the router: the program is loaded and run through ROUTER_KEY_VM

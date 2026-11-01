@@ -9,4 +9,21 @@ menu "sys_watch"
           Reads run by a trigger, of every owner; each keeps its read and the
           CRC of its last entry sent (ON_CHANGE).
 
+    config SYS_WATCH_CLIENT_MAX
+        int "Watches on other boards"
+        default 24
+        range 1 64
+        help
+          Watches this board added on other boards (each read of a remote
+          device is one): the board, the id and where its entries go.
+
+    config SYS_WATCH_IDLE_MIN_MS
+        int "Cached read idle floor (ms)"
+        default 1000
+        range 100 600000
+        help
+          A cached read's watch is removed on its board after 10 times its
+          max age without a read, never sooner than this: a fast reader's
+          pause does not remove and make it again.
+
 endmenu

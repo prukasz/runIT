@@ -28,6 +28,19 @@ extern "C" {
 MUST_USE err_h sys_data_connector_init(void);
 
 /**
+ * @brief Creates user connector `id`: for the board's code that mirrors a stream of another board, and for the remote
+ * interface. 0x00: ERR_CONN_BAD_ARG; a system one, 0x05 (the watches'): ERR_CONN_EXISTS; no free slot
+ * (CONFIG_SYS_DATA_CONNECTOR_MAX): ERR_CONN_FULL.
+ * @param id     The new connector.
+ * @param flags  SYS_DATA_CONNECTOR_FLAG_URGENT, or 0.
+ * @return NULL when created.
+ */
+MUST_USE err_h sys_data_connector_create(uint8_t id, uint8_t flags);
+
+/** @brief Removes a user connector, its subscriptions and its bindings (their providers closed). ERR_CONN_SYSTEM. */
+MUST_USE err_h sys_data_connector_remove(uint8_t id);
+
+/**
  * @brief Binds a connector to a provider and opens it (the binding is the provider's one user), or changes that
  * binding's flags. Its frames go there as they are.
  * @param id        The connector.
@@ -55,6 +68,37 @@ MUST_USE err_h sys_data_connector_subscribe(uint8_t id, uint8_t peer);
  * @return NULL when ended or not subscribed; ERR_CONN_NOT_FOUND.
  */
 MUST_USE err_h sys_data_connector_unsubscribe(uint8_t id, uint8_t peer);
+
+/**
+ * @brief A frame of a mirrored connector, on the connector task, before it goes to the mirror's own targets: copy what
+ * you keep and return; keep it short.
+ * @param ctx      From sys_data_connector_mirror().
+ * @param board    The board the frame came from.
+ * @param payload  The frame less the connector byte, valid for the call only.
+ * @param len      Bytes in `payload`.
+ * @param missed   Frames lost on the way since the one before (the gap in the stream's seq).
+ */
+typedef void (*sys_data_connector_mirror_f)(void* ctx, uint8_t board, const uint8_t* payload, uint32_t len,
+                                            uint16_t missed);
+
+/**
+ * @brief Makes connector `id` (created before) the mirror of connector `remote_id` on another board: this board
+ * subscribes there (SUBSCRIBE, sent again whenever that board is reached), and each frame that comes goes to `fn`, then
+ * to every target of `id`. One mirror per connector; any number of this board's users share its stream, which crosses
+ * the link once. Never blocks, any task.
+ * @param id         The local connector.
+ * @param board      The board.
+ * @param remote_id  Its connector there.
+ * @param fn         Told of each frame, or NULL.
+ * @param ctx        Given to `fn`.
+ * @return NULL when kept; ERR_CONN_NOT_FOUND, ERR_CONN_BAD_ARG (a system connector, one that is a mirror already, 0 or
+ * 0x05 as remote_id).
+ */
+MUST_USE err_h sys_data_connector_mirror(uint8_t id, uint8_t board, uint8_t remote_id, sys_data_connector_mirror_f fn,
+                                         void* ctx);
+
+/** @brief Ends a mirror: UNSUBSCRIBE there; the connector stays, as an ordinary one. NULL when it was none. */
+MUST_USE err_h sys_data_connector_unmirror(uint8_t id);
 
 /**
  * @brief Queues a payload for every target of the connector. Never blocks, any task.

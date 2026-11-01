@@ -1,4 +1,5 @@
 #include "sys_device.h"
+#include "router_ids.h"
 #include "sys_device_policy_internal.h"
 
 #include "freertos/FreeRTOS.h"
@@ -24,6 +25,8 @@ typedef struct {
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
   bool system;  // the board's own (sys_device_mark_system): never removed
+  bool remote;  // a device of another board (CREATE_REMOTE): `where` says which; ctx is a sys_device_base_t only
+  sys_device_remote_t where;
 } dev_t_;
 
 typedef struct {
@@ -42,6 +45,7 @@ static struct {
   guard_t guards[CONFIG_SYS_DEVICE_GUARDS];  // set at boot, read without a lock afterwards
   uint32_t guard_count;
   sys_device_state_f state_listener;
+  const sys_device_remote_ops_t* remote;  // set once at boot (sys_remote)
   // A sweep in progress (per registry lock, so one task): its devices' changes make one call at the end, not one each.
   uint32_t sweep_depth;
   bool sweep_changed;
@@ -97,8 +101,11 @@ static uint32_t find_user(uint16_t id) {
 err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
   err_h err = NULL;
   LOCK();  // recursive: create() runs under it
-  if (dep == dev->id || find_dev(dep) == s_reg.dev_count) {
+  const uint32_t at = find_dev(dep);
+  if (dep == dev->id || at == s_reg.dev_count) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = dep);
+  } else if (s_reg.devs[at].remote && s_reg.devs[at].where.mode != SYS_DEVICE_REMOTE_BLOCKING) {
+    err = ERR_NEW(ERR_DEV_BAD_ARG);  // an async device answers later: a device that uses it needs the answer now
   } else if (!uses(dev, dep)) {
     if (dev->dep_count == CONFIG_SYS_DEVICE_MAX_DEPS) {
       err = ERR_NEW(ERR_DEV_DEPS_FULL, .id = dev->id);
@@ -139,6 +146,50 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
   return NULL;
 }
 
+// CREATE_REMOTE of a free ID, table not full. args = [type u16][sys_device_remote_t]. The device's own config is the other
+// board's (it was created there): nothing is asked of that board.
+static err_h create_remote(uint16_t id, const uint8_t* args, uint32_t args_len) {
+  ERR_CHECK(args_len == 2 + sizeof(sys_device_remote_t), ERR_CMD_BAD_LEN, .got = (uint16_t)args_len,
+            .need = (uint16_t)(2 + sizeof(sys_device_remote_t)));
+  uint16_t type_id;
+  memcpy(&type_id, args, sizeof(type_id));
+  sys_device_remote_t where;
+  memcpy(&where, args + 2, sizeof(where));
+  const sys_device_type_t* type = find_type(type_id);
+  ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
+  ERR_CHECK(where.board <= SYS_DEVICE_REMOTE_BOARD_LAST && where.remote_id != SYS_DEVICE_ID_NONE &&
+                where.mode <= SYS_DEVICE_REMOTE_BLOCKING && (where.mode == SYS_DEVICE_REMOTE_BLOCKING || where.max_age_ms != 0),
+            ERR_DEV_BAD_ARG);
+  const uint16_t twin = sys_device_find_remote(where.board, where.remote_id);
+  ERR_CHECK(twin == SYS_DEVICE_ID_NONE, ERR_DEV_ID_TAKEN, .id = twin);
+  sys_device_base_t* ctx = calloc(1, sizeof(*ctx));
+  ERR_CHECK(ctx != NULL, ERR_DEV_NO_MEM, .id = id, .size = sizeof(*ctx));
+  ctx->id = id;
+  s_reg.devs[s_reg.dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx, .remote = true, .where = where};
+  sys_device_policy_add(id);
+  if (s_reg.remote != NULL && s_reg.remote->added != NULL) {
+    s_reg.remote->added(where.board);
+  }
+  return NULL;
+}
+
+void sys_device_set_remote(const sys_device_remote_ops_t* ops) {
+  s_reg.remote = ops;
+}
+
+uint16_t sys_device_find_remote(uint8_t board, uint16_t remote_id) {
+  uint16_t found = SYS_DEVICE_ID_NONE;
+  LOCK();
+  for (uint32_t i = 0; i < s_reg.dev_count && found == SYS_DEVICE_ID_NONE; i++) {
+    const dev_t_* d = &s_reg.devs[i];
+    if (d->remote && d->where.board == board && d->where.remote_id == remote_id) {
+      found = d->id;
+    }
+  }
+  UNLOCK();
+  return found;
+}
+
 /* ---- State listener ---- */
 
 void sys_device_set_state_listener(sys_device_state_f fn) {
@@ -164,7 +215,8 @@ static void state_changed(uint16_t id, bool suspended) {
 OP_WRITE(SYS_DEVICE, SUSPEND) {
   const dev_t_* d = ctx;
   const bool was = d->ctx->suspended;
-  const err_h err = d->type->suspend(d->ctx);
+  // A remote device keeps its last state: what stops it is its board's own safety (SYS_DEVICE.MD "Remote devices").
+  const err_h err = d->remote ? NULL : d->type->suspend(d->ctx);
   d->ctx->suspended = true;
   if (!was) {
     state_changed(d->id, true);
@@ -178,7 +230,7 @@ OP_WRITE(SYS_DEVICE, RESUME) {
   if (!d->ctx->suspended) {
     return NULL;
   }
-  const err_h err = d->type->resume(d->ctx);
+  const err_h err = d->remote ? NULL : d->type->resume(d->ctx);
   if (err == NULL) {
     d->ctx->suspended = false;
     state_changed(d->id, false);
@@ -193,7 +245,10 @@ OP_WRITE(SYS_DEVICE, REMOVE) {
   ERR_CHECK(!d.system, ERR_DEV_SYSTEM, .id = d.id);
   const uint32_t user = find_user(d.id);
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
-  err_h err = d.type->uninstall(d.ctx);
+  err_h err = d.remote ? NULL : d.type->uninstall(d.ctx);
+  if (d.remote && s_reg.remote != NULL && s_reg.remote->removed != NULL) {
+    s_reg.remote->removed(d.where.board);
+  }
   const uint32_t j = find_dev(d.id);  // re-found: uninstall called other devices
   // keeps the creation order
   memmove(&s_reg.devs[j], &s_reg.devs[j + 1], (s_reg.dev_count - j - 1) * sizeof(s_reg.devs[0]));
@@ -238,7 +293,7 @@ static const sys_device_op_t* find_op(const sys_device_op_t* ops, uint32_t count
 
 // The device runs this op of its type's table (has_op: not every wiring gives every op).
 static bool device_has_op(const dev_t_* d, uint16_t op) {
-  return d->type->has_op == NULL || d->type->has_op(d->ctx, op);
+  return d->remote || d->type->has_op == NULL || d->type->has_op(d->ctx, op);
 }
 
 #define SIDE_READ  0x01u  // OPS: the op has a read side
@@ -305,6 +360,36 @@ static err_h wrap_op(err_h err, uint8_t dir, uint16_t op) {
   return err != NULL ? ERR_WRAP(err, ERR_DEV_OP, .op = op, .dir = dir) : NULL;
 }
 
+// A remote device's call of an op of its type (lock held): the op and its side must be in the type's table, and the
+// device not suspended for a write. The sizes of the args are checked on the other board, which runs the op.
+static err_h remote_prepare(const dev_t_* d, uint8_t dir, uint16_t op, sys_device_remote_t* where) {
+  const sys_device_op_t* row = find_op(d->type->ops, d->type->op_count, op);
+  ERR_CHECK(row != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
+  cmd_f fn = NULL;
+  ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
+  if (dir == CMD_DIR_WRITE && !row->always) {
+    ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
+  }
+  ERR_CHECK(s_reg.remote != NULL && s_reg.remote->call != NULL, ERR_DEV_REMOTE_DOWN, .id = d->id,
+            .board = d->where.board);
+  *where = d->where;
+  return NULL;
+}
+
+// The call itself, without the registry lock (a caller's own, held through a recursive take, stays): the device command
+// for the other board is built here, the hook carries it.
+static err_h remote_run(const sys_device_remote_t* where, uint8_t dir, uint16_t op, const uint8_t* args,
+                        uint32_t args_len, uint8_t* out, uint32_t out_cap, uint32_t* out_len) {
+  ERR_CHECK(args_len <= SYS_DEVICE_REMOTE_ARGS_MAX, ERR_DEV_BAD_ARG);
+  uint8_t req[6 + SYS_DEVICE_REMOTE_ARGS_MAX];
+  req[0] = ROUTER_KEY_DEVICE;
+  req[1] = dir;
+  memcpy(req + 2, &where->remote_id, sizeof(where->remote_id));  // little-endian target
+  memcpy(req + 4, &op, sizeof(op));
+  memcpy(req + 6, args, args_len);
+  return s_reg.remote->call(where, (cmd_in_t){req, 6 + args_len}, out, out_cap, out_len);
+}
+
 /* One call, the args in place (no copy, so no size limit besides the caller's). Errors are wrapped in ERR_DEV_ID. */
 static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
                   uint32_t out_cap, uint32_t* out_len) {
@@ -317,10 +402,13 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
     return sys_device_sweep(op);
   }
   err_h err = NULL;
+  sys_device_remote_t where = {0};
+  bool remote_call = false;
   LOCK();
   const uint32_t i = find_dev(id);
   const bool found = i != s_reg.dev_count;  // before the op: REMOVE shrinks the table
-  if (op == SYS_DEVICE_OP_CREATE) {
+  const bool is_create = op == SYS_DEVICE_OP_CREATE || op == SYS_DEVICE_OP_CREATE_REMOTE;
+  if (is_create) {
     if (dir != CMD_DIR_WRITE) {
       err = ERR_NEW(ERR_CMD_DIRECTION, .dir = dir);
     } else if (id == SYS_DEVICE_ID_NONE) {
@@ -330,17 +418,23 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
     } else if (s_reg.dev_count == CONFIG_SYS_DEVICE_MAX) {
       err = ERR_NEW(ERR_DEV_TABLE_FULL, .id = id);
     } else {
-      err = create(id, args, args_len);
+      err = op == SYS_DEVICE_OP_CREATE ? create(id, args, args_len) : create_remote(id, args, args_len);
     }
   } else if (!found) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = id);
+  } else if (s_reg.devs[i].remote && find_op(k_registry_ops, ARRAY_LEN(k_registry_ops), op) == NULL) {
+    err = remote_prepare(&s_reg.devs[i], dir, op, &where);
+    remote_call = err == NULL;
   } else {
     cmd_out_t o = {.data = out, .cap = out_cap};
     err = run_op(i, dir, op, (cmd_in_t){args, args_len}, &o);
     *out_len = o.len;
   }
   UNLOCK();
-  if (op == SYS_DEVICE_OP_CREATE || found) {
+  if (remote_call) {
+    err = remote_run(&where, dir, op, args, args_len, out, out_cap, out_len);
+  }
+  if (is_create || found) {
     err = wrap_op(err, dir, op);  // not around NOT_FOUND: there was no op to run
   }
   return err != NULL ? ERR_WRAP(err, ERR_DEV_ID, .id = id) : NULL;
@@ -433,7 +527,7 @@ err_h sys_device_sweep(uint16_t op) {
   uint32_t n = 0;
   for (uint32_t i = 0; i < s_reg.dev_count; i++) {
     const dev_t_* d = &s_reg.devs[newest_first ? s_reg.dev_count - 1 - i : i];
-    if (!(op == SYS_DEVICE_OP_REMOVE && d->system)) {
+    if (!(op == SYS_DEVICE_OP_REMOVE && d->system) && !(op == SYS_DEVICE_OP_RESET && d->remote)) {
       ids[n++] = d->id;
     }
   }

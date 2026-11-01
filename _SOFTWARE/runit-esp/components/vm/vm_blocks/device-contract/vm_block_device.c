@@ -1,5 +1,7 @@
 #include "vm_block_device.h"
 
+#include "sys_session_errors.h"
+#include "sys_watch_errors.h"
 #include "vm_blocks.h"
 
 #define OUT_BYTES 12u  // the largest answer: a mirror read's key and two i32
@@ -163,6 +165,16 @@ static uint32_t args_pack(const vm_dev_op_t* op, const int32_t* v, uint8_t* out)
   return n;
 }
 
+// Whether `tag` is in the chain a device call answered.
+static bool chain_has(err_h err, uint32_t tag) {
+  for (; err != NULL; err = err->next) {
+    if (err->tag == tag) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static err_h call(const vm_block_device_data_t* d, const vm_dev_op_t* op, const int32_t* v, uint8_t* result) {
   uint8_t args[VM_DEV_ARGS_BYTES];
   const uint32_t len = args_pack(op, v, args);
@@ -209,6 +221,7 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
     return;
   }
   if (!en) {
+    d->flags &= (uint8_t)~VM_DEV_F_WAIT;  // an edge that waited is dropped with the enable
     if (d->idle_op != 0 && (d->flags & VM_DEV_F_SENT) && !(d->flags & VM_DEV_F_IDLE)) {
       idle_send(b, d, c);
     }
@@ -231,7 +244,7 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 
   bool fired = true;
   if (op->act == VM_DEV_ACT_EDGE) {
-    fired = rising;
+    fired = rising || (d->flags & VM_DEV_F_WAIT);
   } else if (op->act == VM_DEV_ACT_CHANGE) {
     fired = !(d->flags & VM_DEV_F_SENT) || memcmp(v, d->last, sizeof(int32_t) * op->nfield) != 0;
   }
@@ -241,7 +254,25 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
   }
 
   uint8_t result[OUT_BYTES] = {0};  // the answer as the device sent it (little-endian)
-  BLOCK_CALL(call(d, op, v, result), b);
+  err_h err = call(d, op, v, result);
+  if (err != NULL && chain_has(err, ERR_SESSION_BUSY) && !(op->act == VM_DEV_ACT_EDGE && rising && (d->flags & VM_DEV_F_WAIT))) {
+    // A remote device's way is busy: later. A CHANGE sends its newest values at a later pass (`last` is not updated), an
+    // EDGE waits for one; a second edge while one waits is a failure.
+    err_free(err);
+    if (op->act == VM_DEV_ACT_EDGE) {
+      d->flags |= VM_DEV_F_WAIT;
+    }
+    vm_block_set_eno(b, false);
+    return;
+  }
+  if (err != NULL && op->act == VM_DEV_ACT_READ && chain_has(err, ERR_WATCH_NO_VALUE)) {
+    // The first copy of a remote device's read is not there yet: the outputs stay as they are.
+    err_free(err);
+    vm_block_set_eno(b, false);
+    return;
+  }
+  d->flags &= (uint8_t)~VM_DEV_F_WAIT;
+  BLOCK_CALL(err, b);
   if (vm_block_failed(b)) {
     vm_block_set_eno(b, false);
     return;

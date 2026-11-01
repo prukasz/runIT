@@ -23,8 +23,8 @@ Commands and their answers do not go through connectors: they are the session's,
 
 | File | Role |
 |---|---|
-| `sys_data_connector.h` | The API for the rest of the firmware: init, bind, subscribe, unsubscribe, send, max payload, is-task (includes `sys_data_connector_config.h`) |
-| `internal/sys_data_connector_internal.h` | What only the component's router uses: create, remove, unbind, suspend, the state for LIST and its packed layouts (`PRIV_INCLUDE_DIRS`) |
+| `sys_data_connector.h` | The API for the rest of the firmware: init, create, remove, bind, subscribe, unsubscribe, mirror, unmirror, send, max payload, is-task (includes `sys_data_connector_config.h`) |
+| `internal/sys_data_connector_internal.h` | What only the component's router uses: unbind, suspend, the state for LIST and its packed layouts (`PRIV_INCLUDE_DIRS`) |
 | `config/sys_data_connector_config.h` | The system connectors (`SYS_DATA_CONNECTOR_*`, group `connector`), a binding's flags (`conn_bind`), a connector's flags (`conn_flag`) and state (`conn_state`): `//#ref-defines`, wire format |
 | `errors/sys_data_connector_errors.h` | `ERR_SYS_DATA_CONNECTOR_MAP`, the module's error tags (included by `sys_data_connector.h`) |
 | `errors/sys_data_connector_errors.c` | `ERR_MODULE_DEFINE`: the tags registered (the component is linked `WHOLE_ARCHIVE`, since nothing references this file) |
@@ -40,7 +40,18 @@ Commands and their answers do not go through connectors: they are the session's,
 - **Flags**: `SYS_DATA_CONNECTOR_FLAG_URGENT`: every send of its frames goes to the front of the provider's queue (`SYS_DATA_PROVIDER_SEND_URGENT`, the STREAM frame's URGENT flag).
 - **Bindings**: `sys_data_connector_bind(id, provider, SYS_DATA_CONNECTOR_BIND_TX)`, up to `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` per connector. The binding opens the provider as its **one user** (SYS_DATA_PROVIDER.MD "Use"): no one else sends on it, so bytes of two senders never mix; a provider another user has (a session's: the runIT BLE pair, the UART): `ERR_PROV_IN_USE`. Bind again on the same provider: only its flags change. Unbind and remove close the providers; UNBIND of provider link 0 drops every binding of the connector. Only TX: a connector keeps nothing that comes in (`ERR_CONN_BAD_ARG` for other flags).
 - **Subscribers**: a peer subscribes itself: SUBSCRIBE `u8 id`, and the command's `src` (`router_origin()`) is the subscriber, so no peer names another. From C `sys_data_connector_subscribe(id, peer)`. SUBSCRIBE of the same peer again gives one subscription, so a client that opened its session again and subscribes again gets one stream. Up to `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` per connector (`ERR_CONN_TARGETS_FULL`); the board itself, NONE or BROADCAST: `ERR_CONN_BAD_ARG`. A subscription ends with UNSUBSCRIBE, or when the peer is gone: the connectors listen for gone peers (`sys_session_on_gone`) and drop its subscriptions.
+- **Mirrors**: a connector can be the mirror of a connector of another board (below).
 - **Telemetry** is produced by the VM subscriptions (`vm_sub.c`).
+
+## Mirrors
+
+A **mirror** is this board's connector for a connector of another board: what that board sends there comes in here, and goes on to every target of the mirror. So any number of this board's users (sys_remote for the events of its remote devices, a binding, the app subscribed to the mirror) get one stream of another board, which crosses the link once.
+
+- `sys_data_connector_mirror(id, board, remote_id, fn, ctx)`: makes the connector `id` (a user connector created before, not a system one, not a mirror yet) the mirror of `remote_id` on `board` (not 0 or 0x05), and subscribes this board there (SUBSCRIBE, a call: SYS_SESSION.MD "The board's own calls"). `fn` (or NULL) is told of each frame. A mirror keeps nothing: the frame goes to `fn` and the targets, and is gone.
+- A STREAM frame `[remote_id][payload]` from `board` (the session's stream listener, SYS_SESSION.MD "Streams") is queued with the connector's own frames, `[0][mirror id][board][seq u16][payload]` (0 is no connector), so the connector task runs `fn(ctx, board, payload, len, missed)` and then sends the payload to every target of the mirror as if it had been sent to it. `fn` runs on the connector task: short, never blocks. A full queue drops the frame on the RX task, and the next frame's `seq` shows it.
+- A gap in the frames' `seq` is frames lost on the way: `missed` is the gap, and `ERR_CONN_MIRROR_LOST{connector, board, count}` is logged, once per gap.
+- The board gone (`sys_session_on_gone`): the mirror waits, its `seq` check starts again; reached again (`sys_session_on_reached`): it subscribes again. A subscription on the other board ends with its session, so a restarted board needs this.
+- `sys_data_connector_unmirror(id)`: UNSUBSCRIBE there; the connector stays, as an ordinary one.
 
 ## Sending
 
@@ -56,7 +67,7 @@ Commands and their answers do not go through connectors: they are the session's,
 
 | Option | Default | Meaning |
 |---|---|---|
-| `CONFIG_SYS_DATA_CONNECTOR_MAX` | 8 | connector slots, the 4 system ones included |
+| `CONFIG_SYS_DATA_CONNECTOR_MAX` | 12 | connector slots, the 4 system ones and the mirrors included (sys_remote makes one per board that has a remote device here) |
 | `CONFIG_SYS_DATA_CONNECTOR_BINDINGS` | 3 | bindings per connector |
 | `CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS` | 4 | subscribers per connector |
 | `CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE` | 4608 | bytes of the send queue; the frame being sent keeps its room until every target has it. A provider's own queue is larger (UART: SYS_UART.MD), so a burst fills this one first and its producer is refused (the VM's sampler resends), not lost unseen |
@@ -93,6 +104,6 @@ Example — VM temperature stream to a user BLE characteristic (created with the
 
 ## Errors (`ERR_MOD_SYS_DATA_CONNECTOR` = 5)
 
-Every tag but `BAD_ARG` carries the connector's id; codes 1, 5 and 10 are unused. A provider's failure (open, send) is its own `ERR_PROV_*`, which names it.
+Every tag but `BAD_ARG` carries the connector's id; codes 1, 5, 10, 12 and 13 are unused. A provider's failure (open, send) is its own `ERR_PROV_*`, which names it.
 
-`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_SYSTEM{connector}` LOW (remove: a system connector), `_TARGETS_FULL{connector}` MEDIUM (bind, subscribe), `_TOO_LONG{connector, len, max}` MEDIUM (send: past `CMD_DATA_MAX − 1`), `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_FULL{connector}` MEDIUM.
+`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_SYSTEM{connector}` LOW (remove: a system connector), `_TARGETS_FULL{connector}` MEDIUM (bind, subscribe), `_TOO_LONG{connector, len, max}` MEDIUM (send: past `CMD_DATA_MAX − 1`), `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_FULL{connector}` MEDIUM, `_MIRROR_LOST{connector, board, count}` MEDIUM (a mirror's frames lost on the way; logged).

@@ -1,6 +1,8 @@
 #include "cmd.h"
+#include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_data_connector_internal.h"
+#include "sys_data_connector_router.h"
 #include "sys_session.h"
 #include "utils.h"
 
@@ -13,9 +15,21 @@ U_MUTEX_DEFINE(sys_data_connector_mutex);
 U_RINGBUFFER_DEFINE(sys_data_connector_rb, CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_TASK_DEFINE(sys_data_connector_task_h, CONFIG_SYS_DATA_CONNECTOR_TASK_STACK);
 
+// A connector that mirrors one of another board (sys_data_connector_mirror).
+typedef struct {
+  bool on;
+  bool have_seq;
+  uint8_t board;
+  uint8_t remote_id;
+  uint16_t seq;  // the next frame expected
+  sys_data_connector_mirror_f fn;
+  void* ctx;
+} mirror_t;
+
 // A connector: LIST's view of it, its frame counter and, per target, whether its last send failed (logged once).
 typedef struct {
   sys_data_connector_info_t info;
+  mirror_t mirror;
   uint16_t seq;  // frames sent to its subscribers: a gap in their seq is frames lost
   bool sub_failing[CONFIG_SYS_DATA_CONNECTOR_SUBSCRIBERS];
   bool bind_failing[CONFIG_SYS_DATA_CONNECTOR_BINDINGS];
@@ -83,6 +97,9 @@ static void on_gone(uint8_t peer, uint8_t via) {
   LOCK();
   for (uint8_t i = 0; i < s_conn.count; i++) {
     conn_t* c = &s_conn.conns[i];
+    if (c->mirror.on && (c->mirror.board == peer || (outside && !sys_session_below(c->mirror.board)))) {
+      c->mirror.have_seq = false;  // its stream starts again when the board is reached
+    }
     for (uint8_t k = 0; k < c->info.head.subscribers;) {
       const uint8_t p = c->info.subs[k].peer;
       if (p == peer || (outside && !sys_session_below(p))) {
@@ -97,12 +114,115 @@ static void on_gone(uint8_t peer, uint8_t via) {
   UNLOCK();
 }
 
+/* ----------------------------------------------------------------------------
+ * Mirrors
+ * ------------------------------------------------------------------------- */
+
+// A mirror's input is queued with the connector's own frames, as [0][mirror id][board][seq u16][payload]: 0 is no
+// connector, so the task tells it by its first byte.
+#define MIRROR_MARK 0u
+#define MIRROR_HEAD 5u
+
+// The answer of a SUBSCRIBE or UNSUBSCRIBE to another board: a refusal is logged (the mirror has no frames then).
+static err_h on_mirror_answer(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
+  (void)ctx;
+  (void)cmd;
+  (void)data;
+  (void)len;
+  if (status != ROUTER_STATUS_OK) {
+    ESP_LOGW("conn", "a mirror was refused by the other board");
+  }
+  return NULL;
+}
+
+static void send_subscribe(uint8_t board, uint8_t remote_id, uint8_t op) {
+  const uint8_t req[] = {ROUTER_KEY_CONN, CMD_DIR_WRITE, op, remote_id};
+  err_free(sys_session_call(board, (cmd_in_t){req, sizeof(req)}, 0, 0, on_mirror_answer, NULL));
+}
+
+// A frame [remote_id][payload] of a board's stream, on the RX task: queued when a mirror takes it.
+static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
+  if (len < CONN_BYTE) {
+    return;
+  }
+  uint8_t mirror = 0;
+  LOCK();
+  for (uint8_t i = 0; i < s_conn.count && mirror == 0; i++) {
+    const mirror_t* m = &s_conn.conns[i].mirror;
+    if (m->on && m->board == src && m->remote_id == data[0]) {
+      mirror = s_conn.conns[i].info.head.id;
+    }
+  }
+  UNLOCK();
+  if (mirror == 0) {
+    return;
+  }
+  void* slot = NULL;
+  if (xRingbufferSendAcquire(sys_data_connector_rb, &slot, MIRROR_HEAD + len - CONN_BYTE, NO_WAIT) != pdTRUE) {
+    return;  // the gap shows in the next frame's seq
+  }
+  uint8_t* item = slot;
+  item[0] = MIRROR_MARK;
+  item[1] = mirror;
+  item[2] = src;
+  item[3] = (uint8_t)seq;
+  item[4] = (uint8_t)(seq >> 8);
+  memcpy(item + MIRROR_HEAD, data + CONN_BYTE, len - CONN_BYTE);
+  xRingbufferSendComplete(sys_data_connector_rb, slot);
+}
+
+// A board is reached (again): its mirrors subscribe there.
+static void on_reached(uint8_t peer) {
+  uint8_t remote[CONFIG_SYS_DATA_CONNECTOR_MAX];
+  uint8_t n = 0;
+  LOCK();
+  for (uint8_t i = 0; i < s_conn.count; i++) {
+    const mirror_t* m = &s_conn.conns[i].mirror;
+    if (m->on && m->board == peer) {
+      remote[n++] = m->remote_id;
+    }
+  }
+  UNLOCK();
+  for (uint8_t i = 0; i < n; i++) {
+    send_subscribe(peer, remote[i], SYS_DATA_CONNECTOR_OP_SUBSCRIBE);
+  }
+}
+
+err_h sys_data_connector_mirror(uint8_t id, uint8_t board, uint8_t remote_id, sys_data_connector_mirror_f fn,
+                                void* ctx) {
+  ERR_CHECK(remote_id != 0 && remote_id != SYS_DATA_CONNECTOR_WATCHES && board <= SYS_SESSION_ID_LAST, ERR_CONN_BAD_ARG);
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  const bool bad = (c->info.head.state & SYS_DATA_CONNECTOR_STATE_SYSTEM) || c->mirror.on;
+  if (!bad) {
+    c->mirror = (mirror_t){.on = true, .board = board, .remote_id = remote_id, .fn = fn, .ctx = ctx};
+  }
+  UNLOCK();
+  ERR_CHECK(!bad, ERR_CONN_BAD_ARG);
+  send_subscribe(board, remote_id, SYS_DATA_CONNECTOR_OP_SUBSCRIBE);
+  return NULL;
+}
+
+err_h sys_data_connector_unmirror(uint8_t id) {
+  conn_t* c;
+  ERR_TRY(lock_conn(id, &c));
+  const mirror_t m = c->mirror;
+  c->mirror.on = false;
+  UNLOCK();
+  if (m.on) {
+    send_subscribe(m.board, m.remote_id, SYS_DATA_CONNECTOR_OP_UNSUBSCRIBE);
+  }
+  return NULL;
+}
+
 err_h sys_data_connector_init(void) {
   ERR_TRY(create(SYS_DATA_CONNECTOR_LOGS, 0, true));
   ERR_TRY(create(SYS_DATA_CONNECTOR_ERRORS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
   ERR_TRY(create(SYS_DATA_CONNECTOR_TELEMETRY, 0, true));
   ERR_TRY(create(SYS_DATA_CONNECTOR_EVENTS, SYS_DATA_CONNECTOR_FLAG_URGENT, true));
   ERR_TRY(sys_session_on_gone(on_gone));
+  ERR_TRY(sys_session_on_reached(on_reached));
+  ERR_TRY(sys_session_on_stream(on_stream));
   if (sys_data_connector_task_h == NULL) {
     U_TASK_START(sys_data_connector_task_h, conn_task, NULL, CONFIG_SYS_DATA_CONNECTOR_TASK_PRIO);
   }
@@ -370,6 +490,35 @@ static void deliver(const uint8_t* frame, uint32_t len) {
   UNLOCK();
 }
 
+// A mirror's input (MIRROR_HEAD): the gap in its seq, the listener, then the frame goes to the mirror's own targets.
+static void mirror_in(uint8_t* item, uint32_t len) {
+  const uint8_t id = item[1];
+  const uint8_t board = item[2];
+  const uint16_t seq = (uint16_t)(item[3] | (item[4] << 8));
+  sys_data_connector_mirror_f fn = NULL;
+  void* ctx = NULL;
+  uint16_t missed = 0;
+  LOCK();
+  conn_t* c = find(id);
+  if (c != NULL && c->mirror.on && c->mirror.board == board) {
+    missed = c->mirror.have_seq ? (uint16_t)(seq - c->mirror.seq) : 0;
+    c->mirror.seq = (uint16_t)(seq + 1u);
+    c->mirror.have_seq = true;
+    fn = c->mirror.fn;
+    ctx = c->mirror.ctx;
+  }
+  UNLOCK();
+  if (missed > 0) {
+    err_log(ERR_NEW(ERR_CONN_MIRROR_LOST, .connector = id, .board = board, .count = missed));
+  }
+  if (fn != NULL) {
+    fn(ctx, board, item + MIRROR_HEAD, len - MIRROR_HEAD, missed);
+  }
+  // [connector][payload]: the connector's id takes the place of the byte before the payload.
+  item[MIRROR_HEAD - 1] = id;
+  deliver(item + MIRROR_HEAD - 1, len - MIRROR_HEAD + 1);
+}
+
 static void conn_task(void* arg) {
   (void)arg;
   sys_session_no_wait();  // the streams wait behind it: it must not wait for a call's answer
@@ -380,7 +529,11 @@ static void conn_task(void* arg) {
       continue;
     }
     // Sent from the queue: its room comes back once every target has it.
-    deliver(item, (uint32_t)size);
+    if (item[0] == MIRROR_MARK) {
+      mirror_in(item, (uint32_t)size);
+    } else {
+      deliver(item, (uint32_t)size);
+    }
     vRingbufferReturnItem(sys_data_connector_rb, item);
   }
 }

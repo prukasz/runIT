@@ -1,0 +1,12 @@
+menu "sys_remote"
+
+    config SYS_REMOTE_BOARDS
+        int "Boards with remote devices"
+        default 4
+        range 1 16
+        help
+          Boards this board has a remote device on at once. Each takes a
+          connector slot (CONFIG_SYS_DATA_CONNECTOR_MAX) for the mirror of
+          that board's events.
+
+endmenu

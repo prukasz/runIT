@@ -27,6 +27,8 @@
   X(ERR_DEV_IN_USE,         ERR_TAG(ERR_MOD_SYS_DEVICE, 20), ERR_SEV_MEDIUM, { uint16_t id; uint16_t user; }) /* REMOVE of a device another one uses */ \
   X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */ \
   X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */ \
-  X(ERR_DEV_SYSTEM,         ERR_TAG(ERR_MOD_SYS_DEVICE, 23), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a board device (sys_device_mark_system) */
+  X(ERR_DEV_SYSTEM,         ERR_TAG(ERR_MOD_SYS_DEVICE, 23), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a board device (sys_device_mark_system) */ \
+  X(ERR_DEV_REMOTE_DOWN,    ERR_TAG(ERR_MOD_SYS_DEVICE, 24), ERR_SEV_HIGH,   { uint16_t id; uint8_t board; }) /* a remote device whose board is gone, or no sys_remote on this board */ \
+  X(ERR_DEV_REMOTE_NOT_WIRED, ERR_TAG(ERR_MOD_SYS_DEVICE, 25), ERR_SEV_MEDIUM, { uint16_t id; uint8_t board; }) /* a blocking remote device whose board is no wired neighbour */
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)

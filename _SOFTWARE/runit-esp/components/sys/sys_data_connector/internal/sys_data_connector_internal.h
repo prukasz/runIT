@@ -12,16 +12,6 @@ connectors at run time, and their state for LIST. Not on the component's public 
 extern "C" {
 #endif
 
-/**
- * @brief Creates user connector `id`. 0x00: ERR_CONN_BAD_ARG; a system one, 0x05 (the watches'): ERR_CONN_EXISTS; no
- * free slot (CONFIG_SYS_DATA_CONNECTOR_MAX): ERR_CONN_FULL.
- * @param flags  SYS_DATA_CONNECTOR_FLAG_URGENT, or 0.
- */
-MUST_USE err_h sys_data_connector_create(uint8_t id, uint8_t flags);
-
-/** @brief Removes a user connector, its subscriptions and its bindings (their providers closed). ERR_CONN_SYSTEM. */
-MUST_USE err_h sys_data_connector_remove(uint8_t id);
-
 /** @brief Removes a binding and closes its provider (NULL when it was not bound); provider link 0: every binding. */
 MUST_USE err_h sys_data_connector_unbind(uint8_t id, sys_data_provider_id_t provider);
 

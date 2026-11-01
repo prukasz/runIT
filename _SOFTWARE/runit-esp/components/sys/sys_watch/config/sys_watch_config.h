@@ -18,6 +18,8 @@
 
 #define SYS_WATCH_TICK_MS 10u  // the unit of a watch's period and silence: the watches' timer runs every tick
 
+#define SYS_WATCH_COPY_MAX 32u  // the longest answer the client keeps as a copy (cached reads); longer ones are asked for
+
 #define SYS_WATCH_READ_MAX 48u  // the longest read a watch keeps: [key][dir][code | id u16 + op u16][args]
 
 /* Where a watch's entries go (sys_watch_head_t.connector): this byte, or the id of a connector of this board. */

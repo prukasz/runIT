@@ -4,6 +4,7 @@
 #include "sdkconfig.h"
 #include "sys_device_errors.h"
 #include "sys_device_policy.h"
+#include "sys_device_remote.h"
 #include "sys_device_types.h"
 
 #ifdef __cplusplus
@@ -101,7 +102,10 @@ typedef struct __attribute__((packed)) {
   enum { P##_CONTRACT = (contract), P##_OPERATIONS(SYS_DEVICE__ID, P) }; \
   P##_OPERATIONS(SYS_DEVICE__TYPES, P)
 
-enum { SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00) };  // CREATE: [type u16][create struct]
+enum {
+  SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),         // CREATE: [type u16][create struct]
+  SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
+};
 SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 
 /* A contract's events table P_EVENTS of rows X(P, NAME, n, flags) (sys_event.h "Events tables") gives

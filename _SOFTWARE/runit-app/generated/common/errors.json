@@ -1207,6 +1207,36 @@
           "description": "every CONFIG_SYS_DATA_CONNECTOR_MAX slot taken",
           "message": "No room for stream {connector}: every slot is taken",
           "hint": "Remove a stream first."
+        },
+        {
+          "code": 14,
+          "tag": 327694,
+          "name": "ERR_CONN_MIRROR_LOST",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "connector",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "connector"
+            },
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "count",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "a mirror's frames lost on the way; codes 12 and 13 are kept",
+          "message": "Stream {connector} of board {board} lost {count} frames on the way"
         }
       ]
     },
@@ -1638,6 +1668,56 @@
           ],
           "description": "REMOVE of a board device (sys_device_mark_system)",
           "message": "{id} is part of the board and cannot be removed"
+        },
+        {
+          "code": 24,
+          "tag": 393240,
+          "name": "ERR_DEV_REMOTE_DOWN",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "a remote device whose board is gone, or no sys_remote on this board",
+          "message": "Device {id} is on board {board}, which cannot be reached",
+          "hint": "Check the cable or the link to that board."
+        },
+        {
+          "code": 25,
+          "tag": 393241,
+          "name": "ERR_DEV_REMOTE_NOT_WIRED",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "a blocking remote device whose board is no wired neighbour",
+          "message": "Device {id} waits for board {board}, which is not on a cable",
+          "hint": "Make the device async, or wire that board to this one."
         }
       ]
     },
@@ -5258,6 +5338,47 @@
           "description": "every CONFIG_SYS_WATCH_MAX slot taken",
           "message": "No room for another watch",
           "hint": "Remove a watch first."
+        },
+        {
+          "code": 5,
+          "tag": 1245189,
+          "name": "ERR_WATCH_NO_VALUE",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "cached read, no wait: no copy yet",
+          "message": "No value of board {board} yet"
+        },
+        {
+          "code": 6,
+          "tag": 1245190,
+          "name": "ERR_WATCH_STALE",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "age_ms",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "unit": "ms"
+            }
+          ],
+          "description": "cached read, no wait: the copy is too old",
+          "message": "The last value of board {board} is {age_ms} ms old"
         }
       ]
     }

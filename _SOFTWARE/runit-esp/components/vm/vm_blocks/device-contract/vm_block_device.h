@@ -88,6 +88,7 @@ typedef struct vm_dev_contract_t {
 #define VM_DEV_F_SENT    (1u << 1)     // `last` holds what the device was told
 #define VM_DEV_F_IDLE    (1u << 2)     // the idle operation was sent since the enable fell
 #define VM_DEV_F_HELD    (1u << 3)     // a value held to its limit was reported; cleared on a pass with none held
+#define VM_DEV_F_WAIT    (1u << 4)     // an EDGE could not go yet (a remote device's way was busy): it goes at a later pass
 
 typedef struct __attribute__((aligned(4))) {
   uint16_t device_id;  // The device the block works on.

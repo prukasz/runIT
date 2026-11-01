@@ -2,11 +2,12 @@ menu "sys_data_connector"
 
     config SYS_DATA_CONNECTOR_MAX
         int "Connectors"
-        default 8
+        default 12
         range 5 32
         help
           Registry slots: the 4 system connectors (logs, errors, telemetry,
-          events) and the user connectors.
+          events), the user connectors and the mirrors (sys_remote makes two
+          per board that has a remote device).
 
     config SYS_DATA_CONNECTOR_BINDINGS
         int "Bindings per connector"

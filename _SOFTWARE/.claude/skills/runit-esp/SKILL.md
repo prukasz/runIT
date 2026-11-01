@@ -40,7 +40,8 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
 | sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per contract, publish, NOTIFY stream, C listeners |
-| sys | `sys/sys_device` | `SYS_DEVICE.MD`, `SYS_DEVICE_DRIVER.MD` | device registry, create / remove, ops, sweeps, dependencies, error policy (key `0x05`); writing a driver |
+| sys | `sys/sys_device` | `SYS_DEVICE.MD`, `SYS_DEVICE_DRIVER.MD` | device registry, create / remove, ops, sweeps, dependencies, error policy, remote devices (key `0x05`); writing a driver |
+| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the remote hook of sys_device, calls over the session, reads from the watches' copies, the board's events |
 | sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE) |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, battery, response matrix, VREG guard (key `0x0A`) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`) |

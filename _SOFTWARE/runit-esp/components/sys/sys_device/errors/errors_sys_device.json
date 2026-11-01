@@ -78,6 +78,14 @@
           "id_kind": "action"
         }
       }
+    },
+    "ERR_DEV_REMOTE_DOWN": {
+      "message": "Device {id} is on board {board}, which cannot be reached",
+      "hint": "Check the cable or the link to that board."
+    },
+    "ERR_DEV_REMOTE_NOT_WIRED": {
+      "message": "Device {id} waits for board {board}, which is not on a cable",
+      "hint": "Make the device async, or wire that board to this one."
     }
   }
 }

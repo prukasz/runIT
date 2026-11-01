@@ -206,6 +206,63 @@
           "struct": "sys_device_error_policy_t"
         }
       }
+    },
+    {
+      "id": "CREATE_REMOTE",
+      "op": 8,
+      "symbol": "SYS_DEVICE_OP_CREATE_REMOTE",
+      "label": "Create remote device",
+      "description": "Makes a device of a type that is a device of another board: the type, then where it is. Its config is the other board's; nothing is asked of that board.",
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "type",
+              "label": "Device type",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0
+            },
+            {
+              "id": "board",
+              "label": "Board",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "The board the device is on"
+            },
+            {
+              "id": "remote_id",
+              "label": "Device id there",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "description": "Its id on that board"
+            },
+            {
+              "id": "mode",
+              "label": "Mode",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 5,
+              "description": "sys_device_remote_mode_e: async or blocking"
+            },
+            {
+              "id": "max_age_ms",
+              "label": "Oldest copy (ms)",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 6,
+              "description": "The oldest copy a read answers; blocking: 0 always asks; async: at least 1"
+            }
+          ]
+        }
+      }
     }
   ],
   "events": [

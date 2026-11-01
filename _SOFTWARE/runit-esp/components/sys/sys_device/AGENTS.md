@@ -7,6 +7,7 @@ Spec: `SYS_DEVICE.MD` (this folder). Writing a driver: `SYS_DEVICE_DRIVER.MD`.
 - Changing `SYS_DEVICE_OPERATIONS`, a contract ID, the error map (`errors/`) or `registry/contract_device.json` requires an update in `templates/`: run `sh templates/sync.sh` (regenerates `enums.json` / `errors.json`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
 - SUSPEND and RESUME are a type's `suspend` / `resume` hooks; REMOVE, INFO, OPS and ERROR_POLICY are the registry's. A type's op table lists none of them (asserted at boot).
 - The registry owns the `suspended` flag: a hook never sets it.
+- A remote device (`registry/sys_device_remote.h`) has a `sys_device_base_t` and no driver struct: the type's `create`, `uninstall`, `suspend`, `resume` and `has_op` never run for it (they would read a struct it does not have). Its calls leave the registry lock before the hook is called; `added` / `removed` run under it.
 - The sweep frames (`[05][01][FF FF][op]`, `SYS_DEVICE_OP_*`) must match the frames the onboard actions store in `components/app/runit/runit_onboard_actions.c`. Change them together.
 - A driver holds no lock of its own across `sys_device_call` or `sys_event_publish`, and an op waits only for its own I/O (SYS_DEVICE.MD "Concurrency").
 - Lock order: a contract guard's own lock, then the registry lock. A guard is never reached from inside a device op.

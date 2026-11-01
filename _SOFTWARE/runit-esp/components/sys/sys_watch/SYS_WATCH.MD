@@ -2,6 +2,8 @@
 
 Component `components/sys/sys_watch/`. A **watch** is a read run on this board by a **trigger** (a period, a change of its answer, an event), its answer sent as an **entry** to the one who added it, its **owner**. The owner sends ADD once and asks for nothing more: this board reads and sends by itself, so a peer that follows a value (the app's views) costs the link one entry per change, and no request. The board's own watches send to a connector instead.
 
+The component has two sides: the **watches** this board runs for their owners (everything up to "Remote"), and the **client** of the watches this board added on other boards ("Client", "Cached reads"), which hands each entry that comes back to the one who asked for it and answers this board's reads of other boards from them.
+
 ```
  this board (runs the watch)                                          its owner
  tick (10 ms), event ─► router_inject(read) ─► work task: read ─► STREAM [WATCHES][entry] ─► the owner
@@ -12,13 +14,15 @@ Component `components/sys/sys_watch/`. A **watch** is a read run on this board b
 
 | File | Role |
 |---|---|
-| `sys_watch.h` | Use: init, add, remove, list |
+| `sys_watch.h` | Use: init, add, remove, list; the client (remote add, remove, read, stale) |
 | `sys_watch.c` | The table, the timer, the event subscriptions, the entries |
+| `sys_watch_client.c` | The client: the watches added on other boards, the cached reads |
+| `internal/sys_watch_internal.h` | The client's start, called by `sys_watch_init` (not on the include path) |
 | `config/sys_watch_config.h` | The tick, the triggers, the target, `sys_watch_head_t`, `sys_watch_info_t` (published to the app) |
 | `router/sys_watch_router.h` / `.c` | The remote interface: ADD, REMOVE, LIST (root key `ROUTER_KEY_WATCH` 0x0F) |
 | `router/contract_watch.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_WATCH_MAP`, its registration, the messages |
-| `Kconfig` | The number of watches |
+| `Kconfig` | The number of watches, of the client's, the idle floor |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## A watch
@@ -68,9 +72,41 @@ The watches listen for gone peers (`sys_session_on_gone`): every watch whose own
 | `0x02` | REMOVE | write | `u8 id`, of the command's `src` |
 | `0x03` | LIST | read | → `u8 count`, then `sys_watch_info_t` per watch (the head, `u8 owner`, `u8 read_len`) |
 
+## Client
+
+What this board asks of another board's watches goes through the client, so no module handles the WATCHES stream itself:
+
+- `sys_watch_remote_add(board, head, read, cb, ctx, &id)`: the client gives the watch an id of its own (1..255, free on that board for this board), sends ADD as a call (`sys_session_call`) and keeps `(board, id) → cb`. `head.id` is set by the client; `head.connector` must be `SYS_WATCH_TO_OWNER`. A way that is not there yet (the board not reached) is not a failure: the slot stays and the ADD goes when the board's session opens (`sys_session_on_reached`).
+- Each STREAM frame `[WATCHES][entry]` that comes to this board (the session's stream listener, SYS_SESSION.MD "Streams") goes, by its `src` and the entry's `id`, to that `cb` with the entry's status and data, and the gap in the watch's `seq` since the entry before. An entry no one asked for is dropped.
+- The ADD answered ERROR, or the board gone (`sys_session_on_gone`): `cb` is told (status ERROR with the error record: the board's own, or this board's `ERR_SESSION_PEER_DOWN`), the watch is kept, and the client sends its ADD again when that board's session opens again. `sys_watch_remote_remove(board, id)` sends REMOVE and forgets it.
+- `cb` runs on the RX task the entry came on: it copies what it keeps and returns, never blocks.
+
+## Cached reads
+
+`sys_watch_read(board, req, max_age_ms, wait, buf, cap, &len)` runs the read command `req` (any read, `[key][dir READ][...]`: a device's pin level, a VM status) on another board, and the client decides by itself whether it takes a copy, makes a watch, or asks. **A read is known by its board and its command bytes**: the same command is the same read, whoever makes it (a remote device's driver, the VM, the board config). The caller knows nothing of watches; a remote device's read (SYS_REMOTE.MD "A call") is one.
+
+```
+read (board, req, max_age):
+  1. a watch of req is ACTIVE, its copy is at most max_age old and not marked old    → the copy
+  2. else, wait:    ask now (sys_session_call_wait), answer                           → the answer
+          no wait:  ERR_WATCH_NO_VALUE (no copy yet), ERR_WATCH_STALE (older)
+  3. no watch of req, and (wait) req was read before within 2 × max_age,
+                          (no wait) req is read at all                              → make one:
+       ON_CHANGE every max_age / 2 (at least a tick), max_silence max_age: from now on 1.
+  4. req not read for 10 × max_age (at least CONFIG_SYS_WATCH_IDLE_MIN_MS)           → REMOVE it
+```
+
+A watch costs the link one to two entries per `max_age` (a change, else the silence), however often the value is read; a request costs two frames per read. So a watch pays when the reads come about every `max_age` or more often; the windows above are in `max_age`, not fixed. The removal's floor keeps a watch from coming and going with every pause of a fast reader.
+
+- `max_age_ms` 0 never takes a copy and never makes a watch: every read asks.
+- One watch per board and command, however many read it: its period follows the shortest `max_age_ms` it was read with (a shorter one adds the watch again, replacing it).
+- A copy is at most `SYS_WATCH_COPY_MAX` (32) bytes: a longer answer is never a copy, the reads ask. The client full (`CONFIG_SYS_WATCH_CLIENT_MAX`), or the ADD refused there (`ERR_WATCH_FULL` of that board): no watch, the reads ask (or, without wait, answer `ERR_WATCH_NO_VALUE`); the ADD is tried again at the next read after `max_age`.
+- An ERROR entry is no copy: the copy is dropped, the reads ask until an entry works again. The board gone drops its copies too.
+- **A write makes the copies old.** A copy may have been read there before a write to the same thing. `sys_watch_stale(board, req, target_len)` (`req` the write's command), called when a write's answer came (a remote device's write does): every copy of a read on that board with the same key and the same `target_len` bytes after the dir byte (for the device key the device's id: 2) is marked old, and one plain read of each goes at once, its answer the new copy. Entries that come before that answer are dropped (they may be older than the write); that answer, and every entry after it, was read after the write (Order). Until it comes, step 1 skips the copy.
+
 ## Errors (`ERR_MOD_SYS_WATCH` = 19)
 
-`ERR_WATCH_NOT_FOUND{id}`, `_NOT_READ{id}`, `_BAD_ARG{id}`, `_FULL`.
+`ERR_WATCH_NOT_FOUND{id}`, `_NOT_READ{id}`, `_BAD_ARG{id}`, `_FULL`, and for the cached reads `_NO_VALUE{board}` (no copy yet, no wait), `_STALE{board, age_ms}` (the copy older than `max_age_ms`, no wait).
 
 ## Limits
 
@@ -79,6 +115,9 @@ The watches listen for gone peers (`sys_session_on_gone`): every watch whose own
 | `CONFIG_SYS_WATCH_MAX` | 24 | watches this board runs, of every owner |
 | `SYS_WATCH_TICK_MS` | 10 | the unit of a period and the timer's step (`sys_watch_config.h`) |
 | `SYS_WATCH_READ_MAX` | 48 | the longest read a watch keeps (`sys_watch_config.h`) |
+| `SYS_WATCH_COPY_MAX` | 32 | the longest answer the client keeps as a copy (`sys_watch_config.h`) |
+| `CONFIG_SYS_WATCH_CLIENT_MAX` | 24 | watches this board added on other boards: the cached reads' and the owner's own |
+| `CONFIG_SYS_WATCH_IDLE_MIN_MS` | 1000 | a cached read's watch is removed after 10 × its `max_age_ms` without a read, never sooner than this |
 
 Each ON_EVENT watch takes one of `CONFIG_SYS_EVENT_MAX_SUBS` (SYS_EVENT.MD).
 
@@ -86,10 +125,10 @@ Each ON_EVENT watch takes one of `CONFIG_SYS_EVENT_MAX_SUBS` (SYS_EVENT.MD).
 
 - **sys_event**: `sys_event_filter_t` and `sys_event_filter_match`, `sys_event_subscribe_fn`.
 - **router**: `router_inject` with an answer callback, `router_origin` (ROUTER.MD).
-- **sys_session**: `sys_session_stream` to the owner, `sys_session_on_gone` (SYS_SESSION.MD).
+- **sys_session**: `sys_session_stream` to the owner, `sys_session_on_gone`; for the client `sys_session_call`, `sys_session_call_wait`, `sys_session_on_reached`, `sys_session_on_stream` (SYS_SESSION.MD).
+- **sys_remote**: a remote device's read is a cached read, its write ends with `sys_watch_stale` (SYS_REMOTE.MD "A call").
 - **sys_data_connector**: `SYS_DATA_CONNECTOR_WATCHES` (0x05) is no connector but the byte of the entries in a STREAM frame; `sys_data_connector_send` for a watch with a connector (SYS_DATA_CONNECTOR.MD).
 
 ## Open
 
-- Other boards' watches (the client that adds them and hands each entry to the one who asked) and the cached reads on top of them: the draft in `_wire_draft/sys_watch/`.
 - The board config adding standing watches of its own (`SYS_SESSION_ID_SELF`).

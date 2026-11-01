@@ -975,6 +975,25 @@
         }
       ]
     },
+    "sys_device_remote_mode_e": {
+      "alias": "Remote mode",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device_remote.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_REMOTE_ASYNC",
+          "value": 0,
+          "alias": "Async",
+          "description": "A write returns once taken; a read answers a copy"
+        },
+        {
+          "name": "SYS_DEVICE_REMOTE_BLOCKING",
+          "value": 1,
+          "alias": "Blocking",
+          "description": "A call waits for its answer; a wired neighbour only"
+        }
+      ]
+    },
     "sys_hbridge_fault_reason_e": {
       "alias": "H-Bridge Fault",
       "kind": "enum",
@@ -2535,6 +2554,8 @@
     "SYS_DEVICE_IMPORTANCE_LOW": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_MEDIUM": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_NONE": "sys_device_importance_e",
+    "SYS_DEVICE_REMOTE_ASYNC": "sys_device_remote_mode_e",
+    "SYS_DEVICE_REMOTE_BLOCKING": "sys_device_remote_mode_e",
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
     "SYS_EVENT_OP_NOTIFY": "event_op",

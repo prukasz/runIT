@@ -20,12 +20,13 @@ For the agent that implements the wire design. `_wire_draft/` is the specificati
 | `payloads.h`: root keys, error modules | `router_ids.h`, `err_modules.h` (provider, session moved; the watch's left) | with the module that takes them |
 | `sys_data_provider/` | `components/sys/sys_data_provider` (moved: the draft folder can go) | b3 |
 | `sys_session/` | `components/sys/sys_session` (moved: the draft folder is gone) | b4 (client only), 3 (the rest) |
-| `sys_data_connector/` | `components/sys/sys_data_connector` | b5 (subscribers), 4 (mirrors) |
+| `sys_data_connector/` | `components/sys/sys_data_connector` | b5 (subscribers), 4 (mirrors: built with a listener and no rx buffers; rx, forward, coalescing and the rx bindings are not) |
 | `payloads.h`: sys_event (`SYS_EVENT_LOCAL`, remote events) | `components/sys/sys_event` | 5 |
-| `sys_watch/` | `components/sys/sys_watch` (the watches: moved; the draft keeps the client and the cached reads) | 2 (watches), 4 (client, cached reads) |
-| `sys_device/` | `components/sys/sys_device` | 4 |
-| `sys_remote/` | new `components/sys/sys_remote` | 4 |
-| `payloads.h`: vm_blocks, runit | `components/vm/vm_blocks`, `components/app/runit` | 4, 5 |
+| `sys_watch/` | `components/sys/sys_watch` (moved: the draft folder is gone) | 2 (watches), 4 (client, cached reads) |
+| `sys_device/` | `components/sys/sys_device` (moved: the draft folder is gone) | 4 |
+| `sys_remote/` | `components/sys/sys_remote` (moved: the draft folder is gone) | 4 |
+| `payloads.h`: vm_blocks | `components/vm/vm_blocks` (moved) | 4 |
+| `payloads.h`: runit (the board as an error source) | `components/app/runit` | 5 |
 | `sciezka-danych.html` | stays: the explainer artifact, updated when a step changes what it shows | – |
 
 ## Step 0: preconditions
@@ -82,6 +83,8 @@ Each its own branch and commit, in this order; each starts from its spec in the 
 
    Status: the session layer is built on the branch `session` (not committed yet): parent, child and client sessions with the subtree in the hello, `next_hop` routing and forwarding, broadcast (up to the root, down to every board), GONE and the gone / reached listeners, `sys_session_call` (with a timeout, the calls in flight per board) and `sys_session_call_wait`, `sys_session_no_wait`, and in `sys_system` the root's STOP and the clock broadcast. The firmware builds clean; nothing ran on a board and no test was run (not asked for). The cable: the sys_uart link (UART1, GPIO 17 / 18, `RUNIT_LINK_ROOT` / `RUNIT_LINK_CHILD`, the overlays `sdkconfig.link_root.defaults` / `sdkconfig.link_child.defaults`); both images build. `tree_tests.py` is the check for two boards (PCB root on its USB, devkit child); it has not been run. Not done: the app's side of `PEERS` with a subtree. The draft `_wire_draft/sys_session` is gone.
 4. **Remote devices** (`sys_data_connector/` "Mirrors", `sys_watch/` "Client" and "Cached reads", `sys_device/`, `sys_remote/`, `payloads.h` vm_blocks): a VM program on board 1 drives a servo on board 2. Check: `async` and `blocking` devices, a driver whose `pin_ref` is a `blocking` remote expander.
+
+   Status: built on the branch `session` (not committed yet): the connector's mirrors (a listener, no rx buffers), the watch client and the cached reads (`sys_watch_client.c`), `CREATE_REMOTE` and the remote hook in `sys_device`, `sys_remote` (calls, the board's NOTIFY events), `ERR_SESSION_BUSY` and `ERR_WATCH_NO_VALUE` in the VM's device block. Checked on the two boards: `remote_tests.py` 23/23 (the child's GPIO as an async and a blocking device of the root, cached reads, a write making the copy old) and a program on the root (PERIODIC 1 s, TOGGLE of the remote pin) that blinks pin 4 of the devkit; `tree_tests.py` 15/15 and `router_tests.py` 231/231 on the new images. Not done: the errors of a remote device's board as that device's (a mirror of `ERRORS`) and an async write's error coming back from the device's next write, a failed CHANGE counting as not sent (needs that error), the connector's rx buffers, forward and coalescing, the `pin_ref` of a driver on a blocking remote expander (the check above) and a servo on the other board.
 5. **`EVENTS_ALL`, `SYS_EVENT_LOCAL`, the board as an error source** (`payloads.h` sys_event, errors, runit). Check: ON_EVENT on board 1 fires on a button of board 2.
 
 ## Not in this plan
