@@ -19,7 +19,7 @@ For the agent that implements the wire design. `_wire_draft/` is the specificati
 | `payloads.h`: errors (`err_record_cmd_t`, `err_record_parse`) | `components/core/errors` (moved) | b2 |
 | `payloads.h`: root keys, error modules | `router_ids.h`, `err_modules.h` (provider, session moved; the watch's left) | with the module that takes them |
 | `sys_data_provider/` | `components/sys/sys_data_provider` (moved: the draft folder can go) | b3 |
-| `sys_session/` | new `components/sys/sys_session` | b4 (client only), 3 (the rest) |
+| `sys_session/` | `components/sys/sys_session` (moved: the draft folder is gone) | b4 (client only), 3 (the rest) |
 | `sys_data_connector/` | `components/sys/sys_data_connector` | b5 (subscribers), 4 (mirrors) |
 | `payloads.h`: sys_event (`SYS_EVENT_LOCAL`, remote events) | `components/sys/sys_event` | 5 |
 | `sys_watch/` | `components/sys/sys_watch` (the watches: moved; the draft keeps the client and the cached reads) | 2 (watches), 4 (client, cached reads) |
@@ -79,6 +79,8 @@ Each its own branch and commit, in this order; each starts from its spec in the 
 
    Status: firmware and the app's backend done on the branch `watch` (not committed yet): `components/sys/sys_watch` (key `0x0F`, module 19, `SYS_DATA_CONNECTOR_WATCHES`), `sys_event_filter_t` in `sys_event`, `contract_watch.json`, `Watches` in the app's backend. The firmware builds clean; nothing was run on the PCB and no test was run (not asked for). Not done: the app's views still poll (they move to `Watches` one by one), the board config's own watches (`SYS_SESSION_ID_SELF`), a test suite for the watches (`router_tests.py` ADD / REMOVE / LIST, an ON_CHANGE and an ON_EVENT watch, the gone owner).
 3. **Two boards over UART** (the rest of `sys_session/`): child and parent sessions, the route table, forwarding, broadcast, GONE, `sys_session_call` and `call_wait`, the timeouts by way, the calls in flight per board, the time broadcast. Check: two ESP32 on a cable; the app reaches a device of the child through the root.
+
+   Status: the session layer is built on the branch `session` (not committed yet): parent, child and client sessions with the subtree in the hello, `next_hop` routing and forwarding, broadcast (up to the root, down to every board), GONE and the gone / reached listeners, `sys_session_call` (with a timeout, the calls in flight per board) and `sys_session_call_wait`, `sys_session_no_wait`, and in `sys_system` the root's STOP and the clock broadcast. The firmware builds clean; nothing ran on a board and no test was run (not asked for). Not done: the cable itself (a UART provider on a port of its own: the console is the only one, so two boards could not be joined), tests, the app's and the scripts' side of `PEERS` with a subtree. The draft `_wire_draft/sys_session` is gone.
 4. **Remote devices** (`sys_data_connector/` "Mirrors", `sys_watch/` "Client" and "Cached reads", `sys_device/`, `sys_remote/`, `payloads.h` vm_blocks): a VM program on board 1 drives a servo on board 2. Check: `async` and `blocking` devices, a driver whose `pin_ref` is a `blocking` remote expander.
 5. **`EVENTS_ALL`, `SYS_EVENT_LOCAL`, the board as an error source** (`payloads.h` sys_event, errors, runit). Check: ON_EVENT on board 1 fires on a button of board 2.
 

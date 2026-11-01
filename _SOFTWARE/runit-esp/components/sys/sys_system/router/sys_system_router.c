@@ -22,11 +22,11 @@
  * Whether a command runs urgent is the client's choice (ROUTER_FLAG_URGENT). */
 
 #define OP_PING        0x01u
-#define OP_STOP        0x02u
+#define OP_STOP        SYS_SYSTEM_OP_STOP
 #define OP_RESTART     SYS_SYSTEM_OP_RESTART
 #define OP_DEADMAN     0x04u
 #define OP_BYE         0x06u
-#define OP_TIME        0x07u
+#define OP_TIME        SYS_SYSTEM_OP_TIME
 #define OP_SAFE        0x09u
 #define OP_SAFE_LEAVE  0x0Au
 
@@ -86,6 +86,7 @@ ROUTER_OP_NOARGS(op_bye) {
 
 ROUTER_OP(op_time_set, sys_time_t) {
   ERR_CHECK(board_time_set(args->unix_ms), ERR_CMD_BAD_ARG);
+  sys_system_broadcast_time();  // the root: every board takes it
   return NULL;
 }
 

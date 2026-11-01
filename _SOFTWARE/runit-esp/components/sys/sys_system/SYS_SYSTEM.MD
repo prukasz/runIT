@@ -6,8 +6,8 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 
 | File | Role |
 |---|---|
-| `sys_system.h` | `sys_safe_reason_e`, `SYS_SYSTEM_OP_RESTART`, the safe state and dead-man API, `sys_system_init` |
-| `sys_system.c` | Safe state (handler, leave, note), dead-man (the session's gone peers, its time) |
+| `sys_system.h` | `sys_safe_reason_e`, `SYS_SYSTEM_OP_*` (STOP, RESTART, TIME), the safe state and dead-man API, `sys_system_broadcast_time`, `sys_system_init` |
+| `sys_system.c` | Safe state (handler, leave, note), dead-man (the session's gone peers, its time), the root's broadcasts of STOP and the time |
 | `router/sys_system_router.h` / `.c` | `sys_system_router` (`ROUTER_KEY_SYS`): the ops below |
 | `router/contract_sys.json` | The service descriptor of the ops |
 | `Kconfig` | `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (dead-man at boot, default 0 = off) |
@@ -33,9 +33,13 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 The dead-man needs no timer of its own: it is the silence of a client's session. Runtime only, not stored: `sys_system_deadman_set(timeout_ms)`, 0 = off; at boot `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (off). `sys_system_init` (boot, after `sys_session_init`) listens for gone peers (`sys_session_on_gone`) and arms the default.
 
 - Armed, its time is the clients' sessions' timeout (`sys_session_set_timeout`, 150..60000 ms): the board's HELLO tells each client, which sends at least every third of it (a PING when it has nothing else). Off, the sessions keep `CONFIG_SYS_SESSION_TIMEOUT_MS`.
-- A client's session that ends (nothing received for that long, or its provider down: a BLE disconnect) is a gone peer; armed, it enters the safe state (`SYS_SAFE_DEADMAN`). A session ends whether the dead-man is armed or not.
+- A client's or the parent's session that ends (nothing received for that long, or its provider down: a BLE disconnect) is a gone peer; armed, it enters the safe state (`SYS_SAFE_DEADMAN`). A session ends whether the dead-man is armed or not. **The root** also sends STOP to every board (`SYS_SESSION_ID_BROADCAST`, URGENT and NOREPLY): a child's own dead-man follows its parent's session, which stays up when only the app is gone.
 - The gone listener only notes the reason and calls `router_run_urgent()`; the router's urgent task enters the safe state, since the handler may block on I/O.
 - `BYE` turns it off: the client leaves on purpose and the board goes on with what it runs.
+
+## The time on every board
+
+The root's clock is every board's: `sys_system_broadcast_time()` sends TIME (a write, NOREPLY) to every board with `sys_session_call(SYS_SESSION_ID_BROADCAST, …)` when a client sets the time on the root, when a peer is reached (`sys_session_on_reached`: a board that has just come up) and every `CONFIG_SYS_SESSION_TIME_PERIOD_S` (an `esp_timer`). Nothing on a board with a parent, or while the clock is not set. An event's `t_ms` then compares across boards.
 
 ## Remote (`ROUTER_KEY_SYS` = 0x01)
 
@@ -48,7 +52,7 @@ Requests are `[0x01][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x03` RESTART | W | – (restart ~100 ms after the answer) |
 | `0x04` DEADMAN | RW | `u32 timeout_ms` (0 = off; else 150..60000, `ERR_CMD_BAD_ARG` outside) |
 | `0x06` BYE | W | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
-| `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: sets the board's clock (`board_time_set`, TIME.MD; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set) |
+| `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: sets the board's clock (`board_time_set`, TIME.MD; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set). On the root a write is sent on to every board (below) |
 | `0x09` SAFE | R | → `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
 | `0x0A` SAFE_LEAVE | W | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
 

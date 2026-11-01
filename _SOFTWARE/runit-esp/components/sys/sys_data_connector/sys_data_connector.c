@@ -372,6 +372,7 @@ static void deliver(const uint8_t* frame, uint32_t len) {
 
 static void conn_task(void* arg) {
   (void)arg;
+  sys_session_no_wait();  // the streams wait behind it: it must not wait for a call's answer
   while (1) {
     size_t size = 0;
     uint8_t* item = xRingbufferReceive(sys_data_connector_rb, &size, WAIT_FOREVER);

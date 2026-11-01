@@ -1,6 +1,10 @@
 #include "sys_system.h"
 
+#include <string.h>
+
+#include "board_time.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "router.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
@@ -71,11 +75,44 @@ static void trigger(sys_safe_reason_e reason) {
   err_report(router_run_urgent(on_urgent));
 }
 
-// A peer gone: a client's (or the parent's) session ended, by silence or its link lost. Armed: the safe state.
+// A command for every board, from the root: never answered.
+static void broadcast(const uint8_t* req, uint32_t len, uint8_t flags) {
+  err_report(sys_session_call(SYS_SESSION_ID_BROADCAST, (cmd_in_t){req, len}, (uint8_t)(flags | ROUTER_FLAG_NOREPLY), 0,
+                              NULL, NULL));
+}
+
+void sys_system_broadcast_time(void) {
+  const uint64_t unix_ms = board_time_unix_ms();
+  if (unix_ms == 0 || !sys_session_is_root()) {
+    return;
+  }
+  uint8_t req[3 + sizeof(unix_ms)] = {ROUTER_KEY_SYS, CMD_DIR_WRITE, SYS_SYSTEM_OP_TIME};
+  memcpy(req + 3, &unix_ms, sizeof(unix_ms));
+  broadcast(req, sizeof(req), 0);
+}
+
+static void on_time_tick(void* arg) {
+  (void)arg;
+  sys_system_broadcast_time();
+}
+
+// A peer is reached: a board that has just come up takes the root's time.
+static void on_reached(uint8_t peer) {
+  (void)peer;
+  sys_system_broadcast_time();
+}
+
+// A peer gone: a client's (or the parent's) session ended, by silence or its link lost. Armed: the safe state, and the
+// root's dead-man stops every board (a child's own follows its parent's session, which stays up when only the app is
+// gone).
 static void on_gone(uint8_t peer, uint8_t via) {
   (void)peer;
   if (s_sys.deadman_ms > 0 && (via == SYS_SESSION_CLIENT || via == SYS_SESSION_PARENT)) {
     trigger(SYS_SAFE_DEADMAN);
+    if (sys_session_is_root()) {
+      const uint8_t req[] = {ROUTER_KEY_SYS, CMD_DIR_WRITE, SYS_SYSTEM_OP_STOP};
+      broadcast(req, sizeof(req), ROUTER_FLAG_URGENT);
+    }
   }
 }
 
@@ -99,5 +136,10 @@ static void on_urgent(void) {
 
 err_h sys_system_init(void) {
   ERR_TRY(sys_session_on_gone(on_gone));
+  ERR_TRY(sys_session_on_reached(on_reached));
+  static esp_timer_handle_t timer;
+  const esp_timer_create_args_t args = {.callback = on_time_tick, .name = "sys_time"};
+  ERR_TRY(ERR_ESP(esp_timer_create(&args, &timer)));
+  ERR_TRY(ERR_ESP(esp_timer_start_periodic(timer, (uint64_t)CONFIG_SYS_SESSION_TIME_PERIOD_S * 1000000u)));
   return sys_system_deadman_set(CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS);
 }

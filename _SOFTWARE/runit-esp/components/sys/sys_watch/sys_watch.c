@@ -320,13 +320,21 @@ uint8_t sys_watch_list(sys_watch_info_t* info, uint8_t max) {
   return n;
 }
 
-// A peer is gone: its watches end (the board's own never do).
+/* A peer is gone: its watches end (the board's own never do). The parent's session ending names every peer outside
+   this board's subtree: the watches of the owners the session layer no longer reaches end. */
 static void on_gone(uint8_t peer, uint8_t via) {
-  (void)via;
+  const bool outside = peer == SYS_SESSION_ID_BROADCAST && via == SYS_SESSION_PARENT;
   for (uint8_t i = 0; i < CONFIG_SYS_WATCH_MAX; i++) {
     LOCK();
-    const bool mine = s_watch.watches[i].used && s_watch.watches[i].owner == peer;
-    const int handle = mine ? free_locked(i) : NO_SUB;
+    const bool used = s_watch.watches[i].used;
+    const uint8_t owner = s_watch.watches[i].owner;
+    UNLOCK();
+    if (!used || owner == SYS_SESSION_ID_SELF || !(owner == peer || (outside && !sys_session_below(owner)))) {
+      continue;
+    }
+    LOCK();
+    const bool same = s_watch.watches[i].used && s_watch.watches[i].owner == owner;
+    const int handle = same ? free_locked(i) : NO_SUB;
     UNLOCK();
     unsubscribe(handle);
   }

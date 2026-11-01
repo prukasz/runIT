@@ -31,11 +31,34 @@
       "description": "ID of the onboard action that restarts the board (sys RESTART). The firmware writes it at every boot.",
       "source_file": "runit-esp/components/app/runit/Kconfig"
     },
+    "SYS_SESSION_CALLS": {
+      "config": "CONFIG_SYS_SESSION_CALLS",
+      "value": 32,
+      "alias": "Calls to other boards",
+      "description": "The board's own requests to other boards waiting for an answer (sys_session_call); a call to this board takes none. Every call to another board is answered, so each write of a remote device in flight takes one.",
+      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+    },
+    "SYS_SESSION_CALL_TIMEOUT_MS": {
+      "config": "CONFIG_SYS_SESSION_CALL_TIMEOUT_MS",
+      "value": 1000,
+      "alias": "Call timeout",
+      "description": "A call without an answer this long ends with ERR_SESSION_TIMEOUT: over a radio (BLE, MQTT, ESP-NOW) or further than a neighbour. Longer than a radio's tail, so a slow answer is not taken for a lost one.",
+      "unit": "ms",
+      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+    },
+    "SYS_SESSION_CALL_TIMEOUT_WIRED_MS": {
+      "config": "CONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS",
+      "value": 50,
+      "alias": "Wired call timeout",
+      "description": "The same to the peer of a session on a WIRED provider (a cable): its round trip is about a millisecond.",
+      "unit": "ms",
+      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+    },
     "SYS_SESSION_TIMEOUT_MS": {
       "config": "CONFIG_SYS_SESSION_TIMEOUT_MS",
       "value": 3000,
       "alias": "Session timeout",
-      "description": "A client's session with nothing received for this long ends: its peer is gone, the hello starts again. The hello tells the peer, which sends at least every third of it. The dead-man's time replaces it while armed (sys_session_set_timeout).",
+      "description": "A child's session with nothing received for this long ends: its calls fail, its peers are gone, the hello starts again. The hello tells the peer, which sends at least every third of it. The parent's and the clients' sessions take the dead-man's time instead (sys_session_set_timeout).",
       "unit": "ms",
       "source_file": "runit-esp/components/sys/sys_session/Kconfig"
     },

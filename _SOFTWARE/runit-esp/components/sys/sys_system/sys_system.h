@@ -17,7 +17,9 @@ extern "C" {
  */
 
 /* Sys ops under ROUTER_KEY_SYS (sys_system_router.c). Never renumber. */
+#define SYS_SYSTEM_OP_STOP    0x02u  // the safe state; the root's dead-man sends it to every board
 #define SYS_SYSTEM_OP_RESTART 0x03u  // restarts the board ~100 ms after the answer (the hard reset)
+#define SYS_SYSTEM_OP_TIME    0x07u  // the board's wall clock; the root sends its own to every board
 
 //#ref-enum @alias Safe State Reason
 typedef enum {
@@ -71,8 +73,15 @@ MUST_USE err_h sys_system_deadman_set(uint32_t timeout_ms);
 uint32_t sys_system_deadman_get(void);
 
 /**
- * @brief Listens for gone peers (sys_session_on_gone) and arms the dead-man with its boot default. Boot, after
- * sys_session_init.
+ * @brief The root sends its clock to every board (SYS_SESSION.MD "Gone peers (and the dead-man)"), so an event's t_ms
+ * compares across boards: when a client sets it, when a board is reached, and every
+ * CONFIG_SYS_SESSION_TIME_PERIOD_S. Nothing on a board with a parent, or while no client has set the time. Any task.
+ */
+void sys_system_broadcast_time(void);
+
+/**
+ * @brief Listens for gone peers (sys_session_on_gone) and reached ones (the time), starts the time broadcast's timer
+ * and arms the dead-man with its boot default. Boot, after sys_session_init.
  */
 MUST_USE err_h sys_system_init(void);
 

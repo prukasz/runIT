@@ -4,5 +4,5 @@ idf_component_register(
     SRCS "sys_system.c" "router/sys_system_router.c"
     INCLUDE_DIRS "." "router"
     REQUIRES errors utils cmd router time sys_session
-    PRIV_REQUIRES log esp_system
+    PRIV_REQUIRES log esp_system esp_timer
 )
