@@ -91,7 +91,7 @@ The frame size is `CMD_FRAME_MAX` (CMD.MD); the router has no frame limit of its
 
 ## Needs elsewhere
 
-- **errors.h**: `err_cmd_t` is `{req, req_len, seq u16, src u8, flags u8}`; the error record's command header follows it (`_wire_draft/payloads.h`).
+- **errors.h**: `err_cmd_t` is `{req, req_len, seq u16, src u8, flags u8}`; the error record's command header follows it (ERRORS.MD "Error record").
 - **The session** (SYS_SESSION.MD): it makes `err_cmd_t` from a request frame and submits it with its framer as `done`, answers a command the router refused, and forwards the frames for other boards without the router.
 - **sys_actions, sys_project**: `router_inject` with flags and no `done`; the actions recorder names a client by the origin's `src`.
 - **sys_system**: the dead-man is the session's (SYS_SESSION.MD "Gone peers"); `router_run_urgent` runs the safe state.

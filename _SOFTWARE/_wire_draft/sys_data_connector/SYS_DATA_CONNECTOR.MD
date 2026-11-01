@@ -80,7 +80,7 @@ A peer **subscribes** itself: SUBSCRIBE `u8 id`, and the command's `src` (`route
 
 - `sys_data_connector_mirror(id, board, remote_id)`: makes the connector `id` (created before, with rx `LATEST` or `FIFO`) the mirror of `remote_id` on `board`, and subscribes this board there (SUBSCRIBE, a call: SYS_SESSION.MD "The board's own calls").
 - A STREAM frame `[remote_id][payload]` from `board` (the connectors' stream listener, SYS_SESSION.MD "Streams") goes into the mirror's rx as if it came on a binding: kept by its rx, the listener told, forwarded to the mirror's tx targets. Its `from` in READ is no provider: `{link 0, channel board}`.
-- A gap in the frame's `seq` is frames lost on the way: the mirror's `missed` grows by it, and `ERR_CONN_MIRROR_LOST{connector, board, count}` is reported as an error of that board (`ERR_RECORD_SRC_BOARD`, `_wire_draft/payloads.h` "errors, runit"), once per gap.
+- A gap in the frame's `seq` is frames lost on the way: the mirror's `missed` grows by it, and `ERR_CONN_MIRROR_LOST{connector, board, count}` is reported as an error of that board (`ERR_RECORD_SRC_BOARD`, ERRORS.MD "Error record"), once per gap.
 - The board gone (`sys_session_on_gone`): the mirror is down (its listener told, `seq` unchanged); reached again (`sys_session_on_reached`): it subscribes again.
 - `sys_data_connector_unmirror(id)`: UNSUBSCRIBE there; the connector stays, as an ordinary one.
 
