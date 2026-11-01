@@ -1,4 +1,6 @@
 import type { FieldValues } from '../catalog/codec'
+import { decodeAnswer, requestFrame } from '../protocol/services'
+import type { Decoded, ServiceCall } from '../protocol/services'
 import { decodeWatchEntry, watchAddCall, watchRemoveCall } from '../protocol/watches'
 import type { WatchEntry } from '../protocol/watches'
 import type { CommandOptions } from './commands'
@@ -22,6 +24,16 @@ export interface WatchSpec {
   /** The read: `[key][dir READ][...]` (`requestFrame` of a read call). */
   readonly read: Uint8Array
 }
+
+/** How `follow` reads: every period, or when the answer changed (and anyway after `silenceMs`, so silence never looks dead). */
+export interface FollowSpec {
+  readonly trigger: 'every' | 'change'
+  readonly periodMs: number
+  readonly silenceMs?: number
+}
+
+/** The ticks of a period (`SYS_WATCH_TICK_MS`, 10 ms): at least one. */
+const ticks = (ms: number): number => Math.min(0xffff, Math.max(1, Math.round(ms / 10)))
 
 /** Called for each entry; `lost` is the entries of this watch missed since the one before (the gap in the frame's `seq`). */
 export type WatchHandler = (entry: WatchEntry, lost: number) => void
@@ -74,6 +86,24 @@ export class Watches {
       if (!this.held.delete(id)) return
       await this.services.send(watchRemoveCall(this.services.catalog, id), options)
     }
+  }
+
+  /**
+   * Follows a read (a call of the catalog, a read side): the board runs it by `spec` and each answer comes to `handler` decoded
+   * as the command's answer; `undefined` when the read failed on the board. Resolves with the function that stops it.
+   */
+  follow(call: ServiceCall, spec: FollowSpec, handler: (value: Decoded | undefined) => void, options?: CommandOptions): Promise<() => Promise<void>> {
+    const head = {
+      connector: 0,
+      trigger: spec.trigger === 'change' ? 'SYS_WATCH_ON_CHANGE' : 'SYS_WATCH_PERIODIC',
+      period: ticks(spec.periodMs),
+      max_silence: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs),
+      // the event filter is for ON_EVENT: these are its "any" values (SYS_EVENT_ANY_*)
+      filter_source: 0xffff,
+      filter_event: 0xffff,
+      filter_channel: 0xff,
+    }
+    return this.add({ head, read: requestFrame(call.request) }, (entry) => handler(entry.ok ? decodeAnswer(call, entry.data) : undefined), options)
   }
 
   /** Stops listening; the board ends the watches with the session. */

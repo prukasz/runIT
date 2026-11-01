@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createEngine } from '@engine'
 import type { CompileResult, ExecCommand, Project, TelemetryReader, WatchPlan } from '@engine'
-import { Services, bundledEnums, leaveSafeState, loadProgram, sendProgram } from '@backend'
+import { Services, Watches, bundledEnums, leaveSafeState, loadProgram, sendProgram, serviceCall } from '@backend'
 import type { LinkState, RunitLink } from '@backend'
 import { LiveValues, liveText } from './run/live'
 import type { LiveView, RunMode } from './run/live'
 
-/** How often the board is asked how its program runs, while connected. */
+/** How often the board sends how its program runs and its safe state, while connected (two watches, SYS_WATCH.MD). */
 const STATUS_EVERY_MS = 1000
 
 /** How slow the board's passes are in a debug run (`VM SPEED`, 1 is normal): what a person can follow with the eye. */
@@ -60,13 +60,13 @@ const safeReasons = () => bundledEnums().sys_safe_reason_e?.members ?? []
 /**
  * Run, Stop and the safe stop, and what the board says of its program.
  *
- * While connected the app asks `VM STATUS` every second: the run mode, whether a program is loaded and complete, the fault
+ * While connected the board sends `VM STATUS` every second (a watch: one request and no more): the run mode, whether a program is loaded and complete, the fault
  * latch. With a ready program on the board, Run and Stop are real: Run leaves the safe state and starts the program
  * (`leaveSafeState` with `EXEC normal`, or `EXEC resume` from a pause), Stop pauses it (`EXEC pause`). With no program on the
  * board (or a firmware without STATUS) they are a simulation that sends nothing. The safe stop is always real: `SYS STOP`,
  * the board's safe state (the VM stopped, every device output switched off and suspended).
  *
- * It asks `SYS SAFE` every second too: whether the board is in its safe state, why (STOP, the dead-man, a lost link, a power
+ * It sends `SYS SAFE` every second too: whether the board is in its safe state, why (STOP, the dead-man, a lost link, a power
  * fault) and since when. `leaveSafe` is the way out (`leaveSafeState`: the devices resumed, the program started again when one is
  * ready), `ackFault` clears a latched device fault (`EXEC ackFault`) that refuses every start.
  */
@@ -92,20 +92,40 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
   const connected = linkState === 'connected'
   const supported = useRef(true)
 
+  /** `VM STATUS`'s answer, from a request or a watch; undefined when the board could not answer. */
+  const applyStatus = useCallback((value: unknown) => {
+    if (value === undefined || value === null || typeof value !== 'object') {
+      setBoard(undefined)
+      return
+    }
+    const status = value as Record<string, unknown>
+    setBoard({
+      mode: names.get(Number(status.mode)) ?? `mode ${String(status.mode)}`,
+      ready: status.ready === true,
+      faultLatched: status.fault_latched === true,
+      ...(status.fault_latched === true && status.fault_device !== undefined ? { faultDevice: Number(status.fault_device) } : {}),
+      passes: Number(status.pass_count),
+      slowdown: Number(status.slowdown ?? 1),
+      ...(status.next_block !== undefined && Number(status.next_block) !== 0xffff ? { nextBlock: Number(status.next_block) } : {}),
+    })
+  }, [names])
+
+  /** `SYS SAFE`'s answer, from a request or a watch. */
+  const applySafe = useCallback((value: unknown) => {
+    if (value === undefined || value === null || typeof value !== 'object') {
+      setSafe(undefined)
+      return
+    }
+    const answer = value as Record<string, unknown>
+    const member = safeReasons().find((m) => m.value === Number(answer.reason) || m.name === answer.reason)
+    setSafe(member ? { reason: member.name, alias: member.alias ?? member.name, ...(member.description ? { description: member.description } : {}), forMs: Number(answer.for_ms) } : undefined)
+  }, [])
+
   const refresh = useCallback(async () => {
     if (!supported.current) return
     try {
-      const { value } = await services.call('VM', 'STATUS', undefined, { timeoutMs: 1500, label: 'VM STATUS (poll)' })
-      const status = value as Record<string, unknown>
-      setBoard({
-        mode: names.get(Number(status.mode)) ?? `mode ${String(status.mode)}`,
-        ready: status.ready === true,
-        faultLatched: status.fault_latched === true,
-        ...(status.fault_latched === true && status.fault_device !== undefined ? { faultDevice: Number(status.fault_device) } : {}),
-        passes: Number(status.pass_count),
-        slowdown: Number(status.slowdown ?? 1),
-        ...(status.next_block !== undefined && Number(status.next_block) !== 0xffff ? { nextBlock: Number(status.next_block) } : {}),
-      })
+      const { value } = await services.call('VM', 'STATUS', undefined, { timeoutMs: 1500, label: 'VM STATUS' })
+      applyStatus(value)
     } catch (failure) {
       // A firmware without STATUS refuses it: the app falls back to the simulation and stops asking.
       if (failure instanceof Error && /device-error|unknown/i.test(`${(failure as { code?: string }).code ?? ''} ${failure.message}`)) supported.current = false
@@ -113,10 +133,8 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     }
     if (!safeSupported.current) return
     try {
-      const { value } = await services.call('SYS', 'SAFE', undefined, { timeoutMs: 1500, label: 'SYS SAFE (poll)' })
-      const answer = value as Record<string, unknown>
-      const member = safeReasons().find((m) => m.value === Number(answer.reason) || m.name === answer.reason)
-      setSafe(member ? { reason: member.name, alias: member.alias ?? member.name, ...(member.description ? { description: member.description } : {}), forMs: Number(answer.for_ms) } : undefined)
+      const { value } = await services.call('SYS', 'SAFE', undefined, { timeoutMs: 1500, label: 'SYS SAFE' })
+      applySafe(value)
     } catch (failure) {
       // A firmware without SAFE refuses it: the app stops asking and shows no safe state.
       if (failure instanceof Error && /device-error|unknown/i.test(`${(failure as { code?: string }).code ?? ''} ${failure.message}`)) safeSupported.current = false
@@ -133,9 +151,25 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     safeSupported.current = true
     if (!connected) return
     void refresh()
-    const timer = setInterval(() => void refresh(), STATUS_EVERY_MS)
-    return () => clearInterval(timer)
-  }, [connected, refresh])
+    // The board sends the two answers by itself from here on; the watches are added again when the link comes back.
+    const watches = new Watches(link)
+    const stops: (() => Promise<void>)[] = []
+    let stopped = false
+    const follow = (service: string, command: string, apply: (value: unknown) => void) =>
+      watches
+        .follow({ ...serviceCall(services.catalog, service, command, undefined, 'read'), label: `${service} ${command} (watch)` }, { trigger: 'every', periodMs: STATUS_EVERY_MS }, (value) => {
+          if (!stopped) apply(value)
+        })
+        .then((stop) => void stops.push(stop))
+        .catch(() => undefined) // a firmware without watches: the one-shot refresh stands
+    void follow('VM', 'STATUS', applyStatus)
+    void follow('SYS', 'SAFE', applySafe)
+    return () => {
+      stopped = true
+      for (const stop of stops) void stop().catch(() => undefined)
+      watches.close()
+    }
+  }, [connected, refresh, link, services, applyStatus, applySafe])
 
   values.current.holdMs = holdMs
 
