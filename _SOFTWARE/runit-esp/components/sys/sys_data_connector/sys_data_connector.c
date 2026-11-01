@@ -510,7 +510,7 @@ static void mirror_in(uint8_t* item, uint32_t len) {
   }
   UNLOCK();
   if (missed > 0) {
-    err_log(ERR_NEW(ERR_CONN_MIRROR_LOST, .connector = id, .board = board, .count = missed));
+    err_report_board(ERR_NEW(ERR_CONN_MIRROR_LOST, .connector = id, .board = board, .count = missed), board);
   }
   if (fn != NULL) {
     fn(ctx, board, item + MIRROR_HEAD, len - MIRROR_HEAD, missed);

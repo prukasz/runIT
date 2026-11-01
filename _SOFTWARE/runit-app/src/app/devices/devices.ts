@@ -475,7 +475,7 @@ export interface CommandSideOf {
 
 /**
  * The commands a device can be sent, by contract: the device contract, each contract its type implements, its own ops; each side of
- * a command on its own (a mirror is its read and its write). CREATE is the install, never listed; a board device (created by the
+ * a command on its own (a mirror is its read and its write). CREATE is the install, never listed (nor CREATE_REMOTE); a board device (created by the
  * firmware) has no REMOVE either. With the device's OPS answer only the sides it answers are listed (a contract may describe ops a
  * chip does not have: an expander has no PWM).
  */
@@ -485,7 +485,7 @@ export const commandGroups = (catalog: ServiceCatalog, type: CatalogEntry | unde
   // The test panel has these elsewhere: Install / Remove and the lifecycle icons on top, the error policy under them; INFO and OPS the
   // view asks by itself, and the policy is read back with the start commands.
   const hidden = (entry: CatalogEntry, command: CommandDef) =>
-    (entry === lifecycle && (command.id === CREATE || (Object.values(DEVICE_COMMANDS) as string[]).includes(command.id))) ||
+    (entry === lifecycle && (command.id === CREATE || command.id === CREATE_REMOTE || (Object.values(DEVICE_COMMANDS) as string[]).includes(command.id))) ||
     (entry.id === 'IO' && command.id === PIN_START_COMMANDS.mode && noModeChoice(type))
   return contracts
     .filter((entry, i, all): entry is CatalogEntry => entry !== undefined && all.indexOf(entry) === i)
@@ -501,6 +501,8 @@ export const sideLabel = ({ command, side }: CommandSideOf): string => (isMirror
 
 /** The command of the device contract that creates a device (SYS_DEVICE.MD "Ops"). */
 const CREATE = 'CREATE'
+/** The command that makes a device of this type that is a device of another board; the app does not offer it yet. */
+const CREATE_REMOTE = 'CREATE_REMOTE'
 
 /** The device contract (`SYS_DEVICE_CONTRACT_DEVICE`): RESET, SUSPEND, RESUME, REMOVE, INFO, OPS... */
 export const lifecycleOf = (catalog: ServiceCatalog): CatalogEntry => {

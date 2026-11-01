@@ -42,7 +42,7 @@ export interface LinkDefinitions {
   readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly status: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The error record's header (ERRORS.MD "Error record"). */
-  readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly requestCut: number; readonly stampBytes: number }
+  readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly srcBoard: number; readonly requestCut: number; readonly stampBytes: number }
   /** The ops of the `actions` and `project` routers by command id (`RUN`, `BEGIN`, ...): `generated/services/contract_*.json`. */
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
   /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
@@ -130,6 +130,7 @@ export const linkDefinitions = (
     errorRecord: {
       srcInternal: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_INTERNAL'),
       srcCommand: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_COMMAND'),
+      srcBoard: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_BOARD'),
       requestCut: value(enums, 'err_record_flag', 'ERR_RECORD_REQ_CUT'),
       stampBytes: value(enums, 'err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },

@@ -85,6 +85,23 @@ void err_report_ex(err_h chain, const char* log_ctx, const err_cmd_t* cmd) {
   err_free(chain);
 }
 
+static err_board_sink_f s_board_sink;
+
+void err_set_board_sink(err_board_sink_f fn) {
+  s_board_sink = fn;
+}
+
+void err_report_board(err_h chain, uint8_t board) {
+  if (chain == NULL) {
+    return;
+  }
+  err_log_ctx(chain, "board");
+  if (s_board_sink != NULL) {
+    s_board_sink(chain, board);
+  }
+  err_free(chain);
+}
+
 void err_report(err_h chain) {
   err_report_ex(chain, NULL, NULL);
 }

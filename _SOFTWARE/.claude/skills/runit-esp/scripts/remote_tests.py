@@ -186,6 +186,57 @@ def test_events_errors(link: Link, child: int) -> None:
     check("the twin is removed", r is not None and r.ok, str(r))
 
 
+DUMMY_ERRORS = [  # (name, device, op, dir, payload, the error the child's device raises)
+    ("an op the device does not have", 0, 0x0DEF, WRITE, b"", "ERR_DEV_UNKNOWN_OP"),
+    ("an argument of the wrong length", 0, IO_LEVEL, WRITE, b"\x04", "ERR_CMD_BAD_LEN"),
+    ("a pin that does not exist", 0, IO_LEVEL, WRITE, bytes([200, 1]), None),
+    ("a command to a suspended device", 0, IO_LEVEL, WRITE, bytes([4, 1]), "ERR_DEV_SUSPENDED"),
+]
+
+
+def test_dummy_errors(link: Link, child: int) -> None:
+    """Errors raised on the child's device 0 by commands that do nothing (nothing is wired to it): each comes to the
+    root as the twin's, and the child's own policy sees it first."""
+    r = create_remote(link, child, ASYNC, 100)
+    if not check("the twin for the errors is made", r is not None and r.ok, str(r)):
+        return
+    time.sleep(0.3)
+    for name, device, op, d, payload, tag in DUMMY_ERRORS:
+        if tag == "ERR_DEV_SUSPENDED":
+            dev(link, device, SYS_DEVICE_OP_SUSPEND, dir=WRITE, dst=child)
+        t = link.mark()
+        link.send_raw(link.next_seq(), FLAG_NOREPLY,
+                      frame(bytes([KEY_DEVICE]) + struct.pack("<HH", device, op), d) + payload, child)
+        time.sleep(0.5)
+        names = [[n.name for n in rec.nodes] for rec in link.error_records_since(t)]
+        mine = [n for n in names if n[:2] == ["ERR_DEV_ID", "ERR_REMOTE"]]
+        check(f"{name}: the root reports it as the twin's" + (f" ({tag})" if tag else ""),
+              bool(mine) and (tag is None or any(tag in n for n in mine)), str(names))
+        if tag == "ERR_DEV_SUSPENDED":
+            dev(link, DEVICE_ALL, SYS_DEVICE_OP_RESUME, dir=WRITE, dst=child)
+    r = dev(link, LOCAL, SYS_DEVICE_OP_REMOVE, dir=WRITE)
+    check("the twin is removed", r is not None and r.ok, str(r))
+
+
+def test_board_errors(link: Link) -> None:
+    """The board as the source of an error: a board the root has no slot to follow (CONFIG_SYS_REMOTE_BOARDS is 4)."""
+    boards = [21, 22, 23, 24, 25]  # boards that do not exist: the twins are only records
+    t = link.mark()
+    made = []
+    for i, board in enumerate(boards):
+        r = dev(link, 0x40 + i, SYS_DEVICE_OP_CREATE_REMOTE, struct.pack("<HBHBH", ESP32S3_GPIO, board, 0, ASYNC, 100),
+                dir=WRITE)
+        made.append(r is not None and r.ok)
+    check("five twins on five boards are made", all(made), str(made))
+    time.sleep(0.5)
+    recs = [rec for rec in link.error_records_since(t) if rec.src == 2]
+    check("the fifth board has no slot for its mirrors: an error about the board (source BOARD, board 25)",
+          any(rec.sender == 25 and "ERR_CONN_FULL" in [n.name for n in rec.nodes] for rec in recs),
+          str([(rec.sender, [n.name for n in rec.nodes]) for rec in recs]))
+    for i in range(len(boards)):
+        dev(link, 0x40 + i, SYS_DEVICE_OP_REMOVE, dir=WRITE)
+
+
 def test_blink(link: Link, child: int, pin: int, seconds: float, keep: bool) -> None:
     vm = Vm(link)
     release(link, pin, child)  # the program makes the pin an output itself, through the twin
@@ -235,6 +286,8 @@ def main() -> int:
         if a.blink <= 0 or not a.keep:
             test_remote(link, a.child, a.pin)
             test_events_errors(link, a.child)
+            test_dummy_errors(link, a.child)
+            test_board_errors(link)
         if a.blink > 0:
             test_blink(link, a.child, a.pin, a.blink, a.keep)
     failed = [n for (n, ok, _) in RESULTS if not ok]

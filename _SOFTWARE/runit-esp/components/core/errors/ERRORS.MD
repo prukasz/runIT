@@ -80,6 +80,7 @@ Rules:
 
 - `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the `err_cmd_t` it belongs to, NULL for an internal error), frees it.
 - `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors connector (SYS_DATA_CONNECTOR.MD) and in the history (SYS_LOG.MD).
+- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (a mirror of its stream lost frames, no slot to follow it): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
 - The sink must not report errors itself (loop); code on the reporting path (connector task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.
 
@@ -90,8 +91,9 @@ Rules:
 `err_cmd_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
 
 ```
-[src u8]                                    0 internal (no request), 1 command
+[src u8]                                    0 internal (no request), 1 command, 2 board (about another board as a whole)
 [unix_ms u64 LE]                            the board's clock when it was reported (`board_time_now_ms`, TIME.MD; ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
+src 2: [board u8]   the board the error is about (`err_record_board`), then the chain
 src 1: err_record_cmd_t (5 B, after the stamp)
        [from u8]     err_cmd_t.src: who sent the command
        [seq u16 LE]  err_cmd_t.seq: the sender's counter

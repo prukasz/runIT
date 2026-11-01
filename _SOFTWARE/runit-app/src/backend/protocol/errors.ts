@@ -3,8 +3,9 @@ import type { ErrorField, ErrorInfo, LinkDefinitions } from '../definitions'
 /*
  * The error record of an ERROR answer, and of every record on the errors stream (ERRORS.MD "Error record"):
  *
- *   [src u8]   0 internal (no request), 1 command
+ *   [src u8]   0 internal (no request), 1 command, 2 board (about another board as a whole)
  *   [time u64 LE]  the board's clock (UTC ms) when it was reported; before 2020 the clock was never set: a time since the start
+ *   src 2: [board u8]   the board the error is about
  *   src 1: [from u8][seq u16][flags u8][req_len u8: bits 0-6 length, bit 7 cut][request]   (err_record_cmd_t: who sent it)
  *   [chain]    [count u8: bits 0-6, bit 7 cut] then per node [tag u32][len u8][payload]; a node's severity is its tag's (errors.json)
  *
@@ -25,10 +26,12 @@ export interface ErrorNode {
 export const CLOCK_SET_AFTER_MS = 1_577_836_800_000
 
 export interface ErrorRecord {
-  readonly source: 'internal' | 'command'
+  readonly source: 'internal' | 'command' | 'board'
   /** The board's clock when it reported the error (ms): UTC when it is at least CLOCK_SET_AFTER_MS, else since the start. */
   readonly time: number
   /** The command: `sender` the peer id that sent it (a client's, or 0xFE the board itself), its seq and flags, its request. */
+  /** The board an error with the source `board` is about. */
+  readonly board?: number
   readonly command?: { readonly sender: number; readonly seq: number; readonly flags: number; readonly request: Uint8Array; readonly requestCut: boolean }
   readonly chain: readonly ErrorNode[]
   readonly chainCut: boolean
@@ -66,12 +69,18 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   if (data.length < 1) return undefined
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
   let at = 0
-  const source = data[at++] === defs.errorRecord.srcCommand ? 'command' : 'internal'
+  const src = data[at++]
+  const source = src === defs.errorRecord.srcCommand ? 'command' : src === defs.errorRecord.srcBoard ? 'board' : 'internal'
   if (data.length < at + defs.errorRecord.stampBytes) return undefined
   const stamp = view.getBigUint64(at, true)
   at += defs.errorRecord.stampBytes
   const time = Number(stamp)
   let command: ErrorRecord['command']
+  let board: number | undefined
+  if (source === 'board') {
+    if (data.length < at + 1) return undefined
+    board = data[at++]
+  }
   if (source === 'command') {
     if (data.length < at + 5) return undefined
     const lengthByte = data[at + 4]!
@@ -98,5 +107,5 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
     chain.push({ tag, severity, payload, ...(info ? { info, fields: fieldsOf(info, payload) } : {}) })
   }
   const cause = chain.at(-1)
-  return { source, time, ...(command ? { command } : {}), chain, chainCut: (countByte & 0x80) !== 0, ...(cause ? { cause } : {}) }
+  return { source, time, ...(board !== undefined ? { board } : {}), ...(command ? { command } : {}), chain, chainCut: (countByte & 0x80) !== 0, ...(cause ? { cause } : {}) }
 }

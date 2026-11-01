@@ -59,4 +59,6 @@ Run with `06 01 01 <id u32>` (actions RUN, a write), or name the ID in a device'
 
 The policy (walk, importance, CRITICAL → suspend all, the device's action) is `sys_device`'s (SYS_DEVICE.MD "Error policy"). runit gives it the **action runner**: `sys_actions_request(id, false)`, queued on the router, refused when the action's own failure (`ERR_ACTION_STEP{id}`) is in the chain.
 
+A **policy per board** answers the errors about another board as a whole (`err_report_board`, ERRORS.MD): `runit_board_policy_set(board, policy)` (the board config's C code) chooses log only (the default: the record on the errors stream), stop the VM, or the safe state; the board sink writes the record (source `BOARD`) and runs it.
+
 The error sink: every reported chain runs the policy first (whatever `send_errors` says), then becomes an error record on the errors connector (if `send_errors`). A failed response is logged and sent as a record, never reported (no policy on it).

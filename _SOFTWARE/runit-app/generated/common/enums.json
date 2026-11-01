@@ -498,6 +498,12 @@
           "value": 1,
           "alias": "Command",
           "description": "Raised while running a command"
+        },
+        {
+          "name": "ERR_RECORD_SRC_BOARD",
+          "value": 2,
+          "alias": "Board",
+          "description": "About another board as a whole, no request: the board's id (u8) follows the stamp"
         }
       ]
     },
@@ -2477,6 +2483,7 @@
     "DRV8962_TOPOLOGY_2_FULL_BRIDGES": "drv8962_topology_e",
     "DRV8962_TOPOLOGY_4_HALF_BRIDGES": "drv8962_topology_e",
     "ERR_RECORD_REQ_CUT": "err_record_flag",
+    "ERR_RECORD_SRC_BOARD": "err_record_src_e",
     "ERR_RECORD_SRC_COMMAND": "err_record_src_e",
     "ERR_RECORD_SRC_INTERNAL": "err_record_src_e",
     "ERR_RECORD_STAMP_BYTES": "err_record_flag",

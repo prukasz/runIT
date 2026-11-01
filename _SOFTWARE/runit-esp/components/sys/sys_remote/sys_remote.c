@@ -105,7 +105,7 @@ static void on_added(uint8_t board) {
     }
   }
   // No slot: the board's remote devices work, their events and errors are not mirrored.
-  err_report(ERR_NEW(ERR_CONN_FULL, .connector = 0));
+  err_report_board(ERR_NEW(ERR_CONN_FULL, .connector = MIRROR_FIRST), board);
 }
 
 static void on_removed(uint8_t board) {

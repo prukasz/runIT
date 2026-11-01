@@ -253,6 +253,9 @@ def decode_record(b: bytes) -> Record:
     if src == 0:
         nodes, cut = decode_chain(b[9:])
         return Record(src=0, time_ms=time_ms, nodes=nodes, chain_cut=cut)
+    if src == 2:  # about a board as a whole: [board u8] then the chain; `sender` holds the board
+        nodes, cut = decode_chain(b[10:])
+        return Record(src=2, time_ms=time_ms, sender=b[9], nodes=nodes, chain_cut=cut)
     sender, seq, flags, rl = RECORD_CMD.unpack_from(b, 9)
     n = rl & 0x7F
     at = 9 + RECORD_CMD.size

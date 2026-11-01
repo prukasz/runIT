@@ -42,7 +42,7 @@ For every board that has a remote device here (made with the first one, ended wi
 - **`EVENTS_ALL`**: an event whose source is a remote device's `remote_id` is published here (`sys_event_publish_deferred`) with that device's local id as its source (`sys_device_find_remote`), its `t_ms` as this board's clock sets it, and `SYS_EVENT_LOCAL` (it stays here: a board that mirrors this one asks the device's own board); the others are dropped. So ON_EVENT and this board's listeners see it as a local device's.
 - **`ERRORS`**: a record of a command that names a remote device's `remote_id` (`[0x05][dir][remote_id]…`) is reported here as that device's (`ERR_DEV_ID` over `ERR_REMOTE` over that board's chain: `err_record_parse`), so its policy answers it; a record of a command of this board (its `from`) is skipped, its answer brought it, and so is any other. The report runs on the connector task.
 
-With no slot left (`CONFIG_SYS_REMOTE_BOARDS`) the board's devices work and their events and errors are not mirrored.
+With no slot left (`CONFIG_SYS_REMOTE_BOARDS`) the board's devices work and their events and errors are not mirrored; that is reported as an error about the board (`ERR_CONN_FULL`, `err_report_board`), as is a mirror's lost frames (`ERR_CONN_MIRROR_LOST`): runit's policy per board answers them (RUNIT.MD "Error policy wiring").
 
 ## Needs elsewhere
 
@@ -55,6 +55,6 @@ With no slot left (`CONFIG_SYS_REMOTE_BOARDS`) the board's devices work and thei
 
 ## Open
 
-- The board as an error source (`ERR_CONN_MIRROR_LOST` is only logged), and a policy per board next to the one per device.
+- The policy per board has no wire command: the board config sets it in C.
 - An async write's error comes back once from the device's next write, so a VM block sees it one pass later: now it is only reported.
 - The VM's device blocks taking `ERR_SESSION_BUSY` as "later" and a failed CHANGE as not sent.

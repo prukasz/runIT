@@ -50,7 +50,7 @@ A **mirror** is this board's connector for a connector of another board: what th
 
 - `sys_data_connector_mirror(id, board, remote_id, fn, ctx)`: makes the connector `id` (a user connector created before, not a system one, not a mirror yet) the mirror of `remote_id` on `board` (not 0 or 0x05), and subscribes this board there (SUBSCRIBE, a call: SYS_SESSION.MD "The board's own calls"). `fn` (or NULL) is told of each frame. A mirror keeps nothing: the frame goes to `fn` and the targets, and is gone.
 - A STREAM frame `[remote_id][payload]` from `board` (the session's stream listener, SYS_SESSION.MD "Streams") is queued with the connector's own frames, `[0][mirror id][board][seq u16][payload]` (0 is no connector), so the connector task runs `fn(ctx, board, payload, len, missed)` and then sends the payload to every target of the mirror as if it had been sent to it. `fn` runs on the connector task: short, never blocks. A full queue drops the frame on the RX task, and the next frame's `seq` shows it.
-- A gap in the frames' `seq` is frames lost on the way: `missed` is the gap, and `ERR_CONN_MIRROR_LOST{connector, board, count}` is logged, once per gap.
+- A gap in the frames' `seq` is frames lost on the way: `missed` is the gap, and `ERR_CONN_MIRROR_LOST{connector, board, count}` is reported as an error about that board (`err_report_board`, ERRORS.MD), once per gap.
 - The board gone (`sys_session_on_gone`): the mirror waits, its `seq` check starts again; reached again (`sys_session_on_reached`): it subscribes again. A subscription on the other board ends with its session, so a restarted board needs this.
 - `sys_data_connector_unmirror(id)`: UNSUBSCRIBE there; the connector stays, as an ordinary one.
 
@@ -107,4 +107,4 @@ Example — VM temperature stream to a user BLE characteristic (created with the
 
 Every tag but `BAD_ARG` carries the connector's id; codes 1, 5, 10, 12 and 13 are unused. A provider's failure (open, send) is its own `ERR_PROV_*`, which names it.
 
-`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_SYSTEM{connector}` LOW (remove: a system connector), `_TARGETS_FULL{connector}` MEDIUM (bind, subscribe), `_TOO_LONG{connector, len, max}` MEDIUM (send: past `CMD_DATA_MAX − 1`), `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_FULL{connector}` MEDIUM, `_MIRROR_LOST{connector, board, count}` MEDIUM (a mirror's frames lost on the way; logged).
+`ERR_CONN_NOT_FOUND{connector}` MEDIUM, `_EXISTS{connector}` LOW, `_SYSTEM{connector}` LOW (remove: a system connector), `_TARGETS_FULL{connector}` MEDIUM (bind, subscribe), `_TOO_LONG{connector, len, max}` MEDIUM (send: past `CMD_DATA_MAX − 1`), `_QUEUE_FULL{connector, len}` LOW, `_BAD_ARG` HIGH, `_FULL{connector}` MEDIUM, `_MIRROR_LOST{connector, board, count}` MEDIUM (a mirror's frames lost on the way; reported about the board).

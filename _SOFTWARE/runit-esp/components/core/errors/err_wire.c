@@ -8,17 +8,24 @@
 
 _Static_assert(CONFIG_ERRORS_RECORD_REQ_MAX < ERR_RECORD_REQ_CUT, "ERRORS_RECORD_REQ_MAX must fit 7 bits");
 
-uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap) {
+#define NO_BOARD (-1)
+
+// The record of a chain: of a command (cmd), of a board (board >= 0), else internal.
+static uint32_t record(const err_cmd_t* cmd, int board, err_h chain, uint8_t* buf, uint32_t cap) {
   // The header and the chain count.
-  if (buf == NULL || cap < (cmd == NULL ? RECORD_INTERNAL_HDR : RECORD_COMMAND_HDR) + 1) {
+  const uint32_t header = board != NO_BOARD ? RECORD_INTERNAL_HDR + 1 : cmd == NULL ? RECORD_INTERNAL_HDR : RECORD_COMMAND_HDR;
+  if (buf == NULL || cap < header + 1) {
     return 0;
   }
   // The time of the report: the board's clock, UTC in ms (it counts from the start until a client sets it).
   const uint64_t now_ms = board_time_now_ms();
   uint32_t pos = 0;
-  buf[pos++] = cmd == NULL ? ERR_RECORD_SRC_INTERNAL : ERR_RECORD_SRC_COMMAND;
+  buf[pos++] = board != NO_BOARD ? ERR_RECORD_SRC_BOARD : cmd == NULL ? ERR_RECORD_SRC_INTERNAL : ERR_RECORD_SRC_COMMAND;
   memcpy(buf + pos, &now_ms, ERR_RECORD_STAMP_BYTES);  // little-endian target
   pos += ERR_RECORD_STAMP_BYTES;
+  if (board != NO_BOARD) {
+    buf[pos++] = (uint8_t)board;
+  }
 
   if (cmd != NULL) {
     // Request copy: at most REQ_MAX, and leave one byte for the chain count.
@@ -62,13 +69,24 @@ uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t ca
   return pos;
 }
 
+uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap) {
+  return record(cmd, NO_BOARD, chain, buf, cap);
+}
+
+uint32_t err_record_board(uint8_t board, err_h chain, uint8_t* buf, uint32_t cap) {
+  return record(NULL, board, chain, buf, cap);
+}
+
 err_h err_record_parse(const uint8_t* data, uint32_t len, err_h* chain) {
   ERR_CHECK(chain != NULL && (data != NULL || len == 0), ERR_RECORD_CUT, .len = (uint16_t)len);
   *chain = NULL;
   // The header: the source, the stamp, and a command's header and request.
   uint32_t pos = RECORD_INTERNAL_HDR;
   ERR_CHECK(len > pos, ERR_RECORD_CUT, .len = (uint16_t)len);
-  if (data[0] == ERR_RECORD_SRC_COMMAND) {
+  if (data[0] == ERR_RECORD_SRC_BOARD) {
+    pos += 1;  // the board's id
+    ERR_CHECK(len > pos, ERR_RECORD_CUT, .len = (uint16_t)len);
+  } else if (data[0] == ERR_RECORD_SRC_COMMAND) {
     ERR_CHECK(len > pos + sizeof(err_record_cmd_t), ERR_RECORD_CUT, .len = (uint16_t)len);
     pos += sizeof(err_record_cmd_t) + (data[pos + sizeof(err_record_cmd_t) - 1] & ~ERR_RECORD_REQ_CUT);
     ERR_CHECK(len > pos, ERR_RECORD_CUT, .len = (uint16_t)len);

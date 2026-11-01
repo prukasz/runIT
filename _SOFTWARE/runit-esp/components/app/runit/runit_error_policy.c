@@ -8,7 +8,10 @@
 #include "sys_actions.h"
 #include "sys_device.h"
 #include "sys_event.h"
+#include "runit.h"
 #include "sys_log.h"
+#include "sys_session.h"
+#include "vm_exec.h"
 #include "vm_router.h"
 
 #define TAG __FILE_NAME__
@@ -63,10 +66,35 @@ static void device_state_changed(uint16_t id, bool suspended) {
   }
 }
 
+static uint8_t s_board_policy[SYS_SESSION_ID_LAST + 1u];  // runit_board_policy_e per board, zero = log only
+
+err_h runit_board_policy_set(uint8_t board, runit_board_policy_e policy) {
+  ERR_CHECK(board <= SYS_SESSION_ID_LAST && policy <= RUNIT_BOARD_POLICY_SAFE, ERR_CMD_BAD_ARG);
+  s_board_policy[board] = (uint8_t)policy;
+  return NULL;
+}
+
+/* An error about a board as a whole: the record on the errors stream, then the board's policy. */
+static void board_error_sink(err_h chain, uint8_t board) {
+  uint8_t rec[SYS_LOG_RECORD_MAX];
+  sys_log_error(rec, err_record_board(board, chain, rec, sizeof(rec)));
+  switch (board <= SYS_SESSION_ID_LAST ? s_board_policy[board] : 0) {
+    case RUNIT_BOARD_POLICY_STOP_VM:
+      err_report(vm_exec_stop());
+      break;
+    case RUNIT_BOARD_POLICY_SAFE:
+      runit_enter_safe_state();
+      break;
+    default:
+      break;
+  }
+}
+
 err_h runit_error_wiring_init(void) {
   sys_device_set_state_listener(device_state_changed);
   sys_device_set_action_runner(run_action);
   sys_device_set_vm_stop(vm_stop_on_fault);
   err_set_sink(error_sink);
+  err_set_board_sink(board_error_sink);
   return NULL;
 }
