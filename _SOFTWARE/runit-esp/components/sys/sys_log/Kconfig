@@ -5,7 +5,7 @@ menu "sys_log"
         default 160
         range 32 480
         help
-          Log lines sent to the logs connector are cut to this. Formatted on
+          Log lines sent to the logs stream are cut to this. Formatted on
           the stack of the task that logs.
 
     config SYS_LOG_ERRORS_KEPT

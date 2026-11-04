@@ -44,6 +44,8 @@ err_h sys_io_configure_intr(sys_io_pin_t p, const sys_io_intr_cfg_t* cfg) {
   return sys_device_write(p.device, IO_OP_INTR, &a, sizeof(a));
 }
 
+
+
 err_h sys_io_set_level(sys_io_pin_t p, bool level) {
   const io_level_args_t a = {.pin = p.pin, .level = level};
   return sys_device_write(p.device, IO_OP_LEVEL, &a, sizeof(a));

@@ -11,7 +11,7 @@
  *
  *   code command  side   request / answer
  *   0x01 ID       rw     write: u8 board_id (kept in NVS, used from the next start); read: -> u8 board_id
- *   0x02 ATTACH   write  sys_data_provider_id_t, u8 peer, u8 access
+ *   0x02 ATTACH   write  sys_data_provider_id_t, u8 peer
  *   0x03 DETACH   write  sys_data_provider_id_t
  *   0x04 PEERS    read   -> u8 count, then sys_session_info_t per session
  */
@@ -29,11 +29,9 @@ extern "C" {
 typedef struct __attribute__((packed)) {
   sys_data_provider_id_t provider;
   uint8_t peer;         /**< sys_session_peer_e */
-  uint8_t access;       /**< sys_session_access_e */
   uint8_t open;         /**< 1 = both hellos passed */
-  uint8_t peer_id;      /**< Its board id, or the client id it was given; SYS_SESSION_ID_NONE before the hello */
+  uint8_t peer_id;      /**< Its id, from its hello; SYS_SESSION_ID_NONE before it */
   uint16_t timeout_ms;  /**< This board's timeout of it: the silence that ends it */
-  uint8_t subtree;      /**< Boards reached through it */
 } sys_session_info_t;
 
 ROUTER_MODULE_DECLARE(sys_session_router);

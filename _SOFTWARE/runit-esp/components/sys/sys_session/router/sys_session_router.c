@@ -5,25 +5,24 @@
 
 typedef struct __attribute__((packed)) {
   uint8_t board_id;
-} id_t_;
+} id_args_t;
 
 typedef struct __attribute__((packed)) {
   sys_data_provider_id_t provider;
-  uint8_t peer;    /**< sys_session_peer_e */
-  uint8_t access;  /**< sys_session_access_e */
-} attach_t;
+  uint8_t peer;  /**< sys_session_peer_e */
+} attach_args_t;
 
 ROUTER_OP_NOARGS(op_id_get) {
-  const uint8_t id = sys_session_board_id();
+  const uint8_t id = sys_session_get_board_id();
   return cmd_reply(out, &id, sizeof(id));
 }
 
-ROUTER_OP(op_id_set, id_t_) {
+ROUTER_OP(op_id_set, id_args_t) {
   return sys_session_set_board_id(args->board_id);
 }
 
-ROUTER_OP(op_attach, attach_t) {
-  return sys_session_attach(args->provider, args->peer, args->access);
+ROUTER_OP(op_attach, attach_args_t) {
+  return sys_session_attach(args->provider, args->peer);
 }
 
 ROUTER_OP(op_detach, sys_data_provider_id_t) {

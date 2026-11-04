@@ -5,11 +5,17 @@
     "ERR_ROUTER_KEY": {
       "message": "In {key}"
     },
+    "ERR_ROUTER_OP": {
+      "message": "In command {code}"
+    },
     "ERR_ROUTER_NO_KEY": {
       "message": "The command ends before it says what it is for"
     },
     "ERR_ROUTER_UNKNOWN_KEY": {
       "message": "The board has nothing that answers {key}"
+    },
+    "ERR_ROUTER_UNKNOWN_OP": {
+      "message": "There is no command {code} here"
     },
     "ERR_ROUTER_KEY_TAKEN": {
       "message": "{key} is registered twice"

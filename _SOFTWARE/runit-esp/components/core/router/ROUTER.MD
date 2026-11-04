@@ -5,7 +5,7 @@ Component `components/core/router/`. The router runs the commands of this board:
 ```
  who sends                          router                                     module / device
  ─────────                          ──────                                     ───────────────
- session: frame → err_cmd_t ─┐
+ session: frame → cmd_req_t ─┐
           router_submit      ├──►  urgent ring ─► urgent task ─┐
  board:   router_inject ─────┘     work ring ───► work task ────┼─ route ──►  cmd_f: answers now
                                                                 │
@@ -28,7 +28,7 @@ Component `components/core/router/`. The router runs the commands of this board:
 
 ## A command
 
-A command is an `err_cmd_t` (`errors.h`, so an error record names it): the request `[key][dir][code | id + op][args]` and its origin:
+A command is a `cmd_req_t` (`cmd.h`; an error record names it): the request `[key][dir][code | id + op][args]` and its origin:
 
 | Field | Meaning |
 |---|---|
@@ -42,7 +42,7 @@ A command is an `err_cmd_t` (`errors.h`, so an error record names it): the reque
 
 ## Routing
 
-- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. The root calls `router_call(table, n, ctx, in, …)`, which looks up the key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. A module router consumes its key and calls `router_call_op(k_ops, n, ctx, {in.data + 1, in.len - 1}, out)` on `[dir][code][args]`: it finds the code's row, takes the side `dir` asks for (`cmd_side`), calls it with `[code][args]` and wraps a failure in `ERR_ROUTER_KEY{code}`. So every level shows in the error chain.
+- A module router is a `cmd_f` (CMD.MD): `in` starts at **this router's key**. The root calls `router_call(table, n, ctx, in, …)`, which looks up the key, calls that entry with the same `ctx`, and wraps a failure in `ERR_ROUTER_KEY{key}`. A module router consumes its key and calls `router_call_op(k_ops, n, ctx, {in.data + 1, in.len - 1}, out)` on `[dir][code][args]`: it finds the code's row, takes the side `dir` asks for (`cmd_side`), calls it with `[code][args]` and wraps a failure in `ERR_ROUTER_OP{code}`. So every level shows in the error chain, the root's as KEY and the module's as OP (a code means something only within its module: the app names it by the KEY before it).
 - **Command table**: `router_op_t {code, read, write}`, one row per command: `ROUTER_R(code, fn)`, `ROUTER_W(code, fn)` or `ROUTER_RW(code, read, write)` (NULL = no such side). What each side takes and answers: CMD.MD "Read and write".
 - **Writing ops**: the native C API stays the source (typed, no packing on internal calls, callbacks and handles); an op only adapts it. Use the macros, not hand-written `cmd_f`s:
   - `ROUTER_OP(fn, args_t) { … }`: fixed packed payload, the body gets `args` (`const args_t*`).
@@ -65,7 +65,7 @@ A command is an `err_cmd_t` (`errors.h`, so an error record names it): the reque
 | Status | When | Data |
 |---|---|---|
 | `OK` | the handler returned NULL | the answer (`out->len` bytes, maybe none) |
-| `ERROR` | the handler returned a chain | the error record (`err_record(cmd, chain)`, ERRORS.MD "Error record") |
+| `ERROR` | the handler returned a chain | the error record (`cmd_err_record(cmd, chain)`, ERRORS.MD "Error record") |
 
 - `data` is in the task's own buffer with `CMD_HEAD` bytes in front of it that are the callback's to write, so the session frames its answer without a copy. `done` may wait for room on the way back, at most its own bound (the session: its provider's driver).
 - NOREPLY, or `done` NULL: no answer of any status. Every failure is reported with its command (`router_report_cmd`: the log line `cmd src f0 seq 7 flags 00 req …`, and the errors stream), answered or not. A `done` that fails is reported and its answer lost: a reader retries.
@@ -73,18 +73,20 @@ A command is an `err_cmd_t` (`errors.h`, so an error record names it): the reque
 ### Tap, origin, urgent work
 
 - **Tap** `router_set_tap(&{take, seen})` (boot, by the app): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a command that was not taken. Both run on the routing task for every command (the board's own too). Used by the actions recorder (SYS_ACTIONS.MD).
-- **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the connectors' SUBSCRIBE, the actions recorder. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
+- **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE, the actions recorder. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
 - **Urgent work** `router_run_urgent(fn)`: runs `fn` once on the urgent task, soon (any task or a timer callback, not an ISR); called again before it ran, it still runs once; another `fn` waiting → `ERR_ROUTER_BUSY`. For work that must not wait behind a command and may block: the safe state of `sys_system` (SYS_SYSTEM.MD). Whether a peer is alive is the session's (SYS_SESSION.MD "Gone peers").
 
 ## Errors (`ERR_MOD_ROUTER` = 2)
 
-Codes 4, 5 and 8 are unused. A tag about a command carries its `src`.
+A tag about a command carries its `src`.
 
 | Error | Severity | Context / Fields | Description |
 |---|---|---|---|
-| `ERR_ROUTER_KEY` | NONE | `u8 key` | Route step context (wraps underlying handler error) |
-| `ERR_ROUTER_NO_KEY` | HIGH | – | Input ended where a key was expected |
-| `ERR_ROUTER_UNKNOWN_KEY` | HIGH | `u8 key` | No registered handler for key in table |
+| `ERR_ROUTER_KEY` | NONE | `u8 key` | Route step at the root (wraps the module's error) |
+| `ERR_ROUTER_OP` | NONE | `u8 code` | Route step in a module (wraps the command's error) |
+| `ERR_ROUTER_NO_KEY` | HIGH | – | The command ended where its key or its op code was expected |
+| `ERR_ROUTER_UNKNOWN_KEY` | HIGH | `u8 key` | No module under the root key |
+| `ERR_ROUTER_UNKNOWN_OP` | HIGH | `u8 code` | No command of the module has the code |
 | `ERR_ROUTER_KEY_TAKEN` | HIGH | `u8 key` | Root key already registered |
 | `ERR_ROUTER_TABLE_FULL` | HIGH | `u8 key` | Root table capacity (`CONFIG_ROUTER_MAX_KEYS`) reached |
 | `ERR_ROUTER_QUEUE_FULL` | MEDIUM | `u8 src, u8 urgent` | Ring full; the command was not queued |
@@ -100,7 +102,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x01` sys | `sys_system_router` | SYS_SYSTEM.MD (ping, stop, restart, dead-man, clock, safe state) |
 | `0x02` i2c | `sys_i2c_router` | SYS_I2C.MD "Remote" |
 | `0x03` ble | `sys_ble_router` | SYS_BLE.MD "Remote" |
-| `0x04` conn | `sys_data_connector_router` | SYS_DATA_CONNECTOR.MD "Remote" |
+| `0x04` stream | `sys_stream_router` | SYS_STREAM.MD "Remote" |
 | `0x05` device | `sys_device_router` | SYS_DEVICE.MD: `[dir][id u16][op u16][args]` |
 | `0x06` actions | `sys_actions_router` | SYS_ACTIONS.MD |
 | `0x07` event | – (no router) | frame shape of the events stream: `[0x07][0x01 NOTIFY][sys_event_t]`, SYS_EVENT.MD |
@@ -112,6 +114,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x0D` provider | `sys_data_provider_router` | SYS_DATA_PROVIDER.MD "Remote" |
 | `0x0E` session | `sys_session_router` | SYS_SESSION.MD "Remote" |
 | `0x0F` watch | `sys_watch_router` | SYS_WATCH.MD "Remote" |
+| `0x10` remote | `sys_remote_router` (with a link) | SYS_REMOTE.MD "Remote" |
 
 ## Limits
 
@@ -127,4 +130,4 @@ Host test script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over
 - The direction byte: a write-only command sent as a read, a read-only one as a write, a dir of 2 (`ERR_CMD_DIRECTION`), a frame without it (`ERR_ROUTER_FRAME_LEN`).
 - Key dispatching, nested router calls, error chain recording with route keys; the record names this client (`src`) and the seq.
 - Urgent task preemption over work queue.
-- Frame sizing, queue saturation, and error records; the providers, the sessions and the connectors' subscriptions.
+- Frame sizing, queue saturation, and error records; the providers, the sessions and the streams' subscriptions.

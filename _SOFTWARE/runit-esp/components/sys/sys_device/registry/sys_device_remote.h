@@ -7,33 +7,29 @@
 
 /**
  * @file sys_device_remote.h
- * @brief Remote devices (SYS_DEVICE.MD "Remote devices"): a device of any type that is a device of another board. The
+ * @brief Remote devices (SYS_DEVICE.MD "Remote devices"): a local id, an alias of a device of another board. The
  * registry keeps its type and where it is; sys_device_call hands its calls, without the registry lock, to the hook
- * sys_remote sets (SYS_REMOTE.MD), which carries them to that board.
- * @usage sys_device_remote_t r = {.board = 2, .remote_id = 0x0010, .mode = SYS_DEVICE_REMOTE_ASYNC,
- *                              .max_age_ms = 100};   // CREATE_REMOTE args: [SYS_DEVICE_TYPE_SERVO u16][r]
+ * sys_remote sets (SYS_REMOTE.MD), which sends them to that board as the device command with the id swapped.
+ * @usage sys_device_remote_t r = {.board = 2, .remote_id = 0x0010, .flags = SYS_DEVICE_REMOTE_WIRED};
+ *        // CREATE_REMOTE args: [SYS_DEVICE_TYPE_SERVO u16][r]
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** @brief How a remote device's calls wait (SYS_DEVICE.MD "Remote devices"). */
-//#ref-enum @alias Remote mode
-typedef enum {
-  SYS_DEVICE_REMOTE_ASYNC = 0,     //@alias Async @description A write returns once taken; a read answers a copy
-  SYS_DEVICE_REMOTE_BLOCKING = 1,  //@alias Blocking @description A call waits for its answer; a wired neighbour only
-} sys_device_remote_mode_e;
+/* A remote device's flags (sys_device_remote_t.flags): how its calls go (SYS_REMOTE.MD "A call"). */
+//#ref-defines device_remote_flag @alias Remote device flags @prefix SYS_DEVICE_REMOTE_
+#define SYS_DEVICE_REMOTE_WIRED (1u << 0)  //@alias Wired @description A neighbour on a wired link: every call waits for its answer, no copies
 
 /** @brief Where a remote device is: CREATE_REMOTE's struct, after the type. */
 typedef struct __attribute__((packed)) {
-  uint8_t board;        /**< The board the device is on */
-  uint16_t remote_id;   /**< Its id there */
-  uint8_t mode;         /**< sys_device_remote_mode_e */
-  uint16_t max_age_ms;  /**< The oldest copy a read may answer; blocking: 0 always asks; async: at least 1 */
+  uint8_t board;       /**< The board the device is on */
+  uint16_t remote_id;  /**< Its id there */
+  uint8_t flags;       /**< SYS_DEVICE_REMOTE_* */
 } sys_device_remote_t;
 
-_Static_assert(sizeof(sys_device_remote_t) == 6, "remote record");
+_Static_assert(sizeof(sys_device_remote_t) == 4, "remote record");
 
 /** @brief The last board id a remote device may name (SYS_SESSION_ID_LAST). */
 #define SYS_DEVICE_REMOTE_BOARD_LAST 0xEFu
@@ -50,11 +46,13 @@ typedef struct {
    * @param out      Out: a read's answer.
    * @param cap      Bytes `out` holds.
    * @param out_len  Out: the answer's bytes.
-   * @return NULL; ERR_DEV_REMOTE_DOWN, ERR_DEV_REMOTE_NOT_WIRED, ERR_SESSION_BUSY (later), the answer's error.
+   * @return NULL; ERR_DEV_REMOTE_DOWN, ERR_SESSION_BUSY (later), ERR_WATCH_NO_VALUE (later), the answer's error.
    */
   err_h (*call)(const sys_device_remote_t* where, cmd_in_t req, uint8_t* out, uint32_t cap, uint32_t* out_len);
-  void (*added)(uint8_t board);    /**< A remote device of that board was made; under the registry lock: never block */
-  void (*removed)(uint8_t board);  /**< One was removed; the same */
+  /** A remote device was made (its local id, its record); under the registry lock: never block */
+  void (*added)(uint16_t id, const sys_device_remote_t* where);
+  /** One was removed; the same */
+  void (*removed)(uint16_t id, const sys_device_remote_t* where);
 } sys_device_remote_ops_t;
 
 /**

@@ -8,11 +8,11 @@
 /**
  * @file sys_watch.h
  * @brief Watches (SYS_WATCH.MD): a read run on this board by a trigger (a period, a change of its answer, an event),
- * its answer sent as an entry straight to its owner (who added it), or to a connector (the board's own watches). The
- * read is a command of the board itself (router_inject), so a watch needs no task of its own; an owner's entries
+ * its answer sent as an entry straight to its owner (who added it), in the session's watches channel. The read is a
+ * command of the board itself (router_inject), so a watch needs no task of its own; an owner's entries
  * leave on the router's work task, after the answers of the commands that ran before their read. A watch is its
  * owner's: its id is the owner's, and it ends when the owner is gone.
- * @usage ERR_TRY(sys_watch_add(&head, (cmd_in_t){read, read_len}, SYS_SESSION_ID_SELF));
+ * @usage ERR_TRY(sys_watch_add(&head, (cmd_in_t){read, read_len}, origin->src));
  */
 
 #ifdef __cplusplus
@@ -21,7 +21,7 @@ extern "C" {
 
 /**
  * @brief Starts the watches: their timer and the gone-peer listener (sys_session_on_gone). Boot step, after the
- * session and the connectors.
+ * session.
  * @return NULL when started; the timer's or the session's error.
  */
 MUST_USE err_h sys_watch_init(void);
@@ -30,10 +30,9 @@ MUST_USE err_h sys_watch_init(void);
  * @brief Adds a watch, or replaces the owner's watch with its id.
  * @param head   The watch.
  * @param read   Its read: [key][dir READ][...] (copied).
- * @param owner  Who it is for: a peer's id (ADD: the command's src), or SYS_SESSION_ID_SELF (the board config's
- *               standing ones, which never end).
+ * @param owner  Who it is for: a peer's id (ADD: the command's src).
  * @return NULL when added; ERR_WATCH_NOT_READ (the request is no read), ERR_WATCH_BAD_ARG (id 0, a period of 0, an
- * unknown trigger, a read longer than SYS_WATCH_READ_MAX, SYS_WATCH_TO_OWNER for SYS_SESSION_ID_SELF), ERR_WATCH_FULL
+ * unknown trigger, a read longer than SYS_WATCH_READ_MAX, an owner that is no peer: SELF, NONE, BROADCAST), ERR_WATCH_FULL
  * (CONFIG_SYS_WATCH_MAX), or the event subscription's error.
  */
 MUST_USE err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner);
@@ -72,7 +71,7 @@ typedef void (*sys_watch_entry_f)(void* ctx, uint8_t board, uint8_t status, cons
  * @brief Adds a watch on another board (SYS_WATCH.MD "Client"): the client gives it an id, sends ADD and hands each
  * entry to `cb`; it sends the ADD again when that board's session opens again. Never blocks, any task.
  * @param board  The board that runs it.
- * @param head   The watch; its `id` is set by the client, `connector` must be SYS_WATCH_TO_OWNER.
+ * @param head   The watch; its `id` is set by the client.
  * @param read   Its read on that board: [key][dir READ][...] (copied).
  * @param cb     Where its entries go.
  * @param ctx    Given to `cb`.

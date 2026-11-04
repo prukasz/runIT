@@ -22,12 +22,12 @@ extern "C" {
 #define CMD_FRAME_MAX 512u  //@alias Largest frame @description Bytes of a whole frame, its header included
 #define CMD_HEAD      5u    //@alias Frame header @description Bytes a frame keeps for its header in front of its data
 
-// What a frame carries after its header: a request's command, an answer's data, a stream frame's [connector][payload].
+// What a frame carries after its header: a request's command, an answer's data, a stream frame's [stream id or channel][payload].
 #define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)
 
 /** @brief A handler's input: the router passes [code][args], the device registry the args only. */
 typedef struct {
-  const uint8_t* data;
+  const uint8_t* data; 
   uint32_t len;
 } cmd_in_t;
 
@@ -38,6 +38,26 @@ typedef struct {
                       (CMD.MD "The handler") */
   uint32_t len;  /**< Written by the handler; 0 = empty answer */
 } cmd_out_t;
+
+/**
+ * @brief A command as it came in: its request [key][dir][code][args] and its origin. Whoever submits it to the router
+ * fills it (the session from a frame's header, a watch, the board's own code); an error the command raises names it.
+ * errors.h knows it only as `struct cmd_req` and passes it on to its sink without reading it.
+ */
+typedef struct cmd_req {
+  const uint8_t* req;  // may be NULL when req_len is 0
+  uint32_t req_len;
+  uint16_t seq;        // the sender's counter, in every answer
+  uint8_t src;         // who sent it: a board or client id; ROUTER_SRC_SELF (0xFE) for the board's own commands
+  uint8_t flags;       // ROUTER_FLAG_*
+} cmd_req_t;
+
+/**
+ * @brief The error record of a chain (ERRORS.MD "Error record"): of the command `cmd` (err_record_cmd), or an
+ * internal one when `cmd` is NULL (err_record). The bytes of an ERROR answer and of the errors stream.
+ * @return Bytes written (0 only when cap is too small for the header).
+ */
+uint32_t cmd_err_record(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
 
 /**
  * @brief A command handler, the same for the router's modules and the devices' ops.

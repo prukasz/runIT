@@ -113,7 +113,7 @@ static size_t capture(uint8_t* buf) {
 /* Give the capture to the retain task if it differs from the last one. False
    when the lock was busy (VM task: try again next pass). */
 static bool hand_over(bool wait) {
-  if (!U_MUTEX_LOCK(vm_retain_mutex, wait ? WAIT_FOREVER : 0)) return false;
+  if (!xSemaphoreTake(vm_retain_mutex, wait ? portMAX_DELAY : 0)) return false;
   bool changed = false;
   if (s_retain.active) {
     changed = s_retain.stage_len != s_retain.last_len || memcmp(s_retain.stage, s_retain.last, s_retain.stage_len) != 0;
@@ -123,7 +123,7 @@ static bool hand_over(bool wait) {
       s_retain.dirty = true;
     }
   }
-  U_MUTEX_UNLOCK(vm_retain_mutex);
+  xSemaphoreGive(vm_retain_mutex);
   if (changed && vm_retain_task_h) xTaskNotifyGive(vm_retain_task_h);
   return true;
 }
@@ -183,13 +183,13 @@ static void vm_retain_task(void* arg) {
   (void)arg;
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
+    xSemaphoreTake(vm_retain_mutex, portMAX_DELAY);
     err_h err = NULL;
     if (s_retain.dirty) {
       err = retain_store(s_retain.last, s_retain.last_len);
       if (!err) s_retain.dirty = false;  // on failure it stays dirty and goes out with the next change
     }
-    U_MUTEX_UNLOCK(vm_retain_mutex);
+    xSemaphoreGive(vm_retain_mutex);
     err_report(err);
   }
 }
@@ -240,12 +240,12 @@ err_h vm_retain_restore(void) {
      period unless something changes. Saving starts even if the restore
      failed, so the program's values are kept from here on. */
   s_retain.stage_len = capture(s_retain.stage);
-  U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
+  xSemaphoreTake(vm_retain_mutex, portMAX_DELAY);
   memcpy(s_retain.last, s_retain.stage, s_retain.stage_len);
   s_retain.last_len = s_retain.stage_len;
   s_retain.dirty = false;
   s_retain.active = true;
-  U_MUTEX_UNLOCK(vm_retain_mutex);
+  xSemaphoreGive(vm_retain_mutex);
   s_retain.next_ms = 0;
   s_retain.retry = false;
 
@@ -269,12 +269,12 @@ void vm_retain_save_stopped(void) {
 }
 
 err_h vm_retain_clear(void) {
-  U_MUTEX_LOCK(vm_retain_mutex, WAIT_FOREVER);
+  xSemaphoreTake(vm_retain_mutex, portMAX_DELAY);
   s_retain.active = false;  // until the next start: the next start begins from uploaded values
   s_retain.dirty = false;
   s_retain.last_len = 0;
   err_h err = retain_erase();
-  U_MUTEX_UNLOCK(vm_retain_mutex);
+  xSemaphoreGive(vm_retain_mutex);
   ERR_TRY(err);
   return NULL;
 }

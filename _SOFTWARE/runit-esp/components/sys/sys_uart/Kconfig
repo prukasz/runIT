@@ -30,9 +30,9 @@ menu "sys_uart"
         range 1024 32768
         help
           Frames waiting for the TX task (answers, stream frames); each takes
-          its length rounded to 4 + 8 bytes. Urgent frames have a queue of
-          their own, written first. Larger than the connector queue
-          (CONFIG_SYS_DATA_CONNECTOR_QUEUE_SIZE), so a burst of stream frames
+          its length and CRC (2) rounded to 4, + 8 bytes. Urgent frames have a queue of
+          their own, written first. Larger than the stream queue
+          (CONFIG_SYS_STREAM_QUEUE_SIZE), so a burst of stream frames
           fills that one first and its producer is refused (and resends), not
           lost here unseen. Multiple of 4.
 

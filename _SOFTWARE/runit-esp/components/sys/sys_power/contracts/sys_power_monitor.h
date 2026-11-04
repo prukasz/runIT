@@ -45,10 +45,10 @@ typedef struct __attribute__((packed)) {
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: VOLTAGE R, CURRENT R, ALERT W, POWER R. Numbers are
  * never reused.
  */
-#define PMON_OPERATIONS(X, P)                                 \
-  X(P, VOLTAGE, 0x00, pmon_channel_args_t, int32_t)           \
-  X(P, CURRENT, 0x01, pmon_channel_args_t, int32_t)           \
-  X(P, ALERT,   0x02, sys_device_none_t,   pmon_alert_args_t) \
+#define PMON_OPERATIONS(X, P)                                      \
+  X(P, VOLTAGE, 0x00, pmon_channel_args_t, int32_t)                \
+  X(P, CURRENT, 0x01, pmon_channel_args_t, int32_t)                \
+  X(P, ALERT,   0x02, sys_device_args_none_t,   pmon_alert_args_t) \
   X(P, POWER,   0x03, pmon_channel_args_t, int32_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(PMON, SYS_DEVICE_CONTRACT_POWER_MONITOR)

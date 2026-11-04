@@ -10,7 +10,7 @@ extern "C" {
 /**
  * @brief ESP32-S3 GPIO configuration struct (singleton, takes no configuration).
  */
-typedef sys_device_none_t esp32s3_gpio_cfg_t;
+typedef sys_device_args_none_t esp32s3_gpio_cfg_t;
 
 #ifdef __cplusplus
 }

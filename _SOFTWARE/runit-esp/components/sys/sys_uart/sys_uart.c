@@ -16,23 +16,22 @@
 #include "driver/usb_serial_jtag.h"
 #endif
 
+// What a queued item takes in a no-split ring buffer: its bytes rounded to 4, and the ring's 8-byte header.
+#define ITEM_BYTES(len) ((((len) + 3u) & ~3u) + 8u)
+
 #define CONSOLE_PORT    CONFIG_ESP_CONSOLE_UART_NUM
-#define USB_JTAG_TX_BUF 512u                           // the driver's TX buffer: a frame in a few writes
-#define UART_TX_BUF     4096u                          // the UART driver's TX buffer: a burst waits there, not here
-#define CRC_BYTES       2u                             // CRC16-CCITT after the frame, little-endian
-#define RAW_MAX         (CMD_FRAME_MAX + CRC_BYTES)    // [frame][crc16]
+#define USB_JTAG_TX_BUF 512u                             // the driver's TX buffer: a frame in a few writes
+#define USB_JTAG_PIECE  (USB_JTAG_TX_BUF / 2u)           // the longest write the driver takes at once
+#define UART_TX_BUF     4096u                            // the console's UART TX buffer: a burst waits there, not here
+#define CRC_BYTES       2u                               // CRC16-CCITT after the frame, little-endian
+#define RAW_MAX         (CMD_FRAME_MAX + CRC_BYTES)      // [frame][crc16]
 #define COBS_MAX        (RAW_MAX + RAW_MAX / 254u + 1u)  // COBS adds at most one byte in 254, plus its first
 #define READ_CHUNK      64u
 #define READ_WAIT_MS    10u
-#define URGENT_QUEUE    (SYS_UART_ITEM_BYTES(CMD_FRAME_MAX) * 2u)  // two urgent frames waiting at most
-
-#define NOTIFY_FRAME (1u << 0)  // TX task: a frame queued
-
-// What a queued frame takes in a no-split ring buffer: its bytes rounded to 4, and the ring's 8-byte header.
-#define SYS_UART_ITEM_BYTES(len) ((((len) + 3u) & ~3u) + 8u)
+#define URGENT_QUEUE    (ITEM_BYTES(RAW_MAX) * 2u)       // two urgent frames waiting at most
 
 _Static_assert(CONFIG_SYS_UART_TX_QUEUE % 4 == 0, "SYS_UART_TX_QUEUE must be a multiple of 4");
-_Static_assert(CONFIG_SYS_UART_TX_QUEUE >= 2u * SYS_UART_ITEM_BYTES(CMD_FRAME_MAX), "a whole frame fits the queue");
+_Static_assert(CONFIG_SYS_UART_TX_QUEUE >= 2u * ITEM_BYTES(RAW_MAX), "a whole frame fits the queue");
 #if CONFIG_SYS_UART_LINK
 _Static_assert(CONFIG_SYS_UART_LINK_PORT != CONSOLE_PORT, "the link needs a UART of its own");
 #endif
@@ -68,10 +67,10 @@ typedef struct {
 #if USB_JTAG
   line_rx_t usb_rx;
 #endif
-  uint8_t frame[RAW_MAX];            // RX task only: the decoded candidate
-  uint8_t raw[RAW_MAX];              // TX task only: [frame][crc16]
   uint8_t line[1u + COBS_MAX + 1u];  // TX task only: a 0x00 before it, so a text line before ends there; one after
 } port_t;
+
+_Static_assert(offsetof(port_t, provider) == 0, "the provider's send casts its pointer back to the port");
 
 static port_t s_console;
 #if CONFIG_SYS_UART_LINK
@@ -114,26 +113,21 @@ static uint32_t cobs_encode(const uint8_t* in, uint32_t len, uint8_t* out) {
   return pos;
 }
 
-// The reverse of cobs_encode, into another buffer. Returns the bytes decoded; 0 when `in` is no COBS.
-static uint32_t cobs_decode(const uint8_t* in, uint32_t len, uint8_t* out, uint32_t cap) {
+// The reverse of cobs_encode, in place: a byte is written only where one was read already (the decoded bytes are never
+// more). Returns the bytes decoded; 0 when `buf` is no COBS.
+static uint32_t cobs_decode(uint8_t* buf, uint32_t len) {
   uint32_t pos = 0;
   uint32_t i = 0;
   while (i < len) {
-    const uint8_t code = in[i++];
+    const uint8_t code = buf[i++];
     if (code == 0 || i + code - 1u > len) {
       return 0;
     }
     for (uint8_t k = 1; k < code; k++) {
-      if (pos >= cap) {
-        return 0;
-      }
-      out[pos++] = in[i++];
+      buf[pos++] = buf[i++];
     }
     if (code != 0xFFu && i < len) {
-      if (pos >= cap) {
-        return 0;
-      }
-      out[pos++] = 0;
+      buf[pos++] = 0;
     }
   }
   return pos;
@@ -143,65 +137,88 @@ static uint32_t cobs_decode(const uint8_t* in, uint32_t len, uint8_t* out, uint3
  * TX: the provider's send only queues the frame; the TX task encodes and writes it, the urgent queue first
  * ------------------------------------------------------------------------- */
 
-/* One encoded frame to the port's outputs. The console's UART at its baud rate is far slower than USB: a frame that
- * does not fit its TX buffer now is not written there (its host misses it, as a dropped frame), so a USB host is never
- * held to the UART's pace. The link's TX task waits for room: nothing else waits on it. */
-static void write_out(port_t* p, const uint8_t* data, uint32_t len) {
-  size_t room = 0;
-  if (!p->console || (uart_get_tx_buffer_free_size(p->uart, &room) == ESP_OK && room >= len)) {
-    uart_write_bytes(p->uart, data, len);
-  }
 #if USB_JTAG
-  // The driver takes no write longer than its buffer: a frame goes in pieces of half of it, until the host stops reading.
-  for (uint32_t done = 0; p->console && done < len && usb_serial_jtag_is_connected();) {
-    const uint32_t piece = len - done < USB_JTAG_TX_BUF / 2u ? len - done : USB_JTAG_TX_BUF / 2u;
+// A frame to the USB-Serial-JTAG in pieces the driver takes, until the host stops reading.
+static void write_usb(const uint8_t* data, uint32_t len) {
+  uint32_t done = 0;
+  while (done < len && usb_serial_jtag_is_connected()) {
+    const uint32_t piece = len - done < USB_JTAG_PIECE ? len - done : USB_JTAG_PIECE;
     const int n = usb_serial_jtag_write_bytes(data + done, piece, MSEC(CONFIG_SYS_UART_SEND_WAIT_MS));
     if (n <= 0) {
-      break;
+      return;
     }
     done += (uint32_t)n;
   }
+}
+#endif
+
+/* One encoded frame to the port's outputs. The link's TX task waits for room in the FIFO: nothing else waits on it.
+ * The console's UART at its baud rate is far slower than USB: a frame that does not fit its TX buffer now is not
+ * written there (its host misses it, as a dropped frame), so a USB host is never held to the UART's pace. */
+static void write_out(port_t* p, const uint8_t* data, uint32_t len) {
+  if (!p->console) {
+    uart_write_bytes(p->uart, data, len);
+    return;
+  }
+  size_t room = 0;
+  if (uart_get_tx_buffer_free_size(p->uart, &room) == ESP_OK && room >= len) {
+    uart_write_bytes(p->uart, data, len);
+  }
+#if USB_JTAG
+  write_usb(data, len);
 #endif
 }
 
-static void write_frame(port_t* p, const uint8_t* frame, uint32_t len) {
-  memcpy(p->raw, frame, len);
-  const uint16_t crc = crc16(frame, len);
-  p->raw[len] = (uint8_t)crc;
-  p->raw[len + 1] = (uint8_t)(crc >> 8);
+// One queued item, [frame][crc16], COBS-encoded between two 0x00 to the port's outputs.
+static void write_frame(port_t* p, const uint8_t* item, uint32_t len) {
   p->line[0] = 0;
-  const uint32_t n = cobs_encode(p->raw, len + CRC_BYTES, p->line + 1);
+  const uint32_t n = cobs_encode(item, len, p->line + 1);
   p->line[1 + n] = 0;
   write_out(p, p->line, n + 2u);
 }
 
+// The next queued item, the urgent ring first; `rb` is the ring it came from. NULL when both are empty.
+static uint8_t* next_item(port_t* p, RingbufHandle_t* rb, size_t* size) {
+  *rb = p->urgent_rb;
+  uint8_t* item = xRingbufferReceive(*rb, size, NO_WAIT);
+  if (item == NULL) {
+    *rb = p->tx_rb;
+    item = xRingbufferReceive(*rb, size, NO_WAIT);
+  }
+  return item;
+}
+
+/* Writes what is queued, then sleeps until the next send notifies it. A send between the empty check and the wait
+ * leaves its notification pending, so the wait returns at once. */
 static void tx_task(void* arg) {
   port_t* p = arg;
-  while (1) {
+  while (true) {
+    RingbufHandle_t rb = NULL;
     size_t size = 0;
-    uint8_t* item = xRingbufferReceive(p->urgent_rb, &size, NO_WAIT);
-    RingbufHandle_t rb = p->urgent_rb;
+    uint8_t* item = next_item(p, &rb, &size);
     if (item == NULL) {
-      item = xRingbufferReceive(p->tx_rb, &size, NO_WAIT);
-      rb = p->tx_rb;
-    }
-    if (item != NULL) {
-      write_frame(p, item, (uint32_t)size);
-      vRingbufferReturnItem(rb, item);
+      (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       continue;
     }
-    uint32_t bits = 0;
-    U_NOTIFY_AWAIT(WAIT_FOREVER, &bits);
+    write_frame(p, item, (uint32_t)size);
+    vRingbufferReturnItem(rb, item);
   }
 }
 
 static err_h provider_send(sys_data_provider_t* self, const uint8_t* data, uint32_t len, uint8_t flags) {
-  port_t* p = (port_t*)(void*)((uint8_t*)self - offsetof(port_t, provider));
+  port_t* p = (port_t*)self;
   RingbufHandle_t rb = (flags & SYS_DATA_PROVIDER_SEND_URGENT) ? p->urgent_rb : p->tx_rb;
   const TickType_t wait = (flags & SYS_DATA_PROVIDER_SEND_NOWAIT) ? NO_WAIT : MSEC(CONFIG_SYS_UART_SEND_WAIT_MS);
-  ERR_CHECK(xRingbufferSend(rb, data, len, wait) == pdTRUE, ERR_PROV_BUSY, .link = self->id.link,
-            .channel = self->id.channel);
-  xTaskNotify(p->tx_task, NOTIFY_FRAME, eSetBits);
+  uint8_t* item = NULL;
+  ERR_CHECK(xRingbufferSendAcquire(rb, (void**)&item, len + CRC_BYTES, wait) == pdTRUE, ERR_PROV_BUSY,
+            .link = self->id.link, .channel = self->id.channel);
+  // Queued with its CRC, so the TX task encodes the item itself.
+  memcpy(item, data, len);
+  const uint16_t crc = crc16(data, len);
+  item[len] = (uint8_t)crc;
+  item[len + 1] = (uint8_t)(crc >> 8);
+  xRingbufferSendComplete(rb, item);
+  xTaskNotifyGive(p->tx_task);
   return NULL;
 }
 
@@ -211,16 +228,16 @@ static err_h provider_send(sys_data_provider_t* self, const uint8_t* data, uint3
 
 /* One candidate: decoded, its CRC checked, delivered whole. Anything else (the ROM's text, a panic, typing, a line
  * hit by noise) fails and is dropped without a word: the host's tool shows those bytes as text. */
-static void rx_candidate(port_t* p, const uint8_t* data, uint32_t len) {
-  const uint32_t n = cobs_decode(data, len, p->frame, sizeof(p->frame));
+static void rx_candidate(port_t* p, uint8_t* buf, uint32_t len) {
+  const uint32_t n = cobs_decode(buf, len);  // in its own buffer: the next candidate starts after the user has it
   if (n <= CRC_BYTES) {
     return;
   }
-  const uint16_t crc = (uint16_t)(p->frame[n - 2] | (p->frame[n - 1] << 8));
-  if (crc16(p->frame, n - CRC_BYTES) != crc) {
+  const uint16_t crc = (uint16_t)(buf[n - 2] | (buf[n - 1] << 8));
+  if (crc16(buf, n - CRC_BYTES) != crc) {
     return;
   }
-  sys_data_provider_deliver(&p->provider, p->frame, n - CRC_BYTES);
+  sys_data_provider_deliver(&p->provider, buf, n - CRC_BYTES);
 }
 
 static void rx_bytes(port_t* p, line_rx_t* rx, const uint8_t* data, int count) {
@@ -242,7 +259,7 @@ static void rx_bytes(port_t* p, line_rx_t* rx, const uint8_t* data, int count) {
 static void rx_task(void* arg) {
   port_t* p = arg;
   uint8_t chunk[READ_CHUNK];
-  while (1) {
+  while (true) {
     rx_bytes(p, &p->uart_rx, chunk, uart_read_bytes(p->uart, chunk, sizeof(chunk), MSEC(READ_WAIT_MS)));
 #if USB_JTAG
     if (p->console) {
@@ -267,7 +284,7 @@ static void prepare_port(port_t* p, uart_port_t uart, bool console, sys_data_pro
       .send = provider_send,
       .max_frame = CMD_FRAME_MAX,
       .id = id,
-      .state = SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_WIRED,
+      .state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED,
   };
 }
 
@@ -288,8 +305,8 @@ static err_h link_uart_init(void) {
 #if CONFIG_UART_ISR_IN_IRAM
   flags |= ESP_INTR_FLAG_IRAM;  // a flash write (NVS) stops the cache for milliseconds: the FIFO must still be served
 #endif
-  ERR_TRY(ERR_ESP(uart_driver_install(CONFIG_SYS_UART_LINK_PORT, CONFIG_SYS_UART_LINK_RX_BUF, UART_TX_BUF, 0, NULL,
-                                      flags)));
+  // No TX buffer: the link's TX task writes straight to the FIFO and waits there; its own queue is the only one.
+  ERR_TRY(ERR_ESP(uart_driver_install(CONFIG_SYS_UART_LINK_PORT, CONFIG_SYS_UART_LINK_RX_BUF, 0, 0, NULL, flags)));
   ERR_TRY(ERR_ESP(uart_param_config(CONFIG_SYS_UART_LINK_PORT, &cfg)));
   return ERR_ESP(uart_set_pin(CONFIG_SYS_UART_LINK_PORT, CONFIG_SYS_UART_LINK_TX_PIN, CONFIG_SYS_UART_LINK_RX_PIN,
                               flow ? CONFIG_SYS_UART_LINK_RTS_PIN : UART_PIN_NO_CHANGE,

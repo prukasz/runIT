@@ -12,14 +12,14 @@ extern "C" {
 
 /* The commands of this board, not their frames: the tree of module routers and the two tasks that run them. Whoever
  * hands the router a command (the session, the board itself) gives the callback its answer goes to (router_done_f).
- * ROUTER.MD. The handler type, cmd_reply and ERR_CMD_* are cmd.h's; a command as an error names it (err_cmd_t) and
- * the error record are errors.h's. */
+ * ROUTER.MD. A command (cmd_req_t), its error record (cmd_err_record), the handler type, cmd_reply and ERR_CMD_* are
+ * cmd.h's. */
 
 /* ----------------------------------------------------------------------------
  * A command's flags and an answer's status
  * ------------------------------------------------------------------------- */
 
-/* A command's flags (err_cmd_t.flags): the one definition of them. The session's frame byte carries them at these
+/* A command's flags (cmd_req_t.flags): the one definition of them. The session's frame byte carries them at these
    bits (SYS_SESSION.MD "Frames"). */
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT  (1u << 0)  //@alias Urgent @description Runs on the urgent task, next to normal commands
@@ -32,7 +32,7 @@ typedef enum {
   ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
 
-#define ROUTER_SRC_SELF 0xFEu  // err_cmd_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
+#define ROUTER_SRC_SELF 0xFEu  // cmd_req_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
 
 /* ----------------------------------------------------------------------------
  * Command tables
@@ -64,8 +64,9 @@ MUST_USE err_h router_call(const router_entry_t* table, uint32_t count, void* ct
 
 /**
  * @brief Runs one command of a module: `in` is [dir][code][args]. The side `dir` asks for gets [code][args] (so the
- * op macros below parse it). A failure is wrapped in ERR_ROUTER_KEY{code}.
- * @return ERR_ROUTER_UNKNOWN_KEY for an unknown code, ERR_CMD_DIRECTION for a side the command doesn't have.
+ * op macros below parse it). A failure is wrapped in ERR_ROUTER_OP{code}.
+ * @return ERR_ROUTER_NO_KEY without [dir][code], ERR_ROUTER_UNKNOWN_OP for an unknown code, ERR_CMD_DIRECTION for a
+ * side the command doesn't have.
  */
 MUST_USE err_h router_call_op(const router_op_t* table, uint32_t count, void* ctx, cmd_in_t in, cmd_out_t* out);
 
@@ -162,7 +163,7 @@ MUST_USE err_h router_init(void);
  * @param len     Bytes in `data`, at most CMD_DATA_MAX.
  * @return NULL; else an error the router reports with the command (the answer is lost: a reader retries).
  */
-typedef MUST_USE err_h (*router_done_f)(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data,
+typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data,
                                         uint32_t len);
 
 /**
@@ -173,7 +174,7 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const err_cmd_t* cmd, uint8_t
  * @param ctx   Given to `done`.
  * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL: not queued, the caller answers it.
  */
-MUST_USE err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx);
+MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx);
 
 /**
  * @brief Queues a command of the board itself: router_submit with src ROUTER_SRC_SELF and seq from the router's own
@@ -190,7 +191,7 @@ MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, vo
  * @brief Ends a command's chain: logged with the command ("cmd src f0 seq 7 flags 00 req 02 02 00") and handed to the
  * error sink with it (its record on the errors stream). For a command the router refused, by whoever answers it.
  */
-void router_report_cmd(const err_cmd_t* cmd, err_h err);
+void router_report_cmd(const cmd_req_t* cmd, err_h err);
 
 /* ----------------------------------------------------------------------------
  * Tap, origin
@@ -199,9 +200,9 @@ void router_report_cmd(const err_cmd_t* cmd, err_h err);
 /** Sees every command the tasks route (the board's own too), on the routing task. */
 typedef struct {
   /** Before routing. true = taken: answered OK with no data and not routed. */
-  bool (*take)(const err_cmd_t* cmd);
+  bool (*take)(const cmd_req_t* cmd);
   /** After routing a command that wasn't taken. `result` is borrowed. */
-  void (*seen)(const err_cmd_t* cmd, err_h result);
+  void (*seen)(const cmd_req_t* cmd, err_h result);
 } router_tap_t;
 
 /** @brief Sets the tap (one; NULL removes it). Boot only. */
@@ -211,7 +212,7 @@ void router_set_tap(const router_tap_t* tap);
  * @brief The command the calling task is routing, valid until its handler returns. Inside a replay: the outer one.
  * @return The origin; NULL outside the router tasks.
  */
-const err_cmd_t* router_origin(void);
+const cmd_req_t* router_origin(void);
 
 /** @brief True when the caller runs on a router task (urgent or work): what waits for an answer must not run there. */
 bool router_is_task(void);

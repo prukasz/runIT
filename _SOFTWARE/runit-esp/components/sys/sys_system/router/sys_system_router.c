@@ -63,7 +63,7 @@ ROUTER_OP_NOARGS(op_stop) {
 }
 
 ROUTER_OP_NOARGS(op_restart) {
-  U_TIMER_START(sys_restart_timer);
+  xTimerStart(sys_restart_timer, 0);
   return NULL;
 }
 

@@ -67,9 +67,6 @@ static struct {
 U_RECURSIVE_MUTEX_DEFINE(sys_pwrm_mutex);
 U_TASK_DEFINE(sys_pwrm_task_h, CONFIG_SYS_POWER_MANAGER_TASK_STACK);
 
-#define LOCK()   U_RECURSIVE_MUTEX_LOCK(sys_pwrm_mutex, WAIT_FOREVER)
-#define UNLOCK() U_RECURSIVE_MUTEX_UNLOCK(sys_pwrm_mutex)
-
 /* ---- Helpers ---- */
 
 static int consumer_index(uint16_t id) {
@@ -195,7 +192,7 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
   if (kind == SYS_POWER_KIND_NONE) {
     return NULL;
   }
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   int target = NO_TARGET;
   const int rail = consumer_index(ev->source);
   if (rail >= 0) {
@@ -212,7 +209,7 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
                        .response = response_of(kind, target), .value = ev->value));
     apply_response(kind, target);
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -319,7 +316,7 @@ static err_h vreg_guard(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* ar
   uint32_t value = 0;
   memcpy(&value, args, need);
   err_h err = NULL;
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   rail_t next = s_pm.rails[i];
   if (op == VREG_OP_ENABLE) {
     next.enabled = value != 0;
@@ -344,7 +341,7 @@ static err_h vreg_guard(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* ar
       s_pm.rails[i].applied_mA = value;
     }
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return err;
 }
 
@@ -580,7 +577,7 @@ static void update_budget(sys_power_source_e source, bool have_input) {
 }
 
 static void tick(void) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   bool have_input;
   const bool readable = read_input(&have_input);  // false: the budget and the battery estimate wait for the input
   const sys_power_source_e source = detect_source();
@@ -597,7 +594,7 @@ static void tick(void) {
                                 (s_pm_preset.cfg.strict ? SYS_POWER_FLAG_STRICT : 0) |
                                 (s_pm.latched.over ? SYS_POWER_FLAG_OVER_BUDGET : 0) |
                                 (s_pm.input_seen ? SYS_POWER_FLAG_INPUT_SEEN : 0));
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 static void power_task(void* arg) {
@@ -618,7 +615,7 @@ static void wake(void) {
 /* ---- Settings ---- */
 
 static err_h check_range(int32_t value, int32_t min, int32_t max) {
-  ERR_CHECK(value >= min && value <= max, ERR_PWRM_BAD_ARG, .value = value, .min = min, .max = max);
+  ERR_CHECK_IN_RANGE(value, min, max, ERR_PWRM_BAD_ARG, .value = value, .min = min, .max = max);
   return NULL;
 }
 
@@ -628,37 +625,37 @@ err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg) {
   ERR_TRY(check_range(cfg->strict, 0, 1));
   ERR_TRY(check_range(cfg->soft_margin_pct, 0, 100));
   ERR_TRY(check_range(cfg->source, SYS_POWER_SOURCE_UNKNOWN, SYS_POWER_SOURCE_BATTERY));
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   s_pm_preset.cfg = *cfg;
   s_pm.alert_mA = 0;  // reprogram the input alerts for the new limit
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   wake();
   return NULL;
 }
 
 void sys_power_manager_get_config(sys_power_manager_cfg_t* out) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   *out = s_pm_preset.cfg;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 err_h sys_power_manager_set_pd(const sys_power_pd_t* pd) {
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   ERR_TRY(check_range(pd->mode, SYS_POWER_PD_OFF, SYS_POWER_PD_VOLTAGE));
   if (pd->mode == SYS_POWER_PD_VOLTAGE) ERR_TRY(check_range((int32_t)pd->voltage_mV, 1, (int32_t)s_pm.board->max_mV));
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   s_pm_preset.pd = *pd;
   if (pd->mode != SYS_POWER_PD_VOLTAGE) s_pm_preset.pd.voltage_mV = 0;
   s_pm.pd_req.mV = s_pm.pd_req.mA = 0;  // asked again on the next tick
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   wake();
   return NULL;
 }
 
 void sys_power_manager_get_pd(sys_power_pd_t* out) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   *out = s_pm_preset.pd;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 err_h sys_power_manager_set_psu(const sys_power_psu_t* psu) {
@@ -667,9 +664,9 @@ err_h sys_power_manager_set_psu(const sys_power_psu_t* psu) {
     ERR_TRY(check_range((int32_t)psu->max_mV, 1, INT32_MAX));
     ERR_TRY(check_range((int32_t)psu->max_mA, 1, INT32_MAX));
   }
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   s_pm.psu = *psu;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   wake();
   return NULL;
 }
@@ -684,25 +681,25 @@ err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
     ERR_TRY(check_range(battery->critical_pct, 1, battery->low_pct - 1));
     b = *battery;
   }
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   s_pm.battery = b;
   s_pm.latched.low = false;
   s_pm.latched.critical = false;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   wake();
   return NULL;
 }
 
 void sys_power_manager_get_psu(sys_power_psu_t* out) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   *out = s_pm.psu;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 void sys_power_manager_get_battery(sys_power_battery_t* out) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   *out = s_pm.battery;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 // The matrix row of a target: 0 for the board, 1 + i for rail i.
@@ -727,9 +724,9 @@ err_h sys_power_manager_set_matrix(const sys_power_response_row_t* rows, uint8_t
       ERR_TRY(check_range(rows[i].responses[k], SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
     }
   }
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   for (uint8_t i = 0; i < count; i++) memcpy(s_pm.responses[at[i]], rows[i].responses, SYS_POWER_KIND_COUNT);
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -737,21 +734,21 @@ err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, 
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   const uint8_t n = (uint8_t)(1 + s_pm.board->consumer_count);
   ERR_CHECK(cap >= n, ERR_CMD_BAD_LEN, .got = cap, .need = n);
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   for (uint8_t i = 0; i < n; i++) {
     rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_pm.board->consumers[i - 1].vreg;
     memcpy(rows[i].responses, s_pm.responses[i], SYS_POWER_KIND_COUNT);
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   *count = n;
   return NULL;
 }
 
 err_h sys_power_manager_get_status(sys_power_status_t* out) {
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
-  LOCK();
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
   *out = s_pm.status;
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 

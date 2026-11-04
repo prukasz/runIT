@@ -10,17 +10,19 @@ Why:
 - The memory is in `.bss`, so `idf.py size` / `idf.py size-components` shows the real RAM cost per component.
 - No heap, no fragmentation, no "creation failed" error path.
 
-Use dynamic creation only for objects whose count or lifetime is decided at runtime (per-instance driver resources, user connectors).
+Use dynamic creation only for objects whose count or lifetime is decided at runtime (per-instance driver resources).
 
 | Macro | Creates | Notes |
 |---|---|---|
-| `U_MUTEX_DEFINE(name)` / `U_RECURSIVE_MUTEX_DEFINE` | mutex | `U_MUTEX_LOCK(h, ticks)` returns true on success |
-| `U_BINARY_SEM_DEFINE`, `U_COUNTING_SEM_DEFINE(name, max, init)` | semaphores | `U_SEM_GIVE_ISR` yields if needed |
-| `U_QUEUE_DEFINE(name, len, item_size)` | queue | `U_QUEUE_SEND/RECEIVE/PEEK`, `_ISR` variant |
+| `U_MUTEX_DEFINE(name)` / `U_RECURSIVE_MUTEX_DEFINE` | mutex | |
+| `U_BINARY_SEM_DEFINE`, `U_COUNTING_SEM_DEFINE(name, max, init)` | semaphores | |
+| `U_QUEUE_DEFINE(name, len, item_size)` | queue | |
 | `U_RINGBUFFER_DEFINE(name, size, type)` | ESP ring buffer | a NOSPLIT / ALLOWSPLIT size is a multiple of 4 (`_Static_assert` in the macro) |
 | `U_STREAM_BUFFER_DEFINE`, `U_MESSAGE_BUFFER_DEFINE` | stream / message buffer | usable capacity is **size − 1** (open fix 4) |
-| `U_EVENT_GROUP_DEFINE`, `U_TIMER_DEFINE`, `U_SPINLOCK_DEFINE` | event group, software timer, spinlock | `U_EVENT_*`, `U_TIMER_*`, `U_CRITICAL_*` |
+| `U_EVENT_GROUP_DEFINE`, `U_TIMER_DEFINE` | event group, software timer | |
 | `U_TASK_DEFINE(name, stack)` + `U_TASK_START[_ON_CORE]` | task (stack + TCB static) | the stack size is in **bytes** (`StackType_t` is `uint8_t` on ESP-IDF); the task starts only at `U_TASK_START` |
+
+`utils.h` only defines objects; what is done with them is the FreeRTOS call itself, written out: `xSemaphoreTake(m, portMAX_DELAY)` / `xSemaphoreGive(m)` (`...Recursive` for a recursive mutex), `xQueueSend`, `xQueueReceive`, `xTimerStart(t, 0)`, `xTaskNotifyWait`. Its only time helpers are `MSEC(ms)` (rounds up: a non-zero time waits at least one tick) and `NO_WAIT`; forever is `portMAX_DELAY`. A spinlock has no macro: `static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;` and `portENTER_CRITICAL(&s_lock)` / `portEXIT_CRITICAL(&s_lock)` (`_ISR`, `_SAFE` from an ISR or both). A lock is never wrapped in a local `LOCK()` / `UNLOCK()` macro. Keep a critical section short, no blocking call inside.
 
 How the macros work:
 - `U_*_DEFINE` (except tasks) builds the object in an `__attribute__((constructor))` function, run before the scheduler starts, so init functions never create these objects.
@@ -36,7 +38,6 @@ How the macros work:
 | 2 | `U_TASK_START` doesn't check whether the task already runs | Put the `if (name == NULL)` guard inside the macro |
 | 3 | `U_TASK_DEFINE(name, stack_words)`: the value is bytes on ESP-IDF | Rename the parameter to `stack_bytes` |
 | 4 | Static stream / message buffers hold `size − 1` bytes | Allocate and pass `size + 1` |
-| 8 | `U_QUEUE_SEND_ISR` ignores a full queue | Return the send result |
 
 Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`) and `esp32s3_gpio_adc.c` (`U_TASK_DEFINE(adc_processing_task, 4096)`) hard-code their stack sizes: move them to Kconfig.
 

@@ -62,7 +62,7 @@ typedef enum vm_obj_t_e {
  */
 
 typedef struct __attribute__((aligned(4))) vm_obj_head_t {
-  uint16_t payload_size;
+  uint16_t payload_size;  
   struct {
     uint8_t obj_t     : 4;
     uint8_t name_size : 4;
@@ -87,6 +87,8 @@ typedef struct vm_obj_t {
   vm_obj_head_t head;
   uint8_t       payload[];
 } vm_obj_t;
+
+
 
 /**
  * @brief Object handle used across all files

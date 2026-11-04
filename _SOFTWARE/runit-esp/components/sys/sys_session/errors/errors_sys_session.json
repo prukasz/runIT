@@ -17,9 +17,6 @@
     "ERR_SESSION_NO_ROUTE": {
       "message": "Board {dst} cannot be reached from here"
     },
-    "ERR_SESSION_DENIED": {
-      "message": "{src} may only read on this board"
-    },
     "ERR_SESSION_TIMEOUT": {
       "message": "Board {dst} did not answer",
       "hint": "A write may still have run: read the value back."
@@ -27,15 +24,8 @@
     "ERR_SESSION_PEER_DOWN": {
       "message": "The connection to board {board} was lost"
     },
-    "ERR_SESSION_NOT_FRAMED": {
-      "message": "{link} {channel} cannot carry a board's connection",
-      "hint": "Use a connection with runIT framing."
-    },
-    "ERR_SESSION_PARENT_TAKEN": {
-      "message": "This board already has a connection towards the root"
-    },
-    "ERR_SESSION_CLIENT": {
-      "message": "Only a board without a connection towards the root takes an app connection"
+    "ERR_SESSION_ROLE": {
+      "message": "A board connected to a master takes no other connection: no app, no other board"
     },
     "ERR_SESSION_FULL": {
       "message": "No room for another board connection",

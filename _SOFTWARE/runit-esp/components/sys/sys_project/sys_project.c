@@ -62,8 +62,6 @@ typedef struct {
 } save_t;
 
 U_MUTEX_DEFINE(sys_project_mutex);  // s_project but .nvs: both router tasks write, ops open / close
-#define LOCK()   ((void)U_MUTEX_LOCK(sys_project_mutex, WAIT_FOREVER))
-#define UNLOCK() ((void)U_MUTEX_UNLOCK(sys_project_mutex))
 
 static struct {
   save_t save;                                                              // zeroed whole when a save closes
@@ -259,8 +257,7 @@ static err_h feed(const uint8_t* p, uint32_t n, uint32_t offset) {
       offset++;
       if (s_project.save.len_got == LEN_BYTES) {
         s_project.save.fgot = 0;
-        ERR_CHECK(s_project.save.flen >= 1 && s_project.save.flen <= FRAME_MAX, ERR_PROJECT_BAD_FRAME,
-                  .offset = offset - LEN_BYTES);
+        ERR_CHECK_IN_RANGE(s_project.save.flen, 1, FRAME_MAX, ERR_PROJECT_BAD_FRAME, .offset = offset - LEN_BYTES);
       }
       continue;
     }
@@ -297,7 +294,7 @@ err_h sys_project_begin(uint32_t len, uint8_t boot) {
   ERR_CHECK(len > 0 && len <= CONFIG_SYS_PROJECT_MAX_BYTES, ERR_PROJECT_TOO_BIG, .len = len,
             .max = CONFIG_SYS_PROJECT_MAX_BYTES);
   ERR_CHECK(boot < SYS_PROJECT_BOOT_COUNT, ERR_PROJECT_BAD_BOOT, .value = boot);
-  LOCK();
+  (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   err_h err = NULL;
   if (s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_BUSY);
@@ -309,13 +306,13 @@ err_h sys_project_begin(uint32_t len, uint8_t boot) {
       s_project.save = (save_t){.open = true, .boot = boot, .bank = bank, .want = len};
     }
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_project_mutex);
   return err;
 }
 
 err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len) {
   ERR_CHECK(data != NULL && len > 0, ERR_PROJECT_BAD_ARG);
-  LOCK();
+  (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   err_h err = NULL;
   if (!s_project.save.open) {
     err = ERR_NEW(ERR_PROJECT_NO_SESSION);
@@ -332,7 +329,7 @@ err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len) {
       save_drop();
     }
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_project_mutex);
   return err;
 }
 
@@ -370,7 +367,7 @@ static err_h commit_store(void) {
 }
 
 err_h sys_project_commit(uint32_t crc32) {
-  LOCK();
+  (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   err_h err;
   uint8_t boot = SYS_PROJECT_BOOT_NONE;
   if (!s_project.save.open) {
@@ -393,7 +390,7 @@ err_h sys_project_commit(uint32_t crc32) {
   } else {
     save_drop();
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_project_mutex);
   if (err == NULL && boot != SYS_PROJECT_BOOT_NONE) {  // as at a boot
     err = sys_project_run(boot == SYS_PROJECT_BOOT_RUN);
     if (err != NULL) {
@@ -404,9 +401,9 @@ err_h sys_project_commit(uint32_t crc32) {
 }
 
 void sys_project_abort(void) {
-  LOCK();
+  (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   save_drop();
-  UNLOCK();
+  (void)xSemaphoreGive(sys_project_mutex);
 }
 
 /* ----------------------------------------------------------------------------
@@ -443,7 +440,7 @@ err_h sys_project_run(bool start) {
 }
 
 err_h sys_project_erase(void) {
-  LOCK();
+  (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   err_h err = s_project.save.open ? ERR_NEW(ERR_PROJECT_BUSY) : NULL;
   if (err == NULL) {
     // the project's devices, newest first; the board's stay. A failed uninstall still frees its device: go on.
@@ -457,7 +454,7 @@ err_h sys_project_erase(void) {
   for (uint8_t bank = 0; err == NULL && bank < SYS_PROJECT_BANKS; bank++) {
     err = clear_bank(bank);
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_project_mutex);
   return err;
 }
 

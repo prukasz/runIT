@@ -25,6 +25,8 @@ ROUTER_OP_NOARGS(op_get_psu) {
   return cmd_reply(out, &psu, sizeof(psu));
 }
 
+
+
 ROUTER_OP_NOARGS(op_get_battery) {
   sys_power_battery_t battery;
   sys_power_manager_get_battery(&battery);
@@ -76,3 +78,4 @@ static const router_op_t k_ops[] = {
 };
 
 ROUTER_MODULE(sys_power_manager_router, k_ops)
+

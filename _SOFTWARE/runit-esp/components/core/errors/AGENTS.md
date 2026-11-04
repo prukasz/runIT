@@ -23,7 +23,7 @@ Spec: `ERRORS.MD` (this folder).
   - The error record does not send severities: the app reads them from `errors.json`.
 - Reporting and Sinks:
   - `err_report` / `err_report_ex` logs the chain, forwards it to the registered `err_sink_f` (set at boot by the application), and frees the chain.
-  - Code on the reporting path (connector task, logging capture) must never call `err_report` (to avoid recursion loops); use `err_log` and `err_free` instead.
+  - Code on the reporting path (stream task, logging capture) must never call `err_report` (to avoid recursion loops); use `err_log` and `err_free` instead.
 - Error record:
   - `err_record` (ERRORS.MD "Error record") is wire format: the router's ERROR answer, the errors stream and the kept history. `ERR_RECORD_*`, `err_record_src_e`, `err_record_cmd_t` and the header layout are published or fixed (`enums.json`, the `_Static_assert` on its size); a change needs `sh templates/sync.sh` and the app's decoder (`runit-app/src/backend/protocol/errors.ts`) and `router_link.py` in step. `err_record_parse` reads the same layout back.
-  - `errors` has no dependency beyond `utils` and libc: `err_cmd_t` is the command as plain bytes, filled by whoever submits it; nothing here includes a router, session or transport header. So `errors` raises its own tags (`ERR_RECORD_CUT`), never `ERR_CMD_*`.
+  - `errors` has no dependency beyond `utils` and libc: the command is `cmd.h`'s `cmd_req_t`, known here only as `struct cmd_req` (passed on to the sink, never read); a command's record gets its fields from `cmd_err_record` (`cmd.h`) through `err_record_cmd`; nothing here includes a cmd, router, session or transport header. So `errors` raises its own tags (`ERR_RECORD_CUT`), never `ERR_CMD_*`.

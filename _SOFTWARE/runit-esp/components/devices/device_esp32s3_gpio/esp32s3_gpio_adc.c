@@ -74,9 +74,9 @@ static err_h rebuild(uint16_t mask) {
 
 err_h esp32s3_gpio_adc_update_channels(void) {
   const uint16_t mask = active_channels();
-  (void)U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER);
+  (void)xSemaphoreTake(adc_mutex, portMAX_DELAY);
   const err_h err = rebuild(mask);
-  (void)U_MUTEX_UNLOCK(adc_mutex);
+  (void)xSemaphoreGive(adc_mutex);
   return err;
 }
 
@@ -200,11 +200,11 @@ static void adc_task(void* arg) {
   while (1) {
     uint32_t len = 0;
     esp_err_t rc = ESP_OK;
-    (void)U_MUTEX_LOCK(adc_mutex, WAIT_FOREVER);
+    (void)xSemaphoreTake(adc_mutex, portMAX_DELAY);
     if (s_handle != NULL) {
       rc = adc_continuous_read(s_handle, frame, sizeof(frame), &len, MSEC(10));
     }
-    (void)U_MUTEX_UNLOCK(adc_mutex);
+    (void)xSemaphoreGive(adc_mutex);
     // INVALID_STATE: the driver's buffer overflowed (the task fell behind), the frame read is still good.
     if ((rc == ESP_OK || rc == ESP_ERR_INVALID_STATE) && len > 0) {
       process(frame, len);

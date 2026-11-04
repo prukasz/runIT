@@ -23,7 +23,7 @@ extern "C" {
  * sys_device_call: a removed device just answers NOT_FOUND) or a C function
  * (only for modules that live forever: the VM, the power manager).
  *
- * An event goes to the events connector (the app) at publish time, before any
+ * An event goes to the events stream (the app) at publish time, before any
  * listener runs (an action stopping the board can't hide its cause), when its
  * flags have SYS_EVENT_NOTIFY (events that matter to the user, set in the
  * contract's events table). Nothing else reaches the app on its own: a program
@@ -88,7 +88,7 @@ typedef struct __attribute__((packed)) {
  * ------------------------------------------------------------------------- */
 
 // The contract's only op, a write (OP_WRITE(EVENT, ON_EVENT), OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t.
-#define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_none_t, sys_event_t)
+#define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_args_none_t, sys_event_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
 
@@ -96,7 +96,7 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
  * C API
  * ------------------------------------------------------------------------- */
 
-/** @brief Starts the event task. Boot, after sys_data_connector_init (notify needs the events connector). */
+/** @brief Starts the event task. Boot, after the events stream exists (notify sends to it). */
 MUST_USE err_h sys_event_init(void);
 
 /**
@@ -132,7 +132,7 @@ MUST_USE err_h sys_event_subscribe_fn(uint16_t source, uint16_t event, uint8_t c
 MUST_USE err_h sys_event_unsubscribe(uint8_t handle);
 
 /**
- * @brief Publishes an event: sets t_ms, sends it to the events connector if it has SYS_EVENT_NOTIFY, runs the device
+ * @brief Publishes an event: sets t_ms, sends it to the events stream if it has SYS_EVENT_NOTIFY, runs the device
  * listeners (table order), then queues one copy for the function listeners if one matches. From an ISR all of it is
  * deferred to the event task; a drop there is counted and reported by the task.
  * @return ERR_EVENT_QUEUE_FULL when the queued copy didn't fit. Listener failures are reported, not returned.

@@ -6,19 +6,37 @@
 #include "runit_board_defs.h"
 #include "sdkconfig.h"
 #include "sys_ble_link.h"
-#include "sys_data_connector.h"
 #include "sys_device.h"
 #include "sys_i2c.h"
 #include "sys_io.h"
 #include "sys_power_manager.h"
+#include "sys_stream.h"
 #include "utils.h"
 
 #define TAG __FILE_NAME__
 
+/* ---- Streams ---- */
+
+/* The board's own streams (SYS_STREAM.MD "Model"), all OUT: the errors and the events go first on every way out. */
+static const sys_stream_cfg_t k_streams[] = {
+    {.id = SYS_STREAM_LOGS, .dir = SYS_STREAM_OUT},
+    {.id = SYS_STREAM_ERRORS, .dir = SYS_STREAM_OUT, .flags = SYS_STREAM_FLAG_URGENT},
+    {.id = SYS_STREAM_TELEMETRY, .dir = SYS_STREAM_OUT},
+    {.id = SYS_STREAM_EVENTS, .dir = SYS_STREAM_OUT, .flags = SYS_STREAM_FLAG_URGENT},
+};
+
+err_h runit_board_streams_init(void) {
+  for (uint32_t i = 0; i < ARRAY_LEN(k_streams); i++) {
+    ERR_TRY(sys_stream_create(&k_streams[i]));
+  }
+  sys_stream_mark_system();
+  return NULL;
+}
+
 /* Routing: the log lines go as they are on the BLE LOGS characteristic. Every other stream goes to the clients that
  * subscribe to it (SUBSCRIBE, over their session). */
-err_h runit_board_connector_bindings_init(void) {
-  return sys_data_connector_bind(SYS_DATA_CONNECTOR_LOGS, SYS_BLE_PROVIDER_LOGS, SYS_DATA_CONNECTOR_BIND_TX);
+err_h runit_board_stream_bindings_init(void) {
+  return sys_stream_bind(SYS_STREAM_LOGS, SYS_BLE_PROVIDER_LOGS);
 }
 
 /* ---- Power layout ---- */

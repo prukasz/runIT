@@ -44,7 +44,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 - Compile-time checks: payload fits a node, no duplicate tag IDs. Registration asserts: tag belongs to the module, module ID is unique, and count fits `ERRORS_MAX_MODULES`.
 - Module IDs (`ERR_MOD_*`) are assigned only in `err_modules.h` (the list, in order; a new module takes the next number, none is renumbered or reused).
 - A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
-- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_data_connector`).
+- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_stream`).
 
 ## Creating and propagating
 
@@ -53,6 +53,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 | `ERR_NEW(TAG, .f = v)` / `ERR_WRAP(cause, TAG, …)` | New root error / new node over `cause` (takes ownership) |
 | `ERR_TRY(call)` | Return the error of `call` if any |
 | `ERR_CHECK(cond, TAG, …)` | Return a new error if `cond` is false |
+| `ERR_CHECK_IN_RANGE(v, lo, hi, TAG, …)` | Return a new error unless `lo <= v <= hi` (no `-Wtype-limits` warning for an unsigned `v` and `lo` 0) |
 | `ERR_KEEP_FIRST(acc, call)` | Run `call`, keep the first error in `acc`, free a later one (teardown: every step runs) |
 | `ERR_ESP(esp_call)` / `ERR_TRY_ESP(esp_call)` | `esp_err_t` → `NULL` or `ERR_ESP_ERR{code}` |
 
@@ -78,25 +79,25 @@ Rules:
 
 ## Reporting (end of a chain)
 
-- `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the `err_cmd_t` it belongs to, NULL for an internal error), frees it.
-- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors connector (SYS_DATA_CONNECTOR.MD) and in the history (SYS_LOG.MD).
-- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (a mirror of its stream lost frames, no slot to follow it): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
-- The sink must not report errors itself (loop); code on the reporting path (connector task, log capture) uses `err_log` / `err_free` instead.
+- `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. `errors` knows the command only as `struct cmd_req` (`cmd_req_t`, CMD.MD): it passes it on and never reads it.
+- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors stream (SYS_STREAM.MD) and in the history (SYS_LOG.MD).
+- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
+- The sink must not report errors itself (loop); code on the reporting path (stream task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.
 
 ## Error record
 
-`err_record(cmd, chain, buf, cap)` (`err_wire.c`): a chain with the command it belongs to (`err_cmd_t`, NULL for an internal error). The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_DATA_CONNECTOR.MD) and the kept history (SYS_LOG.MD ERRORS).
+`cmd_err_record(cmd, chain, buf, cap)` (`cmd.h`): a chain with the command it belongs to (`cmd_req_t`, NULL for an internal error). It takes the command's fields and calls `err_record_cmd(from, seq, flags, req, req_len, chain, buf, cap)` (`err_wire.c`); an internal record is `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
 
-`err_cmd_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
+`cmd_req_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
 
 ```
 [src u8]                                    0 internal (no request), 1 command, 2 board (about another board as a whole)
 [unix_ms u64 LE]                            the board's clock when it was reported (`board_time_now_ms`, TIME.MD; ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
 src 2: [board u8]   the board the error is about (`err_record_board`), then the chain
 src 1: err_record_cmd_t (5 B, after the stamp)
-       [from u8]     err_cmd_t.src: who sent the command
-       [seq u16 LE]  err_cmd_t.seq: the sender's counter
+       [from u8]     cmd_req_t.src: who sent the command
+       [seq u16 LE]  cmd_req_t.seq: the sender's counter
        [flags u8]    ROUTER_FLAG_*
        [req_len u8]  bits 0-6 = request bytes that follow, bit 7 = request cut (ERR_RECORD_REQ_CUT)
        [request]     key, dir, keys + payload as received (no frame header)
@@ -105,7 +106,7 @@ src 1: err_record_cmd_t (5 B, after the stamp)
 
 - Chain: `payload` is the packed `err_data_<TAG>_t` as is (`len` from the tag table, 0 for an unknown tag). A node's severity is not sent: it is its tag's, which the app reads from `errors.json` with the payload's fields.
 - The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when `cap` is small; the chain gets the rest (its own truncated bit).
-- The chain starts with the route (`ERR_ROUTER_KEY{key}` per level, NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
+- The chain starts with the route (`ERR_ROUTER_KEY{key}` at the root, `ERR_ROUTER_OP{code}` in a module; NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
 - Command errors end in `err_report_ex(err, ctx_line, &cmd)` (the router's `router_report_cmd`): the log gets a context line before the chain (`cmd src f0 seq 7 flags 00 req 02 00 02 00`) and the sink gets the command, so the errors stream carries the same record as the answer, and a sender finds its own errors there by `from` and `seq`.
 - `src 0` (internal: device task, timer, boot) has no command header.
 - `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`.
@@ -120,7 +121,7 @@ answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0
           04 | 02 00 02 00                           request: 4 B
           03                                         chain: 3 nodes
           01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (i2c)
-          01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (SCAN)
+          02 00 02 00 01 02                          ERR_ROUTER_OP         code 02 (SCAN)
           10 00 01 00 01 00                          ERR_I2C_REMOTE_DENIED bus 0
 ```
 

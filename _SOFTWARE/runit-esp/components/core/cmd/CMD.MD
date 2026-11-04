@@ -1,12 +1,12 @@
 # cmd — what a command handler is
 
-Component `components/core/cmd/`. The smallest common layer for command handling: the **handler**, the **direction** (read or write), the **answer**, the **frame size** every limit comes from and the **errors a handler raises for a bad payload or a missing side**. No transport, no keys, no registry.
+Component `components/core/cmd/`. The smallest common layer for command handling: the **handler**, the **direction** (read or write), the **answer**, the **frame size** every limit comes from and the **errors a handler raises for a bad payload or a missing side**, and the **command as it came in** (`cmd_req_t`: its bytes and who sent it, with `cmd_err_record` for its error record). No transport, no key dispatch, no registry.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `cmd.h` | The handler (`cmd_in_t`, `cmd_out_t`, `cmd_f`, `CMD_F_PARAMS`), `cmd_dir_e`, `cmd_side`, `cmd_reply`, `cmd_append`, the frame size (`CMD_FRAME_MAX`, `CMD_HEAD`, `CMD_DATA_MAX`) |
+| `cmd.h` | A command as it came in (`cmd_req_t`: request, `src`, `seq`, `flags`; ROUTER.MD "A command") and its error record (`cmd_err_record`), the handler (`cmd_in_t`, `cmd_out_t`, `cmd_f`, `CMD_F_PARAMS`), `cmd_dir_e`, `cmd_side`, `cmd_reply`, `cmd_append`, the frame size (`CMD_FRAME_MAX`, `CMD_HEAD`, `CMD_DATA_MAX`) |
 | `errors/cmd_errors.h` | `ERR_CMD_MAP`, the module's error tags (included by `cmd.h`) |
 | `errors/errors_cmd.json` | The error messages |
 | `cmd.c` | Error module (`ERR_MOD_CMD` = 11) and helpers. Linked `WHOLE_ARCHIVE`: constructor registers error tags |
@@ -55,10 +55,10 @@ CMD_FRAME_MAX
  │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, sys_uart)
  ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
  │    the answer buffer of a replay
- └─ a connector's frame to a subscriber [connector][payload]: a payload ≤ CMD_DATA_MAX − 1
+ └─ a stream's frame to a subscriber [stream id][payload]: a payload ≤ CMD_DATA_MAX − 1
 ```
 
-Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A provider may carry less right now (`max_frame`, an unframed one): a connector's payload to a binding is checked against that (SYS_DATA_CONNECTOR.MD).
+Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A provider may carry less right now (`max_frame`, an unframed one): a stream's payload to a binding is checked against that (SYS_STREAM.MD).
 
 ## Long work
 

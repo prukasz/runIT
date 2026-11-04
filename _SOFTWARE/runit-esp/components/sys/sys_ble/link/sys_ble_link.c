@@ -109,7 +109,7 @@ static err_h add_provider(sys_data_provider_t* p, uint16_t uuid) {
       .send = provider_send,
       .max_frame = 0,  // up when a client connects
       .id = {.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = uuid},
-      .state = SYS_DATA_PROVIDER_STATE_FRAMED,
+      .state = SYS_DATA_PROVIDER_STATE_SYSTEM,
   };
   return sys_data_provider_add(p);
 }

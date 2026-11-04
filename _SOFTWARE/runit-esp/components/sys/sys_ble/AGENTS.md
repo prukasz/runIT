@@ -8,7 +8,7 @@ Spec: `SYS_BLE.MD` (this folder).
 - The runIT service is created and locked in `sys_ble_link.c` only. Nothing else adds a characteristic to it or removes it.
 - The provider of a run-time characteristic is made and removed by the `ble` router's ops through `sys_ble_link_char_add` / `_char_remove` / `_service_remove`, before the characteristic or service goes: a provider that is open keeps its characteristic. Its slot is static (`CONFIG_SYS_BLE_USER_PROVIDERS`), freed by the provider's destroy.
 - A framed characteristic's TX item and the BLE task's scratch buffer are `CMD_FRAME_MAX` (`cmd.h`): a whole frame, the one frame size of the firmware.
-- The registry lock (`BLE_LOCK`) is released around NimBLE calls that can wait on the host (add / delete a service, notify). GATT callbacks take the lock while the host is locked: keep that order.
+- The registry lock (`sys_ble_mutex`) is released around NimBLE calls that can wait on the host (add / delete a service, notify). GATT callbacks take the lock while the host is locked: keep that order.
 - RX handlers, connection listeners and the providers' deliver (the session's rx, which submits to the router) run on the host task. They must not block.
 - Errors raised on the host or BLE task go through `sys_ble_report`. They have no caller to return to.
 - The BLE task sends the TX items and applies the staged changes. The host task runs the GAP and GATT callbacks, including the RX. Keep that split.

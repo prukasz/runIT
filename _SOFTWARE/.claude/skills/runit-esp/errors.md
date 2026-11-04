@@ -5,8 +5,8 @@ The design and every macro: [ERRORS.MD](../../../runit-esp/components/core/error
 ## Rules
 
 - **Return `err_h`** from anything that can fail; `NULL` = success, never `NULL` for a failure. Every such function is `MUST_USE`.
-- **Create and propagate** with the `ERR_*` macros (`ERR_NEW`, `ERR_WRAP`, `ERR_TRY`, `ERR_CHECK`, `ERR_ESP` / `ERR_TRY_ESP` for `esp_err_t`). Vendor and ESP-IDF codes never pass up raw.
-- **End a chain once:** `err_report` where nobody returns it any more (task loops, callbacks, boot steps); `err_free` when it is handled; `err_log` only borrows. Code on the reporting path (the connector task, the log hook, the sink) never reports: `err_log` + `err_free`. Never share a cause between two chains; a leaked node shrinks the pool for good.
+- **Create and propagate** with the `ERR_*` macros (`ERR_NEW`, `ERR_WRAP`, `ERR_TRY`, `ERR_CHECK`, `ERR_CHECK_IN_RANGE`, `ERR_ESP` / `ERR_TRY_ESP` for `esp_err_t`). Vendor and ESP-IDF codes never pass up raw.
+- **End a chain once:** `err_report` where nobody returns it any more (task loops, callbacks, boot steps); `err_free` when it is handled; `err_log` only borrows. Code on the reporting path (the stream task, the log hook, the sink) never reports: `err_log` + `err_free`. Never share a cause between two chains; a leaked node shrinks the pool for good.
 - **Context goes into the error, not the log:** the payload of the tag carries the ID, pin, value, limits. Drivers don't log.
 - **Steps that must all run** (teardown, sweeps, per-channel work) return the first error and free the rest (`ERR_KEEP_FIRST`); report a later one first where it matters.
 - **Device errors** are wrapped by the registry (`ERR_DEV_ID{id}`, `ERR_DEV_OP{op, dir}`), so a driver returns plain causes. A driver's own task or listener has no caller and wraps its own error with its ID before reporting it. A device that fails a range check uses `ERR_DEV_RANGE` (SYS_DEVICE.MD).

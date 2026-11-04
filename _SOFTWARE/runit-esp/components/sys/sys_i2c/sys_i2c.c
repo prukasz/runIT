@@ -47,7 +47,7 @@ static struct {
   uint32_t addr_used[SYS_I2C_BUS_COUNT][(ADDR_7BIT_MAX + 1) / 32];
 } s_i2c;
 _Static_assert(sizeof(s_i2c.addr_used[0]) == sizeof(((sys_i2c_bus_info_t){0}).used), "bus info map size");
-static U_SPINLOCK_DEFINE(s_addr_lock);
+static portMUX_TYPE s_addr_lock = portMUX_INITIALIZER_UNLOCKED;
 
 /* ----------------------------------------------------------------------------
  * Internal helpers - callers have validated their arguments.
@@ -68,17 +68,17 @@ static err_h check_dev(const sys_i2c_dev_t* dev) {
 static bool addr_claim(uint8_t bus, uint8_t addr) {
   uint32_t bit = 1u << (addr % 32);
   bool free;
-  U_CRITICAL_ENTER(s_addr_lock);
+  portENTER_CRITICAL(&s_addr_lock);
   free = (s_i2c.addr_used[bus][addr / 32] & bit) == 0;
   s_i2c.addr_used[bus][addr / 32] |= bit;
-  U_CRITICAL_EXIT(s_addr_lock);
+  portEXIT_CRITICAL(&s_addr_lock);
   return free;
 }
 
 static void addr_release(uint8_t bus, uint8_t addr) {
-  U_CRITICAL_ENTER(s_addr_lock);
+  portENTER_CRITICAL(&s_addr_lock);
   s_i2c.addr_used[bus][addr / 32] &= ~(1u << (addr % 32));
-  U_CRITICAL_EXIT(s_addr_lock);
+  portEXIT_CRITICAL(&s_addr_lock);
 }
 
 // Probe of a ready bus and a 7-bit address.
@@ -171,9 +171,9 @@ err_h sys_i2c_bus_info(uint8_t bus, sys_i2c_bus_info_t* info) {
       .sda = c->sda,
       .scl = c->scl,
   };
-  U_CRITICAL_ENTER(s_addr_lock);
+  portENTER_CRITICAL(&s_addr_lock);
   memcpy(info->used, s_i2c.addr_used[bus], sizeof(info->used));
-  U_CRITICAL_EXIT(s_addr_lock);
+  portEXIT_CRITICAL(&s_addr_lock);
   return NULL;
 }
 

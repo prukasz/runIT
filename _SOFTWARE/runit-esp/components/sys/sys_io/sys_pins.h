@@ -36,12 +36,12 @@ typedef struct __attribute__((packed)) {
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: AVAILABLE R, LOCKED R, LOCK W, UNLOCK W,
  * LOCKED_LEVEL W. Numbers are never reused.
  */
-#define PINS_OPERATIONS(X, P)                                    \
-  X(P, AVAILABLE,    0x00, sys_device_none_t, uint64_t)          \
-  X(P, LOCKED,       0x01, sys_device_none_t, uint64_t)          \
-  X(P, LOCK,         0x02, sys_device_none_t, pins_pin_args_t)   \
-  X(P, UNLOCK,       0x03, sys_device_none_t, pins_pin_args_t)   \
-  X(P, LOCKED_LEVEL, 0x04, sys_device_none_t, pins_level_args_t)
+#define PINS_OPERATIONS(X, P)                                       \
+  X(P, AVAILABLE,    0x00, sys_device_args_none_t, uint64_t)        \
+  X(P, LOCKED,       0x01, sys_device_args_none_t, uint64_t)        \
+  X(P, LOCK,         0x02, sys_device_args_none_t, pins_pin_args_t) \
+  X(P, UNLOCK,       0x03, sys_device_args_none_t, pins_pin_args_t) \
+  X(P, LOCKED_LEVEL, 0x04, sys_device_args_none_t, pins_level_args_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(PINS, SYS_DEVICE_CONTRACT_PINS)
 

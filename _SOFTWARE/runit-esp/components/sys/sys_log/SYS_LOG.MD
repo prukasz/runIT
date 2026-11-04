@@ -17,13 +17,13 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 
 | Field | Values | Effect |
 |---|---|---|
-| `level` | 0 .. `CONFIG_LOG_MAXIMUM_LEVEL` (3 = INFO here) | `esp_log_level_set("*", level)`. **0 blocks every ESP_LOG line**, console and logs connector. Above the compile-time ceiling: `ERR_LOG_BAD_LEVEL{level, max}`, since a level IDF compiled out would silently do nothing |
-| `mirror_serial` | 0 / 1 | 1: a line also goes to the console (UART / USB-Serial-JTAG) as text, between the binary frames (SYS_UART.MD). 0 (the default): not to the console; a line still reaches the logs connector if `send_logs` is 1, which is how a console client gets it (its session subscribes LOGS) |
+| `level` | 0 .. `CONFIG_LOG_MAXIMUM_LEVEL` (3 = INFO here) | `esp_log_level_set("*", level)`. **0 blocks every ESP_LOG line**, console and logs stream. Above the compile-time ceiling: `ERR_LOG_BAD_LEVEL{level, max}`, since a level IDF compiled out would silently do nothing |
+| `mirror_serial` | 0 / 1 | 1: a line also goes to the console (UART / USB-Serial-JTAG) as text, between the binary frames (SYS_UART.MD). 0 (the default): not to the console; a line still reaches the logs stream if `send_logs` is 1, which is how a console client gets it (its session subscribes LOGS) |
 | `send_errors` | 0 / 1 | 1: a reported error chain is sent as a record on the errors stream (ERRORS.MD). 0: no record is sent (`sys_log_error` checks it) |
-| `send_logs` | 0 / 1 | 1: every log line is also sent as text to the logs connector (the BLE LOGS characteristic it is bound to, the clients subscribed to it). 0: no line is sent to a connector |
+| `send_logs` | 0 / 1 | 1: every log line is also sent as text to the logs stream (the BLE LOGS characteristic it is bound to, the clients subscribed to it). 0: no line is sent to a stream |
 | `trace_errors` | 0 / 1 | 1: a reported error chain is also printed as log lines (`err_log`). 0: no chain lines (`err_log_enable(false)`). Independent of `send_errors` |
 
-The text of a chain goes through ESP_LOG, so with `trace_errors` on it reaches the console and the logs connector like any other line.
+The text of a chain goes through ESP_LOG, so with `trace_errors` on it reaches the console and the logs stream like any other line.
 
 What no option can silence: the session's frames on the console (SYS_UART.MD: they don't go through ESP_LOG), the error records, and the ROM / bootloader output before the application runs.
 
@@ -34,11 +34,11 @@ Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror off (the
 `sys_log_init()` installs `esp_log_set_vprintf` (log version 1: one `vprintf` per line). Per line:
 
 1. The console, if `mirror_serial`.
-2. A copy to the logs connector, if `send_logs`, but not from an ISR, not before the scheduler runs, and not from the connector task itself (its own logs would loop). The copy has no ANSI colour sequences and no line end, and is cut to `SYS_LOG_LINE_MAX`. The line is formatted on the logging task's stack. `sys_data_connector_send` never blocks: a full queue drops the line, silently.
+2. A copy to the logs stream, if `send_logs`, but not from an ISR, not before the scheduler runs, and not from the stream task itself (its own logs would loop). The copy has no ANSI colour sequences and no line end, and is cut to `SYS_LOG_LINE_MAX`. The line is formatted on the logging task's stack. `sys_stream_send` never blocks: a full queue drops the line, silently.
 
 ## Boot
 
-`streams` (connector, error sink) → `log` (`sys_log_init()`: the hook, then the defaults). Lines logged between `streams` and `log` go to the console only. Boot steps: runit.c.
+`streams` (the streams, error sink) → `log` (`sys_log_init()`: the hook, then the defaults). Lines logged between `streams` and `log` go to the console only. Boot steps: runit.c.
 
 ## Remote (`ROUTER_KEY_LOG` = 0x08)
 
@@ -49,7 +49,7 @@ Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
 | `0x01` CONFIG | RW | write: `sys_log_cfg_t`: `{u8 level, mirror_serial, trace_errors, send_errors, send_logs}` (the four flags 0 / 1, else `ERR_CMD_BAD_ARG`) | read: `sys_log_cfg_t`, the options in force; write: – (applied at once; nothing is stored) |
 | `0x03` ERRORS | R | `u8 index` (0 = the oldest kept) | `u8 total` kept, then that error record (ERRORS.MD "Error record"); only `total` for an index past the end |
 
-Example, level 0 with the console and both connector streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The session adds its own frame header (SYS_SESSION.MD "Frames").
+Example, level 0 with the console and both streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
 CONFIG's write applies the options at once and stores nothing. The app keeps that write frame as the record `SYS_ACTIONS_ID_LOG` (saved with the upload or the recording, SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
 
@@ -64,7 +64,7 @@ Every reported chain is also kept as its record (the one the errors stream carri
 ## Limits
 
 - **No repeat suppression**: every reported chain is sent (records and, with `trace_errors`, lines) each time.
-- A line is cut to `SYS_LOG_LINE_MAX` (160 bytes); the rest is lost on the connector, not on the console.
+- A line is cut to `SYS_LOG_LINE_MAX` (160 bytes); the rest is lost on the stream, not on the console.
 
 ## Tests
 

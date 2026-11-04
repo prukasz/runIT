@@ -55,9 +55,6 @@ static struct {
 /* One recursive lock for the registry and for every call into a device (sys_device.h "Locking"). */
 U_RECURSIVE_MUTEX_DEFINE(sys_device_mutex);
 
-#define LOCK() U_RECURSIVE_MUTEX_LOCK(sys_device_mutex, WAIT_FOREVER)
-#define UNLOCK() U_RECURSIVE_MUTEX_UNLOCK(sys_device_mutex)
-
 /* ---- Lookups (lock held) ---- */
 
 static const sys_device_type_t* find_type(uint16_t type) {
@@ -100,12 +97,12 @@ static uint32_t find_user(uint16_t id) {
 
 err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
   err_h err = NULL;
-  LOCK();  // recursive: create() runs under it
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);  // recursive: create() runs under it
   const uint32_t at = find_dev(dep);
   if (dep == dev->id || at == s_reg.dev_count) {
     err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = dep);
-  } else if (s_reg.devs[at].remote && s_reg.devs[at].where.mode != SYS_DEVICE_REMOTE_BLOCKING) {
-    err = ERR_NEW(ERR_DEV_BAD_ARG);  // an async device answers later: a device that uses it needs the answer now
+  } else if (s_reg.devs[at].remote && !(s_reg.devs[at].where.flags & SYS_DEVICE_REMOTE_WIRED)) {
+    err = ERR_NEW(ERR_DEV_BAD_ARG);  // a device not wired answers later: a device that uses it needs the answer now
   } else if (!uses(dev, dep)) {
     if (dev->dep_count == CONFIG_SYS_DEVICE_MAX_DEPS) {
       err = ERR_NEW(ERR_DEV_DEPS_FULL, .id = dev->id);
@@ -113,7 +110,7 @@ err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
       dev->deps[dev->dep_count++] = dep;
     }
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_device_mutex);
   return err;
 }
 
@@ -158,7 +155,7 @@ static err_h create_remote(uint16_t id, const uint8_t* args, uint32_t args_len) 
   const sys_device_type_t* type = find_type(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(where.board <= SYS_DEVICE_REMOTE_BOARD_LAST && where.remote_id != SYS_DEVICE_ID_NONE &&
-                where.mode <= SYS_DEVICE_REMOTE_BLOCKING && (where.mode == SYS_DEVICE_REMOTE_BLOCKING || where.max_age_ms != 0),
+                (where.flags & ~SYS_DEVICE_REMOTE_WIRED) == 0,
             ERR_DEV_BAD_ARG);
   const uint16_t twin = sys_device_find_remote(where.board, where.remote_id);
   ERR_CHECK(twin == SYS_DEVICE_ID_NONE, ERR_DEV_ID_TAKEN, .id = twin);
@@ -168,7 +165,7 @@ static err_h create_remote(uint16_t id, const uint8_t* args, uint32_t args_len) 
   s_reg.devs[s_reg.dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx, .remote = true, .where = where};
   sys_device_policy_add(id);
   if (s_reg.remote != NULL && s_reg.remote->added != NULL) {
-    s_reg.remote->added(where.board);
+    s_reg.remote->added(id, &where);
   }
   return NULL;
 }
@@ -179,14 +176,14 @@ void sys_device_set_remote(const sys_device_remote_ops_t* ops) {
 
 uint16_t sys_device_find_remote(uint8_t board, uint16_t remote_id) {
   uint16_t found = SYS_DEVICE_ID_NONE;
-  LOCK();
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
   for (uint32_t i = 0; i < s_reg.dev_count && found == SYS_DEVICE_ID_NONE; i++) {
     const dev_t_* d = &s_reg.devs[i];
     if (d->remote && d->where.board == board && d->where.remote_id == remote_id) {
       found = d->id;
     }
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_device_mutex);
   return found;
 }
 
@@ -247,7 +244,7 @@ OP_WRITE(SYS_DEVICE, REMOVE) {
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
   err_h err = d.remote ? NULL : d.type->uninstall(d.ctx);
   if (d.remote && s_reg.remote != NULL && s_reg.remote->removed != NULL) {
-    s_reg.remote->removed(d.where.board);
+    s_reg.remote->removed(d.id, &d.where);
   }
   const uint32_t j = find_dev(d.id);  // re-found: uninstall called other devices
   // keeps the creation order
@@ -404,7 +401,7 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
   err_h err = NULL;
   sys_device_remote_t where = {0};
   bool remote_call = false;
-  LOCK();
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
   const uint32_t i = find_dev(id);
   const bool found = i != s_reg.dev_count;  // before the op: REMOVE shrinks the table
   const bool is_create = op == SYS_DEVICE_OP_CREATE || op == SYS_DEVICE_OP_CREATE_REMOTE;
@@ -430,7 +427,7 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
     err = run_op(i, dir, op, (cmd_in_t){args, args_len}, &o);
     *out_len = o.len;
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_device_mutex);
   if (remote_call) {
     err = remote_run(&where, dir, op, args, args_len, out, out_cap, out_len);
   }
@@ -521,7 +518,7 @@ err_h sys_device_sweep(uint16_t op) {
             ERR_DEV_UNKNOWN_OP, .op = op);
   const bool newest_first = op != SYS_DEVICE_OP_RESUME;
   err_h first = NULL;
-  LOCK();
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
   // A snapshot of the IDs: REMOVE changes the list while we walk it.
   uint16_t ids[CONFIG_SYS_DEVICE_MAX];
   uint32_t n = 0;
@@ -550,14 +547,14 @@ err_h sys_device_sweep(uint16_t op) {
   if (outer && s_reg.sweep_changed && s_reg.state_listener != NULL) {
     s_reg.state_listener(SYS_DEVICE_ID_NONE, op == SYS_DEVICE_OP_SUSPEND);
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_device_mutex);
   return first;
 }
 
 void sys_device_mark_system(void) {
-  LOCK();
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
   for (uint32_t i = 0; i < s_reg.dev_count; i++) {
     s_reg.devs[i].system = true;
   }
-  UNLOCK();
+  xSemaphoreGiveRecursive(sys_device_mutex);
 }

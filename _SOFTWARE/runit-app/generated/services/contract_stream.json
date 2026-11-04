@@ -1,0 +1,223 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "STREAM",
+  "router_key": 4,
+  "alias": "Data streams",
+  "description": "The board's data streams (telemetry, logs, errors, events, user streams): each one way, OUT (the board sends) or IN (what comes in on its providers), to one list of targets: providers, subscribed peers, the board's own callbacks.",
+  "category": "system",
+  "record": "SYS_ACTIONS_ID_STREAM",
+  "commands": [
+    {
+      "id": "CREATE",
+      "op": 1,
+      "symbol": "SYS_STREAM_OP_CREATE",
+      "label": "Create a stream",
+      "description": "Creates a user stream: its byte and its direction, set for good. A device both ways is two streams.",
+      "write": {
+        "args": {
+          "struct": "sys_stream_cfg_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The new stream: 0x01..0x7F, not one that exists (0x80 and more are the session's channels)"
+            },
+            {
+              "id": "dir",
+              "label": "Direction",
+              "type": "enum",
+              "enum": "sys_stream_dir_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Out: the board sends to it; In: what comes in on its providers"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "SYS_STREAM_FLAG_URGENT: its frames go first on every way out"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "REMOVE",
+      "op": 2,
+      "symbol": "SYS_STREAM_OP_REMOVE",
+      "label": "Remove a stream",
+      "description": "Removes a user stream and its targets; its providers are free again.",
+      "write": {
+        "args": {
+          "struct": "stream_ref_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The stream"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BIND",
+      "op": 3,
+      "symbol": "SYS_STREAM_OP_BIND",
+      "label": "Bind to a provider",
+      "description": "Binds a stream to a provider (a BLE characteristic, a UART port), the provider's one user: an Out stream sends its payloads there as they are, an In stream takes what comes in there.",
+      "write": {
+        "args": {
+          "struct": "binding_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The stream"
+            },
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "UNBIND",
+      "op": 4,
+      "symbol": "SYS_STREAM_OP_UNBIND",
+      "label": "Unbind from a provider",
+      "description": "Removes a binding; the provider is free again. Link 0: every binding of the stream.",
+      "write": {
+        "args": {
+          "struct": "binding_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The stream"
+            },
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "LIST",
+      "op": 7,
+      "symbol": "SYS_STREAM_OP_LIST",
+      "label": "List the streams",
+      "description": "Returns every stream, its state and its targets.",
+      "read": {
+        "returns": {
+          "type": "u8",
+          "label": "Number of streams",
+          "description": "Then, per stream: its head (id, direction, flags, state, target count), then its targets (type u8, peer u8, provider id, dropped u16)."
+        }
+      }
+    },
+    {
+      "id": "SUBSCRIBE",
+      "op": 9,
+      "symbol": "SYS_STREAM_OP_SUBSCRIBE",
+      "label": "Subscribe to a stream",
+      "description": "The peer that sends it gets the stream's messages, [stream id][payload] in a STREAM frame, until UNSUBSCRIBE or its session ends.",
+      "write": {
+        "args": {
+          "struct": "stream_ref_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The stream"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "UNSUBSCRIBE",
+      "op": 10,
+      "symbol": "SYS_STREAM_OP_UNSUBSCRIBE",
+      "label": "Unsubscribe from a stream",
+      "description": "Ends the subscription of the peer that sends it.",
+      "write": {
+        "args": {
+          "struct": "stream_ref_t",
+          "fields": [
+            {
+              "id": "id",
+              "label": "Stream",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The stream"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

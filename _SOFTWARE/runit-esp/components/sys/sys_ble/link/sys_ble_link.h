@@ -11,7 +11,7 @@ extern "C" {
 /** The runIT pair as a provider (named by its TX characteristic): the session of a BLE client. */
 #define SYS_BLE_PROVIDER_RUNIT \
   ((sys_data_provider_id_t){.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = SYS_BLE_CHR_RUNIT_TX})
-/** The LOGS characteristic as a provider, out only: the board config binds the LOGS connector to it. */
+/** The LOGS characteristic as a provider, out only: the board config binds the LOGS stream to it. */
 #define SYS_BLE_PROVIDER_LOGS \
   ((sys_data_provider_id_t){.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = SYS_BLE_CHR_RUNIT_LOGS})
 
@@ -35,7 +35,7 @@ MUST_USE err_h sys_ble_link_char_add(uint16_t svc_uuid, const sys_ble_char_cfg_t
 
 /**
  * @brief Removes the provider of a characteristic (none: NULL). Call before sys_ble_char_remove(): a provider a
- * connector or session has open is ERR_PROV_IN_USE and the characteristic stays.
+ * stream or session has open is ERR_PROV_IN_USE and the characteristic stays.
  */
 MUST_USE err_h sys_ble_link_char_remove(uint16_t char_uuid);
 

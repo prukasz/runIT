@@ -55,7 +55,7 @@ void vm_clock_pass_start(uint64_t now_us, bool stepped) {
 }
 
 err_h vm_clock_set_slowdown(uint16_t factor) {
-  ERR_CHECK(factor >= 1 && factor <= VM_CLOCK_SLOWDOWN_MAX, ERR_VM_BAD_ARG);
+  ERR_CHECK_IN_RANGE(factor, 1, VM_CLOCK_SLOWDOWN_MAX, ERR_VM_BAD_ARG);
   s_clock_preset.slowdown = factor;
   return NULL;
 }

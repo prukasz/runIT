@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_STREAM",
+  "errors": {
+    "ERR_STREAM_NOT_FOUND": {
+      "message": "Stream {stream} does not exist"
+    },
+    "ERR_STREAM_EXISTS": {
+      "message": "Stream {stream} already exists",
+      "hint": "Choose another number."
+    },
+    "ERR_STREAM_SYSTEM": {
+      "message": "Stream {stream} belongs to the board and cannot be removed"
+    },
+    "ERR_STREAM_TARGETS_FULL": {
+      "message": "Stream {stream} has no room for another connection or subscriber",
+      "hint": "Remove one of them first."
+    },
+    "ERR_STREAM_TOO_LONG": {
+      "message": "{len} bytes are too long for stream {stream} (at most {max})",
+      "hint": "Send less at once."
+    },
+    "ERR_STREAM_QUEUE_FULL": {
+      "message": "Stream {stream} is sending faster than its connections carry: {len} bytes dropped",
+      "hint": "Send less often."
+    },
+    "ERR_STREAM_BAD_ARG": {
+      "message": "Invalid stream settings"
+    },
+    "ERR_STREAM_FULL": {
+      "message": "No room for stream {stream}: every slot is taken",
+      "hint": "Remove a stream first."
+    },
+    "ERR_STREAM_DIRECTION": {
+      "message": "Stream {stream} only takes what comes in: the board does not send to it",
+      "hint": "Send to a stream made to go out."
+    }
+  }
+}

@@ -1,7 +1,7 @@
 #include "sys_event.h"
 #include "router_ids.h"
 #include "sdkconfig.h"
-#include "sys_data_connector.h"
+#include "sys_stream.h"
 #include "utils.h"
 #include "board_time.h"
 
@@ -42,7 +42,7 @@ static struct {
   volatile uint32_t isr_drops;
   uint32_t isr_drops_reported;  // event task only
 } s_event;
-static U_SPINLOCK_DEFINE(s_lock);  // s_event.subs: short copies only, never held while calling out
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // s_event.subs: short copies only, never held while calling out
 
 /* ----------------------------------------------------------------------------
  * Matching and delivery
@@ -77,12 +77,12 @@ static bool sub_matches(const sub_t* s, const sys_event_t* e, bool devices) {
 /* Copies subscription i if it matches. One slot per lock: a copy of the whole table would take
    CONFIG_SYS_EVENT_MAX_SUBS x 16 B of the publisher's stack (an esp_timer task, a router task). */
 static bool take_sub(uint32_t i, const sys_event_t* e, bool devices, sub_t* out) {
-  U_CRITICAL_ENTER(s_lock);
+  portENTER_CRITICAL(&s_lock);
   const bool hit = sub_matches(&s_event.subs[i], e, devices);
   if (hit) {
     *out = s_event.subs[i];
   }
-  U_CRITICAL_EXIT(s_lock);
+  portEXIT_CRITICAL(&s_lock);
   return hit;
 }
 
@@ -107,30 +107,24 @@ static void run_listeners(const sys_event_t* e, bool devices) {
 
 static bool any_fn_listener(const sys_event_t* e) {
   bool any = false;
-  U_CRITICAL_ENTER(s_lock);
+  portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !any; i++) {
     any = sub_matches(&s_event.subs[i], e, false);
   }
-  U_CRITICAL_EXIT(s_lock);
+  portEXIT_CRITICAL(&s_lock);
   return any;
 }
 
-/* On the events connector, when NOTIFY, and on EVENTS_ALL, unless LOCAL: a frame in the command shape, [ROUTER_KEY_EVENT][SYS_EVENT_OP_NOTIFY] and the
- * event itself (sys_event_t, 18 B packed). A full connector queue drops it (like the errors stream: reporting that
- * would add traffic to the same queue). */
+/* On the events stream, when NOTIFY: a frame in the command shape, [ROUTER_KEY_EVENT][SYS_EVENT_OP_NOTIFY] and the
+ * event itself (sys_event_t, 18 B packed). A full stream queue drops it (like the errors stream: reporting that would
+ * add traffic to the same queue). */
 static void notify(const sys_event_t* e) {
-  const bool all = !(e->flags & SYS_EVENT_LOCAL);
-  if (!all && !(e->flags & SYS_EVENT_NOTIFY)) {
+  if (!(e->flags & SYS_EVENT_NOTIFY)) {
     return;
   }
   uint8_t frame[2 + sizeof(*e)] = {ROUTER_KEY_EVENT, SYS_EVENT_OP_NOTIFY};
   memcpy(frame + 2, e, sizeof(*e));
-  if (e->flags & SYS_EVENT_NOTIFY) {
-    err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS, frame, sizeof(frame)));
-  }
-  if (all) {  // costs nothing without a subscriber: a send without a target is dropped before the queue
-    err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_EVENTS_ALL, frame, sizeof(frame)));
-  }
+  err_free(sys_stream_send(SYS_STREAM_EVENTS, frame, sizeof(frame)));
 }
 
 // What runs where the event is published, or in the task for a deferred one: notify first (whatever the listeners
@@ -187,7 +181,7 @@ static void event_task(void* arg) {
   (void)arg;
   queued_t q;
   while (1) {
-    if (xQueueReceive(sys_event_queue, &q, WAIT_FOREVER) != pdTRUE) {
+    if (xQueueReceive(sys_event_queue, &q, portMAX_DELAY) != pdTRUE) {
       continue;
     }
     const uint32_t dropped = s_event.isr_drops - s_event.isr_drops_reported;  // unsigned: right across the wrap
@@ -220,7 +214,7 @@ err_h sys_event_init(void) {
 static err_h add(const sub_t* sub, uint8_t* handle) {
   ERR_CHECK(handle != NULL, ERR_EVENT_BAD_ARG);
   bool added = false;
-  U_CRITICAL_ENTER(s_lock);
+  portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !added; i++) {
     if (!s_event.subs[i].used) {
       s_event.subs[i] = *sub;
@@ -228,7 +222,7 @@ static err_h add(const sub_t* sub, uint8_t* handle) {
       added = true;
     }
   }
-  U_CRITICAL_EXIT(s_lock);
+  portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(added, ERR_EVENT_TABLE_FULL);
   return NULL;
 }
@@ -255,12 +249,12 @@ err_h sys_event_subscribe_fn(uint16_t source, uint16_t event, uint8_t channel, s
 
 err_h sys_event_unsubscribe(uint8_t handle) {
   bool found = false;
-  U_CRITICAL_ENTER(s_lock);
+  portENTER_CRITICAL(&s_lock);
   if (handle < CONFIG_SYS_EVENT_MAX_SUBS && s_event.subs[handle].used) {
     s_event.subs[handle].used = false;
     found = true;
   }
-  U_CRITICAL_EXIT(s_lock);
+  portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(found, ERR_EVENT_NOT_FOUND, .id = handle);
   return NULL;
 }

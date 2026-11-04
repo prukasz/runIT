@@ -12,7 +12,7 @@
 #define ERR_MOD_ROUTER             2u  // components/core/router
 // 3 is unused: never assign it (sys_uart is a provider's driver: its errors are ERR_PROV_*).
 #define ERR_MOD_SYS_BLE            4u  // components/sys/sys_ble
-#define ERR_MOD_SYS_DATA_CONNECTOR 5u  // components/sys/sys_data_connector
+#define ERR_MOD_SYS_STREAM         5u  // components/sys/sys_stream
 #define ERR_MOD_SYS_DEVICE         6u  // components/sys/sys_device (also the errors shared by all devices)
 #define ERR_MOD_SYS_IO             7u  // components/sys/sys_io (the IO contract: errors of devices with pins)
 #define ERR_MOD_SYS_ACTIONS        8u  // components/sys/sys_actions
@@ -27,3 +27,5 @@
 #define ERR_MOD_SYS_DATA_PROVIDER  17u // components/sys/sys_data_provider (the ways bytes go out and come in)
 #define ERR_MOD_SYS_SESSION        18u // components/sys/sys_session (the frames, the peers, the dead-man)
 #define ERR_MOD_SYS_WATCH          19u // components/sys/sys_watch (reads run by a trigger, their entries)
+#define ERR_MOD_MQTT   20u
+#define ERR_MOD_SYS_REMOTE         21u // components/sys/sys_remote (devices of other boards: calls, subscriptions to their events and errors)

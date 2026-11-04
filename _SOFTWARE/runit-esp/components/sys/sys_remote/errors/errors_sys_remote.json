@@ -1,0 +1,22 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_REMOTE",
+  "errors": {
+    "ERR_REMOTE_NOT_WIRED": {
+      "message": "Board {board} is not reached by a cable now: its wired devices do not wait for their answers",
+      "hint": "The program's timing has changed. Check the cable to that board."
+    },
+    "ERR_REMOTE_LOST": {
+      "message": "{count} events or errors of a device of board {board} were lost on the way",
+      "hint": "The link to that board is busy or bad."
+    },
+    "ERR_REMOTE_SUBS_FULL": {
+      "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
+      "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
+    },
+    "ERR_REMOTE_ALIASES_FULL": {
+      "message": "Events and errors of a device of board {board} are not shown: {max} remote devices with events already",
+      "hint": "Its calls still work. Remove another remote device, or allow more."
+    }
+  }
+}

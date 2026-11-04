@@ -48,7 +48,7 @@ extern "C" {
 #define SYS_ACTIONS_ID_POWER_BATTERY   SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)  //@alias Battery @description Battery: the BATTERY write
 #define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  //@alias Power responses @description Power responses: the MATRIX write
 #define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
-#define SYS_ACTIONS_ID_CONN            SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
+#define SYS_ACTIONS_ID_STREAM          SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
 #define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
 
 /** @brief The project record: the list of RUN frames sys_project replays (SYS_PROJECT.MD). The other IDs of this class are sys_project's. */

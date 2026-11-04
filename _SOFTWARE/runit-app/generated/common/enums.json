@@ -224,110 +224,6 @@
         }
       ]
     },
-    "conn_bind": {
-      "alias": "Binding",
-      "kind": "defines",
-      "prefix": "SYS_DATA_CONNECTOR_BIND_",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
-      "members": [
-        {
-          "name": "SYS_DATA_CONNECTOR_BIND_RX",
-          "value": 1,
-          "alias": "Receive",
-          "description": "It takes what comes in on the provider"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_BIND_TX",
-          "value": 2,
-          "alias": "Send",
-          "description": "What it sends goes out on the provider"
-        }
-      ]
-    },
-    "conn_flag": {
-      "alias": "Connector flags",
-      "kind": "defines",
-      "prefix": "SYS_DATA_CONNECTOR_FLAG_",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
-      "members": [
-        {
-          "name": "SYS_DATA_CONNECTOR_FLAG_URGENT",
-          "value": 1,
-          "alias": "Urgent",
-          "description": "Its frames go first on every way out"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_FLAG_FORWARD",
-          "value": 2,
-          "alias": "Forward",
-          "description": "What comes in goes out on the others"
-        }
-      ]
-    },
-    "conn_state": {
-      "alias": "Connector state",
-      "kind": "defines",
-      "prefix": "SYS_DATA_CONNECTOR_STATE_",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
-      "members": [
-        {
-          "name": "SYS_DATA_CONNECTOR_STATE_SYSTEM",
-          "value": 1,
-          "alias": "System",
-          "description": "The board's own: not removed"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_STATE_SUSPENDED",
-          "value": 2,
-          "alias": "Suspended",
-          "description": "Sends dropped"
-        }
-      ]
-    },
-    "connector": {
-      "alias": "Connectors",
-      "kind": "defines",
-      "prefix": "SYS_DATA_CONNECTOR_",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
-      "members": [
-        {
-          "name": "SYS_DATA_CONNECTOR_TELEMETRY",
-          "value": 2,
-          "alias": "Telemetry",
-          "description": "Telemetry: the VM's subscribed values"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_LOGS",
-          "value": 3,
-          "alias": "Logs",
-          "description": "The log lines"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_ERRORS",
-          "value": 4,
-          "alias": "Errors",
-          "description": "The error records (urgent)"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_WATCHES",
-          "value": 5,
-          "alias": "Watches",
-          "description": "The watches' entries, in a stream frame to their owner (no connector of this byte exists)"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_EVENTS",
-          "value": 6,
-          "alias": "Events",
-          "description": "The event notifications (urgent)"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_EVENTS_ALL",
-          "value": 7,
-          "alias": "All events",
-          "description": "Every event but the local ones: what another board mirrors"
-        }
-      ]
-    },
     "dc_motor_stop_e": {
       "alias": "DC Motor Stop",
       "kind": "enum",
@@ -432,6 +328,20 @@
           "value": 65535,
           "alias": "No device",
           "description": "Never registered: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device"
+        }
+      ]
+    },
+    "device_remote_flag": {
+      "alias": "Remote device flags",
+      "kind": "defines",
+      "prefix": "SYS_DEVICE_REMOTE_",
+      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device_remote.h",
+      "members": [
+        {
+          "name": "SYS_DEVICE_REMOTE_WIRED",
+          "value": 1,
+          "alias": "Wired",
+          "description": "A neighbour on a wired link: every call waits for its answer, no copies"
         }
       ]
     },
@@ -609,16 +519,10 @@
           "description": "Taken by its one user"
         },
         {
-          "name": "SYS_DATA_PROVIDER_STATE_FRAMED",
-          "value": 4,
-          "alias": "Framed",
-          "description": "Its driver splits and joins frames"
-        },
-        {
           "name": "SYS_DATA_PROVIDER_STATE_WIRED",
           "value": 8,
           "alias": "Wired",
-          "description": "A cable (UART, SPI): a round trip of a millisecond"
+          "description": "Connection realised by cable - low latency"
         }
       ]
     },
@@ -667,10 +571,10 @@
           "description": "Bluetooth: runtime GATT table and BLE status"
         },
         {
-          "name": "ROUTER_KEY_CONN",
+          "name": "ROUTER_KEY_STREAM",
           "value": 4,
           "alias": "Data streams",
-          "description": "Data streams: create, bind, suspend and list outbound streams"
+          "description": "Data streams: create, bind, subscribe and list the board's streams"
         },
         {
           "name": "ROUTER_KEY_DEVICE",
@@ -731,6 +635,12 @@
           "value": 15,
           "alias": "Watches",
           "description": "Watches: reads this board runs by a trigger and sends by itself (add, remove, list)"
+        },
+        {
+          "name": "ROUTER_KEY_REMOTE",
+          "value": 16,
+          "alias": "Remote devices",
+          "description": "Remote devices: subscriptions of other boards to this board's devices (their events and errors)"
         }
       ]
     },
@@ -772,6 +682,26 @@
         }
       ]
     },
+    "session_channel": {
+      "alias": "Session channels",
+      "kind": "defines",
+      "prefix": "SYS_SESSION_CHANNEL_",
+      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_CHANNEL_WATCHES",
+          "value": 128,
+          "alias": "Watches",
+          "description": "A watch's entry, to its owner (SYS_WATCH.MD \"Entries\")"
+        },
+        {
+          "name": "SYS_SESSION_CHANNEL_REMOTE",
+          "value": 129,
+          "alias": "Remote devices",
+          "description": "A device's events and errors, to its subscribers (SYS_REMOTE.MD)"
+        }
+      ]
+    },
     "session_frame": {
       "alias": "Frame byte",
       "kind": "defines",
@@ -808,7 +738,7 @@
           "name": "SYS_SESSION_ID_DEFAULT",
           "value": 0,
           "alias": "Default",
-          "description": "A board's id until the app sets one; the root's by convention"
+          "description": "A board's id until the app sets one; the master's by convention"
         },
         {
           "name": "SYS_SESSION_ID_LAST",
@@ -817,22 +747,28 @@
           "description": "Boards are 0x00..0xEF"
         },
         {
-          "name": "SYS_SESSION_ID_CLIENT_FIRST",
+          "name": "SYS_SESSION_ID_APP",
           "value": 240,
-          "alias": "First client",
-          "description": "Clients (app, test host) are 0xF0..0xFC"
+          "alias": "App",
+          "description": "The app's id, reserved"
+        },
+        {
+          "name": "SYS_SESSION_ID_CLIENT_FIRST",
+          "value": 241,
+          "alias": "First other client",
+          "description": "Other clients (a test host) are 0xF1..0xFC; each picks its own"
         },
         {
           "name": "SYS_SESSION_ID_CLIENT_LAST",
           "value": 252,
           "alias": "Last client",
-          "description": "One per client session of the root"
+          "description": "The last client id"
         },
         {
           "name": "SYS_SESSION_ID_NONE",
           "value": 253,
           "alias": "None",
-          "description": "A client before the root gave it an id"
+          "description": "A peer before its hello: no id yet"
         },
         {
           "name": "SYS_SESSION_ID_SELF",
@@ -856,7 +792,7 @@
       "members": [
         {
           "name": "SYS_SESSION_VERSION",
-          "value": 1,
+          "value": 2,
           "alias": "Version",
           "description": "The frame format with CMD_FRAME_MAX and CMD_HEAD"
         }
@@ -905,7 +841,7 @@
           "description": "Bluetooth GATT services and APPLY"
         },
         {
-          "name": "SYS_ACTIONS_ID_CONN",
+          "name": "SYS_ACTIONS_ID_STREAM",
           "value": 16777223,
           "alias": "Data streams",
           "description": "Data streams and bindings"
@@ -918,28 +854,83 @@
         }
       ]
     },
-    "sys_data_connector_rx_e": {
-      "alias": "Receive",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_data_connector/config/sys_data_connector_config.h",
+    "stream": {
+      "alias": "Streams",
+      "kind": "defines",
+      "prefix": "SYS_STREAM_",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
       "members": [
         {
-          "name": "SYS_DATA_CONNECTOR_RX_NONE",
-          "value": 0,
-          "alias": "None",
-          "description": "Nothing kept (send only, or forward only)"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_RX_LATEST",
-          "value": 1,
-          "alias": "Latest",
-          "description": "The last message, any number of readers"
-        },
-        {
-          "name": "SYS_DATA_CONNECTOR_RX_FIFO",
+          "name": "SYS_STREAM_TELEMETRY",
           "value": 2,
-          "alias": "Queue",
-          "description": "Every message in order, one reader"
+          "alias": "Telemetry",
+          "description": "Telemetry: the VM's subscribed values"
+        },
+        {
+          "name": "SYS_STREAM_LOGS",
+          "value": 3,
+          "alias": "Logs",
+          "description": "The log lines"
+        },
+        {
+          "name": "SYS_STREAM_ERRORS",
+          "value": 4,
+          "alias": "Errors",
+          "description": "The error records (urgent)"
+        },
+        {
+          "name": "SYS_STREAM_EVENTS",
+          "value": 6,
+          "alias": "Events",
+          "description": "The event notifications (urgent)"
+        }
+      ]
+    },
+    "stream_flag": {
+      "alias": "Stream flags",
+      "kind": "defines",
+      "prefix": "SYS_STREAM_FLAG_",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "members": [
+        {
+          "name": "SYS_STREAM_FLAG_URGENT",
+          "value": 1,
+          "alias": "Urgent",
+          "description": "Its frames go first on every way out"
+        }
+      ]
+    },
+    "stream_range": {
+      "alias": "Stream ids",
+      "kind": "defines",
+      "prefix": "SYS_STREAM_ID_",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "members": [
+        {
+          "name": "SYS_STREAM_ID_USER_FIRST",
+          "value": 16,
+          "alias": "First user stream",
+          "description": "User streams are 0x10..0x7F"
+        },
+        {
+          "name": "SYS_STREAM_ID_LAST",
+          "value": 127,
+          "alias": "Last stream",
+          "description": "From 0x80 the byte is a session channel"
+        }
+      ]
+    },
+    "stream_state": {
+      "alias": "Stream state",
+      "kind": "defines",
+      "prefix": "SYS_STREAM_STATE_",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "members": [
+        {
+          "name": "SYS_STREAM_STATE_SYSTEM",
+          "value": 1,
+          "alias": "System",
+          "description": "The board's own: not removed"
         }
       ]
     },
@@ -959,6 +950,12 @@
           "value": 2,
           "alias": "Bluetooth LE",
           "description": "A BLE characteristic, or the RX / TX pair"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_LINK_MQTT",
+          "value": 3,
+          "alias": "MQTT",
+          "description": "a ble topic sub pub"
         }
       ]
     },
@@ -1021,25 +1018,6 @@
           "value": 4,
           "alias": "Critical",
           "description": "Low, medium, high and critical"
-        }
-      ]
-    },
-    "sys_device_remote_mode_e": {
-      "alias": "Remote mode",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device_remote.h",
-      "members": [
-        {
-          "name": "SYS_DEVICE_REMOTE_ASYNC",
-          "value": 0,
-          "alias": "Async",
-          "description": "A write returns once taken; a read answers a copy"
-        },
-        {
-          "name": "SYS_DEVICE_REMOTE_BLOCKING",
-          "value": 1,
-          "alias": "Blocking",
-          "description": "A call waits for its answer; a wired neighbour only"
         }
       ]
     },
@@ -1489,6 +1467,25 @@
         }
       ]
     },
+    "sys_remote_kind_e": {
+      "alias": "Remote frame",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_remote/config/sys_remote_config.h",
+      "members": [
+        {
+          "name": "SYS_REMOTE_EVENT",
+          "value": 0,
+          "alias": "Event",
+          "description": "An event of the device: sys_event_t"
+        },
+        {
+          "name": "SYS_REMOTE_ERROR",
+          "value": 1,
+          "alias": "Error",
+          "description": "An error of the device outside a command: an error record"
+        }
+      ]
+    },
     "sys_safe_reason_e": {
       "alias": "Safe State Reason",
       "kind": "enum",
@@ -1511,25 +1508,6 @@
           "value": 4,
           "alias": "Power fault",
           "description": "The power manager's response to a power fault (its response matrix: safe state)"
-        }
-      ]
-    },
-    "sys_session_access_e": {
-      "alias": "Peer access",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
-      "members": [
-        {
-          "name": "SYS_SESSION_READ",
-          "value": 0,
-          "alias": "Read only",
-          "description": "Reads only: a write is refused (ERR_SESSION_DENIED)"
-        },
-        {
-          "name": "SYS_SESSION_FULL",
-          "value": 1,
-          "alias": "Full",
-          "description": "Every command"
         }
       ]
     },
@@ -1560,7 +1538,7 @@
           "name": "SYS_SESSION_GONE",
           "value": 4,
           "alias": "Gone",
-          "description": "[count][ids]: peers no longer reached; from the parent, passed down"
+          "description": "[client]: a client of the master no longer reached; to every slave"
         }
       ]
     },
@@ -1585,7 +1563,7 @@
           "name": "SYS_SESSION_STREAM",
           "value": 2,
           "alias": "Stream",
-          "description": "One connector frame, to a peer subscribed to the connector"
+          "description": "[stream id][payload]: a stream's frame to a subscribed peer, or a session channel's"
         },
         {
           "name": "SYS_SESSION_CONTROL",
@@ -1601,22 +1579,66 @@
       "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
       "members": [
         {
-          "name": "SYS_SESSION_PARENT",
+          "name": "SYS_SESSION_MASTER",
           "value": 0,
-          "alias": "Parent",
-          "description": "Towards the root: one at most; a board without one is the root"
+          "alias": "Master",
+          "description": "The board's master: its only session; a board without one is the master"
         },
         {
-          "name": "SYS_SESSION_CHILD",
+          "name": "SYS_SESSION_SLAVE",
           "value": 1,
-          "alias": "Child",
-          "description": "A board below"
+          "alias": "Slave",
+          "description": "A board of this master"
         },
         {
           "name": "SYS_SESSION_CLIENT",
           "value": 2,
           "alias": "Client",
-          "description": "The app, a test host: on a board without a parent only"
+          "description": "The app, a test host: on the master only"
+        }
+      ]
+    },
+    "sys_stream_dir_e": {
+      "alias": "Stream direction",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "members": [
+        {
+          "name": "SYS_STREAM_OUT",
+          "value": 0,
+          "alias": "Out",
+          "description": "The board sends (sys_stream_send): to its providers, peers, callbacks"
+        },
+        {
+          "name": "SYS_STREAM_IN",
+          "value": 1,
+          "alias": "In",
+          "description": "What comes in on its providers: to its peers and callbacks"
+        }
+      ]
+    },
+    "sys_stream_target_e": {
+      "alias": "Stream target",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "members": [
+        {
+          "name": "SYS_STREAM_TARGET_PROVIDER",
+          "value": 0,
+          "alias": "Provider",
+          "description": "A binding: OUT sends the payload there as is, IN takes what comes in there"
+        },
+        {
+          "name": "SYS_STREAM_TARGET_PEER",
+          "value": 1,
+          "alias": "Peer",
+          "description": "A subscriber: [stream id][payload] in a STREAM frame of its session"
+        },
+        {
+          "name": "SYS_STREAM_TARGET_CALLBACK",
+          "value": 2,
+          "alias": "Callback",
+          "description": "The board's own code (a listener), on the stream task"
         }
       ]
     },
@@ -2481,20 +2503,6 @@
           "description": "3,600,000 ms"
         }
       ]
-    },
-    "watch_to": {
-      "alias": "Watch target",
-      "kind": "defines",
-      "prefix": "SYS_WATCH_TO_",
-      "source_file": "runit-esp/components/sys/sys_watch/config/sys_watch_config.h",
-      "members": [
-        {
-          "name": "SYS_WATCH_TO_OWNER",
-          "value": 0,
-          "alias": "Owner",
-          "description": "Straight to the one who added it, in a STREAM frame"
-        }
-      ]
     }
   },
   "symbols": {
@@ -2533,7 +2541,6 @@
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_KEY_ACTIONS": "router_key",
     "ROUTER_KEY_BLE": "router_key",
-    "ROUTER_KEY_CONN": "router_key",
     "ROUTER_KEY_DEVICE": "router_key",
     "ROUTER_KEY_EVENT": "router_key",
     "ROUTER_KEY_I2C": "router_key",
@@ -2541,7 +2548,9 @@
     "ROUTER_KEY_POWER": "router_key",
     "ROUTER_KEY_PROJECT": "router_key",
     "ROUTER_KEY_PROVIDER": "router_key",
+    "ROUTER_KEY_REMOTE": "router_key",
     "ROUTER_KEY_SESSION": "router_key",
+    "ROUTER_KEY_STREAM": "router_key",
     "ROUTER_KEY_SYS": "router_key",
     "ROUTER_KEY_VM": "router_key",
     "ROUTER_KEY_WATCH": "router_key",
@@ -2554,13 +2563,13 @@
     "SYS_ACTIONS_CLASS_SYSTEM": "action_class",
     "SYS_ACTIONS_CLASS_USER": "action_class",
     "SYS_ACTIONS_ID_BLE": "settings_record",
-    "SYS_ACTIONS_ID_CONN": "settings_record",
     "SYS_ACTIONS_ID_LOG": "settings_record",
     "SYS_ACTIONS_ID_POWER_BATTERY": "settings_record",
     "SYS_ACTIONS_ID_POWER_CFG": "settings_record",
     "SYS_ACTIONS_ID_POWER_PD": "settings_record",
     "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
     "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
+    "SYS_ACTIONS_ID_STREAM": "settings_record",
     "SYS_BLE_CHR_RUNIT_LOGS": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_RX": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_TX": "ble_runit_uuid",
@@ -2569,24 +2578,9 @@
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
-    "SYS_DATA_CONNECTOR_BIND_RX": "conn_bind",
-    "SYS_DATA_CONNECTOR_BIND_TX": "conn_bind",
-    "SYS_DATA_CONNECTOR_ERRORS": "connector",
-    "SYS_DATA_CONNECTOR_EVENTS": "connector",
-    "SYS_DATA_CONNECTOR_EVENTS_ALL": "connector",
-    "SYS_DATA_CONNECTOR_FLAG_FORWARD": "conn_flag",
-    "SYS_DATA_CONNECTOR_FLAG_URGENT": "conn_flag",
-    "SYS_DATA_CONNECTOR_LOGS": "connector",
-    "SYS_DATA_CONNECTOR_RX_FIFO": "sys_data_connector_rx_e",
-    "SYS_DATA_CONNECTOR_RX_LATEST": "sys_data_connector_rx_e",
-    "SYS_DATA_CONNECTOR_RX_NONE": "sys_data_connector_rx_e",
-    "SYS_DATA_CONNECTOR_STATE_SUSPENDED": "conn_state",
-    "SYS_DATA_CONNECTOR_STATE_SYSTEM": "conn_state",
-    "SYS_DATA_CONNECTOR_TELEMETRY": "connector",
-    "SYS_DATA_CONNECTOR_WATCHES": "connector",
     "SYS_DATA_PROVIDER_LINK_BLE": "sys_data_provider_link_e",
+    "SYS_DATA_PROVIDER_LINK_MQTT": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
-    "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
     "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
     "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",
     "SYS_DATA_PROVIDER_STATE_WIRED": "prov_state",
@@ -2610,8 +2604,7 @@
     "SYS_DEVICE_IMPORTANCE_LOW": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_MEDIUM": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_NONE": "sys_device_importance_e",
-    "SYS_DEVICE_REMOTE_ASYNC": "sys_device_remote_mode_e",
-    "SYS_DEVICE_REMOTE_BLOCKING": "sys_device_remote_mode_e",
+    "SYS_DEVICE_REMOTE_WIRED": "device_remote_flag",
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
     "SYS_EVENT_OP_NOTIFY": "event_op",
@@ -2675,19 +2668,22 @@
     "SYS_PROJECT_BOOT_LOAD": "sys_project_boot_e",
     "SYS_PROJECT_BOOT_NONE": "sys_project_boot_e",
     "SYS_PROJECT_BOOT_RUN": "sys_project_boot_e",
+    "SYS_REMOTE_ERROR": "sys_remote_kind_e",
+    "SYS_REMOTE_EVENT": "sys_remote_kind_e",
     "SYS_SAFE_DEADMAN": "sys_safe_reason_e",
     "SYS_SAFE_POWER": "sys_safe_reason_e",
     "SYS_SAFE_STOP": "sys_safe_reason_e",
     "SYS_SESSION_ANSWER": "sys_session_kind_e",
-    "SYS_SESSION_CHILD": "sys_session_peer_e",
+    "SYS_SESSION_CHANNEL_REMOTE": "session_channel",
+    "SYS_SESSION_CHANNEL_WATCHES": "session_channel",
     "SYS_SESSION_CLIENT": "sys_session_peer_e",
     "SYS_SESSION_CONTROL": "sys_session_kind_e",
     "SYS_SESSION_FRAME_FLAGS": "session_frame",
     "SYS_SESSION_FRAME_KIND": "session_frame",
     "SYS_SESSION_FRAME_STATUS": "session_frame",
-    "SYS_SESSION_FULL": "sys_session_access_e",
     "SYS_SESSION_GONE": "sys_session_control_e",
     "SYS_SESSION_HELLO": "sys_session_control_e",
+    "SYS_SESSION_ID_APP": "session_id",
     "SYS_SESSION_ID_BROADCAST": "session_id",
     "SYS_SESSION_ID_CLIENT_FIRST": "session_id",
     "SYS_SESSION_ID_CLIENT_LAST": "session_id",
@@ -2695,17 +2691,29 @@
     "SYS_SESSION_ID_LAST": "session_id",
     "SYS_SESSION_ID_NONE": "session_id",
     "SYS_SESSION_ID_SELF": "session_id",
+    "SYS_SESSION_MASTER": "sys_session_peer_e",
     "SYS_SESSION_NO_SESSION": "sys_session_control_e",
-    "SYS_SESSION_PARENT": "sys_session_peer_e",
     "SYS_SESSION_PING": "sys_session_control_e",
-    "SYS_SESSION_READ": "sys_session_access_e",
     "SYS_SESSION_REQUEST": "sys_session_kind_e",
+    "SYS_SESSION_SLAVE": "sys_session_peer_e",
     "SYS_SESSION_STREAM": "sys_session_kind_e",
     "SYS_SESSION_VERSION": "session_version",
+    "SYS_STREAM_ERRORS": "stream",
+    "SYS_STREAM_EVENTS": "stream",
+    "SYS_STREAM_FLAG_URGENT": "stream_flag",
+    "SYS_STREAM_ID_LAST": "stream_range",
+    "SYS_STREAM_ID_USER_FIRST": "stream_range",
+    "SYS_STREAM_IN": "sys_stream_dir_e",
+    "SYS_STREAM_LOGS": "stream",
+    "SYS_STREAM_OUT": "sys_stream_dir_e",
+    "SYS_STREAM_STATE_SYSTEM": "stream_state",
+    "SYS_STREAM_TARGET_CALLBACK": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_PEER": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_PROVIDER": "sys_stream_target_e",
+    "SYS_STREAM_TELEMETRY": "stream",
     "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
     "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
     "SYS_WATCH_PERIODIC": "sys_watch_trigger_e",
-    "SYS_WATCH_TO_OWNER": "watch_to",
     "VM_BIT_AND": "vm_bit_op_e",
     "VM_BIT_BSWAP": "vm_bit_op_e",
     "VM_BIT_CLR": "vm_bit_op_e",

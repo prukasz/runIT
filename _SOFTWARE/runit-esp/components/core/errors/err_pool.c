@@ -19,12 +19,12 @@ static struct {
   uint32_t next_new;                  // blocks [next_new, BLOCKS) were never handed out
   uint32_t used[(BLOCKS + 31) / 32];  // 1 bit per block, catches double free
 } s_pool;
-static U_SPINLOCK_DEFINE(s_lock);
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 err_h err_pool_alloc(void) {
   uint8_t* blk = NULL;
 
-  U_CRITICAL_ENTER_SAFE(s_lock);
+  portENTER_CRITICAL_SAFE(&s_lock);
   if (s_pool.free_list != NULL) {
     blk = (uint8_t*)s_pool.free_list;
     s_pool.free_list = s_pool.free_list->next;
@@ -35,7 +35,7 @@ err_h err_pool_alloc(void) {
     uint32_t i = (uint32_t)(blk - &s_pool.blocks[0][0]) / BLOCK_SIZE;
     s_pool.used[i / 32] |= 1u << (i % 32);
   }
-  U_CRITICAL_EXIT_SAFE(s_lock);
+  portEXIT_CRITICAL_SAFE(&s_lock);
 
   return (err_h)blk;
 }
@@ -57,7 +57,7 @@ void err_pool_free(err_h e) {
   uint32_t bit = 1u << (i % 32);
   bool was_used;
 
-  U_CRITICAL_ENTER_SAFE(s_lock);
+  portENTER_CRITICAL_SAFE(&s_lock);
   was_used = (s_pool.used[i / 32] & bit) != 0;
   if (was_used) {
     s_pool.used[i / 32] &= ~bit;
@@ -65,7 +65,7 @@ void err_pool_free(err_h e) {
     blk->next = s_pool.free_list;
     s_pool.free_list = blk;
   }
-  U_CRITICAL_EXIT_SAFE(s_lock);
+  portEXIT_CRITICAL_SAFE(&s_lock);
 
   assert(was_used && "error pool double free");
 }

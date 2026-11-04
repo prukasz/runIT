@@ -10,8 +10,17 @@ _Static_assert(CONFIG_ERRORS_RECORD_REQ_MAX < ERR_RECORD_REQ_CUT, "ERRORS_RECORD
 
 #define NO_BOARD (-1)
 
+// A command's part of a record: its header and its request.
+typedef struct {
+  uint8_t from;
+  uint16_t seq;
+  uint8_t flags;
+  const uint8_t* req;
+  uint32_t req_len;
+} origin_t;
+
 // The record of a chain: of a command (cmd), of a board (board >= 0), else internal.
-static uint32_t record(const err_cmd_t* cmd, int board, err_h chain, uint8_t* buf, uint32_t cap) {
+static uint32_t record(const origin_t* cmd, int board, err_h chain, uint8_t* buf, uint32_t cap) {
   // The header and the chain count.
   const uint32_t header = board != NO_BOARD ? RECORD_INTERNAL_HDR + 1 : cmd == NULL ? RECORD_INTERNAL_HDR : RECORD_COMMAND_HDR;
   if (buf == NULL || cap < header + 1) {
@@ -33,7 +42,7 @@ static uint32_t record(const err_cmd_t* cmd, int board, err_h chain, uint8_t* bu
     const uint32_t req_max = room < CONFIG_ERRORS_RECORD_REQ_MAX ? room : CONFIG_ERRORS_RECORD_REQ_MAX;
     const uint32_t req_copy = cmd->req_len < req_max ? cmd->req_len : req_max;
     const err_record_cmd_t hdr = {
-        .from = cmd->src,
+        .from = cmd->from,
         .seq = cmd->seq,
         .flags = cmd->flags,
         .req_len = (uint8_t)(req_copy | (req_copy < cmd->req_len ? ERR_RECORD_REQ_CUT : 0)),
@@ -69,8 +78,14 @@ static uint32_t record(const err_cmd_t* cmd, int board, err_h chain, uint8_t* bu
   return pos;
 }
 
-uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap) {
-  return record(cmd, NO_BOARD, chain, buf, cap);
+uint32_t err_record(err_h chain, uint8_t* buf, uint32_t cap) {
+  return record(NULL, NO_BOARD, chain, buf, cap);
+}
+
+uint32_t err_record_cmd(uint8_t from, uint16_t seq, uint8_t flags, const uint8_t* req, uint32_t req_len, err_h chain,
+                        uint8_t* buf, uint32_t cap) {
+  const origin_t cmd = {.from = from, .seq = seq, .flags = flags, .req = req, .req_len = req_len};
+  return record(&cmd, NO_BOARD, chain, buf, cap);
 }
 
 uint32_t err_record_board(uint8_t board, err_h chain, uint8_t* buf, uint32_t cap) {

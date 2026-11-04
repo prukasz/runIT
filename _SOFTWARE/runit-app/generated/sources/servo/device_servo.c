@@ -85,7 +85,7 @@ static err_h servo_decode(const servo_t* c, int16_t value_x10, int32_t* pos_x10)
 
 /* ---- Own ops ---- */
 
-SYS_DEVICE_HANDLER(home_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(home_h, sys_device_args_none_t) {
   (void)args;
   (void)out;
   servo_t* c = ctx;
@@ -110,14 +110,14 @@ SYS_DEVICE_HANDLER(set_h, servo_set_t) {
 }
 
 // A read: allowed while suspended (0 then).
-SYS_DEVICE_HANDLER(get_pulse_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_pulse_h, sys_device_args_none_t) {
   (void)args;
   const servo_t* c = ctx;
   const uint16_t pulse = c->base.suspended ? 0 : c->pulse_us;
   return cmd_reply(out, &pulse, sizeof(pulse));
 }
 
-SYS_DEVICE_HANDLER(release_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(release_h, sys_device_args_none_t) {
   (void)args;
   (void)out;
   servo_t* c = ctx;

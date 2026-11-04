@@ -354,14 +354,14 @@ SYS_DEVICE_HANDLER(set_protection_h, tps55289_protection_t) {
   return tps_powered(c) ? chip_set_protection(c) : NULL;
 }
 
-SYS_DEVICE_HANDLER(get_protection_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_protection_h, sys_device_args_none_t) {
   (void)args;
   const tps_t* c = ctx;
   return cmd_reply(out, &c->prot, sizeof(c->prot));
 }
 
 // A failed step ends the rise where it is (soft-rise limit kept); the timer reports the error.
-SYS_DEVICE_HANDLER(rise_step_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(rise_step_h, sys_device_args_none_t) {
   (void)args;
   (void)out;
   tps_t* c = ctx;

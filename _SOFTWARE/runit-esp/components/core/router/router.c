@@ -28,11 +28,13 @@ err_h router_call_op(const router_op_t* table, uint32_t count, void* ctx, cmd_in
     if (table[i].code == code) {
       cmd_f fn = NULL;
       err_h err = cmd_side(table[i].read, table[i].write, dir, &fn);
-      if (err == NULL) err = fn(ctx, (cmd_in_t){in.data + 1, in.len - 1}, out);
-      return err != NULL ? ERR_WRAP(err, ERR_ROUTER_KEY, .key = code) : NULL;
+      if (err == NULL) {
+        err = fn(ctx, (cmd_in_t){in.data + 1, in.len - 1}, out);
+      }
+      return err != NULL ? ERR_WRAP(err, ERR_ROUTER_OP, .code = code) : NULL;
     }
   }
-  return ERR_NEW(ERR_ROUTER_UNKNOWN_KEY, .key = code);
+  return ERR_NEW(ERR_ROUTER_UNKNOWN_OP, .code = code);
 }
 
 err_h router_args(cmd_in_t in, void* args, uint32_t size) {

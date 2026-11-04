@@ -2,7 +2,7 @@
 
 #include "esp_log.h"
 #include "sdkconfig.h"
-#include "sys_data_connector.h"
+#include "sys_stream.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
 
@@ -57,17 +57,17 @@ static int log_vprintf(const char* fmt, va_list args) {
   va_copy(copy, args);
   const int ret = s_log_preset.cfg.mirror_serial ? s_log.console(fmt, args) : 0;
 
-  /* Only from tasks (not the connector task: its own logs would loop), and
+  /* Only from tasks (not the stream task: its own logs would loop), and
    * after the scheduler runs. A full queue just drops the line. */
   if (s_log_preset.cfg.send_logs && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && !xPortInIsrContext() &&
-      !sys_data_connector_is_task()) {
+      !sys_stream_is_task()) {
     char line[CONFIG_SYS_LOG_LINE_MAX];
     const int n = vsnprintf(line, sizeof(line), fmt, copy);
     if (n > 0) {
       size_t len = (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1;
       len = clean_line(line, len);
       if (len > 0) {
-        err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_LOGS, line, (uint32_t)len));  // dropped, not reported: would log
+        err_free(sys_stream_send(SYS_STREAM_LOGS, line, (uint32_t)len));  // dropped, not reported: would log
       }
     }
   }
@@ -116,7 +116,7 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
   portEXIT_CRITICAL(&s_log_preset.history_lock);
   if (s_log_preset.cfg.send_errors) {
     // a full queue drops it: reporting would loop
-    err_free(sys_data_connector_send(SYS_DATA_CONNECTOR_ERRORS, record, len));
+    err_free(sys_stream_send(SYS_STREAM_ERRORS, record, len));
   }
 }
 

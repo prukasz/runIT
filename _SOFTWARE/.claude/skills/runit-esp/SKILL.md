@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE/data connector and VM. Load for any work under runit-esp/ (components/, main/), and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE, streams and VM. Load for any work under runit-esp/ (components/, main/), and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -27,14 +27,14 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
 | core | `core/utils` | `utils.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists |
-| core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format, the error record (`err_record`, `err_cmd_t`) |
+| core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format, the error record (`err_record`, `err_record_cmd`; a command's via `cmd_err_record`) |
 | core | `core/time` | `TIME.MD` | the board's clock (`board_time_*`): set by a client, UTC once set, the uptime; everything that needs the time takes it from here |
 | core | `core/cmd` | `CMD.MD` | the command handler type, the direction (read / write sides, the mirror), `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
-| core | `core/router` | `ROUTER.MD` | the commands of this board (`err_cmd_t` and their answer callbacks), root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, origin, urgent work |
+| core | `core/router` | `ROUTER.MD` | the commands of this board (`cmd_req_t` and their answer callbacks), root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, tap, origin, urgent work |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in (a BLE characteristic, the UART), by id, one user each; their drivers (key `0x0D`) |
-| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on framed providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
+| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period, a change or an event, their entries sent to the one who added them (key `0x0F`) |
-| sys | `sys/sys_data_connector` | `SYS_DATA_CONNECTOR.MD` | streams (connectors): bindings to providers (tx, rx), peers subscribed over their session, mirrors of another board's streams, what comes in kept or forwarded |
+| sys | `sys/sys_stream` | `SYS_STREAM.MD` | streams: one byte and one direction (OUT, IN), one list of targets (bindings to providers, peers subscribed over their session, callbacks); nothing kept |
 | sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console and the board-to-board link as binary providers (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |

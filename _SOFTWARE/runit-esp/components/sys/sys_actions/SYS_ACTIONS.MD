@@ -40,7 +40,7 @@ System IDs (class `0x01`):
 | `0x01000004` `SYS_ACTIONS_ID_POWER_BATTERY` | power BATTERY | power |
 | `0x01000005` `SYS_ACTIONS_ID_POWER_RESPONSES` | power MATRIX (the response matrix) | power |
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
-| `0x01000007` `SYS_ACTIONS_ID_CONN` | data streams and bindings | connector |
+| `0x01000007` `SYS_ACTIONS_ID_STREAM` | data streams and bindings | stream |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
 
 Class `0xFF` holds no records: an error policy's `actions[]` use it for the policy's own responses (`SYS_DEVICE_RESPONSE_*`, SYS_DEVICE.MD "Error policy"). Any client may write any other class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.

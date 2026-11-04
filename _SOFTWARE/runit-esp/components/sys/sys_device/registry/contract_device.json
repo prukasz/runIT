@@ -212,7 +212,7 @@
       "op": 8,
       "symbol": "SYS_DEVICE_OP_CREATE_REMOTE",
       "label": "Create remote device",
-      "description": "Makes a device of a type that is a device of another board: the type, then where it is. Its config is the other board's; nothing is asked of that board.",
+      "description": "Makes a local id that names a device of another board: the type, then where it is. A call on it is that board's device command with the id swapped; its events and errors come here as this device's. Its config is the other board's; nothing is asked of that board but the subscription to its events and errors.",
       "write": {
         "args": {
           "fields": [
@@ -243,22 +243,13 @@
               "description": "Its id on that board"
             },
             {
-              "id": "mode",
-              "label": "Mode",
-              "type": "enum",
+              "id": "flags",
+              "label": "Flags",
+              "type": "number",
               "raw_type": "u8",
               "size": 1,
               "offset": 5,
-              "description": "sys_device_remote_mode_e: async or blocking"
-            },
-            {
-              "id": "max_age_ms",
-              "label": "Oldest copy (ms)",
-              "type": "number",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 6,
-              "description": "The oldest copy a read answers; blocking: 0 always asks; async: at least 1"
+              "description": "SYS_DEVICE_REMOTE_*: WIRED, a neighbour on a cable (every call waits for its answer); else reads come from a watch's copy and writes do not wait"
             }
           ]
         }

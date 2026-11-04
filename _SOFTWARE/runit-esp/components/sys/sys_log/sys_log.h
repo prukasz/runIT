@@ -17,12 +17,12 @@ extern "C" {
  *   level          how much is printed: 0 blocks every ESP_LOG line, up to
  *                  CONFIG_LOG_MAXIMUM_LEVEL (the compile-time ceiling);
  *   mirror_serial  1: lines also go to the console (UART / USB-Serial-JTAG),
- *                  0: not to the console (a line still reaches the logs connector when send_logs is 1);
+ *                  0: not to the console (a line still reaches the logs stream when send_logs is 1);
  *   trace_errors   1: a reported error chain is also printed as log lines,
  *                  0: only its error record is sent (the errors stream).
  *   send_errors    1: a reported error chain is sent as a record on the errors stream,
  *                  0: nothing is sent (the chain may still be printed, see trace_errors);
- *   send_logs      1: every log line is also sent as text to the logs connector (BLE),
+ *   send_logs      1: every log line is also sent as text to the logs stream (BLE),
  *                  0: log lines stay on the console.
  * The session's frames on the console and the error records don't go through ESP_LOG,
  * so no setting here can silence them.
@@ -43,8 +43,8 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
- * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs connector (SYS_DATA_CONNECTOR_LOGS); then applies the defaults (INFO,
- * mirror off, trace on, send errors on, send logs on). Boot step, after sys_data_connector_init().
+ * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs stream (SYS_STREAM_LOGS); then applies the defaults (INFO,
+ * mirror off, trace on, send errors on, send logs on). Boot step, after the logs and errors streams exist.
  */
 MUST_USE err_h sys_log_init(void);
 
@@ -63,7 +63,7 @@ void sys_log_get(sys_log_cfg_t* out);
 /**
  * @brief An error record (err_record): kept in the history the app reads with ERRORS (the latest
  * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped) and, with send_errors on, sent on the errors stream
- * (SYS_DATA_CONNECTOR_ERRORS). Any task; never reports (the error sink calls it for every error).
+ * (SYS_STREAM_ERRORS). Any task; never reports (the error sink calls it for every error).
  */
 void sys_log_error(const uint8_t* record, uint32_t len);
 

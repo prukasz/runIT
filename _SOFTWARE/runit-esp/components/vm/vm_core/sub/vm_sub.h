@@ -9,7 +9,7 @@
  *
  * A client subscribes to a list of object IDs (VM_OP_SUBSCRIBE). After
  * every completed pass, vm_sub_scan() walks each subscribed object and its PTR
- * children (8 levels) and sends, on the telemetry connector, every object whose
+ * children (8 levels) and sends, on the telemetry stream, every object whose
  * value differs from what was last sent (a hash of the value):
  *
  *   - value records (VM_OP_DATA, vm_wire_data_t):

@@ -74,7 +74,7 @@ void err_set_sink(err_sink_f fn) {
   s_sink = fn;
 }
 
-void err_report_ex(err_h chain, const char* log_ctx, const err_cmd_t* cmd) {
+void err_report_ex(err_h chain, const char* log_ctx, const struct cmd_req* cmd) {
   if (chain == NULL) {
     return;
   }

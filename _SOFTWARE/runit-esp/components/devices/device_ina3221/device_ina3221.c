@@ -3,6 +3,7 @@
 #include "sys_i2c.h"
 #include "sys_pins.h"
 #include "utils.h"
+#include <stdint.h>
 
 #define I2C_SPEED_HZ 400000u
 
@@ -155,6 +156,8 @@ OP_READ(PMON, VOLTAGE) {
   return cmd_reply(out, &mV, sizeof(mV));
 }
 
+
+
 OP_READ(PMON, CURRENT) {
   ina_t* c = ctx;
   ERR_TRY(check_channel(c, args->channel));
@@ -299,6 +302,7 @@ static err_h uninstall(void* ctx) {
   }
   return err;
 }
+
 
 static err_h create(void* ctx, const void* cfg_in) {
   ina_t* c = ctx;

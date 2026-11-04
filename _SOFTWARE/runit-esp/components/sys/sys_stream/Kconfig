@@ -1,0 +1,44 @@
+menu "sys_stream"
+
+    config SYS_STREAM_MAX
+        int "Streams"
+        default 12
+        range 4 32
+        help
+          Registry slots: the 4 system streams (logs, errors, telemetry,
+          events) and the user streams.
+
+    config SYS_STREAM_TARGETS
+        int "Targets per stream"
+        default 6
+        range 1 16
+        help
+          One list per stream: its bindings to providers, its subscribed
+          peers (the app, a test host, another board) and its callbacks.
+
+    config SYS_STREAM_QUEUE_SIZE
+        int "Queue (bytes)"
+        default 4608
+        range 1024 32768
+        help
+          Ring buffer of frames waiting for the stream task: sends of OUT
+          streams and what came in on IN streams. Each takes its length +
+          ~12 bytes, and the frame being sent keeps its room until every
+          target has it. A full queue drops it. Multiple of 4.
+
+    config SYS_STREAM_TASK_PRIO
+        int "Task priority"
+        default 4
+        range 1 24
+        help
+          Below the router tasks: streams wait, commands don't.
+
+    config SYS_STREAM_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 2048 32768
+        help
+          Holds a whole stream frame (CMD_FRAME_MAX) while it goes to a
+          subscriber.
+
+endmenu

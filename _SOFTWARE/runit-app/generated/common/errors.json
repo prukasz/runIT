@@ -594,23 +594,41 @@
               "id_kind": "router_key"
             }
           ],
-          "description": "context only: route step",
+          "description": "context only: route step at the root",
           "context": true,
           "message": "In {key}"
         },
         {
           "code": 2,
           "tag": 131074,
-          "name": "ERR_ROUTER_NO_KEY",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "input ended where a key was expected",
-          "message": "The command ends before it says what it is for"
+          "name": "ERR_ROUTER_OP",
+          "severity": 0,
+          "size": 1,
+          "fields": [
+            {
+              "name": "code",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "context only: route step in a module",
+          "context": true,
+          "message": "In command {code}"
         },
         {
           "code": 3,
           "tag": 131075,
+          "name": "ERR_ROUTER_NO_KEY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "the command ended where its key or its op code was expected",
+          "message": "The command ends before it says what it is for"
+        },
+        {
+          "code": 4,
+          "tag": 131076,
           "name": "ERR_ROUTER_UNKNOWN_KEY",
           "severity": 3,
           "size": 1,
@@ -623,7 +641,25 @@
               "id_kind": "router_key"
             }
           ],
+          "description": "no module under the root key",
           "message": "The board has nothing that answers {key}"
+        },
+        {
+          "code": 5,
+          "tag": 131077,
+          "name": "ERR_ROUTER_UNKNOWN_OP",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "code",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "no command of the module has the code",
+          "message": "There is no command {code} here"
         },
         {
           "code": 6,
@@ -660,8 +696,8 @@
           "message": "No room to register {key}"
         },
         {
-          "code": 9,
-          "tag": 131081,
+          "code": 8,
+          "tag": 131080,
           "name": "ERR_ROUTER_QUEUE_FULL",
           "severity": 2,
           "size": 2,
@@ -684,8 +720,8 @@
           "hint": "Send commands less often."
         },
         {
-          "code": 10,
-          "tag": 131082,
+          "code": 9,
+          "tag": 131081,
           "name": "ERR_ROUTER_FRAME_LEN",
           "severity": 2,
           "size": 5,
@@ -713,8 +749,8 @@
           "message": "A command of {len} bytes from {src} was refused (at most {max})"
         },
         {
-          "code": 11,
-          "tag": 131083,
+          "code": 10,
+          "tag": 131082,
           "name": "ERR_ROUTER_BUSY",
           "severity": 2,
           "size": 0,
@@ -1047,96 +1083,91 @@
     },
     {
       "id": 5,
-      "name": "sys_data_connector",
-      "symbol": "ERR_MOD_SYS_DATA_CONNECTOR",
-      "source_file": "runit-esp/components/sys/sys_data_connector/errors/sys_data_connector_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_data_connector/errors/errors_sys_data_connector.json",
+      "name": "sys_stream",
+      "symbol": "ERR_MOD_SYS_STREAM",
+      "source_file": "runit-esp/components/sys/sys_stream/errors/sys_stream_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_stream/errors/errors_sys_stream.json",
       "tags": [
         {
           "code": 2,
           "tag": 327682,
-          "name": "ERR_CONN_NOT_FOUND",
+          "name": "ERR_STREAM_NOT_FOUND",
           "severity": 2,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             }
           ],
-          "message": "Stream {connector} does not exist"
+          "message": "Stream {stream} does not exist"
         },
         {
           "code": 3,
           "tag": 327683,
-          "name": "ERR_CONN_EXISTS",
+          "name": "ERR_STREAM_EXISTS",
           "severity": 1,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             }
           ],
-          "message": "Stream {connector} already exists",
+          "message": "Stream {stream} already exists",
           "hint": "Choose another number."
         },
         {
           "code": 4,
           "tag": 327684,
-          "name": "ERR_CONN_SYSTEM",
+          "name": "ERR_STREAM_SYSTEM",
           "severity": 1,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             }
           ],
-          "description": "remove: a system connector",
-          "message": "Stream {connector} belongs to the board and cannot be removed"
+          "description": "remove: a system stream",
+          "message": "Stream {stream} belongs to the board and cannot be removed"
         },
         {
           "code": 6,
           "tag": 327686,
-          "name": "ERR_CONN_TARGETS_FULL",
+          "name": "ERR_STREAM_TARGETS_FULL",
           "severity": 2,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             }
           ],
-          "description": "bind: every binding slot taken; subscribe: every subscriber slot",
-          "message": "Stream {connector} has no room for another connection or subscriber",
+          "description": "bind, subscribe, listen: every target slot taken",
+          "message": "Stream {stream} has no room for another connection or subscriber",
           "hint": "Remove one of them first."
         },
         {
           "code": 7,
           "tag": 327687,
-          "name": "ERR_CONN_TOO_LONG",
+          "name": "ERR_STREAM_TOO_LONG",
           "severity": 2,
           "size": 5,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             },
             {
               "name": "len",
@@ -1151,23 +1182,22 @@
               "size": 2
             }
           ],
-          "description": "send: past the connector's own limit",
-          "message": "{len} bytes are too long for stream {connector} (at most {max})",
+          "description": "send: past the stream's own limit",
+          "message": "{len} bytes are too long for stream {stream} (at most {max})",
           "hint": "Send less at once."
         },
         {
           "code": 8,
           "tag": 327688,
-          "name": "ERR_CONN_QUEUE_FULL",
+          "name": "ERR_STREAM_QUEUE_FULL",
           "severity": 1,
           "size": 3,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             },
             {
               "name": "len",
@@ -1177,13 +1207,13 @@
             }
           ],
           "description": "payload dropped",
-          "message": "Stream {connector} is sending faster than its connections carry: {len} bytes dropped",
+          "message": "Stream {stream} is sending faster than its connections carry: {len} bytes dropped",
           "hint": "Send less often."
         },
         {
           "code": 9,
           "tag": 327689,
-          "name": "ERR_CONN_BAD_ARG",
+          "name": "ERR_STREAM_BAD_ARG",
           "severity": 3,
           "size": 0,
           "fields": [],
@@ -1192,101 +1222,38 @@
         {
           "code": 11,
           "tag": 327691,
-          "name": "ERR_CONN_FULL",
+          "name": "ERR_STREAM_FULL",
           "severity": 2,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
+              "size": 1
             }
           ],
-          "description": "every CONFIG_SYS_DATA_CONNECTOR_MAX slot taken",
-          "message": "No room for stream {connector}: every slot is taken",
+          "description": "every CONFIG_SYS_STREAM_MAX slot taken",
+          "message": "No room for stream {stream}: every slot is taken",
           "hint": "Remove a stream first."
         },
         {
-          "code": 12,
-          "tag": 327692,
-          "name": "ERR_CONN_POOL_FULL",
+          "code": 15,
+          "tag": 327695,
+          "name": "ERR_STREAM_DIRECTION",
           "severity": 2,
-          "size": 5,
-          "fields": [
-            {
-              "name": "connector",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
-            },
-            {
-              "name": "size",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            },
-            {
-              "name": "free",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "description": "create: CONFIG_SYS_DATA_CONNECTOR_BUF_POOL",
-          "message": "No room for stream {connector}: it needs {size} bytes of buffer and {free} are free",
-          "hint": "Make its buffer smaller, or remove a stream that has one."
-        },
-        {
-          "code": 13,
-          "tag": 327693,
-          "name": "ERR_CONN_NO_RX",
-          "severity": 1,
           "size": 1,
           "fields": [
             {
-              "name": "connector",
+              "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
-            }
-          ],
-          "description": "read, notify, bind RX: it keeps nothing and forwards nothing",
-          "message": "Stream {connector} keeps nothing that comes in and forwards nothing",
-          "hint": "Create it with a buffer for what comes in, or with forwarding."
-        },
-        {
-          "code": 14,
-          "tag": 327694,
-          "name": "ERR_CONN_MIRROR_LOST",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "connector",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "connector"
-            },
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 1,
               "size": 1
-            },
-            {
-              "name": "count",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
             }
           ],
-          "description": "a mirror's frames lost on the way",
-          "message": "Stream {connector} of board {board} lost {count} frames on the way"
+          "description": "send to an IN stream",
+          "message": "Stream {stream} only takes what comes in: the board does not send to it",
+          "hint": "Send to a stream made to go out."
         }
       ]
     },
@@ -1743,31 +1710,6 @@
           "description": "a remote device whose board is gone, or no sys_remote on this board",
           "message": "Device {id} is on board {board}, which cannot be reached",
           "hint": "Check the cable or the link to that board."
-        },
-        {
-          "code": 25,
-          "tag": 393241,
-          "name": "ERR_DEV_REMOTE_NOT_WIRED",
-          "severity": 2,
-          "size": 3,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            },
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            }
-          ],
-          "description": "a blocking remote device whose board is no wired neighbour",
-          "message": "Device {id} waits for board {board}, which is not on a cable",
-          "hint": "Make the device async, or wire that board to this one."
         }
       ]
     },
@@ -5143,23 +5085,6 @@
           "message": "Board {dst} cannot be reached from here"
         },
         {
-          "code": 5,
-          "tag": 1179653,
-          "name": "ERR_SESSION_DENIED",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "src",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "a write from a read-only peer",
-          "message": "{src} may only read on this board"
-        },
-        {
           "code": 6,
           "tag": 1179654,
           "name": "ERR_SESSION_TIMEOUT",
@@ -5201,48 +5126,14 @@
           "message": "The connection to board {board} was lost"
         },
         {
-          "code": 8,
-          "tag": 1179656,
-          "name": "ERR_SESSION_NOT_FRAMED",
-          "severity": 3,
-          "size": 5,
-          "fields": [
-            {
-              "name": "link",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
-            }
-          ],
-          "description": "attach: the driver does not split frames",
-          "message": "{link} {channel} cannot carry a board's connection",
-          "hint": "Use a connection with runIT framing."
-        },
-        {
-          "code": 9,
-          "tag": 1179657,
-          "name": "ERR_SESSION_PARENT_TAKEN",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "attach: a second parent",
-          "message": "This board already has a connection towards the root"
-        },
-        {
           "code": 10,
           "tag": 1179658,
-          "name": "ERR_SESSION_CLIENT",
+          "name": "ERR_SESSION_ROLE",
           "severity": 3,
           "size": 0,
           "fields": [],
-          "description": "attach: a client on a board with a parent, a parent on one with clients",
-          "message": "Only a board without a connection towards the root takes an app connection"
+          "description": "attach: a board with a master has no other session",
+          "message": "A board connected to a master takes no other connection: no app, no other board"
         },
         {
           "code": 11,
@@ -5429,6 +5320,105 @@
           ],
           "description": "cached read, no wait: the copy is too old",
           "message": "The last value of board {board} is {age_ms} ms old"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "sys_remote",
+      "symbol": "ERR_MOD_SYS_REMOTE",
+      "source_file": "runit-esp/components/sys/sys_remote/errors/sys_remote_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_remote/errors/errors_sys_remote.json",
+      "tags": [
+        {
+          "code": 2,
+          "tag": 1376258,
+          "name": "ERR_REMOTE_NOT_WIRED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "a wired remote device's board is reached by a way that is not wired: its calls do not wait (once until wired again)",
+          "message": "Board {board} is not reached by a cable now: its wired devices do not wait for their answers",
+          "hint": "The program's timing has changed. Check the cable to that board."
+        },
+        {
+          "code": 3,
+          "tag": 1376259,
+          "name": "ERR_REMOTE_LOST",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "count",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "events or errors of a remote device lost on the way: the gap in the subscription's seq",
+          "message": "{count} events or errors of a device of board {board} were lost on the way",
+          "hint": "The link to that board is busy or bad."
+        },
+        {
+          "code": 4,
+          "tag": 1376260,
+          "name": "ERR_REMOTE_SUBS_FULL",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "SUBSCRIBE with every CONFIG_SYS_REMOTE_SUBSCRIPTIONS slot taken",
+          "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
+          "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
+        },
+        {
+          "code": 5,
+          "tag": 1376261,
+          "name": "ERR_REMOTE_ALIASES_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "every CONFIG_SYS_REMOTE_ALIASES slot taken: a remote device's events and errors do not come",
+          "message": "Events and errors of a device of board {board} are not shown: {max} remote devices with events already",
+          "hint": "Its calls still work. Remove another remote device, or allow more."
         }
       ]
     }

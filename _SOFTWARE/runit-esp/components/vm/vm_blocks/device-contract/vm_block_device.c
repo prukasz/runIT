@@ -265,8 +265,9 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
     vm_block_set_eno(b, false);
     return;
   }
-  if (err != NULL && op->act == VM_DEV_ACT_READ && chain_has(err, ERR_WATCH_NO_VALUE)) {
-    // The first copy of a remote device's read is not there yet: the outputs stay as they are.
+  if (err != NULL && op->act == VM_DEV_ACT_READ &&
+      (chain_has(err, ERR_WATCH_NO_VALUE) || chain_has(err, ERR_WATCH_STALE))) {
+    // A remote device's copy is not there yet, or not fresh: the outputs stay as they are.
     err_free(err);
     vm_block_set_eno(b, false);
     return;

@@ -11,6 +11,9 @@
 #include "runit.h"
 #include "sys_log.h"
 #include "sys_session.h"
+#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+#include "sys_remote.h"
+#endif
 #include "vm_exec.h"
 #include "vm_router.h"
 
@@ -37,17 +40,21 @@ static err_h run_action(uint32_t action, err_h chain) {
 }
 
 // The record is built on the reporter's stack; sys_log keeps it and sends it.
-static void send_record(err_h chain, const err_cmd_t* cmd) {
+static void send_record(err_h chain, const cmd_req_t* cmd) {
   uint8_t rec[SYS_LOG_RECORD_MAX];
-  sys_log_error(rec, err_record(cmd, chain, rec, sizeof(rec)));
+  sys_log_error(rec, cmd_err_record(cmd, chain, rec, sizeof(rec)));
 }
 
-/* Every reported chain: the device policy (whatever send_errors says), then an error record on the errors stream;
- * `cmd` is the router command when it came from one. A failed response is logged and sent, not reported (that
- * would run the policy on it). A full queue drops a record: reporting that would loop. */
-static void error_sink(err_h chain, const err_cmd_t* cmd) {
+/* Every reported chain: the device policy (whatever send_errors says), then an error record on the errors stream,
+ * and a device's error outside a command to the peers subscribed to that device (SYS_REMOTE.MD); `cmd` is the router
+ * command when it came from one. A failed response is logged and sent, not reported (that would run the policy on it).
+ * A full queue drops a record: reporting that would loop. */
+static void error_sink(err_h chain, const cmd_req_t* cmd) {
   err_h response = sys_device_handle_error(chain);
   send_record(chain, cmd);
+#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+  sys_remote_on_error(chain, cmd);
+#endif
   if (response != NULL) {
     err_log(response);
     send_record(response, NULL);
@@ -57,7 +64,7 @@ static void error_sink(err_h chain, const err_cmd_t* cmd) {
 
 /* A device's `suspended` flag changed (or every device's, after a sweep: source SYS_DEVICE_ID_NONE): a DEVICE event with
  * NOTIFY, so the app knows of a safe state or a fault response without asking. Under the registry lock: the event goes out
- * inline (the events connector, then the listeners: none of them waits for a device lock held elsewhere). */
+ * inline (the events stream, then the listeners: none of them waits for a device lock held elsewhere). */
 static void device_state_changed(uint16_t id, bool suspended) {
   const err_h err = suspended ? SYS_EVENT_PUBLISH(SYS_DEVICE, SUSPENDED, id, 0, 0)
                               : SYS_EVENT_PUBLISH(SYS_DEVICE, RESUMED, id, 0, 0);

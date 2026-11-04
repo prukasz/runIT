@@ -58,7 +58,7 @@
       "op": 2,
       "symbol": "SYS_SESSION_OP_ATTACH",
       "label": "Attach a provider",
-      "description": "Makes a framed provider the way to a peer.",
+      "description": "Makes a provider the way to a peer.",
       "write": {
         "args": {
           "struct": "attach_t",
@@ -91,16 +91,6 @@
               "size": 1,
               "offset": 5,
               "description": "Where it leads: CLIENT"
-            },
-            {
-              "id": "access",
-              "label": "Access",
-              "type": "enum",
-              "enum": "sys_session_access_e",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 6,
-              "description": "What the peer's commands may do"
             }
           ]
         }
@@ -149,7 +139,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of sessions",
-          "description": "Then per session: provider id (5 B), peer u8, access u8, open u8, peer id u8, timeout_ms u16, subtree u8."
+          "description": "Then per session: provider id (5 B), peer u8, open u8, peer id u8, timeout_ms u16."
         }
       }
     }

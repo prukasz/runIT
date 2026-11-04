@@ -1,13 +1,7 @@
-#include "esp_log.h"
 #include "router.h"
 #include "sdkconfig.h"
 
-#define TAG __FILE_NAME__
-
 #define REQ_MIN_BYTES 2u  // a root key and the direction
-
-#define NOTIFY_CMD    (1u << 0)  // urgent task: a command in the urgent ring
-#define NOTIFY_URGENT (1u << 1)  // urgent task: run the fn of router_run_urgent
 
 _Static_assert(CONFIG_ROUTER_WORK_QUEUE_SIZE % 4 == 0, "ROUTER_WORK_QUEUE_SIZE must be a multiple of 4");
 _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SIZE must be a multiple of 4");
@@ -35,13 +29,13 @@ static struct {
   uint8_t buf_urgent[CMD_FRAME_MAX];
 } s_dispatch;
 
-static __thread const err_cmd_t* s_route;  // per router task: the command it is routing, NULL between commands
+static __thread const cmd_req_t* s_route;  // per router task: the command it is routing, NULL between commands
 
 /* ----------------------------------------------------------------------------
  * Reporting
  * ------------------------------------------------------------------------- */
 
-void router_report_cmd(const err_cmd_t* cmd, err_h err) {
+void router_report_cmd(const cmd_req_t* cmd, err_h err) {
   char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
   int pos = snprintf(ctx, sizeof(ctx), "cmd src %02x seq %u flags %02x req", cmd->src, cmd->seq, cmd->flags);
   uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
@@ -58,16 +52,17 @@ void router_report_cmd(const err_cmd_t* cmd, err_h err) {
  * Queue: router_submit and router_inject
  * ------------------------------------------------------------------------- */
 
-static void notify_urgent(uint32_t bits) {
+// Wakes the urgent task: a command in its ring, or a fn to run. Not started yet: it takes both when it starts.
+static void wake_urgent(void) {
   if (router_urgent_task_h != NULL) {
-    xTaskNotify(router_urgent_task_h, bits, eSetBits);
+    xTaskNotifyGive(router_urgent_task_h);
   }
 }
 
-err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx) {
-  ERR_CHECK(cmd != NULL && (cmd->req != NULL || cmd->req_len == 0), ERR_CMD_BAD_ARG);
-  ERR_CHECK(cmd->req_len >= REQ_MIN_BYTES && cmd->req_len <= CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .src = cmd->src,
-            .len = (uint16_t)cmd->req_len, .max = CMD_DATA_MAX);
+err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx) {
+  ERR_CHECK(cmd != NULL && cmd->req != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK_IN_RANGE(cmd->req_len, REQ_MIN_BYTES, CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .src = cmd->src,
+                     .len = (uint16_t)cmd->req_len, .max = CMD_DATA_MAX);
 
   const bool urgent = (cmd->flags & ROUTER_FLAG_URGENT) != 0;
   RingbufHandle_t rb = urgent ? router_urgent_rb : router_work_rb;
@@ -79,14 +74,14 @@ err_h router_submit(const err_cmd_t* cmd, router_done_f done, void* ctx) {
   memcpy((uint8_t*)slot + sizeof(item), cmd->req, cmd->req_len);
   xRingbufferSendComplete(rb, slot);
   if (urgent) {
-    notify_urgent(NOTIFY_CMD);
+    wake_urgent();
   }
   return NULL;
 }
 
 err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) {
   ERR_CHECK(req.data != NULL && req.len > 0, ERR_CMD_BAD_ARG);
-  const err_cmd_t cmd = {
+  const cmd_req_t cmd = {
       .req = req.data,
       .req_len = req.len,
       .seq = __atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
@@ -104,7 +99,7 @@ void router_set_tap(const router_tap_t* tap) {
   s_dispatch.tap = tap;
 }
 
-const err_cmd_t* router_origin(void) {
+const cmd_req_t* router_origin(void) {
   return s_route;
 }
 
@@ -119,7 +114,7 @@ err_h router_run_urgent(void (*fn)(void)) {
   if (!__atomic_compare_exchange_n(&s_dispatch.urgent_fn, &none, fn, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
     ERR_CHECK(none == fn, ERR_ROUTER_BUSY);  // the same fn already waits: it runs once
   }
-  notify_urgent(NOTIFY_URGENT);
+  wake_urgent();
   return NULL;
 }
 
@@ -131,7 +126,7 @@ err_h router_run_urgent(void (*fn)(void)) {
 static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
   item_t item;
   memcpy(&item, slot, sizeof(item));
-  const err_cmd_t cmd = {
+  const cmd_req_t cmd = {
       .req = slot + sizeof(item),
       .req_len = (uint32_t)(size - sizeof(item)),
       .seq = item.seq,
@@ -150,7 +145,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
     }
   }
   if (item.done != NULL && !(item.flags & ROUTER_FLAG_NOREPLY)) {
-    uint32_t len = err != NULL ? err_record(&cmd, err, out.data, out.cap) : out.len;
+    uint32_t len = err != NULL ? cmd_err_record(&cmd, err, out.data, out.cap) : out.len;
     uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
     err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
     if (lost != NULL) {
@@ -164,9 +159,9 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
 
 static void work_task(void* arg) {
   (void)arg;
-  while (1) {
+  while (true) {
     size_t size = 0;
-    uint8_t* slot = xRingbufferReceive(router_work_rb, &size, WAIT_FOREVER);
+    uint8_t* slot = xRingbufferReceive(router_work_rb, &size, portMAX_DELAY);
     if (slot != NULL) {
       process(slot, size, s_dispatch.buf_work);
       vRingbufferReturnItem(router_work_rb, slot);
@@ -174,28 +169,32 @@ static void work_task(void* arg) {
   }
 }
 
+/* Drains its ring and runs the waiting fn, then sleeps until woken. Draining first takes what was queued before the
+ * task started; a wake between the drain and the wait leaves its notification pending, so the wait returns at once. */
 static void urgent_task(void* arg) {
   (void)arg;
-  while (1) {
-    // Drain first: commands may have been queued before the task started.
+  while (true) {
     size_t size = 0;
-    uint8_t* slot;
-    while ((slot = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT)) != NULL) {
+    uint8_t* slot = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT);
+    while (slot != NULL) {
       process(slot, size, s_dispatch.buf_urgent);
       vRingbufferReturnItem(router_urgent_rb, slot);
+      slot = xRingbufferReceive(router_urgent_rb, &size, NO_WAIT);
     }
     void (*fn)(void) = __atomic_exchange_n(&s_dispatch.urgent_fn, NULL, __ATOMIC_ACQ_REL);
     if (fn != NULL) {
       fn();
     }
-
-    uint32_t bits = 0;
-    U_NOTIFY_AWAIT(WAIT_FOREVER, &bits);
+    (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   }
 }
 
 err_h router_init(void) {
-  U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
-  U_TASK_START(router_work_task_h, work_task, NULL, CONFIG_ROUTER_WORK_TASK_PRIO);
+  if (router_urgent_task_h == NULL) {
+    U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
+  }
+  if (router_work_task_h == NULL) {
+    U_TASK_START(router_work_task_h, work_task, NULL, CONFIG_ROUTER_WORK_TASK_PRIO);
+  }
   return NULL;
 }

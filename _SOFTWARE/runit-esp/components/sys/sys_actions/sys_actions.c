@@ -36,8 +36,6 @@ typedef struct {
 } session_t;
 
 U_MUTEX_DEFINE(sys_actions_mutex);  // s_session, s_image: both router tasks record, ops open / close
-#define LOCK() ((void)U_MUTEX_LOCK(sys_actions_mutex, WAIT_FOREVER))
-#define UNLOCK() ((void)U_MUTEX_UNLOCK(sys_actions_mutex))
 
 static session_t s_session;
 _Static_assert(CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE <= CONFIG_SYS_ACTIONS_MAX_BYTES,
@@ -220,7 +218,7 @@ err_h sys_actions_request(uint32_t id, bool urgent) {
 
 // Frames a recording keeps: writes only ([key][dir] first), not the sys key, not the actions commands other than RUN /
 // RUN_ALL.
-static bool recordable(const err_cmd_t* cmd) {
+static bool recordable(const cmd_req_t* cmd) {
   uint8_t key = cmd->req[0];  // the dispatcher routes only frames with a root key
   if (cmd->req_len < 2 || cmd->req[1] != CMD_DIR_WRITE || key == ROUTER_KEY_SYS) {
     return false;
@@ -250,23 +248,23 @@ static void record_append(const uint8_t* req, uint32_t len) {
 }
 
 // Keeps the frame when it comes from the client being recorded and the recording is in mode `execute`.
-static bool record_frame(const err_cmd_t* cmd, bool execute) {
-  LOCK();
+static bool record_frame(const cmd_req_t* cmd, bool execute) {
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.src == cmd->src;
   if (mine) {
     record_append(cmd->req, cmd->req_len);
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return mine;
 }
 
 // Recording without execute: the client's frames are kept and answered OK, not run.
-static bool tap_take(const err_cmd_t* cmd) {
+static bool tap_take(const cmd_req_t* cmd) {
   return s_recording && recordable(cmd) && record_frame(cmd, false);
 }
 
 // Recording with execute: the client's frames that succeeded are kept.
-static void tap_seen(const err_cmd_t* cmd, err_h result) {
+static void tap_seen(const cmd_req_t* cmd, err_h result) {
   if (s_recording && result == NULL && recordable(cmd)) {
     (void)record_frame(cmd, true);
   }
@@ -289,14 +287,14 @@ static err_h session_open(session_e kind, uint32_t id) {
 
 err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t src) {
   ERR_TRY(check_id(id));
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err = session_open(SESSION_RECORD, id);
   if (err == NULL) {
     s_session.execute = execute;
     s_session.src = src;
     s_recording = true;
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
@@ -314,7 +312,7 @@ static err_h record_store(sys_actions_info_t* out) {
 }
 
 err_h sys_actions_record_stop(sys_actions_info_t* out) {
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err;
   if (s_session.kind != SESSION_RECORD) {
     err = ERR_NEW(ERR_ACTION_NO_SESSION);
@@ -322,7 +320,7 @@ err_h sys_actions_record_stop(sys_actions_info_t* out) {
     err = record_store(out);
     session_close();
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
@@ -334,12 +332,12 @@ err_h sys_actions_upload_begin(uint32_t id, uint16_t len) {
   ERR_TRY(check_id(id));
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
   ERR_CHECK(len <= max_bytes(id), ERR_ACTION_TOO_BIG, .len = len, .max = (uint16_t)max_bytes(id));
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err = session_open(SESSION_UPLOAD, id);
   if (err == NULL) {
     s_session.want = len;
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
@@ -356,9 +354,9 @@ static err_h upload_write(uint16_t offset, const uint8_t* data, uint16_t len) {
 
 err_h sys_actions_upload_write(uint16_t offset, const uint8_t* data, uint16_t len) {
   ERR_CHECK(data != NULL || len == 0, ERR_ACTION_BAD_ARG);
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err = upload_write(offset, data, len);
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
@@ -373,7 +371,7 @@ static err_h upload_store(uint32_t crc32) {
 }
 
 err_h sys_actions_upload_commit(uint32_t crc32) {
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err;
   if (s_session.kind != SESSION_UPLOAD) {
     err = ERR_NEW(ERR_ACTION_NO_SESSION);
@@ -381,14 +379,14 @@ err_h sys_actions_upload_commit(uint32_t crc32) {
     err = upload_store(crc32);
     session_close();
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
 void sys_actions_abort(void) {
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   session_close();
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
 }
 
 /* ----------------------------------------------------------------------------
@@ -494,7 +492,7 @@ err_h sys_actions_remove(uint32_t id) {
 }
 
 err_h sys_actions_remove_all(void) {
-  LOCK();
+  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err = s_session.kind == SESSION_NONE ? NULL : ERR_NEW(ERR_ACTION_BUSY);
   uint32_t ids[8];
   // Erasing invalidates the NVS iterator, so each pass lists afresh from the lowest ID.
@@ -508,7 +506,7 @@ err_h sys_actions_remove_all(void) {
       err = sys_actions_remove(ids[i]);
     }
   }
-  UNLOCK();
+  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 

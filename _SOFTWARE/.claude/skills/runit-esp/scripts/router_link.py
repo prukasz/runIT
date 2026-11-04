@@ -202,7 +202,7 @@ class Node:
 
 @dataclass
 class Record:
-    """err_record(): the command (if any) + error chain."""
+    """cmd_err_record(): the command (if any) + error chain."""
 
     src: int
     time_ms: int = 0  # the board's clock when it reported (UTC; before 2020: since the start)

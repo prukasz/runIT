@@ -18,10 +18,10 @@
  * @brief Error tag: high 16 bits = code module, low 16 bits = error code within
  * that module. Compared and switched on as a whole; split only when the module
  * itself is needed (logging, dispatch).
- * @usage enum { ERR_I2C_NACK = ERR_TAG(MOD_I2C, 2) };
+ * @usage enum { ERR_I2C_NACK = ERR_TAG(ERR_MOD_I2C, 2) };
  */
-#define ERR_TAG(module, code) ((((uint32_t)(uint16_t)(module)) << 16) | (uint16_t)(code))
-#define ERR_MODULE(tag) ((uint16_t)((uint32_t)(tag) >> 16))
+#define ERR_TAG(module, code) (((uint32_t)(module) << 16) | (uint16_t)(code))
+#define ERR_MODULE(tag) ((tag) >> 16)
 #define ERR_CODE(tag) ((uint16_t)(tag))
 
 // Node header: [info*] next tag, no padding (checked in errors.h).
@@ -64,15 +64,13 @@
  * ------------------------------------------------------------------------- */
 
 // Parameter names end with _ so they never replace the .tag / .sev designators.
-#define ERR__X_ENUM(tag_, id_, sev_, ...) tag_ = (id_),
+#define ERR__X_ENUM(tag_, id_, sev_, ...) tag_ = id_,
 #define ERR__X_TYPE(tag_, id_, sev_, ...) typedef struct __attribute__((packed)) __VA_ARGS__ err_data_##tag_##_t;
 #define ERR__X_CHECK(tag_, id_, sev_, ...) \
   _Static_assert(sizeof(err_data_##tag_##_t) <= ERR_DATA_MAX, #tag_ " data does not fit an error node");
-#define ERR__X_CASE(tag_, id_, sev_, ...) \
-  case (id_):                             \
-    break;
+#define ERR__X_CASE(tag_, id_, sev_, ...) case id_:
 #define ERR__X_INFO(tag_, id_, sev_, ...) \
-  {.tag = (id_), .name = #tag_, .size = sizeof(err_data_##tag_##_t), .sev = (sev_)},
+  {.tag = id_, .name = #tag_, .size = sizeof(err_data_##tag_##_t), .sev = sev_},
 
 /**
  * @brief Declares a module's tags (enum) and payload types. Use in its header.
@@ -98,7 +96,8 @@
   }                                                                                                     \
   static const err_tag_info_t _err_tags_##mod_id[] = {MAP(ERR__X_INFO)};                                \
   static const err_module_t _err_module_##mod_id = {                                                    \
-      .id = (mod_id), .name = (mod_name), .tags = _err_tags_##mod_id, .count = ARRAY_LEN(_err_tags_##mod_id)}; \
+      .id = mod_id, .name = mod_name, .tags = _err_tags_##mod_id,                                         \
+      .count = ARRAY_LEN(_err_tags_##mod_id)};                                                            \
   __attribute__((constructor)) static void _err_register_##mod_id(void) {                               \
     err_register_module(&_err_module_##mod_id);                                                         \
   }
@@ -140,7 +139,7 @@
 #endif
 #if CONFIG_ERRORS_INFO
 #define ERR__NEW(tag, data, len, cause) \
-  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, (tag), (data), (len), (cause))
+  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, tag, data, len, cause)
 #else
 #define ERR__NEW(tag, data, len, cause) err_new((tag), (data), (len), (cause))
 #endif
@@ -152,7 +151,7 @@
 #define ERR_WRAP(cause, tag, ...)                              \
   ({                                                           \
     const err_data_##tag##_t _err_data_ = {__VA_ARGS__};       \
-    ERR__NEW((tag), &_err_data_, sizeof(_err_data_), (cause)); \
+    ERR__NEW(tag, &_err_data_, sizeof(_err_data_), cause);     \
   })
 
 /**
@@ -165,7 +164,7 @@
  * @brief Typed view of a node's payload. The caller checks e->tag first.
  * @usage if (e->tag == ERR_I2C_NACK) { uint8_t a = ERR_DATA(e, ERR_I2C_NACK)->addr; }
  */
-#define ERR_DATA(e, tag) ((const err_data_##tag##_t*)(const void*)(e)->data)
+#define ERR_DATA(e, tag) ((const err_data_##tag##_t*)(e)->data)
 
 /* ----------------------------------------------------------------------------
  * Propagation
@@ -179,7 +178,7 @@
  */
 #define ERR_TRY(call)              \
   do {                             \
-    err_h _err_try_ = (call);      \
+    err_h _err_try_ = call;        \
     if (_err_try_ != NULL) {       \
       return _err_try_;            \
     }                              \
@@ -197,12 +196,19 @@
   } while (0)
 
 /**
+ * @brief Returns a new error from the current function unless lo <= v <= hi (err_in_range: no -Wtype-limits warning for
+ * an unsigned v and a lo of 0).
+ * @usage ERR_CHECK_IN_RANGE(ms, TIMEOUT_MIN_MS, TIMEOUT_MAX_MS, ERR_CMD_BAD_ARG);
+ */
+#define ERR_CHECK_IN_RANGE(v, lo, hi, tag, ...) ERR_CHECK(err_in_range(v, lo, hi), tag, __VA_ARGS__)
+
+/**
  * @brief Keeps the first error of a sequence whose steps all run (teardown); a later error is freed.
  * @usage err_h err = NULL; ERR_KEEP_FIRST(err, chip_sleep(c, true)); ERR_KEEP_FIRST(err, ...);
  */
 #define ERR_KEEP_FIRST(acc, call) \
   do {                            \
-    err_h _err_keep_ = (call);    \
+    err_h _err_keep_ = call;      \
     if ((acc) == NULL) {          \
       (acc) = _err_keep_;         \
     } else {                      \
@@ -217,7 +223,7 @@
  */
 #define ERR_ESP(esp_call)                                                       \
   ({                                                                            \
-    esp_err_t _err_esp_rc_ = (esp_call);                                        \
+    esp_err_t _err_esp_rc_ = esp_call;                                          \
     _err_esp_rc_ == ESP_OK ? NULL : ERR_NEW(ERR_ESP_ERR, .code = _err_esp_rc_); \
   })
 

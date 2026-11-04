@@ -97,21 +97,21 @@ static void drain(RingbufHandle_t rb) {
 
 err_h sys_ble_service_create(const sys_ble_svc_cfg_t* cfg) {
   ERR_CHECK(cfg != NULL && cfg->uuid != 0, ERR_BLE_BAD_ARG);
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   bool taken = find_svc(cfg->uuid) != NULL;
   sys_ble_svc_node_t* s = taken ? NULL : calloc(1, sizeof(*s));
   if (s != NULL) {
     s->cfg = *cfg;
     LL_APPEND(g_ble.services, s);
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   ERR_CHECK(!taken, ERR_BLE_UUID_TAKEN, .uuid = cfg->uuid);
   ERR_CHECK(s != NULL, ERR_BLE_NO_MEM, .uuid = cfg->uuid, .size = sizeof(*s));
   return NULL;
 }
 
 err_h sys_ble_service_remove(uint16_t svc_uuid) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_svc_node_t* s = find_svc(svc_uuid);
   bool locked = s != NULL && s->locked;
   if (s != NULL && !locked) {
@@ -121,19 +121,19 @@ err_h sys_ble_service_remove(uint16_t svc_uuid) {
       free_svc(s);
     }
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   ERR_CHECK(s != NULL, ERR_BLE_NOT_FOUND, .uuid = svc_uuid);
   ERR_CHECK(!locked, ERR_BLE_SVC_LOCKED, .uuid = svc_uuid);
   return NULL;
 }
 
 err_h sys_ble_service_lock(uint16_t svc_uuid) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_svc_node_t* s = find_svc(svc_uuid);
   if (s != NULL) {
     s->locked = true;
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   ERR_CHECK(s != NULL, ERR_BLE_NOT_FOUND, .uuid = svc_uuid);
   return NULL;
 }
@@ -173,7 +173,7 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
   ERR_CHECK(cfg->tx_buffer_size == 0 || cfg->is_notify || cfg->is_indicate, ERR_BLE_BAD_ARG);
   ERR_CHECK(cfg->rx_buffer_size == 0 || cfg->is_write, ERR_BLE_BAD_ARG);
 
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_svc_node_t* s = find_svc(svc_uuid);
   err_h err = NULL;
   if (s == NULL) {
@@ -192,12 +192,12 @@ err_h sys_ble_char_create(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
       s->dirty = s->registered;
     }
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return err;
 }
 
 err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_svc_node_t* s = find_svc(svc_uuid);
   sys_ble_char_node_t* c = NULL;
   err_h err = NULL;
@@ -222,7 +222,7 @@ err_h sys_ble_char_remove(uint16_t svc_uuid, uint16_t char_uuid) {
       free_char(c);
     }
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return err;
 }
 
@@ -274,9 +274,9 @@ static err_h start_locked(void) {
 /* NimBLE calls run without the registry lock: GATT access callbacks take it
  * while the host is locked. */
 static err_h delete_locked(uint16_t uuid) {
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   err_h err = sys_ble_stack_delete_svc(uuid);
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   return err;
 }
 
@@ -305,9 +305,9 @@ static err_h sync_svc_locked(sys_ble_svc_node_t* s) {
   ERR_CHECK(svcs != NULL, ERR_BLE_NO_MEM, .uuid = s->cfg.uuid, .size = 2 * sizeof(*svcs));
   err_h err = sys_ble_compile_svc(&svcs[0], s);
   if (err == NULL) {
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     err = sys_ble_stack_add_svc(s, svcs);
-    BLE_LOCK();
+    xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   }
   if (err != NULL) {
     sys_ble_free_svc_defs(svcs);
@@ -334,22 +334,22 @@ static err_h sync_locked(void) {
 }
 
 err_h sys_ble_start(void) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   g_ble.apply_pending = false;
   err_h err = g_ble.started ? sync_locked() : start_locked();
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   wake_task();  // items queued before their characteristic became live
   return err;
 }
 
 err_h sys_ble_apply(void) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   bool later = g_ble.started && g_ble.is_connected;
   if (later) {
     g_ble.apply_pending = true;
     g_ble.apply_at = xTaskGetTickCount() + MSEC(CONFIG_SYS_BLE_APPLY_DELAY_MS);
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   if (!later) {
     return sys_ble_start();
   }
@@ -375,9 +375,9 @@ static size_t max_payload_locked(const sys_ble_char_node_t* c) {
 }
 
 size_t sys_ble_char_max_payload(uint16_t char_uuid) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   size_t max = max_payload_locked(find_char(char_uuid));
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return max;
 }
 
@@ -388,15 +388,15 @@ err_h sys_ble_char_send(uint16_t char_uuid, const uint8_t* data, size_t len, uin
   /* The item is queued under the lock (a removed characteristic can't be freed
    * meanwhile), so a full buffer is polled instead of waited on. */
   while (1) {
-    BLE_LOCK();
+    xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
     if (!g_ble.is_connected) {
-      BLE_UNLOCK();
+      xSemaphoreGive(sys_ble_mutex);
       return NULL;  // nobody to send to
     }
     sys_ble_char_node_t* c = find_char(char_uuid);
     size_t max = max_payload_locked(c);
     bool queued = max > 0 && len <= max && xRingbufferSend(c->tx_rb, data, len, NO_WAIT) == pdTRUE;
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
 
     if (queued) {
       wake_task();
@@ -417,9 +417,9 @@ static bool send_packet(uint16_t conn, uint16_t val_handle, bool indicate, const
   int rc;
   while ((rc = sys_ble_stack_notify(conn, val_handle, data, len, indicate)) == BLE_HS_ENOMEM) {
     vTaskDelay(MSEC(10));
-    BLE_LOCK();
+    xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
     bool same_link = g_ble.is_connected && g_ble.conn_handle == conn;
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     if (!same_link) {
       return false;
     }
@@ -493,20 +493,20 @@ static size_t take_item(uint8_t* buf, size_t cap, uint16_t* val_handle, bool* in
 }
 
 TickType_t sys_ble_task_wait(void) {
-  BLE_LOCK();
-  TickType_t wait = WAIT_FOREVER;
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
+  TickType_t wait = portMAX_DELAY;
   if (g_ble.apply_pending) {
     TickType_t left = g_ble.apply_at - xTaskGetTickCount();
     wait = (int32_t)left > 0 ? left : 0;
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return wait;
 }
 
 void sys_ble_task_step(uint8_t* scratch, size_t scratch_len) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   bool apply_due = g_ble.apply_pending && (int32_t)(xTaskGetTickCount() - g_ble.apply_at) >= 0;
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   if (apply_due) {
     sys_ble_report(sys_ble_start());
   }
@@ -515,11 +515,11 @@ void sys_ble_task_step(uint8_t* scratch, size_t scratch_len) {
     uint16_t val_handle = 0;
     bool indicate = false;
     bool framed = false;
-    BLE_LOCK();
+    xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
     uint16_t conn = g_ble.conn_handle;
     uint16_t mtu = g_ble.mtu;
     size_t len = g_ble.is_connected ? take_item(scratch, scratch_len, &val_handle, &indicate, &framed) : 0;
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     if (len == 0) {
       return;
     }
@@ -534,13 +534,13 @@ void sys_ble_task_step(uint8_t* scratch, size_t scratch_len) {
 // Caller holds the lock; this releases it (the handler runs outside it).
 static int deliver_unlock(sys_ble_char_node_t* c, const uint8_t* data, size_t len) {
   if (c->pending_remove) {
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
   }
   if (c->rx_fn != NULL) {
     sys_ble_rx_f fn = c->rx_fn;
     void* ctx = c->rx_ctx;
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     fn(ctx, data, len);
     return 0;
   }
@@ -550,27 +550,27 @@ static int deliver_unlock(sys_ble_char_node_t* c, const uint8_t* data, size_t le
     if (!ok) {
       g_ble.rx_overflow_count++;
     }
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     if (!ok) {
       sys_ble_report(ERR_NEW(ERR_BLE_RX_FULL, .uuid = uuid, .len = (uint16_t)len));
     }
     return 0;
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
 }
 
 int sys_ble_on_write(sys_ble_char_node_t* c, const uint8_t* data, size_t len) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   return deliver_unlock(c, data, len);
 }
 
 err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len) {
   ERR_CHECK(data != NULL && len > 0, ERR_BLE_BAD_ARG);
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_char_node_t* c = find_char(char_uuid);
   if (c == NULL) {
-    BLE_UNLOCK();
+    xSemaphoreGive(sys_ble_mutex);
     return ERR_NEW(ERR_BLE_NOT_FOUND, .uuid = char_uuid);
   }
   int rc = deliver_unlock(c, data, len);
@@ -581,7 +581,7 @@ err_h sys_ble_char_rx_inject(uint16_t char_uuid, const uint8_t* data, size_t len
 err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buf, size_t max_len, size_t* out_len) {
   ERR_CHECK(buf != NULL && out_len != NULL, ERR_BLE_BAD_ARG);
   *out_len = 0;
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_char_node_t* c = find_char(char_uuid);
   RingbufHandle_t rb = c != NULL && !c->pending_remove ? c->rx_rb : NULL;
   size_t size = 0;
@@ -594,7 +594,7 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buf, size_t max_len, 
   if (item != NULL) {
     vRingbufferReturnItem(rb, item);
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   ERR_CHECK(c != NULL, ERR_BLE_NOT_FOUND, .uuid = char_uuid);
   ERR_CHECK(rb != NULL, ERR_BLE_NO_RX, .uuid = char_uuid);
   ERR_CHECK(item == NULL || fits, ERR_BLE_TOO_LONG, .uuid = char_uuid, .len = (uint16_t)size,
@@ -604,14 +604,14 @@ err_h sys_ble_char_rx_dequeue(uint16_t char_uuid, uint8_t* buf, size_t max_len, 
 
 err_h sys_ble_char_set_rx_handler(uint16_t char_uuid, sys_ble_rx_f fn, void* ctx) {
   ERR_CHECK(fn != NULL, ERR_BLE_BAD_ARG);
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_char_node_t* c = find_char(char_uuid);
   bool ok = c != NULL && c->cfg.is_write && c->rx_rb == NULL && c->rx_fn == NULL;
   if (ok) {
     c->rx_fn = fn;
     c->rx_ctx = ctx;
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   ERR_CHECK(c != NULL, ERR_BLE_NOT_FOUND, .uuid = char_uuid);
   ERR_CHECK(ok, ERR_BLE_RX_HANDLER, .uuid = char_uuid);
   return NULL;
@@ -639,16 +639,16 @@ static void notify_listeners(bool connected, int32_t reason) {
 }
 
 void sys_ble_on_connect(uint16_t conn_handle, uint16_t mtu) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   g_ble.conn_handle = conn_handle;
   g_ble.is_connected = true;
   g_ble.mtu = mtu;
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   notify_listeners(true, 0);
 }
 
 void sys_ble_on_disconnect(int32_t reason) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   g_ble.is_connected = false;
   g_ble.conn_handle = 0;
   g_ble.mtu = BLE_ATT_MTU_DFLT;
@@ -662,27 +662,27 @@ void sys_ble_on_disconnect(int32_t reason) {
       }
     }
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   notify_listeners(false, reason);
 }
 
 void sys_ble_on_mtu(uint16_t mtu) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   g_ble.mtu = mtu;
   const bool connected = g_ble.is_connected;
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   if (connected) {
     notify_listeners(true, 0);  // the unframed providers' largest message follows the MTU
   }
 }
 
 void sys_ble_on_subscribe(uint16_t attr_handle, bool subscribed) {
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_char_node_t* c = sys_ble_find_char_by_handle(attr_handle);
   if (c != NULL) {
     c->is_subscribed = subscribed;
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   if (subscribed) {
     wake_task();
   }
@@ -691,7 +691,7 @@ void sys_ble_on_subscribe(uint16_t attr_handle, bool subscribed) {
 err_h sys_ble_table_visit(sys_ble_visit_f fn, void* ctx) {
   ERR_CHECK(fn != NULL, ERR_BLE_BAD_ARG);
   err_h err = NULL;
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   sys_ble_svc_node_t* s;
   LL_FOREACH(g_ble.services, s) {
     if (s->removing) {
@@ -711,18 +711,18 @@ err_h sys_ble_table_visit(sys_ble_visit_f fn, void* ctx) {
       break;
     }
   }
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return err;
 }
 
 err_h sys_ble_get_status(sys_ble_status_t* out) {
   ERR_CHECK(out != NULL, ERR_BLE_BAD_ARG);
-  BLE_LOCK();
+  xSemaphoreTake(sys_ble_mutex, portMAX_DELAY);
   *out = (sys_ble_status_t){
       .is_connected = g_ble.is_connected,
       .mtu = g_ble.mtu,
       .rx_overflow_count = g_ble.rx_overflow_count,
   };
-  BLE_UNLOCK();
+  xSemaphoreGive(sys_ble_mutex);
   return NULL;
 }

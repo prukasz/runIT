@@ -454,7 +454,7 @@ SYS_DEVICE_HANDLER(get_fault_h, hbridge_channel_args_t) {
 }
 
 // The live settings, as the write takes them. A read: answered while suspended.
-SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_settings_h, sys_device_args_none_t) {
   (void)args;
   const drv_t* c = ctx;
   const drv8962_settings_t s = {

@@ -205,38 +205,38 @@ SYS_DEVICE_HANDLER(set_speed_h, dc_motor_speed_t) {
   return motor_tick(c);
 }
 
-SYS_DEVICE_HANDLER(get_speed_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_speed_h, sys_device_args_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const dc_motor_speed_t speed = {.speed_x10 = c->target_x10};
   return cmd_reply(out, &speed, sizeof(speed));
 }
 
-SYS_DEVICE_HANDLER(get_output_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_output_h, sys_device_args_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const int32_t output_x10 = c->out / X10_TO_FULL;
   return cmd_reply(out, &output_x10, sizeof(output_x10));
 }
 
-SYS_DEVICE_HANDLER(stop_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(stop_h, sys_device_args_none_t) {
   (void)args, (void)out;
   motor_t* c = ctx;
   set_target(c, 0);
   return motor_tick(c);
 }
 
-SYS_DEVICE_HANDLER(brake_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(brake_h, sys_device_args_none_t) {
   (void)args, (void)out;
   return stop_now(ctx, DC_MOTOR_STOP_BRAKE);
 }
 
-SYS_DEVICE_HANDLER(coast_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(coast_h, sys_device_args_none_t) {
   (void)args, (void)out;
   return stop_now(ctx, DC_MOTOR_STOP_COAST);
 }
 
-SYS_DEVICE_HANDLER(get_settings_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_settings_h, sys_device_args_none_t) {
   (void)args;
   const motor_t* c = ctx;
   return cmd_reply(out, &c->cfg.settings, sizeof(c->cfg.settings));
@@ -254,7 +254,7 @@ SYS_DEVICE_HANDLER(set_settings_h, dc_motor_settings_t) {
 }
 
 // A read: allowed while suspended (the bridge answers its current then too).
-SYS_DEVICE_HANDLER(get_current_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_current_h, sys_device_args_none_t) {
   (void)args;
   const motor_t* c = ctx;
   int32_t mA = 0;
@@ -262,7 +262,7 @@ SYS_DEVICE_HANDLER(get_current_h, sys_device_none_t) {
   return cmd_reply(out, &mA, sizeof(mA));
 }
 
-SYS_DEVICE_HANDLER(get_stalled_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(get_stalled_h, sys_device_args_none_t) {
   (void)args;
   const motor_t* c = ctx;
   const uint8_t stalled = c->stalled ? 1 : 0;
@@ -270,7 +270,7 @@ SYS_DEVICE_HANDLER(get_stalled_h, sys_device_none_t) {
 }
 
 // The timer's step: runs while suspended too (the registry lets it through), and then does nothing.
-SYS_DEVICE_HANDLER(tick_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(tick_h, sys_device_args_none_t) {
   (void)args, (void)out;
   motor_t* c = ctx;
   if (c->base.suspended) {

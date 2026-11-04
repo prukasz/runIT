@@ -43,10 +43,10 @@ typedef struct __attribute__((packed)) {
  * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: DRIVE W, BRAKE W, COAST W, CURRENT R. Numbers
  * are never reused.
  */
-#define HBRIDGE_OPERATIONS(X, P)                                      \
-  X(P, DRIVE,   0x00, sys_device_none_t,      hbridge_drive_args_t)   \
-  X(P, BRAKE,   0x01, sys_device_none_t,      hbridge_channel_args_t) \
-  X(P, COAST,   0x02, sys_device_none_t,      hbridge_channel_args_t) \
+#define HBRIDGE_OPERATIONS(X, P)                                           \
+  X(P, DRIVE,   0x00, sys_device_args_none_t,      hbridge_drive_args_t)   \
+  X(P, BRAKE,   0x01, sys_device_args_none_t,      hbridge_channel_args_t) \
+  X(P, COAST,   0x02, sys_device_args_none_t,      hbridge_channel_args_t) \
   X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(HBRIDGE, SYS_DEVICE_CONTRACT_HBRIDGE)

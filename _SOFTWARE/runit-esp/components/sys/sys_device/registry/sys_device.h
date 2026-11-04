@@ -53,7 +53,11 @@ extern "C" {
 
 /** @brief Args of an op without any. */
 typedef struct __attribute__((packed)) {
-} sys_device_none_t;
+} sys_device_args_none_t;
+
+/** @brief Value of an op that answers nothing. */
+typedef struct __attribute__((packed)) {
+} sys_device_response_empty_t;
 
 /**
  * @brief Writes a contract op's cmd_f: parses the payload (exactly
@@ -83,14 +87,14 @@ typedef struct __attribute__((packed)) {
  * (answered as a list, so its value is none here); both: ERROR_POLICY. SUSPEND, RESUME, REMOVE, INFO, OPS and
  * ERROR_POLICY are the registry's for every device: a driver's op table lists none of them.
  */
-#define SYS_DEVICE_OPERATIONS(X, P)                                      \
-  X(P, RESET,        0x01, sys_device_none_t, sys_device_none_t)         \
-  X(P, SUSPEND,      0x02, sys_device_none_t, sys_device_none_t)         \
-  X(P, RESUME,       0x03, sys_device_none_t, sys_device_none_t)         \
-  X(P, REMOVE,       0x04, sys_device_none_t, sys_device_none_t)         \
-  X(P, INFO,         0x05, sys_device_none_t, sys_device_info_t)         \
-  X(P, OPS,          0x06, sys_device_none_t, sys_device_none_t)         \
-  X(P, ERROR_POLICY, 0x07, sys_device_none_t, sys_device_error_policy_t)
+#define SYS_DEVICE_OPERATIONS(X, P)                                             \
+  X(P, RESET,        0x01, sys_device_args_none_t, sys_device_response_empty_t) \
+  X(P, SUSPEND,      0x02, sys_device_args_none_t, sys_device_response_empty_t) \
+  X(P, RESUME,       0x03, sys_device_args_none_t, sys_device_response_empty_t) \
+  X(P, REMOVE,       0x04, sys_device_args_none_t, sys_device_response_empty_t) \
+  X(P, INFO,         0x05, sys_device_args_none_t, sys_device_info_t)           \
+  X(P, OPS,          0x06, sys_device_args_none_t, sys_device_response_empty_t) \
+  X(P, ERROR_POLICY, 0x07, sys_device_args_none_t, sys_device_error_policy_t)
 
 /* The contract tables' expansion, shared by every contract: SYS_DEVICE_CONTRACT_DECLARE(P, contract ID) on the table
  * P_OPERATIONS(X, P) gives P_CONTRACT (the ID), P_OP_<NAME> and the types P_key_<NAME>_t, P_value_<NAME>_t. */
@@ -110,8 +114,7 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
 
 /* A contract's events table P_EVENTS of rows X(P, NAME, n, flags) (sys_event.h "Events tables") gives
  * P_EV_<NAME> = (P_CONTRACT << 8) | n and P_EV_<NAME>_FLAGS. Here, below sys_event, so every contract can use it. */
-#define SYS_EVENT_NOTIFY 0x01u  // an event's flag, from its table: sent on the events connector (what the app gets)
-#define SYS_EVENT_LOCAL  0x02u  // ... never on EVENTS_ALL, so never to another board (a fast source, what only an inline listener wants)
+#define SYS_EVENT_NOTIFY 0x01u  // an event's flag, from its table: sent on the events stream (what the app gets)
 #define SYS_EVENT__ID(P, name, n, flags) \
   P##_EV_##name = SYS_DEVICE_OP(P##_CONTRACT, n), P##_EV_##name##_FLAGS = (flags),
 #define SYS_EVENTS_DECLARE(P) enum { P##_EVENTS(SYS_EVENT__ID, P) };
@@ -139,20 +142,15 @@ SYS_EVENTS_DECLARE(SYS_DEVICE)
  * lock taken or released by another device. Those rows are OP_ENTRY_W_ALWAYS, an own op's `.always = true`. */
 #define OP_ENTRY_W_ALWAYS(P, name) {.op = P##_OP_##name, .write = P##_w_##name, .always = true}
 
-/* Widened to int64 in a function: at the call the compiler would see a u8's range and warn (-Wtype-limits, u8 >= 0). */
-static inline bool dev_in_range(int64_t v, int64_t lo, int64_t hi) {
-  return v >= lo && v <= hi;
-}
-
 /**
  * @brief ERR_DEV_RANGE unless lo <= v <= hi. The bounds are written once: the check and the error's min / max come from
  * the same expressions. The value and the bounds are reported as int32_t (ERR_DEV_RANGE is signed).
  * The parameter is `dev`, not `id`: a parameter named `id` would also be replaced after the `.` of `.id =`.
  * @usage SYS_DEV_CHECK_IN_RANGE(c->base.id, a->duty, 0, IO_PWM_DUTY_MAX);
  */
-#define SYS_DEV_CHECK_IN_RANGE(dev, v, lo, hi) \
-  ERR_CHECK(dev_in_range((v), (lo), (hi)), ERR_DEV_RANGE, .id = (dev), .value = (int32_t)(v), .min = (int32_t)(lo), \
-            .max = (int32_t)(hi))
+#define SYS_DEV_CHECK_IN_RANGE(dev, v, lo, hi)                                                                   \
+  ERR_CHECK_IN_RANGE((v), (lo), (hi), ERR_DEV_RANGE, .id = (dev), .value = (int32_t)(v), .min = (int32_t)(lo), \
+                     .max = (int32_t)(hi))
 
 /* ----------------------------------------------------------------------------
  * Device types (drivers)

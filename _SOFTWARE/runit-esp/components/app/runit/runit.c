@@ -10,8 +10,6 @@
 #include "sys_ble.h"
 #include "sys_ble_link.h"
 #include "sys_ble_router.h"
-#include "sys_data_connector.h"
-#include "sys_data_connector_router.h"
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_router.h"
 #include "sys_device.h"
@@ -26,11 +24,14 @@
 #include "sys_project_router.h"
 #include "sys_session.h"
 #include "sys_session_router.h"
+#include "sys_stream.h"
+#include "sys_stream_router.h"
 #include "sys_system.h"
 #include "sys_system_router.h"
 #include "sys_uart.h"
 #if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
 #include "sys_remote.h"
+#include "sys_remote_router.h"
 #endif
 #include "sys_watch.h"
 #include "sys_watch_router.h"
@@ -69,13 +70,15 @@ static err_h mark_system_devices(void) {
   return NULL;
 }
 
-// The connectors (they listen for the session's gone peers), then the error policy and sink that send to them.
+// The streams (they listen for the session's gone peers) and the board's own, then the error policy and sink that
+// send to them.
 static err_h streams_init(void) {
-  ERR_TRY(sys_data_connector_init());
+  ERR_TRY(sys_stream_init());
+  ERR_TRY(runit_board_streams_init());
   return runit_error_wiring_init();
 }
 
-// ESP_LOG to the console and the logs connector, with the stored options.
+// ESP_LOG to the console and the logs stream, with the stored options.
 static err_h log_init(void) {
   return sys_log_init();
 }
@@ -84,7 +87,7 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_SYS, sys_system_router));
   ERR_TRY(router_register(ROUTER_KEY_I2C, sys_i2c_router));
   ERR_TRY(router_register(ROUTER_KEY_BLE, sys_ble_router));
-  ERR_TRY(router_register(ROUTER_KEY_CONN, sys_data_connector_router));
+  ERR_TRY(router_register(ROUTER_KEY_STREAM, sys_stream_router));
   ERR_TRY(router_register(ROUTER_KEY_DEVICE, sys_device_router));
   ERR_TRY(router_register(ROUTER_KEY_ACTIONS, sys_actions_router));
   ERR_TRY(router_register(ROUTER_KEY_LOG, sys_log_router));
@@ -94,6 +97,9 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_PROVIDER, sys_data_provider_router));
   ERR_TRY(router_register(ROUTER_KEY_SESSION, sys_session_router));
   ERR_TRY(router_register(ROUTER_KEY_WATCH, sys_watch_router));
+#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+  ERR_TRY(router_register(ROUTER_KEY_REMOTE, sys_remote_router));
+#endif
   router_set_tap(&g_sys_actions_tap);
   sys_system_set_safe_state(safe_state);
   sys_system_set_safe_leave(safe_leave);
@@ -104,16 +110,15 @@ static err_h router_setup(void) {
 // The board's clients: the console's port and the runIT BLE pair, each a session; the providers so far are the board's.
 static err_h sessions_init(void) {
 #if CONFIG_RUNIT_LINK_CHILD
-  // A board with a parent takes no client: the app reaches it through the root.
-  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_PARENT, SYS_SESSION_FULL));
+  // A board with a master takes no client: the app reaches it through the root.
+  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_MASTER));
 #else
-  ERR_TRY(sys_session_attach(SYS_UART_PROVIDER, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
-  ERR_TRY(sys_session_attach(SYS_BLE_PROVIDER_RUNIT, SYS_SESSION_CLIENT, SYS_SESSION_FULL));
+  ERR_TRY(sys_session_attach(SYS_UART_PROVIDER, SYS_SESSION_CLIENT));
+  ERR_TRY(sys_session_attach(SYS_BLE_PROVIDER_RUNIT, SYS_SESSION_CLIENT));
 #if CONFIG_RUNIT_LINK_ROOT
-  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_CHILD, SYS_SESSION_FULL));
+  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_SLAVE));
 #endif
 #endif
-  sys_data_provider_mark_system();
   return NULL;
 }
 
@@ -139,7 +144,7 @@ err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, u
 
 err_h runit_start(void) {
   static const runit_boot_step_entry_t k_boot[] = {
-      {"session", sys_session_init},  // first: the connectors and the dead-man listen for its gone peers
+      {"session", sys_session_init},  // first: the streams and the dead-man listen for its gone peers
       {"streams", streams_init},
       {"log", log_init},
       {"actions", sys_actions_init},
@@ -148,14 +153,14 @@ err_h runit_start(void) {
       {"events", sys_event_init},
       {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
 #if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
-      {"remote devices", sys_remote_init},  // after the session, watches, connectors and events it carries a device's calls on
+      {"remote devices", sys_remote_init},  // after the session, watches and events it carries a device's calls on
 #endif
       {"power", runit_board_power_init},  // before the router: it guards POWER_VREG
       {"router", router_setup},
       {"vm", vm_init},  // after the router: the program is loaded and run through ROUTER_KEY_VM
       {"uart", sys_uart_init},
       {"ble link", sys_ble_link_init},
-      {"stream bindings", runit_board_connector_bindings_init},
+      {"stream bindings", runit_board_stream_bindings_init},
       {"sessions", sessions_init},
       {"i2c", sys_i2c_init},
 #if !CONFIG_RUNIT_BOARD_BARE

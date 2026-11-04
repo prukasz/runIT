@@ -30,7 +30,7 @@ typedef struct __attribute__((packed)) {
  * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: SOURCE RW. Numbers are never reused.
  */
 #define SUPPLY_OPERATIONS(X, P)                               \
-  X(P, SOURCE, 0x00, sys_device_none_t, supply_select_args_t)
+  X(P, SOURCE, 0x00, sys_device_args_none_t, supply_select_args_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(SUPPLY, SYS_DEVICE_CONTRACT_POWER_SUPPLY)
 

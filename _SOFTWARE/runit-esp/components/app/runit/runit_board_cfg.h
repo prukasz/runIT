@@ -7,10 +7,16 @@ extern "C" {
 #endif
 
 /**
- * @brief The board's stream routing: logs and errors on BLE LOGS, telemetry and events on BLE TX; errors, telemetry
- * and events on the UART. Boot step, after the UART and BLE providers are registered.
+ * @brief The board's own streams, all OUT: LOGS, ERRORS (urgent), TELEMETRY, EVENTS (urgent), then marked the board's
+ * (REMOVE refuses them). Part of the streams boot step, after sys_stream_init().
  */
-MUST_USE err_h runit_board_connector_bindings_init(void);
+MUST_USE err_h runit_board_streams_init(void);
+
+/**
+ * @brief The board's stream routing: the log lines on the BLE LOGS characteristic; every other stream to the clients
+ * that subscribe to it. Boot step, after the UART and BLE providers are registered.
+ */
+MUST_USE err_h runit_board_stream_bindings_init(void);
 
 /**
  * @brief Creates the board's devices (CONFIG_RUNIT_BOARD). A devkit: the ESP GPIO only. The PCB: the ESP GPIO and the

@@ -150,8 +150,8 @@ def test_router_errors(link: Link) -> None:
     r = link.request(bytes([KEY_SYS, 0x7E]))
     names = r.record.names() if r and r.record else []
     check(
-        "unknown op -> route node + ERR_ROUTER_UNKNOWN_KEY",
-        names == ["ERR_ROUTER_KEY", "ERR_ROUTER_UNKNOWN_KEY"],
+        "unknown op -> route node + ERR_ROUTER_UNKNOWN_OP",
+        names == ["ERR_ROUTER_KEY", "ERR_ROUTER_UNKNOWN_OP"],
         str(r),
     )
 
@@ -170,7 +170,7 @@ def test_router_errors(link: Link) -> None:
     r = link.request(bytes([KEY_SYS, READ, SYS_BYE]), raw=True)
     names = r.record.names() if r and r.record else []
     check("write-only command (BYE) sent as a read -> ERR_CMD_DIRECTION",
-          names == ["ERR_ROUTER_KEY", "ERR_ROUTER_KEY", "ERR_CMD_DIRECTION"], str(r))
+          names == ["ERR_ROUTER_KEY", "ERR_ROUTER_OP", "ERR_CMD_DIRECTION"], str(r))
     if r and r.record and r.record.cause:
         check("ERR_CMD_DIRECTION names the dir", r.record.cause.data == bytes([READ]), str(r.record.cause))
     r = link.request(bytes([KEY_CONN, WRITE, 0x07]), raw=True)
@@ -385,7 +385,7 @@ def test_session(link: Link) -> None:
     if ok:
         provs = {struct.unpack_from("<BI", r.data, 1 + 8 * n): struct.unpack_from("<HB", r.data, 6 + 8 * n) for n in range(r.data[0])}
         uart = provs.get((LINK_UART, 0))
-        check("UART provider: up (512), system, open, framed, wired", uart == (512, 0x0F), str(provs))
+        check("UART provider: up (512), system, open, wired", uart == (512, 0x0B), str(provs))
         check("BLE providers: the runIT pair and LOGS", (LINK_BLE, 0xFFE1) in provs and LOGS_CHAR in provs, str(provs))
     r = link.request(bytes([KEY_PROVIDER, 0x01]), payload=SYS_UART_PROVIDER)
     check("provider REMOVE of the board's own -> ERR_PROV_SYSTEM", err_cause(r) == "ERR_PROV_SYSTEM", str(r))

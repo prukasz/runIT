@@ -200,7 +200,7 @@ static void keepalive_cb(void* arg) {
   err_report(sys_device_write((uint16_t)(uintptr_t)arg, AP_OP_KEEPALIVE, NULL, 0));
 }
 
-SYS_DEVICE_HANDLER(keepalive_h, sys_device_none_t) {
+SYS_DEVICE_HANDLER(keepalive_h, sys_device_args_none_t) {
   (void)args, (void)out;
   ap_t* c = ctx;
   if (!c->avs_active) {

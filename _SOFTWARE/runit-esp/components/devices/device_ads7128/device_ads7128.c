@@ -129,7 +129,7 @@ static err_h chip_write_reg(ads_t* c, uint8_t reg, uint8_t val) {
 
 static err_h chip_write_block(ads_t* c, uint8_t first_reg, const uint8_t* data, size_t len) {
   uint8_t frame[2 + 4];
-  ERR_CHECK(len >= 1 && len <= sizeof(frame) - 2, ERR_I2C_BAD_ARG);
+  ERR_CHECK_IN_RANGE(len, 1, sizeof(frame) - 2, ERR_I2C_BAD_ARG);
   frame[0] = OP_CONTINUOUS_REGISTER_WRITE;
   frame[1] = first_reg;
   memcpy(&frame[2], data, len);

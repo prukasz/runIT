@@ -1,5 +1,6 @@
 #include "sys_ble_router.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #include "sys_ble.h"

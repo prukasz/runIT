@@ -5,18 +5,20 @@ menu "sys_session"
         default 4
         range 1 16
         help
-          Providers attached to a peer: a parent, children, the root's clients.
+          Providers attached to a peer: a slave's master, or the master's
+          slaves and clients.
 
     #@limit @alias Calls to other boards
     config SYS_SESSION_CALLS
         int "Calls in flight"
-        default 32
+        default 16
         range 1 64
         help
           The board's own requests to other boards waiting for an answer
           (sys_session_call); a call to this board takes none. Every call to
           another board is answered, so each write of a remote device in
-          flight takes one.
+          flight takes one. More than SYS_SESSION_MAX x
+          SYS_SESSION_PEER_IN_FLIGHT are never used: a slot is about 52 B.
 
     config SYS_SESSION_PEER_IN_FLIGHT
         int "Calls in flight to one board"
@@ -53,16 +55,16 @@ menu "sys_session"
         range 0 239
         help
           The board's id when none is kept in NVS (ID). Two boards of one
-          tree need different ids: the child of a link takes another here
+          project need different ids: the slave of a link takes another here
           (sdkconfig.link_child.defaults).
 
-    config SYS_SESSION_GONE_LISTENERS
-        int "Gone-peer listeners"
+    config SYS_SESSION_PEER_LISTENERS
+        int "Peer listeners"
         default 5
         range 1 8
         help
           sys_session_on_gone and sys_session_on_reached slots, each: the
-          connectors, the watches, the dead-man.
+          streams, the watches, the remote devices, the dead-man.
 
     config SYS_SESSION_STREAM_LISTENERS
         int "Stream listeners"
@@ -76,8 +78,8 @@ menu "sys_session"
         default 60
         range 5 3600
         help
-          The root sends its time to every board this often (and when a
-          client sets it), so the clocks of all boards are the root's.
+          The master sends its time to every slave this often (and when a
+          client sets it), so the clocks of all boards are the master's.
 
     #@limit @alias Session timeout @unit ms
     config SYS_SESSION_TIMEOUT_MS
@@ -85,9 +87,9 @@ menu "sys_session"
         default 3000
         range 150 60000
         help
-          A child's session with nothing received for this long ends: its
+          A slave's session with nothing received for this long ends: its
           calls fail, its peers are gone, the hello starts again. The hello
-          tells the peer, which sends at least every third of it. The parent's
+          tells the peer, which sends at least every third of it. The master's
           and the clients' sessions take the dead-man's time instead
           (sys_session_set_timeout).
 

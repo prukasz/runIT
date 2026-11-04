@@ -14,7 +14,7 @@
       "op": 1,
       "symbol": "SYS_WATCH_OP_ADD",
       "label": "Add a watch",
-      "description": "Adds a watch of the sender, or replaces its watch with that id. The read follows the head: [key][dir READ][code | id u16 + op u16][args]; each answer goes back as an entry on the Watches stream: [owner][id][status][data].",
+      "description": "Adds a watch of the sender, or replaces its watch with that id. The read follows the head: [key][dir READ][code | id u16 + op u16][args]; each answer goes back to the sender as an entry in the session's Watches channel: [owner][id][status][data].",
       "write": {
         "args": {
           "struct": "sys_watch_head_t",
@@ -29,22 +29,13 @@
               "description": "The owner's id of the watch; adding an id the owner has replaces that watch"
             },
             {
-              "id": "connector",
-              "label": "Send to",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "Where its entries go: 0 straight to the one who added it, else a connector of this board"
-            },
-            {
               "id": "trigger",
               "label": "Trigger",
               "type": "enum",
               "enum": "sys_watch_trigger_e",
               "raw_type": "u8",
               "size": 1,
-              "offset": 2,
+              "offset": 1,
               "description": "When the read runs"
             },
             {
@@ -53,7 +44,7 @@
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 3,
+              "offset": 2,
               "description": "Ticks of 10 ms. Every period: the read; on change: how often it reads; on event: the shortest gap"
             },
             {
@@ -62,7 +53,7 @@
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 5,
+              "offset": 4,
               "description": "On change: sent anyway after this many ticks, so silence never looks dead; 0 never"
             },
             {
@@ -71,7 +62,7 @@
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 7,
+              "offset": 6,
               "description": "On event: device id, or 0xFFFF for any"
             },
             {
@@ -80,7 +71,7 @@
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 9,
+              "offset": 8,
               "description": "On event: the event id, 0xFFFF for any, or (contract << 8) | 0xFF for any of a contract"
             },
             {
@@ -89,7 +80,7 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 11,
+              "offset": 10,
               "description": "On event: pin / channel, or 0xFF for any"
             }
           ]
@@ -129,7 +120,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of watches",
-          "description": "Then per watch: its head (12 B as ADD takes it), its owner u8 and the length of its read u8."
+          "description": "Then per watch: its head (11 B as ADD takes it), its owner u8 and the length of its read u8."
         }
       }
     }

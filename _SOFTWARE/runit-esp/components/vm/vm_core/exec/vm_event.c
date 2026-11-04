@@ -23,7 +23,7 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
   if (!s_vm_event.wanted) {
     return NULL;
   }
-  if (U_QUEUE_SEND(s_vm_event_q, ev, NO_WAIT) != pdTRUE) {
+  if (xQueueSend(s_vm_event_q, ev, NO_WAIT) != pdTRUE) {
     s_vm_event.drop_source = ev->source;
     s_vm_event.dropped++;
   }
@@ -38,7 +38,7 @@ err_h vm_event_init(void) {
 
 void vm_event_drain(void) {
   uint8_t n = 0;
-  while (n < CONFIG_VM_EVENT_DEPTH && U_QUEUE_RECEIVE(s_vm_event_q, &s_vm_event.cycle[n], NO_WAIT)) n++;
+  while (n < CONFIG_VM_EVENT_DEPTH && xQueueReceive(s_vm_event_q, &s_vm_event.cycle[n], NO_WAIT)) n++;
   s_vm_event.cycle_cnt = n;
 }
 

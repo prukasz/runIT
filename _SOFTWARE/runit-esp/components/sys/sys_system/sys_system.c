@@ -83,7 +83,7 @@ static void broadcast(const uint8_t* req, uint32_t len, uint8_t flags) {
 
 void sys_system_broadcast_time(void) {
   const uint64_t unix_ms = board_time_unix_ms();
-  if (unix_ms == 0 || !sys_session_is_root()) {
+  if (unix_ms == 0 || !sys_session_is_master()) {
     return;
   }
   uint8_t req[3 + sizeof(unix_ms)] = {ROUTER_KEY_SYS, CMD_DIR_WRITE, SYS_SYSTEM_OP_TIME};
@@ -102,14 +102,14 @@ static void on_reached(uint8_t peer) {
   sys_system_broadcast_time();
 }
 
-// A peer gone: a client's (or the parent's) session ended, by silence or its link lost. Armed: the safe state, and the
-// root's dead-man stops every board (a child's own follows its parent's session, which stays up when only the app is
+// A peer gone: a client's (or the master's) session ended, by silence or its link lost. Armed: the safe state, and the
+// master's dead-man stops every board (a slave's own follows its master's session, which stays up when only the app is
 // gone).
 static void on_gone(uint8_t peer, uint8_t via) {
   (void)peer;
-  if (s_sys.deadman_ms > 0 && (via == SYS_SESSION_CLIENT || via == SYS_SESSION_PARENT)) {
+  if (s_sys.deadman_ms > 0 && (via == SYS_SESSION_CLIENT || via == SYS_SESSION_MASTER)) {
     trigger(SYS_SAFE_DEADMAN);
-    if (sys_session_is_root()) {
+    if (sys_session_is_master()) {
       const uint8_t req[] = {ROUTER_KEY_SYS, CMD_DIR_WRITE, SYS_SYSTEM_OP_STOP};
       broadcast(req, sizeof(req), ROUTER_FLAG_URGENT);
     }

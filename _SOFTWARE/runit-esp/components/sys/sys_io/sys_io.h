@@ -118,14 +118,14 @@ typedef struct __attribute__((packed)) {
  * (SYS_DEVICE.MD "Contract tables"). Sides: LEVEL RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W,
  * VOLTAGE RW. Numbers are never reused.
  */
-#define IO_OPERATIONS(X, P)                                  \
-  X(P, LEVEL,    0x00, io_pin_args_t,     io_level_args_t)   \
-  X(P, TOGGLE,   0x01, sys_device_none_t, io_pin_args_t)     \
-  X(P, PWM_DUTY, 0x03, sys_device_none_t, io_duty_args_t)    \
-  X(P, PWM_FREQ, 0x04, sys_device_none_t, io_freq_args_t)    \
-  X(P, MODE,     0x05, sys_device_none_t, io_mode_args_t)    \
-  X(P, RESET,    0x06, sys_device_none_t, io_pin_args_t)     \
-  X(P, INTR,     0x07, sys_device_none_t, io_intr_args_t)    \
+#define IO_OPERATIONS(X, P)                                    \
+  X(P, LEVEL,    0x00, io_pin_args_t,     io_level_args_t)     \
+  X(P, TOGGLE,   0x01, sys_device_args_none_t, io_pin_args_t)  \
+  X(P, PWM_DUTY, 0x03, sys_device_args_none_t, io_duty_args_t) \
+  X(P, PWM_FREQ, 0x04, sys_device_args_none_t, io_freq_args_t) \
+  X(P, MODE,     0x05, sys_device_args_none_t, io_mode_args_t) \
+  X(P, RESET,    0x06, sys_device_args_none_t, io_pin_args_t)  \
+  X(P, INTR,     0x07, sys_device_args_none_t, io_intr_args_t) \
   X(P, VOLTAGE,  0x09, io_pin_args_t,     io_voltage_args_t)
 
 SYS_DEVICE_CONTRACT_DECLARE(IO, SYS_DEVICE_CONTRACT_IO)

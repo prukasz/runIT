@@ -38,23 +38,20 @@ esp32s3_gpio_pin_t* esp32s3_gpio_pin(uint8_t pin) {
 }
 
 void esp32s3_gpio_lock(void) {
-  (void)U_MUTEX_LOCK(gpio_mutex, WAIT_FOREVER);
+  (void)xSemaphoreTake(gpio_mutex, portMAX_DELAY);
 }
 
 bool esp32s3_gpio_try_lock(TickType_t ticks) {
-  return U_MUTEX_LOCK(gpio_mutex, ticks) == pdTRUE;
+  return xSemaphoreTake(gpio_mutex, ticks) == pdTRUE;
 }
 
 void esp32s3_gpio_unlock(void) {
-  (void)U_MUTEX_UNLOCK(gpio_mutex);
+  (void)xSemaphoreGive(gpio_mutex);
 }
 
 uint16_t esp32s3_gpio_device_id(void) {
   return s_gpio.device_id;
 }
-
-#define LOCK()   esp32s3_gpio_lock()
-#define UNLOCK() esp32s3_gpio_unlock()
 
 // Mode -> ESP-IDF gpio_config_t fields. GPIO_MODE_DISABLE (0) marks a mode this
 // table doesn't support, so validity is a single lookup.
@@ -174,10 +171,10 @@ static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode) {
 
 // The pin back to unconfigured. Every step runs; the first failure is returned.
 static err_h release_pin(uint8_t pin) {
-  LOCK();
+  esp32s3_gpio_lock();
   esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
   if (p == NULL) {
-    UNLOCK();
+    esp32s3_gpio_unlock();
     return NULL;
   }
   const bool was_adc = p->pin_mode == SYS_IO_MODE_ADC;
@@ -192,7 +189,7 @@ static err_h release_pin(uint8_t pin) {
   }
   s_gpio.configured &= ~(1ULL << pin);
   memset(p, 0, sizeof(*p));
-  UNLOCK();
+  esp32s3_gpio_unlock();
 
   ERR_KEEP_FIRST(err, ERR_ESP(gpio_reset_pin((gpio_num_t)pin)));
   if (was_adc) {
@@ -207,9 +204,9 @@ static err_h release_pin(uint8_t pin) {
 OP_WRITE(IO, MODE) {
   gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = configure_pin(c, args->pin, args->mode);
-  UNLOCK();
+  esp32s3_gpio_unlock();
   if (err == NULL && args->mode == SYS_IO_MODE_ADC) {
     err = esp32s3_gpio_adc_update_channels();  // without the lock: it takes it again
   }
@@ -227,13 +224,13 @@ OP_WRITE(IO, RESET) {
 // Drives a push-pull / open-drain pin to `level` (0, 1 or LEVEL_TOGGLE). The caller has checked who may write it.
 static err_h drive(const gpio_t* c, uint8_t pin, int level) {
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, pin, is_digital_output, &p);
   if (err == NULL) {
     const int to = level == LEVEL_TOGGLE ? gpio_get_level((gpio_num_t)pin) == 0 : level;
     err = ERR_ESP(gpio_set_level((gpio_num_t)pin, (uint32_t)to));
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 
@@ -255,10 +252,10 @@ OP_READ(IO, LEVEL) {
   const gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_digital, &p);
   const bool level = err == NULL && gpio_get_level((gpio_num_t)args->pin) != 0;
-  UNLOCK();
+  esp32s3_gpio_unlock();
   ERR_TRY(err);
   return sys_io_reply_level(args->pin, level, out);
 }
@@ -268,10 +265,10 @@ OP_READ(IO, VOLTAGE) {
   const gpio_t* c = ctx;
   ERR_TRY(sys_pins_state_check(&c->pins, c->base.id, args->pin));
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_adc, &p);
   const int32_t mV = err == NULL ? p->hw.adc.last_mV : 0;
-  UNLOCK();
+  esp32s3_gpio_unlock();
   ERR_TRY(err);
   return sys_io_reply_voltage(args->pin, mV, out);
 }
@@ -352,7 +349,7 @@ OP_WRITE(IO, INTR) {
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_configured(c, args->pin, &p);
   if (err == NULL) {
     if (p->pin_mode == SYS_IO_MODE_ADC) {
@@ -363,7 +360,7 @@ OP_WRITE(IO, INTR) {
       err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->base.id, .pin = args->pin, .mode = p->pin_mode);
     }
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 
@@ -372,12 +369,12 @@ OP_WRITE(IO, PWM_FREQ) {
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
   if (err == NULL) {
     err = esp32s3_gpio_pwm_set_frequency(p, args->frequency_Hz);
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 
@@ -386,12 +383,12 @@ OP_WRITE(IO, PWM_DUTY) {
   ERR_TRY(sys_pins_state_check_free(&c->pins, c->base.id, args->pin));
   SYS_DEV_CHECK_IN_RANGE(c->base.id, args->duty, 0, IO_PWM_DUTY_MAX);
   esp32s3_gpio_pin_t* p;
-  LOCK();
+  esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
   if (err == NULL) {
     err = esp32s3_gpio_pwm_set_duty(p, (uint16_t)args->duty);
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 
@@ -415,9 +412,9 @@ OP_WRITE(PINS, LOCKED_LEVEL) {
 
 // Releases every configured pin (locked ones too when `all`). Every pin is tried.
 static err_h release_pins(const gpio_t* c, bool all) {
-  LOCK();
+  esp32s3_gpio_lock();
   const uint64_t mask = s_gpio.configured & (all ? ~0ULL : ~c->pins.locked);
-  UNLOCK();
+  esp32s3_gpio_unlock();
   err_h err = NULL;
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     if (mask & (1ULL << pin)) {
@@ -440,7 +437,7 @@ OP_WRITE(SYS_DEVICE, RESET) {
 static err_h suspend_hook(void* ctx) {
   gpio_t* c = ctx;
   err_h err = NULL;
-  LOCK();
+  esp32s3_gpio_lock();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
     if (p == NULL || p->suspended || (c->pins.locked & (1ULL << pin))) {
@@ -460,7 +457,7 @@ static err_h suspend_hook(void* ctx) {
       ERR_KEEP_FIRST(err, ERR_ESP(gpio_set_level((gpio_num_t)pin, p->pin_mode != SYS_IO_MODE_OUTPUT_PUSH_PULL)));
     }
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 
@@ -469,7 +466,7 @@ static err_h suspend_hook(void* ctx) {
 static err_h resume_hook(void* ctx) {
   (void)ctx;
   err_h err = NULL;
-  LOCK();
+  esp32s3_gpio_lock();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
     if (p == NULL || !p->suspended) {
@@ -482,7 +479,7 @@ static err_h resume_hook(void* ctx) {
     }
     ERR_KEEP_FIRST(err, step);
   }
-  UNLOCK();
+  esp32s3_gpio_unlock();
   return err;
 }
 

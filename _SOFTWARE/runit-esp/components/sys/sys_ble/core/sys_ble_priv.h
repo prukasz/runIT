@@ -51,9 +51,6 @@ extern sys_ble_ctx_t g_ble;
 extern SemaphoreHandle_t sys_ble_mutex;   // registry and context
 extern SemaphoreHandle_t sys_ble_tx_sem;  // wakes the BLE task
 
-#define BLE_LOCK() U_MUTEX_LOCK(sys_ble_mutex, WAIT_FOREVER)
-#define BLE_UNLOCK() U_MUTEX_UNLOCK(sys_ble_mutex)
-
 /* Errors raised on the host / BLE task have no caller to return to: reported
  * (log + errors stream; the stream is queued, so this is safe under the lock). */
 static inline void sys_ble_report(err_h err) {

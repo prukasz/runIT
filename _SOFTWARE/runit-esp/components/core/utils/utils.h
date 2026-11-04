@@ -49,9 +49,7 @@ extern "C" {
  * one tick (pdMS_TO_TICKS rounds down, so short timeouts could become 0).
  */
 #define MSEC(ms) ((TickType_t)(((uint64_t)(ms) * configTICK_RATE_HZ + 999u) / 1000u))
-#define SECONDS(sec) ((TickType_t)((uint64_t)(sec) * configTICK_RATE_HZ))
-#define WAIT_FOREVER portMAX_DELAY
-#define NO_WAIT      0
+#define NO_WAIT  0  // a timeout of 0 ticks; forever is portMAX_DELAY
 
 /* ----------------------------------------------------------------------------
  * Static object definitions
@@ -169,12 +167,6 @@ extern "C" {
   }
 
 /**
- * @brief Spinlock for U_CRITICAL_* sections. A single declaration, so it can be
- * prefixed with `static`.
- */
-#define U_SPINLOCK_DEFINE(name) portMUX_TYPE name = portMUX_INITIALIZER_UNLOCKED
-
-/**
  * @brief Static task storage. The task is not started - use U_TASK_START.
  */
 #define U_TASK_DEFINE(name, stack_words)             \
@@ -197,115 +189,6 @@ extern "C" {
   do {                                                                                                                                                                          \
     name = xTaskCreateStaticPinnedToCore((task_func), #name, (sizeof(_##name##_stack) / sizeof(StackType_t)), (param), (priority), _##name##_stack, &_##name##_tcb, (core_id)); \
   } while (0)
-
-/* ----------------------------------------------------------------------------
- * Simplifiers
- * ------------------------------------------------------------------------- */
-
-/* Event groups */
-
-#define U_EVENT_SET(group, bits) xEventGroupSetBits((group), (bits))
-#define U_EVENT_CLEAR(group, bits) xEventGroupClearBits((group), (bits))
-
-/**
- * @brief Waits for ANY of `bits`, clears them on exit. Returns the bits value.
- * @usage if (U_EVENT_AWAIT_ANY(events, BIT_A | BIT_B, WAIT_FOREVER) & BIT_A) { ... }
- */
-#define U_EVENT_AWAIT_ANY(group, bits, timeout_ticks) xEventGroupWaitBits((group), (bits), pdTRUE, pdFALSE, (timeout_ticks))
-
-/**
- * @brief Waits for ALL of `bits`, clears them on exit. Returns the bits value.
- */
-#define U_EVENT_AWAIT_ALL(group, bits, timeout_ticks) xEventGroupWaitBits((group), (bits), pdTRUE, pdTRUE, (timeout_ticks))
-
-/* Task notifications */
-
-/**
- * @brief Sends a 32-bit value to a task, overwriting any pending one.
- */
-#define U_NOTIFY_SEND(task_handle, value) xTaskNotify((task_handle), (value), eSetValueWithOverwrite)
-#define U_NOTIFY_SEND_ISR(task_handle, value, px_woken) xTaskNotifyFromISR((task_handle), (value), eSetValueWithOverwrite, (px_woken))
-
-/**
- * @brief Waits for a notification and clears its value on exit.
- * @return pdTRUE if received, pdFALSE on timeout.
- */
-#define U_NOTIFY_AWAIT(timeout_ticks, out_val_ptr) xTaskNotifyWait(0, UINT32_MAX, (out_val_ptr), (timeout_ticks))
-
-/* Timers */
-
-#define U_TIMER_START(name) xTimerStart((name), 0)
-#define U_TIMER_STOP(name) xTimerStop((name), 0)
-#define U_TIMER_RESET(name) xTimerReset((name), 0)
-#define U_TIMER_START_ISR(name, px_woken) xTimerStartFromISR((name), (px_woken))
-
-/* Mutexes / semaphores */
-
-/**
- * @brief Takes a mutex/semaphore. pdTRUE on success, pdFALSE on timeout.
- * @usage if (U_MUTEX_LOCK(i2c_bus, MSEC(100))) { ... U_MUTEX_UNLOCK(i2c_bus); }
- */
-#define U_MUTEX_LOCK(mutex_handle, timeout_ticks) xSemaphoreTake((mutex_handle), (timeout_ticks))
-#define U_MUTEX_UNLOCK(mutex_handle) xSemaphoreGive((mutex_handle))
-#define U_RECURSIVE_MUTEX_LOCK(mutex_handle, timeout_ticks) xSemaphoreTakeRecursive((mutex_handle), (timeout_ticks))
-#define U_RECURSIVE_MUTEX_UNLOCK(mutex_handle) xSemaphoreGiveRecursive((mutex_handle))
-
-/**
- * @brief Gives a semaphore from an ISR and yields if a higher-priority task woke.
- */
-#define U_SEM_GIVE_ISR(sem_handle)                \
-  do {                                            \
-    BaseType_t _woken = pdFALSE;                  \
-    xSemaphoreGiveFromISR((sem_handle), &_woken); \
-    if (_woken) {                                 \
-      portYIELD_FROM_ISR();                       \
-    }                                             \
-  } while (0)
-
-/* Critical sections */
-
-/**
- * @brief Enters/exits a spinlock critical section (interrupts off on this core,
- * other core spins). Keep the body short - no blocking calls inside.
- * @usage U_CRITICAL_ENTER(s_lock); counter++; U_CRITICAL_EXIT(s_lock);
- */
-#define U_CRITICAL_ENTER(lock) portENTER_CRITICAL(&(lock))
-#define U_CRITICAL_EXIT(lock) portEXIT_CRITICAL(&(lock))
-#define U_CRITICAL_ENTER_ISR(lock) portENTER_CRITICAL_ISR(&(lock))
-#define U_CRITICAL_EXIT_ISR(lock) portEXIT_CRITICAL_ISR(&(lock))
-
-/**
- * @brief Critical section for code called from both tasks and ISRs - picks the
- * right variant at runtime.
- */
-#define U_CRITICAL_ENTER_SAFE(lock) portENTER_CRITICAL_SAFE(&(lock))
-#define U_CRITICAL_EXIT_SAFE(lock) portEXIT_CRITICAL_SAFE(&(lock))
-
-/* Queues */
-
-#define U_QUEUE_SEND(queue_handle, item_ptr, timeout_ticks) xQueueSend((queue_handle), (item_ptr), (timeout_ticks))
-
-/**
- * @brief Sends to a queue from an ISR and yields if a higher-priority task woke.
- */
-#define U_QUEUE_SEND_ISR(queue_handle, item_ptr)            \
-  do {                                                      \
-    BaseType_t _woken = pdFALSE;                            \
-    xQueueSendFromISR((queue_handle), (item_ptr), &_woken); \
-    if (_woken) {                                           \
-      portYIELD_FROM_ISR();                                 \
-    }                                                       \
-  } while (0)
-
-/**
- * @brief Receives from a queue. pdTRUE if an item was received.
- */
-#define U_QUEUE_RECEIVE(queue_handle, item_ptr, timeout_ticks) xQueueReceive((queue_handle), (item_ptr), (timeout_ticks))
-
-/**
- * @brief Reads the next item without removing it.
- */
-#define U_QUEUE_PEEK(queue_handle, item_ptr, timeout_ticks) xQueuePeek((queue_handle), (item_ptr), (timeout_ticks))
 
 /* ----------------------------------------------------------------------------
  * Singly linked list

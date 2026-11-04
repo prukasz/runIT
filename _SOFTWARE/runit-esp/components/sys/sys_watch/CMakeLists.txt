@@ -4,6 +4,6 @@ idf_component_register(
     SRCS "sys_watch.c" "sys_watch_client.c" "router/sys_watch_router.c" "errors/sys_watch_errors.c"
     INCLUDE_DIRS "." "config" "errors" "router"
     REQUIRES cmd errors utils sys_event
-    PRIV_REQUIRES router sys_data_connector sys_session esp_timer esp_rom
+    PRIV_REQUIRES router sys_session esp_timer esp_rom
     WHOLE_ARCHIVE
 )

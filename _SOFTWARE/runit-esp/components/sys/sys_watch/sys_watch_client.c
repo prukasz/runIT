@@ -3,7 +3,6 @@
 #include "esp_timer.h"
 #include "router.h"
 #include "sdkconfig.h"
-#include "sys_data_connector.h"
 #include "sys_session.h"
 #include "sys_watch.h"
 #include "internal/sys_watch_internal.h"
@@ -52,8 +51,6 @@ static struct {
 } s_cl;
 
 U_MUTEX_DEFINE(s_client_lock);
-#define LOCK()   U_MUTEX_LOCK(s_client_lock, portMAX_DELAY)
-#define UNLOCK() U_MUTEX_UNLOCK(s_client_lock)
 
 #define CTX(slot, gen) ((void*)(uintptr_t)(((uint32_t)(gen) << 8) | (slot)))
 #define CTX_SLOT(ctx)  ((uint8_t)((uintptr_t)(ctx) & 0xFFu))
@@ -122,12 +119,12 @@ static void free_locked(uint8_t i) {
  * ------------------------------------------------------------------------- */
 
 // The answer of an ADD, on the RX task: refused, the watch is not there; the owner is told.
-static err_h on_add_done(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
+static err_h on_add_done(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
   (void)cmd;
   sys_watch_entry_f cb = NULL;
   void* cb_ctx = NULL;
   uint8_t board = 0;
-  LOCK();
+  xSemaphoreTake(s_client_lock, portMAX_DELAY);
   slot_t* s = &s_cl.slots[CTX_SLOT(ctx)];
   if (s->used && s->gen == CTX_GEN(ctx) && status != ROUTER_STATUS_OK) {
     s->added = false;
@@ -137,14 +134,14 @@ static err_h on_add_done(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_
     cb_ctx = s->ctx;
     board = s->board;
   }
-  UNLOCK();
+  xSemaphoreGive(s_client_lock);
   if (cb != NULL) {
     cb(cb_ctx, board, ROUTER_STATUS_ERROR, data, len, 0);
   }
   return NULL;
 }
 
-static err_h on_ignore(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
+static err_h on_ignore(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
   (void)ctx;
   (void)cmd;
   (void)status;
@@ -166,13 +163,13 @@ static void send_add(uint8_t i, uint16_t gen, uint8_t board, const sys_watch_hea
   err_h err = sys_session_call(board, (cmd_in_t){req, 3u + sizeof(*head) + read_len}, 0, 0, on_add_done, CTX(i, gen));
   if (err != NULL) {
     err_free(err);
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     slot_t* s = &s_cl.slots[i];
     if (s->used && s->gen == gen) {
       s->added = false;
       s->retry_ms = now_ms() + at_least(s->added_age_ms, SYS_WATCH_TICK_MS);
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
   }
 }
 
@@ -187,7 +184,6 @@ static sys_watch_head_t cached_head(uint8_t id, uint32_t max_age_ms) {
   const uint32_t silence = at_least(max_age_ms / SYS_WATCH_TICK_MS, period);
   return (sys_watch_head_t){
       .id = id,
-      .connector = SYS_WATCH_TO_OWNER,
       .trigger = SYS_WATCH_ON_CHANGE,
       .period = (uint16_t)(period > UINT16_MAX ? UINT16_MAX : period),
       .max_silence = (uint16_t)(silence > UINT16_MAX ? UINT16_MAX : silence),
@@ -199,9 +195,9 @@ static sys_watch_head_t cached_head(uint8_t id, uint32_t max_age_ms) {
  * Entries
  * ------------------------------------------------------------------------- */
 
-// A STREAM frame [WATCHES][owner][id][status][data] from a board.
+// A STREAM frame [SYS_SESSION_CHANNEL_WATCHES][owner][id][status][data] from a board.
 static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
-  if (len < 4 || data[0] != SYS_DATA_CONNECTOR_WATCHES) {
+  if (len < 4 || data[0] != SYS_SESSION_CHANNEL_WATCHES) {
     return;
   }
   const uint8_t id = data[2];
@@ -211,7 +207,7 @@ static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t l
   sys_watch_entry_f cb = NULL;
   void* cb_ctx = NULL;
   uint16_t lost = 0;
-  LOCK();
+  xSemaphoreTake(s_client_lock, portMAX_DELAY);
   const int at = find_locked(src, id);
   if (at >= 0) {
     slot_t* s = &s_cl.slots[at];
@@ -232,16 +228,16 @@ static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t l
       cb_ctx = s->ctx;
     }
   }
-  UNLOCK();
+  xSemaphoreGive(s_client_lock);
   if (cb != NULL) {
     cb(cb_ctx, src, status, payload, plen, lost);
   }
 }
 
 // The answer of the read a write asks for: the copy is new again.
-static err_h on_refresh(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
+static err_h on_refresh(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
   (void)cmd;
-  LOCK();
+  xSemaphoreTake(s_client_lock, portMAX_DELAY);
   slot_t* s = &s_cl.slots[CTX_SLOT(ctx)];
   if (s->used && s->gen == CTX_GEN(ctx)) {
     s->old = false;
@@ -252,21 +248,22 @@ static err_h on_refresh(void* ctx, const err_cmd_t* cmd, uint8_t status, uint8_t
       s->copy_ms = now_ms();
     }
   }
-  UNLOCK();
+  xSemaphoreGive(s_client_lock);
   return NULL;
 }
 
 /* A board's watches are gone with its session: a cached read's slot asks again at its next read, the owner's watch is
    sent again when the board is reached. The owners are told. */
 static void on_gone(uint8_t peer, uint8_t via) {
-  const bool outside = peer == SYS_SESSION_ID_BROADCAST && via == SYS_SESSION_PARENT;
+  (void)via;
+  const bool all = peer == SYS_SESSION_ID_BROADCAST;  // the master's session ended: every peer
   for (uint8_t i = 0; i < CONFIG_SYS_WATCH_CLIENT_MAX; i++) {
     sys_watch_entry_f cb = NULL;
     void* cb_ctx = NULL;
     uint8_t board = 0;
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     slot_t* s = &s_cl.slots[i];
-    if (s->used && (s->board == peer || (outside && !sys_session_below(s->board)))) {
+    if (s->used && (s->board == peer || all)) {
       s->added = false;
       s->active = false;
       s->old = false;
@@ -276,11 +273,11 @@ static void on_gone(uint8_t peer, uint8_t via) {
       cb_ctx = s->ctx;
       board = s->board;
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     if (cb != NULL) {
       uint8_t buf[ERROR_MAX];
       err_h err = ERR_NEW(ERR_SESSION_PEER_DOWN, .board = board);
-      const uint32_t len = err_record(NULL, err, buf, sizeof(buf));
+      const uint32_t len = err_record(err, buf, sizeof(buf));
       err_free(err);
       cb(cb_ctx, board, ROUTER_STATUS_ERROR, buf, len, 0);
     }
@@ -294,7 +291,7 @@ static void on_reached(uint8_t peer) {
     uint8_t read_len = 0;
     uint16_t gen = 0;
     bool send = false;
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     slot_t* s = &s_cl.slots[i];
     if (s->used && !s->cached && s->board == peer && !s->added) {
       s->added = true;
@@ -304,7 +301,7 @@ static void on_reached(uint8_t peer) {
       memcpy(read, s->req, read_len);
       send = true;
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     if (send) {
       send_add(i, gen, peer, &head, read, read_len);
     }
@@ -319,7 +316,7 @@ static void on_idle_tick(void* arg) {
     bool remove = false;
     uint8_t board = 0;
     uint8_t id = 0;
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     slot_t* s = &s_cl.slots[i];
     if (s->used && s->cached &&
         now - s->last_read_ms > at_least(10u * s->max_age_ms, CONFIG_SYS_WATCH_IDLE_MIN_MS)) {
@@ -328,7 +325,7 @@ static void on_idle_tick(void* arg) {
       id = s->id;
       free_locked(i);
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     if (remove) {
       send_remove(board, id);
     }
@@ -341,14 +338,13 @@ static void on_idle_tick(void* arg) {
 
 err_h sys_watch_remote_add(uint8_t board, const sys_watch_head_t* head, cmd_in_t read, sys_watch_entry_f cb, void* ctx,
                            uint8_t* id) {
-  ERR_CHECK(cb != NULL && head->period != 0 && head->trigger <= SYS_WATCH_ON_EVENT &&
-                head->connector == SYS_WATCH_TO_OWNER && read.len <= SYS_WATCH_READ_MAX,
+  ERR_CHECK(cb != NULL && head->period != 0 && head->trigger <= SYS_WATCH_ON_EVENT && read.len <= SYS_WATCH_READ_MAX,
             ERR_WATCH_BAD_ARG, .id = head->id);
   ERR_CHECK(read.len >= 2 && read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = head->id);
-  LOCK();
+  xSemaphoreTake(s_client_lock, portMAX_DELAY);
   const int at = take_locked(board, false);
   if (at < 0) {
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     return ERR_NEW(ERR_WATCH_FULL);
   }
   slot_t* s = &s_cl.slots[at];
@@ -363,23 +359,23 @@ err_h sys_watch_remote_add(uint8_t board, const sys_watch_head_t* head, cmd_in_t
   const sys_watch_head_t sent = s->head;
   const uint16_t gen = s->gen;
   *id = s->id;
-  UNLOCK();
+  xSemaphoreGive(s_client_lock);
   send_add((uint8_t)at, gen, board, &sent, read.data, (uint8_t)read.len);
   return NULL;
 }
 
 err_h sys_watch_remote_remove(uint8_t board, uint8_t id) {
   bool added = false;
-  LOCK();
+  xSemaphoreTake(s_client_lock, portMAX_DELAY);
   const int at = find_locked(board, id);
   if (at >= 0 && !s_cl.slots[at].cached) {
     added = s_cl.slots[at].added;
     free_locked((uint8_t)at);
   } else {
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     return ERR_NEW(ERR_WATCH_NOT_FOUND, .id = id);
   }
-  UNLOCK();
+  xSemaphoreGive(s_client_lock);
   if (added) {
     send_remove(board, id);
   }
@@ -400,7 +396,7 @@ err_h sys_watch_read(uint8_t board, cmd_in_t read, uint32_t max_age_ms, bool wai
   sys_watch_head_t head = {0};
   err_h err = NULL;
   if (max_age_ms != 0) {
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     int at = find_read_locked(board, read);
     if (at < 0) {
       at = take_locked(board, true);
@@ -444,7 +440,7 @@ err_h sys_watch_read(uint8_t board, cmd_in_t read, uint32_t max_age_ms, bool wai
         add = true;
       }
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
   }
   if (add) {
     send_add(slot, gen, board, &head, read.data, (uint8_t)read.len);
@@ -467,7 +463,7 @@ void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
     uint8_t req[SYS_WATCH_READ_MAX];
     uint8_t req_len = 0;
     uint16_t gen = 0;
-    LOCK();
+    xSemaphoreTake(s_client_lock, portMAX_DELAY);
     slot_t* s = &s_cl.slots[i];
     const bool same = s->used && s->cached && s->active && s->board == board && s->req[0] == write.data[0] &&
                       s->req_len >= 2 + target_len && memcmp(s->req + 2, write.data + 2, target_len) == 0;
@@ -477,19 +473,19 @@ void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
       gen = s->gen;
       memcpy(req, s->req, req_len);
     }
-    UNLOCK();
+    xSemaphoreGive(s_client_lock);
     if (!same) {
       continue;
     }
     err_h err = sys_session_call(board, (cmd_in_t){req, req_len}, 0, 0, on_refresh, CTX(i, gen));
     if (err != NULL) {  // no read follows: the copy is dropped, the next entry makes it again
       err_free(err);
-      LOCK();
+      xSemaphoreTake(s_client_lock, portMAX_DELAY);
       if (s_cl.slots[i].used && s_cl.slots[i].gen == gen) {
         s_cl.slots[i].old = false;
         s_cl.slots[i].active = false;
       }
-      UNLOCK();
+      xSemaphoreGive(s_client_lock);
     }
   }
 }

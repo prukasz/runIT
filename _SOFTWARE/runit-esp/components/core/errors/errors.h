@@ -10,6 +10,12 @@
 extern "C" {
 #endif
 
+/* Whether lo <= v <= hi (ERR_CHECK_IN_RANGE). Widened to int64 in a function: at the call the compiler would see a u8's
+ * range and warn (-Wtype-limits, u8 >= 0). */
+static inline bool err_in_range(int64_t v, int64_t lo, int64_t hi) {
+  return v >= lo && v <= hi;
+}
+
 #if CONFIG_ERRORS_INFO
 /**
  * @brief Where the error was created. One static const instance per call site
@@ -154,28 +160,19 @@ void err_log(err_h chain);
 void err_log_enable(bool on);
 
 /* ----------------------------------------------------------------------------
- * The command an error belongs to
- * ------------------------------------------------------------------------- */
-
-/** A command as it came in: its request (keys + payload) and its origin. Whoever submits it to the router fills it. */
-typedef struct {
-  const uint8_t* req;  // may be NULL when req_len is 0
-  uint32_t req_len;
-  uint16_t seq;        // the sender's counter, in every answer
-  uint8_t src;         // who sent it: a board or client id; ROUTER_SRC_SELF (0xFE) for the board's own commands
-  uint8_t flags;       // ROUTER_FLAG_*
-} err_cmd_t;
-
-/* ----------------------------------------------------------------------------
  * Reporting: the end of a chain nobody returns any more
  * ------------------------------------------------------------------------- */
+
+/* The command a chain belongs to (cmd.h, cmd_req_t). errors only passes it on to the sink and never reads it: the
+   record of a command is built by cmd_err_record() (cmd.h), over err_record_cmd() below. */
+struct cmd_req;
 
 /**
  * @brief Where reported chains go besides the log (the app sends them to the
  * errors stream). `cmd` is the command the chain belongs to, NULL for an
  * internal error. Must not report errors itself.
  */
-typedef void (*err_sink_f)(err_h chain, const err_cmd_t* cmd);
+typedef void (*err_sink_f)(err_h chain, const struct cmd_req* cmd);
 
 /**
  * @brief Sets the sink. Boot only. NULL = log only.
@@ -187,7 +184,7 @@ void err_set_sink(err_sink_f fn);
  * to the sink with `cmd` (may be NULL), frees it. NULL is ignored. Task context only.
  * @usage err_report(sys_i2c_probe(bus, addr));   // nobody to return it to
  */
-void err_report_ex(err_h chain, const char* log_ctx, const err_cmd_t* cmd);
+void err_report_ex(err_h chain, const char* log_ctx, const struct cmd_req* cmd);
 void err_report(err_h chain);
 
 /* ----------------------------------------------------------------------------
@@ -208,8 +205,8 @@ typedef enum {
 
 /** @brief An error record's command header (after the stamp): who sent the command, and which one. */
 typedef struct __attribute__((packed)) {
-  uint8_t from;     /**< err_cmd_t.src: a board or client id; 0xFE for the board itself */
-  uint16_t seq;     /**< err_cmd_t.seq: the sender's counter */
+  uint8_t from;     /**< cmd_req_t.src: a board or client id; 0xFE for the board itself */
+  uint16_t seq;     /**< cmd_req_t.seq: the sender's counter */
   uint8_t flags;    /**< ROUTER_FLAG_* */
   uint8_t req_len;  /**< Bits 0-6: request bytes that follow, bit 7: cut (ERR_RECORD_REQ_CUT) */
 } err_record_cmd_t;
@@ -217,14 +214,24 @@ typedef struct __attribute__((packed)) {
 _Static_assert(sizeof(err_record_cmd_t) == 5, "record command header");
 
 /**
- * @brief Encodes an error record into `buf`: [src][stamp] (+ err_record_cmd_t and the request for a command), then
- * the chain, outermost node first: [count u8, bit 7 = cut] and per node [tag u32 LE][len u8][payload]
- * (the packed err_data_<TAG>_t; len 0 for an unknown tag). The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and
- * further when `cap` is small; nodes that don't fit are left out and bit 7 is set. Does not free the chain.
- * @param cmd The command, or NULL for an internal error.
+ * @brief Encodes the record of an internal error (no command) into `buf`: [ERR_RECORD_SRC_INTERNAL][stamp], then the
+ * chain, outermost node first: [count u8, bit 7 = cut] and per node [tag u32 LE][len u8][payload] (the packed
+ * err_data_<TAG>_t; len 0 for an unknown tag). Nodes that don't fit are left out and bit 7 is set. Does not free the
+ * chain.
  * @return Bytes written (0 only when cap is too small for the header).
  */
-uint32_t err_record(const err_cmd_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
+uint32_t err_record(err_h chain, uint8_t* buf, uint32_t cap);
+
+/**
+ * @brief err_record for a chain raised by a command: [ERR_RECORD_SRC_COMMAND][stamp][err_record_cmd_t][request], then
+ * the chain. The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and further when `cap` is small. Called by
+ * cmd_err_record() (cmd.h), which takes the fields from the command.
+ * @param from, seq, flags  The command's src, seq and flags.
+ * @param req, req_len      Its request (req may be NULL when req_len is 0).
+ * @return Bytes written (0 only when cap is too small for the header).
+ */
+uint32_t err_record_cmd(uint8_t from, uint16_t seq, uint8_t flags, const uint8_t* req, uint32_t req_len, err_h chain,
+                        uint8_t* buf, uint32_t cap);
 
 /**
  * @brief err_record for an error about another board as a whole: [ERR_RECORD_SRC_BOARD][stamp][board u8], then the chain.

@@ -1,12 +1,48 @@
 menu "sys_remote"
 
-    config SYS_REMOTE_BOARDS
-        int "Boards with remote devices"
-        default 4
-        range 1 16
+    config SYS_REMOTE_WATCH_MS
+        int "Remote read period (ms)"
+        default 100
+        range 10 60000
         help
-          Boards this board has a remote device on at once. Each takes a
-          two connector slots (CONFIG_SYS_DATA_CONNECTOR_MAX) for the mirrors
-          of that board's events and errors.
+          A remote device that is not wired is read from a watch's copy: the
+          first read makes an ON_CHANGE watch on its board, which reads every
+          this long and sends at least every twice this long.
+
+    #@limit @alias Remote subscriptions
+    config SYS_REMOTE_SUBSCRIPTIONS
+        int "Subscriptions to this board's devices"
+        default 16
+        range 1 64
+        help
+          Peers subscribed to a device of this board (SUBSCRIBE): each gets the
+          device's events and errors. Another board's remote device takes one.
+
+    config SYS_REMOTE_ALIASES
+        int "Remote devices with events"
+        default 16
+        range 1 64
+        help
+          Remote devices of this board whose events and errors come here: the
+          board, the id there and the count of the frames that came.
+
+    config SYS_REMOTE_QUEUE_SIZE
+        int "Queue (bytes)"
+        default 1024
+        range 256 8192
+        help
+          The events and errors on their way: out to the subscribers of this
+          board's devices, and in from the boards of the remote devices. A
+          multiple of 4.
+
+    config SYS_REMOTE_TASK_PRIO
+        int "Task priority"
+        default 4
+        range 1 20
+
+    config SYS_REMOTE_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 2048 16384
 
 endmenu

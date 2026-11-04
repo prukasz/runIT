@@ -11,7 +11,7 @@
 #define ROUTER_KEY_SYS      0x01u  //@alias System @description System: ping, stop, restart, dead-man, clock, safe state
 #define ROUTER_KEY_I2C      0x02u  //@alias I2C @description I2C: bus diagnostics (scan, probe)
 #define ROUTER_KEY_BLE      0x03u  //@alias Bluetooth @description Bluetooth: runtime GATT table and BLE status
-#define ROUTER_KEY_CONN     0x04u  //@alias Data streams @description Data streams: create, bind, suspend and list outbound streams
+#define ROUTER_KEY_STREAM   0x04u  //@alias Data streams @description Data streams: create, bind, subscribe and list the board's streams
 #define ROUTER_KEY_DEVICE   0x05u  //@alias Devices @description Devices: create, remove and use devices
 #define ROUTER_KEY_ACTIONS  0x06u  //@alias Actions @description Actions: stored command lists (run, record, upload, read back)
 #define ROUTER_KEY_EVENT    0x07u  //@alias Events @description Events: frame shape of the events stream (no commands)
@@ -23,3 +23,4 @@
 #define ROUTER_KEY_PROVIDER 0x0Du  //@alias Providers @description Providers: the ways bytes go out and come in (list, remove, send)
 #define ROUTER_KEY_SESSION  0x0Eu  //@alias Sessions @description Sessions: this board's id, its peers (attach, detach, list)
 #define ROUTER_KEY_WATCH    0x0Fu  //@alias Watches @description Watches: reads this board runs by a trigger and sends by itself (add, remove, list)
+#define ROUTER_KEY_REMOTE   0x10u  //@alias Remote devices @description Remote devices: subscriptions of other boards to this board's devices (their events and errors)
