@@ -1,0 +1,7 @@
+{
+  "sources": ["router.c", "router_dispatch.c"],
+  "tests": ["host/test_router.c", "host/test_router_queue.c", "host/test_router_tasks.c"],
+  "includes": ["errors"],
+  "config": "host/router_host_config.h",
+  "deps": ["cmd"]
+}

@@ -19,14 +19,15 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `errors_core.json` | The user messages of this module's tags (and their hints: what to do) (each module has its `errors_<module>.json` in the `errors/` folder of its component, next to its map `<component>_errors.h`) |
 | `CMakeLists.txt` | Component registration and source files |
 | `Kconfig` | Configuration for call-site info, pool size, line buffer length, module limits |
+| `host/` | Host tests: `test_errors.c`, `host_test.json`, `errors_host_config.h` (see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Model
 
 - An error is a **chain** of nodes. `err_h` = pointer to the outermost node; **`NULL` = success**. `next` = the cause (deeper node), `NULL` at the root cause.
-- One node = one pool block: `[info*] next tag data[]` (header 12 B with call-site info, 8 B without; payload max `ERR_DATA_MAX` = block − header, 19 B by default). Packed, no padding.
+- One node = one pool block: `[info*] next tag data[]` (header 12 B with call-site info, 8 B without on the board's 4-byte pointers; payload max `ERR_DATA_MAX` = block − header, 20 B by default). Packed, no padding.
 - `tag = ERR_TAG(module, code)`: high 16 bits module, low 16 bits code; compared as a whole. Tag 0 = none / success.
-- `info` = pointer to a `static const err_info_t {file, func, line}` per call site (flash, not RAM).
+- `info` = pointer to a `static const err_info_t {file, func, line}` per call site (flash, not RAM); `NULL` for the static `ERR_POOL_EMPTY` node, which has no call site (`err_log` then prints no location).
 - Payload = the tag's packed struct `err_data_<TAG>_t`, read with `ERR_DATA(e, TAG)` after checking `e->tag`.
 
 ## Tags and modules
@@ -63,7 +64,7 @@ Rules:
 - Return `err_h` from anything that can fail; **never return `NULL` for a failure**.
 - `err_new` is `MUST_USE`. Whoever ends a chain frees it: `err_free(chain)` (whole chain). `err_log` borrows.
 - Never share a cause between two chains. A leaked node permanently reduces the pool.
-- **Pool empty**: `ERR_NEW` → shared static `ERR_POOL_EMPTY` node (never freed); `ERR_WRAP` → returns `cause` unchanged (this level is lost).
+- **Pool empty**: `ERR_NEW` → shared static `ERR_POOL_EMPTY` node (never freed, no `info`); `ERR_WRAP` → returns `cause` unchanged (this level is lost).
 
 ## Severity
 
@@ -136,16 +137,15 @@ answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0
 ## Limits
 
 - `CONFIG_ERRORS_POOL_BLOCKS` (default 32): maximum concurrent live error nodes in the pool.
-- `CONFIG_ERRORS_POOL_BLOCK_SIZE` (default 32 B): block size. Node payload is limited to `ERR_DATA_MAX` (19 B with call-site info, 23 B without).
+- `CONFIG_ERRORS_POOL_BLOCK_SIZE` (default 32 B): block size. Node payload is limited to `ERR_DATA_MAX` (20 B with call-site info, 24 B without on the board).
 - `CONFIG_ERRORS_MAX_MODULES` (default 32): maximum number of modules that can register error tables.
 - `CONFIG_ERRORS_LOG_LINE_LEN` (default 256 B): stack buffer size for formatting chain lines in `err_log`.
 - `CONFIG_ERRORS_RECORD_REQ_MAX` (default 32 B): request bytes an error record repeats (7 bits at most).
 
 ## Tests
 
-Core error unit tests cover:
-- Pool allocation and release, spinlock concurrency, and double-free detection assertion.
-- Pool exhaustion behavior (`ERR_POOL_EMPTY` static fallback, `ERR_WRAP` preservation of cause).
-- Chain severity walk resolution (`err_chain_sev`) with tag defaults and explicit overrides.
-- The error record (`err_record`): the chain's cut bit when capacity is exceeded.
-- Translation of `esp_err_t` return codes via `ERR_ESP` / `ERR_TRY_ESP`.
+Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and the two variants (with and without call-site info); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size.
+
+They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity; the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
+
+Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not), the double-free assertion (it aborts).

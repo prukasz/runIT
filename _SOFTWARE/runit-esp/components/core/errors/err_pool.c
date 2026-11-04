@@ -2,11 +2,15 @@
 
 #include "utils.h"
 
+
 #define BLOCKS     CONFIG_ERRORS_POOL_BLOCKS
 #define BLOCK_SIZE CONFIG_ERRORS_POOL_BLOCK_SIZE
 
 _Static_assert(BLOCK_SIZE % 4 == 0, "ERRORS_POOL_BLOCK_SIZE must be a multiple of 4");
 _Static_assert(BLOCK_SIZE > ERR_HDR_LEN, "ERRORS_POOL_BLOCK_SIZE leaves no room for data");
+
+//spinlock for allocation
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 // A free block holds only the link to the next free block.
 typedef struct free_blk {
@@ -19,7 +23,7 @@ static struct {
   uint32_t next_new;                  // blocks [next_new, BLOCKS) were never handed out
   uint32_t used[(BLOCKS + 31) / 32];  // 1 bit per block, catches double free
 } s_pool;
-static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
+
 
 err_h err_pool_alloc(void) {
   uint8_t* blk = NULL;

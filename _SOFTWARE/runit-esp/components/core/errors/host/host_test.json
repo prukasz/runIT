@@ -1,0 +1,10 @@
+{
+  "sources": ["errors.c", "err_pool.c", "err_tags.c", "err_log.c", "err_wire.c"],
+  "tests": ["host/test_errors.c"],
+  "config": "host/errors_host_config.h",
+  "deps": [],
+  "variants": {
+    "info": [],
+    "no_info": ["-DCONFIG_ERRORS_INFO_FILE=0", "-DCONFIG_ERRORS_INFO_FUNC=0", "-DCONFIG_ERRORS_INFO_LINE=0"]
+  }
+}

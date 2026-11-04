@@ -13,3 +13,4 @@ Spec: `CMD.MD` (this folder).
   - `out->len` 0 is an empty answer. A command answers once; longer data is paged by the command (CMD.MD "The handler").
 - Linker requirements: `CMakeLists.txt` must retain `WHOLE_ARCHIVE`. Error tags are registered by a constructor in `cmd.c`. A handler may raise `ERR_CMD_*` without calling `cmd_reply`, so the linker must never discard `cmd.c`.
 - Decoupling invariant: `cmd` must not depend on `router` or `sys_device`. It depends only on `errors` and `utils`.
+- Host tests: `host/` (CMD.MD "Tests"). A change to `cmd_side`, `cmd_reply`, `cmd_append` or `cmd_err_record` is run with `python test_host/run.py cmd` from `runit-esp/`; the error tags' IDs and sizes are pinned there (wire format).

@@ -1,0 +1,6 @@
+{
+  "sources": ["cmd.c"],
+  "tests": ["host/test_cmd.c"],
+  "includes": ["errors"],
+  "deps": ["errors"]
+}

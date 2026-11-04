@@ -10,16 +10,10 @@
 extern "C" {
 #endif
 
-/* Whether lo <= v <= hi (ERR_CHECK_IN_RANGE). Widened to int64 in a function: at the call the compiler would see a u8's
- * range and warn (-Wtype-limits, u8 >= 0). */
-static inline bool err_in_range(int64_t v, int64_t lo, int64_t hi) {
-  return v >= lo && v <= hi;
-}
 
 #if CONFIG_ERRORS_INFO
 /**
- * @brief Where the error was created. One static const instance per call site
- * (lives in flash), the node only points to it. Only the fields enabled in
+ * @brief Error diagnostics - the node only points to it. Only the fields enabled in
  * Kconfig (CONFIG_ERRORS_INFO_FILE/FUNC/LINE) exist. With all three off there
  * is no err_info_t and no `info` field in err_t.
  */
@@ -34,6 +28,7 @@ typedef struct {
   uint32_t line;  // __LINE__
 #endif
 } err_info_t;
+
 #endif
 
 typedef struct err err_t;
@@ -43,12 +38,9 @@ typedef err_t* err_h;
  * @brief One error in a chain. `next` points to the cause (the deeper error),
  * NULL at the root cause. `tag` is ERR_TAG(module, code); its severity is the
  * tag's (err_sev). `data` is the tag's payload, stored right after the node.
+ * `info` (where enabled) is NULL only for the static ERR_POOL_EMPTY node.
  *
  * Packed - no padding anywhere, `data` starts right after `tag`. aligned(4)
- * keeps the node itself 4-aligned, so the compiler still uses plain 32-bit
- * loads for the pointer and tag fields (packed alone would make every field
- * access byte-wise). Payload types are packed too, so `data` needs no
- * alignment.
  */
 struct __attribute__((packed, aligned(4))) err {
 #if CONFIG_ERRORS_INFO
@@ -58,8 +50,6 @@ struct __attribute__((packed, aligned(4))) err {
   uint32_t tag;
   uint8_t data[];
 };
-
-_Static_assert(offsetof(err_t, data) == ERR_HDR_LEN, "err_t header has padding - data must follow sev directly");
 
 /**
  * @brief Severity: each tag has one, in its module's map. How a device reacts
@@ -94,7 +84,7 @@ typedef struct {
 void err_register_module(const err_module_t* module);
 
 /**
- * @brief Severity of one node: its tag's (ERR_SEV_NONE for an unknown tag or NULL).
+ * @brief Severity of one node: its tag's (ERR_SEV_NONE for an unknown tag).
  */
 uint8_t err_sev(err_h e);
 

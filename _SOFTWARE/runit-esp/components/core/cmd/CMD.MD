@@ -11,6 +11,7 @@ Component `components/core/cmd/`. The smallest common layer for command handling
 | `errors/errors_cmd.json` | The error messages |
 | `cmd.c` | Error module (`ERR_MOD_CMD` = 11) and helpers. Linked `WHOLE_ARCHIVE`: constructor registers error tags |
 | `CMakeLists.txt` | Component registration (`WHOLE_ARCHIVE`, requires `errors` `utils`) |
+| `host/` | Host tests (`test_cmd.c`, `host_test.json`; see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Architecture
@@ -83,3 +84,7 @@ Every request names the side of its command it runs: the `cmd_dir_e` byte right 
 ## What stays in the router
 
 `router_call`, `router_call_op`, `router_op_t` (`ROUTER_R` / `ROUTER_W` / `ROUTER_RW`), `router_args`, `router_args_tail` and the `ROUTER_OP*` macros: they handle **keys** (the payload starts after the key byte) and frame dispatching, so they belong to the router. They use `cmd_f`, `cmd_side`, `cmd_reply` and `ERR_CMD_*` tags.
+
+## Tests
+
+Host tests in `host/` (`python test_host/run.py cmd` from `runit-esp/`, `runit-esp/test_host/HOST_TESTS.MD`): the real `cmd.c` with the real `errors`, on the PC. They cover `cmd_side` (the handler of each direction, a missing side, a dir that is neither read nor write), a command run through its side, `cmd_reply` (the whole answer, exactly `cap`, replacing an earlier answer, too long refused with nothing written, an empty answer), `cmd_append` (an answer in pieces, exactly `cap`, past `cap` refused with the earlier pieces kept, `need` the size the whole answer would be), `cmd_err_record` (no command = an internal record, a command's origin and request, no request) and the error tags' IDs and payload sizes (wire format).

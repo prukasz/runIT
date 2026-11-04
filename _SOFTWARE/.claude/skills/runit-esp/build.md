@@ -96,6 +96,10 @@ Without the driver, clangd parses headers for the host (MSVC) target instead of 
 
 ## 6. Tests
 
+**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp/` (`runit-esp/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `cmd`, `router` (its tasks run as threads). Run them for a change to a component that has them.
+
+The suites below run on the board (or QEMU):
+
 All suites run on the board (or QEMU) over the command link, with the IDF venv Python (`C:\Espressif\tools\python\v6.1\venv\Scripts\python.exe`), and import [scripts/router_link.py](scripts/router_link.py): a client session on the console (SYS_SESSION.MD): the line's COBS + CRC16, the frame header, HELLO (the board gives the client its id), PINGs, a new session after a restart (`wait_reopen`), the streams subscribed (logs, errors, telemetry, events), error records; tag names parsed from the firmware's error maps. Text on the line that is no frame (the ROM, a panic, `mirror_serial`) is kept as console lines (`console_since`) and as log lines with the LOGS stream's (`logs_since`, `wait_log`). A test passes the keys without the direction byte: `frame()` adds the side the command has in `runit-app/generated/` (a command with both sides takes `dir=READ` / `dir=WRITE`); a frame stored in a record is built with `frame()` too. The Python suites test the firmware over the console; the BLE link and the app's protocol are tested by the app's own suite on the board (`runit-app/tests/hardware`, below). Run them without `-I` (they import from their own folder). Flash the current firmware first. After a flash or `esptool … hard-reset`, wait ~4 s before starting a suite. No other client of the board while a suite runs (the app over BLE, `npm run app`): its session subscribes the streams too, which changes the timing (the 1 ms PERIODIC of `vm_suite`), and a short dead-man ends its session as well.
 
 | Script | Covers |

@@ -4,25 +4,9 @@
 
 ERR_MODULE_DEFINE(ERR_MOD_CORE, "core", ERR_CORE_MAP)
 
-#if CONFIG_ERRORS_INFO
-static const err_info_t s_pool_empty_info = {
-    ERR__INFO_FILE
-#if CONFIG_ERRORS_INFO_FUNC
-    .func = "err_new",
-#endif
-    ERR__INFO_LINE
-};
-#endif
-
 // Returned by err_new when the pool is empty and there is no cause to fall
-// back on. Never freed; its `next` is always NULL.
-static err_t s_pool_empty = {
-#if CONFIG_ERRORS_INFO
-    .info = &s_pool_empty_info,
-#endif
-    .next = NULL,
-    .tag = ERR_POOL_EMPTY,
-};
+// back on. Never freed; static, so its `next` and `info` are NULL.
+static err_t s_pool_empty = {.tag = ERR_POOL_EMPTY};
 
 #if CONFIG_ERRORS_INFO
 err_h err_new(const err_info_t* info, uint32_t tag, const void* data, uint32_t len, err_h cause)

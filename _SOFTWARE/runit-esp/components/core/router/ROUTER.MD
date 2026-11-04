@@ -24,6 +24,7 @@ Component `components/core/router/`. The router runs the commands of this board:
 | `router.c` | Root table, `router_route`, `router_call` / `router_call_op` / `router_args` / `router_args_tail` (op macros in `router.h`) |
 | `router_dispatch.c` | `router_submit`, `router_inject`, the urgent and work tasks, the answers to the callbacks, `router_report_cmd`, tap, origin, `router_run_urgent` |
 | `Kconfig` | Table size, queues, task prio/stack |
+| `host/` | Host tests (`test_router*.c`, `host_test.json`, `router_host_config.h`; see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## A command
@@ -125,7 +126,14 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 
 ## Tests
 
-Host test script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client session on the console: `router_link.py`) covers:
+**Host tests** in `host/` (`python test_host/run.py router` from `runit-esp/`, `runit-esp/test_host/HOST_TESTS.MD`): the real router with the real `cmd` and `errors` on the PC, the two router tasks as threads (the FreeRTOS stand-in: tasks are threads, the queues keep the ring buffer's byte accounting). Three executables:
+- `test_router.c`, the routing: `router_args` / `router_args_tail` (exact size, one byte short or long, key only), `router_call_op` (the side a direction asks for, `[dir][code]` too short, unknown code, a side the command lacks wrapped in `ERR_ROUTER_OP`, a bad payload), `router_call` (key, ctx and the whole input passed, unknown key, `ERR_ROUTER_KEY` wrapping), the whole route root key to module to op (the chain KEY, OP, cause; the answer empty after a failure), `router_register` (key 0, no handler, taken, full table keeping what is bound), `router_report_cmd` (the text of the log line, a long request cut).
+- `test_router_queue.c`, no task started: what `router_submit` / `router_inject` refuse (NULL, a request outside 2..`CMD_DATA_MAX`) and accept, `router_run_urgent`'s one waiting slot, the work and the urgent queue each filling to `ERR_ROUTER_QUEUE_FULL` independently.
+- `test_router_tasks.c`, the tasks running: a command's answer to its `done` with the submitter's ctx, in order; a failure answered as the error record (origin, request, the chain) and reported to the sink with its command; `NOREPLY` (no answer, a failure still reported); an answer of exactly `CMD_DATA_MAX` and one byte more; a `done` that fails reported; no `done`; an urgent command running while the work task is blocked, and a normal one waiting behind it; `router_submit` copying the command and its request; `router_inject` (src `ROUTER_SRC_SELF`, a counting seq, the flags); a command run inside a handler seeing the outer origin; the tap taking a command and seeing the rest; `router_run_urgent` running a fn once on the urgent task, and waking an idle one.
+
+Not covered on the host: priorities (the urgent task is above the work task only on the board), the stack sizes, the scheduler's timing.
+
+Script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client session on the console: `router_link.py`) covers:
 - The sys key (SYS_SYSTEM.MD): PING (uptime), STOP (safe state), DEADMAN (write, read back, the session's timeout, the safe state when the session ends), BYE, TIME (write, read back), RESTART, SAFE / SAFE_LEAVE.
 - The direction byte: a write-only command sent as a read, a read-only one as a write, a dir of 2 (`ERR_CMD_DIRECTION`), a frame without it (`ERR_ROUTER_FRAME_LEN`).
 - Key dispatching, nested router calls, error chain recording with route keys; the record names this client (`src`) and the seq.

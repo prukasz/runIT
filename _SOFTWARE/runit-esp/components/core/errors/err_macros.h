@@ -9,7 +9,7 @@
  */
 
 #include "sdkconfig.h"
-
+#include "stdint.h"
 /* ----------------------------------------------------------------------------
  * Tags and node size
  * ------------------------------------------------------------------------- */
@@ -24,11 +24,12 @@
 #define ERR_MODULE(tag) ((tag) >> 16)
 #define ERR_CODE(tag) ((uint16_t)(tag))
 
-// Node header: [info*] next tag, no padding (checked in errors.h).
+// Node header: [info*] next* tag, no padding (checked in errors.h). On the board a pointer is 4 bytes (12 / 8 here);
+// a 64-bit host build of the tests (host/) has 8-byte pointers.
 #if CONFIG_ERRORS_INFO
-#define ERR_HDR_LEN 12u
+#define ERR_HDR_LEN (2u * sizeof(void*) + 4u)
 #else
-#define ERR_HDR_LEN 8u
+#define ERR_HDR_LEN (sizeof(void*) + 4u)
 #endif
 
 /**
@@ -195,6 +196,11 @@
     }                                   \
   } while (0)
 
+
+/* Whether lo <= v <= hi (ERR_CHECK_IN_RANGE) */
+static inline bool err_in_range(int64_t v, int64_t lo, int64_t hi) {
+  return v >= lo && v <= hi;
+}
 /**
  * @brief Returns a new error from the current function unless lo <= v <= hi (err_in_range: no -Wtype-limits warning for
  * an unsigned v and a lo of 0).

@@ -30,3 +30,6 @@ graphify-out/*
 # Working notes, not uploaded
 /displays.md
 /displays_spi.md
+
+# host tests (runit-esp/test_host)
+runit-esp/build_host/

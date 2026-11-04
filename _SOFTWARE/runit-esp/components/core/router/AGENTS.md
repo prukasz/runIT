@@ -21,4 +21,4 @@ Spec: `ROUTER.MD` (this folder).
   - `router_set_tap` provides global command inspection (`take` / `seen`), used by action recording (`sys_actions`).
   - `router_origin()` returns the command currently executing on the calling router task (a module reads its `src`); `router_is_task()` tells a router task.
 - The router runs urgent work (`router_run_urgent`); what it means (the safe state) lives in `sys_system` (SYS_SYSTEM.MD), whether a peer is alive in `sys_session`. Keep both out of the router.
-
+- Host tests: `host/` (ROUTER.MD "Tests"). A change to routing, the queues or the tasks is run with `python test_host/run.py router` from `runit-esp/`. The tests that run the tasks wait on latches, not on sleeps; keep it so (a test that must show "nothing ran yet" uses a short wait and says so). A new key a test registers is never removed: `test_router.c` registers its own and fills the table last.
