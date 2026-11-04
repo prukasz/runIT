@@ -30,6 +30,9 @@ class Bridge:
         self.client: BleakClient | None = None
         self.write_char: str | None = None
         self.ours = False
+        # The devices find() saw, by address: opening one of them skips the scan bleak runs for an address string
+        # (on Windows 1.5-8 s per reconnect, against 0.25-0.5 s for the device it already has).
+        self.devices: dict = {}
 
     def on_disconnect(self, _client) -> None:
         if not self.ours:
@@ -48,11 +51,13 @@ class Bridge:
         dev = await BleakScanner.find_device_by_filter(match, timeout=m.get("timeout", 10))
         if dev is None:
             raise RuntimeError("no board advertises the runIT service")
+        self.devices[dev.address.lower()] = dev
         return {"address": dev.address, "name": dev.name}
 
     async def open(self, m: dict) -> dict:
         self.ours = False
-        client = BleakClient(m["address"], disconnected_callback=self.on_disconnect)
+        target = self.devices.get(m["address"].lower(), m["address"])
+        client = BleakClient(target, disconnected_callback=self.on_disconnect)
         await client.connect()
         try:
             for ch in m["notify"]:

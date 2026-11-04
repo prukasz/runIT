@@ -104,9 +104,9 @@
       "description": "A 16-bit BLE UUID",
       "format": "hex"
     },
-    "connector": {
-      "alias": "Connector",
-      "description": "A data connector by its byte (the stream byte of its frames)"
+    "stream": {
+      "alias": "Stream",
+      "description": "A data stream by its id (the first byte of its frames)"
     },
     "contract": {
       "alias": "Contract",
@@ -1099,7 +1099,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "message": "Stream {stream} does not exist"
@@ -1115,7 +1116,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "message": "Stream {stream} already exists",
@@ -1132,7 +1134,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "description": "remove: a system stream",
@@ -1149,7 +1152,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "description": "bind, subscribe, listen: every target slot taken",
@@ -1167,7 +1171,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             },
             {
               "name": "len",
@@ -1197,7 +1202,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             },
             {
               "name": "len",
@@ -1230,7 +1236,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "description": "every CONFIG_SYS_STREAM_MAX slot taken",
@@ -1248,7 +1255,8 @@
               "name": "stream",
               "type": "u8",
               "offset": 0,
-              "size": 1
+              "size": 1,
+              "id_kind": "stream"
             }
           ],
           "description": "send to an IN stream",

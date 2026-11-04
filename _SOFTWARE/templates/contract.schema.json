@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runit.local/schema/contract.schema.json",
   "title": "runIT Contract and System Service Definition",
-  "description": "Czysty, deklaratywny schemat definicji kontraktu urządzenia lub usługi systemowej runIT (np. DEVICE, IO, PINS, CONNECTOR, BLE, PROJECT). Definiuje standardowe operacje (commands), ich parametry, zwracane wartości oraz zdarzenia (events).",
+  "description": "Czysty, deklaratywny schemat definicji kontraktu urządzenia lub usługi systemowej runIT (np. DEVICE, IO, PINS, STREAM, BLE, PROJECT). Definiuje standardowe operacje (commands), ich parametry, zwracane wartości oraz zdarzenia (events).",
   "type": "object",
   "required": [
     "id"
@@ -39,8 +39,8 @@
     "id": {
       "type": "string",
       "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
-      "description": "Identyfikator kontraktu / klasy interfejsowej / usługi systemowej (np. 'IO', 'DEVICE', 'CONNECTOR', 'BLE', 'PROJECT').",
-      "examples": ["IO", "DEVICE", "PINS", "POWER_MONITOR", "POWER_VREG", "HBRIDGE", "CONNECTOR", "BLE", "PROJECT"]
+      "description": "Identyfikator kontraktu / klasy interfejsowej / usługi systemowej (np. 'IO', 'DEVICE', 'STREAM', 'BLE', 'PROJECT').",
+      "examples": ["IO", "DEVICE", "PINS", "POWER_MONITOR", "POWER_VREG", "HBRIDGE", "STREAM", "BLE", "PROJECT"]
     },
     "contract_id": {
       "type": "integer",

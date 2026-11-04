@@ -101,3 +101,7 @@ A provider's third user, for a client outside runIT (a script, Node-RED, Home As
 | `CONFIG_SYS_DATA_PROVIDER_MAX` | 8 | provider slots, the board's own included |
 
 Users: the session (SYS_SESSION.MD, `sys_session_attach`), a stream's binding (SYS_STREAM.MD "Model") and the command binding (above).
+
+## Open
+
+- **UART create command**: opening a UART port as a provider with a command (port, baud, pins, flow control), for a raw UART as a stream binding or a command binding. Today the board config opens its UART providers in C.

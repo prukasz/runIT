@@ -58,7 +58,7 @@ ID_KIND_INFO = {
     "link": {"alias": "Link", "description": "A router link (a transport connection)"},
     "transport": {"alias": "Transport", "description": "A transport provider"},
     "ble_uuid": {"alias": "BLE characteristic", "description": "A 16-bit BLE UUID", "format": "hex"},
-    "connector": {"alias": "Connector", "description": "A data connector by its byte (the stream byte of its frames)"},
+    "stream": {"alias": "Stream", "description": "A data stream by its id (the first byte of its frames)"},
     "contract": {"alias": "Contract", "description": "A device contract by its ID"},
     "error_tag": {"alias": "Error", "description": "An error tag"},
     "esp_err": {"alias": "ESP-IDF error", "description": "An esp_err_t code", "format": "hex"},
@@ -66,7 +66,7 @@ ID_KIND_INFO = {
 
 # field name -> id kind, for every module, then per module (what the number means to the app); errors_<module>.json and
 # `/* @id kind */` notes override them
-ID_KINDS = {"pin": "pin", "source_pin": "pin", "bus": "i2c_bus", "provider": "transport", "connector": "connector", "contract": "contract", "tag": "error_tag", "root_tag": "error_tag"}
+ID_KINDS = {"pin": "pin", "source_pin": "pin", "bus": "i2c_bus", "provider": "transport", "stream": "stream", "contract": "contract", "tag": "error_tag", "root_tag": "error_tag"}
 MODULE_ID_KINDS = {
     "ERR_MOD_SYS_I2C": {"addr": "i2c_address"},
     "ERR_MOD_SYS_DEVICE": {"id": "device", "user": "device", "type": "device_type", "op": "device_op"},

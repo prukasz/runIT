@@ -96,6 +96,8 @@ Without the driver, clangd parses headers for the host (MSVC) target instead of 
 
 ## 6. Tests
 
+**Open: the Python suites below do not follow the firmware's session and streams yet.** `router_link.py` (and every suite on it, the app's console witness `uart_tap.py` too) sends the old HELLO (the board giving the client its id) and the CONNECTOR commands (READ, MIRROR, FORWARD, `EVENTS_ALL`), so its session does not open on the current firmware and the suites fail; `remote_tests.py` and `forward_tests.py` test connector mirrors and FORWARD, which the streams no longer have (SYS_STREAM.MD). Until they follow, the session, the streams and the watches are tested on a board by the app's suite (`npm run test:hw`: `a-link`, `h-watches`, `i-streams`).
+
 **Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp/` (`runit-esp/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `cmd`, `router` (its tasks run as threads). Run them for a change to a component that has them.
 
 The suites below run on the board (or QEMU):

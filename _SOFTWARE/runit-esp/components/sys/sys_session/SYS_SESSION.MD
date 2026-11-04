@@ -217,3 +217,4 @@ The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a c
 - The hello's firmware version is sent as 0.
 - The users of the stream and reached listeners and of calls to other boards are the watches' client (SYS_WATCH.MD) and sys_remote (SYS_REMOTE.MD); the board config's own calls to other boards are not written.
 - OTA, the flasher: jobs on calls and streams (CMD.MD "Long work").
+- The app learns of a slave's restart only by the silence of its watches on it; a message from the master to its clients when a slave's session ends or restarts would tell it at once, and would cover the ON_EVENT watches.

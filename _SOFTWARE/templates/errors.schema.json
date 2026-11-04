@@ -296,7 +296,7 @@
         "link",
         "transport",
         "ble_uuid",
-        "connector",
+        "stream",
         "contract",
         "error_tag",
         "esp_err"
