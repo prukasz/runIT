@@ -5,9 +5,9 @@ How data moves between the board's code, its links and the other boards, and the
 2. storage is the consumer's: the VM's input slots are to come;
 3. a watch does not need a stream: in the firmware;
 4. a remote device is an alias of another board's: in the firmware;
-5. a raw provider can be bound to the router: to come.
+5. a raw provider can be bound to the router: in the firmware.
 
-This file is the one document of the changes to introduce: the picture across the components, what is left of the rework and its order, and what is designed but not started (Later). Items 1, 3 and 4 are in the firmware and their components' docs (SYS_STREAM.MD, SYS_WATCH.MD, SYS_SESSION.MD "Streams", SYS_REMOTE.MD, SYS_DEVICE.MD "Remote devices"); the app and the scripts do not follow them yet (Order).
+This file is the one document of the changes to introduce: the picture across the components, what is left of the rework and its order, and what is designed but not started (Later). Items 1, 3, 4 and 5 are in the firmware and their components' docs (SYS_STREAM.MD, SYS_WATCH.MD, SYS_SESSION.MD "Streams", SYS_REMOTE.MD, SYS_DEVICE.MD "Remote devices", SYS_DATA_PROVIDER.MD "Command binding"); the app and the scripts do not follow them yet (Order).
 
 ## The layers
 
@@ -26,7 +26,7 @@ A provider has **one user**, one of three:
 |---|---|---|---|
 | a **session** | runIT peers: the app, a test host, another board | a frame `[frame][dst][src][seq][body]` | by the frame's `src`, through any session (forwarding included) |
 | a **stream binding** | raw data: a user BLE characteristic, a raw UART | the payload as it is | none: a stream has no answers |
-| a **command binding** (item 5) | a client outside runIT that sends a command and waits for its answer | `[tag][flags][key][dir][code][args]` | on the same provider, `[tag][status][data]` |
+| a **command binding** (item 5) | a client outside runIT that sends a command and waits for its answer | the command, `[key][dir][code][args]`, no header | on the same provider, `[status][data]` |
 
 Commands go through a session or a command binding to the router; streams go through a stream to their targets. A frame of one never goes through the other.
 
@@ -99,30 +99,11 @@ In the firmware (SYS_REMOTE.MD, SYS_DEVICE.MD "Remote devices"): the record `{bo
 
 ### 5. A raw provider bound to the router
 
-For a client outside runIT (Node-RED, Home Assistant, a script) that drives a device or resets the board with one command and waits for its answer, without a HELLO: a provider's third user, the **command binding**.
-
-```
- provider ──► command binding ──► router_submit (cmd_req_t: src NONE) ──► module
-    ▲                                                                        │
-    └──────── [tag][status][data or the error record] ◄── done (ctx: the provider)
-```
-
-- **In**: one message is one command, `[tag][flags][key][dir][code][args]`. `tag` is the client's own (its `seq`), sent back with the answer; a client that waits for each answer may keep it 0. `flags` are `ROUTER_FLAG_*`: a STOP from outside goes URGENT, a command with no use for its answer NOREPLY.
-- **Out**: `[tag][status][data or the error record]` (`cmd_err_record`), on the provider the command came from: the answer is routed by the provider, not by an id, so the client needs no session.
-- **This board only**: no `dst`, nothing forwarded (with a `dst` it would be a session).
-- **The command's `src` is `SYS_SESSION_ID_NONE`** (0xFD): no peer. The router and the error record take it as any byte. What the board keeps for a peer refuses it, each with an error of its own:
-  - WATCH ADD, STREAM SUBSCRIBE, REMOTE SUBSCRIBE (each refuses NONE already);
-  - ACTIONS RECORD (`sys_actions_record_start` keeps the `src` as the recording's owner: a check to add);
-  - SYS DEADMAN set: it is the board's, and fires when a client's session ends; a client with no session would be unprotected without knowing it (a check to add).
-
-  A client that follows a value reads it again, or takes a stream on a stream binding.
-- **Made** by the board config (C) or a command of the provider router (`BIND_COMMANDS`, `UNBIND`): a provider another user has is `ERR_PROV_IN_USE`, as for a stream binding.
-- **Code**: a small component of `sys` (`sys_cmd_bind`): the provider's rx → a `cmd_req_t` → `router_submit` with its own `done` → the provider's send. The router does not change: it knows `cmd_req_t` and `done`, not providers (so the binding is not in `core/router`).
-- **Who may send**: whoever reaches the provider.
+In the firmware (SYS_DATA_PROVIDER.MD "Command binding"): a provider's third user, in `sys_data_provider` itself (`sys_data_provider_cmd.c`; BIND_COMMANDS 0x04, UNBIND_COMMANDS 0x05 of its router), a go-between that hands each message to the router and sends its answer back on the same provider. **No header**: in is the command as the router takes it, `[key][dir][code][args]`; out is `[status][data]`, the answer or the error record as every answer has (the status byte is all that tells an error record from data). No tag and no flags: a client waits for each answer. The command's `src` is `ROUTER_SRC_NONE` (0xFD); WATCH ADD, STREAM and REMOTE SUBSCRIBE, ACTIONS RECORD_START and SYS DEADMAN set refuse it.
 
 ## What changes on the wire
 
-Items 1, 3 and 4 changed the wire in the firmware; outside it nothing follows them yet:
+Items 1, 3, 4 and 5 changed the wire in the firmware; outside it nothing follows them yet:
 
 - **STREAM** (was CONNECTOR, the same key byte 0x04; `contract_stream.json`, the enums' prefixes `SYS_STREAM_`):
   - CREATE `{u8 id, u8 dir, u8 flags}`; the id `0x01`..`0x7F` (the board's own `0x01`..`0x0F`, user streams `0x10`..`0x7F`), from `0x80` refused;
@@ -133,19 +114,18 @@ Items 1, 3 and 4 changed the wire in the firmware; outside it nothing follows th
 - **WATCH**: the head without `connector` (11 B; LIST's row 13 B); its entries in the session channel `0x80`.
 - **DEVICE**: CREATE_REMOTE's record `{u8 board, u16 remote_id, u8 flags}` (4 B); `ERR_DEV_REMOTE_NOT_WIRED` gone.
 - **REMOTE** (new, key 0x10): SUBSCRIBE / UNSUBSCRIBE of a device (`[id u16]`), its events and errors as a STREAM `[0x81][id u16][kind][data]`, `seq` the subscription's; `ERR_REMOTE_NOT_WIRED`, `_LOST`, `_SUBS_FULL`, `_ALIASES_FULL`.
+- **PROVIDER**: BIND_COMMANDS 0x04, UNBIND_COMMANDS 0x05 `[provider id]`; on a bound provider a message is a command, its answer `[status][data]`.
 - **SESSION**: the STREAM frame's first body byte is the stream id; from `0x80` a session channel: `SYS_SESSION_CHANNEL_WATCHES` 0x80 and `_REMOTE` 0x81.
 - **Outside the firmware** (the generated bundle is regenerated):
   - the app: the backend's stream (was connector), watch and device code, the views;
   - the scripts: `router_tests.py` (streams), `remote_tests.py` (connector rx, the mirrors), `forward_tests.py`, `tree_tests.py`;
-  - item 5 still changes **PROVIDER**: `BIND_COMMANDS`; the command binding's message and answer.
 
 ## Order
 
 Each step builds and passes its scripts on its own:
 
-1. **The app and the scripts follow items 3, 4 and 1**: the wire above, then the suites on the boards.
-2. **Item 5**, the command binding: new, touches nothing above.
-3. **Item 2**, the VM's input slots: a VM callback (`sys_stream_listen`) per stream the program reads, with the VM's stream blocks.
+1. **The app and the scripts follow items 3, 4, 1 and 5**: the wire above, then the suites on the boards (a test of the command binding on a run-time BLE characteristic or a UART).
+2. **Item 2**, the VM's input slots: a VM callback (`sys_stream_listen`) per stream the program reads, with the VM's stream blocks.
 
 ## Later
 

@@ -33,6 +33,7 @@ typedef enum {
 } router_status_e;
 
 #define ROUTER_SRC_SELF 0xFEu  // cmd_req_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
+#define ROUTER_SRC_NONE 0xFDu  // cmd_req_t.src of a command with no peer (a provider's command binding): SYS_SESSION_ID_NONE
 
 /* ----------------------------------------------------------------------------
  * Command tables

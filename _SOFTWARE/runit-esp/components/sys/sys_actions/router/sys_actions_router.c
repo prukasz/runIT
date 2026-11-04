@@ -69,6 +69,7 @@ ROUTER_OP(op_run_all, id_args_t) {
 ROUTER_OP(op_record_start, record_start_t) {
   const cmd_req_t* origin = router_origin();  // the client to record
   ERR_CHECK(origin != NULL, ERR_ACTION_WRONG_TASK);
+  ERR_CHECK(origin->src != ROUTER_SRC_NONE, ERR_ACTION_BAD_ARG);  // no peer: nothing of it to record
   return sys_actions_record_start(args->id, args->execute != 0, origin->src);
 }
 

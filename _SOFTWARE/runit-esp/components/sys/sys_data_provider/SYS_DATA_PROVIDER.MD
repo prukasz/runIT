@@ -6,8 +6,9 @@ Component `components/sys/sys_data_provider/`. A **provider** is one way bytes g
 
 | File | Role |
 |---|---|
-| `sys_data_provider.h` | Use: the id, open, close, send, max frame, state |
+| `sys_data_provider.h` | Use: the id, open, close, send, max frame, state; the command binding |
 | `sys_data_provider.c` | The registry: slots, one spinlock, lookup by id; what the router asks |
+| `sys_data_provider_cmd.c` | The command binding: a provider's messages to the router, its answers back (Command binding) |
 | `config/sys_data_provider_config.h` | What a provider's id and state are: the links, the state flags (published to the app) |
 | `driver/sys_data_provider_driver.h` | For its drivers only: the provider (`sys_data_provider_t`), add, remove, mark system, set max frame, deliver |
 | `internal/sys_data_provider_internal.h` | For its router only: LIST, SEND to a provider no user has |
@@ -31,7 +32,7 @@ Every call finds the provider by its id, so an id kept after the provider went a
 
 ## Use
 
-- `sys_data_provider_open(id, rx, ctx)`: a provider has **one user** at a time (a session, a stream's binding): it alone sends on it and gets what comes in (`rx` NULL: send only), so bytes of two senders never mix on one line. Open by another: `ERR_PROV_IN_USE`. An open provider can't be removed. The provider knows nothing of who its user is: the context decides.
+- `sys_data_provider_open(id, rx, ctx)`: a provider has **one user** at a time (a session, a stream's binding, the command binding): it alone sends on it and gets what comes in (`rx` NULL: send only), so bytes of two senders never mix on one line. Open by another: `ERR_PROV_IN_USE`. An open provider can't be removed. The provider knows nothing of who its user is: the context decides.
 - `rx(ctx, id, data, len)` runs on the driver's RX task: it copies what it keeps and returns, never blocks, and sends only with `SYS_DATA_PROVIDER_SEND_NOWAIT`. `data` NULL: the provider went up or down, `len` its `max_frame` now (0: down); after open the user reads `sys_data_provider_max_frame` once.
 - `sys_data_provider_close(id)`: the provider is free again.
 - `sys_data_provider_send(id, data, len, flags)`: one whole frame, on a provider the caller opened. `SYS_DATA_PROVIDER_SEND_URGENT`: to the front of the driver's queue. Without `NOWAIT` it waits for room in that queue at most the driver's own bound (BLE, UART: their Kconfig), so never on a driver's RX task; with `NOWAIT` it only queues, and a full queue is `ERR_PROV_BUSY` at once: any task, a driver's RX task too. Too long: `ERR_PROV_TOO_LONG`, never cut. The driver's failure is wrapped in `ERR_PROV_SEND`.
@@ -64,6 +65,22 @@ A UART provider is always **binary**, the console's port too (SYS_UART.MD):
 - **A frame on the line**: COBS-encoded `[frame][crc16]`, between 0x00 bytes (COBS leaves no other 0x00). The receiver takes the bytes up to each 0x00 as one candidate: decoded, its CRC16-CCITT checked, then delivered whole. A corrupted byte fails the CRC and the frame is dropped (a request's source times out), so a broken byte never runs a command. COBS adds at most one byte in 254.
 - **The console's port**: the ROM bootloader's lines and a panic's text are no frames: they fail the CRC and are dropped by the board. The host's tool shows the bytes that are no frame as text, so the boot and a panic stay readable. After the start the log lines go only as frames, through the LOGS stream (`sys_log`'s hook of `esp_log`), never as text (unless `mirror_serial`, SYS_LOG.MD).
 
+## Command binding
+
+A provider's third user, for a client outside runIT (a script, Node-RED, Home Assistant) that sends a command and waits for its answer with no session: no HELLO, no frame header. `sys_data_provider_bind_commands(id)` (or BIND_COMMANDS) opens the provider for it; `sys_data_provider_unbind_commands(id)` (UNBIND_COMMANDS) closes it.
+
+```
+ provider ──► command binding ──► router_submit (cmd_req_t: src ROUTER_SRC_NONE) ──► module
+    ▲                                                                                 │
+    └──────────── [status][data or the error record] ◄──── done (ctx: the binding) ◄──┘
+```
+
+- **In**: one message is one command, as the router takes it: `[key][dir][code | id + op][args]`, at most `CMD_DATA_MAX`. Its `seq` is the binding's own count of commands, its flags 0.
+- **Out**: `[status][data]` on the same provider, `NOWAIT`: `status` `router_status_e`, `data` the answer or, on ERROR, the error record (ERRORS.MD "Error record"), as every answer has. The status goes into the byte in front of the router's answer, so there is no copy. A command the router refuses (too long, its queue full) is answered from the RX task and reported with its command, as the session does.
+- **This board only**: nothing is forwarded; the answer goes back by the provider, not by an id. A provider another user has: `ERR_PROV_IN_USE`.
+- **No peer**: the command's `src` is `ROUTER_SRC_NONE` (0xFD, `SYS_SESSION_ID_NONE`). What the board keeps for a peer refuses it: WATCH ADD, STREAM SUBSCRIBE and REMOTE SUBSCRIBE (no one to send to), ACTIONS RECORD_START (`ERR_ACTION_BAD_ARG`: nothing of it to record), SYS DEADMAN set (`ERR_CMD_BAD_ARG`: no session whose silence it could notice). A client that follows a value reads it again, or takes a stream on a stream's binding.
+- The router does not change: it knows `cmd_req_t` and `done`, not providers.
+
 ## Remote (`sys_data_provider_router`, root key `ROUTER_KEY_PROVIDER` 0x0D)
 
 | Code | Command | Side | Request / answer |
@@ -71,6 +88,8 @@ A UART provider is always **binary**, the console's port too (SYS_UART.MD):
 | `0x01` | REMOVE | write | provider id |
 | `0x02` | LIST | read | → `u8 count`, then `sys_data_provider_info_t` per provider (provider id, `u16` max frame now, `u8 state`: `STATE_SYSTEM`, `STATE_OPEN`, `STATE_WIRED`) |
 | `0x03` | SEND | write | provider id, then the frame |
+| `0x04` | BIND_COMMANDS | write | provider id: its messages are commands for this board (Command binding) |
+| `0x05` | UNBIND_COMMANDS | write | provider id |
 
 - The id is known before the driver answers (a UUID, a port), so a project's records name it in the commands after the create.
 - SEND is send as a command, so the app or another board sends through a provider of this one. An open provider is its user's: SEND to it is refused (`ERR_PROV_IN_USE`).
@@ -81,4 +100,4 @@ A UART provider is always **binary**, the console's port too (SYS_UART.MD):
 |---|---|---|
 | `CONFIG_SYS_DATA_PROVIDER_MAX` | 8 | provider slots, the board's own included |
 
-Users: the session (SYS_SESSION.MD, `sys_session_attach`) and a stream's binding (SYS_STREAM.MD "Model").
+Users: the session (SYS_SESSION.MD, `sys_session_attach`), a stream's binding (SYS_STREAM.MD "Model") and the command binding (above).

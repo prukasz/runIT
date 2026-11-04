@@ -88,6 +88,72 @@
           ]
         }
       }
+    },
+    {
+      "id": "BIND_COMMANDS",
+      "op": 4,
+      "symbol": "SYS_DATA_PROVIDER_OP_BIND_COMMANDS",
+      "label": "Bind to the router",
+      "description": "Makes the provider's messages commands for this board, with no header: each message is [key][dir][code][args], its answer comes back on the provider as [status][data] (on ERROR the error record). The binding is the provider's one user; such a command has no peer, so what is kept for a peer (a watch, a subscription, a recording, the dead-man) is refused.",
+      "write": {
+        "args": {
+          "struct": "sys_data_provider_id_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "UNBIND_COMMANDS",
+      "op": 5,
+      "symbol": "SYS_DATA_PROVIDER_OP_UNBIND_COMMANDS",
+      "label": "Unbind from the router",
+      "description": "Ends the provider's command binding; the provider is free again.",
+      "write": {
+        "args": {
+          "struct": "sys_data_provider_id_t",
+          "fields": [
+            {
+              "id": "link",
+              "label": "Link",
+              "type": "enum",
+              "enum": "sys_data_provider_link_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Which driver made the provider (UART, BLE)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+            }
+          ]
+        }
+      }
     }
   ]
 }

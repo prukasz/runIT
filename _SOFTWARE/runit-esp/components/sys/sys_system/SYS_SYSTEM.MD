@@ -50,7 +50,7 @@ Requests are `[0x01][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x01` PING | R | → `u32 uptime_ms` |
 | `0x02` STOP | W | – (safe state, reason STOP) |
 | `0x03` RESTART | W | – (restart ~100 ms after the answer) |
-| `0x04` DEADMAN | RW | `u32 timeout_ms` (0 = off; else 150..60000, `ERR_CMD_BAD_ARG` outside) |
+| `0x04` DEADMAN | RW | `u32 timeout_ms` (0 = off; else 150..60000, `ERR_CMD_BAD_ARG` outside, and from a command with no peer, `ROUTER_SRC_NONE`: no session whose silence it could notice) |
 | `0x06` BYE | W | – (the client leaves on purpose: the dead-man is disarmed, the board goes on) |
 | `0x07` TIME | RW | `u64 unix_ms` (UTC). Write: sets the board's clock (`board_time_set`, TIME.MD; no battery clock, lost with the power). Read: 0 while the clock is before 2020 (never set). On the root a write is sent on to every board (below) |
 | `0x09` SAFE | R | → `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |

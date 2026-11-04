@@ -45,7 +45,7 @@ static inline bool sys_data_provider_same_id(sys_data_provider_id_t a, sys_data_
 typedef void (*sys_data_provider_rx_f)(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uint32_t len);
   
 /**
- * @brief Takes a provider for one user (a session, a stream's binding): it alone sends on it and gets what comes
+ * @brief Takes a provider for one user (a session, a stream's binding, the command binding): it alone sends on it and gets what comes
  * in, and the provider can't be removed until it is closed.
  * @param id   The provider.
  * @param rx   What comes in and what changes goes there; NULL: send only.
@@ -88,6 +88,23 @@ uint32_t sys_data_provider_max_frame(sys_data_provider_id_t id);
  * @return Its state; 0 when it does not exist.
  */
 uint8_t sys_data_provider_state(sys_data_provider_id_t id);
+
+/**
+ * @brief Binds a provider to the router (SYS_DATA_PROVIDER.MD "Command binding"): the binding is its one user, each
+ * message that comes in is one command, [key][dir][code | id + op][args] with no header, run with src ROUTER_SRC_NONE,
+ * and its answer goes back on the provider as [status][data] (router_status_e; on ERROR the error record). This board
+ * only: nothing is forwarded. For a client outside runIT (a script, Node-RED) that needs no session.
+ * @param id  The provider.
+ * @return NULL when bound; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (another user has it: a session, a stream, this binding).
+ */
+MUST_USE err_h sys_data_provider_bind_commands(sys_data_provider_id_t id);
+
+/**
+ * @brief Ends a provider's command binding and closes it; an answer still on its way is dropped.
+ * @param id  The provider.
+ * @return NULL when unbound or not bound; the close error.
+ */
+MUST_USE err_h sys_data_provider_unbind_commands(sys_data_provider_id_t id);
 
 /** @brief Whether the provider is up: it delivers frames now (its max frame is not 0). Any task. */
 static inline bool sys_data_provider_is_up(sys_data_provider_id_t id) {

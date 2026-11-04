@@ -22,6 +22,7 @@ _Static_assert(CONFIG_SYS_SESSION_TIMEOUT_MS >= SYS_SESSION_TIMEOUT_MIN_MS, "CON
 _Static_assert((ROUTER_FLAG_URGENT | ROUTER_FLAG_NOREPLY) == SYS_SESSION_FRAME_FLAGS, "the frame byte's flags");
 _Static_assert(ROUTER_STATUS_ERROR == 1, "the frame byte's status bit");
 _Static_assert(ROUTER_SRC_SELF == SYS_SESSION_ID_SELF, "the board's own commands");
+_Static_assert(ROUTER_SRC_NONE == SYS_SESSION_ID_NONE, "a command with no peer");
 _Static_assert(SYS_SESSION_TIMEOUT_MAX_MS + TICK_MS <= UINT16_MAX, "a session's silence and ping in 16 bits");
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;

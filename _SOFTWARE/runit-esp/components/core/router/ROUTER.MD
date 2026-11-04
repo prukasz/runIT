@@ -17,7 +17,7 @@ Component `components/core/router/`. The router runs the commands of this board:
 
 | File | Role |
 |---|---|
-| `router.h` | Flags and statuses, `ROUTER_SRC_SELF`, command tables and op macros, register, route, init, submit, inject, report, tap, origin, is-task, urgent work. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
+| `router.h` | Flags and statuses, `ROUTER_SRC_SELF`, `ROUTER_SRC_NONE`, command tables and op macros, register, route, init, submit, inject, report, tap, origin, is-task, urgent work. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
 | `errors/router_errors.h` | `ERR_ROUTER_MAP`, the module's error tags (included by `router.h`) |
 | `errors/errors_router.json` | The error messages |
 | `router_ids.h` | Root keys (`ROUTER_KEY_*`) |
@@ -32,7 +32,7 @@ A command is a `cmd_req_t` (`cmd.h`; an error record names it): the request `[ke
 
 | Field | Meaning |
 |---|---|
-| `src` | Who sent it: a client id (the session fills it from its frame), or `ROUTER_SRC_SELF` (0xFE: the board itself, `router_inject`) |
+| `src` | Who sent it: a client id (the session fills it from its frame), `ROUTER_SRC_SELF` (0xFE: the board itself, `router_inject`), or `ROUTER_SRC_NONE` (0xFD: no peer, a provider's command binding, SYS_DATA_PROVIDER.MD) |
 | `seq` | The sender's counter, `u16`; in its answer |
 | `flags` | `ROUTER_FLAG_URGENT` (bit 0: the urgent task; the client decides what is urgent, the firmware has no fixed list), `ROUTER_FLAG_NOREPLY` (bit 1: no answer; a failure still goes to the errors stream) |
 

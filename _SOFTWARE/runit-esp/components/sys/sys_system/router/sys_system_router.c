@@ -67,7 +67,10 @@ ROUTER_OP_NOARGS(op_restart) {
   return NULL;
 }
 
+// A client with no session (a provider's command binding) has no silence the dead-man could notice: refused.
 ROUTER_OP(op_deadman_set, sys_deadman_t) {
+  const cmd_req_t* origin = router_origin();
+  ERR_CHECK(origin == NULL || origin->src != ROUTER_SRC_NONE, ERR_CMD_BAD_ARG);
   return sys_system_deadman_set(args->timeout_ms);
 }
 
