@@ -293,7 +293,7 @@ describe('answers', () => {
   })
 
   it('a value that leads the answer is read from the front; bytes stay bytes', () => {
-    expect(decodeAnswer(serviceCall(catalog, 'CONNECTOR', 'LIST'), Uint8Array.of(3, 9, 9))).toBe(3)
+    expect(decodeAnswer(serviceCall(catalog, 'STREAM', 'LIST'), Uint8Array.of(3, 9, 9))).toBe(3)
     expect(decodeAnswer(serviceCall(catalog, 'BLE', 'LIST'), Uint8Array.of(1, 2))).toEqual(Uint8Array.of(1, 2))
   })
 })

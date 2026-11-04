@@ -56,7 +56,7 @@ export interface SettingSection {
 }
 
 /** The services whose record the app edits with its own editor, by the descriptor's id. */
-export const RECORD_EDITORS: Readonly<Record<string, RecordEditor>> = { BLE: 'gatt', CONNECTOR: 'streams' }
+export const RECORD_EDITORS: Readonly<Record<string, RecordEditor>> = { BLE: 'gatt', STREAM: 'streams' }
 
 /** The fields the read of a command answers when it answers one struct (or each element of a list of them). */
 const answerFields = (command: CommandDef, array: boolean): readonly WireField[] | undefined => {

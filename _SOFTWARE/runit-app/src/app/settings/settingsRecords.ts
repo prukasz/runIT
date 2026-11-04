@@ -36,7 +36,7 @@ export const readLiveBase = async (link: RunitLink, catalog: ServiceCatalog): Pr
   const services = new Services(link, catalog)
   let streams: DataStream[] | undefined
   for (const section of settingSections(catalog)) {
-    if (section.record?.editor === 'streams') streams = decodeStreamsInfo((await services.call(STREAMS.service, STREAMS.info)).data)
+    if (section.record?.editor === 'streams') streams = decodeStreamsInfo((await services.call(STREAMS.service, STREAMS.list)).data)
   }
   return streams ? { streams } : {}
 }

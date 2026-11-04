@@ -5,6 +5,7 @@ import boardJson from '@generated/common/board.json'
 import devkitBoardJson from '@generated/common/board_devkit.json'
 import actionsContract from '@generated/services/contract_actions.json'
 import projectContract from '@generated/services/contract_project.json'
+import streamContract from '@generated/services/contract_stream.json'
 import type { EnumTables } from '@engine/generated/wire'
 import { parseRanges } from './catalog/codec'
 import type { FieldRanges } from './catalog/codec'
@@ -14,8 +15,8 @@ import type { DescriptorFile } from './catalog/services'
 /*
  * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
  * direction byte, flags,
- * status and the stream bytes (`enums.json`), the session's frame byte, kinds, control ops, ids and version (`enums.json`,
- * groups `session_*`, `sys_session_*`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
+ * status, the board's own streams (`stream`) and the session's channels (`session_channel`), the session's frame byte, kinds,
+ * control ops, ids and version (`enums.json`, groups `session_*`, `sys_session_*`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`enums.json`,
  * groups `ble_runit_uuid` and `ble_frag`), the largest frame (`enums.json`, group `cmd_frame`), the errors (`errors.json`: tags, fields, message
  * templates, what an id field refers to) and the enum groups their fields name (`bundledEnums`); and every
  * command of every router (the service, contract and device descriptors, `bundledServiceCatalog`). Nothing here is a number
@@ -27,8 +28,25 @@ export interface LinkDefinitions {
   readonly keys: Readonly<Record<string, number>>
   /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
-  /** The connectors: the first byte of a stream frame says which one it is (`connector`). */
-  readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number; readonly watches: number }
+  /** The board's own streams (`stream`, SYS_STREAM.MD "Model"): the first byte of a STREAM frame's body below the channels. */
+  readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
+  /**
+   * The session's own channels (`session_channel`, SYS_SESSION.MD "Streams"): a STREAM frame's first byte from `first` on is
+   * a channel, not a stream: a watch's entries (`watches`) and a remote device's events and errors (`remote`).
+   */
+  readonly channels: { readonly first: number; readonly watches: number; readonly remote: number }
+  /**
+   * A stream as STREAM CREATE and LIST have it (SYS_STREAM.MD "Model"): its direction (`sys_stream_dir_e`), its flag, the
+   * state bit of the board's own, the kinds of its targets (`sys_stream_target_e`) and the ids a user stream may take.
+   */
+  readonly stream: {
+    readonly dir: { readonly out: number; readonly in: number }
+    readonly flagUrgent: number
+    readonly stateSystem: number
+    readonly target: { readonly provider: number; readonly peer: number; readonly callback: number }
+    readonly userFirst: number
+    readonly last: number
+  }
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number; readonly noReply: number }
   /** The session (SYS_SESSION.MD "Frames"): the frame byte's bits, the kinds, the control ops, the ids, the version. */
@@ -36,17 +54,23 @@ export interface LinkDefinitions {
     readonly version: number
     readonly frame: { readonly flags: number; readonly status: number; readonly kind: number }
     readonly kind: { readonly request: number; readonly answer: number; readonly stream: number; readonly control: number }
-    readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number }
-    readonly id: { readonly none: number; readonly self: number; readonly broadcast: number }
+    readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number; readonly gone: number }
+    /** What a session's peer is to the board (`sys_session_peer_e`): its master, a slave, a client. */
+    readonly peer: { readonly master: number; readonly slave: number; readonly client: number }
+    /** `app`: the id the app says in its hello (`SYS_SESSION_ID_APP`); other clients pick one in `clientFirst..clientLast`. */
+    readonly id: {
+      readonly none: number; readonly self: number; readonly broadcast: number; readonly app: number
+      readonly clientFirst: number; readonly clientLast: number; readonly boardLast: number
+    }
   }
   readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly status: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The error record's header (ERRORS.MD "Error record"). */
   readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly srcBoard: number; readonly requestCut: number; readonly stampBytes: number }
-  /** The ops of the `actions` and `project` routers by command id (`RUN`, `BEGIN`, ...): `generated/services/contract_*.json`. */
-  readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
+  /** The ops of the `actions`, `project` and `stream` routers by command id (`RUN`, `BEGIN`, `SUBSCRIBE`, ...): `generated/services/contract_*.json`. */
+  readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>>; readonly stream: Readonly<Record<string, number>> }
   /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
-  readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>> }
+  readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>>; readonly stream: Readonly<Record<string, number>> }
   /** `CMD_FRAME_MAX` (cmd.h): the largest frame on a link. A link may carry less. */
   readonly frameMax: number
   /** `CMD_HEAD` (cmd.h): the room a frame keeps for its header; a request (keys and payload) is at most `frameMax - frameHead`. */
@@ -74,7 +98,9 @@ const opDirsOf = (contract: ContractFile, dir: LinkDefinitions['dir']): Record<s
 
 export const linkDefinitions = (
   enums: EnumTables,
-  contracts: { readonly actions: ContractFile; readonly project: ContractFile } = { actions: actionsContract as ContractFile, project: projectContract as ContractFile },
+  contracts: { readonly actions: ContractFile; readonly project: ContractFile; readonly stream: ContractFile } = {
+    actions: actionsContract as ContractFile, project: projectContract as ContractFile, stream: streamContract as ContractFile,
+  },
 ): LinkDefinitions => {
   const keys = enums.router_key
   if (!keys) throw new Error("generated/common/enums.json has no group 'router_key'.")
@@ -83,11 +109,27 @@ export const linkDefinitions = (
     keys: Object.fromEntries(keys.members.map((m) => [m.name.replace(/^ROUTER_KEY_/, '').toLowerCase(), m.value])),
     dir,
     streams: {
-      telemetry: value(enums, 'connector', 'SYS_DATA_CONNECTOR_TELEMETRY'),
-      logs: value(enums, 'connector', 'SYS_DATA_CONNECTOR_LOGS'),
-      errors: value(enums, 'connector', 'SYS_DATA_CONNECTOR_ERRORS'),
-      events: value(enums, 'connector', 'SYS_DATA_CONNECTOR_EVENTS'),
-      watches: value(enums, 'connector', 'SYS_DATA_CONNECTOR_WATCHES'),
+      telemetry: value(enums, 'stream', 'SYS_STREAM_TELEMETRY'),
+      logs: value(enums, 'stream', 'SYS_STREAM_LOGS'),
+      errors: value(enums, 'stream', 'SYS_STREAM_ERRORS'),
+      events: value(enums, 'stream', 'SYS_STREAM_EVENTS'),
+    },
+    channels: {
+      first: value(enums, 'stream_range', 'SYS_STREAM_ID_LAST') + 1,
+      watches: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_WATCHES'),
+      remote: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_REMOTE'),
+    },
+    stream: {
+      dir: { out: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_OUT'), in: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_IN') },
+      flagUrgent: value(enums, 'stream_flag', 'SYS_STREAM_FLAG_URGENT'),
+      stateSystem: value(enums, 'stream_state', 'SYS_STREAM_STATE_SYSTEM'),
+      target: {
+        provider: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_PROVIDER'),
+        peer: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_PEER'),
+        callback: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_CALLBACK'),
+      },
+      userFirst: value(enums, 'stream_range', 'SYS_STREAM_ID_USER_FIRST'),
+      last: value(enums, 'stream_range', 'SYS_STREAM_ID_LAST'),
     },
     status: { ok: value(enums, 'router_status_e', 'ROUTER_STATUS_OK'), error: value(enums, 'router_status_e', 'ROUTER_STATUS_ERROR') },
     flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT'), noReply: value(enums, 'router_flag', 'ROUTER_FLAG_NOREPLY') },
@@ -108,11 +150,21 @@ export const linkDefinitions = (
         hello: value(enums, 'sys_session_control_e', 'SYS_SESSION_HELLO'),
         ping: value(enums, 'sys_session_control_e', 'SYS_SESSION_PING'),
         noSession: value(enums, 'sys_session_control_e', 'SYS_SESSION_NO_SESSION'),
+        gone: value(enums, 'sys_session_control_e', 'SYS_SESSION_GONE'),
+      },
+      peer: {
+        master: value(enums, 'sys_session_peer_e', 'SYS_SESSION_MASTER'),
+        slave: value(enums, 'sys_session_peer_e', 'SYS_SESSION_SLAVE'),
+        client: value(enums, 'sys_session_peer_e', 'SYS_SESSION_CLIENT'),
       },
       id: {
         none: value(enums, 'session_id', 'SYS_SESSION_ID_NONE'),
         self: value(enums, 'session_id', 'SYS_SESSION_ID_SELF'),
         broadcast: value(enums, 'session_id', 'SYS_SESSION_ID_BROADCAST'),
+        app: value(enums, 'session_id', 'SYS_SESSION_ID_APP'),
+        clientFirst: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_FIRST'),
+        clientLast: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_LAST'),
+        boardLast: value(enums, 'session_id', 'SYS_SESSION_ID_LAST'),
       },
     },
     gatt: {
@@ -134,8 +186,8 @@ export const linkDefinitions = (
       requestCut: value(enums, 'err_record_flag', 'ERR_RECORD_REQ_CUT'),
       stampBytes: value(enums, 'err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },
-    ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project) },
-    opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir) },
+    ops: { actions: opsOf(contracts.actions), project: opsOf(contracts.project), stream: opsOf(contracts.stream) },
+    opDirs: { actions: opDirsOf(contracts.actions, dir), project: opDirsOf(contracts.project, dir), stream: opDirsOf(contracts.stream, dir) },
     frameMax: value(enums, 'cmd_frame', 'CMD_FRAME_MAX'),
     frameHead: value(enums, 'cmd_frame', 'CMD_HEAD'),
     eventNotify: value(enums, 'event_op', 'SYS_EVENT_OP_NOTIFY'),

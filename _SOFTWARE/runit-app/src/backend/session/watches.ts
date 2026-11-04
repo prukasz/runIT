@@ -13,7 +13,7 @@ import { Services } from './services'
  * when its session ends (a reconnect, a restart, the dead-man), so they are added again when the link comes back.
  *
  *   const watches = new Watches(link)
- *   const stop = await watches.add({ head: { connector: 0, trigger: 'SYS_WATCH_ON_CHANGE', period: 10, max_silence: 100 },
+ *   const stop = await watches.add({ head: { trigger: 'SYS_WATCH_ON_CHANGE', period: 10, max_silence: 100 },
  *                                    read: requestFrame(deviceCall(...)) }, (entry, lost) => ...)
  *   await stop()
  */
@@ -94,7 +94,6 @@ export class Watches {
    */
   follow(call: ServiceCall, spec: FollowSpec, handler: (value: Decoded | undefined) => void, options?: CommandOptions): Promise<() => Promise<void>> {
     const head = {
-      connector: 0,
       trigger: spec.trigger === 'change' ? 'SYS_WATCH_ON_CHANGE' : 'SYS_WATCH_PERIODIC',
       period: ticks(spec.periodMs),
       max_silence: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs),

@@ -92,14 +92,15 @@ export interface StreamBinding {
   readonly endpoint: number
 }
 
-/** A data stream (connector): the board's own (logs, errors, telemetry, events) or the project's. */
+/** A data stream (SYS_STREAM.MD): the board's own (logs, errors, telemetry, events) or the project's. */
 export interface DataStream {
-  /** Its connector on the board (`connector` of the commands): the byte that starts each of its frames. */
+  /** Its id on the board: the byte that starts each of its frames (the board's own 0x01..0x0F, the project's 0x10..0x7F). */
   readonly stream: number
-  /** The project's label of its own stream; the board keeps none (the board's four are named by the group `connector`). */
+  /** The project's label of its own stream; the board keeps none (the board's four are named by the group `stream`). */
   readonly name?: string
   readonly system: boolean
-  readonly suspended: boolean
+  /** OUT: the board sends it to its bindings; IN: what comes in on its bindings. Set when it is made. Absent: OUT. */
+  readonly dir?: 'out' | 'in'
   readonly bindings: readonly StreamBinding[]
 }
 

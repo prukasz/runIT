@@ -10,9 +10,12 @@ import type { CommandOptions } from './commands'
 /*
  * The link to one board: a session (SYS_SESSION.MD), the commands, the streams, and a connection that keeps itself up.
  *
- *   - Opening is one call of the platform (connect, runIT service, two subscriptions), then the session: this client's HELLO,
- *     the board's in answer with the id it gave this client, then SUBSCRIBE of the errors, telemetry and events streams. The log
- *     lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
+ *   - Opening is one call of the platform (connect, runIT service, two subscriptions), then the session (SYS_SESSION.MD "A
+ *     session's life"): this client's HELLO with its own id (the app's, `SYS_SESSION_ID_APP`), the board's HELLO in answer with
+ *     its id (the `dst` of every request), then SUBSCRIBE of the errors, telemetry and events streams (STREAM, SYS_STREAM.MD).
+ *     The log lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
+ *   - A STREAM frame's first byte is a stream's id, or from 0x80 a channel of the session: a watch's entries (`watches`), a
+ *     remote device's events and errors (`remote`). Both come to `onStream` by name.
  *   - The session lives on PINGs: something goes to the board at least every third of its timeout (its HELLO says it). A board
  *     that answers NO_SESSION (it restarted, or ended the session) gets a new HELLO and the streams are subscribed again.
  *   - A link that drops by itself is reopened at once (the first retry has no delay); the delays grow only when the board does
@@ -64,30 +67,36 @@ export interface LinkOptions {
   readonly reconnect?: Partial<ReconnectPolicy> | false
   /** How long a command waits for a link that is coming back (default 5000 ms). */
   readonly waitForLinkMs?: number
+  /** The id this client says in its hello (default the app's, `SYS_SESSION_ID_APP`; another client picks one of `defs.session.id.clientFirst..clientLast`). */
+  readonly clientId?: number
 }
 
 /** The longest value of a GATT attribute (BLE Core spec): the largest packet one write can carry. */
 export const ATT_VALUE_MAX = 512
 
-export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events', 'watches'] as const
+/** The board's own streams, then the session's channels (`watches`: a watch's entries; `remote`: a remote device's events and errors). */
+export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events', 'watches', 'remote'] as const
 export type StreamName = (typeof STREAM_NAMES)[number]
 
 /** The streams the link subscribes to once the session opens (logs come on their own characteristic; the watches' entries come to the one who added the watch, with no subscription). */
-const SUBSCRIBED: readonly StreamName[] = ['errors', 'telemetry', 'events']
+const SUBSCRIBED: readonly (keyof LinkDefinitions['streams'])[] = ['errors', 'telemetry', 'events']
 
 /** How long the board waits for this client: the host never ends the session itself. */
 const CLIENT_TIMEOUT_MS = 60_000
 /** A HELLO that gets no answer is sent again this often while the session opens. */
 const HELLO_RETRY_MS = 500
-/** The connector ops of SUBSCRIBE (SYS_DATA_CONNECTOR.MD "Remote"). */
-const CONN_SUBSCRIBE = 0x09
 
 /** The session as the board's HELLO gave it. */
 export interface SessionInfo {
-  /** This client's id: the `src` of its requests. */
+  /** This client's id, said in its own hello: the `src` of its requests. */
   readonly clientId: number
+  /** The board's id (its place in the project): the `dst` of every request. */
   readonly boardId: number
+  /** The board's identity: its MAC. */
+  readonly mac: string
+  /** Random per boot of the board: another one is a restart. */
   readonly bootId: number
+  readonly fwVersion: number
   /** The board ends the session after this much silence. */
   readonly timeoutMs: number
 }
@@ -98,12 +107,13 @@ export interface StreamFrame {
   readonly name?: StreamName
   /** The frame without its stream byte. */
   readonly data: Uint8Array
-  /** The stream's own counter in the session header, so a gap is frames lost; undefined on the logs characteristic (no header). */
+  /** The stream's own counter in the session header (a channel's: its sender's), so a gap is frames lost; undefined on the logs characteristic (no header). */
   readonly seq?: number
   /** When it arrived (ms since the epoch). */
   readonly at: number
 }
 
+/** `unknown-stream`: a STREAM frame whose first byte is neither a stream the firmware publishes, a user stream, nor a channel. */
 export type LinkDiagnostic = { readonly kind: 'dropped'; readonly characteristic: number; readonly reason: string } | { readonly kind: 'unknown-stream'; readonly stream: number }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -132,6 +142,9 @@ export class RunitLink {
   private lastSentAt = 0
   private pinger: ReturnType<typeof setInterval> | undefined
   private reopening = false
+  private readonly clientId: number
+  /** This client's boot id, one per link: the board sees a new one as a client that started over. */
+  private readonly bootId = Math.floor(Math.random() * 0x100000000) >>> 0
 
   constructor(
     private readonly platform: BlePlatform,
@@ -141,11 +154,14 @@ export class RunitLink {
     this.policy = options.reconnect === false ? undefined : { ...DEFAULT_RECONNECT, ...options.reconnect }
     this.packetBytes = Math.min(options.packetBytes ?? ATT_VALUE_MAX, ATT_VALUE_MAX)
     this.waitForLinkMs = options.waitForLinkMs ?? 5000
-    for (const name of STREAM_NAMES) this.streamNames.set(this.defs.streams[name], name)
+    this.clientId = options.clientId ?? this.defs.session.id.app
+    const { streams, channels } = this.defs
+    const bytes: Record<StreamName, number> = { ...streams, watches: channels.watches, remote: channels.remote }
+    for (const name of STREAM_NAMES) this.streamNames.set(bytes[name], name)
     this.commands = new CommandClient({
       defs: this.defs,
       send: (frame) => this.sendFrame(frame),
-      address: () => ({ dst: this.sessionInfo?.boardId ?? 0, src: this.sessionInfo?.clientId ?? this.defs.session.id.none }),
+      address: () => ({ dst: this.sessionInfo?.boardId ?? 0, src: this.clientId }),
       errors: options.errors ?? errorCatalog(),
       timeoutMs: options.timeoutMs,
       maxInFlight: options.maxInFlight,
@@ -240,7 +256,7 @@ export class RunitLink {
     return () => this.streamHandlers.delete(handler)
   }
 
-  /** The frames of one stream (`telemetry`, `logs`, `errors`, `events`), raw. */
+  /** The frames of one stream (`telemetry`, `logs`, `errors`, `events`) or channel (`watches`, `remote`), raw. */
   on(name: StreamName, handler: (data: Uint8Array, frame: StreamFrame) => void): () => void {
     return this.onStream((frame) => {
       if (frame.name === name) handler(frame.data, frame)
@@ -301,7 +317,7 @@ export class RunitLink {
 
   /* ---- the session ---- */
 
-  /** HELLO until the board answers with this client's id, then the streams' SUBSCRIBE; the PINGs start. */
+  /** HELLO until the board answers with its own, then the streams' SUBSCRIBE; the PINGs start. */
   private async openSession(limitMs: number): Promise<void> {
     this.sessionInfo = undefined
     const answered = new Promise<SessionInfo>((resolve) => (this.helloWaiter = resolve))
@@ -309,14 +325,15 @@ export class RunitLink {
     let info: SessionInfo | undefined
     while (!info) {
       if (Date.now() > deadline) throw new Error(`The board did not open a session within ${limitMs} ms.`)
-      await this.sendControl(encodeHello(this.defs, CLIENT_TIMEOUT_MS))
+      await this.sendControl(encodeHello(this.defs, { id: this.clientId, bootId: this.bootId, timeoutMs: CLIENT_TIMEOUT_MS }))
       info = await Promise.race([answered, sleep(HELLO_RETRY_MS).then(() => undefined)])
     }
     this.sessionInfo = info
     this.startPings()
+    const { keys, ops, opDirs, streams } = this.defs
     for (const name of SUBSCRIBED) {
-      const keys = [this.defs.keys.conn!, this.defs.dir.write, CONN_SUBSCRIBE]
-      await this.commands.request({ keys, payload: Uint8Array.of(this.defs.streams[name]) }, { label: `SUBSCRIBE ${name}` })
+      const request = { keys: [keys.stream!, opDirs.stream.SUBSCRIBE!, ops.stream.SUBSCRIBE!], payload: Uint8Array.of(streams[name]) }
+      await this.commands.request(request, { label: `SUBSCRIBE ${name}` })
     }
   }
 
@@ -338,25 +355,25 @@ export class RunitLink {
   }
 
   private sendControl(body: Uint8Array): Promise<void> {
-    const src = this.sessionInfo?.clientId ?? this.defs.session.id.none
-    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.control, dst: this.sessionInfo?.boardId ?? 0, src, seq: 0 }, body))
+    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.control, dst: this.sessionInfo?.boardId ?? 0, src: this.clientId, seq: 0 }, body))
   }
 
   private onControl(body: Uint8Array): void {
     const hello = decodeHello(this.defs, body)
     if (hello) {
-      if (hello.version !== this.defs.session.version) return
+      if (hello.version !== this.defs.session.version) return // the board stays without a session too (ERR_SESSION_VERSION)
+      const info: SessionInfo = {
+        clientId: this.clientId, boardId: hello.id, mac: hello.mac, bootId: hello.bootId, fwVersion: hello.fwVersion, timeoutMs: hello.timeoutMs || 3000,
+      }
       const known = this.sessionInfo
-      if (hello.yourId !== this.defs.session.id.none) {
-        const info: SessionInfo = { clientId: hello.yourId, boardId: hello.boardId, bootId: hello.bootId, timeoutMs: hello.timeoutMs || 3000 }
-        if (this.helloWaiter) {
-          this.helloWaiter(info)
-          this.helloWaiter = undefined
-        } else if (known && (known.bootId !== info.bootId || known.clientId !== info.clientId)) this.reopenSession('The board opened a new session.')
-        else this.sessionInfo = info // a new timeout (the dead-man was armed)
-      } else if (known && hello.bootId !== known.bootId) this.reopenSession('The board restarted.')
+      if (this.helloWaiter) {
+        this.helloWaiter(info)
+        this.helloWaiter = undefined
+      } else if (known && (known.bootId !== info.bootId || known.boardId !== info.boardId)) this.reopenSession('The board restarted.')
+      else if (known) this.sessionInfo = info // a new timeout (the dead-man was armed)
       return
     }
+    // GONE (peers the board can no longer reach) names boards behind it and other clients: nothing this link keeps.
     if (body[0] === this.defs.session.control.noSession && this.sessionInfo) this.reopenSession('The board ended the session.')
   }
 
@@ -479,7 +496,9 @@ export class RunitLink {
 
   private emitStream(stream: number, data: Uint8Array, seq?: number): void {
     const name = this.streamNames.get(stream)
-    if (!name) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
+    // A user stream (0x10..0x7F) has no name here: it is the project's (Streams.subscribe takes it by its id).
+    const user = stream >= this.defs.stream.userFirst && stream <= this.defs.stream.last
+    if (!name && !user) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
     const frame: StreamFrame = { stream, ...(name ? { name } : {}), data, ...(seq !== undefined ? { seq } : {}), at: Date.now() }
     this.streamHandlers.forEach((h) => h(frame))
   }

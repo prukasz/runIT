@@ -182,9 +182,9 @@ The master's session ending is told once, with `peer` `SYS_SESSION_ID_BROADCAST`
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
 | `0x01` | ID | read / write | write `u8 board_id` (NVS, from the next start); read → `u8 board_id` |
-| `0x02` | ATTACH | write | provider id, `u8 peer`, `u8 access` |
+| `0x02` | ATTACH | write | provider id, `u8 peer` (`sys_session_peer_e`) |
 | `0x03` | DETACH | write | provider id |
-| `0x04` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session (provider, peer, access, open, peer id, this board's timeout of it, subtree size) |
+| `0x04` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: provider id, `u8 peer` (`sys_session_peer_e`), `u8 open`, `u8 peer_id` (`NONE` before its hello), `u16` this board's timeout of it |
 
 ## Limits
 

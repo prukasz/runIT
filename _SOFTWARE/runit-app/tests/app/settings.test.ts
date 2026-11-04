@@ -45,7 +45,7 @@ describe('the board settings from the service descriptors', () => {
     // The dead-man is runtime only: the project never keeps it, so a board that restarts runs offline.
     expect(group('SYS.DEADMAN')?.recordId).toBeUndefined()
     expect(sections.find((s) => s.service.id === 'BLE')?.record).toEqual({ id: record('SYS_ACTIONS_ID_BLE'), editor: 'gatt' })
-    expect(sections.find((s) => s.service.id === 'CONNECTOR')?.record).toEqual({ id: record('SYS_ACTIONS_ID_CONN'), editor: 'streams' })
+    expect(sections.find((s) => s.service.id === 'STREAM')?.record).toEqual({ id: record('SYS_ACTIONS_ID_STREAM'), editor: 'streams' })
   })
 
   it('reads the response matrix as a table: a target per row, a column per power event kind, rows both ways', () => {
@@ -78,8 +78,8 @@ describe('the board settings from the service descriptors', () => {
 describe('the settings the project keeps, as records of the stored project', () => {
   const gatt: GattService[] = [{ uuid: 0xee00, primary: true, characteristics: [{ uuid: 0xee01, name: 'temp', write: false, indicate: false, notify: true, framed: false, tx: 96, rx: 0 }] }]
   const streams: DataStream[] = [
-    { stream: 3, system: true, suspended: false, bindings: [{ provider: 2, endpoint: 0xffe3 }] },
-    { stream: 0x10, name: 'mine', system: false, suspended: true, bindings: [{ provider: 1, endpoint: 0 }] },
+    { stream: 3, system: true, dir: 'out', bindings: [{ provider: 2, endpoint: 0xffe3 }] },
+    { stream: 0x10, name: 'mine', system: false, dir: 'in', bindings: [{ provider: 1, endpoint: 0 }] },
   ]
 
   it('builds the GATT record as SYS_BLE.MD shows it: the service, its characteristic, APPLY', () => {
@@ -98,18 +98,27 @@ describe('the settings the project keeps, as records of the stored project', () 
     expect(gattApply(catalog, live, gatt).map((c) => c.command.id)).toEqual(['SVC_REMOVE', 'SVC_CREATE', 'CHAR_CREATE', 'APPLY'])
   })
 
-  it('builds the streams record: the user stream created, every binding dropped, then set, a pause', () => {
-    const ids = streamsRecord(catalog, streams).map((f) => f[2])
-    const op = (id: string) => catalog.command(catalog.service('CONNECTOR'), id).op
-    expect(ids).toEqual([op('UNBIND'), op('BIND'), op('CREATE'), op('UNBIND'), op('BIND'), op('SUSPEND')])
-    // LIST: one stream, 0x03, keeps nothing, system; one subscriber (0xf0); bindings UART 0 and BLE 0xFFE3
-    const info = Uint8Array.of(1, 3, 0, 0, 0, 0, 1, 1, 2, 0xf0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 2, 0xe3, 0xff, 0, 0, 2, 0, 0)
+  it('builds the streams record: the user stream created with its direction, every binding dropped, then set', () => {
+    const frames = streamsRecord(catalog, streams)
+    const op = (id: string) => catalog.command(catalog.service('STREAM'), id).op
+    expect(frames.map((f) => f[2])).toEqual([op('UNBIND'), op('BIND'), op('CREATE'), op('UNBIND'), op('BIND')])
+    expect([...frames[2]!]).toEqual([0x04, 0x01, op('CREATE'), 0x10, 1, 0]) // [STREAM][write][CREATE][id][dir IN][flags]
+    // LIST: one stream, 0x03, OUT, no flags, system, 3 targets: a subscriber (0xf0), bindings UART 0 and BLE 0xFFE3 (2 dropped)
+    const info = Uint8Array.of(1, 3, 0, 0, 1, 3, 1, 0xf0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0xe3, 0xff, 0, 0, 2, 0)
     const live = decodeStreamsInfo(info)
-    expect(live).toEqual([{ stream: 3, system: true, suspended: false, bindings: [{ provider: 1, endpoint: 0 }, { provider: 2, endpoint: 0xffe3 }] }])
+    expect(live).toEqual([{ stream: 3, system: true, dir: 'out', bindings: [{ provider: 1, endpoint: 0 }, { provider: 2, endpoint: 0xffe3 }] }])
     // the board keeps no name: a stream read back from the record has none
     expect(streamsFromRecord(catalog, streamsRecord(catalog, streams), live)).toEqual(streams.map(({ name: _, ...s }) => s))
     expect(sameStreams(streamsFromRecord(catalog, streamsRecord(catalog, streams), live), streams)).toBe(true)
-    expect(streamsApply(catalog, live, streams).map((c) => c.command.id)).toEqual(['UNBIND', 'CREATE', 'BIND', 'SUSPEND'])
+    expect(streamsApply(catalog, live, streams).map((c) => c.command.id)).toEqual(['UNBIND', 'CREATE', 'BIND'])
+  })
+
+  it('makes a stream again when the project has it the other way: its direction is set when it is made', () => {
+    const live = [{ stream: 0x10, system: false, dir: 'out' as const, bindings: [{ provider: 1, endpoint: 0 }] }]
+    const project = [{ stream: 0x10, system: false, dir: 'in' as const, bindings: [{ provider: 1, endpoint: 0 }] }]
+    expect(streamsApply(catalog, live, project).map((c) => c.command.id)).toEqual(['REMOVE', 'CREATE', 'BIND'])
+    expect(streamsApply(catalog, live, live).map((c) => c.command.id)).toEqual([]) // nothing differs: nothing sent
+    expect(sameStreams([{ stream: 0x10, system: false, bindings: [] }], [{ stream: 0x10, system: false, dir: 'out', bindings: [] }])).toBe(true) // no direction: OUT
   })
 
   it('writes each kept setting as its record and reads them back over what the board has', () => {
@@ -121,7 +130,7 @@ describe('the settings the project keeps, as records of the stored project', () 
       gatt, streams,
     }
     const records = settingsRecords(catalog, settings)
-    expect(records.map((r) => r.id)).toEqual([record('SYS_ACTIONS_ID_LOG'), record('SYS_ACTIONS_ID_POWER_RESPONSES'), record('SYS_ACTIONS_ID_BLE'), record('SYS_ACTIONS_ID_CONN')].sort((a, b) => records.findIndex((r) => r.id === a) - records.findIndex((r) => r.id === b)))
+    expect(records.map((r) => r.id)).toEqual([record('SYS_ACTIONS_ID_LOG'), record('SYS_ACTIONS_ID_POWER_RESPONSES'), record('SYS_ACTIONS_ID_BLE'), record('SYS_ACTIONS_ID_STREAM')].sort((a, b) => records.findIndex((r) => r.id === a) - records.findIndex((r) => r.id === b)))
     // the matrix's write: [key][write][MATRIX], then each row's target (u16) and its 11 cells
     const matrix = records.find((r) => r.id === record('SYS_ACTIONS_ID_POWER_RESPONSES'))!.frames[0]!
     expect([...matrix.subarray(3)]).toEqual(rows.flatMap((r) => [r.target & 0xff, r.target >> 8, ...r.cells]))

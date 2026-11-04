@@ -3,10 +3,12 @@
  *
  *   definitions   the link's numbers, the error tags and the descriptors, read from generated/
  *   catalog       every command of every router as the descriptors describe it, and its payload layout
- *   protocol      the session's frames (requests, answers, streams, HELLO), the error record, the request of any catalog command
+ *   protocol      the session's frames (requests, answers, streams, HELLO), the error record, the request of any catalog command,
+ *                 the answers of STREAM LIST and SESSION PEERS
  *   errors        an error record read for a user: messages from errors.json, the instances it is about, the app's names
  *   transport     BLE: the platform interface, framing, Web Bluetooth
- *   session       the commands, the link that keeps itself connected, sending a list in order, the catalog's commands
+ *   session       the commands, the link that keeps itself connected, sending a list in order, the catalog's commands, the
+ *                 board's streams (Streams) and sessions (Sessions)
  */
 export { appBoardKind, bundledBlockTypes, bundledBoard, bundledEnums, onboardActionIds, onboardActions, bundledLinkDefinitions, bundledServiceCatalog, errorCatalog, errorIdKinds, errorSeverities, linkDefinitions } from './definitions'
 export type { BoardDescriptor, BoardDevice, BoardKind, BoardPin, BoardPower, PowerProbe, ErrorField, ErrorInfo, IdKindInfo, LinkDefinitions } from './definitions'
@@ -25,6 +27,11 @@ export { decodeEvent, EVENT_LAYOUT } from './protocol/events'
 export { decodeWatchEntry, watchAddCall, watchRemoveCall } from './protocol/watches'
 export type { WatchEntry } from './protocol/watches'
 export { Watches } from './session/watches'
+export { decodePeers, decodeStreamList } from './protocol/streams'
+export type { PeerKind, ProviderId, SessionPeer, StreamDirection, StreamInfo, StreamTarget } from './protocol/streams'
+export { STREAM_COMMANDS, Streams } from './session/streams'
+export type { StreamHandler } from './session/streams'
+export { SESSION_COMMANDS, Sessions } from './session/sessions'
 export type { WatchHandler, WatchSpec } from './session/watches'
 export type { BoardEvent } from './protocol/events'
 export { combineResolvers, ErrorInterpreter, refKey, refWithin } from './errors/interpret'

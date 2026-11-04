@@ -1,14 +1,15 @@
-import { bundledLinkDefinitions, decodeFrame, encodeFrame, HELLO_BYTES } from '@backend'
+import { bundledLinkDefinitions, decodeFrame, decodeHello, encodeFrame, HELLO_BYTES } from '@backend'
+import type { Hello } from '@backend'
 import type { BleChannel, BleDeviceRef, BlePlatform, OpenHandlers } from '@backend'
 import { fragment, Reassembler } from '@backend'
 
 export const defs = bundledLinkDefinitions()
 
-/** The id the fake board gives its client, and its own. */
-export const CLIENT_ID = 0xf0
+/** The app's id (`SYS_SESSION_ID_APP`: the link says it in its hello), and the fake board's own. */
+export const CLIENT_ID = defs.session.id.app
 export const BOARD_ID = 0x00
-/** The connectors op the link sends when its session opens (handled by the board itself, not shown to the test). */
-const CONN_SUBSCRIBE = 0x09
+/** The fake board's MAC, in its hello. */
+export const BOARD_MAC = [0x24, 0x6f, 0x28, 0xaa, 0xbb, 0xcc]
 
 /**
  * A board on the far side of a fake platform: it reassembles what is written, opens the session itself (HELLO, SUBSCRIBE) and
@@ -18,6 +19,16 @@ const CONN_SUBSCRIBE = 0x09
 export class FakeBoard implements BlePlatform {
   readonly available = true
   readonly device: BleDeviceRef = { id: 'board-1', name: 'runit' }
+  /** The board's id, in its hello: the `dst` of what the link sends. */
+  boardId = BOARD_ID
+  /** The client's last hello, decoded. */
+  clientHello: Hello | undefined
+  /** The streams the link subscribed when its session opened (answered by the board itself, not shown to the test). */
+  readonly subscribed: number[] = []
+  /** false: a SUBSCRIBE goes to the test like any request. */
+  subscribeAnswered = true
+  /** The addresses of every request, in order: `dst` the board's id, `src` the client's. */
+  readonly addresses: { dst: number; src: number }[] = []
   /** Complete request frames the board received, in order, as a test sees them. */
   readonly requests: Uint8Array[] = []
   /** Packet lengths of those requests on the wire, for the framing assertions. */
@@ -106,12 +117,17 @@ export class FakeBoard implements BlePlatform {
     const frame = decodeFrame(defs, raw)
     if (!frame) return
     if (frame.kind === defs.session.kind.control) {
-      if (frame.body[0] === defs.session.control.hello) this.notify(this.hello())
+      if (frame.body[0] === defs.session.control.hello) {
+        this.clientHello = decodeHello(defs, frame.body)
+        this.notify(this.hello())
+      }
       else if (frame.body[0] === defs.session.control.ping) this.pings++
       return
     }
     if (frame.kind !== defs.session.kind.request) return
-    if (frame.body[0] === defs.keys.conn && frame.body[2] === CONN_SUBSCRIBE) {
+    this.addresses.push({ dst: frame.dst, src: frame.src })
+    if (frame.body[0] === defs.keys.stream && frame.body[2] === defs.ops.stream.SUBSCRIBE && this.subscribeAnswered) {
+      this.subscribed.push(frame.body[3]!)
       this.notify(encodeFrame(defs, { kind: defs.session.kind.answer, dst: frame.src, src: BOARD_ID, seq: frame.seq }, new Uint8Array(0)))
       return
     }
@@ -125,17 +141,18 @@ export class FakeBoard implements BlePlatform {
     this.respond(view, (out, characteristic = defs.gatt.tx) => this.notify(this.fullSeq(out), characteristic))
   }
 
-  /** The board's HELLO: it gives the client CLIENT_ID. */
+  /** The board's HELLO (sys_session_hello_t): its own id (`boardId`), its MAC, its boot id, its timeout. */
   hello(): Uint8Array {
     const body = new Uint8Array(1 + HELLO_BYTES)
     const view = new DataView(body.buffer)
     body[0] = defs.session.control.hello
     body[1] = defs.session.version
-    body[2] = BOARD_ID
-    body[3] = CLIENT_ID
-    view.setUint32(1 + 9, this.bootId, true)
-    view.setUint16(1 + 21, this.sessionTimeoutMs, true)
-    return encodeFrame(defs, { kind: defs.session.kind.control, dst: CLIENT_ID, src: BOARD_ID, seq: 0 }, body)
+    body[2] = this.boardId
+    body.set(BOARD_MAC, 3)
+    view.setUint32(1 + 8, this.bootId, true)
+    view.setUint16(1 + 12, 7, true)
+    view.setUint16(1 + 14, this.sessionTimeoutMs, true)
+    return encodeFrame(defs, { kind: defs.session.kind.control, dst: CLIENT_ID, src: this.boardId, seq: 0 }, body)
   }
 
   /** An answer a test made with `answer(seq low byte)` gets the full seq of that request. */
@@ -156,9 +173,9 @@ export class FakeBoard implements BlePlatform {
     for (const packet of fragment(defs, frame, 20)) queueMicrotask(() => handlers.onPacket(characteristic, packet))
   }
 
-  /** A stream frame of a connector, as the board sends it to a subscriber. */
-  stream(connector: number, payload: number[] | Uint8Array, seq = 0): void {
-    this.notify(encodeFrame(defs, { kind: defs.session.kind.stream, dst: CLIENT_ID, src: BOARD_ID, seq }, Uint8Array.from([connector, ...payload])))
+  /** A STREAM frame as the board sends it: a stream's (to a subscriber) or a session channel's (from 0x80). */
+  stream(id: number, payload: number[] | Uint8Array, seq = 0): void {
+    this.notify(encodeFrame(defs, { kind: defs.session.kind.stream, dst: CLIENT_ID, src: this.boardId, seq }, Uint8Array.from([id, ...payload])))
   }
 
   /** The link drops by itself. */

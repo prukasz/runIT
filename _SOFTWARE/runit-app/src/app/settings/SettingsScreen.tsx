@@ -11,7 +11,7 @@ import type { PinContext } from '../devices/FieldsForm'
 import { GATT } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
-import { STREAMS, transports } from './streams'
+import { dirOf, STREAMS, transports } from './streams'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
 
 /*
@@ -188,8 +188,11 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
   const create = catalog.command(entry, STREAMS.create).write!.args!
   const bind = catalog.command(entry, STREAMS.bind)
   const streams = state.streamsOf()
-  // The board's four are named by the group `connector`; the project's by its own label.
-  const streamNames = new Map((bundledEnums().connector?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
+  // The board's four are named by the group `stream`; the project's by its own label.
+  const streamNames = new Map((bundledEnums().stream?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
+  // A stream's direction (`sys_stream_dir_e`), as CREATE's `dir` field names it.
+  const dirField = create.fields.find((f) => f.id === 'dir')
+  const dirChoices: Choice<'out' | 'in'>[] = [{ value: 'out', label: 'Out: the board sends it' }, { value: 'in', label: 'In: what comes in on its bindings' }]
   const byteName = (stream: number) => `Stream 0x${stream.toString(16).toUpperCase().padStart(2, '0')}`
   const title = (s: DataStream) => (s.system ? streamNames.get(s.stream) : s.name) || byteName(s.stream)
   // A stream is sent on a characteristic that notifies or indicates: the board's and the project's.
@@ -207,7 +210,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
         <FieldError>{state.error(section.service.id)}</FieldError>
       </Card>
       {streams.map((s, at) => (
-        <Card key={at} title={title(s)} help={s.system ? "One of the board's own streams: it can be sent elsewhere or paused, not removed." : undefined}
+        <Card key={at} title={title(s)} help={s.system ? "One of the board's own streams: it can be sent elsewhere, not removed." : undefined}
           actions={(
             <span className="settings-actions">
               {s.system ? <Badge tone="system">the board's</Badge> : <Button size="sm" title="Remove this stream" onClick={() => set(streams.filter((_, i) => i !== at))}><Trash2 aria-hidden="true" />Remove</Button>}
@@ -215,17 +218,19 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
           )}>
           <FormGrid>
             {s.system
-              ? <FormRow label={create.fields.find((f) => f.id === 'id')?.label ?? 'Connector'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
+              ? <FormRow label={create.fields.find((f) => f.id === 'id')?.label ?? 'Stream'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
               : <>
                   <FormRow label="Name" note="The project's own label: the board keeps no name.">
                     <TextField value={s.name ?? ''} placeholder={byteName(s.stream)} aria-label={`${title(s)}: name`} onChange={(e) => setStream(at, (o) => ({ ...o, name: e.currentTarget.value }))} />
                   </FormRow>
-                  <FieldsForm grid={false} layout={create} values={{ connector: s.stream }} context={context}
-                    onChange={(v) => setStream(at, (o) => ({ ...o, stream: Number(v.connector ?? o.stream) }))} />
+                  <FieldsForm grid={false} layout={{ ...create, fields: create.fields.filter((f) => f.id === 'id') }} values={{ id: s.stream }} context={context}
+                    onChange={(v) => setStream(at, (o) => ({ ...o, stream: Number(v.id ?? o.stream) }))} />
+                  <FormRow label={dirField?.label ?? 'Direction'} note={dirField?.description}>
+                    <ChoiceField<'out' | 'in'> aria-label={`${title(s)}: direction`} value={dirOf(s)} choices={dirChoices}
+                      onChange={(dir) => dir !== undefined && setStream(at, (o) => ({ ...o, dir }))} />
+                  </FormRow>
                 </>}
-            <FormRow label={catalog.command(entry, STREAMS.suspend).label} note={catalog.command(entry, STREAMS.suspend).description}>
-              <Switch label={s.suspended ? 'Paused' : 'Sending'} checked={s.suspended} onChange={(suspended) => setStream(at, (o) => ({ ...o, suspended }))} />
-            </FormRow>
+            {s.system && <FormRow label={dirField?.label ?? 'Direction'}><span>{dirChoices.find((c) => c.value === dirOf(s))?.label}</span></FormRow>}
           </FormGrid>
           {transports().map((t) => {
             const binding = s.bindings.find((b) => b.provider === t.value)
@@ -233,7 +238,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
             return (
               <FormGrid key={t.value}>
                 <FormRow label={t.label} note={bind.description}>
-                  <Switch label={binding ? 'Sent' : 'Not sent'} checked={binding !== undefined} disabled={last}
+                  <Switch label={binding ? (dirOf(s) === 'in' ? 'Taken in' : 'Sent') : (dirOf(s) === 'in' ? 'Not taken in' : 'Not sent')} checked={binding !== undefined} disabled={last}
                     onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
                 </FormRow>
                 {binding && t.value === bleTransport && (
@@ -251,7 +256,7 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
         <Button onClick={() => {
           let stream = 0x10
           while (streams.some((s) => s.stream === stream) || streamNames.has(stream)) stream++
-          set([...streams, { stream, system: false, suspended: false, bindings: [] }])
+          set([...streams, { stream, system: false, dir: 'out', bindings: [] }])
         }}><Plus aria-hidden="true" />{catalog.command(entry, STREAMS.create).label}</Button>
       </div>
     </>

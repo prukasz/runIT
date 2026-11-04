@@ -68,7 +68,7 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
           const { data } = await services.call(GATT.service, GATT.list)
           setLive((l) => ({ ...l, gatt: decodeGattList(data) }))
         } else {
-          const { data } = await services.call(STREAMS.service, STREAMS.info)
+          const { data } = await services.call(STREAMS.service, STREAMS.list)
           setLive((l) => ({ ...l, streams: decodeStreamsInfo(data) }))
         }
         setError(key, undefined)

@@ -57,12 +57,16 @@ describe('frames of the session (SYS_SESSION.MD examples)', () => {
     expect(decodeFrame(defs, bytes('80 f0 00 07 00 02 01'))).toMatchObject({ kind: defs.session.kind.stream, seq: 7 })
   })
 
-  it('a client HELLO asks for an id; the board HELLO gives it', () => {
-    const mine = encodeHello(defs, 60000)
-    expect(mine[0]).toBe(defs.session.control.hello)
-    expect(decodeHello(defs, mine)).toMatchObject({ version: defs.session.version, boardId: defs.session.id.none, yourId: defs.session.id.none, timeoutMs: 60000 })
-    const board = Uint8Array.from([defs.session.control.hello, 1, 0x00, 0xf0, 1, 2, 3, 4, 5, 6, 0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0, 0, 0, 0, 0, 0xb8, 0x0b, 0])
-    expect(decodeHello(defs, board)).toEqual({ version: 1, boardId: 0, yourId: 0xf0, bootId: 0x12345678, timeoutMs: 3000 })
+  it('a HELLO (sys_session_hello_t, 16 B) says its sender\'s own id: the app SYS_SESSION_ID_APP, a board its place', () => {
+    const { hello } = defs.session.control
+    const mine = encodeHello(defs, { id: defs.session.id.app, bootId: 0x12345678, timeoutMs: 60000 })
+    // [HELLO][version][id][mac 6][boot_id u32][fw_version u16][timeout_ms u16]
+    expect([...mine]).toEqual([hello, defs.session.version, 0xf0, 0, 0, 0, 0, 0, 0, 0x78, 0x56, 0x34, 0x12, 0, 0, 0x60, 0xea])
+    expect(decodeHello(defs, mine)).toEqual({ version: defs.session.version, id: 0xf0, mac: '00:00:00:00:00:00', bootId: 0x12345678, fwVersion: 0, timeoutMs: 60000 })
+    const board = Uint8Array.from([hello, defs.session.version, 0x03, 0x24, 0x6f, 0x28, 0xaa, 0xbb, 0xcc, 1, 2, 3, 4, 5, 0, 0xb8, 0x0b])
+    expect(decodeHello(defs, board)).toEqual({ version: defs.session.version, id: 3, mac: '24:6f:28:aa:bb:cc', bootId: 0x04030201, fwVersion: 5, timeoutMs: 3000 })
+    expect(decodeHello(defs, board.subarray(0, 16))).toBeUndefined() // one byte short
+    expect(decodeHello(defs, Uint8Array.of(defs.session.control.ping))).toBeUndefined()
   })
 
   it('decodes the error record of the ERRORS.MD example, naming the tags from errors.json', () => {
