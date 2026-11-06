@@ -10,7 +10,7 @@ Component `components/sys/sys_project/`. The pipeline that saves a whole **proje
 | `errors/sys_project_errors.h` | `ERR_SYS_PROJECT_MAP`, the module's error tags (included by `sys_project.h`) |
 | `errors/errors_project.json` | The error messages |
 | `sys_project.c` | The stream parser, staging, commit, run, info, erase, boot |
-| `router/sys_project_router.c/.h` | `project` router (`ROUTER_KEY_PROJECT` = 0x0C), op IDs `SYS_PROJECT_OP_*` |
+| `router/sys_project_router.c/.h` | `project` router (`ROUTER_KEY_PROJECT` = 0x0C), op IDs `SYS_PROJECT_OP_*`. The header publishes every op (`SYS_PROJECT_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `router/contract_project.json` | Service contract definition (RPC commands and schemas) |
 | `Kconfig` | Largest stream, sections, program chunks |
 | `AGENTS.md` | Rules for changing this folder |
@@ -53,7 +53,7 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 
 **At start: the boot option** (`sys_project_boot_e`, a u8 in the `project` namespace of the actions partition, key `boot`; `SYS_PROJECT_BOOT_NONE` when never set): `NONE` nothing, `LOAD` load, `RUN` load and start. BEGIN carries it; COMMIT stores it and **does it right after the save**, as a boot would (a failure there is `ERR_PROJECT_RUN` wrapping the cause: the project **is stored** anyway). OPTIONS reads and sets it alone (`ERR_PROJECT_BAD_BOOT` for another value).
 
-**A new project replaces the old one whole**: VM RESET, ERASE (the old project's devices go, the board's stay), then the save. Its run creates the devices again from their CREATE frames, so a project runs onto a board without devices of its own: after a boot or an ERASE. A second RUN of the same stored project without either finds its devices taken (`ERR_DEV_ID_TAKEN`; `RUN_ALL` goes on, the devices keep what they had).
+**A new project replaces the old one whole**: VM RESET, ERASE (every device not created as the board's goes), then the save. Its run creates the devices again from their CREATE frames, so a project runs onto a board without devices of its own: after a boot or an ERASE. A second RUN of the same stored project without either finds its devices taken (`ERR_DEV_ID_TAKEN`; `RUN_ALL` goes on, the devices keep what they had).
 
 **Every section runs at every start.** The project record runs each section in order, whatever its class: an action stored as a section (a user ID) is run at the start like the settings and devices around it. A user action that must wait for a call (a button, the VM's ACTION block, an error policy) is stored with the actions router (BEGIN / WRITE / COMMIT, SYS_ACTIONS.MD), not as a section. IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions") and are not for the app.
 
@@ -69,13 +69,27 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 | `0x04` ABORT | – | – |
 | `0x05` INFO | – | `u8 stored, u8 boot, u8 bank, u32 crc32, u32 bytes` (crc and length of the stream it was saved from: the app compares them with its project) |
 | `0x06` RUN | – | – (load, then the start section; `ERR_PROJECT_NOT_STORED` with none) |
-| `0x07` ERASE | – | – (the devices the project created are removed, `sys_device_sweep(REMOVE)`: the board's stay; then the project record and both banks; the settings, device and user records stay). Stop the VM first (VM RESET): its program would call devices that are gone |
+| `0x07` ERASE | – | – (every device not created as the board's is removed, `sys_device_sweep(REMOVE)`, SYS_DEVICE.MD "The board's own devices"; then the project record and both banks; the settings, device and user records stay). Stop the VM first (VM RESET): its program would call devices that are gone |
 | `0x08` OPTIONS | write: `u8 boot`; read: – | write: –; read: `u8 boot` |
 | `0x10` SECTION | `u32 id` | only a frame of the stream: sent as a command it is `ERR_PROJECT_NOT_IN_STREAM` |
 | `0x11` MARK | `u8 bank, u32 crc32, u32 bytes` | first frame of the project record; does nothing when run |
 | `0x12` LOAD | – | – (load without the start section: the program stays stopped; `ERR_PROJECT_NOT_STORED` with none) |
 
-One save at a time (`ERR_PROJECT_BUSY`). Reading a project back is the actions router's READ: the project record (`MARK`, then one `RUN_ALL <section id>` per section and `RUN <list>` for the program), each section's record, the list, the chunks it names and the start record (`SYS_PROJECT_ID(INFO's bank, 0xFFFF)`; not found: none); the program's frames come out exactly as they went in, so the CRC of the stream rebuilt from them equals the `INFO` one. The app reads them in `runit-app/src/backend/session/project.ts` (`readProject`) and decompiles the program into a project (`Engine.recover`).
+One save at a time (`ERR_PROJECT_BUSY`). The app gets a project back from its source ("The source" below), not from these records.
+
+
+## The source
+
+The project as the app edits it (variables, blocks, devices, actions, settings, names, the canvas), so the board gives it back whole: a file of `sys_nvs` (SYS_NVS.MD), namespace `source` in its own 1 MB partition `source` (`CONFIG_SYS_PROJECT_SOURCE_PARTITION`), opened by `sys_project_init`. The firmware stores the bytes and never reads them. ERASE empties it, so an erased board holds no copy.
+
+| Op | Side | Args | Answer |
+|---|---|---|---|
+| `0x13` SOURCE_APPEND | W | `u32 offset`, data | – (`ERR_NVS_OFFSET` unless the offset is the file's length) |
+| `0x14` SOURCE_ERASE | W | – | – |
+| `0x15` SOURCE_INFO | R | – | `u32 bytes, u32 crc32, u16 chunks` |
+| `0x16` SOURCE_READ | R | `u16 chunk` | the chunk's bytes (`ERR_NVS_NO_CHUNK` past the last) |
+
+The content is the app's: `[u8 version][u32 stream CRC LE][u8 name length][name, UTF-8][gzip of the project file]` (`runit-app/src/backend/session/projectSource.ts`). The stream CRC is INFO's of the stored project it was written with (0: none stored), which tells the app when the program on the board is not the one this copy describes. A partition NVS can't use is erased at boot and the copy goes with it (SYS_NVS.MD); the program runs on without it.
 
 ## Errors (`ERR_MOD_SYS_PROJECT` = 16)
 

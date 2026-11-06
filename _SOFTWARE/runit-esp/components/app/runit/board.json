@@ -6,8 +6,9 @@
   "revision": 1,
   "description": "runIT controller board (rev 1): ESP32-S3 MCU, 2x TPS55289 buck-boost rails, 2x DRV8962 motor drivers, PCA9685 PWM expander, TCA6424A GPIO expander, ADS7128 8-channel 20V ADC, INA3221 power monitor, AP33772S USB-PD sink, DAC53202 current reference.",
   "source_files": [
-    "components/app/runit/runit_board_defs.h",
-    "components/app/runit/runit_board_cfg.c",
+    "boards/runit_r1_defs.h",
+    "boards/runit_r1_power.c",
+    "boards/runit_r1_devices.c",
     ".claude/skills/runit-root/HARDWARE.md"
   ],
   "i2c_buses": [
@@ -16,6 +17,7 @@
       "name": "internal",
       "sda_pin": { "device": 0, "pin": 15 },
       "scl_pin": { "device": 0, "pin": 16 },
+      "pullup": true,
       "frequency_hz": 400000,
       "description": "Internal I2C bus for all onboard chips"
     },
@@ -24,6 +26,7 @@
       "name": "user",
       "sda_pin": { "device": 0, "pin": 40 },
       "scl_pin": { "device": 0, "pin": 41 },
+      "pullup": true,
       "frequency_hz": 400000,
       "description": "External user I2C bus for sensors and breakouts"
     }
@@ -210,25 +213,26 @@
       "description": "DRV8962 #1: IN / EN / IPROPI on the ESP, nSLEEP / nFAULT on TCA, VREF from DAC OUT0",
       "role": "motor_driver",
       "pins": [
-        { "use": "in_pin[0]", "device": 0, "pin": 21 },
-        { "use": "in_pin[1]", "device": 0, "pin": 47 },
-        { "use": "in_pin[2]", "device": 0, "pin": 48 },
-        { "use": "in_pin[3]", "device": 0, "pin": 45 },
-        { "use": "en_pin[0]", "device": 0, "pin": 38 },
-        { "use": "en_pin[1]", "device": 0, "pin": 39 },
-        { "use": "en_pin[2]", "device": 0, "pin": 2 },
-        { "use": "en_pin[3]", "device": 0, "pin": 1 },
-        { "use": "ipropi_pin[0]", "device": 0, "pin": 7 },
-        { "use": "ipropi_pin[1]", "device": 0, "pin": 6 },
-        { "use": "ipropi_pin[2]", "device": 0, "pin": 5 },
-        { "use": "ipropi_pin[3]", "device": 0, "pin": 4 },
-        { "use": "nsleep_pin", "device": 1, "pin": 9 },
-        { "use": "nfault_pin", "device": 1, "pin": 11 },
-        { "use": "vref_pin", "device": 4, "pin": 0, "description": "DAC OUT0 sets VREF" }
+        { "use": "in_pin[0]", "slot": 0, "device": 0, "pin": 21 },
+        { "use": "in_pin[1]", "slot": 1, "device": 0, "pin": 47 },
+        { "use": "in_pin[2]", "slot": 2, "device": 0, "pin": 48 },
+        { "use": "in_pin[3]", "slot": 3, "device": 0, "pin": 45 },
+        { "use": "en_pin[0]", "slot": 4, "device": 0, "pin": 38 },
+        { "use": "en_pin[1]", "slot": 5, "device": 0, "pin": 39 },
+        { "use": "en_pin[2]", "slot": 6, "device": 0, "pin": 2 },
+        { "use": "en_pin[3]", "slot": 7, "device": 0, "pin": 1 },
+        { "use": "ipropi_pin[0]", "slot": 8, "device": 0, "pin": 7 },
+        { "use": "ipropi_pin[1]", "slot": 9, "device": 0, "pin": 6 },
+        { "use": "ipropi_pin[2]", "slot": 10, "device": 0, "pin": 5 },
+        { "use": "ipropi_pin[3]", "slot": 11, "device": 0, "pin": 4 },
+        { "use": "nsleep_pin", "slot": 12, "device": 1, "pin": 9 },
+        { "use": "nfault_pin", "slot": 13, "device": 1, "pin": 11 },
+        { "use": "vref_pin", "slot": 14, "device": 4, "pin": 0, "description": "DAC OUT0 sets VREF" }
       ],
       "config": {
         "topology": 0,
         "turn_off_at_ocp": 1,
+        "ripropi_ohms": [0, 0, 0, 0],
         "current_limit_mA": 2000
       }
     },
@@ -242,21 +246,22 @@
       "description": "DRV8962 #2: IN / EN on PCA9685 CH 8..15, nSLEEP / nFAULT on TCA, VREF from DAC OUT1",
       "role": "motor_driver",
       "pins": [
-        { "use": "in_pin[0]", "device": 3, "pin": 8 },
-        { "use": "in_pin[1]", "device": 3, "pin": 9 },
-        { "use": "in_pin[2]", "device": 3, "pin": 10 },
-        { "use": "in_pin[3]", "device": 3, "pin": 11 },
-        { "use": "en_pin[0]", "device": 3, "pin": 12 },
-        { "use": "en_pin[1]", "device": 3, "pin": 13 },
-        { "use": "en_pin[2]", "device": 3, "pin": 14 },
-        { "use": "en_pin[3]", "device": 3, "pin": 15 },
-        { "use": "nsleep_pin", "device": 1, "pin": 8 },
-        { "use": "nfault_pin", "device": 1, "pin": 10 },
-        { "use": "vref_pin", "device": 4, "pin": 1, "description": "DAC OUT1 sets VREF" }
+        { "use": "in_pin[0]", "slot": 0, "device": 3, "pin": 8 },
+        { "use": "in_pin[1]", "slot": 1, "device": 3, "pin": 9 },
+        { "use": "in_pin[2]", "slot": 2, "device": 3, "pin": 10 },
+        { "use": "in_pin[3]", "slot": 3, "device": 3, "pin": 11 },
+        { "use": "en_pin[0]", "slot": 4, "device": 3, "pin": 12 },
+        { "use": "en_pin[1]", "slot": 5, "device": 3, "pin": 13 },
+        { "use": "en_pin[2]", "slot": 6, "device": 3, "pin": 14 },
+        { "use": "en_pin[3]", "slot": 7, "device": 3, "pin": 15 },
+        { "use": "nsleep_pin", "slot": 12, "device": 1, "pin": 8 },
+        { "use": "nfault_pin", "slot": 13, "device": 1, "pin": 10 },
+        { "use": "vref_pin", "slot": 14, "device": 4, "pin": 1, "description": "DAC OUT1 sets VREF" }
       ],
       "config": {
         "topology": 0,
         "turn_off_at_ocp": 1,
+        "ripropi_ohms": [0, 0, 0, 0],
         "current_limit_mA": 2000,
         "pwm_freq_Hz": 50
       }

@@ -5,7 +5,6 @@
 #include "board_time.h"
 #include "esp_timer.h"
 #include "nvs.h"
-#include "nvs_flash.h"
 #include "sdkconfig.h"
 #include "sys_session_call.h"
 #include "sys_session_hello.h"
@@ -502,11 +501,11 @@ static void on_tick(void* arg) {
  * Start and this board
  * ------------------------------------------------------------------------- */
 
-// The board id kept in NVS (ID), the default when there is none (the default partition: sys_ble initialises it again).
+// The board id kept in NVS (ID), the default when there is none (the default partition, initialised by the boot step).
 static uint8_t load_board_id(void) {
   uint8_t id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
   nvs_handle_t nvs;
-  if (nvs_flash_init() == ESP_OK && nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs) == ESP_OK) {
+  if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs) == ESP_OK) {
     if (nvs_get_u8(nvs, NVS_KEY_ID, &id) != ESP_OK || id > SYS_SESSION_ID_LAST) {
       id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
     }
@@ -598,6 +597,10 @@ err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer) {
   ERR_CHECK(!clash, ERR_SESSION_ROLE);
   ERR_CHECK(at >= 0, ERR_SESSION_FULL);
   err_h err = sys_data_provider_open(provider, on_rx, (void*)(uintptr_t)at);
+  if (err == NULL && !sys_data_provider_is_framed(provider)) {
+    err_free(sys_data_provider_close(provider));
+    err = ERR_NEW(ERR_SESSION_NOT_FRAMED);
+  }
   if (err != NULL) {
     slot_free(at);
     return err;

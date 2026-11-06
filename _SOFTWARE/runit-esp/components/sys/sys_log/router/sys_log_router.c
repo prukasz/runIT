@@ -12,11 +12,6 @@ ROUTER_OP_NOARGS(op_get) {
   return cmd_reply(out, &cfg, sizeof(cfg));
 }
 
-// One kept error record: [total u8][record], only [total] for an index past the end. The app asks index 0 up to total - 1 (the oldest first).
-typedef struct __attribute__((packed)) {
-  uint8_t index;
-} sys_log_errors_args_t;
-
 ROUTER_OP(op_errors, sys_log_errors_args_t) {
   uint8_t reply[1 + SYS_LOG_RECORD_MAX];
   uint32_t total = 0;

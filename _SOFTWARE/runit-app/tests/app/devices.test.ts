@@ -4,7 +4,7 @@ import { bundledEnums } from '../../src/backend'
 import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import {
-  actionRecordOf, admittedSeverities, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, fromBoard, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
+  actionRecordOf, admittedSeverities, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
 } from '../../src/app/devices/devices'
 
 const defs = bundledLinkDefinitions()
@@ -124,24 +124,12 @@ describe('the devices of the view', () => {
     expect(sections[1]!.frames).toHaveLength(2)
   })
 
-  it('what is written reads back as the same devices, start commands and actions', () => {
-    const sections = deviceSections(defs, catalog, project, board)
-    const actions = project.actions.map((a) => ({ id: actionRecordOf(a.id), frames: a.steps.map((s) => stepFrame(defs, catalog, s)) }))
-    const read = fromBoard(defs, catalog, board, { ...emptyProject('Arm'), devices: [{ id: 20, type: 'servo', name: 'Left servo' }] }, { devices: sections, actions })
-    expect(read.notes).toEqual([])
-    expect(read.project.devices).toEqual([{ ...project.devices[0], config: expect.objectContaining(project.devices[0]!.config) }])
-    expect(read.project.boardDefaults).toEqual(project.boardDefaults)
-    expect(read.project.actions).toEqual([{ id: 10, name: 'Action 10', steps: project.actions[0]!.steps }])
-  })
-
   it('the firmware\'s onboard actions are never the project\'s', () => {
     const onboard = onboardActionIds()
     expect(onboard.size).toBeGreaterThan(0)
     let p = emptyProject()
     for (let i = 0; i < 8; i++) p = { ...p, actions: [...p.actions, { id: nextActionId(p), name: '', steps: [] }] }
     expect(p.actions.some((a) => onboard.has(a.id))).toBe(false)
-    const read = fromBoard(defs, catalog, board, emptyProject(), { devices: [], actions: [...onboard].map((id) => ({ id: actionRecordOf(id), frames: [] })) })
-    expect(read.project.actions).toEqual([])
   })
 
   it('a new device takes an ID above the board\'s; a device is created after the devices whose pins it uses, listed or not', () => {

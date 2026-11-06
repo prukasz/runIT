@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_NVS",
+  "errors": {
+    "ERR_NVS_BAD_ARG": {
+      "message": "The chunk has no data or the file is full"
+    },
+    "ERR_NVS_OFFSET": {
+      "message": "The chunk starts at byte {got}; the file ends at byte {want}",
+      "hint": "Erase the file and write it again from the start."
+    },
+    "ERR_NVS_NO_CHUNK": {
+      "message": "The file has no chunk {chunk}"
+    }
+  }
+}

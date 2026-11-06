@@ -24,7 +24,7 @@ typedef struct {
   uint16_t id;
   const sys_device_type_t* type;
   sys_device_base_t* ctx;
-  bool system;  // the board's own (sys_device_mark_system): never removed
+  bool system;  // the board's own (SYS_DEVICE_CREATE_SYSTEM): never removed
   bool remote;  // a device of another board (CREATE_REMOTE): `where` says which; ctx is a sys_device_base_t only
   sys_device_remote_t where;
 } dev_t_;
@@ -116,21 +116,24 @@ err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
 
 /* ---- CREATE ---- */
 
-// CREATE of a free ID, table not full. args = [type u16][create struct].
+// CREATE of a free ID, table not full. args = [type u16][flags u8][create struct].
 static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
   ERR_CHECK(!s_reg.creating, ERR_DEV_BAD_ARG);  // a create() creating another device: not supported
-  ERR_CHECK(args_len >= 2, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len, .need = 2);  // the type u16
+  ERR_CHECK(args_len >= SYS_DEVICE_CREATE_HDR, ERR_CMD_BAD_LEN, .got = (uint16_t)args_len,
+            .need = SYS_DEVICE_CREATE_HDR);
   uint16_t type_id;
   memcpy(&type_id, args, sizeof(type_id));  // little-endian target
+  const uint8_t flags = args[sizeof(type_id)];
+  ERR_CHECK((flags & ~SYS_DEVICE_CREATE_SYSTEM) == 0, ERR_DEV_BAD_ARG);
   const sys_device_type_t* type = find_type(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
-  ERR_CHECK(args_len - 2 == type->cfg_size, ERR_CMD_BAD_LEN, .got = (uint16_t)(args_len - 2),
-            .need = type->cfg_size);
+  ERR_CHECK(args_len - SYS_DEVICE_CREATE_HDR == type->cfg_size, ERR_CMD_BAD_LEN,
+            .got = (uint16_t)(args_len - SYS_DEVICE_CREATE_HDR), .need = type->cfg_size);
   sys_device_base_t* ctx = calloc(1, type->ctx_size);
   ERR_CHECK(ctx != NULL, ERR_DEV_NO_MEM, .id = id, .size = type->ctx_size);
   ctx->id = id;
   s_reg.creating = true;
-  err_h err = type->create(ctx, args + 2);
+  err_h err = type->create(ctx, args + SYS_DEVICE_CREATE_HDR);
   s_reg.creating = false;
   if (err != NULL) {
     ERR_KEEP_FIRST(err, type->uninstall(ctx));  // the cause stays; a rollback failure is dropped
@@ -138,7 +141,8 @@ static err_h create(uint16_t id, const uint8_t* args, uint32_t args_len) {
     return ERR_WRAP(err, ERR_DEV_INSTALL, .id = id, .type = type_id);
   }
   // newest last
-  s_reg.devs[s_reg.dev_count++] = (dev_t_){.id = id, .type = type, .ctx = ctx};
+  s_reg.devs[s_reg.dev_count++] =
+      (dev_t_){.id = id, .type = type, .ctx = ctx, .system = (flags & SYS_DEVICE_CREATE_SYSTEM) != 0};
   sys_device_policy_add(id);
   return NULL;
 }
@@ -511,7 +515,7 @@ err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, const void* 
  * ------------------------------------------------------------------------- */
 
 /* SUSPEND, RESET and REMOVE go newest first (users before the devices they use: a driver makes its outputs safe before
- * the pins it drives go idle), RESUME oldest first. REMOVE leaves the board's own devices (sys_device_mark_system). */
+ * the pins it drives go idle), RESUME oldest first. REMOVE leaves the board's own devices (SYS_DEVICE_CREATE_SYSTEM). */
 err_h sys_device_sweep(uint16_t op) {
   ERR_CHECK(op == SYS_DEVICE_OP_SUSPEND || op == SYS_DEVICE_OP_RESUME || op == SYS_DEVICE_OP_RESET ||
                 op == SYS_DEVICE_OP_REMOVE,
@@ -549,12 +553,4 @@ err_h sys_device_sweep(uint16_t op) {
   }
   xSemaphoreGiveRecursive(sys_device_mutex);
   return first;
-}
-
-void sys_device_mark_system(void) {
-  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
-  for (uint32_t i = 0; i < s_reg.dev_count; i++) {
-    s_reg.devs[i].system = true;
-  }
-  xSemaphoreGiveRecursive(sys_device_mutex);
 }

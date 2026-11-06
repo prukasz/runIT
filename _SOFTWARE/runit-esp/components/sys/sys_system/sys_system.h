@@ -16,11 +16,6 @@ extern "C" {
  * (VM stop, devices suspended): it registers the handler and the way out.
  */
 
-/* Sys ops under ROUTER_KEY_SYS (sys_system_router.c). Never renumber. */
-#define SYS_SYSTEM_OP_STOP    0x02u  // the safe state; the root's dead-man sends it to every board
-#define SYS_SYSTEM_OP_RESTART 0x03u  // restarts the board ~100 ms after the answer (the hard reset)
-#define SYS_SYSTEM_OP_TIME    0x07u  // the board's wall clock; the root sends its own to every board
-
 //#ref-enum @alias Safe State Reason
 typedef enum {
   SYS_SAFE_STOP = 1,  //@alias Stop @description sys STOP command

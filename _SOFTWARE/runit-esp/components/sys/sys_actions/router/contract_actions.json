@@ -14,10 +14,10 @@
       "op": 1,
       "symbol": "SYS_ACTIONS_OP_RUN",
       "label": "Run an action",
-      "description": "Replays the recorded command list of the given record ID (stops at the first error).",
+      "description": "Replays the command list of the given record ID (stops at the first error).",
       "write": {
         "args": {
-          "struct": "id_args_t",
+          "struct": "sys_actions_id_args_t",
           "fields": [
             {
               "id": "id",
@@ -27,78 +27,6 @@
               "size": 4,
               "offset": 0,
               "description": "ID of the action record"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "RECORD_START",
-      "op": 2,
-      "symbol": "SYS_ACTIONS_OP_RECORD_START",
-      "label": "Start recording",
-      "description": "Captures the commands the client sends next and stores them in the action record with the given ID.",
-      "write": {
-        "args": {
-          "struct": "record_start_t",
-          "fields": [
-            {
-              "id": "id",
-              "label": "Record ID",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 0,
-              "description": "ID of the action record"
-            },
-            {
-              "id": "execute",
-              "label": "Run while recording",
-              "type": "boolean",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "1 = run the recorded commands as they arrive, 0 = only record them"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "RECORD_STOP",
-      "op": 3,
-      "symbol": "SYS_ACTIONS_OP_RECORD_STOP",
-      "label": "Stop recording",
-      "description": "Stops the recording in progress, closes the action record and returns what was stored.",
-      "write": {
-        "returns": {
-          "struct": "sys_actions_info_t",
-          "description": "Metadata of the stored action record",
-          "fields": [
-            {
-              "id": "bytes",
-              "label": "Size",
-              "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 0,
-              "unit": "B"
-            },
-            {
-              "id": "count",
-              "label": "Number of frames",
-              "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 2
-            },
-            {
-              "id": "crc32",
-              "label": "CRC-32",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 4
             }
           ]
         }
@@ -108,11 +36,11 @@
       "id": "BEGIN",
       "op": 4,
       "symbol": "SYS_ACTIONS_OP_BEGIN",
-      "label": "Start uploading",
-      "description": "Opens an upload session for a ready-made action record image of the given length in bytes.",
+      "label": "Start writing a record",
+      "description": "Opens a ready-made action record image of the given length in bytes for writing.",
       "write": {
         "args": {
-          "struct": "begin_t",
+          "struct": "sys_actions_begin_args_t",
           "fields": [
             {
               "id": "id",
@@ -140,10 +68,10 @@
       "op": 5,
       "symbol": "SYS_ACTIONS_OP_WRITE",
       "label": "Write a chunk",
-      "description": "Uploads a chunk of the record being uploaded at the given offset.",
+      "description": "Writes a chunk of the record being written at the given offset.",
       "write": {
         "args": {
-          "struct": "write_t",
+          "struct": "sys_actions_write_args_t",
           "fields": [
             {
               "id": "offset",
@@ -169,11 +97,11 @@
       "id": "COMMIT",
       "op": 6,
       "symbol": "SYS_ACTIONS_OP_COMMIT",
-      "label": "Commit the upload",
-      "description": "Checks the CRC-32 and stores the uploaded action record in Flash.",
+      "label": "Commit the record",
+      "description": "Checks the CRC-32 and stores the action record in Flash.",
       "write": {
         "args": {
-          "struct": "commit_t",
+          "struct": "sys_actions_commit_args_t",
           "fields": [
             {
               "id": "crc32",
@@ -195,7 +123,7 @@
       "description": "Sends back the stored image of the action from the given offset, as many bytes as fit in one answer (none at the end). Read from 0 up to INFO's size and check its CRC-32.",
       "read": {
         "args": {
-          "struct": "read_t",
+          "struct": "sys_actions_read_args_t",
           "fields": [
             {
               "id": "id",
@@ -238,7 +166,7 @@
       "description": "Returns the size, the number of stored frames and the CRC-32 of the given record.",
       "read": {
         "args": {
-          "struct": "id_args_t",
+          "struct": "sys_actions_id_args_t",
           "fields": [
             {
               "id": "id",
@@ -291,7 +219,7 @@
       "description": "Returns the IDs of the action records stored in Flash, starting from the given ID.",
       "read": {
         "args": {
-          "struct": "list_args_t",
+          "struct": "sys_actions_list_args_t",
           "fields": [
             {
               "id": "start",
@@ -318,7 +246,7 @@
       "description": "Removes the given action record from Flash.",
       "write": {
         "args": {
-          "struct": "id_args_t",
+          "struct": "sys_actions_id_args_t",
           "fields": [
             {
               "id": "id",
@@ -336,8 +264,8 @@
       "id": "ABORT",
       "op": 11,
       "symbol": "SYS_ACTIONS_OP_ABORT",
-      "label": "Abort the upload or recording",
-      "description": "Cancels the open upload or recording session and drops the data not stored yet.",
+      "label": "Abort the record being written",
+      "description": "Drops the record being written and the data not stored yet.",
       "write": {}
     },
     {
@@ -348,7 +276,7 @@
       "description": "Replays every frame of the action record without stopping at an error (the first error is returned).",
       "write": {
         "args": {
-          "struct": "id_args_t",
+          "struct": "sys_actions_id_args_t",
           "fields": [
             {
               "id": "id",
@@ -367,7 +295,7 @@
       "op": 14,
       "symbol": "SYS_ACTIONS_OP_REMOVE_ALL",
       "label": "Remove all action records",
-      "description": "Removes every stored record (settings, devices, the project and the user's actions). Refused while a recording or an upload is open.",
+      "description": "Removes every stored record (settings, devices, the project and the user's actions). Refused while a record is being written.",
       "write": {}
     }
   ]

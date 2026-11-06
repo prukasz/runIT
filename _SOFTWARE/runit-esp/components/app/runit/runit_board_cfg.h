@@ -18,17 +18,17 @@ MUST_USE err_h runit_board_streams_init(void);
  */
 MUST_USE err_h runit_board_stream_bindings_init(void);
 
-/**
- * @brief Creates the board's devices (CONFIG_RUNIT_BOARD). A devkit: the ESP GPIO only. The PCB: the ESP GPIO and the
- * TCA6424A (the base: a failure stops here), the status LED (TCA pin 23) lit, then the other chips in dependency order
- * (a failing one is logged, the rest are still created).
- * Boot step, after the I2C buses. IDs and pins: runit_board_defs.h, HARDWARE.md section 3.
- * @return The first failure (owned, not reported yet), or NULL.
- */
-MUST_USE err_h runit_board_devices_init(void);
+/** The ID of the ESP32-S3's GPIO device: the profile's pin references (`device` 0) name it. */
+#define RUNIT_BOARD_GPIO_DEVICE_ID 0u
 
-/** @brief The power manager with the board's layout (CONFIG_RUNIT_BOARD: the PCB's rails, monitor and sink; a devkit has
- * none). SYS_POWER_MANAGER.MD. Boot step, after settings and events. */
+/**
+ * @brief Creates the ESP32-S3's GPIO device (ID RUNIT_BOARD_GPIO_DEVICE_ID, the board's own, no pins set up). It is
+ * not part of the board's profile: every build has it. Boot step, before the profile runs.
+ */
+MUST_USE err_h runit_board_gpio_init(void);
+
+/** @brief The power manager, with no rails until the board's profile gives them (SYS_POWER_MANAGER.MD). Boot step, after
+ * settings and events. */
 MUST_USE err_h runit_board_power_init(void);
 
 #ifdef __cplusplus

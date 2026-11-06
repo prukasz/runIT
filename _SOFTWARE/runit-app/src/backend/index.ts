@@ -56,8 +56,12 @@ export type { LeaveSafeStateOptions } from './session/safestate'
 export { LOAD_COMMANDS, LoadError, loadProgram, sendInOrder, sendProgram } from './session/send'
 export type { LoadOptions, ProgramFrame, SendOptions } from './session/send'
 export {
-  crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, programFrameOf, PROJECT_RECORD_ID, projectFrames, projectInfo,
-  projectStream, readProject, readRecord, recordInfo, removeRecord, runProject, runRecord, saveProject, SECTION_PROGRAM, SECTION_START, setProjectBoot, storeRecord,
+  crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, PROJECT_RECORD_ID, projectFrames, projectInfo,
+  projectStream, readRecord, recordInfo, removeRecord, runProject, runRecord, saveProject, SECTION_PROGRAM, SECTION_START, setProjectBoot, storeRecord,
   eraseProject, loadProject, projectBankRecordId, vmFrame,
 } from './session/project'
-export type { ProjectContent, ProjectInfo, RecordInfo, SaveOptions, Section, StoredProject } from './session/project'
+export type { ProjectContent, ProjectInfo, RecordInfo, SaveOptions, Section } from './session/project'
+export { confirmFirmware, otaInfo, writeFirmware } from './session/ota'
+export type { OtaInfo } from './session/ota'
+export { projectSourceName, readProjectSource, saveProjectSource } from './session/projectSource'
+export type { ProjectSource } from './session/projectSource'

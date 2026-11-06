@@ -4,11 +4,11 @@
 
 /**
  * @file sys_data_provider_driver.h
- * @brief The provider itself and what its driver (sys_ble, sys_uart) does with it: add, remove, keep max_frame
- * current, deliver what comes in. Only drivers include it. A driver makes a provider by its own create command,
+ * @brief The provider itself and what its driver (sys_ble, sys_uart) does with it: add, remove, keep up or
+ * down current, deliver what comes in. Only drivers include it. A driver makes a provider by its own create command,
  * fills the struct and adds it; remove takes it out once no one uses it and has the driver free it.
  * @usage p->send = my_send; p->destroy = my_destroy; p->id = id;
- *        p->state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED;
+ *        p->state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_FRAMED;
  *        ERR_TRY(sys_data_provider_add(p));
  */
 
@@ -19,9 +19,9 @@ extern "C" {
 typedef struct sys_data_provider sys_data_provider_t;
 
 /**
- * @brief A provider. The driver sets `send`, `destroy`, `max_frame`, `driver`, `id` and `state` (SYSTEM, WIRED); the
- * rest, and `state`'s other bits, are the registry's, read and changed under its lock only. Widest fields first, so
- * nothing pads; never packed: max_frame is a single word.
+ * @brief A provider. The driver sets `send`, `destroy`, `driver`, `id` and `state` (SYSTEM, WIRED, FRAMED, UP); the rest,
+ * and `state`'s other bits, are the registry's, read and changed under its lock only. Widest fields first, so nothing
+ * pads.
  */
 struct sys_data_provider {
   /**
@@ -29,7 +29,7 @@ struct sys_data_provider {
    * driver's RX task, its own too, so it never takes a lock that task holds.
    * @param self   This provider.
    * @param data   The frame.
-   * @param len    Bytes in `data`, at most max_frame.
+   * @param len    Bytes in `data`, at most CMD_FRAME_MAX. A raw provider's driver refuses what its link can't take.
    * @param flags  SYS_DATA_PROVIDER_SEND_URGENT: to the front of its queue; SYS_DATA_PROVIDER_SEND_NOWAIT: no wait
    *               for room.
    * @return NULL when queued; ERR_PROV_BUSY when its queue is full (at once with NOWAIT, else after its own bound),
@@ -43,13 +43,11 @@ struct sys_data_provider {
    */
   void (*destroy)(sys_data_provider_t* self);
 
-  volatile uint32_t max_frame;  /**< Largest whole frame now, 0 = down (Frame size): framed, CMD_FRAME_MAX when up;
-                                     set before add, then by sys_data_provider_set_max_frame() only */
   void* driver;                 /**< The driver's own state: characteristic, port */
   sys_data_provider_rx_f rx;    /**< The user's (sys_data_provider_open()) */
   void* ctx;                    /**< Given to `rx` */
   sys_data_provider_id_t id;    /**< Its id */
-  uint8_t state;                /**< SYS_DATA_PROVIDER_STATE_*: SYSTEM, WIRED the driver's, the rest the registry's */
+  uint8_t state;                /**< SYS_DATA_PROVIDER_STATE_*: OPEN the registry's, the rest the driver's */
   uint8_t busy;                 /**< Sends in progress */
 };
 
@@ -68,12 +66,12 @@ MUST_USE err_h sys_data_provider_add(sys_data_provider_t* p);
 MUST_USE err_h sys_data_provider_remove(sys_data_provider_id_t id);
 
 /**
- * @brief Sets max_frame (up, down: 0, the MTU of an unframed one) and, when it changed, tells the user (its rx with
- * `data` NULL). The driver's task, never an ISR.
- * @param p    The provider.
- * @param max  The largest whole frame now; 0 = down.
+ * @brief Sets whether the provider is up and, when it changed, tells the user (its rx with `data` NULL). The driver's
+ * task, never an ISR.
+ * @param p   The provider.
+ * @param up  It delivers frames now.
  */
-void sys_data_provider_set_max_frame(sys_data_provider_t* p, uint32_t max);
+void sys_data_provider_set_up(sys_data_provider_t* p, bool up);
 
 /**
  * @brief Hands what came in to the user's rx (dropped without one). The driver's RX task, never an ISR.

@@ -123,7 +123,7 @@ answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0
           03                                         chain: 3 nodes
           01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (i2c)
           02 00 02 00 01 02                          ERR_ROUTER_OP         code 02 (SCAN)
-          10 00 01 00 01 00                          ERR_I2C_REMOTE_DENIED bus 0
+          02 00 01 00 01 00                          ERR_I2C_BAD_BUS       bus 0
 ```
 
 ## Core Errors (`ERR_MOD_CORE` = 0)

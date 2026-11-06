@@ -190,7 +190,8 @@ export class WebBluetoothPlatform implements BlePlatform {
       throw error
     }
 
-    const response = rx.properties.write || !rx.properties.writeWithoutResponse
+    // Without a response when the characteristic takes it: about ten times faster. The link's window is the flow control.
+    const response = !rx.properties.writeWithoutResponse
     return {
       write: (packet) => gattOp(() => (response ? rx.writeValueWithResponse(packet) : rx.writeValueWithoutResponse(packet))),
       close: async () => {

@@ -4,11 +4,11 @@ Component `components/sys/sys_log/`. Owns the ESP_LOG hook and the log options: 
 
 | File | Contents |
 |---|---|
-| `sys_log.h` | `sys_log_cfg_t`, API |
+| `sys_log.h` | The API; declares `sys_log_cfg_t` (defined in `sys_log_router.h`) |
 | `errors/sys_log_errors.h` | `ERR_SYS_LOG_MAP`, the module's error tags (included by `sys_log.h`) |
 | `errors/errors_log.json` | The error messages |
 | `sys_log.c` | The `vprintf` hook, the options and their defaults, the error history and its sending. `ERR_MOD_SYS_LOG` = 13 |
-| `router/sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08 |
+| `router/sys_log_router.c/.h` | Remote interface, root key `ROUTER_KEY_LOG` = 0x08. The header publishes every op (`SYS_LOG_OP_*`, with its sides) and the wire layouts (`sys_log_cfg_t`, `sys_log_errors_args_t`), each op above its frame |
 | `router/contract_log.json` | The router's descriptor (CONFIG, ERRORS and the options) |
 | `Kconfig` | `SYS_LOG_LINE_MAX` (160): the line buffer of the hook |
 | `AGENTS.md` | Rules for changing this folder |
@@ -42,7 +42,7 @@ Defaults after a reset: level `CONFIG_LOG_DEFAULT_LEVEL` (INFO), mirror off (the
 
 ## Remote (`ROUTER_KEY_LOG` = 0x08)
 
-Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
+Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). The ops and the layouts are in `sys_log_router.h`; `sys_log.h` only declares `sys_log_cfg_t` for its API, so a user of the API doesn't see the router.
 
 | Op | Side | Request | Response |
 |---|---|---|---|
@@ -51,7 +51,7 @@ Requests are `[0x08][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
 
 Example, level 0 with the console and both streams on: the command `[08][01][01][00][01][01][01][01]` (key, write, CONFIG, then the five bytes). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
-CONFIG's write applies the options at once and stores nothing. The app keeps that write frame as the record `SYS_ACTIONS_ID_LOG` (saved with the upload or the recording, SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
+CONFIG's write applies the options at once and stores nothing. The app keeps that write frame as the record `SYS_ACTIONS_ID_LOG` (SYS_ACTIONS.MD) and it runs when the project starts. After a reset the defaults apply until then.
 
 ## The error history
 

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createEngine } from '@engine'
-import { bundledBoard, bundledServiceCatalog, combineResolvers, CommandError, decodeEvent, deviceRefs, ErrorInterpreter, programRefs, Services } from '@backend'
+import { confirmFirmware, bundledBoard, bundledServiceCatalog, combineResolvers, CommandError, decodeEvent, deviceRefs, ErrorInterpreter, programRefs, Services } from '@backend'
 import type { CatalogEntry, LinkState, RunitLink } from '@backend'
 import type { useProject } from '../project/useProject'
 import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
 import { EMPTY_LAYOUT } from '../code/canvas/layout'
 import { forgetDevice } from '../hardware/apply'
+import { boardHasProfile, writeBoardProfile } from './boardProfile'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
 import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
@@ -121,6 +122,30 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     else { occupied.current.clear(); setLive(new Map()) }
   }, [connected, probe])
 
+  // A board without this profile gets it, then restarts: only a boot creates its devices. Once per run of the app: a board that
+  // still differs after its restart is reported, it must not restart for ever.
+  const profileWritten = useRef(false)
+  useEffect(() => {
+    if (!connected) return
+    void (async () => {
+      try {
+        await confirmFirmware(link, catalog) // the session is up: a new firmware works
+        if (await boardHasProfile(link, catalog, board)) return
+        if (profileWritten.current) {
+          setNote({ tone: 'error', text: 'The board does not hold the profile written to it.' })
+          return
+        }
+        profileWritten.current = true
+        setNote({ tone: 'info', text: 'Writing the board\'s profile: it restarts to create its devices.' })
+        await writeBoardProfile(link, catalog, board)
+        await services.call('SYS', 'RESTART')
+      } catch (failure) {
+        setNote({ tone: 'error', text: explain(failure) })
+      }
+    })()
+    // Only when the link comes up: `explain` changes with the project's devices.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, link, catalog, board, services])
 
   // The board says when a device is suspended or resumed (the DEVICE events, SYS_DEVICE.MD): the view follows it without
   // asking. A sweep (the safe state, a critical fault, every device at once) comes as one event from SYS_DEVICE_ID_NONE: then
@@ -247,11 +272,14 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   }), [run, link, catalog, board, engine, project.project, snapshot])
 
   const read = useCallback(() => run(async () => {
-    const result = await readFromBoard(link, catalog, board, project.project, setBusy)
-    edit(() => result.project)
-    setSynced(serializeProject(result.project))
+    const result = await readFromBoard(link, setBusy)
+    const read = result.project
+    if (read) {
+      edit(() => read)
+      setSynced(serializeProject(read))
+    }
     return result.notes.join(' ')
-  }), [run, link, catalog, board, project.project, edit])
+  }), [run, link, edit])
 
   // A board that has just connected (again, after a restart or a drop) is read into the project, so what the app shows is what the
   // board has. Not over changes that are not written yet: those are the user's, Read does it by hand (Undo goes back).

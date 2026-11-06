@@ -2,7 +2,7 @@
 
   python board_tests.py --port COM9
 
-The firmware creates every onboard chip at boot and marks them the board's own: they can't be removed
+The firmware creates every onboard chip at boot with the flag of the board's own: they can't be removed
 (ERR_DEV_SYSTEM). The checks run on those instances (DAC53202, ADS7128, the two DRV8962, TCA6424A, the power chips);
 only a servo (id 20), a DC motor (id 21) and refused creates on a spare id (30) are created here, and removed again. The H-bridge motor
 supplies (the power muxes) and the rails are never switched on unless `--energise` (dry: nothing connected), so no
@@ -93,7 +93,7 @@ def pin(device: int, p: int) -> bytes:
 
 
 def create(link: Link, dev_id: int, type_id: int, cfg: bytes):
-    return dev(link, dev_id, OP_CREATE, struct.pack("<H", type_id) + cfg)
+    return dev(link, dev_id, OP_CREATE, struct.pack("<HB", type_id, 0) + cfg)
 
 
 def remove(link: Link, dev_id: int):

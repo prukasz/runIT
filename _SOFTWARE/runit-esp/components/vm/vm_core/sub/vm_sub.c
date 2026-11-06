@@ -97,10 +97,13 @@ static struct {
  * time (the VM task, or the interface task under the program barrier).
  * ------------------------------------------------------------------------- */
 
+/* A frame's limit: the buffer, or less when a stream's payload is smaller. */
+#define SUB_FRAME_CAP                                                                                                  \
+  ((size_t)(CONFIG_VM_SUB_MAX_FRAME_LEN < SYS_STREAM_PAYLOAD_MAX ? CONFIG_VM_SUB_MAX_FRAME_LEN : SYS_STREAM_PAYLOAD_MAX))
+
 typedef struct {
   uint8_t buf[CONFIG_VM_SUB_MAX_FRAME_LEN];
   size_t len;
-  size_t cap; /* this frame's limit: the buffer, or less when the transport carries less */
   uint8_t count;
   uint8_t packet;
 } sub_frame_t;
@@ -123,9 +126,6 @@ static void frame_init(sub_frame_t* f, uint8_t packet) {
   f->buf[2] = 0;
   f->len = SUB_FRAME_HDR_LEN;
   f->count = 0;
-  /* Re-read per frame: the telemetry transport's limit follows the link (BLE MTU). */
-  size_t transport = sys_stream_max_payload(SYS_STREAM_TELEMETRY);
-  f->cap = transport < sizeof(f->buf) ? transport : sizeof(f->buf);
 }
 
 static void frame_lost(const sub_frame_t* f);
@@ -155,7 +155,7 @@ static void flush_values(void) {
 
 /* Room for `need` more bytes and one more record in f. */
 static inline bool frame_fits(const sub_frame_t* f, size_t need) {
-  return f->count < UINT8_MAX && f->len + need <= f->cap;
+  return f->count < UINT8_MAX && f->len + need <= SUB_FRAME_CAP;
 }
 
 /* ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ static void emit_value(track_t* t, vm_obj_h o, uint16_t from) {
       return;
     }
 
-    size_t room = (s_frames.value.cap - s_frames.value.len - SUB_VALUE_HDR_LEN) / elem;
+    size_t room = (SUB_FRAME_CAP - s_frames.value.len - SUB_VALUE_HDR_LEN) / elem;
     uint16_t n = (uint16_t)((items - start) < room ? (items - start) : room);
     uint16_t byte_len = (uint16_t)(n * elem);
 

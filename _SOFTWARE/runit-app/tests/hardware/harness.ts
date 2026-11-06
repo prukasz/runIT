@@ -17,10 +17,13 @@ export interface Board {
   close(): Promise<void>
 }
 
+const noConsole = (): Console => ({ lines: [], since: () => [], waitFor: async () => undefined, trouble: () => [], reset: () => undefined, stop: () => undefined }) as unknown as Console
+
 /** HW_UART is the console port (default COM9), HW_NAME the advertised name (default runit), HW_ADDRESS pins a board. */
 export async function openBoard(options: LinkOptions = {}): Promise<Board> {
   const platform = new BleakPlatform(defs, { name: process.env.HW_NAME, address: process.env.HW_ADDRESS })
-  const console_ = new Console(process.env.HW_UART ?? 'COM9')
+  // HW_UART=none: no console witness, the port is left to something else.
+  const console_ = process.env.HW_UART === 'none' ? noConsole() : new Console(process.env.HW_UART ?? 'COM9')
   const link = new RunitLink(platform, { timeoutMs: 3000, ...options })
   const statuses: LinkStatus[] = []
   link.onStatus((s) => statuses.push(s))

@@ -1,0 +1,26 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_OTA",
+  "errors": {
+    "ERR_OTA_BUSY": {
+      "message": "The firmware can't be updated while the program runs",
+      "hint": "Stop the program first."
+    },
+    "ERR_OTA_NOT_OPEN": {
+      "message": "No firmware update is open"
+    },
+    "ERR_OTA_TOO_BIG": {
+      "message": "The firmware is {len} bytes; at most {max} fit"
+    },
+    "ERR_OTA_OFFSET": {
+      "message": "Wrong offset {got}: the update expects {want}"
+    },
+    "ERR_OTA_INCOMPLETE": {
+      "message": "The firmware is incomplete ({got} of {want} bytes)"
+    },
+    "ERR_OTA_BAD_IMAGE": {
+      "message": "This file is not a valid firmware for this board",
+      "hint": "The board keeps the firmware it has."
+    }
+  }
+}

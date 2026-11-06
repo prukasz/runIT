@@ -3,34 +3,6 @@
   "schemaVersion": 1,
   "kind": "limits",
   "limits": {
-    "RUNIT_ACTION_ID_RESUME": {
-      "config": "CONFIG_RUNIT_ACTION_ID_RESUME",
-      "value": 3,
-      "alias": "Onboard action: resume all",
-      "description": "ID of the onboard action that resumes every device. The firmware writes it at every boot (replacing a stored action with this ID).",
-      "source_file": "runit-esp/components/app/runit/Kconfig"
-    },
-    "RUNIT_ACTION_ID_SUSPEND": {
-      "config": "CONFIG_RUNIT_ACTION_ID_SUSPEND",
-      "value": 4,
-      "alias": "Onboard action: suspend all",
-      "description": "ID of the onboard action that suspends every device. The firmware writes it at every boot (replacing a stored action with this ID).",
-      "source_file": "runit-esp/components/app/runit/Kconfig"
-    },
-    "RUNIT_ACTION_ID_RESET": {
-      "config": "CONFIG_RUNIT_ACTION_ID_RESET",
-      "value": 5,
-      "alias": "Onboard action: reset all",
-      "description": "ID of the onboard action that resets every device (RESET sweep, newest first). The firmware writes it at every boot.",
-      "source_file": "runit-esp/components/app/runit/Kconfig"
-    },
-    "RUNIT_ACTION_ID_HARD_RESET": {
-      "config": "CONFIG_RUNIT_ACTION_ID_HARD_RESET",
-      "value": 6,
-      "alias": "Onboard action: hard reset",
-      "description": "ID of the onboard action that restarts the board (sys RESTART). The firmware writes it at every boot.",
-      "source_file": "runit-esp/components/app/runit/Kconfig"
-    },
     "SYS_REMOTE_SUBSCRIPTIONS": {
       "config": "CONFIG_SYS_REMOTE_SUBSCRIPTIONS",
       "value": 16,

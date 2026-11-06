@@ -1,5 +1,7 @@
 #include "sys_i2c.h"
 
+#include "sys_i2c_router.h"
+
 #include "sdkconfig.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_I2C, "sys_i2c", ERR_SYS_I2C_MAP)
@@ -7,46 +9,15 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_I2C, "sys_i2c", ERR_SYS_I2C_MAP)
 #define ADDR_7BIT_MAX 0x7Fu
 
 /* ----------------------------------------------------------------------------
- * Bus table (from Kconfig)
+ * Bus table
  * ------------------------------------------------------------------------- */
 
-typedef struct {
-  bool enabled;
-  bool pullup;
-  i2c_port_num_t port;
-  uint8_t sda;
-  uint8_t scl;
-} bus_cfg_t;
-
-#if CONFIG_SYS_I2C_BUS0_PULLUP
-#define BUS0_PULLUP true
-#else
-#define BUS0_PULLUP false
-#endif
-#if CONFIG_SYS_I2C_BUS1_PULLUP
-#define BUS1_PULLUP true
-#else
-#define BUS1_PULLUP false
-#endif
-
-// A disabled bus stays all-zero (enabled = false).
-static const bus_cfg_t k_bus_cfg[SYS_I2C_BUS_COUNT] = {
-#if CONFIG_SYS_I2C_BUS0_ENABLE
-    [SYS_I2C_BUS_0] = {.enabled = true, .pullup = BUS0_PULLUP, .port = I2C_NUM_0,
-                       .sda = CONFIG_SYS_I2C_BUS0_SDA, .scl = CONFIG_SYS_I2C_BUS0_SCL},
-#endif
-#if CONFIG_SYS_I2C_BUS1_ENABLE
-    [SYS_I2C_BUS_1] = {.enabled = true, .pullup = BUS1_PULLUP, .port = I2C_NUM_1,
-                       .sda = CONFIG_SYS_I2C_BUS1_SDA, .scl = CONFIG_SYS_I2C_BUS1_SCL},
-#endif
-};
-
 static struct {
-  i2c_master_bus_handle_t bus[SYS_I2C_BUS_COUNT];  // written only by sys_i2c_init (boot), read-only after that
+  i2c_master_bus_handle_t bus[SYS_I2C_BUS_COUNT];  // NULL: no bus. Written by BUS_CREATE and BUS_REMOVE
+  sys_i2c_bus_cfg_t cfg[SYS_I2C_BUS_COUNT];        // what the bus was created with
   // Addresses with a device added, 1 bit per 7-bit address per bus. Under s_addr_lock.
   uint32_t addr_used[SYS_I2C_BUS_COUNT][(ADDR_7BIT_MAX + 1) / 32];
 } s_i2c;
-_Static_assert(sizeof(s_i2c.addr_used[0]) == sizeof(((sys_i2c_bus_info_t){0}).used), "bus info map size");
 static portMUX_TYPE s_addr_lock = portMUX_INITIALIZER_UNLOCKED;
 
 /* ----------------------------------------------------------------------------
@@ -133,47 +104,64 @@ static err_h reg_read(sys_i2c_dev_t* dev, uint8_t reg, uint8_t* data, size_t len
  * Buses
  * ------------------------------------------------------------------------- */
 
-err_h sys_i2c_init(void) {
-  for (uint8_t b = 0; b < SYS_I2C_BUS_COUNT; b++) {
-    const bus_cfg_t* c = &k_bus_cfg[b];
-    if (!c->enabled || s_i2c.bus[b] != NULL) {
-      continue;
-    }
-    const i2c_master_bus_config_t cfg = {
-        .i2c_port = c->port,
-        .sda_io_num = c->sda,
-        .scl_io_num = c->scl,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = CONFIG_SYS_I2C_GLITCH_IGNORE_CNT,
-        .flags.enable_internal_pullup = c->pullup,
-    };
-    esp_err_t rc = i2c_new_master_bus(&cfg, &s_i2c.bus[b]);
-    if (rc != ESP_OK) {
-      s_i2c.bus[b] = NULL;
-      return ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_INIT, .bus = b, .sda = c->sda, .scl = c->scl);
-    }
-  }
+// The I2C controller reaches only the ESP32-S3's own pins (its GPIO matrix): the pin's index is the GPIO.
+static err_h check_esp_pin(sys_io_pin_t pin) {
+  sys_device_info_t info;
+  ERR_TRY(sys_device_read(pin.device, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info)));
+  ERR_CHECK(info.type_id == SYS_DEVICE_TYPE_ESP32S3_GPIO, ERR_I2C_BAD_PIN, .device = pin.device, .pin = pin.pin);
   return NULL;
+}
+
+err_h sys_i2c_bus_create(const sys_i2c_bus_cfg_t* cfg) {
+  ERR_CHECK(cfg != NULL, ERR_I2C_BAD_ARG);
+  const uint8_t bus = cfg->bus;
+  ERR_CHECK(bus < SYS_I2C_BUS_COUNT, ERR_I2C_BAD_BUS, .bus = bus);
+  ERR_CHECK(s_i2c.bus[bus] == NULL, ERR_I2C_BUS_EXISTS, .bus = bus);
+  ERR_TRY(check_esp_pin(cfg->sda));
+  ERR_TRY(check_esp_pin(cfg->scl));
+  const i2c_master_bus_config_t driver_cfg = {
+      .i2c_port = (i2c_port_num_t)bus,
+      .sda_io_num = cfg->sda.pin,
+      .scl_io_num = cfg->scl.pin,
+      .clk_source = I2C_CLK_SRC_DEFAULT,
+      .glitch_ignore_cnt = CONFIG_SYS_I2C_GLITCH_IGNORE_CNT,
+      .flags.enable_internal_pullup = cfg->pullup != 0,
+  };
+  i2c_master_bus_handle_t handle = NULL;
+  esp_err_t rc = i2c_new_master_bus(&driver_cfg, &handle);
+  if (rc != ESP_OK) {
+    return ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_INIT, .bus = bus, .sda = cfg->sda.pin, .scl = cfg->scl.pin);
+  }
+  s_i2c.cfg[bus] = *cfg;
+  s_i2c.bus[bus] = handle;
+  return NULL;
+}
+
+err_h sys_i2c_bus_remove(uint8_t bus) {
+  ERR_TRY(check_bus(bus));
+  bool used = false;
+  i2c_master_bus_handle_t handle = NULL;
+  portENTER_CRITICAL(&s_addr_lock);
+  for (uint32_t i = 0; i < ARRAY_LEN(s_i2c.addr_used[bus]); i++) {
+    used = used || s_i2c.addr_used[bus][i] != 0;
+  }
+  if (!used) {
+    handle = s_i2c.bus[bus];  // gone before the lock is left: a device can't claim an address on it now
+    s_i2c.bus[bus] = NULL;
+  }
+  portEXIT_CRITICAL(&s_addr_lock);
+  ERR_CHECK(!used, ERR_I2C_BUS_IN_USE, .bus = bus);
+  return ERR_ESP(i2c_del_master_bus(handle));
 }
 
 bool sys_i2c_bus_ready(uint8_t bus) {
   return bus < SYS_I2C_BUS_COUNT && s_i2c.bus[bus] != NULL;
 }
 
-err_h sys_i2c_bus_info(uint8_t bus, sys_i2c_bus_info_t* info) {
-  ERR_CHECK(info != NULL, ERR_I2C_BAD_ARG);
-  ERR_CHECK(bus < SYS_I2C_BUS_COUNT, ERR_I2C_BAD_BUS, .bus = bus);
-  const bus_cfg_t* c = &k_bus_cfg[bus];
-  *info = (sys_i2c_bus_info_t){
-      .enabled = c->enabled,
-      .ready = s_i2c.bus[bus] != NULL,
-      .pullup = c->pullup,
-      .sda = c->sda,
-      .scl = c->scl,
-  };
-  portENTER_CRITICAL(&s_addr_lock);
-  memcpy(info->used, s_i2c.addr_used[bus], sizeof(info->used));
-  portEXIT_CRITICAL(&s_addr_lock);
+err_h sys_i2c_bus_get(uint8_t bus, sys_i2c_bus_cfg_t* cfg) {
+  ERR_CHECK(cfg != NULL, ERR_I2C_BAD_ARG);
+  ERR_TRY(check_bus(bus));
+  *cfg = s_i2c.cfg[bus];
   return NULL;
 }
 

@@ -189,12 +189,14 @@ describe('requests', () => {
     expect(hex(call.request.payload!)).toBe('0900' + hex(Uint8Array.of(catalog.device('servo').commands.get('target')!.op, catalog.ownContractId!)) + '7cfc')
   })
 
-  it('CREATE is a write of [type u16][config] (SYS_DEVICE.MD: pca9685 under ID 3)', () => {
+  it('CREATE is a write of [type u16][flags u8][config] (SYS_DEVICE.MD: pca9685 under ID 3)', () => {
     const pca = catalog.device('pca9685')
     const call = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!))
     expect(call.request.keys).toEqual([defs.keys.device, defs.dir.write])
-    expect(hex(call.request.payload!).slice(0, 12)).toBe('030000004100')
-    expect(call.request.payload!.length).toBe(6 + pca.config!.fixed)
+    expect(hex(call.request.payload!).slice(0, 14)).toBe('03000000410000')
+    expect(call.request.payload!.length).toBe(7 + pca.config!.fixed)
+    const system = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!), true)
+    expect(hex(system.request.payload!).slice(0, 14)).toBe('03000000410001')
   })
 
   it('a pin reference is a sys_io_pin_t: { device, pin }, null for an unused pin (SYS_IO_PIN_NONE), a list for several', () => {
@@ -283,13 +285,22 @@ describe('answers', () => {
       { op: 7, sides: 3 },
       { op: 0x100, sides: 1 },
     ])
-    const info = catalog.service('I2C').commands.get('INFO')!
-    const returns = info.read?.returns
-    if (returns?.kind !== 'struct') throw new Error('I2C INFO is a struct list')
+    const matrix = catalog.service('POWER_MANAGER').commands.get('MATRIX')!
+    const returns = matrix.read?.returns
+    if (returns?.kind !== 'struct') throw new Error('POWER_MANAGER MATRIX is a struct list')
     const one = returns.layout.fixed
-    const decoded = decodeAnswer(serviceCall(catalog, 'I2C', 'INFO'), new Uint8Array(one * 2)) as unknown[]
+    const decoded = decodeAnswer(serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', undefined, 'read'), new Uint8Array(one * 2)) as unknown[]
     expect(decoded).toHaveLength(2)
-    expect(() => decodeAnswer(serviceCall(catalog, 'I2C', 'INFO'), new Uint8Array(one + 1))).toThrow(/whole elements/)
+    expect(() => decodeAnswer(serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', undefined, 'read'), new Uint8Array(one + 1))).toThrow(/whole elements/)
+  })
+
+  it('I2C BUS_CREATE is a mirror: its read takes the bus and answers what its write takes', () => {
+    const pins = { bus: 1, sda: { device: 0, pin: 40 }, scl: { device: 0, pin: 41 }, pullup: 1 }
+    const write = serviceCall(catalog, 'I2C', 'BUS_CREATE', pins, 'write')
+    expect(hex(write.request.payload!)).toBe('0100002800002901')
+    const read = serviceCall(catalog, 'I2C', 'BUS_CREATE', { bus: 1 }, 'read')
+    expect(hex(read.request.payload!)).toBe('01')
+    expect(decodeAnswer(read, write.request.payload!)).toMatchObject(pins)
   })
 
   it('a value that leads the answer is read from the front; bytes stay bytes', () => {

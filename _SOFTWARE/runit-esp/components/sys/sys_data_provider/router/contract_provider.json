@@ -52,7 +52,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of providers",
-          "description": "Then per provider: its id (link u8, channel u32), max frame u16 (0 = down), state u8 (SYS_DATA_PROVIDER_STATE_*)."
+          "description": "Then per provider: its id (link u8, channel u32), state u8 (SYS_DATA_PROVIDER_STATE_*)."
         }
       }
     },
@@ -94,7 +94,7 @@
       "op": 4,
       "symbol": "SYS_DATA_PROVIDER_OP_BIND_COMMANDS",
       "label": "Bind to the router",
-      "description": "Makes the provider's messages commands for this board, with no header: each message is [key][dir][code][args], its answer comes back on the provider as [status][data] (on ERROR the error record). The binding is the provider's one user; such a command has no peer, so what is kept for a peer (a watch, a subscription, a recording, the dead-man) is refused.",
+      "description": "Makes the provider's messages commands for this board, with no header: each message is [key][dir][code][args], its answer comes back on the provider as [status][data] (on ERROR the error record). The binding is the provider's one user; such a command has no peer, so what is kept for a peer (a watch, a subscription, the dead-man) is refused.",
       "write": {
         "args": {
           "struct": "sys_data_provider_id_t",

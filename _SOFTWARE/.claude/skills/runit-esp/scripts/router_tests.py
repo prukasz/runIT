@@ -177,7 +177,7 @@ def test_router_errors(link: Link) -> None:
     check("read-only command (conn LIST) sent as a write -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
     r = link.request(bytes([KEY_SYS, 2, SYS_PING]), raw=True)
     check("dir 2 -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
-    r = link.request(bytes([KEY_DEVICE, READ]) + struct.pack("<HH", MISSING_ID, OP_CREATE) + struct.pack("<H", GPIO_TYPE), raw=True)
+    r = link.request(bytes([KEY_DEVICE, READ]) + struct.pack("<HH", MISSING_ID, OP_CREATE) + struct.pack("<HB", GPIO_TYPE, 0), raw=True)
     check("device CREATE sent as a read -> ERR_CMD_DIRECTION", err_cause(r) == "ERR_CMD_DIRECTION", str(r))
     try:
         link.request(bytes([KEY_SYS, SYS_DEADMAN]))
@@ -241,15 +241,13 @@ def test_stop(link: Link) -> None:
 
 
 def test_i2c(link: Link, target: str) -> None:
-    r = link.request(bytes([KEY_I2C, 0x01]))
-    ok = r is not None and r.ok and len(r.data) == 2 * 19
-    check("i2c INFO (2 buses)", ok, str(r))
-    if ok:
-        for b in range(2):
-            flags, sda, scl = r.data[b * 19], r.data[b * 19 + 1], r.data[b * 19 + 2]
-            print(f"      bus {b}: flags {flags:02x} sda {sda} scl {scl}")
-    r = link.request(bytes([KEY_I2C, 0x02]), payload=b"\x00")
-    check("i2c SCAN bus 0 -> ERR_I2C_REMOTE_DENIED", err_cause(r) == "ERR_I2C_REMOTE_DENIED", str(r))
+    # BUS_CREATE is a mirror: its read takes the bus and answers what its write takes (8 B), once the bus is created.
+    for b in range(2):
+        r = link.request(bytes([KEY_I2C, READ, 0x05, b]), raw=True)
+        created = r is not None and r.ok and len(r.data) == 8 and r.data[0] == b
+        check(f"i2c BUS_CREATE read, bus {b}", created or err_cause(r) == "ERR_I2C_BAD_BUS", str(r))
+    r = link.request(bytes([KEY_I2C, 0x02]), payload=b"\x07")
+    check("i2c SCAN of no such bus -> ERR_I2C_BAD_BUS", err_cause(r) == "ERR_I2C_BAD_BUS", str(r))
     r = link.request(bytes([KEY_I2C, 0x02]), payload=b"\x01", timeout=10.0)
     if r and r.ok:
         found = [a for a in range(128) if r.data[a // 8] >> (a % 8) & 1]
@@ -383,9 +381,9 @@ def test_session(link: Link) -> None:
     ok = r is not None and r.ok and len(r.data) >= 1
     check("provider LIST", ok, str(r))
     if ok:
-        provs = {struct.unpack_from("<BI", r.data, 1 + 8 * n): struct.unpack_from("<HB", r.data, 6 + 8 * n) for n in range(r.data[0])}
+        provs = {struct.unpack_from("<BI", r.data, 1 + 6 * n): r.data[6 + 6 * n] for n in range(r.data[0])}
         uart = provs.get((LINK_UART, 0))
-        check("UART provider: up (512), system, open, wired", uart == (512, 0x0B), str(provs))
+        check("UART provider: system, open, wired, up, framed", uart == 0x3B, str(provs))
         check("BLE providers: the runIT pair and LOGS", (LINK_BLE, 0xFFE1) in provs and LOGS_CHAR in provs, str(provs))
     r = link.request(bytes([KEY_PROVIDER, 0x01]), payload=SYS_UART_PROVIDER)
     check("provider REMOVE of the board's own -> ERR_PROV_SYSTEM", err_cause(r) == "ERR_PROV_SYSTEM", str(r))
@@ -468,7 +466,7 @@ PCA_BUS, PCA_ADDR = 0, 0x60  # the onboard PCA9685 (HARDWARE.md); QEMU and a bar
 
 
 def create_pca(link: Link, dev_id: int, bus: int, addr: int, oe: bytes = PIN_NONE) -> Response | None:
-    return dev(link, dev_id, OP_CREATE, struct.pack("<H", PCA_TYPE) + bytes([bus, addr]) + oe)
+    return dev(link, dev_id, OP_CREATE, struct.pack("<HB", PCA_TYPE, 0) + bytes([bus, addr]) + oe)
 
 
 GPIO_TYPE = 0x40
@@ -478,11 +476,11 @@ OUT_PIN, PWM_PIN = 4, 5  # free on the devkit and the runIT board
 
 
 def test_gpio(link: Link, target: str) -> None:
-    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
     check(f"CREATE ESP32-S3 GPIO id {GPIO_ID}", r is not None and r.ok, str(r))
     if r is None or not r.ok:
         return
-    r = dev(link, 1, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, 1, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
     check("second ESP32-S3 GPIO -> ERR_DEV_ID_TAKEN", err_cause(r) == "ERR_DEV_ID_TAKEN", str(r))
     r = dev(link, GPIO_ID, OP_INFO)
     check("INFO: type 0x0040", r is not None and r.ok and r.data == struct.pack("<HB", GPIO_TYPE, 0), str(r))
@@ -604,7 +602,7 @@ MUX_A_PIN, MUX_B_PIN = 6, 7  # free on the devkit and the runIT board
 def test_power_mux(link: Link, target: str) -> None:
     """The mux switches two ESP32-S3 GPIO pins (own GPIO device, removed at the end). Levels are read back on a board only:
     QEMU has no GPIO readback."""
-    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
     check("power mux: CREATE ESP32-S3 GPIO for its pins", r is not None and r.ok, str(r))
     if r is None or not r.ok:
         return
@@ -613,7 +611,7 @@ def test_power_mux(link: Link, target: str) -> None:
         return struct.pack("<HB", GPIO_ID, n)
 
     def create(a: bytes, b: bytes, level: int = 1, delay: int = 5) -> Response | None:
-        return dev(link, MUX_ID, OP_CREATE, struct.pack("<H", MUX_TYPE) + a + b + bytes([level, delay]))
+        return dev(link, MUX_ID, OP_CREATE, struct.pack("<HB", MUX_TYPE, 0) + a + b + bytes([level, delay]))
 
     def source() -> int | None:
         r = dev(link, MUX_ID, SUPPLY_SOURCE, dir=READ)
@@ -735,17 +733,19 @@ def test_device(link: Link) -> None:
     r = link.request(bytes([KEY_DEVICE, 3, 0, 5]))
     check("device command with a 1-byte op -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
 
-    # CREATE [type][cfg]: the registry looks the type up, checks the size and builds the device
+    # CREATE [type][flags][cfg]: the registry looks the type up, checks the size and builds the device
     r = dev(link, 3, OP_CREATE)
     check("CREATE without type -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
     r = dev(link, 3, OP_CREATE, bytes([0x99]))
     check("CREATE with a 1-byte type -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    r = dev(link, 3, OP_CREATE, struct.pack("<H", 0x99))
+    r = dev(link, 3, OP_CREATE, struct.pack("<HB", 0x99, 0))
     check("CREATE unknown type -> ERR_DEV_TYPE_UNKNOWN", err_cause(r) == "ERR_DEV_TYPE_UNKNOWN", str(r))
     r = dev(link, 3, OP_CREATE, struct.pack("<HB", 0x0141, 0))
     check("CREATE type 0x0141 (low byte is PCA's) -> ERR_DEV_TYPE_UNKNOWN", err_cause(r) == "ERR_DEV_TYPE_UNKNOWN", str(r))
     r = dev(link, 3, OP_CREATE, struct.pack("<HB", PCA_TYPE, 0))
     check("CREATE wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
+    r = dev(link, 3, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0x80))
+    check("CREATE with an unknown flag -> ERR_DEV_BAD_ARG", err_cause(r) == "ERR_DEV_BAD_ARG", str(r))
     r = create_pca(link, 0xFFFF, 1, 0x40)
     check("CREATE at 0xFFFF -> ERR_DEV_BAD_ID", err_cause(r) == "ERR_DEV_BAD_ID", str(r))
     r = create_pca(link, 3, 7, 0x40)
@@ -753,7 +753,7 @@ def test_device(link: Link) -> None:
     r = create_pca(link, 3, 1, 0x40, oe=struct.pack("<HB", 5, 0))
     check("CREATE OE on a missing device -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
     # Dependencies are declared, not ID-ordered: OE on a higher ID passes once that device exists
-    r = dev(link, 9, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, 9, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
     check("CREATE ESP32-S3 GPIO at id 9", r is not None and r.ok, str(r))
     r = create_pca(link, 3, 1, 0x40, oe=struct.pack("<HB", 9, 4))  # nothing on bus 1: fails later, at the probe
     check("CREATE OE on a higher id gets past the dependency check",
@@ -769,7 +769,7 @@ def test_device(link: Link) -> None:
     none = struct.pack("<HB", 0xFFFF, 0xFF)
 
     def create_ina(bus: int, addr: int, mask: int = 0, crit: bytes = none, warn: bytes = none):
-        return dev(link, 4, OP_CREATE, struct.pack("<H", INA_TYPE) + bytes([bus, addr]) + crit + warn + bytes([mask]) + struct.pack("<H", 10))
+        return dev(link, 4, OP_CREATE, struct.pack("<HB", INA_TYPE, 0) + bytes([bus, addr]) + crit + warn + bytes([mask]) + struct.pack("<HB", 10, 0))
 
     r = create_ina(7, 0x40)
     check("INA3221 CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
@@ -787,7 +787,7 @@ def test_device(link: Link) -> None:
 
     # AP33772S (0x0045): cfg = bus, addr, intr pin (u16 device, u8 pin)
     def create_ap(bus: int, addr: int, intr: bytes = none):
-        return dev(link, 4, OP_CREATE, struct.pack("<H", AP_TYPE) + bytes([bus, addr]) + intr)
+        return dev(link, 4, OP_CREATE, struct.pack("<HB", AP_TYPE, 0) + bytes([bus, addr]) + intr)
 
     r = create_ap(7, 0x52)
     check("AP33772S CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
@@ -803,7 +803,7 @@ def test_device(link: Link) -> None:
 
     # TCA6424A (0x0042): cfg = bus, addr, intr pin (u16 device, u8 pin), rst pin
     def create_tca(bus: int, addr: int, intr: bytes = none, rst: bytes = none):
-        return dev(link, 4, OP_CREATE, struct.pack("<H", TCA_TYPE) + bytes([bus, addr]) + intr + rst)
+        return dev(link, 4, OP_CREATE, struct.pack("<HB", TCA_TYPE, 0) + bytes([bus, addr]) + intr + rst)
 
     r = create_tca(7, 0x23)
     check("TCA6424A CREATE bad bus -> ERR_DEV_RANGE", err_cause(r) == "ERR_DEV_RANGE", str(r))
@@ -922,11 +922,11 @@ def test_pca(link: Link) -> None:
     check("INFO after REMOVE -> ERR_DEV_NOT_FOUND", err_cause(r) == "ERR_DEV_NOT_FOUND", str(r))
 
 
-A_RUN, A_REC_START, A_REC_STOP, A_BEGIN, A_WRITE, A_COMMIT = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
+A_RUN, A_BEGIN, A_WRITE, A_COMMIT = 0x01, 0x04, 0x05, 0x06
 A_READ, A_INFO, A_LIST, A_REMOVE, A_ABORT, A_RUN_ALL = 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0D
 # Frames as a record holds them: [key][dir][op][args] (built with frame(), not passed through request()).
 CONN_INFO_KEYS = bytes([KEY_CONN, 0x07])
-CONN_INFO = frame(CONN_INFO_KEYS, READ)  # a read that succeeds on any target: runs in an image, a recording skips it
+CONN_INFO = frame(CONN_INFO_KEYS, READ)  # a read that succeeds on any target: runs in an image
 # Record IDs are u32 = [class u8][index u24] (sys_actions.h): 0 user, 1 system, 2 device
 CLASS_USER, CLASS_SYSTEM, CLASS_DEVICE = 0, 1, 2
 T1, T2, LOOP, KEEP = 1, 2, 200, 255  # user class
@@ -1006,27 +1006,19 @@ def test_actions(link: Link) -> None:
     for aid in (T1, T2, T3, T4, LOOP, KEEP, SPARE):
         act(link, A_REMOVE, u32(aid))
 
-    # Record, executing: only the client's successful writes are kept (no reads, no sys frames)
-    r = act(link, A_REC_START, u32(T1) + bytes([1]))
-    check("actions RECORD_START 1 (execute)", r is not None and r.ok, str(r))
-    r = act(link, A_REC_START, u32(SPARE) + bytes([1]))
-    check("second RECORD_START -> ERR_ACTION_BUSY", err_cause(r) == "ERR_ACTION_BUSY", str(r))
-    r = log_set(link, *LOG_DEFAULT)
-    check("recorded frame runs (log CONFIG write answers ACK)", r is not None and r.ok and r.data == b"", str(r))
-    r = link.request(CONN_INFO_KEYS)
-    check("a read runs during a recording (conn LIST answers data)", r is not None and r.ok and len(r.data) > 1, str(r))
-    link.request(bytes([0x7E]))  # fails: not recorded
-    ping(link)  # sys: not recorded
-    r = act(link, A_REC_STOP)
+    # Writing a record: one at a time
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 16))
+    check("actions BEGIN", r is not None and r.ok, str(r))
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 16))
+    check("second BEGIN -> ERR_ACTION_BUSY", err_cause(r) == "ERR_ACTION_BUSY", str(r))
+    act(link, A_ABORT)
     want = image(LOG_DEFAULT_FRAME)
-    ok = r is not None and r.ok and len(r.data) == 8
-    check("RECORD_STOP", ok, str(r))
-    if ok:
-        b, c, crc = struct.unpack("<HHI", r.data)
-        check("recording kept 1 frame (read, failed and sys frames skipped)", (b, c) == (len(want), 1), f"{b} B, {c} frames")
-        check("RECORD_STOP crc = zlib crc32", crc == zlib.crc32(want), str(r))
+    r = upload(link, T1, want)
+    check("record of 1 frame written", r is not None and r.ok, str(r))
+    i = info(link, T1)
+    check("INFO of it: bytes, 1 frame, zlib crc32", i == (len(want), 1, zlib.crc32(want)), str(i))
     got = readback(link, T1)
-    check("READ by offset = the image of 1 frame, as recorded (with dir)", got == [LOG_DEFAULT_FRAME], str(got))
+    check("READ by offset = the image of 1 frame, as written (with dir)", got == [LOG_DEFAULT_FRAME], str(got))
     two = [CONN_INFO, CONN_INFO + b"\x00"]
     r = upload(link, T3, image(*two))
     got = readback(link, T3)
@@ -1045,22 +1037,17 @@ def test_actions(link: Link) -> None:
     r = act(link, A_RUN, u32(T1))
     check("RUN 1", r is not None and r.ok, str(r))
 
-    # Record without executing: writes are taken (answered OK, not run)
-    r = act(link, A_REC_START, u32(T2) + bytes([0]))
-    check("RECORD_START 2 (no execute)", r is not None and r.ok, str(r))
-    r = dev(link, MISSING_ID, OP_RESUME)  # no such device: would fail if it ran
-    check("frame taken without running (OK, no data)", r is not None and r.ok and r.data == b"", str(r))
-    r = act(link, A_REC_STOP)
-    check("RECORD_STOP 2: 1 frame", r is not None and r.ok and len(r.data) == 8 and struct.unpack_from("<HHI", r.data)[1] == 1, str(r))
+    # A record whose frame fails
+    r = upload(link, T2, image(frame(bytes([KEY_DEVICE]) + struct.pack("<HH", MISSING_ID, OP_RESUME), WRITE)))
+    check("record 2 written", r is not None and r.ok, str(r))
     r = act(link, A_RUN, u32(T2))
     names = r.record.names() if r and r.record else []
     check("RUN 2 stops at the failing frame: STEP over its chain", "ERR_ACTION_STEP" in names and err_cause(r) == "ERR_DEV_NOT_FOUND", str(names))
     step = next((n for n in r.record.nodes if n.name == "ERR_ACTION_STEP"), None) if r and r.record else None
     check("STEP payload: id 2 (u32), step 0", step is not None and step.data == u32(T2) + bytes([0, 0]), str(step))
 
-    r = act(link, A_REC_START, u32(SPARE) + bytes([1]))
-    r = act(link, A_REC_STOP)
-    check("empty recording -> ERR_ACTION_EMPTY", err_cause(r) == "ERR_ACTION_EMPTY", str(r))
+    r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 0))
+    check("BEGIN of no bytes -> ERR_ACTION_EMPTY", err_cause(r) == "ERR_ACTION_EMPTY", str(r))
 
     # Upload: full image, nested RUN
     img = image(CONN_INFO, run_frame(T1), CONN_INFO)
@@ -1083,11 +1070,6 @@ def test_actions(link: Link) -> None:
     check("failed uploads store nothing", err_cause(r) == "ERR_ACTION_NOT_FOUND", str(r))
     r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 20000))
     check("BEGIN over the limit -> ERR_ACTION_TOO_BIG", err_cause(r) == "ERR_ACTION_TOO_BIG", str(r))
-    r = act(link, A_BEGIN, struct.pack("<IH", T4, 513))
-    check("BEGIN of 513 B in the device class -> ERR_ACTION_TOO_BIG (limit 512)", err_cause(r) == "ERR_ACTION_TOO_BIG", str(r))
-    r = act(link, A_BEGIN, struct.pack("<IH", T4, 512))
-    check("BEGIN of 512 B in the device class is accepted", r is not None and r.ok, str(r))
-    act(link, A_ABORT)
     r = act(link, A_BEGIN, struct.pack("<IH", SPARE, 513))
     check("BEGIN of 513 B in the user class is accepted (limit 4096)", r is not None and r.ok, str(r))
     act(link, A_ABORT)
@@ -1392,7 +1374,7 @@ ACT_MED, ACT_HIGH = 201, 200  # actions run by the policy: each sets another log
 
 
 def test_error_policy(link: Link) -> None:
-    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+    r = dev(link, GPIO_ID, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
     check("policy: ESP32-S3 GPIO present", r is not None and (r.ok or err_cause(r) == "ERR_DEV_ID_TAKEN"), str(r))
     for aid, level in ((ACT_HIGH, 2), (ACT_MED, 1)):
         act(link, A_REMOVE, u32(aid))
@@ -1451,7 +1433,7 @@ def test_error_policy(link: Link) -> None:
         skip("REMOVE + CREATE: policy back to LOW, no actions", "the PCB's expander depends on the GPIO: it cannot be removed")
     else:
         dev(link, GPIO_ID, OP_REMOVE)
-        dev(link, GPIO_ID, OP_CREATE, struct.pack("<H", GPIO_TYPE))
+        dev(link, GPIO_ID, OP_CREATE, struct.pack("<HB", GPIO_TYPE, 0))
         r = policy_get()
         check("REMOVE + CREATE: policy back to LOW, no actions", r is not None and r.ok and r.data == struct.pack("<B4I", IMP_LOW, 0, 0, 0, 0), str(r))
 

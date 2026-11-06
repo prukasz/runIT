@@ -54,9 +54,16 @@
       "message": "{addr} on {bus} is already used by another device",
       "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
     },
-    "ERR_I2C_REMOTE_DENIED": {
-      "message": "{bus} cannot be used from the app",
-      "hint": "Use the bus the app may reach (the external I2C)."
+    "ERR_I2C_BUS_EXISTS": {
+      "message": "I2C bus {bus} already exists"
+    },
+    "ERR_I2C_BUS_IN_USE": {
+      "message": "I2C bus {bus} still has devices on it",
+      "hint": "Remove the devices on this bus first."
+    },
+    "ERR_I2C_BAD_PIN": {
+      "message": "An I2C bus can't use pin {pin} of device {device}",
+      "hint": "Choose a pin of the ESP32-S3 itself: the I2C controller can't reach a pin of another device."
     }
   }
 }

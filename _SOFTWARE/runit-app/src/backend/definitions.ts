@@ -1,6 +1,5 @@
 import enumsJson from '@generated/common/enums.json'
 import errorsJson from '@generated/common/errors.json'
-import limitsJson from '@generated/common/limits.json'
 import boardJson from '@generated/common/board.json'
 import devkitBoardJson from '@generated/common/board_devkit.json'
 import actionsContract from '@generated/services/contract_actions.json'
@@ -71,7 +70,7 @@ export interface LinkDefinitions {
   readonly ops: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>>; readonly stream: Readonly<Record<string, number>> }
   /** The direction byte each of those ops is sent with: its write, or its read when it has no write (`INFO`, `READ`, `LIST`). */
   readonly opDirs: { readonly actions: Readonly<Record<string, number>>; readonly project: Readonly<Record<string, number>>; readonly stream: Readonly<Record<string, number>> }
-  /** `CMD_FRAME_MAX` (cmd.h): the largest frame on a link. A link may carry less. */
+  /** `CMD_FRAME_MAX` (cmd.h): the largest frame, the one limit of every session's link. */
   readonly frameMax: number
   /** `CMD_HEAD` (cmd.h): the room a frame keeps for its header; a request (keys and payload) is at most `frameMax - frameHead`. */
   readonly frameHead: number
@@ -214,8 +213,8 @@ export interface BoardDevice {
   readonly description?: string
   /** The device descriptor's file name (`device_tca6424a`). */
   readonly descriptor: string
-  /** The pins of other devices it uses, by what for (`intr_pin`, `in_pin[0]`). */
-  readonly pins: readonly (BoardPin & { readonly use: string; readonly description?: string })[]
+  /** The pins of other devices it uses, by what for (`intr_pin`, `in_pin[0]`); `slot`: its place in a config field that is a list of pins. */
+  readonly pins: readonly (BoardPin & { readonly use: string; readonly slot?: number; readonly description?: string })[]
   /** The config values board.json gives (the others are the descriptor's defaults). */
   readonly config: Readonly<Record<string, unknown>>
   /** Where it sits on an I2C bus of the board (`i2c_buses`). */
@@ -230,9 +229,9 @@ export interface BoardDescriptor {
   /** The board's revision (board.json): with the name, which drawing of the hardware library is this board. */
   readonly revision: number
   readonly devices: readonly BoardDevice[]
-  readonly i2cBuses: readonly { readonly bus: number; readonly name: string; readonly description?: string }[]
-  /** The pins the boot sets up: their `sys_io_mode_e` member name and what they are for. */
-  readonly pinSetup: readonly (BoardPin & { readonly label: string; readonly mode: string; readonly description?: string })[]
+  readonly i2cBuses: readonly { readonly bus: number; readonly name: string; readonly sda: BoardPin; readonly scl: BoardPin; readonly pullup: boolean; readonly description?: string }[]
+  /** The pins the board's profile sets up: their `sys_io_mode_e` member name, an output's level and what they are for. */
+  readonly pinSetup: readonly (BoardPin & { readonly label: string; readonly mode: string; readonly level?: boolean; readonly description?: string })[]
   readonly reservedPins: readonly (BoardPin & { readonly label: string; readonly reason?: string })[]
   /** Where the board's power is measured (`power` of board.json): the whole input and each regulator rail, by a power monitor's channel. */
   readonly power: BoardPower
@@ -245,13 +244,19 @@ export interface PowerProbe {
 }
 
 export interface BoardPower {
+  /** The limits of the board's input (`power.limits` of board.json), which its profile gives the power manager. */
+  readonly limits: { readonly max_mV: number; readonly max_mA: number; readonly reserve_mW: number; readonly unknown_source_mA: number; readonly vreg_efficiency_pct: number }
   readonly input?: PowerProbe & { readonly description?: string }
-  readonly rails: readonly { readonly id: string; readonly name: string; readonly regulator: number; readonly monitor?: PowerProbe; readonly description?: string }[]
+  /** The USB-PD sink, when the board has one. */
+  readonly usbPd?: number
+  /** The eFuse power-good pins of the two inputs, when the board has them. */
+  readonly sourcePins?: { readonly usbOk: BoardPin; readonly extOk: BoardPin }
+  readonly rails: readonly { readonly id: string; readonly name: string; readonly regulator: number; readonly monitor?: PowerProbe; readonly min_mA: number; readonly description?: string }[]
 }
 
 /**
- * The boards the firmware is built for (`CONFIG_RUNIT_BOARD`): the runIT PCB, or a plain ESP32-S3 devkit with only the ESP pins
- * (no chips, no power layout). The app is the same for both; only the board descriptor differs.
+ * The boards the app knows: the runIT PCB, or a plain ESP32-S3 devkit with only the ESP pins (no chips, no rails). The firmware
+ * is the same for both; the app writes the board's profile from its descriptor (`app/devices/boardProfile.ts`).
  */
 export type BoardKind = 'pcb' | 'devkit'
 
@@ -263,44 +268,47 @@ export const bundledBoard = (kind: BoardKind = appBoardKind()): BoardDescriptor 
   const json = (kind === 'devkit' ? devkitBoardJson : boardJson) as unknown as {
     name: string
     revision: number
-    devices: { id: number; name: string; description?: string; descriptor: string; ranges?: unknown; pins?: { use: string; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
-    i2c_buses?: { bus: number; name: string; description?: string }[]
-    pin_setup?: { device: number; pin: number; mode: string; label: string; description?: string }[]
+    devices: { id: number; name: string; description?: string; descriptor: string; ranges?: unknown; pins?: { use: string; slot?: number; device: number; pin: number; description?: string }[]; config?: Record<string, unknown>; i2c?: { bus: number; address: number } }[]
+    i2c_buses?: { bus: number; name: string; sda_pin: BoardPin; scl_pin: BoardPin; pullup?: boolean; description?: string }[]
+    pin_setup?: { device: number; pin: number; mode: string; level?: boolean; label: string; description?: string }[]
     reserved_pins?: { device: number; pin: number; label: string; reason?: string }[]
-    power?: {
+    power: {
+      limits: BoardPower['limits']
+      sources?: { usb_pd?: { device?: number; ok_pin?: BoardPin }; external?: { ok_pin?: BoardPin } }
       input_monitor?: { device: number; channel: number; description?: string }
-      rails?: { id: string; name: string; vreg_device: number; monitor?: { device: number; channel: number }; description?: string }[]
+      rails?: { id: string; name: string; vreg_device: number; monitor?: { device: number; channel: number }; min_mA: number; description?: string }[]
     }
   }
+  const usbOk = json.power.sources?.usb_pd?.ok_pin
+  const extOk = json.power.sources?.external?.ok_pin
+  const usbPd = json.power.sources?.usb_pd?.device
   return {
     name: json.name,
     revision: json.revision,
     devices: json.devices.map((d) => ({ id: d.id, name: d.name, ...(d.description ? { description: d.description } : {}), descriptor: d.descriptor, pins: d.pins ?? [], config: d.config ?? {}, ...(d.i2c ? { i2c: { bus: d.i2c.bus, address: d.i2c.address } } : {}), ...(Object.keys(parseRanges(d.ranges)).length > 0 ? { ranges: parseRanges(d.ranges) } : {}) })),
-    i2cBuses: json.i2c_buses ?? [],
+    i2cBuses: (json.i2c_buses ?? []).map((b) => ({ bus: b.bus, name: b.name, sda: b.sda_pin, scl: b.scl_pin, pullup: b.pullup ?? false, ...(b.description ? { description: b.description } : {}) })),
     pinSetup: json.pin_setup ?? [],
     reservedPins: json.reserved_pins ?? [],
     power: {
-      ...(json.power?.input_monitor ? { input: json.power.input_monitor } : {}),
-      rails: (json.power?.rails ?? []).map((r) => ({ id: r.id, name: r.name, regulator: r.vreg_device, ...(r.monitor ? { monitor: r.monitor } : {}), ...(r.description ? { description: r.description } : {}) })),
+      limits: json.power.limits,
+      ...(json.power.input_monitor ? { input: json.power.input_monitor } : {}),
+      ...(usbPd !== undefined ? { usbPd } : {}),
+      ...(usbOk && extOk ? { sourcePins: { usbOk, extOk } } : {}),
+      rails: (json.power.rails ?? []).map((r) => ({ id: r.id, name: r.name, regulator: r.vreg_device, ...(r.monitor ? { monitor: r.monitor } : {}), min_mA: r.min_mA, ...(r.description ? { description: r.description } : {}) })),
     },
   }
 }
 
-/**
- * The user-class record IDs the firmware writes at every boot (its onboard actions, `RUNIT_ACTION_ID_*` in limits.json, RUNIT.MD):
- * an app stores its own actions under other IDs, or the next boot replaces them.
- */
-/** The firmware's own actions (`RUNIT_ACTION_ID_*` in `limits.json`, `Onboard action: …` in the Kconfig): the board writes them at every boot. */
+/** The firmware's own actions (`onboard_action` in `enums.json`, `SYS_ACTIONS_ONBOARD_*` in `sys_actions.h`): the board writes them at every boot, user class. */
 export interface OnboardAction {
   readonly id: number
-  /** The name the firmware gives it, e.g. `Onboard action: suspend all`. */
+  /** The name the firmware gives it, e.g. `Suspend all`. */
   readonly alias: string
 }
 
+/** The user-class record IDs the board writes at every boot: an app stores its own actions under other IDs, or the next boot replaces them. */
 export const onboardActions = (): readonly OnboardAction[] =>
-  Object.entries((limitsJson as unknown as { limits: Record<string, { value: number; alias?: string }> }).limits)
-    .filter(([name]) => name.startsWith('RUNIT_ACTION_ID_'))
-    .map(([name, limit]) => ({ id: limit.value, alias: limit.alias ?? name }))
+  (bundledEnums().onboard_action?.members ?? []).map((m) => ({ id: m.value, alias: m.alias ?? m.name }))
 
 export const onboardActionIds = (): ReadonlySet<number> => new Set(onboardActions().map((a) => a.id))
 

@@ -96,10 +96,6 @@ export const vmFrame = (defs: LinkDefinitions, op: number, payload: Uint8Array =
 export const deviceFrame = (defs: LinkDefinitions, device: number, op: number, args: Uint8Array = new Uint8Array()): Uint8Array =>
   concat(Uint8Array.of(defs.keys.device!, defs.dir.write, device & 0xff, device >> 8, op & 0xff, op >> 8), args)
 
-/** A program frame back into `{ op, payload }` (what the engine reads); undefined when it is not a write for the VM router. */
-export const programFrameOf = (defs: LinkDefinitions, frame: Uint8Array): { readonly op: number; readonly payload: Uint8Array } | undefined =>
-  frame.length >= 3 && frame[0] === defs.keys.vm && frame[1] === defs.dir.write ? { op: frame[2]!, payload: frame.slice(3) } : undefined
-
 /* ---- the stream ---- */
 
 export interface Section {
@@ -195,7 +191,7 @@ export interface RecordInfo {
   readonly crc: number
 }
 
-/** Uploads a record (BEGIN, WRITE, COMMIT with the CRC), replacing the one with this id. */
+/** Writes a record (BEGIN, WRITE, COMMIT with the CRC), replacing the one with this id. */
 export const storeRecord = async (link: RunitLink, id: number, frames: readonly Uint8Array[], options: SendOptions = {}): Promise<void> => {
   const defs = link.defs
   const image = frameImage(frames)
@@ -246,40 +242,3 @@ export const listRecords = async (link: RunitLink): Promise<number[]> => {
 
 export const runRecord = async (link: RunitLink, id: number, keepGoing = false): Promise<void> => void (await action(link, keepGoing ? 'RUN_ALL' : 'RUN', u32(id)))
 export const removeRecord = async (link: RunitLink, id: number): Promise<void> => void (await action(link, 'REMOVE', u32(id)))
-
-/* ---- reading the project back ---- */
-
-export interface StoredProject {
-  readonly info: ProjectInfo
-  /** The records the project runs before its program, in order, as stored. */
-  readonly sections: readonly Section[]
-  /** The program: its frames in order (`programFrameOf` reads them for the engine). */
-  readonly program: readonly Uint8Array[]
-  /** The start section's frames; empty when it has none. */
-  readonly start: readonly Uint8Array[]
-  /** The CRC of the stream rebuilt from what was read equals the one the board saved: nothing was lost on the way. */
-  readonly verified: boolean
-}
-
-/**
- * Reads the stored project back through the actions router: the project record names the sections and the list of program
- * chunks; each is a record of its own. Undefined when no project is stored.
- */
-export const readProject = async (link: RunitLink): Promise<StoredProject | undefined> => {
-  const defs = link.defs
-  const info = await projectInfo(link)
-  if (!info.stored) return undefined
-  const sections: Section[] = []
-  const program: Uint8Array[] = []
-  for (const frame of await readRecord(link, PROJECT_RECORD_ID)) {
-    if (frame[0] !== defs.keys.actions || frame[1] !== defs.dir.write || frame.length < 7) continue // the MARK frame: nothing to run
-    const id = readU32(frame, 3)
-    if (frame[2] === defs.ops.actions.RUN_ALL) sections.push({ id, frames: await readRecord(link, id) })
-    else if (frame[2] === defs.ops.actions.RUN) {
-      for (const run of await readRecord(link, id)) if (run[0] === defs.keys.actions && run[1] === defs.dir.write && run[2] === defs.ops.actions.RUN) program.push(...(await readRecord(link, readU32(run, 3))))
-    }
-  }
-  const start = await readRecord(link, projectBankRecordId(info.bank, START_N)).catch(() => [] as Uint8Array[]) // none: not found
-  const verified = crc32(projectStream(defs, { sections, program, start })) === info.crc
-  return { info, sections, program, start, verified }
-}

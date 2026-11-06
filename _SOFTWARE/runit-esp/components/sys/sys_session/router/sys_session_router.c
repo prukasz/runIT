@@ -3,25 +3,16 @@
 #include "sdkconfig.h"
 #include "sys_session_internal.h"
 
-typedef struct __attribute__((packed)) {
-  uint8_t board_id;
-} id_args_t;
-
-typedef struct __attribute__((packed)) {
-  sys_data_provider_id_t provider;
-  uint8_t peer;  /**< sys_session_peer_e */
-} attach_args_t;
-
 ROUTER_OP_NOARGS(op_id_get) {
-  const uint8_t id = sys_session_get_board_id();
+  const sys_session_id_args_t id = {.board_id = sys_session_get_board_id()};
   return cmd_reply(out, &id, sizeof(id));
 }
 
-ROUTER_OP(op_id_set, id_args_t) {
+ROUTER_OP(op_id_set, sys_session_id_args_t) {
   return sys_session_set_board_id(args->board_id);
 }
 
-ROUTER_OP(op_attach, attach_args_t) {
+ROUTER_OP(op_attach, sys_session_attach_args_t) {
   return sys_session_attach(args->provider, args->peer);
 }
 

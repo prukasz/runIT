@@ -8,22 +8,23 @@ Component `components/sys/sys_i2c/`. Wraps the ESP-IDF `i2c_master` driver; erro
 | `errors/sys_i2c_errors.h` | `ERR_SYS_I2C_MAP`, the module's error tags (included by `sys_i2c.h`) |
 | `errors/errors_sys_i2c.json` | The error messages |
 | `sys_i2c.c` | The bus table (from Kconfig), the address map, the transfers |
-| `router/sys_i2c_router.h/.c` | Remote diagnostics (`ROUTER_KEY_I2C` = 0x02) and the wire layouts of its ops |
+| `router/sys_i2c_router.h/.c` | The buses and diagnostics remotely (`ROUTER_KEY_I2C` = 0x02). The header publishes every op (`SYS_I2C_OP_*`, with its sides) and the wire layouts |
 | `router/contract_i2c.json` | The I2C router's descriptor (ops, args, answers) |
-| `Kconfig` | Buses, timeouts, the remote bus and raw access |
+| `Kconfig` | The glitch filter and the timeouts |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Buses
 
-| Bus | Port | Default pins (Kconfig) | Role |
+| Bus | Port | Pins on the PCB (`board.json`) | Role |
 |---|---|---|---|
 | `SYS_I2C_BUS_0` | `I2C_NUM_0` | SDA 15, SCL 16 | onboard chips (regulators, USB-PD controller) |
 | `SYS_I2C_BUS_1` | `I2C_NUM_1` | SDA 40, SCL 41 | user connector |
 
-- Pins, internal pull-ups and enable per bus, glitch filter, transfer and probe timeouts: Kconfig menu `sys_i2c` (`CONFIG_SYS_I2C_*`).
-- The roles are names in Kconfig and in the comments. The rule "user devices go on the user bus" is the app's.
-- `sys_i2c_init()` creates every enabled bus. It stops at the first failure (`ERR_I2C_BUS_INIT{bus, sda, scl}` over `ERR_ESP_ERR`); calling it again skips buses already created. It is the boot step `i2c` (RUNIT.MD).
-- `sys_i2c_bus_ready(bus)`, `sys_i2c_bus_info(bus, &info)` (a snapshot: configuration, state, the addresses in use), `sys_i2c_probe(bus, addr)` (scan), `sys_i2c_bus_reset(bus)` (recovery of a stuck bus).
+- Pins and internal pull-ups per bus: BUS_CREATE. Glitch filter, transfer and probe timeouts: Kconfig menu `sys_i2c` (`CONFIG_SYS_I2C_*`).
+- The roles are names in the board's descriptor. The rule "user devices go on the user bus" is the app's.
+- `sys_i2c_bus_create(&cfg)` (`sys_i2c_bus_cfg_t`, the frame of BUS_CREATE: bus, sda, scl, pullup) makes a bus; nothing is created at boot but what the board's profile says (SYS_BOARD.MD). `sys_i2c_bus_get(bus, &cfg)` gives back what it was created with. `sda` and `scl` are `sys_io_pin_t`, and only pins of the ESP32-S3's GPIO device are taken: the controller reaches its pads through the GPIO matrix, not a pin of an expander (`ERR_I2C_BAD_PIN`, and that device must exist). `ERR_I2C_BUS_EXISTS` for a bus made already, `ERR_I2C_BUS_INIT{bus, sda, scl}` over `ERR_ESP_ERR` when the driver refuses.
+- `sys_i2c_bus_remove(bus)` frees the pins; `ERR_I2C_BUS_IN_USE` while a device is on the bus. A bus is not a device: a chip names its bus by number and the address map guards the removal.
+- `sys_i2c_bus_ready(bus)`, `sys_i2c_probe(bus, addr)` (scan), `sys_i2c_bus_reset(bus)` (recovery of a stuck bus).
 - Thread safety: the driver locks the bus for each transfer; there is no extra mutex. A sequence of several transfers (`sys_i2c_reg_update`, a chip's start-up) is not atomic on the bus. A driver's sequence runs under the device registry lock (SYS_DEVICE.MD "Concurrency"), so no other device's op interleaves with it. The remote raw ops (below) don't take that lock.
 - The driver never resets a bus by itself. `sys_i2c_bus_reset` is for the caller after `ERR_I2C_BUS_STUCK` or `ERR_I2C_NO_ACK`; nothing calls it automatically yet.
 
@@ -66,7 +67,10 @@ Tags in `ERR_SYS_I2C_MAP` (`sys_i2c.h`). Transfer and probe errors carry `bus` a
 | Tag | Sev | When |
 |---|---|---|
 | `ERR_I2C_BAD_ARG` | HIGH | NULL pointer or zero length |
-| `ERR_I2C_BAD_BUS` | HIGH | bus out of range, disabled or not created |
+| `ERR_I2C_BAD_BUS` | HIGH | bus out of range or not created |
+| `ERR_I2C_BUS_EXISTS` | MEDIUM | BUS_CREATE of a bus created already |
+| `ERR_I2C_BUS_IN_USE` | MEDIUM | BUS_REMOVE while a device is on the bus |
+| `ERR_I2C_BAD_PIN` | MEDIUM | BUS_CREATE on a pin of a device other than the ESP32-S3's GPIO |
 | `ERR_I2C_BAD_DEV_CFG` | HIGH | address > 0x7F or speed 0 |
 | `ERR_I2C_BUS_INIT` | HIGH | `i2c_new_master_bus` failed (over `ERR_ESP_ERR`) |
 | `ERR_I2C_BUS_STUCK` | HIGH | probe timed out: bus busy, SCL held low, no pull-ups |
@@ -78,29 +82,29 @@ Tags in `ERR_SYS_I2C_MAP` (`sys_i2c.h`). Transfer and probe errors carry `bus` a
 | `ERR_I2C_BUS_BUSY` | MEDIUM | bus lock not free within the timeout (`ESP_ERR_TIMEOUT`) |
 | `ERR_I2C_XFER` | HIGH | any other driver error (over `ERR_ESP_ERR`) |
 | `ERR_I2C_ADDR_TAKEN` | HIGH | another device is already added at this bus + address |
-| `ERR_I2C_REMOTE_DENIED` | MEDIUM | remote scan / reset / raw on a bus other than `CONFIG_SYS_I2C_REMOTE_BUS` |
 | `ERR_I2C_REG` | NONE | context wrapper `{reg, write}` from the register helpers; NONE so it never raises the chain's severity |
 
 A caller that expects a failure handles it instead of reporting it: an optional user-bus sensor that does not answer frees its `NO_ACK`.
 
 ## Remote (`sys_i2c_router`, root key `ROUTER_KEY_I2C` = 0x02)
 
-Diagnostics only. Chips are controlled through their device drivers, never raw. The app registers it: `router_register(ROUTER_KEY_I2C, sys_i2c_router)` (runit.c). The wire layouts are the `sys_i2c_*_t` types in `sys_i2c_router.h`; `contract_i2c.json` names them.
+The buses, and diagnostics. Chips are controlled through their device drivers, never raw. The app registers it: `router_register(ROUTER_KEY_I2C, sys_i2c_router)` (runit.c). The ops and all the wire layouts are in `sys_i2c_router.h`; `sys_i2c.h` only declares `sys_i2c_bus_cfg_t` for its API, so a driver doesn't see the router. `contract_i2c.json` names them.
 
 Requests are `[0x02][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD).
 
 | Op | Side | Request | Response | Limits |
 |---|---|---|---|---|
-| `0x01` INFO | R | – | `sys_i2c_info_t` per bus (19 B each): `u8 flags` (bit0 enabled, bit1 ready, bit2 pull-up), `u8 sda`, `u8 scl`, `u32 used[4]` | all buses |
-| `0x02` SCAN | R | `u8 bus` | `sys_i2c_scan_t` (16 B): `u32 found[4]`, bit n = address n acked, 0x08–0x77 | remote bus |
-| `0x03` RESET | W | `u8 bus` | – | remote bus |
-| `0x04` RAW | R | `sys_i2c_raw_read_args_t`: `u8 bus, addr, reg, len` (len ≥ 1) | `u8 bus, addr, reg`, then the `len` bytes read: what the write takes | remote bus, address with no device |
+| `0x02` SCAN | R | `u8 bus` | `sys_i2c_scan_t` (16 B): `u32 found[4]`, bit n = address n acked, 0x08–0x77 | every bus |
+| `0x03` RESET | W | `u8 bus` | – | every bus |
+| `0x05` BUS_CREATE | R | `u8 bus` | `sys_i2c_bus_cfg_t`: what the write takes (`ERR_I2C_BAD_BUS`: not created) | every bus |
+| | W | `sys_i2c_bus_cfg_t` (8 B): `u8 bus, sys_io_pin_t sda, sys_io_pin_t scl, u8 pullup` | – | same |
+| `0x06` BUS_REMOVE | W | `u8 bus` | – | every bus |
+| `0x04` RAW | R | `sys_i2c_raw_read_args_t`: `u8 bus, addr, reg, len` (len ≥ 1) | `u8 bus, addr, reg`, then the `len` bytes read: what the write takes | every bus, an address with no device |
 | | W | `sys_i2c_raw_write_args_t`: `u8 bus, addr, reg`, then data (≥ 1 B) | – | same |
 
-- **Remote bus** = `CONFIG_SYS_I2C_REMOTE_BUS` (default 1, the user connector). Bus 0 holds the regulators and the USB-PD controller; scan, reset or raw on it → `ERR_I2C_REMOTE_DENIED{bus}`. INFO reports every bus.
+- Scan, reset and raw work on every bus: what a bus is for is the board's profile, which the firmware does not know. RESET clocks the bus under any device on it, so a client resets a bus with chips only to recover it.
 - **Raw** ops are always in. They use a temporary device (`dev_add` → transfer → `dev_remove`), so an address owned by a driver fails with `ERR_I2C_ADDR_TAKEN` and a driver's cached state can't be bypassed.
 - SCAN stops at the first error other than not-found (a stuck bus) and returns it.
-- `sys_i2c_bus_info(bus, &info)` is the C API behind INFO.
 
 ## Open
 

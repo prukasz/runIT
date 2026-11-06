@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
-  crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, programFrameOf, projectInfo, projectStream, readProject, readRecord,
+  crc32, deviceFrame, deviceRecordId, frameImage, listRecords, parseImage, projectInfo, projectStream, readRecord,
   projectBankRecordId, RunitLink, saveProject, SECTION_START, storeRecord, vmFrame,
 } from '@backend'
 import type { ProjectContent } from '@backend'
@@ -170,38 +170,6 @@ describe('reading the project back from the board', () => {
     expect(await projectInfo(link)).toEqual(fixture.info)
     expect((await readRecord(link, 10)).map(hex)).toEqual(fixture.records['10'])
     expect(await listRecords(link)).toEqual(Object.keys(fixture.records).map(Number).sort((a, b) => a - b))
-
-    const stored = (await readProject(link))!
-    expect(stored.sections.map((s) => s.id)).toEqual([0x02000001, 10])
-    expect(stored.sections[1]!.frames.map(hex)).toEqual(content().sections![1]!.frames.map(hex))
-    expect(stored.program.map(hex)).toEqual(content().program!.map(hex))
-    expect(stored.verified, 'the stream rebuilt from what was read has the CRC the board saved').toBe(true)
-    await link.close()
-  })
-
-  it('and recovers the project from the program it read', async () => {
-    const board = new FakeBoard()
-    store(board)
-    const link = new RunitLink(board, { reconnect: false })
-    await link.connect(board.device)
-    const stored = (await readProject(link))!
-    const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))
-    expect(recovered.exact).toBe(true)
-    expect(recovered.parsed.exec).toEqual(['normal'])
-    expect(recovered.project.variables.map((v) => v.name)).toEqual(['x', 'y', 'z', 'kill'])
-    expect(recovered.project.blocks.map((b) => b.type)).toEqual(['expr', 'action', 'io'])
-    expect(recovered.project.blocks[0]).toMatchObject({ editor: { text: 'in0 * 2 + in1' } })
-    expect(recovered.project.blocks[1]).toMatchObject({ values: { action_id: 10 } })
-    expect(recovered.project.blocks[2]).toMatchObject({ variant: 'toggle', device: 1, values: { pin: 22 } })
-    await link.close()
-  })
-
-  it('no project stored is undefined', async () => {
-    const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
-    const link = new RunitLink(board, { reconnect: false })
-    await link.connect(board.device)
-    expect(await readProject(link)).toBeUndefined()
     await link.close()
   })
 })

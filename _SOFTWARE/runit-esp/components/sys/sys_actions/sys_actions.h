@@ -14,8 +14,7 @@ extern "C" {
  * board keeps as commands: the user's actions, the system's settings (log,
  * power) and the default commands of each device.
  *
- * A record is filled by recording a client's live commands (the router tap)
- * or by uploading the whole image, and read back by offset, the image as it
+ * A record is written whole by its client (begin, write, commit) and read back by offset, the image as it
  * was stored. Nothing replays by itself: the VM or the app calls RUN. A record
  * runs only on a router task: a remote RUN, or router_inject of a RUN frame
  * (sys_actions_request) from anywhere else. So a replay never interleaves with
@@ -51,6 +50,16 @@ extern "C" {
 #define SYS_ACTIONS_ID_STREAM          SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
 #define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
 
+/**
+ * @brief The firmware's own actions: user-class records sys_actions_init() writes at every boot (SYS_ACTIONS.MD "Onboard
+ * actions"), replacing what is stored under these IDs. An app stores its own actions under other IDs.
+ */
+//#ref-defines onboard_action @alias Onboard actions @prefix SYS_ACTIONS_ONBOARD_
+#define SYS_ACTIONS_ONBOARD_RESUME     SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 3)  //@alias Resume all @description Resume every device
+#define SYS_ACTIONS_ONBOARD_SUSPEND    SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 4)  //@alias Suspend all @description Suspend every device (outputs off)
+#define SYS_ACTIONS_ONBOARD_RESET      SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 5)  //@alias Reset all @description Reset every device (newest first)
+#define SYS_ACTIONS_ONBOARD_HARD_RESET SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 6)  //@alias Hard reset @description Restart the board
+
 /** @brief The project record: the list of RUN frames sys_project replays (SYS_PROJECT.MD). The other IDs of this class are sys_project's. */
 #define SYS_ACTIONS_ID_PROJECT SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_PROJECT, 0)
 
@@ -64,14 +73,8 @@ typedef struct {
 } sys_actions_info_t;
 
 /**
- * @brief The recorder. The app installs it (router_set_tap) next to
- * registering sys_actions_router; recording works only with it installed.
- */
-extern const router_tap_t g_sys_actions_tap;
-
-/**
  * @brief Opens the actions namespace (partition CONFIG_SYS_ACTIONS_PARTITION,
- * erased when NVS can't use it). Boot.
+ * initialised by the boot step "nvs"). Boot.
  */
 MUST_USE err_h sys_actions_init(void);
 
@@ -92,44 +95,25 @@ MUST_USE err_h sys_actions_run(uint32_t id, bool keep_going);
 MUST_USE err_h sys_actions_request(uint32_t id, bool urgent);
 
 /**
- * @brief Starts recording the frames of one client (its peer id, `src`) into
- * record `id`. Recorded: frames from that client except the sys key and the
- * actions ops other than RUN. With `execute`, frames run as usual and only
- * those that succeed are recorded; without, they are recorded and answered OK
- * without running. One recording or upload at a time (ERR_ACTION_BUSY).
+ * @brief Writes a whole image: begin, write in order, commit. Commit checks the length, the CRC and the framing, stores
+ * the image (replacing a record with that ID) and closes the draft, also on failure. One at a time (ERR_ACTION_BUSY);
+ * the image is on the heap only while it is written.
  */
-MUST_USE err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t src);
-
-/**
- * @brief Stores the recording (replacing a record with that ID) and closes
- * it, also on failure. ERR_ACTION_EMPTY with no frame, ERR_ACTION_TOO_BIG when
- * it outgrew CONFIG_SYS_ACTIONS_MAX_BYTES.
- */
-MUST_USE err_h sys_actions_record_stop(sys_actions_info_t* out);
-
-/**
- * @brief Upload of a whole image: begin, write in order, commit. Commit checks
- * the length, the CRC and the framing, stores the image (replacing a record
- * with that ID) and closes the upload, also on failure.
- */
-MUST_USE err_h sys_actions_upload_begin(uint32_t id, uint16_t len);
-MUST_USE err_h sys_actions_upload_write(uint16_t offset, const uint8_t* data, uint16_t len);
-MUST_USE err_h sys_actions_upload_commit(uint32_t crc32);
+MUST_USE err_h sys_actions_record_begin(uint32_t id, uint16_t len);
+MUST_USE err_h sys_actions_record_write(uint16_t offset, const uint8_t* data, uint16_t len);
+MUST_USE err_h sys_actions_record_commit(uint32_t crc32);
 
 /**
  * @brief Stores a whole image from the firmware (the app's onboard actions), replacing a record with that ID. The
- * framing is checked like an upload's; nothing is written when the same image is already stored. Does not touch an
- * open recording or upload.
+ * framing is checked like a commit's; nothing is written when the same image is already stored. Does not touch an
+ * open draft.
  */
 MUST_USE err_h sys_actions_set(uint32_t id, const uint8_t* image, uint16_t len);
 
-/** @brief Copies record `from` to `to` (replacing it); the limit of `to`'s class applies. Nothing is written when `to` already holds the same image. */
+/** @brief Copies record `from` to `to` (replacing it); CONFIG_SYS_ACTIONS_MAX_BYTES applies. Nothing is written when `to` already holds the same image. */
 MUST_USE err_h sys_actions_copy(uint32_t from, uint32_t to);
 
-/** @brief The largest image a record with this ID may have (its class decides). */
-uint32_t sys_actions_max_bytes(uint32_t id);
-
-/** @brief Drops an open recording or upload (nothing stored). No-op when none is open. */
+/** @brief Drops the record being written (nothing stored). No-op when none is open. */
 void sys_actions_abort(void);
 
 MUST_USE err_h sys_actions_info(uint32_t id, sys_actions_info_t* out);
@@ -154,7 +138,7 @@ MUST_USE err_h sys_actions_remove(uint32_t id);
 
 /**
  * @brief Removes every stored record, of every class (settings, devices, project, user). ERR_ACTION_BUSY while a
- * recording or upload is open. Stops at the first failing removal and returns its error; the records after it
+ * record is being written. Stops at the first failing removal and returns its error; the records after it
  * stay.
  */
 MUST_USE err_h sys_actions_remove_all(void);

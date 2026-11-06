@@ -99,92 +99,6 @@
         }
       ]
     },
-    "board_device": {
-      "alias": "Board devices",
-      "kind": "defines",
-      "prefix": "DEVICE_ID_",
-      "source_file": "runit-esp/components/app/runit/runit_board_defs.h",
-      "members": [
-        {
-          "name": "DEVICE_ID_ESP32S3_GPIO",
-          "value": 0,
-          "alias": "ESP32-S3 GPIO",
-          "description": "the ESP32-S3's own pins"
-        },
-        {
-          "name": "DEVICE_ID_TCA6424A",
-          "value": 1,
-          "alias": "GPIO expander",
-          "description": "TCA6424A, 24 pins (LEDs, interrupts, enables)"
-        },
-        {
-          "name": "DEVICE_ID_ADS7128",
-          "value": 2,
-          "alias": "ADC",
-          "description": "ADS7128, 8 inputs scaled to 20 V"
-        },
-        {
-          "name": "DEVICE_ID_PCA9685",
-          "value": 3,
-          "alias": "PWM expander",
-          "description": "PCA9685 (servo headers CH 0..7, DRV8962 #2 on CH 8..15)"
-        },
-        {
-          "name": "DEVICE_ID_DAC53202",
-          "value": 4,
-          "alias": "DAC",
-          "description": "DAC53202 (OUT0 / OUT1 = VREF of DRV8962 #1 / #2)"
-        },
-        {
-          "name": "DEVICE_ID_DRV8962_0",
-          "value": 5,
-          "alias": "Motor driver 1",
-          "description": "DRV8962 #1 (IN / EN / IPROPI on ESP)"
-        },
-        {
-          "name": "DEVICE_ID_DRV8962_1",
-          "value": 6,
-          "alias": "Motor driver 2",
-          "description": "DRV8962 #2 (IN / EN on PCA9685 CH 8..15)"
-        },
-        {
-          "name": "DEVICE_ID_SUPPLY_DRV8962_0",
-          "value": 7,
-          "alias": "Motor 1 supply",
-          "description": "Power mux of driver 1 (A = board input, B = rail B)"
-        },
-        {
-          "name": "DEVICE_ID_SUPPLY_DRV8962_1",
-          "value": 8,
-          "alias": "Motor 2 supply",
-          "description": "Power mux of driver 2 (A = board input, B = rail A)"
-        },
-        {
-          "name": "DEVICE_ID_TPS55289_2",
-          "value": 10,
-          "alias": "Rail A",
-          "description": "TPS55289 buck-boost regulator at 0x74"
-        },
-        {
-          "name": "DEVICE_ID_TPS55289_1",
-          "value": 11,
-          "alias": "Rail B",
-          "description": "TPS55289 buck-boost regulator at 0x75"
-        },
-        {
-          "name": "DEVICE_ID_INA3221",
-          "value": 12,
-          "alias": "Power monitor",
-          "description": "INA3221 (the board input and both rails)"
-        },
-        {
-          "name": "DEVICE_ID_AP33772S",
-          "value": 13,
-          "alias": "USB-C PD",
-          "description": "AP33772S USB-C power delivery sink"
-        }
-      ]
-    },
     "cmd_dir_e": {
       "alias": "Command Direction",
       "kind": "enum",
@@ -500,6 +414,38 @@
         }
       ]
     },
+    "onboard_action": {
+      "alias": "Onboard actions",
+      "kind": "defines",
+      "prefix": "SYS_ACTIONS_ONBOARD_",
+      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
+      "members": [
+        {
+          "name": "SYS_ACTIONS_ONBOARD_RESUME",
+          "value": 3,
+          "alias": "Resume all",
+          "description": "Resume every device"
+        },
+        {
+          "name": "SYS_ACTIONS_ONBOARD_SUSPEND",
+          "value": 4,
+          "alias": "Suspend all",
+          "description": "Suspend every device (outputs off)"
+        },
+        {
+          "name": "SYS_ACTIONS_ONBOARD_RESET",
+          "value": 5,
+          "alias": "Reset all",
+          "description": "Reset every device (newest first)"
+        },
+        {
+          "name": "SYS_ACTIONS_ONBOARD_HARD_RESET",
+          "value": 6,
+          "alias": "Hard reset",
+          "description": "Restart the board"
+        }
+      ]
+    },
     "prov_state": {
       "alias": "Provider state",
       "kind": "defines",
@@ -523,6 +469,18 @@
           "value": 8,
           "alias": "Wired",
           "description": "Connection realised by cable - low latency"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_UP",
+          "value": 16,
+          "alias": "Up",
+          "description": "It delivers frames now"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_FRAMED",
+          "value": 32,
+          "alias": "Framed",
+          "description": "Its driver carries a whole CMD_FRAME_MAX frame; else raw: what the link takes at once"
         }
       ]
     },
@@ -641,6 +599,18 @@
           "value": 16,
           "alias": "Remote devices",
           "description": "Remote devices: subscriptions of other boards to this board's devices (their events and errors)"
+        },
+        {
+          "name": "ROUTER_KEY_OTA",
+          "value": 18,
+          "alias": "Firmware update",
+          "description": "Firmware update: a new firmware into the other slot, what runs now"
+        },
+        {
+          "name": "ROUTER_KEY_BOARD",
+          "value": 17,
+          "alias": "Board profile",
+          "description": "Board profile: the definition of the board kept on it as JSON (write, read back)"
         }
       ]
     },
@@ -1191,6 +1161,31 @@
           "value": 8,
           "alias": "DAC",
           "description": "Analog DAC output"
+        }
+      ]
+    },
+    "sys_ota_state_e": {
+      "alias": "Firmware state",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_ota/sys_ota.h",
+      "members": [
+        {
+          "name": "SYS_OTA_STATE_UNKNOWN",
+          "value": 0,
+          "alias": "Flashed",
+          "description": "Flashed by cable: nothing to confirm"
+        },
+        {
+          "name": "SYS_OTA_STATE_VALID",
+          "value": 1,
+          "alias": "Confirmed",
+          "description": "Written over the air and confirmed"
+        },
+        {
+          "name": "SYS_OTA_STATE_PENDING",
+          "value": 2,
+          "alias": "Not confirmed",
+          "description": "The first boot of a new firmware: the next restart goes back unless it is confirmed"
         }
       ]
     },
@@ -2512,19 +2507,6 @@
     "CMD_HEAD": "cmd_frame",
     "DC_MOTOR_STOP_BRAKE": "dc_motor_stop_e",
     "DC_MOTOR_STOP_COAST": "dc_motor_stop_e",
-    "DEVICE_ID_ADS7128": "board_device",
-    "DEVICE_ID_AP33772S": "board_device",
-    "DEVICE_ID_DAC53202": "board_device",
-    "DEVICE_ID_DRV8962_0": "board_device",
-    "DEVICE_ID_DRV8962_1": "board_device",
-    "DEVICE_ID_ESP32S3_GPIO": "board_device",
-    "DEVICE_ID_INA3221": "board_device",
-    "DEVICE_ID_PCA9685": "board_device",
-    "DEVICE_ID_SUPPLY_DRV8962_0": "board_device",
-    "DEVICE_ID_SUPPLY_DRV8962_1": "board_device",
-    "DEVICE_ID_TCA6424A": "board_device",
-    "DEVICE_ID_TPS55289_1": "board_device",
-    "DEVICE_ID_TPS55289_2": "board_device",
     "DRV8962_TOPOLOGY_2_FULL_BRIDGES": "drv8962_topology_e",
     "DRV8962_TOPOLOGY_4_HALF_BRIDGES": "drv8962_topology_e",
     "ERR_RECORD_REQ_CUT": "err_record_flag",
@@ -2541,10 +2523,12 @@
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_KEY_ACTIONS": "router_key",
     "ROUTER_KEY_BLE": "router_key",
+    "ROUTER_KEY_BOARD": "router_key",
     "ROUTER_KEY_DEVICE": "router_key",
     "ROUTER_KEY_EVENT": "router_key",
     "ROUTER_KEY_I2C": "router_key",
     "ROUTER_KEY_LOG": "router_key",
+    "ROUTER_KEY_OTA": "router_key",
     "ROUTER_KEY_POWER": "router_key",
     "ROUTER_KEY_PROJECT": "router_key",
     "ROUTER_KEY_PROVIDER": "router_key",
@@ -2570,6 +2554,10 @@
     "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
     "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
     "SYS_ACTIONS_ID_STREAM": "settings_record",
+    "SYS_ACTIONS_ONBOARD_HARD_RESET": "onboard_action",
+    "SYS_ACTIONS_ONBOARD_RESET": "onboard_action",
+    "SYS_ACTIONS_ONBOARD_RESUME": "onboard_action",
+    "SYS_ACTIONS_ONBOARD_SUSPEND": "onboard_action",
     "SYS_BLE_CHR_RUNIT_LOGS": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_RX": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_TX": "ble_runit_uuid",
@@ -2581,8 +2569,10 @@
     "SYS_DATA_PROVIDER_LINK_BLE": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_LINK_MQTT": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
+    "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
     "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
     "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",
+    "SYS_DATA_PROVIDER_STATE_UP": "prov_state",
     "SYS_DATA_PROVIDER_STATE_WIRED": "prov_state",
     "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
     "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
@@ -2633,6 +2623,9 @@
     "SYS_IO_MODE_PWM": "sys_io_mode_e",
     "SYS_IO_PIN_NONE_DEVICE": "io_pin_none",
     "SYS_IO_PIN_NONE_INDEX": "io_pin_none",
+    "SYS_OTA_STATE_PENDING": "sys_ota_state_e",
+    "SYS_OTA_STATE_UNKNOWN": "sys_ota_state_e",
+    "SYS_OTA_STATE_VALID": "sys_ota_state_e",
     "SYS_POWER_ALERT_OCP_CRITICAL": "sys_power_alert_e",
     "SYS_POWER_ALERT_OCP_WARNING": "sys_power_alert_e",
     "SYS_POWER_BATTERY_LIPO": "sys_power_battery_e",

@@ -1,6 +1,6 @@
 # sys_actions — stored command lists
 
-Component `components/sys/sys_actions/`. One store for everything the board keeps as commands. A **record** is a list of router frames stored in NVS under a 32-bit **ID**, replayed through `router_route`. A record is filled by **recording** a client's live frames (router tap) or by **uploading** the whole image, and read back by offset, the image exactly as stored.
+Component `components/sys/sys_actions/`. One store for everything the board keeps as commands. A **record** is a list of router frames stored in NVS under a 32-bit **ID**, replayed through `router_route`. A client writes a record whole (BEGIN, WRITE, COMMIT) and reads it back by offset, the image exactly as stored.
 
 The store holds four kinds of record, told apart by the class in the ID: the user's **actions**, the **settings** of the system modules (log, power, BLE, data streams), the **install and default commands** of each device, and the **project** (see [SYS_PROJECT.MD](../sys_project/SYS_PROJECT.MD)).
 
@@ -10,13 +10,13 @@ The store holds four kinds of record, told apart by the class in the ID: the use
 
 | File | Role |
 |---|---|
-| `sys_actions.h` | API, ID classes, system IDs, `g_sys_actions_tap` |
+| `sys_actions.h` | API, ID classes, system IDs |
 | `errors/sys_actions_errors.h` | `ERR_SYS_ACTIONS_MAP`, the module's error tags (included by `sys_actions.h`) |
 | `errors/errors_actions.json` | The error messages |
-| `sys_actions.c` | NVS store, run, recorder (tap), upload |
-| `router/sys_actions_router.c/.h` | `actions` router (`ROUTER_KEY_ACTIONS` = 0x06), op IDs `SYS_ACTIONS_OP_*` |
+| `sys_actions.c` | NVS store, run, writing a record, the onboard actions |
+| `router/sys_actions_router.c/.h` | `actions` router (`ROUTER_KEY_ACTIONS` = 0x06), op IDs `SYS_ACTIONS_OP_*`. The header publishes every op (`SYS_ACTIONS_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `router/contract_actions.json` | Contract descriptor for the actions router |
-| `Kconfig` | Partition, largest record, largest device record, nesting depth |
+| `Kconfig` | Partition, largest record, nesting depth |
 
 A change to `contract_actions.json`, to an op number, to an error tag, or to a marked `#ref-*` group here also changes what the app reads. Update `templates/` with it: `sh templates/sync.sh` regenerates `enums.json` and `errors.json`, refreshes `runit-app/generated/services/contract_actions.json`, and validates everything ([templates/AGENTS.md](../../../../templates/AGENTS.md)). Commit with `--check` green.
 
@@ -43,16 +43,16 @@ System IDs (class `0x01`):
 | `0x01000007` `SYS_ACTIONS_ID_STREAM` | data streams and bindings | stream |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
 
-Class `0xFF` holds no records: an error policy's `actions[]` use it for the policy's own responses (`SYS_DEVICE_RESPONSE_*`, SYS_DEVICE.MD "Error policy"). Any client may write any other class and RUN any class. User IDs 3 to 6 are the firmware's own actions (RUNIT.MD "Onboard actions"): they are rewritten at every boot, so an app uses other IDs.
+Class `0xFF` holds no records: an error policy's `actions[]` use it for the policy's own responses (`SYS_DEVICE_RESPONSE_*`, SYS_DEVICE.MD "Error policy"). Any client may write any other class and RUN any class. User IDs 3 to 6 are the firmware's own actions ("Onboard actions" below): they are rewritten at every boot, so an app uses other IDs.
 
-**Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][0x01][level, mirror, trace, errors, logs]` (log CONFIG). The write applies the value live and stores nothing. Persistence is the app uploading (or recording) the record.
+**Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x08][0x01][0x01][level, mirror, trace, errors, logs]` (log CONFIG). The write applies the value live and stores nothing. Persistence is the app writing the record.
 
-**Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CMD_DATA_MAX` (507) bytes (CMD.MD "Frame size"). The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), except a device-class record, which is at most `CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE` (512): the install and default commands of one device. A longer image is `ERR_ACTION_TOO_BIG {len, max}`, with the limit of its class (BEGIN, a recording, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what an upload sends.
+**Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CMD_DATA_MAX` (507) bytes (CMD.MD "Frame size"). The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), of every class. A longer image is `ERR_ACTION_TOO_BIG {len, max}` (BEGIN, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what a client sends.
 
-**Storage.** Namespace `actions` in the `project` partition (`CONFIG_SYS_ACTIONS_PARTITION`, 512 KB), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one blob per record. One `nvs_set_blob` per store; NVS keeps the old value until the new one is complete. A partition NVS can't use (no free pages, new version) is erased at init.
+**Storage.** Namespace `actions` in the `project` partition (`CONFIG_SYS_ACTIONS_PARTITION`, 512 KB), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one blob per record. One `nvs_set_blob` per store; NVS keeps the old value until the new one is complete. A partition NVS can't use (no free pages, new version) is erased at boot (SYS_NVS.MD).
 The store checks framing only, not content. A frame the router can't take fails at its step (`ERR_ROUTER_UNKNOWN_KEY` for an unknown key).
 
-**One session at a time.** A recording or an upload, built in one static buffer of `CONFIG_SYS_ACTIONS_MAX_BYTES`. Another start → `ERR_ACTION_BUSY`. Stop / commit closes the session even when they fail. ABORT drops it.
+**One draft at a time.** A draft is a record being written: the image on the heap, from BEGIN to COMMIT or ABORT. Another BEGIN → `ERR_ACTION_BUSY`. COMMIT closes the draft even when it fails.
 
 ## Running
 
@@ -63,25 +63,28 @@ The store checks framing only, not content. A frame the router can't take fails 
 - **Nesting.** A RUN inside a record nests up to `CONFIG_SYS_ACTIONS_MAX_DEPTH` (3, counted per router task); deeper → `ERR_ACTION_DEPTH`. A record that runs itself stops there. So a program can be a record of RUN frames: system records first, then devices, then code. The project upload (SYS_PROJECT.MD) sets that order; the firmware sorts nothing.
 - Each nesting level holds its image plus one router frame of heap while it runs.
 
-## Recording
-
-`main` installs `g_sys_actions_tap` (`router_set_tap`, see [ROUTER.MD](../../core/router/ROUTER.MD)). RECORD_START records the client that sent it (its `src`, from `router_origin()`); a command with no peer (`ROUTER_SRC_NONE`, a provider's command binding) is refused (`ERR_ACTION_BAD_ARG`). Frames from other clients run as usual and are not recorded.
-
-- Recorded: that client's writes (dir 1), except the `sys` key (STOP, …) and the actions ops other than RUN and RUN_ALL. A RUN or RUN_ALL is recorded as itself, not as its content. Reads are never recorded: they run and answer as usual.
-- **`execute = 1`**: frames run as usual, and only those that succeed are recorded.
-- **`execute = 0`**: frames are recorded and answered OK with no data, without running. This is how to build "motor forward" without the motor moving.
-- A frame that doesn't fit ends the growth. RECORD_STOP then answers `ERR_ACTION_TOO_BIG` and stores nothing. No frame → `ERR_ACTION_EMPTY`.
-- A `sys` frame (STOP) can't be recorded; upload it instead.
-
 ## Set from the firmware
 
-`sys_actions_set(id, image, len)` stores a whole image without a session, so it works while a recording is open. The framing is checked like an upload's. It writes nothing when the same image is already stored, so there is no flash wear on every boot. Used for the firmware's onboard actions (`runit_onboard_actions.c`, see [RUNIT.MD](../../app/runit/RUNIT.MD)).
+`sys_actions_set(id, image, len)` stores a whole image without a draft, so it works while a client writes another record. The framing is checked like a commit's. It writes nothing when the same image is already stored, so there is no flash wear on every boot. Used for the firmware's onboard actions (below).
 
-`sys_actions_copy(from, to)` copies a record (the limit of `to`'s class applies). `sys_actions_max_bytes(id)` gives the limit for an ID. `sys_actions_info` returns `{bytes, count, crc32}`.
+`sys_actions_copy(from, to)` copies a record. `sys_actions_info` returns `{bytes, count, crc32}`.
 
-**Reset and boot.** Onboard actions 5 (reset all) and 6 (hard reset) are a RESET sweep over the devices and a board restart. Reset all touches the devices only: it does not rewind the VM or re-apply a boot configuration. Hard reset restarts the board, which unloads the VM and the devices. Boot is not a record: the board's boot configuration is a device setting, and the boot step (`runit_board_devices_init`) creates the devices.
+**Reset and boot.** Onboard actions 5 (reset all) and 6 (hard reset) are a RESET sweep over the devices and a board restart. Reset all touches the devices only: it does not rewind the VM or re-apply a boot configuration. Hard reset restarts the board, which unloads the VM and the devices. The boot runs two records by itself, each by its own module: the board's profile (class `0x04`, SYS_BOARD.MD), which creates the board's devices, and the stored project as its boot option says (SYS_PROJECT.MD).
 
-**Users.** `sys_project` builds the project upload on this store (set, copy, max_bytes, list, remove, and nested RUNs to depth 3, see [SYS_PROJECT.MD](../sys_project/SYS_PROJECT.MD)). `sys_actions_request` is called by the device error policy's action runner (`runit_error_policy.c`) and by the VM (`vm_exec.c`).
+**Users.** `sys_project` builds the project upload on this store (set, copy, list, remove, and nested RUNs to depth 3, see [SYS_PROJECT.MD](../sys_project/SYS_PROJECT.MD)). `sys_actions_request` is called by the device error policy's action runner (`runit_error_policy.c`) and by the VM (`vm_exec.c`).
+
+## Onboard actions
+
+The firmware's own actions, written by `sys_actions_init` at every boot with `sys_actions_set` (only when they differ, so a client's edit of these IDs is replaced). Their IDs are fixed, `SYS_ACTIONS_ONBOARD_*` in `sys_actions.h`, published as the group `onboard_action` of `enums.json`, so the app keeps its own actions off them. Each is one write frame: a device-router sweep to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"), or a sys command.
+
+| ID | Does | Frame |
+|---|---|---|
+| 3 `SYS_ACTIONS_ONBOARD_RESUME` (user class, `0x00000003`) | resume all | `05 01 FF FF 03 00` (every device, oldest first) |
+| 4 `SYS_ACTIONS_ONBOARD_SUSPEND` (`0x00000004`) | suspend all | `05 01 FF FF 02 00` (every device, newest first) |
+| 5 `SYS_ACTIONS_ONBOARD_RESET` (`0x00000005`) | reset all devices | `05 01 FF FF 01 00` (every device, newest first; the drivers' RESET) |
+| 6 `SYS_ACTIONS_ONBOARD_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `01 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
+
+Run with `06 01 01 <id u32>` (actions RUN, a write), or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's boot option, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Remote (`sys_actions_router`, root key `ROUTER_KEY_ACTIONS` = 0x06)
 
@@ -92,8 +95,6 @@ Requests are `[0x06][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). READ, I
 | Op | Request | Response |
 |---|---|---|
 | `0x01` RUN | `u32 id` | – (error record on a failing step) |
-| `0x02` RECORD_START | `u32 id, u8 execute` | – |
-| `0x03` RECORD_STOP | – | info (stored under the recording's ID, replacing it) |
 | `0x04` BEGIN | `u32 id, u16 len` | – |
 | `0x05` WRITE | `u16 offset`, data | – (offset = bytes so far) |
 | `0x06` COMMIT | `u32 crc32` | – (checks length, CRC and framing; stores, replacing the ID) |
@@ -101,16 +102,15 @@ Requests are `[0x06][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). READ, I
 | `0x08` INFO | `u32 id` | info |
 | `0x09` LIST | `u32 start` | `u16 total` (all stored records), then u32 IDs ascending from `start`, up to 48 and as many as fit. Ask again from the last ID + 1 |
 | `0x0A` REMOVE | `u32 id` | – |
-| `0x0B` ABORT | – | – (drops an open recording or upload) |
-| `0x0D` RUN_ALL | `u32 id` | – like RUN, but every frame runs. A failing frame is reported (error record, `ERR_ACTION_STEP`) and the run goes on; the first failure is the answer. Used to start a project, so one failing device leaves the rest configured. A record may contain RUN_ALL (it is recorded like RUN) |
-| `0x0E` REMOVE_ALL | – | – (every stored record, of every class: settings, devices, project and user. `ERR_ACTION_BUSY` while a recording or upload is open. Stops at the first failing removal) |
+| `0x0B` ABORT | – | – (drops the record being written) |
+| `0x0D` RUN_ALL | `u32 id` | – like RUN, but every frame runs. A failing frame is reported (error record, `ERR_ACTION_STEP`) and the run goes on; the first failure is the answer. Used to start a project, so one failing device leaves the rest configured. A record may contain RUN_ALL |
+| `0x0E` REMOVE_ALL | – | – (every stored record, of every class: settings, devices, project and user. `ERR_ACTION_BUSY` while a record is being written. Stops at the first failing removal) |
 
 `REMOVE` takes one ID. To clear one group only, list the IDs (`sys_actions_list`) and remove them one by one, as `sys_project`'s `clear_bank` does. REMOVE_ALL erases the stored records only. Devices and settings already running stay as they are until the board restarts; after a restart the board starts from its defaults, with no stored project and no device records.
 
-READ is the mirror of an upload's WRITEs: the image that went in comes out, by offset, page by page, as large as the link carries (BLE before the MTU exchange: small pages). A client reads from 0 up to INFO's `bytes`, checks the image against INFO's `crc32` and splits it into its frames (each exactly as recorded or uploaded, from its key, with its dir). In C, `sys_actions_read(id, offset, buf, cap, &len)` is the same read, and `sys_actions_dump(id, fn, ctx)` walks a record frame by frame (`sys_project` reads its marks so).
+READ is the mirror of the WRITEs: the image that went in comes out, by offset, page by page, as large as the link carries (BLE before the MTU exchange: small pages). A client reads from 0 up to INFO's `bytes`, checks the image against INFO's `crc32` and splits it into its frames (each exactly as written, from its key, with its dir). In C, `sys_actions_read(id, offset, buf, cap, &len)` is the same read, and `sys_actions_dump(id, fn, ctx)` walks a record frame by frame (`sys_project` reads its marks so).
 
 **Examples**
-- Record "blink" as user action 5 without running it, over UART: `06 01 02 05 00 00 00 00` (RECORD_START id 5, execute 0), then the device writes, then `06 01 03` (RECORD_STOP → info). Run it: `06 01 01 05 00 00 00`.
 - Save the log options as the system record: BEGIN `06 01 04 01 00 00 01 0A 00` (id `0x01000001`, 10 bytes), WRITE `06 01 05 00 00` (offset 0) and the 10-byte image `08 00 08 01 01 03 01 00 01 01` (one frame of 8 bytes: log, write, CONFIG, level 3, mirror on, trace off, errors on, logs on), COMMIT `06 01 06` with the CRC.
 
 ## Errors (`ERR_MOD_SYS_ACTIONS` = 8)
@@ -120,7 +120,7 @@ READ is the mirror of an upload's WRITEs: the image that went in comes out, by o
 | `ERR_ACTION_NOT_FOUND {id u32}` | MEDIUM |
 | `ERR_ACTION_BAD_ID` (ID 0) | HIGH |
 | `ERR_ACTION_BUSY` | MEDIUM |
-| `ERR_ACTION_NO_SESSION` | MEDIUM |
+| `ERR_ACTION_NO_DRAFT` | MEDIUM |
 | `ERR_ACTION_TOO_BIG {len, max}` | MEDIUM |
 | `ERR_ACTION_OFFSET {got, want}` | MEDIUM |
 | `ERR_ACTION_INCOMPLETE {got, want}` | MEDIUM |

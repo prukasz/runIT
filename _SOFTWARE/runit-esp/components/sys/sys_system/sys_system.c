@@ -8,6 +8,7 @@
 #include "router.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
+#include "sys_system_router.h"
 
 #define TAG __FILE_NAME__
 

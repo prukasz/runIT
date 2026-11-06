@@ -39,7 +39,6 @@ describe('the catalog has no problem and the services it names are on the board'
     ['PROVIDER', 'LIST'],
     ['SESSION', 'PEERS'],
     ['SESSION', 'ID'],
-    ['I2C', 'INFO'],
     ['LOG', 'CONFIG'],
     ['POWER_MANAGER', 'CONFIG'],
     ['POWER_MANAGER', 'STATUS'],

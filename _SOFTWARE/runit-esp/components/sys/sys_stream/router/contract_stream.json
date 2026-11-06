@@ -60,7 +60,7 @@
       "description": "Removes a user stream and its targets; its providers are free again.",
       "write": {
         "args": {
-          "struct": "stream_ref_t",
+          "struct": "sys_stream_ref_t",
           "fields": [
             {
               "id": "id",
@@ -83,7 +83,7 @@
       "description": "Binds a stream to a provider (a BLE characteristic, a UART port), the provider's one user: an Out stream sends its payloads there as they are, an In stream takes what comes in there.",
       "write": {
         "args": {
-          "struct": "binding_t",
+          "struct": "sys_stream_binding_t",
           "fields": [
             {
               "id": "id",
@@ -125,7 +125,7 @@
       "description": "Removes a binding; the provider is free again. Link 0: every binding of the stream.",
       "write": {
         "args": {
-          "struct": "binding_t",
+          "struct": "sys_stream_binding_t",
           "fields": [
             {
               "id": "id",
@@ -181,7 +181,7 @@
       "description": "The peer that sends it gets the stream's messages, [stream id][payload] in a STREAM frame, until UNSUBSCRIBE or its session ends.",
       "write": {
         "args": {
-          "struct": "stream_ref_t",
+          "struct": "sys_stream_ref_t",
           "fields": [
             {
               "id": "id",
@@ -204,7 +204,7 @@
       "description": "Ends the subscription of the peer that sends it.",
       "write": {
         "args": {
-          "struct": "stream_ref_t",
+          "struct": "sys_stream_ref_t",
           "fields": [
             {
               "id": "id",

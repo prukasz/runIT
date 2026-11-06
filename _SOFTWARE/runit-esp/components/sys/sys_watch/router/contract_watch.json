@@ -95,7 +95,7 @@
       "description": "Removes the sender's watch with this id.",
       "write": {
         "args": {
-          "struct": "watch_ref_t",
+          "struct": "sys_watch_ref_t",
           "fields": [
             {
               "id": "id",

@@ -3,6 +3,7 @@
 #include "errors.h"
 #include "sys_actions.h"
 #include "sys_project_errors.h"
+#include "sys_nvs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,6 +98,9 @@ MUST_USE err_h sys_project_run(bool start);
  * settings and device records stay). Stop the VM first: its program would call devices that are gone.
  */
 MUST_USE err_h sys_project_erase(void);
+
+/** @brief The project's source: the file the app keeps there (SYS_PROJECT.MD "The source"). The firmware never reads it. */
+sys_nvs_json_t* sys_project_source(void);
 
 /** @brief Sets the boot option (sys_project_boot_e; ERR_PROJECT_BAD_BOOT for another value). */
 MUST_USE err_h sys_project_set_boot(uint8_t boot);

@@ -1,0 +1,127 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "BOARD",
+  "router_key": 17,
+  "alias": "Board profile",
+  "description": "The definition of the board kept on it as a JSON file: written and read in chunks by the app.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "JSON_APPEND",
+      "op": 1,
+      "symbol": "SYS_BOARD_OP_JSON_APPEND",
+      "label": "Append to the board's JSON",
+      "description": "Adds one chunk at the end of the file. The offset must be the file's length.",
+      "write": {
+        "args": {
+          "struct": "sys_board_append_args_t",
+          "fields": [
+            {
+              "id": "offset",
+              "label": "Byte offset",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "The file's length before this chunk"
+            },
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The chunk's bytes (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "JSON_ERASE",
+      "op": 2,
+      "symbol": "SYS_BOARD_OP_JSON_ERASE",
+      "label": "Erase the board's JSON",
+      "description": "Empties the file.",
+      "write": {}
+    },
+    {
+      "id": "JSON_INFO",
+      "op": 3,
+      "symbol": "SYS_BOARD_OP_JSON_INFO",
+      "label": "Board's JSON info",
+      "description": "The file's length, CRC-32 and number of chunks.",
+      "read": {
+        "returns": {
+          "struct": "sys_nvs_json_info_t",
+          "description": "What the file holds",
+          "fields": [
+            {
+              "id": "bytes",
+              "label": "Length",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B"
+            },
+            {
+              "id": "crc32",
+              "label": "CRC-32",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4
+            },
+            {
+              "id": "chunks",
+              "label": "Chunks",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "JSON_READ",
+      "op": 4,
+      "symbol": "SYS_BOARD_OP_JSON_READ",
+      "label": "Read the board's JSON",
+      "description": "Sends back one chunk of the file.",
+      "read": {
+        "args": {
+          "struct": "sys_board_read_args_t",
+          "fields": [
+            {
+              "id": "chunk",
+              "label": "Chunk",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "From 0 to the number of chunks less one"
+            }
+          ]
+        },
+        "returns": {
+          "description": "The chunk's bytes",
+          "fields": [
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The chunk's bytes (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

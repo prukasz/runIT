@@ -215,6 +215,13 @@ export class CommandClient {
       return
     }
     this.emit({ type: 'sent', seq, frame, label: entry.options.label, at: entry.sentAt })
+    if (entry.request.noReply) {
+      // The board never answers it (a failure goes to the errors stream only): done once written, its seq free again.
+      if (this.inFlight.get(seq) === entry) this.inFlight.delete(seq)
+      entry.resolve(new Uint8Array(0))
+      this.pump()
+      return
+    }
     if (this.inFlight.get(seq) === entry) this.restartTimer(seq, entry) // not answered yet (an answer can beat the write's own resolution)
   }
 

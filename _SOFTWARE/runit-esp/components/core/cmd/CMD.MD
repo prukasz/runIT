@@ -59,7 +59,7 @@ CMD_FRAME_MAX
  └─ a stream's frame to a subscriber [stream id][payload]: a payload ≤ CMD_DATA_MAX − 1
 ```
 
-Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A provider may carry less right now (`max_frame`, an unframed one): a stream's payload to a binding is checked against that (SYS_STREAM.MD).
+Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A raw provider's link carries less, and its driver refuses what does not fit (SYS_DATA_PROVIDER.MD "Frame size"). No size other than these is known above a driver.
 
 ## Long work
 

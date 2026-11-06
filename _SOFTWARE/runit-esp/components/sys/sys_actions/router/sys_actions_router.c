@@ -2,107 +2,40 @@
 
 #include "sys_actions.h"
 
-/*   key  op            request                              response
- *   0x01 RUN           { u32 id }                           -
- *   0x02 RECORD_START  { u32 id, u8 execute }               -
- *   0x03 RECORD_STOP   -                                    info
- *   0x04 BEGIN         { u32 id, u16 len }                  -
- *   0x05 WRITE         { u16 offset }, data                 -
- *   0x06 COMMIT        { u32 crc32 }                        -
- *   0x07 READ          { u32 id, u16 offset }               the image from `offset`, as many bytes as fit (empty at
- *                                                           the end; ask again from offset + the bytes got)
- *   0x08 INFO          { u32 id }                           info
- *   0x09 LIST          { u32 start }                        u16 total, then u32 IDs ascending from `start`, as many
- *                                                           as fit (ask again from the last ID + 1)
- *   0x0A REMOVE        { u32 id }                           -
- *   0x0B ABORT         -                                    -
- *   0x0D RUN_ALL       { u32 id }                           - like RUN but every frame runs; the first failure comes back
- *   0x0E REMOVE_ALL    -                                   - every stored record; ERR_ACTION_BUSY while a session is open
- *
- *   info = { u16 bytes, u16 count, u32 crc32 } */
-
 #define LIST_MAX 48u  // IDs per answer, at most
 
-typedef struct __attribute__((packed)) {
-  uint32_t id;  /**< Action record ID */
-} id_args_t;
-
-typedef struct __attribute__((packed)) {
-  uint32_t id;      /**< Action record ID */
-  uint8_t execute;  /**< 1 = run while recording, 0 = record only */
-} record_start_t;
-
-typedef struct __attribute__((packed)) {
-  uint32_t id;   /**< Action record ID */
-  uint16_t len;  /**< Length in bytes */
-} begin_t;
-
-typedef struct __attribute__((packed)) {
-  uint16_t offset;  /**< Byte offset in upload */
-} write_t;
-
-typedef struct __attribute__((packed)) {
-  uint32_t crc32;  /**< CRC-32 of image */
-} commit_t;
-
-typedef struct __attribute__((packed)) {
-  uint32_t id;      /**< Action record ID */
-  uint16_t offset;  /**< Byte offset in the image */
-} read_t;
-
-typedef struct __attribute__((packed)) {
-  uint32_t start;  /**< Action record ID to start listing from */
-} list_args_t;
-
-static err_h reply_info(const sys_actions_info_t* i, cmd_out_t* out) {
-  return cmd_reply(out, i, sizeof(*i));  // {bytes, count, crc32}, LE on the ESP32
-}
-
-ROUTER_OP(op_run, id_args_t) {
+ROUTER_OP(op_run, sys_actions_id_args_t) {
   return sys_actions_run(args->id, false);
 }
 
-ROUTER_OP(op_run_all, id_args_t) {
+ROUTER_OP(op_run_all, sys_actions_id_args_t) {
   return sys_actions_run(args->id, true);
 }
 
-ROUTER_OP(op_record_start, record_start_t) {
-  const cmd_req_t* origin = router_origin();  // the client to record
-  ERR_CHECK(origin != NULL, ERR_ACTION_WRONG_TASK);
-  ERR_CHECK(origin->src != ROUTER_SRC_NONE, ERR_ACTION_BAD_ARG);  // no peer: nothing of it to record
-  return sys_actions_record_start(args->id, args->execute != 0, origin->src);
+ROUTER_OP(op_begin, sys_actions_begin_args_t) {
+  return sys_actions_record_begin(args->id, args->len);
 }
 
-ROUTER_OP_NOARGS(op_record_stop) {
-  sys_actions_info_t i;
-  ERR_TRY(sys_actions_record_stop(&i));
-  return reply_info(&i, out);
-}
-
-ROUTER_OP(op_begin, begin_t) {
-  return sys_actions_upload_begin(args->id, args->len);
-}
-
-ROUTER_OP_TAIL(op_write, write_t) {
+ROUTER_OP_TAIL(op_write, sys_actions_write_args_t) {
   ERR_CHECK(tail.len <= UINT16_MAX, ERR_CMD_BAD_ARG);
-  return sys_actions_upload_write(args->offset, tail.data, (uint16_t)tail.len);
+  return sys_actions_record_write(args->offset, tail.data, (uint16_t)tail.len);
 }
 
-ROUTER_OP(op_commit, commit_t) {
-  return sys_actions_upload_commit(args->crc32);
+ROUTER_OP(op_commit, sys_actions_commit_args_t) {
+  return sys_actions_record_commit(args->crc32);
 }
 
-ROUTER_OP(op_read, read_t) {
+ROUTER_OP(op_read, sys_actions_read_args_t) {
   return sys_actions_read(args->id, args->offset, out->data, out->cap, &out->len);
 }
 
-ROUTER_OP(op_info, id_args_t) {
+ROUTER_OP(op_info, sys_actions_id_args_t) {
   sys_actions_info_t i;
   ERR_TRY(sys_actions_info(args->id, &i));
-  return reply_info(&i, out);
+  return cmd_reply(out, &i, sizeof(i));  // {bytes, count, crc32}, LE on the ESP32
 }
 
-ROUTER_OP(op_list, list_args_t) {
+ROUTER_OP(op_list, sys_actions_list_args_t) {
   ERR_CHECK(out->cap >= sizeof(uint16_t) + sizeof(uint32_t), ERR_CMD_OUT_FULL,
             .need = sizeof(uint16_t) + sizeof(uint32_t), .cap = (uint16_t)out->cap);
   uint32_t ids[LIST_MAX];
@@ -113,7 +46,7 @@ ROUTER_OP(op_list, list_args_t) {
   return cmd_append(out, ids, count * sizeof(uint32_t));
 }
 
-ROUTER_OP(op_remove, id_args_t) {
+ROUTER_OP(op_remove, sys_actions_id_args_t) {
   return sys_actions_remove(args->id);
 }
 
@@ -128,8 +61,6 @@ ROUTER_OP_NOARGS(op_remove_all) {
 
 static const router_op_t k_ops[] = {
     ROUTER_W(SYS_ACTIONS_OP_RUN, op_run),
-    ROUTER_W(SYS_ACTIONS_OP_RECORD_START, op_record_start),
-    ROUTER_W(SYS_ACTIONS_OP_RECORD_STOP, op_record_stop),
     ROUTER_W(SYS_ACTIONS_OP_BEGIN, op_begin),
     ROUTER_W(SYS_ACTIONS_OP_WRITE, op_write),
     ROUTER_W(SYS_ACTIONS_OP_COMMIT, op_commit),

@@ -12,7 +12,7 @@ extern "C" {
  * Every record layout is a packed struct of vm_wire.h. The same ops carry the program to the board and the board's
  * values back: telemetry frames are these commands, `[ROUTER_KEY_VM][VM_OP_DATA][n]{records}` for values and
  * `[ROUTER_KEY_VM][VM_OP_ADD_OBJECTS][n]{records}` for the heap objects the app never uploaded (vm_sub.c). So a
- * telemetry frame can be fed back to the board as a command (and recorded into a record), and the app parses
+ * telemetry frame can be fed back to the board as a command (and stored in a record), and the app parses
  * both directions with one decoder.
  *
  * Ops never renumber. A failing load op (OPEN to ADD_BLOCK, and the first start) discards the whole program (fail

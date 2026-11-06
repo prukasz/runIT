@@ -6,10 +6,9 @@ Component `components/app/runit/`. The application: the boot sequence, the safe 
 |---|---|
 | `runit.h` / `runit.c` | `runit_start()` (boot steps), `runit_run_boot_steps()`, `runit_enter_safe_state()`, router registration, the safe-state handler and leave of `sys_system` |
 | `runit_error_policy.h/.c` | `runit_error_wiring_init()`: the action runner of the device error policy (the policy is `sys_device`'s, SYS_DEVICE.MD "Error policy"), the error sink, and the registry's state listener, which publishes the DEVICE events `SUSPENDED` / `RESUMED` (SYS_DEVICE.MD "Suspended and resumed") |
-| `runit_board_cfg.h/.c` | `runit_board_streams_init()`: the board's own streams, all OUT (logs, errors, telemetry, events); `runit_board_stream_bindings_init()`: the logs stream on the BLE LOGS characteristic; `runit_board_power_init()`: the power layout |
-| `runit_board_defs.h` | Onboard device IDs and power limits of board rev 1; the devkit's power limits |
-| `board.json`, `board_devkit.json` | What the app knows of the board (templates/AGENTS.md): the PCB's devices, pins, power and terminals; the devkit's device 0, reserved pins and USB limits. Kept in step with `runit_board_cfg.c` by hand |
-| `Kconfig` | `RUNIT_BLE_START`: off for QEMU. `RUNIT_BOARD`: the runIT PCB (default), an ESP32-S3 devkit (only the ESP GPIO, no power layout; `sdkconfig.devkit.defaults`) or no devices (QEMU and the test suites; `sdkconfig.qemu.defaults`) |
+| `runit_board_cfg.h/.c` | `runit_board_gpio_init()`: the ESP32-S3's GPIO device (ID `RUNIT_BOARD_GPIO_DEVICE_ID` 0, the board's own, no pins set up), the one device not in the profile; `runit_board_streams_init()`: the board's own streams, all OUT (logs, errors, telemetry, events); `runit_board_stream_bindings_init()`: the logs stream on the BLE LOGS characteristic; `runit_board_power_init()`: the power manager, with no rails until the profile gives them |
+| `board.json`, `board_devkit.json` | What the app knows of the board and writes to it as its profile (SYS_BOARD.MD, templates/AGENTS.md): the devices, I2C buses, pins, power and terminals of the PCB; the devkit's device 0, buses, reserved pins and USB limits |
+| `Kconfig` | `RUNIT_BLE_START`: off for QEMU. `RUNIT_LINK_ROLE`: the link to another board |
 
 ## Boot
 
@@ -17,39 +16,26 @@ In order; a failing step is logged and the boot goes on (one missing piece, such
 
 | Step | Does |
 |---|---|
-| session | `sys_session_init` (SYS_SESSION.MD): the board id from NVS, the boot id, the timer. First: the streams and the dead-man listen for its gone peers |
+| nvs | `nvs_init`: `sys_nvs_init` (SYS_NVS.MD) of the NVS partitions (`nvs`, `project` and `source`); the modules only open their namespaces |
+| session | `sys_session_init` (SYS_SESSION.MD): the board id from NVS, the boot id, the timer. Before the streams and the dead-man: they listen for its gone peers |
 | streams | `sys_stream_init`, `runit_board_streams_init` (the board's own streams, marked system), then `runit_error_wiring_init` (fault handlers, error sink) |
 | log | `sys_log_init()`: the ESP_LOG hook on the logs stream, with the stored options |
 | actions, events | `sys_actions_init`, `sys_event_init` |
+| board | `sys_board_init` (SYS_BOARD.MD): the profile's JSON opened. Its router is `ROUTER_KEY_BOARD` |
 | watches | `sys_watch_init` (SYS_WATCH.MD): its timer, the listener of gone peers that ends their watches, and the client of the watches added on other boards |
 | remote devices | `sys_remote_init` (SYS_REMOTE.MD), only with `RUNIT_LINK_ROOT` or `RUNIT_LINK_CHILD`: sys_device's remote hook, so a device of another board can be made (CREATE_REMOTE) and used, and its task (the subscriptions to devices) |
-| onboard actions | `runit_onboard_actions_init` (below) |
-| power | `runit_board_power_init`: `sys_power_manager_init` with the board's layout (`runit_board_cfg.c`, IDs and limits in `runit_board_defs.h`; a devkit: no rails, monitor or sink, only the USB limits) and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
-| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the actions tap, the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man: a listener of the session's gone peers), `router_init`. The provider (`ROUTER_KEY_PROVIDER`), session (`ROUTER_KEY_SESSION`) and watch (`ROUTER_KEY_WATCH`) routers too, and with a link the remote one (`ROUTER_KEY_REMOTE`) |
+| power | `runit_board_power_init`: `sys_power_manager_init` (SYS_POWER_MANAGER.MD), with a USB port's limits and no rails until the profile gives them, and `runit_enter_safe_state`. Before the router: it guards POWER_VREG |
+| router | module routers (keys in `router_ids.h`, `sys_system_router` under `ROUTER_KEY_SYS`), the event action runner, the safe-state handler and leave, `sys_system_init` (the dead-man: a listener of the session's gone peers), `router_init`. The provider (`ROUTER_KEY_PROVIDER`), session (`ROUTER_KEY_SESSION`) and watch (`ROUTER_KEY_WATCH`) routers too, and with a link the remote one (`ROUTER_KEY_REMOTE`) |
 | vm | `vm_init` (VM_CORE.MD): the event subscription, telemetry, retained values, the supervisor task. After the router (a program is loaded and run through `ROUTER_KEY_VM`) |
 | uart, ble link | the providers: the UART console, the runIT BLE pair and LOGS (SYS_UART.MD, SYS_BLE.MD) |
 | stream bindings | `runit_board_stream_bindings_init`: the logs stream bound to the BLE LOGS characteristic. Every other stream goes to the clients that subscribe to it |
 | sessions | a client session (full access) on the UART console and on the runIT BLE pair. With `RUNIT_LINK_ROOT` the sys_uart link is also a child session; with `RUNIT_LINK_CHILD` it is the parent session instead and no client is attached (a board with a parent takes none: the app reaches it through the root). The link overlays `sdkconfig.link_root.defaults` / `sdkconfig.link_child.defaults` (build.md "Two boards on a cable") |
-| i2c | `sys_i2c_init` |
-| devices | `runit_board_devices_init`, by `CONFIG_RUNIT_BOARD`: a devkit (`RUNIT_BOARD_DEVKIT`) gets only the ESP GPIO (ID 0); no devices (`RUNIT_BOARD_BARE`) skips the step. The PCB (`RUNIT_BOARD_PCB`): CREATE of the ESP GPIO (ID 0) and the TCA6424A (ID 1, 0x23, INT ESP 9, RST ESP 8), then TCA pins 22 and 23 as push-pull outputs and **pin 23 high: the status LED is lit once the boot got this far**. Pin 22 must be an output too (left low): as an input it floats and toggles at ~25 kHz, every toggle is an INT edge and the event queue overflows (measured on the PCB 2026-10-11). Then every other onboard chip in dependency order (`runit_board_defs.h` has the IDs and TCA pins): the two power muxes (7, 8; both switches off), ADS7128 (2, ALERT ESP 42, full scale 20000 mV), PCA9685 (3, OE TCA 0), TPS55289 rails A / B (10 / 11), INA3221 (12, all shunts reversed, 10 mOhm shunts), AP33772S (13), DAC53202 (4), DRV8962 #1 (5, ESP pins, 20 kHz) and #2 (6, PCA9685 CH 8..15, 50 Hz: the servos share the frequency); both as two full bridges, every channel braked, the chip's one current limit 2 A (`RUNIT_BOARD_DRV8962_LIMIT_MA`, an assumption: the legacy value is not recorded). A chip that fails is logged (`onboard device <name> failed`) and the rest are still created; only the GPIO or the expander failing stops the step. The power manager is initialised earlier and picks the rails and the INA3221 up when they appear |
-| system devices | `sys_device_mark_system`: whatever the "devices" step created is the board's own; the REMOVE sweep (`sys_device_sweep`) leaves it |
+| esp32 gpio | `runit_board_gpio_init`: CREATE of the ESP32-S3's GPIO device (id 0, flag `SYS_DEVICE_CREATE_SYSTEM`, no configuration). Every build has it, so it is not in the profile; the profile's frames only name its pins. Before `board at start` |
+| board at start | `sys_board_boot` (SYS_BOARD.MD): the RUN_ALL of the board's profile queued on the router, ahead of the project: the power layout, the devices, the I2C buses, their pins. With no profile the board has no devices and no buses, only the console and BLE |
 | ble | `sys_ble_start` (if `RUNIT_BLE_START`) |
 | project | `sys_project_init` (after `actions`: the options namespace) and, as the last step, `sys_project_boot`: the stored project is loaded, or loaded and started, on a router task as its boot option says (SYS_PROJECT.MD) |
 
 Checked on a board: a stored project with a device section and boot LOAD is loaded after the boot (the section's commands are applied once the devices exist).
-
-## Onboard actions
-
-`runit_onboard_actions.c`: the firmware's own actions, stored at every boot with `sys_actions_set` (only written when they differ, so a client's edit of these IDs is replaced). The IDs are published in `runit-app/generated/common/limits.json` (`RUNIT_ACTION_ID_*`, `#@limit` in `Kconfig`), so the app keeps its own actions off them. Each is one write frame: a device-router sweep to device `0xFFFF` (SYS_DEVICE.MD "Sweeps over the router"), or a sys command:
-
-| ID (Kconfig) | Does | Frame |
-|---|---|---|
-| 3 `RUNIT_ACTION_ID_RESUME` (user class, `0x00000003`) | resume all | `05 01 FF FF 03 00` (every device, oldest first) |
-| 4 `RUNIT_ACTION_ID_SUSPEND` (`0x00000004`) | suspend all | `05 01 FF FF 02 00` (every device, newest first) |
-| 5 `RUNIT_ACTION_ID_RESET` (`0x00000005`) | reset all devices | `05 01 FF FF 01 00` (every device, newest first; the drivers' RESET) |
-| 6 `RUNIT_ACTION_ID_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `01 01 03` (sys RESTART, `SYS_SYSTEM_OP_RESTART`, ~100 ms after the answer) |
-
-Run with `06 01 01 <id u32>` (actions RUN, a write), or name the ID in a device's error policy. Hard reset is a board restart, so the VM, the devices and the BLE link are all rebuilt by the boot (and the project's boot option, if set). Reset all does not rewind the VM and does not re-apply a boot configuration. Boot is not a record: boot configuration is a device setting.
 
 ## Safe state
 

@@ -2,7 +2,6 @@
 #include "vm_err.h"
 
 #include "nvs.h"
-#include "nvs_flash.h"
 #include "utils.h"
 #include "vm_obj_access.h"
 #include "vm_store.h"
@@ -15,8 +14,7 @@
 
 U_TASK_DEFINE(vm_retain_task_h, CONFIG_VM_RETAIN_TASK_STACK);
 
-/* The retained snapshot is one NVS blob. The default partition is initialised by the BLE stack as well; a second
-   nvs_flash_init is a no-op that returns ESP_OK. */
+/* The retained snapshot is one NVS blob, in the default partition (initialised by the boot step "nvs"). */
 static struct {
   nvs_handle_t nvs;
   bool nvs_ready;
@@ -40,12 +38,6 @@ static struct {
 
 static err_h retain_nvs_open(void) {
   if (s_retain.nvs_ready) return NULL;
-  esp_err_t rc = nvs_flash_init();
-  if (rc == ESP_ERR_NVS_NO_FREE_PAGES || rc == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    ERR_TRY_ESP(nvs_flash_erase());
-    rc = nvs_flash_init();
-  }
-  ERR_TRY_ESP(rc);
   ERR_TRY_ESP(nvs_open(VM_RETAIN_NS, NVS_READWRITE, &s_retain.nvs));
   s_retain.nvs_ready = true;
   return NULL;

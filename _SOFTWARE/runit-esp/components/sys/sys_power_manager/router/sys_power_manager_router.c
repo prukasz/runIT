@@ -11,6 +11,14 @@ ROUTER_OP_NOARGS(op_get_config) {
   return cmd_reply(out, &cfg, sizeof(cfg));
 }
 
+ROUTER_OP(op_layout, sys_power_layout_t) {
+  return sys_power_manager_set_layout(args);
+}
+
+ROUTER_OP(op_rail, sys_power_rail_t) {
+  return sys_power_manager_add_rail(args);
+}
+
 ROUTER_OP(op_set_psu, sys_power_psu_t) {
   return sys_power_manager_set_psu(args);
 }
@@ -70,6 +78,8 @@ static err_h op_set_matrix(CMD_F_PARAMS) {
 
 static const router_op_t k_ops[] = {
     ROUTER_RW(SYS_PWRM_OP_CONFIG, op_get_config, op_set_config),
+    ROUTER_W(SYS_PWRM_OP_LAYOUT, op_layout),
+    ROUTER_W(SYS_PWRM_OP_RAIL, op_rail),
     ROUTER_RW(SYS_PWRM_OP_PSU, op_get_psu, op_set_psu),
     ROUTER_RW(SYS_PWRM_OP_BATTERY, op_get_battery, op_set_battery),
     ROUTER_R(SYS_PWRM_OP_STATUS, op_get_status),

@@ -553,6 +553,164 @@
           ]
         }
       }
+    },
+    {
+      "id": "LAYOUT",
+      "op": 2,
+      "symbol": "SYS_PWRM_OP_LAYOUT",
+      "label": "Board's power layout",
+      "description": "The board's input and limits, from its profile; refused once a rail is added.",
+      "write": {
+        "args": {
+          "struct": "sys_power_layout_t",
+          "fields": [
+            {
+              "id": "max_mV",
+              "label": "Input voltage limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "mV"
+            },
+            {
+              "id": "max_mA",
+              "label": "Input current limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "unit": "mA"
+            },
+            {
+              "id": "reserve_mW",
+              "label": "Fixed loads",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 8,
+              "unit": "mW"
+            },
+            {
+              "id": "unknown_source_mA",
+              "label": "Current of an unknown source",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 12,
+              "unit": "mA"
+            },
+            {
+              "id": "vreg_efficiency_pct",
+              "label": "Regulator efficiency",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 16,
+              "unit": "%"
+            },
+            {
+              "id": "input_device",
+              "label": "Input monitor",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 17,
+              "description": "The device measuring the board input; 65535: none"
+            },
+            {
+              "id": "input_channel",
+              "label": "Input monitor channel",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 19
+            },
+            {
+              "id": "usb_pd",
+              "label": "USB-PD sink",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 20,
+              "description": "The USB-PD device; 65535: none"
+            },
+            {
+              "id": "usb_ok",
+              "label": "USB-C power good",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 22,
+              "pin_ref": true,
+              "requires": "input",
+              "optional": true,
+              "description": "High: the USB-C input is live"
+            },
+            {
+              "id": "ext_ok",
+              "label": "External input power good",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 25,
+              "pin_ref": true,
+              "requires": "input",
+              "optional": true,
+              "description": "High: the external input is live"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "RAIL",
+      "op": 5,
+      "symbol": "SYS_PWRM_OP_RAIL",
+      "label": "Add a rail",
+      "description": "Adds a regulator rail under the budget, from the board's profile; it stays until the board restarts.",
+      "write": {
+        "args": {
+          "struct": "sys_power_rail_t",
+          "fields": [
+            {
+              "id": "vreg",
+              "label": "Regulator",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "The device with the regulator contract"
+            },
+            {
+              "id": "monitor_device",
+              "label": "Monitor",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "The device measuring this rail's output"
+            },
+            {
+              "id": "monitor_channel",
+              "label": "Monitor channel",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4
+            },
+            {
+              "id": "min_mA",
+              "label": "Lowest current limit",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 5,
+              "unit": "mA"
+            }
+          ]
+        }
+      }
     }
   ],
   "events": [

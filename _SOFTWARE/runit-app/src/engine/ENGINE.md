@@ -21,7 +21,6 @@ A `Project` is `{ variables, blocks }`, plain data. The engine holds neither a p
 | `graph/` | `arrange.ts`: execution order (wiring, then the user's order), gates, feedback, loop bodies made contiguous with their spans. |
 | `expression/` | The formula component of the expression blocks (below). Depends on `catalog` types and the generated enums only; `compiler/` uses it. |
 | `compiler/` | `compile.ts` (the pipeline), `accessors.ts` (paths to accessors); `block/`: a block's state bytes (`state.ts`, `values.ts`) and the codecs (`codecs.ts`: the extension point, `expressionCodec.ts`: the formula editors); `runtime.ts`: writing and reading variables of a compiled program. |
-| `recover/` | `project.ts`: a stored program back into a project (below). Depends on everything above it; nothing depends on it. |
 
 ## Expressions
 
@@ -61,12 +60,6 @@ An empty slot stands for the first entry while the draft is inspected, so what f
 
 `engine.watch(result, detail)` (`compiler/watch.ts`, `watchPlan`) is what to SUBSCRIBE to: `flow` the blocks' When done, every variable, then every block output (the block's own objects included, the first left out when the board takes no more); `full` the same. A program compiled with `allEnableOuts` has a When done object for every block (without it only those something reads). The plan holds the ids within the board's limits (`subscribeMax`, and `subscribeTracked`: the objects its folders reach, which the board follows 8 levels deep, so a folder is one id), the flow first; `dropped` counts what did not fit. `targets` names what each object stands for: `variableKey(id)`, `outputKey(block, n)`, `doneKey(block)` (a block that writes a variable has both of its names on the one object).
 
-## Recovering a project from the program on the board
-
-`engine.recover(frames)` takes the program's load frames (`{ op, payload }`, as `programFrameOf` gives them, without the router key and the direction byte) and returns `{ project, diagnostics, parsed, exact, compileDiagnostics }`. `parseProgram` (`wire/format/parse.ts`) reads the records back into a program; `recoverProject` (`recover/project.ts`) rebuilds the project: the named objects become variables (a pointer is a folder when its children are the objects that follow it, depth first, else a reference), an accessor becomes the path of its root plus its steps, the objects without a name become the outputs of the block that writes them, and each block record becomes an instance: type, the operation and device of a device block, pins, enables, the fields read out of the state at their offsets, a formula decompiled to its text. `exact` says compiling the recovered project gives the very same program; the test does it for every block and variant of the palette.
-
-What the program never held does not come back: descriptions, the names of blocks and of a switch's cases, ids (they are `v<object>` / `b<block>`), positions on a canvas. Two programs the board cannot tell apart come back as one: a reference to the very next object reads as a folder of one, and a block that reads another block's output which that block also writes into a variable reads that variable.
-
 ## How a project becomes frames
 
 1. Variables are checked and laid out as objects (ids `0..n-1`, depth-first). A folder is a pointer object over its children, a reference one over its target; an empty folder has no object.
@@ -88,15 +81,14 @@ What the program never held does not come back: descriptions, the names of block
 | Device state layout | `catalog/layouts.ts` | `catalog.test.ts` lays out `vm_block_device_data_t` from `vm_block_device.h` |
 | Expression opcodes and stack effects | enums + `vm_expr_ops` / `vm_bit_ops` in `vm_expr_core.h` | `expression.test.ts` compares the table to the header and runs formulas on a reference stack machine; `language.test.ts` covers the per-block language, tokens and the decompile round trip |
 | Telemetry and run-time writes | `VM_CORE.MD` "Telemetry is the same command" (`vm_wire.h` records) | `tests/backend/telemetry.test.ts` decodes frames captured from a board and the write frame the board accepted |
-| Recovering a project | the records of `vm_wire.h`, `layoutVariables` and the compiler read backwards | `recover.test.ts`: every block and variant of the palette compiles, is recovered and compiles to the same bytes (`exact`) |
 | Limits | `generated/common/limits.json`: the options marked `#@limit` in the Kconfig of `vm_core`, `router` and `app/runit`, with the values the firmware is built with (`templates/generate_limits.py`); the frame size `CMD_FRAME_MAX` from `enums.json` (group `cmd_frame`) | `limits.test.ts`: the file equals `sdkconfig`, the frame size `cmd.h`, `DEFAULT_LIMITS` equals the files |
-| Frame size | `CMD_FRAME_MAX` (`cmd.h`, group `cmd_frame` of `enums.json`) less the frame's header room `CMD_HEAD` and `[key][dir][op]` of a VM command | `limits.test.ts` reads `CMD_FRAME_MAX` and `CMD_HEAD` from `cmd.h`; a link that carries less passes `limits: { frameMax }` |
+| Frame size | `CMD_FRAME_MAX` (`cmd.h`, group `cmd_frame` of `enums.json`) less the frame's header room `CMD_HEAD` and `[key][dir][op]` of a VM command | `limits.test.ts` reads `CMD_FRAME_MAX` and `CMD_HEAD` from `cmd.h`. The same on every link, so not an option of `createEngine` |
 
 ## Extending it
 
 - **A new block:** a `block_<name>.json` in the firmware (with `state_len`, which `crosscheck.py` compares with the C) and `sync.sh`: it appears in the catalog with no engine change. A block whose data grows with what the user wrote has `state_variable` and a codec for its `editor`.
 - **A new editor:** `createEngine({ codecs: [{ editor: 'my-editor', encode(ctx) { ... } }] })`; the block descriptor names it in `editor`, the user's data lives in `BlockInstance.editor`.
-- **Another board:** its `generated/` carries its own `limits.json`; or `createEngine({ limits: { maxIn: 8, frameMax: 244 } })` for one figure (a BLE link that carries a smaller frame), or `new Engine({ definitions })` with your own descriptors.
+- **Another board:** its `generated/` carries its own `limits.json`; or `createEngine({ limits: { maxIn: 8 } })` for one figure, or `new Engine({ definitions })` with your own descriptors.
 
 ## What the firmware publishes for the engine
 

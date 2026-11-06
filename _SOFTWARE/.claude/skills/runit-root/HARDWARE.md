@@ -2,8 +2,8 @@
 
 Current hardware revision. Sources of truth, in order:
 
-1. [runit-esp/components/app/runit/runit_board_defs.h](../../../runit-esp/components/app/runit/runit_board_defs.h) — device IDs, TCA pins, power limits
-2. [runit-esp/components/app/runit/runit_board_cfg.c](../../../runit-esp/components/app/runit/runit_board_cfg.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
+1. [runit-esp/boards/runit_r1_defs.h](../../../runit-esp/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
+2. [runit-esp/boards/runit_r1_devices.c](../../../runit-esp/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
 3. `runit-esp/components/devices/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
@@ -65,7 +65,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ## 3. Onboard device catalog (firmware view)
 
-All onboard chips are created at boot by `runit_board_devices_init()` (the new firmware since 2026-10-11; IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
+All onboard chips are created by the board's profile (SYS_BOARD.MD), except the ESP32-S3's own GPIO (device 0), which the firmware creates at every boot (`esp32 gpio` step, RUNIT.MD), its wiring as C in `runit-esp/boards/` (IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
 
 | ID | Chip | Contract | I2C (bus 0) | Board wiring | Role |
 |---|---|---|---|---|---|
@@ -84,7 +84,7 @@ All onboard chips are created at boot by `runit_board_devices_init()` (the new f
 | 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 12 (board input, VSUP), B = TCA 13 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
 | — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
 
-Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23 as push-pull outputs, 23 high (the status LED), 22 low. Pin 22 **must** be an output: as a floating input it toggles at ~25 kHz and floods the TCA INT line. Before the port, 22 was high (the chip's latch reset value) and 23 low.
+Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pull outputs, 23 high (the status LED), 22 low. Pin 22 **must** be an output: as a floating input it toggles at ~25 kHz and floods the TCA INT line. Before the port, 22 was high (the chip's latch reset value) and 23 low.
 
 **Design constraints worth remembering:**
 - The PCA9685 has one PWM frequency for all 16 channels, so the servo headers (CH 0–7) and DRV8962 #2 (CH 8–15) always share a frequency. Servos typically want ~50 Hz; motor drive usually runs much faster.
@@ -118,7 +118,7 @@ Also driven at boot (`runit_board_devices_init`, 2026-10-11): TCA pins 22 and 23
 
 | Hardware | Firmware status |
 |---|---|
-| DRV8962 ×2 (H-bridges) | New firmware: both create on the PCB and brake (2026-10-11, `board_tests.py`, VM supplies never switched on); no real load, overcurrent or shutdown tested; no JSON descriptor yet |
+| DRV8962 ×2 (H-bridges) | New firmware: both create on the PCB and brake (2026-10-11, `board_tests.py`, VM supplies never switched on); no real load, overcurrent or shutdown tested |
 | DAC53202 | Created (ID 4); used as DRV8962 VREF |
 | LM73100 ×4 (power-source selection) | Onboard power muxes 7 and 8 (2026-10-06, build only); the DRV8962 does not check its mux yet |
 | TPS259474 eFuses ×2 | No firmware device |

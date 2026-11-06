@@ -1,6 +1,6 @@
 # sys_uart — the console UART and the board-to-board link as providers
 
-Component `components/sys/sys_uart/`. Makes the console UART (GPIO 43/44 via the board's USB-UART bridge, 115200 baud) and, when it is a console output, the native USB-Serial-JTAG, one **provider** (SYS_DATA_PROVIDER.MD): `SYS_UART_PROVIDER` = `{SYS_DATA_PROVIDER_LINK_UART, the console's port}`, framed, wired, always up (`max_frame` = `CMD_FRAME_MAX`). The board config attaches a client session to it (SYS_SESSION.MD), so the console is a client's way to the board like the BLE pair.
+Component `components/sys/sys_uart/`. Makes the console UART (GPIO 43/44 via the board's USB-UART bridge, 115200 baud) and, when it is a console output, the native USB-Serial-JTAG, one **provider** (SYS_DATA_PROVIDER.MD): `SYS_UART_PROVIDER` = `{SYS_DATA_PROVIDER_LINK_UART, the console's port}`, framed, wired, always up. The board config attaches a client session to it (SYS_SESSION.MD), so the console is a client's way to the board like the BLE pair.
 
 The line is **binary**: every frame goes COBS-encoded with its CRC16, between 0x00 bytes.
 

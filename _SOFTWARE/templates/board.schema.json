@@ -47,6 +47,7 @@
           "scl_pin": {
             "$ref": "#/$defs/pinRef"
           },
+          "pullup": { "type": "boolean", "description": "The ESP32's internal pull-ups on" },
           "frequency_hz": { "type": "integer" },
           "description": { "type": "string" }
         }
@@ -246,6 +247,7 @@
               "additionalProperties": false,
               "properties": {
                 "use": { "type": "string" },
+                "slot": { "type": "integer", "minimum": 0, "description": "Its place in a config field that is a list of pins" },
                 "device": { "type": "integer" },
                 "pin": { "type": "integer" },
                 "mode": { "type": "string" },

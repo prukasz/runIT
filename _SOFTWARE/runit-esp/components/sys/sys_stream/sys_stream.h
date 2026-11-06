@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cmd.h"
 #include "errors.h"
 #include "sys_data_provider.h"
 #include "sys_stream_config.h"
@@ -21,12 +22,10 @@
 extern "C" {
 #endif
 
-/** @brief What a stream is, set at create (CREATE takes it) and never changed. */
-typedef struct __attribute__((packed)) {
-  uint8_t id;     /**< Its byte: 0x01..SYS_STREAM_ID_LAST */
-  uint8_t dir;    /**< sys_stream_dir_e */
-  uint8_t flags;  /**< SYS_STREAM_FLAG_* */
-} sys_stream_cfg_t;
+#define SYS_STREAM_PAYLOAD_MAX (CMD_DATA_MAX - 1u)  // the largest payload: a subscriber's frame is [stream id][payload]
+
+/** @brief What a stream is, set at create (CREATE takes it) and never changed: defined in sys_stream_router.h. */
+typedef struct sys_stream_cfg sys_stream_cfg_t;
 
 /**
  * @brief A message of the stream, on the stream task: copy what you keep and return; never wait (the task carries
@@ -56,7 +55,7 @@ MUST_USE err_h sys_stream_create(const sys_stream_cfg_t* cfg);
 
 /**
  * @brief Every stream that exists now is the board's own (state SYSTEM): REMOVE refuses it. Boot, once the app layer
- * has made the board's streams; as sys_device_mark_system for devices.
+ * has made the board's streams.
  */
 void sys_stream_mark_system(void);
 
@@ -124,17 +123,9 @@ MUST_USE err_h sys_stream_unlisten(uint8_t id, sys_stream_callback_f fn, void* c
  * @param data  The payload.
  * @param len   Bytes in `data`.
  * @return NULL when queued, or dropped without a target; ERR_STREAM_NOT_FOUND, ERR_STREAM_DIRECTION (an IN stream),
- * ERR_STREAM_TOO_LONG (longer than CMD_DATA_MAX - 1), ERR_STREAM_QUEUE_FULL.
+ * ERR_STREAM_TOO_LONG (longer than SYS_STREAM_PAYLOAD_MAX), ERR_STREAM_QUEUE_FULL.
  */
 MUST_USE err_h sys_stream_send(uint8_t id, const void* data, uint32_t len);
-
-/**
- * @brief The largest payload every target of an OUT stream takes now: CMD_DATA_MAX - 1, less when a provider of it
- * that is up takes less (an unframed one). Producers that size their frames (VM telemetry) ask per frame. Any task.
- * @param id  The stream.
- * @return Bytes; 0 when it does not exist.
- */
-uint32_t sys_stream_max_payload(uint8_t id);
 
 /** @brief True when the caller runs on the stream task (the log hook skips its lines: they would loop). */
 bool sys_stream_is_task(void);

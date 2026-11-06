@@ -27,7 +27,7 @@ Component `components/sys/sys_session/`. A **session** is a provider (SYS_DATA_P
 | `call/sys_session_call.c` / `.h` | The board's calls to other boards: their slots and lock, answers, timeouts, waiting (`sys_session_call`, `_call_wait`, `_no_wait`) |
 | `internal/sys_session_slot.h` | For `sys_session.c` and the hello only: a session's slot |
 | `internal/sys_session_internal.h` | For its router (PEERS), the hello and the calls only: the route, a session's copy, opening and ending it, its timeout, the list; the frames out (raw, control, broadcast); the reached listeners |
-| `router/sys_session_router.h` / `.c` | The remote interface: ID, ATTACH, DETACH, PEERS |
+| `router/sys_session_router.h` / `.c` | The remote interface: ID, ATTACH, DETACH, PEERS. The header publishes the ops (`SYS_SESSION_OP_*`, with their sides) and the wire layouts, each op above its frame |
 | `router/contract_session.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_SESSION_MAP`, its registration, the messages |
 | `Kconfig` | Sessions, calls, listeners, timeouts |
@@ -72,8 +72,8 @@ What follows the header is at most `CMD_DATA_MAX`. The frame size is the protoco
 
 ## A session's life
 
-1. `sys_session_attach(provider, peer)`: the session opens the provider (it is meant for a framed one: every frame between the board and its peer has the same limit). A board with a master has no other session: a master next to any session, or anything next to a master, is `ERR_SESSION_ROLE`.
-2. When the provider comes up (its rx with `max_frame` > 0), the board sends HELLO (version, id, MAC, `boot_id`, firmware, its timeout, to its master its subtree). A client sends its hello with its own id (the app's is `SYS_SESSION_ID_APP`).
+1. `sys_session_attach(provider, peer)`: the session opens the provider (a framed one only, else `ERR_SESSION_NOT_FRAMED`: every frame between the board and its peer has the same limit). A board with a master has no other session: a master next to any session, or anything next to a master, is `ERR_SESSION_ROLE`.
+2. When the provider comes up (its rx with `data` NULL, `len` 1), the board sends HELLO (version, id, MAC, `boot_id`, firmware, its timeout, to its master its subtree). A client sends its hello with its own id (the app's is `SYS_SESSION_ID_APP`).
 3. The session **opens** when both hellos have passed: the same version (`ERR_SESSION_VERSION`, else it stays closed), an id no other session has (`ERR_SESSION_ID_TAKEN`).
 4. Until then only control frames pass: anything else is answered `NO_SESSION` with the hello, so a peer that missed a restart (UART has no disconnect) starts over.
 5. A hello on an open session updates it (a new subtree, a new timeout); a new `boot_id` ends it first: the peer restarted, so what it had here is gone.
@@ -179,10 +179,12 @@ The master's session ending is told once, with `peer` `SYS_SESSION_ID_BROADCAST`
 
 ## Remote (`sys_session_router`, root key `ROUTER_KEY_SESSION` 0x0E)
 
+The ops and the frames are in `sys_session_router.h`, each op above its frame; `contract_session.json` names them.
+
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
-| `0x01` | ID | read / write | write `u8 board_id` (NVS, from the next start); read → `u8 board_id` |
-| `0x02` | ATTACH | write | provider id, `u8 peer` (`sys_session_peer_e`) |
+| `0x01` | ID | read / write | write `sys_session_id_args_t` `{u8 board_id}` (NVS, from the next start); read → `sys_session_id_args_t` |
+| `0x02` | ATTACH | write | `sys_session_attach_args_t` `{provider id, u8 peer}` (`sys_session_peer_e`) |
 | `0x03` | DETACH | write | provider id |
 | `0x04` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: provider id, `u8 peer` (`sys_session_peer_e`), `u8 open`, `u8 peer_id` (`NONE` before its hello), `u16` this board's timeout of it |
 
@@ -216,5 +218,4 @@ The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a c
 
 - The hello's firmware version is sent as 0.
 - The users of the stream and reached listeners and of calls to other boards are the watches' client (SYS_WATCH.MD) and sys_remote (SYS_REMOTE.MD); the board config's own calls to other boards are not written.
-- OTA, the flasher: jobs on calls and streams (CMD.MD "Long work").
 - The app learns of a slave's restart only by the silence of its watches on it; a message from the master to its clients when a slave's session ends or restarts would tell it at once, and would cover the ON_EVENT watches.

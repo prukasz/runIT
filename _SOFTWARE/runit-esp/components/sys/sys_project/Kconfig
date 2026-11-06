@@ -1,5 +1,13 @@
 menu "sys_project"
 
+    config SYS_PROJECT_SOURCE_PARTITION
+        string "Partition of the project's source"
+        default "source"
+        help
+          The NVS partition (partitions.csv, 1 MB) that keeps the project as the
+          app edits it, gzipped. The firmware stores the bytes and never reads
+          them.
+
     config SYS_PROJECT_MAX_BYTES
         int "Largest project stream (bytes)"
         default 65536

@@ -17,6 +17,7 @@
   X(ERR_SESSION_CALLS_FULL,   ERR_TAG(ERR_MOD_SYS_SESSION, 12), ERR_SEV_MEDIUM, {}) /* every CONFIG_SYS_SESSION_CALLS slot in use */ \
   X(ERR_REMOTE,               ERR_TAG(ERR_MOD_SYS_SESSION, 13), ERR_SEV_NONE,   { uint8_t board; uint16_t seq; }) /* context: the chain below is that board's */ \
   X(ERR_SESSION_WOULD_BLOCK,  ERR_TAG(ERR_MOD_SYS_SESSION, 14), ERR_SEV_HIGH,   {}) /* call_wait on a task that must not wait */ \
-  X(ERR_SESSION_BUSY,         ERR_TAG(ERR_MOD_SYS_SESSION, 15), ERR_SEV_LOW,    { uint8_t dst; }) /* calls in flight to dst at the limit: later */
+  X(ERR_SESSION_BUSY,         ERR_TAG(ERR_MOD_SYS_SESSION, 15), ERR_SEV_LOW,    { uint8_t dst; }) /* calls in flight to dst at the limit: later */ \
+  X(ERR_SESSION_NOT_FRAMED,   ERR_TAG(ERR_MOD_SYS_SESSION, 16), ERR_SEV_MEDIUM, {}) /* attach: a raw provider carries no whole frame */
 
 ERR_TAGS_DECLARE(ERR_SYS_SESSION_MAP)

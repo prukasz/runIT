@@ -2,8 +2,7 @@ import type { BlockInstance, BlockType, Field, FieldValue, Variable } from '@eng
 import { blk, engine, eno, flag, folder, num, read } from './helpers'
 
 /*
- * The least a user must give a block (and a variant of it) for it to compile: the projects the palette test compiles and the
- * recovery test reads back.
+ * The least a user must give a block (and a variant of it) for it to compile: the projects the palette test compiles.
  */
 
 const valueOf = (f: Field): FieldValue | undefined => {

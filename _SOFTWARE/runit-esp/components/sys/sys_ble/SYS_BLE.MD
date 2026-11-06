@@ -13,14 +13,14 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
 | `link/sys_ble_link.c/.h` | The runIT service and its two providers (`SYS_BLE_PROVIDER_RUNIT`, `SYS_BLE_PROVIDER_LOGS`), and the providers of run-time characteristics: their driver |
-| `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status |
+| `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status. The header publishes every op (`SYS_BLE_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Boot
 
-`ble link` (`sys_ble_link_init`) builds the runIT service and adds its providers. It runs after `router` and before `stream bindings` and `sessions`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `system devices`. Boot steps: `components/app/runit/runit.c`.
+`ble link` (`sys_ble_link_init`) builds the runIT service and adds its providers. It runs after `router` and before `stream bindings` and `sessions`. `ble` (`sys_ble_start`) builds NimBLE and starts advertising. It runs only with `CONFIG_RUNIT_BLE_START` (default on), after `devices`. Boot steps: `components/app/runit/runit.c`.
 
 ## The GATT table
 
@@ -51,9 +51,9 @@ single-packet frame: C0 <frame>
 
 ## Providers
 
-`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up (`max_frame` = `CMD_FRAME_MAX`) while a client is connected, down (0) otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs stream to LOGS (`components/app/runit/`). No VM block writes to a characteristic yet.
+`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up while a client is connected, down otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs stream to LOGS (`components/app/runit/`). No VM block writes to a characteristic yet.
 
-**Run-time characteristics as providers.** CHAR_CREATE (and `sys_ble_link_char_add`) makes a provider `{BLE, uuid}` of a characteristic that is **unframed** and either writes with no RX buffer (an rx provider: each write is one message to the provider's user, on the host task, at most MTU − 3 bytes) or has a TX buffer (a tx provider: `send` is one notification, `sys_ble_char_send`). A framed one, or one with neither, gets none. These providers are unframed (`FRAMED` clear), up while a client is connected, with `max_frame` the characteristic's largest item now (the TX buffer's, the MTU less the ATT header; a write-only one the MTU's): the MTU exchange tells the connection listeners again, so it follows the MTU. At most `CONFIG_SYS_BLE_USER_PROVIDERS` (a static table; they take slots of `CONFIG_SYS_DATA_PROVIDER_MAX` too): past that, or an id taken, CHAR_CREATE is refused and the characteristic is not kept. CHAR_REMOVE and SVC_REMOVE remove the providers first: one that a stream's binding or a session has open is `ERR_PROV_IN_USE` and nothing is removed. A stream binds one with BIND (SYS_STREAM.MD): an IN stream takes what the peer writes, an OUT stream notifies it.
+**Run-time characteristics as providers.** CHAR_CREATE (and `sys_ble_link_char_add`) makes a provider `{BLE, uuid}` of a characteristic that is **unframed** and either writes with no RX buffer (an rx provider: each write is one message to the provider's user, on the host task, at most MTU − 3 bytes) or has a TX buffer (a tx provider: `send` is one notification, `sys_ble_char_send`). A framed one, or one with neither, gets none. These providers are raw (`FRAMED` clear), up while a client is connected. A send longer than the characteristic's largest item now (the TX buffer's, the MTU less the ATT header) is refused here, `ERR_BLE_TOO_LONG`: the size stays in this driver. At most `CONFIG_SYS_BLE_USER_PROVIDERS` (a static table; they take slots of `CONFIG_SYS_DATA_PROVIDER_MAX` too): past that, or an id taken, CHAR_CREATE is refused and the characteristic is not kept. CHAR_REMOVE and SVC_REMOVE remove the providers first: one that a stream's binding or a session has open is `ERR_PROV_IN_USE` and nothing is removed. A stream binds one with BIND (SYS_STREAM.MD): an IN stream takes what the peer writes, an OUT stream notifies it.
 
 ## Data paths
 
@@ -76,6 +76,7 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 
 ## Connection
 
+- The board asks for the connection parameters only. The PHY and the packet length are the central's: Windows sets 2M and 251 B within about 100 ms of connecting (both are logged). The board must not request them too: such a request collides with the central's and can leave a link-layer procedure unanswered, and the link drops exactly 40 s after connecting (reason `0x222`, LL response timeout). Only a test held past 40 s shows it (`m-soak` of the app's hardware suite).
 - On connect, the MTU is the link's current MTU (a client may finish the exchange before the connect event). The device then starts the exchange itself, offering `CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU` (527 in `sdkconfig`, the NimBLE maximum). A PC negotiates 527.
 - Connection parameters: interval 7.5 ms, latency 0, supervision timeout 2 s. The central may refuse them or round them up.
 - On disconnect: TX buffers are drained, subscriptions are cleared, advertising restarts and the listeners are called.

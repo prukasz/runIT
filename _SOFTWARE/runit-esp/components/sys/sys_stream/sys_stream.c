@@ -6,8 +6,9 @@
 #include "sys_stream_router.h"
 #include "utils.h"
 
-#define ID_BYTE     1u  // a queued message and a subscriber's frame are [stream id][payload]
-#define PAYLOAD_MAX (CMD_DATA_MAX - ID_BYTE)
+#define ID_BYTE 1u  // a queued message and a subscriber's frame are [stream id][payload]
+
+_Static_assert(SYS_STREAM_PAYLOAD_MAX == CMD_DATA_MAX - ID_BYTE, "a stream's frame fits");
 
 _Static_assert(SYS_STREAM_ID_LAST < SYS_SESSION_CHANNEL_FIRST, "a stream id is never a session channel");
 
@@ -202,7 +203,7 @@ err_h sys_stream_remove(uint8_t id) {
 // provider that goes up or down (data NULL), and anything on a stream that is no longer IN and bound there, is dropped.
 static void on_provider_rx(void* ctx, sys_data_provider_id_t from, const uint8_t* data, uint32_t len) {
   const uint8_t id = (uint8_t)(uintptr_t)ctx;
-  if (data == NULL || len > PAYLOAD_MAX) {
+  if (data == NULL || len > SYS_STREAM_PAYLOAD_MAX) {
     return;
   }
   const target_t binding = {.t = {.type = SYS_STREAM_TARGET_PROVIDER, .provider = from}};
@@ -301,32 +302,9 @@ uint8_t sys_stream_list(sys_stream_info_t out[CONFIG_SYS_STREAM_MAX]) {
  * Data
  * ------------------------------------------------------------------------- */
 
-uint32_t sys_stream_max_payload(uint8_t id) {
-  sys_data_provider_id_t bound[CONFIG_SYS_STREAM_TARGETS];
-  uint8_t n = 0;
-  xSemaphoreTake(sys_stream_mutex, portMAX_DELAY);
-  const stream_t* s = find(id);
-  for (uint8_t i = 0; s != NULL && s->head.cfg.dir == SYS_STREAM_OUT && i < s->head.targets; i++) {
-    if (s->targets[i].t.type == SYS_STREAM_TARGET_PROVIDER) {
-      bound[n++] = s->targets[i].t.provider;
-    }
-  }
-  xSemaphoreGive(sys_stream_mutex);
-  if (s == NULL) {
-    return 0;
-  }
-  // A provider gets the payload as is: its max_frame, when it is up.
-  uint32_t max = PAYLOAD_MAX;
-  for (uint8_t i = 0; i < n; i++) {
-    const uint32_t m = sys_data_provider_max_frame(bound[i]);
-    max = m > 0 && m < max ? m : max;
-  }
-  return max;
-}
-
 err_h sys_stream_send(uint8_t id, const void* data, uint32_t len) {
   ERR_CHECK(data != NULL || len == 0, ERR_STREAM_BAD_ARG);
-  ERR_CHECK(len <= PAYLOAD_MAX, ERR_STREAM_TOO_LONG, .stream = id, .len = (uint16_t)len, .max = PAYLOAD_MAX);
+  ERR_CHECK(len <= SYS_STREAM_PAYLOAD_MAX, ERR_STREAM_TOO_LONG, .stream = id, .len = (uint16_t)len, .max = SYS_STREAM_PAYLOAD_MAX);
   xSemaphoreTake(sys_stream_mutex, portMAX_DELAY);
   const stream_t* s = find(id);
   const bool out = s != NULL && s->head.cfg.dir == SYS_STREAM_OUT;

@@ -17,7 +17,7 @@ Nothing depends on this component, so it may use them all: a board without other
 | `sys_remote.h` | Use: init, subscribe, unsubscribe, the error sink's hook |
 | `sys_remote.c` | The hook (calls), the subscriptions of both sides, the queue and the task |
 | `config/sys_remote_config.h` | The kinds of a frame (published to the app) |
-| `router/sys_remote_router.h` / `.c` | The remote interface: SUBSCRIBE, UNSUBSCRIBE (root key `ROUTER_KEY_REMOTE` 0x10) |
+| `router/sys_remote_router.h` / `.c` | The remote interface: SUBSCRIBE, UNSUBSCRIBE (root key `ROUTER_KEY_REMOTE` 0x10). The header publishes the ops (`SYS_REMOTE_OP_*`, with their sides) and the frame (`sys_remote_device_ref_t`), each op above its frame |
 | `router/contract_remote.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_REMOTE_MAP` (`ERR_MOD_SYS_REMOTE` = 21), its registration, the messages |
 | `Kconfig` | The read period, the subscriptions, the aliases, the queue, the task |
@@ -61,10 +61,12 @@ The hook gets the device's record (`board`, `remote_id`, `flags`) and the device
 
 ## Remote (`sys_remote_router`, root key `ROUTER_KEY_REMOTE` 0x10)
 
+The ops and the frame are in `sys_remote_router.h`; `contract_remote.json` names them.
+
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
-| `0x01` | SUBSCRIBE | write | `u16 id`, a device of this board; the subscriber: the command's `src` |
-| `0x02` | UNSUBSCRIBE | write | `u16 id`, of the command's `src` |
+| `0x01` | SUBSCRIBE | write | `sys_remote_device_ref_t` `{u16 id}`, a device of this board; the subscriber: the command's `src` |
+| `0x02` | UNSUBSCRIBE | write | `sys_remote_device_ref_t`, of the command's `src` |
 
 ## Errors (`ERR_MOD_SYS_REMOTE` = 21)
 

@@ -70,16 +70,16 @@ describe('frames of the session (SYS_SESSION.MD examples)', () => {
   })
 
   it('decodes the error record of the ERRORS.MD example, naming the tags from errors.json', () => {
-    const frame = bytes('44 f0 00 07 00 01 40 8d 1b 5e 9b 01 00 00 f0 07 00 00 03 02 02 00 03 01 00 02 00 01 02 01 00 02 00 01 02 10 00 01 00 01 00')
+    const frame = bytes('44 f0 00 07 00 01 40 8d 1b 5e 9b 01 00 00 f0 07 00 00 03 02 02 00 03 01 00 02 00 01 02 01 00 02 00 01 02 02 00 01 00 01 00')
     const response = decodeResponse(defs, frame)!
     const record = decodeErrorRecord(defs, response.data, errorCatalog())!
     expect(record.source).toBe('command')
     expect(record.time).toBe(0x19b5e1b8d40) // the board's clock, UTC ms
     expect(record.command).toMatchObject({ sender: 0xf0, seq: 7, flags: 0, requestCut: false })
     expect(hex(record.command!.request)).toBe('02 02 00')
-    expect(record.chain.map((n) => n.info?.name)).toEqual(['ERR_ROUTER_KEY', 'ERR_ROUTER_KEY', 'ERR_I2C_REMOTE_DENIED'])
+    expect(record.chain.map((n) => n.info?.name)).toEqual(['ERR_ROUTER_KEY', 'ERR_ROUTER_KEY', 'ERR_I2C_BAD_BUS'])
     expect(record.chain[0]!.fields).toEqual({ key: 2 })
-    expect(record.cause?.info?.name).toBe('ERR_I2C_REMOTE_DENIED')
+    expect(record.cause?.info?.name).toBe('ERR_I2C_BAD_BUS')
     expect(record.cause?.fields).toEqual({ bus: 0 })
     expect(record.chainCut).toBe(false)
   })
@@ -111,7 +111,7 @@ describe('framing (SYS_BLE.MD examples)', () => {
     const packets = fragment(defs, frame, 3) // 2 data bytes a packet: 100 packets
     expect(packets).toHaveLength(100)
     expect(packets[64]![0]! & 0x3f).toBe(0)
-    const reassembler = new Reassembler(defs, 512)
+    const reassembler = new Reassembler(defs)
     const results = packets.map((p) => reassembler.push(p))
     expect(results.slice(0, -1).every((r) => r === undefined)).toBe(true)
     expect(results.at(-1)).toEqual({ frame })
@@ -138,8 +138,8 @@ describe('framing (SYS_BLE.MD examples)', () => {
   })
 
   it('drops a frame over the limit', () => {
-    const reassembler = new Reassembler(defs, 8)
-    const results = fragment(defs, new Uint8Array(20), 5).map((p) => reassembler.push(p))
+    const reassembler = new Reassembler(defs)
+    const results = fragment(defs, new Uint8Array(defs.frameMax + 1), 100).map((p) => reassembler.push(p))
     expect(results.some((r) => r && 'dropped' in r)).toBe(true)
     expect(results.some((r) => r && 'frame' in r)).toBe(false)
   })

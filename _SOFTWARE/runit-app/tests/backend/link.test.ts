@@ -104,6 +104,21 @@ describe('commands', () => {
     await Promise.all(normal)
   })
 
+  it('a NOREPLY request is done once written: no wait for an answer that never comes, no timeout, no stall', async () => {
+    const board = new FakeBoard()
+    board.respond = () => undefined // the board answers nothing, as it does for NOREPLY
+    const link = await linkTo(board, { timeoutMs: 20, stallAfter: 1 })
+    const events: string[] = []
+    link.commands.observe((e) => events.push(e.type))
+    for (let i = 0; i < 5; i++) expect([...(await link.request({ ...PING, noReply: true }))]).toEqual([])
+    expect(board.requests.map((r) => r[1])).toEqual(Array(5).fill(defs.flags.noReply))
+    await new Promise((r) => setTimeout(r, 60))
+    expect(events.filter((e) => e === 'timeout')).toEqual([])
+    expect(link.state).toBe('connected')
+    expect(link.commands.pending).toBe(0)
+    await link.close()
+  })
+
   it('urgent requests set the flag the firmware published', async () => {
     const board = new FakeBoard()
     echo(board)

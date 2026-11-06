@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 /**
- * @brief I2C master on the two board buses. Bus pins and options come from
- * Kconfig (menu "sys_i2c"); sys_i2c_init() creates the enabled buses. A chip
- * is a sys_i2c_dev_t embedded in its owner, attached with sys_i2c_dev_add().
+ * @brief I2C master on two buses, created with their pins by sys_i2c_bus_create()
+ * (the board's profile, SYS_BOARD.MD). A chip is a sys_i2c_dev_t embedded in
+ * its owner, attached with sys_i2c_dev_add().
  * Transfers are thread-safe: the ESP-IDF driver locks the bus per transfer.
  */
 
@@ -46,34 +46,29 @@ typedef struct {
  * Buses
  * ------------------------------------------------------------------------- */
 
-/**
- * @brief Creates every bus enabled in Kconfig. A bus already created is
- * skipped, so it can be called again after a failure.
- */
-MUST_USE err_h sys_i2c_init(void);
+/** @brief A bus and its pins: the frame of BUS_CREATE, defined in sys_i2c_router.h. */
+typedef struct sys_i2c_bus_cfg sys_i2c_bus_cfg_t;
 
 /**
- * @brief Whether `bus` exists and was created.
+ * @brief Creates a bus on its pins, both of the ESP32-S3's GPIO device, which must exist (ERR_I2C_BAD_PIN: a pin of
+ * another device; the controller can't reach it). ERR_I2C_BAD_BUS: no such bus; ERR_I2C_BUS_EXISTS: created already;
+ * ERR_I2C_BUS_INIT: the driver refused it.
+ */
+MUST_USE err_h sys_i2c_bus_create(const sys_i2c_bus_cfg_t* cfg);
+
+/** @brief What `bus` was created with. ERR_I2C_BAD_BUS: no such bus, or not created. */
+MUST_USE err_h sys_i2c_bus_get(uint8_t bus, sys_i2c_bus_cfg_t* cfg);
+
+/**
+ * @brief Removes `bus` and frees its pins. ERR_I2C_BUS_IN_USE while a device
+ * is added on it. No scan or raw access may be running on it.
+ */
+MUST_USE err_h sys_i2c_bus_remove(uint8_t bus);
+
+/**
+ * @brief Whether `bus` is created.
  */
 bool sys_i2c_bus_ready(uint8_t bus);
-
-/**
- * @brief Configuration and state of one bus.
- */
-typedef struct {
-  bool enabled;      // in Kconfig
-  bool ready;        // created by sys_i2c_init
-  bool pullup;       // internal pull-ups on
-  uint8_t sda;       // GPIO
-  uint8_t scl;       // GPIO
-  uint32_t used[4];  // bit n = a device is added at address n
-} sys_i2c_bus_info_t;
-
-/**
- * @brief Fills `info` for `bus` (snapshot). ERR_I2C_BAD_BUS only for a bus
- * index out of range; a disabled bus is reported, not an error.
- */
-MUST_USE err_h sys_i2c_bus_info(uint8_t bus, sys_i2c_bus_info_t* info);
 
 /**
  * @brief Checks whether a chip acks `addr` (probe at 100 kHz, no data).

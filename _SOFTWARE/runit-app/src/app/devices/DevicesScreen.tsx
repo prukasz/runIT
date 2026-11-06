@@ -130,7 +130,7 @@ function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState
   // the project's, each under its origin.
   const actions: Choice<number>[] = [
     ...(enums.device_response?.members ?? []).map((m): Choice<number> => ({ value: m.value, label: m.alias ?? m.name, group: 'This device', ...(m.description ? { description: m.description } : {}) })),
-    ...onboardActions().map((a): Choice<number> => ({ value: a.id, label: a.alias.replace(/^Onboard action: /, '').replace(/^./, (c) => c.toUpperCase()), group: 'Board' })),
+    ...onboardActions().map((a): Choice<number> => ({ value: a.id, label: a.alias, group: 'Board' })),
     ...state.project.actions.map((a): Choice<number> => ({ value: a.id, label: a.name, group: 'Project' })),
   ]
   const set = (next: Policy) => setPolicy(device, state, next)

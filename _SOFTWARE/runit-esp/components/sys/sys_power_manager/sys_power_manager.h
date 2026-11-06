@@ -89,7 +89,7 @@ enum { PWRM_CONTRACT = SYS_DEVICE_CONTRACT_POWER_MANAGER };  // events only: the
 SYS_EVENTS_DECLARE(PWRM)
 
 /* ----------------------------------------------------------------------------
- * Board description (static, from the board config)
+ * Board description (what LAYOUT and RAIL gave, else a USB port's limits with no rails)
  * ------------------------------------------------------------------------- */
 
 /** @brief One monitor channel: a device with the POWER_MONITOR contract, or device SYS_DEVICE_ID_NONE. */
@@ -112,7 +112,7 @@ typedef struct {
   sys_io_pin_t ext_ok;  // the external input (a supply or a battery); it has priority when both are live
 } sys_power_source_pins_t;
 
-/** @brief The board's power layout. Must stay valid (static): the rails and monitors never change at run time. */
+/** @brief The board's power layout, as the manager keeps it. */
 typedef struct {
   uint32_t max_mV;              // hardware trip of the input: budget cap; above it INPUT_OVP
   uint32_t max_mA;              // hardware trip of the input: budget cap
@@ -127,6 +127,28 @@ typedef struct {
   const uint8_t* responses;     // default sys_power_response_e per sys_power_kind_e (SYS_POWER_KIND_COUNT; NULL = Notify):
                                 // the board's events, and every rail without its own
 } sys_power_board_t;
+
+/** @brief LAYOUT: the board's input and limits. A device or pin set to SYS_DEVICE_ID_NONE: the board has none. */
+typedef struct __attribute__((packed)) {
+  uint32_t max_mV;
+  uint32_t max_mA;
+  uint32_t reserve_mW;
+  uint32_t unknown_source_mA;
+  uint8_t vreg_efficiency_pct;  // 1..100
+  uint16_t input_device;        // the board input's monitor
+  uint8_t input_channel;
+  uint16_t usb_pd;
+  sys_io_pin_t usb_ok;
+  sys_io_pin_t ext_ok;
+} sys_power_layout_t;
+
+/** @brief RAIL: one regulator rail under the budget. */
+typedef struct __attribute__((packed)) {
+  uint16_t vreg;
+  uint16_t monitor_device;
+  uint8_t monitor_channel;
+  uint32_t min_mA;
+} sys_power_rail_t;
 
 /* Response target: the board (its input, the manager's own events) or a rail by its device ID. */
 #define SYS_POWER_TARGET_BOARD 0xFFFFu
@@ -206,7 +228,13 @@ typedef void (*sys_power_safe_state_f)(void);
  * Boot step, after sys_event_init. The devices may come later: a missing input monitor is
  * skipped until it answers, a missing rail counts as off.
  */
-MUST_USE err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_state_f safe_state);
+MUST_USE err_h sys_power_manager_init(sys_power_safe_state_f safe_state);
+
+/** @brief Sets the board's input and limits; refused (ERR_PWRM_BAD_ARG) once a rail is added. From the board's profile. */
+MUST_USE err_h sys_power_manager_set_layout(const sys_power_layout_t* layout);
+
+/** @brief Adds a rail, with the board's responses; a rail stays until the board restarts. From the board's profile. */
+MUST_USE err_h sys_power_manager_add_rail(const sys_power_rail_t* rail);
 
 /** @brief Stored at once, applied on the next tick (woken now). enabled, strict 0 / 1, soft_margin_pct 0..100, source a
  * sys_power_source_e. */

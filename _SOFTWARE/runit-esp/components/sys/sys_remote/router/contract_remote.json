@@ -17,7 +17,7 @@
       "description": "Subscribes the sender to a device of this board: its events and its errors outside a command come to the sender until UNSUBSCRIBE or the sender is gone.",
       "write": {
         "args": {
-          "struct": "device_ref_t",
+          "struct": "sys_remote_device_ref_t",
           "fields": [
             {
               "id": "id",
@@ -40,7 +40,7 @@
       "description": "Ends the sender's subscription to a device of this board.",
       "write": {
         "args": {
-          "struct": "device_ref_t",
+          "struct": "sys_remote_device_ref_t",
           "fields": [
             {
               "id": "id",

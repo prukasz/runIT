@@ -29,3 +29,5 @@
 #define ERR_MOD_SYS_WATCH          19u // components/sys/sys_watch (reads run by a trigger, their entries)
 #define ERR_MOD_MQTT   20u
 #define ERR_MOD_SYS_REMOTE         21u // components/sys/sys_remote (devices of other boards: calls, subscriptions to their events and errors)
+#define ERR_MOD_SYS_OTA            23u // components/sys/sys_ota (the firmware update)
+#define ERR_MOD_SYS_NVS            22u // components/sys/sys_nvs (NVS partitions, JSON files in chunks)

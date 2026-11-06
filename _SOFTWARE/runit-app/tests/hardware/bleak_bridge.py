@@ -71,7 +71,7 @@ class Bridge:
 
     async def write(self, m: dict) -> dict:
         assert self.client is not None and self.write_char is not None
-        await self.client.write_gatt_char(self.write_char, bytes.fromhex(m["data"]), response=True)
+        await self.client.write_gatt_char(self.write_char, bytes.fromhex(m["data"]), response=False)
         return {}
 
     async def close(self, _m: dict) -> dict:

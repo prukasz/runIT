@@ -1,0 +1,152 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "OTA",
+  "router_key": 18,
+  "alias": "Firmware update",
+  "description": "A new firmware written over any link into the board's other slot, and what the board runs now.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "BEGIN",
+      "op": 1,
+      "symbol": "SYS_OTA_OP_BEGIN",
+      "label": "Start a firmware update",
+      "description": "Opens a write of the given length into the other slot, in place of one left open. Refused while the program runs.",
+      "write": {
+        "args": {
+          "struct": "sys_ota_begin_args_t",
+          "fields": [
+            {
+              "id": "size",
+              "label": "Image size",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "The image's length"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "WRITE",
+      "op": 2,
+      "symbol": "SYS_OTA_OP_WRITE",
+      "label": "Write a chunk of the firmware",
+      "description": "The next bytes of the image. The offset must be the bytes so far.",
+      "write": {
+        "args": {
+          "struct": "sys_ota_write_args_t",
+          "fields": [
+            {
+              "id": "offset",
+              "label": "Byte offset",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "The bytes so far"
+            },
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The chunk's bytes (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "COMMIT",
+      "op": 3,
+      "symbol": "SYS_OTA_OP_COMMIT",
+      "label": "Finish the firmware update",
+      "description": "Checks the image and makes it what the next boot starts. The write is closed, also on failure.",
+      "write": {}
+    },
+    {
+      "id": "ABORT",
+      "op": 4,
+      "symbol": "SYS_OTA_OP_ABORT",
+      "label": "Drop the firmware update",
+      "description": "Drops the write in progress.",
+      "write": {}
+    },
+    {
+      "id": "INFO",
+      "op": 5,
+      "symbol": "SYS_OTA_OP_INFO",
+      "label": "Firmware info",
+      "description": "The slot the board runs from, whether that firmware is confirmed, and the write in progress.",
+      "read": {
+        "returns": {
+          "struct": "sys_ota_info_reply_t",
+          "description": "What runs now",
+          "fields": [
+            {
+              "id": "slot",
+              "label": "Slot",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The app slot it runs from: 0 or 1"
+            },
+            {
+              "id": "state",
+              "label": "State",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "enum": "sys_ota_state_e"
+            },
+            {
+              "id": "open",
+              "label": "Update in progress",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2
+            },
+            {
+              "id": "written",
+              "label": "Bytes written",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 3,
+              "unit": "B"
+            },
+            {
+              "id": "slot_bytes",
+              "label": "Slot size",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 7,
+              "unit": "B",
+              "description": "The largest image the other slot takes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "CONFIRM",
+      "op": 6,
+      "symbol": "SYS_OTA_OP_CONFIRM",
+      "label": "Keep the running firmware",
+      "description": "After the first boot of a new firmware: no restart goes back to the old one any more. Nothing when it is not to be confirmed.",
+      "write": {}
+    }
+  ]
+}

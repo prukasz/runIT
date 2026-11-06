@@ -106,8 +106,13 @@ typedef struct __attribute__((packed)) {
   enum { P##_CONTRACT = (contract), P##_OPERATIONS(SYS_DEVICE__ID, P) }; \
   P##_OPERATIONS(SYS_DEVICE__TYPES, P)
 
+/* CREATE's [flags u8]. SYSTEM: the board's own device, it can't be removed (ERR_DEV_SYSTEM) and the REMOVE sweep leaves
+ * it, so changing the project removes only the other devices. */
+#define SYS_DEVICE_CREATE_HDR    3u     // [type u16][flags u8], then the create struct
+#define SYS_DEVICE_CREATE_SYSTEM 0x01u
+
 enum {
-  SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),         // CREATE: [type u16][create struct]
+  SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),  // [type u16][flags u8][create struct]
   SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
 };
 SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
@@ -263,18 +268,11 @@ MUST_USE err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, con
 /**
  * @brief Runs SUSPEND, RESUME, RESET or REMOVE (`op`, else ERR_DEV_UNKNOWN_OP) on every instance: newest first (a
  * device before the devices it uses), RESUME oldest first; REMOVE leaves the board's own devices
- * (sys_device_mark_system). SUSPEND of every device is the fault safe state. Best effort: all are tried, the first
+ * (SYS_DEVICE_CREATE_SYSTEM). SUSPEND of every device is the fault safe state. Best effort: all are tried, the first
  * error is returned (wrapped in ERR_DEV_ID), the others go to err_report().
  * @usage err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
  */
 MUST_USE err_h sys_device_sweep(uint16_t op);
-
-/**
- * @brief Marks every device registered now as the board's own (created by the system at boot): they can't be removed
- * (ERR_DEV_SYSTEM) and the REMOVE sweep leaves them, so changing the project removes only the devices it created.
- * Boot step, after the onboard devices are created.
- */
-void sys_device_mark_system(void);
 
 /**
  * @brief Declares that device `dev` uses device `dep` (one of its pins, a bus

@@ -1,6 +1,6 @@
 import {
   CommandError, DeadMan, ErrorInterpreter, RunitLink, Services, WebBluetoothPlatform, bundledLinkDefinitions, crc32, eraseProject, leaveSafeState, loadProgram, projectInfo,
-  projectStream, readProject, saveProject, sendProgram, setProjectBoot, vmFrame, deviceFrame, deviceRecordId,
+  projectStream, saveProject, sendProgram, setProjectBoot, vmFrame, deviceFrame, deviceRecordId,
 } from '@backend'
 import type { LinkStatus, ProjectContent } from '@backend'
 import { blk, build, engine, num, project, read } from '../engine/helpers'
@@ -82,7 +82,7 @@ async function runSuite(): Promise<Result[]> {
   })
 
   await test('every read without a key decodes', async () => {
-    for (const [service, command] of [['SYS', 'DEADMAN'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['CONNECTOR', 'INFO'], ['I2C', 'INFO'], ['LOG', 'CONFIG'], ['POWER_MANAGER', 'CONFIG'], ['POWER_MANAGER', 'STATUS'], ['PROJECT', 'INFO']] as const) {
+    for (const [service, command] of [['SYS', 'DEADMAN'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['CONNECTOR', 'INFO'], ['LOG', 'CONFIG'], ['POWER_MANAGER', 'CONFIG'], ['POWER_MANAGER', 'STATUS'], ['PROJECT', 'INFO']] as const) {
       await services.call(service, command, undefined, { side: 'read' })
     }
   })
@@ -150,7 +150,6 @@ async function runSuite(): Promise<Result[]> {
     try {
       expect(JSON.stringify(await saveProject(link, content, { boot: defs.projectBoot.none })) === JSON.stringify({ bytes: stream.length, crc: crc32(stream) }), 'saved size or CRC')
       expect((await projectInfo(link)).stored, 'not stored')
-      expect((await readProject(link))?.verified === true, 'not verified')
     } finally {
       await setProjectBoot(link, defs.projectBoot.none).catch(() => undefined)
       await eraseProject(link).catch(() => undefined)

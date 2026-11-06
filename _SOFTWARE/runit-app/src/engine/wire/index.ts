@@ -13,8 +13,6 @@ export type { TelemetryObject, TelemetryUpdate, TelemetryValue } from './load/ru
 export { DEFAULT_LIMITS } from './load/limits'
 export type { VmLimits } from './load/limits'
 export type { AccessorDef, BlockDef, DataDef, ObjectDef, ObjectFlags, ProgramIR } from './format/program'
-export { parseProgram } from './format/parse'
-export type { ParsedProgram, WireFrame } from './format/parse'
 export { accessorRecord, blockRecord, dataRecord, flagBits, objectRecord, openRecord, subscribeRecord } from './format/records'
 export { EXEC_COMMANDS, ID_NONE, NAME_MAX, OBJ_TYPES, OBJ_WIDTH } from './format/types'
 export type { ExecCommand, IndexStep, ObjType, Scalar, Value } from './format/types'

@@ -21,7 +21,6 @@ typedef struct {
 } item_t;
 
 static struct {
-  const router_tap_t* tap;
   void (*urgent_fn)(void);  // router_run_urgent: the fn waiting to run, NULL when none
   uint16_t inject_seq;      // seq of the board's own commands
   // One answer buffer per task (the two run at the same time): CMD_HEAD bytes for the done's header, then the data.
@@ -92,12 +91,8 @@ err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) 
 }
 
 /* ----------------------------------------------------------------------------
- * Tap, origin, urgent work
+ * Origin, urgent work
  * ------------------------------------------------------------------------- */
-
-void router_set_tap(const router_tap_t* tap) {
-  s_dispatch.tap = tap;
-}
 
 const cmd_req_t* router_origin(void) {
   return s_route;
@@ -134,16 +129,9 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
       .flags = item.flags,
   };
   cmd_out_t out = {.data = buf + CMD_HEAD, .cap = CMD_DATA_MAX};
-  err_h err = NULL;
-  const router_tap_t* tap = s_dispatch.tap;
-  if (tap == NULL || tap->take == NULL || !tap->take(&cmd)) {
-    s_route = &cmd;
-    err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
-    s_route = NULL;
-    if (tap != NULL && tap->seen != NULL) {
-      tap->seen(&cmd, err);
-    }
-  }
+  s_route = &cmd;
+  err_h err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
+  s_route = NULL;
   if (item.done != NULL && !(item.flags & ROUTER_FLAG_NOREPLY)) {
     uint32_t len = err != NULL ? cmd_err_record(&cmd, err, out.data, out.cap) : out.len;
     uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;

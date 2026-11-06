@@ -17,7 +17,7 @@ Component `components/core/router/`. The router runs the commands of this board:
 
 | File | Role |
 |---|---|
-| `router.h` | Flags and statuses, `ROUTER_SRC_SELF`, `ROUTER_SRC_NONE`, command tables and op macros, register, route, init, submit, inject, report, tap, origin, is-task, urgent work. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
+| `router.h` | Flags and statuses, `ROUTER_SRC_SELF`, `ROUTER_SRC_NONE`, command tables and op macros, register, route, init, submit, inject, report, origin, is-task, urgent work. The handler type `cmd_f`, `cmd_reply` and `ERR_CMD_*` are in `components/core/cmd` (CMD.MD) |
 | `errors/router_errors.h` | `ERR_ROUTER_MAP`, the module's error tags (included by `router.h`) |
 | `errors/errors_router.json` | The error messages |
 | `router_ids.h` | Root keys (`ROUTER_KEY_*`) |
@@ -50,8 +50,8 @@ A command is a `cmd_req_t` (`cmd.h`; an error record names it): the request `[ke
   - `ROUTER_OP_NOARGS(fn) { … }`: no payload.
   - `ROUTER_OP_TAIL(fn, hdr_t) { … }`: header plus a variable tail (`tail`, a `cmd_in_t` of ≥ 1 byte), e.g. a NUL-ended name or data bytes.
   - `ROUTER_MODULE(fn, k_ops)`: writes the module's `cmd_f` over its command table (`router_call_op`; prefix `static` for a file-local one); `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
-  Bodies also see `ctx` and `out` (answer with `cmd_reply` / `cmd_append`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy (e.g. `ERR_I2C_REMOTE_DENIED`) belongs in the body, not in the native API.
-- Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`runit.c`). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`).
+  Bodies also see `ctx` and `out` (answer with `cmd_reply` / `cmd_append`). The length check (`ERR_CMD_BAD_LEN`) is done before the body runs. Remote-only policy belongs in the body, not in the native API.
+- Root: `router_register(key, fn)` at boot (before `router_init`), from the app layer (`runit.c`). Modules never register themselves; a module only exports its `cmd_f` (e.g. `sys_i2c_router` in `sys_i2c_router.h`). A module's router header is also the list of its ops: each op's `#define` stands directly above the packed frame it uses (ops that share a frame together above it), with its sides in a comment; the module's own header only forward-declares a frame its API needs.
 - `out->cap` is `CMD_DATA_MAX` for every command; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big). A command answers once: data longer than that is paged by the command (CMD.MD "The handler").
 - `router_route(in, out)` is also the entry point for replaying stored frames (actions, project), on the calling task.
 - **Concurrency**: urgent and normal commands run concurrently on two tasks, so module routers must be thread-safe.
@@ -71,10 +71,9 @@ A command is a `cmd_req_t` (`cmd.h`; an error record names it): the request `[ke
 - `data` is in the task's own buffer with `CMD_HEAD` bytes in front of it that are the callback's to write, so the session frames its answer without a copy. `done` may wait for room on the way back, at most its own bound (the session: its provider's driver).
 - NOREPLY, or `done` NULL: no answer of any status. Every failure is reported with its command (`router_report_cmd`: the log line `cmd src f0 seq 7 flags 00 req …`, and the errors stream), answered or not. A `done` that fails is reported and its answer lost: a reader retries.
 
-### Tap, origin, urgent work
+### Origin, urgent work
 
-- **Tap** `router_set_tap(&{take, seen})` (boot, by the app): `take(cmd)` runs before routing — true = answered OK with no data and not routed; `seen(cmd, result)` after routing a command that was not taken. Both run on the routing task for every command (the board's own too). Used by the actions recorder (SYS_ACTIONS.MD).
-- **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE, the actions recorder. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
+- **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
 - **Urgent work** `router_run_urgent(fn)`: runs `fn` once on the urgent task, soon (any task or a timer callback, not an ISR); called again before it ran, it still runs once; another `fn` waiting → `ERR_ROUTER_BUSY`. For work that must not wait behind a command and may block: the safe state of `sys_system` (SYS_SYSTEM.MD). Whether a peer is alive is the session's (SYS_SESSION.MD "Gone peers").
 
 ## Errors (`ERR_MOD_ROUTER` = 2)
@@ -116,6 +115,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x0E` session | `sys_session_router` | SYS_SESSION.MD "Remote" |
 | `0x0F` watch | `sys_watch_router` | SYS_WATCH.MD "Remote" |
 | `0x10` remote | `sys_remote_router` (with a link) | SYS_REMOTE.MD "Remote" |
+| `0x11` board | `sys_board_router` | SYS_BOARD.MD "Remote" |
 
 ## Limits
 
@@ -129,7 +129,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 **Host tests** in `host/` (`python test_host/run.py router` from `runit-esp/`, `runit-esp/test_host/HOST_TESTS.MD`): the real router with the real `cmd` and `errors` on the PC, the two router tasks as threads (the FreeRTOS stand-in: tasks are threads, the queues keep the ring buffer's byte accounting). Three executables:
 - `test_router.c`, the routing: `router_args` / `router_args_tail` (exact size, one byte short or long, key only), `router_call_op` (the side a direction asks for, `[dir][code]` too short, unknown code, a side the command lacks wrapped in `ERR_ROUTER_OP`, a bad payload), `router_call` (key, ctx and the whole input passed, unknown key, `ERR_ROUTER_KEY` wrapping), the whole route root key to module to op (the chain KEY, OP, cause; the answer empty after a failure), `router_register` (key 0, no handler, taken, full table keeping what is bound), `router_report_cmd` (the text of the log line, a long request cut).
 - `test_router_queue.c`, no task started: what `router_submit` / `router_inject` refuse (NULL, a request outside 2..`CMD_DATA_MAX`) and accept, `router_run_urgent`'s one waiting slot, the work and the urgent queue each filling to `ERR_ROUTER_QUEUE_FULL` independently.
-- `test_router_tasks.c`, the tasks running: a command's answer to its `done` with the submitter's ctx, in order; a failure answered as the error record (origin, request, the chain) and reported to the sink with its command; `NOREPLY` (no answer, a failure still reported); an answer of exactly `CMD_DATA_MAX` and one byte more; a `done` that fails reported; no `done`; an urgent command running while the work task is blocked, and a normal one waiting behind it; `router_submit` copying the command and its request; `router_inject` (src `ROUTER_SRC_SELF`, a counting seq, the flags); a command run inside a handler seeing the outer origin; the tap taking a command and seeing the rest; `router_run_urgent` running a fn once on the urgent task, and waking an idle one.
+- `test_router_tasks.c`, the tasks running: a command's answer to its `done` with the submitter's ctx, in order; a failure answered as the error record (origin, request, the chain) and reported to the sink with its command; `NOREPLY` (no answer, a failure still reported); an answer of exactly `CMD_DATA_MAX` and one byte more; a `done` that fails reported; no `done`; an urgent command running while the work task is blocked, and a normal one waiting behind it; `router_submit` copying the command and its request; `router_inject` (src `ROUTER_SRC_SELF`, a counting seq, the flags); a command run inside a handler seeing the outer origin; `router_run_urgent` running a fn once on the urgent task, and waking an idle one.
 
 Not covered on the host: priorities (the urgent task is above the work task only on the board), the stack sizes, the scheduler's timing.
 

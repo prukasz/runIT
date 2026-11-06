@@ -7,31 +7,31 @@
       "hint": "Write the project to the board (toolbar), or check which action is called."
     },
     "ERR_ACTION_BUSY": {
-      "message": "A recording or upload is already open"
+      "message": "A record is already being written"
     },
-    "ERR_ACTION_NO_SESSION": {
-      "message": "No recording or upload is open"
+    "ERR_ACTION_NO_DRAFT": {
+      "message": "No record is being written"
     },
     "ERR_ACTION_TOO_BIG": {
       "message": "The action is {len} bytes; at most {max} fit",
       "hint": "Split the action into smaller ones."
     },
     "ERR_ACTION_OFFSET": {
-      "message": "Wrong offset {got}: an upload expects {want}, a read takes at most the record's {want} bytes"
+      "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
     },
     "ERR_ACTION_INCOMPLETE": {
-      "message": "The upload is incomplete ({got} of {want} bytes)",
+      "message": "The record is incomplete ({got} of {want} bytes)",
       "hint": "Write it again."
     },
     "ERR_ACTION_CRC": {
-      "message": "The upload is damaged (checksum {got}, expected {want})",
+      "message": "The record is damaged (checksum {got}, expected {want})",
       "hint": "Write it again."
     },
     "ERR_ACTION_BAD_FRAME": {
       "message": "The action is broken at byte {offset}"
     },
     "ERR_ACTION_EMPTY": {
-      "message": "The recording has no command",
+      "message": "The record has no command",
       "hint": "Add a command to the action."
     },
     "ERR_ACTION_DEPTH": {

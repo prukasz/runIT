@@ -17,7 +17,7 @@
       "description": "This board's place in the project, kept in NVS; a new one takes effect at the next start.",
       "read": {
         "returns": {
-          "struct": "id_t_",
+          "struct": "sys_session_id_args_t",
           "description": "The board id",
           "fields": [
             {
@@ -36,7 +36,7 @@
       },
       "write": {
         "args": {
-          "struct": "id_t_",
+          "struct": "sys_session_id_args_t",
           "fields": [
             {
               "id": "board_id",
@@ -61,7 +61,7 @@
       "description": "Makes a provider the way to a peer.",
       "write": {
         "args": {
-          "struct": "attach_t",
+          "struct": "sys_session_attach_args_t",
           "fields": [
             {
               "id": "link",

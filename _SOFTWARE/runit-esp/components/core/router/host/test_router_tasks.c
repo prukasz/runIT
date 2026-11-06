@@ -109,14 +109,6 @@ static srec_t s_s[MAX_REC];
 static int s_sn;
 static latch_t s_sink = LATCH_INIT;
 
-typedef struct {  /* the tap saw a command */
-  uint8_t src;
-  uint32_t result_tag;  /* 0: success */
-} trec_t;
-static trec_t s_t[MAX_REC];
-static int s_tn;
-static int s_taken;
-
 static latch_t s_entered = LATCH_INIT;  /* a blocking handler started */
 static latch_t s_gate = LATCH_INIT;     /* post: lets one blocking handler go */
 
@@ -224,24 +216,6 @@ static void sink_cb(err_h chain, const struct cmd_req* cmd) {
   latch_post(&s_sink);
 }
 
-static bool tap_take(const cmd_req_t* cmd) {
-  const bool take = cmd->req_len > 2 && cmd->req[2] == 0xEE;
-  if (take) {
-    pthread_mutex_lock(&s_lock);
-    s_taken++;
-    pthread_mutex_unlock(&s_lock);
-  }
-  return take;
-}
-static void tap_seen(const cmd_req_t* cmd, err_h result) {
-  pthread_mutex_lock(&s_lock);
-  trec_t* r = &s_t[s_tn++ % MAX_REC];
-  r->src = cmd->src;
-  r->result_tag = result != NULL ? result->tag : 0;
-  pthread_mutex_unlock(&s_lock);
-}
-static const router_tap_t k_tap = {.take = tap_take, .seen = tap_seen};
-
 static struct {  /* router_run_urgent's functions */
   latch_t ran;
   int count;
@@ -266,14 +240,13 @@ static void run_fb(void) {
 void setUp(void) {
   host_log_clear();
   pthread_mutex_lock(&s_lock);
-  s_hn = s_dn = s_sn = s_tn = s_taken = 0;
+  s_hn = s_dn = s_sn = 0;
   pthread_mutex_unlock(&s_lock);
   s_done_fails = false;
   latch_clear(&s_done);
   latch_clear(&s_sink);
   latch_clear(&s_entered);
   latch_clear(&s_gate);
-  router_set_tap(NULL);
 }
 void tearDown(void) {}
 
@@ -517,33 +490,6 @@ static void test_a_command_run_inside_a_handler_sees_the_outer_origin(void) {
   TEST_ASSERT_EQUAL_UINT8(KEY_NEST, s_h[1].req0);
 }
 
-/* ---- the tap -------------------------------------------------------------------------------------------------- */
-
-static void test_a_tap_can_take_a_command_and_sees_the_rest(void) {
-  router_set_tap(&k_tap);
-  SUBMIT(0x31, 1, 0, NULL, KEY_ECHO, CMD_DIR_READ, 0xEE);  /* the tap takes it */
-  SUBMIT(0x32, 2, 0, NULL, KEY_ECHO, CMD_DIR_READ, 0x01);  /* routed, succeeds */
-  SUBMIT(0x33, 3, 0, NULL, KEY_FAIL, CMD_DIR_READ, 0x01);  /* routed, fails */
-  WAIT(s_done);
-  WAIT(s_done);
-  WAIT(s_done);
-  WAIT(s_sink);
-  TEST_ASSERT_EQUAL_INT(1, s_taken);
-  TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_d[0].status);  /* taken: answered OK with no data */
-  TEST_ASSERT_EQUAL_UINT32(0, s_d[0].len);
-  TEST_ASSERT_EQUAL_INT(2, s_hn);                            /* and not routed: only the other two ran */
-  TEST_ASSERT_EQUAL_INT(2, s_tn);                            /* seen() is not called for a taken command */
-  TEST_ASSERT_EQUAL_UINT8(0x32, s_t[0].src);
-  TEST_ASSERT_EQUAL_HEX32(0, s_t[0].result_tag);
-  TEST_ASSERT_EQUAL_UINT8(0x33, s_t[1].src);
-  TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_KEY, s_t[1].result_tag);  /* the failure it was shown */
-  router_set_tap(NULL);
-  SUBMIT(0x34, 4, 0, NULL, KEY_ECHO, CMD_DIR_READ, 0xEE);      /* without the tap it is just a command */
-  WAIT(s_done);
-  TEST_ASSERT_EQUAL_INT(3, s_hn);
-  TEST_ASSERT_EQUAL_UINT32(2, s_d[3].len);
-}
-
 /* ---- urgent work ---------------------------------------------------------------------------------------------- */
 
 static void test_run_urgent_runs_a_fn_once_on_the_urgent_task(void) {
@@ -607,7 +553,6 @@ int main(void) {
   RUN_TEST(test_inject_is_the_boards_own_command_with_a_counting_seq);
   RUN_TEST(test_inject_urgent_and_noreply_flags_are_honoured);
   RUN_TEST(test_a_command_run_inside_a_handler_sees_the_outer_origin);
-  RUN_TEST(test_a_tap_can_take_a_command_and_sees_the_rest);
   RUN_TEST(test_run_urgent_runs_a_fn_once_on_the_urgent_task);
   RUN_TEST(test_run_urgent_wakes_an_idle_urgent_task);
   return UNITY_END();

@@ -1,50 +1,32 @@
 #include "sys_actions.h"
-#include "esp_log.h"
 #include "esp_rom_crc.h"
 #include "nvs.h"
-#include "nvs_flash.h"
+#include "router_ids.h"
 #include "sdkconfig.h"
 #include "sys_actions_router.h"
+#include "sys_device.h"
+#include "sys_system_router.h"
 #include "utils.h"
-
-#define TAG __FILE_NAME__
 
 #define NAMESPACE "actions"
 #define KEY_LEN   10u                               // "a" + 8 hex digits + NUL
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
-#define FRAME_MAX CMD_DATA_MAX  // keys + payload: what a frame carries after its header
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_ACTIONS, "actions", ERR_SYS_ACTIONS_MAP)
 
-typedef enum {
-  SESSION_NONE = 0,
-  SESSION_RECORD,
-  SESSION_UPLOAD,
-} session_e;
-
-/* The one open recording or upload; it fills s_image. */
+/* The one record being written, on the heap while it is; NULL `image`: none. */
 typedef struct {
-  session_e kind;
+  uint8_t* image;
   uint32_t id;
-  bool execute;    // record: frames run as usual (else taken without running)
-  bool overflow;   // record: a frame didn't fit; `need` = the size it would have taken
-  uint8_t src;     // record: the client being recorded (its peer id)
-  uint16_t len;    // image bytes so far
-  uint16_t want;   // upload: announced image length
-  uint16_t count;  // record: frames
-  uint32_t need;
-} session_t;
+  uint16_t len;   // image bytes so far
+  uint16_t want;  // the announced image length
+} draft_t;
 
-U_MUTEX_DEFINE(sys_actions_mutex);  // s_session, s_image: both router tasks record, ops open / close
+U_MUTEX_DEFINE(sys_actions_mutex);  // s_draft: both router tasks
 
-static session_t s_session;
-_Static_assert(CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE <= CONFIG_SYS_ACTIONS_MAX_BYTES,
-               "the device record limit is above the buffer (SYS_ACTIONS_MAX_BYTES)");
-
-static uint8_t s_image[CONFIG_SYS_ACTIONS_MAX_BYTES];
-static volatile bool s_recording;  // read by the tap without the lock (fast path for every frame)
+static draft_t s_draft;
 static nvs_handle_t s_nvs;
-static __thread uint8_t s_depth;   // RUN nesting, per router task
+static __thread uint8_t s_depth;  // RUN nesting, per router task
 
 /* ----------------------------------------------------------------------------
  * IDs, images, NVS
@@ -53,15 +35,6 @@ static __thread uint8_t s_depth;   // RUN nesting, per router task
 static err_h check_id(uint32_t id) {
   ERR_CHECK(id != SYS_ACTIONS_ID_NONE, ERR_ACTION_BAD_ID);
   return NULL;
-}
-
-// The largest image a record of this ID may have: its class decides.
-static uint32_t max_bytes(uint32_t id) {
-  return (id >> 24) == SYS_ACTIONS_CLASS_DEVICE ? CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE : CONFIG_SYS_ACTIONS_MAX_BYTES;
-}
-
-uint32_t sys_actions_max_bytes(uint32_t id) {
-  return max_bytes(id);
 }
 
 static void key_of(uint32_t id, char key[KEY_LEN]) {
@@ -95,7 +68,7 @@ static err_h frames_check(const uint8_t* img, uint32_t len, uint16_t* count) {
     if (len - pos >= LEN_BYTES) {
       memcpy(&flen, img + pos, LEN_BYTES);
     }
-    ERR_CHECK(flen >= 1 && flen <= FRAME_MAX && flen <= len - pos - LEN_BYTES, ERR_ACTION_BAD_FRAME,
+    ERR_CHECK(flen >= 1 && flen <= CMD_DATA_MAX && flen <= len - pos - LEN_BYTES, ERR_ACTION_BAD_FRAME,
               .offset = (uint16_t)pos);
     pos += LEN_BYTES + flen;
     n++;
@@ -142,21 +115,35 @@ static err_h load_checked(uint32_t id, uint32_t extra, uint8_t** blob, size_t* l
   return err;
 }
 
-static void info_of(const uint8_t* image, uint32_t len, uint16_t count, sys_actions_info_t* out) {
-  out->bytes = (uint16_t)len;
-  out->count = count;
-  out->crc32 = esp_rom_crc32_le(0, image, len);
-}
+/* The onboard actions' images: [u16 len LE][keys + payload] per frame. A device-router write
+ * [ROUTER_KEY_DEVICE][dir][SYS_DEVICE_ID_NONE u16][op u16] is the op for every device; a sys-router write
+ * [ROUTER_KEY_SYS][dir][code] restarts the board. They match the sweep ops of sys_device and SYS_SYSTEM_OP_RESTART. */
+#define U16(v)          (uint8_t)(v), (uint8_t)((v) >> 8)
+#define SWEEP_FRAME(op) 6, 0, ROUTER_KEY_DEVICE, CMD_DIR_WRITE, U16(SYS_DEVICE_ID_NONE), U16(op)
+#define SYS_FRAME(op)   3, 0, ROUTER_KEY_SYS, CMD_DIR_WRITE, (uint8_t)(op)
+
+static const uint8_t k_resume_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_RESUME)};
+static const uint8_t k_suspend_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_SUSPEND)};
+static const uint8_t k_reset_all[] = {SWEEP_FRAME(SYS_DEVICE_OP_RESET)};
+static const uint8_t k_hard_reset[] = {SYS_FRAME(SYS_SYSTEM_OP_RESTART)};
+
+static const struct {
+  uint32_t id;
+  const uint8_t* image;
+  uint16_t len;
+} k_onboard[] = {
+    {SYS_ACTIONS_ONBOARD_RESUME, k_resume_all, sizeof(k_resume_all)},
+    {SYS_ACTIONS_ONBOARD_SUSPEND, k_suspend_all, sizeof(k_suspend_all)},
+    {SYS_ACTIONS_ONBOARD_RESET, k_reset_all, sizeof(k_reset_all)},
+    {SYS_ACTIONS_ONBOARD_HARD_RESET, k_hard_reset, sizeof(k_hard_reset)},
+};
 
 err_h sys_actions_init(void) {
-  esp_err_t rc = nvs_flash_init_partition(CONFIG_SYS_ACTIONS_PARTITION);
-  if (rc == ESP_ERR_NVS_NO_FREE_PAGES || rc == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    ESP_LOGW(TAG, "partition '%s' unusable (%s): erasing", CONFIG_SYS_ACTIONS_PARTITION, esp_err_to_name(rc));
-    ERR_TRY_ESP(nvs_flash_erase_partition(CONFIG_SYS_ACTIONS_PARTITION));
-    rc = nvs_flash_init_partition(CONFIG_SYS_ACTIONS_PARTITION);
+  ERR_TRY(ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_nvs)));
+  for (uint32_t i = 0; i < ARRAY_LEN(k_onboard); i++) {
+    ERR_TRY(sys_actions_set(k_onboard[i].id, k_onboard[i].image, k_onboard[i].len));
   }
-  ERR_TRY_ESP(rc);
-  return ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_nvs));
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
@@ -213,171 +200,71 @@ err_h sys_actions_request(uint32_t id, bool urgent) {
 }
 
 /* ----------------------------------------------------------------------------
- * Recording (router tap)
+ * Writing a record
  * ------------------------------------------------------------------------- */
-
-// Frames a recording keeps: writes only ([key][dir] first), not the sys key, not the actions commands other than RUN /
-// RUN_ALL.
-static bool recordable(const cmd_req_t* cmd) {
-  uint8_t key = cmd->req[0];  // the dispatcher routes only frames with a root key
-  if (cmd->req_len < 2 || cmd->req[1] != CMD_DIR_WRITE || key == ROUTER_KEY_SYS) {
-    return false;
-  }
-  if (key == ROUTER_KEY_ACTIONS) {
-    return cmd->req_len >= 3 && (cmd->req[2] == SYS_ACTIONS_OP_RUN || cmd->req[2] == SYS_ACTIONS_OP_RUN_ALL);
-  }
-  return true;
-}
-
-// Lock held. A frame that doesn't fit ends the growth: stop then refuses to store.
-static void record_append(const uint8_t* req, uint32_t len) {
-  if (s_session.overflow) {
-    return;
-  }
-  uint32_t need = (uint32_t)s_session.len + LEN_BYTES + len;
-  if (need > max_bytes(s_session.id)) {
-    s_session.overflow = true;
-    s_session.need = need;
-    return;
-  }
-  uint16_t flen = (uint16_t)len;
-  memcpy(s_image + s_session.len, &flen, LEN_BYTES);
-  memcpy(s_image + s_session.len + LEN_BYTES, req, len);
-  s_session.len = (uint16_t)need;
-  s_session.count++;
-}
-
-// Keeps the frame when it comes from the client being recorded and the recording is in mode `execute`.
-static bool record_frame(const cmd_req_t* cmd, bool execute) {
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  const bool mine = s_session.kind == SESSION_RECORD && s_session.execute == execute && s_session.src == cmd->src;
-  if (mine) {
-    record_append(cmd->req, cmd->req_len);
-  }
-  (void)xSemaphoreGive(sys_actions_mutex);
-  return mine;
-}
-
-// Recording without execute: the client's frames are kept and answered OK, not run.
-static bool tap_take(const cmd_req_t* cmd) {
-  return s_recording && recordable(cmd) && record_frame(cmd, false);
-}
-
-// Recording with execute: the client's frames that succeeded are kept.
-static void tap_seen(const cmd_req_t* cmd, err_h result) {
-  if (s_recording && result == NULL && recordable(cmd)) {
-    (void)record_frame(cmd, true);
-  }
-}
-
-const router_tap_t g_sys_actions_tap = {.take = tap_take, .seen = tap_seen};
 
 // Lock held.
-static void session_close(void) {
-  s_recording = false;
-  s_session = (session_t){0};
+static void draft_close(void) {
+  free(s_draft.image);
+  s_draft = (draft_t){0};
 }
 
-// Lock held. ERR_ACTION_BUSY unless no session is open; `id` already checked.
-static err_h session_open(session_e kind, uint32_t id) {
-  ERR_CHECK(s_session.kind == SESSION_NONE, ERR_ACTION_BUSY);
-  s_session = (session_t){.kind = kind, .id = id};
+// Lock held. ERR_ACTION_BUSY unless none is open.
+static err_h draft_open(uint32_t id, uint16_t len) {
+  ERR_CHECK(s_draft.image == NULL, ERR_ACTION_BUSY);
+  uint8_t* image = malloc(len);
+  ERR_CHECK(image != NULL, ERR_ACTION_NO_MEM, .size = len);
+  s_draft = (draft_t){.image = image, .id = id, .want = len};
   return NULL;
 }
 
-err_h sys_actions_record_start(uint32_t id, bool execute, uint8_t src) {
-  ERR_TRY(check_id(id));
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = session_open(SESSION_RECORD, id);
-  if (err == NULL) {
-    s_session.execute = execute;
-    s_session.src = src;
-    s_recording = true;
-  }
-  (void)xSemaphoreGive(sys_actions_mutex);
-  return err;
-}
-
-// Lock held, a recording open.
-static err_h record_store(sys_actions_info_t* out) {
-  ERR_CHECK(!s_session.overflow, ERR_ACTION_TOO_BIG,
-            .len = (uint16_t)(s_session.need > UINT16_MAX ? UINT16_MAX : s_session.need),
-            .max = (uint16_t)max_bytes(s_session.id));
-  ERR_CHECK(s_session.count > 0, ERR_ACTION_EMPTY);
-  ERR_TRY(store(s_session.id, s_image, s_session.len));
-  if (out != NULL) {
-    info_of(s_image, s_session.len, s_session.count, out);
-  }
-  return NULL;
-}
-
-err_h sys_actions_record_stop(sys_actions_info_t* out) {
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err;
-  if (s_session.kind != SESSION_RECORD) {
-    err = ERR_NEW(ERR_ACTION_NO_SESSION);
-  } else {
-    err = record_store(out);
-    session_close();
-  }
-  (void)xSemaphoreGive(sys_actions_mutex);
-  return err;
-}
-
-/* ----------------------------------------------------------------------------
- * Upload
- * ------------------------------------------------------------------------- */
-
-err_h sys_actions_upload_begin(uint32_t id, uint16_t len) {
+err_h sys_actions_record_begin(uint32_t id, uint16_t len) {
   ERR_TRY(check_id(id));
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
-  ERR_CHECK(len <= max_bytes(id), ERR_ACTION_TOO_BIG, .len = len, .max = (uint16_t)max_bytes(id));
+  ERR_CHECK(len <= CONFIG_SYS_ACTIONS_MAX_BYTES, ERR_ACTION_TOO_BIG, .len = len, .max = CONFIG_SYS_ACTIONS_MAX_BYTES);
   (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = session_open(SESSION_UPLOAD, id);
-  if (err == NULL) {
-    s_session.want = len;
-  }
+  err_h err = draft_open(id, len);
   (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
 // Lock held.
-static err_h upload_write(uint16_t offset, const uint8_t* data, uint16_t len) {
-  ERR_CHECK(s_session.kind == SESSION_UPLOAD, ERR_ACTION_NO_SESSION);
-  ERR_CHECK(offset == s_session.len, ERR_ACTION_OFFSET, .got = offset, .want = s_session.len);
-  ERR_CHECK((uint32_t)offset + len <= s_session.want, ERR_ACTION_TOO_BIG, .len = (uint16_t)(offset + len),
-            .max = s_session.want);
-  memcpy(s_image + offset, data, len);
-  s_session.len = (uint16_t)(offset + len);
+static err_h draft_write(uint16_t offset, const uint8_t* data, uint16_t len) {
+  ERR_CHECK(s_draft.image != NULL, ERR_ACTION_NO_DRAFT);
+  ERR_CHECK(offset == s_draft.len, ERR_ACTION_OFFSET, .got = offset, .want = s_draft.len);
+  ERR_CHECK((uint32_t)offset + len <= s_draft.want, ERR_ACTION_TOO_BIG, .len = (uint16_t)(offset + len),
+            .max = s_draft.want);
+  memcpy(s_draft.image + offset, data, len);
+  s_draft.len = (uint16_t)(offset + len);
   return NULL;
 }
 
-err_h sys_actions_upload_write(uint16_t offset, const uint8_t* data, uint16_t len) {
+err_h sys_actions_record_write(uint16_t offset, const uint8_t* data, uint16_t len) {
   ERR_CHECK(data != NULL || len == 0, ERR_ACTION_BAD_ARG);
   (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = upload_write(offset, data, len);
+  err_h err = draft_write(offset, data, len);
   (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
-// Lock held, an upload open.
-static err_h upload_store(uint32_t crc32) {
-  ERR_CHECK(s_session.len == s_session.want, ERR_ACTION_INCOMPLETE, .got = s_session.len, .want = s_session.want);
-  uint32_t crc = esp_rom_crc32_le(0, s_image, s_session.len);
+// Lock held, a draft open.
+static err_h draft_store(uint32_t crc32) {
+  ERR_CHECK(s_draft.len == s_draft.want, ERR_ACTION_INCOMPLETE, .got = s_draft.len, .want = s_draft.want);
+  uint32_t crc = esp_rom_crc32_le(0, s_draft.image, s_draft.len);
   ERR_CHECK(crc == crc32, ERR_ACTION_CRC, .got = crc32, .want = crc);
   uint16_t count;
-  ERR_TRY(frames_check(s_image, s_session.len, &count));
-  return store(s_session.id, s_image, s_session.len);
+  ERR_TRY(frames_check(s_draft.image, s_draft.len, &count));
+  return store(s_draft.id, s_draft.image, s_draft.len);
 }
 
-err_h sys_actions_upload_commit(uint32_t crc32) {
+err_h sys_actions_record_commit(uint32_t crc32) {
   (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
   err_h err;
-  if (s_session.kind != SESSION_UPLOAD) {
-    err = ERR_NEW(ERR_ACTION_NO_SESSION);
+  if (s_draft.image == NULL) {
+    err = ERR_NEW(ERR_ACTION_NO_DRAFT);
   } else {
-    err = upload_store(crc32);
-    session_close();
+    err = draft_store(crc32);
+    draft_close();
   }
   (void)xSemaphoreGive(sys_actions_mutex);
   return err;
@@ -385,7 +272,7 @@ err_h sys_actions_upload_commit(uint32_t crc32) {
 
 void sys_actions_abort(void) {
   (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  session_close();
+  draft_close();
   (void)xSemaphoreGive(sys_actions_mutex);
 }
 
@@ -414,24 +301,17 @@ err_h sys_actions_set(uint32_t id, const uint8_t* image, uint16_t len) {
   ERR_TRY(check_id(id));
   ERR_CHECK(image != NULL, ERR_ACTION_BAD_ARG);
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
-  ERR_CHECK(len <= max_bytes(id), ERR_ACTION_TOO_BIG, .len = len, .max = (uint16_t)max_bytes(id));
+  ERR_CHECK(len <= CONFIG_SYS_ACTIONS_MAX_BYTES, ERR_ACTION_TOO_BIG, .len = len, .max = CONFIG_SYS_ACTIONS_MAX_BYTES);
   uint16_t count;
   ERR_TRY(frames_check(image, len, &count));
   return stored_equal(id, image, len) ? NULL : store(id, image, len);  // no flash write when it is already there
 }
 
 err_h sys_actions_copy(uint32_t from, uint32_t to) {
-  ERR_TRY(check_id(to));
   uint8_t* blob;
   size_t len;
-  uint16_t count;
-  ERR_TRY(load_checked(from, 0, &blob, &len, &count));
-  err_h err = NULL;
-  if (len > max_bytes(to)) {
-    err = ERR_NEW(ERR_ACTION_TOO_BIG, .len = (uint16_t)len, .max = (uint16_t)max_bytes(to));
-  } else if (!stored_equal(to, blob, len)) {
-    err = store(to, blob, len);
-  }
+  ERR_TRY(load(from, 0, &blob, &len));
+  err_h err = sys_actions_set(to, blob, (uint16_t)len);
   free(blob);
   return err;
 }
@@ -442,7 +322,9 @@ err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
   size_t len;
   uint16_t count;
   ERR_TRY(load_checked(id, 0, &blob, &len, &count));
-  info_of(blob, len, count, out);
+  out->bytes = (uint16_t)len;
+  out->count = count;
+  out->crc32 = esp_rom_crc32_le(0, blob, len);
   free(blob);
   return NULL;
 }
@@ -493,7 +375,7 @@ err_h sys_actions_remove(uint32_t id) {
 
 err_h sys_actions_remove_all(void) {
   (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = s_session.kind == SESSION_NONE ? NULL : ERR_NEW(ERR_ACTION_BUSY);
+  err_h err = s_draft.image == NULL ? NULL : ERR_NEW(ERR_ACTION_BUSY);
   uint32_t ids[8];
   // Erasing invalidates the NVS iterator, so each pass lists afresh from the lowest ID.
   while (err == NULL) {

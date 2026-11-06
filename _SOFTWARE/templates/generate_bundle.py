@@ -23,7 +23,7 @@ IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
 ERRORS = COMPONENTS_DIR / "core" / "errors" / "errors.json"
 BOARD = COMPONENTS_DIR / "app" / "runit" / "board.json"
-BOARD_DEVKIT = COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"  # CONFIG_RUNIT_BOARD_DEVKIT
+BOARD_DEVKIT = COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"  # a devkit's profile
 MANAGED = ("devices", "contracts", "services", "blocks")  # folders whose every .json is owned by this script
 
 

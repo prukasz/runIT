@@ -3,13 +3,14 @@
 #include "router.h"
 #include "runit_board_cfg.h"
 #include "runit_error_policy.h"
-#include "runit_onboard_actions.h"
 #include "sdkconfig.h"
 #include "sys_actions.h"
 #include "sys_actions_router.h"
 #include "sys_ble.h"
 #include "sys_ble_link.h"
 #include "sys_ble_router.h"
+#include "sys_board.h"
+#include "sys_board_router.h"
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_router.h"
 #include "sys_device.h"
@@ -19,7 +20,10 @@
 #include "sys_i2c_router.h"
 #include "sys_log.h"
 #include "sys_log_router.h"
+#include "sys_nvs.h"
 #include "sys_power_manager_router.h"
+#include "sys_ota.h"
+#include "sys_ota_router.h"
 #include "sys_project.h"
 #include "sys_project_router.h"
 #include "sys_session.h"
@@ -64,10 +68,20 @@ void runit_power_safe_state(void) {
   sys_system_enter_safe_state(SYS_SAFE_POWER);
 }
 
-// The devices created so far are the board's own.
-static err_h mark_system_devices(void) {
-  sys_device_mark_system();
-  return NULL;
+// Every NVS partition: one failing leaves the other usable.
+static err_h nvs_init(void) {
+  static const char* const k_partitions[] = {NVS_DEFAULT_PART_NAME, CONFIG_SYS_ACTIONS_PARTITION,
+                                             CONFIG_SYS_PROJECT_SOURCE_PARTITION};
+  err_h first = NULL;
+  for (size_t i = 0; i < ARRAY_LEN(k_partitions); i++) {
+    err_h err = sys_nvs_init(k_partitions[i]);
+    if (first == NULL) {
+      first = err;
+    } else {
+      err_report(err);
+    }
+  }
+  return first;
 }
 
 // The streams (they listen for the session's gone peers) and the board's own, then the error policy and sink that
@@ -83,6 +97,11 @@ static err_h log_init(void) {
   return sys_log_init();
 }
 
+// A firmware write stalls what runs from flash, so no update while a program runs.
+static bool vm_runs(void) {
+  return vm_exec_mode() != VM_RUN_STOPPED;
+}
+
 static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_SYS, sys_system_router));
   ERR_TRY(router_register(ROUTER_KEY_I2C, sys_i2c_router));
@@ -94,13 +113,15 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_POWER, sys_power_manager_router));
   ERR_TRY(router_register(ROUTER_KEY_VM, vm_router));
   ERR_TRY(router_register(ROUTER_KEY_PROJECT, sys_project_router));
+  ERR_TRY(router_register(ROUTER_KEY_BOARD, sys_board_router));
+  ERR_TRY(router_register(ROUTER_KEY_OTA, sys_ota_router));
+  sys_ota_set_guard(vm_runs);
   ERR_TRY(router_register(ROUTER_KEY_PROVIDER, sys_data_provider_router));
   ERR_TRY(router_register(ROUTER_KEY_SESSION, sys_session_router));
   ERR_TRY(router_register(ROUTER_KEY_WATCH, sys_watch_router));
 #if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
   ERR_TRY(router_register(ROUTER_KEY_REMOTE, sys_remote_router));
 #endif
-  router_set_tap(&g_sys_actions_tap);
   sys_system_set_safe_state(safe_state);
   sys_system_set_safe_leave(safe_leave);
   ERR_TRY(sys_system_init());
@@ -144,12 +165,13 @@ err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, u
 
 err_h runit_start(void) {
   static const runit_boot_step_entry_t k_boot[] = {
-      {"session", sys_session_init},  // first: the streams and the dead-man listen for its gone peers
+      {"nvs", nvs_init},              // first: the modules below only open their namespaces
+      {"session", sys_session_init},  // before the streams and the dead-man: they listen for its gone peers
       {"streams", streams_init},
       {"log", log_init},
       {"actions", sys_actions_init},
       {"project", sys_project_init},
-      {"onboard actions", runit_onboard_actions_init},
+      {"board", sys_board_init},
       {"events", sys_event_init},
       {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
 #if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
@@ -162,11 +184,8 @@ err_h runit_start(void) {
       {"ble link", sys_ble_link_init},
       {"stream bindings", runit_board_stream_bindings_init},
       {"sessions", sessions_init},
-      {"i2c", sys_i2c_init},
-#if !CONFIG_RUNIT_BOARD_BARE
-      {"devices", runit_board_devices_init},
-#endif
-      {"system devices", mark_system_devices},  // whatever exists now is the board's: never removed
+      {"esp32 gpio", runit_board_gpio_init},  // the profile's frames use its pins
+      {"board at start", sys_board_boot},  // before the project: its devices may use the board's
 #if CONFIG_RUNIT_BLE_START
       {"ble", sys_ble_start},
 #endif

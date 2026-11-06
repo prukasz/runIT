@@ -10,56 +10,6 @@
   "category": "system",
   "commands": [
     {
-      "id": "INFO",
-      "op": 1,
-      "symbol": "SYS_I2C_OP_INFO",
-      "label": "Information about the I2C buses",
-      "description": "Returns whether each I2C bus is enabled, its SDA / SCL pins and the mask of addresses in use, for every I2C bus on the board.",
-      "read": {
-        "returns": {
-          "struct": "sys_i2c_info_t",
-          "array": true,
-          "description": "State of the I2C buses: one entry per bus, in index order",
-          "fields": [
-            {
-              "id": "flags",
-              "label": "Flags",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "Bit 0 enabled, bit 1 ready, bit 2 pull-ups on"
-            },
-            {
-              "id": "sda",
-              "label": "Pin SDA",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1
-            },
-            {
-              "id": "scl",
-              "label": "Pin SCL",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 2
-            },
-            {
-              "id": "used",
-              "label": "Addresses in use",
-              "type": "bitmask",
-              "raw_type": "u32",
-              "size": 16,
-              "offset": 3,
-              "description": "Bit n = a device was added at address n (4 u32 words)"
-            }
-          ]
-        }
-      }
-    },
-    {
       "id": "SCAN",
       "op": 2,
       "symbol": "SYS_I2C_OP_SCAN",
@@ -260,6 +210,145 @@
               "type": "string",
               "raw_type": "bytes",
               "description": "Bytes to write (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BUS_CREATE",
+      "op": 5,
+      "symbol": "SYS_I2C_OP_BUS_CREATE",
+      "label": "Create a bus",
+      "description": "An I2C bus on two pins of the ESP32-S3: its write creates it (its GPIO device must exist), its read answers what it was created with.",
+      "write": {
+        "args": {
+          "struct": "sys_i2c_bus_cfg_t",
+          "fields": [
+            {
+              "id": "bus",
+              "label": "Bus",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The bus to create (0 or 1)"
+            },
+            {
+              "id": "sda",
+              "label": "SDA",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 1,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "scl",
+              "label": "SCL",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 4,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "pullup",
+              "label": "Internal pull-ups",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 7,
+              "description": "1: the ESP32-S3's internal pull-ups on"
+            }
+          ]
+        }
+      },
+      "read": {
+        "args": {
+          "struct": "sys_i2c_bus_args_t",
+          "fields": [
+            {
+              "id": "bus",
+              "label": "Bus",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The bus to create (0 or 1)"
+            }
+          ]
+        },
+        "returns": {
+          "struct": "sys_i2c_bus_cfg_t",
+          "description": "What the bus was created with",
+          "fields": [
+            {
+              "id": "bus",
+              "label": "Bus",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The bus to create (0 or 1)"
+            },
+            {
+              "id": "sda",
+              "label": "SDA",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 1,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "scl",
+              "label": "SCL",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 4,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "pullup",
+              "label": "Internal pull-ups",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 7,
+              "description": "1: the ESP32-S3's internal pull-ups on"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BUS_REMOVE",
+      "op": 6,
+      "symbol": "SYS_I2C_OP_BUS_REMOVE",
+      "label": "Remove a bus",
+      "description": "Removes an I2C bus and frees its pins (refused while a device is on it).",
+      "write": {
+        "args": {
+          "struct": "sys_i2c_bus_args_t",
+          "fields": [
+            {
+              "id": "bus",
+              "label": "Bus",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The bus to remove (0 or 1)"
             }
           ]
         }

@@ -1,3 +1,4 @@
+#include "cmd.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_internal.h"
@@ -57,15 +58,14 @@ err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uin
   ERR_CHECK(data != NULL && len > 0, ERR_CMD_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   sys_data_provider_t* p = find(id);
-  const uint32_t max = p != NULL ? p->max_frame : 0;
-  const bool ok = p != NULL && max > 0 && len <= max;
-  if (ok) {
+  const bool up = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_UP);
+  if (up && len <= CMD_FRAME_MAX) {
     p->busy++;  // remove waits for it: the provider stays while its driver sends
   }
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, ID_FIELDS(id));
-  ERR_CHECK(max > 0, ERR_PROV_DOWN, ID_FIELDS(id));
-  ERR_CHECK(len <= max, ERR_PROV_TOO_LONG, ID_FIELDS(id), .len = (uint16_t)len, .max = (uint16_t)max);
+  ERR_CHECK(up, ERR_PROV_DOWN, ID_FIELDS(id));
+  ERR_CHECK(len <= CMD_FRAME_MAX, ERR_PROV_TOO_LONG, ID_FIELDS(id), .len = (uint16_t)len, .max = CMD_FRAME_MAX);
 
   err_h err = p->send(p, data, len, flags);
   portENTER_CRITICAL(&s_lock);
@@ -75,14 +75,6 @@ err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uin
     err = ERR_WRAP(err, ERR_PROV_SEND, ID_FIELDS(id));
   }
   return err;
-}
-
-uint32_t sys_data_provider_max_frame(sys_data_provider_id_t id) {
-  portENTER_CRITICAL(&s_lock);
-  const sys_data_provider_t* p = find(id);
-  const uint32_t max = p != NULL ? p->max_frame : 0;
-  portEXIT_CRITICAL(&s_lock);
-  return max;
 }
 
 uint8_t sys_data_provider_state(sys_data_provider_id_t id) {
@@ -99,7 +91,7 @@ uint8_t sys_data_provider_state(sys_data_provider_id_t id) {
 
 err_h sys_data_provider_add(sys_data_provider_t* p) {
   ERR_CHECK(p != NULL && p->send != NULL && p->id.link != 0, ERR_CMD_BAD_ARG);
-  p->state &= SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED;  // the rest is the registry's
+  p->state &= (uint8_t)~SYS_DATA_PROVIDER_STATE_OPEN;  // that one is the registry's
   p->rx = NULL;
   p->ctx = NULL;
   p->busy = 0;
@@ -144,15 +136,15 @@ err_h sys_data_provider_remove(sys_data_provider_id_t id) {
   return NULL;
 }
 
-void sys_data_provider_set_max_frame(sys_data_provider_t* p, uint32_t max) {
+void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   portENTER_CRITICAL(&s_lock);
-  const bool changed = p->max_frame != max;
-  p->max_frame = max;
+  const bool changed = ((p->state & SYS_DATA_PROVIDER_STATE_UP) != 0) != up;
+  p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
   const sys_data_provider_rx_f rx = p->rx;
   void* ctx = p->ctx;
   portEXIT_CRITICAL(&s_lock);
   if (changed && rx != NULL) {
-    rx(ctx, p->id, NULL, max);
+    rx(ctx, p->id, NULL, up ? 1u : 0u);
   }
 }
 
@@ -178,7 +170,6 @@ uint8_t sys_data_provider_list(sys_data_provider_info_t out[CONFIG_SYS_DATA_PROV
     if (p != NULL) {
       out[count++] = (sys_data_provider_info_t){
           .id = p->id,
-          .max_frame = (uint16_t)p->max_frame,
           .state = p->state,
       };
     }

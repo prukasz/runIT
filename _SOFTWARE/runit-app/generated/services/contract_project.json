@@ -17,7 +17,7 @@
       "description": "Opens an upload session for a project of the given length in bytes, with what the board does with it at start (stored and applied at the commit).",
       "write": {
         "args": {
-          "struct": "begin_t",
+          "struct": "sys_project_begin_args_t",
           "fields": [
             {
               "id": "len",
@@ -51,7 +51,7 @@
       "description": "Uploads the next piece of the project stream at the given byte offset.",
       "write": {
         "args": {
-          "struct": "write_t",
+          "struct": "sys_project_write_args_t",
           "fields": [
             {
               "id": "offset",
@@ -82,7 +82,7 @@
       "description": "Verifies the CRC-32 and that all the sections fit together, stores the project in Flash and optionally runs it.",
       "write": {
         "args": {
-          "struct": "commit_t",
+          "struct": "sys_project_commit_args_t",
           "fields": [
             {
               "id": "crc32",
@@ -191,7 +191,7 @@
       "description": "What the board does with the stored project when it starts: nothing, load it (the program waits), or load and start it.",
       "read": {
         "returns": {
-          "struct": "options_t",
+          "struct": "sys_project_options_t",
           "fields": [
             {
               "id": "boot",
@@ -209,7 +209,7 @@
       "write": {
         "description": "What the board does with the stored project when it starts: nothing, load it (the program waits), or load and start it.",
         "args": {
-          "struct": "options_t",
+          "struct": "sys_project_options_t",
           "fields": [
             {
               "id": "boot",
@@ -233,7 +233,7 @@
       "description": "Opens a section inside the project stream (refused as a command of its own).",
       "write": {
         "args": {
-          "struct": "section_t",
+          "struct": "sys_project_section_t",
           "fields": [
             {
               "id": "id",
@@ -294,6 +294,120 @@
       "label": "Load the stored project",
       "description": "Loads every section of the stored project without its start section: the settings, the devices and the program, which stays stopped.",
       "write": {}
+    },
+    {
+      "id": "SOURCE_APPEND",
+      "op": 19,
+      "symbol": "SYS_PROJECT_OP_SOURCE_APPEND",
+      "label": "Append to the project's source",
+      "description": "Adds one chunk at the end of the file. The offset must be the file's length.",
+      "write": {
+        "args": {
+          "struct": "sys_project_source_append_args_t",
+          "fields": [
+            {
+              "id": "offset",
+              "label": "Byte offset",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B",
+              "description": "The file's length before this chunk"
+            },
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The chunk's bytes (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "SOURCE_ERASE",
+      "op": 20,
+      "symbol": "SYS_PROJECT_OP_SOURCE_ERASE",
+      "label": "Erase the project's source",
+      "description": "Empties the file.",
+      "write": {}
+    },
+    {
+      "id": "SOURCE_INFO",
+      "op": 21,
+      "symbol": "SYS_PROJECT_OP_SOURCE_INFO",
+      "label": "Project's source info",
+      "description": "The file's length, CRC-32 and number of chunks.",
+      "read": {
+        "returns": {
+          "struct": "sys_nvs_json_info_t",
+          "description": "What the file holds",
+          "fields": [
+            {
+              "id": "bytes",
+              "label": "Length",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "unit": "B"
+            },
+            {
+              "id": "crc32",
+              "label": "CRC-32",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4
+            },
+            {
+              "id": "chunks",
+              "label": "Chunks",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "SOURCE_READ",
+      "op": 22,
+      "symbol": "SYS_PROJECT_OP_SOURCE_READ",
+      "label": "Read the project's source",
+      "description": "Sends back one chunk of the file.",
+      "read": {
+        "args": {
+          "struct": "sys_project_source_read_args_t",
+          "fields": [
+            {
+              "id": "chunk",
+              "label": "Chunk",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "From 0 to the number of chunks less one"
+            }
+          ]
+        },
+        "returns": {
+          "description": "The chunk's bytes",
+          "fields": [
+            {
+              "id": "data",
+              "label": "Chunk data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The chunk's bytes (runs to the end of the frame)"
+            }
+          ]
+        }
+      }
     }
   ]
 }

@@ -39,7 +39,7 @@ Rules for running from the agent:
 
 Success looks like `Project build complete`.
 
-**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `factory` 0x10000 2 MB, `project` 0x210000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp/components/sys/sys_project/SYS_PROJECT.MD)). Retained VM values are in `nvs`.
+**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `ota_0` 0x10000 4 MB, `otadata` 0x410000, `ota_1` 0x420000 4 MB (the firmware slots, [SYS_OTA.MD](../../../runit-esp/components/sys/sys_ota/SYS_OTA.MD)), `project` 0x820000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp/components/sys/sys_project/SYS_PROJECT.MD)), `source` 0x8a0000 1 MB (NVS: the project as the app edits it, gzipped). Retained VM values are in `nvs`.
 
 ## 2a. Flash and monitor
 
@@ -55,7 +55,7 @@ Success looks like `Project build complete`.
 
 **Monitor from the agent:** `idf.py monitor` is interactive and doesn't work without a TTY. Use [scripts/serial_capture.py](scripts/serial_capture.py), run with the IDF venv Python (it has pyserial). By default it resets the board through RTS/DTR, so the capture starts from the ROM boot log, and reads N seconds at 115200 baud. `--no-reset` attaches to a running board. Args: `<PORT> [seconds] [baud] [--no-reset]`.
 
-**Healthy boot:** ROM → `ESP-IDF v6.1 2nd stage bootloader` → partition table → the boot steps of RUNIT.MD "Boot" → `runIT up (0 boot step(s) failed)`. On the PCB the status LED (TCA6424A pin 23) lights once the onboard devices step got that far. A failing step is logged with its name and the boot goes on.
+**Healthy boot:** ROM → `ESP-IDF v6.1 2nd stage bootloader` → partition table → the boot steps of RUNIT.MD "Boot" → `runIT up (0 boot step(s) failed)`. On the PCB the status LED (TCA6424A pin 23) lights once the board's profile has set it. A failing step is logged with its name and the boot goes on.
 
 **Open findings from the boot log:** `BLE Advertising started ...` is logged twice (a restart to apply the device name set after sync; cosmetic). The CPU runs at 160 MHz (240 MHz possible).
 
@@ -76,7 +76,7 @@ Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`,
 
 **Watch out:** an option can be marked `# default:` with a value that differs from its current Kconfig default; the refresh then silently flips it. If that happens, restore the value and delete its `# default:` line so it counts as user-set, then `idf.py reconfigure`. An option the user set explicitly (no marker) keeps its value even when the default changes; change it by hand.
 
-`sdkconfig` and `sdkconfig.old` are **tracked in git**. `sdkconfig.qemu.defaults` holds the QEMU overrides (§6), `sdkconfig.devkit.defaults` the devkit's (§6). Treat `sdkconfig` changes as part of the commit.
+`sdkconfig` and `sdkconfig.old` are **tracked in git**. `sdkconfig.qemu.defaults` holds the QEMU overrides (§6). Treat `sdkconfig` changes as part of the commit.
 
 Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly added option, or the build still using an old default value.
 
@@ -115,21 +115,21 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 
 **`vm_suite.py`** drives GPIO 12 of device 0 (`VM_SUITE_PIN` changes it) and only reads the INA3221; it never starts a motor, servo or regulator block, and clears the retained values it made. Most tests step the VM one pass at a time (scan mode, ONCE) and read the result from the telemetry of that pass, so they don't depend on timing; the time blocks use wide margins and watch only objects that change rarely (an object that changes every pass floods the link).
 
-**Devkit builds.** The tracked `sdkconfig` is the PCB's (`CONFIG_RUNIT_BOARD_PCB`). A plain ESP32-S3 devkit takes an overlay in its own build folder instead of an edit of `sdkconfig`: `idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults" build`, then `idf.py -B build_devkit -p <PORT> flash` (`RUNIT_BOARD_DEVKIT`: only the ESP GPIO as device 0, no power layout, 4 MB flash). The app for it: `npm run dev:devkit` or `npm run app:devkit` in `runit-app/` (board_devkit.json). The test suites want an empty device table instead (they create the devices, and device 0 tells them the board is the PCB): a defaults file with `CONFIG_RUNIT_BOARD_BARE=y` in the same command, in another build folder.
+**One build for every board.** `sdkconfig` is for 16 MB of flash (the PCB, an N16R8 devkit): `idf.py -p <PORT> flash`. The app for a devkit: `npm run dev:devkit` or `npm run app:devkit` in `runit-app/` (board_devkit.json).
 
 **Two boards on a cable.** The runIT PCB is the root, an ESP32-S3 devkit its child; the boards are joined by the sys_uart link (SYS_UART.MD "The link to another board"): **PCB GPIO17 (TX) to devkit GPIO18 (RX), PCB GPIO18 (RX) to devkit GPIO17 (TX), GND to GND** (3.3 V logic, no power wire). Each board is also on the PC by its own USB, which is also how it is flashed: the link's pins are not the flasher's, so the cables do not disturb each other. Two images, each in a build folder of its own (`-B` and the paths absolute or run from `runit-esp`):
 
 ```powershell
 Set-Location C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp
 idf.py -B build_link_root  -D SDKCONFIG=build_link_root/sdkconfig  -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.link_root.defaults" build
-idf.py -B build_link_child -D SDKCONFIG=build_link_child/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults;sdkconfig.link_child.defaults" build
+idf.py -B build_link_child -D SDKCONFIG=build_link_child/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.link_child.defaults" build
 idf.py -B build_link_root  -p <PCB port>    flash
 idf.py -B build_link_child -p <devkit port> flash
 ```
 
 The root keeps its console and BLE clients and has the link as a child session (board id 0); the child has the link as its parent session and **no client session** (board id 1, `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` until an `ID` write is kept): the host reaches it only through the root. Run `python .claude\skills\runit-esp\scripts\tree_tests.py --port <root port>` (`--loss 20` also tests unplugging the cable), and `python .claude\skills\runit-esp\scripts\remote_tests.py --port <root port>` for the remote devices: the child's GPIO device 0 as a device of the root, async and blocking, cached reads, the child's events and errors as the twin's, dummy errors on its unconnected GPIO, the root's connectors keeping the child's streams (the latest, a queue, a full queue, the pool), and `--blink 8 [--keep]` for a program on the root (a PERIODIC of 1 s and a TOGGLE) that blinks pin 4 of the child (`--pin`); `--keep` leaves it running until the root is reset. `forward_tests.py` (the repo's `.venv` Python: it needs `bleak` and `pyserial`; `--port <root port> --ble <the root's address>`) forwards from the root to the child: the host writes a user characteristic of the root over Bluetooth, a connector with FORWARD sends it on to another characteristic (back to the host) and over the cable to a queue on the child. The root must have no other Bluetooth client (close the desktop app: it reconnects by itself and a connected board does not advertise). A host that went away (the dead-man) makes the root STOP every board, so the child's devices are suspended until a RESUME of every device (`[05][01][FF FF][03 00]` to the child): `remote_tests.py` does it first. The child's console still shows its log text for `serial_capture.py`; its frames are not read there. Back to a single board: flash the normal build.
 
-**QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` and no devices (`CONFIG_RUNIT_BOARD_BARE`) from `sdkconfig.qemu.defaults`:
+**QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` from `sdkconfig.qemu.defaults`:
 
 ```powershell
 idf.py -B build_qemu -D SDKCONFIG=build_qemu/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.qemu.defaults" build

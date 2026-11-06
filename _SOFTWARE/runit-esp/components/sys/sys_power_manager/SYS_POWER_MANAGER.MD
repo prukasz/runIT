@@ -8,14 +8,14 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 | `errors/sys_power_manager_errors.h` | `ERR_SYS_POWER_MANAGER_MAP`, the module's error tags (included by `sys_power_manager.h`) |
 | `errors/errors_power_manager.json` | The error messages |
 | `sys_power_manager.c` | Task, budget, the POWER_VREG guard, source, battery, response matrix, settings. `WHOLE_ARCHIVE` (error tag registration) |
-| `router/sys_power_manager_router.c/.h` | Remote interface, `ROUTER_KEY_POWER` = 0x0A |
+| `router/sys_power_manager_router.c/.h` | Remote interface, `ROUTER_KEY_POWER` = 0x0A. The header publishes every op (`SYS_PWRM_OP_*`, with its sides); the frames are the settings structs of `sys_power_manager.h` |
 | `router/contract_power_manager.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Task, period (1 s), rails (4), budget step (250 mW), input warning (90 %), battery hysteresis (3 %) |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Board description (`sys_power_board_t`)
 
-Static, from the board config (`components/app/runit/runit_board_cfg.c`, constants in `runit_board_defs.h`). Each power element is tied to its measurement here: a rail to its regulator and monitor channel, the board input to its monitor channel. The rails' own limits (voltage, current) are set by the user on the regulator itself (POWER_VREG frames, through the guard below).
+From the board's profile (SYS_BOARD.MD): LAYOUT gives the limits, the input, the sink and the source pins, RAIL adds a rail. Until then: a USB port's limits (5 V, 500 mA, 1 W of fixed loads) with no rails, monitor, sink or source pins. The values below are the PCB's. Each power element is tied to its measurement here: a rail to its regulator and monitor channel, the board input to its monitor channel. The rails' own limits (voltage, current) are set by the user on the regulator itself (POWER_VREG frames, through the guard below).
 
 | Field | Value | Meaning |
 |---|---|---|
@@ -28,13 +28,13 @@ Static, from the board config (`components/app/runit/runit_board_cfg.c`, constan
 | `min_mA` | 200 (`TPS55289_MIN_CURRENT_MA`) | The lowest limit a rail can be programmed to |
 | `usb_pd` | AP33772S (id 13) | The USB-PD sink |
 | `source_pins` | TCA6424A pins 3 (VUSB_OK) and 4 (VEXT_OK); devkit none | The eFuse power-good outputs; none: CONFIG says the source |
-| `responses` | the board's defaults (below) | A consumer may carry its own; NULL = the board's |
+| `responses` | the defaults (below) | A rail takes the board's row when it is added |
 
 The board's devices are created at boot and can't be removed (`ERR_DEV_SYSTEM`, SYS_DEVICE.MD), so a rail never disappears. The manager starts before them: a monitor is skipped until it answers once, a rail counts as off until it exists, and one whose creation failed stays off.
 
 ## Settings (records, SYS_ACTIONS.MD)
 
-A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x0A][0x01][op][args]`, saved with the upload or the recording. Nothing replays by itself: the project runs the records when it starts.
+A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x0A][0x01][op][args]`. Nothing replays by itself: the project runs the records when it starts.
 
 | Record ID | Frame | Contents |
 |---|---|---|
@@ -123,7 +123,7 @@ A rail's own events, and the alerts of its monitor channel, get **that rail's ro
 
 Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 5 OCP critical, 6 OTP, 7 battery low, 8 battery critical, 9 budget exceeded, 10 source changed. UVP and OTP have no source yet. Only OVP, SPC and the two OCP kinds reach a rail's row. The other kinds are board events.
 
-Defaults (the board config, both rails the same): OVP, SPC and budget exceeded → DISABLE; OTP and battery critical → SAFE_STATE; the rest NOTIFY. OCP critical stays NOTIFY: a TPS55289 at its OCP limit holds its current by itself.
+Defaults (`k_default_responses`, every rail the same): OVP, SPC and budget exceeded → DISABLE; OTP and battery critical → SAFE_STATE; the rest NOTIFY. OCP critical stays NOTIFY: a TPS55289 at its OCP limit holds its current by itself.
 
 **Per target.** One row for the board and one per rail, so rail A can keep running in its limit while rail B is cut. MATRIX reads the rows with their targets (`0xFFFF` = `SYS_POWER_TARGET_BOARD`, else the rail's device ID; the board first, then the rails in the board config's order) and writes rows in the same form: matched by target, in any order, a target left out keeps its row. Every row is checked before anything changes. The change applies at once. The app saves it as the record `0x01000005`. How the chip protects itself (OCP delay, hiccup, which faults it reports) is the device's own setting.
 
@@ -154,6 +154,8 @@ Requests are `[0x0A][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x04` BATTERY | RW | `sys_power_battery_t` (4 B): `u8 chemistry, u8 cells, u8 low_pct, u8 critical_pct` |
 | `0x07` STATUS | R | → `sys_power_status_t` (40 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen), `u32 pd_mV, u32 pd_mA, u8 pd_type` |
 | `0x08` PD | RW | `sys_power_pd_t` (5 B): `u8 mode, u32 voltage_mV` |
+| `0x02` LAYOUT | W | `sys_power_layout_t`, 28 B: the board's limits, input monitor, USB-PD sink and source pins (`0xFFFF`: none). Refused (`ERR_PWRM_BAD_ARG`) once a rail is added |
+| `0x05` RAIL | W | `sys_power_rail_t`, 9 B: `u16 vreg, u16 monitor_device, u8 monitor_channel, u32 min_mA`. A rail stays until the board restarts |
 | `0x09` MATRIX | RW | `sys_power_response_row_t[]`, no header: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind. The read answers `1 + rails` rows; the write takes up to that many (a length that is not whole rows, or more rows: `ERR_CMD_BAD_LEN`; a target that is neither the board nor a rail: `ERR_PWRM_NOT_RAIL`; nothing changes) |
 
 ## Errors (`ERR_MOD_SYS_POWER_MANAGER` = 14)

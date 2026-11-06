@@ -13,12 +13,12 @@
     {
       "id": "SVC_CREATE",
       "op": 1,
-      "symbol": "OP_SVC_CREATE",
+      "symbol": "SYS_BLE_OP_SVC_CREATE",
       "label": "Create GATT service",
       "description": "Registers a new GATT service with the given 16-bit UUID.",
       "write": {
         "args": {
-          "struct": "svc_create_t",
+          "struct": "sys_ble_svc_create_args_t",
           "fields": [
             {
               "id": "uuid",
@@ -45,12 +45,12 @@
     {
       "id": "SVC_REMOVE",
       "op": 2,
-      "symbol": "OP_SVC_REMOVE",
+      "symbol": "SYS_BLE_OP_SVC_REMOVE",
       "label": "Remove GATT service",
       "description": "Removes the GATT service with the given UUID, unless it is locked.",
       "write": {
         "args": {
-          "struct": "svc_remove_t",
+          "struct": "sys_ble_svc_remove_args_t",
           "fields": [
             {
               "id": "uuid",
@@ -68,12 +68,12 @@
     {
       "id": "CHAR_CREATE",
       "op": 3,
-      "symbol": "OP_CHAR_CREATE",
+      "symbol": "SYS_BLE_OP_CHAR_CREATE",
       "label": "Create GATT characteristic",
       "description": "Adds a characteristic to a GATT service, with its permissions, buffers and text description.",
       "write": {
         "args": {
-          "struct": "char_create_t",
+          "struct": "sys_ble_char_create_args_t",
           "fields": [
             {
               "id": "svc_uuid",
@@ -169,12 +169,12 @@
     {
       "id": "CHAR_REMOVE",
       "op": 4,
-      "symbol": "OP_CHAR_REMOVE",
+      "symbol": "SYS_BLE_OP_CHAR_REMOVE",
       "label": "Remove GATT characteristic",
       "description": "Removes the given characteristic from its GATT service.",
       "write": {
         "args": {
-          "struct": "char_remove_t",
+          "struct": "sys_ble_char_remove_args_t",
           "fields": [
             {
               "id": "svc_uuid",
@@ -199,7 +199,7 @@
     {
       "id": "APPLY",
       "op": 5,
-      "symbol": "OP_APPLY",
+      "symbol": "SYS_BLE_OP_APPLY",
       "label": "Apply GATT changes",
       "description": "Applies the staged GATT configuration to the BLE stack. With a client connected, it runs about 200 ms later, so this command is answered first; the client may reconnect.",
       "write": {}
@@ -207,12 +207,12 @@
     {
       "id": "STATUS",
       "op": 6,
-      "symbol": "OP_STATUS",
+      "symbol": "SYS_BLE_OP_STATUS",
       "label": "Read BLE status",
       "description": "Returns the connection state, the negotiated MTU and the number of RX items dropped on a full buffer.",
       "read": {
         "returns": {
-          "struct": "status_t",
+          "struct": "sys_ble_status_reply_t",
           "description": "Current BLE state",
           "fields": [
             {
@@ -250,7 +250,7 @@
     {
       "id": "LIST",
       "op": 7,
-      "symbol": "OP_LIST",
+      "symbol": "SYS_BLE_OP_LIST",
       "label": "Read GATT table",
       "description": "Returns every service and characteristic in the GATT table, with their flags, TX and RX sizes and names.",
       "read": {

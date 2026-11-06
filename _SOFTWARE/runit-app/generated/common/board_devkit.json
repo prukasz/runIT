@@ -4,10 +4,10 @@
   "kind": "board",
   "name": "runIT devkit",
   "revision": 1,
-  "description": "A plain ESP32-S3 devkit running the runIT firmware built with CONFIG_RUNIT_BOARD_DEVKIT: only the ESP32-S3's own pins as device 0, no onboard chips, powered from USB.",
+  "description": "A plain ESP32-S3 devkit running the runIT firmware: only the ESP32-S3's own pins as device 0, no onboard chips, powered from USB.",
   "source_files": [
-    "components/app/runit/runit_board_defs.h",
-    "components/app/runit/runit_board_cfg.c",
+    "boards/runit_r1_defs.h",
+    "boards/runit_r1_power.c",
     "components/app/runit/Kconfig"
   ],
   "i2c_buses": [
@@ -22,6 +22,7 @@
         "device": 0,
         "pin": 16
       },
+      "pullup": true,
       "frequency_hz": 400000,
       "description": "I2C bus 0 (the PCB's internal bus; on a devkit free for the user's chips)"
     },
@@ -36,6 +37,7 @@
         "device": 0,
         "pin": 41
       },
+      "pullup": true,
       "frequency_hz": 400000,
       "description": "External user I2C bus for sensors and breakouts"
     }

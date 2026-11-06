@@ -2,17 +2,13 @@
 
 #include "sdkconfig.h"
 
-typedef struct __attribute__((packed)) {
-  uint8_t id;
-} watch_ref_t;
-
 ROUTER_OP_TAIL(op_add, sys_watch_head_t) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL, ERR_WATCH_BAD_ARG, .id = args->id);
   return sys_watch_add(args, tail, origin->src);
 }
 
-ROUTER_OP(op_remove, watch_ref_t) {
+ROUTER_OP(op_remove, sys_watch_ref_t) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL, ERR_WATCH_NOT_FOUND, .id = args->id);
   return sys_watch_remove(origin->src, args->id);

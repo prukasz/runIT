@@ -85,7 +85,7 @@ bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out) {
   return found;
 }
 
-// Any action ID (0 = none; it may be recorded later), importance NONE..CRITICAL.
+// Any action ID (0 = none; it may be stored later), importance NONE..CRITICAL.
 err_h sys_device_policy_set(uint16_t id, const sys_device_error_policy_t* p) {
   SYS_DEV_CHECK_IN_RANGE(id, p->importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   for (uint32_t i = 0; i < SYS_DEVICE_ERR_LEVELS; i++) {

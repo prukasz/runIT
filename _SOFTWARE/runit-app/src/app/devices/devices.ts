@@ -1,9 +1,9 @@
-import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, readDeviceFrame, requestFrame, sidesOf } from '@backend'
-import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldRecord, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
-import type { BoardDefaults, ProjectAction, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
+import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, requestFrame, sidesOf } from '@backend'
+import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
+import type { ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 
 /*
- * The devices of the Devices view, pure (no link, no UI): the board's own (board.json, created by the firmware at boot) and the
+ * The devices of the Devices view, pure (no link, no UI): the board's own (board.json, created by the profile the app writes to it) and the
  * project's (created from their config), the pins each uses and who uses its pins, the records that carry them to the board,
  * and those records read back.
  *
@@ -62,7 +62,7 @@ export interface DeviceInfo {
 }
 
 /** The device type of a board device: the descriptor board.json names. */
-const boardType = (catalog: ServiceCatalog, descriptor: string): CatalogEntry | undefined =>
+export const boardType =(catalog: ServiceCatalog, descriptor: string): CatalogEntry | undefined =>
   [...catalog.devices.values()].find((entry) => entry.source.endsWith(`/${descriptor}.json`))
 
 /** What a use is called: the config field's label, and the place in a list of pins (`in_pin[0]` -> `In pin 1`). */
@@ -583,62 +583,6 @@ export const nextActionId = (project: ProjectFile): number => {
 /* ---- read back ---- */
 
 /** A decoded field value as a project keeps it (JSON): bytes as a list, a u64 as a number. */
-const keepable = (record: FieldRecord | undefined): FieldValues | undefined =>
-  record && Object.fromEntries(Object.entries(record).map(([id, value]) => [id, value instanceof Uint8Array ? Array.from(value) : typeof value === 'bigint' ? Number(value) : value]))
-
-/** What the board keeps: the device records (the stored project's sections, else the device records alone) and the user actions. */
-export interface BoardRecords {
-  readonly devices: readonly Section[]
-  readonly actions: readonly Section[]
-}
-
-/**
- * The project with the devices and actions the board keeps in place of its own: a device record that starts with CREATE is a
- * project device (its type and config), one without is a board device's start commands; a frame the catalog does not describe
- * stays as its bytes. Names the project already gives an ID are kept. The program is left as it is.
- */
-export const fromBoard = (defs: LinkDefinitions, catalog: ServiceCatalog, board: BoardDescriptor, project: ProjectFile, records: BoardRecords): { readonly project: ProjectFile; readonly notes: string[] } => {
-  const notes: string[] = []
-  const types = new Map<number, CatalogEntry>()
-  for (const d of board.devices) {
-    const type = boardType(catalog, d.descriptor)
-    if (type) types.set(d.id, type)
-  }
-  const typeOf = (device: number) => types.get(device)
-  const step = (frame: Uint8Array): Step => {
-    const read = readDeviceFrame(defs, catalog, frame, typeOf)
-    if (!read || read.create || read.side !== 'write') return { kind: 'frame', bytes: Array.from(frame) }
-    const args = keepable(read.args)
-    return { kind: 'device', device: read.device, contract: read.entry.id, command: read.command.id, ...(args ? { args } : {}) }
-  }
-
-  const devices: ProjectDevice[] = []
-  const boardDefaults: BoardDefaults[] = []
-  for (const section of records.devices) {
-    if (recordClass(section.id) !== DEVICE_CLASS) continue
-    const id = section.id & 0xffff
-    const [first, ...rest] = section.frames
-    const create = first && readDeviceFrame(defs, catalog, first, typeOf)?.create
-    if (create) {
-      types.set(id, create.type)
-      const config = keepable(create.config)
-      const known = project.devices.find((d) => d.id === id)
-      devices.push({ id, type: create.type.id, name: known?.name ?? `${create.type.label} ${id}`, ...(config ? { config } : {}), defaults: rest.map(step) })
-    } else if (board.devices.some((d) => d.id === id)) boardDefaults.push({ device: id, steps: section.frames.map(step) })
-    else notes.push(`The record of device ${id} has no install command and the board has no device ${id}: left out.`)
-  }
-  const onboard = onboardActionIds()
-  const actions: ProjectAction[] = records.actions
-    .filter((a) => recordClass(a.id) === USER_CLASS && !onboard.has(a.id & 0xffffff))
-    .map((a) => {
-      const id = a.id & 0xffffff
-      return { id, name: project.actions.find((p) => p.id === id)?.name ?? `Action ${id}`, steps: a.frames.map(step) }
-    })
-  const gone = project.devices.filter((d) => !devices.some((n) => n.id === d.id)).length
-  if (gone > 0) notes.push(`${gone} device(s) of the project are not on the board and were left out (Undo brings them back).`)
-  return { project: { ...project, devices, boardDefaults, actions }, notes }
-}
-
 /* ---- showing values ---- */
 
 /** A value of a field as a user reads it: a choice by its label, a pin by its device and name, bytes in hex. */

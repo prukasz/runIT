@@ -675,7 +675,9 @@ CONFIG_BOOTLOADER_PROJECT_VER=1
 #
 # Application Rollback
 #
-# CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE is not set
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+# default:
+# CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK is not set
 # end of Application Rollback
 
 #
@@ -3468,7 +3470,7 @@ CONFIG_ERRORS_MAX_MODULES=32
 # router
 #
 # default:
-CONFIG_ROUTER_MAX_KEYS=16
+CONFIG_ROUTER_MAX_KEYS=24
 # default:
 CONFIG_ROUTER_WORK_QUEUE_SIZE=4096
 # default:
@@ -3490,8 +3492,6 @@ CONFIG_ROUTER_URGENT_TASK_STACK=6144
 CONFIG_SYS_ACTIONS_PARTITION="project"
 # default:
 CONFIG_SYS_ACTIONS_MAX_BYTES=4096
-# default:
-CONFIG_SYS_ACTIONS_MAX_BYTES_DEVICE=512
 # default:
 CONFIG_SYS_ACTIONS_MAX_DEPTH=3
 # end of sys_actions
@@ -3559,34 +3559,6 @@ CONFIG_SYS_I2C_XFER_TIMEOUT_MS=50
 CONFIG_SYS_I2C_PROBE_TIMEOUT_MS=50
 # default:
 CONFIG_SYS_I2C_GLITCH_IGNORE_CNT=7
-# default:
-CONFIG_SYS_I2C_REMOTE_BUS=1
-
-#
-# Bus 0 (onboard chips)
-#
-# default:
-CONFIG_SYS_I2C_BUS0_ENABLE=y
-# default:
-CONFIG_SYS_I2C_BUS0_SDA=15
-# default:
-CONFIG_SYS_I2C_BUS0_SCL=16
-# default:
-CONFIG_SYS_I2C_BUS0_PULLUP=y
-# end of Bus 0 (onboard chips)
-
-#
-# Bus 1 (user connector)
-#
-# default:
-CONFIG_SYS_I2C_BUS1_ENABLE=y
-# default:
-CONFIG_SYS_I2C_BUS1_SDA=40
-# default:
-CONFIG_SYS_I2C_BUS1_SCL=41
-# default:
-CONFIG_SYS_I2C_BUS1_PULLUP=y
-# end of Bus 1 (user connector)
 # end of sys_i2c
 
 #
@@ -3620,6 +3592,8 @@ CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT=3
 #
 # sys_project
 #
+# default:
+CONFIG_SYS_PROJECT_SOURCE_PARTITION="source"
 # default:
 CONFIG_SYS_PROJECT_MAX_BYTES=65536
 # default:
@@ -3805,30 +3779,11 @@ CONFIG_VM_SUB_MAX_TRACKED=256
 # default:
 CONFIG_RUNIT_BLE_START=y
 # default:
-CONFIG_RUNIT_BOARD_PCB=y
-# default:
-# CONFIG_RUNIT_BOARD_DEVKIT is not set
-# default:
-# CONFIG_RUNIT_BOARD_BARE is not set
-# default:
 CONFIG_RUNIT_LINK_NONE=y
 # default:
 # CONFIG_RUNIT_LINK_ROOT is not set
 # default:
 # CONFIG_RUNIT_LINK_CHILD is not set
-
-#
-# Onboard action IDs
-#
-# default:
-CONFIG_RUNIT_ACTION_ID_RESUME=3
-# default:
-CONFIG_RUNIT_ACTION_ID_SUSPEND=4
-# default:
-CONFIG_RUNIT_ACTION_ID_RESET=5
-# default:
-CONFIG_RUNIT_ACTION_ID_HARD_RESET=6
-# end of Onboard action IDs
 # end of runIT
 # end of Component config
 
@@ -3837,7 +3792,8 @@ CONFIG_RUNIT_ACTION_ID_HARD_RESET=6
 # Deprecated options for backward compatibility
 # CONFIG_APP_BUILD_TYPE_ELF_RAM is not set
 # CONFIG_NO_BLOBS is not set
-# CONFIG_APP_ROLLBACK_ENABLE is not set
+CONFIG_APP_ROLLBACK_ENABLE=y
+# CONFIG_APP_ANTI_ROLLBACK is not set
 # CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_NONE is not set
 # CONFIG_LOG_BOOTLOADER_LEVEL_NONE is not set
 # CONFIG_LOG_BOOTLOADER_LEVEL_ERROR is not set

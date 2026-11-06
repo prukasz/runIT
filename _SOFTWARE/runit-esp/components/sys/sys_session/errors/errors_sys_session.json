@@ -27,6 +27,10 @@
     "ERR_SESSION_ROLE": {
       "message": "A board connected to a master takes no other connection: no app, no other board"
     },
+    "ERR_SESSION_NOT_FRAMED": {
+      "message": "A session needs a link that carries a whole frame; this one is raw",
+      "hint": "Attach a framed provider. A raw one is for a stream or a command binding."
+    },
     "ERR_SESSION_FULL": {
       "message": "No room for another board connection",
       "hint": "Remove one first."

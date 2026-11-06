@@ -12,7 +12,7 @@ Component `components/sys/sys_data_provider/`. A **provider** is one way bytes g
 | `config/sys_data_provider_config.h` | What a provider's id and state are: the links, the state flags (published to the app) |
 | `driver/sys_data_provider_driver.h` | For its drivers only: the provider (`sys_data_provider_t`), add, remove, mark system, set max frame, deliver |
 | `internal/sys_data_provider_internal.h` | For its router only: LIST, SEND to a provider no user has |
-| `router/sys_data_provider_router.h` / `.c` | The remote interface (root key `ROUTER_KEY_PROVIDER` 0x0D) |
+| `router/sys_data_provider_router.h` / `.c` | The remote interface (root key `ROUTER_KEY_PROVIDER` 0x0D). The header publishes every op (`SYS_DATA_PROVIDER_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `router/contract_provider.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_DATA_PROVIDER_MAP`, its registration, the messages |
 | `Kconfig` | Provider slots |
@@ -33,26 +33,26 @@ Every call finds the provider by its id, so an id kept after the provider went a
 ## Use
 
 - `sys_data_provider_open(id, rx, ctx)`: a provider has **one user** at a time (a session, a stream's binding, the command binding): it alone sends on it and gets what comes in (`rx` NULL: send only), so bytes of two senders never mix on one line. Open by another: `ERR_PROV_IN_USE`. An open provider can't be removed. The provider knows nothing of who its user is: the context decides.
-- `rx(ctx, id, data, len)` runs on the driver's RX task: it copies what it keeps and returns, never blocks, and sends only with `SYS_DATA_PROVIDER_SEND_NOWAIT`. `data` NULL: the provider went up or down, `len` its `max_frame` now (0: down); after open the user reads `sys_data_provider_max_frame` once.
+- `rx(ctx, id, data, len)` runs on the driver's RX task: it copies what it keeps and returns, never blocks, and sends only with `SYS_DATA_PROVIDER_SEND_NOWAIT`. `data` NULL: the provider went up or down, `len` 1 or 0; after open the user reads `sys_data_provider_is_up` once.
 - `sys_data_provider_close(id)`: the provider is free again.
 - `sys_data_provider_send(id, data, len, flags)`: one whole frame, on a provider the caller opened. `SYS_DATA_PROVIDER_SEND_URGENT`: to the front of the driver's queue. Without `NOWAIT` it waits for room in that queue at most the driver's own bound (BLE, UART: their Kconfig), so never on a driver's RX task; with `NOWAIT` it only queues, and a full queue is `ERR_PROV_BUSY` at once: any task, a driver's RX task too. Too long: `ERR_PROV_TOO_LONG`, never cut. The driver's failure is wrapped in `ERR_PROV_SEND`.
-- `sys_data_provider_max_frame(id)`: the largest whole frame it delivers now (Frame size); 0 = down (`sys_data_provider_is_up(id)` is that test). A field read under the registry's spinlock, never a call into the driver: any task.
+- `sys_data_provider_is_up(id)`, `sys_data_provider_is_framed(id)`: bits of its state (Frame size). Read under the registry's spinlock, never a call into the driver: any task.
 - `sys_data_provider_state(id)`: its state flags, a field as well. **`WIRED`** (`sys_data_provider_is_wired(id)`) says the link is a cable (UART): a round trip of about a millisecond, against tens of them, with a long tail, on a radio (BLE). `sys_session_wired` reads it.
 
 ## Frame size
 
-A frame is whole above the driver: the driver splits it into what its link carries (BLE packets of MTU − 4 with the fragment header, a UART frame: UART below) and joins it on the way in. No one above it cuts a frame: one longer than `max_frame` is refused (`ERR_PROV_TOO_LONG`).
+A frame is whole above the driver: the driver splits it into what its link carries (BLE packets of MTU − 4 with the fragment header, a UART frame: UART below) and joins it on the way in. No one above it cuts a frame, and no size of a link is known above its driver: the one limit is `CMD_FRAME_MAX`, longer is refused (`ERR_PROV_TOO_LONG`). A provider is up or down (`SYS_DATA_PROVIDER_STATE_UP`), and framed or raw (`SYS_DATA_PROVIDER_STATE_FRAMED`).
 
-| Provider | `max_frame` when up | Changes |
-|---|---|---|
-| framed (the runIT BLE characteristics, UART) | `CMD_FRAME_MAX` (CMD.MD "Frame size"): the driver's buffers hold one | up, down (0) |
-| unframed (a user characteristic without the fragment header) | one packet: min(MTU − 3, `CMD_FRAME_MAX`), since the peer knows no fragments | also the MTU exchange |
+| Provider | What it carries |
+|---|---|
+| framed (the runIT BLE characteristics, UART) | a whole `CMD_FRAME_MAX` frame (CMD.MD "Frame size"): the driver's buffers hold one, and the driver at the other end joins the pieces |
+| raw (a user characteristic without the fragment header) | what its link takes at once, since the peer knows no fragments; the driver refuses more (BLE: `ERR_BLE_TOO_LONG`, wrapped in `ERR_PROV_SEND`). Whoever sends on it knows that size |
 
-A session is meant for a framed provider (`sys_session_attach` does not check it), so every frame between the board and its clients has the same limit; only a stream bound to an unframed one sizes its payloads by `max_frame` (`sys_stream_max_payload`). The board's providers today are the runIT BLE pair and LOGS (framed; SYS_BLE.MD "Providers"), the UART console and link (framed; SYS_UART.MD) and the unframed providers of run-time BLE characteristics (SYS_BLE.MD "Run-time characteristics as providers"), the only ones that take data from a peer other than a session.
+A session takes a framed provider only (`sys_session_attach`: `ERR_SESSION_NOT_FRAMED`), so every frame between the board and its peers has the same limit. A raw one is for a stream's binding or a command binding. The board's providers today are the runIT BLE pair and LOGS (framed; SYS_BLE.MD "Providers"), the UART console and link (framed; SYS_UART.MD) and the unframed providers of run-time BLE characteristics (SYS_BLE.MD "Run-time characteristics as providers"), the only ones that take data from a peer other than a session.
 
 ## Driver
 
-The driver makes a provider from its own config (a BLE characteristic, a UART port), fills the struct (`send`, `destroy`, `max_frame`, `driver`, `id`, and in `state` `STATE_SYSTEM` for the board's own, `STATE_WIRED` when its link is a cable) and adds it (`sys_data_provider_add`). It hands every whole frame to `sys_data_provider_deliver` (it joins the fragments or the line first) and keeps `max_frame` current with `sys_data_provider_set_max_frame` (Frame size), which tells the user when it changed.
+The driver makes a provider from its own config (a BLE characteristic, a UART port), fills the struct (`send`, `destroy`, `driver`, `id`, and in `state` `STATE_SYSTEM` for the board's own, `STATE_WIRED` when its link is a cable, `STATE_FRAMED` when it carries a whole frame, `STATE_UP` when it is up already) and adds it (`sys_data_provider_add`). It hands every whole frame to `sys_data_provider_deliver` (it joins the fragments or the line first) and keeps up or down current with `sys_data_provider_set_up`, which tells the user when it changed.
 
 `send` takes the flags (`URGENT`: the front of its queue, where the driver has one: UART; BLE keeps the order; `NOWAIT`: no wait for room) and raises `ERR_PROV_BUSY` itself when its queue is full. With `NOWAIT` it only puts the frame in its queue, which its own task empties: so it may be called from any driver's RX task, its own too, and never takes a lock that task holds. The rest of the struct (`rx`, `ctx`, `busy`, and `state`'s `OPEN` and `SYSTEM`) is the registry's, only touched under its spinlock; `busy` counts the sends in progress. Nothing runs under the spinlock but a lookup and a copy: the driver's `send`, its `destroy` and the user's `rx` are called after it is released. `state` is the one record of the provider's state: LIST sends it as is.
 
@@ -78,7 +78,7 @@ A provider's third user, for a client outside runIT (a script, Node-RED, Home As
 - **In**: one message is one command, as the router takes it: `[key][dir][code | id + op][args]`, at most `CMD_DATA_MAX`. Its `seq` is the binding's own count of commands, its flags 0.
 - **Out**: `[status][data]` on the same provider, `NOWAIT`: `status` `router_status_e`, `data` the answer or, on ERROR, the error record (ERRORS.MD "Error record"), as every answer has. The status goes into the byte in front of the router's answer, so there is no copy. A command the router refuses (too long, its queue full) is answered from the RX task and reported with its command, as the session does.
 - **This board only**: nothing is forwarded; the answer goes back by the provider, not by an id. A provider another user has: `ERR_PROV_IN_USE`.
-- **No peer**: the command's `src` is `ROUTER_SRC_NONE` (0xFD, `SYS_SESSION_ID_NONE`). What the board keeps for a peer refuses it: WATCH ADD, STREAM SUBSCRIBE and REMOTE SUBSCRIBE (no one to send to), ACTIONS RECORD_START (`ERR_ACTION_BAD_ARG`: nothing of it to record), SYS DEADMAN set (`ERR_CMD_BAD_ARG`: no session whose silence it could notice). A client that follows a value reads it again, or takes a stream on a stream's binding.
+- **No peer**: the command's `src` is `ROUTER_SRC_NONE` (0xFD, `SYS_SESSION_ID_NONE`). What the board keeps for a peer refuses it: WATCH ADD, STREAM SUBSCRIBE and REMOTE SUBSCRIBE (no one to send to), SYS DEADMAN set (`ERR_CMD_BAD_ARG`: no session whose silence it could notice). A client that follows a value reads it again, or takes a stream on a stream's binding.
 - The router does not change: it knows `cmd_req_t` and `done`, not providers.
 
 ## Remote (`sys_data_provider_router`, root key `ROUTER_KEY_PROVIDER` 0x0D)

@@ -22,8 +22,8 @@ export interface VmLimits {
   /** `CONFIG_VM_RETAIN_MAX_BYTES`: the stored record of retained values (`2 + 4 + name + value` per object). */
   readonly retainMaxBytes: number
   /**
-   * `CMD_FRAME_MAX` (cmd.h): the largest frame the router takes from a link. A link may carry less right now (a BLE MTU,
-   * `link->max_frame` in router_dispatch.c): pass that figure here and the engine packs frames to fit.
+   * `CMD_FRAME_MAX` (cmd.h): the largest frame, the one limit of every session's link. Not an option: `createEngine` always
+   * takes it from the firmware.
    */
   readonly frameMax: number
   /**
@@ -42,13 +42,13 @@ export interface VmLimits {
  */
 export const FRAME_OVERHEAD = 5 + 3
 
-/** The most payload one frame of this board holds. */
+/** The most payload one frame holds. */
 export const frameCapacity = (limits: VmLimits): number => limits.frameMax - FRAME_OVERHEAD
 
-/** Payload bytes a batch frame is filled to: the policy, or less when the board's frame is smaller. A batch frame starts with `u8 count`. */
+/** Payload bytes a batch frame is filled to: the policy, never past what a frame holds. A batch frame starts with `u8 count`. */
 export const frameFill = (limits: VmLimits): number => Math.min(limits.frameBudget, frameCapacity(limits) - 1)
 
-/** Bytes of a value's data one record carries: the policy, less when the frame is small (the record's own 6 bytes and the count are in front), whole elements only. */
+/** Bytes of a value's data one record carries: the policy, never past what a frame holds (the record's own 6 bytes and the count are in front), whole elements only. */
 export const dataChunk = (limits: VmLimits, elementWidth: number): number => {
   const fits = Math.min(limits.dataChunk, frameCapacity(limits) - 1 - 6)
   return Math.max(Math.floor(fits / elementWidth), 1) * elementWidth

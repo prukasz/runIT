@@ -24,3 +24,5 @@
 #define ROUTER_KEY_SESSION  0x0Eu  //@alias Sessions @description Sessions: this board's id, its peers (attach, detach, list)
 #define ROUTER_KEY_WATCH    0x0Fu  //@alias Watches @description Watches: reads this board runs by a trigger and sends by itself (add, remove, list)
 #define ROUTER_KEY_REMOTE   0x10u  //@alias Remote devices @description Remote devices: subscriptions of other boards to this board's devices (their events and errors)
+#define ROUTER_KEY_OTA      0x12u  //@alias Firmware update @description Firmware update: a new firmware into the other slot, what runs now
+#define ROUTER_KEY_BOARD    0x11u  //@alias Board profile @description Board profile: the definition of the board kept on it as JSON (write, read back)

@@ -1,9 +1,10 @@
-import { eraseProject, listRecords, onboardActionIds, projectInfo, readProject, readRecord, removeRecord, saveProject, serviceCall, storeRecord, vmFrame } from '@backend'
-import type { BoardDescriptor, LinkDefinitions, RunitLink, Section, ServiceCatalog } from '@backend'
+import { eraseProject, listRecords, onboardActionIds, projectInfo, readProjectSource, removeRecord, saveProject, saveProjectSource, serviceCall, storeRecord, vmFrame } from '@backend'
+import type { BoardDescriptor, LinkDefinitions, RunitLink, ServiceCatalog } from '@backend'
 import type { Engine } from '@engine'
+import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectFile } from '../project/projectFile'
-import { readLiveBase, settingsFromRecords, settingsRecords } from '../settings/settingsRecords'
-import { actionRecordOf, DEVICE_CLASS, deviceProblems, deviceSections, fromBoard, recordClass, SETTINGS_CLASS, stepFrame, USER_CLASS } from './devices'
+import { settingsRecords } from '../settings/settingsRecords'
+import { actionRecordOf, DEVICE_CLASS, deviceProblems, deviceSections, recordClass, SETTINGS_CLASS, stepFrame, USER_CLASS } from './devices'
 
 /*
  * The project's devices and actions on the board, both ways (SYS_PROJECT.MD, SYS_ACTIONS.MD).
@@ -76,35 +77,29 @@ export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, boa
   }
   for (const id of stored) if (!wanted.has(id) || project.actions.find((a) => actionRecordOf(a.id) === id)?.steps.length === 0) await removeRecord(link, id)
 
+  onProgress?.({ step: 'Project', done: 0, total: 1 })
+  const after = await projectInfo(link)
+  await saveProjectSource(link, { name: project.name, text: serializeProject(project), streamCrc: after.stored ? after.crc : 0 }, (done, total) => onProgress?.({ step: 'Project', done, total }))
+
   const removed = staleDevices.length > 0 ? ` ${staleDevices.length} device record(s) the project no longer has removed.` : ''
   if (sections.length === 0 && !program) return `Nothing runs at start: the stored project and its devices are erased, ${project.actions.length} action(s) written.${removed}`
   return `Written: ${settings.length} setting record(s), ${sections.length - settings.length} device record(s), ${program ? 'the program, ' : ''}${project.actions.length} action(s). ${BOOT_NOTE[boot === defs.projectBoot.run ? 'run' : boot === defs.projectBoot.load ? 'load' : 'none']}${removed}`
 }
 
-/** Reads the devices and actions the board keeps into the project. Resolves with the project and the notes for the user. */
-export const readFromBoard = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, project: ProjectFile, onProgress?: (p: SyncProgress) => void): Promise<{ readonly project: ProjectFile; readonly notes: string[] }> => {
-  const defs = link.defs
-  const onboard = onboardActionIds()
-  const ids = await listRecords(link)
-  const stored = await readProject(link)
-  let devices: Section[]
-  if (stored) devices = stored.sections.filter((s) => recordClass(s.id) === DEVICE_CLASS)
-  else {
-    devices = []
-    for (const id of ids.filter((r) => recordClass(r) === DEVICE_CLASS)) devices.push({ id, frames: await readRecord(link, id) })
-  }
-  const actionIds = ids.filter((id) => recordClass(id) === USER_CLASS && !onboard.has(id & 0xffffff))
-  const actions: Section[] = []
-  for (const [i, id] of actionIds.entries()) {
-    onProgress?.({ step: 'Actions', done: i, total: actionIds.length })
-    actions.push({ id, frames: await readRecord(link, id) })
-  }
-  const read = fromBoard(defs, catalog, board, project, { devices, actions })
-  const settingsNotes: string[] = []
-  const storedSettings = (stored?.sections ?? []).filter((s) => recordClass(s.id) === SETTINGS_CLASS)
-  const settings = settingsFromRecords(catalog, storedSettings, storedSettings.length > 0 ? await readLiveBase(link, catalog) : {}, settingsNotes)
-  const notes = [`Read: ${storedSettings.length} setting record(s), ${read.project.devices.length} device(s), ${read.project.boardDefaults.length} board device(s) with start commands, ${read.project.actions.length} action(s)${stored ? '' : ' (no stored project: the device records alone)'}.`, ...read.notes]
-  notes.push(...settingsNotes)
-  if (stored && !stored.verified) notes.push('The stored project did not read back whole (its CRC differs): write it again.')
-  return { project: { ...read.project, settings }, notes }
+/** What reading the board gives: the project it keeps a copy of (none: the board keeps none) and the notes for the user. */
+export interface BoardRead {
+  readonly project?: ProjectFile
+  readonly notes: readonly string[]
+}
+
+/** Reads the copy of the project the board keeps. */
+export const readFromBoard = async (link: RunitLink, onProgress?: (p: SyncProgress) => void): Promise<BoardRead> => {
+  const source = await readProjectSource(link, (done, total) => onProgress?.({ step: 'Project', done, total }))
+  if (!source) return { notes: ['The board keeps no copy of a project: nothing read.'] }
+  const parsed = parseProject(source.text)
+  if (!parsed.ok) throw new Error(`The board's copy of the project is not readable: ${parsed.error}`)
+  const info = await projectInfo(link)
+  const notes = [`Read the project "${source.name}" from the board.`, ...parsed.problems]
+  if ((info.stored ? info.crc : 0) !== source.streamCrc) notes.push('The program stored on the board is not the one this copy was written with: write the project again.')
+  return { project: parsed.project, notes }
 }

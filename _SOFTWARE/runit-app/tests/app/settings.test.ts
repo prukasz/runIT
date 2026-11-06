@@ -4,7 +4,7 @@ import type { DataStream, GattService } from '../../src/app/project/projectFile'
 import { emptySettings } from '../../src/app/project/projectFile'
 import { decodeGattList, gattApply, gattFromRecord, gattRecord } from '../../src/app/settings/gatt'
 import { groupValues, sameValues, settingSections } from '../../src/app/settings/settings'
-import { settingsFromRecords, settingsRecords } from '../../src/app/settings/settingsRecords'
+import { settingsRecords } from '../../src/app/settings/settingsRecords'
 import { decodeStreamsInfo, sameStreams, streamsApply, streamsFromRecord, streamsRecord } from '../../src/app/settings/streams'
 
 const catalog = bundledServiceCatalog()
@@ -58,7 +58,7 @@ describe('the board settings from the service descriptors', () => {
   })
 
   it('leaves out every write without the mark: nothing that only looks like a setting is ever sent as a read', () => {
-    expect(group('ACTIONS.RECORD_START')).toBeUndefined()
+    expect(group('ACTIONS.BEGIN')).toBeUndefined()
     expect(group('VM.SPEED')).toBeUndefined()
   })
 
@@ -121,7 +121,7 @@ describe('the settings the project keeps, as records of the stored project', () 
     expect(sameStreams([{ stream: 0x10, system: false, bindings: [] }], [{ stream: 0x10, system: false, dir: 'out', bindings: [] }])).toBe(true) // no direction: OUT
   })
 
-  it('writes each kept setting as its record and reads them back over what the board has', () => {
+  it('writes each kept setting as its record', () => {
     const rows = [{ target: 0xffff, cells: Array.from({ length: 11 }, () => 0) }, { target: 10, cells: Array.from({ length: 11 }, (_, i) => (i === 3 ? 1 : 0)) }]
     const settings = {
       ...emptySettings(),
@@ -134,11 +134,6 @@ describe('the settings the project keeps, as records of the stored project', () 
     // the matrix's write: [key][write][MATRIX], then each row's target (u16) and its 11 cells
     const matrix = records.find((r) => r.id === record('SYS_ACTIONS_ID_POWER_RESPONSES'))!.frames[0]!
     expect([...matrix.subarray(3)]).toEqual(rows.flatMap((r) => [r.target & 0xff, r.target >> 8, ...r.cells]))
-    const back = settingsFromRecords(catalog, records, { streams: [streams[0]!] })
-    expect(sameValues(group('LOG.CONFIG')!.layout, back.values['LOG.CONFIG']!, settings.values['LOG.CONFIG'])).toBe(true)
-    expect(back.tables['POWER_MANAGER.MATRIX']).toEqual(rows)
-    expect(back.gatt).toEqual(gatt)
-    expect(back.streams).toEqual(streams.map(({ name: _, ...s }) => s)) // the board keeps no name
   })
 
   it('writes nothing for what the project does not keep', () => {

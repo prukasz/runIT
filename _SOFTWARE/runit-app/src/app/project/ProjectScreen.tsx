@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FilePlus2, FolderOpen, History, RefreshCw, Save } from 'lucide-react'
-import { bundledEnums, projectInfo } from '@backend'
+import { bundledEnums, projectInfo, projectSourceName } from '@backend'
 import type { ProjectInfo, RunitLink } from '@backend'
 import { Badge, Button, Card, CardStack, EditableField, FieldError, FormGrid, FormRow, PanelHeader } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { BoardRun } from '../useVm'
 import type { PinContext } from '../devices/FieldsForm'
 import { SettingsCards } from '../settings/SettingsScreen'
+import { FirmwareCard } from './FirmwareCard'
 import type { BoardSettingsState } from '../settings/useBoardSettings'
 import { projectCounts } from './projectFile'
 import type { useProject } from './useProject'
@@ -19,11 +20,13 @@ const modeAlias = (name: string): string => bundledEnums().vm_run_mode_e?.member
 /** What the board holds: the project stored in its flash (`PROJECT INFO`) and the program in its VM (`VM STATUS`). */
 function BoardCard({ link, connected, run }: { link: RunitLink; connected: boolean; run?: BoardRun }) {
   const [info, setInfo] = useState<ProjectInfo | undefined>()
+  const [copy, setCopy] = useState<string | undefined>()
   const [error, setError] = useState<string | undefined>()
   const refresh = useCallback(async () => {
     setError(undefined)
     try {
       setInfo(await projectInfo(link))
+      setCopy(await projectSourceName(link) ?? 'None')
     } catch (failure) {
       setInfo(undefined)
       setError(failure instanceof Error ? failure.message : String(failure))
@@ -40,6 +43,9 @@ function BoardCard({ link, connected, run }: { link: RunitLink; connected: boole
       <FormGrid>
         <FormRow label="Stored project">
           {info ? <span>{info.stored ? `Yes, ${info.bytes} bytes` : 'None'}</span> : <span>…</span>}
+        </FormRow>
+        <FormRow label="Copy of the project">
+          <span>{copy ?? '…'}</span>
         </FormRow>
         <FormRow label="Program in the VM">
           {run ? <span>{run.ready ? 'Loaded' : 'None'}</span> : <span>…</span>}
@@ -97,6 +103,7 @@ export function ProjectScreen({ project, link, connected, run, settings, context
           </div>
         </Card>
         <BoardCard link={link} connected={connected} run={run} />
+        <FirmwareCard link={link} connected={connected} />
         {own && <SettingsCards section={own} state={settings} context={context} nameOf={nameOf} />}
       </CardStack>
     </div>

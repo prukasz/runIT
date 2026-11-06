@@ -3,28 +3,19 @@
 #include "sdkconfig.h"
 #include "sys_stream_internal.h"
 
-typedef struct __attribute__((packed)) {
-  uint8_t id;  /**< The stream */
-} stream_ref_t;
-
-typedef struct __attribute__((packed)) {
-  uint8_t id;                       /**< The stream */
-  sys_data_provider_id_t provider;  /**< The provider */
-} binding_t;
-
 ROUTER_OP(op_create, sys_stream_cfg_t) {
   return sys_stream_create(args);
 }
 
-ROUTER_OP(op_remove, stream_ref_t) {
+ROUTER_OP(op_remove, sys_stream_ref_t) {
   return sys_stream_remove(args->id);
 }
 
-ROUTER_OP(op_bind, binding_t) {
+ROUTER_OP(op_bind, sys_stream_binding_t) {
   return sys_stream_bind(args->id, args->provider);
 }
 
-ROUTER_OP(op_unbind, binding_t) {
+ROUTER_OP(op_unbind, sys_stream_binding_t) {
   return sys_stream_unbind(args->id, args->provider);
 }
 
@@ -41,13 +32,13 @@ ROUTER_OP_NOARGS(op_list) {
 }
 
 // The subscriber is who sent the command: no peer names another.
-ROUTER_OP(op_subscribe, stream_ref_t) {
+ROUTER_OP(op_subscribe, sys_stream_ref_t) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL, ERR_STREAM_BAD_ARG);
   return sys_stream_subscribe(args->id, origin->src);
 }
 
-ROUTER_OP(op_unsubscribe, stream_ref_t) {
+ROUTER_OP(op_unsubscribe, sys_stream_ref_t) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL, ERR_STREAM_BAD_ARG);
   return sys_stream_unsubscribe(args->id, origin->src);

@@ -9,7 +9,7 @@ Spec: `SYS_STREAM.MD` (this folder).
 - A stream has one direction and one list of targets; it keeps nothing. Storage is the consumer's: no buffer, read or count of what came in is added here.
 - `sys_stream_send` never blocks and never calls a provider or the session. Only the stream task sends, and always `NOWAIT`: one slow target never holds the others. What comes in on an IN binding is queued on the driver's RX task: a copy, nothing else.
 - A binding is its provider's one user (`sys_data_provider_open`); the stream opens and closes it. A subscriber is a peer id, taken from the command's `src` (`router_origin()`), never from the payload. Gone peers (`sys_session_on_gone`) lose their subscriptions.
-- `sys_stream.h` is what other components use; what only the component's router uses is in `internal/sys_stream_internal.h`, off the public include path.
+- `sys_stream.h` is what other components use; what only the component's router uses (LIST's copy of the streams) is in `internal/sys_stream_internal.h`, off the public include path. The router's ops and wire layouts are in `router/sys_stream_router.h`, each op's define directly above the frame it uses; `sys_stream.h` only forward-declares `sys_stream_cfg_t`. Every `struct` name in `contract_stream.json` is a C type of the router header.
 - No call into a provider, the session or a callback under the stream's lock: copy the targets, release, deliver, then write the results back by target.
 - Errors in the stream task are logged (`err_log`), never reported: a report would queue a record back into this task and loop.
 - A message that a binding can't carry is dropped there (`ERR_PROV_TOO_LONG`), never cut.

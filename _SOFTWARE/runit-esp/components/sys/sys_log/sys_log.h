@@ -12,7 +12,7 @@ extern "C" {
 /**
  * @brief Log output control (SYS_LOG.MD): what ESP_LOG prints, where, and whether
  * a reported error chain is also printed. Five options, applied at boot from the
- * defaults and changed with SET. They are kept as a record (SYS_ACTIONS_ID_LOG, the SET frame, written by the app)
+ * defaults and changed with CONFIG. They are kept as a record (SYS_ACTIONS_ID_LOG, the CONFIG write frame, written by the app)
  * that whoever starts the project runs; nothing replays by itself:
  *   level          how much is printed: 0 blocks every ESP_LOG line, up to
  *                  CONFIG_LOG_MAXIMUM_LEVEL (the compile-time ceiling);
@@ -28,18 +28,8 @@ extern "C" {
  * so no setting here can silence them.
  */
 
-/** @brief Ops of ROUTER_KEY_LOG. The stored record SYS_ACTIONS_ID_LOG holds the SET frame: [ROUTER_KEY_LOG][SET][sys_log_cfg_t]. */
-#define SYS_LOG_OP_CONFIG 0x01u  // read: -> sys_log_cfg_t; write: sys_log_cfg_t
-#define SYS_LOG_OP_ERRORS 0x03u  // [index u8] -> [total u8][record], the error history (oldest is index 0)
-
-/** @brief The settings record and the SET / GET payload (packed, the wire form). */
-typedef struct __attribute__((packed)) {
-  uint8_t level;          /**< Log level (0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose) */
-  uint8_t mirror_serial;  /**< 1 = mirror to console UART, 0 = disabled */
-  uint8_t trace_errors;   /**< 1 = print error chains as log lines, 0 = disabled */
-  uint8_t send_errors;    /**< 1 = send error records on errors stream, 0 = disabled */
-  uint8_t send_logs;      /**< 1 = send log lines on logs stream, 0 = disabled */
-} sys_log_cfg_t;
+/** @brief The five options: the frame of CONFIG, defined in sys_log_router.h. */
+typedef struct sys_log_cfg sys_log_cfg_t;
 
 /**
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
@@ -49,7 +39,7 @@ typedef struct __attribute__((packed)) {
 MUST_USE err_h sys_log_init(void);
 
 /**
- * @brief Applies the options at once (not stored: the app saves the SET frame as a record).
+ * @brief Applies the options at once (not stored: the app saves the CONFIG write frame as a record).
  * @return ERR_LOG_BAD_LEVEL{level, max}, ERR_CMD_BAD_ARG for a flag other than 0 / 1 (nothing changes).
  */
 MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);

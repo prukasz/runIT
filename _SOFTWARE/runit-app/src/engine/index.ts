@@ -8,7 +8,6 @@
  *   graph      execution order, gates and loops
  *   expression formulas of the expression blocks: text <-> RPN opcodes, per block
  *   compiler   project -> program, accessors, block state, codecs, run-time writes and telemetry by variable
- *   recover    a stored program back into a project
  *   generated  the one place that reads generated/ (wire numbers, descriptors)
  *
  * `createEngine()` wires the bundled descriptors to all of it; `Engine` takes your own.
@@ -22,7 +21,5 @@ export * from './compiler'
 export * from './expression'
 export * from './graph'
 export * from './model'
-export * from './recover'
 export * from './wire'
 export { loadGeneratedInput, loadWireDefinitions, wireDefinitions } from './generated'
-export type { RecoverResult } from './engine'

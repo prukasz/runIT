@@ -27,6 +27,8 @@
   X(ERR_I2C_XFER,           ERR_TAG(ERR_MOD_SYS_I2C, 13), ERR_SEV_HIGH,   { uint8_t bus; uint8_t addr; }) /* other failure, over ERR_ESP_ERR */ \
   X(ERR_I2C_REG,            ERR_TAG(ERR_MOD_SYS_I2C, 14), ERR_SEV_NONE,   { uint8_t reg; uint8_t write; }) /* context only: register access */ \
   X(ERR_I2C_ADDR_TAKEN,     ERR_TAG(ERR_MOD_SYS_I2C, 15), ERR_SEV_HIGH,   { uint8_t bus; uint8_t addr; }) /* another device is added at this address */ \
-  X(ERR_I2C_REMOTE_DENIED,  ERR_TAG(ERR_MOD_SYS_I2C, 16), ERR_SEV_MEDIUM, { uint8_t bus; }) /* remote op on a bus other than CONFIG_SYS_I2C_REMOTE_BUS */
+  X(ERR_I2C_BUS_EXISTS,     ERR_TAG(ERR_MOD_SYS_I2C, 17), ERR_SEV_MEDIUM, { uint8_t bus; }) \
+  X(ERR_I2C_BUS_IN_USE,     ERR_TAG(ERR_MOD_SYS_I2C, 18), ERR_SEV_MEDIUM, { uint8_t bus; }) /* a device is on it */ \
+  X(ERR_I2C_BAD_PIN,        ERR_TAG(ERR_MOD_SYS_I2C, 19), ERR_SEV_MEDIUM, { uint16_t device; uint8_t pin; }) /* not an ESP32-S3 pin */
 
 ERR_TAGS_DECLARE(ERR_SYS_I2C_MAP)

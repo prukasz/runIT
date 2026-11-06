@@ -65,6 +65,36 @@ static struct {
 } s_pm;
 
 U_RECURSIVE_MUTEX_DEFINE(sys_pwrm_mutex);
+
+/* Default response per power event; changed at runtime with MATRIX. */
+static const uint8_t k_default_responses[SYS_POWER_KIND_COUNT] = {
+    [SYS_POWER_KIND_OVP] = SYS_POWER_RESPONSE_DISABLE,
+    [SYS_POWER_KIND_UVP] = SYS_POWER_RESPONSE_NOTIFY,
+    [SYS_POWER_KIND_SPC] = SYS_POWER_RESPONSE_DISABLE,
+    [SYS_POWER_KIND_OCP_WARNING] = SYS_POWER_RESPONSE_NOTIFY,
+    [SYS_POWER_KIND_OCP_CRITICAL] = SYS_POWER_RESPONSE_NOTIFY,  // bring-up: a rail in current limit keeps running
+    [SYS_POWER_KIND_OTP] = SYS_POWER_RESPONSE_SAFE_STATE,
+    [SYS_POWER_KIND_BATTERY_LOW] = SYS_POWER_RESPONSE_NOTIFY,
+    [SYS_POWER_KIND_BATTERY_CRITICAL] = SYS_POWER_RESPONSE_SAFE_STATE,
+    [SYS_POWER_KIND_BUDGET_EXCEEDED] = SYS_POWER_RESPONSE_DISABLE,
+    [SYS_POWER_KIND_SOURCE_CHANGED] = SYS_POWER_RESPONSE_NOTIFY,
+};
+
+static sys_power_source_pins_t s_source_pins;
+static sys_power_consumer_t s_consumers[CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
+
+/* Until the board's profile says otherwise: a USB 2.0 port, the ESP32-S3 module and its radio, no rails. */
+static sys_power_board_t s_board = {
+    .max_mV = 5000,
+    .max_mA = 500,
+    .reserve_mW = 1000,
+    .unknown_source_mA = 500,
+    .vreg_efficiency_pct = 90,
+    .input = {.device = SYS_DEVICE_ID_NONE},
+    .usb_pd = SYS_DEVICE_ID_NONE,
+    .consumers = s_consumers,
+    .responses = k_default_responses,
+};
 U_TASK_DEFINE(sys_pwrm_task_h, CONFIG_SYS_POWER_MANAGER_TASK_STACK);
 
 /* ---- Helpers ---- */
@@ -754,11 +784,47 @@ err_h sys_power_manager_get_status(sys_power_status_t* out) {
 
 /* ---- Init ---- */
 
-err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_state_f safe_state) {
-  ERR_CHECK(board != NULL && s_pm.board == NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 0, .max = 0);
-  ERR_TRY(check_range(board->consumer_count, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS));
-  ERR_TRY(check_range(board->vreg_efficiency_pct, 1, 100));
-  ERR_CHECK(board->consumer_count == 0 || board->consumers != NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 1, .max = 1);
+err_h sys_power_manager_set_layout(const sys_power_layout_t* layout) {
+  ERR_TRY(check_range(layout->vreg_efficiency_pct, 1, 100));
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  err_h err = NULL;
+  if (s_board.consumer_count != 0) {
+    err = ERR_NEW(ERR_PWRM_BAD_ARG, .value = s_board.consumer_count, .min = 0, .max = 0);
+  } else {
+    s_board.max_mV = layout->max_mV;
+    s_board.max_mA = layout->max_mA;
+    s_board.reserve_mW = layout->reserve_mW;
+    s_board.unknown_source_mA = layout->unknown_source_mA;
+    s_board.vreg_efficiency_pct = layout->vreg_efficiency_pct;
+    s_board.input = (sys_power_channel_t){.device = layout->input_device, .channel = layout->input_channel};
+    s_board.usb_pd = layout->usb_pd;
+    s_source_pins = (sys_power_source_pins_t){.usb_ok = layout->usb_ok, .ext_ok = layout->ext_ok};
+    s_board.source_pins = layout->usb_ok.device == SYS_DEVICE_ID_NONE ? NULL : &s_source_pins;
+    s_pm.recompute = true;
+  }
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  return err;
+}
+
+err_h sys_power_manager_add_rail(const sys_power_rail_t* rail) {
+  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  const uint8_t n = s_board.consumer_count;
+  err_h err = check_range(n, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS - 1);
+  if (err == NULL) {
+    s_consumers[n] = (sys_power_consumer_t){.vreg = rail->vreg,
+                                            .monitor = {.device = rail->monitor_device, .channel = rail->monitor_channel},
+                                            .min_mA = rail->min_mA};
+    memcpy(s_pm.responses[1 + n], s_pm.responses[0], SYS_POWER_KIND_COUNT);
+    s_board.consumer_count = n + 1u;  // last: the rail is whole when the task sees it
+    s_pm.recompute = true;
+  }
+  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  return err;
+}
+
+err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
+  ERR_CHECK(s_pm.board == NULL, ERR_PWRM_BAD_ARG, .value = 0, .min = 0, .max = 0);
+  const sys_power_board_t* board = &s_board;
   // The defaults: the stored records (SYS_ACTIONS_ID_POWER_*) are run by whoever starts the project.
   s_pm_preset.cfg = (sys_power_manager_cfg_t)CFG_DEFAULT;
   s_pm_preset.pd = (sys_power_pd_t)PD_DEFAULT;
@@ -766,12 +832,7 @@ err_h sys_power_manager_init(const sys_power_board_t* board, sys_power_safe_stat
   s_pm.status.battery_pct = SYS_POWER_PCT_UNKNOWN;
   s_pm.status.pd_type = SYS_POWER_PD_TYPE_NONE;
 
-  // Responses: the board-config defaults (a rail without its own takes the board's; none = Notify, 0).
-  if (board->responses != NULL) memcpy(s_pm.responses[0], board->responses, SYS_POWER_KIND_COUNT);
-  for (uint8_t i = 0; i < board->consumer_count; i++) {
-    const uint8_t* own = board->consumers[i].responses;
-    memcpy(s_pm.responses[1 + i], own != NULL ? own : s_pm.responses[0], SYS_POWER_KIND_COUNT);
-  }
+  memcpy(s_pm.responses[0], board->responses, SYS_POWER_KIND_COUNT);  // a rail takes these when it is added
   s_pm.board = board;  // last: the API answers ERR_PWRM_NOT_READY until here
 
   ERR_TRY(sys_device_set_guard(SYS_DEVICE_CONTRACT_POWER_VREG, vreg_guard));

@@ -98,10 +98,10 @@ MUST_USE err_h sys_session_set_timeout(uint32_t ms);
 /**
  * @brief Makes a provider the way to a peer: opens it and, when it is up, sends the hello. Until the peer's hello
  * comes, only control frames pass.
- * @param provider  A provider (one with framing: CMD_FRAME_MAX).
+ * @param provider  A framed provider (SYS_DATA_PROVIDER_STATE_FRAMED).
  * @param peer      sys_session_peer_e.
  * @return NULL when attached; ERR_SESSION_ROLE (a board with a master has no other session: a master next to any
- * session, anything next to a master), ERR_SESSION_FULL, ERR_CMD_BAD_ARG (already attached, a bad peer), or the
+ * session, anything next to a master), ERR_SESSION_FULL, ERR_SESSION_NOT_FRAMED (a raw provider), ERR_CMD_BAD_ARG (already attached, a bad peer), or the
  * provider's open error (ERR_PROV_NOT_FOUND, _IN_USE).
  */
 MUST_USE err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer);

@@ -6,9 +6,9 @@ Component `components/sys/sys_system/`. The board's system commands under `ROUTE
 
 | File | Role |
 |---|---|
-| `sys_system.h` | `sys_safe_reason_e`, `SYS_SYSTEM_OP_*` (STOP, RESTART, TIME), the safe state and dead-man API, `sys_system_broadcast_time`, `sys_system_init` |
+| `sys_system.h` | `sys_safe_reason_e`, the safe state and dead-man API, `sys_system_broadcast_time`, `sys_system_init` |
 | `sys_system.c` | Safe state (handler, leave, note), dead-man (the session's gone peers, its time), the root's broadcasts of STOP and the time |
-| `router/sys_system_router.h` / `.c` | `sys_system_router` (`ROUTER_KEY_SYS`): the ops below |
+| `router/sys_system_router.h` / `.c` | `sys_system_router` (`ROUTER_KEY_SYS`): the ops below. The header publishes every op (`SYS_SYSTEM_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `router/contract_sys.json` | The service descriptor of the ops |
 | `Kconfig` | `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` (dead-man at boot, default 0 = off) |
 | `AGENTS.md` | Rules for changing this folder |
@@ -56,7 +56,7 @@ Requests are `[0x01][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x09` SAFE | R | → `u8 reason, u32 for_ms` (`sys_safe_reason_e` of the last entry, 0 = not in the safe state; the time since) |
 | `0x0A` SAFE_LEAVE | W | – (the app's leave: every device resumed; then the note cleared. A device that refuses to resume fails it and the note stays) |
 
-Whether a command runs urgent is the client's choice (`ROUTER_FLAG_URGENT`). Payload errors are `ERR_CMD_*` (CMD.MD); the module has no error tags of its own. Sys frames are never recorded into actions (SYS_ACTIONS.MD).
+Whether a command runs urgent is the client's choice (`ROUTER_FLAG_URGENT`). Payload errors are `ERR_CMD_*` (CMD.MD); the module has no error tags of its own. A record may hold them like any frame (SYS_ACTIONS.MD).
 
 Example from the client 0xF0: `01 00 f0 07 00 01 00 01` = REQUEST urgent, to board 0, seq 7; sys, read, PING → `40 f0 00 07 00 <uptime u32 LE>` (SYS_SESSION.MD "Frames").
 

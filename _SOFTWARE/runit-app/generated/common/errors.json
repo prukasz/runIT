@@ -552,9 +552,9 @@
           "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
         },
         {
-          "code": 16,
-          "tag": 65552,
-          "name": "ERR_I2C_REMOTE_DENIED",
+          "code": 17,
+          "tag": 65553,
+          "name": "ERR_I2C_BUS_EXISTS",
           "severity": 2,
           "size": 1,
           "fields": [
@@ -566,9 +566,51 @@
               "id_kind": "i2c_bus"
             }
           ],
-          "description": "remote op on a bus other than CONFIG_SYS_I2C_REMOTE_BUS",
-          "message": "{bus} cannot be used from the app",
-          "hint": "Use the bus the app may reach (the external I2C)."
+          "message": "I2C bus {bus} already exists"
+        },
+        {
+          "code": 18,
+          "tag": 65554,
+          "name": "ERR_I2C_BUS_IN_USE",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "i2c_bus"
+            }
+          ],
+          "description": "a device is on it",
+          "message": "I2C bus {bus} still has devices on it",
+          "hint": "Remove the devices on this bus first."
+        },
+        {
+          "code": 19,
+          "tag": 65555,
+          "name": "ERR_I2C_BAD_PIN",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "device",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "not an ESP32-S3 pin",
+          "message": "An I2C bus can't use pin {pin} of device {device}",
+          "hint": "Choose a pin of the ESP32-S3 itself: the I2C controller can't reach a pin of another device."
         }
       ]
     },
@@ -1691,7 +1733,7 @@
               "id_kind": "device"
             }
           ],
-          "description": "REMOVE of a board device (sys_device_mark_system)",
+          "description": "REMOVE of a board device (SYS_DEVICE_CREATE_SYSTEM)",
           "message": "{id} is part of the board and cannot be removed"
         },
         {
@@ -2017,18 +2059,18 @@
           "severity": 2,
           "size": 0,
           "fields": [],
-          "description": "a recording or upload is open",
-          "message": "A recording or upload is already open"
+          "description": "a record is being written",
+          "message": "A record is already being written"
         },
         {
           "code": 4,
           "tag": 524292,
-          "name": "ERR_ACTION_NO_SESSION",
+          "name": "ERR_ACTION_NO_DRAFT",
           "severity": 2,
           "size": 0,
           "fields": [],
-          "description": "no recording / upload of that kind open",
-          "message": "No recording or upload is open"
+          "description": "no record is being written",
+          "message": "No record is being written"
         },
         {
           "code": 5,
@@ -2074,7 +2116,7 @@
             }
           ],
           "description": "upload write out of order, read past the image",
-          "message": "Wrong offset {got}: an upload expects {want}, a read takes at most the record's {want} bytes"
+          "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
         },
         {
           "code": 7,
@@ -2097,7 +2139,7 @@
             }
           ],
           "description": "commit before every byte came",
-          "message": "The upload is incomplete ({got} of {want} bytes)",
+          "message": "The record is incomplete ({got} of {want} bytes)",
           "hint": "Write it again."
         },
         {
@@ -2120,7 +2162,7 @@
               "size": 4
             }
           ],
-          "message": "The upload is damaged (checksum {got}, expected {want})",
+          "message": "The record is damaged (checksum {got}, expected {want})",
           "hint": "Write it again."
         },
         {
@@ -2147,8 +2189,8 @@
           "severity": 1,
           "size": 0,
           "fields": [],
-          "description": "recording stopped with no frame",
-          "message": "The recording has no command",
+          "description": "a record with no frame",
+          "message": "The record has no command",
           "hint": "Add a command to the action."
         },
         {
@@ -5216,6 +5258,17 @@
           "description": "calls in flight to dst at the limit: later",
           "message": "Board {dst} is still answering earlier requests",
           "hint": "It is sent again later; nothing to do."
+        },
+        {
+          "code": 16,
+          "tag": 1179664,
+          "name": "ERR_SESSION_NOT_FRAMED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "attach: a raw provider carries no whole frame",
+          "message": "A session needs a link that carries a whole frame; this one is raw",
+          "hint": "Attach a framed provider. A raw one is for a stream or a command binding."
         }
       ]
     },
@@ -5427,6 +5480,174 @@
           "description": "every CONFIG_SYS_REMOTE_ALIASES slot taken: a remote device's events and errors do not come",
           "message": "Events and errors of a device of board {board} are not shown: {max} remote devices with events already",
           "hint": "Its calls still work. Remove another remote device, or allow more."
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "sys_nvs",
+      "symbol": "ERR_MOD_SYS_NVS",
+      "source_file": "runit-esp/components/sys/sys_nvs/errors/sys_nvs_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_nvs/errors/errors_sys_nvs.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1441793,
+          "name": "ERR_NVS_BAD_ARG",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "append: no data, or no chunk left",
+          "message": "The chunk has no data or the file is full"
+        },
+        {
+          "code": 2,
+          "tag": 1441794,
+          "name": "ERR_NVS_OFFSET",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The chunk starts at byte {got}; the file ends at byte {want}",
+          "hint": "Erase the file and write it again from the start."
+        },
+        {
+          "code": 3,
+          "tag": 1441795,
+          "name": "ERR_NVS_NO_CHUNK",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "chunk",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "message": "The file has no chunk {chunk}"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "ota",
+      "symbol": "ERR_MOD_SYS_OTA",
+      "source_file": "runit-esp/components/sys/sys_ota/errors/sys_ota_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_ota/errors/errors_ota.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1507329,
+          "name": "ERR_OTA_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "the VM runs: stop it first",
+          "message": "The firmware can't be updated while the program runs",
+          "hint": "Stop the program first."
+        },
+        {
+          "code": 2,
+          "tag": 1507330,
+          "name": "ERR_OTA_NOT_OPEN",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no BEGIN before it",
+          "message": "No firmware update is open"
+        },
+        {
+          "code": 3,
+          "tag": 1507331,
+          "name": "ERR_OTA_TOO_BIG",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "past the slot or the size BEGIN gave",
+          "message": "The firmware is {len} bytes; at most {max} fit"
+        },
+        {
+          "code": 4,
+          "tag": 1507332,
+          "name": "ERR_OTA_OFFSET",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "a write out of order",
+          "message": "Wrong offset {got}: the update expects {want}"
+        },
+        {
+          "code": 5,
+          "tag": 1507333,
+          "name": "ERR_OTA_INCOMPLETE",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "COMMIT before every byte",
+          "message": "The firmware is incomplete ({got} of {want} bytes)"
+        },
+        {
+          "code": 6,
+          "tag": 1507334,
+          "name": "ERR_OTA_BAD_IMAGE",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "the image fails its own check",
+          "message": "This file is not a valid firmware for this board",
+          "hint": "The board keeps the firmware it has."
         }
       ]
     }

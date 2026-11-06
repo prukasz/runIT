@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
-  crc32, deviceFrame, deviceRecordId, eraseProject, listRecords, loadProject, programFrameOf, projectInfo, projectStream, readProject, readRecord, recordInfo,
+  crc32, deviceFrame, deviceRecordId, eraseProject, listRecords, loadProject, projectInfo, projectStream, readRecord, recordInfo,
   removeRecord, runProject, runRecord, saveProject, sendProgram, setProjectBoot, storeRecord, vmFrame,
 } from '@backend'
 import type { ProjectContent } from '@backend'
@@ -107,21 +107,6 @@ describe('the stored project', () => {
     expect(progress.length).toBeGreaterThan(0)
   })
 
-  it('readProject gives every record back: verified, the sections and the program as saved', async () => {
-    const stored = (await readProject(board.link))!
-    expect(stored.verified).toBe(true)
-    expect(stored.sections).toEqual(content().sections)
-    expect(stored.program).toEqual(content().program)
-    expect(stored.start).toEqual(content().start)
-  })
-
-  it('the engine recovers the project from what the board holds', async () => {
-    const stored = (await readProject(board.link))!
-    const recovered = engine.recover(stored.program.flatMap((f) => programFrameOf(defs, f) ?? []))
-    const names = recovered.project?.variables.map((v) => v.name)
-    expect(names).toEqual(expect.arrayContaining(['x', 'y', 'z']))
-  })
-
   it('loadProject loads it without the start: the section sets the pin, the program waits', async () => {
     await board.services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     await loadProject(board.link)
@@ -161,7 +146,6 @@ describe('the stored project', () => {
     await setProjectBoot(board.link, defs.projectBoot.none)
     await eraseProject(board.link)
     expect((await projectInfo(board.link)).stored).toBe(false)
-    expect(await readProject(board.link)).toBeUndefined()
     await sleep(200)
   })
 

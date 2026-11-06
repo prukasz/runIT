@@ -6,7 +6,6 @@
 #include "host/util/util.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
-#include "nvs_flash.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "sys_ble_priv.h"
@@ -121,6 +120,16 @@ static int gap_event(struct ble_gap_event* event, void* arg) {
       }
       return 0;
     }
+
+    // The central sets the PHY and the packet length itself right after connecting; the board only logs them. A request
+    // from here collides with those and can leave a procedure unanswered: the link drops at 40 s (0x222, SYS_BLE.MD).
+    case BLE_GAP_EVENT_PHY_UPDATE_COMPLETE:
+      ESP_LOGI(TAG, "PHY: tx %u, rx %u", event->phy_updated.tx_phy, event->phy_updated.rx_phy);
+      return 0;
+
+    case BLE_GAP_EVENT_DATA_LEN_CHG:
+      ESP_LOGI(TAG, "data length: tx %u B, rx %u B", event->data_len_chg.max_tx_octets, event->data_len_chg.max_rx_octets);
+      return 0;
 
     case BLE_GAP_EVENT_MTU:
       sys_ble_on_mtu(event->mtu.value);
@@ -285,12 +294,6 @@ static void ble_task(void* param) {
 }
 
 err_h sys_ble_stack_start(struct ble_gatt_svc_def* svcs) {
-  esp_err_t nvs = nvs_flash_init();
-  if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    ERR_TRY_ESP(nvs_flash_erase());
-    nvs = nvs_flash_init();
-  }
-  ERR_TRY_ESP(nvs);
   ERR_TRY_ESP(nimble_port_init());
 
   ble_hs_cfg.reset_cb = on_reset;

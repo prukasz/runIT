@@ -195,19 +195,8 @@ MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, vo
 void router_report_cmd(const cmd_req_t* cmd, err_h err);
 
 /* ----------------------------------------------------------------------------
- * Tap, origin
+ * Origin
  * ------------------------------------------------------------------------- */
-
-/** Sees every command the tasks route (the board's own too), on the routing task. */
-typedef struct {
-  /** Before routing. true = taken: answered OK with no data and not routed. */
-  bool (*take)(const cmd_req_t* cmd);
-  /** After routing a command that wasn't taken. `result` is borrowed. */
-  void (*seen)(const cmd_req_t* cmd, err_h result);
-} router_tap_t;
-
-/** @brief Sets the tap (one; NULL removes it). Boot only. */
-void router_set_tap(const router_tap_t* tap);
 
 /**
  * @brief The command the calling task is routing, valid until its handler returns. Inside a replay: the outer one.

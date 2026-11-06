@@ -62,28 +62,28 @@ static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
   }
 }
 
-// The largest message of an unframed provider's characteristic now: what its TX buffer and the link take, a write-only
-// one the link's alone.
-static uint32_t user_max(uint16_t uuid) {
+// Whether a client is connected: the providers' link.
+static bool client_connected(void) {
   sys_ble_status_t status;
-  if (sys_ble_get_status(&status) != NULL || !status.is_connected) {
-    return 0;
+  err_h err = sys_ble_get_status(&status);
+  if (err != NULL) {
+    err_free(err);
+    return false;
   }
-  const size_t tx = sys_ble_char_max_payload(uuid);
-  return tx > 0 ? (uint32_t)tx : (uint32_t)(status.mtu - SYS_BLE_ATT_HDR_LEN);
+  return status.is_connected;
 }
 
-// A client is the providers' link: up while it is connected (the unframed ones by the MTU, which can change).
+// A client is the providers' link: up while it is connected.
 static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
     s_rx.active = false;
   }
-  sys_data_provider_set_max_frame(&s_runit, connected ? CMD_FRAME_MAX : 0);
-  sys_data_provider_set_max_frame(&s_logs, connected ? CMD_FRAME_MAX : 0);
+  sys_data_provider_set_up(&s_runit, connected);
+  sys_data_provider_set_up(&s_logs, connected);
   for (size_t i = 0; i < ARRAY_LEN(s_user); i++) {
     if (s_user[i].used) {
-      sys_data_provider_set_max_frame(&s_user[i].p, connected ? user_max((uint16_t)s_user[i].p.id.channel) : 0);
+      sys_data_provider_set_up(&s_user[i].p, connected);
     }
   }
 }
@@ -107,9 +107,8 @@ static err_h provider_send(sys_data_provider_t* self, const uint8_t* data, uint3
 static err_h add_provider(sys_data_provider_t* p, uint16_t uuid) {
   *p = (sys_data_provider_t){
       .send = provider_send,
-      .max_frame = 0,  // up when a client connects
       .id = {.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = uuid},
-      .state = SYS_DATA_PROVIDER_STATE_SYSTEM,
+      .state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_FRAMED,  // up when a client connects
   };
   return sys_data_provider_add(p);
 }
@@ -145,8 +144,8 @@ err_h sys_ble_link_char_add(uint16_t svc_uuid, const sys_ble_char_cfg_t* cfg) {
   s_user[i].p = (sys_data_provider_t){
       .send = provider_send,
       .destroy = user_destroy,
-      .max_frame = user_max(cfg->uuid),
       .id = {.link = SYS_DATA_PROVIDER_LINK_BLE, .channel = cfg->uuid},
+      .state = client_connected() ? SYS_DATA_PROVIDER_STATE_UP : 0u,
   };
   s_user[i].svc = svc_uuid;
   s_user[i].used = true;

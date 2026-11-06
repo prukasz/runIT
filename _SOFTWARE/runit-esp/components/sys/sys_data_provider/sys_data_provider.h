@@ -40,7 +40,7 @@ static inline bool sys_data_provider_same_id(sys_data_provider_id_t a, sys_data_
  * @param ctx   The user's, from sys_data_provider_open().
  * @param id    The provider.
  * @param data  One whole frame, valid for the call only; NULL: it went up or down.
- * @param len   Bytes in `data`; with `data` NULL its max_frame now (0: down).
+ * @param len   Bytes in `data`; with `data` NULL 1: up, 0: down.
  */
 typedef void (*sys_data_provider_rx_f)(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uint32_t len);
   
@@ -67,20 +67,13 @@ MUST_USE err_h sys_data_provider_close(sys_data_provider_id_t id);
  * driver's RX task too (the session answers a refused request from there).
  * @param id     The provider.
  * @param data   The frame.
- * @param len    Bytes in `data`, at most sys_data_provider_max_frame().
+ * @param len    Bytes in `data`, at most CMD_FRAME_MAX.
  * @param flags  SYS_DATA_PROVIDER_SEND_URGENT, SYS_DATA_PROVIDER_SEND_NOWAIT, or 0.
- * @return NULL when queued; ERR_PROV_NOT_FOUND, ERR_PROV_DOWN, ERR_PROV_TOO_LONG (not sent, never cut), ERR_PROV_BUSY
- * (the driver's queue full: at once with NOWAIT, else at its bound), or the driver's error wrapped in ERR_PROV_SEND.
+ * @return NULL when queued; ERR_PROV_NOT_FOUND, ERR_PROV_DOWN, ERR_PROV_TOO_LONG (past CMD_FRAME_MAX: not sent, never
+ * cut), ERR_PROV_BUSY (the driver's queue full: at once with NOWAIT, else at its bound), or the driver's error wrapped
+ * in ERR_PROV_SEND (a raw provider's link can't take it).
  */
 MUST_USE err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uint32_t len, uint8_t flags);
-
-/**
- * @brief The largest whole frame the provider delivers now, not its link's packet: the driver splits a frame into
- * packets (SYS_DATA_PROVIDER.MD "Frame size"). The registry's spinlock only, never the driver: any task.
- * @param id  The provider.
- * @return Bytes: CMD_FRAME_MAX for a framed one that is up; 0 when it is down or does not exist.
- */
-uint32_t sys_data_provider_max_frame(sys_data_provider_id_t id);
 
 /**
  * @brief The provider's state (SYS_DATA_PROVIDER_STATE_*). Any task.
@@ -106,9 +99,14 @@ MUST_USE err_h sys_data_provider_bind_commands(sys_data_provider_id_t id);
  */
 MUST_USE err_h sys_data_provider_unbind_commands(sys_data_provider_id_t id);
 
-/** @brief Whether the provider is up: it delivers frames now (its max frame is not 0). Any task. */
+/** @brief Whether the provider is up (SYS_DATA_PROVIDER_STATE_UP): it delivers frames now. Any task. */
 static inline bool sys_data_provider_is_up(sys_data_provider_id_t id) {
-  return sys_data_provider_max_frame(id) > 0;
+  return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_UP) != 0;
+}
+
+/** @brief Whether its driver carries a whole frame (SYS_DATA_PROVIDER_STATE_FRAMED); else it is raw. Any task. */
+static inline bool sys_data_provider_is_framed(sys_data_provider_id_t id) {
+  return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_FRAMED) != 0;
 }
 
 /** @brief Whether the provider's link is a cable (SYS_DATA_PROVIDER_STATE_WIRED): about a millisecond a round trip. */

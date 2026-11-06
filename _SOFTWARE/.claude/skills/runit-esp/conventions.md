@@ -89,7 +89,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
   | VM API | `vm_<part>_<action>` | `vm_exec_stop`, `vm_loader_add_accessor` |
   | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_PROTECTION` |
   | Chip access (static, in the driver) | `chip_<action>(ctx, ...)` returning `err_h` | `chip_set_voltage` |
-  | Board / application | `runit_<area>_<action>` | `runit_board_devices_init` |
+  | Board / application | `runit_<area>_<action>` | `runit_board_power_init` |
   | Kconfig | `CONFIG_<MODULE>_<NAME>` | `CONFIG_SYS_EVENT_QUEUE_LEN` |
   | Error tag / module | `ERR_<MODULE>_<WHAT>` / `ERR_MOD_<MODULE>` | `ERR_IO_PIN_IN_USE`, `ERR_MOD_SYS_IO` |
 
@@ -112,6 +112,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
   - What must start non-zero (a `portMUX` spinlock, default options read before `init`) goes in a second, small `static struct { ... } s_<module>_preset = {...};`. A single such value stays a plain `static` (`s_policy_mux`).
   - Outside any struct, only what can't be a field: RTOS objects from the `U_*_DEFINE` macros, `__thread` variables, constant tables (`k_*`). Independent parts of one file may each have their own struct (`s_hooks`, `s_rx`).
 - A component with router ops exports only its `cmd_f` (`<module>_router`); `runit` registers it (ROUTER.MD).
+- The router header (`sys_i2c_router.h` is the model) lists every op as `#define <MODULE>_OP_<NAME> 0x..u  // R: args -> answer; W: args`, each directly above the packed frame struct it takes (ops sharing a frame stand together above it; an op with no frame has none). The frame of a create lives there, not in the `.c`; the module header only forward-declares what its API needs. Names of the frames: `<module>_<what>_args_t`.
 
 ## 7. Comments and documentation
 

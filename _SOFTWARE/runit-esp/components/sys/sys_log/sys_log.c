@@ -2,6 +2,7 @@
 
 #include "esp_log.h"
 #include "sdkconfig.h"
+#include "sys_log_router.h"
 #include "sys_stream.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
@@ -27,7 +28,7 @@ static struct {
 
 // What starts non-zero (.data, kept small).
 static struct {
-  sys_log_cfg_t cfg;  // the options in force, the defaults until a SET; read by every log call and reported error
+  sys_log_cfg_t cfg;  // the options in force, the defaults until a CONFIG write; read by every log call and reported error
   portMUX_TYPE history_lock;
 } s_log_preset = {
     .cfg = {.level = CONFIG_LOG_DEFAULT_LEVEL, .mirror_serial = 0, .trace_errors = 1, .send_errors = 1, .send_logs = 1},

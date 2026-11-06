@@ -74,7 +74,7 @@ function FieldInput({ field, block, blocks, onChange }: { field: Field; block: B
     case 'action':
       return choose([
         ...blocks.devices.project.actions.map((a) => ({ value: String(a.id), label: a.name, group: 'The project\'s' })),
-        ...onboardActions().map((a) => ({ value: String(a.id), label: a.alias.replace(/^Onboard action:\s*/i, ''), group: 'The board\'s' })),
+        ...onboardActions().map((a) => ({ value: String(a.id), label: a.alias, group: 'The board\'s' })),
       ])
     case 'string':
       return <TextField aria-label={field.alias} value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value || undefined)} />

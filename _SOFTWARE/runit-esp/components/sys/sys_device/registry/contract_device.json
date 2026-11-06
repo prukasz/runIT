@@ -13,7 +13,7 @@
       "op": 0,
       "symbol": "SYS_DEVICE_OP_CREATE",
       "label": "Create device",
-      "description": "Creates a device of a type: its type id, then the create struct of that type (the device descriptor lists its fields).",
+      "description": "Creates a device of a type: its type id, its flags, then the create struct of that type (the device descriptor lists its fields).",
       "write": {
         "args": {
           "fields": [
@@ -24,6 +24,21 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "Bit 0: the board's own device, it can't be removed and a project's change leaves it",
+              "bits": [
+                {
+                  "bit": 0,
+                  "label": "Board device"
+                }
+              ]
             }
           ]
         }

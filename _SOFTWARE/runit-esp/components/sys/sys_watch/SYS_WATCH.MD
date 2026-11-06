@@ -18,7 +18,7 @@ The component has two sides: the **watches** this board runs for their owners (e
 | `sys_watch_client.c` | The client: the watches added on other boards, the cached reads |
 | `internal/sys_watch_internal.h` | The client's start, called by `sys_watch_init` (not on the include path) |
 | `config/sys_watch_config.h` | The tick, the triggers, `sys_watch_head_t`, `sys_watch_info_t` (published to the app) |
-| `router/sys_watch_router.h` / `.c` | The remote interface: ADD, REMOVE, LIST (root key `ROUTER_KEY_WATCH` 0x0F) |
+| `router/sys_watch_router.h` / `.c` | The remote interface: ADD, REMOVE, LIST (root key `ROUTER_KEY_WATCH` 0x0F). The header publishes every op (`SYS_WATCH_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `router/contract_watch.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_WATCH_MAP`, its registration, the messages |
 | `Kconfig` | The number of watches, of the client's, the idle floor |

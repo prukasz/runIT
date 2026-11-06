@@ -94,33 +94,36 @@ export const deviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, devic
 
 /** The command of the device contract that creates a device (SYS_DEVICE.MD "Ops"). */
 const CREATE = 'CREATE'
+/** Bit 0 of CREATE's flags: the board's own device, which can't be removed and a project's change leaves (SYS_DEVICE.MD). */
+const CREATE_SYSTEM = 0x01
 
 /**
  * CREATE of a device of type `type` (a device descriptor's id or type id) under `device`: the generic command of the device
- * contract with the type, then the type's config struct (SYS_DEVICE.MD: `[type u16][create struct]`).
+ * contract with the type and the flags, then the type's config struct (SYS_DEVICE.MD: `[type u16][flags u8][create struct]`).
+ * `system`: the device is the board's own.
  */
-export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, config?: FieldValues): ServiceCall => {
+export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, config?: FieldValues, system = false): ServiceCall => {
   const deviceType = catalog.device(type)
   const lifecycle = catalog.lifecycleContractId === undefined ? undefined : catalog.byContractId.get(catalog.lifecycleContractId)
   if (!lifecycle) throw new Error('No descriptor of the device contract (SYS_DEVICE_CONTRACT_DEVICE): devices cannot be created.')
   const create = catalog.command(lifecycle, CREATE)
   const createArgs = create.write?.args
-  const typeField = createArgs?.fields[0]
-  if (!createArgs || !typeField) throw new Error(`${lifecycle.id} ${CREATE} has no write with a type field.`)
-  const head = encodeFields(createArgs, { [typeField.id]: deviceType.typeId! })
+  const [typeField, flagsField] = createArgs?.fields ?? []
+  if (!createArgs || !typeField || !flagsField) throw new Error(`${lifecycle.id} ${CREATE} has no write with a type and flags fields.`)
+  const head = encodeFields(createArgs, { [typeField.id]: deviceType.typeId!, [flagsField.id]: system ? CREATE_SYSTEM : 0 })
   if (!deviceType.config && config && Object.keys(config).length > 0) throw new PayloadError(`${deviceType.id} has no config.`)
   const body = deviceType.config ? encodeFields(deviceType.config, config) : new Uint8Array(0)
   return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), concat(head, body), false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE} ${deviceType.id}` }
 }
 
-/** A device frame read back: the device, the command, its side and its arguments; a CREATE also gives the type and its config. */
+/** A device frame read back: the device, the command, its side and its arguments; a CREATE also gives the type, whether it is the board's own and its config. */
 export interface DeviceFrame {
   readonly device: number
   readonly entry: CatalogEntry
   readonly command: CommandDef
   readonly side: Side
   readonly args?: FieldRecord
-  readonly create?: { readonly type: CatalogEntry; readonly config?: FieldRecord }
+  readonly create?: { readonly type: CatalogEntry; readonly system: boolean; readonly config?: FieldRecord }
 }
 
 /**
@@ -146,7 +149,8 @@ export const readDeviceFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, 
       const type = catalog.byTypeId.get(Number(head[args.fields[0]!.id]))
       if (!type) return undefined
       const body = payload.subarray(args.fixed)
-      return { device, entry, command, side, create: { type, ...(type.config ? { config: decodeFields(type.config, body) } : {}) } }
+      const system = (Number(head[args.fields[1]!.id]) & CREATE_SYSTEM) !== 0
+      return { device, entry, command, side, create: { type, system, ...(type.config ? { config: decodeFields(type.config, body) } : {}) } }
     }
     return { device, entry, command, side, ...(args ? { args: decodeFields(args, payload) } : {}) }
   } catch (error) {

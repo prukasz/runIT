@@ -9,36 +9,6 @@ menu "runIT"
           stream bindings are still set up; only NimBLE is not started.
           sdkconfig.qemu.defaults turns it off for the QEMU build.
 
-    choice RUNIT_BOARD
-        prompt "Board"
-        default RUNIT_BOARD_PCB
-        help
-          What the firmware creates at boot (boot step "devices") and the power
-          layout it gives the power manager.
-
-        config RUNIT_BOARD_PCB
-            bool "runIT PCB"
-            help
-              The ESP GPIO, the TCA6424A expander (status LED lit) and every
-              other onboard chip (power muxes, ADS7128, PCA9685, both TPS55289
-              rails, INA3221, AP33772S, DAC53202, both DRV8962), and the
-              board's power layout (rails, input monitor, USB-C PD sink).
-
-        config RUNIT_BOARD_DEVKIT
-            bool "ESP32-S3 devkit"
-            help
-              Only the ESP GPIO (device 0); no chips and no power layout (the
-              power manager has no rails, monitor or sink). For a plain devkit:
-              sdkconfig.devkit.defaults.
-
-        config RUNIT_BOARD_BARE
-            bool "No devices (QEMU, test suites)"
-            help
-              Nothing created at boot: the test suites create devices from an
-              empty table. The power layout stays the PCB's. QEMU:
-              sdkconfig.qemu.defaults.
-    endchoice
-
     choice RUNIT_LINK_ROLE
         prompt "Link to another board"
         default RUNIT_LINK_NONE
@@ -70,45 +40,5 @@ menu "runIT"
               attached. Give the board an id of its own
               (CONFIG_SYS_SESSION_BOARD_ID_DEFAULT; sdkconfig.link_child.defaults).
     endchoice
-
-    menu "Onboard action IDs"
-
-        #@limit @alias Onboard action: resume all
-        config RUNIT_ACTION_ID_RESUME
-            int "Resume all devices"
-            default 3
-            range 1 255
-            help
-              ID of the onboard action that resumes every device. The firmware
-              writes it at every boot (replacing a stored action with this ID).
-
-        #@limit @alias Onboard action: suspend all
-        config RUNIT_ACTION_ID_SUSPEND
-            int "Suspend all devices"
-            default 4
-            range 1 255
-            help
-              ID of the onboard action that suspends every device. The firmware
-              writes it at every boot (replacing a stored action with this ID).
-
-        #@limit @alias Onboard action: reset all
-        config RUNIT_ACTION_ID_RESET
-            int "Reset all devices"
-            default 5
-            range 1 255
-            help
-              ID of the onboard action that resets every device (RESET sweep,
-              newest first). The firmware writes it at every boot.
-
-        #@limit @alias Onboard action: hard reset
-        config RUNIT_ACTION_ID_HARD_RESET
-            int "Hard reset (restart the board)"
-            default 6
-            range 1 255
-            help
-              ID of the onboard action that restarts the board (sys RESTART).
-              The firmware writes it at every boot.
-
-    endmenu
 
 endmenu

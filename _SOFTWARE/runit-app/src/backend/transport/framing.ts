@@ -36,10 +36,7 @@ export class Reassembler {
   private expected = 0
   private active = false
 
-  constructor(
-    private readonly defs: LinkDefinitions,
-    private readonly frameMax: number = defs.frameMax,
-  ) {}
+  constructor(private readonly defs: LinkDefinitions) {}
 
   push(packet: Uint8Array): Reassembled {
     if (packet.length < 1) return undefined
@@ -57,9 +54,9 @@ export class Reassembler {
       this.active = false
       return { dropped: `packet ${count} where ${this.expected} was expected` }
     }
-    if (this.length + packet.length - 1 > this.frameMax) {
+    if (this.length + packet.length - 1 > this.defs.frameMax) {
       this.active = false
-      return { dropped: `frame over ${this.frameMax} bytes` }
+      return { dropped: `frame over ${this.defs.frameMax} bytes` }
     }
     this.parts.push(packet.subarray(1))
     this.length += packet.length - 1

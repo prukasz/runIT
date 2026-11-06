@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { createEngine, DEFAULT_LIMITS } from '@engine'
-import { frameMaxFromGenerated, limitsFromGenerated, loadLimits } from '@engine/generated'
+import { createEngine, DEFAULT_LIMITS, Engine } from '@engine'
+import { frameMaxFromGenerated, limitsFromGenerated, loadGeneratedInput, loadLimits, loadWireDefinitions } from '@engine/generated'
 import { dataChunk, FRAME_OVERHEAD, frameCapacity, frameFill, LIMIT_SYMBOLS } from '@engine/wire/load/limits'
 import { blk, build, engine, flag, num, project, read } from '../helpers'
 
@@ -17,6 +17,8 @@ const root = fileURLToPath(new URL('../../../../runit-esp/', import.meta.url))
 const text = (path: string) => readFileSync(root + path, 'utf8')
 const sdkconfig = new Map([...text('sdkconfig').matchAll(/^CONFIG_(\w+)=(-?\d+)$/gm)].map((m) => [m[1]!, Number(m[2])]))
 const cmdFrameMax = Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(text('components/core/cmd/cmd.h'))?.[1])
+// Only here, to reach the packing's edges with a small program: the app's engine always has the firmware's frame size.
+const tightEngine = () => new Engine({ definitions: { wire: loadWireDefinitions(), input: loadGeneratedInput() }, limits: { ...loadLimits(), frameMax: 64 } })
 
 describe('limits from generated/', () => {
   it('every limit the engine checks is published, and equals the value the firmware is built with', () => {
@@ -33,11 +35,11 @@ describe('limits from generated/', () => {
     }
   })
 
-  it('createEngine uses the published limits, and lets the app override them', () => {
+  it('createEngine uses the published limits, lets the app override them, and always has the firmware\'s frame size', () => {
     expect(engine.limits.maxIn).toBe(sdkconfig.get('VM_BLOCK_MAX_IN'))
     expect(engine.limits.frameMax).toBe(cmdFrameMax)
-    expect(createEngine({ limits: { frameMax: 244 } }).limits.frameMax).toBe(244)
-    expect(createEngine({ limits: { frameMax: 244 } }).limits.maxIn).toBe(engine.limits.maxIn)
+    expect(createEngine({ limits: { maxIn: 8 } }).limits.maxIn).toBe(8)
+    expect(createEngine({ limits: { maxIn: 8 } }).limits.frameMax).toBe(cmdFrameMax)
   })
 
   it('an option the firmware stopped publishing names itself, instead of a number being guessed', () => {
@@ -54,7 +56,7 @@ describe('the frame the board takes', () => {
     expect(frameCapacity(DEFAULT_LIMITS)).toBe(cmdFrameMax - 8)
   })
 
-  it('the packing policy stays inside what a frame holds, and gives way to a smaller frame', () => {
+  it('the packing policy stays inside what a frame holds', () => {
     expect(frameFill(DEFAULT_LIMITS)).toBe(DEFAULT_LIMITS.frameBudget)
     expect(frameFill({ ...DEFAULT_LIMITS, frameMax: 128 })).toBe(128 - FRAME_OVERHEAD - 1)
     expect(dataChunk(DEFAULT_LIMITS, 4)).toBe(192)
@@ -62,8 +64,8 @@ describe('the frame the board takes', () => {
     expect(dataChunk({ ...DEFAULT_LIMITS, frameMax: 12 }, 4)).toBe(4) // never less than one element
   })
 
-  it('a program loaded for a small frame has no frame past it', () => {
-    const small = createEngine({ limits: { frameMax: 64 } })
+  it('a program that needs many frames has no frame past the limit', () => {
+    const small = tightEngine()
     const many = Array.from({ length: 12 }, (_, i) => num(`v${i}`))
     const result = small.compile(project(many, [blk('s', 'set', { inputs: [read('v0'), read('v1')] })]))
     expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true)
@@ -74,7 +76,7 @@ describe('the frame the board takes', () => {
   })
 
   it('a block record that cannot fit a frame is an error, not a frame the board would drop', () => {
-    const small = createEngine({ limits: { frameMax: 64 } })
+    const small = tightEngine()
     const result = small.compile(project([flag('go')], [blk('io1', 'io', { variant: 'toggle', device: 1, values: { pin: 1 } })]))
     expect(result.ok).toBe(false)
     expect(result.diagnostics.map((d) => d.code)).toContain('ERR_ROUTER_FRAME_LEN')

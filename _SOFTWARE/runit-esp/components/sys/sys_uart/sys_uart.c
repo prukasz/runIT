@@ -282,9 +282,9 @@ static void prepare_port(port_t* p, uart_port_t uart, bool console, sys_data_pro
   p->urgent_rb = urgent_rb;
   p->provider = (sys_data_provider_t){
       .send = provider_send,
-      .max_frame = CMD_FRAME_MAX,
       .id = id,
-      .state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED,
+      .state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_FRAMED |
+               SYS_DATA_PROVIDER_STATE_UP,
   };
 }
 

@@ -12,9 +12,9 @@
 #define TAG __FILE_NAME__
 
 #define NAMESPACE "project"
+#define SOURCE_NAMESPACE "source"
 #define KEY_BOOT  "boot"
 #define LEN_BYTES 2u                              // [u16 len] in front of every frame
-#define FRAME_MAX CMD_DATA_MAX  // keys + payload: what a frame carries after its header
 #define HDR       3u                              // [key][dir][code] in front of a command's args
 #define RUN_FRAME (HDR + 4u)                      // [key][dir][code][u32 id]
 
@@ -66,7 +66,7 @@ U_MUTEX_DEFINE(sys_project_mutex);  // s_project but .nvs: both router tasks wri
 static struct {
   save_t save;                                                              // zeroed whole when a save closes
   uint8_t buf[CONFIG_SYS_ACTIONS_MAX_BYTES];                                // the record being built
-  uint8_t frame[FRAME_MAX];                                                 // the frame being parsed
+  uint8_t frame[CMD_DATA_MAX];                                                 // the frame being parsed
   uint8_t chunks[CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME)];  // the program's list of chunks
   section_t secs[CONFIG_SYS_PROJECT_MAX_SECTIONS];                          // the sections staged so far
   nvs_handle_t nvs;                                                         // the options; opened at init
@@ -155,7 +155,10 @@ err_h sys_project_set_boot(uint8_t boot) {
   return ERR_ESP(nvs_commit(s_project.nvs));
 }
 
+static sys_nvs_json_t s_source;
+
 err_h sys_project_init(void) {
+  ERR_TRY(sys_nvs_json_open(&s_source, CONFIG_SYS_PROJECT_SOURCE_PARTITION, SOURCE_NAMESPACE));
   // sys_actions_init opened the partition; the options are one more namespace in it.
   return ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_project.nvs));
 }
@@ -225,7 +228,7 @@ static err_h section_open(uint32_t id) {
 static err_h frame_add(void) {
   ERR_CHECK(s_project.save.in_section, ERR_PROJECT_NO_SECTION);
   const uint32_t need = LEN_BYTES + s_project.save.flen;
-  const uint32_t max = sys_actions_max_bytes(s_project.save.final_id);  // the program takes the user class's limit
+  const uint32_t max = CONFIG_SYS_ACTIONS_MAX_BYTES;
   if (s_project.save.buf_len + need > max) {
     ERR_CHECK(s_project.save.kind == KIND_PROGRAM && s_project.save.buf_len > 0, ERR_PROJECT_SECTION_BIG,
               .id = s_project.save.final_id, .max = max);
@@ -257,7 +260,7 @@ static err_h feed(const uint8_t* p, uint32_t n, uint32_t offset) {
       offset++;
       if (s_project.save.len_got == LEN_BYTES) {
         s_project.save.fgot = 0;
-        ERR_CHECK_IN_RANGE(s_project.save.flen, 1, FRAME_MAX, ERR_PROJECT_BAD_FRAME, .offset = offset - LEN_BYTES);
+        ERR_CHECK_IN_RANGE(s_project.save.flen, 1, CMD_DATA_MAX, ERR_PROJECT_BAD_FRAME, .offset = offset - LEN_BYTES);
       }
       continue;
     }
@@ -454,8 +457,15 @@ err_h sys_project_erase(void) {
   for (uint8_t bank = 0; err == NULL && bank < SYS_PROJECT_BANKS; bank++) {
     err = clear_bank(bank);
   }
+  if (err == NULL) {
+    err = sys_nvs_json_erase(&s_source);
+  }
   (void)xSemaphoreGive(sys_project_mutex);
   return err;
+}
+
+sys_nvs_json_t* sys_project_source(void) {
+  return &s_source;
 }
 
 err_h sys_project_boot(void) {

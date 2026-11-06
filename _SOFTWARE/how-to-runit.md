@@ -1,16 +1,16 @@
 # Jak uruchomić runIT
 
-Działa na dowolnym ESP32-S3. Wybór płytki: `menuconfig` → runIT → Board (`CONFIG_RUNIT_BOARD`).
+Działa na dowolnym ESP32-S3. Firmware jest jeden: aplikacja zapisuje na płytce jej profil (urządzenia, magistrale I2C, układ zasilania).
 
 Komendy firmware w `runit-esp/` (profil ESP-IDF załadowany), aplikacji w `runit-app/`.
 
 ## Czysty devkit
 
-Board = ESP32-S3 devkit (gotowe w `sdkconfig.devkit.defaults`):
+Board = ESP32-S3 devkit N16R8 (ten sam build co PCB):
 
 ```
-idf.py -B build_devkit -D SDKCONFIG=build_devkit/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.devkit.defaults" build
-idf.py -B build_devkit -p <PORT> flash
+idf.py build
+idf.py -p <PORT> flash
 ```
 
 Aplikacja: `npm run app:devkit`
@@ -32,4 +32,4 @@ Firmware i aplikacja jak dla czystego devkita. Urządzenia tylko w aplikacji: De
 
 ## Własna płytka z urządzeniami (jeśli są sterowniki)
 
-- Urządzenia tworzone przy starcie: nowa opcja w `RUNIT_BOARD` (`runit-esp/components/app/runit/Kconfig`), ich tworzenie w `runit_board_cfg.c`, opis `board_<nazwa>.json` i jego wariant w aplikacji (`templates/generate_bundle.py`, `runit-app/src/backend/definitions.ts`).
+- Urządzenia płytki: profil płytki (`runit-esp/components/sys/sys_board/SYS_BOARD.MD`), czyli opis `board_<nazwa>.json` i jego wariant w aplikacji (`templates/generate_bundle.py`, `runit-app/src/backend/definitions.ts`).
