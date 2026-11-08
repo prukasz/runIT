@@ -116,6 +116,26 @@ export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog,
   return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), concat(head, body), false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE} ${deviceType.id}` }
 }
 
+/** The command of the device contract that makes a device of another board under a local id (SYS_REMOTE.MD). */
+const CREATE_REMOTE = 'CREATE_REMOTE'
+
+/**
+ * CREATE_REMOTE under `device`: an alias of device `remoteId` of type `type` on board `board`, reached through the session
+ * (SYS_DEVICE.MD "Remote devices"). Its fields by their place in the descriptor: the type, the board, the remote id, the flags
+ * (none: over a radio the writes do not wait and the reads come from a watch's copy, SYS_REMOTE.MD).
+ */
+export const createRemoteDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, board: number, remoteId: number): ServiceCall => {
+  const deviceType = catalog.device(type)
+  const lifecycle = catalog.lifecycleContractId === undefined ? undefined : catalog.byContractId.get(catalog.lifecycleContractId)
+  if (!lifecycle) throw new Error('No descriptor of the device contract (SYS_DEVICE_CONTRACT_DEVICE): devices cannot be created.')
+  const create = catalog.command(lifecycle, CREATE_REMOTE)
+  const args = create.write?.args
+  const [typeField, boardField, idField, flagsField] = args?.fields ?? []
+  if (!args || !typeField || !boardField || !idField || !flagsField) throw new Error(`${lifecycle.id} ${CREATE_REMOTE} has no write with a type, a board, a remote id and flags.`)
+  const payload = encodeFields(args, { [typeField.id]: deviceType.typeId!, [boardField.id]: board, [idField.id]: remoteId, [flagsField.id]: 0 })
+  return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), payload, false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE_REMOTE} ${deviceType.id} on board ${board}` }
+}
+
 /** A device frame read back: the device, the command, its side and its arguments; a CREATE also gives the type, whether it is the board's own and its config. */
 export interface DeviceFrame {
   readonly device: number

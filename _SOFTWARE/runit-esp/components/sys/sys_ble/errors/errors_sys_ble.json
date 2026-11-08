@@ -55,6 +55,18 @@
     },
     "ERR_BLE_RX_HANDLER": {
       "message": "Bluetooth {uuid} already has a receiver"
+    },
+    "ERR_BLE_NOT_STARTED": {
+      "message": "Bluetooth is not running yet",
+      "hint": "Try again in a moment."
+    },
+    "ERR_BLE_SCAN": {
+      "message": "The Bluetooth scan could not start (code {rc})",
+      "hint": "A board is being connected; try again in a few seconds."
+    },
+    "ERR_BLE_CENTRAL": {
+      "message": "The Bluetooth link {provider} to another board failed at step {step} (code {rc}); it tries again",
+      "hint": "Check that the other board is on and near, and runs this firmware."
     }
   }
 }

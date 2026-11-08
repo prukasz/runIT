@@ -278,6 +278,96 @@
           "description": "u8 service count; per service: u16 UUID, u8 flags, u8 characteristic count; per characteristic: u16 UUID, u8 flags, u32 tx, u32 rx, u8 provider (valid with its flag), name (NUL-terminated). The layout is described in SYS_BLE.MD."
         }
       }
+    },
+    {
+      "id": "SCAN",
+      "op": 8,
+      "symbol": "SYS_BLE_OP_SCAN",
+      "label": "Scan for boards",
+      "description": "Looks for other runIT boards (their advertisement carries the runIT service) for a while, as a BLE central. The list of found boards is cleared first; FOUND reads it.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_scan_args_t",
+          "fields": [
+            {
+              "id": "duration_ms",
+              "label": "Duration",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "How long to scan, 100 to 30000 ms",
+              "unit": "ms",
+              "min": 100,
+              "max": 30000
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "FOUND",
+      "op": 9,
+      "symbol": "SYS_BLE_OP_FOUND",
+      "label": "Read found boards",
+      "description": "The runIT boards the last scan found, and whether it still runs.",
+      "read": {
+        "returns": {
+          "type": "bytes",
+          "label": "Boards",
+          "description": "u8 scanning, u8 count; per board 24 B: u8 address type (0 public, 1 random), 6 B address (least significant byte first), i8 RSSI (dBm), 16 B name (NUL-padded). The layout is described in SYS_BLE.MD."
+        }
+      }
+    },
+    {
+      "id": "CONNECT",
+      "op": 10,
+      "symbol": "SYS_BLE_OP_CONNECT",
+      "label": "Connect to a board",
+      "description": "Makes a provider that is a link to another board's runIT pair, as a BLE central: framed, up while connected; it connects again after every loss until the provider is removed (PROVIDER REMOVE). Attach a session to it as SLAVE.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_connect_args_t",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The link's provider id"
+            },
+            {
+              "id": "addr_type",
+              "label": "Address type",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "0 public, 1 random"
+            },
+            {
+              "id": "addr_lo",
+              "label": "Address, low",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "The board's address, bytes 0 to 3 (least significant first)"
+            },
+            {
+              "id": "addr_hi",
+              "label": "Address, high",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 6,
+              "description": "The board's address, bytes 4 and 5"
+            }
+          ]
+        }
+      }
     }
   ]
 }

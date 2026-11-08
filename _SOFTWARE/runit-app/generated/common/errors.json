@@ -1120,6 +1120,66 @@
           ],
           "description": "handler already set, or char has an RX buffer",
           "message": "Bluetooth {uuid} already has a receiver"
+        },
+        {
+          "code": 16,
+          "tag": 262160,
+          "name": "ERR_BLE_NOT_STARTED",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "scan: the stack does not run yet",
+          "message": "Bluetooth is not running yet",
+          "hint": "Try again in a moment."
+        },
+        {
+          "code": 17,
+          "tag": 262161,
+          "name": "ERR_BLE_SCAN",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "scan refused (a connect is being made)",
+          "message": "The Bluetooth scan could not start (code {rc})",
+          "hint": "A board is being connected; try again in a few seconds."
+        },
+        {
+          "code": 18,
+          "tag": 262162,
+          "name": "ERR_BLE_CENTRAL",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "step",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "a link to another board failed at `step`; it tries again",
+          "message": "The Bluetooth link {provider} to another board failed at step {step} (code {rc}); it tries again",
+          "hint": "Check that the other board is on and near, and runs this firmware."
         }
       ]
     },

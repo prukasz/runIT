@@ -38,6 +38,14 @@ export interface ProjectDevice {
   readonly name: string
   readonly config?: FieldValues
   readonly defaults?: readonly Step[]
+  /**
+   * The board it is on, when not the one the app is connected to: a board of `ProjectFile.boards` (its id). It is created there
+   * with its config and start commands, and on this board `id` is its alias (DEVICE CREATE_REMOTE, SYS_REMOTE.MD), which the
+   * program uses like any device. Absent: this board.
+   */
+  readonly board?: number
+  /** Its id on `board` (absent: `id`); a device of that board's own (its GPIO, 0) is not created there, only set up. */
+  readonly remoteId?: number
 }
 
 /** The start commands of one of the board's own devices (board.json): it is created by the firmware, so its record has no CREATE. */
@@ -51,6 +59,22 @@ export interface PinAlias {
   readonly device: number
   readonly pin: number
   readonly name: string
+}
+
+/**
+ * Another board of the project, linked to this one over BLE (SYS_BLE.MD "Central"): this board keeps a link to it as provider
+ * `provider` and a session with it as its slave; the app reaches it through this board (`dst` = `id`).
+ */
+export interface ProjectBoard {
+  /** Its board id (`SYS_SESSION_ID`), given by the app: other than this board's. */
+  readonly id: number
+  readonly name: string
+  /** Its BLE address as it is shown, most significant byte first (`F4:12:FA:01:02:03`). */
+  readonly address: string
+  /** 0 public, 1 random. */
+  readonly addressType: number
+  /** The id of this board's provider that is the link to it. */
+  readonly provider: number
 }
 
 /** A user action: a list of commands stored as a record of the user class, run by an app, the VM or an error policy. */
@@ -149,6 +173,8 @@ export interface ProjectFile {
    * The app's own; what it decides is in `devices` and `boardDefaults` (`hardware/apply.ts`). Unset: nothing placed yet.
    */
   readonly hardware?: HardwareLayout
+  /** The other boards of the project, linked to this one over BLE. Absent: none. */
+  readonly boards?: readonly ProjectBoard[]
 }
 
 export const emptyProject = (name = 'Untitled'): ProjectFile => ({ name, program: { variables: [], blocks: [] }, devices: [], boardDefaults: [], actions: [], pinAliases: [], settings: emptySettings(), canvas: EMPTY_LAYOUT })
@@ -198,6 +224,10 @@ export const parseProject = (text: string): ParseResult => {
     || (settings.gatt !== undefined && !Array.isArray(settings.gatt)) || (settings.streams !== undefined && !Array.isArray(settings.streams))) {
     return { ok: false, error: "The board settings of the project are not readable." }
   }
+  const boards = data.boards ?? []
+  if (!Array.isArray(boards) || !boards.every((b) => isObject(b) && Number.isInteger(b.id) && typeof b.name === 'string' && typeof b.address === 'string' && Number.isInteger(b.addressType) && Number.isInteger(b.provider))) {
+    return { ok: false, error: 'The other boards of the project are not readable (each needs an id, a name, an address and a provider).' }
+  }
   const project: ProjectFile = {
     name: typeof data.name === 'string' && data.name.trim() ? data.name : 'Untitled',
     program: program as unknown as Project,
@@ -210,6 +240,7 @@ export const parseProject = (text: string): ParseResult => {
     // A display that is not readable is left out: the board's default stands in.
     ...(Array.isArray(data.powerDisplay) && data.powerDisplay.every((r) => isObject(r) && typeof r.name === 'string' && isObject(r.read)) ? { powerDisplay: data.powerDisplay as unknown as PowerReading[] } : {}),
     ...(data.hardware !== undefined ? { hardware: readHardware(data.hardware) } : {}),
+    ...(boards.length > 0 ? { boards: boards as unknown as ProjectBoard[] } : {}),
   }
   return { ok: true, project, problems: checkVariables(project.program.variables).map((problem) => problem.message) }
 }

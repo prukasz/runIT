@@ -664,6 +664,7 @@ static void slot_free(int32_t at) {
 err_h sys_session_attach(uint8_t provider, uint8_t peer) {
   ERR_CHECK(peer <= SYS_SESSION_CLIENT, ERR_CMD_BAD_ARG);
   bool attached = false;
+  bool same = false;   // attached already as this peer: a stored project's record run again
   bool clash = false;  // a star: a board with a master has no other session
   int32_t at = -1;
   portENTER_CRITICAL(&s_lock);
@@ -673,6 +674,7 @@ err_h sys_session_attach(uint8_t provider, uint8_t peer) {
       at = at < 0 ? i : at;
     } else {
       attached |= s->provider == provider;
+      same |= s->provider == provider && s->attached == peer;
       clash |= peer == SYS_SESSION_MASTER || s->peer == SYS_SESSION_MASTER;
     }
   }
@@ -682,6 +684,9 @@ err_h sys_session_attach(uint8_t provider, uint8_t peer) {
     s_state.master = peer == SYS_SESSION_MASTER ? at : s_state.master;
   }
   portEXIT_CRITICAL(&s_lock);
+  if (same) {
+    return NULL;
+  }
   ERR_CHECK(!attached, ERR_CMD_BAD_ARG);
   ERR_CHECK(!clash, ERR_SESSION_ROLE);
   ERR_CHECK(at >= 0, ERR_SESSION_FULL);

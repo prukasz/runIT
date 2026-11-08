@@ -21,7 +21,8 @@ import { useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { APP_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { APP_TAB, BOARDS_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { BoardsScreen } from './boards/BoardsScreen'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
 import { ConsoleContext, useConsole } from './console/useConsole'
@@ -466,6 +467,8 @@ export function App() {
                 ? <PowerDisplayScreen project={project} services={devices.services} board={devices.board} devices={devices.devices} connected={state === 'connected'} />
                 : projectTab === APP_TAB
                 ? <AppSettingsScreen zoom={appZoom} />
+                : projectTab === BOARDS_TAB
+                ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : tabSection
                 ? <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} run={vm.board} settings={boardSettings} context={pinContext} nameOf={nameOf} />)

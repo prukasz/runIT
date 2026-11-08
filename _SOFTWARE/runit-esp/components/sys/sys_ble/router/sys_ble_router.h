@@ -55,6 +55,34 @@ typedef struct __attribute__((packed)) {
  * name (NUL-ended) } } */
 #define SYS_BLE_OP_LIST 0x07u
 
+/* This board as a central (SYS_BLE.MD "Central"). */
+
+#define SYS_BLE_OP_SCAN 0x08u  // W: sys_ble_scan_args_t
+typedef struct __attribute__((packed)) {
+  uint16_t duration_ms;  /**< How long to scan for runIT boards, 100..30000 ms */
+} sys_ble_scan_args_t;
+
+/* R: -> sys_ble_found_head_t, then head.count x sys_ble_found_info_t */
+#define SYS_BLE_OP_FOUND 0x09u
+typedef struct __attribute__((packed)) {
+  uint8_t scanning;  /**< 1 = the scan still runs */
+  uint8_t count;     /**< Boards that follow */
+} sys_ble_found_head_t;
+
+typedef struct __attribute__((packed)) {
+  uint8_t addr_type;  /**< 0 public, 1 random */
+  uint8_t addr[6];    /**< Least significant byte first */
+  int8_t rssi;        /**< dBm */
+  char name[16];      /**< Its advertised name, NUL-padded (SYS_BLE_CENTRAL_NAME_MAX) */
+} sys_ble_found_info_t;
+
+#define SYS_BLE_OP_CONNECT 0x0Au  // W: sys_ble_connect_args_t
+typedef struct __attribute__((packed)) {
+  uint8_t provider;   /**< The link's provider id; PROVIDER REMOVE ends the link */
+  uint8_t addr_type;  /**< 0 public, 1 random */
+  uint8_t addr[6];    /**< The board's address, least significant byte first */
+} sys_ble_connect_args_t;
+
 #define SYS_BLE_LIST_PRIMARY  (1u << 0)
 #define SYS_BLE_LIST_LOCKED   (1u << 1)
 #define SYS_BLE_LIST_WRITE    (1u << 0)

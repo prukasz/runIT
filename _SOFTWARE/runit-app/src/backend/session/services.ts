@@ -1,7 +1,7 @@
 import type { FieldValues } from '../catalog/codec'
 import type { ServiceCatalog, Side } from '../catalog/services'
 import { bundledServiceCatalog } from '../definitions'
-import { createDeviceCall, decodeAnswer, deviceCall, serviceCall } from '../protocol/services'
+import { createDeviceCall, createRemoteDeviceCall, decodeAnswer, deviceCall, serviceCall } from '../protocol/services'
 import type { CallArgs, Decoded, ServiceCall } from '../protocol/services'
 import type { CommandOptions } from './commands'
 import type { RunitLink } from './link'
@@ -48,6 +48,11 @@ export class Services {
   /** Creates device `device` of a type (a device descriptor's id or type id) with its config. */
   create(device: number, type: string | number, config?: FieldValues, options?: CommandOptions): Promise<Answer> {
     return this.send(createDeviceCall(this.link.defs, this.catalog, device, type, config), options)
+  }
+
+  /** Makes device `device` an alias of device `remoteId` of board `board` (CREATE_REMOTE). */
+  createRemote(device: number, type: string | number, board: number, remoteId: number, options?: CommandOptions): Promise<Answer> {
+    return this.send(createRemoteDeviceCall(this.link.defs, this.catalog, device, type, board, remoteId), options)
   }
 
   /** Any call built with `protocol/services.ts`. */

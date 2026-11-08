@@ -24,6 +24,7 @@ void ble_store_config_init(void);
 U_TASK_DEFINE(sys_ble_task_h, CONFIG_SYS_BLE_TASK_STACK);
 
 static uint8_t s_own_addr_type;
+static volatile bool s_synced;  // the host runs: a central may scan and connect
 static uint8_t s_tx_scratch[CMD_FRAME_MAX];  // BLE task only
 
 static int gap_event(struct ble_gap_event* event, void* arg);
@@ -263,7 +264,13 @@ void sys_ble_free_svc_defs(struct ble_gatt_svc_def* svcs) {
  * ------------------------------------------------------------------------- */
 
 static void on_reset(int reason) {
+  s_synced = false;
   ESP_LOGW(TAG, "NimBLE reset, reason %d", reason);
+}
+
+bool sys_ble_stack_own_addr(uint8_t* type) {
+  *type = s_own_addr_type;
+  return s_synced;
 }
 
 static void on_sync(void) {
@@ -275,6 +282,7 @@ static void on_sync(void) {
     sys_ble_report(ERR_NEW(ERR_BLE_STACK, .rc = rc));
     return;
   }
+  s_synced = true;
   sys_ble_report(adv_start());
   ESP_LOGI(TAG, "advertising as \"%s\"", ble_svc_gap_device_name());
 }

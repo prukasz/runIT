@@ -13,6 +13,7 @@ import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { StepList } from './StepList'
 import { isCanvasStep } from '../hardware/apply'
+import { boardNameOf } from '../boards/boards'
 import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, SINGLE_TYPES, startSettings, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState } from './useDevices'
@@ -237,6 +238,29 @@ function LinksCard({ device, state }: { device: DeviceInfo; state: DevicesState 
   )
 }
 
+/*
+ * The board a project device is on: this one, or another board of the project (Boards page). On another board it is created
+ * there with its config and start commands, and is an alias here that the program uses like any device (boards/boards.ts).
+ */
+function BoardCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
+  const boards = state.project.boards ?? []
+  if (device.system || (boards.length === 0 && device.board === undefined)) return null
+  // A board's own device (its GPIO) of another board stays there: this board has its own.
+  const fixed = device.type !== undefined && SINGLE_TYPES.has(device.type.id)
+  const choices: Choice<number>[] = [{ value: -1, label: 'This board' }, ...boards.map((b) => ({ value: b.id, label: b.name, description: `Id ${b.id}` }))]
+  return (
+    <Card title="Board" subhead={device.board === undefined ? 'On the board the app is connected to.' : `On ${boardNameOf(state.project, device.board) ?? `board ${device.board}`}: created there, used here through its alias.`}>
+      <FormRow label="On" note={fixed ? "A board's own GPIO stays on its board." : 'Write puts it on that board.'}>
+        <ChoiceField<number> aria-label="Board" value={device.board ?? -1} choices={choices} disabled={fixed}
+          onChange={(id) => state.updateDevice(device.id, (d) => {
+            const { board: _b, remoteId: _r, ...rest } = d
+            return id === undefined || id < 0 ? rest : { ...rest, board: id }
+          })} />
+      </FormRow>
+    </Card>
+  )
+}
+
 function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: DevicesState; onPage: () => void }) {
   return (
     <>
@@ -251,6 +275,7 @@ function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: De
       <div className="devices-actions"><Button size="sm" onClick={onPage}><BookOpen aria-hidden="true" />Device page</Button></div>
       <CardStack>
         <ErrorsCard about={`device:${device.id}`} />
+        <BoardCard device={device} state={state} />
         <SettingsCard device={device} state={state} />
         <PolicyCard device={device} state={state} />
         <PinsCard device={device} state={state} />

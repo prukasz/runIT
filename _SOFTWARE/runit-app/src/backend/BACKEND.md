@@ -44,6 +44,7 @@ await services.device(3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, { side: 'wri
 await services.device(3, 'IO', 'LEVEL', { pin: 22 }, { side: 'read' })          // { pin: 22, level: 1 }: the key, then the value
 await services.device(9, 'servo', 'target', { value_x10: 90 })                   // a device type's own op (90°: a field's `scale` 10 makes it 900 on the wire)
 await services.create(20, 'servo', { pwm_pin: { device: 3, pin: 0 }, … })        // the fields of device_servo.json's config; a pin is { device, pin }
+await services.createRemote(20, 'esp32s3_gpio', 2, 0)                          // device 20 here is an alias of device 0 of board 2 (DEVICE CREATE_REMOTE, SYS_REMOTE.MD)
 storeRecord(link, 10, [requestFrame(deviceCall(defs, catalog, 3, 'IO', 'TOGGLE', { pin: 22 }).request)])   // the same request in a record
 readDeviceFrame(defs, catalog, frame, (id) => typeOfDevice(id))                  // a frame read back: { device, entry, command, side, args } or { …, create: { type, config } }
 ```
@@ -153,6 +154,8 @@ await setProjectBoot(link, link.defs.projectBoot.load)     // PROJECT OPTIONS wr
 await saveProjectSource(link, { name, text, streamCrc })   // the project as the app edits it, gzipped (SYS_PROJECT.MD "The source")
 const source = await readProjectSource(link)               // { name, text, streamCrc }, or undefined when the board keeps none
 const name = await projectSourceName(link)                 // the name alone, from the first chunk
+await saveProject(link, { sections }, { boot, board: 2 })  // to a slave of the link's board, through it: `board` on saveProject, projectInfo,
+                                                           // eraseProject, storeRecord, listRecords and removeRecord
 ```
 
 `projectStream(defs, content)` builds the stream (`[u16 len][frame]` frames, a SECTION frame before each section, the program as section 0, then the start section `0xFFFFFFFF`, `SECTION_START`) and `crc32` is zlib's. A record holds writes only (`[key][dir][op][args]`, dir the write: the board records no read, SYS_ACTIONS.MD): `vmFrame`, `deviceFrame` and the section frames are writes. Checked on a board: the stream built here (one device section, one user action and a program) was accepted and `INFO` returned its length and CRC; reading every record back gave the frames that went in. The records of that run, in the frames with the direction byte, are `tests/backend/fixtures/stored-project.json`. **Every section is run at each start**, user actions included: an action that must wait for a call is stored with `storeRecord`, not as a section (SYS_PROJECT.MD). IDs 3 to 6 are the firmware's.

@@ -147,27 +147,30 @@ export interface SaveOptions extends SendOptions {
   readonly boot?: number
 }
 
-const project = (link: RunitLink, op: string, payload?: Uint8Array) =>
-  link.request({ keys: [link.defs.keys.project!, link.defs.opDirs.project[op]!, link.defs.ops.project[op]!], ...(payload ? { payload } : {}) }, { timeoutMs: 10_000, label: `project ${op}` })
+/** The board a request goes to: a slave of the link's board (`dst`), or the link's own when undefined. */
+const to = (board: number | undefined) => (board !== undefined ? { board } : {})
+
+const project = (link: RunitLink, op: string, payload?: Uint8Array, board?: number) =>
+  link.request({ keys: [link.defs.keys.project!, link.defs.opDirs.project[op]!, link.defs.ops.project[op]!], ...(payload ? { payload } : {}) }, { timeoutMs: 10_000, label: `project ${op}`, ...to(board) })
 
 /** Saves a project: BEGIN, the stream in WRITEs, COMMIT with its CRC. Resolves with the stream's length and CRC once the board stored it. */
 export const saveProject = async (link: RunitLink, content: ProjectContent, options: SaveOptions = {}): Promise<{ readonly bytes: number; readonly crc: number }> => {
   const defs = link.defs
   const stream = projectStream(defs, content)
   const crc = crc32(stream)
-  await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of(options.boot ?? defs.projectBoot.none)))
+  await project(link, 'BEGIN', concat(u32(stream.length), Uint8Array.of(options.boot ?? defs.projectBoot.none)), options.board)
   const chunk = defs.frameMax - defs.frameHead - 3 - 4 // the frame's header, [key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < stream.length; at += chunk) {
     writes.push({ keys: [defs.keys.project!, defs.dir.write, defs.ops.project.WRITE!], payload: concat(u32(at), stream.subarray(at, at + chunk)) })
   }
-  await sendInOrder(link, writes, { window: options.window, timeoutMs: options.timeoutMs ?? 10_000, onProgress: options.onProgress })
-  await project(link, 'COMMIT', u32(crc))
+  await sendInOrder(link, writes, { window: options.window, timeoutMs: options.timeoutMs ?? 10_000, onProgress: options.onProgress, ...to(options.board) })
+  await project(link, 'COMMIT', u32(crc), options.board)
   return { bytes: stream.length, crc }
 }
 
-export const projectInfo = async (link: RunitLink): Promise<ProjectInfo> => {
-  const data = await project(link, 'INFO')
+export const projectInfo = async (link: RunitLink, board?: number): Promise<ProjectInfo> => {
+  const data = await project(link, 'INFO', undefined, board)
   return { stored: data[0] === 1, boot: data[1]!, bank: data[2]!, crc: readU32(data, 3), bytes: readU32(data, 7) }
 }
 
@@ -175,14 +178,14 @@ export const projectInfo = async (link: RunitLink): Promise<ProjectInfo> => {
 export const runProject = async (link: RunitLink): Promise<void> => void (await project(link, 'RUN'))
 /** Loads the stored project without its start section: the program stays stopped. */
 export const loadProject = async (link: RunitLink): Promise<void> => void (await project(link, 'LOAD'))
-export const eraseProject = async (link: RunitLink): Promise<void> => void (await project(link, 'ERASE'))
+export const eraseProject = async (link: RunitLink, board?: number): Promise<void> => void (await project(link, 'ERASE', undefined, board))
 /** Sets the boot option (`defs.projectBoot`). */
 export const setProjectBoot = async (link: RunitLink, boot: number): Promise<void> => void (await project(link, 'OPTIONS', Uint8Array.of(boot)))
 
 /* ---- records ---- */
 
-const action = (link: RunitLink, op: string, payload?: Uint8Array, timeoutMs = 5000) =>
-  link.request({ keys: [link.defs.keys.actions!, link.defs.opDirs.actions[op]!, link.defs.ops.actions[op]!], ...(payload ? { payload } : {}) }, { timeoutMs, label: `actions ${op}` })
+const action = (link: RunitLink, op: string, payload?: Uint8Array, timeoutMs = 5000, board?: number) =>
+  link.request({ keys: [link.defs.keys.actions!, link.defs.opDirs.actions[op]!, link.defs.ops.actions[op]!], ...(payload ? { payload } : {}) }, { timeoutMs, label: `actions ${op}`, ...to(board) })
 
 export interface RecordInfo {
   readonly bytes: number
@@ -195,12 +198,12 @@ export interface RecordInfo {
 export const storeRecord = async (link: RunitLink, id: number, frames: readonly Uint8Array[], options: SendOptions = {}): Promise<void> => {
   const defs = link.defs
   const image = frameImage(frames)
-  await action(link, 'BEGIN', concat(u32(id), Uint8Array.of(image.length & 0xff, image.length >> 8)))
+  await action(link, 'BEGIN', concat(u32(id), Uint8Array.of(image.length & 0xff, image.length >> 8)), undefined, options.board)
   const chunk = defs.frameMax - defs.frameHead - 3 - 2 // the frame's header, [key][dir][op] and the offset
   const writes = []
   for (let at = 0; at < image.length; at += chunk) writes.push({ keys: [defs.keys.actions!, defs.dir.write, defs.ops.actions.WRITE!], payload: concat(Uint8Array.of(at & 0xff, at >> 8), image.subarray(at, at + chunk)) })
   await sendInOrder(link, writes, options)
-  await action(link, 'COMMIT', u32(crc32(image)))
+  await action(link, 'COMMIT', u32(crc32(image)), undefined, options.board)
 }
 
 export const recordInfo = async (link: RunitLink, id: number): Promise<RecordInfo> => {
@@ -228,10 +231,10 @@ export const readRecord = async (link: RunitLink, id: number): Promise<Uint8Arra
 }
 
 /** Every stored record id, ascending. */
-export const listRecords = async (link: RunitLink): Promise<number[]> => {
+export const listRecords = async (link: RunitLink, board?: number): Promise<number[]> => {
   const ids: number[] = []
   for (let start = 0; ; ) {
-    const data = await action(link, 'LIST', u32(start))
+    const data = await action(link, 'LIST', u32(start), undefined, board)
     const total = data[0]! | (data[1]! << 8)
     const got = Array.from({ length: (data.length - 2) >> 2 }, (_, i) => readU32(data, 2 + 4 * i))
     ids.push(...got)
@@ -241,4 +244,4 @@ export const listRecords = async (link: RunitLink): Promise<number[]> => {
 }
 
 export const runRecord = async (link: RunitLink, id: number, keepGoing = false): Promise<void> => void (await action(link, keepGoing ? 'RUN_ALL' : 'RUN', u32(id)))
-export const removeRecord = async (link: RunitLink, id: number): Promise<void> => void (await action(link, 'REMOVE', u32(id)))
+export const removeRecord = async (link: RunitLink, id: number, board?: number): Promise<void> => void (await action(link, 'REMOVE', u32(id), undefined, board))

@@ -3,7 +3,7 @@ import { ChoiceField, FormGrid, FormRow, NumberField, Slider, Switch, TextField,
 import type { Choice } from '@ui/components'
 import { bundledServiceCatalog } from '@backend'
 import type { BoardDescriptor, FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
-import { deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
+import { boardDeviceId, deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import { useAppPrefs } from '../appSettings/AppPrefs'
 
@@ -52,7 +52,7 @@ const freePins = (context: PinContext, d: DeviceInfo, current: PinRef | null): C
   const notes = pinNotes(context.board, d.id)
   const users = usedBy(context.devices, d.id).filter((u) => u.by.id !== context.own?.id)
   return Array.from({ length: pins.count }, (_, pin) => pin)
-    .filter((pin) => (current?.device === d.id && current.pin === pin) || (!users.some((u) => u.use.pin.pin === pin) && !isReserved(context.board, d.id, pin)))
+    .filter((pin) => (current?.device === d.id && current.pin === pin) || (!users.some((u) => u.use.pin.pin === pin) && !isReserved(context.board, boardDeviceId(d), pin)))
     .map((pin): Choice<number> => {
       const note = notes.get(pin)
       return { value: pin, label: current?.device === d.id && current.pin === pin ? pinNamer(context.devices)(d.id, pin) : pinChoiceLabel(context.devices, d.id, pin), ...(note ? { description: note } : {}) }
@@ -114,7 +114,7 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
     const users = usedBy(context.devices, own.id)
     // The pins the board keeps for itself are not offered; a command that changes the pin is offered only the pins nobody else manages.
     const choices = Array.from({ length: pins.count }, (_, pin) => pin)
-      .filter((pin) => !isReserved(context.board, own.id, pin) && (!context.changesPin || !users.some((u) => u.use.pin.pin === pin)))
+      .filter((pin) => !isReserved(context.board, boardDeviceId(own), pin) && (!context.changesPin || !users.some((u) => u.use.pin.pin === pin)))
       // Only the pins in a state the command wants: it would be refused on any other (a LEVEL write on a pin with no mode).
       .filter((pin) => !context.pinStates || pinReady(context.pinStates(pin), field.pinState))
       .map((pin): Choice<number> => {

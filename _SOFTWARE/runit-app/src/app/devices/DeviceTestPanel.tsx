@@ -4,11 +4,12 @@ import type { CatalogEntry, CommandDef, FieldValues, Side } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TreeChildren, TreeDisclosure, TreeSlab } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
-import type { Step } from '../project/projectFile'
+import type { ProjectDevice, Step } from '../project/projectFile'
+import { isBoardOwn, onBoardValue } from '../boards/boards'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { bundledEnums, withRanges } from '@backend'
-import { answers, changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
+import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
 import type { DeviceInfo, PinInterrupt, PinStart } from './devices'
 import type { DevicesState } from './useDevices'
 
@@ -110,13 +111,19 @@ function LifecycleBar({ device, state }: { device: DeviceInfo; state: DevicesSta
     }
     void state.probe()
   }
+  // A device on another board: created there (not that board's own GPIO, which it has), then its alias here.
+  const install = async (d: ProjectDevice) => {
+    if (d.board === undefined) return state.services.create(d.id, d.type, d.config)
+    if (!isBoardOwn(state.board, d)) await state.services.create(boardDeviceId(d), d.type, onBoardValue(state.project, d.board, d.config ?? {}), { board: d.board })
+    return state.services.createRemote(d.id, d.type, d.board, boardDeviceId(d))
+  }
   return (
     <div className="devices-lifecycle">
       <div className="devices-actions">
         {own && (
           <>
             <Button size="icon-sm" variant="primary" aria-label="Install" disabled={!state.connected || present} title={present ? 'It is on the board: remove it first to install it again' : 'Install: create it on the board now, with its settings'}
-              onClick={() => void go(() => state.services.create(own.id, own.type, own.config), `${own.name} installed.`)}>
+              onClick={() => void go(() => install(own), `${own.name} installed.`)}>
               <PlugZap aria-hidden="true" />
             </Button>
             <Button size="icon-sm" variant="danger" aria-label="Remove" disabled={!state.connected || !present} title="Remove it from the board (refused while another device uses it)"

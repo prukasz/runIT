@@ -57,6 +57,30 @@ static inline void sys_ble_report(err_h err) {
   err_report(err);
 }
 
+/* sys_ble_frag.c: the framing of a framed characteristic (SYS_BLE.MD "Framing"), both ways and both roles */
+
+/** Sends one packet; false when it can't (the link went down): the rest of the frame is not sent. */
+typedef bool (*sys_ble_frag_tx_f)(void* ctx, const uint8_t* pkt, size_t len);
+
+/** Splits a frame into packets of at most `room` bytes (the header byte included), into `pkt` (room bytes), each to
+ * `tx`. False when a packet could not go. */
+bool sys_ble_frag_send(const uint8_t* data, size_t len, size_t room, uint8_t* pkt, sys_ble_frag_tx_f tx, void* ctx);
+
+/** One frame being joined from its packets. */
+typedef struct {
+  uint8_t buf[CMD_FRAME_MAX];
+  size_t len;
+  uint8_t expected;  // counter of the next packet
+  bool active;       // inside a frame
+} sys_ble_frag_rx_t;
+
+/** Takes one packet of characteristic `uuid` (for the errors): the frame's length in rx->buf when it was the last, else
+ * 0. A packet out of order or too much reports ERR_BLE_FRAG / ERR_BLE_TOO_LONG and drops the frame. */
+size_t sys_ble_frag_rx(sys_ble_frag_rx_t* rx, uint16_t uuid, const uint8_t* data, size_t len);
+
+/** Drops a frame half joined (the link went down). */
+void sys_ble_frag_rx_reset(sys_ble_frag_rx_t* rx);
+
 /* sys_ble.c */
 sys_ble_char_node_t* sys_ble_find_char_by_handle(uint16_t val_handle);  // caller holds the lock
 void sys_ble_on_connect(uint16_t conn_handle, uint16_t mtu);
@@ -69,6 +93,12 @@ int sys_ble_on_write(sys_ble_char_node_t* c, const uint8_t* data, size_t len);
 void sys_ble_task_step(uint8_t* scratch, size_t scratch_len);
 /** BLE task: how long to wait for work. */
 TickType_t sys_ble_task_wait(void);
+/** Wakes the BLE task: something was queued. Any task. */
+void sys_ble_wake(void);
+
+/* sys_ble_central.c */
+/** BLE task: sends the central links' queued frames. */
+void sys_ble_central_step(void);
 
 /* sys_ble_stack.c */
 MUST_USE err_h sys_ble_stack_start(struct ble_gatt_svc_def* svcs);
@@ -76,5 +106,7 @@ MUST_USE err_h sys_ble_compile_svc(struct ble_gatt_svc_def* def, sys_ble_svc_nod
 void sys_ble_free_svc_defs(struct ble_gatt_svc_def* svcs);
 MUST_USE err_h sys_ble_stack_add_svc(sys_ble_svc_node_t* s, struct ble_gatt_svc_def* svcs);
 MUST_USE err_h sys_ble_stack_delete_svc(uint16_t uuid);
+/** Whether the stack runs (synced with the controller), and this board's address type then. Any task. */
+bool sys_ble_stack_own_addr(uint8_t* type);
 /** One notification / indication. Returns the NimBLE code (BLE_HS_ENOMEM = retry). */
 int sys_ble_stack_notify(uint16_t conn_handle, uint16_t val_handle, const uint8_t* data, size_t len, bool indicate);

@@ -45,6 +45,23 @@ menu "sys_ble"
           provider (SYS_DATA_PROVIDER.MD), named {BLE, its UUID}. This many
           can exist at once; they also take slots of CONFIG_SYS_DATA_PROVIDER_MAX.
 
+    config SYS_BLE_CENTRAL_LINKS
+        int "Links to other boards (central)"
+        default 2
+        range 0 2
+        help
+          Boards this board connects to as a BLE central (CONNECT), each a
+          framed provider over that board's runIT pair. Nothing is
+          allocated until the first CONNECT. With the app's connection
+          they share CONFIG_BT_NIMBLE_MAX_CONNECTIONS.
+
+    config SYS_BLE_CENTRAL_FOUND_MAX
+        int "Boards a scan keeps"
+        default 8
+        range 1 16
+        help
+          runIT boards a SCAN lists (FOUND); more are not kept.
+
     config SYS_BLE_MAX_CONN_LISTENERS
         int "Connection listeners"
         default 4

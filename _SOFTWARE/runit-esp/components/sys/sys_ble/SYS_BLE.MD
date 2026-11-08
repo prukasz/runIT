@@ -1,6 +1,6 @@
-# sys_ble — BLE peripheral, runtime GATT table, the runIT providers
+# sys_ble — BLE peripheral and central, runtime GATT table, the runIT providers, links to other boards
 
-Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries two providers (SYS_DATA_PROVIDER.MD): the runIT pair, a client's session, and the LOGS characteristic; user services and characteristics are created at runtime through the `ble` router, and an unframed one that writes with an RX handler or has a TX buffer is a provider too (below).
+Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-bit services and characteristics that can change at runtime. The runIT service carries two providers (SYS_DATA_PROVIDER.MD): the runIT pair, a client's session, and the LOGS characteristic; user services and characteristics are created at runtime through the `ble` router, and an unframed one that writes with an RX handler or has a TX buffer is a provider too (below). As a **central** the board links to other runIT boards, each link a framed provider over that board's runIT pair (Central): the app turns it on, nothing of it runs before.
 
 ## Files
 
@@ -11,11 +11,13 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `errors/errors_sys_ble.json` | The error messages |
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
-| `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
+| `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify, whether the stack runs |
+| `core/sys_ble_frag.c` | The framing (Framing): a frame split into packets and joined from them, for the peripheral's runIT pair and the central's links |
+| `core/sys_ble_central.c/.h` | The board as a central: the scan for runIT boards, the links to other boards as providers (connect, discovery, subscribe, again after a loss), their TX written by the BLE task |
 | `link/sys_ble_link.c/.h` | The runIT service and its two providers (under the ids the board gives `sys_ble_link_init`), and the providers of run-time characteristics: their driver |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status. The header publishes every op (`SYS_BLE_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
-| `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait |
+| `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait, the central's links and found boards |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Boot
@@ -44,8 +46,8 @@ single-packet frame: C0 <frame>
 3-packet frame:      40 <…>  01 <…>  82 <…>
 ```
 
-- **TX**: an item (a whole frame, up to `CMD_FRAME_MAX`, 512) is split by the BLE task into packets of MTU − 4 bytes. The task sends one item's packets back to back, so frames from different tasks never interleave.
-- **RX** (`sys_ble_link.c`): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST hands the frame to the runIT provider's user (`sys_data_provider_deliver`: the session).
+- **TX**: an item (a whole frame, up to `CMD_FRAME_MAX`, 512) is split by the BLE task into packets of MTU − 4 bytes (`sys_ble_frag_send`). The task sends one item's packets back to back, so frames from different tasks never interleave.
+- **RX** (`sys_ble_frag_rx`, one per way in: the runIT RX, each central link's TX): FIRST resets the reassembly. A wrong counter or a packet outside a frame reports `ERR_BLE_FRAG`, and the rest of the frame is dropped up to the next FIRST. Overflow reports `ERR_BLE_TOO_LONG`. LAST hands the frame to the provider's user (`sys_data_provider_deliver`: the session).
 - A frame of up to `CMD_FRAME_MAX` bytes works at any MTU: 19 bytes per packet on the 20-byte link before the MTU exchange. The app adds and strips the header on 0xFFE1, 0xFFE2 and 0xFFE3.
 - An unframed characteristic sends one item per packet (item ≤ MTU − 3).
 
@@ -85,6 +87,17 @@ Changes are **staged** and applied by `sys_ble_apply()` (router `APPLY`).
 - The module publishes no `sys_event` events. Connection changes reach the listeners only.
 - `sys_ble_get_status`: connected, MTU, RX overflow count.
 
+## Central: links to other boards
+
+The board can lead other runIT boards over BLE as their master (SYS_SESSION.MD "Boards, clients, the star"): it is the central, they stay peripherals and need nothing new (their runIT pair is a CLIENT way; a board's hello on it makes this board their master). Nothing of it runs and nothing is allocated until SCAN or CONNECT: the app sends them when the project has another board (its Boards page; the links are the settings record `SYS_ACTIONS_ID_LINKS`, SYS_ACTIONS.MD, run at every start).
+
+- **SCAN** (`sys_ble_central_scan`): for its duration the board looks for advertisements that carry the runIT service (0xFFE0) and keeps each board once (`CONFIG_SYS_BLE_CENTRAL_FOUND_MAX`), with its last RSSI and its name. It answers at once; FOUND reads the list and whether the scan still runs. A scan clears the list. Before the stack runs: `ERR_BLE_NOT_STARTED`; NimBLE refusing (a connect being made): `ERR_BLE_SCAN`.
+- **CONNECT** (`sys_ble_central_connect`): makes provider `provider` a **link** to the board at an address (`CONFIG_SYS_BLE_CENTRAL_LINKS`, its memory allocated at its first CONNECT). Framed, not `WIRED` (a radio: a remote device's writes do not wait, SYS_REMOTE.MD), up while connected and subscribed. A timer tries to connect a link that is down every second, one link at a time (NimBLE makes one connection at once), before the stack runs too; after a loss the same. The same CONNECT again (same provider, same address) is done: a stored project's record run again.
+- **Connecting**: interval 7.5 ms, latency 0, supervision 2 s, 5 s to find the board. Then the runIT service by its UUID, its TX (0xFFE1) and RX (0xFFE2), and TX's CCCD written to notify: NimBLE puts a characteristic's CCCD right after its value (`ble_gatts.c`), and the other board runs this firmware. A failed step is `ERR_BLE_CENTRAL {provider, step, rc}` (2 the service, 3 the characteristics, 4 the subscription) and the link drops and tries again. The other board starts the MTU exchange, as with every client; the central asks for no PHY or packet length.
+- **Frames**: `send` queues a whole frame in the link's queue (`TX_FRAMES` frames; `NOWAIT` full: `ERR_PROV_BUSY` at once, else after `CONFIG_SYS_BLE_ANSWER_WAIT_MS`; down: `ERR_PROV_DOWN`); the BLE task splits it into packets of MTU − 4 bytes and writes them without response to the other board's RX. The other board's notifications on its TX are joined (`sys_ble_frag_rx`) and delivered on the host task.
+- **Session**: SESSION ATTACH of the link's provider as SLAVE (SYS_SESSION.MD) sends this board's hello when the link comes up. **PROVIDER REMOVE** (after SESSION DETACH) ends the link: the connection is dropped and the timer stops when no link is left.
+- The app's connection and the links share `CONFIG_BT_NIMBLE_MAX_CONNECTIONS` (3): the app and two other boards. A linked board stops advertising (its one client is connected), so the app reaches it only through this board.
+
 ## Remote (`sys_ble_router`, root key `ROUTER_KEY_BLE` = 0x03)
 
 Requests are `[0x03][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). STATUS and LIST are reads, the other ops writes.
@@ -98,8 +111,13 @@ Requests are `[0x03][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). STATUS 
 | `0x05` APPLY | – | – (applied `CONFIG_SYS_BLE_APPLY_DELAY_MS` later with a client) |
 | `0x06` STATUS | – | `u8 connected, u16 mtu, u32 rx_overflow` |
 | `0x07` LIST | – | the table as it is after the next apply: `u8 count`, then per service `u16 uuid, u8 flags (bit0 primary, bit1 locked), u8 n`, then n × `u16 uuid, u8 flags (bit0 write, bit1 indicate, bit2 notify, bit3 framed, bit4 has a provider), u32 tx, u32 rx, u8 provider, name (NUL-terminated)` |
+| `0x08` SCAN | `u16 duration_ms` (100..30000) | – (the scan runs on; FOUND reads it) |
+| `0x09` FOUND | – | `u8 scanning, u8 count`, then count × 24 B `sys_ble_found_info_t`: `u8 addr_type` (0 public, 1 random), `u8 addr[6]` (least significant first), `i8 rssi`, `char name[16]` (NUL-padded) |
+| `0x0A` CONNECT | `u8 provider, u8 addr_type, u8 addr[6]` (least significant first; the descriptor names the address `addr_lo` u32 and `addr_hi` u16) | – (the link connects by itself; PROVIDER REMOVE ends it) |
 
 The app reads LIST to see what a save must change, so it removes only what is not wanted.
+
+Example: link to the board at `F4:12:FA:01:02:03` as provider 0x30 and lead it: `03 01 0A 30 00 03 02 01 FA 12 F4` (CONNECT), then `0E 01 02 30 01` (SESSION ATTACH 0x30 as SLAVE).
 
 Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 01 11 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B, provider 0x11), then `03 01 05` (APPLY). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
@@ -122,6 +140,9 @@ Example: a user service with a temperature characteristic that a VM program can 
 | `ERR_BLE_BAD_ARG` | HIGH | – |
 | `ERR_BLE_FRAG` | LOW | `uuid, hdr, expected`: packet out of order, frame dropped |
 | `ERR_BLE_RX_HANDLER` | MEDIUM | `uuid`: handler already set, or the characteristic has an RX buffer |
+| `ERR_BLE_NOT_STARTED` | LOW | –: SCAN before the stack runs |
+| `ERR_BLE_SCAN` | MEDIUM | `rc`: NimBLE refused the scan (a connect being made) |
+| `ERR_BLE_CENTRAL` | MEDIUM | `provider, step, rc`: a link failed at a step (Central); it tries again |
 
 Errors raised on the host or BLE task have no caller to return to. They go through `sys_ble_report`: logged, and sent on the errors stream.
 
@@ -129,4 +150,5 @@ Errors raised on the host or BLE task have no caller to return to. They go throu
 
 - No bonding: the link reconnects by itself, with no stored keys.
 - The runIT service is locked: its TX, RX, LOGS and Status characteristics cannot be changed at runtime.
+- Central: a found board is told by its address and RSSI (every board advertises the name `runit`). Built and covered by the app's tests of its frames, not yet run on two boards: the links' connect, discovery and reconnect, the throughput of two links next to the app's, and a link held past 40 s are unverified.
 - Verified on hardware from Windows (the app's backend through `bleak`, `runit-app/tests/hardware`): the MTU of 527, the framing at the full MTU (requests in packets of 20 to 512 B, long answers), advertising and reconnecting, a board restart, and a runtime service added with `APPLY` while a client was connected (the client's OS reports no disconnect and invalidates its handles: the app reconnects). Unverified: a central that negotiates a smaller MTU, Android, and the removal of a characteristic of a live service.

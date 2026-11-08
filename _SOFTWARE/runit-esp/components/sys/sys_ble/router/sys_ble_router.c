@@ -4,7 +4,15 @@
 #include <string.h>
 
 #include "sys_ble.h"
+#include "sys_ble_central.h"
 #include "sys_ble_link.h"
+#include "sdkconfig.h"
+#include "utils.h"
+
+#define SCAN_MIN_MS 100u
+#define SCAN_MAX_MS 30000u
+
+_Static_assert(sizeof(((sys_ble_found_info_t*)0)->name) == SYS_BLE_CENTRAL_NAME_MAX, "a found board's name");
 
 ROUTER_OP(op_svc_create, sys_ble_svc_create_args_t) {
   ERR_CHECK(args->is_primary <= 1, ERR_CMD_BAD_ARG);
@@ -105,6 +113,31 @@ ROUTER_OP_NOARGS(op_list) {
   return NULL;
 }
 
+ROUTER_OP(op_scan, sys_ble_scan_args_t) {
+  ERR_CHECK(args->duration_ms >= SCAN_MIN_MS && args->duration_ms <= SCAN_MAX_MS, ERR_CMD_BAD_ARG);
+  return sys_ble_central_scan(args->duration_ms);
+}
+
+ROUTER_OP_NOARGS(op_found) {
+  sys_ble_found_t found[CONFIG_SYS_BLE_CENTRAL_FOUND_MAX];
+  bool scanning = false;
+  const uint8_t n = sys_ble_central_found(found, ARRAY_LEN(found), &scanning);
+  const sys_ble_found_head_t head = {.scanning = scanning, .count = n};
+  ERR_TRY(cmd_append(out, &head, sizeof(head)));
+  for (uint8_t i = 0; i < n; i++) {
+    sys_ble_found_info_t info = {.addr_type = found[i].addr_type, .rssi = found[i].rssi};
+    memcpy(info.addr, found[i].addr, sizeof(info.addr));
+    memcpy(info.name, found[i].name, sizeof(info.name));
+    ERR_TRY(cmd_append(out, &info, sizeof(info)));
+  }
+  return NULL;
+}
+
+ROUTER_OP(op_connect, sys_ble_connect_args_t) {
+  ERR_CHECK(args->addr_type <= 1, ERR_CMD_BAD_ARG);
+  return sys_ble_central_connect(args->provider, args->addr_type, args->addr);
+}
+
 static const router_op_t k_ops[] = {
     ROUTER_W(SYS_BLE_OP_SVC_CREATE, op_svc_create),
     ROUTER_W(SYS_BLE_OP_SVC_REMOVE, op_svc_remove),
@@ -113,6 +146,9 @@ static const router_op_t k_ops[] = {
     ROUTER_W(SYS_BLE_OP_APPLY, op_apply),
     ROUTER_R(SYS_BLE_OP_STATUS, op_status),
     ROUTER_R(SYS_BLE_OP_LIST, op_list),
+    ROUTER_W(SYS_BLE_OP_SCAN, op_scan),
+    ROUTER_R(SYS_BLE_OP_FOUND, op_found),
+    ROUTER_W(SYS_BLE_OP_CONNECT, op_connect),
 };
 
 ROUTER_MODULE(sys_ble_router, k_ops)

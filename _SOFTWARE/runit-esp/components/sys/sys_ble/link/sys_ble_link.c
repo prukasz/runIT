@@ -24,41 +24,13 @@ static struct {
  * RX: framed packets -> one frame -> the runIT provider's user (host task only)
  * ------------------------------------------------------------------------- */
 
-static struct {
-  uint8_t buf[CMD_FRAME_MAX];
-  size_t len;
-  uint8_t expected;  // counter of the next packet
-  bool active;       // inside a frame
-} s_rx;
+static sys_ble_frag_rx_t s_rx;
 
 static void rx_packet(void* ctx, const uint8_t* data, size_t len) {
   (void)ctx;
-  uint8_t hdr = data[0];
-  uint8_t count = hdr & SYS_BLE_FRAG_COUNT_MASK;
-  if (hdr & SYS_BLE_FRAG_FIRST) {
-    s_rx.len = 0;
-    s_rx.expected = 0;
-    s_rx.active = true;
-  }
-  if (!s_rx.active || count != s_rx.expected) {
-    sys_ble_report(ERR_NEW(ERR_BLE_FRAG, .uuid = SYS_BLE_CHR_RUNIT_RX, .hdr = hdr, .expected = s_rx.expected));
-    s_rx.active = false;  // the rest of this frame is dropped up to the next FIRST
-    return;
-  }
-  size_t n = len - 1;
-  if (s_rx.len + n > sizeof(s_rx.buf)) {
-    sys_ble_report(ERR_NEW(ERR_BLE_TOO_LONG, .uuid = SYS_BLE_CHR_RUNIT_RX, .len = (uint16_t)(s_rx.len + n),
-                           .max = sizeof(s_rx.buf)));
-    s_rx.active = false;
-    return;
-  }
-  memcpy(s_rx.buf + s_rx.len, data + 1, n);
-  s_rx.len += n;
-  s_rx.expected = (uint8_t)((s_rx.expected + 1) & SYS_BLE_FRAG_COUNT_MASK);
-
-  if (hdr & SYS_BLE_FRAG_LAST) {
-    s_rx.active = false;
-    sys_data_provider_deliver(&s_runit, s_rx.buf, (uint32_t)s_rx.len);
+  const size_t frame = sys_ble_frag_rx(&s_rx, SYS_BLE_CHR_RUNIT_RX, data, len);
+  if (frame > 0) {
+    sys_data_provider_deliver(&s_runit, s_rx.buf, (uint32_t)frame);
   }
 }
 
@@ -77,7 +49,7 @@ static bool client_connected(void) {
 static void on_conn(bool connected, int32_t reason) {
   (void)reason;
   if (!connected) {
-    s_rx.active = false;
+    sys_ble_frag_rx_reset(&s_rx);
   }
   sys_data_provider_set_up(&s_runit, connected);
   sys_data_provider_set_up(&s_logs, connected);

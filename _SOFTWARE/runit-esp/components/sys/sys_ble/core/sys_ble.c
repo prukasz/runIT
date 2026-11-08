@@ -18,6 +18,10 @@ static void wake_task(void) {
   xSemaphoreGive(sys_ble_tx_sem);
 }
 
+void sys_ble_wake(void) {
+  wake_task();
+}
+
 /* ----------------------------------------------------------------------------
  * Registry (caller holds the lock)
  * ------------------------------------------------------------------------- */
@@ -430,6 +434,17 @@ static bool send_packet(uint16_t conn, uint16_t val_handle, bool indicate, const
   return rc == 0;
 }
 
+typedef struct {
+  uint16_t conn;
+  uint16_t val_handle;
+  bool indicate;
+} notify_to_t;
+
+static bool notify_packet(void* ctx, const uint8_t* pkt, size_t len) {
+  const notify_to_t* to = ctx;
+  return send_packet(to->conn, to->val_handle, to->indicate, pkt, len);
+}
+
 // One item: as is, or split into fragment packets on a framed characteristic.
 static void send_item(uint16_t conn, uint16_t val_handle, bool indicate, bool framed, uint16_t mtu,
                       const uint8_t* data, size_t len) {
@@ -440,20 +455,8 @@ static void send_item(uint16_t conn, uint16_t val_handle, bool indicate, bool fr
     }
     return;  // longer: checked when queued; only possible if the MTU dropped
   }
-  size_t chunk = room - 1;
-  size_t off = 0;
-  uint8_t count = 0;
-  do {
-    size_t n = len - off < chunk ? len - off : chunk;
-    s_pkt[0] = (uint8_t)((off == 0 ? SYS_BLE_FRAG_FIRST : 0) | (off + n == len ? SYS_BLE_FRAG_LAST : 0) |
-                         (count & SYS_BLE_FRAG_COUNT_MASK));
-    memcpy(&s_pkt[1], data + off, n);
-    if (!send_packet(conn, val_handle, indicate, s_pkt, n + 1)) {
-      return;
-    }
-    off += n;
-    count++;
-  } while (off < len);
+  notify_to_t to = {.conn = conn, .val_handle = val_handle, .indicate = indicate};
+  sys_ble_frag_send(data, len, room, s_pkt, notify_packet, &to);
 }
 
 /* Copies one queued item into `buf` under the lock (no node pointer leaves it).
@@ -521,10 +524,11 @@ void sys_ble_task_step(uint8_t* scratch, size_t scratch_len) {
     size_t len = g_ble.is_connected ? take_item(scratch, scratch_len, &val_handle, &indicate, &framed) : 0;
     xSemaphoreGive(sys_ble_mutex);
     if (len == 0) {
-      return;
+      break;
     }
     send_item(conn, val_handle, indicate, framed, mtu, scratch, len);
   }
+  sys_ble_central_step();
 }
 
 /* ----------------------------------------------------------------------------

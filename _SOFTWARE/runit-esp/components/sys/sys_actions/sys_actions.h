@@ -49,6 +49,7 @@ extern "C" {
 #define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
 #define SYS_ACTIONS_ID_STREAM          SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data streams @description Data streams and bindings
 #define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
+#define SYS_ACTIONS_ID_LINKS           SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 9)  //@alias Links to boards @description The BLE links to other boards: BLE CONNECT and SESSION ATTACH per board
 
 /**
  * @brief The firmware's own actions: user-class records sys_actions_init() writes at every boot (SYS_ACTIONS.MD "Onboard

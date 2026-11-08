@@ -16,7 +16,7 @@ export { decodeFields, encodeFields, PayloadError, PIN_REF_SIZE, RAW_TYPES, rang
 export type { Choice, FieldInput, FieldRanges, FieldRecord, FieldValue, FieldValues, Layout, PinRef, RawType, WireField } from './catalog/codec'
 export { isMirror, ServiceCatalog, SIDES, sideOf, sidesOf } from './catalog/services'
 export type { CatalogEntry, CommandDef, CommandSide, DeviceChannels, DevicePins, DevicePreset, DescriptorFile, EntryKind, EventDef, Returns, Side } from './catalog/services'
-export { createDeviceCall, decodeAnswer, decodeReturns, deviceCall, deviceOp, readDeviceFrame, requestFrame, serviceCall } from './protocol/services'
+export { createDeviceCall, createRemoteDeviceCall, decodeAnswer, decodeReturns, deviceCall, deviceOp, readDeviceFrame, requestFrame, serviceCall } from './protocol/services'
 export type { CallArgs, Decoded, DeviceFrame, ServiceCall } from './protocol/services'
 export { Services } from './session/services'
 export type { Answer, CallOptions } from './session/services'

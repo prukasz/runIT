@@ -877,6 +877,12 @@
           "value": 16777224,
           "alias": "USB-PD request",
           "description": "USB-PD request: the PD write"
+        },
+        {
+          "name": "SYS_ACTIONS_ID_LINKS",
+          "value": 16777225,
+          "alias": "Links to boards",
+          "description": "The BLE links to other boards: BLE CONNECT and SESSION ATTACH per board"
         }
       ]
     },
@@ -2779,6 +2785,7 @@
     "SYS_ACTIONS_CLASS_SYSTEM": "action_class",
     "SYS_ACTIONS_CLASS_USER": "action_class",
     "SYS_ACTIONS_ID_BLE": "settings_record",
+    "SYS_ACTIONS_ID_LINKS": "settings_record",
     "SYS_ACTIONS_ID_LOG": "settings_record",
     "SYS_ACTIONS_ID_POWER_BATTERY": "settings_record",
     "SYS_ACTIONS_ID_POWER_CFG": "settings_record",

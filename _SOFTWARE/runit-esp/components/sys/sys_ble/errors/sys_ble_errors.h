@@ -17,6 +17,6 @@
   X(ERR_BLE_TOO_LONG,    ERR_TAG(ERR_MOD_SYS_BLE, 12), ERR_SEV_MEDIUM, { uint16_t uuid; uint16_t len; uint16_t max; }) \
   X(ERR_BLE_BAD_ARG,     ERR_TAG(ERR_MOD_SYS_BLE, 13), ERR_SEV_HIGH,   {})                                 \
   X(ERR_BLE_FRAG,        ERR_TAG(ERR_MOD_SYS_BLE, 14), ERR_SEV_LOW,    { uint16_t uuid; uint8_t hdr; uint8_t expected; }) /* packet out of order: frame dropped */ \
-  X(ERR_BLE_RX_HANDLER,  ERR_TAG(ERR_MOD_SYS_BLE, 15), ERR_SEV_MEDIUM, { uint16_t uuid; }) /* handler already set, or char has an RX buffer */
+  X(ERR_BLE_RX_HANDLER,  ERR_TAG(ERR_MOD_SYS_BLE, 15), ERR_SEV_MEDIUM, { uint16_t uuid; }) /* handler already set, or char has an RX buffer */   X(ERR_BLE_NOT_STARTED, ERR_TAG(ERR_MOD_SYS_BLE, 16), ERR_SEV_LOW,    {}) /* scan: the stack does not run yet */   X(ERR_BLE_SCAN,        ERR_TAG(ERR_MOD_SYS_BLE, 17), ERR_SEV_MEDIUM, { int32_t rc; }) /* scan refused (a connect is being made) */   X(ERR_BLE_CENTRAL,     ERR_TAG(ERR_MOD_SYS_BLE, 18), ERR_SEV_MEDIUM, { uint8_t provider; uint8_t step; int32_t rc; }) /* a link to another board failed at `step`; it tries again */
 
 ERR_TAGS_DECLARE(ERR_SYS_BLE_MAP)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bluetooth, Monitor, SlidersHorizontal, Waypoints, Zap } from 'lucide-react'
+import { Bluetooth, Monitor, Network, SlidersHorizontal, Waypoints, Zap } from 'lucide-react'
 import { Badge, DeviceTile, PaletteSectionHeader, TreeSlab } from '@ui/components'
 import type { SettingSection } from './settings'
 import type { BoardSettingsState } from './useBoardSettings'
@@ -7,7 +7,7 @@ import { useErrors } from '../console/useConsole'
 
 /*
  * The settings of the Project view's left panel, under the project (its landing page, App.tsx `ProjectSummary`): the board's,
- * a tab per service descriptor with settings (settings.ts), then the app's (the Live power display, App settings). The project
+ * the project's other boards (boards/BoardsScreen.tsx) and a tab per service descriptor with settings (settings.ts), then the app's (the Live power display, App settings). The project
  * service's own settings (what the board does with the project at start) are on the landing page.
  */
 
@@ -15,6 +15,9 @@ import { useErrors } from '../console/useConsole'
 export const PROJECT_TAB = 'project'
 /** The tab of the Live power display: what the right panel shows of the board's power (power/PowerDisplayScreen.tsx). */
 export const POWER_TAB = 'live-power'
+
+/** The tab of the project's other boards, linked to this one over BLE (boards/BoardsScreen.tsx). */
+export const BOARDS_TAB = 'boards'
 
 /** The tab of the app's own settings (appSettings/AppSettingsScreen.tsx). */
 export const APP_TAB = 'app-settings'
@@ -40,7 +43,8 @@ export function SettingsTabs({ sections, state, tab, onTab }: { sections: readon
   const errorBadge = (n: number) => n > 0 ? <Badge tone="danger" size="compact" title={`${n} errors not read (Console)`}>{n}</Badge> : undefined
   return (
     <div className="settings-tabs">
-      <PaletteSectionHeader label="Board" count={sections.length} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
+      <PaletteSectionHeader label="Board" count={sections.length + 1} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
+      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Network} />} label="Boards" title="Other boards this one leads over Bluetooth: found, linked, given their ids" selected={tab === BOARDS_TAB} onClick={() => onTab(BOARDS_TAB)} />}
       {boardOpen && sections.map((s) => (
         <TreeSlab key={s.service.id} icon={<DeviceTile size="small" icon={iconOf(s)} />} label={s.title} title={s.service.description} selected={tab === s.service.id}
           isError={unread(s.service.key) > 0}

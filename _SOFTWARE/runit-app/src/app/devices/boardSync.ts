@@ -5,6 +5,7 @@ import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectFile } from '../project/projectFile'
 import { settingsRecords } from '../settings/settingsRecords'
 import { actionRecordOf, DEVICE_CLASS, deviceProblems, deviceSections, recordClass, SETTINGS_CLASS, stepFrame, USER_CLASS } from './devices'
+import { boardProblems, boardSections, linksSection } from '../boards/boards'
 
 /*
  * The project's devices and actions on the board, both ways (SYS_PROJECT.MD, SYS_ACTIONS.MD).
@@ -15,6 +16,10 @@ import { actionRecordOf, DEVICE_CLASS, deviceProblems, deviceSections, recordCla
  *           (run when no project was stored: the board does it right after the save), nothing when there is nothing to store; then every action
  *           as a user record. The device and user records the project no longer has are removed (a project that omits a
  *           device leaves its record in flash, SYS_PROJECT.MD; the firmware's onboard actions stay).
+ *   boards  each other board of the project first (boards/boards.ts), through this one: its old project erased and its devices
+ *           stored as its project (no program: the program is this board's, and reaches them through their aliases), run at
+ *           once and at its every start; its device records the project no longer has removed. Then this board, whose settings
+ *           start with the links to those boards and whose devices on them are aliases.
  *   read    the settings and device records the stored project runs (the device records alone when none is stored) and the
  *           user records, back into the project; its program stays.
  */
@@ -43,12 +48,29 @@ const programFrames = (defs: LinkDefinitions, engine: Engine, project: ProjectFi
   return result.frames.map((f) => vmFrame(defs, f.op, f.payload))
 }
 
-/** Writes the devices, the program and the actions to the board. Resolves with a line for the user. */
+/** Writes the devices of another board of the project to it, through this one: its stored project is its devices, run at once. */
+const writeOtherBoard = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, project: ProjectFile, id: number, name: string, onProgress?: (p: SyncProgress) => void): Promise<number> => {
+  const sections = boardSections(link.defs, catalog, project, board, id)
+  try {
+    await eraseProject(link, id)
+  } catch (e) {
+    throw new Error(`${name} (board ${id}) is not reached through this board: link it on the Boards page first (${e instanceof Error ? e.message : String(e)}).`)
+  }
+  if (sections.length > 0) await saveProject(link, { sections }, { boot: link.defs.projectBoot.run, board: id, onProgress: (done, total) => onProgress?.({ step: name, done, total }) })
+  const kept = new Set(sections.map((s) => s.id))
+  for (const record of (await listRecords(link, id)).filter((r) => recordClass(r) === DEVICE_CLASS && !kept.has(r))) await removeRecord(link, record, id)
+  return sections.length
+}
+
+/** Writes the devices, the program and the actions to the board, and the devices on the project's other boards to them. Resolves with a line for the user. */
 export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, engine: Engine, project: ProjectFile, onProgress?: (p: SyncProgress) => void): Promise<string> => {
   const defs = link.defs
-  const problems = deviceProblems(project, catalog, board)
+  const problems = [...deviceProblems(project, catalog, board), ...boardProblems(project, link.session?.boardId, catalog)]
   if (problems.length > 0) throw new Error(problems[0])
-  const settings = settingsRecords(catalog, project.settings)
+  let others = 0
+  for (const other of project.boards ?? []) others += await writeOtherBoard(link, catalog, board, project, other.id, other.name, onProgress)
+  const links = linksSection(defs, catalog, project)
+  const settings = [...(links ? [links] : []), ...settingsRecords(catalog, project.settings)]
   const sections = [...settings, ...deviceSections(defs, catalog, project, board)]
   const program = programFrames(defs, engine, project)
   const info = await projectInfo(link)
@@ -83,7 +105,8 @@ export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, boa
 
   const removed = staleDevices.length > 0 ? ` ${staleDevices.length} device record(s) the project no longer has removed.` : ''
   if (sections.length === 0 && !program) return `Nothing runs at start: the stored project and its devices are erased, ${project.actions.length} action(s) written.${removed}`
-  return `Written: ${settings.length} setting record(s), ${sections.length - settings.length} device record(s), ${program ? 'the program, ' : ''}${project.actions.length} action(s). ${BOOT_NOTE[boot === defs.projectBoot.run ? 'run' : boot === defs.projectBoot.load ? 'load' : 'none']}${removed}`
+  const onOthers = (project.boards ?? []).length > 0 ? ` ${others} device record(s) on ${(project.boards ?? []).length} other board(s).` : ''
+  return `Written: ${settings.length} setting record(s), ${sections.length - settings.length} device record(s), ${program ? 'the program, ' : ''}${project.actions.length} action(s).${onOthers} ${BOOT_NOTE[boot === defs.projectBoot.run ? 'run' : boot === defs.projectBoot.load ? 'load' : 'none']}${removed}`
 }
 
 /** What reading the board gives: the project it keeps a copy of (none: the board keeps none) and the notes for the user. */

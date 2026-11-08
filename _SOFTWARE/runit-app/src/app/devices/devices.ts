@@ -1,4 +1,4 @@
-import { bundledEnums, createDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, requestFrame, sidesOf } from '@backend'
+import { bundledEnums, createDeviceCall, createRemoteDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, requestFrame, sidesOf } from '@backend'
 import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
 import type { ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 
@@ -59,7 +59,17 @@ export interface DeviceInfo {
   readonly defaults: readonly Step[]
   /** The ranges it gives the fields of its commands (`COMMAND.field`): its type's, replaced by board.json's for a board device. */
   readonly ranges?: FieldRanges
+  /** The other board it is on (`ProjectDevice.board`); absent: this board. */
+  readonly board?: number
+  /** Its id on that board (`ProjectDevice.remoteId`). */
+  readonly remoteId?: number
 }
+
+/**
+ * The id a device has on the board it is on: its own, or its id on the other board. The other boards are the same board type
+ * (board.json), so what board.json says of a device (reserved pins, the boot's pin setup) is looked up by it.
+ */
+export const boardDeviceId = (device: { readonly id: number; readonly remoteId?: number }): number => device.remoteId ?? device.id
 
 /** The device type of a board device: the descriptor board.json names. */
 export const boardType =(catalog: ServiceCatalog, descriptor: string): CatalogEntry | undefined =>
@@ -144,7 +154,7 @@ const listDevices = (project: ProjectFile, catalog: ServiceCatalog, board: Board
   }),
   ...creationOrder(project.devices.map((d): DeviceInfo => {
     const type = catalog.devices.get(d.type)
-    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [], ...(type?.ranges ? { ranges: rangesForConfig(type.ranges, withConfigDefaults(type, d.config ?? {})) } : {}) }
+    return { id: d.id, name: d.name, system: false, type, ...(type?.description ? { description: type.description } : {}), config: d.config ?? {}, uses: configPins(type, d.config), pinAliases: aliasesOf(project, d.id), defaults: d.defaults ?? [], ...(type?.ranges ? { ranges: rangesForConfig(type.ranges, withConfigDefaults(type, d.config ?? {})) } : {}), ...(d.board !== undefined ? { board: d.board, remoteId: d.remoteId ?? d.id } : {}) }
   })),
 ]
 
@@ -303,7 +313,7 @@ export const pinStateOf = (device: DeviceInfo, board: BoardDescriptor, pin: numb
   const liveKind = live?.get(`${device.id}/${pin}`)
   if (liveKind !== undefined) return liveKind === null ? (reset ? [kindOfCapability(reset) ?? reset, 'unconfigured'] : ['unconfigured']) : reset ? [liveKind, 'unconfigured'] : [liveKind]
   let kind: string | undefined
-  const boot = board.pinSetup.find((p) => p.device === device.id && p.pin === pin)
+  const boot = board.pinSetup.find((p) => p.device === boardDeviceId(device) && p.pin === pin)
   if (boot) kind = modeKind(boot.mode)
   for (const step of device.defaults) {
     if (step.kind !== 'device' || step.contract !== 'IO' || step.args?.pin !== pin) continue
@@ -501,7 +511,7 @@ export const sideLabel = ({ command, side }: CommandSideOf): string => (isMirror
 
 /** The command of the device contract that creates a device (SYS_DEVICE.MD "Ops"). */
 const CREATE = 'CREATE'
-/** The command that makes a device of this type that is a device of another board; the app does not offer it yet. */
+/** The command that makes an alias of a device of another board: the app sends it for a device on another board (`remoteFrame`), never as a command of the view. */
 const CREATE_REMOTE = 'CREATE_REMOTE'
 
 /** The device contract (`SYS_DEVICE_CONTRACT_DEVICE`): RESET, SUSPEND, RESUME, REMOVE, INFO, OPS... */
@@ -521,9 +531,17 @@ export const stepFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, step: 
 export const installFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice): Uint8Array =>
   requestFrame(createDeviceCall(defs, catalog, device.id, device.type, device.config).request)
 
-/** The frames of a device's record: CREATE for a project device, then its start commands. */
+/** The alias on this board of a project device that is on another board: CREATE_REMOTE (SYS_REMOTE.MD). */
+export const remoteFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice & { readonly board: number }): Uint8Array =>
+  requestFrame(createRemoteDeviceCall(defs, catalog, device.id, device.type, device.board, boardDeviceId(device)).request)
+
+/**
+ * The frames of a device's record on this board: CREATE for a project device, then its start commands; a device on another board
+ * only its alias (its CREATE and start commands are that board's, `boards/boards.ts`).
+ */
 export const deviceFrames = (defs: LinkDefinitions, catalog: ServiceCatalog, project: ProjectFile, device: DeviceInfo): Uint8Array[] => {
   const own = project.devices.find((d) => d.id === device.id)
+  if (own?.board !== undefined) return [remoteFrame(defs, catalog, { ...own, board: own.board })]
   return [...(device.system || !own ? [] : [installFrame(defs, catalog, own)]), ...device.defaults.map((s) => stepFrame(defs, catalog, s))]
 }
 

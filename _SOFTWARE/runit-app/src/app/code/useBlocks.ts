@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { newBlock, variantOf } from '@engine'
 import type { BlockInstance, BlockType, Engine, ObjectPath } from '@engine'
 import { onboardActions } from '@backend'
-import { changesPin, devicePins, isReserved, pinReady, pinStateOf, usedBy } from '../devices/devices'
+import { boardDeviceId, changesPin, devicePins, isReserved, pinReady, pinStateOf, usedBy } from '../devices/devices'
 import type { DeviceInfo } from '../devices/devices'
 import type { DevicesState } from '../devices/useDevices'
 import type { ProjectFile } from '../project/projectFile'
@@ -37,7 +37,7 @@ export const blockPinChoices = (state: Pick<DevicesState, 'catalog' | 'board' | 
   const wants = side && command?.[side]?.args?.fields.find((f) => f.id === field)?.pinState
   const users = usedBy(state.devices, device.id)
   return Array.from({ length: count }, (_, pin) => pin)
-    .filter((pin) => !isReserved(state.board, device.id, pin))
+    .filter((pin) => !isReserved(state.board, boardDeviceId(device), pin))
     .filter((pin) => !command || !side || !changesPin(side) || !users.some((u) => u.use.pin.pin === pin))
     .filter((pin) => pinReady(pinStateOf(device, state.board, pin, !device.type?.pins?.fixedModes), wants))
 }
