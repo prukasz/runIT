@@ -14,8 +14,12 @@
 #define RETRY_MS           1000u  // a link that is down tries to connect this often
 #define CONNECT_MS         5000u  // one try: how long the board is looked for
 #define TX_FRAMES          4u     // frames a link's queue holds
-#define CONN_ITVL_UNITS    6u     // 7.5 ms (1.25 ms units), as the board asks for as a peripheral
-#define CONN_TIMEOUT_UNITS 200u   // 2 s supervision timeout (10 ms units)
+/* A link's interval: 30 to 50 ms (1.25 ms units). The radio also keeps the app's link (7.5 ms) and the advertising: a second
+   link at 7.5 ms is refused by the controller (0x0D, limited resources). The other board asks for 7.5 ms as every
+   peripheral does: the link answers with this. */
+#define CONN_ITVL_MIN_UNITS 24u
+#define CONN_ITVL_MAX_UNITS 40u
+#define CONN_TIMEOUT_UNITS  400u  // 4 s supervision timeout (10 ms units)
 #define SCAN_ITVL_UNITS    0x50u  // 50 ms (0.625 ms units)
 #define SCAN_WINDOW_UNITS  0x30u  // 30 ms of it listening: the board's own advertising and links keep their time
 
@@ -88,8 +92,8 @@ static void try_connect(uintptr_t i) {
   const struct ble_gap_conn_params params = {
       .scan_itvl = SCAN_ITVL_UNITS,
       .scan_window = SCAN_WINDOW_UNITS,
-      .itvl_min = CONN_ITVL_UNITS,
-      .itvl_max = CONN_ITVL_UNITS,
+      .itvl_min = CONN_ITVL_MIN_UNITS,
+      .itvl_max = CONN_ITVL_MAX_UNITS,
       .latency = 0,
       .supervision_timeout = CONN_TIMEOUT_UNITS,
   };
@@ -231,6 +235,17 @@ static int link_event(struct ble_gap_event* event, void* arg) {
         ESP_LOGI(TAG, "link %u lost (reason 0x%x)", l->p.id, event->disconnect.reason);
         link_down(l);
       }
+      return 0;
+
+    // The other board asks for its own interval (7.5 ms): this board keeps the link's.
+    case BLE_GAP_EVENT_CONN_UPDATE_REQ:
+    case BLE_GAP_EVENT_L2CAP_UPDATE_REQ:
+      *event->conn_update_req.self_params = (struct ble_gap_upd_params){
+          .itvl_min = CONN_ITVL_MIN_UNITS,
+          .itvl_max = CONN_ITVL_MAX_UNITS,
+          .latency = 0,
+          .supervision_timeout = CONN_TIMEOUT_UNITS,
+      };
       return 0;
 
     case BLE_GAP_EVENT_MTU:
