@@ -38,7 +38,7 @@ A stream is `sys_stream_cfg_t` `{u8 id, u8 dir, u8 flags}`, set at CREATE and ne
 | Kind | Made by | OUT | IN |
 |---|---|---|---|
 | **provider** (a binding) | `sys_stream_bind(id, provider)`, BIND | the payload goes there as it is, no frame | what comes in there goes into the stream |
-| **peer** (a subscriber) | `sys_stream_subscribe(id, peer)`, SUBSCRIBE (the command's `src`) | `[STREAM][dst peer][src board][seq][id][payload]` through its session | the same |
+| **peer** (a subscriber) | `sys_stream_subscribe(id, peer)`, SUBSCRIBE (the command's `src`) | `[PUSH][dst peer][src board][seq][id][payload]` through its session | the same |
 | **callback** (the board's code) | `sys_stream_listen(id, fn, ctx)` | `fn(ctx, id, payload, len)` on the stream task | the same |
 | **remote** | `sys_stream_remote(id, board, provider)`, REMOTE | a data frame through the session (SYS_SESSION.MD "Data to a provider"): that board sends the payload on the provider as it is | the same |
 | **output** | `sys_stream_output(id, provider)`, OUTPUT | refused (`ERR_STREAM_DIRECTION`): its bindings are its way out | what came in goes to this provider as it is, no frame |
