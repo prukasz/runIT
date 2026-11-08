@@ -42,17 +42,32 @@ interface Held {
   readonly spec: WatchSpec
   readonly handler: WatchHandler
   seq: number | undefined
+  /** The board has it: its ADD was answered on this connection. The board ends a client's watches with its session, so a lost link clears it. */
+  onBoard: boolean
+}
+
+/** The ids in use on one link, shared by every `Watches` of it: the board knows a watch by (owner, id) and an ADD of an id replaces that watch, so two instances must never take the same one. */
+interface IdPool {
+  next: number
+  readonly used: Set<number>
+}
+const pools = new WeakMap<RunitLink, IdPool>()
+const poolOf = (link: RunitLink): IdPool => {
+  let pool = pools.get(link)
+  if (!pool) pools.set(link, (pool = { next: 1, used: new Set() }))
+  return pool
 }
 
 export class Watches {
   private readonly services: Services
   private readonly held = new Map<number, Held>()
-  private nextId = 1
+  private readonly ids: IdPool
   private connected: boolean
   private readonly offStream: () => void
   private readonly offStatus: () => void
 
   constructor(private readonly link: RunitLink) {
+    this.ids = poolOf(link)
     this.services = new Services(link)
     this.connected = link.state === 'connected'
     this.offStream = link.onStream((frame) => {
@@ -68,6 +83,7 @@ export class Watches {
     this.offStatus = link.onStatus((status) => {
       const was = this.connected
       this.connected = status.state === 'connected'
+      if (!this.connected) for (const held of this.held.values()) held.onBoard = false
       if (this.connected && !was) void this.addAll()
     })
   }
@@ -75,16 +91,25 @@ export class Watches {
   /** Adds a watch; resolves with the function that removes it. */
   async add(spec: WatchSpec, handler: WatchHandler, options?: CommandOptions): Promise<() => Promise<void>> {
     const id = this.freeId()
-    this.held.set(id, { spec, handler, seq: undefined })
+    const held: Held = { spec, handler, seq: undefined, onBoard: false }
+    this.held.set(id, held)
     try {
       await this.send(id, spec, options)
+      held.onBoard = this.connected
     } catch (error) {
-      this.held.delete(id)
+      this.release(id)
       throw error
     }
     return async () => {
       if (!this.held.delete(id)) return
-      await this.services.send(watchRemoveCall(this.services.catalog, id), options)
+      // A watch the board no longer has (the link went since: the session took it) is only forgotten here: a REMOVE of it would
+      // be ERR_WATCH_NOT_FOUND on the board.
+      if (!held.onBoard || !this.connected) return this.release(id)
+      try {
+        await this.services.send(watchRemoveCall(this.services.catalog, id), options)
+      } finally {
+        this.release(id) // free for another only once the board has dropped it
+      }
     }
   }
 
@@ -109,14 +134,23 @@ export class Watches {
   close(): void {
     this.offStream()
     this.offStatus()
+    for (const id of this.held.keys()) this.ids.used.delete(id)
     this.held.clear()
+  }
+
+  private release(id: number): void {
+    this.held.delete(id)
+    this.ids.used.delete(id)
   }
 
   private freeId(): number {
     for (let i = 0; i < 255; i++) {
-      const id = this.nextId
-      this.nextId = this.nextId % 255 + 1
-      if (!this.held.has(id)) return id
+      const id = this.ids.next
+      this.ids.next = this.ids.next % 255 + 1
+      if (!this.ids.used.has(id)) {
+        this.ids.used.add(id)
+        return id
+      }
     }
     throw new Error('All 255 watches of this client are in use.')
   }
@@ -130,6 +164,7 @@ export class Watches {
       held.seq = undefined
       try {
         await this.send(id, held.spec)
+        held.onBoard = this.connected
       } catch {
         // The link went again: the next connect adds them.
       }

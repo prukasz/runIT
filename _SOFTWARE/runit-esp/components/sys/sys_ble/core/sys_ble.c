@@ -528,7 +528,6 @@ void sys_ble_task_step(uint8_t* scratch, size_t scratch_len) {
     }
     send_item(conn, val_handle, indicate, framed, mtu, scratch, len);
   }
-  sys_ble_central_step();
 }
 
 /* ----------------------------------------------------------------------------

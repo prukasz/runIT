@@ -33,4 +33,34 @@ describe('Watches.follow', () => {
     expect(board.requests.some((r) => r[2] === defs.keys.watch && r[4] === 2)).toBe(true) // REMOVE
     await link.close()
   })
+
+  it('two of them on one link never take the same id', async () => {
+    const board = new FakeBoard()
+    board.respond = (frame, send) => send(answer(frame[0]!))
+    const link = new RunitLink(board, { timeoutMs: 200, reconnect: false })
+    await link.connect(board.device)
+    const call = serviceCall(bundledServiceCatalog(), 'SYS', 'PING')
+    const spec = { trigger: 'change', periodMs: 100 } as const
+    await new Watches(link).follow(call, spec, () => undefined)
+    await new Watches(link).follow(call, spec, () => undefined)
+    const ids = board.requests.filter((r) => r[2] === defs.keys.watch && r[4] === 1).map((r) => r[5])
+    expect(new Set(ids).size).toBe(2)
+    await link.close()
+  })
+
+  it('a watch stopped while the link is lost is not removed on the board when it comes back: its session took it', async () => {
+    const board = new FakeBoard()
+    board.respond = (frame, send) => send(answer(frame[0]!))
+    const link = new RunitLink(board, { timeoutMs: 500 })
+    await link.connect(board.device)
+    const watches = new Watches(link)
+    const stop = await watches.follow(serviceCall(bundledServiceCatalog(), 'SYS', 'PING'), { trigger: 'change', periodMs: 100 }, () => undefined)
+    board.drop()
+    const before = board.requests.length
+    await stop()
+    await until(() => link.state === 'connected', 3000)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(board.requests.slice(before).some((r) => r[2] === defs.keys.watch && r[4] === 2)).toBe(false)
+    await link.close()
+  })
 })

@@ -19,9 +19,10 @@ type Result = { readonly tone: 'info' | 'error'; readonly text: string }
  * One side of a command: its arguments, Send (live), and for a write Add to start and Add to action (a record holds writes only);
  * what the board answered.
  */
-function CommandTester({ device, entry, command, side, state }: { device: DeviceInfo; entry: CatalogEntry; command: CommandDef; side: Side; state: DevicesState }) {
+function CommandTester({ device, entry, command, side, state, fixedPin }: { device: DeviceInfo; entry: CatalogEntry; command: CommandDef; side: Side; state: DevicesState; fixedPin?: { readonly field: string; readonly value: number } }) {
   const [open, setOpen] = useState(false)
-  const [args, setArgs] = useState<FieldValues>({})
+  // Under a pin (its panel) the command is for that pin: the pin field is set and not shown.
+  const [args, setArgs] = useState<FieldValues>(fixedPin ? { [fixedPin.field]: fixedPin.value } : {})
   const [result, setResult] = useState<Result | undefined>()
   const [sending, setSending] = useState(false)
   const layout = withRanges(command[side]?.args, command.id, device.ranges)
@@ -72,17 +73,17 @@ function CommandTester({ device, entry, command, side, state }: { device: Device
       <TreeChildren open={open}>
         <div className="devices-command">
           {(command[side]?.description ?? command.description) && <p className="devices-hint">{command[side]?.description ?? command.description}</p>}
-          {layout && <FieldsForm grid={false} layout={layout} values={args} onChange={setArgs} context={{ devices: state.devices, own: device, board: state.board, changesPin: changesPin(side), pinStates: stateNow }} />}
+          {layout && <FieldsForm grid={false} layout={layout} values={args} onChange={fixedPin ? (next) => setArgs({ ...next, [fixedPin.field]: fixedPin.value }) : setArgs} {...(fixedPin ? { hide: (f: { readonly id: string }) => f.id === fixedPin.field } : {})} context={{ devices: state.devices, own: device, board: state.board, changesPin: changesPin(side), pinStates: stateNow }} />}
           <div className="devices-actions">
             <Button size="sm" variant="primary" disabled={!state.connected || sending || !readyNow} title={!state.connected ? 'Connect the board first' : !readyNow ? 'The pin is not in a state this command needs: choose another pin' : 'Send it to the board now'} onClick={() => void send()}>
               <Send aria-hidden="true" />Send
             </Button>
             {write && (
               <>
-                <Button size="sm" disabled={!readyAtStart} title={readyAtStart ? 'Send it every time the stored project starts' : notAtStart} onClick={() => { state.setDefaults(device, (steps) => [...steps, step]); setResult({ tone: 'info', text: 'Added to the start commands.' }) }}>
-                  <ListPlus aria-hidden="true" />At start
+                <Button size="sm" disabled={!readyAtStart} title={readyAtStart ? (state.scope === 'board' ? 'Send it every time the board loads, whatever the project' : 'Send it every time the stored project starts') : notAtStart} onClick={() => { state.setDefaults(device, (steps) => [...steps, step]); setResult({ tone: 'info', text: 'Added to the start commands.' }) }}>
+                  <ListPlus aria-hidden="true" />{state.scope === 'board' ? 'Board boot' : 'At start'}
                 </Button>
-                <ChoiceField<number> aria-label="Add to action" disabled={!readyAtStart} title={readyAtStart ? undefined : notAtStart} value={undefined} choices={actions} placeholder="Add to action…" onChange={addToAction} />
+                {state.scope !== 'board' && <ChoiceField<number> aria-label="Add to action" disabled={!readyAtStart} title={readyAtStart ? undefined : notAtStart} value={undefined} choices={actions} placeholder="Add to action…" onChange={addToAction} />}
               </>
             )}
           </div>
@@ -159,7 +160,7 @@ export function DeviceTestPanel({ device, state }: { device: DeviceInfo; state: 
       <PanelHeader title={`Test ${device.name}`}>
         <LiveBadge device={device} live={state.live.get(device.id)} connected={state.connected} />
       </PanelHeader>
-      {!state.connected && <p className="devices-hint">Connect the board to send commands. At start and Add to action work without it.</p>}
+      {!state.connected && <p className="devices-hint">{state.scope === 'board' ? 'Connect the board to send commands. Board boot works without it.' : 'Connect the board to send commands. At start and Add to action work without it.'}</p>}
       <LifecycleBar device={device} state={state} />
       {groups.map(({ entry, commands }) => (
         <div key={entry.id} className="devices-group">
@@ -217,6 +218,21 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
   const pushPull = members.sys_io_mode_e?.members.find((m) => m.name === 'SYS_IO_MODE_OUTPUT_PUSH_PULL')?.value
   const canInterrupt = offers(PIN_START_COMMANDS.interrupt) && !(gpio && start.mode !== undefined && start.mode === pushPull)
   const windowMode = !gpio && WINDOW_MODES.has(start.interrupt?.mode ?? 0)
+  const modeDef = io?.commands.get(PIN_START_COMMANDS.mode)
+  const hasSetMode = !device.type?.pins?.fixedModes && (!modeDef || answers(state.catalog, state.ops, io!, modeDef, 'write'))
+  // The operations of the device that take a pin (or a channel), for this one: what the pin can do, tried live. The mode and the interrupt are
+  // the cards above.
+  const pinOps = !free ? [] : commandGroups(state.catalog, device.type, { ops: state.ops }).map(({ entry, commands }) => ({
+    entry,
+    commands: commands.flatMap(({ command, side }) => {
+      if (entry.id === 'IO' && (command.id === PIN_START_COMMANDS.mode || command.id === PIN_START_COMMANDS.interrupt)) return []
+      const field = withRanges(command[side]?.args, command.id, device.ranges)?.fields.find((f) => f.type === 'pin' || f.type === 'channel')
+      // Only what the pin can do as it is set: a command that wants a mode (an input, an output, PWM) is offered once the pin has it,
+      // from the Board boot or from what this session did to it live.
+      if (field?.pinState && !pinReady(pinStateOf(device, state.board, pin, hasSetMode), field.pinState) && !pinReady(pinStateOf(device, state.board, pin, hasSetMode, state.pinKinds), field.pinState)) return []
+      return field ? [{ command, side, field: field.id }] : []
+    }),
+  })).filter((group) => group.commands.length > 0)
   return (
     <div className="devices-test">
       <PanelHeader title={`Pin ${pinNumber(pin)}`}>
@@ -273,6 +289,15 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
           )}
         </CardStack>
       )}
+      {free && gpio && canMode && pinOps.length === 0 && <p className="devices-hint">Set the Mode to see what this pin can do.</p>}
+      {pinOps.map(({ entry, commands }) => (
+        <div key={entry.id} className="devices-group">
+          <h4>{entry === device.type ? `${entry.label}: own operations` : entry.label}</h4>
+          {commands.map(({ command, side, field }) => (
+            <CommandTester key={`${command.id}:${side}`} device={device} entry={entry} command={command} side={side} state={state} fixedPin={{ field, value: pin }} />
+          ))}
+        </div>
+      ))}
     </div>
   )
 }

@@ -174,8 +174,9 @@ const withConfigDefaults = (type: CatalogEntry | undefined, config: FieldValues)
   ...config,
 })
 
-export const baseConfig = (type: CatalogEntry | undefined, board: BoardDescriptor): FieldValues => {
-  const bus = board.i2cBuses.find((b) => b.name === USER_I2C_BUS)
+export const baseConfig = (type: CatalogEntry | undefined, board: BoardDescriptor, scope: 'app' | 'board' = 'app'): FieldValues => {
+  // The board's own devices start on the board's own bus (the first), the project's on the user bus.
+  const bus = scope === 'board' ? board.i2cBuses[0] : board.i2cBuses.find((b) => b.name === USER_I2C_BUS)
   const field = type?.config?.fields.find(isBusField)
   return bus && field ? { [field.id]: bus.bus } : {}
 }
@@ -403,11 +404,11 @@ export const usedBy = (devices: readonly DeviceInfo[], device: number): { readon
 /** A pin the board keeps for itself (board.json `reserved_pins`: the I2C buses, the strapping pins, the expander's lines): no command or reference takes it. */
 export const isReserved = (board: BoardDescriptor, device: number, pin: number): boolean => board.reservedPins.some((p) => p.device === device && p.pin === pin)
 
-/** What board.json says of a device's pins: the reserved ones (why) and the ones the boot sets up (as what). */
+/** What the board's profile says of a device's pins: the reserved ones (why) and the names of those its Board boot sets up. */
 export const pinNotes = (board: BoardDescriptor, device: number): ReadonlyMap<number, string> => {
   const notes = new Map<number, string>()
   for (const p of board.reservedPins) if (p.device === device) notes.set(p.pin, `Reserved: ${p.label}`)
-  for (const p of board.pinSetup) if (p.device === device) notes.set(p.pin, p.label)
+  for (const p of board.pinSetup) if (p.device === device && p.label) notes.set(p.pin, p.label)
   return notes
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Bluetooth, Monitor, Network, SlidersHorizontal, Waypoints, Zap } from 'lucide-react'
+import { Bluetooth, Cable, Cpu, FileCog, Monitor, Network, SlidersHorizontal, Waypoints, Zap } from 'lucide-react'
 import { Badge, DeviceTile, PaletteSectionHeader, TreeSlab } from '@ui/components'
 import type { SettingSection } from './settings'
 import type { BoardSettingsState } from './useBoardSettings'
@@ -18,6 +18,15 @@ export const POWER_TAB = 'live-power'
 
 /** The tab of the project's other boards, linked to this one over BLE (boards/BoardsScreen.tsx). */
 export const BOARDS_TAB = 'boards'
+
+/** The tab of the board's profile as a file: Open and Save (devices/BoardProfileScreen.tsx). */
+export const PROFILE_TAB = 'board-profile'
+
+/** The tab of the board's devices, the board editor (project/BoardEditorScreen.tsx). */
+export const BOARD_DEVICES_TAB = 'board-devices'
+
+/** The tab of the board's buses (I2C buses, UART ports), kept in its profile with its devices (devices/BusesScreen.tsx). */
+export const BUSES_TAB = 'buses'
 
 /** The tab of the app's own settings (appSettings/AppSettingsScreen.tsx). */
 export const APP_TAB = 'app-settings'
@@ -43,7 +52,10 @@ export function SettingsTabs({ sections, state, tab, onTab }: { sections: readon
   const errorBadge = (n: number) => n > 0 ? <Badge tone="danger" size="compact" title={`${n} errors not read (Console)`}>{n}</Badge> : undefined
   return (
     <div className="settings-tabs">
-      <PaletteSectionHeader label="Board" count={sections.length + 1} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
+      <PaletteSectionHeader label="Board" count={sections.length + 4} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
+      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={FileCog} />} label="Board profile" title="The board's profile as a file: open one (the bundled boards' defaults) or save this one" selected={tab === PROFILE_TAB} onClick={() => onTab(PROFILE_TAB)} />}
+      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Cpu} />} label="Board devices" title="The devices the board has installed, with their settings and what they do at every start" selected={tab === BOARD_DEVICES_TAB} onClick={() => onTab(BOARD_DEVICES_TAB)} />}
+      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Cable} />} label="Buses" title="The I2C buses and UART ports the board creates at every load, before its devices" selected={tab === BUSES_TAB} onClick={() => onTab(BUSES_TAB)} />}
       {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Network} />} label="Boards" title="Other boards this one leads over Bluetooth: found, linked, given their ids" selected={tab === BOARDS_TAB} onClick={() => onTab(BOARDS_TAB)} />}
       {boardOpen && sections.map((s) => (
         <TreeSlab key={s.service.id} icon={<DeviceTile size="small" icon={iconOf(s)} />} label={s.title} title={s.service.description} selected={tab === s.service.id}

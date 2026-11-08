@@ -9,7 +9,7 @@
 
 /* The frame format: a session opens only between peers of the same one. */
 //#ref-defines session_version @alias Session version @prefix SYS_SESSION_VERSION
-#define SYS_SESSION_VERSION 2u  //@alias Version @description The frame format with CMD_FRAME_MAX and CMD_HEAD
+#define SYS_SESSION_VERSION 0u  //@alias Version @description The frame format with CMD_FRAME_MAX and CMD_HEAD
 
 /* Ids: every peer says its own in its hello and two peers may not have one. A board's is its place in the project (the
    app sets it, NVS keeps it), the app's is reserved, and any other client picks one. */

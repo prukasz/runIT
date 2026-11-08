@@ -31,7 +31,7 @@
 
 /* A devkit (CONFIG_RUNIT_BOARD_DEVKIT): USB only. */
 #define RUNIT_DEVKIT_POWER_LIMIT_MV   5000  // USB VBUS
-#define RUNIT_DEVKIT_POWER_LIMIT_MA   500   // a USB 2.0 port
+#define RUNIT_DEVKIT_POWER_LIMIT_MA   1500  // a USB port (Type-C, 1.5 A)
 #define RUNIT_DEVKIT_POWER_RESERVE_MW 1000  // the ESP32-S3 module with its radio, through the devkit LDO
 /* INA3221 channels, measured on the PCB 2026-09-24: rail A on 2, the board input on 1, rail B on 0. */
 #define RUNIT_BOARD_INA_CH_RAIL_B  0u

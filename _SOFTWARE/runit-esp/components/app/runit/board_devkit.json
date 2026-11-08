@@ -45,9 +45,9 @@
   "power": {
     "limits": {
       "max_mV": 5000,
-      "max_mA": 500,
+      "max_mA": 1500,
       "reserve_mW": 1000,
-      "unknown_source_mA": 500,
+      "unknown_source_mA": 1500,
       "vreg_efficiency_pct": 90
     },
     "rails": [],

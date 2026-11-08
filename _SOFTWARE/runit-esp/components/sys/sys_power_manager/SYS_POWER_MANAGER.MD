@@ -71,7 +71,7 @@ Source current: PSU → its entered `max_mA`, or the board's `max_mA` when none 
 
 Every tick (`CONFIG_SYS_POWER_MANAGER_PERIOD_MS`, and at once after a setting):
 
-- **Budget** = measured input mV × source mA, both capped by the board.
+- **Budget** = measured input mV × source mA, both capped by the board. A board with no input monitor (the devkit) cannot measure the voltage: it uses the board's `max_mV` (its USB port's 5 V).
 - **Limit** = the budget (strict), or the budget with the margin (soft).
 - The input monitor's critical alert is set at the limit's current, and its warning at `CONFIG_SYS_POWER_MANAGER_INPUT_WARNING_PCT` (90 %) of it.
 - When the budget moves by at least `CONFIG_SYS_POWER_MANAGER_BUDGET_STEP_MW` (250 mW), or a setting changed, the automatic rails are rebalanced.

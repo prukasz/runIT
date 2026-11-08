@@ -818,7 +818,7 @@
       "members": [
         {
           "name": "SYS_SESSION_VERSION",
-          "value": 2,
+          "value": 0,
           "alias": "Version",
           "description": "The frame format with CMD_FRAME_MAX and CMD_HEAD"
         }

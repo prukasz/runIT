@@ -35,11 +35,11 @@ export interface FileNote {
 }
 
 /** The file chooser: a file the user picks, as text; undefined when the chooser is closed. */
-const chooseFile = (): Promise<{ name: string; text: string } | undefined> =>
+export const chooseFile = (accept = `${PROJECT_EXTENSION},.json,application/json`): Promise<{ name: string; text: string } | undefined> =>
   new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = `${PROJECT_EXTENSION},.json,application/json`
+    input.accept = accept
     input.addEventListener('change', () => {
       const file = input.files?.[0]
       if (!file) return resolve(undefined)
@@ -50,7 +50,7 @@ const chooseFile = (): Promise<{ name: string; text: string } | undefined> =>
   })
 
 /** Hands the text to the user as a file (the browser's download; the desktop app asks where to save it). */
-const download = (name: string, text: string) => {
+export const download = (name: string, text: string) => {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
   const link = document.createElement('a')
   link.href = url

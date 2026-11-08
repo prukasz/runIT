@@ -1,0 +1,519 @@
+{
+  "format": "runit-project",
+  "version": 1,
+  "name": "runIT board r1",
+  "program": {
+    "variables": [],
+    "blocks": []
+  },
+  "devices": [
+    {
+      "id": 0,
+      "type": "esp32s3_gpio",
+      "name": "ESP32-S3 GPIO",
+      "config": {},
+      "defaults": []
+    },
+    {
+      "id": 1,
+      "type": "tca6424a",
+      "name": "GPIO expander",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 35,
+        "intr_pin": {
+          "device": 0,
+          "pin": 9
+        },
+        "rst_pin": {
+          "device": 0,
+          "pin": 8
+        }
+      },
+      "defaults": [
+        {
+          "kind": "device",
+          "device": 1,
+          "contract": "IO",
+          "command": "MODE",
+          "args": {
+            "pin": 23,
+            "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+          }
+        },
+        {
+          "kind": "device",
+          "device": 1,
+          "contract": "IO",
+          "command": "LEVEL",
+          "args": {
+            "pin": 23,
+            "level": 1
+          }
+        },
+        {
+          "kind": "device",
+          "device": 1,
+          "contract": "IO",
+          "command": "MODE",
+          "args": {
+            "pin": 22,
+            "mode": "SYS_IO_MODE_OUTPUT_PUSH_PULL"
+          }
+        },
+        {
+          "kind": "device",
+          "device": 1,
+          "contract": "IO",
+          "command": "LEVEL",
+          "args": {
+            "pin": 22,
+            "level": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "ads7128",
+      "name": "ADC",
+      "config": {
+        "full_scale_mV": 20000,
+        "i2c_bus": 0,
+        "i2c_addr": 16,
+        "intr_pin": {
+          "device": 0,
+          "pin": 42
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 3,
+      "type": "pca9685",
+      "name": "PWM expander",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 96,
+        "oe_pin": {
+          "device": 1,
+          "pin": 0
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 4,
+      "type": "dac53202",
+      "name": "DAC",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 72
+      },
+      "defaults": []
+    },
+    {
+      "id": 5,
+      "type": "drv8962",
+      "name": "Motor driver 1",
+      "config": {
+        "topology": 0,
+        "turn_off_at_ocp": 1,
+        "ripropi_ohms": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "current_limit_mA": 2000,
+        "pin": [
+          {
+            "device": 0,
+            "pin": 21
+          },
+          {
+            "device": 0,
+            "pin": 47
+          },
+          {
+            "device": 0,
+            "pin": 48
+          },
+          {
+            "device": 0,
+            "pin": 45
+          },
+          {
+            "device": 0,
+            "pin": 38
+          },
+          {
+            "device": 0,
+            "pin": 39
+          },
+          {
+            "device": 0,
+            "pin": 2
+          },
+          {
+            "device": 0,
+            "pin": 1
+          },
+          {
+            "device": 0,
+            "pin": 7
+          },
+          {
+            "device": 0,
+            "pin": 6
+          },
+          {
+            "device": 0,
+            "pin": 5
+          },
+          {
+            "device": 0,
+            "pin": 4
+          },
+          {
+            "device": 1,
+            "pin": 9
+          },
+          {
+            "device": 1,
+            "pin": 11
+          },
+          {
+            "device": 4,
+            "pin": 0
+          }
+        ]
+      },
+      "defaults": []
+    },
+    {
+      "id": 6,
+      "type": "drv8962",
+      "name": "Motor driver 2",
+      "config": {
+        "topology": 0,
+        "turn_off_at_ocp": 1,
+        "ripropi_ohms": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "current_limit_mA": 2000,
+        "pwm_freq_Hz": 50,
+        "pin": [
+          {
+            "device": 3,
+            "pin": 8
+          },
+          {
+            "device": 3,
+            "pin": 9
+          },
+          {
+            "device": 3,
+            "pin": 10
+          },
+          {
+            "device": 3,
+            "pin": 11
+          },
+          {
+            "device": 3,
+            "pin": 12
+          },
+          {
+            "device": 3,
+            "pin": 13
+          },
+          {
+            "device": 3,
+            "pin": 14
+          },
+          {
+            "device": 3,
+            "pin": 15
+          },
+          null,
+          null,
+          null,
+          null,
+          {
+            "device": 1,
+            "pin": 8
+          },
+          {
+            "device": 1,
+            "pin": 10
+          },
+          {
+            "device": 4,
+            "pin": 1
+          }
+        ]
+      },
+      "defaults": []
+    },
+    {
+      "id": 7,
+      "type": "power_mux",
+      "name": "Motor 1 supply",
+      "config": {
+        "en_a_pin": {
+          "device": 1,
+          "pin": 14
+        },
+        "en_b_pin": {
+          "device": 1,
+          "pin": 15
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 8,
+      "type": "power_mux",
+      "name": "Motor 2 supply",
+      "config": {
+        "en_a_pin": {
+          "device": 1,
+          "pin": 12
+        },
+        "en_b_pin": {
+          "device": 1,
+          "pin": 13
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 10,
+      "type": "tps55289",
+      "name": "Rail A",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 116,
+        "intr_pin": {
+          "device": 1,
+          "pin": 1
+        },
+        "en_pin": {
+          "device": 1,
+          "pin": 17
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 11,
+      "type": "tps55289",
+      "name": "Rail B",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 117,
+        "intr_pin": {
+          "device": 1,
+          "pin": 2
+        },
+        "en_pin": {
+          "device": 1,
+          "pin": 16
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 12,
+      "type": "ina3221",
+      "name": "Power monitor",
+      "config": {
+        "inverted_mask": 7,
+        "shunt_mohm": 10,
+        "i2c_bus": 0,
+        "i2c_addr": 64,
+        "crit_pin": {
+          "device": 1,
+          "pin": 6
+        },
+        "warn_pin": {
+          "device": 1,
+          "pin": 5
+        }
+      },
+      "defaults": []
+    },
+    {
+      "id": 13,
+      "type": "ap33772s",
+      "name": "USB-C PD",
+      "config": {
+        "i2c_bus": 0,
+        "i2c_addr": 82,
+        "intr_pin": {
+          "device": 1,
+          "pin": 21
+        }
+      },
+      "defaults": []
+    }
+  ],
+  "boardDefaults": [],
+  "actions": [],
+  "pinAliases": [
+    {
+      "device": 1,
+      "pin": 23,
+      "name": "Status LED"
+    },
+    {
+      "device": 1,
+      "pin": 22,
+      "name": "Spare LED / Anti-float"
+    }
+  ],
+  "settings": {
+    "values": {},
+    "tables": {}
+  },
+  "canvas": {
+    "blocks": {},
+    "chips": []
+  },
+  "i2cBuses": [
+    {
+      "bus": 0,
+      "name": "internal",
+      "sda": {
+        "device": 0,
+        "pin": 15
+      },
+      "scl": {
+        "device": 0,
+        "pin": 16
+      },
+      "pullup": true,
+      "description": "Internal I2C bus for all onboard chips"
+    },
+    {
+      "bus": 1,
+      "name": "user",
+      "sda": {
+        "device": 0,
+        "pin": 40
+      },
+      "scl": {
+        "device": 0,
+        "pin": 41
+      },
+      "pullup": true,
+      "description": "External user I2C bus for sensors and breakouts"
+    }
+  ],
+  "reservedPins": [
+    {
+      "device": 0,
+      "pin": 8,
+      "symbol": "RUNIT_BOARD_TCA_RST_ESP_PIN",
+      "label": "TCA Reset",
+      "reason": "Hardware reset line for TCA6424A expander"
+    },
+    {
+      "device": 0,
+      "pin": 9,
+      "symbol": "RUNIT_BOARD_TCA_INT_ESP_PIN",
+      "label": "TCA Interrupt",
+      "reason": "Hardware interrupt line from TCA6424A expander"
+    },
+    {
+      "device": 0,
+      "pin": 42,
+      "symbol": "RUNIT_BOARD_ADS_ALERT_ESP_PIN",
+      "label": "ADS Alert",
+      "reason": "Interrupt line from ADS7128 ADC"
+    },
+    {
+      "device": 0,
+      "pin": 19,
+      "label": "USB D-",
+      "reason": "ESP32-S3 USB-Serial-JTAG data minus"
+    },
+    {
+      "device": 0,
+      "pin": 20,
+      "label": "USB D+",
+      "reason": "ESP32-S3 USB-Serial-JTAG data plus"
+    },
+    {
+      "device": 0,
+      "pin": 0,
+      "label": "BOOT Strapping",
+      "reason": "ESP32-S3 boot strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 45,
+      "label": "VDD_SPI Strapping",
+      "reason": "ESP32-S3 SPI voltage strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 46,
+      "label": "ROM Strapping",
+      "reason": "ESP32-S3 ROM boot log strap pin"
+    }
+  ],
+  "power": {
+    "limits": {
+      "max_mV": 20000,
+      "max_mA": 5500,
+      "reserve_mW": 3667,
+      "unknown_source_mA": 1000,
+      "vreg_efficiency_pct": 90
+    },
+    "input": {
+      "device": 12,
+      "channel": 1,
+      "description": "Whole-board input voltage and current monitored by INA3221 CH 1"
+    },
+    "usbPd": 13,
+    "sourcePins": {
+      "usbOk": {
+        "device": 1,
+        "pin": 3
+      },
+      "extOk": {
+        "device": 1,
+        "pin": 4
+      }
+    },
+    "rails": [
+      {
+        "id": "rail_a",
+        "name": "Rail A",
+        "regulator": 10,
+        "monitor": {
+          "device": 12,
+          "channel": 2
+        },
+        "min_mA": 200,
+        "description": "Adjustable buck-boost regulator TPS55289 at 0x74, monitored by INA3221 CH 2"
+      },
+      {
+        "id": "rail_b",
+        "name": "Rail B",
+        "regulator": 11,
+        "monitor": {
+          "device": 12,
+          "channel": 0
+        },
+        "min_mA": 200,
+        "description": "Adjustable buck-boost regulator TPS55289 at 0x75, monitored by INA3221 CH 0"
+      }
+    ]
+  }
+}

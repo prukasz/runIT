@@ -577,8 +577,10 @@ static void update_budget(sys_power_source_e source, bool have_input) {
     s_pm.latched.ovp = false;
   }
 
-  // Budget = measured input voltage x the source's current, both capped by the board.
-  uint32_t mV = have_input ? (uint32_t)s_pm.status.input_mV : 0;
+  // Budget = input voltage x the source's current, both capped by the board. A board with no input monitor (the
+  // devkit) can't measure the voltage: it is the board's max (its USB port's 5 V), not 0.
+  const bool measured = s_pm.board->input.device != SYS_DEVICE_ID_NONE;
+  uint32_t mV = have_input ? (uint32_t)s_pm.status.input_mV : measured ? 0 : s_pm.board->max_mV;
   mV = mV > s_pm.board->max_mV ? s_pm.board->max_mV : mV;
   uint32_t mA = source_current_mA(source);
   mA = mA > s_pm.board->max_mA ? s_pm.board->max_mA : mA;

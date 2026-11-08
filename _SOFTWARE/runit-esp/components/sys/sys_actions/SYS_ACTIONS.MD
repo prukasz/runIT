@@ -42,7 +42,7 @@ System IDs (class `0x01`):
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
 | `0x01000007` `SYS_ACTIONS_ID_STREAM` | data streams and bindings | stream |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
-| `0x01000009` `SYS_ACTIONS_ID_LINKS` | the BLE links to other boards: BLE CONNECT and SESSION ATTACH as SLAVE, per board (SYS_BLE.MD "Central") | the app's Boards page |
+| `0x01000009` `SYS_ACTIONS_ID_LINKS` | the BLE links to other boards: BLE CONNECT and SESSION ATTACH as SLAVE, per board (SYS_BLE.MD "Central": not built) | the app's Boards page |
 
 Class `0xFF` holds no records: an error policy's `actions[]` use it for the policy's own responses (`SYS_DEVICE_RESPONSE_*`, SYS_DEVICE.MD "Error policy"). Any client may write any other class and RUN any class. User IDs 3 to 6 are the firmware's own actions ("Onboard actions" below): they are rewritten at every boot, so an app uses other IDs.
 

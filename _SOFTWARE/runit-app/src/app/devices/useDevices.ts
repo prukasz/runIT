@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createEngine } from '@engine'
-import { confirmFirmware, bundledBoard, bundledServiceCatalog, combineResolvers, CommandError, decodeEvent, deviceRefs, ErrorInterpreter, programRefs, Services } from '@backend'
-import type { CatalogEntry, LinkState, RunitLink } from '@backend'
+import { confirmFirmware, bundledServiceCatalog, combineResolvers, CommandError, decodeEvent, deviceRefs, ErrorInterpreter, programRefs, Services } from '@backend'
+import type { CatalogEntry, FieldValues, LinkState, RunitLink } from '@backend'
+import type { ProfileState, BoardProfileState } from './useBoardProfile'
 import type { useProject } from '../project/useProject'
 import { parseProject, serializeProject } from '../project/projectFile'
-import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
+import type { ProfileI2cBus, ProjectAction, ProjectDevice, Step } from '../project/projectFile'
 import { EMPTY_LAYOUT } from '../code/canvas/layout'
 import { forgetDevice } from '../hardware/apply'
-import { boardHasProfile, writeBoardProfile } from './boardProfile'
+import { boardHasProfile, readBoardProfile, writeBoardProfile } from './boardProfile'
+import { bootSteps, withBoard } from './boardEditor'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
 import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
 import type { DeviceInfo, DeviceOps } from './devices'
 
-type ProjectState = ReturnType<typeof useProject>
+type ProjectState = Pick<ReturnType<typeof useProject>, 'project' | 'edit'>
 
 /** What is selected in the Devices view: a device (by its ID) or an action. */
 /** A device, an action, or the choice of a type to add (`add`: the centre shows a tile for every type that can be installed). */
@@ -35,10 +37,18 @@ export interface DevicesNote {
  * (INFO, and OPS for the selected one), the project's edits of devices and actions, writing to and reading from the board, and
  * a failure read for a user (the error record with the devices' names).
  */
-/** `autoSync`: read the board into the project each time it connects (when the project has nothing unwritten). */
-export function useDevices(link: RunitLink, linkState: LinkState, project: ProjectState, autoSync = false) {
+/**
+ * `autoSync`: read the board into the project each time it connects (when the project has nothing unwritten).
+ *
+ * `profile` is the board's own profile (useBoardProfile.ts). In the app's Devices view (`scope: 'app'`) its devices are the board's
+ * system devices, and the board is made to hold it when it connects. In the Project view's board editor (`scope: 'board'`) the
+ * edited project IS the profile: its devices are added, changed and removed like a project's, and Write and Read are the profile's
+ * to and from the board; it has no actions and no program.
+ */
+export function useDevices(link: RunitLink, linkState: LinkState, project: ProjectState, autoSync = false, profile?: BoardProfileState, scope: 'app' | 'board' = 'app') {
   const catalog = useMemo(bundledServiceCatalog, [])
-  const board = useMemo(bundledBoard, [])
+  const board = scope === 'board' ? profile!.bare : profile!.board
+  const boot = useMemo(() => bootSteps(profile!.project), [profile!.project])
   const engine = useMemo(() => createEngine(), [])
   const services = useMemo(() => new Services(link, catalog), [link, catalog])
   const lifecycle = useMemo(() => lifecycleOf(catalog), [catalog])
@@ -126,18 +136,18 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   // still differs after its restart is reported, it must not restart for ever.
   const profileWritten = useRef(false)
   useEffect(() => {
-    if (!connected) return
+    if (!connected || scope === 'board') return
     void (async () => {
       try {
         await confirmFirmware(link, catalog) // the session is up: a new firmware works
-        if (await boardHasProfile(link, catalog, board)) return
+        if (await boardHasProfile(link, catalog, board, profile!.project, boot)) return
         if (profileWritten.current) {
           setNote({ tone: 'error', text: 'The board does not hold the profile written to it.' })
           return
         }
         profileWritten.current = true
         setNote({ tone: 'info', text: 'Writing the board\'s profile: it restarts to create its devices.' })
-        await writeBoardProfile(link, catalog, board)
+        await writeBoardProfile(link, catalog, board, profile!.project, boot)
         await services.call('SYS', 'RESTART')
       } catch (failure) {
         setNote({ tone: 'error', text: explain(failure) })
@@ -145,7 +155,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     })()
     // Only when the link comes up: `explain` changes with the project's devices.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, link, catalog, board, services])
+  }, [connected, link, catalog, board, boot, services])
 
   // The board says when a device is suspended or resumed (the DEVICE events, SYS_DEVICE.MD): the view follows it without
   // asking. A sweep (the safe state, a critical fault, every device at once) comes as one event from SYS_DEVICE_ID_NONE: then
@@ -213,9 +223,15 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     const taken = new Set(project.project.devices.map((d) => d.name))
     let n = 1
     while (taken.has(`${type.label} ${n}`)) n++
-    edit((p) => ({ ...p, devices: [...p.devices, { id, type: type.id, name: `${type.label} ${n}`, config: baseConfig(type, board), defaults: [] }] }))
+    edit((p) => ({ ...p, devices: [...p.devices, { id, type: type.id, name: `${type.label} ${n}`, config: baseConfig(type, board, scope), defaults: [] }] }))
     setSelection({ kind: 'device', id })
-  }, [edit, project.project, board])
+  }, [edit, project.project, board, scope])
+
+  /** The board's I2C buses (the board editor): the profile keeps them. */
+  const setBuses = useCallback((change: (buses: readonly ProfileI2cBus[]) => readonly ProfileI2cBus[]) => edit((p) => ({ ...p, i2cBuses: change(p.i2cBuses ?? []) })), [edit])
+
+  /** The board's UART ports (the board editor): each its `UART CREATE` arguments. */
+  const setUarts = useCallback((change: (ports: readonly FieldValues[]) => readonly FieldValues[]) => edit((p) => ({ ...p, uartPorts: change(p.uartPorts ?? []) })), [edit])
 
   const removeDevice = useCallback((id: number) => {
     // Its part leaves the Devices canvas too, with its wires.
@@ -266,12 +282,27 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   }, [explain])
 
   const write = useCallback(() => run(async () => {
+    if (scope === 'board') {
+      // The profile, then a restart: only a boot creates the devices.
+      await writeBoardProfile(link, catalog, profile!.board, project.project, boot)
+      await services.call('SYS', 'RESTART')
+      setSynced(snapshot)
+      return 'The profile is on the board; it restarts to create its devices.'
+    }
     const text = await writeToBoard(link, catalog, board, engine, project.project, setBusy)
     setSynced(snapshot)
     return text
-  }), [run, link, catalog, board, engine, project.project, snapshot])
+  }), [run, scope, link, catalog, board, engine, project.project, snapshot, boot, profile, services])
 
   const read = useCallback(() => run(async () => {
+    if (scope === 'board') {
+      const stored = await readBoardProfile(link, catalog)
+      if (!stored) return 'The board keeps no profile: nothing read.'
+      const read = withBoard(stored, profile!.base)
+      edit(() => read)
+      setSynced(serializeProject(read))
+      return 'Read the profile from the board.'
+    }
     const result = await readFromBoard(link, setBusy)
     const read = result.project
     if (read) {
@@ -279,7 +310,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
       setSynced(serializeProject(read))
     }
     return result.notes.join(' ')
-  }), [run, link, edit])
+  }), [run, scope, link, catalog, edit])
 
   // A board that has just connected (again, after a restart or a drop) is read into the project, so what the app shows is what the
   // board has. Not over changes that are not written yet: those are the user's, Read does it by hand (Undo goes back).
@@ -302,9 +333,9 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   }, [connected])
 
   return {
-    project: project.project, catalog, board, services, lifecycle, connected, devices, selection, select, selectPin, clearPin, pinSelection, selectedDevice,
+    scope, project: project.project, catalog, board, services, lifecycle, connected, devices, selection, select, selectPin, clearPin, pinSelection, selectedDevice,
     live, ops, probe, refreshOps, nameOf, pinName, explain, interpreter, setPinAlias, pinKinds, setPinKind, resetPinKinds,
-    updateDevice, addDevice, removeDevice, setDefaults, addAction, updateAction, removeAction,
+    updateDevice, addDevice, removeDevice, setBuses, setUarts, setDefaults, addAction, updateAction, removeAction,
     write: () => void write(), read: () => void read(), pending, busy, note, clearNote: () => setNote(undefined),
   }
 }

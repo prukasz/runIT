@@ -185,7 +185,7 @@ export function PartCreator({ state, catalog, board }: { state: HardwareState; c
             <FormRow label="Description"><TextField value={part.description ?? ''} onChange={(e) => setPart((p) => ({ ...p, description: e.target.value }))} /></FormRow>
             {isBoard && (
               <FormGrid>
-                <FormRow label="Draws the board" hint="board.json's name"><TextField value={part.board?.name ?? board.name} onChange={(e) => setPart((p) => ({ ...p, board: { name: e.target.value, revision: p.board?.revision ?? board.revision } }))} /></FormRow>
+                <FormRow label="Draws the board" hint="the board's name"><TextField value={part.board?.name ?? board.name} onChange={(e) => setPart((p) => ({ ...p, board: { name: e.target.value, revision: p.board?.revision ?? board.revision } }))} /></FormRow>
                 <FormRow label="Revision"><NumberField value={part.board?.revision ?? board.revision} integer min={0} onCommit={(r) => setPart((p) => ({ ...p, board: { name: p.board?.name ?? board.name, revision: r } }))} /></FormRow>
               </FormGrid>
             )}

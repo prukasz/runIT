@@ -1,7 +1,7 @@
 import { checkVariables, flattenVariables } from '@engine'
 import type { PowerReading } from '../power/powerDisplay'
 import type { Project } from '@engine'
-import type { FieldValues } from '@backend'
+import type { BoardPower, FieldValues } from '@backend'
 import { EMPTY_LAYOUT, readLayout } from '../code/canvas/layout'
 import type { CanvasLayout } from '../code/canvas/layout'
 import { readHardware } from '../hardware/layout'
@@ -32,6 +32,24 @@ export type Step =
  * A device the project creates on the board (`Services.create`): its id there, its type (a device descriptor's id), its name, its
  * config, and the commands it gets right after it is created (`defaults`). Stored as the device's record (SYS_ACTIONS.MD).
  */
+/** An I2C bus the board creates at every load, kept in the board's profile (`devices/boardEditor.ts`): its pins are pins of device `sda.device`. */
+export interface ProfileI2cBus {
+  readonly bus: number
+  readonly name: string
+  readonly sda: { readonly device: number; readonly pin: number }
+  readonly scl: { readonly device: number; readonly pin: number }
+  readonly pullup: boolean
+  readonly description?: string
+}
+
+/** A pin of the board nothing may take (the board's profile): which device's, what it is and why. */
+export interface ProfileReservedPin {
+  readonly device: number
+  readonly pin: number
+  readonly label: string
+  readonly reason?: string
+}
+
 export interface ProjectDevice {
   readonly id: number
   readonly type: string
@@ -175,6 +193,14 @@ export interface ProjectFile {
   readonly hardware?: HardwareLayout
   /** The other boards of the project, linked to this one over BLE. Absent: none. */
   readonly boards?: readonly ProjectBoard[]
+  /** The board's profile only: the I2C buses it creates at every load. Absent: the bundled board's. */
+  readonly i2cBuses?: readonly ProfileI2cBus[]
+  /** The board's profile only: the UART ports it creates at every load, each `UART CREATE`'s arguments. Absent: none. */
+  readonly uartPorts?: readonly FieldValues[]
+  /** The board's profile only: the pins nothing may take (strapping pins, USB), with why. The buses' and ports' pins are reserved by them. */
+  readonly reservedPins?: readonly ProfileReservedPin[]
+  /** The board's profile only: its power (limits, the input's and the rails' monitors, the USB-PD sink, the source pins). */
+  readonly power?: BoardPower
 }
 
 export const emptyProject = (name = 'Untitled'): ProjectFile => ({ name, program: { variables: [], blocks: [] }, devices: [], boardDefaults: [], actions: [], pinAliases: [], settings: emptySettings(), canvas: EMPTY_LAYOUT })
@@ -241,6 +267,10 @@ export const parseProject = (text: string): ParseResult => {
     ...(Array.isArray(data.powerDisplay) && data.powerDisplay.every((r) => isObject(r) && typeof r.name === 'string' && isObject(r.read)) ? { powerDisplay: data.powerDisplay as unknown as PowerReading[] } : {}),
     ...(data.hardware !== undefined ? { hardware: readHardware(data.hardware) } : {}),
     ...(boards.length > 0 ? { boards: boards as unknown as ProjectBoard[] } : {}),
+    ...(Array.isArray(data.i2cBuses) && data.i2cBuses.every((b) => isObject(b) && Number.isInteger(b.bus) && isObject(b.sda) && isObject(b.scl)) ? { i2cBuses: data.i2cBuses as unknown as ProfileI2cBus[] } : {}),
+    ...(Array.isArray(data.uartPorts) && data.uartPorts.every(isObject) ? { uartPorts: data.uartPorts as unknown as FieldValues[] } : {}),
+    ...(Array.isArray(data.reservedPins) && data.reservedPins.every((r) => isObject(r) && Number.isInteger(r.device) && Number.isInteger(r.pin) && typeof r.label === 'string') ? { reservedPins: data.reservedPins as unknown as ProfileReservedPin[] } : {}),
+    ...(isObject(data.power) && isObject(data.power.limits) && Array.isArray(data.power.rails) ? { power: data.power as unknown as BoardPower } : {}),
   }
   return { ok: true, project, problems: checkVariables(project.program.variables).map((problem) => problem.message) }
 }

@@ -1,0 +1,101 @@
+{
+  "format": "runit-project",
+  "version": 1,
+  "name": "ESP32-S3 devkit",
+  "program": {
+    "variables": [],
+    "blocks": []
+  },
+  "devices": [
+    {
+      "id": 0,
+      "type": "esp32s3_gpio",
+      "name": "ESP32-S3 GPIO",
+      "config": {},
+      "defaults": []
+    }
+  ],
+  "boardDefaults": [],
+  "actions": [],
+  "pinAliases": [],
+  "settings": {
+    "values": {},
+    "tables": {}
+  },
+  "canvas": {
+    "blocks": {},
+    "chips": []
+  },
+  "i2cBuses": [
+    {
+      "bus": 0,
+      "name": "internal",
+      "sda": {
+        "device": 0,
+        "pin": 15
+      },
+      "scl": {
+        "device": 0,
+        "pin": 16
+      },
+      "pullup": true,
+      "description": "I2C bus 0 (the PCB's internal bus; on a devkit free for the user's chips)"
+    },
+    {
+      "bus": 1,
+      "name": "user",
+      "sda": {
+        "device": 0,
+        "pin": 40
+      },
+      "scl": {
+        "device": 0,
+        "pin": 41
+      },
+      "pullup": true,
+      "description": "External user I2C bus for sensors and breakouts"
+    }
+  ],
+  "reservedPins": [
+    {
+      "device": 0,
+      "pin": 19,
+      "label": "USB D-",
+      "reason": "ESP32-S3 USB-Serial-JTAG data minus"
+    },
+    {
+      "device": 0,
+      "pin": 20,
+      "label": "USB D+",
+      "reason": "ESP32-S3 USB-Serial-JTAG data plus"
+    },
+    {
+      "device": 0,
+      "pin": 0,
+      "label": "BOOT Strapping",
+      "reason": "ESP32-S3 boot strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 45,
+      "label": "VDD_SPI Strapping",
+      "reason": "ESP32-S3 SPI voltage strap pin"
+    },
+    {
+      "device": 0,
+      "pin": 46,
+      "label": "ROM Strapping",
+      "reason": "ESP32-S3 ROM boot log strap pin"
+    }
+  ],
+  "power": {
+    "limits": {
+      "max_mV": 5000,
+      "max_mA": 1500,
+      "reserve_mW": 1000,
+      "unknown_source_mA": 1500,
+      "vreg_efficiency_pct": 90
+    },
+    "rails": []
+  }
+}

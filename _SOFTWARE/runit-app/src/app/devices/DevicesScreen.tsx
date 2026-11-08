@@ -57,7 +57,7 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
   if (!type?.config || type.config.fields.length === 0) return <Card title="Settings" subhead="This type has nothing to set when it is created." />
   const liveNote = live && <p className="devices-hint">{present ? 'Changed on the board at once.' : 'Sent to the board at once while it is connected.'}{device.system ? ' Kept in the start commands.' : ''}</p>
   if (device.system) {
-    // The bus and the address the board's firmware gave the device (board.json `i2c`) are its values, as the fields show them.
+    // The bus and the address the board's profile gives the device (its `i2c`) are its values, as the fields show them.
     const boardValues: FieldValues = Object.fromEntries(type.config.fields.flatMap((f): [string, FieldInput][] => {
       const pins = device.uses.filter((u) => u.field === f.id).map((u) => u.pin)
       const fromI2c = f.id === 'i2c_bus' ? device.i2c?.bus : f.id === 'i2c_addr' ? device.i2c?.address : undefined
@@ -83,14 +83,14 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
   }
   const presets = (type.presets ?? []).map((p): Choice<string> => ({ value: p.id, label: p.label, ...(p.description ? { description: p.description } : {}) }))
   return (
-    <Card title="Settings" actions={<Button size="sm" onClick={() => state.updateDevice(device.id, (d) => ({ ...d, config: baseConfig(type, state.board) }))}><RotateCcw aria-hidden="true" />Defaults</Button>}>
+    <Card title="Settings" actions={<Button size="sm" onClick={() => state.updateDevice(device.id, (d) => ({ ...d, config: baseConfig(type, state.board, state.scope) }))}><RotateCcw aria-hidden="true" />Defaults</Button>}>
       {presets.length > 0 && (
         <div className="devices-actions">
           <ChoiceField<string> aria-label="Preset" value={undefined} choices={presets} placeholder="Apply a preset…"
             onChange={(id) => { const preset = type.presets?.find((p) => p.id === id); if (preset) state.updateDevice(device.id, (d) => ({ ...d, config: { ...d.config, ...preset.values } })) }} />
         </div>
       )}
-      <FieldsForm layout={type.config} values={device.config} context={context} hide={isBusField} onChange={(config) => {
+      <FieldsForm layout={type.config} values={device.config} context={context} hide={state.scope === 'board' ? undefined : isBusField} onChange={(config) => {
         state.updateDevice(device.id, (d) => ({ ...d, config }), `device-config:${device.id}`)
         if (live && [...liveIds].some((id) => config[id] !== device.config[id])) void sendLive(liveSettingsArgs(live, config))
       }} />
@@ -148,7 +148,7 @@ function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState
           </FormRow>
         ))}
       </FormGrid>
-      {state.project.actions.length === 0 && <p className="devices-hint">Add an action of your own in the Actions tab; the board's own are listed above.</p>}
+      {state.scope !== 'board' && state.project.actions.length === 0 && <p className="devices-hint">Add an action of your own in the Actions tab; the board's own are listed above.</p>}
     </Card>
   )
 }
@@ -158,7 +158,7 @@ function StartCard({ device, state }: { device: DeviceInfo; state: DevicesState 
   const pinSteps = device.defaults.filter((s) => isPinStart(s, device.id))
   const kept = (s: Step) => !isPolicyStep(s, state) && !isPinStart(s, device.id)
   return (
-    <Card title="At start">
+    <Card title={state.scope === 'board' ? 'Board boot' : 'At start'} subhead={state.scope === 'board' ? 'What the board runs on its own every time it loads, whatever the project: after this device is created.' : undefined}>
       {pinSteps.map((s, i) => {
         const pin = Number(s.kind === 'device' ? s.args?.pin : 0)
         return (
@@ -178,7 +178,8 @@ function StartCard({ device, state }: { device: DeviceInfo; state: DevicesState 
 function PinsCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
   const pins = devicePins(device)
   if (!pins) return null
-  const notes = pinNotes(state.board, device.id)
+  // The board editor shows a pin's name in its own field: only what is reserved is noted there.
+  const notes = pinNotes(state.scope === 'board' ? { ...state.board, pinSetup: [] } : state.board, device.id)
   const users = usedBy(state.devices, device.id)
   const errors = useErrors()
   return (
@@ -370,7 +371,7 @@ export function DevicesScreen({ state }: { state: DevicesState }) {
           : (
             <div className="view-placeholder">
               <h2>Devices</h2>
-              <p>Choose a device or an action on the left, or add one. The toolbar writes the devices, their start commands and the actions to the board, and reads them back.</p>
+              <p>{state.scope === 'board' ? 'Choose a device on the left, or add one. Write puts the devices and what the board runs at every load on the board.' : 'Choose a device or an action on the left, or add one. The toolbar writes the devices, their start commands and the actions to the board, and reads them back.'}</p>
             </div>
           )}
     </div>

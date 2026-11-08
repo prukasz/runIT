@@ -236,6 +236,8 @@ export interface BoardDescriptor {
   /** The pins the board's profile sets up: their `sys_io_mode_e` member name, an output's level and what they are for. */
   readonly pinSetup: readonly (BoardPin & { readonly label: string; readonly mode: string; readonly level?: boolean; readonly description?: string })[]
   readonly reservedPins: readonly (BoardPin & { readonly label: string; readonly reason?: string })[]
+  /** The UART ports the board's profile creates at every load: each `UART CREATE`'s arguments by field id (none in board.json). */
+  readonly uartPorts?: readonly Readonly<Record<string, unknown>>[]
   /** Where the board's power is measured (`power` of board.json): the whole input and each regulator rail, by a power monitor's channel. */
   readonly power: BoardPower
 }

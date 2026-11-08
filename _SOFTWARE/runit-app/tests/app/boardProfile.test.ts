@@ -1,3 +1,4 @@
+import { profileFromBoard } from '../../src/app/devices/boardEditor'
 import { describe, expect, it } from 'vitest'
 import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, frameImage, parseImage, readDeviceFrame } from '../../src/backend'
 import { boardProfileFrames, boardProfileJson } from '../../src/app/devices/boardProfile'
@@ -57,7 +58,8 @@ describe('the board\'s profile', () => {
     expect(image.length).toBeLessThanOrEqual(4096)
     expect(parseImage(image)).toHaveLength(frames.length)
     expect(hex(frameImage(boardProfileFrames(defs, catalog, pcb)))).toBe(hex(image))
-    expect(hex(boardProfileJson(pcb))).toBe(hex(boardProfileJson(bundledBoard('pcb'))))
+    const profile = profileFromBoard(pcb, catalog)
+    expect(hex(boardProfileJson(profile))).toBe(hex(boardProfileJson(profileFromBoard(bundledBoard('pcb'), catalog))))
   })
 
   it('a devkit: the ESP pins and its buses, no rails, no monitor', () => {

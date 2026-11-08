@@ -15,7 +15,7 @@ The profile is two stored things:
 
 | | Frames | JSON |
 |---|---|---|
-| What | The record `SYS_BOARD_RECORD_ID` (class `0x04`, SYS_ACTIONS.MD): the power layout and rails, the `CREATE` of each device but the ESP32-S3's GPIO, the I2C buses, the set-up of the pins | The definition of the devices in the format of `board.json`, names included |
+| What | The record `SYS_BOARD_RECORD_ID` (class `0x04`, SYS_ACTIONS.MD): the power layout and rails, the I2C buses and the UART ports (`UART CREATE`; before any device: their pins are the ESP32-S3's GPIO), the `CREATE` of each device but the ESP32-S3's GPIO, the set-up of the pins, and each device's boot package (the commands it runs by itself after it is created at every load, apart from any project) | The board's profile as the app edits it: a project file whose devices are the board's (type, name, config with its pins and I2C place, boot package) whose `i2cBuses` are the buses the record creates (number, SDA and SCL pin, pull-ups) whose `uartPorts` are its UART ports (each `UART CREATE`'s arguments), and its reserved pins and power; a device's boot package holds the pins it sets up at start |
 | Read by | The firmware, at boot | The app, never the firmware |
 
 The app (`runit-app/src/app/devices/boardProfile.ts`) encodes its board descriptor into frames and compares them and the JSON with what is stored, each time the board connects; a board without them gets them and restarts. The board always runs the record.

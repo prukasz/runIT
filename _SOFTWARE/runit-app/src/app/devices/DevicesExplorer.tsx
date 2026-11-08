@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ListChecks } from 'lucide-react'
+import { ArrowLeft, ListChecks } from 'lucide-react'
 import { Badge, Button, DeviceTile, PaletteSectionHeader, SegmentedSwitch, TreeAction, TreeSlab } from '@ui/components'
 import { usePersistedChoice } from '@ui/hooks/useStorage'
 import type { DeviceInfo } from './devices'
@@ -40,9 +40,9 @@ function DeviceRow({ device, state }: { device: DeviceInfo; state: DevicesState 
  * The left panel of the Devices view: the devices (the board's own and the project's, with what the board answers about each)
  * and Add; or the actions and Add.
  */
-export function DevicesExplorer({ state }: { state: DevicesState }) {
+export function DevicesExplorer({ state, onBack }: { state: DevicesState; onBack?: () => void }) {
   const [tab, setTab] = usePersistedChoice('runit.devices.tab', ['devices', 'actions'] as const, 'devices')
-  const [open, setOpen] = useState({ board: false, project: true })
+  const [open, setOpen] = useState({ board: state.scope === 'board', project: true })
   const system = state.devices.filter((d) => d.system)
   const own = state.devices.filter((d) => !d.system)
   const actions = state.selection?.kind === 'action' ? state.selection.id : undefined
@@ -51,6 +51,19 @@ export function DevicesExplorer({ state }: { state: DevicesState }) {
   useEffect(() => {
     if (kind) setTab(kind === 'action' ? 'actions' : 'devices')
   }, [kind, actions])
+
+  // The board editor (Project view): the board's devices alone, as the Board list here, no actions; in the switch's place the way
+  // back to the board's settings.
+  if (state.scope === 'board') {
+    return (
+      <div className="devices-explorer">
+        <Button block title="Back to the board's settings" onClick={onBack}><ArrowLeft aria-hidden="true" />Settings</Button>
+        <PaletteSectionHeader label="Board" count={state.devices.length} open={open.board} onToggle={() => setOpen((o) => ({ ...o, board: !o.board }))} />
+        {open.board && state.devices.map((d) => <DeviceRow key={d.id} device={d} state={state} />)}
+        <Button variant="dashed" block onClick={() => state.select({ kind: 'add' })}>Add device</Button>
+      </div>
+    )
+  }
 
   return (
     <div className="devices-explorer">
