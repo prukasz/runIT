@@ -31,7 +31,7 @@ const nameAt = (d: Uint8Array, at: number): [string, number] => {
   return [new TextDecoder().decode(d.subarray(at, end)), end + 1]
 }
 
-/** LIST's answer: `u8 count`, per service `u16 uuid, u8 flags (primary, locked), u8 n`, n × `u16 uuid, u8 flags, u32 tx, u32 rx, name\0`. */
+/** LIST's answer: `u8 count`, per service `u16 uuid, u8 flags (primary, locked), u8 n`, n × `u16 uuid, u8 flags, u32 tx, u32 rx, u8 provider (with flag 16), name\0`. */
 export const decodeGattList = (data: Uint8Array): LiveGattService[] => {
   const services: LiveGattService[] = []
   let at = 1
@@ -39,12 +39,12 @@ export const decodeGattList = (data: Uint8Array): LiveGattService[] => {
     const [uuid, flags, n] = [u16(data, at), data[at + 2]!, data[at + 3]!]
     at += 4
     const characteristics: GattCharacteristic[] = []
-    for (let c = 0; c < n && at + 11 <= data.length; c++) {
+    for (let c = 0; c < n && at + 12 <= data.length; c++) {
       const charFlags = data[at + 2]!
-      const [name, next] = nameAt(data, at + 11)
+      const [name, next] = nameAt(data, at + 12)
       characteristics.push({
         uuid: u16(data, at), name, write: (charFlags & 1) !== 0, indicate: (charFlags & 2) !== 0, notify: (charFlags & 4) !== 0, framed: (charFlags & 8) !== 0,
-        tx: u32(data, at + 3), rx: u32(data, at + 7),
+        tx: u32(data, at + 3), rx: u32(data, at + 7), ...((charFlags & 16) !== 0 ? { provider: data[at + 11]! } : {}),
       })
       at = next
     }
@@ -53,13 +53,19 @@ export const decodeGattList = (data: Uint8Array): LiveGattService[] => {
   return services
 }
 
+/** Whether the board makes a provider of a characteristic: unframed, written with no RX buffer or sending with a TX buffer (SYS_BLE.MD). */
+const hasProvider = (c: GattCharacteristic): boolean => !c.framed && ((c.write && c.rx === 0) || ((c.notify || c.indicate) && c.tx > 0))
+
+/** The id of a characteristic's provider as the board has it; undefined: none. */
+const providerOf = (c: GattCharacteristic): number | undefined => (hasProvider(c) ? c.provider : undefined)
+
 const createService = (catalog: ServiceCatalog, s: GattService): ServiceCall =>
   serviceCall(catalog, GATT.service, GATT.createService, { uuid: s.uuid, is_primary: s.primary })
 
 const createChar = (catalog: ServiceCatalog, s: GattService, c: GattCharacteristic): ServiceCall =>
   serviceCall(catalog, GATT.service, GATT.createChar, {
     svc_uuid: s.uuid, uuid: c.uuid, is_write: c.write, is_indicate: c.indicate, is_notify: c.notify, is_framed: c.framed,
-    tx_buffer_size: c.tx, rx_buffer_size: c.rx, desc: c.name,
+    tx_buffer_size: c.tx, rx_buffer_size: c.rx, has_provider: providerOf(c) !== undefined, provider: providerOf(c) ?? 0, desc: c.name,
   })
 
 const build = (catalog: ServiceCatalog, services: readonly GattService[]): ServiceCall[] =>
@@ -92,7 +98,7 @@ export const gattFromRecord = (catalog: ServiceCatalog, frames: readonly Uint8Ar
       if (at < 0) continue
       const c: GattCharacteristic = {
         uuid: Number(a.uuid), name: String(a.desc ?? ''), write: Boolean(a.is_write), indicate: Boolean(a.is_indicate), notify: Boolean(a.is_notify),
-        framed: Boolean(a.is_framed), tx: Number(a.tx_buffer_size), rx: Number(a.rx_buffer_size),
+        framed: Boolean(a.is_framed), tx: Number(a.tx_buffer_size), rx: Number(a.rx_buffer_size), ...(a.has_provider ? { provider: Number(a.provider) } : {}),
       }
       services[at] = { ...services[at]!, characteristics: [...services[at]!.characteristics, c] }
     }
@@ -101,6 +107,9 @@ export const gattFromRecord = (catalog: ServiceCatalog, frames: readonly Uint8Ar
 }
 
 /** Two GATT tables equal (the user services, in order). */
-export const sameGatt = (a: readonly GattService[], b: readonly GattService[]): boolean =>
-  JSON.stringify(a.map(({ uuid, primary, characteristics }) => ({ uuid, primary, characteristics }))) ===
-  JSON.stringify(b.map(({ uuid, primary, characteristics }) => ({ uuid, primary, characteristics })))
+export const sameGatt = (a: readonly GattService[], b: readonly GattService[]): boolean => {
+  const norm = (list: readonly GattService[]) => JSON.stringify(list.map(({ uuid, primary, characteristics }) => ({
+    uuid, primary, characteristics: characteristics.map((c) => ({ uuid: c.uuid, name: c.name, write: c.write, indicate: c.indicate, notify: c.notify, framed: c.framed, tx: c.tx, rx: c.rx, provider: providerOf(c) ?? null })),
+  })))
+  return norm(a) === norm(b)
+}

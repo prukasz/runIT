@@ -11,7 +11,7 @@ import type { PinContext } from '../devices/FieldsForm'
 import { GATT } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
-import { dirOf, STREAMS, transports } from './streams'
+import { dirOf, STREAMS } from './streams'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
 
 /*
@@ -118,9 +118,16 @@ function GattEditor({ section, state, context }: { section: SettingSection; stat
   const locked = (state.live.gatt ?? []).filter((s) => s.locked)
   const taken = new Set([...locked, ...services].flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)]))
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
+  // A new characteristic's provider: a number no characteristic of the project has, above the board's own.
+  const freeProvider = () => {
+    const used = new Set(services.flatMap((s) => s.characteristics.map((c) => c.provider)))
+    let n = 0x10
+    while (used.has(n)) n++
+    return n
+  }
   const set = (next: readonly GattService[]) => state.changeGatt(next)
   const setService = (i: number, s: GattService) => set(services.map((o, j) => (j === i ? s : o)))
-  const charValues = (c: GattCharacteristic): FieldValues => ({ is_write: c.write, is_indicate: c.indicate, is_notify: c.notify, is_framed: c.framed, tx_buffer_size: c.tx, rx_buffer_size: c.rx, desc: c.name })
+  const charValues = (c: GattCharacteristic): FieldValues => ({ is_write: c.write, is_indicate: c.indicate, is_notify: c.notify, is_framed: c.framed, tx_buffer_size: c.tx, rx_buffer_size: c.rx, has_provider: c.provider !== undefined, provider: c.provider ?? 0, desc: c.name })
   // A buffer only exists for a direction the characteristic has (the board refuses a TX buffer without notify / indicate and an RX buffer without write):
   // turning a direction on gives it a usual size, turning it off drops it.
   const USUAL = 128
@@ -128,8 +135,10 @@ function GattEditor({ section, state, context }: { section: SettingSection; stat
     const [write, indicate, notify] = [Boolean(v.is_write), Boolean(v.is_indicate), Boolean(v.is_notify)]
     const out = notify || indicate
     const [tx, rx] = [Number(v.tx_buffer_size ?? 0), Number(v.rx_buffer_size ?? 0)]
+    const { provider: _provider, ...rest } = c
     return {
-      ...c, write, indicate, notify, framed: Boolean(v.is_framed), name: String(v.desc ?? ''),
+      ...rest, write, indicate, notify, framed: Boolean(v.is_framed), name: String(v.desc ?? ''),
+      ...(v.has_provider ? { provider: c.provider === undefined ? freeProvider() : Number(v.provider ?? c.provider) } : {}),
       tx: !out ? 0 : tx === 0 && !(c.notify || c.indicate) ? USUAL : tx,
       rx: !write ? 0 : rx === 0 && !c.write ? USUAL : rx,
     }
@@ -164,12 +173,12 @@ function GattEditor({ section, state, context }: { section: SettingSection; stat
                 </FormRow>
                 <Button size="sm" title="Remove this characteristic" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
               </div>
-              <FieldsForm layout={charLayout} values={charValues(c)} context={context} hide={(f) => f.id === 'svc_uuid' || f.id === 'uuid' || (f.id === 'tx_buffer_size' && !(c.notify || c.indicate)) || (f.id === 'rx_buffer_size' && !c.write)}
+              <FieldsForm layout={charLayout} values={charValues(c)} context={context} hide={(f) => f.id === 'svc_uuid' || f.id === 'uuid' || (f.id === 'provider' && c.provider === undefined) || (f.id === 'tx_buffer_size' && !(c.notify || c.indicate)) || (f.id === 'rx_buffer_size' && !c.write)}
                 onChange={(v) => setService(i, { ...s, characteristics: s.characteristics.map((o, j) => (j === k ? fromValues(o, v) : o)) })} />
             </div>
           ))}
           <div className="project-actions">
-            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { uuid: free(s.uuid + 1), name: '', write: false, indicate: false, notify: true, framed: false, tx: 128, rx: 0 }] })}>
+            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { uuid: free(s.uuid + 1), name: '', write: false, indicate: false, notify: true, framed: false, tx: 128, rx: 0, provider: freeProvider() }] })}>
               <Plus aria-hidden="true" />{catalog.command(entry, GATT.createChar).label}
             </Button>
           </div>
@@ -187,6 +196,8 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
   const entry = catalog.service(STREAMS.service)
   const create = catalog.command(entry, STREAMS.create).write!.args!
   const bind = catalog.command(entry, STREAMS.bind)
+  const output = catalog.command(entry, STREAMS.output)
+  const remote = catalog.command(entry, STREAMS.remote)
   const streams = state.streamsOf()
   // The board's four are named by the group `stream`; the project's by its own label.
   const streamNames = new Map((bundledEnums().stream?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
@@ -195,13 +206,17 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
   const dirChoices: Choice<'out' | 'in'>[] = [{ value: 'out', label: 'Out: the board sends it' }, { value: 'in', label: 'In: what comes in on its bindings' }]
   const byteName = (stream: number) => `Stream 0x${stream.toString(16).toUpperCase().padStart(2, '0')}`
   const title = (s: DataStream) => (s.system ? streamNames.get(s.stream) : s.name) || byteName(s.stream)
-  // A stream is sent on a characteristic that notifies or indicates: the board's and the project's.
-  const chars = [...(state.live.gatt ?? []).filter((s) => s.locked), ...state.gattServices()].flatMap((s) => s.characteristics).filter((c) => c.notify || c.indicate)
+  // What a stream can be bound to: the providers of the characteristics, the board's and the project's; an OUT stream's sends, an IN stream's is written.
+  const chars = [...(state.live.gatt ?? []).filter((s) => s.locked), ...state.gattServices()].flatMap((s) => s.characteristics).filter((c) => c.provider !== undefined)
   const uuidNames = new Map((bundledEnums().ble_runit_uuid?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
-  const charChoices: Choice<number>[] = chars.map((c) => ({ value: c.uuid, label: `${hex(c.uuid)} ${uuidNames.get(c.uuid) ?? c.name}`.trim() }))
+  const providersOf = (s: DataStream): { readonly value: number; readonly label: string }[] => {
+    const list = chars.filter((c) => !state.live.sessionProviders?.includes(c.provider!) && (dirOf(s) === 'in' ? c.write : c.notify || c.indicate)).map((c) => ({ value: c.provider!, label: `${hex(c.uuid)} ${uuidNames.get(c.uuid) ?? c.name}`.trim() }))
+    // A binding to a provider none of them is (a UART port): shown by its id, so it can be dropped.
+    const others = s.bindings.filter((b) => !list.some((p) => p.value === b.provider)).map((b) => ({ value: b.provider, label: `Provider ${hex(b.provider)}` }))
+    return [...list, ...others]
+  }
   const set = (next: readonly DataStream[]) => state.changeStreams(next)
   const setStream = (at: number, change: (s: DataStream) => DataStream) => set(streams.map((s, i) => (i === at ? change(s) : s)))
-  const bleTransport = transports().find((t) => /ble/i.test(bundledEnums().sys_data_provider_link_e?.members.find((m) => m.value === t.value)?.name ?? ''))?.value
   return (
     <>
       <Card title={section.title} help={section.service.description}
@@ -232,24 +247,38 @@ function StreamsEditor({ section, state, context }: { section: SettingSection; s
                 </>}
             {s.system && <FormRow label={dirField?.label ?? 'Direction'}><span>{dirChoices.find((c) => c.value === dirOf(s))?.label}</span></FormRow>}
           </FormGrid>
-          {transports().map((t) => {
-            const binding = s.bindings.find((b) => b.provider === t.value)
-            const last = s.system && s.bindings.length === 1 && binding !== undefined
+          {providersOf(s).map((t) => {
+            const bound = s.bindings.some((b) => b.provider === t.value)
+            const last = s.system && s.bindings.length === 1 && bound
             return (
               <FormGrid key={t.value}>
                 <FormRow label={t.label} note={bind.description}>
-                  <Switch label={binding ? (dirOf(s) === 'in' ? 'Taken in' : 'Sent') : (dirOf(s) === 'in' ? 'Not taken in' : 'Not sent')} checked={binding !== undefined} disabled={last}
-                    onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value, endpoint: t.value === bleTransport ? (charChoices[0]?.value ?? 0) : 0 }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
+                  <Switch label={bound ? (dirOf(s) === 'in' ? 'Taken in' : 'Sent') : (dirOf(s) === 'in' ? 'Not taken in' : 'Not sent')} checked={bound} disabled={last}
+                    onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
                 </FormRow>
-                {binding && t.value === bleTransport && (
-                  <FormRow label={bind.write?.args?.fields.find((f) => f.id === 'channel')?.label ?? 'Channel'} note={bind.write?.args?.fields.find((f) => f.id === 'channel')?.description}>
-                    <ChoiceField<number> aria-label={`${title(s)}: characteristic`} value={binding.endpoint} choices={charChoices} unavailableLabel={(u) => hex(u)}
-                      onChange={(endpoint) => endpoint !== undefined && setStream(at, (o) => ({ ...o, bindings: o.bindings.map((b) => (b.provider === t.value ? { ...b, endpoint } : b)) }))} />
-                  </FormRow>
-                )}
               </FormGrid>
             )
           })}
+          {(s.outputs ?? []).map((provider) => (
+            <FormGrid key={`output:${provider}`}>
+              <FormRow label={`Goes out on provider ${hex(provider)}`} note={output.description}>
+                <Button size="sm" title="Remove this way out" onClick={() => setStream(at, ({ outputs, ...o }) => {
+                  const left = (outputs ?? []).filter((p) => p !== provider)
+                  return left.length > 0 ? { ...o, outputs: left } : o
+                })}><Trash2 aria-hidden="true" />Remove</Button>
+              </FormRow>
+            </FormGrid>
+          ))}
+          {(s.remotes ?? []).map((r) => (
+            <FormGrid key={`remote:${r.board}:${r.provider}`}>
+              <FormRow label={`Goes to provider ${hex(r.provider)} of board ${r.board}`} note={remote.description}>
+                <Button size="sm" title="Remove this target" onClick={() => setStream(at, ({ remotes, ...o }) => {
+                  const left = (remotes ?? []).filter((x) => x.board !== r.board || x.provider !== r.provider)
+                  return left.length > 0 ? { ...o, remotes: left } : o
+                })}><Trash2 aria-hidden="true" />Remove</Button>
+              </FormRow>
+            </FormGrid>
+          ))}
         </Card>
       ))}
       <div className="project-actions">

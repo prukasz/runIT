@@ -2,7 +2,7 @@
 
 #include "runit.h"
 #include "sdkconfig.h"
-#include "sys_ble_link.h"
+#include "sys_data_provider.h"
 #include "sys_device.h"
 #include "sys_device_types.h"
 #include "sys_power_manager.h"
@@ -31,7 +31,7 @@ err_h runit_board_streams_init(void) {
 /* Routing: the log lines go as they are on the BLE LOGS characteristic. Every other stream goes to the clients that
  * subscribe to it (SUBSCRIBE, over their session). */
 err_h runit_board_stream_bindings_init(void) {
-  return sys_stream_bind(SYS_STREAM_LOGS, SYS_BLE_PROVIDER_LOGS);
+  return sys_stream_bind(SYS_STREAM_LOGS, RUNIT_BOARD_PROVIDER_BLE_LOGS);
 }
 
 /* The ESP32-S3's own GPIO: the one device the board has before its profile (SYS_BOARD.MD). The profile's frames name its

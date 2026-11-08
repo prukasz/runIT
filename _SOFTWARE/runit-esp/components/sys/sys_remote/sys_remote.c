@@ -229,7 +229,7 @@ static void send_out(const uint8_t* frame, uint32_t len) {
   xSemaphoreGive(s_remote_lock);
   const uint8_t flags = frame[3] == SYS_REMOTE_ERROR ? ROUTER_FLAG_URGENT : 0;
   for (uint32_t i = 0; i < n; i++) {
-    err_free(sys_session_stream(to[i].peer, to[i].seq, frame, len, flags));  // not taken: a gap in its seq
+    err_free(sys_session_push(to[i].peer, to[i].seq, frame, len, flags));  // not taken: a gap in its seq
   }
 }
 
@@ -248,7 +248,7 @@ static int alias_find_locked(uint8_t board, uint16_t remote_id) {
 }
 
 // A frame of the remote channel from a board, on the RX task: queued, it is published and reported on the task.
-static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
+static void on_push(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
   if (len < FRAME_HEAD || data[0] != SYS_SESSION_CHANNEL_REMOTE) {
     return;
   }
@@ -503,7 +503,7 @@ static const sys_device_remote_ops_t k_ops = {.call = call, .added = on_added, .
 err_h sys_remote_init(void) {
   ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_session_on_reached(on_reached));
-  ERR_TRY(sys_session_on_stream(on_stream));
+  ERR_TRY(sys_session_on_push(on_push));
   if (s_remote_task_h == NULL) {
     U_TASK_START(s_remote_task_h, remote_task, NULL, CONFIG_SYS_REMOTE_TASK_PRIO);
   }

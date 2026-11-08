@@ -19,6 +19,7 @@ Code graph: `graphify-out/` (firmware C with preprocessed headers, the app's Typ
 ## Rules
 
 - **Docs follow every change.** Any change to code, wire format, descriptors, build or layout is followed, in the same change and without being asked, by an edit of every document it makes stale: the component's `*.MD` and `AGENTS.md`, the skills in `.claude/skills/` (`runit-root`, `runit-esp`, `runit-templates`), `templates/AGENTS.md`, this file and `.claude/memory.md`. Docs describe the current state only: no history, no changelog, no references to legacy code.
+- **Design in progress.** Nothing is released or deployed: firmware, app and wire format change together, in one change. No backward compatibility: no old formats, aliases or fallbacks kept, no version number (`SYS_SESSION_VERSION` and the like) bumped for a format change, no warnings about old firmware or old app builds.
 - Layers: `core` → `sys` → `devices` → `vm`; `runit-esp/components/app/runit` composes them. A component depends only on earlier layers.
 - Build commands for this machine are in `runit-esp` (`build.md`); the generic ESP-IDF command fails here.
 - An app UI shows names, never `obj-…` IDs, and builds from the shared parts in `runit-app/src/ui/components` (`npm run check:ui`; a hook reports raw markup after each edit).

@@ -2,18 +2,21 @@ import { useLayoutEffect, useRef } from 'react'
 import { CheckCheck, CircuitBoard, Cpu, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { refKey } from '@backend'
 import type { ErrorEntry } from '@backend'
+import type { RunitLink } from '@backend'
 import { Badge, Button, DeviceTile, LogLine, PanelHeader, SegmentedSwitch, TreeSlab } from '@ui/components'
+import type { PinContext } from '../devices/FieldsForm'
+import { SerialTerminal } from './SerialTerminal'
 import { clock, ErrorView } from './ErrorView'
 import type { ConsoleJumps, ConsoleLine, ConsoleState } from './useConsole'
 
 /*
- * The Console view: the board's logs and errors as they come, read only. The left panel files the errors under what they are
- * about (a device, a settings tab, the board); a choice there shows only those. The screen is the feed, newest at the bottom.
+ * The Console view: the board's logs and errors as they come. The left panel files the errors under what they are about (a device,
+ * a settings tab, the board); a choice there shows only those. The screen is the feed, newest at the bottom, or the serial terminal.
  */
 
 /** What the feed shows. */
-export type ConsoleShow = 'all' | 'errors' | 'logs'
-export const CONSOLE_SHOWS = ['all', 'errors', 'logs'] as const
+export type ConsoleShow = 'all' | 'errors' | 'logs' | 'serial'
+export const CONSOLE_SHOWS = ['all', 'errors', 'logs', 'serial'] as const
 
 /** The key of what an error is about, its name and kind: its first device, else a settings tab, else the board. */
 export interface Subject { readonly key: string; readonly name: string; readonly kind: 'device' | 'settings' | 'board' }
@@ -45,7 +48,7 @@ export function ConsoleExplorer({ state, jumps, subject, onSubject }: { state: C
   return (
     <div className="console-explorer">
       <PanelHeader title="Console" />
-      <p className="devices-hint">The board's logs and errors as they come. Read only: commands go from the other views.</p>
+      <p className="devices-hint">The board's logs and errors as they come. Serial: a command typed to what hangs on a UART port.</p>
       <TreeSlab icon={<DeviceTile size="small" icon={ScrollText} />} label="Everything" selected={subject === undefined} onClick={() => onSubject(undefined)}
         badges={unread > 0 ? <Badge tone="danger" size="compact" title="Errors not read yet">{unread}</Badge> : undefined} />
       {[...subjects.values()].map(({ subject: s, total, unread: n }) => (
@@ -63,7 +66,8 @@ const ERROR_TRACE = 'err_log.c'
 type FeedItem = { kind: 'line'; at: number; line: ConsoleLine } | { kind: 'error'; at: number; entry: ErrorEntry }
 
 /** The feed: the lines and the errors in the order they came (an error that came again moves down with its count). */
-export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject }: {
+export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, link, connected, context }: {
+  link: RunitLink; connected: boolean; context: PinContext
   state: ConsoleState; jumps: ConsoleJumps; show: ConsoleShow; onShow: (show: ConsoleShow) => void; subject: string | undefined; onSubject: (key: string | undefined) => void
 }) {
   const entries = state.entries.filter((e) => subject === undefined || subjectOf(e, jumps).key === subject)
@@ -85,18 +89,18 @@ export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject }
   return (
     <div className="console-screen">
       <div className="console-bar">
-        <SegmentedSwitch label="What the console shows" value={show} options={[['all', 'All'], ['errors', 'Errors'], ['logs', 'Logs']]} onChange={onShow} />
+        <SegmentedSwitch label="What the console shows" value={show} options={[['all', 'All'], ['errors', 'Errors'], ['logs', 'Logs'], ['serial', 'Serial']]} onChange={onShow} />
         {subjectName && <Button size="sm" title="Show everything again" onClick={() => onSubject(undefined)}>Errors of {subjectName} ✕</Button>}
         <span className="console-bar-spacer" />
-        <Button size="sm" disabled={unread.length === 0} onClick={() => state.markRead({ ids: unread })}><CheckCheck aria-hidden="true" />Mark read</Button>
-        <Button size="sm" title="Remove what is shown" onClick={() => { if (show !== 'logs') state.clear({ ids: entries.map((e) => e.id) }); if (show !== 'errors' && subject === undefined) state.clearLines() }}><Trash2 aria-hidden="true" />Clear</Button>
+        {show !== 'serial' && <Button size="sm" disabled={unread.length === 0} onClick={() => state.markRead({ ids: unread })}><CheckCheck aria-hidden="true" />Mark read</Button>}
+        {show !== 'serial' && <Button size="sm" title="Remove what is shown" onClick={() => { if (show !== 'logs') state.clear({ ids: entries.map((e) => e.id) }); if (show !== 'errors' && subject === undefined) state.clearLines() }}><Trash2 aria-hidden="true" />Clear</Button>}
       </div>
-      <div className="console-feed" ref={feed} onScroll={(event) => { const el = event.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
+      {show === 'serial' ? <SerialTerminal link={link} connected={connected} context={context} /> : <div className="console-feed" ref={feed} onScroll={(event) => { const el = event.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
         {items.length === 0 && <p className="devices-hint">{show === 'logs' ? 'No log lines yet. The board sends them while it is connected and Logging sends them (Project, Logging settings).' : 'Nothing yet: what the board reports appears here.'}</p>}
         {items.map((item) => item.kind === 'line'
           ? <LogLine key={`l${item.line.id}`} time={clock(item.line.at)} level={item.line.level} source={item.line.source} text={item.line.text} />
           : <div key={`e${item.entry.id}`} className="console-error"><ErrorView entry={item.entry} state={state} jumps={jumps} /></div>)}
-      </div>
+      </div>}
     </div>
   )
 }

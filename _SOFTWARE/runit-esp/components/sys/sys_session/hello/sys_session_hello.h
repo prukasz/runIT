@@ -19,15 +19,14 @@ extern "C" {
 typedef struct __attribute__((packed)) {
   uint8_t version;            /**< SYS_SESSION_VERSION: the session opens only on the same one */
   uint8_t id;                 /**< Its own: a board's place, SYS_SESSION_ID_APP, or another client's pick */
-  uint8_t mac[6];             /**< Its identity: the eFuse MAC; a client: 0 */
   uint32_t boot_id;           /**< Random per boot: a new one ends the session first (the peer restarted) */
   uint16_t fw_version;
   uint16_t timeout_ms;        /**< It ends the session after this much silence: send it something every third of it */
 } sys_session_hello_t;
 
-_Static_assert(sizeof(sys_session_hello_t) == 16, "hello");
+_Static_assert(sizeof(sys_session_hello_t) == 10, "hello");
 
-/** @brief This boot's id and the board's MAC, for its hellos. Boot step of sys_session_init(). */
+/** @brief This boot's id, for its hellos. Boot step of sys_session_init(). */
 MUST_USE err_h sys_session_hello_init(void);
 
 /** @brief Sends this board's hello on session `at`. */

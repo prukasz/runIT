@@ -23,15 +23,18 @@ typedef struct {
 /* A session: a provider and the peer it leads to. Its fields are under the lock of sys_session.c; nothing else runs
  * under it (a send, a listener and the router are called after it is released). */
 typedef struct {
-  sys_data_provider_id_t provider;  // link 0: the slot is free
-  uint8_t peer;                     // sys_session_peer_e
+  bool used;                        // false: the slot is free
+  uint8_t provider;
+  uint8_t peer;                     // sys_session_peer_e: what the peer is now
+  uint8_t attached;                 // sys_session_peer_e given at attach: a CLIENT way a board's hello made MASTER goes
+                                    // back to it when that session ends
   sys_session_hello_state_t hello;
   uint16_t silent_ms;               // time since its last frame; the session ends past its timeout (at most 60 s)
-  uint16_t ping_ms;                 // time since this board's last ping: one every third of the peer's timeout
+  uint16_t ping_ms;                 // time since this board's last frame on it: a ping past a third of the peer's timeout
 } session_slot_t;
 
 static inline bool session_in_use(const session_slot_t* s) {
-  return s->provider.link != 0;
+  return s->used;
 }
 
 // Open: in use and both hellos passed, so the peer has its id (NONE before and after; a free slot's is 0).

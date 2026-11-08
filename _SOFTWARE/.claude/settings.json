@@ -33,6 +33,15 @@
             "command": "cat .claude/skills/runit-root/SKILL.md"
           }
         ]
+      },
+      {
+        "matcher": "startup|clear|compact|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'DESIGN IN PROGRESS: runIT is not released or deployed. Firmware, app and wire format change together, in one change. No backward compatibility: never keep old formats, aliases or fallbacks, never bump SYS_SESSION_VERSION or other version numbers for a format change, never warn about old firmware or old app builds.'"
+          }
+        ]
       }
     ],
     "PostToolUse": [

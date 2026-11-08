@@ -50,7 +50,7 @@ export function FirmwareCard({ link, connected }: { link: RunitLink; connected: 
     try {
       setBusy('Writing… 0%')
       const image = new Uint8Array(await file.arrayBuffer())
-      await writeFirmware(link, catalog, image, (written, total) => setBusy(`Writing… ${Math.round((written / total) * 100)}%`))
+      await writeFirmware(link, catalog, image, { onProgress: (written, total) => setBusy(`Writing… ${Math.round((written / total) * 100)}%`) })
       setBusy('Restarting…')
       await link.request(serviceCall(catalog, 'SYS', 'RESTART').request, { label: 'SYS RESTART' })
       setDone(`${file.name} written (${image.length} bytes). The board restarts and starts it; the app keeps it once the board is back.`)

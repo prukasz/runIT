@@ -26,7 +26,7 @@ static err_h name_arg(cmd_in_t tail, const char** name) {
 ROUTER_OP_TAIL(op_char_create, sys_ble_char_create_args_t) {
   const char* desc;
   ERR_TRY(name_arg(tail, &desc));
-  ERR_CHECK(args->is_write <= 1 && args->is_indicate <= 1 && args->is_notify <= 1 && args->is_framed <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->is_write <= 1 && args->is_indicate <= 1 && args->is_notify <= 1 && args->is_framed <= 1 && args->has_provider <= 1, ERR_CMD_BAD_ARG);
   const sys_ble_char_cfg_t cfg = {
       .uuid = args->uuid,
       .is_write = args->is_write != 0,
@@ -38,7 +38,7 @@ ROUTER_OP_TAIL(op_char_create, sys_ble_char_create_args_t) {
       .desc = desc,
   };
   ERR_TRY(sys_ble_char_create(args->svc_uuid, &cfg));
-  err_h err = sys_ble_link_char_add(args->svc_uuid, &cfg);
+  err_h err = args->has_provider ? sys_ble_link_char_add(args->svc_uuid, &cfg, args->provider) : NULL;
   if (err != NULL) {
     err_report(sys_ble_char_remove(args->svc_uuid, args->uuid));
   }
@@ -77,16 +77,20 @@ static err_h list_one(void* ctx_, const sys_ble_svc_cfg_t* svc, bool locked, con
     ctx->services++;
     return cmd_append(ctx->out, head, sizeof(head));
   }
+  uint8_t provider = 0;
+  const bool has_provider = sys_ble_link_char_provider(chr->uuid, &provider);
   const uint8_t head[3] = {
       (uint8_t)(chr->uuid & 0xFFu), (uint8_t)(chr->uuid >> 8),
       (uint8_t)((chr->is_write ? SYS_BLE_LIST_WRITE : 0u) | (chr->is_indicate ? SYS_BLE_LIST_INDICATE : 0u) |
-                (chr->is_notify ? SYS_BLE_LIST_NOTIFY : 0u) | (chr->is_framed ? SYS_BLE_LIST_FRAMED : 0u))};
+                (chr->is_notify ? SYS_BLE_LIST_NOTIFY : 0u) | (chr->is_framed ? SYS_BLE_LIST_FRAMED : 0u) |
+                (has_provider ? SYS_BLE_LIST_PROVIDER : 0u))};
   const uint32_t tx = (uint32_t)chr->tx_buffer_size;
   const uint32_t rx = (uint32_t)chr->rx_buffer_size;
   const char* name = chr->desc != NULL ? chr->desc : "";
   ERR_TRY(cmd_append(ctx->out, head, sizeof(head)));
   ERR_TRY(cmd_append(ctx->out, &tx, sizeof(tx)));  // LE on the ESP32
   ERR_TRY(cmd_append(ctx->out, &rx, sizeof(rx)));
+  ERR_TRY(cmd_append(ctx->out, &provider, sizeof(provider)));
   ERR_TRY(cmd_append(ctx->out, name, (uint32_t)strlen(name) + 1));
   ctx->out->data[ctx->count_at]++;
   return NULL;

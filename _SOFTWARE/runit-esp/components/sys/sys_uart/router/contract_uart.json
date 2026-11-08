@@ -1,0 +1,378 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "UART",
+  "router_key": 19,
+  "alias": "UART ports",
+  "description": "UART ports made at run time as providers: a port with its id, rate, format and pins, framed (a link to another board) or raw (a GPS, a sensor on a stream's binding). A port is removed with the provider's REMOVE.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "CREATE",
+      "op": 1,
+      "symbol": "SYS_UART_OP_CREATE",
+      "label": "Create a UART port",
+      "description": "A UART of the ESP32-S3 as a provider on two pins: its write makes it (its GPIO device must exist), its read answers what it was made with. The console's port and the board's link are not made so.",
+      "write": {
+        "args": {
+          "struct": "sys_uart_cfg_t",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Its id, chosen here: any the board has not given"
+            },
+            {
+              "id": "port",
+              "label": "UART",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "The UART of the chip to make: not the console's, not the one the board's link uses"
+            },
+            {
+              "id": "baud",
+              "label": "Baud rate",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Any rate from 1200 to 5000000 (250000 for DMX, 31250 for MIDI)",
+              "unit": "baud",
+              "min": 1200,
+              "max": 5000000,
+              "default": 115200
+            },
+            {
+              "id": "mode",
+              "label": "Mode",
+              "type": "enum",
+              "enum": "sys_uart_mode_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 6,
+              "description": "Framed: a session can attach it (a link to another board); Raw / Raw lines: the bytes as they are, for a stream's binding or a typed command; Direct: a device driver writes and reads it itself, for exact timing"
+            },
+            {
+              "id": "parity",
+              "label": "Parity",
+              "type": "enum",
+              "enum": "sys_uart_parity_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 7,
+              "description": "The parity bit"
+            },
+            {
+              "id": "stop_bits",
+              "label": "Stop bits",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 8,
+              "description": "1 or 2; the data bits are 8",
+              "min": 1,
+              "max": 2,
+              "default": 1
+            },
+            {
+              "id": "tx",
+              "label": "TX",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 9,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "rx",
+              "label": "RX",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 12,
+              "pin_ref": true,
+              "requires": "input",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "rts",
+              "label": "RTS",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 15,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "With CTS: hardware flow control; leave both unused for none",
+              "optional": true
+            },
+            {
+              "id": "cts",
+              "label": "CTS",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 18,
+              "pin_ref": true,
+              "requires": "input",
+              "description": "With RTS: hardware flow control; leave both unused for none",
+              "optional": true
+            }
+          ]
+        }
+      },
+      "read": {
+        "args": {
+          "struct": "sys_uart_port_args_t",
+          "fields": [
+            {
+              "id": "port",
+              "label": "UART",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The UART made by CREATE"
+            }
+          ]
+        },
+        "returns": {
+          "struct": "sys_uart_cfg_t",
+          "description": "What the port was made with",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "Its id, chosen here: any the board has not given"
+            },
+            {
+              "id": "port",
+              "label": "UART",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "The UART of the chip to make: not the console's, not the one the board's link uses"
+            },
+            {
+              "id": "baud",
+              "label": "Baud rate",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "description": "Any rate from 1200 to 5000000 (250000 for DMX, 31250 for MIDI)",
+              "unit": "baud",
+              "min": 1200,
+              "max": 5000000,
+              "default": 115200
+            },
+            {
+              "id": "mode",
+              "label": "Mode",
+              "type": "enum",
+              "enum": "sys_uart_mode_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 6,
+              "description": "Framed: a session can attach it (a link to another board); Raw / Raw lines: the bytes as they are, for a stream's binding or a typed command; Direct: a device driver writes and reads it itself, for exact timing"
+            },
+            {
+              "id": "parity",
+              "label": "Parity",
+              "type": "enum",
+              "enum": "sys_uart_parity_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 7,
+              "description": "The parity bit"
+            },
+            {
+              "id": "stop_bits",
+              "label": "Stop bits",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 8,
+              "description": "1 or 2; the data bits are 8",
+              "min": 1,
+              "max": 2,
+              "default": 1
+            },
+            {
+              "id": "tx",
+              "label": "TX",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 9,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "rx",
+              "label": "RX",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 12,
+              "pin_ref": true,
+              "requires": "input",
+              "description": "A pin of the ESP32-S3 itself"
+            },
+            {
+              "id": "rts",
+              "label": "RTS",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 15,
+              "pin_ref": true,
+              "requires": "output",
+              "description": "With CTS: hardware flow control; leave both unused for none",
+              "optional": true
+            },
+            {
+              "id": "cts",
+              "label": "CTS",
+              "type": "pin",
+              "raw_type": "bytes",
+              "size": 3,
+              "offset": 18,
+              "pin_ref": true,
+              "requires": "input",
+              "description": "With RTS: hardware flow control; leave both unused for none",
+              "optional": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "RAW",
+      "op": 2,
+      "symbol": "SYS_UART_OP_RAW",
+      "label": "Send a command",
+      "description": "Sends bytes on a raw provider and answers with what comes back, in one request, as I2C's RAW does: a command typed to a GPS or a LoRa module. Refused while something else reads from the provider. The board runs no other normal command while it waits.",
+      "write": {
+        "args": {
+          "struct": "sys_uart_raw_args_t",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The provider's id: a raw one"
+            },
+            {
+              "id": "wait_ms",
+              "label": "Wait",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 1,
+              "description": "How long to wait for the answer; 0: only sends",
+              "unit": "ms",
+              "min": 0,
+              "max": 1000
+            },
+            {
+              "id": "rx_max",
+              "label": "Answer at most",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "description": "A longer answer is cut",
+              "unit": "B",
+              "min": 0,
+              "max": 507
+            },
+            {
+              "id": "data",
+              "label": "Data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The bytes that go out, as they are (runs to the end of the frame)"
+            }
+          ]
+        },
+        "returns": {
+          "type": "bytes",
+          "label": "Answer",
+          "description": "The first message that came back, empty when nothing did"
+        }
+      }
+    },
+    {
+      "id": "RECEIVE",
+      "op": 3,
+      "symbol": "SYS_UART_OP_RECEIVE",
+      "label": "Wait for a message",
+      "description": "Answers with the first message that comes on a raw provider. What comes between two of these is not seen: to follow a device that talks by itself, use an In stream.",
+      "read": {
+        "args": {
+          "struct": "sys_uart_raw_args_t",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The provider's id: a raw one"
+            },
+            {
+              "id": "wait_ms",
+              "label": "Wait",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 1,
+              "description": "How long to wait for the answer; 0: only sends",
+              "unit": "ms",
+              "min": 0,
+              "max": 1000
+            },
+            {
+              "id": "rx_max",
+              "label": "Answer at most",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "description": "A longer answer is cut",
+              "unit": "B",
+              "min": 0,
+              "max": 507
+            }
+          ]
+        },
+        "returns": {
+          "type": "bytes",
+          "label": "Answer",
+          "description": "The first message that came back, empty when nothing did"
+        }
+      }
+    }
+  ]
+}

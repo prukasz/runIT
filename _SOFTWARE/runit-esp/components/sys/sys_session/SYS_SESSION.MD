@@ -23,33 +23,37 @@ Component `components/sys/sys_session/`. A **session** is a provider (SYS_DATA_P
 | `sys_session.c` | The sessions and the route, the frames out, the listeners, ending a session, the answers, the frames in, the timer, the board's id and timeout, attach and detach (the hello is in `hello/`, the calls in `call/`) |
 | `config/sys_session_config.h` | The version, the ids, the frame byte, kinds, control ops, peer kinds, access (published to the app) |
 | `frame/sys_session_frame.h` | The header |
-| `hello/sys_session_hello.c` / `.h` | The handshake: the hello (`sys_session_hello_t`; this board's boot id and MAC, sending its hello, taking the peer's: its id, whether the session opens) and NO_SESSION both ways. It uses the sessions through `internal/sys_session_internal.h`, never their state or lock |
+| `hello/sys_session_hello.c` / `.h` | The handshake: the hello (`sys_session_hello_t`; this board's boot id, sending its hello, taking the peer's: its id, whether the session opens) and NO_SESSION both ways. It uses the sessions through `internal/sys_session_internal.h`, never their state or lock |
 | `call/sys_session_call.c` / `.h` | The board's calls to other boards: their slots and lock, answers, timeouts, waiting (`sys_session_call`, `_call_wait`, `_no_wait`) |
 | `internal/sys_session_slot.h` | For `sys_session.c` and the hello only: a session's slot |
-| `internal/sys_session_internal.h` | For its router (PEERS), the hello and the calls only: the route, a session's copy, opening and ending it, its timeout, the list; the frames out (raw, control, broadcast); the reached listeners |
+| `internal/sys_session_internal.h` | For its router (PEERS), the hello and the calls only: the route, a session's copy, opening and ending it, whether it may open and making it the master's, its timeout, the list; the frames out (raw, control, broadcast); the reached listeners |
 | `router/sys_session_router.h` / `.c` | The remote interface: ID, ATTACH, DETACH, PEERS. The header publishes the ops (`SYS_SESSION_OP_*`, with their sides) and the wire layouts, each op above its frame |
 | `router/contract_session.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_SESSION_MAP`, its registration, the messages |
 | `Kconfig` | Sessions, calls, listeners, timeouts |
 
-## Boards, clients, the tree
+## Boards, clients, the star
 
-A **board id** (0x00..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another of its type takes the same id and the project runs on; its identity is the MAC in its hello. A new board has `SYS_SESSION_ID_DEFAULT` (0x00).
+A **board id** (0x00..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another of its type takes the same id and the project runs on (its new `boot_id` ends the old session). `SYS_SESSION_ID_DEFAULT` (0x00) is **no id given yet**: a new board has it, and so does a board flashed by another (SYS_FLASHER.MD), so a board that takes slaves has another one (set by hand or by the app with ID, used from the next start).
 
-The boards are a **tree**: each has at most one master and any number of slaves. The **root** is the board without a master, so a board alone is one; it is the board the app talks to, 0x00 by convention. **Clients** (the app, a test host) are not boards: only a board without a master takes them. Every peer says its own id in its hello and no two may have one (`ERR_SESSION_ID_TAKEN`): a board's is 0x00..0xEF, the app's is the reserved `SYS_SESSION_ID_APP` (0xF0), any other client picks one in 0xF1..0xFC; the session checks that every frame from a client carries it. `SYS_SESSION_ID_SELF` (0xFE) is the board itself as the source of its own commands (`ROUTER_SRC_SELF`): it is in error records, never in a frame's header.
+The boards are a **star**, one level deep: the **root** and its slaves. The root is the board without a master, so a board alone is one; it is the board the app talks to. A board with a master has no other session (`ERR_SESSION_ROLE`), so a slave has no slaves and takes no client.
 
-A board's hello to its master lists its **subtree** (the boards reached through it); it sends its hello again when that changes, so every board knows, per slave, which ids lie behind it.
+**The role is the hello's, not the build's**: every board runs the same firmware and attaches the same sessions (RUNIT.MD "Boot"): its console's UART and the runIT BLE pair as CLIENT, its link as SLAVE. A board's hello (an id 0x00..0xEF) on a CLIENT way makes that board this board's **master**: that way is another board's link wired to this board's console UART (SYS_UART.MD "The link to another board"). Its slot's kind becomes MASTER (`sys_session_take_master`), every other open session of the board ends (its peers are gone), and no other session opens while it lasts: their hellos are not answered (`sys_session_admits`). When it ends, the way is a CLIENT way again and the board takes clients and slaves again.
+ **Clients** (the app, a test host) are not boards: only a board without a master takes them. Every peer says its own id in its hello and no two may have one (`ERR_SESSION_ID_TAKEN`): a board's is 0x00..0xEF, the app's is the reserved `SYS_SESSION_ID_APP` (0xF0), any other client picks one in 0xF1..0xFC; the session checks that every frame from a client carries it. `SYS_SESSION_ID_SELF` (0xFE) is the board itself as the source of its own commands (`ROUTER_SRC_SELF`): it is in error records, never in a frame's header.
+
+The way is the sessions themselves (`session_route`): a slave sends everything to its master; the root sends to the open session whose hello gave that id.
 
 | From | dst | Goes |
 |---|---|---|
 | anywhere | this board | to the router (a request), to my call (an answer), to the stream listeners (a stream), to the session (control) |
-| a slave or a client | in the subtree of a slave | down to that slave |
-| a slave or a client | elsewhere | up to the master; on the root: to the client of that id, else `ERR_SESSION_NO_ROUTE` |
-| the master | in the subtree of a slave | down to that slave |
-| the master | elsewhere | dropped, `ERR_SESSION_NO_ROUTE` to the source |
-| anywhere | `0xFF` broadcast | up to the root, which runs it and sends it down to every slave; each board runs it on the way down; never answered. A broadcast the root itself makes (`sys_session_call`) is only sent down: the root has done what it broadcasts |
+| a client | a slave of this board | to that slave |
+| a slave | a client of this board | to that client |
+| a slave | another slave | dropped, `ERR_SESSION_NO_ROUTE` to the source: the root relays nothing between slaves |
+| a slave or a client | nobody this board has | dropped, `ERR_SESSION_NO_ROUTE` to the source |
+| the master | anyone but this board | dropped, `ERR_SESSION_NO_ROUTE` to the source: a slave relays nothing |
+| anywhere | `0xFF` broadcast | to the root, which runs it and sends it to every slave; each slave runs it; never answered. A broadcast the root itself makes (`sys_session_call`) is only sent to the slaves: the root has done what it broadcasts |
 
-A frame so goes up, then down, and never loops.
+A frame so takes at most two hops and never loops.
 
 ## Frames
 
@@ -59,31 +63,32 @@ One header on every frame (`sys_session_hdr_t`, 5 B = `CMD_HEAD`): the frame byt
 |---|---|
 | bits 0-1 | a request's or a stream's flags: `ROUTER_FLAG_URGENT`, `_NOREPLY` (the router's own) |
 | bit 2 | an answer's status: `router_status_e` (OK, ERROR) |
+| bits 3-5 | zero |
 | bits 6-7 | the kind |
 
 | Kind | After the header | `seq` |
 |---|---|---|
 | `REQUEST` | `[key][dir][code \| id + op][args]` | the source's counter |
 | `ANSWER` | the data; ERROR's is the error record | the request's |
-| `STREAM` | `[stream id][payload]`: one stream's message, to a subscriber; or `[channel][data]`, a session channel's frame from `0x80` (Streams) | the stream's frame counter, or the channel sender's (a watch's entries, a subscription's frames): a gap is frames lost |
+| `PUSH` | `[stream id][payload]`: one stream's message, to a subscriber; or `[channel][data]`, a session channel's frame from `0x80` (Streams), among them `[0x82][to id][from id][data]` (Data to a provider) | the stream's frame counter, or the channel sender's (a watch's entries, a subscription's frames): a gap is frames lost |
 | `CONTROL` | `op`, then its data: HELLO (`sys_session_hello_t`), PING, NO_SESSION between two neighbours (`dst`, `src` their ids); GONE `[client]` from the master to every slave (`dst` 0xFF; Gone peers) | 0 |
 
 What follows the header is at most `CMD_DATA_MAX`. The frame size is the protocol's (CMD.MD "Frame size"): every peer of one `SYS_SESSION_VERSION` takes `CMD_FRAME_MAX`, so nothing is sized per hop.
 
 ## A session's life
 
-1. `sys_session_attach(provider, peer)`: the session opens the provider (a framed one only, else `ERR_SESSION_NOT_FRAMED`: every frame between the board and its peer has the same limit). A board with a master has no other session: a master next to any session, or anything next to a master, is `ERR_SESSION_ROLE`.
-2. When the provider comes up (its rx with `data` NULL, `len` 1), the board sends HELLO (version, id, MAC, `boot_id`, firmware, its timeout, to its master its subtree). A client sends its hello with its own id (the app's is `SYS_SESSION_ID_APP`).
-3. The session **opens** when both hellos have passed: the same version (`ERR_SESSION_VERSION`, else it stays closed), an id no other session has (`ERR_SESSION_ID_TAKEN`).
+1. `sys_session_attach(provider, peer)`: the session opens the provider (a framed one only, else `ERR_SESSION_NOT_FRAMED`: every frame between the board and its peer has the same limit). A board with a master has no other session: a master next to any session, or anything next to a master, is `ERR_SESSION_ROLE`. The slot keeps the kind it was attached with (`attached`): a CLIENT way a board's hello made MASTER goes back to it when that session ends.
+2. When the provider comes up (its rx with `data` NULL, `len` 1), the board sends HELLO (version, id, `boot_id`, firmware, its timeout). A client sends its hello with its own id (the app's is `SYS_SESSION_ID_APP`).
+3. The session **opens** when both hellos have passed: the same version (`ERR_SESSION_VERSION`, else it stays closed), an id of the peer's kind that no other session has (`ERR_SESSION_ID_TAKEN`; a board's id on a CLIENT way: that board becomes the master, "Boards, clients, the star"), and no master of this board on another way.
 4. Until then only control frames pass: anything else is answered `NO_SESSION` with the hello, so a peer that missed a restart (UART has no disconnect) starts over.
-5. A hello on an open session updates it (a new subtree, a new timeout); a new `boot_id` ends it first: the peer restarted, so what it had here is gone.
-6. **Timeouts.** Each side ends the session after its own timeout of silence and says it in its hello; so each side sends something at least every third of the other's timeout, a PING when it has nothing else. A slave's session takes `CONFIG_SYS_SESSION_TIMEOUT_MS` (3 s); the master's and the clients' take the dead-man's time (`sys_session_set_timeout`). Nothing received for the timeout, or the provider down: the session **ends**: the calls through it fail (`ERR_SESSION_PEER_DOWN`), its peer and the boards behind it are gone (Gone peers), the hello starts again when frames come.
+5. A hello on an open session updates it (a new timeout); a new `boot_id` ends it first: the peer restarted, so what it had here is gone.
+6. **Timeouts.** Each side ends the session after its own timeout of silence and says it in its hello; so each side sends something at least every third of the other's timeout, a PING when it has nothing else. A slave's session takes `CONFIG_SYS_SESSION_TIMEOUT_MS` (3 s); the master's and the clients' take the dead-man's time (`sys_session_set_timeout`). Nothing received for the timeout, or the provider down: the session **ends**: the calls through it fail (`ERR_SESSION_PEER_DOWN`), its peer is gone (Gone peers), the hello starts again when frames come.
 
 One `esp_timer` (every 10 ms) does it all: the pings, the session timeouts, the calls' timeouts. A session's timeout is at least 150 ms, a call's 10 ms.
 
 ## A request for this board
 
-On the driver's RX task, in order: the session is open (else NO_SESSION); a write from a read-only peer is refused (`ERR_SESSION_DENIED`); then the command goes to the router, with the session's framer as the callback of its answer:
+On the driver's RX task, in order: the session is open (else NO_SESSION); then the command goes to the router, with the session's framer as the callback of its answer:
 
 ```c
 cmd_req_t cmd = {.req = body, .req_len = len, .seq = hdr.seq, .src = hdr.src,
@@ -100,7 +105,7 @@ err_h err = router_submit(&cmd, session_answer, NULL);   // copied; never blocks
 A frame for another board is sent on from the driver's RX task it came in on: to the next hop's provider, with `NOWAIT` (and `URGENT` when its flag says so). The driver's queue is the only queue it waits in; the router never sees it, and the board keeps no state of it (its answer comes back by the same rules, to `src`).
 
 - A request that can't go on is answered to its source (unless NOREPLY) with why: the next hop's own `ERR_PROV_BUSY`, `_DOWN` or `_TOO_LONG`, or `ERR_SESSION_NO_ROUTE`.
-- An answer or a stream frame that can't go on is dropped (a reader times out and retries; a stream shows a gap in its seq).
+- An answer or a PUSH frame that can't go on is dropped (a reader times out and retries; a stream shows a gap in its seq).
 
 ## The board's own calls
 
@@ -141,15 +146,26 @@ It refuses to wait (`ERR_SESSION_WOULD_BLOCK`) for a call to this board on a rou
 
 ## Streams
 
-The first byte of a STREAM frame's body names what it is: below `SYS_SESSION_CHANNEL_FIRST` (0x80) a **stream id** (SYS_STREAM.MD "Model"), from it a **channel** of the session itself (`sys_session_config.h`): `SYS_SESSION_CHANNEL_WATCHES` 0x80 (a watch's entry, to its owner) and `SYS_SESSION_CHANNEL_REMOTE` 0x81 (a device's events and errors, to its subscribers; SYS_REMOTE.MD "Subscriptions"); the rest is reserved. A channel is not a stream: no queue, no bindings, no subscribers, no stream's commands. A module sends its frame to the one peer it names, and the board it reaches hands it to its listener.
+A **PUSH** frame is what a board sends by itself, never answered: a stream's message or a channel's frame. The first byte of its body names what it is: below `SYS_SESSION_CHANNEL_FIRST` (0x80) a **stream id** (SYS_STREAM.MD "Model"), from it a **channel** of the session itself (`sys_session_config.h`): `SYS_SESSION_CHANNEL_WATCHES` 0x80 (a watch's entry, to its owner), `SYS_SESSION_CHANNEL_REMOTE` 0x81 (a device's events and errors, to its subscribers; SYS_REMOTE.MD "Subscriptions") and `SYS_SESSION_CHANNEL_DATA` 0x82 (data for a provider: Data to a provider); the rest is reserved. A channel is not a stream: no queue, no bindings, no subscribers, no stream's commands. A module sends its frame to the one peer it names, and the board it reaches hands it to its listener; DATA is the session's own and reaches no listener.
 
-A peer subscribes to a stream of this board with SUBSCRIBE (SYS_STREAM.MD "Model"); the stream task then sends each message of it with `sys_session_stream(peer, seq, data, len, flags)`: one STREAM frame (`[stream id][payload]`, `seq` the stream's frame counter), routed as any frame, `NOWAIT` on the first hop. A peer that wants another board's stream subscribes there itself: the master forwards the frames by their `dst`.
+A peer subscribes to a stream of this board with SUBSCRIBE (SYS_STREAM.MD "Model"); the stream task then sends each message of it with `sys_session_push(peer, seq, data, len, flags)`: one PUSH frame (`[stream id][payload]`, `seq` the stream's frame counter), routed as any frame, `NOWAIT` on the first hop. A peer that wants another board's stream subscribes there itself: the master forwards the frames by their `dst`.
 
 A watch of this board sends its entries the same way, straight to its owner, with no subscription: `[SYS_SESSION_CHANNEL_WATCHES][entry]`, `seq` the watch's count of entries (SYS_WATCH.MD "Entries"). It sends from the router's work task, as `session_answer` does, so towards one peer its entries and the answers to that peer's commands leave in the order they were made (SYS_WATCH.MD "Order").
 
-A STREAM frame for this board goes to every stream listener (`sys_session_on_stream`, `CONFIG_SYS_SESSION_STREAM_LISTENERS`), and each takes its own by the first byte: the watches' client the channel 0x80, sys_remote 0x81. No module of the firmware takes a stream's frame.
+A PUSH frame for this board goes to every push listener (`sys_session_on_push`, `CONFIG_SYS_SESSION_PUSH_LISTENERS`), and each takes its own by the first byte: the watches' client the channel 0x80, sys_remote 0x81. No module of the firmware takes a stream's frame.
 
-A peer that can be reached (a session opened, a slave's hello names it) is told to every listener of `sys_session_on_reached(fn(peer))`: sys_system sends the root's time to the boards.
+A peer that can be reached (a session opened) is told to every listener of `sys_session_on_reached(fn(peer))`: sys_system sends the root's time to the boards.
+
+## Data to a provider
+
+A PUSH frame of the channel `SYS_SESSION_CHANNEL_DATA` carries `[0x82][to id][from id][data]`, at most `CMD_DATA_MAX − 3` bytes of data, so a provider of another board can be written with no setup there. `sys_session_data(peer, seq, to, from, data, len, flags)` sends one; a stream with a remote target does (SYS_STREAM.MD "Model"), and so does a client.
+
+- **On the way** it is any frame: a board forwards it by its `dst`, the same bytes, without reading the body. It passes only on an open session, from the peer it was opened with, as every frame but a control one.
+- **On the board `dst`** `tell_provider` sends the data on the provider `to id`, with no header and `NOWAIT`, by the convention of SYS_DATA_PROVIDER.MD "Use". What can't go (no such provider, its queue full) is dropped: no answer, only a gap in `seq`.
+- **To a client** `to id` is a receiver the client chose: the app gets the frame with `from id` and `src`, so `(src, from id)` names who sent it and each sender's gaps can be told apart.
+- **Replying** swaps the pairs: `dst` and `to id` become the sender's `src` and `from id`. `from id` is a provider or a stream of the sender, and a stream takes no data, so one can only be told apart, not answered.
+
+A tunnel between boards is two IN streams, each with a remote target on the other board (SYS_STREAM.MD).
 
 ## Retries
 
@@ -159,9 +175,8 @@ A source retries a request after its timeout only when it is a read (a read chan
 
 A peer that can no longer be reached is **gone**, and every board learns it:
 
-- A session of this board ends (silence past its timeout, the provider down, a new `boot_id`, detach): its peer and every board behind it are gone here. The master's session ending takes every peer outside this board's subtree.
-- A slave's hello lists a smaller subtree: the boards no longer in it are gone here, and this board's own hello takes the change up, so every board above learns it the same way.
-- The root, which every loss reaches (by the hellos; the clients are its own), sends **GONE** (a control frame, `[count][ids]`) to every slave, and each board passes it on to its slaves: so a board learns of a peer it reaches through its master (another branch's board, a client).
+- A session of this board ends (silence past its timeout, the provider down, a new `boot_id`, detach): its peer is gone here. The master's session ending takes every peer.
+- A client of the root goes: the root sends **GONE** (a control frame, `[client]`) to every slave, so what the client has on them ends. A slave's loss is told to no other slave: a slave has nothing of another slave.
 
 Every listener is told (`sys_session_on_gone(fn(peer, via))`) on the context that noticed it; it drops what it keeps for that peer and never blocks:
 
@@ -184,9 +199,9 @@ The ops and the frames are in `sys_session_router.h`, each op above its frame; `
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
 | `0x01` | ID | read / write | write `sys_session_id_args_t` `{u8 board_id}` (NVS, from the next start); read → `sys_session_id_args_t` |
-| `0x02` | ATTACH | write | `sys_session_attach_args_t` `{provider id, u8 peer}` (`sys_session_peer_e`) |
-| `0x03` | DETACH | write | provider id |
-| `0x04` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: provider id, `u8 peer` (`sys_session_peer_e`), `u8 open`, `u8 peer_id` (`NONE` before its hello), `u16` this board's timeout of it |
+| `0x02` | ATTACH | write | `sys_session_attach_args_t` `{u8 provider, u8 peer}` (`sys_session_peer_e`) |
+| `0x03` | DETACH | write | `u8 provider` |
+| `0x04` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 6 B: `u8 provider`, `u8 peer` (`sys_session_peer_e`), `u8 open`, `u8 peer_id` (`NONE` before its hello), `u16` this board's timeout of it |
 
 ## Limits
 
@@ -198,7 +213,7 @@ The ops and the frames are in `sys_session_router.h`, each op above its frame; `
 | `CONFIG_SYS_SESSION_CALL_TIMEOUT_MS` | 1000 | a call's timeout over a radio, or further than a neighbour (50..10000) |
 | `CONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS` | 50 | a call's timeout to a neighbour on a cable (10..1000) |
 | `CONFIG_SYS_SESSION_PEER_LISTENERS` | 5 | `sys_session_on_gone` and `sys_session_on_reached` slots, each |
-| `CONFIG_SYS_SESSION_STREAM_LISTENERS` | 2 | `sys_session_on_stream` slots: the watches' client, sys_remote |
+| `CONFIG_SYS_SESSION_PUSH_LISTENERS` | 2 | `sys_session_on_push` slots: the watches' client, sys_remote |
 | `CONFIG_SYS_SESSION_TIME_PERIOD_S` | 60 | the root sends its time to every board this often |
 | `CONFIG_SYS_SESSION_TIMEOUT_MS` | 3000 | a slave's session ends after this much silence (150..60000) |
 
@@ -208,11 +223,11 @@ The ops and the frames are in `sys_session_router.h`, each op above its frame; `
 - **router**: `router_submit` with an answer callback, `router_inject`, `router_is_task` (ROUTER.MD); no links, no watch.
 - **sys_system**: DEADMAN arms the dead-man and sets its time (`sys_session_set_timeout`); the dead-man is a gone listener; the root's sends STOP to every board; TIME on the root is broadcast to every board, when a board is reached and every `CONFIG_SYS_SESSION_TIME_PERIOD_S`.
 - **The provider**: opened by its one user; its driver's send with `NOWAIT` from any driver's RX task; its `WIRED` state (SYS_DATA_PROVIDER.MD "Driver").
-- **The stream**: SUBSCRIBE / UNSUBSCRIBE by the command's `src`; its subscribers get `sys_session_stream`; it listens for gone peers and calls `sys_session_no_wait()` on its task.
+- **The stream**: SUBSCRIBE / UNSUBSCRIBE by the command's `src`; its subscribers get `sys_session_push`; it listens for gone peers and calls `sys_session_no_wait()` on its task.
 
 ## Tests
 
-The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a client: HELLO, PING, NO_SESSION, a new session after a restart, the streams subscribed. `router_tests.py` covers PEERS, ID, ATTACH refused, a request for another board, the dead-man by the session's silence; the app's backend (`runit-app/src/backend/session/link.ts`) is the BLE client, tested by `npm run test:hw`. `tree_tests.py` runs over two boards joined by the sys_uart link: the sessions on both ends, a ping and an ID read through the root, a board outside the tree, the root's clock on the slave, a watch on the slave whose entries come back through the root, the slave's loss (`--loss`, the cable unplugged by hand). `remote_tests.py` runs the remote devices over the same two boards.
+The host scripts (`router_link.py`, `.claude/skills/runit-esp/scripts/`) are a client: HELLO, PING, NO_SESSION, a new session after a restart, the streams subscribed. `router_tests.py` covers PEERS, ID, ATTACH refused, a request for another board, the dead-man by the session's silence; the app's backend (`runit-app/src/backend/session/link.ts`) is the BLE client, tested by `npm run test:hw`. `tree_tests.py` runs over two boards joined by the sys_uart link: the sessions on both ends, a ping and an ID read through the root, a board outside the tree, the root's clock on the slave, a watch on the slave whose entries come back through the root, the slave's loss (`--loss`, the cable unplugged by hand). `remote_tests.py` runs the remote devices over the same two boards. `n-flasher.hw.test.ts` (`HW_FLASHER=1 npm run test:hw`) flashes the board on the link (SYS_FLASHER.MD), whose hello then makes the root its master: PEERS lists it as an open slave with id 0, and it answers a PING through the root.
 
 ## Open
 

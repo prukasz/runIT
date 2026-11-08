@@ -156,6 +156,24 @@
               "description": "RX buffer size in bytes (0 = no RX buffer); only for a characteristic the client writes"
             },
             {
+              "id": "has_provider",
+              "label": "Provider",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 16,
+              "description": "1 = a stream or the command binding can use it (an unframed characteristic with a way in or out)"
+            },
+            {
+              "id": "provider",
+              "label": "Provider id",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 17,
+              "description": "Its provider's id, for a stream's binding or the command binding; with Provider on"
+            },
+            {
               "id": "desc",
               "label": "Characteristic description",
               "type": "string",
@@ -257,7 +275,7 @@
         "returns": {
           "type": "bytes",
           "label": "Table",
-          "description": "u8 service count; per service: u16 UUID, u8 flags, u8 characteristic count; per characteristic: u16 UUID, u8 flags, u32 tx, u32 rx, name (NUL-terminated). The layout is described in SYS_BLE.MD."
+          "description": "u8 service count; per service: u16 UUID, u8 flags, u8 characteristic count; per characteristic: u16 UUID, u8 flags, u32 tx, u32 rx, u8 provider (valid with its flag), name (NUL-terminated). The layout is described in SYS_BLE.MD."
         }
       }
     }

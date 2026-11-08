@@ -98,7 +98,7 @@ static void emit(uint8_t slot, uint16_t gen, uint8_t status, uint8_t* data, uint
   data[-2] = id;
   data[-3] = owner;
   data[-4] = SYS_SESSION_CHANNEL_WATCHES;
-  err_h err = sys_session_stream(owner, seq, data - STREAM_HEAD, STREAM_HEAD + len, 0);
+  err_h err = sys_session_push(owner, seq, data - STREAM_HEAD, STREAM_HEAD + len, 0);
   // Not taken (the way is busy, down or gone): the entry is not kept, the watch sends again at its next read.
   const bool taken = err == NULL;
   err_free(err);

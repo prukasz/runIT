@@ -17,15 +17,18 @@ typedef struct __attribute__((packed)) {
 
 #define SYS_SESSION_OP_ATTACH 0x02u  // W: sys_session_attach_args_t
 typedef struct __attribute__((packed)) {
-  sys_data_provider_id_t provider;
+  uint8_t provider;
   uint8_t peer;  /**< sys_session_peer_e */
 } sys_session_attach_args_t;
 
-#define SYS_SESSION_OP_DETACH 0x03u  // W: sys_data_provider_id_t
+#define SYS_SESSION_OP_DETACH 0x03u  // W: sys_session_detach_args_t
+typedef struct __attribute__((packed)) {
+  uint8_t provider;
+} sys_session_detach_args_t;
 
 #define SYS_SESSION_OP_PEERS 0x04u  // R: -> u8 count, then sys_session_info_t per session
 typedef struct __attribute__((packed)) {
-  sys_data_provider_id_t provider;
+  uint8_t provider;
   uint8_t peer;         /**< sys_session_peer_e */
   uint8_t open;         /**< 1 = both hellos passed */
   uint8_t peer_id;      /**< Its id, from its hello; SYS_SESSION_ID_NONE before it */

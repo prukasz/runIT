@@ -7,7 +7,7 @@
  * @brief The provider itself and what its driver (sys_ble, sys_uart) does with it: add, remove, keep up or
  * down current, deliver what comes in. Only drivers include it. A driver makes a provider by its own create command,
  * fills the struct and adds it; remove takes it out once no one uses it and has the driver free it.
- * @usage p->send = my_send; p->destroy = my_destroy; p->id = id;
+ * @usage p->send = my_send; p->destroy = my_destroy; p->id = id; p->link = SYS_DATA_PROVIDER_LINK_UART;
  *        p->state = SYS_DATA_PROVIDER_STATE_SYSTEM | SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_FRAMED;
  *        ERR_TRY(sys_data_provider_add(p));
  */
@@ -19,7 +19,7 @@ extern "C" {
 typedef struct sys_data_provider sys_data_provider_t;
 
 /**
- * @brief A provider. The driver sets `send`, `destroy`, `driver`, `id` and `state` (SYSTEM, WIRED, FRAMED, UP); the rest,
+ * @brief A provider. The driver sets `send`, `destroy`, `driver`, `id`, `link` and `state` (SYSTEM, WIRED, FRAMED, NO_RX, UP); the rest,
  * and `state`'s other bits, are the registry's, read and changed under its lock only. Widest fields first, so nothing
  * pads.
  */
@@ -46,7 +46,8 @@ struct sys_data_provider {
   void* driver;                 /**< The driver's own state: characteristic, port */
   sys_data_provider_rx_f rx;    /**< The user's (sys_data_provider_open()) */
   void* ctx;                    /**< Given to `rx` */
-  sys_data_provider_id_t id;    /**< Its id */
+  uint8_t id;                   /**< Its id, whoever made it chose it: a name, no number means anything */
+  uint8_t link;                 /**< sys_data_provider_link_e: shown in LIST */
   uint8_t state;                /**< SYS_DATA_PROVIDER_STATE_*: OPEN the registry's, the rest the driver's */
   uint8_t busy;                 /**< Sends in progress */
 };
@@ -63,7 +64,7 @@ MUST_USE err_h sys_data_provider_add(sys_data_provider_t* p);
  * @param id  The provider.
  * @return NULL when removed; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (open, or a send in progress), ERR_PROV_SYSTEM.
  */
-MUST_USE err_h sys_data_provider_remove(sys_data_provider_id_t id);
+MUST_USE err_h sys_data_provider_remove(uint8_t id);
 
 /**
  * @brief Sets whether the provider is up and, when it changed, tells the user (its rx with `data` NULL). The driver's

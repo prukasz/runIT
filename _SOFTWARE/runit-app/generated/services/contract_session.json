@@ -64,23 +64,13 @@
           "struct": "sys_session_attach_args_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
-            },
-            {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "description": "The provider's id"
             },
             {
               "id": "peer",
@@ -89,7 +79,7 @@
               "enum": "sys_session_peer_e",
               "raw_type": "u8",
               "size": 1,
-              "offset": 5,
+              "offset": 1,
               "description": "Where it leads: CLIENT"
             }
           ]
@@ -104,26 +94,16 @@
       "description": "Ends the session on a provider and closes it.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_id_t",
+          "struct": "sys_session_detach_args_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
-            },
-            {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "description": "The provider's id"
             }
           ]
         }
@@ -139,7 +119,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of sessions",
-          "description": "Then per session: provider id (5 B), peer u8, open u8, peer id u8, timeout_ms u16."
+          "description": "Then per session: provider u8, peer u8, open u8, peer id u8, timeout_ms u16."
         }
       }
     }

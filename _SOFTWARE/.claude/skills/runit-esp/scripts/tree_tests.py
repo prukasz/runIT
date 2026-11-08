@@ -1,9 +1,9 @@
 """Tree test: two boards on a cable, the host on the root's console.
 
-  python tree_tests.py --port COM9 [--child 1]
+  python tree_tests.py --port COM9 [--child 0]
 
-The root is built with sdkconfig.link_root.defaults (the runIT PCB), the child with sdkconfig.link_child.defaults (the
-devkit) and the two are joined as build.md "Two boards on a cable" says. The host opens a client session on the root
+Both boards run the same firmware, joined as build.md "Two boards on a cable" says (the root's link to the child's console
+UART); the child is the root's slave once the root's hello reaches it, and has id 0 until it is given another. The host opens a client session on the root
 only: everything for the child goes through the root (a frame with the child's id as its destination).
 
 Checks the session layer (SYS_SESSION.MD): the link's sessions on both boards, a command to the child and its answer, a
@@ -32,7 +32,7 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
 SYS_PING, SYS_TIME = 1, 7
 SESSION_ID, SESSION_PEERS = 1, 4
 KEY_WATCH, WATCH_ADD, WATCH_REMOVE, WATCH_LIST = 0x0F, 1, 2, 3
-WATCHES = 5  # the byte of the watches' entries in a stream frame
+WATCHES = 5  # the byte of the watches' entries in a PUSH frame
 PEER_PARENT, PEER_CHILD, PEER_CLIENT = 0, 1, 2
 PEER = struct.Struct("<BIBBBBHB")  # provider link, channel, peer, access, open, peer id, timeout, subtree
 
@@ -135,7 +135,7 @@ def test_loss(link: Link, child: int, wait_s: float) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", required=True, help="the root's console, e.g. COM9")
-    ap.add_argument("--child", type=int, default=1, help="the child's board id (sdkconfig.link_child.defaults: 1)")
+    ap.add_argument("--child", type=int, default=0, help="the child's board id (0 until it is given another)")
     ap.add_argument("--loss", type=float, default=0.0, help="also test the child's loss: seconds to unplug the cable")
     ap.add_argument("--echo", action="store_true")
     a = ap.parse_args()

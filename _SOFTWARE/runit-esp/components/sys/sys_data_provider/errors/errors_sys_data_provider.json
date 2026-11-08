@@ -3,36 +3,40 @@
   "module": "ERR_MOD_SYS_DATA_PROVIDER",
   "errors": {
     "ERR_PROV_NOT_FOUND": {
-      "message": "{link} {channel} does not exist"
+      "message": "Provider {provider} does not exist"
     },
     "ERR_PROV_EXISTS": {
-      "message": "{link} {channel} already exists",
-      "hint": "Choose another characteristic or port."
+      "message": "Provider {provider} already exists",
+      "hint": "Choose another id."
     },
     "ERR_PROV_FULL": {
       "message": "No room for another connection: every slot is taken",
       "hint": "Remove one first."
     },
     "ERR_PROV_IN_USE": {
-      "message": "{link} {channel} is in use",
-      "hint": "Stop what uses it first."
+      "message": "Provider {provider} is taken: something already reads from it",
+      "hint": "Stop what reads from it first."
     },
     "ERR_PROV_SYSTEM": {
-      "message": "{link} {channel} belongs to the board and cannot be removed"
+      "message": "Provider {provider} belongs to the board and cannot be removed"
     },
     "ERR_PROV_DOWN": {
-      "message": "{link} {channel} is not connected"
+      "message": "Provider {provider} is not connected"
     },
     "ERR_PROV_TOO_LONG": {
-      "message": "{len} bytes are too long for {link} {channel} (at most {max})",
+      "message": "{len} bytes are too long for Provider {provider} (at most {max})",
       "hint": "Send less at once."
     },
     "ERR_PROV_SEND": {
-      "message": "While sending over {link} {channel}"
+      "message": "While sending over Provider {provider}"
     },
     "ERR_PROV_BUSY": {
-      "message": "{link} {channel} is busy: its send queue is full",
+      "message": "Provider {provider} is busy: its send queue is full",
       "hint": "Send less often, or wait for the connection to catch up."
+    },
+    "ERR_PROV_NO_RX": {
+      "message": "Provider {provider} hands nothing on: a driver reads from it directly",
+      "hint": "Make the port in a raw mode to bind a stream or a session to it."
     }
   }
 }

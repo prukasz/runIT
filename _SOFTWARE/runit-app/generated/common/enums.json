@@ -99,6 +99,38 @@
         }
       ]
     },
+    "board_provider": {
+      "alias": "Board's providers",
+      "kind": "defines",
+      "prefix": "RUNIT_BOARD_PROVIDER_",
+      "source_file": "runit-esp/components/app/runit/runit_board_cfg.h",
+      "members": [
+        {
+          "name": "RUNIT_BOARD_PROVIDER_UART_CONSOLE",
+          "value": 1,
+          "alias": "Console",
+          "description": "The console's UART: a client's session"
+        },
+        {
+          "name": "RUNIT_BOARD_PROVIDER_UART_LINK",
+          "value": 2,
+          "alias": "Board link",
+          "description": "The UART to another board (CONFIG_SYS_UART_LINK)"
+        },
+        {
+          "name": "RUNIT_BOARD_PROVIDER_BLE_RUNIT",
+          "value": 3,
+          "alias": "Bluetooth link",
+          "description": "The runIT BLE pair: a client's session"
+        },
+        {
+          "name": "RUNIT_BOARD_PROVIDER_BLE_LOGS",
+          "value": 4,
+          "alias": "Bluetooth logs",
+          "description": "The LOGS characteristic"
+        }
+      ]
+    },
     "cmd_dir_e": {
       "alias": "Command Direction",
       "kind": "enum",
@@ -462,7 +494,7 @@
           "name": "SYS_DATA_PROVIDER_STATE_OPEN",
           "value": 2,
           "alias": "Open",
-          "description": "Taken by its one user"
+          "description": "Its rx hook has an owner"
         },
         {
           "name": "SYS_DATA_PROVIDER_STATE_WIRED",
@@ -475,6 +507,12 @@
           "value": 16,
           "alias": "Up",
           "description": "It delivers frames now"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_STATE_NO_RX",
+          "value": 64,
+          "alias": "No receive hook",
+          "description": "What comes in reaches no hook: whoever holds it reads it from its driver"
         },
         {
           "name": "SYS_DATA_PROVIDER_STATE_FRAMED",
@@ -611,6 +649,18 @@
           "value": 17,
           "alias": "Board profile",
           "description": "Board profile: the definition of the board kept on it as JSON (write, read back)"
+        },
+        {
+          "name": "ROUTER_KEY_UART",
+          "value": 19,
+          "alias": "UART ports",
+          "description": "UART ports: create a port as a provider, with its rate, format and pins"
+        },
+        {
+          "name": "ROUTER_KEY_FLASHER",
+          "value": 20,
+          "alias": "Flasher",
+          "description": "Flasher: program the board on the link with this board's firmware, through its ROM bootloader"
         }
       ]
     },
@@ -669,6 +719,12 @@
           "value": 129,
           "alias": "Remote devices",
           "description": "A device's events and errors, to its subscribers (SYS_REMOTE.MD)"
+        },
+        {
+          "name": "SYS_SESSION_CHANNEL_DATA",
+          "value": 130,
+          "alias": "Data",
+          "description": "[to id][from id][data]: data for the provider to id of dst, sent on it as is (SYS_SESSION.MD \"Data to a provider\")"
         }
       ]
     },
@@ -988,6 +1044,74 @@
           "value": 4,
           "alias": "Critical",
           "description": "Low, medium, high and critical"
+        }
+      ]
+    },
+    "sys_flasher_state_e": {
+      "alias": "Flasher state",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_flasher/sys_flasher.h",
+      "members": [
+        {
+          "name": "SYS_FLASHER_IDLE",
+          "value": 0,
+          "alias": "Idle",
+          "description": "Nothing was flashed since the start"
+        },
+        {
+          "name": "SYS_FLASHER_RUNNING",
+          "value": 1,
+          "alias": "Running",
+          "description": "The attached board is being flashed"
+        },
+        {
+          "name": "SYS_FLASHER_DONE",
+          "value": 2,
+          "alias": "Done",
+          "description": "Flashed, checked and restarted"
+        },
+        {
+          "name": "SYS_FLASHER_FAILED",
+          "value": 3,
+          "alias": "Failed",
+          "description": "Stopped by an error or ABORT: the error says which"
+        }
+      ]
+    },
+    "sys_flasher_step_e": {
+      "alias": "Flasher step",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_flasher/sys_flasher.h",
+      "members": [
+        {
+          "name": "SYS_FLASHER_STEP_CONNECT",
+          "value": 0,
+          "alias": "Connect",
+          "description": "The ROM bootloader: BOOT, EN, SYNC, the rate, the flash"
+        },
+        {
+          "name": "SYS_FLASHER_STEP_BOOTLOADER",
+          "value": 1,
+          "alias": "Bootloader",
+          "description": "The bootloader and the partition table"
+        },
+        {
+          "name": "SYS_FLASHER_STEP_ERASE",
+          "value": 2,
+          "alias": "Erase",
+          "description": "nvs and otadata"
+        },
+        {
+          "name": "SYS_FLASHER_STEP_APP",
+          "value": 3,
+          "alias": "Firmware",
+          "description": "The app into ota_0"
+        },
+        {
+          "name": "SYS_FLASHER_STEP_RESTART",
+          "value": 4,
+          "alias": "Restart",
+          "description": "The board restarts into it; the link is taken back"
         }
       ]
     },
@@ -1555,10 +1679,10 @@
           "description": "The answer to the request src/seq: its status in the frame byte, then data"
         },
         {
-          "name": "SYS_SESSION_STREAM",
+          "name": "SYS_SESSION_PUSH",
           "value": 2,
-          "alias": "Stream",
-          "description": "[stream id][payload]: a stream's frame to a subscribed peer, or a session channel's"
+          "alias": "Push",
+          "description": "[stream id | channel][payload], never answered: a stream's message, a channel's frame"
         },
         {
           "name": "SYS_SESSION_CONTROL",
@@ -1608,7 +1732,7 @@
           "name": "SYS_STREAM_IN",
           "value": 1,
           "alias": "In",
-          "description": "What comes in on its providers: to its peers and callbacks"
+          "description": "What comes in on its providers: to its outputs, peers and callbacks"
         }
       ]
     },
@@ -1627,13 +1751,81 @@
           "name": "SYS_STREAM_TARGET_PEER",
           "value": 1,
           "alias": "Peer",
-          "description": "A subscriber: [stream id][payload] in a STREAM frame of its session"
+          "description": "A subscriber: [stream id][payload] in a PUSH frame of its session"
         },
         {
           "name": "SYS_STREAM_TARGET_CALLBACK",
           "value": 2,
           "alias": "Callback",
           "description": "The board's own code (a listener), on the stream task"
+        },
+        {
+          "name": "SYS_STREAM_TARGET_REMOTE",
+          "value": 4,
+          "alias": "Remote",
+          "description": "A provider of another board, or a client's receiver: a data frame through the session"
+        },
+        {
+          "name": "SYS_STREAM_TARGET_OUTPUT",
+          "value": 3,
+          "alias": "Output",
+          "description": "An IN stream's way out: what came in goes to this provider as is"
+        }
+      ]
+    },
+    "sys_uart_mode_e": {
+      "alias": "UART mode",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "members": [
+        {
+          "name": "SYS_UART_MODE_FRAMED",
+          "value": 0,
+          "alias": "Framed",
+          "description": "COBS and CRC16 frames: a session can attach it (the link to another board)"
+        },
+        {
+          "name": "SYS_UART_MODE_RAW",
+          "value": 1,
+          "alias": "Raw",
+          "description": "The bytes as they are; a message is what arrives before a pause in the line"
+        },
+        {
+          "name": "SYS_UART_MODE_RAW_LINE",
+          "value": 2,
+          "alias": "Raw lines",
+          "description": "The bytes as they are; a message ends at a line feed (a GPS's sentences)"
+        },
+        {
+          "name": "SYS_UART_MODE_DIRECT",
+          "value": 3,
+          "alias": "Direct",
+          "description": "No tasks of its own: a device driver writes and reads on its own task, for protocols with exact timing"
+        }
+      ]
+    },
+    "sys_uart_parity_e": {
+      "alias": "UART parity",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "members": [
+        {
+          "name": "SYS_UART_PARITY_NONE",
+          "value": 0,
+          "alias": "None",
+          "description": "No parity bit"
+        },
+        {
+          "name": "SYS_UART_PARITY_EVEN",
+          "value": 1,
+          "alias": "Even",
+          "description": "Even parity"
+        },
+        {
+          "name": "SYS_UART_PARITY_ODD",
+          "value": 2,
+          "alias": "Odd",
+          "description": "Odd parity"
         }
       ]
     },
@@ -1659,6 +1851,40 @@
           "value": 2,
           "alias": "On event",
           "description": "The read when a matching event happens, at most every period"
+        }
+      ]
+    },
+    "uart_baud": {
+      "alias": "UART baud rate",
+      "kind": "defines",
+      "prefix": "SYS_UART_BAUD_",
+      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "members": [
+        {
+          "name": "SYS_UART_BAUD_MIN",
+          "value": 1200,
+          "alias": "Lowest",
+          "description": "The lowest baud rate"
+        },
+        {
+          "name": "SYS_UART_BAUD_MAX",
+          "value": 5000000,
+          "alias": "Highest",
+          "description": "The highest baud rate (a short cable)"
+        }
+      ]
+    },
+    "uart_raw": {
+      "alias": "UART raw command",
+      "kind": "defines",
+      "prefix": "SYS_UART_RAW_",
+      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "members": [
+        {
+          "name": "SYS_UART_RAW_WAIT_MAX_MS",
+          "value": 1000,
+          "alias": "Longest wait",
+          "description": "The longest a raw command waits for an answer (ms)"
         }
       ]
     },
@@ -2526,6 +2752,7 @@
     "ROUTER_KEY_BOARD": "router_key",
     "ROUTER_KEY_DEVICE": "router_key",
     "ROUTER_KEY_EVENT": "router_key",
+    "ROUTER_KEY_FLASHER": "router_key",
     "ROUTER_KEY_I2C": "router_key",
     "ROUTER_KEY_LOG": "router_key",
     "ROUTER_KEY_OTA": "router_key",
@@ -2536,10 +2763,15 @@
     "ROUTER_KEY_SESSION": "router_key",
     "ROUTER_KEY_STREAM": "router_key",
     "ROUTER_KEY_SYS": "router_key",
+    "ROUTER_KEY_UART": "router_key",
     "ROUTER_KEY_VM": "router_key",
     "ROUTER_KEY_WATCH": "router_key",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
+    "RUNIT_BOARD_PROVIDER_BLE_LOGS": "board_provider",
+    "RUNIT_BOARD_PROVIDER_BLE_RUNIT": "board_provider",
+    "RUNIT_BOARD_PROVIDER_UART_CONSOLE": "board_provider",
+    "RUNIT_BOARD_PROVIDER_UART_LINK": "board_provider",
     "SERVO_TYPE_ANGLE": "servo_type_e",
     "SERVO_TYPE_CONTINUOUS": "servo_type_e",
     "SYS_ACTIONS_CLASS_DEVICE": "action_class",
@@ -2570,6 +2802,7 @@
     "SYS_DATA_PROVIDER_LINK_MQTT": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
+    "SYS_DATA_PROVIDER_STATE_NO_RX": "prov_state",
     "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
     "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",
     "SYS_DATA_PROVIDER_STATE_UP": "prov_state",
@@ -2598,6 +2831,15 @@
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
     "SYS_EVENT_OP_NOTIFY": "event_op",
+    "SYS_FLASHER_DONE": "sys_flasher_state_e",
+    "SYS_FLASHER_FAILED": "sys_flasher_state_e",
+    "SYS_FLASHER_IDLE": "sys_flasher_state_e",
+    "SYS_FLASHER_RUNNING": "sys_flasher_state_e",
+    "SYS_FLASHER_STEP_APP": "sys_flasher_step_e",
+    "SYS_FLASHER_STEP_BOOTLOADER": "sys_flasher_step_e",
+    "SYS_FLASHER_STEP_CONNECT": "sys_flasher_step_e",
+    "SYS_FLASHER_STEP_ERASE": "sys_flasher_step_e",
+    "SYS_FLASHER_STEP_RESTART": "sys_flasher_step_e",
     "SYS_HBRIDGE_FAULT_EXTERNAL": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_NONE": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_OVERCURRENT": "sys_hbridge_fault_reason_e",
@@ -2667,6 +2909,7 @@
     "SYS_SAFE_POWER": "sys_safe_reason_e",
     "SYS_SAFE_STOP": "sys_safe_reason_e",
     "SYS_SESSION_ANSWER": "sys_session_kind_e",
+    "SYS_SESSION_CHANNEL_DATA": "session_channel",
     "SYS_SESSION_CHANNEL_REMOTE": "session_channel",
     "SYS_SESSION_CHANNEL_WATCHES": "session_channel",
     "SYS_SESSION_CLIENT": "sys_session_peer_e",
@@ -2687,9 +2930,9 @@
     "SYS_SESSION_MASTER": "sys_session_peer_e",
     "SYS_SESSION_NO_SESSION": "sys_session_control_e",
     "SYS_SESSION_PING": "sys_session_control_e",
+    "SYS_SESSION_PUSH": "sys_session_kind_e",
     "SYS_SESSION_REQUEST": "sys_session_kind_e",
     "SYS_SESSION_SLAVE": "sys_session_peer_e",
-    "SYS_SESSION_STREAM": "sys_session_kind_e",
     "SYS_SESSION_VERSION": "session_version",
     "SYS_STREAM_ERRORS": "stream",
     "SYS_STREAM_EVENTS": "stream",
@@ -2701,9 +2944,21 @@
     "SYS_STREAM_OUT": "sys_stream_dir_e",
     "SYS_STREAM_STATE_SYSTEM": "stream_state",
     "SYS_STREAM_TARGET_CALLBACK": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_OUTPUT": "sys_stream_target_e",
     "SYS_STREAM_TARGET_PEER": "sys_stream_target_e",
     "SYS_STREAM_TARGET_PROVIDER": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_REMOTE": "sys_stream_target_e",
     "SYS_STREAM_TELEMETRY": "stream",
+    "SYS_UART_BAUD_MAX": "uart_baud",
+    "SYS_UART_BAUD_MIN": "uart_baud",
+    "SYS_UART_MODE_DIRECT": "sys_uart_mode_e",
+    "SYS_UART_MODE_FRAMED": "sys_uart_mode_e",
+    "SYS_UART_MODE_RAW": "sys_uart_mode_e",
+    "SYS_UART_MODE_RAW_LINE": "sys_uart_mode_e",
+    "SYS_UART_PARITY_EVEN": "sys_uart_parity_e",
+    "SYS_UART_PARITY_NONE": "sys_uart_parity_e",
+    "SYS_UART_PARITY_ODD": "sys_uart_parity_e",
+    "SYS_UART_RAW_WAIT_MAX_MS": "uart_raw",
     "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
     "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
     "SYS_WATCH_PERIODIC": "sys_watch_trigger_e",

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_FLASHER",
+  "errors": {
+    "ERR_FLASHER_BUSY": {
+      "message": "The attached board is being flashed already"
+    },
+    "ERR_FLASHER_BOARD_ID": {
+      "message": "This board has id 0, the id a newly flashed board starts with",
+      "hint": "Give this board another id (SESSION ID) and restart it first."
+    },
+    "ERR_FLASHER_NO_ANSWER": {
+      "message": "The attached board's ROM did not answer (op {op}; {bytes} bytes came on the line)",
+      "hint": "Check the cable: TX to U0RXD, RX to U0TXD, the BOOT and EN wires and the ground."
+    },
+    "ERR_FLASHER_ROM": {
+      "message": "The attached board's ROM refused op {op} (error {code})"
+    },
+    "ERR_FLASHER_VERIFY": {
+      "message": "The flash of the attached board differs at {addr} from what was written"
+    },
+    "ERR_FLASHER_IMAGE": {
+      "message": "This board's own firmware can't be read"
+    },
+    "ERR_FLASHER_ABORTED": {
+      "message": "The flashing was stopped"
+    }
+  }
+}

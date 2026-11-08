@@ -11,9 +11,7 @@
 #include "runit.h"
 #include "sys_log.h"
 #include "sys_session.h"
-#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
 #include "sys_remote.h"
-#endif
 #include "vm_exec.h"
 #include "vm_router.h"
 
@@ -52,9 +50,7 @@ static void send_record(err_h chain, const cmd_req_t* cmd) {
 static void error_sink(err_h chain, const cmd_req_t* cmd) {
   err_h response = sys_device_handle_error(chain);
   send_record(chain, cmd);
-#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
   sys_remote_on_error(chain, cmd);
-#endif
   if (response != NULL) {
     err_log(response);
     send_record(response, NULL);

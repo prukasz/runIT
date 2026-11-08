@@ -57,6 +57,6 @@ menu "sys_ble"
         help
           How long a provider's send without NOWAIT (an answer) waits for room
           in its characteristic's buffer, then ERR_PROV_BUSY. A NOWAIT send (a
-          stream frame) is ERR_PROV_BUSY at once.
+          PUSH frame) is ERR_PROV_BUSY at once.
 
 endmenu

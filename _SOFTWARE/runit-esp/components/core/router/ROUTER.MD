@@ -114,13 +114,16 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x0D` provider | `sys_data_provider_router` | SYS_DATA_PROVIDER.MD "Remote" |
 | `0x0E` session | `sys_session_router` | SYS_SESSION.MD "Remote" |
 | `0x0F` watch | `sys_watch_router` | SYS_WATCH.MD "Remote" |
-| `0x10` remote | `sys_remote_router` (with a link) | SYS_REMOTE.MD "Remote" |
+| `0x10` remote | `sys_remote_router` | SYS_REMOTE.MD "Remote" |
 | `0x11` board | `sys_board_router` | SYS_BOARD.MD "Remote" |
+| `0x12` ota | `sys_ota_router` | SYS_OTA.MD "Remote" |
+| `0x13` uart | `sys_uart_router` | SYS_UART.MD "Remote" |
+| `0x14` flasher | `sys_flasher_router` | SYS_FLASHER.MD "Remote" |
 
 ## Limits
 
 - `CMD_FRAME_MAX` (512 bytes, `cmd.h`, CMD.MD "Frame size"): the largest frame; `CMD_DATA_MAX` the largest request and answer; the answer buffers hold `CMD_HEAD` + `CMD_DATA_MAX`. The router has no frame limit of its own.
-- `CONFIG_ROUTER_MAX_KEYS` (default 16): maximum registered root keys.
+- `CONFIG_ROUTER_MAX_KEYS` (default 24): maximum registered root keys.
 - Command rings: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB); each command takes its request, a 12-byte header (callback, `ctx`, origin) and the ring's own header.
 - Concurrency: urgent task (priority 15) and work task (priority 5) run concurrently; module routers must be thread-safe.
 

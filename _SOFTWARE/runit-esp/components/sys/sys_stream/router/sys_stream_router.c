@@ -15,8 +15,20 @@ ROUTER_OP(op_bind, sys_stream_binding_t) {
   return sys_stream_bind(args->id, args->provider);
 }
 
+ROUTER_OP(op_output, sys_stream_binding_t) {
+  return sys_stream_output(args->id, args->provider);
+}
+
+ROUTER_OP(op_remote, sys_stream_remote_t) {
+  return sys_stream_remote(args->id, args->board, args->provider);
+}
+
 ROUTER_OP(op_unbind, sys_stream_binding_t) {
   return sys_stream_unbind(args->id, args->provider);
+}
+
+ROUTER_OP(op_unbind_all, sys_stream_ref_t) {
+  return sys_stream_unbind_all(args->id);
 }
 
 ROUTER_OP_NOARGS(op_list) {
@@ -48,7 +60,10 @@ static const router_op_t k_ops[] = {
     ROUTER_W(SYS_STREAM_OP_CREATE, op_create),
     ROUTER_W(SYS_STREAM_OP_REMOVE, op_remove),
     ROUTER_W(SYS_STREAM_OP_BIND, op_bind),
+    ROUTER_W(SYS_STREAM_OP_OUTPUT, op_output),
+    ROUTER_W(SYS_STREAM_OP_REMOTE, op_remote),
     ROUTER_W(SYS_STREAM_OP_UNBIND, op_unbind),
+    ROUTER_W(SYS_STREAM_OP_UNBIND_ALL, op_unbind_all),
     ROUTER_R(SYS_STREAM_OP_LIST, op_list),
     ROUTER_W(SYS_STREAM_OP_SUBSCRIBE, op_subscribe),
     ROUTER_W(SYS_STREAM_OP_UNSUBSCRIBE, op_unsubscribe),

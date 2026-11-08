@@ -20,17 +20,6 @@
 extern "C" {
 #endif
 
-/** @brief A provider's id: its name, kept and sent as is (records, error records, the app). */
-typedef struct __attribute__((packed)) {
-  uint8_t link;      /**< sys_data_provider_link_e */
-  uint32_t channel;  /**< Its address on that link: BLE the characteristic's UUID, UART the port */
-} sys_data_provider_id_t;
-
-/** @brief Whether two ids name the same provider. */
-static inline bool sys_data_provider_same_id(sys_data_provider_id_t a, sys_data_provider_id_t b) {
-  return a.link == b.link && a.channel == b.channel;
-}
-
 #define SYS_DATA_PROVIDER_SEND_URGENT (1u << 0)  /**< Send flag: to the front of the driver's queue */
 #define SYS_DATA_PROVIDER_SEND_NOWAIT (1u << 1)  /**< Send flag: only queue; a full queue is ERR_PROV_BUSY at once */
 
@@ -42,27 +31,30 @@ static inline bool sys_data_provider_same_id(sys_data_provider_id_t a, sys_data_
  * @param data  One whole frame, valid for the call only; NULL: it went up or down.
  * @param len   Bytes in `data`; with `data` NULL 1: up, 0: down.
  */
-typedef void (*sys_data_provider_rx_f)(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uint32_t len);
+typedef void (*sys_data_provider_rx_f)(void* ctx, uint8_t id, const uint8_t* data, uint32_t len);
   
 /**
- * @brief Takes a provider for one user (a session, a stream's binding, the command binding): it alone sends on it and gets what comes
- * in, and the provider can't be removed until it is closed.
+ * @brief Takes a provider's rx hook: its one owner (a session, an IN stream's binding, the command binding) gets what comes
+ * in, and the provider can't be removed until it is closed. Sending needs no open: see sys_data_provider_send().
  * @param id   The provider.
  * @param rx   What comes in and what changes goes there; NULL: send only.
  * @param ctx  Given to `rx`.
- * @return NULL when open; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (another user has it).
+ * @return NULL when open; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (the hook has an owner), ERR_PROV_NO_RX (`rx` given, and this
+ * provider delivers to no hook; NULL takes it all the same: its owner reads from its driver).
  */
-MUST_USE err_h sys_data_provider_open(sys_data_provider_id_t id, sys_data_provider_rx_f rx, void* ctx);
+MUST_USE err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx);
 
 /**
- * @brief Gives a provider back: it is free, and what comes in is dropped.
+ * @brief Gives the rx hook back: what comes in is dropped.
  * @param id  The provider.
  * @return NULL when closed or not open; ERR_PROV_NOT_FOUND.
  */
-MUST_USE err_h sys_data_provider_close(sys_data_provider_id_t id);
+MUST_USE err_h sys_data_provider_close(uint8_t id);
 
 /**
- * @brief Sends one whole frame on a provider the caller opened: into the driver's queue. Without NOWAIT it waits for
+ * @brief Sends one whole frame on a provider, by its id alone: into the driver's queue. Whoever knows the id may send;
+ * bytes sent on the line of a session are the sender's fault (the convention: bind and send only what the line carries,
+ * the app offers no provider a session has). Without NOWAIT it waits for
  * room there, at most the driver's own bound: not from a driver's RX task. With NOWAIT it only queues: any task, a
  * driver's RX task too (the session answers a refused request from there).
  * @param id     The provider.
@@ -73,14 +65,14 @@ MUST_USE err_h sys_data_provider_close(sys_data_provider_id_t id);
  * cut), ERR_PROV_BUSY (the driver's queue full: at once with NOWAIT, else at its bound), or the driver's error wrapped
  * in ERR_PROV_SEND (a raw provider's link can't take it).
  */
-MUST_USE err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uint32_t len, uint8_t flags);
+MUST_USE err_h sys_data_provider_send(uint8_t id, const uint8_t* data, uint32_t len, uint8_t flags);
 
 /**
  * @brief The provider's state (SYS_DATA_PROVIDER_STATE_*). Any task.
  * @param id  The provider.
  * @return Its state; 0 when it does not exist.
  */
-uint8_t sys_data_provider_state(sys_data_provider_id_t id);
+uint8_t sys_data_provider_state(uint8_t id);
 
 /**
  * @brief Binds a provider to the router (SYS_DATA_PROVIDER.MD "Command binding"): the binding is its one user, each
@@ -88,29 +80,29 @@ uint8_t sys_data_provider_state(sys_data_provider_id_t id);
  * and its answer goes back on the provider as [status][data] (router_status_e; on ERROR the error record). This board
  * only: nothing is forwarded. For a client outside runIT (a script, Node-RED) that needs no session.
  * @param id  The provider.
- * @return NULL when bound; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (another user has it: a session, a stream, this binding).
+ * @return NULL when bound; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (the rx hook has an owner: a session, an IN stream, this binding).
  */
-MUST_USE err_h sys_data_provider_bind_commands(sys_data_provider_id_t id);
+MUST_USE err_h sys_data_provider_bind_commands(uint8_t id);
 
 /**
  * @brief Ends a provider's command binding and closes it; an answer still on its way is dropped.
  * @param id  The provider.
  * @return NULL when unbound or not bound; the close error.
  */
-MUST_USE err_h sys_data_provider_unbind_commands(sys_data_provider_id_t id);
+MUST_USE err_h sys_data_provider_unbind_commands(uint8_t id);
 
 /** @brief Whether the provider is up (SYS_DATA_PROVIDER_STATE_UP): it delivers frames now. Any task. */
-static inline bool sys_data_provider_is_up(sys_data_provider_id_t id) {
+static inline bool sys_data_provider_is_up(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_UP) != 0;
 }
 
 /** @brief Whether its driver carries a whole frame (SYS_DATA_PROVIDER_STATE_FRAMED); else it is raw. Any task. */
-static inline bool sys_data_provider_is_framed(sys_data_provider_id_t id) {
+static inline bool sys_data_provider_is_framed(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_FRAMED) != 0;
 }
 
 /** @brief Whether the provider's link is a cable (SYS_DATA_PROVIDER_STATE_WIRED): about a millisecond a round trip. */
-static inline bool sys_data_provider_is_wired(sys_data_provider_id_t id) {
+static inline bool sys_data_provider_is_wired(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_WIRED) != 0;
 }
 

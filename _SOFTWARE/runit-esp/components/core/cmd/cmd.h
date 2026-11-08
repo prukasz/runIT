@@ -22,7 +22,7 @@ extern "C" {
 #define CMD_FRAME_MAX 512u  //@alias Largest frame @description Bytes of a whole frame, its header included
 #define CMD_HEAD      5u    //@alias Frame header @description Bytes a frame keeps for its header in front of its data
 
-// What a frame carries after its header: a request's command, an answer's data, a stream frame's [stream id or channel][payload].
+// What a frame carries after its header: a request's command, an answer's data, a PUSH frame's [stream id or channel][payload].
 #define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)
 
 /** @brief A handler's input: the router passes [code][args], the device registry the args only. */

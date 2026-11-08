@@ -38,7 +38,7 @@ menu "sys_stream"
         default 4096
         range 2048 32768
         help
-          Holds a whole stream frame (CMD_FRAME_MAX) while it goes to a
+          Holds a whole PUSH frame (CMD_FRAME_MAX) while it goes to a
           subscriber.
 
 endmenu

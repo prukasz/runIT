@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { bundledServiceCatalog, decodePeers, decodeStreamList, RunitLink, SESSION_COMMANDS, Sessions, STREAM_COMMANDS, Streams } from '@backend'
-import type { LinkDiagnostic, StreamFrame } from '@backend'
-import { answer, BOARD_MAC, CLIENT_ID, defs, FakeBoard, until } from './fakes'
+import { bundledServiceCatalog, decodePeers, decodeStreamList, encodeFrame, RunitLink, SESSION_COMMANDS, Sessions, STREAM_COMMANDS, Streams } from '@backend'
+import type { DataFrame, LinkDiagnostic, StreamFrame } from '@backend'
+import { answer, CLIENT_ID, defs, FakeBoard, until } from './fakes'
 
 /*
  * The session as the firmware has it (SYS_SESSION.MD): each side says its own id in its hello, the streams are the STREAM
- * router's (SYS_STREAM.MD), a STREAM frame from 0x80 is a session channel. And the two modules over them: Streams, Sessions.
+ * router's (SYS_STREAM.MD), a PUSH frame from 0x80 is a session channel. And the two modules over them: Streams, Sessions.
  */
 
 const catalog = bundledServiceCatalog()
 const op = (service: string, command: string) => catalog.command(catalog.service(service), command).op
-const u32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff]
 
 const connected = async (setup?: (board: FakeBoard) => void) => {
   const board = new FakeBoard()
@@ -24,8 +23,8 @@ const connected = async (setup?: (board: FakeBoard) => void) => {
 describe('the session', () => {
   it('says the app\'s own id in its hello, takes the board\'s id from the board\'s hello and sends to it', async () => {
     const { board, link } = await connected((b) => (b.boardId = 3))
-    expect(board.clientHello).toMatchObject({ version: defs.session.version, id: defs.session.id.app, mac: '00:00:00:00:00:00', timeoutMs: 60000 })
-    expect(link.session).toMatchObject({ clientId: CLIENT_ID, boardId: 3, mac: BOARD_MAC.map((b) => b.toString(16)).join(':'), bootId: 1, fwVersion: 7, timeoutMs: 3000 })
+    expect(board.clientHello).toMatchObject({ version: defs.session.version, id: defs.session.id.app, timeoutMs: 60000 })
+    expect(link.session).toMatchObject({ clientId: CLIENT_ID, boardId: 3, bootId: 1, fwVersion: 7, timeoutMs: 3000 })
     await link.request({ keys: [defs.keys.sys!, defs.dir.read, 0x01] })
     expect(board.addresses.at(-1)).toEqual({ dst: 3, src: CLIENT_ID })
   })
@@ -76,14 +75,16 @@ describe('STREAM LIST and SESSION PEERS, as the firmware packs them', () => {
     const list = Uint8Array.of(
       2,
       0x04, defs.stream.dir.out, defs.stream.flagUrgent, defs.stream.stateSystem, 2, // errors: OUT, urgent, the board's, 2 targets
-      defs.stream.target.peer, 0xf0, 0, 0, 0, 0, 0, 3, 0, //                           the app subscribed, 3 dropped
-      defs.stream.target.provider, 0, 2, ...u32(0xffe3), 0, 0, //                     bound to BLE 0xFFE3
-      0x10, defs.stream.dir.in, 0, 0, 1, //                                             a user stream, IN
-      defs.stream.target.callback, 0, 0, 0, 0, 0, 0, 0xff, 0xff,
+      defs.stream.target.peer, 0xf0, 0, 3, 0, //                                         the app subscribed, 3 dropped
+      defs.stream.target.provider, 0, 4, 0, 0, //                                       bound to the BLE LOGS provider
+      0x10, defs.stream.dir.in, 0, 0, 3, //                                             a user stream, IN
+      defs.stream.target.callback, 0, 0, 0xff, 0xff,
+      defs.stream.target.output, 0, 0x12, 1, 0,
+      defs.stream.target.remote, 2, 0x13, 0, 0,
     )
     expect(decodeStreamList(defs, list)).toEqual([
-      { id: 0x04, dir: 'out', urgent: true, system: true, targets: [{ kind: 'peer', peer: 0xf0, dropped: 3 }, { kind: 'provider', provider: { link: 2, channel: 0xffe3 }, dropped: 0 }] },
-      { id: 0x10, dir: 'in', urgent: false, system: false, targets: [{ kind: 'callback', dropped: 0xffff }] },
+      { id: 0x04, dir: 'out', urgent: true, system: true, targets: [{ kind: 'peer', peer: 0xf0, dropped: 3 }, { kind: 'provider', provider: 4, dropped: 0 }] },
+      { id: 0x10, dir: 'in', urgent: false, system: false, targets: [{ kind: 'callback', dropped: 0xffff }, { kind: 'output', provider: 0x12, dropped: 1 }, { kind: 'remote', peer: 2, provider: 0x13, dropped: 0 }] },
     ])
     expect(decodeStreamList(defs, list.subarray(0, 8))).toEqual([{ id: 0x04, dir: 'out', urgent: true, system: true, targets: [] }]) // cut short
     expect(decodeStreamList(defs, Uint8Array.of(0))).toEqual([])
@@ -92,12 +93,12 @@ describe('STREAM LIST and SESSION PEERS, as the firmware packs them', () => {
   it('reads every session: its provider, what the peer is, open or not, its id, the board\'s timeout of it', () => {
     const peers = Uint8Array.of(
       2,
-      2, ...u32(0xffe1), defs.session.peer.client, 1, 0xf0, 0x60, 0xea, //  the app on BLE, open, 60 s
-      1, ...u32(1), defs.session.peer.slave, 0, defs.session.id.none, 0xb8, 0x0b, // a UART port to a slave, before its hello
+      3, defs.session.peer.client, 1, 0xf0, 0x60, 0xea, //  the app on BLE, open, 60 s
+      0x10, defs.session.peer.slave, 0, defs.session.id.none, 0xb8, 0x0b, // a UART port to a slave, before its hello
     )
     expect(decodePeers(defs, peers)).toEqual([
-      { provider: { link: 2, channel: 0xffe1 }, kind: 'client', open: true, peerId: 0xf0, timeoutMs: 60000 },
-      { provider: { link: 1, channel: 1 }, kind: 'slave', open: false, timeoutMs: 3000 },
+      { provider: 3, kind: 'client', open: true, peerId: 0xf0, timeoutMs: 60000 },
+      { provider: 0x10, kind: 'slave', open: false, timeoutMs: 3000 },
     ])
   })
 })
@@ -112,14 +113,20 @@ describe('Streams', () => {
     const { board, link } = await connected()
     const streams = new Streams(link)
     await streams.create(0x10, { dir: 'in', urgent: true })
-    await streams.bind(0x10, { link: 2, channel: 0xee01 })
-    await streams.unbind(0x10)
+    await streams.bind(0x10, 0x11)
+    await streams.output(0x10, 0x12)
+    await streams.remote(0x10, 2, 0x13, { board: 2 })
+    await streams.unbind(0x10, 0x11)
+    await streams.unbindAll(0x10)
     await streams.remove(0x10)
     const sent = board.requests.map((r) => [...r.subarray(2)])
     expect(sent).toEqual([
       [0x04, defs.dir.write, op('STREAM', 'CREATE'), 0x10, defs.stream.dir.in, defs.stream.flagUrgent],
-      [0x04, defs.dir.write, op('STREAM', 'BIND'), 0x10, 2, ...u32(0xee01)],
-      [0x04, defs.dir.write, op('STREAM', 'UNBIND'), 0x10, 0, 0, 0, 0, 0], // link 0: every binding
+      [0x04, defs.dir.write, op('STREAM', 'BIND'), 0x10, 0x11],
+      [0x04, defs.dir.write, op('STREAM', 'OUTPUT'), 0x10, 0x12],
+      [0x04, defs.dir.write, op('STREAM', 'REMOTE'), 0x10, 2, 0x13],
+      [0x04, defs.dir.write, op('STREAM', 'UNBIND'), 0x10, 0x11],
+      [0x04, defs.dir.write, op('STREAM', 'UNBIND_ALL'), 0x10],
       [0x04, defs.dir.write, op('STREAM', 'REMOVE'), 0x10],
     ])
   })
@@ -190,17 +197,34 @@ describe('Sessions', () => {
     expect(board.requests).toHaveLength(2)
   })
 
+  it('sends a command to a child, and data to a provider of a child; takes data addressed to it', async () => {
+    const { board, link } = await connected()
+    await new Streams(link).remove(0x10, { board: 2 })
+    expect(board.addresses.at(-1)).toEqual({ dst: 2, src: CLIENT_ID })
+    await link.sendData(2, 0x10, 5, Uint8Array.of(0xaa, 0xbb))
+    const sent = board.dataFrames.at(-1)!
+    expect(sent).toMatchObject({ kind: defs.session.kind.push, dst: 2, src: CLIENT_ID })
+    expect([...sent.body]).toEqual([defs.channels.data, 0x10, 5, 0xaa, 0xbb])
+
+    const got: DataFrame[] = []
+    link.onData((f) => got.push(f))
+    board.notify(encodeFrame(defs, { kind: defs.session.kind.push, dst: CLIENT_ID, src: 2, seq: 7 }, Uint8Array.of(defs.channels.data, 5, 0x10, 0xcc)))
+    await until(() => got.length === 1)
+    expect(got[0]).toMatchObject({ to: 5, src: 2, from: 0x10, seq: 7 })
+    expect([...got[0]!.data]).toEqual([0xcc])
+  })
+
   it('lists the sessions, attaches a provider to a peer and detaches it', async () => {
     const { board, link } = await connected((b) => {
-      b.respond = (frame, send) => send(answer(frame[0]!, frame[4] === op('SESSION', 'PEERS') ? [1, 2, ...u32(0xffe1), defs.session.peer.client, 1, 0xf0, 0x60, 0xea] : []))
+      b.respond = (frame, send) => send(answer(frame[0]!, frame[4] === op('SESSION', 'PEERS') ? [1, 3, defs.session.peer.client, 1, 0xf0, 0x60, 0xea] : []))
     })
     const sessions = new Sessions(link)
-    expect(await sessions.peers()).toEqual([{ provider: { link: 2, channel: 0xffe1 }, kind: 'client', open: true, peerId: 0xf0, timeoutMs: 60000 }])
-    await sessions.attach({ link: 1, channel: 1 }, 'slave')
-    await sessions.detach({ link: 1, channel: 1 })
+    expect(await sessions.peers()).toEqual([{ provider: 3, kind: 'client', open: true, peerId: 0xf0, timeoutMs: 60000 }])
+    await sessions.attach(0x10, 'slave')
+    await sessions.detach(0x10)
     expect(board.requests.slice(-2).map((r) => [...r.subarray(2)])).toEqual([
-      [defs.keys.session!, defs.dir.write, op('SESSION', 'ATTACH'), 1, ...u32(1), defs.session.peer.slave],
-      [defs.keys.session!, defs.dir.write, op('SESSION', 'DETACH'), 1, ...u32(1)],
+      [defs.keys.session!, defs.dir.write, op('SESSION', 'ATTACH'), 0x10, defs.session.peer.slave],
+      [defs.keys.session!, defs.dir.write, op('SESSION', 'DETACH'), 0x10],
     ])
   })
 })

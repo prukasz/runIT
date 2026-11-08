@@ -6,7 +6,7 @@
 Each argument is one request: [key][dir][keys...] + payload in hex (spaces
 optional; dir 00 read, 01 write, as typed); the link opens a client session
 and puts each request in a session frame (SYS_SESSION.MD). Prefix "u " for the
-urgent flag. Prints the request, the response (decoded), and every stream frame
+urgent flag. Prints the request, the response (decoded), and every PUSH frame
 and log line that arrived meanwhile.
 """
 

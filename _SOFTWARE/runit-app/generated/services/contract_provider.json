@@ -17,26 +17,16 @@
       "description": "Removes a provider no one uses (not the board's own).",
       "write": {
         "args": {
-          "struct": "sys_data_provider_id_t",
+          "struct": "sys_data_provider_ref_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
-            },
-            {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "description": "The provider's id"
             }
           ]
         }
@@ -52,7 +42,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of providers",
-          "description": "Then per provider: its id (link u8, channel u32), state u8 (SYS_DATA_PROVIDER_STATE_*)."
+          "description": "Then per provider: its id u8, link u8 (sys_data_provider_link_e), state u8 (SYS_DATA_PROVIDER_STATE_*)."
         }
       }
     },
@@ -61,29 +51,26 @@
       "op": 3,
       "symbol": "SYS_DATA_PROVIDER_OP_SEND",
       "label": "Send on a provider",
-      "description": "Sends one frame on a provider no user has opened.",
+      "description": "Sends one frame on a provider, whoever reads from it. Do not use it on a provider a session runs on: the bytes land between its frames.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_id_t",
+          "struct": "sys_data_provider_ref_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
+              "description": "The provider's id"
             },
             {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "id": "data",
+              "label": "Data",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "The frame, as it is (runs to the end of the command)"
             }
           ]
         }
@@ -97,26 +84,16 @@
       "description": "Makes the provider's messages commands for this board, with no header: each message is [key][dir][code][args], its answer comes back on the provider as [status][data] (on ERROR the error record). The binding is the provider's one user; such a command has no peer, so what is kept for a peer (a watch, a subscription, the dead-man) is refused.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_id_t",
+          "struct": "sys_data_provider_ref_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
-            },
-            {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "description": "The provider's id"
             }
           ]
         }
@@ -130,26 +107,16 @@
       "description": "Ends the provider's command binding; the provider is free again.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_id_t",
+          "struct": "sys_data_provider_ref_t",
           "fields": [
             {
-              "id": "link",
-              "label": "Link",
-              "type": "enum",
-              "enum": "sys_data_provider_link_e",
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "Which driver made the provider (UART, BLE)"
-            },
-            {
-              "id": "channel",
-              "label": "Channel",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 1,
-              "description": "Its address on that link: BLE the characteristic's 16-bit UUID, UART the port"
+              "description": "The provider's id"
             }
           ]
         }

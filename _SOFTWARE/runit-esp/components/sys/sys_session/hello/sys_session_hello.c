@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "esp_mac.h"
 #include "esp_random.h"
 #include "sys_session.h"
 #include "sys_session_internal.h"
@@ -10,10 +9,7 @@
 /* The handshake (SYS_SESSION.MD "A session's life"): the hellos both ways, and NO_SESSION when one side has no
  * session. */
 
-static struct {
-  uint32_t boot_id;
-  uint8_t mac[6];
-} s_hello;
+static uint32_t s_boot_id;  // random per boot: a new one in a hello means the board restarted
 
 // Whether an id is one of a peer's kind: a board 0..LAST but not this board's, a client APP..CLIENT_LAST.
 static bool id_of_kind(uint8_t kind, uint8_t id) {
@@ -24,8 +20,7 @@ static bool id_of_kind(uint8_t kind, uint8_t id) {
 }
 
 err_h sys_session_hello_init(void) {
-  s_hello.boot_id = esp_random();
-  ERR_TRY_ESP(esp_efuse_mac_get_default(s_hello.mac));
+  s_boot_id = esp_random();
   return NULL;
 }
 
@@ -33,14 +28,14 @@ err_h sys_session_hello_send(int32_t at) {
   sys_session_hello_t hello = {
       .version = SYS_SESSION_VERSION,
       .id = sys_session_get_board_id(),
-      .boot_id = s_hello.boot_id,
+      .boot_id = s_boot_id,
       .timeout_ms = (uint16_t)sys_session_timeout(at),
   };
-  memcpy(hello.mac, s_hello.mac, sizeof(hello.mac));
   return sys_session_send_control(at, SYS_SESSION_HELLO, (const uint8_t*)&hello, sizeof(hello));
 }
 
-// The peer's hello: the session opens with it.
+/* The peer's hello: the session opens with it. A board's hello on a CLIENT way (the console's UART wired to another
+ * board's link) makes that board this board's master: its other sessions end, and none opens while it lasts. */
 static void on_hello(int32_t at, const uint8_t* body, uint32_t len) {
   sys_session_hello_t hello;
   if (len < sizeof(hello)) {
@@ -51,19 +46,33 @@ static void on_hello(int32_t at, const uint8_t* body, uint32_t len) {
     err_report(ERR_NEW(ERR_SESSION_VERSION, .got = hello.version, .mine = SYS_SESSION_VERSION));
     return;
   }
-  const session_slot_t slot = sys_session_slot(at);
+  if (!sys_session_admits(at)) {
+    return;  // a board with a master opens no other session: the peer asks again, and opens once the master is gone
+  }
+  session_slot_t slot = sys_session_slot(at);
   if (session_is_open(&slot) && slot.hello.boot_id != hello.boot_id) {
     sys_session_end(at);  // the peer restarted: what it had here is gone
+    slot = sys_session_slot(at);
+  }
+  const bool master = slot.peer == SYS_SESSION_CLIENT && hello.id <= SYS_SESSION_ID_LAST;
+  const uint8_t kind = master ? SYS_SESSION_MASTER : slot.peer;
+  if (!id_of_kind(kind, hello.id)) {
+    err_report(ERR_NEW(ERR_SESSION_ID_TAKEN, .board = hello.id));
+    return;
+  }
+  if (master && !sys_session_take_master(at)) {
+    return;
   }
   const sys_session_hello_state_t peer = {.id = hello.id, .boot_id = hello.boot_id, .timeout_ms = hello.timeout_ms};
   bool was_open = false;
-  if (!id_of_kind(slot.peer, hello.id) || !sys_session_open(at, &peer, &was_open)) {
+  if (!sys_session_open(at, &peer, &was_open)) {
+    sys_session_end(at);  // a master's way not opened is a CLIENT way again
     err_report(ERR_NEW(ERR_SESSION_ID_TAKEN, .board = hello.id));
     return;
   }
   // A client is answered every hello (it may have missed ours: a BLE client not yet subscribed); a board only the first
   // one it gets.
-  if (slot.peer == SYS_SESSION_CLIENT || !was_open) {
+  if (kind == SYS_SESSION_CLIENT || !was_open) {
     err_report(sys_session_hello_send(at));
   }
   if (!was_open) {

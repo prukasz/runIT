@@ -11,7 +11,7 @@
  * @brief Streams (SYS_STREAM.MD): named streams between the board's code and the outside (logs, errors, telemetry,
  * events, a user stream, a bridge). A stream is an id, one byte, and a direction set at create: OUT, the board sends
  * to it; IN, what comes in on its providers. What goes in goes out to every target of its one list: providers (the
- * payload as is; OUT only), subscribed peers ([stream id][payload] in a STREAM frame of their session) and callbacks
+ * payload as is: an OUT stream's bindings, an IN stream's outputs), subscribed peers ([stream id][payload] in a PUSH frame of their session) and callbacks
  * (the board's code). A stream keeps nothing: what a consumer keeps is its own. Commands do not go through streams
  * (sys_session.h).
  * @usage ERR_TRY(sys_stream_bind(id, provider));
@@ -66,26 +66,55 @@ void sys_stream_mark_system(void);
 MUST_USE err_h sys_stream_remove(uint8_t id);
 
 /**
- * @brief Binds a stream to a provider and opens it (the binding is the provider's one user): an OUT stream sends its
- * payloads there as they are, an IN stream takes what comes in there. Bound already: nothing changes.
+ * @brief Binds a stream to a provider: an OUT stream sends its payloads there as they are (it only names the provider:
+ * whoever binds answers for what goes there; a provider that is not there counts in the target's dropped), an IN stream
+ * takes what comes in there and holds the provider's rx hook. Bound already: nothing changes.
  * @param id        The stream.
  * @param provider  The provider.
- * @return NULL when bound; ERR_STREAM_NOT_FOUND, ERR_STREAM_TARGETS_FULL, or the provider's open error
+ * @return NULL when bound; ERR_STREAM_NOT_FOUND, ERR_STREAM_TARGETS_FULL; an IN stream also the provider's open error
  * (ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE).
  */
-MUST_USE err_h sys_stream_bind(uint8_t id, sys_data_provider_id_t provider);
+MUST_USE err_h sys_stream_bind(uint8_t id, uint8_t provider);
 
 /**
- * @brief Removes a binding and closes its provider (NULL when it was not bound).
+ * @brief Adds a way out to an IN stream: what comes in goes to this provider as is, so a provider's bytes reach another
+ * one (a tunnel is two IN streams, one each way). It only names the provider, as an OUT stream's binding does.
+ * @param id        The IN stream.
+ * @param provider  The provider.
+ * @return NULL when added or there already; ERR_STREAM_NOT_FOUND, ERR_STREAM_DIRECTION (an OUT stream),
+ * ERR_STREAM_TARGETS_FULL.
+ */
+MUST_USE err_h sys_stream_output(uint8_t id, uint8_t provider);
+
+/**
+ * @brief Adds a provider of another board as a target, or a client's receiver: each message goes there in a data frame,
+ * and that board sends it on the provider without a header. It is configuration: it stays when that peer is gone, and
+ * what can't reach it counts in the target's dropped. The message must fit: at most CMD_DATA_MAX - 3.
+ * @param id        The stream, OUT or IN.
+ * @param board     The board or client: not this board (its providers are bindings and outputs).
+ * @param provider  The provider's id on that board.
+ * @return NULL when added or there already; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG, ERR_STREAM_TARGETS_FULL.
+ */
+MUST_USE err_h sys_stream_remote(uint8_t id, uint8_t board, uint8_t provider);
+
+/**
+ * @brief Removes a binding, an output or a remote target (on any board); an IN stream's binding gives its provider's rx hook back (NULL when it was not bound).
  * @param id        The stream.
- * @param provider  The provider; link 0 (no provider has it): every binding of the stream.
+ * @param provider  The provider.
  * @return NULL; ERR_STREAM_NOT_FOUND.
  */
-MUST_USE err_h sys_stream_unbind(uint8_t id, sys_data_provider_id_t provider);
+MUST_USE err_h sys_stream_unbind(uint8_t id, uint8_t provider);
 
 /**
- * @brief Subscribes a peer to a stream: each of its messages goes to the peer as a stream frame, [stream id][payload]
- * (sys_session_stream). Again for the same peer: one subscription. Until UNSUBSCRIBE or the peer is gone.
+ * @brief Removes every binding, output and remote target of the stream, as sys_stream_unbind() does.
+ * @param id  The stream.
+ * @return NULL; ERR_STREAM_NOT_FOUND.
+ */
+MUST_USE err_h sys_stream_unbind_all(uint8_t id);
+
+/**
+ * @brief Subscribes a peer to a stream: each of its messages goes to the peer as a PUSH frame, [stream id][payload]
+ * (sys_session_push). Again for the same peer: one subscription. Until UNSUBSCRIBE or the peer is gone.
  * @param id    The stream.
  * @param peer  A peer id (SUBSCRIBE: the command's src).
  * @return NULL when subscribed; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG (SYS_SESSION_ID_SELF, NONE or BROADCAST),

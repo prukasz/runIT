@@ -77,6 +77,8 @@ export interface GattCharacteristic {
   readonly framed: boolean
   readonly tx: number
   readonly rx: number
+  /** The id of its provider, what a stream binds to; absent: none. Only an unframed characteristic has one. */
+  readonly provider?: number
 }
 
 /** A GATT service the project adds (BLE SVC_CREATE); the board's own service is the firmware's. */
@@ -86,10 +88,15 @@ export interface GattService {
   readonly characteristics: readonly GattCharacteristic[]
 }
 
-/** Where a data stream is sent: a provider, its link (`sys_data_provider_link_e`) and its channel there (a characteristic's UUID; the port of a UART). */
+/** Where a data stream is sent: a provider, by its id. */
 export interface StreamBinding {
   readonly provider: number
-  readonly endpoint: number
+}
+
+/** A stream's target on another board: `provider` of `board`. */
+export interface StreamRemote {
+  readonly board: number
+  readonly provider: number
 }
 
 /** A data stream (SYS_STREAM.MD): the board's own (logs, errors, telemetry, events) or the project's. */
@@ -102,6 +109,10 @@ export interface DataStream {
   /** OUT: the board sends it to its bindings; IN: what comes in on its bindings. Set when it is made. Absent: OUT. */
   readonly dir?: 'out' | 'in'
   readonly bindings: readonly StreamBinding[]
+  /** An IN stream's ways out: the ids of the providers what comes in goes to. Absent: none. */
+  readonly outputs?: readonly number[]
+  /** Providers of other boards (or a client's receivers) it goes to. Absent: none. */
+  readonly remotes?: readonly StreamRemote[]
 }
 
 /**

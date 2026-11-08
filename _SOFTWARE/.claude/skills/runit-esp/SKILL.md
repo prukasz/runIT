@@ -32,10 +32,10 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | core | `core/cmd` | `CMD.MD` | the command handler type, the direction (read / write sides, the mirror), `cmd_reply`, `ERR_CMD_*`; what the router and the device registry both build on |
 | core | `core/router` | `ROUTER.MD` | the commands of this board (`cmd_req_t` and their answer callbacks), root keys (`router_ids.h`), dispatcher tasks, command tables and op macros, origin, urgent work |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in (a BLE characteristic, the UART), by id, one user each; their drivers (key `0x0D`) |
-| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, stream frames, gone peers and the dead-man's silence (key `0x0E`) |
+| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, PUSH frames, gone peers and the dead-man's silence (key `0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period, a change or an event, their entries sent to the one who added them (key `0x0F`) |
-| sys | `sys/sys_stream` | `SYS_STREAM.MD` | streams: one byte and one direction (OUT, IN), one list of targets (bindings to providers, peers subscribed over their session, callbacks); nothing kept |
-| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | the console and the board-to-board link as binary providers (COBS + CRC16); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
+| sys | `sys/sys_stream` | `SYS_STREAM.MD` | streams: one byte and one direction (OUT, IN), one list of targets (bindings to providers, an IN stream's outputs, providers of other boards, peers subscribed over their session, callbacks); nothing kept |
+| sys | `sys/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | UART ports as providers: the console and the board-to-board link (framed: COBS + CRC16) and the ports made at run time, framed or raw, with their rate, format and pins, a command and its answer on a raw port (key `0x13`); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
 | sys | `sys/sys_i2c` | `SYS_I2C.MD` | buses, diagnostics (key `0x02`) |
@@ -47,6 +47,7 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`) |
 | sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, the start section, commit, load / run, what happens at start (key `0x0C`) |
 | sys | `sys/sys_ota` | `SYS_OTA.MD` | the firmware update: the image into the other slot, rollback until a client confirms it (key `0x12`) |
+| sys | `sys/sys_flasher` | `SYS_FLASHER.MD` | the board on the link programmed through its ROM bootloader (BOOT and EN wires): this board's bootloader, partition table and firmware, nvs and otadata erased, each region's MD5 checked; a job (key `0x14`) |
 | sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the stored record replayed at boot and the JSON the app writes and reads back (key `0x11`) |
 | sys | `sys/sys_nvs` | `SYS_NVS.MD` | NVS: the partitions' start, the one place that erases them; a JSON file as chunks (open, append, erase, get) |
 | devices | `devices/device_<chip>` | `device_<chip>.json`, the header | one driver each (ESP32-S3 GPIO, PCA9685, TCA6424A, TPS55289, INA3221, AP33772S, POWER_MUX, DAC53202, ADS7128, SERVO, DRV8962, DC_MOTOR): the descriptor and the header comments are its doc; how to write one is `SYS_DEVICE_DRIVER.MD` (reference driver `device_pca9685`) |

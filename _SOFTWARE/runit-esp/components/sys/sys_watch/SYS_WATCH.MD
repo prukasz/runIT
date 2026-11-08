@@ -6,7 +6,7 @@ The component has two sides: the **watches** this board runs for their owners (e
 
 ```
  this board (runs the watch)                                          its owner
- tick (10 ms), event ─► router_inject(read) ─► work task: read ─► STREAM [0x80][entry] ─► the owner
+ tick (10 ms), event ─► router_inject(read) ─► work task: read ─► PUSH [0x80][entry] ─► the owner
 ```
 
 ## Files
@@ -50,7 +50,7 @@ A watch has **no task of its own**: its read is a command of the board itself (`
 
 An entry is `[owner u8][id u8][status u8][data]`, and it goes to its owner only. The answer's buffer has `CMD_HEAD` bytes in front of its data, so the entry is made in place, without a copy.
 
-- One STREAM frame of the session per entry, `[SYS_SESSION_CHANNEL_WATCHES][entry]` (0x80, a session channel, not a stream: SYS_SESSION.MD "Streams"), sent from `done` with `sys_session_stream` (`NOWAIT`). Its `seq` is the watch's own count of entries, so a gap is entries of that watch lost. No stream and no subscription: an owner gets the entries of its own watches and nobody else's.
+- One PUSH frame of the session per entry, `[SYS_SESSION_CHANNEL_WATCHES][entry]` (0x80, a session channel, not a stream: SYS_SESSION.MD "Streams"), sent from `done` with `sys_session_push` (`NOWAIT`). Its `seq` is the watch's own count of entries, so a gap is entries of that watch lost. No stream and no subscription: an owner gets the entries of its own watches and nobody else's.
 - **Not taken** (the way busy, down or without a route; an entry longer than a frame): the entry is not kept, and the watch counts it as not sent: ON_CHANGE sends the value again at its next read, and an error goes again. An entry lost further on is seen only by the owner, as a gap in `seq`; `max_silence` sends the value again within that time.
 
 ## Order
@@ -74,7 +74,7 @@ The watches listen for gone peers (`sys_session_on_gone`): every watch whose own
 What this board asks of another board's watches goes through the client, so no module handles the watches' channel itself:
 
 - `sys_watch_remote_add(board, head, read, cb, ctx, &id)`: the client gives the watch an id of its own (1..255, free on that board for this board), sends ADD as a call (`sys_session_call`) and keeps `(board, id) → cb`. `head.id` is set by the client. A way that is not there yet (the board not reached) is not a failure: the slot stays and the ADD goes when the board's session opens (`sys_session_on_reached`).
-- Each STREAM frame `[SYS_SESSION_CHANNEL_WATCHES][entry]` that comes to this board (the session's stream listener, SYS_SESSION.MD "Streams") goes, by its `src` and the entry's `id`, to that `cb` with the entry's status and data, and the gap in the watch's `seq` since the entry before. An entry no one asked for is dropped.
+- Each PUSH frame `[SYS_SESSION_CHANNEL_WATCHES][entry]` that comes to this board (the session's push listener, SYS_SESSION.MD "Streams") goes, by its `src` and the entry's `id`, to that `cb` with the entry's status and data, and the gap in the watch's `seq` since the entry before. An entry no one asked for is dropped.
 - The ADD answered ERROR, or the board gone (`sys_session_on_gone`): `cb` is told (status ERROR with the error record: the board's own, or this board's `ERR_SESSION_PEER_DOWN`), the watch is kept, and the client sends its ADD again when that board's session opens again. `sys_watch_remote_remove(board, id)` sends REMOVE and forgets it.
 - `cb` runs on the RX task the entry came on: it copies what it keeps and returns, never blocks.
 
@@ -122,5 +122,5 @@ Each ON_EVENT watch takes one of `CONFIG_SYS_EVENT_MAX_SUBS` (SYS_EVENT.MD).
 
 - **sys_event**: `sys_event_filter_t` and `sys_event_filter_match`, `sys_event_subscribe_fn`.
 - **router**: `router_inject` with an answer callback, `router_origin` (ROUTER.MD).
-- **sys_session**: `sys_session_stream` to the owner in `SYS_SESSION_CHANNEL_WATCHES`, `sys_session_on_gone`; for the client `sys_session_call`, `sys_session_call_wait`, `sys_session_on_reached`, `sys_session_on_stream` (SYS_SESSION.MD).
+- **sys_session**: `sys_session_push` to the owner in `SYS_SESSION_CHANNEL_WATCHES`, `sys_session_on_gone`; for the client `sys_session_call`, `sys_session_call_wait`, `sys_session_on_reached`, `sys_session_on_push` (SYS_SESSION.MD).
 - **sys_remote**: a remote device's read is a cached read, its write ends with `sys_watch_stale` (SYS_REMOTE.MD "A call").

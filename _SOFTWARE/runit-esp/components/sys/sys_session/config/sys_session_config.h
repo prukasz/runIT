@@ -12,7 +12,7 @@
 #define SYS_SESSION_VERSION 2u  //@alias Version @description The frame format with CMD_FRAME_MAX and CMD_HEAD
 
 /* Ids: every peer says its own in its hello and two peers may not have one. A board's is its place in the project (the
-   app sets it, NVS keeps it), not its identity (the MAC); the app's is reserved, and any other client picks one. */
+   app sets it, NVS keeps it), the app's is reserved, and any other client picks one. */
 //#ref-defines session_id @alias Peer ids @prefix SYS_SESSION_ID_
 #define SYS_SESSION_ID_DEFAULT      0x00u  //@alias Default @description A board's id until the app sets one; the master's by convention
 #define SYS_SESSION_ID_LAST         0xEFu  //@alias Last board @description Boards are 0x00..0xEF
@@ -25,7 +25,7 @@
 
 /* The first byte of every frame: bits 0-1 a request's or a stream's flags, the router's own (ROUTER_FLAG_URGENT,
    _NOREPLY), so a command's flags are this byte & SYS_SESSION_FRAME_FLAGS; bit 2 an answer's status
-   (router_status_e); bits 3-5 zero; bits 6-7 the kind. */
+   (router_status_e); bits 2-5 zero otherwise; bits 6-7 the kind. */
 //#ref-defines session_frame @alias Frame byte @prefix SYS_SESSION_FRAME_
 #define SYS_SESSION_FRAME_FLAGS  (3u << 0)  //@alias Flags @description Bits 0-1: ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY
 #define SYS_SESSION_FRAME_STATUS (1u << 2)  //@alias Status @description Bit 2: an answer's router_status_e (OK, ERROR)
@@ -36,18 +36,20 @@
 typedef enum {
   SYS_SESSION_REQUEST = 0,  //@alias Request @description A command for dst; its answer goes back to src
   SYS_SESSION_ANSWER = 1,   //@alias Answer @description The answer to the request src/seq: its status in the frame byte, then data
-  SYS_SESSION_STREAM = 2,   //@alias Stream @description [stream id][payload]: a stream's frame to a subscribed peer, or a session channel's
+  SYS_SESSION_PUSH = 2,     //@alias Push @description [stream id | channel][payload], never answered: a stream's message, a channel's frame
   SYS_SESSION_CONTROL = 3,  //@alias Control @description The session's own: hello, ping, gone
 } sys_session_kind_e;
 
-/* The first byte of a STREAM frame's body: below SYS_SESSION_CHANNEL_FIRST a stream's id (sys_stream_config.h), from
+/* The first byte of a PUSH frame's body: below SYS_SESSION_CHANNEL_FIRST a stream's id (sys_stream_config.h), from
    it a channel of the session itself: no stream, no queue, no subscribers; a module sends its frame to the one peer it
-   names (sys_session_stream) and the board it reaches hands it to its listener (sys_session_on_stream). */
+   names (sys_session_push) and the board it reaches hands it to its listener (sys_session_on_push); DATA is the
+   session's own: the board it reaches sends the data on its provider. */
 #define SYS_SESSION_CHANNEL_FIRST 0x80u  // 0x80..0xFF: channels; no stream takes them
 
 //#ref-defines session_channel @alias Session channels @prefix SYS_SESSION_CHANNEL_
 #define SYS_SESSION_CHANNEL_WATCHES 0x80u  //@alias Watches @description A watch's entry, to its owner (SYS_WATCH.MD "Entries")
 #define SYS_SESSION_CHANNEL_REMOTE  0x81u  //@alias Remote devices @description A device's events and errors, to its subscribers (SYS_REMOTE.MD)
+#define SYS_SESSION_CHANNEL_DATA    0x82u  //@alias Data @description [to id][from id][data]: data for the provider to id of dst, sent on it as is (SYS_SESSION.MD "Data to a provider")
 
 /** @brief A control frame's op: the first byte after its header. */
 //#ref-enum @alias Control op

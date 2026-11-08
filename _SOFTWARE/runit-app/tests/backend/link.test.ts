@@ -130,7 +130,7 @@ describe('commands', () => {
 })
 
 describe('streams', () => {
-  it('routes stream frames by their connector byte, without it; the LOGS characteristic carries the log lines as they are', async () => {
+  it('routes PUSH frames by their first byte, without it; the LOGS characteristic carries the log lines as they are', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
     const seen: [string | undefined, number[]][] = []

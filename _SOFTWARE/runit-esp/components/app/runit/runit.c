@@ -32,11 +32,12 @@
 #include "sys_stream_router.h"
 #include "sys_system.h"
 #include "sys_system_router.h"
+#include "sys_flasher.h"
+#include "sys_flasher_router.h"
 #include "sys_uart.h"
-#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
+#include "sys_uart_router.h"
 #include "sys_remote.h"
 #include "sys_remote_router.h"
-#endif
 #include "sys_watch.h"
 #include "sys_watch_router.h"
 #include "vm_exec.h"
@@ -117,30 +118,38 @@ static err_h router_setup(void) {
   ERR_TRY(router_register(ROUTER_KEY_OTA, sys_ota_router));
   sys_ota_set_guard(vm_runs);
   ERR_TRY(router_register(ROUTER_KEY_PROVIDER, sys_data_provider_router));
+  ERR_TRY(router_register(ROUTER_KEY_UART, sys_uart_router));
+  ERR_TRY(router_register(ROUTER_KEY_FLASHER, sys_flasher_router));
   ERR_TRY(router_register(ROUTER_KEY_SESSION, sys_session_router));
   ERR_TRY(router_register(ROUTER_KEY_WATCH, sys_watch_router));
-#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
   ERR_TRY(router_register(ROUTER_KEY_REMOTE, sys_remote_router));
-#endif
   sys_system_set_safe_state(safe_state);
   sys_system_set_safe_leave(safe_leave);
   ERR_TRY(sys_system_init());
   return router_init();
 }
 
-// The board's clients: the console's port and the runIT BLE pair, each a session; the providers so far are the board's.
+// The providers of the console (and the link) and of the runIT BLE service, under the board's ids.
+static err_h uart_init(void) {
+  return sys_uart_init(RUNIT_BOARD_PROVIDER_UART_CONSOLE, RUNIT_BOARD_PROVIDER_UART_LINK);
+}
+
+// The flasher programs the board on the link: it borrows the link's UART.
+static err_h flasher_init(void) {
+  return sys_flasher_init(RUNIT_BOARD_PROVIDER_UART_LINK);
+}
+
+static err_h ble_link_init(void) {
+  return sys_ble_link_init(RUNIT_BOARD_PROVIDER_BLE_RUNIT, RUNIT_BOARD_PROVIDER_BLE_LOGS);
+}
+
+/* The board's sessions, the same on every board: the console's port and the runIT BLE pair take clients, the link leads
+ * to a slave. A board's hello on the console's port (another board's link wired to it) makes that board this board's
+ * master, and the board's other sessions end while it lasts (SYS_SESSION.MD "Boards, clients, the star"). */
 static err_h sessions_init(void) {
-#if CONFIG_RUNIT_LINK_CHILD
-  // A board with a master takes no client: the app reaches it through the root.
-  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_MASTER));
-#else
-  ERR_TRY(sys_session_attach(SYS_UART_PROVIDER, SYS_SESSION_CLIENT));
-  ERR_TRY(sys_session_attach(SYS_BLE_PROVIDER_RUNIT, SYS_SESSION_CLIENT));
-#if CONFIG_RUNIT_LINK_ROOT
-  ERR_TRY(sys_session_attach(SYS_UART_LINK_PROVIDER, SYS_SESSION_SLAVE));
-#endif
-#endif
-  return NULL;
+  ERR_TRY(sys_session_attach(RUNIT_BOARD_PROVIDER_UART_CONSOLE, SYS_SESSION_CLIENT));
+  ERR_TRY(sys_session_attach(RUNIT_BOARD_PROVIDER_BLE_RUNIT, SYS_SESSION_CLIENT));
+  return sys_session_attach(RUNIT_BOARD_PROVIDER_UART_LINK, SYS_SESSION_SLAVE);
 }
 
 err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, uint32_t* failed) {
@@ -174,14 +183,13 @@ err_h runit_start(void) {
       {"board", sys_board_init},
       {"events", sys_event_init},
       {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
-#if CONFIG_RUNIT_LINK_ROOT || CONFIG_RUNIT_LINK_CHILD
       {"remote devices", sys_remote_init},  // after the session, watches and events it carries a device's calls on
-#endif
       {"power", runit_board_power_init},  // before the router: it guards POWER_VREG
       {"router", router_setup},
       {"vm", vm_init},  // after the router: the program is loaded and run through ROUTER_KEY_VM
-      {"uart", sys_uart_init},
-      {"ble link", sys_ble_link_init},
+      {"uart", uart_init},
+      {"flasher", flasher_init},  // after the uart: it lends the link
+      {"ble link", ble_link_init},
       {"stream bindings", runit_board_stream_bindings_init},
       {"sessions", sessions_init},
       {"esp32 gpio", runit_board_gpio_init},  // the profile's frames use its pins

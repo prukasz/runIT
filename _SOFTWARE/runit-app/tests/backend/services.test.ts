@@ -242,8 +242,8 @@ describe('requests', () => {
   it('an enum field takes a member name, a choice field its label; a string ends in one NUL', () => {
     const mode = deviceCall(defs, catalog, 0, 'IO', 'MODE', { pin: 4, mode: generatedEnums.sys_io_mode_e!.members[1]!.name })
     expect(mode.request.payload![5]).toBe(generatedEnums.sys_io_mode_e!.members[1]!.value)
-    const char = serviceCall(catalog, 'BLE', 'CHAR_CREATE', { svc_uuid: 0xee00, uuid: 0xee01, is_write: 0, is_indicate: 0, is_notify: 1, is_framed: 0, tx_buffer_size: 96, rx_buffer_size: 0, desc: 'temp' })
-    expect(hex(char.request.payload!)).toBe('00ee01ee00000100' + '6000000000000000' + '74656d7000')
+    const char = serviceCall(catalog, 'BLE', 'CHAR_CREATE', { svc_uuid: 0xee00, uuid: 0xee01, is_write: 0, is_indicate: 0, is_notify: 1, is_framed: 0, tx_buffer_size: 96, rx_buffer_size: 0, has_provider: 1, provider: 0x11, desc: 'temp' })
+    expect(hex(char.request.payload!)).toBe('00ee01ee00000100' + '6000000000000000' + '0111' + '74656d7000')
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {

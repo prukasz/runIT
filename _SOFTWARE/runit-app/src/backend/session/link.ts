@@ -14,7 +14,7 @@ import type { CommandOptions } from './commands'
  *     session's life"): this client's HELLO with its own id (the app's, `SYS_SESSION_ID_APP`), the board's HELLO in answer with
  *     its id (the `dst` of every request), then SUBSCRIBE of the errors, telemetry and events streams (STREAM, SYS_STREAM.MD).
  *     The log lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
- *   - A STREAM frame's first byte is a stream's id, or from 0x80 a channel of the session: a watch's entries (`watches`), a
+ *   - A PUSH frame's first byte is a stream's id, or from 0x80 a channel of the session: a watch's entries (`watches`), a
  *     remote device's events and errors (`remote`). Both come to `onStream` by name.
  *   - The session lives on PINGs: something goes to the board at least every third of its timeout (its HELLO says it). A board
  *     that answers NO_SESSION (it restarted, or ended the session) gets a new HELLO and the streams are subscribed again.
@@ -92,13 +92,25 @@ export interface SessionInfo {
   readonly clientId: number
   /** The board's id (its place in the project): the `dst` of every request. */
   readonly boardId: number
-  /** The board's identity: its MAC. */
-  readonly mac: string
   /** Random per boot of the board: another one is a restart. */
   readonly bootId: number
   readonly fwVersion: number
   /** The board ends the session after this much silence. */
   readonly timeoutMs: number
+}
+
+/** Data addressed to this client (SYS_SESSION.MD "Data to a provider"). */
+export interface DataFrame {
+  /** The receiver this client chose, as a stream's remote target names it. */
+  readonly to: number
+  /** Who sent it: the board or client, and its provider or stream. */
+  readonly src: number
+  readonly from: number
+  readonly data: Uint8Array
+  /** The sender's counter: a gap is frames lost. */
+  readonly seq: number
+  /** When it arrived (ms since the epoch). */
+  readonly at: number
 }
 
 export interface StreamFrame {
@@ -113,7 +125,7 @@ export interface StreamFrame {
   readonly at: number
 }
 
-/** `unknown-stream`: a STREAM frame whose first byte is neither a stream the firmware publishes, a user stream, nor a channel. */
+/** `unknown-stream`: a PUSH frame whose first byte is neither a stream the firmware publishes, a user stream, nor a channel. */
 export type LinkDiagnostic = { readonly kind: 'dropped'; readonly characteristic: number; readonly reason: string } | { readonly kind: 'unknown-stream'; readonly stream: number }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -126,6 +138,8 @@ export class RunitLink {
   private readonly waitForLinkMs: number
   private readonly stateHandlers = new Set<(status: LinkStatus) => void>()
   private readonly streamHandlers = new Set<(frame: StreamFrame) => void>()
+  private readonly dataHandlers = new Set<(frame: DataFrame) => void>()
+  private dataSeq = 0
   private readonly diagnosticHandlers = new Set<(diagnostic: LinkDiagnostic) => void>()
   private readonly waiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>()
   private readonly streamNames = new Map<number, StreamName>()
@@ -256,6 +270,26 @@ export class RunitLink {
     return () => this.streamHandlers.delete(handler)
   }
 
+  /** Data addressed to this client: to one of its receivers, from a provider or a stream of a board. */
+  onData(handler: (frame: DataFrame) => void): () => void {
+    this.dataHandlers.add(handler)
+    return () => this.dataHandlers.delete(handler)
+  }
+
+  /** Data for provider `to` of board `dst`: it leaves that provider as it is. `from` is this client's receiver, the address of a reply. No answer: what is lost shows only as a gap at the other end. */
+  sendData(dst: number, to: number, from: number, data: Uint8Array, { urgent = false }: { urgent?: boolean } = {}): Promise<void> {
+    const max = this.defs.frameMax - this.defs.frameHead - 3
+    if (data.length > max) return Promise.reject(new RangeError(`Data of ${data.length} bytes is over the ${max} a frame takes.`))
+    const body = new Uint8Array(3 + data.length)
+    body[0] = this.defs.channels.data
+    body[1] = to
+    body[2] = from
+    body.set(data, 3)
+    const seq = this.dataSeq
+    this.dataSeq = (seq + 1) & 0xffff
+    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.push, flags: urgent ? this.defs.flags.urgent : 0, dst, src: this.clientId, seq }, body))
+  }
+
   /** The frames of one stream (`telemetry`, `logs`, `errors`, `events`) or channel (`watches`, `remote`), raw. */
   on(name: StreamName, handler: (data: Uint8Array, frame: StreamFrame) => void): () => void {
     return this.onStream((frame) => {
@@ -363,7 +397,7 @@ export class RunitLink {
     if (hello) {
       if (hello.version !== this.defs.session.version) return // the board stays without a session too (ERR_SESSION_VERSION)
       const info: SessionInfo = {
-        clientId: this.clientId, boardId: hello.id, mac: hello.mac, bootId: hello.bootId, fwVersion: hello.fwVersion, timeoutMs: hello.timeoutMs || 3000,
+        clientId: this.clientId, boardId: hello.id, bootId: hello.bootId, fwVersion: hello.fwVersion, timeoutMs: hello.timeoutMs || 3000,
       }
       const known = this.sessionInfo
       if (this.helloWaiter) {
@@ -491,7 +525,12 @@ export class RunitLink {
     if (!frame) return
     if (frame.kind === this.defs.session.kind.control) this.onControl(frame.body)
     else if (frame.kind === this.defs.session.kind.answer) this.commands.onResponse(decodeResponse(this.defs, result.frame)!)
-    else if (frame.kind === this.defs.session.kind.stream && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1), frame.seq)
+    else if (frame.kind === this.defs.session.kind.push && frame.body[0] === this.defs.channels.data) {
+      if (frame.body.length >= 3) {
+        const data: DataFrame = { to: frame.body[1]!, from: frame.body[2]!, src: frame.src, data: frame.body.subarray(3), seq: frame.seq, at: Date.now() }
+        this.dataHandlers.forEach((h) => h(data))
+      }
+    } else if (frame.kind === this.defs.session.kind.push && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1), frame.seq)
   }
 
   private emitStream(stream: number, data: Uint8Array, seq?: number): void {

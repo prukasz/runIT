@@ -26,3 +26,5 @@
 #define ROUTER_KEY_REMOTE   0x10u  //@alias Remote devices @description Remote devices: subscriptions of other boards to this board's devices (their events and errors)
 #define ROUTER_KEY_OTA      0x12u  //@alias Firmware update @description Firmware update: a new firmware into the other slot, what runs now
 #define ROUTER_KEY_BOARD    0x11u  //@alias Board profile @description Board profile: the definition of the board kept on it as JSON (write, read back)
+#define ROUTER_KEY_UART     0x13u  //@alias UART ports @description UART ports: create a port as a provider, with its rate, format and pins
+#define ROUTER_KEY_FLASHER  0x14u  //@alias Flasher @description Flasher: program the board on the link with this board's firmware, through its ROM bootloader

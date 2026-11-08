@@ -31,6 +31,8 @@ typedef struct __attribute__((packed)) {
   uint8_t is_framed;        /**< 1 = framed (fragment header on every packet), 0 = unframed */
   uint32_t tx_buffer_size;  /**< TX buffer size in bytes (0 = no TX) */
   uint32_t rx_buffer_size;  /**< RX buffer size in bytes (0 = no RX) */
+  uint8_t has_provider;     /**< 1 = make it a provider (only an unframed one with a way in or out), 0 = none */
+  uint8_t provider;         /**< Its provider's id, with has_provider */
 } sys_ble_char_create_args_t;
 
 #define SYS_BLE_OP_CHAR_REMOVE 0x04u  // W: sys_ble_char_remove_args_t
@@ -49,7 +51,8 @@ typedef struct __attribute__((packed)) {
 } sys_ble_status_reply_t;
 
 /* R: -> [count u8] then per service { u16 uuid, u8 flags (SYS_BLE_LIST_PRIMARY, SYS_BLE_LIST_LOCKED), u8 n,
- * n x { u16 uuid, u8 flags (SYS_BLE_LIST_WRITE, _INDICATE, _NOTIFY, _FRAMED), u32 tx, u32 rx, name (NUL-ended) } } */
+ * n x { u16 uuid, u8 flags (SYS_BLE_LIST_WRITE, _INDICATE, _NOTIFY, _FRAMED, _PROVIDER), u32 tx, u32 rx, u8 provider (with SYS_BLE_LIST_PROVIDER),
+ * name (NUL-ended) } } */
 #define SYS_BLE_OP_LIST 0x07u
 
 #define SYS_BLE_LIST_PRIMARY  (1u << 0)
@@ -58,6 +61,7 @@ typedef struct __attribute__((packed)) {
 #define SYS_BLE_LIST_INDICATE (1u << 1)
 #define SYS_BLE_LIST_NOTIFY   (1u << 2)
 #define SYS_BLE_LIST_FRAMED   (1u << 3)
+#define SYS_BLE_LIST_PROVIDER (1u << 4)
 
 /**
  * @brief Runtime GATT table and BLE status, under ROUTER_KEY_BLE.

@@ -66,12 +66,13 @@ menu "sys_session"
           sys_session_on_gone and sys_session_on_reached slots, each: the
           streams, the watches, the remote devices, the dead-man.
 
-    config SYS_SESSION_STREAM_LISTENERS
-        int "Stream listeners"
+    config SYS_SESSION_PUSH_LISTENERS
+        int "Push listeners"
         default 2
         range 1 4
         help
-          sys_session_on_stream slots.
+          sys_session_on_push slots: who takes the PUSH frames
+          of a session channel.
 
     config SYS_SESSION_TIME_PERIOD_S
         int "Time broadcast period (s)"

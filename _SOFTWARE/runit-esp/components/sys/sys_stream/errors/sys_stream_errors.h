@@ -14,6 +14,6 @@
   X(ERR_STREAM_QUEUE_FULL,   ERR_TAG(ERR_MOD_SYS_STREAM, 8),  ERR_SEV_LOW,    { uint8_t stream; uint16_t len; }) /* payload dropped */ \
   X(ERR_STREAM_BAD_ARG,      ERR_TAG(ERR_MOD_SYS_STREAM, 9),  ERR_SEV_HIGH,   {})                                      \
   X(ERR_STREAM_FULL,         ERR_TAG(ERR_MOD_SYS_STREAM, 11), ERR_SEV_MEDIUM, { uint8_t stream; }) /* every CONFIG_SYS_STREAM_MAX slot taken */ \
-  X(ERR_STREAM_DIRECTION,    ERR_TAG(ERR_MOD_SYS_STREAM, 15), ERR_SEV_MEDIUM, { uint8_t stream; }) /* send to an IN stream */
+  X(ERR_STREAM_DIRECTION,    ERR_TAG(ERR_MOD_SYS_STREAM, 15), ERR_SEV_MEDIUM, { uint8_t stream; }) /* send to an IN stream, an output on an OUT one */
 
 ERR_TAGS_DECLARE(ERR_SYS_STREAM_MAP)

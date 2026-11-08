@@ -8,7 +8,7 @@ from router_link import LineSplitter
 
 port = sys.argv[1]
 secs = float(sys.argv[2]) if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else 15.0
-baud = int(sys.argv[3]) if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else 115200
+baud = int(sys.argv[3]) if len(sys.argv) > 3 and not sys.argv[3].startswith("--") else 921600  # the console's rate (CONFIG_ESP_CONSOLE_UART_BAUDRATE)
 reset = "--no-reset" not in sys.argv
 
 s = serial.Serial()

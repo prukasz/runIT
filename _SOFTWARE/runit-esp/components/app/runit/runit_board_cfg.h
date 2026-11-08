@@ -6,6 +6,13 @@
 extern "C" {
 #endif
 
+/* The ids of the board's own providers. A provider's id is only a name: these are this board's choice, not the modules'. */
+//#ref-defines board_provider @alias Board's providers @prefix RUNIT_BOARD_PROVIDER_
+#define RUNIT_BOARD_PROVIDER_UART_CONSOLE 0x01u  //@alias Console @description The console's UART: a client's session
+#define RUNIT_BOARD_PROVIDER_UART_LINK    0x02u  //@alias Board link @description The UART to another board (CONFIG_SYS_UART_LINK)
+#define RUNIT_BOARD_PROVIDER_BLE_RUNIT    0x03u  //@alias Bluetooth link @description The runIT BLE pair: a client's session
+#define RUNIT_BOARD_PROVIDER_BLE_LOGS     0x04u  //@alias Bluetooth logs @description The LOGS characteristic
+
 /**
  * @brief The board's own streams, all OUT: LOGS, ERRORS (urgent), TELEMETRY, EVENTS (urgent), then marked the board's
  * (REMOVE refuses them). Part of the streams boot step, after sys_stream_init().

@@ -1,0 +1,41 @@
+menu "sys_flasher"
+
+    config SYS_FLASHER_EN_PIN
+        int "EN wire (GPIO)"
+        default 3
+        range 0 48
+        help
+          Joined to the EN (RST) pin of the board on the link. Driven push-pull:
+          low resets that board, high keeps it running. Its RST button is not
+          used while this wire is joined.
+
+    config SYS_FLASHER_BOOT_PIN
+        int "BOOT wire (GPIO)"
+        default 46
+        range 0 48
+        help
+          Joined to GPIO 0 (BOOT) of the board on the link. Low while EN
+          rises starts that board's ROM bootloader. Push-pull, as EN.
+
+    config SYS_FLASHER_BAUD
+        int "Rate while flashing"
+        default 921600
+        range 115200 2000000
+        help
+          The ROM bootloader starts at 115200; CHANGE_BAUD takes it to this
+          rate for the writes.
+
+    config SYS_FLASHER_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 3072 16384
+
+    config SYS_FLASHER_TASK_PRIO
+        int "Task priority"
+        default 3
+        range 1 10
+        help
+          Below the router's and the stream's tasks: flashing waits on the
+          line, and nothing waits on it.
+
+endmenu

@@ -450,7 +450,7 @@ export function App() {
           }
         >
           {view === 'Console'
-            ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} />
+            ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} link={link} connected={state === 'connected'} context={pinContext} />
             : view === 'Devices' && mode === 'details'
             ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} /></div>
             : view === 'Code' && mode === 'details'

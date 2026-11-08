@@ -14,7 +14,7 @@ menu "sys_uart"
         range 2048 16384
         help
           The frame buffers are static, not on this stack. The session's
-          handling of a hello or a lost child runs on it (a subtree list).
+          handling of a hello or a lost child runs on it.
 
     config SYS_UART_DRIVER_RX_BUF
         int "Driver RX buffer (bytes)"
@@ -29,10 +29,10 @@ menu "sys_uart"
         default 8192
         range 1024 32768
         help
-          Frames waiting for the TX task (answers, stream frames); each takes
+          Frames waiting for the TX task (answers, PUSH frames); each takes
           its length and CRC (2) rounded to 4, + 8 bytes. Urgent frames have a queue of
           their own, written first. Larger than the stream queue
-          (CONFIG_SYS_STREAM_QUEUE_SIZE), so a burst of stream frames
+          (CONFIG_SYS_STREAM_QUEUE_SIZE), so a burst of PUSH frames
           fills that one first and its producer is refused (and resends), not
           lost here unseen. Multiple of 4.
 
@@ -55,19 +55,29 @@ menu "sys_uart"
         range 10 10000
         help
           How long a send without NOWAIT (an answer) waits for room in the TX
-          queue, then ERR_PROV_BUSY; a NOWAIT send (a stream frame) is
+          queue, then ERR_PROV_BUSY; a NOWAIT send (a PUSH frame) is
           ERR_PROV_BUSY at once. Also how long a frame waits for the
           USB-Serial-JTAG host.
 
+    config SYS_UART_PORT_RX_BUF
+        int "RX buffer of a port (bytes)"
+        default 4096
+        range 256 16384
+        help
+          The UART driver's RX buffer of the link and of every port CREATE
+          makes. Larger than the console's: a flash write stops the RX task
+          for milliseconds, and at a high rate the buffer fills in that time.
+
     config SYS_UART_LINK
         bool "Board-to-board link"
-        default n
+        default y
         help
-          A second UART as a provider, for a cable to another runIT board:
-          the same line format as the console (COBS and CRC16), wired, with
-          its own rings and tasks. A session attaches it as the board's
-          parent or as a child (SYS_SESSION.MD). The runIT link roles
-          (RUNIT_LINK_ROOT, RUNIT_LINK_CHILD) turn it on.
+          A second UART as a provider, for a cable to another runIT board's
+          console UART (UART0, the pins its ROM bootloader listens on): the
+          same line format as the console (COBS and CRC16), wired, with its
+          own rings and tasks. runIT attaches it as a slave's session
+          (SYS_SESSION.MD), and sys_flasher borrows its pins to program the
+          board on it.
 
     config SYS_UART_LINK_PORT
         int "Link UART port"
@@ -80,19 +90,19 @@ menu "sys_uart"
     config SYS_UART_LINK_TX_PIN
         int "Link TX pin (GPIO)"
         depends on SYS_UART_LINK
-        default 17
+        default 18
         range 0 48
         help
-          Joined to the other board's RX pin. 17 and 18 are free on the
-          ESP32-S3 devkit and on the runIT board's GPIO header.
+          Joined to the other board's U0RXD (GPIO 44 of an ESP32-S3). 17 and
+          18 are free on the ESP32-S3 devkit and on the runIT board's GPIO header.
 
     config SYS_UART_LINK_RX_PIN
         int "Link RX pin (GPIO)"
         depends on SYS_UART_LINK
-        default 18
+        default 17
         range 0 48
         help
-          Joined to the other board's TX pin. The grounds are joined too.
+          Joined to the other board's U0TXD (GPIO 43). The grounds are joined too.
 
     config SYS_UART_LINK_RTS_PIN
         int "Link RTS pin (GPIO, -1 = none)"
@@ -114,18 +124,10 @@ menu "sys_uart"
         default 921600
         range 115200 5000000
         help
-          Both boards use the same. Jumper wires and long cables want the
+          The other board's console rate (CONFIG_ESP_CONSOLE_UART_BAUDRATE):
+          the same firmware, so the same number. Jumper wires and long cables want the
           lower end; 2 to 5 Mbaud needs a short cable and, on a board that
           writes flash (NVS) while frames arrive, the ISR in IRAM
           (CONFIG_UART_ISR_IN_IRAM) or flow control.
-
-    config SYS_UART_LINK_RX_BUF
-        int "Link driver RX buffer (bytes)"
-        depends on SYS_UART_LINK
-        default 4096
-        range 256 16384
-        help
-          Larger than the console's: a flash write stops the RX task for
-          milliseconds, and at the link's rate the buffer fills in that time.
 
 endmenu

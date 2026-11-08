@@ -1,5 +1,5 @@
 import { decodeStreamList } from '../protocol/streams'
-import type { ProviderId, StreamDirection, StreamInfo } from '../protocol/streams'
+import type { StreamDirection, StreamInfo } from '../protocol/streams'
 import type { CommandOptions } from './commands'
 import type { RunitLink, StreamFrame } from './link'
 import { Services } from './services'
@@ -11,7 +11,7 @@ import { Services } from './services'
  *
  *   const streams = new Streams(link)
  *   await streams.create(0x10, { dir: 'out' })                                  // a user stream, 0x10..0x7F
- *   await streams.bind(0x10, { link: 2, channel: 0xee01 })                      // to a run-time BLE characteristic
+ *   await streams.bind(0x10, 0x11)                                              // to a provider, by its id: a run-time BLE characteristic, a UART port
  *   const stop = await streams.subscribe(0x10, (data, frame) => …)              // its messages to this client, frame.seq counts them
  *   await stop()                                                                // UNSUBSCRIBE when the last handler goes
  *   const list = await streams.list()                                           // [{ id, dir, urgent, system, targets }]
@@ -22,7 +22,7 @@ import { Services } from './services'
  */
 
 export const STREAM_COMMANDS = {
-  service: 'STREAM', create: 'CREATE', remove: 'REMOVE', bind: 'BIND', unbind: 'UNBIND', list: 'LIST', subscribe: 'SUBSCRIBE', unsubscribe: 'UNSUBSCRIBE',
+  service: 'STREAM', create: 'CREATE', remove: 'REMOVE', bind: 'BIND', output: 'OUTPUT', remote: 'REMOTE', unbind: 'UNBIND', unbindAll: 'UNBIND_ALL', list: 'LIST', subscribe: 'SUBSCRIBE', unsubscribe: 'UNSUBSCRIBE',
 } as const
 
 export type StreamHandler = (data: Uint8Array, frame: StreamFrame) => void
@@ -68,13 +68,28 @@ export class Streams {
   }
 
   /** Binds a stream to a provider: an OUT stream's messages go there as they are; what comes in there goes into an IN stream. */
-  async bind(id: number, provider: ProviderId, options?: CommandOptions): Promise<void> {
-    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.bind, { id, ...provider }, options)
+  async bind(id: number, provider: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.bind, { id, provider }, options)
   }
 
-  /** Drops a binding; without a provider every binding of the stream (link 0). */
-  async unbind(id: number, provider: ProviderId = { link: 0, channel: 0 }, options?: CommandOptions): Promise<void> {
-    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.unbind, { id, ...provider }, options)
+  /** A way out of an IN stream: what comes in goes to this provider as it is. A tunnel between two providers is two IN streams, one each way. */
+  async output(id: number, provider: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.output, { id, provider }, options)
+  }
+
+  /** A provider of another board, or a client's receiver, as a target of the stream. Stays when that board is gone. */
+  async remote(id: number, board: number, provider: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.remote, { id, board, provider }, options)
+  }
+
+  /** Drops the binding, output or remote target of this provider, on any board. */
+  async unbind(id: number, provider: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.unbind, { id, provider }, options)
+  }
+
+  /** Drops every binding, output and remote target of the stream. */
+  async unbindAll(id: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(STREAM_COMMANDS.service, STREAM_COMMANDS.unbindAll, { id }, options)
   }
 
   /**

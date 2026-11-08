@@ -70,7 +70,7 @@ The object head on the wire is an explicit 4-byte layout (`vm_wire_head_t`, `vm_
 
 ### Telemetry is the same command
 
-A telemetry frame sent by `vm_sub.c` on the telemetry stream (`SYS_STREAM_TELEMETRY`) is a write of this router without `seq` / `flags` and without the direction byte (a stream frame has no side):
+A telemetry frame sent by `vm_sub.c` on the telemetry stream (`SYS_STREAM_TELEMETRY`) is a write of this router without `seq` / `flags` and without the direction byte (a stream's message has no side):
 
 ```
 values        [0x0B][0x04 DATA][u8 count] count × (vm_wire_data_t, data)

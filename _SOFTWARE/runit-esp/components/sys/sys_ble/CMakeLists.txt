@@ -6,3 +6,4 @@ idf_component_register(
     REQUIRES errors bt sys_data_provider
     PRIV_REQUIRES cmd router utils log esp_ringbuf
 )
+    

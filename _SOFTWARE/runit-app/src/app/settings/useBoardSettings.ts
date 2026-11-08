@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { serviceCall, Services } from '@backend'
+import { bundledLinkDefinitions, decodePeers, serviceCall, SESSION_COMMANDS, Services } from '@backend'
 import type { FieldValues, RunitLink, ServiceCall } from '@backend'
 import type { DataStream, GattService, ProjectSettings, SettingsRow } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
@@ -28,6 +28,8 @@ export interface LiveSettings {
   readonly tables: Readonly<Record<string, readonly SettingsRow[]>>
   readonly gatt?: readonly LiveGattService[]
   readonly streams?: readonly DataStream[]
+  /** The providers the board's sessions run on: no stream is bound there, its bytes would land between their frames. */
+  readonly sessionProviders?: readonly number[]
 }
 
 /** Where a setting's values come from: the project, the board (the project keeps none), or nowhere yet. */
@@ -69,7 +71,9 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
           setLive((l) => ({ ...l, gatt: decodeGattList(data) }))
         } else {
           const { data } = await services.call(STREAMS.service, STREAMS.list)
-          setLive((l) => ({ ...l, streams: decodeStreamsInfo(data) }))
+          const peers = await services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.peers)
+          const sessionProviders = decodePeers(bundledLinkDefinitions(), peers.data).map((p) => p.provider)
+          setLive((l) => ({ ...l, streams: decodeStreamsInfo(data), sessionProviders }))
         }
         setError(key, undefined)
       } catch (failure) { ok = false; setError(key, `Reading: ${message(failure)}`) }

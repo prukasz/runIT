@@ -5,7 +5,7 @@ import { defineConfig } from 'vite'
 const at = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 // The ports of the dev server: the PCB's app and the devkit's (`--mode devkit`, .env.devkit) run side by side.
-const DEV_PORTS = { pcb: 5180, devkit: 5181 } as const
+const DEV_PORTS = { pcb: 2137, devkit: 5181 } as const
 
 // The app (`npm run dev`, `npm run build`; `--mode devkit` for a devkit board). The tests have their own config (vitest.config.ts).
 export default defineConfig(({ mode }) => ({

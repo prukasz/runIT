@@ -4,8 +4,8 @@
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_internal.h"
 
-ROUTER_OP(op_remove, sys_data_provider_id_t) {
-  return sys_data_provider_remove(*args);
+ROUTER_OP(op_remove, sys_data_provider_ref_t) {
+  return sys_data_provider_remove(args->provider);
 }
 
 ROUTER_OP_NOARGS(op_list) {
@@ -15,16 +15,16 @@ ROUTER_OP_NOARGS(op_list) {
   return cmd_append(out, list, count * sizeof(list[0]));
 }
 
-ROUTER_OP_TAIL(op_send, sys_data_provider_id_t) {
-  return sys_data_provider_send_free(*args, tail.data, tail.len);
+ROUTER_OP_TAIL(op_send, sys_data_provider_ref_t) {
+  return sys_data_provider_send(args->provider, tail.data, tail.len, 0);
 }
 
-ROUTER_OP(op_bind_commands, sys_data_provider_id_t) {
-  return sys_data_provider_bind_commands(*args);
+ROUTER_OP(op_bind_commands, sys_data_provider_ref_t) {
+  return sys_data_provider_bind_commands(args->provider);
 }
 
-ROUTER_OP(op_unbind_commands, sys_data_provider_id_t) {
-  return sys_data_provider_unbind_commands(*args);
+ROUTER_OP(op_unbind_commands, sys_data_provider_ref_t) {
+  return sys_data_provider_unbind_commands(args->provider);
 }
 
 static const router_op_t k_ops[] = {

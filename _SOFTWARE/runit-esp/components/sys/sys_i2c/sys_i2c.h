@@ -163,3 +163,4 @@ MUST_USE err_h sys_i2c_reg_update(sys_i2c_dev_t* dev, uint8_t reg, uint8_t mask,
 #ifdef __cplusplus
 }
 #endif
+

@@ -12,6 +12,8 @@
 #include "utils.h"
 
 #define TICK_MS         10u   // the timer: pings, session timeouts, call timeouts
+#define HELLO_RETRY_MS  1000u // a slave's way not open says hello again this often
+#define DATA_HEAD       3u    // [SYS_SESSION_CHANNEL_DATA][to id][from id] in front of a data frame's data
 #define REJECT_BYTES    64u   // an error record answered on the RX task (its stack)
 #define NVS_NAMESPACE   "session"
 #define NVS_KEY_ID      "id"
@@ -34,7 +36,7 @@ static struct {
   esp_timer_handle_t timer;
   sys_session_gone_f gone[CONFIG_SYS_SESSION_PEER_LISTENERS];
   sys_session_reached_f reached[CONFIG_SYS_SESSION_PEER_LISTENERS];
-  sys_session_stream_f stream[CONFIG_SYS_SESSION_STREAM_LISTENERS];
+  sys_session_push_f push[CONFIG_SYS_SESSION_PUSH_LISTENERS];
 } s_state = {.master = -1, .timeout_ms = CONFIG_SYS_SESSION_TIMEOUT_MS};
 
 /* ----------------------------------------------------------------------------
@@ -43,10 +45,10 @@ static struct {
 
 /* The index in s_state.sessions of the session that runs over `provider` (the provider -> session lookup), -1 when
  * no session is attached to it. Under the lock. */
-static int32_t session_find_by_provider(sys_data_provider_id_t provider) {
+static int32_t session_find_by_provider(uint8_t provider) {
   for (int32_t i = 0; i < CONFIG_SYS_SESSION_MAX; i++) {
     const session_slot_t* s = &s_state.sessions[i];
-    if (session_in_use(s) && sys_data_provider_same_id(s->provider, provider)) {
+    if (session_in_use(s) && s->provider == provider) {
       return i;
     }
   }
@@ -84,7 +86,7 @@ int32_t sys_session_route(uint8_t dst) {
 bool sys_session_wired(uint8_t peer) {
   portENTER_CRITICAL(&s_lock);
   const int32_t at = session_find_by_peer_id(peer);
-  const sys_data_provider_id_t provider = at >= 0 ? s_state.sessions[at].provider : (sys_data_provider_id_t){0};
+  const uint8_t provider = at >= 0 ? s_state.sessions[at].provider : 0;
   portEXIT_CRITICAL(&s_lock);
   return at >= 0 && sys_data_provider_is_wired(provider);
 }
@@ -125,6 +127,33 @@ uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
   return count;
 }
 
+bool sys_session_admits(int32_t at) {
+  portENTER_CRITICAL(&s_lock);
+  const bool admits = s_state.master < 0 || s_state.master == at;
+  portEXIT_CRITICAL(&s_lock);
+  return admits;
+}
+
+bool sys_session_take_master(int32_t at) {
+  bool others[CONFIG_SYS_SESSION_MAX] = {false};
+  portENTER_CRITICAL(&s_lock);
+  const bool free = s_state.master < 0 || s_state.master == at;
+  if (free) {
+    s_state.sessions[at].peer = SYS_SESSION_MASTER;
+    s_state.master = at;
+    for (int32_t i = 0; i < CONFIG_SYS_SESSION_MAX; i++) {
+      others[i] = i != at && session_is_open(&s_state.sessions[i]);
+    }
+  }
+  portEXIT_CRITICAL(&s_lock);
+  for (int32_t i = 0; i < CONFIG_SYS_SESSION_MAX; i++) {
+    if (others[i]) {
+      sys_session_end(i);  // a board with a master has no other session: its clients and slaves are gone
+    }
+  }
+  return free;
+}
+
 bool sys_session_open(int32_t at, const sys_session_hello_state_t* peer, bool* was_open) {
   bool taken = false;
   portENTER_CRITICAL(&s_lock);
@@ -146,12 +175,22 @@ bool sys_session_open(int32_t at, const sys_session_hello_state_t* peer, bool* w
  * Frames out
  * ------------------------------------------------------------------------- */
 
-// A whole frame on session `at`'s provider.
+/* A whole frame on session `at`'s provider. Every frame to a peer leaves here, so a frame sent is the peer's sign of
+ * life: the next ping waits a third of its timeout from it (a ping only on a session with nothing else to send). */
 err_h sys_session_send_raw(int32_t at, const uint8_t* frame, uint32_t len, uint8_t flags) {
   portENTER_CRITICAL(&s_lock);
-  const sys_data_provider_id_t provider = s_state.sessions[at].provider;
+  const uint8_t provider = s_state.sessions[at].provider;
   portEXIT_CRITICAL(&s_lock);
-  return sys_data_provider_send(provider, frame, len, flags);
+  err_h err = sys_data_provider_send(provider, frame, len, flags);
+  if (err == NULL) {
+    portENTER_CRITICAL(&s_lock);
+    session_slot_t* s = &s_state.sessions[at];
+    if (session_in_use(s) && s->provider == provider) {  // still the session it was sent on
+      s->ping_ms = 0;
+    }
+    portEXIT_CRITICAL(&s_lock);
+  }
+  return err;
 }
 
 // One frame on a session's provider: the header goes into the HDR bytes free in front of `body`.
@@ -174,19 +213,39 @@ err_h sys_session_send_control(int32_t at, uint8_t op, const uint8_t* data, uint
   return send_frame(at, &hdr, buf + HDR, 1u + len, SYS_DATA_PROVIDER_SEND_NOWAIT);
 }
 
-err_h sys_session_stream(uint8_t peer, uint16_t seq, const uint8_t* data, uint32_t len, uint8_t flags) {
+err_h sys_session_push(uint8_t peer, uint16_t seq, const uint8_t* data, uint32_t len, uint8_t flags) {
   ERR_CHECK(data != NULL && len > 0 && len <= CMD_DATA_MAX, ERR_CMD_BAD_ARG);
   const int32_t at = sys_session_route(peer);
   ERR_CHECK(at >= 0, ERR_SESSION_NO_ROUTE, .dst = peer);
   uint8_t buf[CMD_FRAME_MAX];
   const sys_session_hdr_t hdr = {
-      .frame = (uint8_t)(FRAME(SYS_SESSION_STREAM) | (flags & SYS_SESSION_FRAME_FLAGS)),
+      .frame = (uint8_t)(FRAME(SYS_SESSION_PUSH) | (flags & SYS_SESSION_FRAME_FLAGS)),
       .dst = peer,
       .src = s_state.board_id,
       .seq = seq,
   };
   memcpy(buf + HDR, data, len);
   return send_frame(at, &hdr, buf + HDR, len, sys_session_send_flags(flags));
+}
+
+err_h sys_session_data(uint8_t peer, uint16_t seq, uint8_t to, uint8_t from, const uint8_t* data, uint32_t len,
+                       uint8_t flags) {
+  ERR_CHECK(data != NULL && len > 0, ERR_CMD_BAD_ARG);
+  ERR_CHECK(len <= CMD_DATA_MAX - DATA_HEAD, ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = CMD_DATA_MAX - DATA_HEAD);
+  const int32_t at = sys_session_route(peer);
+  ERR_CHECK(at >= 0, ERR_SESSION_NO_ROUTE, .dst = peer);
+  uint8_t buf[CMD_FRAME_MAX];
+  const sys_session_hdr_t hdr = {
+      .frame = (uint8_t)(FRAME(SYS_SESSION_PUSH) | (flags & SYS_SESSION_FRAME_FLAGS)),
+      .dst = peer,
+      .src = s_state.board_id,
+      .seq = seq,
+  };
+  buf[HDR] = SYS_SESSION_CHANNEL_DATA;
+  buf[HDR + 1u] = to;
+  buf[HDR + 2u] = from;
+  memcpy(buf + HDR + DATA_HEAD, data, len);
+  return send_frame(at, &hdr, buf + HDR, DATA_HEAD + len, sys_session_send_flags(flags));
 }
 
 // A frame to every open slave; the first error comes back, the rest are still sent.
@@ -246,8 +305,8 @@ err_h sys_session_on_reached(sys_session_reached_f fn) {
   ADD_LISTENER(s_state.reached, fn);
 }
 
-err_h sys_session_on_stream(sys_session_stream_f fn) {
-  ADD_LISTENER(s_state.stream, fn);
+err_h sys_session_on_push(sys_session_push_f fn) {
+  ADD_LISTENER(s_state.push, fn);
 }
 
 static void tell_gone(uint8_t peer, uint8_t via) {
@@ -262,9 +321,18 @@ void sys_session_reached(uint8_t peer) {
   }
 }
 
-static void tell_stream(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
-  for (uint32_t i = 0; i < ARRAY_LEN(s_state.stream) && s_state.stream[i] != NULL; i++) {
-    s_state.stream[i](hdr->src, hdr->seq, body, len);
+/* Data for a provider of this board, [SYS_SESSION_CHANNEL_DATA][to id][from id][data]: it leaves with no header. On the
+ * driver's RX task, so NOWAIT; what can't go is dropped, as a PUSH frame that can't go on is (the receiver sees the
+ * gap in seq). */
+static void tell_provider(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
+  if (len > DATA_HEAD) {
+    err_free(sys_data_provider_send(body[1], body + DATA_HEAD, len - DATA_HEAD, sys_session_send_flags(hdr->frame)));
+  }
+}
+
+static void tell_push(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
+  for (uint32_t i = 0; i < ARRAY_LEN(s_state.push) && s_state.push[i] != NULL; i++) {
+    s_state.push[i](hdr->src, hdr->seq, body, len);
   }
 }
 
@@ -272,7 +340,8 @@ static void tell_stream(const sys_session_hdr_t* hdr, const uint8_t* body, uint3
  * Ending a session
  * ------------------------------------------------------------------------- */
 
-// Ends a session: its peer is gone.
+/* Ends a session: its peer is gone. A CLIENT way a board's hello made this board's master is a CLIENT way again, and
+ * the board has no master: its other sessions take hellos again. */
 void sys_session_end(int32_t at) {
   portENTER_CRITICAL(&s_lock);
   session_slot_t* s = &s_state.sessions[at];
@@ -280,6 +349,10 @@ void sys_session_end(int32_t at) {
   const uint8_t peer = s->hello.id;
   const uint8_t via = s->peer;
   s->hello.id = SYS_SESSION_ID_NONE;
+  if (s->peer != s->attached) {
+    s->peer = s->attached;
+    s_state.master = s_state.master == at ? -1 : s_state.master;
+  }
   portEXIT_CRITICAL(&s_lock);
   if (!was_open) {
     return;
@@ -377,7 +450,7 @@ static void pass_to_router(const sys_session_hdr_t* hdr, const uint8_t* body, ui
 
 /* A frame for another board or client, which only the master relays (between a client and a slave): on, to the route's
  * provider with NOWAIT, without the router and without keeping anything. A slave relays nothing, and the master never
- * from a slave to a slave. A request that can't go on is answered to its source; an answer or a stream frame is
+ * from a slave to a slave. A request that can't go on is answered to its source; an answer or a PUSH frame is
  * dropped. */
 static void forward(int32_t from, const sys_session_hdr_t* hdr, const uint8_t* data, uint32_t len) {
   portENTER_CRITICAL(&s_lock);
@@ -410,7 +483,7 @@ static void on_broadcast(const sys_session_hdr_t* hdr, const uint8_t* data, uint
 }
 
 // The provider's rx (ctx: the slot): a frame, or the provider up or down.
-static void on_rx(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uint32_t len) {
+static void on_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_t len) {
   (void)id;
   const int32_t at = (int32_t)(uintptr_t)ctx;
   sys_session_no_wait();
@@ -460,8 +533,10 @@ static void on_rx(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uin
     pass_to_router(&hdr, body, body_len);
   } else if (kind == SYS_SESSION_ANSWER) {
     sys_session_call_answer(&hdr, body, body_len);
+  } else if (body_len > 0 && body[0] == SYS_SESSION_CHANNEL_DATA) {
+    tell_provider(&hdr, body, body_len);
   } else {
-    tell_stream(&hdr, body, body_len);
+    tell_push(&hdr, body, body_len);
   }
 }
 
@@ -482,16 +557,29 @@ static void on_tick(void* arg) {
       s->ping_ms = (uint16_t)(s->ping_ms + TICK_MS);
     }
     const bool silent = live && s->silent_ms > timeout_of(s->peer);
-    const bool ping = live && s->ping_ms >= s->hello.timeout_ms / 3u;  // every third of the peer's timeout
+    // Nothing sent for a third of the peer's timeout (sys_session_send_raw zeroes it).
+    const bool ping = live && s->ping_ms >= s->hello.timeout_ms / 3u;
     if (ping) {
+      s->ping_ms = 0;  // a busy queue too: the next try a third later
+    }
+    /* A slave's way not open says hello again every HELLO_RETRY_MS: the board on it may have started after this one's
+     * hello (a board just flashed, a cable plugged in), and a board answers only the hello it gets. Not on a board with
+     * a master: it opens no other session. */
+    const bool waiting = session_in_use(s) && !live && s->attached == SYS_SESSION_SLAVE && s_state.master < 0;
+    if (waiting) {
+      s->ping_ms = (uint16_t)(s->ping_ms + TICK_MS);
+    }
+    const bool hello = waiting && s->ping_ms >= HELLO_RETRY_MS;
+    if (hello) {
       s->ping_ms = 0;
     }
     portEXIT_CRITICAL(&s_lock);
     if (silent) {
       sys_session_end(at);
     } else if (ping) {
-      // Busy: the next ping is a third of the timeout later.
       err_free(sys_session_send_control(at, SYS_SESSION_PING, NULL, 0));
+    } else if (hello) {
+      err_free(sys_session_hello_send(at));  // a provider down refuses it: the next try a second later
     }
   }
   sys_session_call_expire(now);
@@ -568,12 +656,12 @@ err_h sys_session_set_timeout(uint32_t ms) {
 // Session `at`'s slot is free again (its provider failed to open, or it was detached).
 static void slot_free(int32_t at) {
   portENTER_CRITICAL(&s_lock);
-  s_state.sessions[at].provider = (sys_data_provider_id_t){0};
+  s_state.sessions[at].used = false;
   s_state.master = s_state.master == at ? -1 : s_state.master;
   portEXIT_CRITICAL(&s_lock);
 }
 
-err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer) {
+err_h sys_session_attach(uint8_t provider, uint8_t peer) {
   ERR_CHECK(peer <= SYS_SESSION_CLIENT, ERR_CMD_BAD_ARG);
   bool attached = false;
   bool clash = false;  // a star: a board with a master has no other session
@@ -584,12 +672,13 @@ err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer) {
     if (!session_in_use(s)) {
       at = at < 0 ? i : at;
     } else {
-      attached |= sys_data_provider_same_id(s->provider, provider);
+      attached |= s->provider == provider;
       clash |= peer == SYS_SESSION_MASTER || s->peer == SYS_SESSION_MASTER;
     }
   }
   if (!attached && !clash && at >= 0) {
-    s_state.sessions[at] = (session_slot_t){.provider = provider, .peer = peer, .hello = {.id = SYS_SESSION_ID_NONE}};
+    s_state.sessions[at] = (session_slot_t){.used = true, .provider = provider, .peer = peer, .attached = peer,
+                                             .hello = {.id = SYS_SESSION_ID_NONE}};
     s_state.master = peer == SYS_SESSION_MASTER ? at : s_state.master;
   }
   portEXIT_CRITICAL(&s_lock);
@@ -612,7 +701,7 @@ err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer) {
   return NULL;
 }
 
-err_h sys_session_detach(sys_data_provider_id_t provider) {
+err_h sys_session_detach(uint8_t provider) {
   portENTER_CRITICAL(&s_lock);
   const int32_t at = session_find_by_provider(provider);
   portEXIT_CRITICAL(&s_lock);

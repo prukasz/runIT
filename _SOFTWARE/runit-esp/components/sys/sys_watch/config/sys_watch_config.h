@@ -11,7 +11,7 @@
  *
  *   entry  [owner u8][id u8][status u8][data]
  *     status router_status_e: OK with the read's answer, ERROR with the error record
- *   to its owner   STREAM frame [SYS_SESSION_CHANNEL_WATCHES][entry], seq: the watch's count of entries
+ *   to its owner   PUSH frame [SYS_SESSION_CHANNEL_WATCHES][entry], seq: the watch's count of entries
  */
 
 #define SYS_WATCH_TICK_MS 10u  // the unit of a watch's period and silence: the watches' timer runs every tick

@@ -48,6 +48,6 @@ The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare
 ## Open
 
 - `SYS_ACTIONS_CLASS_BOARD` in `sys_actions.h`, and `SYS_BOARD_ACTIONS_CLASS` taken from it. Writing this class only followed by a restart.
-- The link's role and pins still come from Kconfig: an op for them, so they become frames of the record. Then `RUNIT_LINK_*` goes.
-- A board with a master takes no client today (SYS_SESSION.MD): it must, for the console and BLE to stay.
+- The link's pins and rate still come from Kconfig: an op for them, so they become frames of the record. (Its role is the sessions' already: SYS_SESSION.MD "Boards, clients, the star".)
+- A board with a master takes no client (SYS_SESSION.MD): it must, for the console and BLE to stay.
 - The record's size: a limit of `CONFIG_SYS_ACTIONS_MAX_BYTES`, the PCB's frames not measured yet.

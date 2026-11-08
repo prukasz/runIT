@@ -195,8 +195,8 @@ static sys_watch_head_t cached_head(uint8_t id, uint32_t max_age_ms) {
  * Entries
  * ------------------------------------------------------------------------- */
 
-// A STREAM frame [SYS_SESSION_CHANNEL_WATCHES][owner][id][status][data] from a board.
-static void on_stream(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
+// A PUSH frame [SYS_SESSION_CHANNEL_WATCHES][owner][id][status][data] from a board.
+static void on_push(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len) {
   if (len < 4 || data[0] != SYS_SESSION_CHANNEL_WATCHES) {
     return;
   }
@@ -495,5 +495,5 @@ err_h sys_watch_client_init(void) {
   ERR_TRY(ERR_ESP(esp_timer_create(&args, &s_cl.timer)));
   ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_session_on_reached(on_reached));
-  return sys_session_on_stream(on_stream);
+  return sys_session_on_push(on_push);
 }

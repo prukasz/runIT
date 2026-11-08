@@ -20,7 +20,7 @@ typedef struct {
   bool used;
   uint16_t gen;  // changes when the slot is taken again: an answer for the binding before it is dropped
   uint16_t seq;  // commands come in: each one's seq, so its error record names it
-  sys_data_provider_id_t id;
+  uint8_t id;
 } binding_t;
 
 static binding_t s_bind[CONFIG_SYS_DATA_PROVIDER_MAX];
@@ -31,7 +31,7 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // the table: short 
 #define CTX_GEN(ctx)   ((uint16_t)((uintptr_t)(ctx) >> 8))
 
 // The provider of the binding the context names, while it is that binding. false: unbound since.
-static bool binding_of(void* ctx, sys_data_provider_id_t* id) {
+static bool binding_of(void* ctx, uint8_t* id) {
   const uint8_t slot = CTX_SLOT(ctx);
   if (slot >= CONFIG_SYS_DATA_PROVIDER_MAX) {
     return false;
@@ -47,7 +47,7 @@ static bool binding_of(void* ctx, sys_data_provider_id_t* id) {
    is sent without a copy. NOWAIT: a full driver queue loses it (the router reports that with the command). */
 static err_h on_answer(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
   (void)cmd;
-  sys_data_provider_id_t id;
+  uint8_t id;
   if (!binding_of(ctx, &id)) {
     return NULL;  // unbound meanwhile: nobody to answer
   }
@@ -56,7 +56,7 @@ static err_h on_answer(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t*
 }
 
 // One message in, on the driver's RX task: a command for the router. One the router refuses is answered here.
-static void on_rx(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uint32_t len) {
+static void on_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_t len) {
   if (data == NULL) {
     return;  // went up or down
   }
@@ -76,7 +76,7 @@ static void on_rx(void* ctx, sys_data_provider_id_t id, const uint8_t* data, uin
   router_report_cmd(&cmd, err);  // as the session does with a command the router refused
 }
 
-err_h sys_data_provider_bind_commands(sys_data_provider_id_t id) {
+err_h sys_data_provider_bind_commands(uint8_t id) {
   int at = -1;
   portENTER_CRITICAL(&s_lock);
   for (int i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX && at < 0; i++) {
@@ -91,7 +91,7 @@ err_h sys_data_provider_bind_commands(sys_data_provider_id_t id) {
   const uint16_t gen = at >= 0 ? s_bind[at].gen : 0;
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(at >= 0, ERR_PROV_FULL);
-  // The provider has one user: another one's (a session, a stream, this binding already) is ERR_PROV_IN_USE.
+  // The rx hook has one owner: another one's (a session, an IN stream, this binding already) is ERR_PROV_IN_USE.
   err_h err = sys_data_provider_open(id, on_rx, CTX(at, gen));
   if (err != NULL) {
     portENTER_CRITICAL(&s_lock);
@@ -101,11 +101,11 @@ err_h sys_data_provider_bind_commands(sys_data_provider_id_t id) {
   return err;
 }
 
-err_h sys_data_provider_unbind_commands(sys_data_provider_id_t id) {
+err_h sys_data_provider_unbind_commands(uint8_t id) {
   bool found = false;
   portENTER_CRITICAL(&s_lock);
   for (int i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX && !found; i++) {
-    if (s_bind[i].used && sys_data_provider_same_id(s_bind[i].id, id)) {
+    if (s_bind[i].used && s_bind[i].id == id) {
       s_bind[i].used = false;
       s_bind[i].gen++;
       found = true;

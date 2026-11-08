@@ -32,8 +32,8 @@
       "hint": "Remove a stream first."
     },
     "ERR_STREAM_DIRECTION": {
-      "message": "Stream {stream} only takes what comes in: the board does not send to it",
-      "hint": "Send to a stream made to go out."
+      "message": "Stream {stream} goes the other way",
+      "hint": "The board sends only to a stream made to go out, and only a stream made to come in has outputs."
     }
   }
 }

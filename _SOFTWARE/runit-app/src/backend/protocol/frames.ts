@@ -6,8 +6,9 @@ import type { LinkDefinitions } from '../definitions'
  *   header    [frame byte][dst][src][seq u16 LE]      frame byte: bits 0-1 flags, bit 2 an answer's status, bits 6-7 kind
  *   request   [root key][key]...[payload]             seq: this client's counter
  *   answer    [data]                                  status OK: the router's output; ERROR: the error record; seq: the request's
- *   stream    [stream id][payload]                    seq: the stream's frame counter; from 0x80 the first byte is a session
+ *   push      [stream id][payload]                    seq: the stream's frame counter; from 0x80 the first byte is a session
  *                                                     channel instead (a watch's entries, a remote device's frames), seq its sender's
+ *   data      [to id][from id][data]                  a PUSH frame of the channel 0x82: for the provider (or a client's receiver) to id of dst
  *   control   [op][data]                              HELLO (Hello), PING, NO_SESSION; GONE [ids] from the board above
  *
  * The same frame travels on every link; the BLE link only fragments it (transport/framing.ts).
@@ -95,10 +96,9 @@ export const decodeResponse = (defs: LinkDefinitions, frame: Uint8Array): Respon
   return { seq: f.seq, ok: !f.error, data: f.body }
 }
 
-/* ---- HELLO (sys_session_hello_t, 16 bytes: sys_session/hello/sys_session_hello.h) ---- */
+/* ---- HELLO (sys_session_hello_t, 10 bytes: sys_session/hello/sys_session_hello.h) ---- */
 
-export const HELLO_BYTES = 16
-const MAC_BYTES = 6
+export const HELLO_BYTES = 10
 
 /**
  * Who a peer is. Both sides send one when a session opens, each with its own id (SYS_SESSION.MD "A session's life"): the board
@@ -108,8 +108,6 @@ export interface Hello {
   readonly version: number
   /** The sender's own id: a board's place (0x00..0xEF), the app's, another client's pick. */
   readonly id: number
-  /** The sender's identity, its eFuse MAC (`aa:bb:..`); all zero for a client. */
-  readonly mac: string
   /** Random per boot: a new one means the sender restarted (and what it had of this session is gone). */
   readonly bootId: number
   readonly fwVersion: number
@@ -117,19 +115,16 @@ export interface Hello {
   readonly timeoutMs: number
 }
 
-const macText = (bytes: Uint8Array): string => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(':')
-
-/** A client's hello: its own id, no MAC, a boot id of its own, `timeoutMs` how long it waits for the board (it never ends the session itself). */
+/** A client's hello: its own id, a boot id of its own, `timeoutMs` how long it waits for the board (it never ends the session itself). */
 export const encodeHello = (defs: LinkDefinitions, hello: { readonly id: number; readonly bootId: number; readonly timeoutMs: number; readonly fwVersion?: number }): Uint8Array => {
   const body = new Uint8Array(1 + HELLO_BYTES)
   const view = new DataView(body.buffer)
   body[0] = defs.session.control.hello
   body[1] = defs.session.version
   body[2] = hello.id
-  // bytes 3..8: the MAC, zero for a client
-  view.setUint32(1 + 8, hello.bootId >>> 0, true)
-  view.setUint16(1 + 12, hello.fwVersion ?? 0, true)
-  view.setUint16(1 + 14, Math.min(hello.timeoutMs, 0xffff), true)
+  view.setUint32(1 + 2, hello.bootId >>> 0, true)
+  view.setUint16(1 + 6, hello.fwVersion ?? 0, true)
+  view.setUint16(1 + 8, Math.min(hello.timeoutMs, 0xffff), true)
   return body
 }
 
@@ -140,9 +135,8 @@ export const decodeHello = (defs: LinkDefinitions, body: Uint8Array): Hello | un
   return {
     version: body[1]!,
     id: body[2]!,
-    mac: macText(body.subarray(3, 3 + MAC_BYTES)),
-    bootId: view.getUint32(1 + 8, true),
-    fwVersion: view.getUint16(1 + 12, true),
-    timeoutMs: view.getUint16(1 + 14, true),
+    bootId: view.getUint32(1 + 2, true),
+    fwVersion: view.getUint16(1 + 6, true),
+    timeoutMs: view.getUint16(1 + 8, true),
   }
 }

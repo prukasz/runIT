@@ -47,6 +47,8 @@ export interface CommandOptions {
   readonly timeoutMs?: number
   /** Shown in the observer events. */
   readonly label?: string
+  /** The board it goes to, when not the one of this session (a child reached through it); its answer comes back the same way. */
+  readonly board?: number
 }
 
 export type CommandEvent =
@@ -202,7 +204,8 @@ export class CommandClient {
 
   private async write(entry: Pending): Promise<void> {
     const seq = entry.seq!
-    const frame = encodeRequest(this.defs, seq, entry.request, this.options.address())
+    const address = this.options.address()
+    const frame = encodeRequest(this.defs, seq, entry.request, entry.options.board === undefined ? address : { ...address, dst: entry.options.board })
     entry.sentAt = this.now()
     try {
       await this.send(frame)

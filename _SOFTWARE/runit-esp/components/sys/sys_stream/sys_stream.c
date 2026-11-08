@@ -74,9 +74,12 @@ static bool same_target(const target_t* a, const target_t* b) {
   }
   switch (a->t.type) {
     case SYS_STREAM_TARGET_PROVIDER:
-      return sys_data_provider_same_id(a->t.provider, b->t.provider);
+    case SYS_STREAM_TARGET_OUTPUT:
+      return a->t.provider == b->t.provider;
     case SYS_STREAM_TARGET_PEER:
       return a->t.peer == b->t.peer;
+    case SYS_STREAM_TARGET_REMOTE:
+      return a->t.peer == b->t.peer && a->t.provider == b->t.provider;
     default:
       return a->fn == b->fn && a->ctx == b->ctx;
   }
@@ -174,13 +177,14 @@ void sys_stream_mark_system(void) {
 }
 
 err_h sys_stream_remove(uint8_t id) {
-  sys_data_provider_id_t bound[CONFIG_SYS_STREAM_TARGETS];
+  uint8_t bound[CONFIG_SYS_STREAM_TARGETS];
   uint8_t n = 0;
   stream_t* s;
   ERR_TRY(lock_stream(id, &s));
   const bool system = s->head.state & SYS_STREAM_STATE_SYSTEM;
   if (!system) {
-    for (uint8_t i = 0; i < s->head.targets; i++) {
+    const bool in = s->head.cfg.dir == SYS_STREAM_IN;  // only an IN stream's bindings hold their provider's rx hook
+    for (uint8_t i = 0; in && i < s->head.targets; i++) {
       if (s->targets[i].t.type == SYS_STREAM_TARGET_PROVIDER) {
         bound[n++] = s->targets[i].t.provider;
       }
@@ -201,7 +205,7 @@ err_h sys_stream_remove(uint8_t id) {
 
 // What comes in on a binding of IN stream `ctx` (its id), on the driver's RX task: queued for the stream's targets. A
 // provider that goes up or down (data NULL), and anything on a stream that is no longer IN and bound there, is dropped.
-static void on_provider_rx(void* ctx, sys_data_provider_id_t from, const uint8_t* data, uint32_t len) {
+static void on_provider_rx(void* ctx, uint8_t from, const uint8_t* data, uint32_t len) {
   const uint8_t id = (uint8_t)(uintptr_t)ctx;
   if (data == NULL || len > SYS_STREAM_PAYLOAD_MAX) {
     return;
@@ -221,7 +225,7 @@ static void on_provider_rx(void* ctx, sys_data_provider_id_t from, const uint8_t
   xRingbufferSendComplete(sys_stream_rb, slot);
 }
 
-err_h sys_stream_bind(uint8_t id, sys_data_provider_id_t provider) {
+err_h sys_stream_bind(uint8_t id, uint8_t provider) {
   const target_t t = {.t = {.type = SYS_STREAM_TARGET_PROVIDER, .provider = provider}};
   stream_t* s;
   ERR_TRY(lock_stream(id, &s));
@@ -233,26 +237,50 @@ err_h sys_stream_bind(uint8_t id, sys_data_provider_id_t provider) {
     return NULL;
   }
   ERR_CHECK(!full, ERR_STREAM_TARGETS_FULL, .stream = id);
-  // The provider is opened outside the lock, then the binding added if the stream is still there with room.
-  ERR_TRY(sys_data_provider_open(provider, in ? on_provider_rx : NULL, (void*)(uintptr_t)id));
+  /* An IN stream takes the provider's rx hook, outside the lock, then the binding is added if the stream is still there
+   * with room. An OUT stream only names the provider: each send finds it by its id, and one that is not there counts in
+   * the target's dropped. */
+  if (in) {
+    ERR_TRY(sys_data_provider_open(provider, on_provider_rx, (void*)(uintptr_t)id));
+  }
   err_h err = add_target(id, &t);
-  if (err != NULL) {
+  if (err != NULL && in) {
     err_report(sys_data_provider_close(provider));
   }
   return err;
 }
 
-err_h sys_stream_unbind(uint8_t id, sys_data_provider_id_t provider) {
-  sys_data_provider_id_t gone[CONFIG_SYS_STREAM_TARGETS];
+err_h sys_stream_output(uint8_t id, uint8_t provider) {
+  stream_t* s;
+  ERR_TRY(lock_stream(id, &s));
+  const bool in = s->head.cfg.dir == SYS_STREAM_IN;
+  xSemaphoreGive(sys_stream_mutex);
+  ERR_CHECK(in, ERR_STREAM_DIRECTION, .stream = id);
+  return add_target(id, &(target_t){.t = {.type = SYS_STREAM_TARGET_OUTPUT, .provider = provider}});
+}
+
+err_h sys_stream_remote(uint8_t id, uint8_t board, uint8_t provider) {
+  ERR_CHECK(board != sys_session_get_board_id() && board != SYS_SESSION_ID_SELF && board != SYS_SESSION_ID_NONE &&
+                board != SYS_SESSION_ID_BROADCAST,
+            ERR_STREAM_BAD_ARG);
+  return add_target(id, &(target_t){.t = {.type = SYS_STREAM_TARGET_REMOTE, .peer = board, .provider = provider}});
+}
+
+// Removes the stream's bindings, outputs and remote targets: of this provider, or all of them.
+static err_h unbind(uint8_t id, bool all, uint8_t provider) {
+  uint8_t gone[CONFIG_SYS_STREAM_TARGETS];
   uint8_t n = 0;
   stream_t* s;
   ERR_TRY(lock_stream(id, &s));
+  const bool in = s->head.cfg.dir == SYS_STREAM_IN;  // only an IN stream's bindings hold their provider's rx hook
   for (int i = 0; i < s->head.targets;) {
     const sys_stream_target_t* t = &s->targets[i].t;
-    // Link 0 (no provider has it) is every binding of the stream.
-    if (t->type == SYS_STREAM_TARGET_PROVIDER &&
-        (provider.link == 0 || sys_data_provider_same_id(t->provider, provider))) {
-      gone[n++] = t->provider;
+    if ((t->type == SYS_STREAM_TARGET_PROVIDER || t->type == SYS_STREAM_TARGET_OUTPUT ||
+         t->type == SYS_STREAM_TARGET_REMOTE) &&
+        (all || t->provider == provider)) {
+      if (in && t->type == SYS_STREAM_TARGET_PROVIDER) {
+        gone[n++] = t->provider;
+      }
       drop_target(s, i);
     } else {
       i++;
@@ -263,6 +291,14 @@ err_h sys_stream_unbind(uint8_t id, sys_data_provider_id_t provider) {
     err_report(sys_data_provider_close(gone[i]));
   }
   return NULL;
+}
+
+err_h sys_stream_unbind(uint8_t id, uint8_t provider) {
+  return unbind(id, false, provider);
+}
+
+err_h sys_stream_unbind_all(uint8_t id) {
+  return unbind(id, true, 0);
 }
 
 err_h sys_stream_subscribe(uint8_t id, uint8_t peer) {
@@ -343,7 +379,13 @@ static void account(target_t* t, err_h err) {
 
 /* One queued message, [stream id][payload], to every target, NOWAIT: a busy provider loses it there only. The
  * targets are copied out; the results go back to the stream by target (the list may have changed). An IN stream's
- * providers are where it came from: they get nothing. */
+ * bindings are where it came from: they get nothing; its outputs do. */
+static err_h send_out(const target_t* t, const uint8_t* payload, uint32_t len, bool urgent) {
+  return len == 0 ? NULL
+                  : sys_data_provider_send(t->t.provider, payload, len,
+                                           SYS_DATA_PROVIDER_SEND_NOWAIT | (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0));
+}
+
 static void deliver(const uint8_t* frame, uint32_t len) {
   target_t targets[CONFIG_SYS_STREAM_TARGETS];
   xSemaphoreTake(sys_stream_mutex, portMAX_DELAY);
@@ -367,13 +409,21 @@ static void deliver(const uint8_t* frame, uint32_t len) {
     errs[i] = NULL;
     switch (t->t.type) {
       case SYS_STREAM_TARGET_PROVIDER:
-        if (cfg.dir == SYS_STREAM_OUT && payload_len > 0) {
-          errs[i] = sys_data_provider_send(t->t.provider, payload, payload_len,
-                                           SYS_DATA_PROVIDER_SEND_NOWAIT | (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0));
+        if (cfg.dir == SYS_STREAM_OUT) {
+          errs[i] = send_out(t, payload, payload_len, urgent);
+        }
+        break;
+      case SYS_STREAM_TARGET_OUTPUT:
+        errs[i] = send_out(t, payload, payload_len, urgent);
+        break;
+      case SYS_STREAM_TARGET_REMOTE:
+        if (payload_len > 0) {
+          errs[i] = sys_session_data(t->t.peer, seq, t->t.provider, cfg.id, payload, payload_len,
+                                     urgent ? ROUTER_FLAG_URGENT : 0);
         }
         break;
       case SYS_STREAM_TARGET_PEER:
-        errs[i] = sys_session_stream(t->t.peer, seq, frame, len, urgent ? ROUTER_FLAG_URGENT : 0);
+        errs[i] = sys_session_push(t->t.peer, seq, frame, len, urgent ? ROUTER_FLAG_URGENT : 0);
         break;
       default:
         t->fn(t->ctx, cfg.id, payload, payload_len);

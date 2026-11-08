@@ -6,7 +6,8 @@ Line:      00 cobs([frame][crc16 LE]) 00   (SYS_DATA_PROVIDER.MD "UART"); bytes 
 Frame:     [frame byte][dst][src][seq u16][body]   (sys_session_hdr_t, 5 B)
 Request:   kind 0, flags in bits 0-1; body [key][dir][keys...][payload]  (`frame` adds dir from the descriptors)
 Answer:    kind 1, status in bit 2; body = data, or the error record (ERROR)
-Stream:    kind 2; body [connector][payload]  0x02 telemetry, 0x03 logs, 0x04 errors (error record), 0x06 events
+Push:      kind 2; body [stream id | channel][payload]  0x02 telemetry, 0x03 logs, 0x04 errors (error record), 0x06 events;
+           from 0x80 a session channel: 0x80 watches, 0x81 remote devices, 0x82 data
 Control:   kind 3; body [op][data]  HELLO, PING, NO_SESSION
 
 The link opens the session (HELLO: the board gives this client its id), keeps it alive (PING every third of the
@@ -47,7 +48,7 @@ SEV_NAMES = ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 # The session (sys_session_config.h, sys_session_frame.h)
 SESSION_VERSION = 1
-KIND_REQUEST, KIND_ANSWER, KIND_STREAM, KIND_CONTROL = 0, 1, 2, 3
+KIND_REQUEST, KIND_ANSWER, KIND_PUSH, KIND_CONTROL = 0, 1, 2, 3
 CTRL_HELLO, CTRL_PING, CTRL_NO_SESSION = 1, 2, 3
 ID_NONE, ID_SELF, ID_BROADCAST = 0xFD, 0xFE, 0xFF
 HDR = struct.Struct("<BBBH")
@@ -284,7 +285,7 @@ class Response:
 
 
 class Link:
-    def __init__(self, url: str, baud: int = 115200, echo: bool = False, open_timeout: float = 3.0):
+    def __init__(self, url: str, baud: int = 921600, echo: bool = False, open_timeout: float = 3.0):
         # Both reset lines low before the port opens, so opening does not pulse EN / IO0 through the auto-reset circuit
         # (the board keeps running, with its outputs); close() releases them in the matching order.
         self.ser = serial.serial_for_url(url, baudrate=baud, timeout=0.05, do_not_open=True)
@@ -476,7 +477,7 @@ class Link:
         elif kind == KIND_ANSWER:
             with self._lock:
                 self.responses[seq] = Response(seq, (fb >> 2) & 1, body, now)
-        elif kind == KIND_STREAM and body:
+        elif kind == KIND_PUSH and body:
             with self._lock:
                 self.streams.append((now, body[0], body[1:]))
             if body[0] == STREAM_LOGS:
@@ -544,7 +545,7 @@ class Link:
 class LineSplitter:
     """Splits raw console bytes into text and frames, for the capture tools: `feed(bytes)` returns what it can say now."""
 
-    KINDS = {KIND_REQUEST: "request", KIND_ANSWER: "answer", KIND_STREAM: "stream", KIND_CONTROL: "control"}
+    KINDS = {KIND_REQUEST: "request", KIND_ANSWER: "answer", KIND_PUSH: "push", KIND_CONTROL: "control"}
 
     def __init__(self) -> None:
         self.buf = bytearray()

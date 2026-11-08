@@ -6,7 +6,7 @@
  * never renumber). Included by sys_stream.h; published to the app by templates/generate_enums.py.
  */
 
-/* The stream id byte, the first of a STREAM frame's body (SYS_SESSION.MD "Streams"): 0x00 is invalid; 0x01..0x0F the
+/* The stream id byte, the first of a PUSH frame's body (SYS_SESSION.MD "Streams"): 0x00 is invalid; 0x01..0x0F the
    board's own streams (created by the app layer, runit_board_cfg.c; ERRORS and EVENTS urgent); 0x10..0x7F user
    streams; from SYS_SESSION_CHANNEL_FIRST (0x80) the session's channels, which no stream takes. */
 //#ref-defines stream @alias Streams @prefix SYS_STREAM_
@@ -24,19 +24,21 @@
 //#ref-enum @alias Stream direction
 typedef enum {
   SYS_STREAM_OUT = 0,  //@alias Out @description The board sends (sys_stream_send): to its providers, peers, callbacks
-  SYS_STREAM_IN = 1,   //@alias In @description What comes in on its providers: to its peers and callbacks
+  SYS_STREAM_IN = 1,   //@alias In @description What comes in on its providers: to its outputs, peers and callbacks
 } sys_stream_dir_e;
 
 /* A stream's flags, set at create. URGENT: its frames go to the front of every provider's queue. */
 //#ref-defines stream_flag @alias Stream flags @prefix SYS_STREAM_FLAG_
 #define SYS_STREAM_FLAG_URGENT (1u << 0)  //@alias Urgent @description Its frames go first on every way out
 
-/** @brief A stream's target: one list of the three kinds. */
+/** @brief A stream's target: one list of the five kinds. */
 //#ref-enum @alias Stream target
 typedef enum {
   SYS_STREAM_TARGET_PROVIDER = 0,  //@alias Provider @description A binding: OUT sends the payload there as is, IN takes what comes in there
-  SYS_STREAM_TARGET_PEER = 1,      //@alias Peer @description A subscriber: [stream id][payload] in a STREAM frame of its session
+  SYS_STREAM_TARGET_PEER = 1,      //@alias Peer @description A subscriber: [stream id][payload] in a PUSH frame of its session
   SYS_STREAM_TARGET_CALLBACK = 2,  //@alias Callback @description The board's own code (a listener), on the stream task
+  SYS_STREAM_TARGET_REMOTE = 4,    //@alias Remote @description A provider of another board, or a client's receiver: a data frame through the session
+  SYS_STREAM_TARGET_OUTPUT = 3,    //@alias Output @description An IN stream's way out: what came in goes to this provider as is
 } sys_stream_target_e;
 
 /* A stream's state, in LIST. */

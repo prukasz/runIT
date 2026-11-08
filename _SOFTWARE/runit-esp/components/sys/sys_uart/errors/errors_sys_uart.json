@@ -1,0 +1,46 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_UART",
+  "errors": {
+    "ERR_UART_BAD_ARG": {
+      "message": "A UART request is not valid"
+    },
+    "ERR_UART_BAD_PORT": {
+      "message": "UART {port} cannot be set up this way",
+      "hint": "Choose a UART the board has free: not the console's, and not one the board already uses."
+    },
+    "ERR_UART_PORT_EXISTS": {
+      "message": "UART {port} is already set up",
+      "hint": "Remove its provider first, or use another UART."
+    },
+    "ERR_UART_BAD_BAUD": {
+      "message": "{baud} is not a baud rate this UART takes",
+      "hint": "Choose a rate from 1200 to 5000000."
+    },
+    "ERR_UART_BAD_FORMAT": {
+      "message": "The UART's mode, parity or stop bits are not valid",
+      "hint": "Choose a mode and a parity from the lists, and 1 or 2 stop bits."
+    },
+    "ERR_UART_BAD_PIN": {
+      "message": "{pin} of {device} cannot be a UART pin",
+      "hint": "Use pins of the ESP32-S3 itself; RTS and CTS go together or not at all."
+    },
+    "ERR_UART_INIT": {
+      "message": "UART {port} could not start"
+    },
+    "ERR_UART_NO_MEM": {
+      "message": "UART {port} could not get its memory"
+    },
+    "ERR_UART_NOT_RAW": {
+      "message": "Provider {provider} carries runIT's frames, not raw bytes",
+      "hint": "Use a port made in a raw mode."
+    },
+    "ERR_UART_NOT_DIRECT": {
+      "message": "Provider {provider} is not a UART port in direct mode"
+    },
+    "ERR_UART_TIMEOUT": {
+      "message": "UART provider {provider} did not finish sending in time",
+      "hint": "Check the rate, and the CTS line if the port uses flow control."
+    }
+  }
+}

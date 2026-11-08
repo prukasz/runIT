@@ -1,5 +1,5 @@
 import { decodePeers } from '../protocol/streams'
-import type { PeerKind, ProviderId, SessionPeer } from '../protocol/streams'
+import type { PeerKind, SessionPeer } from '../protocol/streams'
 import type { CommandOptions } from './commands'
 import type { RunitLink } from './link'
 import { Services } from './services'
@@ -14,7 +14,7 @@ import { Services } from './services'
  *   await sessions.boardId()                                          // 0: the root, by convention
  *   await sessions.setBoardId(1)                                      // kept in NVS, used from the next start
  *   await sessions.peers()                                            // [{ provider, kind: 'client', open: true, peerId: 0xf0, timeoutMs }]
- *   await sessions.attach({ link: 1, channel: 1 }, 'slave')           // a UART port to another board, below this one
+ *   await sessions.attach(0x10, 'slave')                              // a UART port (its provider's id) to another board, below this one
  *
  * The commands are the descriptor's (`contract_session.json`), named once in `SESSION_COMMANDS`.
  */
@@ -51,12 +51,12 @@ export class Sessions {
   }
 
   /** Makes a provider the way to a peer of this kind; the session opens when both hellos have passed. */
-  async attach(provider: ProviderId, kind: PeerKind, options?: CommandOptions): Promise<void> {
-    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.attach, { ...provider, peer: this.link.defs.session.peer[kind] }, options)
+  async attach(provider: number, kind: PeerKind, options?: CommandOptions): Promise<void> {
+    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.attach, { provider, peer: this.link.defs.session.peer[kind] }, options)
   }
 
   /** Ends the session on a provider and leaves the provider free. */
-  async detach(provider: ProviderId, options?: CommandOptions): Promise<void> {
-    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.detach, { ...provider }, options)
+  async detach(provider: number, options?: CommandOptions): Promise<void> {
+    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.detach, { provider }, options)
   }
 }

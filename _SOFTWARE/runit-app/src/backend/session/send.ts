@@ -22,6 +22,8 @@ export interface SendOptions {
   readonly timeoutMs?: number
   /** After each answer: how many are answered, of how many. */
   readonly onProgress?: (done: number, total: number) => void
+  /** The board they go to, through the one the link is on (a slave of it); the link's own when omitted. */
+  readonly board?: number
 }
 
 /** The answers of the requests, in the order of the requests. */
@@ -37,7 +39,7 @@ export const sendInOrder = async (link: RunitLink, requests: readonly Request[],
     while (!failed && next < total) {
       const index = next++
       try {
-        answers[index] = await link.request(requests[index]!, { timeoutMs: options.timeoutMs, label: `${index + 1}/${total}` })
+        answers[index] = await link.request(requests[index]!, { timeoutMs: options.timeoutMs, label: `${index + 1}/${total}`, ...(options.board !== undefined ? { board: options.board } : {}) })
         options.onProgress?.(++done, total)
       } catch (error) {
         if (!failed) {

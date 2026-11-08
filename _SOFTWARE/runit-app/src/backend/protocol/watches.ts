@@ -8,7 +8,7 @@ import type { ServiceCall } from './services'
 /*
  * The watches of the board (SYS_WATCH.MD): a read the board runs by a trigger and sends by itself after one ADD. The head is
  * `WATCH ADD`'s arguments (`contract_watch.json`); the read follows it, as any request of the catalog: `[key][dir READ][...]`.
- * An entry comes on the watches stream: `[owner u8][id u8][status u8][data]`, the stream frame's `seq` counting the watch's entries.
+ * An entry comes on the watches channel: `[owner u8][id u8][status u8][data]`, the PUSH frame's `seq` counting the watch's entries.
  */
 
 /** `WATCH ADD`: the head by field id, then the read (`[key][dir READ][...]`, e.g. `requestFrame` of a read call). */

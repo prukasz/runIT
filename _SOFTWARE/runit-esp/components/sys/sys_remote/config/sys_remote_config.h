@@ -5,7 +5,7 @@
  * @brief What a remote device's frame carries, the one place it is assigned (wire format: never renumber). Included by
  * sys_remote.h; published to the app by templates/generate_enums.py.
  *
- *   STREAM frame  [SYS_SESSION_CHANNEL_REMOTE][id u16][kind u8][data]   to each subscriber of device `id`
+ *   PUSH frame    [SYS_SESSION_CHANNEL_REMOTE][id u16][kind u8][data]   to each subscriber of device `id`
  *     seq   the subscription's count of frames: a gap is frames lost
  *     data  EVENT: sys_event_t (its source the device's id on its own board); ERROR: an error record (ERRORS.MD)
  */

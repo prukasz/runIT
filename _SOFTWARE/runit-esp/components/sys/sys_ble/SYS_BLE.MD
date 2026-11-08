@@ -12,7 +12,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | `core/sys_ble_priv.h` | Registry nodes, context, internal API between the core files |
 | `core/sys_ble.c` | Registry (create / remove / lock), sync to NimBLE, TX queue and BLE task step, RX delivery, connection state |
 | `core/sys_ble_stack.c` | NimBLE init, advertising, GAP events, GATT access callbacks, table compile, notify |
-| `link/sys_ble_link.c/.h` | The runIT service and its two providers (`SYS_BLE_PROVIDER_RUNIT`, `SYS_BLE_PROVIDER_LOGS`), and the providers of run-time characteristics: their driver |
+| `link/sys_ble_link.c/.h` | The runIT service and its two providers (under the ids the board gives `sys_ble_link_init`), and the providers of run-time characteristics: their driver |
 | `router/sys_ble_router.c/.h` | `ble` router (`ROUTER_KEY_BLE` = 0x03): runtime GATT changes, status. The header publishes every op (`SYS_BLE_OP_*`, with its sides) and the wire layouts, each op above its frame |
 | `contract_ble.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Name, appearance, BLE task, apply delay, connection listeners, the providers' send wait |
@@ -27,7 +27,7 @@ Component `components/sys/sys_ble/`. NimBLE peripheral with a GATT table of 16-b
 | UUID | Name | Props | Buffer | Framed | Use |
 |---|---|---|---|---|---|
 | `0xFFE0` | runIT service | primary, **locked** | | | |
-| `0xFFE1` | runit TX | notify | TX 4 frames | yes | the session's frames to the client: answers, stream frames (errors, telemetry, events), control |
+| `0xFFE1` | runit TX | notify | TX 4 frames | yes | the session's frames to the client: answers, PUSH frames (errors, telemetry, events), control |
 | `0xFFE2` | runit RX | write | RX handler | yes | the session's frames from the client: requests, control |
 | `0xFFE3` | runit LOGS | notify | TX 4 frames | yes | the logs stream's lines as they are (no header) |
 | `0xFFE4` | runit Status | notify | TX 512 B | no | created; nothing sends on it yet |
@@ -51,9 +51,9 @@ single-packet frame: C0 <frame>
 
 ## Providers
 
-`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), each named by its characteristic: `SYS_BLE_PROVIDER_RUNIT` = `{BLE, 0xFFE1}` (the pair: frames in on RX 0xFFE2, out on TX 0xFFE1) and `SYS_BLE_PROVIDER_LOGS` = `{BLE, 0xFFE3}` (out only). Both are up while a client is connected, down otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs stream to LOGS (`components/app/runit/`). No VM block writes to a characteristic yet.
+`sys_ble_link_init` adds two framed providers (SYS_DATA_PROVIDER.MD), under the ids it is given: the pair (frames in on RX 0xFFE2, out on TX 0xFFE1) and LOGS (0xFFE3, out only). A provider's `driver` field holds its characteristic's UUID. Both are up while a client is connected, down otherwise: the connection listener sets it. `send` = `sys_ble_char_send(uuid, frame, wait)`: with `NOWAIT` the wait is 0, else `CONFIG_SYS_BLE_ANSWER_WAIT_MS` (100 ms); a full buffer is `ERR_PROV_BUSY`. The characteristics' buffers keep their order, so `URGENT` goes in turn. The board config attaches a client session to the pair and binds the logs stream to LOGS (`components/app/runit/`). No VM block writes to a characteristic yet.
 
-**Run-time characteristics as providers.** CHAR_CREATE (and `sys_ble_link_char_add`) makes a provider `{BLE, uuid}` of a characteristic that is **unframed** and either writes with no RX buffer (an rx provider: each write is one message to the provider's user, on the host task, at most MTU − 3 bytes) or has a TX buffer (a tx provider: `send` is one notification, `sys_ble_char_send`). A framed one, or one with neither, gets none. These providers are raw (`FRAMED` clear), up while a client is connected. A send longer than the characteristic's largest item now (the TX buffer's, the MTU less the ATT header) is refused here, `ERR_BLE_TOO_LONG`: the size stays in this driver. At most `CONFIG_SYS_BLE_USER_PROVIDERS` (a static table; they take slots of `CONFIG_SYS_DATA_PROVIDER_MAX` too): past that, or an id taken, CHAR_CREATE is refused and the characteristic is not kept. CHAR_REMOVE and SVC_REMOVE remove the providers first: one that a stream's binding or a session has open is `ERR_PROV_IN_USE` and nothing is removed. A stream binds one with BIND (SYS_STREAM.MD): an IN stream takes what the peer writes, an OUT stream notifies it.
+**Run-time characteristics as providers.** CHAR_CREATE (and `sys_ble_link_char_add`) makes a provider, when its `has_provider` is set, under the id in its `provider` field, of a characteristic that is **unframed** and either writes with no RX buffer (an rx provider: each write is one message to the provider's user, on the host task, at most MTU − 3 bytes) or has a TX buffer (a tx provider: `send` is one notification, `sys_ble_char_send`). A framed one, or one with neither, gets none. These providers are raw (`FRAMED` clear), up while a client is connected. A message longer than the characteristic's largest item now (the TX buffer's, the MTU less the ATT header) goes as several notifications, in order; a full buffer part way through loses the rest (`ERR_PROV_BUSY`): the size stays in this driver. At most `CONFIG_SYS_BLE_USER_PROVIDERS` (a static table; they take slots of `CONFIG_SYS_DATA_PROVIDER_MAX` too): past that, or an id taken, CHAR_CREATE is refused and the characteristic is not kept. CHAR_REMOVE and SVC_REMOVE remove the providers first: one that a stream's binding or a session has open is `ERR_PROV_IN_USE` and nothing is removed. A stream binds one with BIND (SYS_STREAM.MD): an IN stream takes what the peer writes, an OUT stream notifies it.
 
 ## Data paths
 
@@ -93,15 +93,15 @@ Requests are `[0x03][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). STATUS 
 |---|---|---|
 | `0x01` SVC_CREATE | `u16 uuid, u8 is_primary` | – |
 | `0x02` SVC_REMOVE | `u16 uuid` | – |
-| `0x03` CHAR_CREATE | `u16 svc_uuid, u16 uuid, u8 write, u8 indicate, u8 notify, u8 framed, u32 tx_buffer, u32 rx_buffer`, then the name (UTF-8, NUL-terminated, the last field; a non-empty name becomes the descriptor 0x2901) | – |
+| `0x03` CHAR_CREATE | `u16 svc_uuid, u16 uuid, u8 write, u8 indicate, u8 notify, u8 framed, u32 tx_buffer, u32 rx_buffer, u8 has_provider, u8 provider`, then the name (UTF-8, NUL-terminated, the last field; a non-empty name becomes the descriptor 0x2901) | – |
 | `0x04` CHAR_REMOVE | `u16 svc_uuid, u16 uuid` | – |
 | `0x05` APPLY | – | – (applied `CONFIG_SYS_BLE_APPLY_DELAY_MS` later with a client) |
 | `0x06` STATUS | – | `u8 connected, u16 mtu, u32 rx_overflow` |
-| `0x07` LIST | – | the table as it is after the next apply: `u8 count`, then per service `u16 uuid, u8 flags (bit0 primary, bit1 locked), u8 n`, then n × `u16 uuid, u8 flags (bit0 write, bit1 indicate, bit2 notify, bit3 framed), u32 tx, u32 rx, name (NUL-terminated)` |
+| `0x07` LIST | – | the table as it is after the next apply: `u8 count`, then per service `u16 uuid, u8 flags (bit0 primary, bit1 locked), u8 n`, then n × `u16 uuid, u8 flags (bit0 write, bit1 indicate, bit2 notify, bit3 framed, bit4 has a provider), u32 tx, u32 rx, u8 provider, name (NUL-terminated)` |
 
 The app reads LIST to see what a save must change, so it removes only what is not wanted.
 
-Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B), then `03 01 05` (APPLY). The session adds its own frame header (SYS_SESSION.MD "Frames").
+Example: a user service with a temperature characteristic that a VM program can stream on (notify, unframed, TX 96 B). The commands (key, dir, op, args): `03 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), then `03 01 03 00 EE 01 EE 00 00 01 00 60 00 00 00 00 00 00 00 01 11 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp", TX 96 B, provider 0x11), then `03 01 05` (APPLY). The session adds its own frame header (SYS_SESSION.MD "Frames").
 
 ## Errors (`ERR_MOD_SYS_BLE` = 4)
 

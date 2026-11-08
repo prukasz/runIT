@@ -16,8 +16,8 @@ ROUTER_OP(op_attach, sys_session_attach_args_t) {
   return sys_session_attach(args->provider, args->peer);
 }
 
-ROUTER_OP(op_detach, sys_data_provider_id_t) {
-  return sys_session_detach(*args);
+ROUTER_OP(op_detach, sys_session_detach_args_t) {
+  return sys_session_detach(args->provider);
 }
 
 ROUTER_OP_NOARGS(op_peers) {

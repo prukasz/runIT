@@ -10,12 +10,12 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static sys_data_provider_t* s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
 // The fields every tag but FULL carries: the provider's id.
-#define ID_FIELDS(id) .link = (id).link, .channel = (id).channel
+#define ID_FIELDS(id) .provider = (id)
 
 /* The provider of `id`, NULL when there is none. Under the lock. */
-static sys_data_provider_t* find(sys_data_provider_id_t id) {
+static sys_data_provider_t* find(uint8_t id) {
   for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i] != NULL && sys_data_provider_same_id(s_slots[i]->id, id)) {
+    if (s_slots[i] != NULL && s_slots[i]->id == id) {
       return s_slots[i];
     }
   }
@@ -26,11 +26,12 @@ static sys_data_provider_t* find(sys_data_provider_id_t id) {
  * Use
  * ------------------------------------------------------------------------- */
 
-err_h sys_data_provider_open(sys_data_provider_id_t id, sys_data_provider_rx_f rx, void* ctx) {
+err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx) {
   portENTER_CRITICAL(&s_lock);
   sys_data_provider_t* p = find(id);
   const bool taken = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_OPEN);
-  if (p != NULL && !taken) {
+  const bool no_rx = p != NULL && rx != NULL && (p->state & SYS_DATA_PROVIDER_STATE_NO_RX);
+  if (p != NULL && !taken && !no_rx) {
     p->rx = rx;
     p->ctx = ctx;
     p->state |= SYS_DATA_PROVIDER_STATE_OPEN;
@@ -38,10 +39,11 @@ err_h sys_data_provider_open(sys_data_provider_id_t id, sys_data_provider_rx_f r
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, ID_FIELDS(id));
   ERR_CHECK(!taken, ERR_PROV_IN_USE, ID_FIELDS(id));
+  ERR_CHECK(!no_rx, ERR_PROV_NO_RX, ID_FIELDS(id));
   return NULL;
 }
 
-err_h sys_data_provider_close(sys_data_provider_id_t id) {
+err_h sys_data_provider_close(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   sys_data_provider_t* p = find(id);
   if (p != NULL) {
@@ -54,7 +56,7 @@ err_h sys_data_provider_close(sys_data_provider_id_t id) {
   return NULL;
 }
 
-err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uint32_t len, uint8_t flags) {
+err_h sys_data_provider_send(uint8_t id, const uint8_t* data, uint32_t len, uint8_t flags) {
   ERR_CHECK(data != NULL && len > 0, ERR_CMD_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   sys_data_provider_t* p = find(id);
@@ -77,7 +79,7 @@ err_h sys_data_provider_send(sys_data_provider_id_t id, const uint8_t* data, uin
   return err;
 }
 
-uint8_t sys_data_provider_state(sys_data_provider_id_t id) {
+uint8_t sys_data_provider_state(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   const sys_data_provider_t* p = find(id);
   const uint8_t state = p != NULL ? p->state : 0;
@@ -90,7 +92,7 @@ uint8_t sys_data_provider_state(sys_data_provider_id_t id) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_data_provider_add(sys_data_provider_t* p) {
-  ERR_CHECK(p != NULL && p->send != NULL && p->id.link != 0, ERR_CMD_BAD_ARG);
+  ERR_CHECK(p != NULL && p->send != NULL, ERR_CMD_BAD_ARG);
   p->state &= (uint8_t)~SYS_DATA_PROVIDER_STATE_OPEN;  // that one is the registry's
   p->rx = NULL;
   p->ctx = NULL;
@@ -111,12 +113,12 @@ err_h sys_data_provider_add(sys_data_provider_t* p) {
   return NULL;
 }
 
-err_h sys_data_provider_remove(sys_data_provider_id_t id) {
+err_h sys_data_provider_remove(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   sys_data_provider_t* p = NULL;
   uint32_t at = 0;
   for (; at < CONFIG_SYS_DATA_PROVIDER_MAX; at++) {
-    if (s_slots[at] != NULL && sys_data_provider_same_id(s_slots[at]->id, id)) {
+    if (s_slots[at] != NULL && s_slots[at]->id == id) {
       p = s_slots[at];
       break;
     }
@@ -169,7 +171,8 @@ uint8_t sys_data_provider_list(sys_data_provider_info_t out[CONFIG_SYS_DATA_PROV
     const sys_data_provider_t* p = s_slots[i];
     if (p != NULL) {
       out[count++] = (sys_data_provider_info_t){
-          .id = p->id,
+          .provider = p->id,
+          .link = p->link,
           .state = p->state,
       };
     }
@@ -178,12 +181,3 @@ uint8_t sys_data_provider_list(sys_data_provider_info_t out[CONFIG_SYS_DATA_PROV
   return count;
 }
 
-err_h sys_data_provider_send_free(sys_data_provider_id_t id, const uint8_t* data, uint32_t len) {
-  portENTER_CRITICAL(&s_lock);
-  const sys_data_provider_t* p = find(id);
-  const bool open = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_OPEN);
-  portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, ID_FIELDS(id));
-  ERR_CHECK(!open, ERR_PROV_IN_USE, ID_FIELDS(id));
-  return sys_data_provider_send(id, data, len, 0);
-}

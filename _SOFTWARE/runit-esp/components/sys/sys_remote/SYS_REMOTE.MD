@@ -2,12 +2,12 @@
 
 Component `components/sys/sys_remote/`. A **remote device** is a local id that names a device of another board (SYS_DEVICE.MD "Remote devices"): an alias. A device command is the same on every board, `[0x05][dir][id u16][op u16][args]`, so a call on the alias is that command with the id swapped, sent to its board, which runs it as any command from anyone and does not know it is used remotely. sys_device knows only where the device is and hands its calls to the hook this component sets; the session and the watches carry them. The device's events and errors come back by a **subscription to the device** on its board, made with the alias and ended with it.
 
-Nothing depends on this component, so it may use them all: a board without other boards leaves it out of its boot (`runit` starts it and registers its router when the board has a link, `RUNIT_LINK_ROOT` / `RUNIT_LINK_CHILD`), and its remote devices then answer `ERR_DEV_REMOTE_DOWN`.
+Nothing depends on this component, so it may use them all. `runit` starts it and registers its router on every board (one build); a board with no other board on its link has nothing to call, and its remote devices answer `ERR_DEV_REMOTE_DOWN`.
 
 ```
  the VM ── device block ──► local id 23 → (board 01, id 7) ─┬─ wired:  REQUEST, wait for the ANSWER ───────────────► board 01
                                                             └─ else:   the watch's copy (a watch of the read) ◄───── board 01
- sys_event (as id 23) ◄── the device's events and errors (STREAM, channel 0x81, to its subscribers only) ◄───────── board 01
+ sys_event (as id 23) ◄── the device's events and errors (PUSH, channel 0x81, to its subscribers only)   ◄───────── board 01
 ```
 
 ## Files
@@ -51,7 +51,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`) and the device
 
 - **An event**: the first subscription of a device subscribes a function to its events (`sys_event_subscribe_fn`, its source the device; the last one gone drops it); it runs on the event task.
 - **An error**: runit's error sink calls `sys_remote_on_error(chain, cmd)` for every reported chain: one with no command (`cmd` NULL) whose chain has an `ERR_DEV_ID` in the table is made an error record (`err_record`). `sys_device_write` wraps the drivers' timers' errors in `ERR_DEV_ID` too.
-- Both only queue: a reporter may be a timer's task, and `sys_session_stream` takes a whole frame on the stack. The task sends a STREAM `[0x81][id u16][kind][data]` to each subscriber of the device, `kind` `SYS_REMOTE_EVENT` (`sys_event_t`, its source the device's id here) or `SYS_REMOTE_ERROR` (an error record; urgent), `seq` the subscription's.
+- Both only queue: a reporter may be a timer's task, and `sys_session_push` takes a whole frame on the stack. The task sends a PUSH `[0x81][id u16][kind][data]` to each subscriber of the device, `kind` `SYS_REMOTE_EVENT` (`sys_event_t`, its source the device's id here) or `SYS_REMOTE_ERROR` (an error record; urgent), `seq` the subscription's.
 - **Lost frames**: a frame that no queue took (this one full, or the way's `NOWAIT` refused) still counts in `seq`.
 
 **On the alias's board**: a remote device made (`added`) takes a slot of `CONFIG_SYS_REMOTE_ALIASES` (board, remote id, local id, the last `seq`) and sends SUBSCRIBE to its board (a call, never waited for); removed, UNSUBSCRIBE. A board reached again gets the SUBSCRIBE of each of its aliases again; a board gone starts their `seq` again.
@@ -85,7 +85,7 @@ The ops and the frame are in `sys_remote_router.h`; `contract_remote.json` names
 ## Needs elsewhere
 
 - **sys_device**: the remote record, the hook, `sys_device_find_remote`, the remote devices made and removed (SYS_DEVICE.MD "Remote devices").
-- **sys_session**: calls, the wait, `sys_session_wired`, `ERR_SESSION_BUSY`, `sys_session_stream` in `SYS_SESSION_CHANNEL_REMOTE`, the gone, reached and stream listeners (SYS_SESSION.MD).
+- **sys_session**: calls, the wait, `sys_session_wired`, `ERR_SESSION_BUSY`, `sys_session_push` in `SYS_SESSION_CHANNEL_REMOTE`, the gone, reached and push listeners (SYS_SESSION.MD).
 - **sys_watch**: `sys_watch_read`, `sys_watch_stale` (SYS_WATCH.MD "Cached reads").
 - **sys_event**: `sys_event_subscribe_fn`, `sys_event_publish_deferred`.
 - **errors**: `err_record`, `err_record_parse`, `err_report_board`.

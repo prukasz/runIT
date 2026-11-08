@@ -1301,9 +1301,9 @@
               "id_kind": "stream"
             }
           ],
-          "description": "send to an IN stream",
-          "message": "Stream {stream} only takes what comes in: the board does not send to it",
-          "hint": "Send to a stream made to go out."
+          "description": "send to an IN stream, an output on an OUT one",
+          "message": "Stream {stream} goes the other way",
+          "hint": "The board sends only to a stream made to go out, and only a stream made to come in has outputs."
         }
       ]
     },
@@ -4842,46 +4842,36 @@
           "tag": 1114113,
           "name": "ERR_PROV_NOT_FOUND",
           "severity": 2,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
-          "message": "{link} {channel} does not exist"
+          "message": "Provider {provider} does not exist"
         },
         {
           "code": 2,
           "tag": 1114114,
           "name": "ERR_PROV_EXISTS",
           "severity": 2,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
           "description": "add: the id is taken",
-          "message": "{link} {channel} already exists",
-          "hint": "Choose another characteristic or port."
+          "message": "Provider {provider} already exists",
+          "hint": "Choose another id."
         },
         {
           "code": 3,
@@ -4899,105 +4889,85 @@
           "tag": 1114116,
           "name": "ERR_PROV_IN_USE",
           "severity": 1,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
-          "description": "open, remove, remote SEND: another user has it; remove: a send in progress",
-          "message": "{link} {channel} is in use",
-          "hint": "Stop what uses it first."
+          "description": "open, remove: the rx hook has an owner; remove: a send in progress",
+          "message": "Provider {provider} is taken: something already reads from it",
+          "hint": "Stop what reads from it first."
         },
         {
           "code": 5,
           "tag": 1114117,
           "name": "ERR_PROV_SYSTEM",
           "severity": 1,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
           "description": "remove: the board's own",
-          "message": "{link} {channel} belongs to the board and cannot be removed"
+          "message": "Provider {provider} belongs to the board and cannot be removed"
         },
         {
           "code": 6,
           "tag": 1114118,
           "name": "ERR_PROV_DOWN",
           "severity": 2,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
           "description": "send: it carries nothing now",
-          "message": "{link} {channel} is not connected"
+          "message": "Provider {provider} is not connected"
         },
         {
           "code": 7,
           "tag": 1114119,
           "name": "ERR_PROV_TOO_LONG",
           "severity": 2,
-          "size": 9,
+          "size": 5,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             },
             {
               "name": "len",
               "type": "u16",
-              "offset": 5,
+              "offset": 1,
               "size": 2
             },
             {
               "name": "max",
               "type": "u16",
-              "offset": 7,
+              "offset": 3,
               "size": 2
             }
           ],
           "description": "send: not sent, never cut",
-          "message": "{len} bytes are too long for {link} {channel} (at most {max})",
+          "message": "{len} bytes are too long for Provider {provider} (at most {max})",
           "hint": "Send less at once."
         },
         {
@@ -5005,48 +4975,57 @@
           "tag": 1114120,
           "name": "ERR_PROV_SEND",
           "severity": 0,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
           "description": "context: the driver's send failed",
           "context": true,
-          "message": "While sending over {link} {channel}"
+          "message": "While sending over Provider {provider}"
         },
         {
           "code": 9,
           "tag": 1114121,
           "name": "ERR_PROV_BUSY",
           "severity": 1,
-          "size": 5,
+          "size": 1,
           "fields": [
             {
-              "name": "link",
+              "name": "provider",
               "type": "u8",
               "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "channel",
-              "type": "u32",
-              "offset": 1,
-              "size": 4
+              "size": 1,
+              "id_kind": "transport"
             }
           ],
           "description": "send: the driver's queue full; raised by the driver",
-          "message": "{link} {channel} is busy: its send queue is full",
+          "message": "Provider {provider} is busy: its send queue is full",
           "hint": "Send less often, or wait for the connection to catch up."
+        },
+        {
+          "code": 10,
+          "tag": 1114122,
+          "name": "ERR_PROV_NO_RX",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "open with an rx: this provider delivers to no hook",
+          "message": "Provider {provider} hands nothing on: a driver reads from it directly",
+          "hint": "Make the port in a raw mode to bind a stream or a session to it."
         }
       ]
     },
@@ -5648,6 +5627,338 @@
           "description": "the image fails its own check",
           "message": "This file is not a valid firmware for this board",
           "hint": "The board keeps the firmware it has."
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "sys_uart",
+      "symbol": "ERR_MOD_SYS_UART",
+      "source_file": "runit-esp/components/sys/sys_uart/errors/sys_uart_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_uart/errors/errors_sys_uart.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1572865,
+          "name": "ERR_UART_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "NULL pointer",
+          "message": "A UART request is not valid"
+        },
+        {
+          "code": 2,
+          "tag": 1572866,
+          "name": "ERR_UART_BAD_PORT",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "the console's, not a UART of the chip, or (a read) not created by CREATE",
+          "message": "UART {port} cannot be set up this way",
+          "hint": "Choose a UART the board has free: not the console's, and not one the board already uses."
+        },
+        {
+          "code": 3,
+          "tag": 1572867,
+          "name": "ERR_UART_PORT_EXISTS",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "CREATE of a port made already",
+          "message": "UART {port} is already set up",
+          "hint": "Remove its provider first, or use another UART."
+        },
+        {
+          "code": 4,
+          "tag": 1572868,
+          "name": "ERR_UART_BAD_BAUD",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "baud",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "outside SYS_UART_BAUD_MIN..MAX",
+          "message": "{baud} is not a baud rate this UART takes",
+          "hint": "Choose a rate from 1200 to 5000000."
+        },
+        {
+          "code": 5,
+          "tag": 1572869,
+          "name": "ERR_UART_BAD_FORMAT",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "parity",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "stop_bits",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "a mode, parity or stop bits that is none",
+          "message": "The UART's mode, parity or stop bits are not valid",
+          "hint": "Choose a mode and a parity from the lists, and 1 or 2 stop bits."
+        },
+        {
+          "code": 6,
+          "tag": 1572870,
+          "name": "ERR_UART_BAD_PIN",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "device",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "pin",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "pin"
+            }
+          ],
+          "description": "no pin, or not a pin of the ESP32-S3's GPIO device; RTS without CTS",
+          "message": "{pin} of {device} cannot be a UART pin",
+          "hint": "Use pins of the ESP32-S3 itself; RTS and CTS go together or not at all."
+        },
+        {
+          "code": 7,
+          "tag": 1572871,
+          "name": "ERR_UART_INIT",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "the driver refused (over ERR_ESP_ERR)",
+          "message": "UART {port} could not start"
+        },
+        {
+          "code": 8,
+          "tag": 1572872,
+          "name": "ERR_UART_NO_MEM",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "the port's state, rings or tasks",
+          "message": "UART {port} could not get its memory"
+        },
+        {
+          "code": 9,
+          "tag": 1572873,
+          "name": "ERR_UART_NOT_RAW",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "a raw command on a framed provider",
+          "message": "Provider {provider} carries runIT's frames, not raw bytes",
+          "hint": "Use a port made in a raw mode."
+        },
+        {
+          "code": 10,
+          "tag": 1572874,
+          "name": "ERR_UART_NOT_DIRECT",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "write or read on what is no DIRECT port",
+          "message": "Provider {provider} is not a UART port in direct mode"
+        },
+        {
+          "code": 11,
+          "tag": 1572875,
+          "name": "ERR_UART_TIMEOUT",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "a write did not leave the line in its time",
+          "message": "UART provider {provider} did not finish sending in time",
+          "hint": "Check the rate, and the CTS line if the port uses flow control."
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "flasher",
+      "symbol": "ERR_MOD_SYS_FLASHER",
+      "source_file": "runit-esp/components/sys/sys_flasher/errors/sys_flasher_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_flasher/errors/errors_flasher.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1638401,
+          "name": "ERR_FLASHER_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a flashing runs",
+          "message": "The attached board is being flashed already"
+        },
+        {
+          "code": 2,
+          "tag": 1638402,
+          "name": "ERR_FLASHER_BOARD_ID",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "this board has id 0, the new board's",
+          "message": "This board has id 0, the id a newly flashed board starts with",
+          "hint": "Give this board another id (SESSION ID) and restart it first."
+        },
+        {
+          "code": 3,
+          "tag": 1638403,
+          "name": "ERR_FLASHER_NO_ANSWER",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "bytes",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "the ROM did not answer; bytes: what the line brought",
+          "message": "The attached board's ROM did not answer (op {op}; {bytes} bytes came on the line)",
+          "hint": "Check the cable: TX to U0RXD, RX to U0TXD, the BOOT and EN wires and the ground."
+        },
+        {
+          "code": 4,
+          "tag": 1638404,
+          "name": "ERR_FLASHER_ROM",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "code",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "the ROM refused a command",
+          "message": "The attached board's ROM refused op {op} (error {code})"
+        },
+        {
+          "code": 5,
+          "tag": 1638405,
+          "name": "ERR_FLASHER_VERIFY",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "addr",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "a region's MD5 differs",
+          "message": "The flash of the attached board differs at {addr} from what was written"
+        },
+        {
+          "code": 6,
+          "tag": 1638406,
+          "name": "ERR_FLASHER_IMAGE",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "this board's own firmware can't be read",
+          "message": "This board's own firmware can't be read"
+        },
+        {
+          "code": 7,
+          "tag": 1638407,
+          "name": "ERR_FLASHER_ABORTED",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "ABORT stopped it",
+          "message": "The flashing was stopped"
         }
       ]
     }

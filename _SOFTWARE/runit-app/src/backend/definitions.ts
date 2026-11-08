@@ -27,13 +27,13 @@ export interface LinkDefinitions {
   readonly keys: Readonly<Record<string, number>>
   /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
-  /** The board's own streams (`stream`, SYS_STREAM.MD "Model"): the first byte of a STREAM frame's body below the channels. */
+  /** The board's own streams (`stream`, SYS_STREAM.MD "Model"): the first byte of a PUSH frame's body below the channels. */
   readonly streams: { readonly telemetry: number; readonly logs: number; readonly errors: number; readonly events: number }
   /**
-   * The session's own channels (`session_channel`, SYS_SESSION.MD "Streams"): a STREAM frame's first byte from `first` on is
-   * a channel, not a stream: a watch's entries (`watches`) and a remote device's events and errors (`remote`).
+   * The session's own channels (`session_channel`, SYS_SESSION.MD "Streams"): a PUSH frame's first byte from `first` on is
+   * a channel, not a stream: a watch's entries (`watches`), a remote device's events and errors (`remote`), data for a provider (`data`: `[to id][from id][data]`).
    */
-  readonly channels: { readonly first: number; readonly watches: number; readonly remote: number }
+  readonly channels: { readonly first: number; readonly watches: number; readonly remote: number; readonly data: number }
   /**
    * A stream as STREAM CREATE and LIST have it (SYS_STREAM.MD "Model"): its direction (`sys_stream_dir_e`), its flag, the
    * state bit of the board's own, the kinds of its targets (`sys_stream_target_e`) and the ids a user stream may take.
@@ -42,7 +42,7 @@ export interface LinkDefinitions {
     readonly dir: { readonly out: number; readonly in: number }
     readonly flagUrgent: number
     readonly stateSystem: number
-    readonly target: { readonly provider: number; readonly peer: number; readonly callback: number }
+    readonly target: { readonly provider: number; readonly peer: number; readonly callback: number; readonly output: number; readonly remote: number }
     readonly userFirst: number
     readonly last: number
   }
@@ -52,7 +52,7 @@ export interface LinkDefinitions {
   readonly session: {
     readonly version: number
     readonly frame: { readonly flags: number; readonly status: number; readonly kind: number }
-    readonly kind: { readonly request: number; readonly answer: number; readonly stream: number; readonly control: number }
+    readonly kind: { readonly request: number; readonly answer: number; readonly push: number; readonly control: number }
     readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number; readonly gone: number }
     /** What a session's peer is to the board (`sys_session_peer_e`): its master, a slave, a client. */
     readonly peer: { readonly master: number; readonly slave: number; readonly client: number }
@@ -117,6 +117,7 @@ export const linkDefinitions = (
       first: value(enums, 'stream_range', 'SYS_STREAM_ID_LAST') + 1,
       watches: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_WATCHES'),
       remote: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_REMOTE'),
+      data: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_DATA'),
     },
     stream: {
       dir: { out: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_OUT'), in: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_IN') },
@@ -126,6 +127,8 @@ export const linkDefinitions = (
         provider: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_PROVIDER'),
         peer: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_PEER'),
         callback: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_CALLBACK'),
+        output: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_OUTPUT'),
+        remote: value(enums, 'sys_stream_target_e', 'SYS_STREAM_TARGET_REMOTE'),
       },
       userFirst: value(enums, 'stream_range', 'SYS_STREAM_ID_USER_FIRST'),
       last: value(enums, 'stream_range', 'SYS_STREAM_ID_LAST'),
@@ -142,7 +145,7 @@ export const linkDefinitions = (
       kind: {
         request: value(enums, 'sys_session_kind_e', 'SYS_SESSION_REQUEST'),
         answer: value(enums, 'sys_session_kind_e', 'SYS_SESSION_ANSWER'),
-        stream: value(enums, 'sys_session_kind_e', 'SYS_SESSION_STREAM'),
+        push: value(enums, 'sys_session_kind_e', 'SYS_SESSION_PUSH'),
         control: value(enums, 'sys_session_kind_e', 'SYS_SESSION_CONTROL'),
       },
       control: {

@@ -1,0 +1,90 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "FLASHER",
+  "router_key": 20,
+  "alias": "Flasher",
+  "description": "Programs the ESP32-S3 on the board's link with this board's firmware, through that board's ROM bootloader (BOOT and EN wires).",
+  "category": "system",
+  "commands": [
+    {
+      "id": "START",
+      "op": 1,
+      "symbol": "SYS_FLASHER_OP_START",
+      "label": "Flash the attached board",
+      "description": "Starts writing this board's bootloader, partition table and firmware to the board on the link, with its settings erased. Answers at once; STATUS follows it. Refused while this board has id 0.",
+      "write": {}
+    },
+    {
+      "id": "STATUS",
+      "op": 2,
+      "symbol": "SYS_FLASHER_OP_STATUS",
+      "label": "Flashing status",
+      "description": "Where the last flashing is: its state, step and bytes, and its error when it failed.",
+      "read": {
+        "returns": {
+          "struct": "sys_flasher_status_reply_t",
+          "description": "The last flashing",
+          "fields": [
+            {
+              "id": "state",
+              "label": "State",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "enum": "sys_flasher_state_e"
+            },
+            {
+              "id": "step",
+              "label": "Step",
+              "type": "choice",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "enum": "sys_flasher_step_e"
+            },
+            {
+              "id": "done",
+              "label": "Bytes done",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 2,
+              "unit": "B",
+              "description": "Written and checked"
+            },
+            {
+              "id": "total",
+              "label": "Bytes in all",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 6,
+              "unit": "B"
+            },
+            {
+              "id": "error",
+              "label": "Error",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 10,
+              "description": "When it failed: the tag of its error; else 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ABORT",
+      "op": 3,
+      "symbol": "SYS_FLASHER_OP_ABORT",
+      "label": "Stop flashing",
+      "description": "Stops the flashing between two packets; the attached board is restarted into what it has.",
+      "write": {}
+    }
+  ]
+}

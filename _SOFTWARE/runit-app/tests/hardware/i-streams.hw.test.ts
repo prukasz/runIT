@@ -21,11 +21,9 @@ afterAll(async () => {
 const USER = 0x20
 
 describe('the session and the streams on a real board', () => {
-  it('the session opened with the app\'s own id; the board said its id, MAC and boot id in its hello', async () => {
+  it('the session opened with the app\'s own id; the board said its id and boot id in its hello', async () => {
     const s = board.link.session!
     expect(s.clientId).toBe(defs.session.id.app)
-    expect(s.mac).toMatch(/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/)
-    expect(s.mac).not.toBe('00:00:00:00:00:00')
     expect(s.bootId).not.toBe(0)
     expect(s.timeoutMs).toBeGreaterThanOrEqual(150)
     expect(await sessions.boardId()).toBe(s.boardId)
@@ -35,7 +33,7 @@ describe('the session and the streams on a real board', () => {
     const peers = await sessions.peers()
     const mine = peers.find((p) => p.peerId === defs.session.id.app)
     expect(mine).toMatchObject({ kind: 'client', open: true })
-    expect(mine!.provider.link).toBe(2) // SYS_DATA_PROVIDER_LINK_BLE
+    expect(mine!.provider).toBe(3) // RUNIT_BOARD_PROVIDER_BLE_RUNIT
   })
 
   it('LIST has the board\'s four streams, OUT, its own; errors, telemetry and events have this client as a subscriber', async () => {

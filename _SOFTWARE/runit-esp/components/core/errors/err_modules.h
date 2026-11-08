@@ -10,7 +10,7 @@
 #define ERR_MOD_CORE               0u  // errors itself (errors.h)
 #define ERR_MOD_SYS_I2C            1u  // components/sys/sys_i2c
 #define ERR_MOD_ROUTER             2u  // components/core/router
-// 3 is unused: never assign it (sys_uart is a provider's driver: its errors are ERR_PROV_*).
+// 3 is unused: never assign it.
 #define ERR_MOD_SYS_BLE            4u  // components/sys/sys_ble
 #define ERR_MOD_SYS_STREAM         5u  // components/sys/sys_stream
 #define ERR_MOD_SYS_DEVICE         6u  // components/sys/sys_device (also the errors shared by all devices)
@@ -31,3 +31,5 @@
 #define ERR_MOD_SYS_REMOTE         21u // components/sys/sys_remote (devices of other boards: calls, subscriptions to their events and errors)
 #define ERR_MOD_SYS_OTA            23u // components/sys/sys_ota (the firmware update)
 #define ERR_MOD_SYS_NVS            22u // components/sys/sys_nvs (NVS partitions, JSON files in chunks)
+#define ERR_MOD_SYS_UART           24u // components/sys/sys_uart (UART ports made at run time)
+#define ERR_MOD_SYS_FLASHER        25u // components/sys/sys_flasher (the board on the link programmed through its ROM bootloader)

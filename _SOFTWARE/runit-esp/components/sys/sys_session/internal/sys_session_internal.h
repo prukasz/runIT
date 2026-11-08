@@ -45,7 +45,17 @@ uint32_t sys_session_timeout(int32_t at);
  */
 bool sys_session_open(int32_t at, const sys_session_hello_state_t* peer, bool* was_open);
 
-/** @brief Ends session `at`: its peer is gone. */
+/** @brief Whether session `at` may open: the board has no master, or it is that master's session. */
+bool sys_session_admits(int32_t at);
+
+/**
+ * @brief Makes session `at` (a CLIENT way a board's hello came on) this board's master's, and ends every other open
+ * session: a board with a master has no other session. Its end makes it a CLIENT way again (sys_session_end).
+ * @return false when the board has another master.
+ */
+bool sys_session_take_master(int32_t at);
+
+/** @brief Ends session `at`: its peer is gone; a CLIENT way made MASTER is a CLIENT way again. */
 void sys_session_end(int32_t at);
 
 /** @brief Copies every session out as PEERS sends it; returns how many. */

@@ -50,13 +50,13 @@ typedef void (*sys_session_gone_f)(uint8_t peer, uint8_t via);
 typedef void (*sys_session_reached_f)(uint8_t peer);
 
 /**
- * @brief A stream frame for this board, on the driver's RX task. Copy what you keep and return; never block.
+ * @brief A PUSH frame for this board, on the driver's RX task. Copy what you keep and return; never block.
  * @param src   The board that sent it.
- * @param seq   Its stream's counter: a gap is frames lost on the way.
+ * @param seq   Its stream's (or the channel sender's) counter: a gap is frames lost on the way.
  * @param data  [stream id or channel][payload], valid for the call only.
  * @param len   Bytes in `data`.
  */
-typedef void (*sys_session_stream_f)(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len);
+typedef void (*sys_session_push_f)(uint8_t src, uint16_t seq, const uint8_t* data, uint32_t len);
 
 /* ----------------------------------------------------------------------------
  * Start and this board
@@ -104,14 +104,14 @@ MUST_USE err_h sys_session_set_timeout(uint32_t ms);
  * session, anything next to a master), ERR_SESSION_FULL, ERR_SESSION_NOT_FRAMED (a raw provider), ERR_CMD_BAD_ARG (already attached, a bad peer), or the
  * provider's open error (ERR_PROV_NOT_FOUND, _IN_USE).
  */
-MUST_USE err_h sys_session_attach(sys_data_provider_id_t provider, uint8_t peer);
+MUST_USE err_h sys_session_attach(uint8_t provider, uint8_t peer);
 
 /**
  * @brief Ends the session on a provider and closes it: its peer is gone.
  * @param provider  The provider.
  * @return NULL when detached or not attached; the provider's close error.
  */
-MUST_USE err_h sys_session_detach(sys_data_provider_id_t provider);
+MUST_USE err_h sys_session_detach(uint8_t provider);
 
 /**
  * @brief Whether a peer is the peer of an open session on a WIRED provider: a neighbour on a cable, where the VM may
@@ -179,11 +179,11 @@ MUST_USE err_h sys_session_call_wait(uint8_t dst, cmd_in_t req, uint8_t flags, u
 void sys_session_no_wait(void);
 
 /* ----------------------------------------------------------------------------
- * Streams
+ * Push frames
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Sends one stream frame to a peer: what a stream sends to its subscribers, and a session channel's frame (a
+ * @brief Sends one PUSH frame to a peer: what a stream sends to its subscribers, and a session channel's frame (a
  * watch's entry to its owner, a remote device's events) (SYS_SESSION.MD "Streams"). NOWAIT on the session's provider:
  * never blocks, any task.
  * @param peer   A board or client id.
@@ -193,7 +193,22 @@ void sys_session_no_wait(void);
  * @param flags  ROUTER_FLAG_URGENT (to the front of the provider's queue), or 0.
  * @return NULL when queued; ERR_SESSION_NO_ROUTE, or the provider's ERR_PROV_BUSY / _DOWN / _TOO_LONG.
  */
-MUST_USE err_h sys_session_stream(uint8_t peer, uint16_t seq, const uint8_t* data, uint32_t len, uint8_t flags);
+MUST_USE err_h sys_session_push(uint8_t peer, uint16_t seq, const uint8_t* data, uint32_t len, uint8_t flags);
+
+/**
+ * @brief Sends data to a provider of another board, or to a receiver of a client (SYS_SESSION.MD "Data to a provider").
+ * The board it reaches sends the data on that provider as it is, without a header. NOWAIT, never blocks, any task.
+ * @param peer   A board or client id.
+ * @param seq    The sender's frame counter.
+ * @param to     The provider's id on `peer`.
+ * @param from   The sender's own id: a provider or a stream of this board.
+ * @param data   The data, at most CMD_DATA_MAX - 3.
+ * @param len    Bytes in `data`.
+ * @param flags  ROUTER_FLAG_URGENT, or 0.
+ * @return NULL when queued; ERR_CMD_BAD_LEN, ERR_SESSION_NO_ROUTE, or the provider's ERR_PROV_BUSY / _DOWN / _TOO_LONG.
+ */
+MUST_USE err_h sys_session_data(uint8_t peer, uint16_t seq, uint8_t to, uint8_t from, const uint8_t* data, uint32_t len,
+                                uint8_t flags);
 
 /* ----------------------------------------------------------------------------
  * Listeners (boot only)
@@ -215,12 +230,12 @@ MUST_USE err_h sys_session_on_gone(sys_session_gone_f fn);
 MUST_USE err_h sys_session_on_reached(sys_session_reached_f fn);
 
 /**
- * @brief Adds a listener of the stream frames for this board; each takes its own by the first byte (a channel's
+ * @brief Adds a listener of the PUSH frames for this board; each takes its own by the first byte (a channel's
  * owner its SYS_SESSION_CHANNEL_*). Boot only.
  * @param fn  The listener.
- * @return NULL when added; ERR_SESSION_FULL (every CONFIG_SYS_SESSION_STREAM_LISTENERS slot taken).
+ * @return NULL when added; ERR_SESSION_FULL (every CONFIG_SYS_SESSION_PUSH_LISTENERS slot taken).
  */
-MUST_USE err_h sys_session_on_stream(sys_session_stream_f fn);
+MUST_USE err_h sys_session_on_push(sys_session_push_f fn);
 
 #ifdef __cplusplus
 }

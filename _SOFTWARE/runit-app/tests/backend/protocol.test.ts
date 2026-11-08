@@ -52,20 +52,20 @@ describe('frames of the session (SYS_SESSION.MD examples)', () => {
     expect(decodeResponse(defs, bytes('40 f0 00 07 00 10 00 00 00'))).toMatchObject({ seq: 7, ok: true })
     expect([...decodeResponse(defs, bytes('40 f0 00 07 00 10 00 00 00'))!.data]).toEqual([0x10, 0, 0, 0])
     expect(decodeResponse(defs, bytes('44 f0 00 07 01'))).toMatchObject({ seq: 0x107, ok: false })
-    expect(decodeResponse(defs, bytes('80 f0 00 07 00 02 01'))).toBeUndefined() // a stream frame (telemetry)
+    expect(decodeResponse(defs, bytes('80 f0 00 07 00 02 01'))).toBeUndefined() // a PUSH frame (telemetry)
     expect(decodeResponse(defs, bytes('40 f0 00 07'))).toBeUndefined()
-    expect(decodeFrame(defs, bytes('80 f0 00 07 00 02 01'))).toMatchObject({ kind: defs.session.kind.stream, seq: 7 })
+    expect(decodeFrame(defs, bytes('80 f0 00 07 00 02 01'))).toMatchObject({ kind: defs.session.kind.push, seq: 7 })
   })
 
-  it('a HELLO (sys_session_hello_t, 16 B) says its sender\'s own id: the app SYS_SESSION_ID_APP, a board its place', () => {
+  it('a HELLO (sys_session_hello_t, 10 B) says its sender\'s own id: the app SYS_SESSION_ID_APP, a board its place', () => {
     const { hello } = defs.session.control
     const mine = encodeHello(defs, { id: defs.session.id.app, bootId: 0x12345678, timeoutMs: 60000 })
-    // [HELLO][version][id][mac 6][boot_id u32][fw_version u16][timeout_ms u16]
-    expect([...mine]).toEqual([hello, defs.session.version, 0xf0, 0, 0, 0, 0, 0, 0, 0x78, 0x56, 0x34, 0x12, 0, 0, 0x60, 0xea])
-    expect(decodeHello(defs, mine)).toEqual({ version: defs.session.version, id: 0xf0, mac: '00:00:00:00:00:00', bootId: 0x12345678, fwVersion: 0, timeoutMs: 60000 })
-    const board = Uint8Array.from([hello, defs.session.version, 0x03, 0x24, 0x6f, 0x28, 0xaa, 0xbb, 0xcc, 1, 2, 3, 4, 5, 0, 0xb8, 0x0b])
-    expect(decodeHello(defs, board)).toEqual({ version: defs.session.version, id: 3, mac: '24:6f:28:aa:bb:cc', bootId: 0x04030201, fwVersion: 5, timeoutMs: 3000 })
-    expect(decodeHello(defs, board.subarray(0, 16))).toBeUndefined() // one byte short
+    // [HELLO][version][id][boot_id u32][fw_version u16][timeout_ms u16]
+    expect([...mine]).toEqual([hello, defs.session.version, 0xf0, 0x78, 0x56, 0x34, 0x12, 0, 0, 0x60, 0xea])
+    expect(decodeHello(defs, mine)).toEqual({ version: defs.session.version, id: 0xf0, bootId: 0x12345678, fwVersion: 0, timeoutMs: 60000 })
+    const board = Uint8Array.from([hello, defs.session.version, 0x03, 1, 2, 3, 4, 5, 0, 0xb8, 0x0b])
+    expect(decodeHello(defs, board)).toEqual({ version: defs.session.version, id: 3, bootId: 0x04030201, fwVersion: 5, timeoutMs: 3000 })
+    expect(decodeHello(defs, board.subarray(0, 10))).toBeUndefined() // one byte short
     expect(decodeHello(defs, Uint8Array.of(defs.session.control.ping))).toBeUndefined()
   })
 

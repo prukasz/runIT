@@ -17,7 +17,8 @@ typedef enum {
    add, UP too, then by sys_data_provider_set_up(); OPEN the registry's. */
 //#ref-defines prov_state @alias Provider state @prefix SYS_DATA_PROVIDER_STATE_
 #define SYS_DATA_PROVIDER_STATE_SYSTEM (1u << 0)  //@alias System @description The board's own: not removed
-#define SYS_DATA_PROVIDER_STATE_OPEN   (1u << 1)  //@alias Open @description Taken by its one user
+#define SYS_DATA_PROVIDER_STATE_OPEN   (1u << 1)  //@alias Open @description Its rx hook has an owner
 #define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 3)  //@alias Wired @description Connection realised by cable - low latency 
 #define SYS_DATA_PROVIDER_STATE_UP     (1u << 4)  //@alias Up @description It delivers frames now
+#define SYS_DATA_PROVIDER_STATE_NO_RX  (1u << 6)  //@alias No receive hook @description What comes in reaches no hook: whoever holds it reads it from its driver
 #define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 5)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw: what the link takes at once

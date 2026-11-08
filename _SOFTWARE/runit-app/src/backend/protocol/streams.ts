@@ -5,27 +5,21 @@ import type { LinkDefinitions } from '../definitions'
  * `u8 count`, then a record per item). The layouts are the firmware's packed structs:
  *
  *   STREAM LIST   [count] then per stream  sys_stream_head_t   [id][dir][flags][state][targets]          5 B
- *                                           then its targets     [type][peer][link][channel u32][dropped u16] 9 B each
- *   SESSION PEERS [count] then per session  sys_session_info_t   [link][channel u32][peer][open][peer id][timeout u16]  10 B
+ *                                           then its targets     [type][peer][provider][dropped u16]       5 B each
+ *   SESSION PEERS [count] then per session  sys_session_info_t   [provider][peer][open][peer id][timeout u16]  6 B
  *
  * (sys_stream/internal/sys_stream_internal.h, sys_session/router/sys_session_router.h). Little endian.
  */
 
-/** A provider: a way bytes go out and come in, by its link (`sys_data_provider_link_e`) and its channel there (a BLE characteristic's UUID, a UART's port). */
-export interface ProviderId {
-  readonly link: number
-  readonly channel: number
-}
-
 export type StreamDirection = 'out' | 'in'
 
-/** One target of a stream: a binding (a provider), a subscriber (a peer: a board or a client), or the board's own code. */
+/** One target of a stream: a binding (a provider), an IN stream's output (a provider), a subscriber (a peer: a board or a client), or the board's own code. */
 export interface StreamTarget {
-  readonly kind: 'provider' | 'peer' | 'callback'
-  /** A subscriber's id. */
+  readonly kind: 'provider' | 'output' | 'remote' | 'peer' | 'callback'
+  /** A subscriber's id; a remote target's board or client. */
   readonly peer?: number
-  /** A binding's provider. */
-  readonly provider?: ProviderId
+  /** A binding's, an output's or a remote target's provider: its id. */
+  readonly provider?: number
   /** Messages not given to it (busy, down, too long, no route); stops at 0xFFFF. */
   readonly dropped: number
 }
@@ -43,10 +37,9 @@ export interface StreamInfo {
 }
 
 const HEAD_BYTES = 5
-const TARGET_BYTES = 9
+const TARGET_BYTES = 5
 
 const u16 = (d: Uint8Array, at: number): number => d[at]! | (d[at + 1]! << 8)
-const u32 = (d: Uint8Array, at: number): number => (d[at]! | (d[at + 1]! << 8) | (d[at + 2]! << 16)) + d[at + 3]! * 0x1000000
 
 /** STREAM LIST's answer; a record cut short ends the list. */
 export const decodeStreamList = (defs: LinkDefinitions, data: Uint8Array): StreamInfo[] => {
@@ -59,9 +52,11 @@ export const decodeStreamList = (defs: LinkDefinitions, data: Uint8Array): Strea
     const targets: StreamTarget[] = []
     for (let t = 0; t < count && at + TARGET_BYTES <= data.length; t++, at += TARGET_BYTES) {
       const type = data[at]!
-      const dropped = u16(data, at + 7)
+      const dropped = u16(data, at + 3)
       if (type === stream.target.peer) targets.push({ kind: 'peer', peer: data[at + 1]!, dropped })
-      else if (type === stream.target.provider) targets.push({ kind: 'provider', provider: { link: data[at + 2]!, channel: u32(data, at + 3) }, dropped })
+      else if (type === stream.target.provider) targets.push({ kind: 'provider', provider: data[at + 2]!, dropped })
+      else if (type === stream.target.remote) targets.push({ kind: 'remote', peer: data[at + 1]!, provider: data[at + 2]!, dropped })
+      else if (type === stream.target.output) targets.push({ kind: 'output', provider: data[at + 2]!, dropped })
       else targets.push({ kind: 'callback', dropped })
     }
     out.push({ id, dir: dir === stream.dir.in ? 'in' : 'out', urgent: (flags & stream.flagUrgent) !== 0, system: (state & stream.stateSystem) !== 0, targets })
@@ -74,8 +69,8 @@ export type PeerKind = 'master' | 'slave' | 'client'
 
 /** One session of the board as PEERS tells it. */
 export interface SessionPeer {
-  /** The provider the session runs on. */
-  readonly provider: ProviderId
+  /** The id of the provider the session runs on. */
+  readonly provider: number
   readonly kind: PeerKind
   /** Both hellos passed. */
   readonly open: boolean
@@ -85,21 +80,21 @@ export interface SessionPeer {
   readonly timeoutMs: number
 }
 
-const PEER_BYTES = 10
+const PEER_BYTES = 6
 
 /** SESSION PEERS's answer; a record cut short ends the list. */
 export const decodePeers = (defs: LinkDefinitions, data: Uint8Array): SessionPeer[] => {
   const { peer, id } = defs.session
   const out: SessionPeer[] = []
   for (let n = 0, at = 1; n < (data[0] ?? 0) && at + PEER_BYTES <= data.length; n++, at += PEER_BYTES) {
-    const kind: PeerKind = data[at + 5] === peer.master ? 'master' : data[at + 5] === peer.slave ? 'slave' : 'client'
-    const peerId = data[at + 7]!
+    const kind: PeerKind = data[at + 1] === peer.master ? 'master' : data[at + 1] === peer.slave ? 'slave' : 'client'
+    const peerId = data[at + 3]!
     out.push({
-      provider: { link: data[at]!, channel: u32(data, at + 1) },
+      provider: data[at]!,
       kind,
-      open: data[at + 6] === 1,
+      open: data[at + 2] === 1,
       ...(peerId === id.none ? {} : { peerId }),
-      timeoutMs: u16(data, at + 8),
+      timeoutMs: u16(data, at + 4),
     })
   }
   return out
