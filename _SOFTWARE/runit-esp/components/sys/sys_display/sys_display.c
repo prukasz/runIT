@@ -8,14 +8,13 @@ err_h sys_display_get_geometry(uint16_t device, display_geometry_t* out) {
 }
 
 err_h sys_display_set_backlight(uint16_t device, uint16_t brightness_duty) {
-  ERR_CHECK(brightness_duty <= SYS_DISPLAY_BRIGHTNESS_MAX, ERR_DEV_RANGE);
+  SYS_DEV_CHECK_IN_RANGE(device, brightness_duty, 0, SYS_DISPLAY_BRIGHTNESS_MAX);
   const display_backlight_args_t a = {.brightness_duty = brightness_duty};
   return sys_device_write(device, DISPLAY_OP_BACKLIGHT, &a, sizeof(a));
 }
 
 err_h sys_display_set_orientation(uint16_t device, uint8_t orientation) {
-  ERR_CHECK(orientation <= SYS_DISPLAY_ORIENTATION_270, ERR_DEV_RANGE, .id = device, .value = orientation, .min = 0,
-            .max = SYS_DISPLAY_ORIENTATION_270);
+  SYS_DEV_CHECK_IN_RANGE(device, orientation, SYS_DISPLAY_ORIENTATION_0, SYS_DISPLAY_ORIENTATION_270);
   const display_orientation_args_t a = {.orientation = orientation};
   return sys_device_write(device, DISPLAY_OP_ORIENTATION, &a, sizeof(a));
 }

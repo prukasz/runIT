@@ -52,7 +52,7 @@ SPI has no acknowledge: once a transfer runs, the bus cannot tell whether the pa
 |---|---|---|
 | In FLUSH, before the DMA starts | the bus refuses it: `tx_color` / `spi_device_queue_trans` fails (an argument, no memory for a bounce buffer, the bus not acquired) | the driver, **at once**: FLUSH returns `ERR_DISPLAY_TRANSFER{id, code}` (`code` the `esp_err_t`), `done` is not called |
 | After it was accepted, known in the ISR | (not on SPI with `esp_lcd`; a driver that chains its own transfers in the ISR) | the driver, **at the next FLUSH**: the ISR keeps only the code and still calls `done`; the next FLUSH returns `ERR_DISPLAY_TRANSFER{id, code}` once and sends nothing. RESET and RESUME clear the kept code |
-| The transfer never ends | the DMA or the bus hangs: no interrupt, no `done` | the adapter: its `flush_wait_cb` waits at most a limit (several times one buffer's transfer), then reports `ERR_DISPLAY_FLUSH_TIMEOUT{id, ms}`, releases LVGL and RESETs the display (the driver stops the bus's transfer and inits the panel again) |
+| The transfer never ends | the DMA or the bus hangs: no interrupt, no `done` | the adapter: its `flush_wait_cb` waits at most a limit (several times one buffer's transfer), then reports `ERR_DISPLAY_FLUSH_TIMEOUT{id, timeout_ms}`, releases LVGL and RESETs the display (the driver stops the bus's transfer and inits the panel again) |
 
 A FLUSH that fails while some of its chunks are queued (`esp_lcd` enables the done callback on the last chunk only) has no `done`: the driver returns the error, and recycles the finished transactions before its next transfer (`esp_lcd` does it in the next `tx_param`).
 
@@ -86,7 +86,7 @@ A FLUSH that fails while some of its chunks are queued (`esp_lcd` enables the do
 | `ERR_DISPLAY_BAD_WINDOW` | The window is empty, outside the panel, or its bytes are not the FLUSH's `len` |
 | `ERR_DISPLAY_FLUSH_BUSY` | A FLUSH is still in flight |
 | `ERR_DISPLAY_TRANSFER` | The bus refused the transfer (from FLUSH at once) or one accepted before failed (from the next FLUSH, once); `code` the bus's `esp_err_t` |
-| `ERR_DISPLAY_FLUSH_TIMEOUT` | The end of an accepted FLUSH did not come within `ms`: the adapter reports it and resets the display |
+| `ERR_DISPLAY_FLUSH_TIMEOUT` | The end of an accepted FLUSH did not come within `timeout_ms`: the adapter reports it and resets the display |
 
 ## Open
 

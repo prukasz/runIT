@@ -124,7 +124,7 @@
       "op": 6,
       "symbol": "SYS_DEVICE_OP_OPS",
       "label": "List operations",
-      "description": "Every operation the device answers, with the sides it has.",
+      "description": "Every operation the device answers as a command, with the sides it has (a local op, run only inside the board, is left out).",
       "read": {
         "returns": {
           "label": "Operations",

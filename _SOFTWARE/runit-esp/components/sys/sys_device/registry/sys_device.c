@@ -304,6 +304,7 @@ static bool device_has_op(const dev_t_* d, uint16_t op) {
 static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t count, bool wired, cmd_out_t* out) {
   for (uint32_t k = 0; k < count; k++) {
     if (wired && !device_has_op(d, ops[k].op)) continue;
+    if (ops[k].local) continue;  // C only: not a command the device answers
     const uint8_t sides = (ops[k].read != NULL ? SIDE_READ : 0) | (ops[k].write != NULL ? SIDE_WRITE : 0);
     ERR_TRY(cmd_append(out, &ops[k].op, sizeof(uint16_t)));  // little-endian target
     ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
@@ -311,7 +312,7 @@ static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t co
   return NULL;
 }
 
-// OPS: the registry's ops, then the type's table (the ops this device runs).
+// OPS: the registry's ops, then the type's table (the ops this device runs as commands; a local op is left out).
 OP_READ(SYS_DEVICE, OPS) {
   const dev_t_* d = ctx;
   ERR_TRY(append_ops(d, k_registry_ops, ARRAY_LEN(k_registry_ops), false, out));
