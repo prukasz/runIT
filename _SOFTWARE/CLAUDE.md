@@ -14,6 +14,8 @@ Load the `runit-root` skill first. It holds the vision, hardware and repo map. T
 
 Durable notes and gotchas: `.claude/memory.md`.
 
+API reference: `API.html` lists every router and device op (opcode, sides, purpose); `python tools/gen_api_html.py` regenerates it from `runit-app/generated/` (after `templates/sync.sh`), never by hand.
+
 Code graph: `graphify-out/` (firmware C with preprocessed headers, the app's TypeScript, plus the docs of both). For structure questions (callers, module links, impact of a change) query it first: `graphify query "…"`, `explain "X"`, `path "A" "B"`, `affected "X"`. Grep is for exact strings. Rebuild: `$(cat graphify-out/.graphify_python) tools/graphify_pp.py` (about 30 s; needs `runit-esp/build/compile_commands.json`). A post-commit hook runs it after commits that touch `runit-esp/components/`, `runit-esp/main/`, the app's `src/`, `electron/`, `tools/` or the docs; new or changed docs have no semantic results until `/graphify . --update`. Never run plain `graphify update` or `graphify hook install` here: they drop the preprocessed headers.
 
 ## Rules

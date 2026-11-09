@@ -1,451 +1,5 @@
-<mxfile host="Electron" pages="5">
-  <diagram id="UDBawy23HTwSRcBQDvIA" name="1 Moduł wyświetlacza (szkic)">
-    <mxGraphModel dx="1668" dy="1268" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;gradientColor=default;" value="" vertex="1">
-          <mxGeometry height="2830" width="1250" x="620" y="880" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;kontrakt (sys_display)&lt;/div&gt;sys_display_contract.h" vertex="1">
-          <mxGeometry height="80" width="300" x="710" y="630" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-3" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="1060" y="570" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="sys_event publiush&lt;br&gt;FLUSH_DONE" vertex="1">
-          <mxGeometry height="80" width="100" x="1010" y="630" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;div&gt;sys_event module&lt;/div&gt;queue" vertex="1">
-          <mxGeometry height="80" width="100" x="1010" y="490" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="router sys_device" vertex="1">
-          <mxGeometry height="40" width="80" x="370" y="750" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-7" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Sterownik wyświetlacza" vertex="1">
-          <mxGeometry height="60" width="120" x="800" y="500" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;kontrakt (sys_touch)&lt;/div&gt;detale -&amp;gt; touch_contracts.h" vertex="1">
-          <mxGeometry height="80" width="300" x="1260" y="630" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;br&gt;&lt;div align=&quot;left&quot;&gt;Kontrakt device:&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;ul&gt;&lt;li&gt;create(touch_cfg_t)&lt;/li&gt;&lt;li&gt;uninstall(void)&lt;/li&gt;&lt;li&gt;suspend(void)&lt;/li&gt;&lt;li&gt;resume(void)&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="130" width="195" x="1260" y="710" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-11" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-9">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="sterownik dotyku" vertex="1">
-          <mxGeometry height="60" width="120" x="1350" y="500" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-13" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-6" style="endArrow=classic;startArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=-0.01;entryY=0.462;entryDx=0;entryDy=0;entryPerimeter=0;" target="iDWs2u-NRnBUjb_r6jMU-20" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="650" y="810" as="sourcePoint" />
-            <mxPoint x="700" y="760" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-14" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-19" style="endArrow=classic;startArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="1169" y="774.5" as="sourcePoint" />
-            <mxPoint x="1260" y="774.5" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" value="&lt;div&gt;HARDWARE PROXY(sterowniki)&lt;/div&gt;&lt;div&gt;ADAPTER(&quot;kontrakt&quot;)&lt;/div&gt;&lt;div&gt;&amp;nbsp;FACTORY (device CREATE)&lt;/div&gt;MEDIATOR(sys_device + router)&lt;br&gt;OBSERWATOR(FLUSH_DONE)&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="100" width="210" x="1125" y="490" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-16" parent="1" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;" value="WYŚWIETLACZ + DOTYK" vertex="1">
-          <mxGeometry height="380" width="1230" x="520" y="480" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-17" parent="iDWs2u-NRnBUjb_r6jMU-16" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="Deklaracja błedów modułu err_h" vertex="1">
-          <mxGeometry height="80" width="80" x="1039" y="150" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-18" parent="iDWs2u-NRnBUjb_r6jMU-16" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="Deklaracja błedów modułu err_h" vertex="1">
-          <mxGeometry height="80" width="80" x="110" y="150" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-19" parent="iDWs2u-NRnBUjb_r6jMU-16" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="router sys_device" vertex="1">
-          <mxGeometry height="40" width="80" x="630" y="275" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-20" parent="iDWs2u-NRnBUjb_r6jMU-16" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;align=left;" value="&lt;div&gt;Kontrakt device:&lt;/div&gt;&lt;ul&gt;&lt;li&gt;create(display_cfg_t)&lt;/li&gt;&lt;li&gt;uninstall(void)&lt;/li&gt;&lt;li&gt;suspend(void)&lt;/li&gt;&lt;li&gt;resume(void)&lt;/li&gt;&lt;/ul&gt;" vertex="1">
-          <mxGeometry height="140" width="180" x="110" y="230" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-21" parent="iDWs2u-NRnBUjb_r6jMU-16" style="rounded=0;whiteSpace=wrap;html=1;align=left;" value="DEVICE OP:&amp;nbsp;&lt;br&gt;standardowe&lt;br&gt;&lt;div&gt;GEOMETRY(get) -&amp;gt; (display_geometry_t)&lt;/div&gt;&lt;div&gt;BACKLIGHT(set) (display_backlight_args_t)&lt;/div&gt;&lt;div&gt;tylko w C&lt;/div&gt;&lt;div&gt;FLUSH(set) (display_window_t* window, void* pxels)&lt;/div&gt;&lt;br&gt;&lt;div align=&quot;left&quot;&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="140" width="311" x="280" y="230" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-22" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-16" source="iDWs2u-NRnBUjb_r6jMU-21" style="endArrow=classic;startArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-19" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="480" y="270" as="sourcePoint" />
-            <mxPoint x="530" y="220" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-23" parent="iDWs2u-NRnBUjb_r6jMU-16" style="rounded=0;whiteSpace=wrap;html=1;align=left;" value="&lt;div align=&quot;left&quot;&gt;Device OP&amp;nbsp;&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;POINT(get) -&amp;gt; (touch_point_t)&lt;/div&gt;&lt;div align=&quot;left&quot;&gt;CALIBRATION(set) (touch_calibration_args_t)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="130" width="195" x="928" y="230" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-24" parent="iDWs2u-NRnBUjb_r6jMU-16" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="router sys_device" vertex="1">
-          <mxGeometry height="40" width="80" x="1160" y="275" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-25" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-16" source="iDWs2u-NRnBUjb_r6jMU-23" style="endArrow=classic;startArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-24" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="1150" y="420" as="sourcePoint" />
-            <mxPoint x="1200" y="370" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-26" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;sys_lvgl&amp;nbsp;&lt;/div&gt;&lt;div&gt;detal-&amp;gt; sys_lvgl.h&amp;nbsp;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="195" x="1037.5" y="990" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-27" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-33" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-28" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-27" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="device ids + heap dla obiektów&amp;nbsp;" vertex="1">
-          <mxGeometry relative="1" x="-0.0666" y="2" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="OP&amp;nbsp;&lt;br&gt;&lt;div&gt;INSTALL(set)&lt;/div&gt;&lt;div&gt;RESET(set)&lt;/div&gt;&lt;div&gt;ROTATION(set, get)&lt;/div&gt;&lt;div&gt;STATUS(get)&lt;br&gt;STOP&lt;/div&gt;&lt;div&gt;START&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="140" width="195" x="1037.5" y="1060" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-30" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-35">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-31" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-30" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="OP_GEOMETRY(get)" vertex="1">
-          <mxGeometry relative="1" x="0.2583" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-32" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-39">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-33" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="INSTALL" vertex="1">
-          <mxGeometry height="60" width="120" x="1037.5" y="1303" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-34" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;entryX=0;entryY=0.5;entryDx=0;entryDy=0;startArrow=blockThin;startFill=1;" target="iDWs2u-NRnBUjb_r6jMU-8">
-          <mxGeometry relative="1" x="-0.0228" as="geometry">
-            <Array as="points">
-              <mxPoint x="490" y="1333" />
-              <mxPoint x="490" y="530" />
-            </Array>
-            <mxPoint x="630" y="530" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-35" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="sys_device_call" vertex="1">
-          <mxGeometry height="60" width="120" x="650" y="1303" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-36" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-33">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="1038" y="1440" as="sourcePoint" />
-            <mxPoint x="770" y="1440" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-37" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-36" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="response" vertex="1">
-          <mxGeometry relative="1" x="0.2583" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-38" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-68">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1312.5" y="1420" />
-              <mxPoint x="1515" y="1420" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-39" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Alokacja buforu na obiekty na wyświetlaczu (lv_obj_t)&lt;div&gt;Alokacja buforów na renderowanie&amp;nbsp;&lt;/div&gt;&lt;div&gt;o rozmiarze z GEOMETRY(get)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="80" width="195" x="1215" y="1293" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;div&gt;router&lt;/div&gt;&lt;div&gt;sys_lvgl&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="120" x="810" y="1100" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-41" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-40" style="endArrow=classic;startArrow=classic;html=1;rounded=0;defaultLabelBackgroundColor=page;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-29" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="1030" y="1120" as="sourcePoint" />
-            <mxPoint x="1080" y="1070" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-42" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="Deklaracja błedów modułu err_h" vertex="1">
-          <mxGeometry height="70" width="70" x="1232.5" y="990" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-43" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="rejestracja dotyku&lt;br&gt;po kontrakcie device_touch" vertex="1">
-          <mxGeometry height="60" width="120" x="1037.5" y="1363" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-44" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;" value="renderowanie&lt;br&gt;&lt;div&gt;(STOP, START,RESET)&lt;/div&gt;&lt;div&gt;swap bajtów&lt;/div&gt;" vertex="1">
-          <mxGeometry height="140" width="140" x="1232.5" y="1060" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-45" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=1;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-54">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1480" y="1040" />
-              <mxPoint x="1480" y="1040" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-46" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-45" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="subskrybuje event" vertex="1">
-          <mxGeometry relative="1" x="-0.1111" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;sys_event&lt;/div&gt;&lt;div&gt;subscribe FLUSH_DONE&lt;/div&gt;&lt;div&gt;na device id&lt;/div&gt;" vertex="1">
-          <mxGeometry height="80" width="150" x="1372.5" y="1060" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-48" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-59">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-49" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-48" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="Bufor do renderu" vertex="1">
-          <mxGeometry relative="1" x="0.056" y="-1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-50" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="FLUSH(set)" vertex="1">
-          <mxGeometry height="60" width="150" x="1372.5" y="1140" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-51" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-59" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-8">
-          <mxGeometry relative="1" x="-0.199" as="geometry">
-            <Array as="points">
-              <mxPoint x="2120" y="1160" />
-              <mxPoint x="2120" y="390" />
-              <mxPoint x="860" y="390" />
-            </Array>
-            <mxPoint x="1677.5" y="1160" as="sourcePoint" />
-            <mxPoint x="1037.5" y="520" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-52" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-54" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-47">
-          <mxGeometry relative="1" x="0.4875" as="geometry">
-            <Array as="points">
-              <mxPoint x="1410" y="1010" />
-              <mxPoint x="1410" y="1010" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-53" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-52" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="callback" vertex="1">
-          <mxGeometry relative="1" x="0.0338" y="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-54" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;div&gt;sys_event&amp;nbsp;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="90" width="130" x="1382.5" y="890" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-55" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-56" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-100">
-          <mxGeometry relative="1" x="-0.8086" as="geometry">
-            <Array as="points">
-              <mxPoint x="1670" y="1220" />
-              <mxPoint x="1670" y="1220" />
-            </Array>
-            <mxPoint x="1600" y="1230" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-56" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;POINT(get) (read_cb)&lt;/div&gt;&lt;div&gt;polling&lt;/div&gt;" vertex="1">
-          <mxGeometry height="60" width="150" x="1373" y="1200" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-57" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1670" y="1155" />
-              <mxPoint x="1670" y="1155" />
-            </Array>
-            <mxPoint x="1910" y="1155" as="sourcePoint" />
-            <mxPoint x="1522.5" y="1155" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-58" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-57" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="flush error z poprzedniego cyklu" vertex="1">
-          <mxGeometry relative="1" x="0.1926" y="-1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-59" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;div&gt;sys_device_call&lt;/div&gt;asynchronicznie" vertex="1">
-          <mxGeometry height="60" width="150" x="1910" y="1140" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-60" parent="1" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;" value="Adapter LVGL" vertex="1">
-          <mxGeometry height="590" width="1390" x="520" y="860" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-61" parent="iDWs2u-NRnBUjb_r6jMU-60" style="rounded=0;whiteSpace=wrap;html=1;" value="Synchronizacja&amp;nbsp;&lt;br&gt;Edycja - Render" vertex="1">
-          <mxGeometry height="60" width="150" x="707.5" y="340" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-62" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=40;" value="Wielowątkowość - bo nie ma&amp;nbsp;" vertex="1">
-          <mxGeometry height="90" width="260" x="670" y="900" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-63" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" value="ADAPTER + FASADA +MEDIATOR(device id)&amp;nbsp;&lt;br&gt;+ doube buffering&amp;nbsp;&lt;br&gt;+ obserwator / poling&amp;nbsp;&lt;br&gt;+ automat stanów(start stop)" vertex="1">
-          <mxGeometry height="100" width="210" x="1629" y="1293" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-64" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;SYS_SCREEN_OP_:&lt;/div&gt;&lt;div&gt;CREATE&lt;/div&gt;&lt;div&gt;DELETE&lt;br&gt;SET&lt;/div&gt;&lt;div&gt;SHOW&lt;br&gt;EVENT&lt;br&gt;CLEAR&lt;br&gt;STATUS&lt;/div&gt;&lt;div&gt;APPEND&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="180" width="330" x="1020" y="1600" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-65" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-66" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.009;entryY=0.41;entryDx=0;entryDy=0;entryPerimeter=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-64">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="820" y="1673.8" />
-              <mxPoint x="820" y="1673.8" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-66" parent="1" style="whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="router sys_screen" vertex="1">
-          <mxGeometry height="60" width="120" x="620" y="1630" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-67" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="sys_screen&lt;div&gt;Budowa ekranów z obiektów na żywo z pakietów&lt;/div&gt;" vertex="1">
-          <mxGeometry height="70" width="330" x="1020" y="1530" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-68" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;LVGL tworzy obiekty na puli przypisanej wcześniej&amp;nbsp;&lt;/div&gt;na podstawie pakietów otrzymanych i słownka -&amp;nbsp;&lt;br&gt;&lt;div&gt;tworzone jest drzewo&amp;nbsp;&lt;/div&gt;&lt;div&gt;Zegar aktualizuje ekran - jeśli może&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="250" width="330" x="1350" y="1530" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-69" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-73" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="iDWs2u-NRnBUjb_r6jMU-71" value="">
-          <mxGeometry relative="1" x="0.638" as="geometry">
-            <mxPoint x="1515" y="1970" as="sourcePoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-70" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-71" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-86">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="1519.9999999999995" y="2280.0000000000005" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-71" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="kolejka&lt;br&gt;id widgetu + typ(enum) + payload" vertex="1">
-          <mxGeometry height="80" width="165" x="1432.5" y="2030" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-72" parent="1" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="Deklaracja błedów modułu err_h" vertex="1">
-          <mxGeometry height="70" width="70" x="950" y="1530" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-73" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Podłączenie eventów obiektów +&amp;nbsp;&lt;br&gt;translacaja na ustaloną formę + identyfikacja po ID z tabeli&amp;nbsp;" vertex="1">
-          <mxGeometry height="90" width="330" x="1351" y="1780" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-74" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Słownik widgetów&amp;nbsp;&lt;br&gt;enum + odpowiednia struktura przyjmowana do utworzenia ekranu&lt;/div&gt;" vertex="1">
-          <mxGeometry height="150" width="330" x="1020" y="1780" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-75" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-77" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-103">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="880" y="2140" />
-              <mxPoint x="1080" y="2140" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-76" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-77" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-73">
-          <mxGeometry relative="1" x="0.5238" as="geometry">
-            <Array as="points">
-              <mxPoint x="880" y="2020" />
-              <mxPoint x="1430" y="2020" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-77" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;Statyczna Tablica&lt;/div&gt;&lt;div&gt;mapująca objekt lvgl do nadanego ID (z góry)&lt;/div&gt;" vertex="1">
-          <mxGeometry height="150" width="280" x="740" y="1780" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-78" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-79" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-64">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-79" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="Adapter LVGL - RESET" vertex="1">
-          <mxGeometry height="60" width="120" x="622.5" y="1710" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-80" parent="1" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;" value="SCREEN Z BYTESTREAM" vertex="1">
-          <mxGeometry height="680" width="1380" x="520" y="1450" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-81" parent="iDWs2u-NRnBUjb_r6jMU-80" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" value="FABRYKA + FASADA" vertex="1">
-          <mxGeometry height="100" width="210" x="1130" y="430" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-82" parent="iDWs2u-NRnBUjb_r6jMU-80" style="rounded=0;whiteSpace=wrap;html=1;" value="Blokada typu Mutex lub inna&amp;nbsp;" vertex="1">
-          <mxGeometry height="340" width="80" x="1160" y="80" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-83" parent="1" style="swimlane;horizontal=0;whiteSpace=wrap;html=1;fillColor=default;" value="Adapter dla VM" vertex="1">
-          <mxGeometry height="590" width="1500" x="502.5" y="2340" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-84" parent="iDWs2u-NRnBUjb_r6jMU-83" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;font-size: 30px;&quot;&gt;W VM&lt;/font&gt;" vertex="1">
-          <mxGeometry height="30" width="220" x="70" y="30" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-85" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-83" source="iDWs2u-NRnBUjb_r6jMU-86" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-87">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-86" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="czeka na event&amp;nbsp;" vertex="1">
-          <mxGeometry height="60" width="120" x="1100" y="210" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-87" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;obróbka event &amp;lt;--&amp;gt; vm_obj_h&lt;/div&gt;- zapis do obiektu&amp;nbsp;" vertex="1">
-          <mxGeometry height="90" width="165" x="875" y="195" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-88" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;VM_OP&lt;/div&gt;&lt;div&gt;BIND_OBJECT&lt;/div&gt;&lt;div&gt;BIND_EVENT&lt;/div&gt;&lt;div&gt;CLEAR&lt;/div&gt;&lt;div&gt;STATUS&lt;/div&gt;" vertex="1">
-          <mxGeometry height="180" width="240" x="240" y="130" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-89" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="zmiana wyświetlanego obiektu na ekranie&amp;nbsp;" vertex="1">
-          <mxGeometry height="40" width="270" x="510" y="40" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-90" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-83" source="iDWs2u-NRnBUjb_r6jMU-91" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;exitX=0.5;exitY=1;exitDx=0;exitDy=0;">
-          <mxGeometry relative="1" x="-0.1728" as="geometry">
-            <Array as="points">
-              <mxPoint x="357.5" y="430" />
-              <mxPoint x="357.5" y="460" />
-              <mxPoint x="955" y="460" />
-            </Array>
-            <mxPoint x="335" y="440.00000000000045" as="sourcePoint" />
-            <mxPoint x="955.0000000000005" y="280" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-91" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;statyczna tablica powiązań(po id)&amp;nbsp;&lt;/div&gt;&lt;div&gt;ID VM_obj i ID lv_obj&lt;/div&gt;&lt;div&gt;oraz z eventami&amp;nbsp;&lt;/div&gt;&lt;div&gt;event -&amp;gt; ID vm_obj&lt;/div&gt;" vertex="1">
-          <mxGeometry height="120" width="240" x="240" y="310" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-92" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-83" source="iDWs2u-NRnBUjb_r6jMU-93" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-88">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-93" parent="iDWs2u-NRnBUjb_r6jMU-83" style="whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="router VM" vertex="1">
-          <mxGeometry height="60" width="120" x="60" y="190" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-94" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;" value="&lt;div&gt;ADAPTER VM&lt;/div&gt;(VM)" vertex="1">
-          <mxGeometry height="180" width="330" x="480" y="130" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-95" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-83" source="iDWs2u-NRnBUjb_r6jMU-87" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-94">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="837.5" y="240" />
-              <mxPoint x="837.5" y="240" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-96" edge="1" parent="iDWs2u-NRnBUjb_r6jMU-83" source="iDWs2u-NRnBUjb_r6jMU-94" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-89" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-97" parent="iDWs2u-NRnBUjb_r6jMU-83" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" value="Obserwator&amp;nbsp;" vertex="1">
-          <mxGeometry height="100" width="210" x="1220" y="55" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-98" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-103" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.99;entryY=0.457;entryDx=0;entryDy=0;entryPerimeter=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-82">
-          <mxGeometry relative="1" x="0.095" as="geometry">
-            <Array as="points">
-              <mxPoint x="1147.5" y="2175" />
-              <mxPoint x="2060" y="2175" />
-              <mxPoint x="2060" y="1685.4" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-99" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-100" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;defaultLabelBackgroundColor=page;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="iDWs2u-NRnBUjb_r6jMU-12">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="2190" y="1230" />
-              <mxPoint x="2190" y="530" />
-            </Array>
-            <mxPoint x="2110" y="650" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-100" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" value="&lt;div&gt;sys_device_call&lt;/div&gt;synchronicznie" vertex="1">
-          <mxGeometry height="60" width="150" x="1910" y="1200" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-101" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-100" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.75;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;exitX=0;exitY=0.75;exitDx=0;exitDy=0;" target="iDWs2u-NRnBUjb_r6jMU-56" value="">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points" />
-            <mxPoint x="1910" y="1240" as="sourcePoint" />
-            <mxPoint x="1518" y="1240" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-102" connectable="0" parent="iDWs2u-NRnBUjb_r6jMU-101" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];inheritText=1;defaultLabelBackgroundColor=page;" value="touch_point_t" vertex="1">
-          <mxGeometry relative="1" x="0.1168" y="-1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-103" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="dostosowanie do lvgl_obj_t*" vertex="1">
-          <mxGeometry height="90" width="270" x="1012.5" y="2220" as="geometry" />
-        </mxCell>
-        <mxCell id="iDWs2u-NRnBUjb_r6jMU-104" edge="1" parent="1" source="iDWs2u-NRnBUjb_r6jMU-89" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;defaultLabelBackgroundColor=page;" target="iDWs2u-NRnBUjb_r6jMU-103">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
-  <diagram id="displaypage12x01" name="2 Sprzęt: kontrakty i sterowniki (wyświetlacz, dotyk)">
+<mxfile host="Electron" pages="4">
+  <diagram id="displaypage12x01" name="1 Sprzęt: kontrakty i sterowniki (wyświetlacz, dotyk)">
     <mxGraphModel dx="1245" dy="947" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -453,19 +7,19 @@
         <mxCell id="k-outer" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=40;fontSize=24;fontStyle=1;fillColor=none;rounded=1;roundedPerimeter=1;" value="Sprzęt wyświetlacza i dotyku: kontrakty, sterowniki i magistrala" vertex="1">
           <mxGeometry height="2320" width="1320" as="geometry" />
         </mxCell>
-        <mxCell id="k-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza (strona 1)" vertex="1">
+        <mxCell id="k-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza" vertex="1">
           <mxGeometry height="105" width="1300" x="10" y="60" as="geometry" />
         </mxCell>
         <mxCell id="k-l0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;WYŚWIETLACZ + DOTYK&lt;/b&gt;&lt;br&gt;&lt;b&gt;kontrakty i sterowniki: ta strona&lt;/b&gt;" vertex="1">
           <mxGeometry height="50" width="285" x="30" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="k-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;adapter sprzętowy (strona 3)" vertex="1">
+        <mxCell id="k-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;adapter sprzętowy (strona 2)" vertex="1">
           <mxGeometry height="50" width="285" x="345" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="k-l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;fabryka + fasada (strona 4)" vertex="1">
+        <mxCell id="k-l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;fabryka + fasada (strona 3)" vertex="1">
           <mxGeometry height="50" width="285" x="660" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="k-l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 5)" vertex="1">
+        <mxCell id="k-l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 4)" vertex="1">
           <mxGeometry height="50" width="285" x="975" y="100" as="geometry" />
         </mxCell>
         <mxCell id="k-e1" edge="1" parent="1" source="k-l0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.5000;entryX=0.0000;entryY=0.5000;" target="k-l1" value="">
@@ -492,22 +46,22 @@
         <mxCell id="k-ua3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7dc;strokeColor=#e9dba8;fontColor=#9a8b55;roundedPerimeter=1;" value="VM i aplikacja (zdalnie): BACKLIGHT(set), GEOMETRY(get)" vertex="1">
           <mxGeometry height="45" width="165" x="595" y="265" as="geometry" />
         </mxCell>
-        <mxCell id="k-aa" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): strona wyświetlacza (strona 3)" vertex="1">
+        <mxCell id="k-aa" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): strona wyświetlacza (strona 2)" vertex="1">
           <mxGeometry height="225" width="740" x="40" y="365" as="geometry" />
         </mxCell>
         <mxCell id="k-aa1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;router sys_lvgl&lt;/b&gt;&lt;br&gt;INSTALL {device ids, heap}, RESET, ROTATION, STATUS, STOP, START" vertex="1">
           <mxGeometry height="75" width="165" x="417" y="405" as="geometry" />
         </mxCell>
-        <mxCell id="k-aa2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;INSTALL&lt;/b&gt;: GEOMETRY(get) → bufory (alokowane raz) i budżet puli obiektów; tworzy lv_display" vertex="1">
+        <mxCell id="k-aa2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;INSTALL&lt;/b&gt;: GEOMETRY(get) → bufory (alokowane raz, wpisane sys_display_buffer_set) i budżet puli obiektów; tworzy lv_display" vertex="1">
           <mxGeometry height="80" width="165" x="417" y="495" as="geometry" />
         </mxCell>
         <mxCell id="k-aa3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;automat stanów&lt;/b&gt;&lt;br&gt;INSTALL → działa ⇄ STOP / START → RESET" vertex="1">
           <mxGeometry height="75" width="165" x="595" y="405" as="geometry" />
         </mxCell>
-        <mxCell id="k-aa4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;flush_cb&lt;/b&gt;: swap bajtów, FLUSH(set) przez sys_device_call asynchronicznie; błąd z poprzedniego cyklu" vertex="1">
+        <mxCell id="k-aa4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;flush_cb&lt;/b&gt;: swap bajtów, FLUSH(set) {buffer_id, okno} przez sys_device_call asynchronicznie; błąd wywołania wraca od razu (err_h)" vertex="1">
           <mxGeometry height="170" width="165" x="60" y="405" as="geometry" />
         </mxCell>
-        <mxCell id="k-aa5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;obserwator&lt;/b&gt;: sys_event subscribe FLUSH_DONE na device id → lv_display_flush_ready" vertex="1">
+        <mxCell id="k-aa5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;obserwator&lt;/b&gt;: sys_event subscribe FLUSH_DONE na device id → lv_display_flush_ready; value ≠ 0 → err_report(ERR_DISPLAY_TRANSFER)" vertex="1">
           <mxGeometry height="170" width="165" x="238" y="405" as="geometry" />
         </mxCell>
         <mxCell id="k-aa6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;synchronizacja edycja - render&lt;/b&gt;: blokada (mutex) dla sys_screen i adaptera VM" vertex="1">
@@ -516,17 +70,20 @@
         <mxCell id="k-ca" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#f4fbe6;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="KONTRAKT DISPLAY (sys_display, sys_display_contract.h)" vertex="1">
           <mxGeometry height="130" width="740" x="40" y="645" as="geometry" />
         </mxCell>
-        <mxCell id="k-ca1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;GEOMETRY&lt;/b&gt; (get)&lt;br&gt;→ display_geometry_t" vertex="1">
-          <mxGeometry height="75" width="165" x="417" y="685" as="geometry" />
+        <mxCell id="k-ca1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;fontSize=11;" value="&lt;b&gt;GEOMETRY&lt;/b&gt; (get)&lt;br&gt;→ display_geometry_t&lt;br&gt;w, h, format" vertex="1">
+          <mxGeometry height="75" width="132" x="486" y="685" as="geometry" />
         </mxCell>
-        <mxCell id="k-ca2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;FLUSH&lt;/b&gt; (set)&lt;br&gt;display_window_t*, pixele&lt;br&gt;tylko w C" vertex="1">
-          <mxGeometry height="75" width="165" x="60" y="685" as="geometry" />
+        <mxCell id="k-ca2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;fontSize=11;" value="&lt;b&gt;FLUSH&lt;/b&gt; (set)&lt;br&gt;u8 buffer_id + okno&lt;br&gt;(display_flush_args_t)" vertex="1">
+          <mxGeometry height="75" width="132" x="60" y="685" as="geometry" />
         </mxCell>
-        <mxCell id="k-ca3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;BACKLIGHT&lt;/b&gt; (set)&lt;br&gt;brightness_duty&lt;br&gt;12 bit → IO_PWM_DUTY" vertex="1">
-          <mxGeometry height="75" width="165" x="595" y="685" as="geometry" />
+        <mxCell id="k-ca3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;fontSize=11;" value="&lt;b&gt;BACKLIGHT&lt;/b&gt; (set)&lt;br&gt;brightness_duty&lt;br&gt;12 bit → IO_PWM_DUTY" vertex="1">
+          <mxGeometry height="75" width="132" x="628" y="685" as="geometry" />
         </mxCell>
-        <mxCell id="k-ca4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;FLUSH_DONE&lt;/b&gt;&lt;br&gt;publikuje sys_event" vertex="1">
-          <mxGeometry height="75" width="165" x="238" y="685" as="geometry" />
+        <mxCell id="k-ca4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;fontSize=11;" value="&lt;b&gt;FLUSH_DONE&lt;/b&gt; 0x0A00&lt;br&gt;value: 0 / kod błędu&lt;br&gt;bez NOTIFY" vertex="1">
+          <mxGeometry height="75" width="132" x="202" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="k-ca5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;fontSize=11;dashed=1;" value="&lt;b&gt;Tabela buforów&lt;/b&gt; (C, nie op)&lt;br&gt;buffer_set: adapter&lt;br&gt;buffer_get: sterownik&lt;br&gt;2 bufory, id 0..1" vertex="1">
+          <mxGeometry height="75" width="132" x="344" y="685" as="geometry" />
         </mxCell>
         <mxCell id="k-da" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#f4fbe6;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="STEROWNIK WYŚWIETLACZA (device): kontrakt device create(display_cfg_t), uninstall, suspend, resume" vertex="1">
           <mxGeometry height="140" width="740" x="40" y="830" as="geometry" />
@@ -534,10 +91,10 @@
         <mxCell id="k-da1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;create&lt;/b&gt;: magistrala, piny (cs, dc, reset, bl), panel, orientacja, wariant, init układu" vertex="1">
           <mxGeometry height="85" width="220" x="540" y="870" as="geometry" />
         </mxCell>
-        <mxCell id="k-da2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;FLUSH&lt;/b&gt;: ustawia okno, wysyła piksele kawałkami, wraca po przyjęciu" vertex="1">
+        <mxCell id="k-da2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;FLUSH&lt;/b&gt;: bufor po id (sys_display_buffer_get), sprawdza okno, ustawia je, wysyła piksele kawałkami, wraca po przyjęciu" vertex="1">
           <mxGeometry height="85" width="225" x="60" y="870" as="geometry" />
         </mxCell>
-        <mxCell id="k-da3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="po ostatnim kawałku &lt;b&gt;FLUSH_DONE&lt;/b&gt; (z przerwania DMA, deferred)" vertex="1">
+        <mxCell id="k-da3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cdeb8b;strokeColor=#82b366;fontColor=#000000;roundedPerimeter=1;" value="po ostatnim kawałku &lt;b&gt;FLUSH_DONE&lt;/b&gt; (z przerwania DMA, deferred do zadania zdarzeń), także po błędzie: value = kod" vertex="1">
           <mxGeometry height="85" width="225" x="300" y="870" as="geometry" />
         </mxCell>
         <mxCell id="k-ba" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#e1d5e7;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="MAGISTRALA" vertex="1">
@@ -585,13 +142,13 @@
         <mxCell id="k-na1" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#5f8ea3;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;LVGL&lt;/b&gt; renderuje do bufora częściowego i woła flush_cb. sys_screen i adapter VM edytują ekran tylko pod blokadą adaptera." vertex="1">
           <mxGeometry height="95" width="490" x="800" y="230" as="geometry" />
         </mxCell>
-        <mxCell id="k-na2" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#a38668;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Adapter&lt;/b&gt; zna tylko kontrakt DISPLAY, nie układ. Wzorce: ADAPTER + FASADA + MEDIATOR (po device id) + podwójne buforowanie + OBSERWATOR + automat stanów (start, stop). INSTALL czyta GEOMETRY, alokuje bufory (sterownik ich nie zna) i subskrybuje FLUSH_DONE na device id. FLUSH idzie asynchronicznie, a błąd transferu wraca przy następnym cyklu. Jeden FLUSH w locie. Moduł ma własną rodzinę błędów (err_h)." vertex="1">
+        <mxCell id="k-na2" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#a38668;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Adapter&lt;/b&gt; zna tylko kontrakt DISPLAY, nie układ. Wzorce: ADAPTER + FASADA + MEDIATOR (po device id) + podwójne buforowanie + OBSERWATOR + automat stanów (start, stop). INSTALL czyta GEOMETRY, alokuje bufory, wpisuje je do tabeli buforów (sys_display_buffer_set) i subskrybuje FLUSH_DONE na device id. FLUSH idzie asynchronicznie: błędy wywołania (BAD_BUFFER, BAD_WINDOW, FLUSH_BUSY, SUSPENDED) wracają od razu jako err_h, a błąd transferu przychodzi w FLUSH_DONE jako kod, z którego adapter w zadaniu zdarzeń robi ERR_DISPLAY_TRANSFER. Jeden FLUSH w locie. Moduł ma własną rodzinę błędów (err_h)." vertex="1">
           <mxGeometry height="225" width="490" x="800" y="365" as="geometry" />
         </mxCell>
-        <mxCell id="k-na3" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Kontrakt&lt;/b&gt; to ops device [contract u8][op u8], ten sam sens na każdym sterowniku. FLUSH niesie wskaźnik na bufor, więc jest tylko w C (nie idzie po drucie). Zdalnie czyta się GEOMETRY i ustawia BACKLIGHT." vertex="1">
+        <mxCell id="k-na3" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Kontrakt&lt;/b&gt; to ops device 0x0Axx [contract u8][op u8], ten sam sens na każdym sterowniku. Żadna ramka nie niesie wskaźnika: FLUSH nazywa piksele id bufora (u8 buffer_id + okno), więc każda op jest bezpieczna po drucie. FLUSH_DONE (value 0 albo kod błędu transferu) jest bez NOTIFY: dla adaptera, nie dla aplikacji. Tabela buforów (2 wpisy {pixels, size}, sys_display_buffer_set / _get) jest tylko w C, nie jest op. Zdalnie czyta się GEOMETRY i ustawia BACKLIGHT." vertex="1">
           <mxGeometry height="130" width="490" x="800" y="645" as="geometry" />
         </mxCell>
-        <mxCell id="k-na4" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Sterownik&lt;/b&gt; jest urządzeniem wybieranym w create (kilka wkompilowanych naraz: Hardware Proxy). Nie zna bufora: dostaje wskaźnik w każdym FLUSH i zawsze publikuje FLUSH_DONE, także po nieudanym transferze." vertex="1">
+        <mxCell id="k-na4" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;Sterownik&lt;/b&gt; jest urządzeniem wybieranym w create (kilka wkompilowanych naraz: Hardware Proxy). Nie alokuje bufora: w każdym FLUSH bierze go z tabeli po id (sys_display_buffer_get; id nieustawione: ERR_DISPLAY_BAD_BUFFER), sprawdza okno (ERR_DISPLAY_BAD_WINDOW) i zawsze publikuje FLUSH_DONE, także po nieudanym transferze (value = kod błędu)." vertex="1">
           <mxGeometry height="140" width="490" x="800" y="830" as="geometry" />
         </mxCell>
         <mxCell id="k-na5" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="Magistrala to transport bajtów bez znajomości układu. Skupiamy się tylko na SPI i I2C (I2C głównie dla OLED-ów i dotyku)." vertex="1">
@@ -612,7 +169,7 @@
         <mxCell id="k-ub3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7dc;strokeColor=#e9dba8;fontColor=#9a8b55;roundedPerimeter=1;" value="VM i aplikacja (zdalnie): POINT(get), CALIBRATION(set)" vertex="1">
           <mxGeometry height="45" width="165" x="595" y="1245" as="geometry" />
         </mxCell>
-        <mxCell id="k-ab" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): strona dotyku (strona 3)" vertex="1">
+        <mxCell id="k-ab" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): strona dotyku (strona 2)" vertex="1">
           <mxGeometry height="190" width="740" x="40" y="1345" as="geometry" />
         </mxCell>
         <mxCell id="k-ab1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;INSTALL&lt;/b&gt;: rejestracja dotyku po kontrakcie device_touch (może być NONE) → lv_indev_create" vertex="1">
@@ -714,13 +271,13 @@
         <mxCell id="k-nb5" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="Magistrala dotyku bywa inna niż panelu: I2C przy pojemnościowych, SPI przy rezystancyjnych." vertex="1">
           <mxGeometry height="75" width="490" x="800" y="1965" as="geometry" />
         </mxCell>
-        <mxCell id="k-desc" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontColor=#393C56;fontSize=12;strokeColor=#E07A5F;rounded=1;spacing=8;roundedPerimeter=1;" value="&lt;b style=&#39;font-size:16px&#39;&gt;Sprzęt wyświetlacza i dotyku: co jest na tej stronie&lt;/b&gt;&lt;br&gt;&lt;b&gt;1. Kontrakty.&lt;/b&gt; sys_display (GEOMETRY, FLUSH, BACKLIGHT, zdarzenie FLUSH_DONE) i sys_touch (POINT, CALIBRATION) to ops device [contract u8][op u8], ten sam sens na każdym sterowniku. FLUSH niesie wskaźnik na bufor, więc jest tylko w C; zdalnie czyta się GEOMETRY i ustawia BACKLIGHT.&lt;br&gt;&lt;b&gt;2. Sterowniki.&lt;/b&gt; Panel i dotyk wybiera się przy create (kilka wkompilowanych naraz: Hardware Proxy). Sterownik wyświetlacza nie zna bufora: dostaje wskaźnik w każdym FLUSH i zawsze publikuje FLUSH_DONE, także po nieudanym transferze. Sterownik dotyku skaluje odczyt do max_x i max_y panelu.&lt;br&gt;&lt;b&gt;3. Magistrala.&lt;/b&gt; Transport bajtów bez znajomości układu: SPI (DMA, jeszcze brak sys_spi) albo I2C (sys_i2c). Dotyk bywa na innej magistrali niż panel.&lt;br&gt;&lt;b&gt;4. Wyświetlacz i dotyk to dwa osobne urządzenia.&lt;/b&gt; Łączy je dopiero adapter LVGL (sys_lvgl): bufory, INSTALL, flush_cb, read_cb i stany są na stronie 3. Tu adapter jest przygaszony, bo widzi tylko kontrakty.&lt;br&gt;&lt;b&gt;5. VM i aplikacja (żółte)&lt;/b&gt; sięgają sprzętu wprost tylko przez BACKLIGHT i GEOMETRY (wyświetlacz) oraz POINT i CALIBRATION (dotyk). Ekran dostają przez sys_screen, LVGL i adapter." vertex="1">
+        <mxCell id="k-desc" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontColor=#393C56;fontSize=12;strokeColor=#E07A5F;rounded=1;spacing=8;roundedPerimeter=1;" value="&lt;b style=&#39;font-size:16px&#39;&gt;Sprzęt wyświetlacza i dotyku: co jest na tej stronie&lt;/b&gt;&lt;br&gt;&lt;b&gt;1. Kontrakty.&lt;/b&gt; sys_display (GEOMETRY, FLUSH, BACKLIGHT, zdarzenie FLUSH_DONE) i sys_touch (POINT, CALIBRATION) to ops device [contract u8][op u8], ten sam sens na każdym sterowniku. Żadna ramka nie niesie wskaźnika: FLUSH nazywa piksele id bufora z tabeli buforów (sys_display_buffer_set / _get, tylko C), więc każda op idzie po drucie; zdalnie czyta się GEOMETRY i ustawia BACKLIGHT. FLUSH_DONE niesie 0 albo kod błędu transferu, bez NOTIFY.&lt;br&gt;&lt;b&gt;2. Sterowniki.&lt;/b&gt; Panel i dotyk wybiera się przy create (kilka wkompilowanych naraz: Hardware Proxy). Sterownik wyświetlacza nie alokuje bufora: bierze go z tabeli po id z FLUSH i zawsze publikuje FLUSH_DONE, także po nieudanym transferze. Sterownik dotyku skaluje odczyt do max_x i max_y panelu.&lt;br&gt;&lt;b&gt;3. Magistrala.&lt;/b&gt; Transport bajtów bez znajomości układu: SPI (DMA, jeszcze brak sys_spi) albo I2C (sys_i2c). Dotyk bywa na innej magistrali niż panel.&lt;br&gt;&lt;b&gt;4. Wyświetlacz i dotyk to dwa osobne urządzenia.&lt;/b&gt; Łączy je dopiero adapter LVGL (sys_lvgl): bufory, INSTALL, flush_cb, read_cb i stany są na stronie 3. Tu adapter jest przygaszony, bo widzi tylko kontrakty.&lt;br&gt;&lt;b&gt;5. VM i aplikacja (żółte)&lt;/b&gt; sięgają sprzętu wprost tylko przez BACKLIGHT i GEOMETRY (wyświetlacz) oraz POINT i CALIBRATION (dotyk). Ekran dostają przez sys_screen, LVGL i adapter." vertex="1">
           <mxGeometry height="185" width="1260" x="30" y="2105" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="lvglpage13x01" name="3 Adapter LVGL: wnętrze">
+  <diagram id="lvglpage13x01" name="2 Adapter LVGL: wnętrze">
     <mxGraphModel dx="1610" dy="1224" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -728,19 +285,19 @@
         <mxCell id="n-outer" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=40;fontSize=24;fontStyle=1;fillColor=none;rounded=1;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl): wnętrze, bufory i stany" vertex="1">
           <mxGeometry height="2090" width="1320" as="geometry" />
         </mxCell>
-        <mxCell id="n-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza (strona 1)" vertex="1">
+        <mxCell id="n-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza" vertex="1">
           <mxGeometry height="105" width="1300" x="10" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="n-sl0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 2)" vertex="1">
+        <mxCell id="n-sl0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 1)" vertex="1">
           <mxGeometry height="50" width="285" x="30" y="100" as="geometry" />
         </mxCell>
         <mxCell id="n-sl1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2CC8F;strokeColor=#E07A5F;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;Adapter LVGL (sys_lvgl)&lt;/b&gt;&lt;br&gt;&lt;b&gt;adapter sprzętowy: ta strona&lt;/b&gt;" vertex="1">
           <mxGeometry height="50" width="285" x="345" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="n-sl2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;fabryka + fasada (strona 4)" vertex="1">
+        <mxCell id="n-sl2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;fabryka + fasada (strona 3)" vertex="1">
           <mxGeometry height="50" width="285" x="660" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="n-sl3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 5)" vertex="1">
+        <mxCell id="n-sl3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 4)" vertex="1">
           <mxGeometry height="50" width="285" x="975" y="100" as="geometry" />
         </mxCell>
         <mxCell id="n-se1" edge="1" parent="1" source="n-sl0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.5000;entryX=0.0000;entryY=0.5000;" target="n-sl1" value="">
@@ -773,7 +330,7 @@
         <mxCell id="n-i1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="2. czytaj GEOMETRY (w, h, format koloru, flaga DMA, align_y)" vertex="1">
           <mxGeometry height="95" width="160" x="210" y="445" as="geometry" />
         </mxCell>
-        <mxCell id="n-i2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2CC8F;strokeColor=#E07A5F;fontColor=#000000;roundedPerimeter=1;" value="3. wylicz i zaalokuj bufory rysowania" vertex="1">
+        <mxCell id="n-i2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2CC8F;strokeColor=#E07A5F;fontColor=#000000;roundedPerimeter=1;" value="3. wylicz i zaalokuj bufory rysowania, wpisz je do tabeli (sys_display_buffer_set)" vertex="1">
           <mxGeometry height="95" width="160" x="390" y="445" as="geometry" />
         </mxCell>
         <mxCell id="n-i3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2CC8F;strokeColor=#E07A5F;fontColor=#000000;roundedPerimeter=1;" value="4. ustaw limit sterty obiektów = heap_bytes" vertex="1">
@@ -821,7 +378,7 @@
         <mxCell id="n-b1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2CC8F;strokeColor=#E07A5F;fontColor=#000000;roundedPerimeter=1;" value="bufor 1&lt;br&gt;(renderowany)" vertex="1">
           <mxGeometry height="60" width="170" x="400" y="780" as="geometry" />
         </mxCell>
-        <mxCell id="n-b-dr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="sterownik panelu: jeden FLUSH w locie, nie zna bufora" vertex="1">
+        <mxCell id="n-b-dr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="sterownik panelu: jeden FLUSH w locie, bufor bierze z tabeli po id" vertex="1">
           <mxGeometry height="80" width="230" x="720" y="715" as="geometry" />
         </mxCell>
         <mxCell id="n-e7" edge="1" parent="1" source="n-b-lv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.2500;entryX=0.0000;entryY=0.5000;" target="n-b0" value="renderuje">
@@ -830,10 +387,10 @@
         <mxCell id="n-e8" edge="1" parent="1" source="n-b-lv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.7500;entryX=0.0000;entryY=0.5000;" target="n-b1" value="renderuje, gdy bufor 0 leci">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="n-e9" edge="1" parent="1" source="n-b0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.5000;entryX=0.0000;entryY=0.3125;" target="n-b-dr" value="FLUSH(okno, wskaźnik)">
+        <mxCell id="n-e9" edge="1" parent="1" source="n-b0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.5000;entryX=0.0000;entryY=0.3125;" target="n-b-dr" value="FLUSH(buffer_id, okno)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="n-e-done" edge="1" parent="1" source="n-b-dr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=0.5000;exitY=1.0000;entryX=0.5000;entryY=1.0000;" target="n-b-lv" value="FLUSH_DONE → flush_ready: bufor wolny">
+        <mxCell id="n-e-done" edge="1" parent="1" source="n-b-dr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=0.5000;exitY=1.0000;entryX=0.5000;entryY=1.0000;" target="n-b-lv" value="FLUSH_DONE → flush_ready: bufor wolny; value ≠ 0 → ERR_DISPLAY_TRANSFER">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="835" y="870" />
@@ -933,7 +490,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="n-st-n" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;STOP&lt;/b&gt;: czeka na ostatni FLUSH_DONE, read_cb zwraca puszczony. &lt;b&gt;START&lt;/b&gt;: wznawia i unieważnia cały ekran (panel mógł stracić zawartość). &lt;b&gt;RESET&lt;/b&gt;: czeka na ostatni FLUSH_DONE, odsubskrybowuje, usuwa indev i display razem z obiektami, zwalnia bufory i wraca ze stertą do startowej; lv_deinit nie jest wołane. Stan bezpieczny płytki: STOP, potem START." vertex="1">
+        <mxCell id="n-st-n" parent="1" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontColor=#393C56;fontSize=11;rounded=1;roundedPerimeter=1;" value="&lt;b&gt;STOP&lt;/b&gt;: czeka na ostatni FLUSH_DONE, read_cb zwraca puszczony. &lt;b&gt;START&lt;/b&gt;: wznawia i unieważnia cały ekran (panel mógł stracić zawartość). &lt;b&gt;RESET&lt;/b&gt;: czeka na ostatni FLUSH_DONE, odsubskrybowuje, usuwa indev i display razem z obiektami, czyści tabelę buforów (NULL, 0), zwalnia bufory i wraca ze stertą do startowej; lv_deinit nie jest wołane. Stan bezpieczny płytki: STOP, potem START." vertex="1">
           <mxGeometry height="80" width="1260" x="30" y="1580" as="geometry" />
         </mxCell>
         <mxCell id="n-l7" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#f4f8ff;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Interfejsy adaptera" vertex="1">
@@ -951,7 +508,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="screenpage14x01" name="4 sys_screen: ekran z bytestreamu">
+  <diagram id="screenpage14x01" name="3 sys_screen: ekran z bytestreamu">
     <mxGraphModel dx="1557" dy="1183" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -959,19 +516,19 @@
         <mxCell id="m-outer" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=40;fontSize=24;fontStyle=1;fillColor=none;rounded=1;roundedPerimeter=1;" value="sys_screen: ekran z bytestreamu (wrapper na LVGL)" vertex="1">
           <mxGeometry height="1595" width="1320" as="geometry" />
         </mxCell>
-        <mxCell id="m-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza (strona 1)" vertex="1">
+        <mxCell id="m-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza" vertex="1">
           <mxGeometry height="105" width="1300" x="10" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="m-l0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 2)" vertex="1">
+        <mxCell id="m-l0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 1)" vertex="1">
           <mxGeometry height="50" width="285" x="30" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="m-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;adapter sprzętowy (strona 3)" vertex="1">
+        <mxCell id="m-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;adapter sprzętowy (strona 2)" vertex="1">
           <mxGeometry height="50" width="285" x="345" y="100" as="geometry" />
         </mxCell>
         <mxCell id="m-l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b9d3f7;strokeColor=#6c8ebf;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;SCREEN Z BYTESTREAM (sys_screen)&lt;/b&gt;&lt;br&gt;&lt;b&gt;fabryka + fasada: ta strona&lt;/b&gt;" vertex="1">
           <mxGeometry height="50" width="285" x="660" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="m-l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 5)" vertex="1">
+        <mxCell id="m-l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fcebea;strokeColor=#e3b9b7;fontColor=#a06b69;roundedPerimeter=1;" value="Adapter dla VM&lt;br&gt;obserwator (strona 4)" vertex="1">
           <mxGeometry height="50" width="285" x="975" y="100" as="geometry" />
         </mxCell>
         <mxCell id="m-e1" edge="1" parent="1" source="m-l0" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#c8c8c8;fontColor=#a0a0a0;fontSize=11;labelBackgroundColor=default;exitDx=0;exitDy=0;entryDx=0;entryDy=0;exitX=1.0000;exitY=0.5000;entryX=0.0000;entryY=0.5000;" target="m-l1" value="">
@@ -1025,7 +582,7 @@
         <mxCell id="m-sa6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b9d3f7;strokeColor=#6c8ebf;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;blokada edycja - render&lt;/b&gt;: edycja pod blokadą adaptera, zegar aktualizuje ekran, jeśli może" vertex="1">
           <mxGeometry height="100" width="220" x="540" y="670" as="geometry" />
         </mxCell>
-        <mxCell id="m-la" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): warstwa niżej (strona 3)" vertex="1">
+        <mxCell id="m-la" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fef8f0;strokeColor=#ecd0b6;fontColor=#a38668;fontStyle=1;roundedPerimeter=1;" value="ADAPTER LVGL (sys_lvgl): warstwa niżej (strona 2)" vertex="1">
           <mxGeometry height="130" width="740" x="40" y="835" as="geometry" />
         </mxCell>
         <mxCell id="m-la1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="&lt;b&gt;sys_lvgl_lock / unlock&lt;/b&gt;&lt;br&gt;blokada LVGL" vertex="1">
@@ -1151,7 +708,7 @@
       </root>
     </mxGraphModel>
   </diagram>
-  <diagram id="vmadapterpage15x01" name="5 Adapter VM">
+  <diagram id="vmadapterpage15x01" name="4 Adapter VM">
     <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -1159,16 +716,16 @@
         <mxCell id="m-outer" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=40;fontSize=24;fontStyle=1;fillColor=none;rounded=1;roundedPerimeter=1;" value="Adapter VM: powiązania obiektów i zdarzeń z ekranem" vertex="1">
           <mxGeometry height="1625" width="1320" as="geometry" />
         </mxCell>
-        <mxCell id="m-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza (strona 1)" vertex="1">
+        <mxCell id="m-lane-s" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#fffdf0;strokeColor=#36393d;fontColor=#393C56;fontStyle=1;roundedPerimeter=1;" value="Pasy modułu wyświetlacza" vertex="1">
           <mxGeometry height="105" width="1300" x="10" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="m-l0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 2)" vertex="1">
+        <mxCell id="m-l0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eef7d9;strokeColor=#c9dcab;fontColor=#8a9a6b;roundedPerimeter=1;" value="WYŚWIETLACZ + DOTYK&lt;br&gt;kontrakty i sterowniki (strona 1)" vertex="1">
           <mxGeometry height="50" width="285" x="30" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="m-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;strona 3" vertex="1">
+        <mxCell id="m-l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbeedb;strokeColor=#ecd0b6;fontColor=#a38668;roundedPerimeter=1;" value="Adapter LVGL (sys_lvgl)&lt;br&gt;strona 2" vertex="1">
           <mxGeometry height="50" width="285" x="345" y="100" as="geometry" />
         </mxCell>
-        <mxCell id="m-l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;strona 4" vertex="1">
+        <mxCell id="m-l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="SCREEN Z BYTESTREAM (sys_screen)&lt;br&gt;strona 3" vertex="1">
           <mxGeometry height="50" width="285" x="660" y="100" as="geometry" />
         </mxCell>
         <mxCell id="m-l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f6c1be;strokeColor=#b85450;fontColor=#000000;roundedPerimeter=1;" value="&lt;b&gt;Adapter dla VM&lt;/b&gt;&lt;br&gt;&lt;b&gt;obserwator + mediator: ta strona&lt;/b&gt;" vertex="1">
@@ -1234,7 +791,7 @@
         <mxCell id="m-vm2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7dc;strokeColor=#e9dba8;fontColor=#9a8b55;roundedPerimeter=1;" value="&lt;b&gt;zdarzenie widgetu dla programu&lt;/b&gt; = wartość w obiekcie (ON_EVENT widzi tylko sys_event)" vertex="1">
           <mxGeometry height="50" width="330" x="55" y="955" as="geometry" />
         </mxCell>
-        <mxCell id="m-sc" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#f4f8fe;strokeColor=#b7cbe8;fontColor=#6a82a6;fontStyle=1;roundedPerimeter=1;" value="SYS_SCREEN (strona 4)" vertex="1">
+        <mxCell id="m-sc" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=30;rounded=1;dashed=1;fillColor=#f4f8fe;strokeColor=#b7cbe8;fontColor=#6a82a6;fontStyle=1;roundedPerimeter=1;" value="SYS_SCREEN (strona 3)" vertex="1">
           <mxGeometry height="170" width="360" x="420" y="845" as="geometry" />
         </mxCell>
         <mxCell id="m-sc1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fc;strokeColor=#b7cbe8;fontColor=#6a82a6;roundedPerimeter=1;" value="&lt;b&gt;operacje SET i SHOW&lt;/b&gt; pod blokadą LVGL" vertex="1">

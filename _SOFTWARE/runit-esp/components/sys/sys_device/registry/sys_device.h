@@ -47,6 +47,7 @@ extern "C" {
 #define SYS_DEVICE_CONTRACT_POWER_USB_PD  0x07u  //@alias USB-PD sink @description USB-PD sink operations
 #define SYS_DEVICE_CONTRACT_POWER_SUPPLY  0x08u  //@alias Power mux @description Power supply/mux operations
 #define SYS_DEVICE_CONTRACT_HBRIDGE       0x09u  //@alias H-bridge @description H-bridge motor driver operations
+#define SYS_DEVICE_CONTRACT_DISPLAY       0x0Au  //@alias Display @description Display panel operations
 #define SYS_DEVICE_CONTRACT_OWN           0xFFu  //@alias Device-specific @description Device-specific own operations
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
