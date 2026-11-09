@@ -1,7 +1,6 @@
 #pragma once
 
 #include "sys_device.h"
-#include "sys_event.h"
 #include "sys_io.h"
 #include "sys_display_errors.h"
 
@@ -16,9 +15,10 @@ extern "C" {
  * GEOMETRY    - what the LVGL adapter needs to create its buffers: the size in the current orientation, the format
  * BACKLIGHT   - brightness of the screen
  * ORIENTATION - turns the picture (the panel's scan direction, in hardware); GEOMETRY answers the new size
- * FLUSH       - draws a window of the adapter's pixels; it carries a pointer, so it is local (C only,
- *               SYS_DEVICE_OP_LOCAL); asynchronous (it returns once the driver has queued the pixels)
- * Event FLUSH_DONE: the transfer of an accepted FLUSH ended; value = 0 or the error code.
+ * FLUSH       - draws a window of the adapter's pixels; it carries pointers, so it is local (C only,
+ *               SYS_DEVICE_OP_LOCAL); asynchronous (it returns once the driver has queued the pixels, and the driver
+ *               calls the FLUSH's `done` from the transfer-done interrupt)
+ * No events: the end of a FLUSH is its callback, not the event queue (SYS_DISPLAY.MD "The end of a FLUSH").
  */
 
 //#ref-enum @alias Pixel format
@@ -92,11 +92,22 @@ typedef struct __attribute__((packed)) {
   uint8_t orientation;  /**< sys_display_orientation_e */
 } display_orientation_args_t;
 
-/** @brief FLUSH args, C only (never a frame: the op is local): the pixels and the window they fill */
+/**
+ * @brief The end of a FLUSH: called once by the driver after the transfer of an accepted FLUSH, also after a failed
+ * one; never for a FLUSH it refused (that one returned an err_h). Runs in the transfer-done interrupt: it may only do
+ * what an ISR may (give a semaphore FromISR), never take a lock or call a device. It carries no error: a transfer's
+ * error comes back from FLUSH (SYS_DISPLAY.MD "Transfer errors").
+ * @param ctx The FLUSH's done_ctx
+ */
+typedef void (*display_flush_done_f)(void* ctx);
+
+/** @brief FLUSH args, C only (never a frame: the op is local): the pixels, the window they fill, the end callback */
 typedef struct {
-  const void* pixels;       /**< The window's pixels in the GEOMETRY format, row by row; DMA-capable memory */
-  uint32_t len;             /**< Bytes: window width x height x bytes per pixel */
-  display_window_t window;  /**< Where the pixels go (inside the panel, see GEOMETRY) */
+  const void* pixels;         /**< The window's pixels in the GEOMETRY format, row by row; DMA-capable memory */
+  uint32_t len;               /**< Bytes: window width x height x bytes per pixel */
+  display_window_t window;    /**< Where the pixels go (inside the panel, see GEOMETRY) */
+  display_flush_done_f done;  /**< The end of the transfer, from its interrupt; required */
+  void* done_ctx;             /**< Passed to done */
 } display_flush_args_t;
 
 /**
@@ -150,29 +161,20 @@ err_h sys_display_set_orientation(uint16_t device, uint8_t orientation);
 err_h sys_display_get_orientation(uint16_t device, uint8_t* out);
 
 /**
- * @brief Draws a window of pixels on the panel (op FLUSH); FLUSH_DONE is published when the transfer ends. The pixels
- * stay untouched until then.
- * @param[in] device Display device id
- * @param[in] pixels The window's pixels in the GEOMETRY format, in DMA-capable memory
- * @param[in] len    Bytes: window width x height x bytes per pixel
- * @param[in] window The window to draw
- * @return ERR_DEV_BAD_ARG for a NULL window, or the driver's error passed (BAD_ARG, BAD_WINDOW, FLUSH_BUSY,
- * SUSPENDED...)
+ * @brief Draws a window of pixels on the panel (op FLUSH). It returns once the driver has queued the transfer; `done`
+ * is called from its interrupt when it ends, and the pixels stay untouched until then.
+ * @param[in] device   Display device id
+ * @param[in] pixels   The window's pixels in the GEOMETRY format, in DMA-capable memory
+ * @param[in] len      Bytes: window width x height x bytes per pixel
+ * @param[in] window   The window to draw
+ * @param[in] done     The end of the transfer (ISR context)
+ * @param[in] done_ctx Passed to done
+ * @return ERR_DEV_BAD_ARG for a NULL window or done, or the driver's error passed (BAD_ARG, BAD_WINDOW, FLUSH_BUSY,
+ * TRANSFER: the bus refused it now, or the previous transfer failed after it was accepted; SUSPENDED...): then done is
+ * not called and nothing is sent
  */
-err_h sys_display_flush(uint16_t device, const void* pixels, uint32_t len, const display_window_t* window);
-
-/**
- * @brief The events of the contract - X(P, NAME, event number, flags)
- * FLUSH_DONE is published by the driver after every accepted FLUSH, also after a failed transfer (never after a FLUSH
- * it refused). channel = 0, value = 0 or the error code of the transfer (the .code of ERR_DISPLAY_TRANSFER): the
- * adapter builds the error from it. One FLUSH is in flight and only the adapter calls it, so a FLUSH_DONE always ends
- * the adapter's last accepted FLUSH. From the transfer-done interrupt the driver calls sys_event_publish (it hands the
- * whole delivery to the event task), never sys_event_publish_deferred (not for an ISR).
- * Flags 0: for the adapter, not for the app.
- */
-#define DISPLAY_EVENTS(X, P) \
-  X(P, FLUSH_DONE, 0x00, 0)
-SYS_EVENTS_DECLARE(DISPLAY)
+err_h sys_display_flush(uint16_t device, const void* pixels, uint32_t len, const display_window_t* window,
+                        display_flush_done_f done, void* done_ctx);
 
 
 #ifdef __cplusplus

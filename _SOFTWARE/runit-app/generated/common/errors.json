@@ -6126,9 +6126,33 @@
               "size": 4
             }
           ],
-          "description": "the bus transfer failed; FLUSH_DONE carries its code, the adapter builds this error",
+          "description": "the bus refused the transfer (from FLUSH at once), or one accepted before failed (from the next FLUSH, once); code: the bus's esp_err_t",
           "message": "Sending pixels to {id} failed (code {code})",
           "hint": "Check the display's wiring and its SPI clock."
+        },
+        {
+          "code": 4,
+          "tag": 1703940,
+          "name": "ERR_DISPLAY_FLUSH_TIMEOUT",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "ms",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "the end of an accepted FLUSH did not come within ms: the adapter reports it and resets the display",
+          "message": "{id} did not finish drawing within {ms} ms",
+          "hint": "The display was reset. Check its wiring, its SPI clock and the bus it shares."
         }
       ]
     }

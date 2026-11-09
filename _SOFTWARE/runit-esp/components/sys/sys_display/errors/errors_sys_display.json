@@ -12,6 +12,10 @@
     "ERR_DISPLAY_TRANSFER": {
       "message": "Sending pixels to {id} failed (code {code})",
       "hint": "Check the display's wiring and its SPI clock."
+    },
+    "ERR_DISPLAY_FLUSH_TIMEOUT": {
+      "message": "{id} did not finish drawing within {ms} ms",
+      "hint": "The display was reset. Check its wiring, its SPI clock and the bus it shares."
     }
   }
 }

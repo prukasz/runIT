@@ -28,8 +28,10 @@ err_h sys_display_get_orientation(uint16_t device, uint8_t* out) {
   return NULL;
 }
 
-err_h sys_display_flush(uint16_t device, const void* pixels, uint32_t len, const display_window_t* window) {
-  ERR_CHECK(window != NULL, ERR_DEV_BAD_ARG);
-  const display_flush_args_t a = {.pixels = pixels, .len = len, .window = *window};
+err_h sys_display_flush(uint16_t device, const void* pixels, uint32_t len, const display_window_t* window,
+                        display_flush_done_f done, void* done_ctx) {
+  ERR_CHECK(window != NULL && done != NULL, ERR_DEV_BAD_ARG);
+  const display_flush_args_t a = {
+      .pixels = pixels, .len = len, .window = *window, .done = done, .done_ctx = done_ctx};
   return sys_device_write(device, DISPLAY_OP_FLUSH, &a, sizeof(a));
 }

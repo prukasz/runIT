@@ -5,7 +5,7 @@
   "id": "DISPLAY",
   "contract_id": 10,
   "alias": "Display",
-  "description": "A colour panel on SPI: its size and pixel format, the backlight and the orientation. Drawing (FLUSH) runs only inside the board, from the screen adapter.",
+  "description": "A colour panel on SPI: its size and pixel format, the backlight and the orientation. Drawing (FLUSH) runs only inside the board, from the screen adapter, and ends with its callback, not an event.",
   "category": "display",
   "commands": [
     {
@@ -113,20 +113,6 @@
             }
           ]
         }
-      }
-    }
-  ],
-  "events": [
-    {
-      "id": "FLUSH_DONE",
-      "event": 0,
-      "code": 2560,
-      "label": "Flush done",
-      "description": "The transfer of a window ended; the value is 0 or the transfer's error code. For the screen adapter, not sent to the app.",
-      "notify": false,
-      "symbol": "DISPLAY_EV_FLUSH_DONE",
-      "value": {
-        "description": "0, or the error code of the transfer"
       }
     }
   ]

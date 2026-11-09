@@ -3,6 +3,6 @@
 idf_component_register(
     SRCS "sys_display.c"
     INCLUDE_DIRS "." "errors"
-    REQUIRES errors cmd sys_device sys_event sys_io utils
+    REQUIRES errors cmd sys_device sys_io
     WHOLE_ARCHIVE
 )
