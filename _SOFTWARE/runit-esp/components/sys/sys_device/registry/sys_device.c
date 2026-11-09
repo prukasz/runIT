@@ -304,7 +304,7 @@ static bool device_has_op(const dev_t_* d, uint16_t op) {
 static err_h append_ops(const dev_t_* d, const sys_device_op_t* ops, uint32_t count, bool wired, cmd_out_t* out) {
   for (uint32_t k = 0; k < count; k++) {
     if (wired && !device_has_op(d, ops[k].op)) continue;
-    if (ops[k].local) continue;  // C only: not a command the device answers
+    if ((ops[k].flags & SYS_DEVICE_OP_LOCAL) != 0u) continue;  // C only: not a command the device answers
     const uint8_t sides = (ops[k].read != NULL ? SIDE_READ : 0) | (ops[k].write != NULL ? SIDE_WRITE : 0);
     ERR_TRY(cmd_append(out, &ops[k].op, sizeof(uint16_t)));  // little-endian target
     ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
@@ -332,9 +332,9 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out
   }
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
-  ERR_CHECK(!(routed && row->local), ERR_DEV_LOCAL_OP, .op = op);
+  ERR_CHECK(!(routed && (row->flags & SYS_DEVICE_OP_LOCAL) != 0u), ERR_DEV_LOCAL_OP, .op = op);
   // A suspended device takes no write of its type's table but the ones marked always (an event, a timer); reads run.
-  if (ctx == d->ctx && dir == CMD_DIR_WRITE && !row->always) {
+  if (ctx == d->ctx && dir == CMD_DIR_WRITE && (row->flags & SYS_DEVICE_OP_ALWAYS) == 0u) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
   }
   ERR_TRY(fn(ctx, args, out));
@@ -375,8 +375,8 @@ static err_h remote_prepare(const dev_t_* d, uint8_t dir, uint16_t op, sys_devic
   ERR_CHECK(row != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
-  ERR_CHECK(!row->local, ERR_DEV_LOCAL_OP, .op = op);  // its args name something of this board alone
-  if (dir == CMD_DIR_WRITE && !row->always) {
+  ERR_CHECK((row->flags & SYS_DEVICE_OP_LOCAL) == 0u, ERR_DEV_LOCAL_OP, .op = op);  // its args name something of this board alone
+  if (dir == CMD_DIR_WRITE && (row->flags & SYS_DEVICE_OP_ALWAYS) == 0u) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
   }
   ERR_CHECK(s_reg.remote != NULL && s_reg.remote->call != NULL, ERR_DEV_REMOTE_DOWN, .id = d->id,

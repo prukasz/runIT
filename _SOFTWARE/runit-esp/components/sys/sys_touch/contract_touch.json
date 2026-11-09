@@ -1,0 +1,147 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "TOUCH",
+  "contract_id": 11,
+  "alias": "Touch",
+  "description": "The touch panel of a display, one point: where it is touched, in the display's pixels, and the calibration of a resistive panel.",
+  "category": "display",
+  "commands": [
+    {
+      "id": "POINT",
+      "op": 0,
+      "symbol": "TOUCH_OP_POINT",
+      "label": "Point",
+      "description": "Whether the panel is touched and where, in the display's pixels in its orientation 0; the last point while not touched.",
+      "read": {
+        "returns": {
+          "struct": "touch_point_t",
+          "fields": [
+            {
+              "id": "pressed",
+              "label": "Pressed",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 while touched"
+            },
+            {
+              "id": "x",
+              "label": "X",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 1,
+              "unit": "px"
+            },
+            {
+              "id": "y",
+              "label": "Y",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "unit": "px"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "CALIBRATION",
+      "op": 1,
+      "symbol": "TOUCH_OP_CALIBRATION",
+      "label": "Calibration",
+      "description": "The raw values at the display's edges, resistive panels only; a write holds until the next create (the device's config keeps it).",
+      "read": {
+        "description": "The calibration in use.",
+        "returns": {
+          "struct": "touch_calibration_t",
+          "fields": [
+            {
+              "id": "x_min",
+              "label": "Raw X left",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 0,
+              "description": "The raw X at the display's left edge"
+            },
+            {
+              "id": "x_max",
+              "label": "Raw X right",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 2,
+              "description": "The raw X at the right edge"
+            },
+            {
+              "id": "y_min",
+              "label": "Raw Y top",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 4,
+              "description": "The raw Y at the top edge"
+            },
+            {
+              "id": "y_max",
+              "label": "Raw Y bottom",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 6,
+              "description": "The raw Y at the bottom edge"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "touch_calibration_t",
+          "fields": [
+            {
+              "id": "x_min",
+              "label": "Raw X left",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 0,
+              "description": "The raw X at the display's left edge"
+            },
+            {
+              "id": "x_max",
+              "label": "Raw X right",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 2,
+              "description": "The raw X at the right edge"
+            },
+            {
+              "id": "y_min",
+              "label": "Raw Y top",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 4,
+              "description": "The raw Y at the top edge"
+            },
+            {
+              "id": "y_max",
+              "label": "Raw Y bottom",
+              "type": "number",
+              "raw_type": "i16",
+              "size": 2,
+              "offset": 6,
+              "description": "The raw Y at the bottom edge"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# A module whose glass is mounted mirrored left to right (README.md "Scenarios"): the display created with SYS_DISPLAY_FLAG_MIRROR_X
+# shows the picture the right way round in every orientation, the same as walkthrough.txt's shots 0 and 2.
+# Frames: [key][dir 00 read / 01 write][...], little-endian. Device ids here: the display 1, the touch 2, the GPIO 3.
+
+glass mirror x
+> 05 01 03 00 00 00 02 7F 00
+echo create the display as in walkthrough.txt, but flags BGR and MIRROR_X (05)
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 05
+> 05 01 02 00 00 00 01 7F 00 00 38 80 1A 06 00 FF FF FF FF FF FF FF FF FF F0 00 40 01 00 00 00 00 00 00 00 00 00 00 00 00
+> 15 01 01 01 00 02 00 00 00 00 00
+demo
+wait 600
+shot mirror_0
+echo ROTATION 90, 180, 270: the picture turns, never mirrored
+> 15 01 03 01
+wait 600
+shot mirror_90
+> 15 01 03 02
+wait 600
+shot mirror_180
+> 15 01 03 03
+wait 600
+shot mirror_270
+echo the driver kept the controller's timing
+panel

@@ -7,9 +7,8 @@
 static struct {
     int width, height;
     uint16_t *fb;
-    int x1, x2, y2;     /* the window */
-    int cx, cy;         /* the write cursor inside it */
     mock_panel_stats_t stats;
+    uint16_t brightness;
 } s;
 
 int mock_panel_init(int width, int height)
@@ -28,30 +27,38 @@ void mock_panel_deinit(void)
     memset(&s, 0, sizeof s);
 }
 
-void mock_panel_set_window(int x1, int y1, int x2, int y2)
+void mock_panel_put(int x, int y, uint16_t rgb565)
 {
-    s.x1 = x1;
-    s.x2 = x2;
-    s.y2 = y2;
-    s.cx = x1;
-    s.cy = y1;
-    s.stats.windows++;
+    if (s.fb && x >= 0 && y >= 0 && x < s.width && y < s.height) s.fb[(size_t)y * s.width + x] = rgb565;
 }
 
-void mock_panel_write(const void *pixels, size_t len)
+void mock_panel_account(uint32_t bytes)
 {
-    const uint16_t *p = pixels;
-    size_t n = len / sizeof(uint16_t);
-    s.stats.pixels += (uint32_t)n;
-    s.stats.bus_bytes += (uint32_t)len;
-    while (n--) {
-        if (s.cy <= s.y2 && s.cx < s.width && s.cy < s.height) s.fb[(size_t)s.cy * s.width + s.cx] = *p;
-        p++;
-        if (++s.cx > s.x2) {
-            s.cx = s.x1;
-            s.cy++;
-        }
-    }
+    s.stats.transfers++;
+    s.stats.bus_bytes += bytes;
+    s.stats.changes++;
+}
+
+void mock_panel_redraw(void)
+{
+    s.stats.changes++;
+}
+
+void mock_panel_set_brightness(uint16_t duty)
+{
+    s.brightness = duty;
+    s.stats.changes++;
+}
+
+uint16_t mock_panel_brightness(void)
+{
+    return s.brightness;
+}
+
+void mock_panel_size(int *width, int *height)
+{
+    *width = s.width;
+    *height = s.height;
 }
 
 const mock_panel_stats_t *mock_panel_stats(void)

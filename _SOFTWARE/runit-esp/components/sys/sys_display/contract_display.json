@@ -13,7 +13,7 @@
       "op": 0,
       "symbol": "DISPLAY_OP_GEOMETRY",
       "label": "Geometry",
-      "description": "The panel's size in its current orientation and the pixel format of its buffers.",
+      "description": "The panel's size in its current orientation, the pixel format of its buffers and the largest FLUSH the driver takes.",
       "read": {
         "returns": {
           "struct": "display_geometry_t",
@@ -44,6 +44,16 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 4
+            },
+            {
+              "id": "flush_max",
+              "label": "Largest flush",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 5,
+              "unit": "B",
+              "description": "The largest FLUSH in bytes the driver takes: its bus's transfer size"
             }
           ]
         }
@@ -54,7 +64,26 @@
       "op": 1,
       "symbol": "DISPLAY_OP_BACKLIGHT",
       "label": "Backlight",
-      "description": "Sets the brightness of the backlight.",
+      "description": "Sets the brightness of the backlight, or reads it (0 while the display is suspended).",
+      "read": {
+        "description": "The backlight's PWM duty now; 0 while the display is suspended.",
+        "returns": {
+          "struct": "display_backlight_args_t",
+          "fields": [
+            {
+              "id": "brightness_duty",
+              "label": "Brightness",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "PWM duty of the backlight: 0 off to 4095 full",
+              "min": 0,
+              "max": 4095
+            }
+          ]
+        }
+      },
       "write": {
         "args": {
           "struct": "display_backlight_args_t",
@@ -70,6 +99,38 @@
               "min": 0,
               "max": 4095,
               "control": "slider"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "HEALTH",
+      "op": 4,
+      "symbol": "DISPLAY_OP_HEALTH",
+      "label": "Health",
+      "description": "Whether the panel still answers and runs: the driver reads its power mode over the bus. A module whose SDO is not wired (no READABLE flag) answers Unknown.",
+      "read": {
+        "returns": {
+          "struct": "display_health_t",
+          "fields": [
+            {
+              "id": "health",
+              "label": "Health",
+              "type": "enum",
+              "enum": "sys_display_health_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "power_mode",
+              "label": "Power mode",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "What the panel answered to its power mode read (MIPI DCS 0x0A); 0 when not read"
             }
           ]
         }

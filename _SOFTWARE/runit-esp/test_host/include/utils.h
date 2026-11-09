@@ -15,7 +15,8 @@
 
 #include "freertos_shim.h"
 
-#define NO_WAIT 0  // a timeout of 0 ticks; forever is portMAX_DELAY
+#define NO_WAIT  0  // a timeout of 0 ticks; forever is portMAX_DELAY
+#define MSEC(ms) ((TickType_t)(ms))  // a tick is a millisecond here
 
 /* A critical section is one process-wide mutex: tasks are threads here, so what a spinlock protects on the board is
  * protected for real (an ISR is not modelled). Not recursive, like a spinlock. */

@@ -33,4 +33,6 @@
 #define ERR_MOD_SYS_NVS            22u // components/sys/sys_nvs (NVS partitions, JSON files in chunks)
 #define ERR_MOD_SYS_UART           24u // components/sys/sys_uart (UART ports made at run time)
 #define ERR_MOD_SYS_FLASHER        25u // components/sys/sys_flasher (the board on the link programmed through its ROM bootloader)
-#define ERR_MOD_SYS_DISPLAY        26u // components/sys/sys_display (the display contract: GEOMETRY, BACKLIGHT, FLUSH)
+#define ERR_MOD_SYS_DISPLAY        26u // components/sys/sys_display (the display contract: GEOMETRY, BACKLIGHT, FLUSH, ORIENTATION)
+#define ERR_MOD_SYS_TOUCH          27u // components/sys/sys_touch (the touch contract: POINT, CALIBRATION)
+#define ERR_MOD_SYS_LVGL           28u // components/sys/sys_lvgl (the LVGL adapter: install, rotation, start, stop)

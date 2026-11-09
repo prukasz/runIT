@@ -14,6 +14,8 @@ bool mock_window_poll(void);
 /* Copy the panel's framebuffer to the screen. */
 void mock_window_present(void);
 
+/* Called by mock_window_poll for a letter key (a .. z, not S). */
+void     mock_window_on_key(void (*fn)(int key));
 void     mock_window_set_title(const char *title);
 uint32_t mock_window_ticks(void);   /* real milliseconds since start */
 void     mock_window_delay(uint32_t ms);

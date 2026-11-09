@@ -49,6 +49,7 @@ extern "C" {
 #define SYS_DEVICE_CONTRACT_POWER_SUPPLY  0x08u  //@alias Power mux @description Power supply/mux operations
 #define SYS_DEVICE_CONTRACT_HBRIDGE       0x09u  //@alias H-bridge @description H-bridge motor driver operations
 #define SYS_DEVICE_CONTRACT_DISPLAY       0x0Au  //@alias Display @description Display panel operations
+#define SYS_DEVICE_CONTRACT_TOUCH         0x0Bu  //@alias Touch @description Touch panel operations
 #define SYS_DEVICE_CONTRACT_OWN           0xFFu  //@alias Device-specific @description Device-specific own operations
 
 #define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)
@@ -153,9 +154,7 @@ SYS_EVENTS_DECLARE(SYS_DEVICE)
  * OP_ENTRY_R(PD, LIMITS)): OP_READ / OP_WRITE write the side's cmd_f (the read parses the key, the write the value),
  * OP_ENTRY lists both sides, OP_ENTRY_R / OP_ENTRY_W one. Every row takes the op's flags from its contract table
  * (SYS_DEVICE_OP_ALWAYS, SYS_DEVICE_OP_LOCAL): a driver can't leave them out. */
-#define SYS_DEVICE__ROW_FLAGS(P, name)                         \
-  .always = (P##_FLAGS_##name & SYS_DEVICE_OP_ALWAYS) != 0u, \
-  .local = (P##_FLAGS_##name & SYS_DEVICE_OP_LOCAL) != 0u
+#define SYS_DEVICE__ROW_FLAGS(P, name) .flags = P##_FLAGS_##name
 #define OP_READ(P, name)    SYS_DEVICE_HANDLER(P##_r_##name, P##_key_##name##_t)
 #define OP_WRITE(P, name)   SYS_DEVICE_HANDLER(P##_w_##name, P##_value_##name##_t)
 #define OP_ENTRY(P, name)                                                                            \
@@ -196,9 +195,8 @@ typedef struct {
   uint16_t op;
   cmd_f read;
   cmd_f write;
-  /* A contract op's row gets both from its table (OP_ENTRY*); an own op (0xFFxx) sets them itself. */
-  bool always;  // SYS_DEVICE_OP_ALWAYS: the write runs while the device is suspended; else ERR_DEV_SUSPENDED
-  bool local;   // SYS_DEVICE_OP_LOCAL: C only, refused from the device router and on a remote device, ERR_DEV_LOCAL_OP
+  /* SYS_DEVICE_OP_*: a contract op's row gets them from its table (OP_ENTRY*); an own op (0xFFxx) sets them itself. */
+  uint8_t flags;
 } sys_device_op_t;
 
 /**

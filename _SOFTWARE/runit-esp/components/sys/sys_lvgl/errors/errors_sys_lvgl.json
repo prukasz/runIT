@@ -1,0 +1,41 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_LVGL",
+  "errors": {
+    "ERR_LVGL_INSTALLED": {
+      "message": "The screen is already installed",
+      "hint": "Reset the screen first."
+    },
+    "ERR_LVGL_NOT_INSTALLED": {
+      "message": "No screen is installed",
+      "hint": "Install the screen on a display first."
+    },
+    "ERR_LVGL_NOT_DISPLAY": {
+      "message": "{id} does not work as a display",
+      "hint": "Choose a display device."
+    },
+    "ERR_LVGL_NOT_TOUCH": {
+      "message": "{id} does not work as a touch panel",
+      "hint": "Choose a touch device, or none."
+    },
+    "ERR_LVGL_FORMAT": {
+      "message": "The screen cannot draw the pixel format {format} of {id}"
+    },
+    "ERR_LVGL_FLUSH_MAX": {
+      "message": "{id} takes at most {flush_max} bytes at once, less than one row ({row})",
+      "hint": "Check the display's bus settings."
+    },
+    "ERR_LVGL_NO_MEMORY": {
+      "message": "No memory for the screen ({bytes})",
+      "hint": "Free memory: a smaller screen heap or fewer modules."
+    },
+    "ERR_LVGL_HEAP": {
+      "message": "Screen heap {heap_bytes} is outside {min} .. {max}",
+      "hint": "Give the screen a heap within the range."
+    },
+    "ERR_LVGL_POOL_FULL": {
+      "message": "The screen's memory is full: {free} free, {need} needed, {reserve} kept in reserve",
+      "hint": "Fewer widgets or shorter texts, or a larger screen heap."
+    }
+  }
+}

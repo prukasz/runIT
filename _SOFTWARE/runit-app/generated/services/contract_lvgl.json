@@ -1,0 +1,272 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "LVGL",
+  "router_key": 21,
+  "alias": "Screen",
+  "description": "LVGL on one display and an optional touch: the draw buffers, the objects' heap, the rotation, drawing on or off. The screen's content is built by the screen commands on top of it.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "INSTALL",
+      "op": 1,
+      "symbol": "SYS_LVGL_OP_INSTALL",
+      "label": "Install the screen",
+      "description": "Puts LVGL on the display and the touch: the draw buffers sized from the display's geometry, the objects' heap; then it draws. Refused while installed (RESET first).",
+      "read": {
+        "description": "What is installed: 0xFFFF and heap 0 when empty.",
+        "returns": {
+          "struct": "sys_lvgl_install_t",
+          "fields": [
+            {
+              "id": "display",
+              "label": "Display",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "The display device (contract DISPLAY)"
+            },
+            {
+              "id": "touch",
+              "label": "Touch",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "The touch device (contract TOUCH), or 0xFFFF for none"
+            },
+            {
+              "id": "heap_bytes",
+              "label": "Objects' heap",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "unit": "B",
+              "description": "The budget of the screen's objects; 0 = the firmware's default"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "sys_lvgl_install_t",
+          "fields": [
+            {
+              "id": "display",
+              "label": "Display",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "The display device (contract DISPLAY)"
+            },
+            {
+              "id": "touch",
+              "label": "Touch",
+              "type": "device",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "The touch device (contract TOUCH), or 0xFFFF for none"
+            },
+            {
+              "id": "heap_bytes",
+              "label": "Objects' heap",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "unit": "B",
+              "description": "The budget of the screen's objects; 0 = the firmware's default"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "RESET",
+      "op": 2,
+      "symbol": "SYS_LVGL_OP_RESET",
+      "label": "Reset the screen",
+      "description": "Waits for the last window sent, deletes the screen with all its objects, frees the buffers. Nothing to do when empty.",
+      "write": {}
+    },
+    {
+      "id": "ROTATION",
+      "op": 3,
+      "symbol": "SYS_LVGL_OP_ROTATION",
+      "label": "Rotation",
+      "description": "Turns the panel and LVGL together and redraws the screen; the touch follows.",
+      "read": {
+        "returns": {
+          "struct": "sys_lvgl_rotation_t",
+          "fields": [
+            {
+              "id": "rotation",
+              "label": "Rotation",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "enum": "sys_display_orientation_e"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "sys_lvgl_rotation_t",
+          "fields": [
+            {
+              "id": "rotation",
+              "label": "Rotation",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "enum": "sys_display_orientation_e"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "STATUS",
+      "op": 4,
+      "symbol": "SYS_LVGL_OP_STATUS",
+      "label": "Status",
+      "description": "The state, the size with the rotation, the buffers, the heap and the windows sent.",
+      "read": {
+        "returns": {
+          "struct": "sys_lvgl_status_t",
+          "fields": [
+            {
+              "id": "state",
+              "label": "State",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "enum": "sys_lvgl_state_e"
+            },
+            {
+              "id": "rotation",
+              "label": "Rotation",
+              "type": "enum",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "enum": "sys_display_orientation_e"
+            },
+            {
+              "id": "buffers",
+              "label": "Draw buffers",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "2, or 1 when RAM was short; 0 when empty"
+            },
+            {
+              "id": "width",
+              "label": "Width",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 3,
+              "unit": "px",
+              "description": "With the rotation"
+            },
+            {
+              "id": "height",
+              "label": "Height",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 5,
+              "unit": "px",
+              "description": "With the rotation"
+            },
+            {
+              "id": "buffer_bytes",
+              "label": "Draw buffer",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 7,
+              "unit": "B",
+              "description": "One draw buffer"
+            },
+            {
+              "id": "heap_budget",
+              "label": "Heap budget",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 11,
+              "unit": "B",
+              "description": "INSTALL's, or the boot heap when empty"
+            },
+            {
+              "id": "heap_used",
+              "label": "Heap used",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 15,
+              "unit": "B"
+            },
+            {
+              "id": "heap_peak",
+              "label": "Heap peak",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 19,
+              "unit": "B",
+              "description": "The most used since INSTALL"
+            },
+            {
+              "id": "flushes",
+              "label": "Flushes",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 23,
+              "description": "Windows the display took since INSTALL"
+            },
+            {
+              "id": "flush_errors",
+              "label": "Flush errors",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 27,
+              "description": "Windows that failed or timed out since INSTALL"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "START",
+      "op": 5,
+      "symbol": "SYS_LVGL_OP_START",
+      "label": "Start drawing",
+      "description": "Draws and reads the touch again; the whole screen is redrawn.",
+      "write": {}
+    },
+    {
+      "id": "STOP",
+      "op": 6,
+      "symbol": "SYS_LVGL_OP_STOP",
+      "label": "Stop drawing",
+      "description": "Waits for the last window sent, then neither draws nor reads the touch; the screen and its objects stay.",
+      "write": {}
+    }
+  ]
+}

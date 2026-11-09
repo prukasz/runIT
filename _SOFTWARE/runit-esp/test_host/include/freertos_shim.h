@@ -21,6 +21,28 @@ typedef enum { RINGBUF_TYPE_NOSPLIT, RINGBUF_TYPE_ALLOWSPLIT, RINGBUF_TYPE_BYTEB
 #define pdPASS        1
 #define portMAX_DELAY 0xFFFFFFFFu
 
+/* A tick is a millisecond. */
+#define configTICK_RATE_HZ    1000u
+#define pdMS_TO_TICKS(ms)     ((TickType_t)(ms))
+#define portYIELD_FROM_ISR(x) ((void)(x))  // an ISR is a thread here
+void vTaskDelay(TickType_t ticks);
+TickType_t xTaskGetTickCount(void);  // the milliseconds of a monotonic clock
+
+/* Semaphores: a binary semaphore and a recursive mutex (src/host_freertos.c); FromISR is the same call. */
+typedef void* SemaphoreHandle_t;
+typedef struct { int unused; } StaticSemaphore_t;
+SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t* buffer);
+SemaphoreHandle_t xSemaphoreCreateRecursiveMutexStatic(StaticSemaphore_t* buffer);
+BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticks);
+BaseType_t xSemaphoreGive(SemaphoreHandle_t sem);
+BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t mutex, TickType_t ticks);
+BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t mutex);
+#define xSemaphoreGiveFromISR(sem, woken) (*(woken) = pdFALSE, xSemaphoreGive(sem))
+
+/* The critical section of a task (taskENTER_CRITICAL) is the process-wide one of utils.h. */
+#define taskENTER_CRITICAL(m) portENTER_CRITICAL_SAFE(m)
+#define taskEXIT_CRITICAL(m)  portEXIT_CRITICAL_SAFE(m)
+
 TaskHandle_t xTaskCreateStatic(TaskFunction_t fn, const char* name, uint32_t stack_depth, void* arg, UBaseType_t prio,
                                StackType_t* stack, StaticTask_t* tcb);
 TaskHandle_t xTaskGetCurrentTaskHandle(void);
@@ -41,6 +63,20 @@ void vRingbufferReturnItem(RingbufHandle_t rb, void* item);
   RingbufHandle_t name = NULL;                                                                   \
   __attribute__((constructor)) static void _init_##name(void) {                                  \
     name = xRingbufferCreateStatic((buffer_size), (type), _##name##_storage, &_##name##_struct); \
+  }
+
+#define U_BINARY_SEM_DEFINE(name)                               \
+  static StaticSemaphore_t _##name##_buffer;                    \
+  SemaphoreHandle_t name = NULL;                                \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xSemaphoreCreateBinaryStatic(&_##name##_buffer);     \
+  }
+
+#define U_RECURSIVE_MUTEX_DEFINE(name)                              \
+  static StaticSemaphore_t _##name##_buffer;                        \
+  SemaphoreHandle_t name = NULL;                                    \
+  __attribute__((constructor)) static void _init_##name(void) {     \
+    name = xSemaphoreCreateRecursiveMutexStatic(&_##name##_buffer); \
   }
 
 #define U_TASK_DEFINE(name, stack_words)             \

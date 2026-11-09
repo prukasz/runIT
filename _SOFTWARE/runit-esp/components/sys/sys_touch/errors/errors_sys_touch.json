@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_TOUCH",
+  "errors": {
+    "ERR_TOUCH_BAD_CHIP": {
+      "message": "{id} found another touch chip (ID {chip_id})",
+      "hint": "Check the touch panel's chip and address in the device's settings."
+    }
+  }
+}

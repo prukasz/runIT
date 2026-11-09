@@ -119,6 +119,7 @@ Payload and direction errors `ERR_CMD_BAD_LEN`, `_OUT_FULL`, `_BAD_ARG`, `_DIREC
 | `0x12` ota | `sys_ota_router` | SYS_OTA.MD "Remote" |
 | `0x13` uart | `sys_uart_router` | SYS_UART.MD "Remote" |
 | `0x14` flasher | `sys_flasher_router` | SYS_FLASHER.MD "Remote" |
+| `0x15` lvgl | `sys_lvgl_router` | SYS_LVGL.MD "Commands" |
 
 ## Limits
 

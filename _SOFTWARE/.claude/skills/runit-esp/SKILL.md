@@ -42,7 +42,8 @@ Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per contract, publish, NOTIFY stream, C listeners |
 | sys | `sys/sys_device` | `SYS_DEVICE.MD`, `SYS_DEVICE_DRIVER.MD` | device registry, create / remove, ops, sweeps, dependencies, error policy, remote devices (key `0x05`); writing a driver |
 | sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the remote hook of sys_device, calls over the session, reads from the watches' copies, the board's events |
-| sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/sys_display` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_DISPLAY.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE, DISPLAY) |
+| sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/sys_display`, `sys/sys_touch` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_DISPLAY.MD`, `SYS_TOUCH.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE, DISPLAY, TOUCH) |
+| sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter on a DISPLAY and a TOUCH device: its task and lock, draw buffers, LVGL's one pool (lv_init at INSTALL, lv_deinit at RESET), INSTALL / RESET / ROTATION / START / STOP / STATUS (key `0x15`); LVGL from the component manager, `lv_conf.h` there; the PC simulator is `lvgl-playground/` |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, battery, response matrix, VREG guard (key `0x0A`) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`) |
 | sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, the start section, commit, load / run, what happens at start (key `0x0C`) |

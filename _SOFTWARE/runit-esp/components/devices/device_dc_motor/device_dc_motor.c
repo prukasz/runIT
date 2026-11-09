@@ -346,7 +346,7 @@ static const sys_device_op_t k_ops[] = {
     {.op = DC_MOTOR_OP_CURRENT, .read = get_current_h},
     {.op = DC_MOTOR_OP_STALLED, .read = get_stalled_h},
     /* Internal ramp timer op */
-    {.op = DC_MOTOR_OP_TICK, .write = tick_h, .always = true},
+    {.op = DC_MOTOR_OP_TICK, .write = tick_h, .flags = SYS_DEVICE_OP_ALWAYS},
 };
 
 static const sys_device_type_t k_type = {

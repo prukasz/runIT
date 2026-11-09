@@ -1,0 +1,120 @@
+# The whole walk-through (README.md "Scenarios"): the devices, INSTALL, the demo screen, touch, rotation, backlight,
+# the three ways a transfer goes wrong, SUSPEND / RESUME, STOP / START, RESET. Frames as the app sends them, through the router.
+# Frames: [key][dir 00 read / 01 write][...], little-endian. DEVICE (05): [dir][id u16][op u16][args].
+# LVGL (15): [dir][op][args]. Device ids here: the display 1, the touch 2, the GPIO 3.
+
+echo create the GPIO: id 3, type 0x7F02 (simulated), the module wired to it (RESX pin 4, backlight 5, CS 10, DC 11)
+> 05 01 03 00 00 00 02 7F 00
+echo create the display: id 1, type 0x7F00 (the lcd_spi driver), display_cfg_t: bus 0, SPI mode 3, 40 MHz,
+echo CS 3:10, DC 3:11, reset 3:4, backlight 3:5 (full), 240x320, no offset, ILI9341, 0 deg, flags BGR (01)
+echo the driver's flow on the wire: reset, init sequence, SLPOUT, the frame memory cleared, MADCTL, DISPON
+spi on
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 01
+spi off
+panel
+echo create the touch: id 2, type 0x7F01 (simulated), touch_cfg_t: I2C 0x38, max 240x320
+> 05 01 02 00 00 00 01 7F 00 00 38 80 1A 06 00 FF FF FF FF FF FF FF FF FF F0 00 40 01 00 00 00 00 00 00 00 00 00 00 00 00
+
+echo the display's GEOMETRY, read as the app does: 240 x 320, RGB565_SWAPPED, flush_max 32768
+> 05 00 01 00 00 0A
+echo FLUSH from a frame is refused: a local op (ERR_DEV_LOCAL_OP)
+> 05 01 01 00 02 0A
+
+echo INSTALL the screen: display 1, touch 2, heap 0 (the default)
+> 15 01 01 01 00 02 00 00 00 00 00
+> 15 00 01
+> 15 00 04
+echo a second INSTALL is refused (ERR_LVGL_INSTALLED)
+> 15 01 01 01 00 02 00 00 00 00 00
+
+demo
+wait 600
+shot 0_demo
+echo the finger on the button
+tap 120 68
+tap 120 68
+wait 300
+shot 1_tapped
+
+echo ROTATION 90 deg: the panel and LVGL turn together
+> 15 01 03 01
+wait 600
+shot 2_rotated_90
+> 15 00 04
+echo back to 0
+> 15 01 03 00
+wait 600
+
+echo BACKLIGHT half, from the app (DISPLAY BACKLIGHT, remote)
+> 05 01 01 00 01 0A FF 07
+wait 200
+shot 3_backlight_half
+echo BACKLIGHT read back: FF 07
+> 05 00 01 00 01 0A
+> 05 01 01 00 01 0A FF 0F
+echo HEALTH: unknown (00 00), the module is not READABLE, so the adapter does not check it
+> 05 00 01 00 04 0A
+
+echo transfer error 1: the bus refuses (FLUSH returns ERR_DISPLAY_TRANSFER, reported once)
+fault refuse
+> 15 01 03 02
+wait 300
+fault none
+wait 600
+shot 4_after_refused
+echo transfer error 2: noise on the wire: the panel takes wrong bytes and nobody knows (SPI has no acknowledge)
+fault noise
+> 15 01 03 00
+wait 300
+shot 4b_noise
+fault none
+echo the next full redraw (a ROTATION) puts the picture right
+> 15 01 03 01
+wait 600
+> 15 01 03 00
+wait 600
+echo transfer error 3: the transfer hangs (the adapter waits 200 ms, reports FLUSH_TIMEOUT, resets the display:
+echo the driver drops the panel IO and runs its whole flow again)
+fault hang
+> 15 01 03 01
+wait 600
+fault none
+wait 800
+shot 5_after_hang
+panel
+> 15 00 04
+> 15 00 03
+
+echo SUSPEND the display (DEVICE SUSPEND): the screen pauses
+> 05 01 01 00 02 00
+wait 300
+> 15 00 04
+echo RESUME: the rotation set again, the screen redrawn
+> 05 01 01 00 03 00
+wait 600
+> 15 00 04
+shot 6_resumed
+
+echo STOP and START
+> 15 01 06
+> 15 00 04
+> 15 01 05
+wait 300
+
+echo RESET of the screen: the screen, its objects and the buffers freed
+> 15 01 02
+> 15 00 04
+> 15 00 01
+
+echo INSTALL again: LVGL starts on a new pool of 48 KB (lv_init after lv_deinit)
+> 15 01 01 01 00 02 00 00 C0 00 00
+demo
+wait 600
+> 15 00 04
+shot 7_installed_again
+echo a pool below the smallest is refused (ERR_LVGL_HEAP)
+> 15 01 02
+> 15 01 01 01 00 02 00 00 10 00 00
+> 15 00 04
+echo the controller saw no ordering mistake of the driver
+panel

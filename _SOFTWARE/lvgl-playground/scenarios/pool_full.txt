@@ -1,0 +1,14 @@
+# A full pool: the screen on the smallest pool (32 KB), then labels until sys_lvgl_pool_check refuses one
+# (ERR_LVGL_POOL_FULL): LVGL keeps the reserve and goes on drawing.
+> 05 01 03 00 00 00 02 7F 00
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 01
+> 15 01 01 01 00 FF FF 00 80 00 00
+> 15 00 04
+fill 1000
+wait 500
+> 15 00 04
+shot pool_full
+echo the screen still turns with a full pool
+> 15 01 03 01
+wait 500
+> 15 00 04

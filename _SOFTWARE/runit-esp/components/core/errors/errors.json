@@ -6087,9 +6087,9 @@
               "size": 2
             }
           ],
-          "description": "the window is empty, outside the panel, or its bytes are not the FLUSH's len",
-          "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id} or the pixels sent",
-          "hint": "Draw inside the panel's size (its geometry)."
+          "description": "the window is empty, outside the panel, its bytes are not the FLUSH's len, or len is above flush_max",
+          "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id}, the pixels sent or the largest flush",
+          "hint": "Draw inside the panel's size, in pieces no larger than its largest flush (its geometry)."
         },
         {
           "code": 2,
@@ -6130,7 +6130,7 @@
               "id_kind": "esp_err"
             }
           ],
-          "description": "the bus refused the transfer (from FLUSH at once), or one accepted before failed (from the next FLUSH, once); code: the bus's esp_err_t",
+          "description": "the bus refused the transfer (from FLUSH at once); code: the bus's esp_err_t",
           "message": "Sending pixels to {id} failed (code {code})",
           "hint": "Check the display's wiring and its SPI clock."
         },
@@ -6159,6 +6159,271 @@
           "description": "the end of an accepted FLUSH did not come within timeout_ms: the adapter reports it and resets the display",
           "message": "{id} did not finish drawing within {timeout_ms}",
           "hint": "The display was reset. Check its wiring, its SPI clock and the bus it shares."
+        },
+        {
+          "code": 5,
+          "tag": 1703941,
+          "name": "ERR_DISPLAY_LOST",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "health",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "power_mode",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "HEALTH: the panel does not answer (health NO_ANSWER) or lost its power (RESTARTED: the adapter resets it); reported once until it answers again",
+          "message": "{id} does not answer or lost its power (health {health}, power mode {power_mode})",
+          "hint": "Check the display's cable and its supply. It is set up again and redrawn once it answers."
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "sys_touch",
+      "symbol": "ERR_MOD_SYS_TOUCH",
+      "source_file": "runit-esp/components/sys/sys_touch/errors/sys_touch_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_touch/errors/errors_sys_touch.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1769473,
+          "name": "ERR_TOUCH_BAD_CHIP",
+          "severity": 3,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "chip_id",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "CREATE read another chip's ID than the driver's (or the config's chip)",
+          "message": "{id} found another touch chip (ID {chip_id})",
+          "hint": "Check the touch panel's chip and address in the device's settings."
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "sys_lvgl",
+      "symbol": "ERR_MOD_SYS_LVGL",
+      "source_file": "runit-esp/components/sys/sys_lvgl/errors/sys_lvgl_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_lvgl/errors/errors_sys_lvgl.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1835009,
+          "name": "ERR_LVGL_INSTALLED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "message": "The screen is already installed",
+          "hint": "Reset the screen first."
+        },
+        {
+          "code": 2,
+          "tag": 1835010,
+          "name": "ERR_LVGL_NOT_INSTALLED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "message": "No screen is installed",
+          "hint": "Install the screen on a display first."
+        },
+        {
+          "code": 3,
+          "tag": 1835011,
+          "name": "ERR_LVGL_NOT_DISPLAY",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "around the device's error: GEOMETRY or ORIENTATION failed",
+          "message": "{id} does not work as a display",
+          "hint": "Choose a display device."
+        },
+        {
+          "code": 4,
+          "tag": 1835012,
+          "name": "ERR_LVGL_NOT_TOUCH",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "around the device's error: POINT failed",
+          "message": "{id} does not work as a touch panel",
+          "hint": "Choose a touch device, or none."
+        },
+        {
+          "code": 5,
+          "tag": 1835013,
+          "name": "ERR_LVGL_FORMAT",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "format",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "a pixel format the adapter does not draw",
+          "message": "The screen cannot draw the pixel format {format} of {id}"
+        },
+        {
+          "code": 6,
+          "tag": 1835014,
+          "name": "ERR_LVGL_FLUSH_MAX",
+          "severity": 3,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "flush_max",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "row",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "description": "the display's largest FLUSH is less than one row",
+          "message": "{id} takes at most {flush_max} bytes at once, less than one row ({row})",
+          "hint": "Check the display's bus settings."
+        },
+        {
+          "code": 7,
+          "tag": 1835015,
+          "name": "ERR_LVGL_NO_MEMORY",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "bytes",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "no memory for LVGL's pool or a draw buffer (DMA), or LVGL could not make the display",
+          "message": "No memory for the screen ({bytes})",
+          "hint": "Free memory: a smaller screen heap or fewer modules."
+        },
+        {
+          "code": 8,
+          "tag": 1835016,
+          "name": "ERR_LVGL_HEAP",
+          "severity": 2,
+          "size": 12,
+          "fields": [
+            {
+              "name": "heap_bytes",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "the pool asked for is outside SYS_LVGL_HEAP_MIN .. _MAX",
+          "message": "Screen heap {heap_bytes} is outside {min} .. {max}",
+          "hint": "Give the screen a heap within the range."
+        },
+        {
+          "code": 9,
+          "tag": 1835017,
+          "name": "ERR_LVGL_POOL_FULL",
+          "severity": 2,
+          "size": 12,
+          "fields": [
+            {
+              "name": "free",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "need",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "reserve",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "what was asked would leave less than the reserve in LVGL's pool",
+          "message": "The screen's memory is full: {free} free, {need} needed, {reserve} kept in reserve",
+          "hint": "Fewer widgets or shorter texts, or a larger screen heap."
         }
       ]
     }

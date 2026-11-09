@@ -176,3 +176,97 @@ void vRingbufferReturnItem(RingbufHandle_t h, void* data) {
   pthread_mutex_unlock(&rb->m);
   free(it);
 }
+
+void vTaskDelay(TickType_t ticks) {
+  struct timespec ts = {.tv_sec = ticks / 1000, .tv_nsec = (long)(ticks % 1000) * 1000000L};
+  nanosleep(&ts, NULL);
+}
+
+TickType_t xTaskGetTickCount(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (TickType_t)((uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u);
+}
+
+/* ---- semaphores ----------------------------------------------------------------------------------------------- */
+
+typedef struct {
+  pthread_mutex_t m;
+  pthread_cond_t c;
+  bool recursive;
+  uint32_t count;      /* binary: 0 or 1 given; recursive: how deep the owner holds it */
+  pthread_t owner;
+} sem_t_;
+
+static sem_t_* sem_new(bool recursive) {
+  sem_t_* s = calloc(1, sizeof(*s));
+  pthread_mutex_init(&s->m, NULL);
+  pthread_cond_init(&s->c, NULL);
+  s->recursive = recursive;
+  return s;
+}
+
+SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t* buffer) {
+  (void)buffer;
+  return sem_new(false);
+}
+
+SemaphoreHandle_t xSemaphoreCreateRecursiveMutexStatic(StaticSemaphore_t* buffer) {
+  (void)buffer;
+  return sem_new(true);
+}
+
+BaseType_t xSemaphoreTake(SemaphoreHandle_t h, TickType_t ticks) {
+  sem_t_* s = h;
+  pthread_mutex_lock(&s->m);
+  while (s->count == 0) {
+    if (ticks == 0 || !wait_cond(&s->c, &s->m, ticks)) {
+      break;
+    }
+  }
+  const bool taken = s->count > 0;
+  if (taken) {
+    s->count = 0;
+  }
+  pthread_mutex_unlock(&s->m);
+  return taken ? pdTRUE : pdFALSE;
+}
+
+BaseType_t xSemaphoreGive(SemaphoreHandle_t h) {
+  sem_t_* s = h;
+  pthread_mutex_lock(&s->m);
+  const bool given = s->count == 0;
+  s->count = 1;
+  pthread_cond_signal(&s->c);
+  pthread_mutex_unlock(&s->m);
+  return given ? pdTRUE : pdFALSE;
+}
+
+BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t h, TickType_t ticks) {
+  sem_t_* s = h;
+  const pthread_t self = pthread_self();
+  pthread_mutex_lock(&s->m);
+  while (s->count > 0 && !pthread_equal(s->owner, self)) {
+    if (ticks == 0 || !wait_cond(&s->c, &s->m, ticks)) {
+      break;
+    }
+  }
+  const bool taken = s->count == 0 || pthread_equal(s->owner, self);
+  if (taken) {
+    s->owner = self;
+    s->count++;
+  }
+  pthread_mutex_unlock(&s->m);
+  return taken ? pdTRUE : pdFALSE;
+}
+
+BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t h) {
+  sem_t_* s = h;
+  pthread_mutex_lock(&s->m);
+  const bool held = s->count > 0 && pthread_equal(s->owner, pthread_self());
+  if (held && --s->count == 0) {
+    pthread_cond_signal(&s->c);
+  }
+  pthread_mutex_unlock(&s->m);
+  return held ? pdTRUE : pdFALSE;
+}

@@ -3,8 +3,8 @@
   "module": "ERR_MOD_SYS_DISPLAY",
   "errors": {
     "ERR_DISPLAY_BAD_WINDOW": {
-      "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id} or the pixels sent",
-      "hint": "Draw inside the panel's size (its geometry)."
+      "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id}, the pixels sent or the largest flush",
+      "hint": "Draw inside the panel's size, in pieces no larger than its largest flush (its geometry)."
     },
     "ERR_DISPLAY_FLUSH_BUSY": {
       "message": "{id} is still drawing the previous window"
@@ -16,6 +16,10 @@
     "ERR_DISPLAY_FLUSH_TIMEOUT": {
       "message": "{id} did not finish drawing within {timeout_ms}",
       "hint": "The display was reset. Check its wiring, its SPI clock and the bus it shares."
+    },
+    "ERR_DISPLAY_LOST": {
+      "message": "{id} does not answer or lost its power (health {health}, power mode {power_mode})",
+      "hint": "Check the display's cable and its supply. It is set up again and redrawn once it answers."
     }
   }
 }

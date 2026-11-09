@@ -25,6 +25,8 @@ Activation lasts only for one shell call, so prefix every command with it. Alway
 |---|---|---|
 | Build | `idf.py -C <proj> build` | full ~200 s, incremental no-op ~2 s |
 | Re-run CMake / pick up Kconfig changes | `idf.py -C <proj> reconfigure` | ~26 s |
+| A new component folder (`components/<layer>/<name>/`) | `idf.py -C <proj> reconfigure build`: a plain `build` succeeds without compiling it (check `build/compile_commands.json`) | ~1 min |
+| A new or changed `idf_component.yml` (LVGL in `sys_lvgl`) | `idf.py -C <proj> reconfigure`: the component manager downloads into `managed_components/` and writes `dependencies.lock` (both not committed; needs the network once) | ~1 min |
 | Apply changed Kconfig **defaults** | `idf.py -C <proj> refresh-config --policy=kconfig` | ~2.5 s, non-interactive |
 | Flash | `idf.py -C <proj> -p <PORT> flash` | ~10 s |
 | Monitor (agent) | `& C:\Espressif\tools\python\v6.1\venv\Scripts\python.exe .claude\skills\runit-esp\scripts\serial_capture.py <PORT> 15` | captures N seconds; see §2a |
@@ -98,7 +100,8 @@ Without the driver, clangd parses headers for the host (MSVC) target instead of 
 
 **Open: the Python suites below do not follow the firmware's session and streams yet.** `router_link.py` (and every suite on it, the app's console witness `uart_tap.py` too) sends the old HELLO (the board giving the client its id) and the CONNECTOR commands (READ, MIRROR, FORWARD, `EVENTS_ALL`), so its session does not open on the current firmware and the suites fail; `remote_tests.py` and `forward_tests.py` test connector mirrors and FORWARD, which the streams no longer have (SYS_STREAM.MD). Until they follow, the session, the streams and the watches are tested on a board by the app's suite (`npm run test:hw`: `a-link`, `h-watches`, `i-streams`).
 
-**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp/` (`runit-esp/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `cmd`, `router` (its tasks run as threads). Run them for a change to a component that has them.
+**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp/` (`runit-esp/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `cmd`, `router` (its tasks run as threads). Run them for a change to a component that has them. The same stand-ins build the **screen simulator** `lvgl-playground/` (its README.md: `sys_lvgl`, `sys_device`, `sys_display`, `sys_touch` with a display driver on a simulated SPI bus and ILI9341, a simulated touch, scenarios of command frames, an SDL2 window): `.
+un.ps1 -Headless -Scenario scenarios\walkthrough.txt` after a change to those components or to `test_host/`.
 
 The suites below run on the board (or QEMU):
 

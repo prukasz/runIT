@@ -415,7 +415,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY(PD, SETTINGS),     OP_ENTRY_R(PD, OPTIONS),    OP_ENTRY_R(PD, LIMITS),
     OP_ENTRY_R(PMON, VOLTAGE),  OP_ENTRY_R(PMON, CURRENT),  OP_ENTRY_R(PMON, POWER),
     /* Internal keepalive timer op */
-    {.op = AP_OP_KEEPALIVE, .write = keepalive_h, .always = true},
+    {.op = AP_OP_KEEPALIVE, .write = keepalive_h, .flags = SYS_DEVICE_OP_ALWAYS},
 };
 
 static const sys_device_type_t k_type = {

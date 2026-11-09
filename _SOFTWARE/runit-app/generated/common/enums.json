@@ -262,6 +262,12 @@
           "description": "Display panel operations"
         },
         {
+          "name": "SYS_DEVICE_CONTRACT_TOUCH",
+          "value": 11,
+          "alias": "Touch",
+          "description": "Touch panel operations"
+        },
+        {
           "name": "SYS_DEVICE_CONTRACT_OWN",
           "value": 255,
           "alias": "Device-specific",
@@ -314,6 +320,50 @@
           "value": 4278190082,
           "alias": "Reset this device",
           "description": "Resets the device that failed to its power-on state"
+        }
+      ]
+    },
+    "display_flags": {
+      "alias": "Display flags",
+      "kind": "defines",
+      "prefix": "SYS_DISPLAY_FLAG_",
+      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
+      "members": [
+        {
+          "name": "SYS_DISPLAY_FLAG_BGR",
+          "value": 1,
+          "alias": "BGR",
+          "description": "The glass's subpixels are blue, green, red"
+        },
+        {
+          "name": "SYS_DISPLAY_FLAG_INVERT",
+          "value": 2,
+          "alias": "Invert",
+          "description": "Inverted colours (most IPS glass)"
+        },
+        {
+          "name": "SYS_DISPLAY_FLAG_MIRROR_X",
+          "value": 4,
+          "alias": "Mirror X",
+          "description": "The glass is mounted mirrored left to right"
+        },
+        {
+          "name": "SYS_DISPLAY_FLAG_MIRROR_Y",
+          "value": 8,
+          "alias": "Mirror Y",
+          "description": "The glass is mounted mirrored top to bottom"
+        },
+        {
+          "name": "SYS_DISPLAY_FLAG_BL_ACTIVE_LOW",
+          "value": 16,
+          "alias": "Backlight active low",
+          "description": "The backlight is on when its pin is low"
+        },
+        {
+          "name": "SYS_DISPLAY_FLAG_READABLE",
+          "value": 32,
+          "alias": "Readable",
+          "description": "The module's SDO is wired to the bus's MISO: HEALTH reads the panel"
         }
       ]
     },
@@ -667,6 +717,12 @@
           "value": 20,
           "alias": "Flasher",
           "description": "Flasher: program the board on the link with this board's firmware, through its ROM bootloader"
+        },
+        {
+          "name": "ROUTER_KEY_LVGL",
+          "value": 21,
+          "alias": "Screen",
+          "description": "Screen: LVGL on a display and a touch (install, rotation, start, stop, status)"
         }
       ]
     },
@@ -1078,6 +1134,37 @@
         }
       ]
     },
+    "sys_display_health_e": {
+      "alias": "Display health",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
+      "members": [
+        {
+          "name": "SYS_DISPLAY_HEALTH_UNKNOWN",
+          "value": 0,
+          "alias": "Unknown",
+          "description": "The module cannot be read (SDO not wired): not checked"
+        },
+        {
+          "name": "SYS_DISPLAY_HEALTH_OK",
+          "value": 1,
+          "alias": "OK",
+          "description": "The panel answers and runs as the driver set it"
+        },
+        {
+          "name": "SYS_DISPLAY_HEALTH_NO_ANSWER",
+          "value": 2,
+          "alias": "No answer",
+          "description": "Nothing answers: the cable or the module's power is off"
+        },
+        {
+          "name": "SYS_DISPLAY_HEALTH_RESTARTED",
+          "value": 3,
+          "alias": "Restarted",
+          "description": "The panel answers but runs no more: it lost its power and needs a RESET"
+        }
+      ]
+    },
     "sys_display_orientation_e": {
       "alias": "Display orientation",
       "kind": "enum",
@@ -1109,22 +1196,46 @@
         }
       ]
     },
-    "sys_display_rgb_order_e": {
-      "alias": "Colour order",
+    "sys_display_panel_e": {
+      "alias": "Display controller",
       "kind": "enum",
       "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
       "members": [
         {
-          "name": "SYS_DISPLAY_RGB_ORDER_RGB",
+          "name": "SYS_DISPLAY_PANEL_ILI9341",
           "value": 0,
-          "alias": "RGB",
-          "description": "The glass's subpixels are red, green, blue"
+          "alias": "ILI9341",
+          "description": "240x320, RGB565"
         },
         {
-          "name": "SYS_DISPLAY_RGB_ORDER_BGR",
+          "name": "SYS_DISPLAY_PANEL_ST7789",
           "value": 1,
-          "alias": "BGR",
-          "description": "The glass's subpixels are blue, green, red"
+          "alias": "ST7789",
+          "description": "240x320 RAM (240x240, 135x240, 170x320 glass), RGB565"
+        },
+        {
+          "name": "SYS_DISPLAY_PANEL_ST7735",
+          "value": 2,
+          "alias": "ST7735",
+          "description": "132x162 RAM (128x160, 80x160 glass), RGB565"
+        },
+        {
+          "name": "SYS_DISPLAY_PANEL_GC9A01",
+          "value": 3,
+          "alias": "GC9A01",
+          "description": "240x240 round, RGB565"
+        },
+        {
+          "name": "SYS_DISPLAY_PANEL_ST7796",
+          "value": 4,
+          "alias": "ST7796",
+          "description": "320x480, RGB565"
+        },
+        {
+          "name": "SYS_DISPLAY_PANEL_ILI9488",
+          "value": 5,
+          "alias": "ILI9488",
+          "description": "320x480, RGB888 (18 bit on SPI)"
         }
       ]
     },
@@ -1366,6 +1477,37 @@
           "value": 8,
           "alias": "DAC",
           "description": "Analog DAC output"
+        }
+      ]
+    },
+    "sys_lvgl_state_e": {
+      "alias": "Screen adapter state",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_lvgl/sys_lvgl.h",
+      "members": [
+        {
+          "name": "SYS_LVGL_STATE_EMPTY",
+          "value": 0,
+          "alias": "Empty",
+          "description": "No display: LVGL is not running and holds no memory"
+        },
+        {
+          "name": "SYS_LVGL_STATE_RUNNING",
+          "value": 1,
+          "alias": "Running",
+          "description": "Draws and reads the touch"
+        },
+        {
+          "name": "SYS_LVGL_STATE_STOPPED",
+          "value": 2,
+          "alias": "Stopped",
+          "description": "Stopped by STOP: the screen and its objects are kept"
+        },
+        {
+          "name": "SYS_LVGL_STATE_PAUSED",
+          "value": 3,
+          "alias": "Paused",
+          "description": "The display is suspended: drawing resumes with it"
         }
       ]
     },
@@ -1932,6 +2074,32 @@
           "value": 2,
           "alias": "On event",
           "description": "The read when a matching event happens, at most every period"
+        }
+      ]
+    },
+    "touch_axes": {
+      "alias": "Touch axes",
+      "kind": "defines",
+      "prefix": "TOUCH_AXES_",
+      "source_file": "runit-esp/components/sys/sys_touch/sys_touch_contract.h",
+      "members": [
+        {
+          "name": "TOUCH_AXES_SWAP_XY",
+          "value": 1,
+          "alias": "Swap X and Y",
+          "description": "The touch panel's X is the glass's Y"
+        },
+        {
+          "name": "TOUCH_AXES_MIRROR_X",
+          "value": 2,
+          "alias": "Mirror X",
+          "description": "X counts from the right edge"
+        },
+        {
+          "name": "TOUCH_AXES_MIRROR_Y",
+          "value": 4,
+          "alias": "Mirror Y",
+          "description": "Y counts from the bottom edge"
         }
       ]
     },
@@ -2836,6 +3004,7 @@
     "ROUTER_KEY_FLASHER": "router_key",
     "ROUTER_KEY_I2C": "router_key",
     "ROUTER_KEY_LOG": "router_key",
+    "ROUTER_KEY_LVGL": "router_key",
     "ROUTER_KEY_OTA": "router_key",
     "ROUTER_KEY_POWER": "router_key",
     "ROUTER_KEY_PROJECT": "router_key",
@@ -2901,6 +3070,7 @@
     "SYS_DEVICE_CONTRACT_POWER_SUPPLY": "device_contract",
     "SYS_DEVICE_CONTRACT_POWER_USB_PD": "device_contract",
     "SYS_DEVICE_CONTRACT_POWER_VREG": "device_contract",
+    "SYS_DEVICE_CONTRACT_TOUCH": "device_contract",
     "SYS_DEVICE_FAULT_STAGE_ACTION": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_SUSPEND": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_VM_STOP": "sys_device_fault_stage_e",
@@ -2913,14 +3083,28 @@
     "SYS_DEVICE_REMOTE_WIRED": "device_remote_flag",
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
+    "SYS_DISPLAY_FLAG_BGR": "display_flags",
+    "SYS_DISPLAY_FLAG_BL_ACTIVE_LOW": "display_flags",
+    "SYS_DISPLAY_FLAG_INVERT": "display_flags",
+    "SYS_DISPLAY_FLAG_MIRROR_X": "display_flags",
+    "SYS_DISPLAY_FLAG_MIRROR_Y": "display_flags",
+    "SYS_DISPLAY_FLAG_READABLE": "display_flags",
     "SYS_DISPLAY_FORMAT_RGB565_SWAPPED": "sys_display_format_e",
     "SYS_DISPLAY_FORMAT_RGB888": "sys_display_format_e",
+    "SYS_DISPLAY_HEALTH_NO_ANSWER": "sys_display_health_e",
+    "SYS_DISPLAY_HEALTH_OK": "sys_display_health_e",
+    "SYS_DISPLAY_HEALTH_RESTARTED": "sys_display_health_e",
+    "SYS_DISPLAY_HEALTH_UNKNOWN": "sys_display_health_e",
     "SYS_DISPLAY_ORIENTATION_0": "sys_display_orientation_e",
     "SYS_DISPLAY_ORIENTATION_180": "sys_display_orientation_e",
     "SYS_DISPLAY_ORIENTATION_270": "sys_display_orientation_e",
     "SYS_DISPLAY_ORIENTATION_90": "sys_display_orientation_e",
-    "SYS_DISPLAY_RGB_ORDER_BGR": "sys_display_rgb_order_e",
-    "SYS_DISPLAY_RGB_ORDER_RGB": "sys_display_rgb_order_e",
+    "SYS_DISPLAY_PANEL_GC9A01": "sys_display_panel_e",
+    "SYS_DISPLAY_PANEL_ILI9341": "sys_display_panel_e",
+    "SYS_DISPLAY_PANEL_ILI9488": "sys_display_panel_e",
+    "SYS_DISPLAY_PANEL_ST7735": "sys_display_panel_e",
+    "SYS_DISPLAY_PANEL_ST7789": "sys_display_panel_e",
+    "SYS_DISPLAY_PANEL_ST7796": "sys_display_panel_e",
     "SYS_EVENT_OP_NOTIFY": "event_op",
     "SYS_FLASHER_DONE": "sys_flasher_state_e",
     "SYS_FLASHER_FAILED": "sys_flasher_state_e",
@@ -2956,6 +3140,10 @@
     "SYS_IO_MODE_PWM": "sys_io_mode_e",
     "SYS_IO_PIN_NONE_DEVICE": "io_pin_none",
     "SYS_IO_PIN_NONE_INDEX": "io_pin_none",
+    "SYS_LVGL_STATE_EMPTY": "sys_lvgl_state_e",
+    "SYS_LVGL_STATE_PAUSED": "sys_lvgl_state_e",
+    "SYS_LVGL_STATE_RUNNING": "sys_lvgl_state_e",
+    "SYS_LVGL_STATE_STOPPED": "sys_lvgl_state_e",
     "SYS_OTA_STATE_PENDING": "sys_ota_state_e",
     "SYS_OTA_STATE_UNKNOWN": "sys_ota_state_e",
     "SYS_OTA_STATE_VALID": "sys_ota_state_e",
@@ -3053,6 +3241,9 @@
     "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
     "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
     "SYS_WATCH_PERIODIC": "sys_watch_trigger_e",
+    "TOUCH_AXES_MIRROR_X": "touch_axes",
+    "TOUCH_AXES_MIRROR_Y": "touch_axes",
+    "TOUCH_AXES_SWAP_XY": "touch_axes",
     "VM_BIT_AND": "vm_bit_op_e",
     "VM_BIT_BSWAP": "vm_bit_op_e",
     "VM_BIT_CLR": "vm_bit_op_e",

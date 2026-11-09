@@ -13,6 +13,19 @@ err_h sys_display_set_backlight(uint16_t device, uint16_t brightness_duty) {
   return sys_device_write(device, DISPLAY_OP_BACKLIGHT, &a, sizeof(a));
 }
 
+err_h sys_display_get_backlight(uint16_t device, uint16_t* out) {
+  ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
+  display_backlight_args_t a;
+  ERR_TRY(sys_device_read(device, DISPLAY_OP_BACKLIGHT, NULL, 0, &a, sizeof(a)));
+  *out = a.brightness_duty;
+  return NULL;
+}
+
+err_h sys_display_get_health(uint16_t device, display_health_t* out) {
+  ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
+  return sys_device_read(device, DISPLAY_OP_HEALTH, NULL, 0, out, sizeof(*out));
+}
+
 err_h sys_display_set_orientation(uint16_t device, uint8_t orientation) {
   SYS_DEV_CHECK_IN_RANGE(device, orientation, SYS_DISPLAY_ORIENTATION_0, SYS_DISPLAY_ORIENTATION_270);
   const display_orientation_args_t a = {.orientation = orientation};

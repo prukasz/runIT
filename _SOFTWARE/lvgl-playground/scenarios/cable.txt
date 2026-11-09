@@ -1,0 +1,30 @@
+# The display's cable comes off and goes back on (README.md "Scenarios"). The module's SDO is wired
+# (SYS_DISPLAY_FLAG_READABLE): the adapter reads HEALTH every second. Off: nothing answers (MISO reads 0xFF),
+# ERR_DISPLAY_LOST once. On: the panel powered on asleep with noise in its memory, HEALTH RESTARTED, the adapter
+# resets the display and redraws the screen.
+# Frames: [key][dir 00 read / 01 write][...], little-endian. Device ids here: the display 1, the touch 2, the GPIO 3.
+
+> 05 01 03 00 00 00 02 7F 00
+echo create the display as in walkthrough.txt, flags BGR and READABLE (21)
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 21
+> 05 01 02 00 00 00 01 7F 00 00 38 80 1A 06 00 FF FF FF FF FF FF FF FF FF F0 00 40 01 00 00 00 00 00 00 00 00 00 00 00 00
+> 15 01 01 01 00 02 00 00 00 00 00
+demo
+wait 600
+echo HEALTH: OK (01), power mode 9C (awake, normal, display on)
+> 05 00 01 00 04 0A
+shot cable_0_on
+
+echo the cable off: the glass dark, the next check finds no answer (ERR_DISPLAY_LOST, once)
+cable off
+wait 2500
+> 05 00 01 00 04 0A
+shot cable_1_off
+
+echo the cable on again: the panel restarted asleep; the adapter resets it and redraws
+cable on
+wait 1800
+> 05 00 01 00 04 0A
+shot cable_2_back
+echo the driver kept the controller's timing through it
+panel

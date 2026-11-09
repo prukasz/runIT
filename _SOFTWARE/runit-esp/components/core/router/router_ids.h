@@ -28,3 +28,4 @@
 #define ROUTER_KEY_BOARD    0x11u  //@alias Board profile @description Board profile: the definition of the board kept on it as JSON (write, read back)
 #define ROUTER_KEY_UART     0x13u  //@alias UART ports @description UART ports: create a port as a provider, with its rate, format and pins
 #define ROUTER_KEY_FLASHER  0x14u  //@alias Flasher @description Flasher: program the board on the link with this board's firmware, through its ROM bootloader
+#define ROUTER_KEY_LVGL     0x15u  //@alias Screen @description Screen: LVGL on a display and a touch (install, rotation, start, stop, status)

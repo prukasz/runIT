@@ -16,6 +16,7 @@ static struct {
     int w, h, scale;
     bool pressed;
     int shots;
+    void (*on_key)(int key);
 } s;
 
 int mock_window_open(const char *title, int panel_w, int panel_h, int scale)
@@ -84,6 +85,9 @@ bool mock_window_poll(void)
             break;
         case SDL_KEYDOWN:
             if (e.key.keysym.sym == SDLK_ESCAPE) return false;
+            if (s.on_key && e.key.keysym.sym >= 'a' && e.key.keysym.sym <= 'z' && e.key.keysym.sym != SDLK_s) {
+                s.on_key((int)e.key.keysym.sym);
+            }
             if (e.key.keysym.sym == SDLK_s) {
                 char path[64];
                 snprintf(path, sizeof path, "screenshot_%d.bmp", ++s.shots);
@@ -100,11 +104,18 @@ void mock_window_present(void)
     const uint16_t *fb = mock_panel_framebuffer();
     SDL_Rect glass = {BEZEL, BEZEL, s.w * s.scale, s.h * s.scale};
     if (!fb) return;
+    const Uint8 dim = (Uint8)(mock_panel_brightness() * 255u / 4095u);
     SDL_UpdateTexture(s.tex, NULL, fb, s.w * (int)sizeof(uint16_t));
+    SDL_SetTextureColorMod(s.tex, dim, dim, dim);
     SDL_SetRenderDrawColor(s.ren, 28, 30, 34, 255);
     SDL_RenderClear(s.ren);
     SDL_RenderCopy(s.ren, s.tex, NULL, &glass);
     SDL_RenderPresent(s.ren);
+}
+
+void mock_window_on_key(void (*fn)(int key))
+{
+    s.on_key = fn;
 }
 
 void mock_window_set_title(const char *title)

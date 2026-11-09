@@ -1,0 +1,28 @@
+# The demo (README.md "Scenarios"): the display and the touch created, the screen installed, the demo screen built;
+# then the window is yours: the mouse is the finger, R rotates, P stops / starts, X resets, I prints STATUS.
+# Frames: [key][dir 00 read / 01 write][...], little-endian. DEVICE (05): [dir][id u16][op u16][args].
+# LVGL (15): [dir][op][args]. Device ids here: the display 1, the touch 2, the GPIO 3.
+
+echo create the GPIO: id 3, type 0x7F02 (simulated), the module wired to it (RESX pin 4, backlight 5, CS 10, DC 11)
+> 05 01 03 00 00 00 02 7F 00
+echo create the display: id 1, type 0x7F00 (the lcd_spi driver), display_cfg_t: bus 0, SPI mode 3, 40 MHz,
+echo CS 3:10, DC 3:11, reset 3:4, backlight 3:5 (full), 240x320, no offset, ILI9341, 0 deg, flags BGR (01)
+echo the driver's flow on the wire: reset, init sequence, SLPOUT, the frame memory cleared, MADCTL, DISPON
+spi on
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 01
+spi off
+panel
+echo create the touch: id 2, type 0x7F01 (simulated), touch_cfg_t: I2C 0x38, max 240x320
+> 05 01 02 00 00 00 01 7F 00 00 38 80 1A 06 00 FF FF FF FF FF FF FF FF FF F0 00 40 01 00 00 00 00 00 00 00 00 00 00 00 00
+
+echo the display's GEOMETRY, read as the app does: 240 x 320, RGB565_SWAPPED, flush_max 32768
+> 05 00 01 00 00 0A
+
+echo INSTALL the screen: display 1, touch 2, heap 0 (the default)
+> 15 01 01 01 00 02 00 00 00 00 00
+> 15 00 01
+> 15 00 04
+
+demo
+wait 600
+shot demo

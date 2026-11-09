@@ -73,6 +73,8 @@ MODULE_ID_KINDS = {
     "ERR_MOD_SYS_IO": {"id": "device"},
     "ERR_MOD_SYS_POWER": {"id": "device", "channel": "channel"},
     "ERR_MOD_SYS_DISPLAY": {"id": "device"},
+    "ERR_MOD_SYS_TOUCH": {"id": "device"},
+    "ERR_MOD_SYS_LVGL": {"id": "device"},
     "ERR_MOD_SYS_POWER_MANAGER": {"id": "device", "source": "device", "channel": "channel"},
     "ERR_MOD_SYS_EVENT": {"source": "device", "device": "device", "channel": "channel"},
     "ERR_MOD_ROUTER": {"key": "router_key", "link": "link"},
