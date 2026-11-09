@@ -49,7 +49,7 @@
       "op": 1,
       "symbol": "SYS_DEVICE_OP_RESET",
       "label": "Reset",
-      "description": "Puts the device's outputs off and its settings back to defaults.",
+      "description": "Puts the device's outputs off and its settings back to defaults; the device's RESET event follows.",
       "write": {}
     },
     {
@@ -292,6 +292,18 @@
       "description": "The device works again. Source 0xFFFF: a sweep (RESUME of every device, leaving the safe state) resumed devices.",
       "notify": true,
       "symbol": "DEVICE_EV_RESUMED",
+      "value": {
+        "description": "Always 0"
+      }
+    },
+    {
+      "id": "RESET",
+      "event": 2,
+      "code": 2,
+      "label": "Reset",
+      "description": "A RESET put the device's settings back to the defaults (its outputs off). Source 0xFFFF: a sweep (RESET of every device) reset devices. A module that keeps state on the device (the screen adapter on its display) sets it again.",
+      "notify": true,
+      "symbol": "DEVICE_EV_RESET",
       "value": {
         "description": "Always 0"
       }

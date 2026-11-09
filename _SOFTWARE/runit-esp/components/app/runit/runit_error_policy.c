@@ -58,12 +58,13 @@ static void error_sink(err_h chain, const cmd_req_t* cmd) {
   }
 }
 
-/* A device's `suspended` flag changed (or every device's, after a sweep: source SYS_DEVICE_ID_NONE): a DEVICE event with
- * NOTIFY, so the app knows of a safe state or a fault response without asking. Under the registry lock: the event goes out
+/* A device's `suspended` flag changed or a RESET worked (or every device's, after a sweep: source SYS_DEVICE_ID_NONE): a
+ * DEVICE event with NOTIFY, so the app knows of a safe state, a fault response or a reset without asking. Under the registry lock: the event goes out
  * inline (the events stream, then the listeners: none of them waits for a device lock held elsewhere). */
-static void device_state_changed(uint16_t id, bool suspended) {
-  const err_h err = suspended ? SYS_EVENT_PUBLISH(SYS_DEVICE, SUSPENDED, id, 0, 0)
-                              : SYS_EVENT_PUBLISH(SYS_DEVICE, RESUMED, id, 0, 0);
+static void device_state_changed(uint16_t id, sys_device_state_e change) {
+  const err_h err = change == SYS_DEVICE_STATE_SUSPENDED ? SYS_EVENT_PUBLISH(SYS_DEVICE, SUSPENDED, id, 0, 0)
+                    : change == SYS_DEVICE_STATE_RESUMED ? SYS_EVENT_PUBLISH(SYS_DEVICE, RESUMED, id, 0, 0)
+                                                         : SYS_EVENT_PUBLISH(SYS_DEVICE, RESET, id, 0, 0);
   if (err != NULL) {
     err_report(err);
   }

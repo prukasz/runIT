@@ -138,13 +138,15 @@ SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, SYS_DEVICE_CONTRACT_DEVICE)
   P##_EV_##name = SYS_DEVICE_OP(P##_CONTRACT, n), P##_EV_##name##_FLAGS = (flags),
 #define SYS_EVENTS_DECLARE(P) enum { P##_EVENTS(SYS_EVENT__ID, P) };
 
-/* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed. Source = the device,
- * or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME of every device: one event, not one per device). NOTIFY: the app
- * learns of a safe state or a fault response without asking. This layer only reports the change
- * (sys_device_set_state_listener); runit publishes the event. */
+/* Events of the device contract (sys_event.h "Events tables"): a device's `suspended` flag changed, or a RESET put its
+ * settings back to the defaults. Source = the device, or SYS_DEVICE_ID_NONE for a sweep (SUSPEND / RESUME / RESET of
+ * every device: one event, not one per device). NOTIFY: the app learns of a safe state, a fault response or a reset
+ * without asking; a module that keeps state on a device (the screen adapter on its display) follows it. This layer
+ * only reports the change (sys_device_set_state_listener); runit publishes the event. */
 #define SYS_DEVICE_EVENTS(X, P)           \
   X(P, SUSPENDED, 0x00, SYS_EVENT_NOTIFY) \
-  X(P, RESUMED,   0x01, SYS_EVENT_NOTIFY)
+  X(P, RESUMED,   0x01, SYS_EVENT_NOTIFY) \
+  X(P, RESET,     0x02, SYS_EVENT_NOTIFY)
 SYS_EVENTS_DECLARE(SYS_DEVICE)
 
 /* The handlers and op-table rows of op NAME of the contract with prefix P (OP_WRITE(SYS_DEVICE, RESET),
@@ -314,12 +316,20 @@ MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
  * State listener
  * ------------------------------------------------------------------------- */
 
+/** @brief What changed on a device, for the state listener: one per SYS_DEVICE event. */
+typedef enum {
+  SYS_DEVICE_STATE_SUSPENDED,  // the `suspended` flag was set
+  SYS_DEVICE_STATE_RESUMED,    // the `suspended` flag was cleared
+  SYS_DEVICE_STATE_RESET,      // a RESET of the device's type worked: its settings are the defaults again
+} sys_device_state_e;
+
 /**
- * @brief Told when a device's `suspended` flag changes (SUSPEND, RESUME, and the safe state): `id` is the device, or
- * SYS_DEVICE_ID_NONE after a sweep that changed any device (one call for the whole sweep). Called under the registry
- * lock, in the task of the op: it must not wait. The app sets it (runit: the SYS_DEVICE events of sys_event).
+ * @brief Told when a device's state changes (SUSPEND, RESUME, the safe state, a RESET of a device of this board): `id`
+ * is the device, or SYS_DEVICE_ID_NONE after a sweep that changed any device (one call for the whole sweep). Called
+ * under the registry lock, in the task of the op: it must not wait. The app sets it (runit: the SYS_DEVICE events of
+ * sys_event).
  */
-typedef void (*sys_device_state_f)(uint16_t id, bool suspended);
+typedef void (*sys_device_state_f)(uint16_t id, sys_device_state_e change);
 
 /** @brief Sets the state listener. Boot only. */
 void sys_device_set_state_listener(sys_device_state_f fn);

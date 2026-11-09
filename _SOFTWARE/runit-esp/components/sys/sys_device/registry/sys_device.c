@@ -197,12 +197,12 @@ void sys_device_set_state_listener(sys_device_state_f fn) {
   s_reg.state_listener = fn;
 }
 
-// The flag of device `id` changed: told now, or once at the end of the sweep in progress.
-static void state_changed(uint16_t id, bool suspended) {
+// Device `id` changed (its flag, or a RESET): told now, or once at the end of the sweep in progress.
+static void state_changed(uint16_t id, sys_device_state_e change) {
   if (s_reg.sweep_depth > 0) {
     s_reg.sweep_changed = true;
   } else if (s_reg.state_listener != NULL) {
-    s_reg.state_listener(id, suspended);
+    s_reg.state_listener(id, change);
   }
 }
 
@@ -220,7 +220,7 @@ OP_WRITE(SYS_DEVICE, SUSPEND) {
   const err_h err = d->remote ? NULL : d->type->suspend(d->ctx);
   d->ctx->suspended = true;
   if (!was) {
-    state_changed(d->id, true);
+    state_changed(d->id, SYS_DEVICE_STATE_SUSPENDED);
   }
   return err;
 }
@@ -234,7 +234,7 @@ OP_WRITE(SYS_DEVICE, RESUME) {
   const err_h err = d->remote ? NULL : d->type->resume(d->ctx);
   if (err == NULL) {
     d->ctx->suspended = false;
-    state_changed(d->id, false);
+    state_changed(d->id, SYS_DEVICE_STATE_RESUMED);
   }
   return err;
 }
@@ -336,7 +336,11 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out
   if (ctx == d->ctx && dir == CMD_DIR_WRITE && !row->always) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
   }
-  return fn(ctx, args, out);
+  ERR_TRY(fn(ctx, args, out));
+  if (op == SYS_DEVICE_OP_RESET) {
+    state_changed(d->id, SYS_DEVICE_STATE_RESET);  // a remote device's comes from its own board
+  }
+  return NULL;
 }
 
 /* ---- Types ---- */
@@ -557,7 +561,9 @@ err_h sys_device_sweep(uint16_t op) {
   }
   s_reg.sweep_depth--;
   if (outer && s_reg.sweep_changed && s_reg.state_listener != NULL) {
-    s_reg.state_listener(SYS_DEVICE_ID_NONE, op == SYS_DEVICE_OP_SUSPEND);
+    s_reg.state_listener(SYS_DEVICE_ID_NONE, op == SYS_DEVICE_OP_SUSPEND  ? SYS_DEVICE_STATE_SUSPENDED
+                                             : op == SYS_DEVICE_OP_RESUME ? SYS_DEVICE_STATE_RESUMED
+                                                                          : SYS_DEVICE_STATE_RESET);
   }
   xSemaphoreGiveRecursive(sys_device_mutex);
   return first;

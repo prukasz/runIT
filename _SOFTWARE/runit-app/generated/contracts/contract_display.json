@@ -5,7 +5,7 @@
   "id": "DISPLAY",
   "contract_id": 10,
   "alias": "Display",
-  "description": "A colour panel on SPI: its size and pixel format, the backlight and the orientation. Drawing (FLUSH) runs only inside the board, from the screen adapter, and ends with its callback, not an event.",
+  "description": "A colour panel on SPI: its size and pixel format, and the backlight. Drawing (FLUSH) and turning the picture (ORIENTATION) run only inside the board, from the screen adapter.",
   "category": "display",
   "commands": [
     {
@@ -70,46 +70,6 @@
               "min": 0,
               "max": 4095,
               "control": "slider"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "ORIENTATION",
-      "op": 3,
-      "symbol": "DISPLAY_OP_ORIENTATION",
-      "label": "Orientation",
-      "description": "Turns the picture in the panel itself; the geometry then answers the new size.",
-      "read": {
-        "description": "The current orientation.",
-        "returns": {
-          "struct": "display_orientation_args_t",
-          "fields": [
-            {
-              "id": "orientation",
-              "label": "Orientation",
-              "type": "enum",
-              "enum": "sys_display_orientation_e",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0
-            }
-          ]
-        }
-      },
-      "write": {
-        "args": {
-          "struct": "display_orientation_args_t",
-          "fields": [
-            {
-              "id": "orientation",
-              "label": "Orientation",
-              "type": "enum",
-              "enum": "sys_display_orientation_e",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0
             }
           ]
         }

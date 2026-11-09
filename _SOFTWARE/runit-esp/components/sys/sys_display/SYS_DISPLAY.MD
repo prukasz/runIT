@@ -7,7 +7,7 @@ A display is a colour panel on **SPI**: ST7789, ILI9341, ST7735, GC9A01, ST7796,
 | File | Contents |
 |---|---|
 | `sys_display_contract.h` | DISPLAY: contract table, event, enums, `display_cfg_t`, `display_geometry_t`, `display_window_t`, the op args, wrappers |
-| `contract_display.json` | The contract's descriptor: GEOMETRY, BACKLIGHT, ORIENTATION (FLUSH is local, not a command) |
+| `contract_display.json` | The contract's descriptor: GEOMETRY, BACKLIGHT (FLUSH and ORIENTATION are local, not commands) |
 | `errors/sys_display_errors.h`, `errors/errors_sys_display.json` | `ERR_SYS_DISPLAY_MAP`, the module's error tags, their messages |
 | `sys_display.c` | The error module and the wrappers. `WHOLE_ARCHIVE`: a driver raises `ERR_DISPLAY_*` without calling a wrapper |
 | `CMakeLists.txt` | Component |
@@ -20,14 +20,14 @@ A display is a colour panel on **SPI**: ST7789, ILI9341, ST7735, GC9A01, ST7796,
 | `0x0A00` GEOMETRY | R | `sys_display_get_geometry(dev, &g)` | – | `display_geometry_t` (width, height in the current orientation, format) |
 | `0x0A01` BACKLIGHT | W | `sys_display_set_backlight(dev, duty)` | `{u16 brightness_duty}` 0 .. 4095 | – |
 | `0x0A02` FLUSH | W, **local** | `sys_display_flush(dev, pixels, len, window, done, ctx)` | `display_flush_args_t {const void* pixels, u32 len, display_window_t window, done, done_ctx}` (C only) | – |
-| `0x0A03` ORIENTATION | RW | `sys_display_set_orientation(dev, o)`, `sys_display_get_orientation(dev, &o)` | `{u8 orientation}` (`sys_display_orientation_e`) | the same |
+| `0x0A03` ORIENTATION | RW, **local** | `sys_display_set_orientation(dev, o)`, `sys_display_get_orientation(dev, &o)` | `{u8 orientation}` (`sys_display_orientation_e`) | the same |
 
 FLUSH carries pointers (the adapter's pixels, its callback), so it is **local** (`SYS_DEVICE_OP_LOCAL` in the contract table, SYS_DEVICE.MD): the device router and a remote device refuse it with `ERR_DEV_LOCAL_OP`, so its args never come from a frame. Only the adapter on this board calls it, one at a time. No VM block may have FLUSH: the VM calls `sys_device_call` past the router.
 
 - **FLUSH**: the driver checks `pixels` (not NULL, DMA-capable memory: `esp_ptr_dma_capable`, else `ERR_DEV_BAD_ARG`) and the window (inside the panel, and `w × h × bytes per pixel` of the format equal to `len`, else `ERR_DISPLAY_BAD_WINDOW`), sets the window and **queues** the pixels (CASET, RASET, RAMWR) and returns. It does not wait for the transfer: FLUSH runs under the registry lock (SYS_DEVICE.MD "Concurrency"). One FLUSH in flight (`ERR_DISPLAY_FLUSH_BUSY`). The adapter leaves the pixels untouched until `done`.
-- **GEOMETRY** is read by the adapter at its INSTALL, to size the draw buffers (the driver does not know them), and after every ORIENTATION. The remote side reads GEOMETRY and sets BACKLIGHT and ORIENTATION.
-- **ORIENTATION** turns the picture in the panel itself (the controller's scan direction: MADCTL). The driver works out the RAM offset for the new orientation from the native `offset_x`, `offset_y`, and GEOMETRY answers the new width and height. LVGL draws in PARTIAL mode, where it cannot turn the picture itself without a third buffer; the adapter's ROTATION is this op, then `lv_display_set_rotation`.
-- **BACKLIGHT** goes to the IO PWM of the device that has `backlight` (`IO_PWM_DUTY`, 12 bits), inverted when `bl_active_level` is 0. CREATE and RESUME set `brightness_default`; SUSPEND turns it off and sleeps the panel.
+- **GEOMETRY** is read by the adapter at its INSTALL, to size the draw buffers (the driver does not know them), and after every ORIENTATION. The remote side reads GEOMETRY and sets BACKLIGHT.
+- **ORIENTATION** turns the picture in the panel itself (the controller's scan direction: MADCTL). The driver works out the RAM offset for the new orientation from the native `offset_x`, `offset_y`, and GEOMETRY answers the new width and height. LVGL draws in PARTIAL mode, where it cannot turn the picture itself without a third buffer, and `lv_display_set_rotation` only swaps its width and height. So ORIENTATION is **local**: only the adapter turns the panel, so LVGL always draws for the panel as it is (the app turns the screen with the adapter's ROTATION). The adapter's ROTATION waits for the last `done`, calls ORIENTATION, then `lv_display_set_rotation`, and invalidates the screen. The driver refuses ORIENTATION while a FLUSH is in flight (`ERR_DISPLAY_FLUSH_BUSY`): MADCTL never changes in the middle of a frame.
+- **BACKLIGHT** goes to the IO PWM of the device that has `backlight` (`IO_PWM_DUTY`, 12 bits), inverted when `bl_active_level` is 0. CREATE and RESUME set `brightness_default`; SUSPEND turns it off and sleeps the panel. SUSPEND does not cut a transfer short: the panel's sleep command waits for the queued transfer (`esp_lcd`'s `tx_param` does), and its `done` still comes.
 
 ### Pixel formats (`sys_display_format_e`)
 
@@ -75,7 +75,9 @@ A FLUSH that fails while some of its chunks are queued (`esp_lcd` enables the do
 - `flush_cb` calls FLUSH with `px_map` (the start of buffer 1 or 2), `len` = the area's bytes and the area. A FLUSH that fails, whatever the error, releases LVGL at once (`lv_display_flush_ready`), invalidates the screen (the window that failed is drawn again in the next frame) and reports the error (`err_report`).
 - A `flush_wait_cb` that waits on the semaphore the FLUSH's `done` gives, at most the FLUSH limit ("Transfer errors"), then `lv_display_flush_ready`. Without it LVGL spins in `while(disp->flushing);` holding its lock.
 - STOP and RESET wait for the last `done` (the semaphore), never for an event.
-- Locks: the LVGL task holds the LVGL lock across FLUSH (LVGL lock, then the registry's). So the LVGL lock is never taken under the registry lock (inside a device op or an inline event listener), and a listener of the event task does not take it either: a screen change on an event goes to the LVGL task (`lv_async_call`).
+- The display changing under it: after the DEVICE event `RESET` of its display (the orientation and brightness are the config's again, the panel's content is gone) and after `RESUMED`, it sets its rotation again and invalidates the screen. Its listener only posts that to the LVGL task (`lv_async_call`).
+- The display is not removed while the adapter is installed: a project change RESETs the adapter before it removes the devices. (The registry protects a device from REMOVE only against another device that uses it, `ERR_DEV_IN_USE`; a hold for a module that is not a device comes with `sys_lvgl`.)
+- Locks: the LVGL task holds the LVGL lock across FLUSH (LVGL lock, then the registry's). So the LVGL lock is **never** taken under the registry lock (inside a device op or an inline event listener): that order is a deadlock. A listener of the event task **should not** take it either: it would not deadlock (the end of a FLUSH comes from the ISR), but the event task would wait up to a whole frame and hold every other event back. A screen change on an event goes to the LVGL task (`lv_async_call`).
 
 ## Errors (`ERR_MOD_SYS_DISPLAY`)
 

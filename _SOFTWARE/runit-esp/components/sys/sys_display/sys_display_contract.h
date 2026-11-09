@@ -14,7 +14,8 @@ extern "C" {
  * CREATE      - display_cfg_t, the same for all displays
  * GEOMETRY    - what the LVGL adapter needs to create its buffers: the size in the current orientation, the format
  * BACKLIGHT   - brightness of the screen
- * ORIENTATION - turns the picture (the panel's scan direction, in hardware); GEOMETRY answers the new size
+ * ORIENTATION - turns the picture (the panel's scan direction, in hardware); GEOMETRY answers the new size. Local:
+ *               only the screen adapter turns the panel (its ROTATION), so LVGL always draws for the panel as it is
  * FLUSH       - draws a window of the adapter's pixels; it carries pointers, so it is local (C only,
  *               SYS_DEVICE_OP_LOCAL); asynchronous (it returns once the driver has queued the pixels, and the driver
  *               calls the FLUSH's `done` from the transfer-done interrupt)
@@ -112,13 +113,13 @@ typedef struct {
 
 /**
  * @brief The contract - X(P, NAME, op number, key_t, value_t, flags)
- * ops: GEOMETRY R, BACKLIGHT W, FLUSH W (local: SYS_DEVICE_OP_LOCAL), ORIENTATION RW
+ * ops: GEOMETRY R, BACKLIGHT W, FLUSH W, ORIENTATION RW; FLUSH and ORIENTATION local (SYS_DEVICE_OP_LOCAL)
  */
 #define DISPLAY_OPERATIONS(X, P)                                                                   \
   X(P, GEOMETRY,    0x00, sys_device_args_none_t, display_geometry_t,         0)                   \
   X(P, BACKLIGHT,   0x01, sys_device_args_none_t, display_backlight_args_t,   0)                   \
   X(P, FLUSH,       0x02, sys_device_args_none_t, display_flush_args_t,       SYS_DEVICE_OP_LOCAL) \
-  X(P, ORIENTATION, 0x03, sys_device_args_none_t, display_orientation_args_t, 0)
+  X(P, ORIENTATION, 0x03, sys_device_args_none_t, display_orientation_args_t, SYS_DEVICE_OP_LOCAL)
 
 SYS_DEVICE_CONTRACT_DECLARE(DISPLAY, SYS_DEVICE_CONTRACT_DISPLAY)
 
@@ -145,7 +146,8 @@ err_h sys_display_get_geometry(uint16_t device, display_geometry_t* out);
 err_h sys_display_set_backlight(uint16_t device, uint16_t brightness_duty);
 
 /**
- * @brief Turns the picture (op ORIENTATION, write); GEOMETRY then answers the new size
+ * @brief Turns the picture (op ORIENTATION, write; local: the screen adapter's ROTATION); GEOMETRY then answers the
+ * new size. Refused while a FLUSH is in flight (ERR_DISPLAY_FLUSH_BUSY).
  * @param[in] device      Display device id
  * @param[in] orientation sys_display_orientation_e
  * @return ERR_DEV_RANGE for an orientation past 270 deg, or the error of the device write
