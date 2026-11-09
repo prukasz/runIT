@@ -319,7 +319,8 @@ OP_READ(SYS_DEVICE, OPS) {
 }
 
 // Any op but CREATE, on a registered device: the registry's (ctx = the entry), else the type's (ctx = its struct).
-static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out_t* out) {
+// `routed`: the call came through the device router, which may not run an op marked local.
+static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out_t* out, bool routed) {
   dev_t_* d = &s_reg.devs[i];
   const sys_device_op_t* row = find_op(k_registry_ops, ARRAY_LEN(k_registry_ops), op);
   void* ctx = d;
@@ -330,6 +331,7 @@ static err_h run_op(uint32_t i, uint8_t dir, uint16_t op, cmd_in_t args, cmd_out
   }
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
+  ERR_CHECK(!(routed && row->local), ERR_DEV_LOCAL_OP, .op = op);
   // A suspended device takes no write of its type's table but the ones marked always (an event, a timer); reads run.
   if (ctx == d->ctx && dir == CMD_DIR_WRITE && !row->always) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
@@ -368,6 +370,7 @@ static err_h remote_prepare(const dev_t_* d, uint8_t dir, uint16_t op, sys_devic
   ERR_CHECK(row != NULL, ERR_DEV_UNKNOWN_OP, .op = op);
   cmd_f fn = NULL;
   ERR_TRY(cmd_side(row->read, row->write, dir, &fn));
+  ERR_CHECK(!row->local, ERR_DEV_LOCAL_OP, .op = op);  // its args name something of this board alone
   if (dir == CMD_DIR_WRITE && !row->always) {
     ERR_CHECK(!d->ctx->suspended, ERR_DEV_SUSPENDED, .id = d->id);
   }
@@ -393,7 +396,7 @@ static err_h remote_run(const sys_device_remote_t* where, uint8_t dir, uint16_t 
 
 /* One call, the args in place (no copy, so no size limit besides the caller's). Errors are wrapped in ERR_DEV_ID. */
 static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len, uint8_t* out,
-                  uint32_t out_cap, uint32_t* out_len) {
+                  uint32_t out_cap, uint32_t* out_len, bool routed) {
   // SUSPEND / RESUME / RESET to "no device" = every device (sys_device_sweep). Not wrapped in ERR_DEV_ID{NONE}: the
   // sweep's own error already names the device that failed, and the error policy reads that ID.
   if (id == SYS_DEVICE_ID_NONE &&
@@ -428,7 +431,7 @@ static err_h call(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, ui
     remote_call = err == NULL;
   } else {
     cmd_out_t o = {.data = out, .cap = out_cap};
-    err = run_op(i, dir, op, (cmd_in_t){args, args_len}, &o);
+    err = run_op(i, dir, op, (cmd_in_t){args, args_len}, &o, routed);
     *out_len = o.len;
   }
   xSemaphoreGiveRecursive(sys_device_mutex);
@@ -462,8 +465,8 @@ static sys_device_guard_f find_guard(uint16_t op) {
   return NULL;
 }
 
-static err_h call_checked(bool guarded, uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len,
-                          void* out, uint32_t out_cap, uint32_t* out_len) {
+static err_h call_checked(bool guarded, bool routed, uint16_t id, uint8_t dir, uint16_t op, const void* args,
+                          uint32_t args_len, void* out, uint32_t out_cap, uint32_t* out_len) {
   static const uint8_t k_no_args[1];  // handlers memcpy their args: never from NULL
   uint32_t dummy;
   ERR_CHECK(args != NULL || args_len == 0, ERR_DEV_BAD_ARG);
@@ -486,12 +489,17 @@ static err_h call_checked(bool guarded, uint16_t id, uint8_t dir, uint16_t op, c
     }
     err_free(err);  // a guard that passes the op on returns nothing
   }
-  return call(id, dir, op, args, args_len, out, out_cap, out_len);
+  return call(id, dir, op, args, args_len, out, out_cap, out_len, routed);
 }
 
 err_h sys_device_call(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
                       uint32_t out_cap, uint32_t* out_len) {
-  return call_checked(true, id, dir, op, args, args_len, out, out_cap, out_len);
+  return call_checked(true, false, id, dir, op, args, args_len, out, out_cap, out_len);
+}
+
+err_h sys_device_call_routed(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
+                             uint32_t out_cap, uint32_t* out_len) {
+  return call_checked(true, true, id, dir, op, args, args_len, out, out_cap, out_len);
 }
 
 err_h sys_device_write(uint16_t id, uint16_t op, const void* args, uint32_t args_len) {
@@ -507,7 +515,7 @@ err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_
 
 err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
                              uint32_t out_cap, uint32_t* out_len) {
-  return call_checked(false, id, dir, op, args, args_len, out, out_cap, out_len);
+  return call_checked(false, false, id, dir, op, args, args_len, out, out_cap, out_len);
 }
 
 /* ----------------------------------------------------------------------------

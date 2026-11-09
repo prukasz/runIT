@@ -1,0 +1,133 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "DISPLAY",
+  "contract_id": 10,
+  "alias": "Display",
+  "description": "A colour panel on SPI: its size and pixel format, the backlight and the orientation. Drawing (FLUSH) runs only inside the board, from the screen adapter.",
+  "category": "display",
+  "commands": [
+    {
+      "id": "GEOMETRY",
+      "op": 0,
+      "symbol": "DISPLAY_OP_GEOMETRY",
+      "label": "Geometry",
+      "description": "The panel's size in its current orientation and the pixel format of its buffers.",
+      "read": {
+        "returns": {
+          "struct": "display_geometry_t",
+          "fields": [
+            {
+              "id": "width",
+              "label": "Width",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "unit": "px"
+            },
+            {
+              "id": "height",
+              "label": "Height",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "unit": "px"
+            },
+            {
+              "id": "format",
+              "label": "Pixel format",
+              "type": "enum",
+              "enum": "sys_display_format_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BACKLIGHT",
+      "op": 1,
+      "symbol": "DISPLAY_OP_BACKLIGHT",
+      "label": "Backlight",
+      "description": "Sets the brightness of the backlight.",
+      "write": {
+        "args": {
+          "struct": "display_backlight_args_t",
+          "fields": [
+            {
+              "id": "brightness_duty",
+              "label": "Brightness",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "PWM duty of the backlight: 0 off to 4095 full",
+              "min": 0,
+              "max": 4095,
+              "control": "slider"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ORIENTATION",
+      "op": 3,
+      "symbol": "DISPLAY_OP_ORIENTATION",
+      "label": "Orientation",
+      "description": "Turns the picture in the panel itself; the geometry then answers the new size.",
+      "read": {
+        "description": "The current orientation.",
+        "returns": {
+          "struct": "display_orientation_args_t",
+          "fields": [
+            {
+              "id": "orientation",
+              "label": "Orientation",
+              "type": "enum",
+              "enum": "sys_display_orientation_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "display_orientation_args_t",
+          "fields": [
+            {
+              "id": "orientation",
+              "label": "Orientation",
+              "type": "enum",
+              "enum": "sys_display_orientation_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "FLUSH_DONE",
+      "event": 0,
+      "code": 2560,
+      "label": "Flush done",
+      "description": "The transfer of a window ended; the value is 0 or the transfer's error code. For the screen adapter, not sent to the app.",
+      "notify": false,
+      "symbol": "DISPLAY_EV_FLUSH_DONE",
+      "value": {
+        "description": "0, or the error code of the transfer"
+      }
+    }
+  ]
+}

@@ -28,6 +28,7 @@
   X(ERR_DEV_DEPS_FULL,      ERR_TAG(ERR_MOD_SYS_DEVICE, 21), ERR_SEV_HIGH,   { uint16_t id; }) /* CONFIG_SYS_DEVICE_MAX_DEPS */ \
   X(ERR_DEV_FAULT_RESPONSE, ERR_TAG(ERR_MOD_SYS_DEVICE, 22), ERR_SEV_HIGH,   { uint16_t id; uint8_t sev; uint8_t stage; uint32_t action; }) /* the policy's response to an error of device `id` failed (stage: sys_device_fault_stage_e); diagnostics only */ \
   X(ERR_DEV_SYSTEM,         ERR_TAG(ERR_MOD_SYS_DEVICE, 23), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a board device (SYS_DEVICE_CREATE_SYSTEM) */ \
-  X(ERR_DEV_REMOTE_DOWN,    ERR_TAG(ERR_MOD_SYS_DEVICE, 24), ERR_SEV_HIGH,   { uint16_t id; uint8_t board; }) /* a remote device whose board is gone, or no sys_remote on this board */
+  X(ERR_DEV_REMOTE_DOWN,    ERR_TAG(ERR_MOD_SYS_DEVICE, 24), ERR_SEV_HIGH,   { uint16_t id; uint8_t board; }) /* a remote device whose board is gone, or no sys_remote on this board */ \
+  X(ERR_DEV_LOCAL_OP,       ERR_TAG(ERR_MOD_SYS_DEVICE, 25), ERR_SEV_HIGH,   { uint16_t op; }) /* an op the firmware calls only in C (SYS_DEVICE_OP_LOCAL), sent as a command or to a remote device */
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)

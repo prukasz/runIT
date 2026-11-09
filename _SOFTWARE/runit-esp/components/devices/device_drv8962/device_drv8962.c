@@ -604,7 +604,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(HBRIDGE, COAST),
     OP_ENTRY_R(HBRIDGE, CURRENT),
     OP_ENTRY_R(PMON, CURRENT),
-    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
+    OP_ENTRY_W(EVENT, ON_EVENT),
     /* Device own ops */
     {.op = DRV8962_OP_CURRENT_LIMIT, .write = set_current_limit_h},
     {.op = DRV8962_OP_CLEAR_FAULT, .write = clear_fault_h},

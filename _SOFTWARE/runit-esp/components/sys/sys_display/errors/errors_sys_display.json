@@ -1,0 +1,17 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_DISPLAY",
+  "errors": {
+    "ERR_DISPLAY_BAD_WINDOW": {
+      "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id} or the pixels sent",
+      "hint": "Draw inside the panel's size (its geometry)."
+    },
+    "ERR_DISPLAY_FLUSH_BUSY": {
+      "message": "{id} is still drawing the previous window"
+    },
+    "ERR_DISPLAY_TRANSFER": {
+      "message": "Sending pixels to {id} failed (code {code})",
+      "hint": "Check the display's wiring and its SPI clock."
+    }
+  }
+}

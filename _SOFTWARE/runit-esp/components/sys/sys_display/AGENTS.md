@@ -3,12 +3,16 @@
 Spec: `SYS_DISPLAY.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- The op numbers (0 GEOMETRY, 1 BACKLIGHT, 2 FLUSH) and their sides, the event number (0 FLUSH_DONE), the enums (`sys_display_format_e`, `sys_display_orientation_e`), the packed layouts (`display_cfg_t`, `display_geometry_t`, `display_window_t`, `display_backlight_args_t`, `display_flush_args_t` 9 B) and the error tags are wire format: do not renumber or re-layout them. New ones go at the end.
-- Changing the contract table, an enum, a layout or an error requires an update in `templates/`: run `sh templates/sync.sh`. The contract descriptor and the error messages follow the tables.
-- No pointer in a frame of the wire, ever: `FLUSH` names its pixels by a buffer id (`display_flush_args_t.buffer_id`), and the driver resolves it with `sys_display_buffer_get`. The buffer table is C only (not an op); only the adapter sets it (`sys_display_buffer_set`).
-- A buffer is not cleared or freed while a FLUSH of it is in flight. The driver checks the window against the panel and the buffer size before it sends.
+- SPI colour panels only. No I2C display, no mono format.
+- The op numbers (0 GEOMETRY, 1 BACKLIGHT, 2 FLUSH, 3 ORIENTATION) and their sides, the event number (0 FLUSH_DONE), the enums (`sys_display_format_e`, `sys_display_orientation_e`, `sys_display_rgb_order_e`), the packed layouts (`display_cfg_t`, `display_geometry_t`, `display_window_t`, `display_backlight_args_t`, `display_orientation_args_t`) and the error tags are wire format: do not renumber them. New ones go at the end.
+- Changing the contract table, an enum, a layout or an error requires an edit of `contract_display.json` or `errors/errors_sys_display.json` and `sh templates/sync.sh`. FLUSH is not in the descriptor: it is not a command.
+- `display_flush_args_t` carries a pointer (C only, not packed), so FLUSH is local: `SYS_DEVICE_OP_LOCAL` in `DISPLAY_OPERATIONS` (every driver's `OP_ENTRY_W(DISPLAY, FLUSH)` gets it; never drop the flag), and no VM block or stored action may have FLUSH. This is what keeps a frame from handing a driver a pointer.
+- The pixels of a FLUSH are not changed or freed until its FLUSH_DONE. The driver checks the pointer (not NULL, DMA-capable) and the window against the panel and `len` before it sends.
+- A driver's FLUSH only queues the transfer and returns (it runs under the registry lock). One `FLUSH` in flight (`ERR_DISPLAY_FLUSH_BUSY`).
+- A driver publishes `FLUSH_DONE` (channel 0) after every accepted FLUSH, also after a failed transfer, never after a refused one. From an ISR with `sys_event_publish`, never `sys_event_publish_deferred`.
+- The format a driver answers in GEOMETRY is the byte layout it sends unchanged: it converts no pixels.
+- Every difference of the glass (offsets, colour order, inversion, clock, SPI mode, backlight level) is a field of `display_cfg_t`, not an entry of the driver's `panel` list (that one is only the controller's init sequence).
 - The contract ID (`SYS_DEVICE_CONTRACT_DISPLAY`) is in `sys_device.h`, the module ID (`ERR_MOD_SYS_DISPLAY`) in `err_modules.h`, not here.
-- A driver does not know the draw buffers and always publishes `FLUSH_DONE`, also after a failed transfer. One `FLUSH` in flight (`ERR_DISPLAY_FLUSH_BUSY`).
 - `SYS_DISPLAY_BRIGHTNESS_MAX` is `IO_PWM_DUTY_MAX` (4095).
 - The op wrappers only build `sys_device_call`. No driver logic goes here.
 - Keep `WHOLE_ARCHIVE` in `CMakeLists.txt`: the error tags are registered by a constructor.

@@ -88,7 +88,7 @@ typedef struct __attribute__((packed)) {
  * ------------------------------------------------------------------------- */
 
 // The contract's only op, a write (OP_WRITE(EVENT, ON_EVENT), OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t.
-#define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_args_none_t, sys_event_t)
+#define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_args_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS)
 
 SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
 

@@ -24,13 +24,13 @@ typedef struct __attribute__((packed)) {
 } supply_select_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives SUPPLY_OP_<NAME>, SUPPLY_key_<NAME>_t and
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives SUPPLY_OP_<NAME>, SUPPLY_key_<NAME>_t and
  * SUPPLY_value_<NAME>_t; a driver writes OP_READ(SUPPLY, NAME) / OP_WRITE(SUPPLY, NAME) and lists OP_ENTRY(SUPPLY,
  * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: SOURCE RW. Numbers are never reused.
  */
-#define SUPPLY_OPERATIONS(X, P)                               \
-  X(P, SOURCE, 0x00, sys_device_args_none_t, supply_select_args_t)
+#define SUPPLY_OPERATIONS(X, P)                                       \
+  X(P, SOURCE, 0x00, sys_device_args_none_t, supply_select_args_t, 0)
 
 SYS_DEVICE_CONTRACT_DECLARE(SUPPLY, SYS_DEVICE_CONTRACT_POWER_SUPPLY)
 

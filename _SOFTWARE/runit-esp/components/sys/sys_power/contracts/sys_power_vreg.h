@@ -36,16 +36,16 @@ typedef struct __attribute__((packed)) {
 } vreg_current_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives VREG_OP_<NAME>, VREG_key_<NAME>_t and
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives VREG_OP_<NAME>, VREG_key_<NAME>_t and
  * VREG_value_<NAME>_t; a driver writes OP_READ(VREG, NAME) / OP_WRITE(VREG, NAME) and lists OP_ENTRY(VREG, NAME),
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: ENABLE W, VOLTAGE W, CURRENT W. Numbers are never
  * reused.
  */
-#define VREG_OPERATIONS(X, P)                                      \
-  X(P, ENABLE,  0x00, sys_device_args_none_t, vreg_enable_args_t)  \
-  X(P, VOLTAGE, 0x01, sys_device_args_none_t, vreg_voltage_args_t) \
-  X(P, CURRENT, 0x02, sys_device_args_none_t, vreg_current_args_t)
+#define VREG_OPERATIONS(X, P)                                         \
+  X(P, ENABLE,  0x00, sys_device_args_none_t, vreg_enable_args_t,  0) \
+  X(P, VOLTAGE, 0x01, sys_device_args_none_t, vreg_voltage_args_t, 0) \
+  X(P, CURRENT, 0x02, sys_device_args_none_t, vreg_current_args_t, 0)
 
 SYS_DEVICE_CONTRACT_DECLARE(VREG, SYS_DEVICE_CONTRACT_POWER_VREG)
 SYS_EVENTS_DECLARE(VREG)

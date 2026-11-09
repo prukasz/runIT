@@ -30,18 +30,18 @@ typedef struct __attribute__((packed)) {
 } pins_level_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives PINS_OP_<NAME>, PINS_key_<NAME>_t and
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives PINS_OP_<NAME>, PINS_key_<NAME>_t and
  * PINS_value_<NAME>_t; a driver writes OP_READ(PINS, NAME) / OP_WRITE(PINS, NAME) and lists OP_ENTRY(PINS, NAME),
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: AVAILABLE R, LOCKED R, LOCK W, UNLOCK W,
  * LOCKED_LEVEL W. Numbers are never reused.
  */
-#define PINS_OPERATIONS(X, P)                                       \
-  X(P, AVAILABLE,    0x00, sys_device_args_none_t, uint64_t)        \
-  X(P, LOCKED,       0x01, sys_device_args_none_t, uint64_t)        \
-  X(P, LOCK,         0x02, sys_device_args_none_t, pins_pin_args_t) \
-  X(P, UNLOCK,       0x03, sys_device_args_none_t, pins_pin_args_t) \
-  X(P, LOCKED_LEVEL, 0x04, sys_device_args_none_t, pins_level_args_t)
+#define PINS_OPERATIONS(X, P)                                                               \
+  X(P, AVAILABLE,    0x00, sys_device_args_none_t, uint64_t,          0)                    \
+  X(P, LOCKED,       0x01, sys_device_args_none_t, uint64_t,          0)                    \
+  X(P, LOCK,         0x02, sys_device_args_none_t, pins_pin_args_t,   SYS_DEVICE_OP_ALWAYS) \
+  X(P, UNLOCK,       0x03, sys_device_args_none_t, pins_pin_args_t,   SYS_DEVICE_OP_ALWAYS) \
+  X(P, LOCKED_LEVEL, 0x04, sys_device_args_none_t, pins_level_args_t, 0)
 
 SYS_DEVICE_CONTRACT_DECLARE(PINS, SYS_DEVICE_CONTRACT_PINS)
 
@@ -91,7 +91,7 @@ MUST_USE err_h sys_pins_reply(cmd_out_t* out, uint64_t mask);
     return sys_pins_state_unlock(&c->pins, c->base.id, args->pin);                                                \
   }
 #define SYS_PINS_STATE_ENTRIES \
-  OP_ENTRY_R(PINS, AVAILABLE), OP_ENTRY_R(PINS, LOCKED), OP_ENTRY_W_ALWAYS(PINS, LOCK), OP_ENTRY_W_ALWAYS(PINS, UNLOCK)
+  OP_ENTRY_R(PINS, AVAILABLE), OP_ENTRY_R(PINS, LOCKED), OP_ENTRY_W(PINS, LOCK), OP_ENTRY_W(PINS, UNLOCK)
 
 /* ----------------------------------------------------------------------------
  * For everyone else: wrappers over sys_device_call

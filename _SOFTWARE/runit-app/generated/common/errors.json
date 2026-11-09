@@ -1820,6 +1820,25 @@
           "description": "a remote device whose board is gone, or no sys_remote on this board",
           "message": "Device {id} is on board {board}, which cannot be reached",
           "hint": "Check the cable or the link to that board."
+        },
+        {
+          "code": 25,
+          "tag": 393241,
+          "name": "ERR_DEV_LOCAL_OP",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device_op"
+            }
+          ],
+          "description": "an op the firmware calls only in C (SYS_DEVICE_OP_LOCAL), sent as a command or to a remote device",
+          "message": "{op} runs only inside the board, not as a command",
+          "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
         }
       ]
     },
@@ -6019,6 +6038,97 @@
           "fields": [],
           "description": "ABORT stopped it",
           "message": "The flashing was stopped"
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "sys_display",
+      "symbol": "ERR_MOD_SYS_DISPLAY",
+      "source_file": "runit-esp/components/sys/sys_display/errors/sys_display_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_display/errors/errors_sys_display.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 1703937,
+          "name": "ERR_DISPLAY_BAD_WINDOW",
+          "severity": 3,
+          "size": 10,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "x1",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "y1",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            },
+            {
+              "name": "x2",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            },
+            {
+              "name": "y2",
+              "type": "u16",
+              "offset": 8,
+              "size": 2
+            }
+          ],
+          "description": "the window is empty, outside the panel, or its bytes are not the FLUSH's len",
+          "message": "Window ({x1}, {y1}) to ({x2}, {y2}) does not fit {id} or the pixels sent",
+          "hint": "Draw inside the panel's size (its geometry)."
+        },
+        {
+          "code": 2,
+          "tag": 1703938,
+          "name": "ERR_DISPLAY_FLUSH_BUSY",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "message": "{id} is still drawing the previous window"
+        },
+        {
+          "code": 3,
+          "tag": 1703939,
+          "name": "ERR_DISPLAY_TRANSFER",
+          "severity": 3,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "code",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "description": "the bus transfer failed; FLUSH_DONE carries its code, the adapter builds this error",
+          "message": "Sending pixels to {id} failed (code {code})",
+          "hint": "Check the display's wiring and its SPI clock."
         }
       ]
     }

@@ -105,26 +105,6 @@ sec = []
 # ---- Contracts
 contracts = [load(p) for p in glob.glob(os.path.join(GEN, "contracts", "*.json"))]
 contracts = [c for c in contracts if c["id"] != "DEVICE"]
-# Display: only in sys_display_contract.h until it has a contract_display.json
-if not any(c["id"] == "DISPLAY" for c in contracts):
-  contracts.append({
-    "id": "DISPLAY", "contract_id": 0x0A, "alias": "Display",
-    "description": "Display panel operations (sys_display_contract.h; w toku — jeszcze bez contract_display.json).",
-    "commands": [
-        {"id": "GEOMETRY", "op": 0, "symbol": "DISPLAY_OP_GEOMETRY", "label": "Geometry",
-         "description": "The panel in its current orientation.",
-         "read": {"returns": {"struct": "display_geometry_t", "fields": [
-             {"id": "width", "raw_type": "u16"}, {"id": "height", "raw_type": "u16"}, {"id": "format", "raw_type": "u8"}]}}},
-        {"id": "BACKLIGHT", "op": 1, "symbol": "DISPLAY_OP_BACKLIGHT", "label": "Backlight",
-         "description": "PWM duty of the backlight, 0..4095.",
-         "write": {"args": {"struct": "display_backlight_args_t", "fields": [{"id": "brightness_duty", "raw_type": "u16"}]}}},
-        {"id": "FLUSH", "op": 2, "symbol": "DISPLAY_OP_FLUSH", "label": "Flush",
-         "description": "Draws a buffer (id 0..1) into a window of the panel; FLUSH_DONE event when done.",
-         "write": {"args": {"struct": "display_flush_args_t", "fields": [
-             {"id": "buffer_id", "raw_type": "u8"}, {"id": "window", "raw_type": "display_window_t"}]}}},
-    ],
-    "events": [{"id": "FLUSH_DONE", "event": 0, "label": "Flush done", "description": "The flush finished."}],
-})
 contracts.sort(key=lambda c: c["contract_id"])
 used_by = {}
 devices = sorted((load(p) for p in glob.glob(os.path.join(GEN, "devices", "*.json"))), key=lambda d: d["type_id"])
@@ -206,7 +186,7 @@ td.na{{color:var(--mut)}}.sub{{color:var(--mut);font-size:12px}}.io{{margin-top:
 @media (max-width:800px){{.wrap{{grid-template-columns:1fr}}nav{{position:static;height:auto;max-height:40vh}}main{{padding:16px}}}}
 </style></head><body><div class="wrap"><nav><input id="q" placeholder="Szukaj (np. SCAN, 0x0A, servo)…">{"".join(nav)}</nav><main>
 <h1>runIT — API: opcode'y routerów i urządzeń</h1>
-<p class="sub">Wygenerowane z <code>runit-app/generated/</code> (contract_*.json, device_*.json) + <code>sys_display_contract.h</code>. Odświeżenie: <code>python tools/gen_api_html.py</code>. Routery: {n_router} operacji · kontrakty: {n_c} · operacje własne urządzeń: {n_d}.</p>
+<p class="sub">Wygenerowane z <code>runit-app/generated/</code> (contract_*.json, device_*.json); opy tylko lokalne (np. DISPLAY FLUSH) nie są komendami i ich tu nie ma. Odświeżenie: <code>python tools/gen_api_html.py</code>. Routery: {n_router} operacji · kontrakty: {n_c} · operacje własne urządzeń: {n_d}.</p>
 <div class="card"><h3>Format ramek</h3><table class="frame"><thead><tr><th>Cel</th><th>Ramka (po nagłówku sesji, little-endian, packed)</th></tr></thead><tbody>
 <tr><td>Router modułu</td><td><code>[router_key u8][dir u8][op u8][args…]</code></td></tr>
 <tr><td>Urządzenie</td><td><code>[0x05][dir u8][device id u16][op u16][args…]</code> — op = <code>(contract &lt;&lt; 8) | n</code>, własne urządzenia: <code>0xFFnn</code></td></tr>

@@ -256,6 +256,12 @@
           "description": "H-bridge motor driver operations"
         },
         {
+          "name": "SYS_DEVICE_CONTRACT_DISPLAY",
+          "value": 10,
+          "alias": "Display",
+          "description": "Display panel operations"
+        },
+        {
           "name": "SYS_DEVICE_CONTRACT_OWN",
           "value": 255,
           "alias": "Device-specific",
@@ -1050,6 +1056,75 @@
           "value": 4,
           "alias": "Critical",
           "description": "Low, medium, high and critical"
+        }
+      ]
+    },
+    "sys_display_format_e": {
+      "alias": "Pixel format",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
+      "members": [
+        {
+          "name": "SYS_DISPLAY_FORMAT_RGB565_SWAPPED",
+          "value": 0,
+          "alias": "RGB565",
+          "description": "16 bit, 2 bytes per pixel, the high byte first (as the panel takes it)"
+        },
+        {
+          "name": "SYS_DISPLAY_FORMAT_RGB888",
+          "value": 1,
+          "alias": "RGB888",
+          "description": "24 bit, 3 bytes per pixel B, G, R; an 18-bit panel uses the 6 high bits"
+        }
+      ]
+    },
+    "sys_display_orientation_e": {
+      "alias": "Display orientation",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
+      "members": [
+        {
+          "name": "SYS_DISPLAY_ORIENTATION_0",
+          "value": 0,
+          "alias": "0 deg",
+          "description": "Native"
+        },
+        {
+          "name": "SYS_DISPLAY_ORIENTATION_90",
+          "value": 1,
+          "alias": "90 deg",
+          "description": "Rotated 90 deg"
+        },
+        {
+          "name": "SYS_DISPLAY_ORIENTATION_180",
+          "value": 2,
+          "alias": "180 deg",
+          "description": "Rotated 180 deg"
+        },
+        {
+          "name": "SYS_DISPLAY_ORIENTATION_270",
+          "value": 3,
+          "alias": "270 deg",
+          "description": "Rotated 270 deg"
+        }
+      ]
+    },
+    "sys_display_rgb_order_e": {
+      "alias": "Colour order",
+      "kind": "enum",
+      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
+      "members": [
+        {
+          "name": "SYS_DISPLAY_RGB_ORDER_RGB",
+          "value": 0,
+          "alias": "RGB",
+          "description": "The glass's subpixels are red, green, blue"
+        },
+        {
+          "name": "SYS_DISPLAY_RGB_ORDER_BGR",
+          "value": 1,
+          "alias": "BGR",
+          "description": "The glass's subpixels are blue, green, red"
         }
       ]
     },
@@ -2815,6 +2890,7 @@
     "SYS_DATA_PROVIDER_STATE_UP": "prov_state",
     "SYS_DATA_PROVIDER_STATE_WIRED": "prov_state",
     "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
+    "SYS_DEVICE_CONTRACT_DISPLAY": "device_contract",
     "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
     "SYS_DEVICE_CONTRACT_HBRIDGE": "device_contract",
     "SYS_DEVICE_CONTRACT_IO": "device_contract",
@@ -2837,6 +2913,14 @@
     "SYS_DEVICE_REMOTE_WIRED": "device_remote_flag",
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
+    "SYS_DISPLAY_FORMAT_RGB565_SWAPPED": "sys_display_format_e",
+    "SYS_DISPLAY_FORMAT_RGB888": "sys_display_format_e",
+    "SYS_DISPLAY_ORIENTATION_0": "sys_display_orientation_e",
+    "SYS_DISPLAY_ORIENTATION_180": "sys_display_orientation_e",
+    "SYS_DISPLAY_ORIENTATION_270": "sys_display_orientation_e",
+    "SYS_DISPLAY_ORIENTATION_90": "sys_display_orientation_e",
+    "SYS_DISPLAY_RGB_ORDER_BGR": "sys_display_rgb_order_e",
+    "SYS_DISPLAY_RGB_ORDER_RGB": "sys_display_rgb_order_e",
     "SYS_EVENT_OP_NOTIFY": "event_op",
     "SYS_FLASHER_DONE": "sys_flasher_state_e",
     "SYS_FLASHER_FAILED": "sys_flasher_state_e",

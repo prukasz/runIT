@@ -82,6 +82,10 @@
     "ERR_DEV_REMOTE_DOWN": {
       "message": "Device {id} is on board {board}, which cannot be reached",
       "hint": "Check the cable or the link to that board."
+    },
+    "ERR_DEV_LOCAL_OP": {
+      "message": "{op} runs only inside the board, not as a command",
+      "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
     }
   }
 }

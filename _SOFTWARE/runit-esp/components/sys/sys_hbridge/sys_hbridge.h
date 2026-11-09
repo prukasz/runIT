@@ -37,17 +37,17 @@ typedef struct __attribute__((packed)) {
 } hbridge_drive_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives HBRIDGE_OP_<NAME>, HBRIDGE_key_<NAME>_t and
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives HBRIDGE_OP_<NAME>, HBRIDGE_key_<NAME>_t and
  * HBRIDGE_value_<NAME>_t; a driver writes OP_READ(HBRIDGE, NAME) / OP_WRITE(HBRIDGE, NAME) and lists OP_ENTRY(HBRIDGE,
  * NAME), OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: DRIVE W, BRAKE W, COAST W, CURRENT R. Numbers
  * are never reused.
  */
-#define HBRIDGE_OPERATIONS(X, P)                                           \
-  X(P, DRIVE,   0x00, sys_device_args_none_t,      hbridge_drive_args_t)   \
-  X(P, BRAKE,   0x01, sys_device_args_none_t,      hbridge_channel_args_t) \
-  X(P, COAST,   0x02, sys_device_args_none_t,      hbridge_channel_args_t) \
-  X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t)
+#define HBRIDGE_OPERATIONS(X, P)                                         \
+  X(P, DRIVE,   0x00, sys_device_args_none_t, hbridge_drive_args_t,   0) \
+  X(P, BRAKE,   0x01, sys_device_args_none_t, hbridge_channel_args_t, 0) \
+  X(P, COAST,   0x02, sys_device_args_none_t, hbridge_channel_args_t, 0) \
+  X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t,                0)
 
 SYS_DEVICE_CONTRACT_DECLARE(HBRIDGE, SYS_DEVICE_CONTRACT_HBRIDGE)
 

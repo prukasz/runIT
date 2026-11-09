@@ -39,17 +39,17 @@ typedef struct __attribute__((packed)) {
 } pmon_alert_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t). The read takes key_t and answers value_t, the write
- * takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives PMON_OP_<NAME>, PMON_key_<NAME>_t and
+ * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives PMON_OP_<NAME>, PMON_key_<NAME>_t and
  * PMON_value_<NAME>_t; a driver writes OP_READ(PMON, NAME) / OP_WRITE(PMON, NAME) and lists OP_ENTRY(PMON, NAME),
  * OP_ENTRY_R, OP_ENTRY_W (SYS_DEVICE.MD "Contract tables"). Sides: VOLTAGE R, CURRENT R, ALERT W, POWER R. Numbers are
  * never reused.
  */
-#define PMON_OPERATIONS(X, P)                                      \
-  X(P, VOLTAGE, 0x00, pmon_channel_args_t, int32_t)                \
-  X(P, CURRENT, 0x01, pmon_channel_args_t, int32_t)                \
-  X(P, ALERT,   0x02, sys_device_args_none_t,   pmon_alert_args_t) \
-  X(P, POWER,   0x03, pmon_channel_args_t, int32_t)
+#define PMON_OPERATIONS(X, P)                                       \
+  X(P, VOLTAGE, 0x00, pmon_channel_args_t,    int32_t,           0) \
+  X(P, CURRENT, 0x01, pmon_channel_args_t,    int32_t,           0) \
+  X(P, ALERT,   0x02, sys_device_args_none_t, pmon_alert_args_t, 0) \
+  X(P, POWER,   0x03, pmon_channel_args_t,    int32_t,           0)
 
 SYS_DEVICE_CONTRACT_DECLARE(PMON, SYS_DEVICE_CONTRACT_POWER_MONITOR)
 SYS_EVENTS_DECLARE(PMON)

@@ -535,7 +535,7 @@ static err_h create(void* ctx, const void* cfg_in) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET),
     OP_ENTRY_R(IO, VOLTAGE),  OP_ENTRY_W(IO, MODE),  OP_ENTRY_W(IO, INTR),
-    OP_ENTRY_W(IO, RESET),    OP_ENTRY_W_ALWAYS(EVENT, ON_EVENT),
+    OP_ENTRY_W(IO, RESET),    OP_ENTRY_W(EVENT, ON_EVENT),
 };
 
 static const sys_device_type_t k_type = {
