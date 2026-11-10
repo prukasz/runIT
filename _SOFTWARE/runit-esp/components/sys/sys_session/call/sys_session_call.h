@@ -14,13 +14,24 @@ Not on the component's public include path.
 extern "C" {
 #endif
 
-/** @brief An answer frame for this board: it ends the call of its seq to its src (a late one is dropped). */
+/**
+ * @brief An answer frame for this board: it ends the call of its seq to its src (a late one is dropped).
+ * @param[in] hdr  The answer's header
+ * @param[in] body The answer's body
+ * @param[in] len  Bytes in `body`
+ */
 void sys_session_call_answer(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len);
 
-/** @brief Session `at` ended: the calls that went through it end with ERR_SESSION_PEER_DOWN. */
+/**
+ * @brief Session `at` ended: the calls that went through it end with ERR_SESSION_PEER_DOWN.
+ * @param[in] at The session that ended
+ */
 void sys_session_call_fail_via(int32_t at);
 
-/** @brief The calls whose time is up end with ERR_SESSION_TIMEOUT. The session's timer, every tick. */
+/**
+ * @brief The calls whose time is up end with ERR_SESSION_TIMEOUT. The session's timer, every tick.
+ * @param[in] now_ms The board's uptime in ms
+ */
 void sys_session_call_expire(uint32_t now_ms);
 
 #ifdef __cplusplus

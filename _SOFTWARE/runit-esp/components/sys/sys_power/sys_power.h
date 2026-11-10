@@ -26,6 +26,9 @@ extern "C" {
 /**
  * @brief Power in mW of a reading (signed: a reversed current gives a negative power).
  * For a device without a power register: GET_POWER = sys_power_mW(voltage, current).
+ * @param[in] voltage_mV Voltage in mV
+ * @param[in] current_mA Current in mA, signed
+ * @return Power in mW
  */
 static inline int32_t sys_power_mW(int32_t voltage_mV, int32_t current_mA) {
   return (int32_t)(((int64_t)voltage_mV * current_mA) / 1000);

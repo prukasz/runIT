@@ -5,9 +5,15 @@
 /* The ADC of the pins in ADC mode: one continuous conversion over their ADC1 channels, read by a task that filters
  * each pin's reading (esp32s3_gpio_pin_t.hw.adc.last_mV) and raises its armed thresholds as IO events. */
 
-/** @brief Starts the ADC task (once; it idles while no pin is in ADC mode). */
+/**
+ * @brief Starts the ADC task (once; it idles while no pin is in ADC mode).
+ * @return The error of the task start
+ */
 MUST_USE err_h esp32s3_gpio_adc_start(void);
 
-/** @brief Rebuilds the conversion for the pins now in ADC mode. After a pin enters or leaves ADC mode; the lock of the
- *  pins not held. */
+/**
+ * @brief Rebuilds the conversion for the pins now in ADC mode. After a pin enters or leaves ADC mode; the lock of the
+ * pins not held.
+ * @return The error of the driver
+ */
 MUST_USE err_h esp32s3_gpio_adc_update_channels(void);

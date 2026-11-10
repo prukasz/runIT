@@ -60,12 +60,23 @@ typedef struct {
 /**
  * @brief Calls the entry of `table` whose key is in.data[0], with the same `ctx`, and wraps a failure in
  * ERR_ROUTER_KEY{key}.
+ * @param[in]  table The module's command table
+ * @param[in]  count Rows in `table`
+ * @param[in]  ctx   Passed to the entry
+ * @param[in]  in    The command, starting at the key
+ * @param[out] out   The answer
+ * @return ERR_ROUTER_NO_KEY, ERR_ROUTER_UNKNOWN_KEY, or the entry's error wrapped in ERR_ROUTER_KEY
  */
 MUST_USE err_h router_call(const router_entry_t* table, uint32_t count, void* ctx, cmd_in_t in, cmd_out_t* out);
 
 /**
  * @brief Runs one command of a module: `in` is [dir][code][args]. The side `dir` asks for gets [code][args] (so the
  * op macros below parse it). A failure is wrapped in ERR_ROUTER_OP{code}.
+ * @param[in]  table The module's op table
+ * @param[in]  count Rows in `table`
+ * @param[in]  ctx   Passed to the op
+ * @param[in]  in    [dir][code][args]
+ * @param[out] out   The answer
  * @return ERR_ROUTER_NO_KEY without [dir][code], ERR_ROUTER_UNKNOWN_OP for an unknown code, ERR_CMD_DIRECTION for a
  * side the command doesn't have.
  */
@@ -74,6 +85,9 @@ MUST_USE err_h router_call_op(const router_op_t* table, uint32_t count, void* ct
 /**
  * @brief Copies the fixed-size payload after the key (in.data[1..]) into `args`; size 0 (args may be NULL) only checks
  * that nothing follows the key.
+ * @param[in]  in   The command, with the key first
+ * @param[out] args The payload, may be NULL when size is 0
+ * @param[in]  size Exact payload size in bytes
  * @return ERR_CMD_BAD_LEN unless exactly `size` bytes follow the key.
  */
 MUST_USE err_h router_args(cmd_in_t in, void* args, uint32_t size);
@@ -81,6 +95,10 @@ MUST_USE err_h router_args(cmd_in_t in, void* args, uint32_t size);
 /**
  * @brief Like router_args for a fixed header and a variable tail: copies the header and points `tail` at the rest.
  * Size 0 (hdr may be NULL): the whole payload is the tail.
+ * @param[in]  in   The command, with the key first
+ * @param[out] hdr  The header, may be NULL when size is 0
+ * @param[in]  size Header size in bytes
+ * @param[out] tail The bytes after the header
  * @return ERR_CMD_BAD_LEN unless the header and at least one tail byte follow the key.
  */
 MUST_USE err_h router_args_tail(cmd_in_t in, void* hdr, uint32_t size, cmd_in_t* tail);
@@ -135,17 +153,28 @@ MUST_USE err_h router_args_tail(cmd_in_t in, void* hdr, uint32_t size, cmd_in_t*
     return router_call_op(table, ARRAY_LEN(table), ctx, (cmd_in_t){in.data + 1, in.len - 1}, out);          \
   }
 
-/** @brief Binds a root key (router_ids.h) to a module router (called with ctx NULL). Boot only, before router_init. */
+/**
+ * @brief Binds a root key (router_ids.h) to a module router (called with ctx NULL). Boot only, before router_init.
+ * @param[in] key A root key
+ * @param[in] fn  The module router
+ * @return The error when the key is taken or out of range
+ */
 MUST_USE err_h router_register(uint8_t key, cmd_f fn);
 
 /**
  * @brief Routes one command (`in` starts at the root key) on the calling task: the router tasks, and the replay of
  * stored frames (actions, project). Urgent and normal commands run at the same time, so module routers must be
  * thread-safe.
+ * @param[in]  in  The command, starting at the root key
+ * @param[out] out The answer
+ * @return ERR_ROUTER_NO_KEY, ERR_ROUTER_UNKNOWN_KEY, or the module's error
  */
 MUST_USE err_h router_route(cmd_in_t in, cmd_out_t* out);
 
-/** @brief Starts the urgent and work tasks. Module routers are registered before. */
+/**
+ * @brief Starts the urgent and work tasks. Module routers are registered before.
+ * @return The error of the task start
+ */
 MUST_USE err_h router_init(void);
 
 /* ----------------------------------------------------------------------------
@@ -170,9 +199,9 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t
 /**
  * @brief Queues one command: `cmd` and its request are copied, so both may go after the call. Never blocks; any task
  * but an ISR, a provider driver's RX task too.
- * @param cmd   The origin (src, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
- * @param done  Where its answer goes; NULL: nowhere (a failure is reported only).
- * @param ctx   Given to `done`.
+ * @param[in] cmd  The origin (src, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
+ * @param[in] done Where its answer goes; NULL: nowhere (a failure is reported only).
+ * @param[in] ctx  Given to `done`.
  * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL: not queued, the caller answers it.
  */
 MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx);
@@ -180,10 +209,10 @@ MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx
 /**
  * @brief Queues a command of the board itself: router_submit with src ROUTER_SRC_SELF and seq from the router's own
  * counter (the actions, the project's start, a call of the board to itself).
- * @param req    [key][dir][...].
- * @param flags  ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.
- * @param done   Where its answer goes; NULL: nowhere.
- * @param ctx    Given to `done`.
+ * @param[in] req   [key][dir][...].
+ * @param[in] flags ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.
+ * @param[in] done  Where its answer goes; NULL: nowhere.
+ * @param[in] ctx   Given to `done`.
  * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL.
  */
 MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx);
@@ -191,6 +220,8 @@ MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, vo
 /**
  * @brief Ends a command's chain: logged with the command ("cmd src f0 seq 7 flags 00 req 02 02 00") and handed to the
  * error sink with it (its record on the errors stream). For a command the router refused, by whoever answers it.
+ * @param[in] cmd The command
+ * @param[in] err The chain that ended it
  */
 void router_report_cmd(const cmd_req_t* cmd, err_h err);
 
@@ -204,7 +235,10 @@ void router_report_cmd(const cmd_req_t* cmd, err_h err);
  */
 const cmd_req_t* router_origin(void);
 
-/** @brief True when the caller runs on a router task (urgent or work): what waits for an answer must not run there. */
+/**
+ * @brief Whether the caller runs on a router task (urgent or work): what waits for an answer must not run there.
+ * @return true on a router task
+ */
 bool router_is_task(void);
 
 /* ----------------------------------------------------------------------------

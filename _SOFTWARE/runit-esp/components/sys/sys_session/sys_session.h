@@ -69,15 +69,21 @@ typedef void (*sys_session_push_f)(uint8_t src, uint16_t seq, const uint8_t* dat
  */
 MUST_USE err_h sys_session_init(void);
 
-/** @brief This board's id. */
+/**
+ * @brief This board's id.
+ * @return The board id
+ */
 uint8_t sys_session_get_board_id(void);
 
-/** @brief Whether this board has no master: it is the master, the board the app talks to. Any task. */
+/**
+ * @brief Whether this board has no master: it is the master, the board the app talks to. Any task.
+ * @return true for the master
+ */
 bool sys_session_is_master(void);
 
 /**
  * @brief Keeps a new board id in NVS: it is this board's id from the next start (ID).
- * @param board_id  0..SYS_SESSION_ID_LAST.
+ * @param[in] board_id 0..SYS_SESSION_ID_LAST.
  * @return NULL when kept; ERR_CMD_BAD_ARG, the NVS error.
  */
 MUST_USE err_h sys_session_set_board_id(uint8_t board_id);
@@ -86,7 +92,7 @@ MUST_USE err_h sys_session_set_board_id(uint8_t board_id);
  * @brief Sets how long this board waits in silence on its master's and its clients' sessions before it ends them: the
  * dead-man's time (sys_system's DEADMAN). Sends a hello on each, so the peer sends at least every third of it.
  * Slaves's sessions keep CONFIG_SYS_SESSION_TIMEOUT_MS. Any task.
- * @param ms  SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS; CONFIG_SYS_SESSION_TIMEOUT_MS at boot.
+ * @param[in] ms SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS; CONFIG_SYS_SESSION_TIMEOUT_MS at boot.
  * @return NULL when set; ERR_CMD_BAD_ARG.
  */
 MUST_USE err_h sys_session_set_timeout(uint32_t ms);
@@ -98,8 +104,8 @@ MUST_USE err_h sys_session_set_timeout(uint32_t ms);
 /**
  * @brief Makes a provider the way to a peer: opens it and, when it is up, sends the hello. Until the peer's hello
  * comes, only control frames pass.
- * @param provider  A framed provider (SYS_DATA_PROVIDER_STATE_FRAMED).
- * @param peer      sys_session_peer_e.
+ * @param[in] provider A framed provider (SYS_DATA_PROVIDER_STATE_FRAMED).
+ * @param[in] peer     sys_session_peer_e.
  * @return NULL when attached; ERR_SESSION_ROLE (a board with a master has no other session: a master next to any
  * session, anything next to a master), ERR_SESSION_FULL, ERR_SESSION_NOT_FRAMED (a raw provider), ERR_CMD_BAD_ARG (already attached, a bad peer), or the
  * provider's open error (ERR_PROV_NOT_FOUND, _IN_USE).
@@ -108,7 +114,7 @@ MUST_USE err_h sys_session_attach(uint8_t provider, uint8_t peer);
 
 /**
  * @brief Ends the session on a provider and closes it: its peer is gone.
- * @param provider  The provider.
+ * @param[in] provider The provider.
  * @return NULL when detached or not attached; the provider's close error.
  */
 MUST_USE err_h sys_session_detach(uint8_t provider);
@@ -116,7 +122,7 @@ MUST_USE err_h sys_session_detach(uint8_t provider);
 /**
  * @brief Whether a peer is the peer of an open session on a WIRED provider: a neighbour on a cable, where the VM may
  * wait for an answer. Any task.
- * @param peer  A board id.
+ * @param[in] peer A board id.
  * @return true when wired and open.
  */
 bool sys_session_wired(uint8_t peer);
@@ -138,13 +144,13 @@ bool sys_session_wired(uint8_t peer);
  * master has done what it broadcasts. `cb`'s `data` has CMD_HEAD writable bytes in front of it, as the router's
  * answers have.
  * `cb`'s cmd is the call: its request (the first CONFIG_ERRORS_RECORD_REQ_MAX bytes), its seq, src this board.
- * @param dst         A board (0..SYS_SESSION_ID_LAST), this one included, or SYS_SESSION_ID_BROADCAST (NOREPLY only).
- * @param req         The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
- * @param flags       ROUTER_FLAG_URGENT; ROUTER_FLAG_NOREPLY with SYS_SESSION_ID_BROADCAST only (`cb` NULL).
- * @param timeout_ms  Without an answer this long: ERR_SESSION_TIMEOUT; 0: the way's own (the wired one to the peer
+ * @param[in] dst        A board (0..SYS_SESSION_ID_LAST), this one included, or SYS_SESSION_ID_BROADCAST (NOREPLY only).
+ * @param[in] req        The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
+ * @param[in] flags      ROUTER_FLAG_URGENT; ROUTER_FLAG_NOREPLY with SYS_SESSION_ID_BROADCAST only (`cb` NULL).
+ * @param[in] timeout_ms Without an answer this long: ERR_SESSION_TIMEOUT; 0: the way's own (the wired one to the peer
  *                    of a WIRED session, else CONFIG_SYS_SESSION_CALL_TIMEOUT_MS).
- * @param cb          The answer (router_done_f; its return is reported); NULL with NOREPLY.
- * @param ctx         Given to `cb`.
+ * @param[in] cb         The answer (router_done_f; its return is reported); NULL with NOREPLY.
+ * @param[in] ctx        Given to `cb`.
  * @return NULL when sent; ERR_CMD_BAD_ARG (NOREPLY to one board), ERR_SESSION_NO_ROUTE, ERR_SESSION_CALLS_FULL,
  * ERR_SESSION_BUSY (CONFIG_SYS_SESSION_PEER_IN_FLIGHT to that board: later), the provider's ERR_PROV_BUSY / _DOWN /
  * _TOO_LONG, or (to this board) the router's ERR_ROUTER_QUEUE_FULL / _FRAME_LEN.
@@ -157,13 +163,13 @@ MUST_USE err_h sys_session_call(uint8_t dst, cmd_in_t req, uint8_t flags, uint32
  * answer"). For configuration (the board config, the flasher) over any way, and for a blocking remote device to a
  * WIRED neighbour only. Not to this board on a router task; not on a driver's RX task, the stream task, the
  * session's timer or a task that called sys_session_no_wait().
- * @param dst         A board, this one included (not SYS_SESSION_ID_BROADCAST).
- * @param req         The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
- * @param flags       ROUTER_FLAG_URGENT, or 0.
- * @param timeout_ms  As sys_session_call; 0: the way's own.
- * @param buf         Out: the answer.
- * @param cap         Bytes `buf` holds.
- * @param len         Out: the answer's bytes.
+ * @param[in]  dst        A board, this one included (not SYS_SESSION_ID_BROADCAST).
+ * @param[in]  req        The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
+ * @param[in]  flags      ROUTER_FLAG_URGENT, or 0.
+ * @param[in]  timeout_ms As sys_session_call; 0: the way's own.
+ * @param[out] buf        Out: the answer.
+ * @param[in]  cap        Bytes `buf` holds.
+ * @param[out] len        Out: the answer's bytes.
  * @return NULL with the answer; its error: ERR_REMOTE{board, seq} over that board's chain, or ERR_SESSION_TIMEOUT /
  * _PEER_DOWN; ERR_CMD_BAD_LEN (longer than `cap`), ERR_SESSION_WOULD_BLOCK (a task that must not wait), or what
  * sys_session_call returns.
@@ -186,11 +192,11 @@ void sys_session_no_wait(void);
  * @brief Sends one PUSH frame to a peer: what a stream sends to its subscribers, and a session channel's frame (a
  * watch's entry to its owner, a remote device's events) (SYS_SESSION.MD "Streams"). NOWAIT on the session's provider:
  * never blocks, any task.
- * @param peer   A board or client id.
- * @param seq    The stream's (or the channel's sender's) frame counter.
- * @param data   [stream id or SYS_SESSION_CHANNEL_*][payload], at most CMD_DATA_MAX.
- * @param len    Bytes in `data`.
- * @param flags  ROUTER_FLAG_URGENT (to the front of the provider's queue), or 0.
+ * @param[in] peer  A board or client id.
+ * @param[in] seq   The stream's (or the channel's sender's) frame counter.
+ * @param[in] data  [stream id or SYS_SESSION_CHANNEL_*][payload], at most CMD_DATA_MAX.
+ * @param[in] len   Bytes in `data`.
+ * @param[in] flags ROUTER_FLAG_URGENT (to the front of the provider's queue), or 0.
  * @return NULL when queued; ERR_SESSION_NO_ROUTE, or the provider's ERR_PROV_BUSY / _DOWN / _TOO_LONG.
  */
 MUST_USE err_h sys_session_push(uint8_t peer, uint16_t seq, const uint8_t* data, uint32_t len, uint8_t flags);
@@ -198,13 +204,13 @@ MUST_USE err_h sys_session_push(uint8_t peer, uint16_t seq, const uint8_t* data,
 /**
  * @brief Sends data to a provider of another board, or to a receiver of a client (SYS_SESSION.MD "Data to a provider").
  * The board it reaches sends the data on that provider as it is, without a header. NOWAIT, never blocks, any task.
- * @param peer   A board or client id.
- * @param seq    The sender's frame counter.
- * @param to     The provider's id on `peer`.
- * @param from   The sender's own id: a provider or a stream of this board.
- * @param data   The data, at most CMD_DATA_MAX - 3.
- * @param len    Bytes in `data`.
- * @param flags  ROUTER_FLAG_URGENT, or 0.
+ * @param[in] peer  A board or client id.
+ * @param[in] seq   The sender's frame counter.
+ * @param[in] to    The provider's id on `peer`.
+ * @param[in] from  The sender's own id: a provider or a stream of this board.
+ * @param[in] data  The data, at most CMD_DATA_MAX - 3.
+ * @param[in] len   Bytes in `data`.
+ * @param[in] flags ROUTER_FLAG_URGENT, or 0.
  * @return NULL when queued; ERR_CMD_BAD_LEN, ERR_SESSION_NO_ROUTE, or the provider's ERR_PROV_BUSY / _DOWN / _TOO_LONG.
  */
 MUST_USE err_h sys_session_data(uint8_t peer, uint16_t seq, uint8_t to, uint8_t from, const uint8_t* data, uint32_t len,
@@ -217,14 +223,14 @@ MUST_USE err_h sys_session_data(uint8_t peer, uint16_t seq, uint8_t to, uint8_t 
 /**
  * @brief Adds a listener of gone peers (SYS_SESSION.MD "Gone peers"): the streams, the watches, the dead-man.
  * Boot only.
- * @param fn  The listener.
+ * @param[in] fn The listener.
  * @return NULL when added; ERR_SESSION_FULL (every CONFIG_SYS_SESSION_PEER_LISTENERS slot taken).
  */
 MUST_USE err_h sys_session_on_gone(sys_session_gone_f fn);
 
 /**
  * @brief Adds a listener of reached peers: the time broadcast, the watch client, the remote devices. Boot only.
- * @param fn  The listener.
+ * @param[in] fn The listener.
  * @return NULL when added; ERR_SESSION_FULL (every CONFIG_SYS_SESSION_PEER_LISTENERS slot taken).
  */
 MUST_USE err_h sys_session_on_reached(sys_session_reached_f fn);
@@ -232,7 +238,7 @@ MUST_USE err_h sys_session_on_reached(sys_session_reached_f fn);
 /**
  * @brief Adds a listener of the PUSH frames for this board; each takes its own by the first byte (a channel's
  * owner its SYS_SESSION_CHANNEL_*). Boot only.
- * @param fn  The listener.
+ * @param[in] fn The listener.
  * @return NULL when added; ERR_SESSION_FULL (every CONFIG_SYS_SESSION_PUSH_LISTENERS slot taken).
  */
 MUST_USE err_h sys_session_on_push(sys_session_push_f fn);

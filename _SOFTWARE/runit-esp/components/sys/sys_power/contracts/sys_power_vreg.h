@@ -6,12 +6,15 @@
 extern "C" {
 #endif
 
-/**
- * @brief The POWER_VREG contract (SYS_DEVICE_CONTRACT_POWER_VREG: 0x05xx): an
- * adjustable regulator with one output. Voltage and current limit are the
- * wanted settings: a device keeps them while the output is off and applies
- * them when it is enabled. Values the chip can't reach are refused
- * (ERR_DEV_RANGE), never clamped. Writes while suspended: ERR_DEV_SUSPENDED.
+/*
+ * SYS_DEVICE_CONTRACT_POWER_VREG: 0x05xx, where 0x05 is the regulator contract and xx its op. An adjustable regulator
+ * with one output. Voltage and current limit are the wanted settings: a device keeps them while the output is off and
+ * applies them when it is enabled. Values the chip can't reach are refused (ERR_DEV_RANGE), never clamped. Writes while
+ * suspended: ERR_DEV_SUSPENDED.
+ * ENABLE  - output on / off
+ * VOLTAGE - output voltage in mV
+ * CURRENT - output current limit in mA
+ * Events  - OVP, OCP, SCP, READY (VREG_EVENTS below)
  */
 
 /* Events of the vreg contract (sys_event.h "Events tables"); channel 0. The
@@ -23,14 +26,17 @@ extern "C" {
   X(P, SCP,   0x02, SYS_EVENT_NOTIFY) \
   X(P, READY, 0x03, 0)
 
+/** @brief ENABLE args */
 typedef struct __attribute__((packed)) {
   uint8_t enable;       /**< 1 = Output enabled, 0 = Output disabled */
 } vreg_enable_args_t;
 
+/** @brief VOLTAGE args */
 typedef struct __attribute__((packed)) {
   uint32_t voltage_mV;  /**< Output voltage in mV */
 } vreg_voltage_args_t;
 
+/** @brief CURRENT args */
 typedef struct __attribute__((packed)) {
   uint32_t current_mA;  /**< Output current limit in mA */
 } vreg_current_args_t;
@@ -50,12 +56,34 @@ typedef struct __attribute__((packed)) {
 SYS_DEVICE_CONTRACT_DECLARE(VREG, SYS_DEVICE_CONTRACT_POWER_VREG)
 SYS_EVENTS_DECLARE(VREG)
 
+/***************************************************************
+* C API: the sys_device_call of the op, nothing else
+******************************************************************/
+
 /**
- * @brief Wrappers: the sys_device_call of the op, nothing else.
- * @usage ERR_TRY(sys_power_vreg_set_voltage(TPS_A_ID, 9000)); ERR_TRY(sys_power_vreg_set_enable(TPS_A_ID, true));
+ * @brief Switches the output on or off (op ENABLE)
+ * @param[in] device Regulator device id
+ * @param[in] enable true: on, with the wanted voltage and current limit
+ * @return ERR_DEV_SUSPENDED while suspended, or the error of the device write
+ * @usage ERR_TRY(sys_power_vreg_set_enable(TPS_A_ID, true));
  */
 MUST_USE err_h sys_power_vreg_set_enable(uint16_t device, bool enable);
+
+/**
+ * @brief Sets the output voltage (op VOLTAGE); kept while the output is off
+ * @param[in] device     Regulator device id
+ * @param[in] voltage_mV Voltage in mV
+ * @return ERR_DEV_RANGE for a voltage the chip can't reach, or the error of the device write
+ * @usage ERR_TRY(sys_power_vreg_set_voltage(TPS_A_ID, 9000));
+ */
 MUST_USE err_h sys_power_vreg_set_voltage(uint16_t device, uint32_t voltage_mV);
+
+/**
+ * @brief Sets the output current limit (op CURRENT); kept while the output is off
+ * @param[in] device     Regulator device id
+ * @param[in] current_mA Limit in mA
+ * @return ERR_DEV_RANGE for a limit the chip can't reach, or the error of the device write
+ */
 MUST_USE err_h sys_power_vreg_set_current(uint16_t device, uint32_t current_mA);
 
 #ifdef __cplusplus

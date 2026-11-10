@@ -29,8 +29,8 @@ MUST_USE err_h sys_remote_init(void);
 /**
  * @brief Subscribes a peer to a device of this board: its events and errors outside a command go to the peer (SUBSCRIBE).
  * Again for the same peer and device: one subscription, its count kept. Until UNSUBSCRIBE or the peer is gone.
- * @param id    The device (whether it exists is not checked: an id with no device sends nothing).
- * @param peer  The peer (SUBSCRIBE: the command's src).
+ * @param[in] id   The device (whether it exists is not checked: an id with no device sends nothing).
+ * @param[in] peer The peer (SUBSCRIBE: the command's src).
  * @return NULL when subscribed; ERR_CMD_BAD_ARG (SYS_SESSION_ID_SELF, NONE or BROADCAST), ERR_REMOTE_SUBS_FULL, or
  * the event subscription's error.
  */
@@ -38,16 +38,16 @@ MUST_USE err_h sys_remote_subscribe(uint16_t id, uint8_t peer);
 
 /**
  * @brief Ends a peer's subscription to a device.
- * @param id    The device.
- * @param peer  The peer.
+ * @param[in] id   The device.
+ * @param[in] peer The peer.
  */
 void sys_remote_unsubscribe(uint16_t id, uint8_t peer);
 
 /**
  * @brief An error reported on this board (runit's error sink): one outside a command (`cmd` NULL) whose chain names a
  * device with subscribers (ERR_DEV_ID) is queued for them. Never blocks, any task.
- * @param chain  The reported chain (borrowed).
- * @param cmd    The command it came from, or NULL.
+ * @param[in] chain The reported chain (borrowed).
+ * @param[in] cmd   The command it came from, or NULL.
  */
 void sys_remote_on_error(err_h chain, const cmd_req_t* cmd);
 

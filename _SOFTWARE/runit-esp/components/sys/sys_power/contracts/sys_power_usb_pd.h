@@ -6,11 +6,13 @@
 extern "C" {
 #endif
 
-/**
- * @brief The POWER_USB_PD contract (SYS_DEVICE_CONTRACT_POWER_USB_PD: 0x07xx): a USB Power Delivery sink negotiating
- * a voltage / current with its charger. What the charger offers is read with OPTIONS; a SETTINGS write asks for a
- * profile (the charger may not grant exactly what is asked); LIMITS gives the highest the charger offers (the
- * power manager's USB budget).
+/*
+ * SYS_DEVICE_CONTRACT_POWER_USB_PD: 0x07xx, where 0x07 is the USB-PD sink contract and xx its op. A USB Power Delivery
+ * sink negotiating a voltage / current with its charger.
+ * SETTINGS - the profile asked of the charger, set and read (the charger may not grant exactly what is asked)
+ * OPTIONS  - what the charger offers: an array of sys_power_usb_pd_option_t
+ * LIMITS   - the highest the charger offers (the power manager's USB budget)
+ * No events.
  */
 
 /* A source offers at most 7 SPR + 6 EPR power data objects. */
@@ -32,11 +34,13 @@ typedef struct __attribute__((packed)) {
   uint16_t max_mA;    /**< Maximum current in mA */
 } sys_power_usb_pd_option_t;
 
+/** @brief SETTINGS args and answer: the profile asked of the charger */
 typedef struct __attribute__((packed)) {
   uint32_t voltage_mV;  /**< Requested voltage in mV */
   uint32_t current_mA;  /**< Requested current in mA */
 } pd_settings_args_t;
 
+/** @brief What LIMITS answers */
 typedef struct __attribute__((packed)) {
   int32_t voltage_mV;  /**< Highest-voltage offer in mV */
   int32_t current_mA;  /**< Offered current in mA */
@@ -55,13 +59,37 @@ typedef struct __attribute__((packed)) {
 
 SYS_DEVICE_CONTRACT_DECLARE(PD, SYS_DEVICE_CONTRACT_POWER_USB_PD)
 
+/***************************************************************
+* C API: the sys_device_call of the op, nothing else
+******************************************************************/
+
 /**
- * @brief Wrappers: the sys_device_call of the op, nothing else.
- * @param max_options at most SYS_POWER_USB_PD_OPTIONS_MAX
+ * @brief Asks the charger for a profile (op SETTINGS, write); it may not grant exactly this
+ * @param[in] device     USB-PD device id
+ * @param[in] voltage_mV Requested voltage in mV
+ * @param[in] current_mA Requested current in mA
+ * @return The error of the device write
  */
 MUST_USE err_h sys_power_usb_pd_set_settings(uint16_t device, uint32_t voltage_mV, uint32_t current_mA);
+
+/**
+ * @brief Reads what the charger offers (op OPTIONS)
+ * @param[in]  device      USB-PD device id
+ * @param[out] out         Array for the options
+ * @param[in]  max_options Size of out, at most SYS_POWER_USB_PD_OPTIONS_MAX
+ * @param[out] out_count   How many options were written
+ * @return ERR_DEV_BAD_ARG for a NULL out or out_count, or the error of the device read
+ */
 MUST_USE err_h sys_power_usb_pd_list_options(uint16_t device, sys_power_usb_pd_option_t* out, uint8_t max_options,
                                              uint8_t* out_count);
+
+/**
+ * @brief Reads the highest the charger offers (op LIMITS)
+ * @param[in]  device USB-PD device id
+ * @param[out] out_mV Highest-voltage offer in mV
+ * @param[out] out_mA Offered current in mA
+ * @return ERR_DEV_BAD_ARG for a NULL out, or the error of the device read
+ */
 MUST_USE err_h sys_power_usb_pd_get_limits(uint16_t device, int32_t* out_mV, int32_t* out_mA);
 
 #ifdef __cplusplus

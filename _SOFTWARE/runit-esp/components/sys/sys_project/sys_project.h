@@ -55,60 +55,96 @@ typedef struct __attribute__((packed)) {
   uint32_t bytes;  /**< Stream length in bytes */
 } sys_project_mark_t;
 
+/** @brief What INFO answers: the stored project */
 typedef struct __attribute__((packed)) {
-  uint8_t stored;     /**< 1 = project stored, 0 = no project */
+  uint8_t stored;    /**< 1 = project stored, 0 = no project */
   uint8_t boot;       /**< sys_project_boot_e */
   uint8_t bank;       /**< Bank holding program records */
   uint32_t crc32;     /**< Stream CRC-32 */
   uint32_t bytes;     /**< Stream length in bytes */
 } sys_project_info_t;
 
-/** @brief Opens the project's options in the actions partition. Boot, after sys_actions_init. */
+/**
+ * @brief Opens the project's options in the actions partition. Boot, after sys_actions_init.
+ * @return The error of opening the options
+ */
 MUST_USE err_h sys_project_init(void);
 
 /**
- * @brief Starts a save of a stream of `len` bytes (ERR_PROJECT_BUSY while another is open). `boot` (sys_project_boot_e)
- * becomes the boot option when the save commits. Clears the records a failed save left in the spare bank.
+ * @brief Starts a save of a stream of `len` bytes. `boot` becomes the boot option when the save commits. Clears the
+ * records a failed save left in the spare bank.
+ * @param[in] len  Stream length in bytes
+ * @param[in] boot sys_project_boot_e
+ * @return ERR_PROJECT_BUSY while another save is open, ERR_PROJECT_BAD_BOOT for another boot value
  */
 MUST_USE err_h sys_project_begin(uint32_t len, uint8_t boot);
 
-/** @brief The next bytes of the stream; `offset` must equal the bytes so far. A failure drops the save. */
+/**
+ * @brief The next bytes of the stream. A failure drops the save.
+ * @param[in] offset Must equal the bytes so far
+ * @param[in] data   The bytes
+ * @param[in] len    Number of bytes
+ * @return The error of the write
+ */
 MUST_USE err_h sys_project_write(uint32_t offset, const uint8_t* data, uint32_t len);
 
 /**
  * @brief Checks length, CRC and framing, stores the project and makes it the stored one; the stale records of the
- * other bank go. Then it loads or runs it as its boot option says (ERR_PROJECT_RUN wraps a failure: the project is
- * stored anyway). The save is closed also on a failure.
+ * other bank go. Then it loads or runs it as its boot option says. The save is closed also on a failure.
+ * @param[in] crc32 CRC-32 of the whole stream
+ * @return The error of the check or of the store; ERR_PROJECT_RUN wraps a failure of the load or run (the project
+ * is stored anyway)
  */
 MUST_USE err_h sys_project_commit(uint32_t crc32);
 
 /** @brief Drops an open save; the stored project stays. No-op when none is open. */
 void sys_project_abort(void);
 
+/**
+ * @brief Reads whether a project is stored, its boot option, bank, CRC and length
+ * @param[out] out The stored project's info
+ * @return The error of the read
+ */
 MUST_USE err_h sys_project_info(sys_project_info_t* out);
 
 /**
  * @brief Loads the stored project (RUN_ALL of its record: one failing section doesn't stop the others), then, with
  * `start` and when all of it loaded, runs its start section. Router task only.
+ * @param[in] start Run the start section after the load
+ * @return The error of the load or of the start section
  */
 MUST_USE err_h sys_project_run(bool start);
 
 /**
  * @brief Removes the devices the project created (the board's stay), the stored project and its program records (the
  * settings and device records stay). Stop the VM first: its program would call devices that are gone.
+ * @return The error of the removals
  */
 MUST_USE err_h sys_project_erase(void);
 
-/** @brief The project's source: the file the app keeps there (SYS_PROJECT.MD "The source"). The firmware never reads it. */
+/**
+ * @brief The project's source: the file the app keeps there (SYS_PROJECT.MD "The source"). The firmware never reads it.
+ * @return The source file
+ */
 sys_nvs_json_t* sys_project_source(void);
 
-/** @brief Sets the boot option (sys_project_boot_e; ERR_PROJECT_BAD_BOOT for another value). */
+/**
+ * @brief Sets the boot option.
+ * @param[in] boot sys_project_boot_e
+ * @return ERR_PROJECT_BAD_BOOT for another value, or the error of the store
+ */
 MUST_USE err_h sys_project_set_boot(uint8_t boot);
 
-/** @brief The boot option (SYS_PROJECT_BOOT_NONE when never set). */
+/**
+ * @brief The boot option.
+ * @return sys_project_boot_e; SYS_PROJECT_BOOT_NONE when never set
+ */
 uint8_t sys_project_get_boot(void);
 
-/** @brief Boot, once the router and the VM are up: queues LOAD or RUN of the stored project, as its boot option says. */
+/**
+ * @brief Boot, once the router and the VM are up: queues LOAD or RUN of the stored project, as its boot option says.
+ * @return The error of queueing
+ */
 MUST_USE err_h sys_project_boot(void);
 
 #ifdef __cplusplus

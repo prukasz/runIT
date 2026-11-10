@@ -69,10 +69,16 @@ typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
  */
 typedef err_h (*sys_device_vm_stop_f)(uint16_t device_id);
 
-/** @brief Sets the VM stop. Boot only. */
+/**
+ * @brief Sets the VM stop. Boot only.
+ * @param[in] fn The VM stop
+ */
 void sys_device_set_vm_stop(sys_device_vm_stop_f fn);
 
-/** @brief Sets the action runner. Boot only. Without one, actions are not run (CRITICAL still suspends). */
+/**
+ * @brief Sets the action runner. Boot only. Without one, actions are not run (CRITICAL still suspends).
+ * @param[in] fn The action runner
+ */
 void sys_device_set_action_runner(sys_device_action_runner_f fn);
 
 /**
@@ -83,12 +89,18 @@ void sys_device_set_action_runner(sys_device_action_runner_f fn);
  * that severity runs (a device that no longer exists, a failed CREATE, gets the suspend only, for a critical error).
  * A critical node before any device suspends every device too. A chain holding
  * ERR_DEV_FAULT_RESPONSE, or one reported while a response runs on this task, is not handled (no loops).
+ * @param[in] chain The reported error chain, not freed here
  * @return The first response failure (owned; the others are freed), or NULL. Does not free `chain`.
  */
 MUST_USE err_h sys_device_handle_error(err_h chain);
 
-/** @brief The policy of device `id`, false if it isn't registered. Doesn't take the registry lock (a short critical
- *  section), so the error path can't wait on an op in progress. */
+/**
+ * @brief The policy of device `id`. Doesn't take the registry lock (a short critical section), so the error path can't
+ * wait on an op in progress.
+ * @param[in]  id  Device id
+ * @param[out] out The device's error policy
+ * @return false if the device isn't registered
+ */
 bool sys_device_error_policy_get(uint16_t id, sys_device_error_policy_t* out);
 
 #ifdef __cplusplus

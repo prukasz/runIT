@@ -57,37 +57,62 @@ typedef struct {
 
 /**
  * @brief SLIP-encodes `len` bytes: END, the bytes with 0xC0 and 0xDB escaped, END.
- * @param out  At least SYS_FLASHER_SLIP_MAX(len) bytes.
+ * @param[in]  in  The bytes
+ * @param[in]  len Number of bytes
+ * @param[out] out At least SYS_FLASHER_SLIP_MAX(len) bytes.
  * @return Bytes written.
  */
 uint32_t sys_flasher_slip_encode(const uint8_t* in, uint32_t len, uint8_t* out);
 
-/** @brief Starts a decoder on `buf` (`cap` bytes); bytes outside a packet (the ROM's boot text) are skipped. */
+/**
+ * @brief Starts a decoder on `buf` (`cap` bytes); bytes outside a packet (the ROM's boot text) are skipped.
+ * @param[out] rx  The decoder
+ * @param[in]  buf Buffer for the packet
+ * @param[in]  cap Size of buf
+ */
 void sys_flasher_slip_start(sys_flasher_slip_rx_t* rx, uint8_t* buf, uint32_t cap);
 
 /**
  * @brief Feeds one byte.
+ * @param[in,out] rx   The decoder
+ * @param[in]     byte The byte
  * @return true when it ended a whole packet: its `rx->len` bytes are in `rx->buf` until the next feed.
  */
 bool sys_flasher_slip_feed(sys_flasher_slip_rx_t* rx, uint8_t byte);
 
-/** @brief FLASH_DATA's checksum: the data's bytes XORed onto SYS_FLASHER_ROM_SEED. */
+/**
+ * @brief FLASH_DATA's checksum: the data's bytes XORed onto SYS_FLASHER_ROM_SEED.
+ * @param[in] data The data
+ * @param[in] len  Number of bytes
+ * @return The checksum
+ */
 uint32_t sys_flasher_rom_checksum(const uint8_t* data, uint32_t len);
 
 /**
  * @brief A command's packet, before SLIP: [0x00][op][len u16][checksum u32][data].
- * @param out  At least SYS_FLASHER_ROM_HEAD + len bytes.
+ * @param[in]  op       The ROM's command
+ * @param[in]  data     The command's data
+ * @param[in]  len      Number of bytes in `data`
+ * @param[in]  checksum The packet's checksum (FLASH_DATA only, else 0)
+ * @param[out] out      At least SYS_FLASHER_ROM_HEAD + len bytes.
  * @return Bytes written.
  */
 uint32_t sys_flasher_rom_command(uint8_t op, const uint8_t* data, uint32_t len, uint32_t checksum, uint8_t* out);
 
 /**
  * @brief Parses a decoded packet as an answer: [0x01][op][size u16][value u32][data][status][error][0][0].
+ * @param[in]  packet The decoded packet
+ * @param[in]  len    Its size in bytes
+ * @param[out] out    The answer; its `data` points into `packet`
  * @return false when it is no answer (a command echoed, too short, a size that does not match).
  */
 bool sys_flasher_rom_parse(const uint8_t* packet, uint32_t len, sys_flasher_rom_answer_t* out);
 
-/** @brief Writes `digest` (16 bytes) as 32 lowercase hex digits, the form SPI_FLASH_MD5 of the ROM answers in. */
+/**
+ * @brief Writes `digest` as 32 lowercase hex digits, the form SPI_FLASH_MD5 of the ROM answers in.
+ * @param[in]  digest 16 bytes
+ * @param[out] out    32 characters, not terminated
+ */
 void sys_flasher_md5_hex(const uint8_t digest[16], char out[32]);
 
 #ifdef __cplusplus

@@ -6,12 +6,16 @@
 extern "C" {
 #endif
 
-/**
- * @brief The POWER_MONITOR contract (SYS_DEVICE_CONTRACT_POWER_MONITOR: 0x04xx):
- * readings of a measured channel and its hardware current alerts. A device
- * implements the ops it can (OPS lists them); a channel it doesn't have answers
- * ERR_POWER_BAD_CHANNEL. Readings are signed: a reversed shunt reports a
- * negative current, not a wrapped one. Readings are allowed while suspended.
+/*
+ * SYS_DEVICE_CONTRACT_POWER_MONITOR: 0x04xx, where 0x04 is the power monitor contract and xx its op. Readings of a
+ * measured channel and its hardware current alerts. A device implements the ops it can (OPS lists them); a channel it
+ * doesn't have answers ERR_POWER_BAD_CHANNEL. Readings are signed: a reversed shunt reports a negative current, not a
+ * wrapped one. Readings are allowed while suspended.
+ * VOLTAGE - the channel's bus voltage in mV
+ * CURRENT - the channel's current in mA
+ * ALERT   - arms a hardware current alert of the channel at a threshold in mA (sys_power_alert_e)
+ * POWER   - the channel's power in mW
+ * Events  - OCP_WARNING, OCP_CRITICAL (PMON_EVENTS below)
  */
 
 /* Available current alerts of a monitor channel */
@@ -28,10 +32,12 @@ typedef enum sys_power_alert_e {
   X(P, OCP_WARNING,  0x00, SYS_EVENT_NOTIFY) \
   X(P, OCP_CRITICAL, 0x01, SYS_EVENT_NOTIFY)
 
+/** @brief VOLTAGE / CURRENT / POWER key: a measured channel */
 typedef struct __attribute__((packed)) {
   uint8_t channel;  /**< Measured channel index */
 } pmon_channel_args_t;
 
+/** @brief ALERT args */
 typedef struct __attribute__((packed)) {
   uint8_t channel;       /**< Measured channel index */
   uint8_t alert;         /**< sys_power_alert_e */
@@ -54,13 +60,49 @@ typedef struct __attribute__((packed)) {
 SYS_DEVICE_CONTRACT_DECLARE(PMON, SYS_DEVICE_CONTRACT_POWER_MONITOR)
 SYS_EVENTS_DECLARE(PMON)
 
+/***************************************************************
+* C API: the sys_device_call of the op, nothing else
+******************************************************************/
+
 /**
- * @brief Wrappers: the sys_device_call of the op, nothing else.
- * @usage int32_t mW; ERR_TRY(sys_power_monitor_get_power(INA_ID, 0, &mW));
+ * @brief Reads the voltage of a channel (op VOLTAGE)
+ * @param[in]  device  Monitor device id
+ * @param[in]  channel Measured channel index
+ * @param[out] out_mV  Voltage in mV
+ * @return ERR_DEV_BAD_ARG for a NULL out_mV, ERR_POWER_BAD_CHANNEL for a channel it doesn't have, or the error of
+ * the device read
  */
 MUST_USE err_h sys_power_monitor_get_voltage(uint16_t device, uint8_t channel, int32_t* out_mV);
+
+/**
+ * @brief Reads the current of a channel, signed (op CURRENT)
+ * @param[in]  device  Monitor device id
+ * @param[in]  channel Measured channel index
+ * @param[out] out_mA  Current in mA
+ * @return ERR_DEV_BAD_ARG for a NULL out_mA, ERR_POWER_BAD_CHANNEL for a channel it doesn't have, or the error of
+ * the device read
+ */
 MUST_USE err_h sys_power_monitor_get_current(uint16_t device, uint8_t channel, int32_t* out_mA);
+
+/**
+ * @brief Reads the power of a channel (op POWER)
+ * @param[in]  device  Monitor device id
+ * @param[in]  channel Measured channel index
+ * @param[out] out_mW  Power in mW
+ * @return ERR_DEV_BAD_ARG for a NULL out_mW, ERR_POWER_BAD_CHANNEL for a channel it doesn't have, or the error of
+ * the device read
+ * @usage int32_t mW; ERR_TRY(sys_power_monitor_get_power(INA_ID, 0, &mW));
+ */
 MUST_USE err_h sys_power_monitor_get_power(uint16_t device, uint8_t channel, int32_t* out_mW);
+
+/**
+ * @brief Arms a hardware current alert of a channel (op ALERT); the device publishes the matching event
+ * @param[in] device       Monitor device id
+ * @param[in] channel      Measured channel index
+ * @param[in] alert        sys_power_alert_e
+ * @param[in] threshold_mA Current threshold in mA
+ * @return ERR_POWER_BAD_CHANNEL for a channel it doesn't have, or the error of the device write
+ */
 MUST_USE err_h sys_power_monitor_set_alert(uint16_t device, uint8_t channel, sys_power_alert_e alert,
                                            int32_t threshold_mA);
 

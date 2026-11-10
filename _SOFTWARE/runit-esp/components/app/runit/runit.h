@@ -35,6 +35,9 @@ void runit_power_safe_state(void);
 
 /**
  * @brief Runs `steps` in order, all of them; failures are counted in `failed` (may be NULL).
+ * @param[in]  steps  The boot steps
+ * @param[in]  count  Number of steps
+ * @param[out] failed Number of failed steps, may be NULL
  * @return The first failure (owned, not reported), or NULL. The others are reported.
  */
 MUST_USE err_h runit_run_boot_steps(const runit_boot_step_entry_t* steps, size_t count, uint32_t* failed);

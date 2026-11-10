@@ -26,10 +26,17 @@ typedef struct __attribute__((packed)) {
 
 _Static_assert(sizeof(sys_session_hello_t) == 10, "hello");
 
-/** @brief This boot's id, for its hellos. Boot step of sys_session_init(). */
+/**
+ * @brief This boot's id, for its hellos. Boot step of sys_session_init().
+ * @return The error of making the id
+ */
 MUST_USE err_h sys_session_hello_init(void);
 
-/** @brief Sends this board's hello on session `at`. */
+/**
+ * @brief Sends this board's hello on session `at`.
+ * @param[in] at The session
+ * @return The error of queueing the hello
+ */
 err_h sys_session_hello_send(int32_t at);
 
 /**
@@ -40,8 +47,9 @@ err_h sys_session_hello_send(int32_t at);
  *    first. A client is answered every hello, a board its first only (two boards that both said hello when their
  *    provider came up must not answer each other for ever); the listeners are told once.
  *  - NO_SESSION: the peer has no session with this board, so this one ends too and this board says hello.
- * @param body  The control frame's body: the op, then its data.
- * @param len   Bytes in `body`.
+ * @param[in] at   The session the frame came on
+ * @param[in] body The control frame's body: the op, then its data.
+ * @param[in] len  Bytes in `body`.
  */
 void sys_session_hello_control(int32_t at, const uint8_t* body, uint32_t len);
 
@@ -49,7 +57,8 @@ void sys_session_hello_control(int32_t at, const uint8_t* body, uint32_t len);
  * @brief The peer of session `at` sends as if it were open, and it is not here (the peer missed this board's restart:
  * UART has no disconnect; or this end timed out): ERR_SESSION_NONE is reported and the peer told NO_SESSION and this
  * board's hello, so both start over. A full queue drops them: the peer's next frame asks again.
- * @param src  The frame's source.
+ * @param[in] at  The session the frame came on
+ * @param[in] src The frame's source.
  */
 void sys_session_hello_start_over(int32_t at, uint8_t src);
 

@@ -7,11 +7,15 @@
 extern "C" {
 #endif
 
-/**
- * @brief The HBRIDGE contract (SYS_DEVICE_CONTRACT_HBRIDGE: 0x09xx): a motor driver with channels. A channel is a full
- * bridge (a motor, both directions) or a half bridge (a solenoid, one direction), as the driver is configured. Chip
- * specifics (current limit, fault latch, ...) are the driver's own ops.
- *
+/*
+ * SYS_DEVICE_CONTRACT_HBRIDGE: 0x09xx, where 0x09 is the H-bridge contract and xx its op. A motor driver with channels.
+ * A channel is a full bridge (a motor, both directions) or a half bridge (a solenoid, one direction), as the driver is
+ * configured. Chip specifics (current limit, fault latch, ...) are the driver's own ops.
+ * DRIVE   - drives a channel with a signed PWM value
+ * BRAKE   - shorts the channel's outputs (the motor stops fast)
+ * COAST   - lets the channel's outputs float (the motor runs free)
+ * CURRENT - the channel's current in mA
+ * Events  - OVERCURRENT, THERMAL_OR_UVLO, EXTERNAL (HBRIDGE_EVENTS below)
  * Drive is a signed number in PWM steps: -4095 (full reverse) .. +4095 (full forward) for a full bridge, 0 .. 4095 for
  * a half bridge: the 12 bits of IO_PWM_DUTY_MAX (SYS_IO.MD), so the driver loses no resolution between the contract and
  * the PWM. A full bridge brakes below 20 (0.5 %).
@@ -27,10 +31,12 @@ typedef enum sys_hbridge_fault_reason_e {
 
 #define SYS_HBRIDGE_DRIVE_MAX 4095  // = IO_PWM_DUTY_MAX: 12 bits
 
+/** @brief BRAKE / COAST args and the CURRENT key: a channel */
 typedef struct __attribute__((packed)) {
   uint8_t channel;  /**< Motor channel index */
 } hbridge_channel_args_t;
 
+/** @brief DRIVE args: a channel and its drive */
 typedef struct __attribute__((packed)) {
   uint8_t channel;  /**< Motor channel index */
   int16_t drive;    /**< PWM drive: -4095 (reverse) to +4095 (forward) */
@@ -59,13 +65,43 @@ SYS_DEVICE_CONTRACT_DECLARE(HBRIDGE, SYS_DEVICE_CONTRACT_HBRIDGE)
   X(P, EXTERNAL,        0x02, SYS_EVENT_NOTIFY)
 SYS_EVENTS_DECLARE(HBRIDGE)
 
+/***************************************************************
+* C API: the sys_device_call of the op, nothing else
+******************************************************************/
+
 /**
- * @brief Wrappers: the sys_device_call of the op, nothing else.
+ * @brief Drives a channel (op DRIVE)
+ * @param[in] device  H-bridge device id
+ * @param[in] channel Channel index
+ * @param[in] drive   -4095 (full reverse) .. +4095 (full forward); 0 .. 4095 on a half bridge
+ * @return The error of the device write
  * @usage ERR_TRY(sys_hbridge_set_drive(BRIDGE_ID, 0, -2048));
  */
 MUST_USE err_h sys_hbridge_set_drive(uint16_t device, uint8_t channel, int16_t drive);
+
+/**
+ * @brief Brakes a channel: its outputs are shorted (op BRAKE)
+ * @param[in] device  H-bridge device id
+ * @param[in] channel Channel index
+ * @return The error of the device write
+ */
 MUST_USE err_h sys_hbridge_brake(uint16_t device, uint8_t channel);
+
+/**
+ * @brief Lets a channel run free: its outputs float (op COAST)
+ * @param[in] device  H-bridge device id
+ * @param[in] channel Channel index
+ * @return The error of the device write
+ */
 MUST_USE err_h sys_hbridge_coast(uint16_t device, uint8_t channel);
+
+/**
+ * @brief Reads the current of a channel (op CURRENT)
+ * @param[in]  device  H-bridge device id
+ * @param[in]  channel Channel index
+ * @param[out] out_mA  Current in mA
+ * @return ERR_DEV_BAD_ARG for a NULL out_mA, or the error of the device read
+ */
 MUST_USE err_h sys_hbridge_get_current_mA(uint16_t device, uint8_t channel, int32_t* out_mA);
 
 #ifdef __cplusplus

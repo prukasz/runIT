@@ -67,6 +67,7 @@ extern "C" {
 /** @brief The record of device `dev` (its device ID, u16): install and default commands. */
 #define SYS_ACTIONS_ID_DEVICE(dev) SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_DEVICE, dev)
 
+/** @brief What INFO answers: a stored record */
 typedef struct {
   uint16_t bytes;  /**< Image size in bytes */
   uint16_t count;  /**< Frame count */
@@ -76,6 +77,7 @@ typedef struct {
 /**
  * @brief Opens the actions namespace (partition CONFIG_SYS_ACTIONS_PARTITION,
  * initialised by the boot step "nvs"). Boot.
+ * @return The error of opening the namespace
  */
 MUST_USE err_h sys_actions_init(void);
 
@@ -85,6 +87,9 @@ MUST_USE err_h sys_actions_init(void);
  * frame (the way to start a project: one failing device doesn't leave the rest unconfigured), reports each later
  * failure (err_report) and returns the first. Only on a router task (ERR_ACTION_WRONG_TASK otherwise); a RUN in a
  * record nests up to CONFIG_SYS_ACTIONS_MAX_DEPTH.
+ * @param[in] id         The record's ID
+ * @param[in] keep_going false: stop at the first failing frame; true: run every frame
+ * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_WRONG_TASK, or the (first) failing frame wrapped in ERR_ACTION_STEP
  */
 MUST_USE err_h sys_actions_run(uint32_t id, bool keep_going);
 
@@ -92,6 +97,9 @@ MUST_USE err_h sys_actions_run(uint32_t id, bool keep_going);
  * @brief Queues a RUN of `id` as the board's own command (router_inject), for
  * callers that aren't a router task (events, the VM). Never blocks.
  * NULL = queued, not done: the run's errors are reported by the router.
+ * @param[in] id     The record's ID
+ * @param[in] urgent Queue it as an urgent command
+ * @return The error of queueing the RUN
  */
 MUST_USE err_h sys_actions_request(uint32_t id, bool urgent);
 
@@ -99,55 +107,114 @@ MUST_USE err_h sys_actions_request(uint32_t id, bool urgent);
  * @brief Writes a whole image: begin, write in order, commit. Commit checks the length, the CRC and the framing, stores
  * the image (replacing a record with that ID) and closes the draft, also on failure. One at a time (ERR_ACTION_BUSY);
  * the image is on the heap only while it is written.
+ * @param[in] id  The record's ID
+ * @param[in] len Image size in bytes
+ * @return ERR_ACTION_BUSY while another draft is open
  */
 MUST_USE err_h sys_actions_record_begin(uint32_t id, uint16_t len);
+
+/**
+ * @brief The next bytes of the open draft.
+ * @param[in] offset Must equal the bytes written so far
+ * @param[in] data   The bytes
+ * @param[in] len    Number of bytes
+ * @return The error of the write; a failure drops the draft
+ */
 MUST_USE err_h sys_actions_record_write(uint16_t offset, const uint8_t* data, uint16_t len);
+
+/**
+ * @brief Checks the draft's length, CRC and framing and stores it; the draft is closed also on failure.
+ * @param[in] crc32 CRC-32 of the whole image
+ * @return The error of the check or of the store
+ */
 MUST_USE err_h sys_actions_record_commit(uint32_t crc32);
 
 /**
  * @brief Stores a whole image from the firmware (the app's onboard actions), replacing a record with that ID. The
  * framing is checked like a commit's; nothing is written when the same image is already stored. Does not touch an
  * open draft.
+ * @param[in] id    The record's ID
+ * @param[in] image Frames back to back, each [u16 len LE][keys + payload]
+ * @param[in] len   Image size in bytes
+ * @return ERR_ACTION_BAD_FRAME for a damaged image, or the error of the store
  */
 MUST_USE err_h sys_actions_set(uint32_t id, const uint8_t* image, uint16_t len);
 
-/** @brief Copies record `from` to `to` (replacing it); CONFIG_SYS_ACTIONS_MAX_BYTES applies. Nothing is written when `to` already holds the same image. */
+/**
+ * @brief Copies record `from` to `to` (replacing it); CONFIG_SYS_ACTIONS_MAX_BYTES applies. Nothing is written when
+ * `to` already holds the same image.
+ * @param[in] from The record to copy
+ * @param[in] to   The record to write
+ * @return ERR_ACTION_NOT_FOUND, or the error of the store
+ */
 MUST_USE err_h sys_actions_copy(uint32_t from, uint32_t to);
 
 /** @brief Drops the record being written (nothing stored). No-op when none is open. */
 void sys_actions_abort(void);
 
+/**
+ * @brief Reads size, frame count and CRC of a stored record
+ * @param[in]  id  The record's ID
+ * @param[out] out Size, frame count, CRC-32
+ * @return ERR_ACTION_NOT_FOUND, or the error of the read
+ */
 MUST_USE err_h sys_actions_info(uint32_t id, sys_actions_info_t* out);
 
 /**
  * @brief Copies the stored image from byte `offset` into `buf`: as many bytes as are left, at most `cap` (`*len`; 0 at
  * the end). The mirror of an upload's writes; the image is what INFO's CRC covers.
- * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_OFFSET for an offset past the image.
+ * @param[in]  id     The record's ID
+ * @param[in]  offset Byte to start from
+ * @param[out] buf    Buffer for the bytes
+ * @param[in]  cap    Size of buf
+ * @param[out] len    Number of bytes written
+ * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_OFFSET for an offset past the image
  */
 MUST_USE err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len);
 
-/** @brief Called once per frame, in order: the frame exactly as recorded (keys + payload), borrowed. */
+/**
+ * @brief Called once per frame, in order: the frame exactly as recorded (keys + payload), borrowed.
+ * @param frame The frame
+ * @param len   Its size in bytes
+ * @param last  true for the last frame of the record
+ * @param ctx   The caller's context
+ * @return An error stops the walk
+ */
 typedef err_h (*sys_actions_frame_f)(const uint8_t* frame, uint16_t len, bool last, void* ctx);
 
 /**
  * @brief Walks a record frame by frame, as it was recorded or uploaded: `fn` for every frame, in order, until
- * one fails (that error is returned). ERR_ACTION_NOT_FOUND, ERR_ACTION_BAD_FRAME for a stored image that is damaged.
+ * one fails (that error is returned).
+ * @param[in] id  The record's ID
+ * @param[in] fn  Called for every frame
+ * @param[in] ctx Passed to fn
+ * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_BAD_FRAME for a stored image that is damaged, or the error of fn
  */
 MUST_USE err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx);
 
+/**
+ * @brief Removes a stored record
+ * @param[in] id The record's ID
+ * @return ERR_ACTION_NOT_FOUND, or the error of the store
+ */
 MUST_USE err_h sys_actions_remove(uint32_t id);
 
 /**
  * @brief Removes every stored record, of every class (settings, devices, project, user). ERR_ACTION_BUSY while a
  * record is being written. Stops at the first failing removal and returns its error; the records after it
  * stay.
+ * @return ERR_ACTION_BUSY, or the error of the first failing removal
  */
 MUST_USE err_h sys_actions_remove_all(void);
 
 /**
  * @brief The stored IDs from `start` up, ascending, at most `cap` of them.
- * @param count Set to the number written.
- * @param total Number of stored records (all IDs); may be NULL.
+ * @param[in]  start First ID to list
+ * @param[out] ids   Buffer for the IDs
+ * @param[in]  cap   Size of ids
+ * @param[out] count Set to the number written
+ * @param[out] total Number of stored records (all IDs); may be NULL
+ * @return The error of the read
  */
 MUST_USE err_h sys_actions_list(uint32_t start, uint32_t* ids, uint16_t cap, uint16_t* count, uint16_t* total);
 

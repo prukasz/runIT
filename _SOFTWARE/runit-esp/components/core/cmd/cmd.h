@@ -55,6 +55,10 @@ typedef struct cmd_req {
 /**
  * @brief The error record of a chain (ERRORS.MD "Error record"): of the command `cmd` (err_record_cmd), or an
  * internal one when `cmd` is NULL (err_record). The bytes of an ERROR answer and of the errors stream.
+ * @param[in]  cmd   The command, or NULL for an internal error
+ * @param[in]  chain The error chain
+ * @param[out] buf   Buffer for the record
+ * @param[in]  cap   Size of buf
  * @return Bytes written (0 only when cap is too small for the header).
  */
 uint32_t cmd_err_record(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
@@ -83,12 +87,19 @@ typedef enum {
 
 /**
  * @brief The side of a command that `dir` asks for (NULL `read` / `write`: the command has none).
+ * @param[in]  read  The read side, or NULL
+ * @param[in]  write The write side, or NULL
+ * @param[in]  dir   cmd_dir_e
+ * @param[out] fn    The side asked for
  * @return NULL when found; ERR_CMD_DIRECTION for a missing side or a dir that is neither read nor write.
  */
 MUST_USE err_h cmd_side(cmd_f read, cmd_f write, uint8_t dir, cmd_f* fn);
 
 /**
  * @brief Writes the whole answer.
+ * @param[out] out  The answer
+ * @param[in]  data The bytes
+ * @param[in]  len  Number of bytes
  * @return NULL when written; ERR_CMD_OUT_FULL (more than out->cap).
  * @usage return cmd_reply(out, &value, sizeof(value));
  */
@@ -96,6 +107,9 @@ MUST_USE err_h cmd_reply(cmd_out_t* out, const void* data, uint32_t len);
 
 /**
  * @brief Appends to the answer (out->len grows): an answer built in pieces.
+ * @param[in,out] out  The answer
+ * @param[in]     data The bytes
+ * @param[in]     len  Number of bytes
  * @return NULL when appended; ERR_CMD_OUT_FULL.
  * @usage ERR_TRY(cmd_append(out, &head, sizeof(head))); ERR_TRY(cmd_append(out, name, name_len));
  */

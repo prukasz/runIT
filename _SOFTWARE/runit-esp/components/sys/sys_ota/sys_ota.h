@@ -35,32 +35,49 @@ typedef struct {
 /** @brief Whether the board is too busy for an update (the VM runs). */
 typedef bool (*sys_ota_busy_f)(void);
 
-/** @brief Sets what BEGIN asks (NULL: never busy). Boot. */
+/**
+ * @brief Sets what BEGIN asks (NULL: never busy). Boot.
+ * @param[in] busy Whether the board is too busy for an update
+ */
 void sys_ota_set_guard(sys_ota_busy_f busy);
 
 /**
  * @brief Starts a write of `size` bytes into the other slot; a write left open is dropped.
+ * @param[in] size Image size in bytes
  * @return NULL when open; ERR_OTA_BUSY, ERR_OTA_TOO_BIG, or the flash's error (a firmware still to be confirmed takes no
  * update).
  */
 MUST_USE err_h sys_ota_begin(uint32_t size);
 
-/** @brief The next bytes of the image. ERR_OTA_NOT_OPEN, ERR_OTA_OFFSET unless `offset` is the bytes so far, ERR_OTA_TOO_BIG. */
+/**
+ * @brief The next bytes of the image.
+ * @param[in] offset Must be the bytes so far
+ * @param[in] data   The bytes
+ * @param[in] len    Number of bytes
+ * @return ERR_OTA_NOT_OPEN, ERR_OTA_OFFSET unless `offset` is the bytes so far, ERR_OTA_TOO_BIG
+ */
 MUST_USE err_h sys_ota_write(uint32_t offset, const uint8_t* data, uint32_t len);
 
 /**
- * @brief Ends the write: checks the image (ERR_OTA_INCOMPLETE, ERR_OTA_BAD_IMAGE) and makes it what the next boot starts.
- * The write is closed, also on failure. The running firmware is not touched.
+ * @brief Ends the write: checks the image and makes it what the next boot starts. The write is closed, also on
+ * failure. The running firmware is not touched.
+ * @return ERR_OTA_INCOMPLETE, ERR_OTA_BAD_IMAGE, or the flash's error
  */
 MUST_USE err_h sys_ota_commit(void);
 
 /** @brief Drops the write in progress. No-op when none is open. */
 void sys_ota_abort(void);
 
-/** @brief Keeps the running firmware: no restart goes back any more. No-op unless it is to be confirmed. */
+/**
+ * @brief Keeps the running firmware: no restart goes back any more. No-op unless it is to be confirmed.
+ * @return The error of the confirmation
+ */
 MUST_USE err_h sys_ota_confirm(void);
 
-/** @brief What runs now and the write in progress. */
+/**
+ * @brief What runs now and the write in progress.
+ * @return The slot, the firmware's state and the write in progress
+ */
 sys_ota_info_t sys_ota_info(void);
 
 #ifdef __cplusplus

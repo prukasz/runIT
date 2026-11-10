@@ -7,18 +7,23 @@
 extern "C" {
 #endif
 
-/**
- * @brief The IO contract: not a module with state, but opcodes (contract
- * SYS_DEVICE_CONTRACT_IO: 0x01xx, the IO_OPERATIONS table below) that mean the same on every device that has
- * them (a PWM expander, a GPIO expander, the ESP's own pins). A device
- * implements the ops it can in its table; the ops it has are its class. An op
- * it doesn't have answers ERR_DEV_UNKNOWN_OP. A device's pin is (device ID, pin);
- * using it is a call of that device's op, the same one a remote command makes.
- * The wrappers below build that call; they add nothing else.
- *
- * Payloads are packed little-endian structs. Duty is 0 .. IO_PWM_DUTY_MAX
- * (12-bit); a device with another resolution scales or rejects with
- * ERR_DEV_RANGE.
+/*
+ * SYS_DEVICE_CONTRACT_IO: 0x01xx, where 0x01 is the IO contract and xx its op. The pins of a device, the same ops on
+ * every device that has them (a PWM expander, a GPIO expander, the ESP's own pins). Not a module with state: a device
+ * implements the ops it can in its table, the ops it has are its class, an op it doesn't have answers
+ * ERR_DEV_UNKNOWN_OP. A device's pin is (device ID, pin); using it is a call of that device's op, the same one a remote
+ * command makes. The wrappers below build that call; they add nothing else.
+ * LEVEL    - the digital level of a pin, set and read
+ * TOGGLE   - inverts the level of an output pin
+ * PWM_DUTY - PWM duty of a pin, 0 .. IO_PWM_DUTY_MAX (12 bits); a device with another resolution scales or rejects
+ *            with ERR_DEV_RANGE
+ * PWM_FREQ - PWM frequency of a pin in Hz
+ * MODE     - sets the pin's mode (sys_io_mode_e)
+ * RESET    - puts the pin back to its power-on state
+ * INTR     - arms the pin's interrupt source (sys_io_intr_cfg_t); who gets the events is not part of the contract
+ * VOLTAGE  - the voltage of an analog pin in mV: a DAC output set, an ADC input read
+ * Events   - RISING, FALLING, ADC_OUTSIDE, ADC_INSIDE (IO_EVENTS below)
+ * Payloads are packed little-endian structs.
  */
 
 #define IO_PWM_DUTY_MAX 4095u
@@ -57,30 +62,36 @@ typedef enum sys_io_intr_mode_e {
   X(P, ADC_OUTSIDE, 0x02, 0) \
   X(P, ADC_INSIDE,  0x03, 0)
 
+/** @brief TOGGLE / RESET args and the LEVEL / VOLTAGE read key: a pin */
 typedef struct __attribute__((packed)) {
   uint8_t pin;  /**< Device pin index */
 } io_pin_args_t;
 
+/** @brief LEVEL args and answer */
 typedef struct __attribute__((packed)) {
   uint8_t pin;    /**< Device pin index */
   uint8_t level;  /**< 0 = Low, 1 = High */
 } io_level_args_t;
 
+/** @brief PWM_DUTY args */
 typedef struct __attribute__((packed)) {
   uint8_t pin;    /**< Device pin index */
   uint32_t duty;  /**< PWM duty, 0 to 4095 (12 bits) */
 } io_duty_args_t;
 
+/** @brief PWM_FREQ args */
 typedef struct __attribute__((packed)) {
   uint8_t pin;            /**< Device pin index */
   uint32_t frequency_Hz;  /**< PWM frequency in Hz */
 } io_freq_args_t;
 
+/** @brief MODE args */
 typedef struct __attribute__((packed)) {
   uint8_t pin;   /**< Device pin index */
   uint8_t mode;  /**< sys_io_mode_e */
 } io_mode_args_t;
 
+/** @brief VOLTAGE args and answer */
 typedef struct __attribute__((packed)) {
   uint8_t pin;         /**< Device pin index */
   int32_t voltage_mV;  /**< Voltage in mV */
@@ -146,38 +157,140 @@ typedef struct __attribute__((packed)) {
 #define SYS_IO_PIN_NONE_DEVICE SYS_DEVICE_ID_NONE  //@alias Device @description The device of an unused pin: no pin is used when the device is this
 #define SYS_IO_PIN_NONE_INDEX  0xFFu  //@alias Pin @description The pin index of an unused pin
 
+/**
+ * @brief Whether a pin reference is used (not SYS_IO_PIN_NONE)
+ * @param[in] p The pin
+ * @return true when it names a device
+ */
 static inline bool sys_io_pin_valid(sys_io_pin_t p) {
   return p.device != SYS_DEVICE_ID_NONE;
 }
 
-/** @brief A device's answer to a LEVEL / VOLTAGE read: the write's struct for the pin (the mirror). */
+/**
+ * @brief A device's answer to a LEVEL read: the write's struct for the pin (the mirror).
+ * @param[in]  pin   Device pin index
+ * @param[in]  level true: high
+ * @param[out] out   The op's answer
+ * @return The error of writing the answer
+ */
 MUST_USE err_h sys_io_reply_level(uint8_t pin, bool level, cmd_out_t* out);
+
+/**
+ * @brief A device's answer to a VOLTAGE read: the write's struct for the pin (the mirror).
+ * @param[in]  pin        Device pin index
+ * @param[in]  voltage_mV Voltage in mV
+ * @param[out] out        The op's answer
+ * @return The error of writing the answer
+ */
 MUST_USE err_h sys_io_reply_voltage(uint8_t pin, int32_t voltage_mV, cmd_out_t* out);
 
+/***************************************************************
+* C API
+******************************************************************/
+
+/**
+ * @brief Sets the mode of a pin (op MODE)
+ * @param[in] p    The pin
+ * @param[in] mode sys_io_mode_e
+ * @return ERR_DEV_UNKNOWN_OP if the device has no MODE, or the error of the device write
+ */
 MUST_USE err_h sys_io_set_mode(sys_io_pin_t p, sys_io_mode_e mode);
+
+/**
+ * @brief Puts a pin back to its power-on state (op RESET)
+ * @param[in] p The pin
+ * @return ERR_DEV_UNKNOWN_OP if the device has no RESET, or the error of the device write
+ */
 MUST_USE err_h sys_io_reset(sys_io_pin_t p);
+
 /**
  * @brief SET_MODE for a pin another driver uses: a device without SET_MODE (fixed-function pins: PCA9685 PWM channels,
  * DAC outputs) is fine, any other failure is returned.
+ * @param[in] p    The pin
+ * @param[in] mode sys_io_mode_e
+ * @return The error of the device write, except ERR_DEV_UNKNOWN_OP
  */
 MUST_USE err_h sys_io_prepare(sys_io_pin_t p, sys_io_mode_e mode);
+
 /**
  * @brief An open-drain alert / interrupt line as an input: with the pull-up where the device has one (ESP GPIO), else
  * plain (an expander such as the TCA6424A: the board has an external pull-up).
+ * @param[in] p The pin
+ * @return As sys_io_prepare
  */
 MUST_USE err_h sys_io_prepare_input(sys_io_pin_t p);
-/** @brief RESET for a pin another driver used: same tolerance as sys_io_prepare. */
+
+/**
+ * @brief RESET for a pin another driver used: same tolerance as sys_io_prepare.
+ * @param[in] p The pin
+ * @return The error of the device write, except ERR_DEV_UNKNOWN_OP
+ */
 MUST_USE err_h sys_io_release(sys_io_pin_t p);
+
+/**
+ * @brief Arms or disarms the interrupt source of a pin (op INTR)
+ * @param[in] p   The pin
+ * @param[in] cfg Mode, debounce and the ADC window
+ * @return ERR_DEV_BAD_ARG for a NULL cfg, or the error of the device write
+ */
 MUST_USE err_h sys_io_configure_intr(sys_io_pin_t p, const sys_io_intr_cfg_t* cfg);
 
+/**
+ * @brief Sets the level of an output pin (op LEVEL, write)
+ * @param[in] p     The pin
+ * @param[in] level true: high
+ * @return ERR_DEV_PIN_LOCKED for a locked pin, or the error of the device write
+ */
 MUST_USE err_h sys_io_set_level(sys_io_pin_t p, bool level);
+
+/**
+ * @brief Inverts the level of an output pin (op TOGGLE)
+ * @param[in] p The pin
+ * @return ERR_DEV_PIN_LOCKED for a locked pin, or the error of the device write
+ */
 MUST_USE err_h sys_io_toggle(sys_io_pin_t p);
+
+/**
+ * @brief Reads the level of a pin (op LEVEL, read); allowed on a locked pin
+ * @param[in]  p     The pin
+ * @param[out] level true: high
+ * @return ERR_DEV_BAD_ARG for a NULL level, or the error of the device read
+ */
 MUST_USE err_h sys_io_get_level(sys_io_pin_t p, bool* level);
 
+/**
+ * @brief Reads the voltage of an analog pin (op VOLTAGE, read)
+ * @param[in]  p      The pin
+ * @param[out] out_mV Voltage in mV
+ * @return ERR_DEV_BAD_ARG for a NULL out_mV, or the error of the device read
+ */
 MUST_USE err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV);
+
+/**
+ * @brief Sets the voltage of a DAC pin (op VOLTAGE, write)
+ * @param[in] p          The pin
+ * @param[in] voltage_mV Voltage in mV
+ * @return ERR_DEV_RANGE for a voltage the device can't reach, ERR_DEV_PIN_LOCKED for a locked pin, or the error of
+ * the device write
+ */
 MUST_USE err_h sys_io_set_voltage(sys_io_pin_t p, int32_t voltage_mV);
 
+/**
+ * @brief Sets the PWM duty of a pin (op PWM_DUTY)
+ * @param[in] p    The pin
+ * @param[in] duty 0 .. IO_PWM_DUTY_MAX (12 bits)
+ * @return ERR_DEV_RANGE for a duty above IO_PWM_DUTY_MAX, ERR_DEV_PIN_LOCKED for a locked pin, or the error of the
+ * device write
+ */
 MUST_USE err_h sys_io_set_pwm_duty(sys_io_pin_t p, uint32_t duty);
+
+/**
+ * @brief Sets the PWM frequency of a pin (op PWM_FREQ)
+ * @param[in] p            The pin
+ * @param[in] frequency_Hz Frequency in Hz
+ * @return ERR_DEV_RANGE for a frequency the device can't make, ERR_DEV_PIN_LOCKED for a locked pin, or the error of
+ * the device write
+ */
 MUST_USE err_h sys_io_set_pwm_frequency(sys_io_pin_t p, uint32_t frequency_Hz);
 
 #ifdef __cplusplus

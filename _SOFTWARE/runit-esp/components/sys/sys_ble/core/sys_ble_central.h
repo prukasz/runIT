@@ -29,7 +29,7 @@ typedef struct {
 /**
  * @brief Scans for runIT boards (their advertisement carries the runIT service) for `duration_ms`, the list of found
  * boards cleared first. Returns at once; the scan ends by itself.
- * @param duration_ms  How long to scan.
+ * @param[in] duration_ms How long to scan.
  * @return NULL when started; ERR_BLE_NOT_STARTED before the stack runs, ERR_BLE_SCAN when NimBLE refuses (a connect
  * being made).
  */
@@ -37,9 +37,9 @@ MUST_USE err_h sys_ble_central_scan(uint16_t duration_ms);
 
 /**
  * @brief The boards the last scan found.
- * @param out       Room for `max`.
- * @param max       How many fit.
- * @param scanning  Set to whether the scan still runs.
+ * @param[out] out      Room for `max`.
+ * @param[in]  max      How many fit.
+ * @param[out] scanning Set to whether the scan still runs.
  * @return How many were written.
  */
 uint8_t sys_ble_central_found(sys_ble_found_t* out, uint8_t max, bool* scanning);
@@ -48,9 +48,9 @@ uint8_t sys_ble_central_found(sys_ble_found_t* out, uint8_t max, bool* scanning)
  * @brief Makes provider `provider` a link to the board at `addr`: framed, up while connected to it and subscribed to
  * its runIT TX. The link connects as soon as the stack runs and again after every loss, until the provider is removed
  * (PROVIDER REMOVE). The session attached to it as SLAVE sends its hello when it comes up (SYS_SESSION.MD).
- * @param provider   Its id.
- * @param addr_type  0 public, 1 random.
- * @param addr       The board's address, least significant byte first.
+ * @param[in] provider  Its id.
+ * @param[in] addr_type 0 public, 1 random.
+ * @param[in] addr      The board's address, least significant byte first.
  * @return NULL when made; ERR_BLE_NO_MEM (every CONFIG_SYS_BLE_CENTRAL_LINKS link taken, or no heap), the registry's
  * ERR_PROV_EXISTS / ERR_PROV_FULL.
  */

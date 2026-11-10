@@ -83,9 +83,11 @@ typedef struct __attribute__((packed)) {
   sys_event_publish(&(sys_event_t){.source = (src), .event = PFX##_EV_##NAME, .channel = (ch), \
                                    .flags = PFX##_EV_##NAME##_FLAGS, .value = (val)})
 
-/* ----------------------------------------------------------------------------
- * The EVENT contract (0x03xx): a device that listens to events answers ON_EVENT
- * ------------------------------------------------------------------------- */
+/*
+ * SYS_DEVICE_CONTRACT_EVENT: 0x03xx, where 0x03 is the events contract and xx its op. A device that listens to events.
+ * ON_EVENT - an event delivered to the device (sys_event_t), a write. Always (runs while the device is suspended)
+ * No events.
+ */
 
 // The contract's only op, a write (OP_WRITE(EVENT, ON_EVENT), OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t.
 #define EVENT_OPERATIONS(X, P) X(P, ON_EVENT, 0x00, sys_device_args_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS)
@@ -96,7 +98,10 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, SYS_DEVICE_CONTRACT_EVENT)
  * C API
  * ------------------------------------------------------------------------- */
 
-/** @brief Starts the event task. Boot, after the events stream exists (notify sends to it). */
+/**
+ * @brief Starts the event task. Boot, after the events stream exists (notify sends to it).
+ * @return The error of the task start
+ */
 MUST_USE err_h sys_event_init(void);
 
 /**
@@ -115,7 +120,11 @@ typedef err_h (*sys_event_handler_f)(const sys_event_t* event, void* ctx);
 
 /**
  * @brief Adds device `device` as a listener: its ON_EVENT (sys_device_write) gets the matching events, inline.
- * @param handle Its handle, for sys_event_unsubscribe().
+ * @param[in]  source  Device id of the events' source, or SYS_EVENT_ANY_SOURCE
+ * @param[in]  event   SYS_EVENT_ID, SYS_EVENT_ANY_EVENT or (contract << 8) | SYS_EVENT_ANY_IN
+ * @param[in]  channel Pin / channel, or SYS_EVENT_ANY_CHANNEL
+ * @param[in]  device  The listener device
+ * @param[out] handle  Its handle, for sys_event_unsubscribe()
  * @return ERR_EVENT_BAD_ARG for SYS_DEVICE_ID_NONE, ERR_EVENT_TABLE_FULL when all CONFIG_SYS_EVENT_MAX_SUBS are used.
  */
 MUST_USE err_h sys_event_subscribe_device(uint16_t source, uint16_t event, uint8_t channel, uint16_t device,
@@ -123,18 +132,29 @@ MUST_USE err_h sys_event_subscribe_device(uint16_t source, uint16_t event, uint8
 
 /**
  * @brief Adds `fn(event, ctx)` as a listener, run by the event task.
+ * @param[in]  source  Device id of the events' source, or SYS_EVENT_ANY_SOURCE
+ * @param[in]  event   SYS_EVENT_ID, SYS_EVENT_ANY_EVENT or (contract << 8) | SYS_EVENT_ANY_IN
+ * @param[in]  channel Pin / channel, or SYS_EVENT_ANY_CHANNEL
+ * @param[in]  fn      The listener function
+ * @param[in]  ctx     Passed to fn
+ * @param[out] handle  Its handle, for sys_event_unsubscribe()
  * @return ERR_EVENT_BAD_ARG for a NULL fn, ERR_EVENT_TABLE_FULL when all CONFIG_SYS_EVENT_MAX_SUBS are used.
  */
 MUST_USE err_h sys_event_subscribe_fn(uint16_t source, uint16_t event, uint8_t channel, sys_event_handler_f fn,
                                       void* ctx, uint8_t* handle);
 
-/** @brief Removes a listener. It may still get an event already being delivered (a device target can't dangle). */
+/**
+ * @brief Removes a listener. It may still get an event already being delivered (a device target can't dangle).
+ * @param[in] handle The listener's handle
+ * @return The error of the removal
+ */
 MUST_USE err_h sys_event_unsubscribe(uint8_t handle);
 
 /**
  * @brief Publishes an event: sets t_ms, sends it to the events stream if it has SYS_EVENT_NOTIFY, runs the device
  * listeners (table order), then queues one copy for the function listeners if one matches. From an ISR all of it is
  * deferred to the event task; a drop there is counted and reported by the task.
+ * @param[in] event The event; t_ms is set here
  * @return ERR_EVENT_QUEUE_FULL when the queued copy didn't fit. Listener failures are reported, not returned.
  */
 MUST_USE err_h sys_event_publish(const sys_event_t* event);
@@ -142,6 +162,7 @@ MUST_USE err_h sys_event_publish(const sys_event_t* event);
 /**
  * @brief sys_event_publish with all of it in the event task. For a task an op may wait for (the ESP32-S3 GPIO's ADC
  * task): a device listener run there could need the registry lock that op holds (SYS_DEVICE.MD "Concurrency").
+ * @param[in] event The event; t_ms is set here
  * @return ERR_EVENT_QUEUE_FULL when it didn't fit.
  */
 MUST_USE err_h sys_event_publish_deferred(const sys_event_t* event);
@@ -149,6 +170,11 @@ MUST_USE err_h sys_event_publish_deferred(const sys_event_t* event);
 /**
  * @brief The match rule of a subscription: @p source, @p event and @p channel against an event, each exact or
  * SYS_EVENT_ANY_* / SYS_EVENT_ANY_IN. For code that filters events itself (the VM's ON_EVENT block).
+ * @param[in] source  Device id, or SYS_EVENT_ANY_SOURCE
+ * @param[in] event   SYS_EVENT_ID, SYS_EVENT_ANY_EVENT or (contract << 8) | SYS_EVENT_ANY_IN
+ * @param[in] channel Pin / channel, or SYS_EVENT_ANY_CHANNEL
+ * @param[in] e       The event
+ * @return true when the event matches
  */
 bool sys_event_matches(uint16_t source, uint16_t event, uint8_t channel, const sys_event_t* e);
 
@@ -163,8 +189,8 @@ _Static_assert(sizeof(sys_event_filter_t) == 5, "event filter");
 
 /**
  * @brief Whether an event passes a filter: sys_event_matches on the filter's fields. Any context, an ISR too.
- * @param f  The filter.
- * @param e  The event.
+ * @param[in] f The filter.
+ * @param[in] e The event.
  * @return true when it passes.
  */
 bool sys_event_filter_match(const sys_event_filter_t* f, const sys_event_t* e);

@@ -47,7 +47,7 @@ MUST_USE err_h sys_stream_init(void);
 /**
  * @brief Creates a stream: the board's own at boot (then sys_stream_mark_system), the board's code and the remote
  * interface (CREATE).
- * @param cfg  What it is.
+ * @param[in] cfg What it is.
  * @return NULL when created; ERR_STREAM_BAD_ARG (id 0 or from 0x80, a bad direction or flag), ERR_STREAM_EXISTS,
  * ERR_STREAM_FULL (CONFIG_SYS_STREAM_MAX).
  */
@@ -60,8 +60,9 @@ MUST_USE err_h sys_stream_create(const sys_stream_cfg_t* cfg);
 void sys_stream_mark_system(void);
 
 /**
- * @brief Removes a user stream: its targets end, its bindings' providers are closed. ERR_STREAM_SYSTEM for a system
- * one.
+ * @brief Removes a user stream: its targets end, its bindings' providers are closed.
+ * @param[in] id The stream
+ * @return ERR_STREAM_SYSTEM for a system stream, ERR_STREAM_NOT_FOUND
  */
 MUST_USE err_h sys_stream_remove(uint8_t id);
 
@@ -69,8 +70,8 @@ MUST_USE err_h sys_stream_remove(uint8_t id);
  * @brief Binds a stream to a provider: an OUT stream sends its payloads there as they are (it only names the provider:
  * whoever binds answers for what goes there; a provider that is not there counts in the target's dropped), an IN stream
  * takes what comes in there and holds the provider's rx hook. Bound already: nothing changes.
- * @param id        The stream.
- * @param provider  The provider.
+ * @param[in] id       The stream.
+ * @param[in] provider The provider.
  * @return NULL when bound; ERR_STREAM_NOT_FOUND, ERR_STREAM_TARGETS_FULL; an IN stream also the provider's open error
  * (ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE).
  */
@@ -79,8 +80,8 @@ MUST_USE err_h sys_stream_bind(uint8_t id, uint8_t provider);
 /**
  * @brief Adds a way out to an IN stream: what comes in goes to this provider as is, so a provider's bytes reach another
  * one (a tunnel is two IN streams, one each way). It only names the provider, as an OUT stream's binding does.
- * @param id        The IN stream.
- * @param provider  The provider.
+ * @param[in] id       The IN stream.
+ * @param[in] provider The provider.
  * @return NULL when added or there already; ERR_STREAM_NOT_FOUND, ERR_STREAM_DIRECTION (an OUT stream),
  * ERR_STREAM_TARGETS_FULL.
  */
@@ -90,24 +91,24 @@ MUST_USE err_h sys_stream_output(uint8_t id, uint8_t provider);
  * @brief Adds a provider of another board as a target, or a client's receiver: each message goes there in a data frame,
  * and that board sends it on the provider without a header. It is configuration: it stays when that peer is gone, and
  * what can't reach it counts in the target's dropped. The message must fit: at most CMD_DATA_MAX - 3.
- * @param id        The stream, OUT or IN.
- * @param board     The board or client: not this board (its providers are bindings and outputs).
- * @param provider  The provider's id on that board.
+ * @param[in] id       The stream, OUT or IN.
+ * @param[in] board    The board or client: not this board (its providers are bindings and outputs).
+ * @param[in] provider The provider's id on that board.
  * @return NULL when added or there already; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG, ERR_STREAM_TARGETS_FULL.
  */
 MUST_USE err_h sys_stream_remote(uint8_t id, uint8_t board, uint8_t provider);
 
 /**
  * @brief Removes a binding, an output or a remote target (on any board); an IN stream's binding gives its provider's rx hook back (NULL when it was not bound).
- * @param id        The stream.
- * @param provider  The provider.
+ * @param[in] id       The stream.
+ * @param[in] provider The provider.
  * @return NULL; ERR_STREAM_NOT_FOUND.
  */
 MUST_USE err_h sys_stream_unbind(uint8_t id, uint8_t provider);
 
 /**
  * @brief Removes every binding, output and remote target of the stream, as sys_stream_unbind() does.
- * @param id  The stream.
+ * @param[in] id The stream.
  * @return NULL; ERR_STREAM_NOT_FOUND.
  */
 MUST_USE err_h sys_stream_unbind_all(uint8_t id);
@@ -115,8 +116,8 @@ MUST_USE err_h sys_stream_unbind_all(uint8_t id);
 /**
  * @brief Subscribes a peer to a stream: each of its messages goes to the peer as a PUSH frame, [stream id][payload]
  * (sys_session_push). Again for the same peer: one subscription. Until UNSUBSCRIBE or the peer is gone.
- * @param id    The stream.
- * @param peer  A peer id (SUBSCRIBE: the command's src).
+ * @param[in] id   The stream.
+ * @param[in] peer A peer id (SUBSCRIBE: the command's src).
  * @return NULL when subscribed; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG (SYS_SESSION_ID_SELF, NONE or BROADCAST),
  * ERR_STREAM_TARGETS_FULL.
  */
@@ -124,8 +125,8 @@ MUST_USE err_h sys_stream_subscribe(uint8_t id, uint8_t peer);
 
 /**
  * @brief Ends a peer's subscription.
- * @param id    The stream.
- * @param peer  The peer.
+ * @param[in] id   The stream.
+ * @param[in] peer The peer.
  * @return NULL when ended or not subscribed; ERR_STREAM_NOT_FOUND.
  */
 MUST_USE err_h sys_stream_unsubscribe(uint8_t id, uint8_t peer);
@@ -133,30 +134,36 @@ MUST_USE err_h sys_stream_unsubscribe(uint8_t id, uint8_t peer);
 /**
  * @brief Adds a callback of the board's code as a target: it gets each message on the stream task (the VM's input
  * slots, a C module). The same fn and ctx again: one target.
- * @param id   The stream.
- * @param fn   The callback.
- * @param ctx  Given to `fn`.
+ * @param[in] id  The stream.
+ * @param[in] fn  The callback.
+ * @param[in] ctx Given to `fn`.
  * @return NULL when added; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG (fn NULL), ERR_STREAM_TARGETS_FULL.
  */
 MUST_USE err_h sys_stream_listen(uint8_t id, sys_stream_callback_f fn, void* ctx);
 
 /**
  * @brief Removes a callback added with sys_stream_listen(). It may still get a message being delivered now.
+ * @param[in] id  The stream
+ * @param[in] fn  The callback
+ * @param[in] ctx The callback's context
  * @return NULL when removed or not there; ERR_STREAM_NOT_FOUND.
  */
 MUST_USE err_h sys_stream_unlisten(uint8_t id, sys_stream_callback_f fn, void* ctx);
 
 /**
  * @brief Queues a payload for every target of an OUT stream. Never blocks, any task.
- * @param id    The stream.
- * @param data  The payload.
- * @param len   Bytes in `data`.
+ * @param[in] id   The stream.
+ * @param[in] data The payload.
+ * @param[in] len  Bytes in `data`.
  * @return NULL when queued, or dropped without a target; ERR_STREAM_NOT_FOUND, ERR_STREAM_DIRECTION (an IN stream),
  * ERR_STREAM_TOO_LONG (longer than SYS_STREAM_PAYLOAD_MAX), ERR_STREAM_QUEUE_FULL.
  */
 MUST_USE err_h sys_stream_send(uint8_t id, const void* data, uint32_t len);
 
-/** @brief True when the caller runs on the stream task (the log hook skips its lines: they would loop). */
+/**
+ * @brief Whether the caller runs on the stream task (the log hook skips its lines: they would loop).
+ * @return true on the stream task
+ */
 bool sys_stream_is_task(void);
 
 #ifdef __cplusplus

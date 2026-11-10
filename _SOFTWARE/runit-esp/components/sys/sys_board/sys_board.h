@@ -12,10 +12,16 @@
 #define SYS_BOARD_ACTIONS_CLASS 0x04u
 #define SYS_BOARD_RECORD_ID     SYS_ACTIONS_ID(SYS_BOARD_ACTIONS_CLASS, 0)
 
-/** @brief Opens the profile's JSON. Boot, after the step "nvs". */
+/**
+ * @brief Opens the profile's JSON. Boot, after the step "nvs".
+ * @return The error of opening the file
+ */
 MUST_USE err_h sys_board_init(void);
 
-/** @brief The profile's JSON: the app's definition of the board, the firmware never reads it. */
+/**
+ * @brief The profile's JSON: the app's definition of the board, the firmware never reads it.
+ * @return The profile's file
+ */
 sys_nvs_json_t* sys_board_json(void);
 
 /**

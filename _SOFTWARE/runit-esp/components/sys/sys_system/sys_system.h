@@ -30,28 +30,34 @@ typedef err_h (*sys_safe_leave_f)(void);
 /**
  * @brief Sets the safe-state handler (runs on the caller's task: the router's urgent task for STOP, the dead-man and a lost
  * link). Boot only. NULL = only logged.
+ * @param[in] fn The safe-state handler
  */
 void sys_system_set_safe_state(sys_safe_state_f fn);
 
 /**
  * @brief Sets what leaving the safe state does (SYS SAFE_LEAVE): the devices resumed. Boot only. NULL: SAFE_LEAVE only clears
  * the note.
+ * @param[in] fn The leave handler
  */
 void sys_system_set_safe_leave(sys_safe_leave_f fn);
 
 /**
  * @brief Enters the safe state for `reason`: the handler runs and the reason and the time are noted (SYS SAFE_GET) until
  * sys_system_leave_safe_state.
+ * @param[in] reason Why the board enters the safe state
  */
 void sys_system_enter_safe_state(sys_safe_reason_e reason);
 
 /**
  * @brief Runs the registered leave (the devices resumed), then clears the note; the note stays when the leave fails.
+ * @return The error of the leave handler
  */
 MUST_USE err_h sys_system_leave_safe_state(void);
 
 /**
  * @brief The safe state as noted: the reason of the last entry (0 = not in it) and how long ago, in ms.
+ * @param[out] reason sys_safe_reason_e of the last entry, 0: not in the safe state
+ * @param[out] for_ms Milliseconds since the entry
  */
 void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms);
 
@@ -60,11 +66,15 @@ void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms);
  * CONFIG_SYS_SESSION_TIMEOUT_MS); else it is their timeout (sys_session_set_timeout), and a client's session that
  * ends (silence that long, its link lost) enters the safe state. Not stored: after a restart it is
  * CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS again.
- * @return NULL when set; ERR_CMD_BAD_ARG (not 0 and outside SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS).
+ * @param[in] timeout_ms 0: off, else SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS
+ * @return NULL when set; ERR_CMD_BAD_ARG (not 0 and outside SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS)
  */
 MUST_USE err_h sys_system_deadman_set(uint32_t timeout_ms);
 
-/** @brief The dead-man's time; 0 = off. */
+/**
+ * @brief The dead-man's time.
+ * @return Milliseconds; 0 = off
+ */
 uint32_t sys_system_deadman_get(void);
 
 /**
@@ -77,6 +87,7 @@ void sys_system_broadcast_time(void);
 /**
  * @brief Listens for gone peers (sys_session_on_gone) and reached ones (the time), starts the time broadcast's timer
  * and arms the dead-man with its boot default. Boot, after sys_session_init.
+ * @return The error of the listeners or of the timer
  */
 MUST_USE err_h sys_system_init(void);
 

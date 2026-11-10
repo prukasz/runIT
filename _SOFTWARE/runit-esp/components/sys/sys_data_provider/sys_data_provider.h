@@ -36,9 +36,9 @@ typedef void (*sys_data_provider_rx_f)(void* ctx, uint8_t id, const uint8_t* dat
 /**
  * @brief Takes a provider's rx hook: its one owner (a session, an IN stream's binding, the command binding) gets what comes
  * in, and the provider can't be removed until it is closed. Sending needs no open: see sys_data_provider_send().
- * @param id   The provider.
- * @param rx   What comes in and what changes goes there; NULL: send only.
- * @param ctx  Given to `rx`.
+ * @param[in] id  The provider.
+ * @param[in] rx  What comes in and what changes goes there; NULL: send only.
+ * @param[in] ctx Given to `rx`.
  * @return NULL when open; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (the hook has an owner), ERR_PROV_NO_RX (`rx` given, and this
  * provider delivers to no hook; NULL takes it all the same: its owner reads from its driver).
  */
@@ -46,7 +46,7 @@ MUST_USE err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, voi
 
 /**
  * @brief Gives the rx hook back: what comes in is dropped.
- * @param id  The provider.
+ * @param[in] id The provider.
  * @return NULL when closed or not open; ERR_PROV_NOT_FOUND.
  */
 MUST_USE err_h sys_data_provider_close(uint8_t id);
@@ -57,10 +57,10 @@ MUST_USE err_h sys_data_provider_close(uint8_t id);
  * the app offers no provider a session has). Without NOWAIT it waits for
  * room there, at most the driver's own bound: not from a driver's RX task. With NOWAIT it only queues: any task, a
  * driver's RX task too (the session answers a refused request from there).
- * @param id     The provider.
- * @param data   The frame.
- * @param len    Bytes in `data`, at most CMD_FRAME_MAX.
- * @param flags  SYS_DATA_PROVIDER_SEND_URGENT, SYS_DATA_PROVIDER_SEND_NOWAIT, or 0.
+ * @param[in] id    The provider.
+ * @param[in] data  The frame.
+ * @param[in] len   Bytes in `data`, at most CMD_FRAME_MAX.
+ * @param[in] flags SYS_DATA_PROVIDER_SEND_URGENT, SYS_DATA_PROVIDER_SEND_NOWAIT, or 0.
  * @return NULL when queued; ERR_PROV_NOT_FOUND, ERR_PROV_DOWN, ERR_PROV_TOO_LONG (past CMD_FRAME_MAX: not sent, never
  * cut), ERR_PROV_BUSY (the driver's queue full: at once with NOWAIT, else at its bound), or the driver's error wrapped
  * in ERR_PROV_SEND (a raw provider's link can't take it).
@@ -69,7 +69,7 @@ MUST_USE err_h sys_data_provider_send(uint8_t id, const uint8_t* data, uint32_t 
 
 /**
  * @brief The provider's state (SYS_DATA_PROVIDER_STATE_*). Any task.
- * @param id  The provider.
+ * @param[in] id The provider.
  * @return Its state; 0 when it does not exist.
  */
 uint8_t sys_data_provider_state(uint8_t id);
@@ -79,29 +79,41 @@ uint8_t sys_data_provider_state(uint8_t id);
  * message that comes in is one command, [key][dir][code | id + op][args] with no header, run with src ROUTER_SRC_NONE,
  * and its answer goes back on the provider as [status][data] (router_status_e; on ERROR the error record). This board
  * only: nothing is forwarded. For a client outside runIT (a script, Node-RED) that needs no session.
- * @param id  The provider.
+ * @param[in] id The provider.
  * @return NULL when bound; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (the rx hook has an owner: a session, an IN stream, this binding).
  */
 MUST_USE err_h sys_data_provider_bind_commands(uint8_t id);
 
 /**
  * @brief Ends a provider's command binding and closes it; an answer still on its way is dropped.
- * @param id  The provider.
+ * @param[in] id The provider.
  * @return NULL when unbound or not bound; the close error.
  */
 MUST_USE err_h sys_data_provider_unbind_commands(uint8_t id);
 
-/** @brief Whether the provider is up (SYS_DATA_PROVIDER_STATE_UP): it delivers frames now. Any task. */
+/**
+ * @brief Whether the provider is up (SYS_DATA_PROVIDER_STATE_UP): it delivers frames now. Any task.
+ * @param[in] id The provider
+ * @return true while up
+ */
 static inline bool sys_data_provider_is_up(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_UP) != 0;
 }
 
-/** @brief Whether its driver carries a whole frame (SYS_DATA_PROVIDER_STATE_FRAMED); else it is raw. Any task. */
+/**
+ * @brief Whether its driver carries a whole frame (SYS_DATA_PROVIDER_STATE_FRAMED); else it is raw. Any task.
+ * @param[in] id The provider
+ * @return true for a framed driver
+ */
 static inline bool sys_data_provider_is_framed(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_FRAMED) != 0;
 }
 
-/** @brief Whether the provider's link is a cable (SYS_DATA_PROVIDER_STATE_WIRED): about a millisecond a round trip. */
+/**
+ * @brief Whether the provider's link is a cable (SYS_DATA_PROVIDER_STATE_WIRED): about a millisecond a round trip.
+ * @param[in] id The provider
+ * @return true for a cable
+ */
 static inline bool sys_data_provider_is_wired(uint8_t id) {
   return (sys_data_provider_state(id) & SYS_DATA_PROVIDER_STATE_WIRED) != 0;
 }

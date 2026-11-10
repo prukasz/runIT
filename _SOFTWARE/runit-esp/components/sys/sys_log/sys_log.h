@@ -35,16 +35,21 @@ typedef struct sys_log_cfg sys_log_cfg_t;
  * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
  * end, cut to CONFIG_SYS_LOG_LINE_MAX, to the logs stream (SYS_STREAM_LOGS); then applies the defaults (INFO,
  * mirror off, trace on, send errors on, send logs on). Boot step, after the logs and errors streams exist.
+ * @return The error of the hook or of the defaults
  */
 MUST_USE err_h sys_log_init(void);
 
 /**
  * @brief Applies the options at once (not stored: the app saves the CONFIG write frame as a record).
- * @return ERR_LOG_BAD_LEVEL{level, max}, ERR_CMD_BAD_ARG for a flag other than 0 / 1 (nothing changes).
+ * @param[in] cfg The five options
+ * @return ERR_LOG_BAD_LEVEL{level, max}, ERR_CMD_BAD_ARG for a flag other than 0 / 1 (nothing changes)
  */
 MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);
 
-/** @brief The options in force. */
+/**
+ * @brief The options in force.
+ * @param[out] out The five options
+ */
 void sys_log_get(sys_log_cfg_t* out);
 
 /** @brief The largest error record kept (and sent on the errors stream): longer ones are cut by err_record to this. */
@@ -54,10 +59,18 @@ void sys_log_get(sys_log_cfg_t* out);
  * @brief An error record (err_record): kept in the history the app reads with ERRORS (the latest
  * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped) and, with send_errors on, sent on the errors stream
  * (SYS_STREAM_ERRORS). Any task; never reports (the error sink calls it for every error).
+ * @param[in] record The record
+ * @param[in] len    Its size in bytes
  */
 void sys_log_error(const uint8_t* record, uint32_t len);
 
-/** @brief The kept record at `index` (0 = the oldest) copied to `out` (capacity SYS_LOG_RECORD_MAX); its length, 0 past the end. `total` is how many are kept. */
+/**
+ * @brief The kept record at `index` copied to `out`.
+ * @param[in]  index 0 = the oldest
+ * @param[out] out   Buffer of SYS_LOG_RECORD_MAX bytes
+ * @param[out] total How many records are kept
+ * @return The record's length; 0 past the end
+ */
 uint32_t sys_log_error_get(uint32_t index, uint8_t* out, uint32_t* total);
 
 #ifdef __cplusplus

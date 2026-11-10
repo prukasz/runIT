@@ -56,6 +56,7 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Boot step: the LVGL task, idle. LVGL itself runs from INSTALL (lv_init on its pool) to RESET (lv_deinit).
+ * @return The error of the task start
  */
 MUST_USE err_h sys_lvgl_init(void);
 
@@ -65,44 +66,71 @@ MUST_USE err_h sys_lvgl_init(void);
  * state listener): the LVGL task holds this one across FLUSH, a deadlock. Held by the LVGL task at most one frame.
  */
 void sys_lvgl_lock(void);
+
+/** @brief Releases the LVGL lock taken by sys_lvgl_lock(). */
 void sys_lvgl_unlock(void);
 
 /**
  * @brief INSTALL: the display and the touch, LVGL on its pool of heap_bytes, the draw buffers; then the adapter runs.
+ * @param[in] install The display, the touch and the pool size
  * @return ERR_LVGL_INSTALLED when installed (RESET first), ERR_LVGL_NOT_DISPLAY / ERR_LVGL_NOT_TOUCH around the
  * device's error, ERR_LVGL_FORMAT, ERR_LVGL_FLUSH_MAX, ERR_LVGL_NO_MEMORY, ERR_LVGL_HEAP; a failure leaves it empty
  */
 MUST_USE err_h sys_lvgl_install(const sys_lvgl_install_t* install);
 
-/** @brief What is installed: SYS_DEVICE_ID_NONE and heap_bytes 0 when empty. */
+/**
+ * @brief What is installed: SYS_DEVICE_ID_NONE and heap_bytes 0 when empty.
+ * @param[out] out The display, the touch and the pool size
+ * @return The error of the read
+ */
 MUST_USE err_h sys_lvgl_get_install(sys_lvgl_install_t* out);
 
 /**
  * @brief RESET: waits for the last FLUSH, calls the reset hook, deletes the touch and the display, stops LVGL
  * (lv_deinit) and frees its pool and the buffers. Empty: nothing to do.
+ * @return The error of deleting the devices
  */
 MUST_USE err_h sys_lvgl_reset(void);
 
-/** @brief START: draws and reads the touch again, the whole screen redrawn. ERR_LVGL_NOT_INSTALLED when empty. */
+/**
+ * @brief START: draws and reads the touch again, the whole screen redrawn.
+ * @return ERR_LVGL_NOT_INSTALLED when empty
+ */
 MUST_USE err_h sys_lvgl_start(void);
 
-/** @brief STOP: waits for the last FLUSH; no drawing, no touch; the objects stay. ERR_LVGL_NOT_INSTALLED when empty. */
+/**
+ * @brief STOP: waits for the last FLUSH; no drawing, no touch; the objects stay.
+ * @return ERR_LVGL_NOT_INSTALLED when empty
+ */
 MUST_USE err_h sys_lvgl_stop(void);
 
 /**
  * @brief ROTATION: waits for the last FLUSH, turns the panel (DISPLAY ORIENTATION), then LVGL (lv_display_set_rotation,
  * which redraws the screen).
+ * @param[in] rotation sys_display_orientation_e
  * @return ERR_LVGL_NOT_INSTALLED when empty, ERR_DEV_RANGE past 270 deg, or the display's error
  */
 MUST_USE err_h sys_lvgl_set_rotation(uint8_t rotation);
+
+/**
+ * @brief Reads the rotation
+ * @param[out] out sys_display_orientation_e
+ * @return ERR_LVGL_NOT_INSTALLED when empty, or the error of the read
+ */
 MUST_USE err_h sys_lvgl_get_rotation(uint8_t* out);
 
+/**
+ * @brief Reads the adapter's state, buffers, pool and flush counters
+ * @param[out] out The status
+ * @return The error of the read
+ */
 MUST_USE err_h sys_lvgl_get_status(sys_lvgl_status_t* out);
 
 /**
  * @brief Before anything that makes LVGL allocate (a widget, a longer text): whether `need` bytes fit in LVGL's pool
  * and leave CONFIG_SYS_LVGL_POOL_RESERVE free, for what LVGL allocates by itself while it draws. LVGL does not survive
  * a full pool (SYS_LVGL.MD "The pool"): the layer that makes widgets calls this first and refuses with its error.
+ * @param[in] need Bytes the caller is about to make LVGL allocate
  * @return ERR_LVGL_NOT_INSTALLED when empty, ERR_LVGL_POOL_FULL{free, need, reserve}
  */
 MUST_USE err_h sys_lvgl_pool_check(uint32_t need);
@@ -110,13 +138,18 @@ MUST_USE err_h sys_lvgl_pool_check(uint32_t need);
 /** @brief Called by RESET under the LVGL lock before the display is deleted: the upper layer drops its widgets. */
 typedef void (*sys_lvgl_reset_f)(void);
 
-/** @brief Sets the reset hook (sys_screen); boot only, one. */
+/**
+ * @brief Sets the reset hook (sys_screen); boot only, one.
+ * @param[in] fn The hook
+ */
 void sys_lvgl_set_reset_hook(sys_lvgl_reset_f fn);
 
 /**
  * @brief A device's state changed (the registry's state listener, runit_error_policy.c): for the installed display
  * (or SYS_DEVICE_ID_NONE, every device) it sets a bit of the LVGL task: SUSPENDED pauses drawing, RESUMED and RESET set
  * the rotation again and redraw. Never waits; takes no lock.
+ * @param[in] id     Device id, or SYS_DEVICE_ID_NONE for a sweep
+ * @param[in] change SUSPENDED, RESUMED or RESET
  */
 void sys_lvgl_device_state(uint16_t id, sys_device_state_e change);
 

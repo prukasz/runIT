@@ -57,14 +57,14 @@ typedef struct {
 
 /**
  * @brief Sets the remote hook. Boot only, one (sys_remote_init).
- * @param ops  The hook; valid for good.
+ * @param[in] ops The hook; valid for good.
  */
 void sys_device_set_remote(const sys_device_remote_ops_t* ops);
 
 /**
  * @brief The local id of a remote device. Any task.
- * @param board      Its board.
- * @param remote_id  Its id there.
+ * @param[in] board     Its board.
+ * @param[in] remote_id Its id there.
  * @return The local id; SYS_DEVICE_ID_NONE when there is none.
  */
 uint16_t sys_device_find_remote(uint8_t board, uint16_t remote_id);

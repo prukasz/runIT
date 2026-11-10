@@ -227,33 +227,70 @@ typedef void (*sys_power_safe_state_f)(void);
  * @brief Starts with the default settings, guards POWER_VREG, subscribes to the rails' and monitors' events and starts the task.
  * Boot step, after sys_event_init. The devices may come later: a missing input monitor is
  * skipped until it answers, a missing rail counts as off.
+ * @param[in] safe_state The app's safe state for the SAFE_STATE response; NULL: suspend every device
+ * @return The error of the subscriptions or of the task start
  */
 MUST_USE err_h sys_power_manager_init(sys_power_safe_state_f safe_state);
 
-/** @brief Sets the board's input and limits; refused (ERR_PWRM_BAD_ARG) once a rail is added. From the board's profile. */
+/**
+ * @brief Sets the board's input and limits; refused (ERR_PWRM_BAD_ARG) once a rail is added. From the board's profile.
+ * @param[in] layout The input, its monitor, the limits and the source pins
+ * @return ERR_PWRM_BAD_ARG for a bad layout or once a rail is added
+ */
 MUST_USE err_h sys_power_manager_set_layout(const sys_power_layout_t* layout);
 
-/** @brief Adds a rail, with the board's responses; a rail stays until the board restarts. From the board's profile. */
+/**
+ * @brief Adds a rail, with the board's responses; a rail stays until the board restarts. From the board's profile.
+ * @param[in] rail The regulator, its monitor and its lowest current limit
+ * @return ERR_PWRM_BAD_ARG for a bad rail or past CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS
+ */
 MUST_USE err_h sys_power_manager_add_rail(const sys_power_rail_t* rail);
 
-/** @brief Stored at once, applied on the next tick (woken now). enabled, strict 0 / 1, soft_margin_pct 0..100, source a
- * sys_power_source_e. */
+/**
+ * @brief Stored at once, applied on the next tick (woken now).
+ * @param[in] cfg enabled, strict 0 / 1, soft_margin_pct 0..100, source a sys_power_source_e
+ * @return ERR_PWRM_BAD_ARG for a value out of range
+ */
 MUST_USE err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg);
+
+/**
+ * @brief The settings as set
+ * @param[out] out The budget settings
+ */
 void sys_power_manager_get_config(sys_power_manager_cfg_t* out);
 
-/** @brief Stored. 0 / 0 removes it. */
+/**
+ * @brief Stored. 0 / 0 removes it.
+ * @param[in] psu The external supply's limits
+ * @return ERR_PWRM_BAD_ARG for a value out of range
+ */
 MUST_USE err_h sys_power_manager_set_psu(const sys_power_psu_t* psu);
-/** @brief Stored. chemistry NONE removes it. A battery set: a live external input is the battery, else a PSU. */
+
+/**
+ * @brief Stored. chemistry NONE removes it. A battery set: a live external input is the battery, else a PSU.
+ * @param[in] battery The battery configuration
+ * @return ERR_PWRM_BAD_ARG for a value out of range
+ */
 MUST_USE err_h sys_power_manager_set_battery(const sys_power_battery_t* battery);
-/** @brief The external supply as set (0 / 0 = none). */
+
+/**
+ * @brief The external supply as set (0 / 0 = none).
+ * @param[out] out The supply's limits
+ */
 void sys_power_manager_get_psu(sys_power_psu_t* out);
-/** @brief The battery as set (chemistry NONE = none). */
+
+/**
+ * @brief The battery as set (chemistry NONE = none).
+ * @param[out] out The battery configuration
+ */
 void sys_power_manager_get_battery(sys_power_battery_t* out);
 
 /**
  * @brief Rows of the matrix, each with its target (what sys_power_manager_get_matrix gives): matched by target, so the
  * order doesn't matter; a target left out keeps its row. All checked before anything changes. The app saves the
  * MATRIX write as the record SYS_ACTIONS_ID_POWER_RESPONSES.
+ * @param[in] rows  Rows, each with its target
+ * @param[in] count Number of rows
  * @return ERR_PWRM_NOT_RAIL for a target that is neither the board nor a rail, ERR_PWRM_BAD_ARG for a response out of
  * range, ERR_CMD_BAD_LEN for more rows than the board has.
  */
@@ -262,10 +299,18 @@ MUST_USE err_h sys_power_manager_set_matrix(const sys_power_response_row_t* rows
 /**
  * @brief The whole matrix, each row with its target: the board first, then the rails in the board config's order (what a
  * MATRIX read answers). `cap` rows at most; `*count` gets the number written.
+ * @param[out] rows  Buffer for the rows
+ * @param[in]  cap   Size of rows
+ * @param[out] count Number of rows written
  * @return ERR_PWRM_NOT_READY before init, ERR_CMD_BAD_LEN when `cap` is too small.
  */
 MUST_USE err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, uint8_t* count);
 
+/**
+ * @brief The source, the input, the budget and what is allocated
+ * @param[out] out The status
+ * @return ERR_PWRM_NOT_READY before init
+ */
 MUST_USE err_h sys_power_manager_get_status(sys_power_status_t* out);
 
 /**
@@ -273,8 +318,15 @@ MUST_USE err_h sys_power_manager_get_status(sys_power_status_t* out);
  * voltage offered; VOLTAGE: `voltage_mV` (1 .. the board's max_mV). A range profile (PPS / AVS) gives the voltage
  * itself, else the highest fixed profile at or below it (PD_FIXED is published); the current is the most that profile
  * offers. Both capped by the board's max_mV / max_mA.
+ * @param[in] pd Mode and, for VOLTAGE, the voltage
+ * @return ERR_PWRM_BAD_ARG for a value out of range
  */
 MUST_USE err_h sys_power_manager_set_pd(const sys_power_pd_t* pd);
+
+/**
+ * @brief What is asked of the USB-PD charger
+ * @param[out] out Mode and voltage
+ */
 void sys_power_manager_get_pd(sys_power_pd_t* out);
 
 #ifdef __cplusplus

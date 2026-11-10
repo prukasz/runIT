@@ -225,7 +225,10 @@ typedef struct {
   bool (*has_op)(const void* ctx, uint16_t op);
 } sys_device_type_t;
 
-/** @brief Adds a type. Called by SYS_DEVICE_TYPE_REGISTER before app_main; asserts on a misdefined type. */
+/**
+ * @brief Adds a type. Called by SYS_DEVICE_TYPE_REGISTER before app_main; asserts on a misdefined type.
+ * @param[in] type The driver's type, kept (not copied)
+ */
 void sys_device_type_register(const sys_device_type_t* type);
 
 /**
@@ -250,6 +253,16 @@ void sys_device_type_register(const sys_device_type_t* type);
  * its devices (op CREATE, a write, args [type u16][create struct]). `args` and `out` are
  * the op's wire payload and answer (any size: the args are used in place);
  * `out_len` may be NULL.
+ * @param[in]  id       Device id
+ * @param[in]  dir      cmd_dir_e: the read or the write side
+ * @param[in]  op       Op number, SYS_DEVICE_OP(contract, n)
+ * @param[in]  args     The op's payload, may be NULL when args_len is 0
+ * @param[in]  args_len Payload size in bytes
+ * @param[out] out      Buffer for the answer, may be NULL
+ * @param[in]  out_cap  Size of out
+ * @param[out] out_len  Answer size in bytes, may be NULL
+ * @return ERR_DEV_NOT_FOUND, ERR_DEV_UNKNOWN_OP, ERR_DEV_SUSPENDED, or the op's error, wrapped in ERR_DEV_ID and
+ * ERR_DEV_OP
  */
 MUST_USE err_h sys_device_call(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len, void* out,
                                uint32_t out_cap, uint32_t* out_len);
@@ -257,16 +270,39 @@ MUST_USE err_h sys_device_call(uint16_t id, uint8_t dir, uint16_t op, const void
 /**
  * @brief sys_device_call of a command that came through the device router (ROUTER_KEY_DEVICE): the same call, but an
  * op marked local (SYS_DEVICE_OP_LOCAL) is refused with ERR_DEV_LOCAL_OP. Only sys_device_router calls it.
+ * @param[in]  id       Device id
+ * @param[in]  dir      cmd_dir_e: the read or the write side
+ * @param[in]  op       Op number, SYS_DEVICE_OP(contract, n)
+ * @param[in]  args     The op's payload
+ * @param[in]  args_len Payload size in bytes
+ * @param[out] out      Buffer for the answer
+ * @param[in]  out_cap  Size of out
+ * @param[out] out_len  Answer size in bytes, may be NULL
+ * @return ERR_DEV_LOCAL_OP for a local op, else as sys_device_call
  */
 MUST_USE err_h sys_device_call_routed(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len,
                                       void* out, uint32_t out_cap, uint32_t* out_len);
 
-/** @brief The write side of `op`: sys_device_call with no answer. The contract wrappers' setters and actions. */
+/**
+ * @brief The write side of `op`: sys_device_call with no answer. The contract wrappers' setters and actions.
+ * @param[in] id       Device id
+ * @param[in] op       Op number, SYS_DEVICE_OP(contract, n)
+ * @param[in] args     The op's payload
+ * @param[in] args_len Payload size in bytes
+ * @return As sys_device_call
+ */
 MUST_USE err_h sys_device_write(uint16_t id, uint16_t op, const void* args, uint32_t args_len);
 
 /**
  * @brief The read side of `op` with the key `args`, whose answer has a fixed size (a reading, a mask): ERR_CMD_BAD_LEN
  * unless the device answered exactly `out_size` bytes. The contract wrappers' getters.
+ * @param[in]  id       Device id
+ * @param[in]  op       Op number, SYS_DEVICE_OP(contract, n)
+ * @param[in]  args     The key (a pin, a channel), or NULL
+ * @param[in]  args_len Key size in bytes
+ * @param[out] out      Buffer for the answer
+ * @param[in]  out_size The answer's exact size in bytes
+ * @return ERR_CMD_BAD_LEN when the answer has another size, else as sys_device_call
  */
 MUST_USE err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
                                uint32_t out_size);
@@ -281,10 +317,26 @@ MUST_USE err_h sys_device_read(uint16_t id, uint16_t op, const void* args, uint3
 typedef err_h (*sys_device_guard_f)(uint16_t id, uint8_t dir, uint16_t op, const uint8_t* args, uint32_t args_len,
                                     bool* handled);
 
-/** @brief Sets the guard of `contract`. Boot only; one per contract, up to CONFIG_SYS_DEVICE_GUARDS. */
+/**
+ * @brief Sets the guard of `contract`. Boot only; one per contract, up to CONFIG_SYS_DEVICE_GUARDS.
+ * @param[in] contract SYS_DEVICE_CONTRACT_*
+ * @param[in] fn       The guard
+ * @return The error when all CONFIG_SYS_DEVICE_GUARDS are used or the contract has one
+ */
 MUST_USE err_h sys_device_set_guard(uint8_t contract, sys_device_guard_f fn);
 
-/** @brief sys_device_call without the guard: for the guard's owner, to run the op it decided on. */
+/**
+ * @brief sys_device_call without the guard: for the guard's owner, to run the op it decided on.
+ * @param[in]  id       Device id
+ * @param[in]  dir      cmd_dir_e: the read or the write side
+ * @param[in]  op       Op number, SYS_DEVICE_OP(contract, n)
+ * @param[in]  args     The op's payload
+ * @param[in]  args_len Payload size in bytes
+ * @param[out] out      Buffer for the answer
+ * @param[in]  out_cap  Size of out
+ * @param[out] out_len  Answer size in bytes, may be NULL
+ * @return As sys_device_call
+ */
 MUST_USE err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, const void* args, uint32_t args_len,
                                       void* out, uint32_t out_cap, uint32_t* out_len);
 
@@ -293,6 +345,8 @@ MUST_USE err_h sys_device_call_direct(uint16_t id, uint8_t dir, uint16_t op, con
  * device before the devices it uses), RESUME oldest first; REMOVE leaves the board's own devices
  * (SYS_DEVICE_CREATE_SYSTEM). SUSPEND of every device is the fault safe state. Best effort: all are tried, the first
  * error is returned (wrapped in ERR_DEV_ID), the others go to err_report().
+ * @param[in] op SYS_DEVICE_OP_SUSPEND, _RESUME, _RESET or _REMOVE
+ * @return ERR_DEV_UNKNOWN_OP for another op, else the first error of the sweep
  * @usage err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
  */
 MUST_USE err_h sys_device_sweep(uint16_t op);
@@ -304,8 +358,9 @@ MUST_USE err_h sys_device_sweep(uint16_t op);
  * (ERR_DEV_IN_USE) and sweeps in an order where users come first. Any IDs:
  * the order is the creation order (a device can only use one that exists).
  * Declaring the same dep twice is fine.
- * @return ERR_DEV_NOT_FOUND{dep} unless it exists (and isn't `dev`),
- *         ERR_DEV_DEPS_FULL past CONFIG_SYS_DEVICE_MAX_DEPS.
+ * @param[in,out] dev The device that uses `dep`
+ * @param[in]     dep The device used
+ * @return ERR_DEV_NOT_FOUND{dep} unless it exists (and isn't `dev`), ERR_DEV_DEPS_FULL past CONFIG_SYS_DEVICE_MAX_DEPS
  * @usage if (sys_io_pin_valid(c->oe)) { ERR_TRY(sys_device_use(&c->base, c->oe.device)); }
  */
 MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
@@ -329,7 +384,10 @@ typedef enum {
  */
 typedef void (*sys_device_state_f)(uint16_t id, sys_device_state_e change);
 
-/** @brief Sets the state listener. Boot only. */
+/**
+ * @brief Sets the state listener. Boot only.
+ * @param[in] fn The listener
+ */
 void sys_device_set_state_listener(sys_device_state_f fn);
 
 

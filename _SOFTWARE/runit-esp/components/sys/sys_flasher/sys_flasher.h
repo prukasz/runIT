@@ -48,7 +48,7 @@ typedef struct {
 /**
  * @brief Readies the flasher: the BOOT and EN wires (CONFIG_SYS_FLASHER_BOOT_PIN, _EN_PIN) left floating. Boot step,
  * after sys_uart_init().
- * @param link_provider  The link's provider id (sys_uart_init()).
+ * @param[in] link_provider The link's provider id (sys_uart_init()).
  * @return NULL; the GPIO's error.
  */
 MUST_USE err_h sys_flasher_init(uint8_t link_provider);
@@ -62,7 +62,10 @@ MUST_USE err_h sys_flasher_start(void);
 /** @brief Stops a flashing between two of its packets: it ends FAILED with ERR_FLASHER_ABORTED. */
 void sys_flasher_abort(void);
 
-/** @brief Where the last flashing is. Any task. */
+/**
+ * @brief Where the last flashing is. Any task.
+ * @return The state, progress and error of the last flashing
+ */
 sys_flasher_status_t sys_flasher_status(void);
 
 #ifdef __cplusplus

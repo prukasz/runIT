@@ -14,23 +14,41 @@
 /** @brief 2020-01-01 UTC in ms: a clock reading before it was never set. */
 #define BOARD_TIME_SET_AFTER_MS 1577836800000ull
 
-/** @brief True once a client has set the clock. */
+/**
+ * @brief Whether a client has set the clock.
+ * @return true once set
+ */
 bool board_time_is_set(void);
 
-/** @brief The clock in ms: UTC since 1970 once set; before that, the time since the start (not a date). */
+/**
+ * @brief The clock in ms.
+ * @return UTC since 1970 once set; before that, the time since the start (not a date)
+ */
 uint64_t board_time_now_ms(void);
 
-/** @brief UTC in ms since 1970, or 0 while the clock was never set. */
+/**
+ * @brief UTC in ms since 1970.
+ * @return UTC in ms, or 0 while the clock was never set
+ */
 uint64_t board_time_unix_ms(void);
 
-/** @brief Sets the clock to UTC `unix_ms`. False when the system refuses it. */
+/**
+ * @brief Sets the clock to UTC `unix_ms`.
+ * @param[in] unix_ms UTC in ms since 1970
+ * @return false when the system refuses it
+ */
 bool board_time_set(uint64_t unix_ms);
 
-/** @brief Time since the start in ms. Monotonic: setting the clock does not move it. Safe in an ISR. */
+/**
+ * @brief Time since the start in ms. Monotonic: setting the clock does not move it. Safe in an ISR.
+ * @return Milliseconds since the start
+ */
 uint64_t board_time_uptime_ms(void);
 
 /**
- * @brief The clock at the moment `uptime_ms` (a board_time_uptime_ms() reading taken earlier), in the units of board_time_now_ms().
- * For a stamp taken where the clock itself can't be read (an ISR); call it from a task.
+ * @brief The clock at the moment `uptime_ms` (a board_time_uptime_ms() reading taken earlier), in the units of
+ * board_time_now_ms(). For a stamp taken where the clock itself can't be read (an ISR); call it from a task.
+ * @param[in] uptime_ms A board_time_uptime_ms() reading
+ * @return The clock at that moment
  */
 uint64_t board_time_at_uptime_ms(uint64_t uptime_ms);

@@ -37,6 +37,7 @@
 /**
  * @brief Reserves a channel for a pin being set to PWM mode. Its output stays off (no timer) until the first
  *        frequency or duty write.
+ * @param[in,out] pin The pin
  * @return ERR_IO_PWM_CHANNELS_EXHAUSTED when every channel is in use.
  */
 MUST_USE err_h esp32s3_gpio_pwm_claim(esp32s3_gpio_pin_t* pin);
@@ -44,6 +45,8 @@ MUST_USE err_h esp32s3_gpio_pwm_claim(esp32s3_gpio_pin_t* pin);
 /**
  * @brief Runs the pin at frequency_Hz (ESP32S3_GPIO_PWM_FREQ_MIN_HZ..ESP32S3_GPIO_PWM_FREQ_MAX_HZ, checked by the
  *        caller), keeping its duty.
+ * @param[in,out] pin          The pin
+ * @param[in]     frequency_Hz PWM frequency in Hz
  * @return ERR_IO_PWM_TIMERS_EXHAUSTED when the frequency needs a timer and none is free.
  */
 MUST_USE err_h esp32s3_gpio_pwm_set_frequency(esp32s3_gpio_pin_t* pin, uint32_t frequency_Hz);
@@ -51,6 +54,8 @@ MUST_USE err_h esp32s3_gpio_pwm_set_frequency(esp32s3_gpio_pin_t* pin, uint32_t 
 /**
  * @brief Sets the pin's duty (0..IO_PWM_DUTY_MAX, checked by the caller). Binds a timer at the default frequency if
  *        the pin has none yet.
+ * @param[in,out] pin  The pin
+ * @param[in]     duty 0..IO_PWM_DUTY_MAX
  * @return ERR_IO_PWM_TIMERS_EXHAUSTED when that needs a timer and none is free.
  */
 MUST_USE err_h esp32s3_gpio_pwm_set_duty(esp32s3_gpio_pin_t* pin, uint16_t duty);
@@ -58,5 +63,7 @@ MUST_USE err_h esp32s3_gpio_pwm_set_duty(esp32s3_gpio_pin_t* pin, uint16_t duty)
 /**
  * @brief Stops the output (low), frees the channel and drops the pin from its timer (the last pin releases the
  *        timer). Every step runs; the first failure is returned.
+ * @param[in,out] pin The pin
+ * @return The first failure of the steps
  */
 MUST_USE err_h esp32s3_gpio_pwm_release(esp32s3_gpio_pin_t* pin);

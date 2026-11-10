@@ -54,14 +54,14 @@ struct sys_data_provider {
 
 /**
  * @brief Adds a provider the driver made: its id is found from now on.
- * @param p  The provider, the driver's fields set, the rest zero; valid until its destroy.
+ * @param[in] p The provider, the driver's fields set, the rest zero; valid until its destroy.
  * @return NULL when added; ERR_PROV_EXISTS (the id is taken), ERR_PROV_FULL.
  */
 MUST_USE err_h sys_data_provider_add(sys_data_provider_t* p);
 
 /**
  * @brief Removes a provider: takes it out, so its id finds nothing, and frees it with its destroy.
- * @param id  The provider.
+ * @param[in] id The provider.
  * @return NULL when removed; ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE (open, or a send in progress), ERR_PROV_SYSTEM.
  */
 MUST_USE err_h sys_data_provider_remove(uint8_t id);
@@ -69,16 +69,16 @@ MUST_USE err_h sys_data_provider_remove(uint8_t id);
 /**
  * @brief Sets whether the provider is up and, when it changed, tells the user (its rx with `data` NULL). The driver's
  * task, never an ISR.
- * @param p   The provider.
- * @param up  It delivers frames now.
+ * @param[in] p  The provider.
+ * @param[in] up It delivers frames now.
  */
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up);
 
 /**
  * @brief Hands what came in to the user's rx (dropped without one). The driver's RX task, never an ISR.
- * @param p     The provider.
- * @param data  One whole frame (the driver joins the fragments first).
- * @param len   Bytes in `data`.
+ * @param[in] p    The provider.
+ * @param[in] data One whole frame (the driver joins the fragments first).
+ * @param[in] len  Bytes in `data`.
  */
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len);
 
