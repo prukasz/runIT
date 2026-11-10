@@ -81,7 +81,7 @@ static void on_key(int key)
         const uint8_t f[] = {ROUTER_KEY_LVGL, CMD_DIR_READ, SYS_LVGL_OP_STATUS};
         sim_frame(f, sizeof f);
     } else if (key == 'n') {
-        const uint8_t f[] = {ROUTER_KEY_LVGL, CMD_DIR_WRITE, SYS_LVGL_OP_INSTALL, 1, 0, 2, 0, 0, 0, 0, 0};
+        const uint8_t f[] = {ROUTER_KEY_LVGL, CMD_DIR_WRITE, SYS_LVGL_OP_INSTALL, 1, 0, 2, 0, 0, 0, 0, 0, 0};
         if (sim_frame(f, sizeof f) == 0) {
             sim_demo_build();
             stopped = 0;

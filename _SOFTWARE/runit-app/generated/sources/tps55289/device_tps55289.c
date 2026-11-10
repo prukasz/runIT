@@ -500,7 +500,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(VREG, ENABLE),  OP_ENTRY_W(VREG, VOLTAGE),  OP_ENTRY_W(VREG, CURRENT),
     OP_ENTRY_W(EVENT, ON_EVENT),
     /* Internal rise timer op */
-    {.op = TPS_OP_RISE_STEP, .write = rise_step_h, .always = true},
+    {.op = TPS_OP_RISE_STEP, .write = rise_step_h, .flags = SYS_DEVICE_OP_ALWAYS},
     /* Device own ops */
     {.op = TPS55289_OP_PROTECTION, .read = get_protection_h, .write = set_protection_h},
 };

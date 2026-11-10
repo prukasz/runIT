@@ -82,6 +82,8 @@ static struct {
   nvs_handle_t nvs;                                                         // the options; opened at init
 } s_project;  // zero at the start (.bss)
 
+static sys_project_erase_f s_erase_hook;  // set at boot (runit)
+
 /* ----------------------------------------------------------------------------
  * IDs one after another
  * ------------------------------------------------------------------------- */
@@ -456,6 +458,9 @@ err_h sys_project_erase(void) {
   (void)xSemaphoreTake(sys_project_mutex, portMAX_DELAY);
   err_h err = s_project.save.open ? ERR_NEW(ERR_PROJECT_BUSY) : NULL;
   if (err == NULL) {
+    if (s_erase_hook != NULL) {
+      s_erase_hook();  // what holds the project's devices lets them go
+    }
     // the project's devices, newest first; the board's stay. A failed uninstall still frees its device: go on.
     err_report(sys_device_sweep(SYS_DEVICE_OP_REMOVE));
     err = sys_actions_remove(SYS_ACTIONS_ID_PROJECT);  // first: without it the banks are not a project
@@ -472,6 +477,10 @@ err_h sys_project_erase(void) {
   }
   (void)xSemaphoreGive(sys_project_mutex);
   return err;
+}
+
+void sys_project_set_erase_hook(sys_project_erase_f fn) {
+  s_erase_hook = fn;
 }
 
 sys_nvs_json_t* sys_project_source(void) {

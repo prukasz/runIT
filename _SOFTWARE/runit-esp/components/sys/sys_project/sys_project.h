@@ -117,10 +117,20 @@ MUST_USE err_h sys_project_run(bool start);
 
 /**
  * @brief Removes the devices the project created (the board's stay), the stored project and its program records (the
- * settings and device records stay). Stop the VM first: its program would call devices that are gone.
+ * settings and device records stay). The erase hook runs first. Stop the VM first: its program would call devices that
+ * are gone.
  * @return The error of the removals
  */
 MUST_USE err_h sys_project_erase(void);
+
+/** @brief Called by ERASE before the project's devices are removed: what holds them lets them go (sys_device_hold). */
+typedef void (*sys_project_erase_f)(void);
+
+/**
+ * @brief Sets the erase hook (runit: the screen adapter's RESET). Boot only, one.
+ * @param[in] fn The hook
+ */
+void sys_project_set_erase_hook(sys_project_erase_f fn);
 
 /**
  * @brief The project's source: the file the app keeps there (SYS_PROJECT.MD "The source"). The firmware never reads it.

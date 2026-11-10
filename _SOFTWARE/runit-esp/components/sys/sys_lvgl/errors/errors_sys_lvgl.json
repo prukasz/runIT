@@ -36,6 +36,10 @@
     "ERR_LVGL_POOL_FULL": {
       "message": "The screen's memory is full: {free} free, {need} needed, {reserve} kept in reserve",
       "hint": "Fewer widgets or shorter texts, or a larger screen heap."
+    },
+    "ERR_LVGL_REFRESH": {
+      "message": "Screen refresh {refresh_hz} Hz is outside {min} .. {max} Hz",
+      "hint": "Give the screen a refresh rate within the range, or 0 for the default."
     }
   }
 }

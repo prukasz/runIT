@@ -19,7 +19,7 @@ echo the display's GEOMETRY, read as the app does: 240 x 320, RGB565_SWAPPED, fl
 > 05 00 01 00 00 0A
 
 echo INSTALL the screen: display 1, touch 2, heap 0 (the default)
-> 15 01 01 01 00 02 00 00 00 00 00
+> 15 01 01 01 00 02 00 00 00 00 00 00
 > 15 00 01
 > 15 00 04
 

@@ -365,6 +365,22 @@ MUST_USE err_h sys_device_sweep(uint16_t op);
  */
 MUST_USE err_h sys_device_use(sys_device_base_t* dev, uint16_t dep);
 
+/**
+ * @brief A module that is not a device keeps device `id` (the screen adapter its display and touch, from INSTALL to
+ * RESET): the registry refuses to REMOVE it (ERR_DEV_HELD), the REMOVE sweep too, until as many sys_device_release().
+ * SUSPEND, RESUME and RESET still run. Takes the registry lock.
+ * @param[in] id The device
+ * @return ERR_DEV_NOT_FOUND{id} unless it exists, ERR_DEV_BAD_ARG past 255 holds
+ * @usage ERR_TRY(sys_device_hold(display));
+ */
+MUST_USE err_h sys_device_hold(uint16_t id);
+
+/**
+ * @brief Gives back one sys_device_hold() of `id`. A device that is gone or not held: nothing.
+ * @param[in] id The device
+ */
+void sys_device_release(uint16_t id);
+
 /* ----------------------------------------------------------------------------
  * State listener
  * ------------------------------------------------------------------------- */

@@ -14,9 +14,9 @@
       "op": 1,
       "symbol": "SYS_LVGL_OP_INSTALL",
       "label": "Install the screen",
-      "description": "Puts LVGL on the display and the touch: the draw buffers sized from the display's geometry, the objects' heap; then it draws. Refused while installed (RESET first).",
+      "description": "Puts LVGL on the display and the touch: the draw buffers sized from the display's geometry, the objects' heap, the refresh rate; then it draws. Refused while installed (RESET first).",
       "read": {
-        "description": "What is installed: 0xFFFF and heap 0 when empty.",
+        "description": "What is installed: 0xFFFF, heap and refresh 0 when empty.",
         "returns": {
           "struct": "sys_lvgl_install_t",
           "fields": [
@@ -47,6 +47,16 @@
               "offset": 4,
               "unit": "B",
               "description": "The budget of the screen's objects; 0 = the firmware's default"
+            },
+            {
+              "id": "refresh_hz",
+              "label": "Refresh",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 8,
+              "unit": "Hz",
+              "description": "Frames a second at most, the touch read as often: 1 .. 60; 0 = the firmware's default (24)"
             }
           ]
         }
@@ -82,6 +92,16 @@
               "offset": 4,
               "unit": "B",
               "description": "The budget of the screen's objects; 0 = the firmware's default"
+            },
+            {
+              "id": "refresh_hz",
+              "label": "Refresh",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 8,
+              "unit": "Hz",
+              "description": "Frames a second at most, the touch read as often: 1 .. 60; 0 = the firmware's default (24)"
             }
           ]
         }

@@ -6,11 +6,11 @@ LVGL on one display (contract DISPLAY, SYS_DISPLAY.MD) and an optional touch (co
 |---|---|
 | `sys_lvgl.h` | The C API, `sys_lvgl_install_t`, `sys_lvgl_rotation_t`, `sys_lvgl_status_t`, `sys_lvgl_state_e` |
 | `sys_lvgl.c` | The task, INSTALL / RESET, FLUSH and its end, the touch read, the error module |
-| `lv_conf.h`, `sys_lvgl_pool.h`, `sys_lvgl_assert.h` | LVGL's configuration, the same on the board and in the PC simulator; LVGL's pool hook; the assert handler |
+| `config/` | LVGL's configuration, the same on the board and in the PC simulator ("LVGL configuration"): `lv_conf.h` and its headers, LVGL's pool hook `sys_lvgl_pool.h`, the assert handler `sys_lvgl_assert.h` |
 | `router/sys_lvgl_router.{h,c}`, `router/contract_lvgl.json` | The commands under `ROUTER_KEY_LVGL` (0x15) and their descriptor |
 | `errors/sys_lvgl_errors.h`, `errors/errors_sys_lvgl.json` | `ERR_MOD_SYS_LVGL` (28), its tags and messages |
 | `idf_component.yml` | LVGL 9.3.0 from the component manager (`managed_components/`, not committed) |
-| `Kconfig`, `CMakeLists.txt` | Settings; the component, LVGL pointed at `lv_conf.h` |
+| `Kconfig`, `CMakeLists.txt` | Settings; the component, LVGL pointed at `config/lv_conf.h` |
 
 ## Commands (`ROUTER_KEY_LVGL` 0x15)
 
@@ -18,7 +18,7 @@ Frames `[0x15][dir][op][args]`, packed, little-endian. Each is a command like an
 
 | Op | Side | Args / answer |
 |---|---|---|
-| `0x01` INSTALL | RW | W: `sys_lvgl_install_t {u16 display, u16 touch (0xFFFF none), u32 heap_bytes}`: LVGL's pool, 32 KB .. 4 MB, 0 = `CONFIG_SYS_LVGL_HEAP_DEFAULT`; R: the same, `0xFFFF` and 0 when empty |
+| `0x01` INSTALL | RW | W: `sys_lvgl_install_t {u16 display, u16 touch (0xFFFF none), u32 heap_bytes, u8 refresh_hz}` (9 B): `heap_bytes` LVGL's pool, 32 KB .. 4 MB, 0 = `CONFIG_SYS_LVGL_HEAP_DEFAULT`; `refresh_hz` frames a second at most and the touch read as often, 1 .. 60, 0 = `SYS_LVGL_REFRESH_HZ` (24, `lv_conf_draw.h`); R: the same, `0xFFFF` and 0 when empty |
 | `0x02` RESET | W | – |
 | `0x03` ROTATION | RW | `{u8 rotation}`, `sys_display_orientation_e` (0, 90, 180, 270 deg) |
 | `0x04` STATUS | R | `sys_lvgl_status_t {u8 state, u8 rotation, u8 buffers, u16 width, u16 height, u32 buffer_bytes, u32 heap_budget, u32 heap_used, u32 heap_peak, u32 flushes, u32 flush_errors}` (31 B); width and height with the rotation |
@@ -42,16 +42,18 @@ Under the LVGL lock, in order; a failing step undoes what was done and leaves th
 
 1. The display's GEOMETRY and ORIENTATION, wrapped in `ERR_LVGL_NOT_DISPLAY{id}` when they fail (not a display, a remote one: ORIENTATION is local). The format gives LVGL's: `RGB565_SWAPPED` → `LV_COLOR_FORMAT_RGB565_SWAPPED`, `RGB888` → `LV_COLOR_FORMAT_RGB888`, else `ERR_LVGL_FORMAT`.
 2. The touch, if any: one POINT, wrapped in `ERR_LVGL_NOT_TOUCH{id}` when it fails. Its `max_x`, `max_y` are not checked (no op reads a config): the app's configurator fills them from the display.
-3. Two draw buffers (one when the second does not fit): a tenth of the screen in whole rows of its longer side, at least one row, at most GEOMETRY's `flush_max` and `CONFIG_SYS_LVGL_BUFFER_MAX` (`ERR_LVGL_FLUSH_MAX` when one row is more than `flush_max`). `MALLOC_CAP_DMA` internal RAM, 4-byte aligned (`ERR_LVGL_NO_MEMORY`).
-4. LVGL's pool: one block of `heap_bytes` in internal RAM (`ERR_LVGL_HEAP` outside 32 KB .. 4 MB, `ERR_LVGL_NO_MEMORY`), `lv_init` on it ("The pool").
-5. The `lv_display` in the panel's **native** size (GEOMETRY's width and height swapped at 90 and 270), PARTIAL, `flush_cb`, `flush_wait_cb`, its rotation = ORIENTATION. LVGL turns the touch point by that rotation, so the touch answers in the panel's orientation 0 (SYS_TOUCH.MD).
-6. A pointer `lv_indev` reading POINT, on that display.
+3. The display and the touch held (`sys_device_hold`, SYS_DEVICE.MD) until RESET: the registry refuses to REMOVE them (`ERR_DEV_HELD{id}`).
+4. Two draw buffers (one when the second does not fit): a tenth of the screen in whole rows of its longer side, at least one row, at most GEOMETRY's `flush_max` and `CONFIG_SYS_LVGL_BUFFER_MAX` (`ERR_LVGL_FLUSH_MAX` when one row is more than `flush_max`). `MALLOC_CAP_DMA` internal RAM, 4-byte aligned (`ERR_LVGL_NO_MEMORY`).
+5. LVGL's pool: one block of `heap_bytes` in internal RAM (`ERR_LVGL_HEAP` outside 32 KB .. 4 MB, `ERR_LVGL_NO_MEMORY`), `lv_init` on it ("The pool").
+6. The refresh: `refresh_hz` (`ERR_LVGL_REFRESH` outside 1 .. 60), the period of LVGL's refresh timer and of the touch's read timer.
+7. The `lv_display` in the panel's **native** size (GEOMETRY's width and height swapped at 90 and 270), PARTIAL, `flush_cb`, `flush_wait_cb`, its rotation = ORIENTATION. LVGL turns the touch point by that rotation, so the touch answers in the panel's orientation 0 (SYS_TOUCH.MD).
+8. A pointer `lv_indev` reading POINT, on that display.
 
 The adapter never sets BACKLIGHT: the driver turns the picture on cleared and at `brightness_default`; the app and the VM own the backlight.
 
 ## The task and the lock
 
-One LVGL task (`CONFIG_SYS_LVGL_TASK_PRIO`, below the router's work task). It wakes on a notification or LVGL's next timer (at most a refresh period, 33 ms), and under the LVGL lock takes its bits, then runs `lv_timer_handler()` while RUNNING; it renders too. So no frame starts after STOP or RESET returns. LVGL has no OS of its own (`LV_OS_NONE`): the LVGL lock is sys_lvgl's recursive mutex, `sys_lvgl_lock()`, and every `lv_*` call is made under it, only while installed.
+One LVGL task (`CONFIG_SYS_LVGL_TASK_PRIO`, below the router's work task). It wakes on a notification or LVGL's next timer (at most a refresh period: INSTALL's `refresh_hz`, 41 ms at the default 24 Hz), and under the LVGL lock takes its bits, then runs `lv_timer_handler()` while RUNNING; it renders too. So no frame starts after STOP or RESET returns. LVGL has no OS of its own (`LV_OS_NONE`): the LVGL lock is sys_lvgl's recursive mutex, `sys_lvgl_lock()`, and every `lv_*` call is made under it, only while installed.
 
 - Other tasks post to it by bits (`BIT_DISPLAY_STATE`, `BIT_INVALIDATE`) and a task notification, never by `lv_async_call` (it allocates and makes a timer: it needs the lock).
 - Lock order: the LVGL lock, then the registry's (FLUSH, POINT run under both). Never the LVGL lock under the registry lock: the device state listener and device ops only post.
@@ -62,13 +64,14 @@ One LVGL task (`CONFIG_SYS_LVGL_TASK_PRIO`, below the router's work task). It wa
 - Accepted: the FLUSH is in flight. `flush_wait_cb` (LVGL calls it before the next FLUSH and before it writes into a buffer in flight) waits for `done`'s semaphore, at most `CONFIG_SYS_LVGL_FLUSH_TIMEOUT_MS`; LVGL clears its flag itself. STOP, RESET, ROTATION and the display's state change wait the same way.
 - `done` (the ISR) gives the semaphore only for the FLUSH awaited (its number), so a late `done` of a FLUSH given up on is ignored.
 - Refused: `lv_display_flush_ready` at once, the screen redrawn after this refresh (a bit: LVGL asserts on an invalidation during rendering), the error reported once while FLUSHes keep failing (until one is accepted). `ERR_DEV_SUSPENDED` is not reported: it means PAUSED.
+- A RESET of the display from elsewhere (the app's DEVICE RESET, a sweep, the error policy) drops the transfer in flight, and no `done` comes for it: it ends the FLUSH awaited (runit's state listener, "The display's state", gives the semaphore), and the next FLUSH first sets ORIENTATION again (the rest of the frame is drawn in it). A panel's RESET can outlast the limit: past it the adapter reads the display's INFO, which waits behind that RESET (the registry lock), and when a RESET ended the FLUSH that is no timeout.
 - No `done` within the limit: `ERR_DISPLAY_FLUSH_TIMEOUT{id, timeout_ms}`, a RESET of the display (it drops the hung transfer: no `done` after it), its ORIENTATION set again at once (the rest of the frame is drawn in it), the screen redrawn.
 
 `flushes` and `flush_errors` in STATUS count since INSTALL.
 
 ## The display's state
 
-runit's device state listener (`runit_error_policy.c`) calls `sys_lvgl_device_state(id, change)` for every change; it never waits (it runs under the registry lock). For the installed display or a sweep (`SYS_DEVICE_ID_NONE`) it posts `BIT_DISPLAY_STATE`. The task then reads the display's INFO: suspended → PAUSED; otherwise (resumed, reset) ORIENTATION set to the adapter's rotation again (a RESET took the config's) and the screen redrawn.
+runit's device state listener (`runit_error_policy.c`) calls `sys_lvgl_device_state(id, change)` for every change; it never waits (it runs under the registry lock). For the installed display or a sweep (`SYS_DEVICE_ID_NONE`) it posts `BIT_DISPLAY_STATE`; on a RESET it also ends the FLUSH in flight and marks the rotation to set before the next FLUSH ("FLUSH and its end"). The task then reads the display's INFO: suspended → PAUSED; otherwise (resumed, reset) ORIENTATION set to the adapter's rotation again (a RESET took the config's) and the screen redrawn.
 
 ## The display's health
 
@@ -80,11 +83,11 @@ Every `CONFIG_SYS_LVGL_HEALTH_MS` (1 s; 0 never) while it draws, the LVGL task r
 
 ## ROTATION
 
-Waits for the FLUSH in flight, then DISPLAY ORIENTATION (refused while a FLUSH is in flight, so never mid-transfer), then `lv_display_set_rotation`, which swaps LVGL's width and height and redraws the screen. A layout drawn for one size does not reflow by itself to the other: that is the screen's (`sys_screen`'s) business.
+Waits for the FLUSH in flight, then DISPLAY ORIENTATION (refused while a FLUSH is in flight, so never mid-transfer), then `lv_display_set_rotation`, which swaps LVGL's width and height and redraws the screen. While PAUSED the suspended display refuses ORIENTATION: only LVGL turns, and the display takes the rotation when it resumes ("The display's state"). It works in every state but EMPTY. A layout drawn for one size does not reflow by itself to the other: that is the screen's (`sys_screen`'s) business.
 
 ## RESET
 
-Waits for the FLUSH in flight, calls the reset hook (`sys_lvgl_set_reset_hook`, set at boot by the upper layer: it drops its widget table and its LVGL pointers), deletes the touch and the display, stops LVGL (`lv_deinit`) and frees its pool and the buffers. Nothing of the screen stays: the next INSTALL starts LVGL again on a new pool. A project change RESETs the adapter before it removes the devices; the registry does not stop a REMOVE of the installed display.
+Waits for the FLUSH in flight, calls the reset hook (`sys_lvgl_set_reset_hook`, set at boot by the upper layer: it drops its widget table and its LVGL pointers), deletes the touch and the display, stops LVGL (`lv_deinit`), frees its pool and the buffers and releases the display and the touch (`sys_device_release`). Nothing of the screen stays: the next INSTALL starts LVGL again on a new pool. The project's ERASE RESETs the adapter before it removes the project's devices (runit sets `sys_project_set_erase_hook`); a REMOVE of the display or the touch while installed is refused (`ERR_DEV_HELD`).
 
 ## The pool
 
@@ -97,7 +100,17 @@ Every widget, style, layer, text and cache of LVGL is in **one pool**, managed b
 
 ## LVGL configuration
 
-`lv_conf.h`, one file: CMakeLists.txt points LVGL at it (`LV_CONF_PATH`) and sets `LV_KCONFIG_IGNORE`, so the sdkconfig's LVGL menu is not used (LVGL 9.3's Kconfig has no switch for `LV_DRAW_SW_SUPPORT_RGB565_SWAPPED`). Colour depth 16 for LVGL's own layers, RGB565_SWAPPED and RGB888 renderers, stride alignment 1, buffer alignment 4, refresh 33 ms, the pool ("The pool"), `LV_OS_NONE`, log at WARN through `ESP_LOG`, fonts Montserrat 14 (default) and 20.
+`config/`: CMakeLists.txt points LVGL at `config/lv_conf.h` (`LV_CONF_PATH`), puts `config/` on LVGL's include path (its sources include the hooks) and sets `LV_KCONFIG_IGNORE`, so the sdkconfig's LVGL menu is not used (LVGL 9.3's Kconfig has no switch for `LV_DRAW_SW_SUPPORT_RGB565_SWAPPED`). `lv_conf.h` only includes one header per subject; each says what LVGL has, and whatever none sets is LVGL's default (`lv_conf_internal.h`):
+
+| Header | What LVGL has |
+|---|---|
+| `lv_conf_draw.h` | Colour depth 16 for LVGL's own layers, RGB565_SWAPPED and RGB888 renderers, stride alignment 1, buffer alignment 4, the default refresh `SYS_LVGL_REFRESH_HZ` 24 Hz (`LV_DEF_REFR_PERIOD` 41 ms; the touch read as often), INSTALL's `refresh_hz` sets another |
+| `lv_conf_memory.h` | The pool ("The pool"): LVGL's allocator on INSTALL's block, `LV_MEM_SIZE` 32 KB, at most 4 MB |
+| `lv_conf_system.h` | `LV_OS_NONE`, log at WARN through `ESP_LOG`, the assert handler |
+| `lv_conf_fonts.h` | Montserrat 12, 14 (default), 16 and 24: the screen layer's font enum |
+| `lv_conf_widgets.h` | Every widget listed on or off. On: arc, bar, button, buttonmatrix (the keyboard's), chart, checkbox, image, keyboard, label, led, slider, spinbox, switch, textarea. Off: the rest (no flash). Flex layout, no grid; the default theme only |
+
+A widget, a font or a layout that is off does not exist on the board: the screen layer offers only what is on. LVGL's own examples and demos are not built (`CONFIG_LV_BUILD_EXAMPLES`, `CONFIG_LV_BUILD_DEMOS` off in `sdkconfig`): they use widgets that are off.
 
 ## Errors (`ERR_MOD_SYS_LVGL`)
 
@@ -112,6 +125,7 @@ Every widget, style, layer, text and cache of LVGL is in **one pool**, managed b
 | `ERR_LVGL_NO_MEMORY{bytes}` | no memory for LVGL's pool or a draw buffer (DMA), or LVGL could not make the display (`bytes` 0) |
 | `ERR_LVGL_HEAP{heap_bytes, min, max}` | the pool asked for is outside `SYS_LVGL_HEAP_MIN` .. `SYS_LVGL_HEAP_MAX` |
 | `ERR_LVGL_POOL_FULL{free, need, reserve}` | `sys_lvgl_pool_check`: what was asked would eat into the reserve |
+| `ERR_LVGL_REFRESH{refresh_hz, min, max}` | the refresh asked for is outside `SYS_LVGL_REFRESH_MIN` .. `SYS_LVGL_REFRESH_MAX` (1 .. 60 Hz) |
 
 The display's own errors (`ERR_DISPLAY_*`) are SYS_DISPLAY.MD's; the adapter reports `ERR_DISPLAY_FLUSH_TIMEOUT` and `ERR_DISPLAY_LOST`.
 
@@ -122,4 +136,4 @@ The display's own errors (`ERR_DISPLAY_*`) are SYS_DISPLAY.MD's; the adapter rep
 ## Open
 
 - `sys_screen` (the widgets from frames) and the VM adapter: `lvgl-playground/sketch/`.
-- No display or touch driver on the board yet (`sys_spi` first); no hold of the installed display against REMOVE.
+- No display or touch driver on the board yet (`sys_spi` first).

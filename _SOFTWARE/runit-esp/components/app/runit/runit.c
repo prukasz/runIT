@@ -100,6 +100,17 @@ static err_h log_init(void) {
   return sys_log_init();
 }
 
+// The project's ERASE: the screen adapter lets its display and touch go before the project's devices are removed.
+static void project_erasing(void) {
+  err_report(sys_lvgl_reset());
+}
+
+// The screen adapter, empty: a project INSTALLs it on its display and ERASE RESETs it.
+static err_h lvgl_init(void) {
+  sys_project_set_erase_hook(project_erasing);
+  return sys_lvgl_init();
+}
+
 // A firmware write stalls what runs from flash, so no update while a program runs.
 static bool vm_runs(void) {
   return vm_exec_mode() != VM_RUN_STOPPED;
@@ -187,7 +198,7 @@ err_h runit_start(void) {
       {"events", sys_event_init},
       {"watches", sys_watch_init},  // after the session and the events: it listens for gone peers and subscribes to events
       {"remote devices", sys_remote_init},  // after the session, watches and events it carries a device's calls on
-      {"lvgl", sys_lvgl_init},  // empty: a project INSTALLs it on its display
+      {"lvgl", lvgl_init},  // empty: a project INSTALLs it on its display
       {"power", runit_board_power_init},  // before the router: it guards POWER_VREG
       {"router", router_setup},
       {"vm", vm_init},  // after the router: the program is loaded and run through ROUTER_KEY_VM

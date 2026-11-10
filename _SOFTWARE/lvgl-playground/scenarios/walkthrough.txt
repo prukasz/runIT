@@ -21,11 +21,11 @@ echo FLUSH from a frame is refused: a local op (ERR_DEV_LOCAL_OP)
 > 05 01 01 00 02 0A
 
 echo INSTALL the screen: display 1, touch 2, heap 0 (the default)
-> 15 01 01 01 00 02 00 00 00 00 00
+> 15 01 01 01 00 02 00 00 00 00 00 00
 > 15 00 01
 > 15 00 04
 echo a second INSTALL is refused (ERR_LVGL_INSTALLED)
-> 15 01 01 01 00 02 00 00 00 00 00
+> 15 01 01 01 00 02 00 00 00 00 00 00
 
 demo
 wait 600
@@ -106,15 +106,16 @@ echo RESET of the screen: the screen, its objects and the buffers freed
 > 15 00 04
 > 15 00 01
 
-echo INSTALL again: LVGL starts on a new pool of 48 KB (lv_init after lv_deinit)
-> 15 01 01 01 00 02 00 00 C0 00 00
+echo INSTALL again: LVGL starts on a new pool of 48 KB (lv_init after lv_deinit), refresh 30 Hz (1E), read back
+> 15 01 01 01 00 02 00 00 C0 00 00 1E
+> 15 00 01
 demo
 wait 600
 > 15 00 04
 shot 7_installed_again
 echo a pool below the smallest is refused (ERR_LVGL_HEAP)
 > 15 01 02
-> 15 01 01 01 00 02 00 00 10 00 00
+> 15 01 01 01 00 02 00 00 10 00 00 00
 > 15 00 04
 echo the controller saw no ordering mistake of the driver
 panel

@@ -69,7 +69,7 @@ A failed or aborted save (`ABORT`, a write error, a bad CRC, the next `BEGIN` af
 | `0x04` ABORT | – | – |
 | `0x05` INFO | – | `u8 stored, u8 boot, u8 bank, u32 crc32, u32 bytes` (crc and length of the stream it was saved from: the app compares them with its project) |
 | `0x06` RUN | – | – (load, then the start section; `ERR_PROJECT_NOT_STORED` with none) |
-| `0x07` ERASE | – | – (every device not created as the board's is removed, `sys_device_sweep(REMOVE)`, SYS_DEVICE.MD "The board's own devices"; then the project record and both banks; the settings, device and user records stay). Stop the VM first (VM RESET): its program would call devices that are gone |
+| `0x07` ERASE | – | – (first the erase hook: what holds a project's device lets it go, `sys_project_set_erase_hook`, set by runit to the screen adapter's RESET; then every device not created as the board's is removed, `sys_device_sweep(REMOVE)`, SYS_DEVICE.MD "The board's own devices"; then the project record and both banks; the settings, device and user records stay). Stop the VM first (VM RESET): its program would call devices that are gone |
 | `0x08` OPTIONS | write: `u8 boot`; read: – | write: –; read: `u8 boot` |
 | `0x10` SECTION | `u32 id` | only a frame of the stream: sent as a command it is `ERR_PROJECT_NOT_IN_STREAM` |
 | `0x11` MARK | `u8 bank, u32 crc32, u32 bytes` | first frame of the project record; does nothing when run |

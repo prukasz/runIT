@@ -14,10 +14,10 @@ set(HOST ${ESP}/test_host)
 
 find_package(Threads REQUIRED)
 
-# LVGL as on the board: its configuration is sys_lvgl's lv_conf.h.
-set(LV_BUILD_EXAMPLES OFF CACHE BOOL "")
-set(LV_BUILD_DEMOS OFF CACHE BOOL "")
-set(LV_BUILD_CONF_PATH ${COMP}/sys/sys_lvgl/lv_conf.h CACHE PATH "" FORCE)
+# LVGL as on the board: its configuration is sys_lvgl's config/ (lv_conf.h and the headers it includes).
+set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)  # they use widgets config/ leaves out
+set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
+set(LV_BUILD_CONF_PATH ${COMP}/sys/sys_lvgl/config/lv_conf.h CACHE PATH "" FORCE)
 include(FetchContent)
 FetchContent_Declare(lvgl
     GIT_REPOSITORY https://github.com/lvgl/lvgl.git
@@ -26,7 +26,7 @@ FetchContent_Declare(lvgl
     EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(lvgl)
 target_compile_definitions(lvgl PUBLIC LV_KCONFIG_IGNORE)
-target_include_directories(lvgl PUBLIC ${COMP}/sys/sys_lvgl)
+target_include_directories(lvgl PUBLIC ${COMP}/sys/sys_lvgl/config)
 
 option(PLAYGROUND_WINDOW "Show the glass in an SDL2 window (mouse = touch)" ON)
 

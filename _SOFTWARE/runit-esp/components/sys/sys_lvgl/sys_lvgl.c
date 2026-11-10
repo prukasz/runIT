@@ -29,6 +29,8 @@ typedef struct {
   uint16_t display;
   uint16_t touch;
   uint32_t heap_bytes;     // INSTALL's: the pool's size
+  uint8_t refresh_hz;      // INSTALL's: frames a second at most, the touch read as often
+  uint32_t refresh_ms;     // its period
   uint8_t rotation;        // sys_display_orientation_e = the lv_display's rotation
   uint8_t bpp;             // bytes per pixel of the display's format
   uint8_t buffers;
@@ -36,6 +38,8 @@ typedef struct {
   void* buf[2];
   lv_display_t* disp;
   lv_indev_t* indev;
+  bool held_display;       // sys_device_hold of the display (INSTALL to RESET)
+  bool held_touch;         // the same for the touch
   bool in_flight;          // a FLUSH was accepted and its end not taken yet
   uint32_t seq;            // the number of the last FLUSH
   bool flush_failing;      // a FLUSH failed and none was accepted since: reported once
@@ -54,6 +58,8 @@ static void* s_pool;                   // LVGL's one block, INSTALL to RESET
 _Static_assert(SYS_LVGL_HEAP_MIN == LV_MEM_SIZE, "SYS_LVGL_HEAP_MIN is lv_conf.h's LV_MEM_SIZE");
 _Static_assert(SYS_LVGL_HEAP_MAX == LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE, "SYS_LVGL_HEAP_MAX is lv_conf.h's");
 static volatile uint32_t s_flight;     // the number of the FLUSH whose done is awaited; 0 none (read by the ISR)
+static bool s_accepted;                // a FLUSH was accepted and its end not taken (atomic): a RESET of the display ends it
+static bool s_display_reset;           // the display was RESET (atomic): its rotation set again before the next FLUSH
 static uint16_t s_display_id = SYS_DEVICE_ID_NONE;  // s.display for sys_lvgl_device_state (atomic)
 static uint32_t s_pending;             // BIT_* (atomic)
 
@@ -119,6 +125,18 @@ static void post(uint32_t bits) {
   }
 }
 
+// The panel turned to the adapter's rotation again (after a RESET it is the config's). A suspended display takes it
+// when it resumes.
+static void set_panel_rotation(void) {
+  __atomic_store_n(&s_display_reset, false, __ATOMIC_RELAXED);
+  err_h err = sys_display_set_orientation(s.display, s.rotation);
+  if (err != NULL && err_root_tag(err) == ERR_DEV_SUSPENDED) {
+    err_free(err);
+    return;
+  }
+  err_report(err);
+}
+
 /* ---- the end of a FLUSH ---- */
 
 // The FLUSH's done, from the transfer-done ISR: only the FLUSH awaited gives the semaphore.
@@ -131,20 +149,29 @@ static void flush_done(void* ctx) {
   portYIELD_FROM_ISR(woken);
 }
 
-// Waits for the end of the FLUSH in flight, at most the limit; past it: FLUSH_TIMEOUT, RESET of the display, a redraw.
+// Waits for the end of the FLUSH in flight (its done, or a RESET of the display: sys_lvgl_device_state), at most the
+// limit; past it: FLUSH_TIMEOUT, RESET of the display, a redraw.
 static void wait_flush_end(void) {
   if (!s.in_flight) {
     return;
   }
   s.in_flight = false;
-  if (xSemaphoreTake(s_flush_done, MSEC(CONFIG_SYS_LVGL_FLUSH_TIMEOUT_MS)) == pdTRUE) {
-    return;
+  const bool ended = xSemaphoreTake(s_flush_done, MSEC(CONFIG_SYS_LVGL_FLUSH_TIMEOUT_MS)) == pdTRUE;
+  if (!__atomic_exchange_n(&s_accepted, false, __ATOMIC_ACQ_REL) || ended) {
+    return;  // done came, or a RESET of the display ended it (its give is taken by the next FLUSH)
   }
   s_flight = 0;
+  // A RESET of the display still running (a panel's takes longer than the limit) drops the transfer: INFO waits for it
+  // behind the registry lock, and its listener marks it.
+  sys_device_info_t info;
+  err_free(sys_device_read(s.display, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info)));
+  if (__atomic_load_n(&s_display_reset, __ATOMIC_RELAXED)) {
+    return;  // that RESET ended it; the next FLUSH sets the rotation again
+  }
   s.flush_errors++;
   err_report(ERR_NEW(ERR_DISPLAY_FLUSH_TIMEOUT, .id = s.display, .timeout_ms = CONFIG_SYS_LVGL_FLUSH_TIMEOUT_MS));
   err_report(sys_device_write(s.display, SYS_DEVICE_OP_RESET, NULL, 0));
-  err_report(sys_display_set_orientation(s.display, s.rotation));  // the rest of this frame draws in it
+  set_panel_rotation();  // the rest of this frame draws in it
   post(BIT_INVALIDATE);
 }
 
@@ -171,11 +198,15 @@ static void flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map)
       .x1 = (uint16_t)area->x1, .y1 = (uint16_t)area->y1, .x2 = (uint16_t)area->x2, .y2 = (uint16_t)area->y2};
   const uint32_t len = (uint32_t)lv_area_get_size(area) * s.bpp;
   (void)xSemaphoreTake(s_flush_done, NO_WAIT);  // a give of a FLUSH given up on
+  if (__atomic_load_n(&s_display_reset, __ATOMIC_RELAXED)) {
+    set_panel_rotation();  // a RESET of the display in the middle of this frame: the rest draws in the rotation
+  }
   s.seq = s.seq == UINT32_MAX ? 1 : s.seq + 1;
   s_flight = s.seq;
   err_h err = sys_display_flush(s.display, px_map, len, &window, flush_done, (void*)(uintptr_t)s.seq);
   if (err == NULL) {
     s.in_flight = true;
+    __atomic_store_n(&s_accepted, true, __ATOMIC_RELEASE);
     s.flushes++;
     s.flush_failing = false;
     return;
@@ -239,7 +270,7 @@ static void display_state_changed(void) {
   s.paused = info.suspended != 0;
   if (!s.paused) {
     wait_flush_end();
-    err_report(sys_display_set_orientation(s.display, s.rotation));
+    set_panel_rotation();
     invalidate();
   }
   apply_drawing();
@@ -277,7 +308,7 @@ static void check_health(void) {
     }
     s.display_lost = false;
     err_report(sys_device_write(s.display, SYS_DEVICE_OP_RESET, NULL, 0));
-    err_report(sys_display_set_orientation(s.display, s.rotation));
+    set_panel_rotation();
     invalidate();
   } else if (s.display_lost) {
     s.display_lost = false;
@@ -312,7 +343,7 @@ static void lvgl_task(void* arg) {
     if (drawing()) {
       check_health();
       const uint32_t next = lv_timer_handler();
-      wait = MSEC(next == 0u ? 1u : next < LV_DEF_REFR_PERIOD ? next : LV_DEF_REFR_PERIOD);
+      wait = MSEC(next == 0u ? 1u : next < s.refresh_ms ? next : s.refresh_ms);
     }
     sys_lvgl_unlock();
   }
@@ -341,12 +372,19 @@ static void teardown(void) {
   for (uint8_t i = 0; i < 2; i++) {
     buffer_free(s.buf[i]);
   }
+  if (s.held_display) {
+    sys_device_release(s.display);
+  }
+  if (s.held_touch) {
+    sys_device_release(s.touch);
+  }
   const sys_lvgl_reset_f hook = s.reset_hook;
   memset(&s, 0, sizeof(s));
   s.reset_hook = hook;
   s.display = SYS_DEVICE_ID_NONE;
   s.touch = SYS_DEVICE_ID_NONE;
   __atomic_store_n(&s_display_id, SYS_DEVICE_ID_NONE, __ATOMIC_RELAXED);
+  __atomic_store_n(&s_display_reset, false, __ATOMIC_RELAXED);
 }
 
 // One draw buffer: a tenth of the screen in whole rows of its longer side, at least one row, at most the display's
@@ -390,6 +428,13 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
   }
   s.display = in->display;
   s.touch = in->touch;
+  // Kept until RESET: the registry refuses to REMOVE them (ERR_DEV_HELD).
+  ERR_TRY(sys_device_hold(s.display));
+  s.held_display = true;
+  if (s.touch != SYS_DEVICE_ID_NONE) {
+    ERR_TRY(sys_device_hold(s.touch));
+    s.held_touch = true;
+  }
   s.rotation = orientation;
   s.health_at = xTaskGetTickCount() + MSEC(CONFIG_SYS_LVGL_HEALTH_MS);
 
@@ -398,6 +443,11 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
   const uint16_t w = turned ? g.height : g.width;
   const uint16_t h = turned ? g.width : g.height;
   ERR_TRY(buffer_size(in->display, w, h, g.flush_max, &s.buffer_bytes));
+
+  s.refresh_hz = in->refresh_hz != 0u ? in->refresh_hz : SYS_LVGL_REFRESH_HZ;
+  ERR_CHECK(s.refresh_hz >= SYS_LVGL_REFRESH_MIN && s.refresh_hz <= SYS_LVGL_REFRESH_MAX, ERR_LVGL_REFRESH,
+            .refresh_hz = s.refresh_hz, .min = SYS_LVGL_REFRESH_MIN, .max = SYS_LVGL_REFRESH_MAX);
+  s.refresh_ms = 1000u / s.refresh_hz;
 
   // LVGL on its one pool: every object, style and cache of the screen is in it, nothing in the system heap.
   s.heap_bytes = in->heap_bytes != 0u ? in->heap_bytes : CONFIG_SYS_LVGL_HEAP_DEFAULT;
@@ -426,6 +476,7 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
   lv_display_set_flush_cb(s.disp, flush_cb);
   lv_display_set_flush_wait_cb(s.disp, flush_wait_cb);
   lv_display_set_rotation(s.disp, (lv_display_rotation_t)orientation);
+  lv_timer_set_period(lv_display_get_refr_timer(s.disp), s.refresh_ms);
 
   if (s.touch != SYS_DEVICE_ID_NONE) {
     s.indev = lv_indev_create();
@@ -433,6 +484,7 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
     lv_indev_set_type(s.indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(s.indev, touch_read_cb);
     lv_indev_set_display(s.indev, s.disp);
+    lv_timer_set_period(lv_indev_get_read_timer(s.indev), s.refresh_ms);
   }
   return NULL;
 }
@@ -476,7 +528,10 @@ err_h sys_lvgl_install(const sys_lvgl_install_t* install) {
 err_h sys_lvgl_get_install(sys_lvgl_install_t* out) {
   ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
   sys_lvgl_lock();
-  *out = (sys_lvgl_install_t){.display = s.display, .touch = s.touch, .heap_bytes = s.installed ? s.heap_bytes : 0u};
+  *out = (sys_lvgl_install_t){.display = s.display,
+                              .touch = s.touch,
+                              .heap_bytes = s.installed ? s.heap_bytes : 0u,
+                              .refresh_hz = s.installed ? s.refresh_hz : 0u};
   sys_lvgl_unlock();
   return NULL;
 }
@@ -528,7 +583,11 @@ err_h sys_lvgl_set_rotation(uint8_t rotation) {
     err = ERR_NEW(ERR_LVGL_NOT_INSTALLED);
   } else {
     wait_flush_end();
-    err = sys_display_set_orientation(s.display, rotation);
+    err = sys_display_set_orientation(s.display, rotation);  // range-checked before the device is asked
+    if (err != NULL && err_root_tag(err) == ERR_DEV_SUSPENDED) {
+      err_free(err);  // PAUSED: the display takes this rotation when it resumes (display_state_changed)
+      err = NULL;
+    }
     if (err == NULL) {
       s.rotation = rotation;
       lv_display_set_rotation(s.disp, (lv_display_rotation_t)rotation);
@@ -596,9 +655,18 @@ void sys_lvgl_set_reset_hook(sys_lvgl_reset_f fn) {
 }
 
 void sys_lvgl_device_state(uint16_t id, sys_device_state_e change) {
-  (void)change;
   const uint16_t display = __atomic_load_n(&s_display_id, __ATOMIC_RELAXED);
-  if (display != SYS_DEVICE_ID_NONE && (id == display || id == SYS_DEVICE_ID_NONE)) {
-    post(BIT_DISPLAY_STATE);
+  if (display == SYS_DEVICE_ID_NONE || (id != display && id != SYS_DEVICE_ID_NONE)) {
+    return;
   }
+  // A RESET of the display drops the transfer in flight and its done never comes: the FLUSH awaited ends here. The
+  // panel is in the config's orientation again: the next FLUSH sets the adapter's first.
+  if (change == SYS_DEVICE_STATE_RESET) {
+    __atomic_store_n(&s_display_reset, true, __ATOMIC_RELAXED);
+    if (__atomic_exchange_n(&s_accepted, false, __ATOMIC_ACQ_REL)) {
+      s_flight = 0;
+      (void)xSemaphoreGive(s_flush_done);
+    }
+  }
+  post(BIT_DISPLAY_STATE);
 }

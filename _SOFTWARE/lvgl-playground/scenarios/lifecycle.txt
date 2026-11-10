@@ -1,0 +1,50 @@
+# The adapter's lifecycle against its devices (README.md "Scenarios"): the display and the touch held from INSTALL to
+# RESET (REMOVE refused, ERR_DEV_HELD), a RESET of the display from the app while a transfer is in flight (the FLUSH
+# ends there: no FLUSH_TIMEOUT), ROTATION while the display is suspended (the panel turns when it resumes).
+# Frames: [key][dir 00 read / 01 write][...], little-endian. DEVICE (05): [dir][id u16][op u16][args].
+# LVGL (15): [dir][op][args]. Device ids here: the display 1, the touch 2, the GPIO 3.
+
+echo the GPIO, the display (ILI9341, 240x320) and the touch, as in walkthrough.txt
+> 05 01 03 00 00 00 02 7F 00
+> 05 01 01 00 00 00 00 7F 00 00 03 00 5A 62 02 03 00 0A 03 00 0B 03 00 04 03 00 05 FF 0F F0 00 40 01 00 00 00 00 00 00 01
+> 05 01 02 00 00 00 01 7F 00 00 38 80 1A 06 00 FF FF FF FF FF FF FF FF FF F0 00 40 01 00 00 00 00 00 00 00 00 00 00 00 00
+echo INSTALL the screen on them
+> 15 01 01 01 00 02 00 00 00 00 00 00
+demo
+wait 600
+
+echo REMOVE of the display and of the touch while installed: refused (ERR_DEV_HELD)
+> 05 01 01 00 04 00
+> 05 01 02 00 04 00
+
+echo a RESET of the display (DEVICE RESET, from the app) while a transfer hangs: the FLUSH ends with the RESET,
+echo no FLUSH_TIMEOUT, no second RESET; the rotation set again, the screen redrawn
+fault hang
+> 15 01 03 01
+wait 120
+> 05 01 01 00 01 00
+fault none
+wait 800
+> 15 00 04
+shot l0_after_reset
+panel
+
+echo ROTATION while the display is suspended: accepted, LVGL turns now, the panel when it resumes
+> 05 01 01 00 02 00
+wait 200
+> 15 01 03 00
+> 15 00 04
+> 05 01 01 00 03 00
+wait 600
+> 15 00 04
+shot l1_rotated_while_paused
+panel
+
+echo RESET of the screen releases them: the touch can be removed now
+> 15 01 02
+> 05 01 02 00 04 00
+> 15 00 04
+
+echo a refresh rate past 60 Hz is refused (ERR_LVGL_REFRESH): 61 (3D)
+> 15 01 01 01 00 FF FF 00 00 00 00 3D
+> 15 00 04

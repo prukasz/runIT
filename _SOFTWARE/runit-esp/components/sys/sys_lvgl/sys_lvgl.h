@@ -24,14 +24,17 @@ typedef enum sys_lvgl_state_e {
   SYS_LVGL_STATE_PAUSED = 3,   //@alias Paused @description The display is suspended: drawing resumes with it
 } sys_lvgl_state_e;
 
-#define SYS_LVGL_HEAP_MIN 32768u    // the smallest pool INSTALL takes (B): lv_conf.h's LV_MEM_SIZE
-#define SYS_LVGL_HEAP_MAX 4194304u  // the largest: LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE
+#define SYS_LVGL_HEAP_MIN    32768u    // the smallest pool INSTALL takes (B): lv_conf.h's LV_MEM_SIZE
+#define SYS_LVGL_HEAP_MAX    4194304u  // the largest: LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE
+#define SYS_LVGL_REFRESH_MIN 1u        // the slowest refresh INSTALL takes (Hz)
+#define SYS_LVGL_REFRESH_MAX 60u       // the fastest (Hz)
 
 /** @brief INSTALL args and answer */
 typedef struct __attribute__((packed)) {
   uint16_t display;     /**< Display device (contract DISPLAY) */
   uint16_t touch;       /**< Touch device (contract TOUCH), or SYS_DEVICE_ID_NONE */
   uint32_t heap_bytes;  /**< LVGL's one pool (objects, styles, caches); 0: CONFIG_SYS_LVGL_HEAP_DEFAULT */
+  uint8_t refresh_hz;   /**< Frames a second at most, the touch read as often; 0: SYS_LVGL_REFRESH_HZ (lv_conf_draw.h) */
 } sys_lvgl_install_t;
 
 /** @brief ROTATION args and answer */
@@ -72,22 +75,25 @@ void sys_lvgl_unlock(void);
 
 /**
  * @brief INSTALL: the display and the touch, LVGL on its pool of heap_bytes, the draw buffers; then the adapter runs.
+ * The display and the touch are held (sys_device_hold) until RESET: the registry refuses to REMOVE them.
  * @param[in] install The display, the touch and the pool size
  * @return ERR_LVGL_INSTALLED when installed (RESET first), ERR_LVGL_NOT_DISPLAY / ERR_LVGL_NOT_TOUCH around the
- * device's error, ERR_LVGL_FORMAT, ERR_LVGL_FLUSH_MAX, ERR_LVGL_NO_MEMORY, ERR_LVGL_HEAP; a failure leaves it empty
+ * device's error, ERR_LVGL_FORMAT, ERR_LVGL_FLUSH_MAX, ERR_LVGL_NO_MEMORY, ERR_LVGL_HEAP, ERR_LVGL_REFRESH; a failure
+ * leaves it empty
  */
 MUST_USE err_h sys_lvgl_install(const sys_lvgl_install_t* install);
 
 /**
- * @brief What is installed: SYS_DEVICE_ID_NONE and heap_bytes 0 when empty.
- * @param[out] out The display, the touch and the pool size
+ * @brief What is installed: SYS_DEVICE_ID_NONE, heap_bytes and refresh_hz 0 when empty.
+ * @param[out] out The display, the touch, the pool size and the refresh rate
  * @return The error of the read
  */
 MUST_USE err_h sys_lvgl_get_install(sys_lvgl_install_t* out);
 
 /**
  * @brief RESET: waits for the last FLUSH, calls the reset hook, deletes the touch and the display, stops LVGL
- * (lv_deinit) and frees its pool and the buffers. Empty: nothing to do.
+ * (lv_deinit), frees its pool and the buffers and releases the devices. Empty: nothing to do. The project's ERASE runs
+ * it first (runit's erase hook).
  * @return The error of deleting the devices
  */
 MUST_USE err_h sys_lvgl_reset(void);
@@ -106,7 +112,8 @@ MUST_USE err_h sys_lvgl_stop(void);
 
 /**
  * @brief ROTATION: waits for the last FLUSH, turns the panel (DISPLAY ORIENTATION), then LVGL (lv_display_set_rotation,
- * which redraws the screen).
+ * which redraws the screen). While the display is suspended (PAUSED) only LVGL turns: the panel takes the rotation when
+ * it resumes.
  * @param[in] rotation sys_display_orientation_e
  * @return ERR_LVGL_NOT_INSTALLED when empty, ERR_DEV_RANGE past 270 deg, or the display's error
  */
@@ -147,7 +154,8 @@ void sys_lvgl_set_reset_hook(sys_lvgl_reset_f fn);
 /**
  * @brief A device's state changed (the registry's state listener, runit_error_policy.c): for the installed display
  * (or SYS_DEVICE_ID_NONE, every device) it sets a bit of the LVGL task: SUSPENDED pauses drawing, RESUMED and RESET set
- * the rotation again and redraw. Never waits; takes no lock.
+ * the rotation again and redraw. A RESET also ends the FLUSH in flight (its done never comes). Never waits; takes no
+ * lock.
  * @param[in] id     Device id, or SYS_DEVICE_ID_NONE for a sweep
  * @param[in] change SUSPENDED, RESUMED or RESET
  */

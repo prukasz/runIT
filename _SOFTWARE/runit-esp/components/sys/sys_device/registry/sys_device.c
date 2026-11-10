@@ -26,6 +26,7 @@ typedef struct {
   sys_device_base_t* ctx;
   bool system;  // the board's own (SYS_DEVICE_CREATE_SYSTEM): never removed
   bool remote;  // a device of another board (CREATE_REMOTE): `where` says which; ctx is a sys_device_base_t only
+  uint8_t holds;  // modules that keep it (sys_device_hold): REMOVE refused while any
   sys_device_remote_t where;
 } dev_t_;
 
@@ -112,6 +113,30 @@ err_h sys_device_use(sys_device_base_t* dev, uint16_t dep) {
   }
   xSemaphoreGiveRecursive(sys_device_mutex);
   return err;
+}
+
+err_h sys_device_hold(uint16_t id) {
+  err_h err = NULL;
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
+  const uint32_t at = find_dev(id);
+  if (at == s_reg.dev_count) {
+    err = ERR_NEW(ERR_DEV_NOT_FOUND, .id = id);
+  } else if (s_reg.devs[at].holds == UINT8_MAX) {
+    err = ERR_NEW(ERR_DEV_BAD_ARG);
+  } else {
+    s_reg.devs[at].holds++;
+  }
+  xSemaphoreGiveRecursive(sys_device_mutex);
+  return err;
+}
+
+void sys_device_release(uint16_t id) {
+  xSemaphoreTakeRecursive(sys_device_mutex, portMAX_DELAY);
+  const uint32_t at = find_dev(id);
+  if (at < s_reg.dev_count && s_reg.devs[at].holds > 0) {
+    s_reg.devs[at].holds--;
+  }
+  xSemaphoreGiveRecursive(sys_device_mutex);
 }
 
 /* ---- CREATE ---- */
@@ -239,11 +264,12 @@ OP_WRITE(SYS_DEVICE, RESUME) {
   return err;
 }
 
-// Refused for a board device and while another device uses it. Otherwise the hardware is released, the instance
-// unregistered and freed, even if uninstall() failed.
+// Refused for a board device, while a module holds it and while another device uses it. Otherwise the hardware is
+// released, the instance unregistered and freed, even if uninstall() failed.
 OP_WRITE(SYS_DEVICE, REMOVE) {
   const dev_t_ d = *(const dev_t_*)ctx;  // a copy: the entry moves when the table shrinks
   ERR_CHECK(!d.system, ERR_DEV_SYSTEM, .id = d.id);
+  ERR_CHECK(d.holds == 0, ERR_DEV_HELD, .id = d.id);
   const uint32_t user = find_user(d.id);
   ERR_CHECK(user == s_reg.dev_count, ERR_DEV_IN_USE, .id = d.id, .user = s_reg.devs[user].id);
   err_h err = d.remote ? NULL : d.type->uninstall(d.ctx);

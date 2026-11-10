@@ -86,6 +86,10 @@
     "ERR_DEV_LOCAL_OP": {
       "message": "{op} runs only inside the board, not as a command",
       "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
+    },
+    "ERR_DEV_HELD": {
+      "message": "{id} cannot be removed: the screen is installed on it",
+      "hint": "Reset the screen first."
     }
   }
 }

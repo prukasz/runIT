@@ -1839,6 +1839,25 @@
           "description": "an op the firmware calls only in C (SYS_DEVICE_OP_LOCAL), sent as a command or to a remote device",
           "message": "{op} runs only inside the board, not as a command",
           "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
+        },
+        {
+          "code": 26,
+          "tag": 393242,
+          "name": "ERR_DEV_HELD",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            }
+          ],
+          "description": "REMOVE of a device a module holds (sys_device_hold: the screen adapter's display and touch)",
+          "message": "{id} cannot be removed: the screen is installed on it",
+          "hint": "Reset the screen first."
         }
       ]
     },
@@ -6424,6 +6443,36 @@
           "description": "what was asked would leave less than the reserve in LVGL's pool",
           "message": "The screen's memory is full: {free} free, {need} needed, {reserve} kept in reserve",
           "hint": "Fewer widgets or shorter texts, or a larger screen heap."
+        },
+        {
+          "code": 10,
+          "tag": 1835018,
+          "name": "ERR_LVGL_REFRESH",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "refresh_hz",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "min",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "the refresh rate asked for is outside SYS_LVGL_REFRESH_MIN .. _MAX",
+          "message": "Screen refresh {refresh_hz} Hz is outside {min} .. {max} Hz",
+          "hint": "Give the screen a refresh rate within the range, or 0 for the default."
         }
       ]
     }
