@@ -39,7 +39,8 @@ static struct {
 
 /* An offer of the charger: a profile and the voltage / current asked of it. */
 typedef struct {
-  uint32_t mV, mA;
+  uint32_t mV;   // the voltage asked of the charger
+  uint32_t mA;   // the current asked of it
   uint8_t type;  // sys_power_usb_pd_option_type_e
 } offer_t;
 

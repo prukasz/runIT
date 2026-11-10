@@ -12,15 +12,19 @@ extern "C" {
  * driver's own command, from its own config (a BLE characteristic: ROUTER_KEY_BLE; a UART port: ROUTER_KEY_UART): no op
  * here creates one. */
 
-#define SYS_DATA_PROVIDER_OP_REMOVE          0x01u  // W: sys_data_provider_ref_t
-#define SYS_DATA_PROVIDER_OP_BIND_COMMANDS   0x04u  // W: sys_data_provider_ref_t, its messages are commands for this board, no header
-#define SYS_DATA_PROVIDER_OP_UNBIND_COMMANDS 0x05u  // W: sys_data_provider_ref_t
-#define SYS_DATA_PROVIDER_OP_SEND            0x03u  // W: sys_data_provider_ref_t + the frame
+#define SYS_DATA_PROVIDER_OP_REMOVE          0x01u  /**< W: sys_data_provider_ref_t */
+/**
+ * W: sys_data_provider_ref_t, its messages are commands for this board, no header
+ */
+#define SYS_DATA_PROVIDER_OP_BIND_COMMANDS   0x04u
+#define SYS_DATA_PROVIDER_OP_UNBIND_COMMANDS 0x05u  /**< W: sys_data_provider_ref_t */
+#define SYS_DATA_PROVIDER_OP_SEND            0x03u  /**< W: sys_data_provider_ref_t + the frame */
+/** @brief REMOVE / BIND_COMMANDS / UNBIND_COMMANDS / SEND args */
 typedef struct __attribute__((packed)) {
   uint8_t provider;  /**< Its id */
 } sys_data_provider_ref_t;
 
-#define SYS_DATA_PROVIDER_OP_LIST 0x02u  // R: -> u8 count, then sys_data_provider_info_t per provider
+#define SYS_DATA_PROVIDER_OP_LIST 0x02u  /**< R: -> u8 count, then sys_data_provider_info_t per provider */
 /** @brief A provider as LIST sends it. */
 typedef struct __attribute__((packed)) {
   uint8_t provider;  /**< Its id */

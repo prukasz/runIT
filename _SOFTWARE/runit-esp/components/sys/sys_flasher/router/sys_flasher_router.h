@@ -9,10 +9,11 @@ extern "C" {
 /* Ops under ROUTER_KEY_FLASHER (SYS_FLASHER.MD "Remote"), each above the frame it uses (packed, little-endian;
  * contract_flasher.json names them), with its sides. Never renumber. */
 
-#define SYS_FLASHER_OP_START 0x01u  // W: -, flashing the board on the link starts; STATUS follows it
-#define SYS_FLASHER_OP_ABORT 0x03u  // W: -, stops it between two packets
+#define SYS_FLASHER_OP_START 0x01u  /**< W: -, flashing the board on the link starts; STATUS follows it */
+#define SYS_FLASHER_OP_ABORT 0x03u  /**< W: -, stops it between two packets */
 
-#define SYS_FLASHER_OP_STATUS 0x02u  // R: -> sys_flasher_status_reply_t
+#define SYS_FLASHER_OP_STATUS 0x02u  /**< R: -> sys_flasher_status_reply_t */
+/** @brief STATUS answer */
 typedef struct __attribute__((packed)) {
   uint8_t state;   /**< sys_flasher_state_e */
   uint8_t step;    /**< sys_flasher_step_e */

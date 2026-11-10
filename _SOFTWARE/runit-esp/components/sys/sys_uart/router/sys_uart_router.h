@@ -11,11 +11,13 @@ extern "C" {
  * contract_uart.json names them), with its sides. Never renumber. A port made here is removed with the provider's
  * REMOVE (SYS_DATA_PROVIDER.MD), by the id it was given. */
 
-#define SYS_UART_OP_CREATE 0x01u  // R: sys_uart_port_args_t -> sys_uart_cfg_t; W: sys_uart_cfg_t
+#define SYS_UART_OP_CREATE 0x01u  /**< R: sys_uart_port_args_t -> sys_uart_cfg_t; W: sys_uart_cfg_t */
+/** @brief CREATE args */
 typedef struct __attribute__((packed)) {
   uint8_t port;  /**< The UART of the chip */
 } sys_uart_port_args_t;
 
+/** @brief CREATE args and answer: a UART port made as a provider */
 typedef struct __attribute__((packed)) sys_uart_cfg {
   uint8_t provider;   /**< Its id, chosen here: any the board has not given */
   uint8_t port;       /**< The UART of the chip: not the console's, not the link's */
@@ -29,9 +31,11 @@ typedef struct __attribute__((packed)) sys_uart_cfg {
   sys_io_pin_t cts;   /**< With RTS; SYS_IO_PIN_NONE: none */
 } sys_uart_cfg_t;
 
-/* A command to what hangs on a raw port and its answer, as I2C's RAW. The answer is what came back, empty when nothing did. */
-#define SYS_UART_OP_RAW     0x02u  // W: sys_uart_raw_args_t + data -> the bytes that came back
-#define SYS_UART_OP_RECEIVE 0x03u  // R: sys_uart_raw_args_t -> the bytes that came
+/* A command to what hangs on a raw port and its answer, as I2C's RAW. The answer is what came back, empty when nothing
+ * did. */
+#define SYS_UART_OP_RAW     0x02u  /**< W: sys_uart_raw_args_t + data -> the bytes that came back */
+#define SYS_UART_OP_RECEIVE 0x03u  /**< R: sys_uart_raw_args_t -> the bytes that came */
+/** @brief RAW / RECEIVE args */
 typedef struct __attribute__((packed)) {
   uint8_t provider;  /**< A raw provider */
   uint16_t wait_ms;  /**< How long to wait for the answer, at most SYS_UART_RAW_WAIT_MAX_MS */

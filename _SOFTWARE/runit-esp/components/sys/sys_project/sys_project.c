@@ -30,35 +30,45 @@ _Static_assert(CONFIG_SYS_PROJECT_MAX_SECTIONS * (LEN_BYTES + RUN_FRAME) + LEN_B
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_PROJECT, "project", ERR_SYS_PROJECT_MAP)
 
+/** @brief A section staged during the save */
 typedef struct {
-  uint32_t final_id;   // the ID the section's record gets at COMMIT
-  uint32_t staged_id;  // where it waits until then
+  uint32_t final_id;   /**< The ID the section's record gets at COMMIT */
+  uint32_t staged_id;  /**< Where it waits until then */
 } section_t;
 
+/** @brief What a section holds */
 typedef enum {
-  KIND_RECORD,   // a record under the section's ID
-  KIND_PROGRAM,  // cut into chunks
-  KIND_START,    // one record in the bank, run by RUN only
+  KIND_RECORD,   /**< A record under the section's ID */
+  KIND_PROGRAM,  /**< Cut into chunks */
+  KIND_START,    /**< One record in the bank, run by RUN only */
 } kind_e;
 
-/* The one open save. The stream is parsed as it comes: a frame at a time into .frame, whole frames into .buf (the
- * record being built), which goes to flash when the section ends (or, for the program, when it is full). */
+/**
+ * @brief The one open save. The stream is parsed as it comes: a frame at a time into .frame, whole frames into .buf
+ * (the record being built), which goes to flash when the section ends (or, for the program, when it is full).
+ */
 typedef struct {
-  bool open;
-  uint8_t boot;       // sys_project_boot_e, stored at COMMIT
-  uint8_t bank;       // the one being filled
-  uint16_t seq;       // the IDs given so far in this bank
-  uint32_t want, got, crc;
-  // parser
-  uint8_t len_got;    // bytes of flen so far: 0 only between frames
-  uint16_t flen, fgot;
-  // section
-  bool in_section, program_seen, start_seen;
-  uint8_t kind;       // kind_e of the open section
-  uint32_t final_id;  // the open section's ID (the start section: its record in the bank)
-  uint16_t buf_len;
-  uint16_t sections;
-  uint16_t chunks_len;  // bytes of .chunks
+  bool open;             /**< A save is in progress */
+  uint8_t boot;          /**< sys_project_boot_e, stored at COMMIT */
+  uint8_t bank;          /**< The bank being filled */
+  uint16_t seq;          /**< The IDs given so far in this bank */
+
+  uint32_t want;         /**< Stream length announced by BEGIN, in bytes */
+  uint32_t got;          /**< Stream bytes received so far */
+  uint32_t crc;          /**< CRC-32 of the bytes received so far */
+
+  uint8_t len_got;       /**< Bytes of flen read so far: 0 only between frames */
+  uint16_t flen;         /**< Length of the frame being parsed */
+  uint16_t fgot;         /**< Bytes of that frame received so far */
+
+  bool in_section;       /**< A SECTION frame opened a section that is not closed yet */
+  bool program_seen;     /**< The program section has come */
+  bool start_seen;       /**< The start section has come */
+  uint8_t kind;          /**< kind_e of the open section */
+  uint32_t final_id;     /**< The open section's ID (the start section: its record in the bank) */
+  uint16_t buf_len;      /**< Bytes of the record being built in .buf */
+  uint16_t sections;     /**< Sections staged so far */
+  uint16_t chunks_len;   /**< Bytes of .chunks */
 } save_t;
 
 U_MUTEX_DEFINE(sys_project_mutex);  // s_project but .nvs: both router tasks write, ops open / close
@@ -66,7 +76,7 @@ U_MUTEX_DEFINE(sys_project_mutex);  // s_project but .nvs: both router tasks wri
 static struct {
   save_t save;                                                              // zeroed whole when a save closes
   uint8_t buf[CONFIG_SYS_ACTIONS_MAX_BYTES];                                // the record being built
-  uint8_t frame[CMD_DATA_MAX];                                                 // the frame being parsed
+  uint8_t frame[CMD_DATA_MAX];                                              // the frame being parsed
   uint8_t chunks[CONFIG_SYS_PROJECT_MAX_CHUNKS * (LEN_BYTES + RUN_FRAME)];  // the program's list of chunks
   section_t secs[CONFIG_SYS_PROJECT_MAX_SECTIONS];                          // the sections staged so far
   nvs_handle_t nvs;                                                         // the options; opened at init

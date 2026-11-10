@@ -10,25 +10,29 @@ extern "C" {
 /* Ops under ROUTER_KEY_SESSION (SYS_SESSION.MD "Remote"), each above the frame it uses (packed, little-endian;
  * contract_session.json names them), with its sides. Never renumber. */
 
-#define SYS_SESSION_OP_ID 0x01u  // R: -> sys_session_id_args_t; W: sys_session_id_args_t
+#define SYS_SESSION_OP_ID 0x01u  /**< R: -> sys_session_id_args_t; W: sys_session_id_args_t */
+/** @brief ID args and answer */
 typedef struct __attribute__((packed)) {
   uint8_t board_id;  /**< Kept in NVS, used from the next start */
 } sys_session_id_args_t;
 
-#define SYS_SESSION_OP_ATTACH 0x02u  // W: sys_session_attach_args_t
+#define SYS_SESSION_OP_ATTACH 0x02u  /**< W: sys_session_attach_args_t */
+/** @brief ATTACH args */
 typedef struct __attribute__((packed)) {
-  uint8_t provider;
-  uint8_t peer;  /**< sys_session_peer_e */
+  uint8_t provider;  /**< The provider the session runs over */
+  uint8_t peer;      /**< sys_session_peer_e */
 } sys_session_attach_args_t;
 
-#define SYS_SESSION_OP_DETACH 0x03u  // W: sys_session_detach_args_t
+#define SYS_SESSION_OP_DETACH 0x03u  /**< W: sys_session_detach_args_t */
+/** @brief DETACH args */
 typedef struct __attribute__((packed)) {
-  uint8_t provider;
+  uint8_t provider;  /**< The provider whose session ends */
 } sys_session_detach_args_t;
 
-#define SYS_SESSION_OP_PEERS 0x04u  // R: -> u8 count, then sys_session_info_t per session
+#define SYS_SESSION_OP_PEERS 0x04u  /**< R: -> u8 count, then sys_session_info_t per session */
+/** @brief PEERS answer: one session */
 typedef struct __attribute__((packed)) {
-  uint8_t provider;
+  uint8_t provider;     /**< The provider it runs over */
   uint8_t peer;         /**< sys_session_peer_e */
   uint8_t open;         /**< 1 = both hellos passed */
   uint8_t peer_id;      /**< Its id, from its hello; SYS_SESSION_ID_NONE before it */

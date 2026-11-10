@@ -7,21 +7,27 @@
 extern "C" {
 #endif
 
-/* Ops under ROUTER_KEY_I2C (SYS_I2C.MD "Remote"), each above the frame it uses (packed, little-endian; contract_i2c.json
- * names them), with its sides. Never renumber; 0x01 is unused: never assign it. */
+/* Ops under ROUTER_KEY_I2C (SYS_I2C.MD "Remote"), each above the frame it uses (packed, little-endian;
+ * contract_i2c.json names them), with its sides. Never renumber; 0x01 is unused: never assign it. */
 
-#define SYS_I2C_OP_RESET      0x03u  // W: sys_i2c_bus_args_t
-#define SYS_I2C_OP_BUS_REMOVE 0x06u  // W: sys_i2c_bus_args_t
+#define SYS_I2C_OP_RESET      0x03u  /**< W: sys_i2c_bus_args_t */
+#define SYS_I2C_OP_BUS_REMOVE 0x06u  /**< W: sys_i2c_bus_args_t */
+/** @brief RESET / BUS_REMOVE args */
 typedef struct __attribute__((packed)) {
   uint8_t bus;  /**< sys_i2c_bus_e */
 } sys_i2c_bus_args_t;
 
-#define SYS_I2C_OP_SCAN 0x02u  // R: sys_i2c_bus_args_t -> sys_i2c_scan_t
+#define SYS_I2C_OP_SCAN 0x02u  /**< R: sys_i2c_bus_args_t -> sys_i2c_scan_t */
+/** @brief SCAN answer */
 typedef struct __attribute__((packed)) {
   uint32_t found[4];  /**< Bit n = address n acked, 0x08..0x77 */
 } sys_i2c_scan_t;
 
-#define SYS_I2C_OP_RAW 0x04u  // R: sys_i2c_raw_read_args_t -> sys_i2c_raw_write_args_t + data; W: sys_i2c_raw_write_args_t + data
+/**
+ * R: sys_i2c_raw_read_args_t -> sys_i2c_raw_write_args_t + data; W: sys_i2c_raw_write_args_t + data
+ */
+#define SYS_I2C_OP_RAW 0x04u
+/** @brief RAW read key */
 typedef struct __attribute__((packed)) {
   uint8_t bus;   /**< sys_i2c_bus_e */
   uint8_t addr;  /**< 7-bit address */
@@ -29,13 +35,15 @@ typedef struct __attribute__((packed)) {
   uint8_t len;   /**< Length in bytes */
 } sys_i2c_raw_read_args_t;
 
+/** @brief RAW write args, and the head of the read answer: the data follows */
 typedef struct __attribute__((packed)) {
   uint8_t bus;   /**< sys_i2c_bus_e */
   uint8_t addr;  /**< 7-bit address */
   uint8_t reg;   /**< Register address; the data follows (at least 1 byte) */
 } sys_i2c_raw_write_args_t;
 
-#define SYS_I2C_OP_BUS_CREATE 0x05u  // R: sys_i2c_bus_args_t -> sys_i2c_bus_cfg_t; W: sys_i2c_bus_cfg_t
+#define SYS_I2C_OP_BUS_CREATE 0x05u  /**< R: sys_i2c_bus_args_t -> sys_i2c_bus_cfg_t; W: sys_i2c_bus_cfg_t */
+/** @brief BUS_CREATE args and answer */
 typedef struct __attribute__((packed)) sys_i2c_bus_cfg {
   uint8_t bus;       /**< sys_i2c_bus_e */
   sys_io_pin_t sda;  /**< A pin of the ESP32-S3's GPIO device */

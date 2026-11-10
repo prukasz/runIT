@@ -9,16 +9,18 @@ extern "C" {
 /* Ops under ROUTER_KEY_BOARD (SYS_BOARD.MD "Remote"), each above the frame it uses (packed, little-endian;
  * contract_board.json names them), with its sides. Never renumber. */
 
-#define SYS_BOARD_OP_JSON_APPEND 0x01u  // W: sys_board_append_args_t + data
+#define SYS_BOARD_OP_JSON_APPEND 0x01u  /**< W: sys_board_append_args_t + data */
+/** @brief JSON_APPEND args */
 typedef struct __attribute__((packed)) {
   uint32_t offset;  /**< The file's length; the data follows */
 } sys_board_append_args_t;
 
-#define SYS_BOARD_OP_JSON_ERASE 0x02u  // W: -
+#define SYS_BOARD_OP_JSON_ERASE 0x02u  /**< W: - */
 
-#define SYS_BOARD_OP_JSON_INFO 0x03u  // R: -> sys_nvs_json_info_t { u32 bytes, u32 crc32, u16 chunks }
+#define SYS_BOARD_OP_JSON_INFO 0x03u  /**< R: -> sys_nvs_json_info_t { u32 bytes, u32 crc32, u16 chunks } */
 
-#define SYS_BOARD_OP_JSON_READ 0x04u  // R: sys_board_read_args_t -> the chunk's bytes
+#define SYS_BOARD_OP_JSON_READ 0x04u  /**< R: sys_board_read_args_t -> the chunk's bytes */
+/** @brief JSON_READ args */
 typedef struct __attribute__((packed)) {
   uint16_t chunk;  /**< 0..chunks-1 */
 } sys_board_read_args_t;

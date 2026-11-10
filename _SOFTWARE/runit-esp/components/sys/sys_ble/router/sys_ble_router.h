@@ -10,18 +10,21 @@ extern "C" {
  * contract_ble.json names them), with its sides. Never renumber. Changes are staged; APPLY puts them live (with a
  * client connected, CONFIG_SYS_BLE_APPLY_DELAY_MS after its answer; the client reconnects). */
 
-#define SYS_BLE_OP_SVC_CREATE 0x01u  // W: sys_ble_svc_create_args_t
+#define SYS_BLE_OP_SVC_CREATE 0x01u  /**< W: sys_ble_svc_create_args_t */
+/** @brief SVC_CREATE args */
 typedef struct __attribute__((packed)) {
   uint16_t uuid;       /**< Service UUID */
   uint8_t is_primary;  /**< 1 = primary service, 0 = secondary */
 } sys_ble_svc_create_args_t;
 
-#define SYS_BLE_OP_SVC_REMOVE 0x02u  // W: sys_ble_svc_remove_args_t
+#define SYS_BLE_OP_SVC_REMOVE 0x02u  /**< W: sys_ble_svc_remove_args_t */
+/** @brief SVC_REMOVE args */
 typedef struct __attribute__((packed)) {
   uint16_t uuid;  /**< Service UUID */
 } sys_ble_svc_remove_args_t;
 
-#define SYS_BLE_OP_CHAR_CREATE 0x03u  // W: sys_ble_char_create_args_t + name (UTF-8, NUL-ended)
+#define SYS_BLE_OP_CHAR_CREATE 0x03u  /**< W: sys_ble_char_create_args_t + name (UTF-8, NUL-ended) */
+/** @brief CHAR_CREATE args */
 typedef struct __attribute__((packed)) {
   uint16_t svc_uuid;        /**< Parent service UUID */
   uint16_t uuid;            /**< Characteristic UUID */
@@ -35,40 +38,47 @@ typedef struct __attribute__((packed)) {
   uint8_t provider;         /**< Its provider's id, with has_provider */
 } sys_ble_char_create_args_t;
 
-#define SYS_BLE_OP_CHAR_REMOVE 0x04u  // W: sys_ble_char_remove_args_t
+#define SYS_BLE_OP_CHAR_REMOVE 0x04u  /**< W: sys_ble_char_remove_args_t */
+/** @brief CHAR_REMOVE args */
 typedef struct __attribute__((packed)) {
   uint16_t svc_uuid;  /**< Parent service UUID */
   uint16_t uuid;      /**< Characteristic UUID */
 } sys_ble_char_remove_args_t;
 
-#define SYS_BLE_OP_APPLY 0x05u  // W: -
+#define SYS_BLE_OP_APPLY 0x05u  /**< W: - */
 
-#define SYS_BLE_OP_STATUS 0x06u  // R: -> sys_ble_status_reply_t
+#define SYS_BLE_OP_STATUS 0x06u  /**< R: -> sys_ble_status_reply_t */
+/** @brief STATUS answer */
 typedef struct __attribute__((packed)) {
   uint8_t is_connected;        /**< 1 = connected, 0 = disconnected */
   uint16_t mtu;                /**< Negotiated MTU size in bytes */
   uint32_t rx_overflow_count;  /**< Count of dropped RX items due to full buffer */
 } sys_ble_status_reply_t;
 
-/* R: -> [count u8] then per service { u16 uuid, u8 flags (SYS_BLE_LIST_PRIMARY, SYS_BLE_LIST_LOCKED), u8 n,
- * n x { u16 uuid, u8 flags (SYS_BLE_LIST_WRITE, _INDICATE, _NOTIFY, _FRAMED, _PROVIDER), u32 tx, u32 rx, u8 provider (with SYS_BLE_LIST_PROVIDER),
- * name (NUL-ended) } } */
+/**
+ * R: -> [count u8], then per service { u16 uuid, u8 flags (SYS_BLE_LIST_PRIMARY, SYS_BLE_LIST_LOCKED), u8 n,
+ * n x { u16 uuid, u8 flags (SYS_BLE_LIST_WRITE, _INDICATE, _NOTIFY, _FRAMED, _PROVIDER), u32 tx, u32 rx,
+ * u8 provider (with SYS_BLE_LIST_PROVIDER), name (NUL-ended) } }
+ */
 #define SYS_BLE_OP_LIST 0x07u
 
 /* This board as a central (SYS_BLE.MD "Central"). */
 
-#define SYS_BLE_OP_SCAN 0x08u  // W: sys_ble_scan_args_t
+#define SYS_BLE_OP_SCAN 0x08u  /**< W: sys_ble_scan_args_t */
+/** @brief SCAN args */
 typedef struct __attribute__((packed)) {
   uint16_t duration_ms;  /**< How long to scan for runIT boards, 100..30000 ms */
 } sys_ble_scan_args_t;
 
-/* R: -> sys_ble_found_head_t, then head.count x sys_ble_found_info_t */
+/** R: -> sys_ble_found_head_t, then head.count x sys_ble_found_info_t */
 #define SYS_BLE_OP_FOUND 0x09u
+/** @brief FOUND answer: the head */
 typedef struct __attribute__((packed)) {
   uint8_t scanning;  /**< 1 = the scan still runs */
   uint8_t count;     /**< Boards that follow */
 } sys_ble_found_head_t;
 
+/** @brief FOUND answer: one board found */
 typedef struct __attribute__((packed)) {
   uint8_t addr_type;  /**< 0 public, 1 random */
   uint8_t addr[6];    /**< Least significant byte first */
@@ -76,20 +86,24 @@ typedef struct __attribute__((packed)) {
   char name[16];      /**< Its advertised name, NUL-padded (SYS_BLE_CENTRAL_NAME_MAX) */
 } sys_ble_found_info_t;
 
-#define SYS_BLE_OP_CONNECT 0x0Au  // W: sys_ble_connect_args_t
+#define SYS_BLE_OP_CONNECT 0x0Au  /**< W: sys_ble_connect_args_t */
+/** @brief CONNECT args */
 typedef struct __attribute__((packed)) {
   uint8_t provider;   /**< The link's provider id; PROVIDER REMOVE ends the link */
   uint8_t addr_type;  /**< 0 public, 1 random */
   uint8_t addr[6];    /**< The board's address, least significant byte first */
 } sys_ble_connect_args_t;
 
-#define SYS_BLE_LIST_PRIMARY  (1u << 0)
-#define SYS_BLE_LIST_LOCKED   (1u << 1)
-#define SYS_BLE_LIST_WRITE    (1u << 0)
-#define SYS_BLE_LIST_INDICATE (1u << 1)
-#define SYS_BLE_LIST_NOTIFY   (1u << 2)
-#define SYS_BLE_LIST_FRAMED   (1u << 3)
-#define SYS_BLE_LIST_PROVIDER (1u << 4)
+/* Flags of a service in LIST */
+#define SYS_BLE_LIST_PRIMARY  (1u << 0)  /**< A primary service */
+#define SYS_BLE_LIST_LOCKED   (1u << 1)  /**< Locked: no characteristic changes, no removal */
+
+/* Flags of a characteristic in LIST */
+#define SYS_BLE_LIST_WRITE    (1u << 0)  /**< The peer can write it */
+#define SYS_BLE_LIST_INDICATE (1u << 1)  /**< TX as indications */
+#define SYS_BLE_LIST_NOTIFY   (1u << 2)  /**< TX as notifications */
+#define SYS_BLE_LIST_FRAMED   (1u << 3)  /**< Fragment header on every packet */
+#define SYS_BLE_LIST_PROVIDER (1u << 4)  /**< It has a provider: its id follows */
 
 /**
  * @brief Runtime GATT table and BLE status, under ROUTER_KEY_BLE.

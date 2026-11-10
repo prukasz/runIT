@@ -11,8 +11,9 @@ extern "C" {
  * contract_remote.json names them), with its sides. Never renumber. The subscriber is the command's src: no frame
  * names a peer. */
 
-#define SYS_REMOTE_OP_SUBSCRIBE   0x01u  // W: sys_remote_device_ref_t
-#define SYS_REMOTE_OP_UNSUBSCRIBE 0x02u  // W: sys_remote_device_ref_t
+#define SYS_REMOTE_OP_SUBSCRIBE   0x01u  /**< W: sys_remote_device_ref_t */
+#define SYS_REMOTE_OP_UNSUBSCRIBE 0x02u  /**< W: sys_remote_device_ref_t */
+/** @brief SUBSCRIBE / UNSUBSCRIBE args */
 typedef struct __attribute__((packed)) {
   uint16_t id;  /**< A device of this board */
 } sys_remote_device_ref_t;
