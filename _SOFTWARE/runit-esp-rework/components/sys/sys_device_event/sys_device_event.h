@@ -23,31 +23,47 @@ MODULE_ID_DECLARE(EVENT, 0x03)
 SYS_DEVICE_CONTRACT_DECLARE(EVENT, 0x03)
 
 /**
- * @brief A driver's ON_EVENT handler: OP_WRITE_TAIL(EVENT, ON_EVENT) with the one rule an event adds, the tail is as
- * long as the event's `len` (else ERR_CMD_BAD_LEN). The body sees `c` (the driver's struct, SYS_DEVICE_CTX*) and
- * `event` (used in place; its payload SYS_EVENT_DATA(event, NAME), event->len bytes). The row in the op table is
+ * @brief Handler for a device op that receives an event (OP_WRITE_TAIL with args = sys_event_t and tail = event->len
+ * bytes, checking tail_len == args->len else ERR_CMD_BAD_LEN). Used for EVENT/ON_EVENT (OP_WRITE_ON_EVENT) and for
+ * a driver's own pin/event ops subscribed via sys_device_event_subscribe_op() or sys_io_claim*().
+ * @usage OP_WRITE_EVENT(TCA6424A, INT) { if (sys_device_self_suspended()) { return NULL; } ... }
+ */
+#define OP_WRITE_EVENT(P, name)                                                                              \
+  static err_h P##_w_##name##_event(SYS_DEVICE_CTX* c, const sys_event_t* event);                            \
+  OP_WRITE_TAIL(P, name) {                                                                                   \
+    ERR_CHECK(tail_len == args->len, ERR_CMD_BAD_LEN, .got = (uint16_t)(sizeof(sys_event_t) + tail_len),     \
+              .need = (uint16_t)(sizeof(sys_event_t) + args->len));                                          \
+    return P##_w_##name##_event(c, args);                                                                    \
+  }                                                                                                          \
+  static err_h P##_w_##name##_event(SYS_DEVICE_CTX* c CMD_UNUSED, const sys_event_t* event CMD_UNUSED)
+
+/**
+ * @brief A driver's ON_EVENT handler: OP_WRITE_EVENT(EVENT, ON_EVENT). The row in the op table is
  * OP_ENTRY_W(EVENT, ON_EVENT).
  * @usage OP_WRITE_ON_EVENT { if (event->key.tag == IO_EV_FALLING) { return read_inputs(c); } return NULL; }
  */
-#define OP_WRITE_ON_EVENT                                                                                    \
-  static err_h EVENT_w_ON_EVENT_event(SYS_DEVICE_CTX* c, const sys_event_t* event);                          \
-  OP_WRITE_TAIL(EVENT, ON_EVENT) {                                                                           \
-    ERR_CHECK(tail_len == args->len, ERR_CMD_BAD_LEN, .got = (uint16_t)(sizeof(sys_event_t) + tail_len),     \
-              .need = (uint16_t)(sizeof(sys_event_t) + args->len));                                          \
-    return EVENT_w_ON_EVENT_event(c, args);                                                                  \
-  }                                                                                                          \
-  static err_h EVENT_w_ON_EVENT_event(SYS_DEVICE_CTX* c CMD_UNUSED, const sys_event_t* event CMD_UNUSED)
+#define OP_WRITE_ON_EVENT OP_WRITE_EVENT(EVENT, ON_EVENT)
 
 /**
- * @brief Adds device `device` as an inline listener: its ON_EVENT (sys_device_write) gets the matching events, in the
- * publisher's task. The listener is the device's ID, not a pointer, so a device removed while an event is on its way
- * just answers ERR_DEV_NOT_FOUND (reported with the event). An event published inside a device op is delivered when
- * the publishing task's outermost sys_device_call is over (the registry holds it until then), so the ON_EVENT never
- * waits for a lock its own task holds. It may block on I/O (I2C), never on a delay.
+ * @brief Adds device `device` as an inline listener delivering matching events to `op` of its current generation
+ * (sys_device_deliver): wait for the lock and skip cleanly if the device is gone or another device holds the ID.
+ * `op` is either the device's own op (SYS_DEVICE_CONTRACT_OWN, LOCAL + TAIL + ALWAYS if it should run suspended) or
+ * EVENT_OP_ON_EVENT.
+ * @param[in]  filter Which events: a key, each field exact or SYS_EVENT_ANY_*
+ * @param[in]  device The listener device (already created or inside its create())
+ * @param[in]  op     Target write op
+ * @param[out] handle Its handle, for sys_event_unsubscribe()
+ * @return ERR_EVENT_BAD_ARG for bad device, generation 0, or bad op; else as sys_event_subscribe
+ */
+MUST_USE err_h sys_device_event_subscribe_op(sys_event_key_t filter, uint8_t device, uint16_t op, uint16_t* handle);
+
+/**
+ * @brief Adds device `device` as an inline listener to EVENT_OP_ON_EVENT: sys_device_event_subscribe_op() with
+ * `op = EVENT_OP_ON_EVENT`.
  * @param[in]  filter Which events: a key, each field exact or SYS_EVENT_ANY_*
  * @param[in]  device The listener device
  * @param[out] handle Its handle, for sys_event_unsubscribe()
- * @return ERR_EVENT_BAD_ARG for SYS_DEVICE_ID_NONE, else as sys_event_subscribe
+ * @return As sys_device_event_subscribe_op
  */
 MUST_USE err_h sys_device_event_subscribe(sys_event_key_t filter, uint8_t device, uint16_t* handle);
 

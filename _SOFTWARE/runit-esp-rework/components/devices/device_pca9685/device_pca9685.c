@@ -40,7 +40,6 @@ typedef struct __attribute__((packed)) {
 #define MIN_PRESCALE 0x03
 
 typedef struct {
-  uint8_t id;                       // the device's ID, given to create()
   sys_io_pins_t pins;               // which channels exist, which are locked
   sys_io_claim_t oe;                // output enable (active low): locked on its device, driven by us
   sys_i2c_dev_t i2c;
@@ -87,35 +86,35 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
 
 OP_WRITE(IO, LEVEL) {
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
 
 // A read: allowed while suspended.
 OP_READ(IO, LEVEL) {
-  ERR_TRY(sys_io_pins_check(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check(&c->pins, sys_device_self(), args->pin));
   return CMD_REPLY(IO, LEVEL, .pin = args->pin, .level = c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2);
 }
 
 OP_WRITE(IO, TOGGLE) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   return chip_set_duty(c, args->pin, c->duty[args->pin] >= IO_PWM_DUTY_MAX / 2 ? 0 : IO_PWM_DUTY_MAX);
 }
 
 OP_WRITE(IO, PWM_DUTY) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
+  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->duty, 0, IO_PWM_DUTY_MAX);
   return chip_set_duty(c, args->pin, (uint16_t)args->duty);
 }
 
 // One frequency for all 16 channels: `pin` is not used.
 OP_WRITE(IO, PWM_FREQ) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
+  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
   return chip_set_frequency(c, (uint16_t)args->frequency_Hz);
 }
 
-// AVAILABLE, LOCKED, LOCK, UNLOCK: the same on every device with pins (needs `id` and `pins` in pca_t). The owner of
-// a locked channel (a bridge driver on CH 8-15) drives it with the ops above; they refuse everyone else.
+// AVAILABLE, LOCKED, LOCK, UNLOCK: the same on every device with pins (needs `pins` in pca_t). The owner of a locked
+// channel (a bridge driver on CH 8-15) drives it with the ops above; they refuse everyone else.
 SYS_IO_PINS_HANDLERS
 
 /* ---- Lifecycle ---- */
@@ -146,7 +145,6 @@ static err_h resume(pca_t* c) {
 /* ---- Create ---- */
 
 static err_h create(uint8_t id, pca_t* c, const pca9685_cfg_t* cfg) {
-  c->id = id;
   sys_io_pins_init(&c->pins, PCA9685_CHANNELS);
   ERR_TRY(sys_i2c_dev_attach(id, &c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));  // declares the bus, probes
   ERR_TRY(chip_sleep(c, false));

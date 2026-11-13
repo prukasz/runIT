@@ -30,6 +30,14 @@ uint8_t sys_device_caller(void) {
   return s_caller == 0 ? SYS_DEVICE_ID_NONE : (uint8_t)(s_caller - 1u);
 }
 
+uint8_t sys_device_self(void) {
+  return s_running == 0 ? SYS_DEVICE_ID_NONE : (uint8_t)(s_running - 1u);
+}
+
+bool sys_device_self_suspended(void) {
+  return s_running != 0 && sys_device_slot_is_suspended((uint8_t)(s_running - 1u));
+}
+
 /* The safe-state gate: the SUSPEND sweeps running now, on any task. While it is not 0 a write that comes from no
  * device and a CREATE are refused on every device, so nothing starts an output the sweep has not reached yet. A
  * device's own calls pass: a suspend() hook reaches the devices it uses, which are suspended after it. */
@@ -86,10 +94,11 @@ static const interceptor_t* find_interceptor(uint16_t op) {
  * A call: caller -> interceptor -> device -> caller, then the interceptor's `done`
  * ------------------------------------------------------------------------- */
 
-/** @brief How a call is made: by C, as a command, or as a device's step (sys_device_step). */
+/** @brief How a call is made: by C, as a command, as a device's step (sys_device_step), or as a generational delivery. */
 typedef struct {
   bool routed;  /**< A command: a LOCAL op is refused on every device */
-  uint8_t gen;  /**< A step: the generation of the device it is for; 0 for any other call */
+  bool step;    /**< A step: try-lock only and skip when suspended or gated */
+  uint8_t gen;  /**< Generation check (step or deliver): 0 for any other call */
 } how_t;
 
 /** @brief A NOLOCK op checked under the lock and counted in flight: the caller runs it after the lock. */
@@ -196,7 +205,7 @@ static bool takes_step(uint8_t id, uint8_t gen) {
 static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, const how_t* how) {
   sys_device_remote_t remote = {0};
   unlocked_t later = {0};
-  if (how->gen != 0) {
+  if (how->step) {
     if (!sys_device_slot_try_lock(id, op)) {
       return NULL;  // busy: the next step comes in its own time
     }
@@ -206,6 +215,10 @@ static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
     }
   } else {
     ERR_TRY(sys_device_slot_lock(id, op));
+    if (how->gen != 0 && (!sys_device_slot_is_installed(id) || sys_device_slot_gen(id) != how->gen)) {
+      sys_device_slot_unlock(id);
+      return NULL;  // gone, or another device under this ID
+    }
   }
   const bool was_installed = sys_device_slot_is_installed(id);
   const bool was_suspended = sys_device_slot_is_suspended(id);
@@ -297,8 +310,15 @@ err_h sys_device_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, 
 err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op) {
   ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
   ERR_CHECK(gen != 0 && (op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_DEV_BAD_ARG);  // own ops: no interceptor sees them
-  const how_t how = {.gen = gen};
+  const how_t how = {.step = true, .gen = gen};
   return call_wrapped(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = NULL, .len = 0}, NULL, &how);
+}
+
+err_h sys_device_deliver(uint8_t id, uint8_t gen, uint16_t op, const void* args, uint32_t args_len) {
+  ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
+  ERR_CHECK(gen != 0 && (op >> 8) != SYS_DEVICE_CONTRACT_DEVICE, ERR_DEV_BAD_ARG);
+  const how_t how = {.gen = gen};
+  return call_wrapped(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL, &how);
 }
 
 /* ----------------------------------------------------------------------------

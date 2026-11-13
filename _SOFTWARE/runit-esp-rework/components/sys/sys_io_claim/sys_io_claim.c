@@ -34,18 +34,20 @@ static err_h take(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin) {
   return sys_device_res_add(owner, &p->res, release, p);
 }
 
-// The owner's ON_EVENT on the pin's `event`, inline: in the publisher's task (an I2C read, no delay).
-static err_h subscribe(uint8_t owner, sys_io_claim_t* p, uint32_t event) {
+// Subscribes the pin's `event` to the owner's own op `op`, inline: in the publisher's task (an I2C read, no delay).
+static err_h subscribe(uint8_t owner, sys_io_claim_t* p, uint32_t event, uint16_t op) {
   if (event == 0) {
     return NULL;
   }
+  ERR_CHECK((op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_EVENT_BAD_ARG);
   const sys_event_key_t key = {.tag = event, .source = p->pin.device, .channel = p->pin.pin};
-  ERR_TRY(sys_device_event_subscribe(key, owner, &p->sub));
+  ERR_TRY(sys_device_event_subscribe_op(key, owner, op, &p->sub));
   p->subscribed = true;
   return NULL;
 }
 
-err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mode_e mode, uint32_t event) {
+err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mode_e mode, uint32_t event,
+                   uint16_t op) {
   p->pin = pin;  // SYS_IO_PIN_NONE stays NONE: the struct's pin is what the driver checks
   if (!sys_io_pin_valid(pin)) {
     return NULL;
@@ -53,11 +55,11 @@ err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mo
   ERR_TRY(take(owner, p, pin));
   ERR_TRY(sys_io_prepare(pin, mode));
   p->used = true;
-  return subscribe(owner, p, event);
+  return subscribe(owner, p, event, op);
 }
 
 err_h sys_io_claim_output(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, bool level) {
-  ERR_TRY(sys_io_claim(owner, p, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL, 0));
+  ERR_TRY(sys_io_claim(owner, p, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL, 0, 0));
   if (!sys_io_pin_valid(pin)) {
     return NULL;
   }
@@ -67,7 +69,8 @@ err_h sys_io_claim_output(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, bo
   return NULL;
 }
 
-err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uint32_t event, uint8_t mode) {
+err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uint32_t event, uint16_t op,
+                         uint8_t mode) {
   p->pin = pin;
   if (!sys_io_pin_valid(pin)) {
     return NULL;
@@ -75,7 +78,7 @@ err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uin
   ERR_TRY(take(owner, p, pin));
   ERR_TRY(sys_io_prepare_input(pin));
   p->used = true;
-  ERR_TRY(subscribe(owner, p, event));
+  ERR_TRY(subscribe(owner, p, event, op));
   ERR_TRY(SYS_IO_WRITE(pin, INTR, .cfg = {.mode = mode}));
   ERR_TRY(SYS_IO_WRITE(pin, LOCK));
   p->locked = true;

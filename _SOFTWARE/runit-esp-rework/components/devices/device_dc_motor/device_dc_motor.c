@@ -118,7 +118,6 @@ SYS_DEVICE_OWN_EVENTS(DC_MOTOR)
 typedef enum { SENT_NONE = 0, SENT_DRIVE, SENT_BRAKE, SENT_COAST } sent_e;
 
 typedef struct {
-  uint8_t id;                   // the device's ID, given to create()
   dc_motor_cfg_t cfg;           // the live settings are cfg.settings
   dc_motor_settings_t initial;  // the settings create took: RESET returns to them
   sys_device_timer_t timer;     // the ramp's step (TICK): runs while the motor moves or is watched
@@ -272,7 +271,7 @@ static err_h watch_stall(motor_t* c, uint32_t ms) {
   c->stalled = true;
   c->reach_pending = false;
   ERR_TRY(motor_halt(c, s->stop_mode));
-  return SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_STALL, c->id, 0, .mA = mA);
+  return SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_STALL, sys_device_self(), 0, .mA = mA);
 }
 
 /* One step now, by the time since the last one, then the timer runs while there is more to do: the ramp, the pause,
@@ -284,7 +283,7 @@ static err_h motor_tick(motor_t* c) {
   ERR_TRY(motor_apply(c));
   if (c->reach_pending && c->out == c->target && c->pause_ms == 0) {
     c->reach_pending = false;
-    ERR_TRY(SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_REACHED, c->id, 0, .speed_x10 = c->target_x10));
+    ERR_TRY(SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_REACHED, sys_device_self(), 0, .speed_x10 = c->target_x10));
   }
   ERR_TRY(watch_stall(c, ms));
   const bool watched = c->out != 0 && c->cfg.settings.stall_mA != 0 && !c->current_failed;
@@ -333,7 +332,7 @@ static err_h check_settings(uint8_t id, const dc_motor_settings_t* s, uint8_t on
 /* ---- Own ops ---- */
 
 OP_WRITE(DC_MOTOR, SPEED) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
+  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
   set_target(c, args->speed_x10);
   c->stalled = false;
   return motor_tick(c);
@@ -366,7 +365,7 @@ OP_READ(DC_MOTOR, SETTINGS) {
 
 // Takes effect at once: the dead zone on the speed already set, the ceiling and the trim on the drive.
 OP_WRITE(DC_MOTOR, SETTINGS) {
-  ERR_TRY(check_settings(c->id, args, c->cfg.one_way));
+  ERR_TRY(check_settings(sys_device_self(), args, c->cfg.one_way));
   c->cfg.settings = *args;
   c->current_failed = false;
   set_target(c, c->target_x10);
@@ -418,7 +417,6 @@ static err_h resume(motor_t* c) {
 /* ---- Create ---- */
 
 static err_h create(uint8_t id, motor_t* c, const dc_motor_cfg_t* cfg) {
-  c->id = id;
   ERR_TRY(sys_device_timer_init(id, &c->timer, DC_MOTOR_OP_TICK));
   ERR_CHECK(cfg->one_way <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(check_settings(id, &cfg->settings, cfg->one_way));

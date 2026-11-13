@@ -47,7 +47,8 @@ typedef struct __attribute__((packed)) {
   X(P, VALUE, 0x06, cmd_none_t, uint8_t,    0)                    \
   X(P, USE,   0x07, cmd_none_t, uint8_t,    0)                    \
   X(P, RES2,  0x08, cmd_none_t, cmd_none_t, 0)                    \
-  X(P, SWEEP, 0x09, cmd_none_t, cmd_none_t, 0)
+  X(P, SWEEP, 0x09, cmd_none_t, cmd_none_t, 0)                    \
+  X(P, EVT,   0x0A, cmd_none_t, uint8_t,    SYS_DEVICE_OP_LOCAL | SYS_DEVICE_OP_ALWAYS)
 SYS_DEVICE_OWN_DECLARE(PROBE)
 
 #define PROBE_EVENTS(X, P) X(P, POKE, 0x01, 0, { uint8_t n; })
@@ -66,8 +67,19 @@ typedef struct {
   uint8_t level;
   int pings;
   uint8_t last_caller;
+  uint8_t create_self;
+  bool create_suspended;
+  uint8_t last_self;
+  bool last_suspended;
+  uint8_t self_after_call;
+  bool suspend_saw_suspended;
+  bool resume_saw_suspended;
   int ticks;
   int resets;
+  int deliver_count;
+  uint8_t deliver_val;
+  bool deliver_suspended;
+  uint32_t hold_ms;
   uint32_t call_done;  // the sequence number when CALL's call returned
   sys_device_res_t res[2];
   rel_t rel[2];
@@ -124,11 +136,14 @@ static err_h release_extra(void* arg) {
 OP_WRITE(PROBE, PING) {
   c->pings++;
   c->last_caller = sys_device_caller();
+  c->last_self = sys_device_self();
+  c->last_suspended = sys_device_self_suspended();
   return NULL;
 }
 
 OP_WRITE(PROBE, CALL) {
   const err_h err = sys_device_write(c->dep, *args, NULL, 0);
+  c->self_after_call = sys_device_self();
   c->call_done = ++s_seq;
   return err;
 }
@@ -143,7 +158,19 @@ OP_WRITE(PROBE, EMIT) {
 }
 
 OP_WRITE(PROBE, BLOCK) {
+  if (c->hold_ms > 0) {
+    xSemaphoreGive(s_blocked);
+    vTaskDelay(pdMS_TO_TICKS(c->hold_ms));
+    return NULL;
+  }
   wait_released();
+  return NULL;
+}
+
+OP_WRITE(PROBE, EVT) {
+  c->deliver_count++;
+  c->deliver_val = *args;
+  c->deliver_suspended = sys_device_self_suspended();
   return NULL;
 }
 
@@ -156,6 +183,8 @@ OP_WRITE(PROBE, TICK) {
 }
 
 OP_READ(PROBE, VALUE) {
+  c->last_self = sys_device_self();
+  c->last_suspended = sys_device_self_suspended();
   return CMD_REPLY(PROBE, VALUE, c->value);
 }
 
@@ -192,6 +221,7 @@ OP_WRITE(SYS_DEVICE, RESET) {
 }
 
 static err_h suspend(probe_t* c) {
+  c->suspend_saw_suspended = sys_device_self_suspended();
   log_step('S', c->id, 0);
   if (c->id == s_suspend_block) {
     wait_released();
@@ -200,12 +230,15 @@ static err_h suspend(probe_t* c) {
 }
 
 static err_h resume(probe_t* c) {
+  c->resume_saw_suspended = sys_device_self_suspended();
   log_step('R', c->id, 0);
   return NULL;
 }
 
 static err_h create(uint8_t id, probe_t* c, const probe_cfg_t* cfg) {
   c->id = id;
+  c->create_self = sys_device_self();
+  c->create_suspended = sys_device_self_suspended();
   c->dep = cfg->dep;
   c->gen = sys_device_gen(id);
   c->last_caller = 0xAA;  // nobody called yet
@@ -225,7 +258,8 @@ static err_h create(uint8_t id, probe_t* c, const probe_cfg_t* cfg) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(SYS_DEVICE, RESET), OP_ENTRY_W(PROBE, PING),  OP_ENTRY_W(PROBE, CALL), OP_ENTRY_W(PROBE, SELF),
     OP_ENTRY_W(PROBE, EMIT),       OP_ENTRY_W(PROBE, BLOCK), OP_ENTRY_W(PROBE, TICK), OP_ENTRY(PROBE, VALUE),
-    OP_ENTRY_W(PROBE, USE),        OP_ENTRY_W(PROBE, RES2),  OP_ENTRY_W(PROBE, SWEEP), OP_ENTRY(TESTC, LEVEL),
+    OP_ENTRY_W(PROBE, USE),        OP_ENTRY_W(PROBE, RES2),  OP_ENTRY_W(PROBE, SWEEP), OP_ENTRY_W(PROBE, EVT),
+    OP_ENTRY(TESTC, LEVEL),
 };
 
 SYS_DEVICE_TYPE_DEFINE(PROBE, probe_cfg_t, create, suspend, resume, k_ops)
@@ -470,6 +504,39 @@ static void test_the_caller_is_the_device_whose_op_made_the_call(void) {
   TEST_ASSERT_EQUAL_UINT8(NONE, sys_device_caller());  // outside an op
 }
 
+static void test_self_and_self_suspended_reflect_the_running_device(void) {
+  TEST_ASSERT_EQUAL_UINT8(NONE, sys_device_self());
+  TEST_ASSERT_FALSE(sys_device_self_suspended());
+
+  make(3, NONE);
+  make(4, 3);
+  TEST_ASSERT_EQUAL_UINT8(3, s_dev[3]->create_self);
+  TEST_ASSERT_FALSE(s_dev[3]->create_suspended);
+  TEST_ASSERT_EQUAL_UINT8(4, s_dev[4]->create_self);
+  TEST_ASSERT_FALSE(s_dev[4]->create_suspended);
+
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(4, PROBE, CALL, PROBE_OP_PING));
+  TEST_ASSERT_EQUAL_UINT8(3, s_dev[3]->last_self);
+  TEST_ASSERT_FALSE(s_dev[3]->last_suspended);
+  TEST_ASSERT_EQUAL_UINT8(4, s_dev[4]->self_after_call);
+
+  TEST_ASSERT_NULL(write(3, SYS_DEVICE_OP_SUSPEND));
+  TEST_ASSERT_FALSE(s_dev[3]->suspend_saw_suspended);
+
+  uint8_t val = 0;
+  TEST_ASSERT_NULL(SYS_DEVICE_GET(3, PROBE, VALUE, &val));
+  TEST_ASSERT_EQUAL_UINT8(3, s_dev[3]->last_self);
+  TEST_ASSERT_TRUE(s_dev[3]->last_suspended);
+
+  TEST_ASSERT_NULL(write(3, SYS_DEVICE_OP_RESUME));
+  TEST_ASSERT_TRUE(s_dev[3]->resume_saw_suspended);
+  TEST_ASSERT_NULL(SYS_DEVICE_GET(3, PROBE, VALUE, &val));
+  TEST_ASSERT_FALSE(s_dev[3]->last_suspended);
+
+  TEST_ASSERT_EQUAL_UINT8(NONE, sys_device_self());
+  TEST_ASSERT_FALSE(sys_device_self_suspended());
+}
+
 static void test_an_op_calling_its_own_device_is_reentry(void) {
   make(1, NONE);
   TEST_ASSERT_ROOT(ERR_DEV_REENTRY, write(1, PROBE_OP_SELF));
@@ -677,6 +744,53 @@ static void test_a_step_runs_only_on_its_device_when_the_device_takes_it_now(voi
   TEST_ASSERT_ROOT(ERR_DEV_BAD_ID, sys_device_step(SYS_DEVICE_COUNT, 1, PROBE_OP_TICK));
 }
 
+static void test_deliver_waits_for_lock_runs_when_always_and_checks_generation(void) {
+  make(15, NONE);
+  const uint8_t gen = sys_device_gen(15);
+  uint8_t val = 0x42;
+  TEST_ASSERT_NULL(sys_device_deliver(15, gen, PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_EQUAL_INT(1, s_dev[15]->deliver_count);
+  TEST_ASSERT_EQUAL_UINT8(0x42, s_dev[15]->deliver_val);
+  TEST_ASSERT_FALSE(s_dev[15]->deliver_suspended);
+
+  // Busy: waits for the lock rather than skipping like a step.
+  s_dev[15]->hold_ms = 20;
+  s_job_id = 15;
+  start_job(job_block);
+  TEST_ASSERT_TRUE(xSemaphoreTake(s_blocked, WAIT_MS) == pdTRUE);
+  val = 0x55;
+  TEST_ASSERT_NULL(sys_device_deliver(15, gen, PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_NULL(finish_job());
+  s_dev[15]->hold_ms = 0;
+  TEST_ASSERT_EQUAL_INT(2, s_dev[15]->deliver_count);
+  TEST_ASSERT_EQUAL_UINT8(0x55, s_dev[15]->deliver_val);
+
+  // Suspended: ALWAYS ops run, non-ALWAYS ops are refused.
+  TEST_ASSERT_NULL(write(15, SYS_DEVICE_OP_SUSPEND));
+  val = 0x77;
+  TEST_ASSERT_NULL(sys_device_deliver(15, gen, PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_EQUAL_INT(3, s_dev[15]->deliver_count);
+  TEST_ASSERT_EQUAL_UINT8(0x77, s_dev[15]->deliver_val);
+  TEST_ASSERT_TRUE(s_dev[15]->deliver_suspended);
+  TEST_ASSERT_ROOT(ERR_DEV_SUSPENDED, sys_device_deliver(15, gen, PROBE_OP_TICK, NULL, 0));
+
+  // Gone or replaced under the same ID: skipped cleanly without hitting the new device.
+  TEST_ASSERT_NULL(write(15, SYS_DEVICE_OP_REMOVE));
+  TEST_ASSERT_NULL(sys_device_deliver(15, gen, PROBE_OP_EVT, &val, sizeof(val)));
+  make(15, NONE);
+  val = 0x99;
+  TEST_ASSERT_NULL(sys_device_deliver(15, gen, PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_EQUAL_INT(0, s_dev[15]->deliver_count);
+  TEST_ASSERT_NULL(sys_device_deliver(15, sys_device_gen(15), PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_EQUAL_INT(1, s_dev[15]->deliver_count);
+  TEST_ASSERT_EQUAL_UINT8(0x99, s_dev[15]->deliver_val);
+
+  // Invalid arguments.
+  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_deliver(15, 0, PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_deliver(15, sys_device_gen(15), SYS_DEVICE_OP_RESET, NULL, 0));
+  TEST_ASSERT_ROOT(ERR_DEV_BAD_ID, sys_device_deliver(SYS_DEVICE_COUNT, 1, PROBE_OP_EVT, &val, sizeof(val)));
+}
+
 /* ---- sweeps --------------------------------------------------------------------------------------------------- */
 
 static void test_a_sweep_runs_users_before_the_devices_they_use_and_resume_the_other_way(void) {
@@ -864,6 +978,7 @@ int main(void) {
   RUN_TEST(test_ops_lists_the_registrys_and_the_types_ops_but_no_local_one);
   RUN_TEST(test_a_call_names_the_device_and_the_op_and_a_local_op_is_c_only);
   RUN_TEST(test_the_caller_is_the_device_whose_op_made_the_call);
+  RUN_TEST(test_self_and_self_suspended_reflect_the_running_device);
   RUN_TEST(test_an_op_calling_its_own_device_is_reentry);
   RUN_TEST(test_an_event_of_an_op_reaches_an_inline_listener_after_the_outermost_call);
   RUN_TEST(test_created_and_removed_carry_the_generation_and_a_new_create_takes_a_new_one);
@@ -875,6 +990,7 @@ int main(void) {
   RUN_TEST(test_a_use_never_closes_a_cycle);
   RUN_TEST(test_a_lock_held_too_long_fails_with_the_op_that_holds_it);
   RUN_TEST(test_a_step_runs_only_on_its_device_when_the_device_takes_it_now);
+  RUN_TEST(test_deliver_waits_for_lock_runs_when_always_and_checks_generation);
   RUN_TEST(test_a_sweep_runs_users_before_the_devices_they_use_and_resume_the_other_way);
   RUN_TEST(test_while_a_suspend_sweep_runs_a_write_from_no_device_and_create_are_refused);
   RUN_TEST(test_a_sweep_goes_on_past_a_device_whose_lock_is_not_free);

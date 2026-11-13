@@ -76,24 +76,24 @@ MUST_USE err_h sys_io_pins_lock(sys_io_pins_t* s, uint8_t dev, uint8_t pin);
 MUST_USE err_h sys_io_pins_unlock(sys_io_pins_t* s, uint8_t dev, uint8_t pin);
 
 /**
- * @brief AVAILABLE, LOCKED, LOCK and UNLOCK of a device whose struct (SYS_DEVICE_CTX) has the members `id` (its device
- * ID) and `pins` (sys_io_pins_t): they only read or change that state, so they are the same on every such device.
- * SYS_IO_PINS_ENTRIES are their op table rows.
+ * @brief AVAILABLE, LOCKED, LOCK and UNLOCK of a device whose struct (SYS_DEVICE_CTX) has the member `pins`
+ * (sys_io_pins_t): they only read or change that state, so they are the same on every such device. SYS_IO_PINS_ENTRIES
+ * are their op table rows.
  * @usage SYS_IO_PINS_HANDLERS
  *        static const sys_device_op_t k_ops[] = {..., SYS_IO_PINS_ENTRIES};
  */
-#define SYS_IO_PINS_HANDLERS                                    \
-  OP_READ(IO, AVAILABLE) {                                      \
-    return CMD_REPLY(IO, AVAILABLE, c->pins.available);         \
-  }                                                             \
-  OP_READ(IO, LOCKED) {                                         \
-    return CMD_REPLY(IO, LOCKED, c->pins.locked);               \
-  }                                                             \
-  OP_WRITE(IO, LOCK) {                                          \
-    return sys_io_pins_lock(&c->pins, c->id, args->pin);        \
-  }                                                             \
-  OP_WRITE(IO, UNLOCK) {                                        \
-    return sys_io_pins_unlock(&c->pins, c->id, args->pin);      \
+#define SYS_IO_PINS_HANDLERS                                          \
+  OP_READ(IO, AVAILABLE) {                                            \
+    return CMD_REPLY(IO, AVAILABLE, c->pins.available);               \
+  }                                                                   \
+  OP_READ(IO, LOCKED) {                                               \
+    return CMD_REPLY(IO, LOCKED, c->pins.locked);                     \
+  }                                                                   \
+  OP_WRITE(IO, LOCK) {                                                \
+    return sys_io_pins_lock(&c->pins, sys_device_self(), args->pin);  \
+  }                                                                   \
+  OP_WRITE(IO, UNLOCK) {                                              \
+    return sys_io_pins_unlock(&c->pins, sys_device_self(), args->pin);\
   }
 #define SYS_IO_PINS_ENTRIES \
   OP_ENTRY_R(IO, AVAILABLE), OP_ENTRY_R(IO, LOCKED), OP_ENTRY_W(IO, LOCK), OP_ENTRY_W(IO, UNLOCK)

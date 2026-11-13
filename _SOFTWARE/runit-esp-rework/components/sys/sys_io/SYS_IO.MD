@@ -70,7 +70,7 @@ io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, VOLTAGE, &v));
 A device keeps one `sys_io_pins_t`: which pins exist (`available`), which are locked (`locked`) and by whom (`owner[64]`). `sys_io_pins_init(&s, count)` makes pins `0..count-1` exist, none locked, every owner `SYS_DEVICE_ID_NONE`; a device whose pins are not contiguous sets `available` itself (the ESP32-S3 has no GPIO 22-25).
 
 - Before every write of the contract the handler calls `sys_io_pins_check_free(&c->pins, c->id, pin)`, before a read `sys_io_pins_check`.
-- AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so they are the same on every device: `SYS_IO_PINS_HANDLERS` writes them (the driver's struct has the members `id` and `pins`) and `SYS_IO_PINS_ENTRIES` lists their rows.
+- AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so they are the same on every device: `SYS_IO_PINS_HANDLERS` writes them (the driver's struct has the member `pins`) and `SYS_IO_PINS_ENTRIES` lists their rows.
 - Nothing is reserved by a driver: a device reports every pin it has in AVAILABLE, whoever uses a pin for something else locks it, and LOCKED says what is taken. Free pins: `AVAILABLE & ~LOCKED`.
 
 ### Locked pins and their owners
@@ -93,15 +93,15 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 | Take | What it does to the pin |
 |---|---|
-| `sys_io_claim(owner, p, pin, mode, event)` | `mode` (`sys_io_prepare`), not locked: the owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's thresholds); `event` (0: none) reaches the owner's ON_EVENT |
+| `sys_io_claim(owner, p, pin, mode, event, op)` | `mode` (`sys_io_prepare`), not locked: the owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's thresholds); `event` (0: none) reaches the owner's own op `op` (`LOCAL`, `TAIL` with `sys_event_t`, `ALWAYS` if it should run suspended) |
 | `sys_io_claim_output(owner, p, pin, level)` | Push-pull output at `level`, locked |
-| `sys_io_claim_input(owner, p, pin, event, mode)` | Input (`sys_io_prepare_input`), `event` to the owner's ON_EVENT, interrupt `mode`, locked |
+| `sys_io_claim_input(owner, p, pin, event, op, mode)` | Input (`sys_io_prepare_input`), `event` (0: none) to the owner's own op `op`, interrupt `mode`, locked |
 | `sys_io_claim_peripheral(owner, p, pin)` | Locked, its mode left to a peripheral of the pin's own chip |
 
 - `sys_io_claim_drive(p, level)` writes LEVEL of a pin the owner locked and does nothing for one that is not locked, so an optional pin needs no check. Any other write of a taken pin is the IO op itself: `SYS_IO_WRITE(p->pin, INTR, ...)`.
 - The release undoes what the take did: unsubscribe, UNLOCK, RESET (`sys_io_release`). Set `p->keep = true` after the take to leave an output as it is (PCA9685's OE stays at its outputs-off level).
 - `SYS_IO_PIN_NONE` is stored and nothing is done, so an optional pin needs no check at the call site.
-- Called from an op of the owner only (`create()`, `suspend()`, `resume()`, a timer's op, ON_EVENT): the pin's device lets its owner write because the owner is the caller.
+- Called from an op of the owner only (`create()`, `suspend()`, `resume()`, a timer's op, a subscribed event op): the pin's device lets its owner write because the owner is the caller.
 
 ## Events
 
@@ -114,7 +114,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 | `IO_EV_ADC_OUTSIDE` | `0x03` | `i32 mV`: the reading |
 | `IO_EV_ADC_INSIDE` | `0x04` | `i32 mV`: the reading |
 
-The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the event task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its ON_EVENT.
+The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the event task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_WRITE_EVENT`).
 
 ## Errors (module `0x01`, `ERR_MOD_SYS_IO` = `MODULE_ID_IO`)
 

@@ -17,7 +17,7 @@ Inside `sys_device/`:
 | File | Role |
 |---|---|
 | `sys_device.h` | For every caller: IDs, ops and contracts, the calls, the sweep |
-| `sys_device_driver.h` | For a driver: the type's ID and definition, the op table and handler macros, own ops, resources, uses, the caller, the generation and a step |
+| `sys_device_driver.h` | For a driver: the type's ID and definition, the op table and handler macros, own ops, resources, uses, the caller, the generation, a step and an event delivery |
 | `sys_device_hooks.h` | For the app's wiring: the routed call, interceptors, the remote hook |
 | `slots/` | Private: the table of devices (a lock, flags, resources and use masks per ID) |
 | `registry/` | Private: types, CREATE, the registry's ops, resources, uses |
@@ -94,13 +94,20 @@ Every error of a call is wrapped in `ERR_DEV_OP{op, dir}` and `ERR_DEV_ID{id}`.
 
 A skipped step is no error: the next comes in its own time. An error of the op itself is returned (the timer reports it), so the handler of a step stops its timer on a failure. The op is LOCAL and needs no ALWAYS: a step never runs on a suspended device, so its driver keeps no flag of its own for that.
 
+### Delivering an event
+
+`sys_device_deliver(id, gen, op, args, args_len)` is the call used by subscriptions (`sys_device_event_subscribe`, `sys_device_event_subscribe_op`) to write `op` with `args` to device `id` of generation `gen`:
+
+- Unlike a step, delivery waits for the device's lock (`sys_device_slot_lock`) and runs on a suspended device when `op` has `SYS_DEVICE_OP_ALWAYS`.
+- Like a step, when the device is gone or another device has taken the ID (generation mismatch), delivery returns `NULL` instead of failing or reaching the wrong device.
+
 ### Concurrency
 
 - **One lock per device**, not recursive. A NOLOCK op is the only way past it.
 - **Nesting**: a driver's op that calls the device it uses holds both locks, its own first. The declared uses give that order, and a use can't close into a cycle, so two tasks never wait for each other.
 - **`ERR_DEV_REENTRY{id}`**: the task is inside an op of this device already.
 - **`ERR_DEV_BUSY{id, op}`**: the lock was not free in time; `op` is the op that holds it. One device that hangs fails its callers, it doesn't hold up their tasks for good.
-- **The caller**: `sys_device_caller()` is the device whose op made the call (in `create()`, the device being created), `SYS_DEVICE_ID_NONE` for a command, a module or a listener.
+- **The caller and self**: `sys_device_caller()` is the device whose op made the call (in `create()`, the device being created), `SYS_DEVICE_ID_NONE` for a command, a module or a listener. `sys_device_self()` is the device whose op runs now (`SYS_DEVICE_ID_NONE` outside an op), and `sys_device_self_suspended()` tells whether that device is suspended (for a `READ` or `ALWAYS` op such as `ON_EVENT`).
 
 ### Owners
 

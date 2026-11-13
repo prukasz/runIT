@@ -26,22 +26,25 @@ typedef struct {
   sys_io_pin_t pin;        /**< The pin */
   uint8_t used : 1;        /**< Its mode is ours: release resets it */
   uint8_t locked : 1;      /**< Locked on its device: only its owner writes it (the IO ops, sys_io_claim_drive) */
-  uint8_t subscribed : 1;  /**< Its events reach the owner's ON_EVENT */
+  uint8_t subscribed : 1;  /**< Its events reach the owner's subscribed op */
   uint8_t keep : 1;        /**< Release leaves it as it is (an output the chip needs at a level): set after the take */
 } sys_io_claim_t;
 
 /**
  * @brief A pin in `mode`, not locked: its owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's
- * thresholds). Its event `event` reaches the owner's ON_EVENT (0 = no subscription). A device without MODE
- * (fixed-function pins: PCA9685 channels, DAC outputs) is fine.
+ * thresholds). Its event `event` (0 = no subscription) reaches the owner's own op `op` (`LOCAL`, `TAIL` with
+ * `sys_event_t`, `ALWAYS` if it should run while suspended). A device without MODE (fixed-function pins: PCA9685
+ * channels, DAC outputs) is fine.
  * @param[in]  owner The owner's device ID
  * @param[out] p     What was done to the pin
  * @param[in]  pin   The pin; SYS_IO_PIN_NONE: nothing is done
  * @param[in]  mode  sys_io_mode_e
  * @param[in]  event Event tag (IO_EV_*) to subscribe the owner to, 0: none
+ * @param[in]  op    Owner's own op receiving the event (ignored when `event` is 0)
  * @return ERR_DEV_NOT_FOUND{pin's device}, the error of the pin's device, or of the subscription
  */
-MUST_USE err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mode_e mode, uint32_t event);
+MUST_USE err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mode_e mode, uint32_t event,
+                            uint16_t op);
 
 /**
  * @brief An output at `level`, locked for its owner.
@@ -54,16 +57,18 @@ MUST_USE err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, 
 MUST_USE err_h sys_io_claim_output(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, bool level);
 
 /**
- * @brief An input watched in `mode` (sys_io_intr_mode_e); its edges raise `event` to the owner (0 = no subscription).
- * Locked.
+ * @brief An input watched in `mode` (sys_io_intr_mode_e); its edges raise `event` (0 = no subscription) to the owner's
+ * own op `op`. Locked.
  * @param[in]  owner The owner's device ID
  * @param[out] p     What was done to the pin
  * @param[in]  pin   The pin; SYS_IO_PIN_NONE: nothing is done
  * @param[in]  event Event tag (IO_EV_*) to subscribe the owner to, 0: none
+ * @param[in]  op    Owner's own op receiving the event (ignored when `event` is 0)
  * @param[in]  mode  sys_io_intr_mode_e
  * @return The error of the pin's device, or of the subscription
  */
-MUST_USE err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uint32_t event, uint8_t mode);
+MUST_USE err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uint32_t event, uint16_t op,
+                                  uint8_t mode);
 
 /**
  * @brief A pin a peripheral of the pin's own chip drives (the ESP32-S3's I2C or SPI controller through its GPIO

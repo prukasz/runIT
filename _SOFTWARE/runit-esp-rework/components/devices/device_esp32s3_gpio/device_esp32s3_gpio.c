@@ -29,7 +29,6 @@ typedef cmd_none_t esp32s3_gpio_cfg_t;
 #define DEBOUNCE_US ((int64_t)CONFIG_ESP32S3_GPIO_DEBOUNCE_MS * 1000)
 
 typedef struct {
-  uint8_t id;            // the device's ID, given to create()
   sys_io_pins_t pins;    // which pins exist, which are locked and by whom
   sys_device_res_t res;  // the pins and the instance, given back by the registry
 } gpio_t;
@@ -115,14 +114,14 @@ static bool is_locked(const gpio_t* c, uint8_t pin) {
 // The pin's state (the lock of the pins held), or ERR_IO_PIN_UNCONFIGURED.
 static err_h pin_configured(const gpio_t* c, uint8_t pin, esp32s3_gpio_pin_t** p) {
   *p = esp32s3_gpio_pin(pin);
-  ERR_CHECK(*p != NULL, ERR_IO_PIN_UNCONFIGURED, .id = c->id, .pin = pin);
+  ERR_CHECK(*p != NULL, ERR_IO_PIN_UNCONFIGURED, .id = sys_device_self(), .pin = pin);
   return NULL;
 }
 
 // Like pin_configured, and the pin's mode must be one `mode_ok` takes, else ERR_IO_WRONG_MODE (the lock held).
 static err_h pin_in_mode(const gpio_t* c, uint8_t pin, bool (*mode_ok)(sys_io_mode_e), esp32s3_gpio_pin_t** p) {
   ERR_TRY(pin_configured(c, pin, p));
-  ERR_CHECK(mode_ok((*p)->pin_mode), ERR_IO_WRONG_MODE, .id = c->id, .pin = pin, .mode = (*p)->pin_mode);
+  ERR_CHECK(mode_ok((*p)->pin_mode), ERR_IO_WRONG_MODE, .id = sys_device_self(), .pin = pin, .mode = (*p)->pin_mode);
   return NULL;
 }
 
@@ -132,7 +131,7 @@ static err_h pin_in_mode(const gpio_t* c, uint8_t pin, bool (*mode_ok)(sys_io_mo
 static err_h configure_adc(const gpio_t* c, esp32s3_gpio_pin_t* p) {
   adc_unit_t unit = 0;
   ERR_CHECK(adc_continuous_io_to_channel(p->io_num, &unit, &p->hw.adc.channel) == ESP_OK && unit == ADC_UNIT_1,
-            ERR_IO_FEATURE_UNSUPPORTED, .id = c->id, .pin = p->io_num);
+            ERR_IO_FEATURE_UNSUPPORTED, .id = sys_device_self(), .pin = p->io_num);
   const adc_cali_curve_fitting_config_t cali = {
       .unit_id = ADC_UNIT_1,
       .chan = p->hw.adc.channel,
@@ -146,7 +145,7 @@ static err_h configure_adc(const gpio_t* c, esp32s3_gpio_pin_t* p) {
  * reserves an output pin, and LEDC then warns that the pin is taken. */
 static err_h configure_pwm(const gpio_t* c, esp32s3_gpio_pin_t* p) {
   const gpio_num_t pin = (gpio_num_t)p->io_num;
-  ERR_CHECK((SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << pin)) != 0, ERR_IO_MODE_UNSUPPORTED, .id = c->id,
+  ERR_CHECK((SOC_GPIO_VALID_OUTPUT_GPIO_MASK & (1ULL << pin)) != 0, ERR_IO_MODE_UNSUPPORTED, .id = sys_device_self(),
             .pin = p->io_num, .mode = SYS_IO_MODE_PWM);
   ERR_TRY(esp32s3_gpio_pwm_claim(p));
   err_h err = ERR_ESP(gpio_set_level(pin, 0));
@@ -165,7 +164,7 @@ static err_h configure_pwm(const gpio_t* c, esp32s3_gpio_pin_t* p) {
 static err_h configure_digital(const gpio_t* c, const esp32s3_gpio_pin_t* p) {
   const uint8_t mode = p->pin_mode;
   ERR_CHECK(mode < ARRAY_LEN(k_gpio_mode_map) && k_gpio_mode_map[mode].mode != GPIO_MODE_DISABLE,
-            ERR_IO_MODE_UNSUPPORTED, .id = c->id, .pin = p->io_num, .mode = mode);
+            ERR_IO_MODE_UNSUPPORTED, .id = sys_device_self(), .pin = p->io_num, .mode = mode);
   const gpio_config_t cfg = {
       .pin_bit_mask = (1ULL << p->io_num),
       .mode = k_gpio_mode_map[mode].mode,
@@ -181,8 +180,8 @@ static err_h configure_digital(const gpio_t* c, const esp32s3_gpio_pin_t* p) {
  * ERR_DEV_PIN_LOCKED with owner SYS_DEVICE_ID_NONE. */
 static err_h configure_pin(const gpio_t* c, uint8_t pin, uint8_t mode) {
   const esp32s3_gpio_pin_t* existing = esp32s3_gpio_pin(pin);
-  ERR_CHECK(existing == NULL, ERR_IO_PIN_IN_USE, .id = c->id, .pin = pin, .mode = existing->pin_mode);
-  ERR_CHECK(!esp_gpio_is_reserved(BIT64(pin)), ERR_DEV_PIN_LOCKED, .id = c->id, .pin = pin,
+  ERR_CHECK(existing == NULL, ERR_IO_PIN_IN_USE, .id = sys_device_self(), .pin = pin, .mode = existing->pin_mode);
+  ERR_CHECK(!esp_gpio_is_reserved(BIT64(pin)), ERR_DEV_PIN_LOCKED, .id = sys_device_self(), .pin = pin,
             .owner = SYS_DEVICE_ID_NONE);
   esp32s3_gpio_pin_t* p = &s_gpio.pin[pin];
   *p = (esp32s3_gpio_pin_t){.io_num = pin, .pin_mode = (sys_io_mode_e)mode};
@@ -242,7 +241,7 @@ static err_h release_pins(const gpio_t* c, bool all) {
 // Every write checks the pin first: free, or locked by the caller of the op (its owner writes it like before the lock).
 
 OP_WRITE(IO, MODE) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   esp32s3_gpio_lock();
   err_h err = configure_pin(c, args->pin, args->mode);
   esp32s3_gpio_unlock();
@@ -253,7 +252,7 @@ OP_WRITE(IO, MODE) {
 }
 
 OP_WRITE(IO, RESET) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   return release_pin(args->pin);
 }
 
@@ -274,18 +273,18 @@ static err_h drive(const gpio_t* c, uint8_t pin, int level) {
 
 OP_WRITE(IO, LEVEL) {
   ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   return drive(c, args->pin, args->level);
 }
 
 OP_WRITE(IO, TOGGLE) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   return drive(c, args->pin, LEVEL_TOGGLE);
 }
 
 // A read: answered on a locked pin too.
 OP_READ(IO, LEVEL) {
-  ERR_TRY(sys_io_pins_check(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check(&c->pins, sys_device_self(), args->pin));
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_digital, &p);
@@ -297,7 +296,7 @@ OP_READ(IO, LEVEL) {
 
 // The ADC task's latest filtered reading.
 OP_READ(IO, VOLTAGE) {
-  ERR_TRY(sys_io_pins_check(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check(&c->pins, sys_device_self(), args->pin));
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_adc, &p);
@@ -345,7 +344,7 @@ static err_h arm_digital(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_in
     return err;
   }
   ERR_CHECK(cfg->mode < ARRAY_LEN(k_gpio_intr_map) && k_gpio_intr_map[cfg->mode] != GPIO_INTR_DISABLE,
-            ERR_IO_FEATURE_UNSUPPORTED, .id = c->id, .pin = p->io_num);
+            ERR_IO_FEATURE_UNSUPPORTED, .id = sys_device_self(), .pin = p->io_num);
   p->intr = *cfg;
   p->last_isr_us = 0;
   err_h err = ERR_ESP(gpio_set_intr_type(pin, k_gpio_intr_map[cfg->mode]));
@@ -361,9 +360,9 @@ static err_h arm_digital(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_in
 
 // An ADC pin's thresholds armed or disarmed (the lock of the pins held); the ADC task checks them on every reading.
 static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_cfg_t* cfg) {
-  ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->id, .pin = p->io_num);
+  ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = sys_device_self(), .pin = p->io_num);
   if (cfg->mode == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || cfg->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
-    SYS_DEV_CHECK_IN_RANGE(c->id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
+    SYS_DEV_CHECK_IN_RANGE(sys_device_self(), cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
   }
   p->intr = *cfg;
   p->hw.adc.alert_active = false;
@@ -376,7 +375,7 @@ static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_c
  * this device, channel = the pin. Arming again replaces the old config. */
 OP_WRITE(IO, INTR) {
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_configured(c, args->pin, &p);
@@ -386,7 +385,7 @@ OP_WRITE(IO, INTR) {
     } else if (is_digital(p->pin_mode)) {
       err = arm_digital(c, p, &args->cfg);
     } else {
-      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = c->id, .pin = args->pin, .mode = p->pin_mode);
+      err = ERR_NEW(ERR_IO_WRONG_MODE, .id = sys_device_self(), .pin = args->pin, .mode = p->pin_mode);
     }
   }
   esp32s3_gpio_unlock();
@@ -394,8 +393,8 @@ OP_WRITE(IO, INTR) {
 }
 
 OP_WRITE(IO, PWM_FREQ) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
+  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
@@ -407,8 +406,8 @@ OP_WRITE(IO, PWM_FREQ) {
 }
 
 OP_WRITE(IO, PWM_DUTY) {
-  ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_TRY(sys_io_pins_check_free(&c->pins, sys_device_self(), args->pin));
+  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->duty, 0, IO_PWM_DUTY_MAX);
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
@@ -501,7 +500,6 @@ static err_h instance_release(void* arg) {
 
 static err_h create(uint8_t id, gpio_t* c, const esp32s3_gpio_cfg_t* cfg) {
   (void)cfg;
-  c->id = id;
   ERR_CHECK(s_gpio.dev == NULL, ERR_DEV_ID_TAKEN, .id = s_gpio.device_id);
   ERR_TRY(sys_device_res_add(id, &c->res, instance_release, c));
   sys_io_pins_init(&c->pins, 0);

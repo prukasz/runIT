@@ -218,6 +218,20 @@ void sys_device_type_register(uint16_t id, const sys_device_type_t* type);
 uint8_t sys_device_caller(void);
 
 /**
+ * @brief The device whose op (or create(), suspend(), resume()) this task runs now. Outside an op: SYS_DEVICE_ID_NONE.
+ * @return The running device's ID, or SYS_DEVICE_ID_NONE
+ */
+uint8_t sys_device_self(void);
+
+/**
+ * @brief Whether the device whose op this task runs now is suspended (for a READ or SYS_DEVICE_OP_ALWAYS op such as
+ * ON_EVENT, to return a cached copy or skip hardware access; in suspend() it is still false, in resume() still true).
+ * Outside an op: false.
+ * @return true when running an op of an installed suspended device
+ */
+bool sys_device_self_suspended(void);
+
+/**
  * @brief The generation of device `id`: it tells the device under an ID from the ones before it (the `gen` of
  * SYS_DEVICE_EV_CREATED). In create() it is already the new device's, so what create() hands out by ID and generation
  * (a timer) names this device only. Any task, no lock: exact in the device's own ops, a snapshot elsewhere.
@@ -240,6 +254,21 @@ uint8_t sys_device_gen(uint8_t id);
  *         own; else the op's error, wrapped like a call's (ERR_DEV_OP, ERR_DEV_ID)
  */
 MUST_USE err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op);
+
+/**
+ * @brief Delivers a payload (an event) to device `id` of generation `gen` by writing `op`. Unlike sys_device_step(),
+ * this is not skipped when busy or suspended: it waits for the slot lock (with the call timeout) and runs on a
+ * suspended device if the op is marked SYS_DEVICE_OP_ALWAYS (so the handler can clear hardware lines or skip via
+ * sys_device_self_suspended()). When the device is gone or another device holds the ID (generation mismatch), the
+ * delivery is skipped with NULL.
+ * @param[in] id       Device ID
+ * @param[in] gen      The generation the delivery is for: sys_device_gen() at subscription time
+ * @param[in] op       Target write op (an own op or contract event op; never a registry op)
+ * @param[in] args     Payload bytes (NULL if args_len is 0)
+ * @param[in] args_len Length in bytes
+ * @return NULL on delivery or stale-generation skip; ERR_DEV_BAD_ID, ERR_DEV_BAD_ARG, or the call's error wrapped
+ */
+MUST_USE err_h sys_device_deliver(uint8_t id, uint8_t gen, uint16_t op, const void* args, uint32_t args_len);
 
 /**
  * @brief Gives back one resource of a device: `arg` is what it was added with. It releases only what was taken (a

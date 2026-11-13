@@ -27,14 +27,13 @@ Przegląd z czytania kodu rejestru i komponentów wokół niego, dziś w `runit-
 | — | Unikalność ID kontraktów bez centralnej listy | Wdrożone |
 | 8 | Izolacja modułów (typ GPIO, `TAIL`, moduły eventów, interceptor) | Wdrożone; moduły błędów i klucze routera do zrobienia |
 | 9 | Podział `devices/`, wspólne taski | Wspólne taski wdrożone (krok urządzenia, sprawiedliwy task timerów); podział `devices/` do zrobienia |
-| 12 | Automatyzacja wzorców sterownika i kontraktu | 12.1–12.4, 12.7 i 12.6 bez `sys_device_self()` wdrożone; reszta przy migracji sterowników |
+| 12 | Automatyzacja wzorców sterownika i kontraktu | 12.1–12.4, 12.6–12.9 wdrożone; reszta przy migracji sterowników |
 
 „Wdrożone” znaczy: napisane w `runit-esp-rework` i zbudowane na cel, nieuruchomione na płytce (wyjątek: testy hosta
 timera, `core/timer/host`). Opis stanu obecnego jest w `sys_device/SYS_DEVICE.MD`; ten plik zostaje jako uzasadnienie
 zmian i lista rzeczy otwartych.
 
-**Następne kroki:** `sys_device_self()` z 12.6 razem z 12.9; 12.8 przy migracji pierwszego sterownika z eventem pinu
-(INA3221, DRV8962, TPS55289, TCA6424A).
+**Następne kroki:** migracja kolejnych sterowników (INA3221, DRV8962, TPS55289...) wraz z 12.5 i 12.10–12.12.
 
 Co trzeba sprawdzić po pierwszym buildzie: sekcja 11.
 
@@ -449,11 +448,10 @@ prawdziwym I2C, `SCAN`).
 
 ## 12. Automatyzacja wzorców
 
-Miejsca, gdzie ten sam wzorzec był pisany ręcznie w każdym sterowniku albo kontrakcie. 12.1–12.4, 12.7 i z 12.6 wszystko
-poza `sys_device_self()` są wdrożone i zbudowane; 12.5, `sys_device_self()` i 12.8–12.13 czekają. 12.7–12.13 pochodzą
-z przeglądu starych sterowników (`runit-esp/components/devices/device_*`) i routerów w `sys`. Kolejność: 12.9 z
-`sys_device_self()` i 12.8 przy migracji pierwszego sterownika, który ich używa, bo zmieniają kształt każdego
-migrowanego sterownika i bez niego nie ma ich na czym sprawdzić; 12.10–12.12 przy migracji.
+Miejsca, gdzie ten sam wzorzec był pisany ręcznie w każdym sterowniku albo kontrakcie. 12.1–12.4 i 12.6–12.9 są
+wdrożone i zbudowane; 12.5 i 12.10–12.13 czekają. 12.7–12.13 pochodzą
+z przeglądu starych sterowników (`runit-esp/components/devices/device_*`) i routerów w `sys`. Kolejność:
+12.5 i 12.10–12.12 przy migracji kolejnych sterowników.
 
 ### 12.1 Tabela własnych opów urządzenia (`0xFFxx`)
 
@@ -523,15 +521,13 @@ bez `INCLUDE_DIRS`. Może też odrzucić `esp_driver_*` poza `soc/`, czyli regu�
 
 ### 12.6 Mniejsze
 
-- **ID urządzenia w strukturze sterownika.** Każdy trzyma `c->id`, a `SYS_IO_PINS_HANDLERS` wymaga pól o nazwach `id`
-  i `pins`. Rejestr zna urządzenie, którego op biegnie (`s_running`, obok `sys_device_caller()`): funkcja
-  `sys_device_self()` usuwa pole i konwencję nazw. Sama funkcja to kilka linii; pole `c->id` znika dopiero z
-  przepisaniem sterowników (zakresy, źródło eventów). Robić razem z 12.9, przy migracji pierwszego sterownika, który
-  czyta stan zawieszenia.
+- **ID urządzenia w strukturze sterownika.** Wdrożone: `sys_device_self()` z TLS rejestru (`s_running`).
+  `SYS_IO_PINS_HANDLERS` i wszystkie cztery sterowniki w rework (`device_pca9685`, `device_dc_motor`,
+  `device_esp32s3_i2c`, `device_esp32s3_gpio`) nie trzymają już `c->id`. `SYS_IO_PINS_HANDLERS` używa nadal `c->pins`.
 - **Zakresy ustawień.** Zastąpione przez 12.10.
 - **„Zawołaj op urządzenia później”.** Timer: wdrożone. `sys_device_timer` pakuje `[op u16][gen u8][owner u8]`, a
-  wygaśnięcie to krok `sys_device_step(id, gen, op)` (punkt 9). Subskrypcja (`sys_device_event`) nadal pakuje samo ID
-  i idzie do `ON_EVENT`: to 12.8.
+  wygaśnięcie to krok `sys_device_step(id, gen, op)` (punkt 9). Subskrypcja (`sys_device_event`) pakuje tak samo
+  i dostarcza eventy przez `sys_device_deliver` (12.8).
 - **Ignorowanie jednego tagu błędu.** Wdrożone: `bool err_drop(err_h* err, uint32_t tag)` w `core/errors` (wspólny z
   `runit-esp`). Gdy przyczyną (root tag) łańcucha jest `tag`, łańcuch jest zwalniany, `*err` staje się NULL, wynik
   `true`; inny błąd zostaje. Forma z `bool`, a nie `err_unless(err, tag)`, bo `PROBE` i `SCAN` muszą wiedzieć, czy to
@@ -572,20 +568,16 @@ Przy migracji INA3221 i DRV8962 miejsca z odblokowaniem zamieniają się w jeden
 `ON_EVENT`, więc sterownik sam rozpoznaje źródło: DRV8962 i INA3221 porównują `source` i `channel` z każdym pinem,
 a TPS55289 i TCA6424A zakładają, że mają jedną subskrypcję.
 
-**Propozycja.** `sys_io_claim_input` (i `sys_io_claim` z eventem) biorą op docelowy właściciela (`NFAULT`,
-`IPROPI_OVER`: własne, `LOCAL`, `TAIL` z eventem). Kontrakt EVENT z `ON_EVENT` zostaje dla urządzeń, które słuchają
-dowolnych eventów.
+**Stan: wdrożone.** Sprawdzone przy migracji `device_tca6424a` (op `TCA6424A_OP_INT`).
 
-- **Wiązanie.** `ctx` subskrypcji to `[op u16][gen u8][owner u8]`, jak w timerze, więc event w drodze nie trafi do
-  nowego urządzenia pod tym samym ID (dziś `sys_device_event` pakuje samo ID; ryzyko jest małe, bo zasób pinu
-  odsubskrybowuje przed REMOVE, ale dostarczenie w toku może się z tym minąć).
-- **Dostarczenie to nie krok.** Eventu nie wolno pominąć, gdy urządzenie jest zajęte (krok timera jest pomijany): czeka
-  na lock jak dzisiejsze `ON_EVENT` i biegnie także na zawieszonym urządzeniu (`ALWAYS`). Wspólne z timerem jest więc
-  tylko pakowanie `ctx` i sprawdzenie generacji pod lockiem: jedna funkcja rejestru, np. `sys_device_deliver(id, gen,
-  op, payload)` obok `sys_device_step`.
-- **Kiedy.** Dziś żaden sterownik w rework nie subskrybuje eventu pinu (PCA9685 bierze pin jako wyjście, szyna I2C
-  jako peryferial). Wdrożyć przy migracji pierwszego z INA3221, DRV8962, TPS55289, TCA6424A, żeby projekt sprawdzić na
-  prawdziwym przypadku.
+- **`sys_device_deliver(id, gen, op, args, args_len)`** w `sys_device_driver.h` / `sys_device_call.c`: dostarcza payload
+  do `op` urządzenia `id` o generacji `gen` — bierze blokujący lock slotu, biegnie na zawieszonym urządzeniu przy
+  `SYS_DEVICE_OP_ALWAYS`, a gdy urządzenie zniknęło albo zmieniło generację, zwraca `NULL`.
+- **`sys_device_event`**: pakuje `[op u16][gen u8][owner u8]` (dla `sys_device_event_subscribe` oraz nowego
+  `sys_device_event_subscribe_op`), dodaje makro `OP_WRITE_EVENT(P, name)` (`OP_WRITE_ON_EVENT` to
+  `OP_WRITE_EVENT(EVENT, ON_EVENT)`).
+- **`sys_io_claim` / `sys_io_claim_input`**: biorą docelowy własny op `op` właściciela dla subskrypcji eventu pinu.
+  Kontrakt `EVENT` z `ON_EVENT` zostaje dla urządzeń słuchających dowolnych eventów.
 
 ### 12.9 Stan urządzenia dla sterownika
 
@@ -594,9 +586,8 @@ stan zasilania chipa). W nowym API tego pola nie ma. Silnik już jej nie potrzeb
 zawieszonym urządzeniu (punkt 9). Pozostałe przypadki (odczyt z kopii, pominięcie eventu w `ON_EVENT`, który jest
 `ALWAYS`) zostają.
 
-**Propozycja.** Razem z `sys_device_self()` z 12.6: ID i stan urządzenia, którego op biegnie
-(`sys_device_self()`, `sys_device_self_suspended()`), z TLS rejestru. Znika `c->id = id`, kopia flagi i wymóg pól
-`id` / `pins` o ustalonych nazwach w `SYS_IO_PINS_HANDLERS`.
+**Stan: wdrożone.** Razem z `sys_device_self()` z 12.6: ID i stan urządzenia, którego op biegnie
+(`sys_device_self()`, `sys_device_self_suspended()`), z TLS rejestru. `c->id = id` zniknęło ze sterowników w rework.
 
 ### 12.10 Tabela pól ustawień z zakresami
 
