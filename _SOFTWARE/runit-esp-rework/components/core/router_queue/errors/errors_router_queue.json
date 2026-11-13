@@ -1,0 +1,16 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_ROUTER_QUEUE",
+  "errors": {
+    "ERR_ROUTER_QUEUE_FULL": {
+      "message": "The board is busy: a command from {src} was dropped",
+      "hint": "Send commands less often."
+    },
+    "ERR_ROUTER_FRAME_LEN": {
+      "message": "A command of {len} bytes from {src} was refused (at most {max})"
+    },
+    "ERR_ROUTER_BUSY": {
+      "message": "Urgent work could not start: other urgent work waits to run"
+    }
+  }
+}

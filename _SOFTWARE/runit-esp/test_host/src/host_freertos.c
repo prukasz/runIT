@@ -36,7 +36,24 @@ typedef struct {
 } task_t;
 
 static __thread task_t* s_self;
-static task_t s_main_task = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, NULL, NULL};
+static __thread int s_in_isr;
+
+static task_t* task_new(TaskFunction_t fn, void* arg) {
+  task_t* t = calloc(1, sizeof(*t));
+  pthread_mutex_init(&t->m, NULL);
+  pthread_cond_init(&t->c, NULL);
+  t->fn = fn;
+  t->arg = arg;
+  return t;
+}
+
+BaseType_t xPortInIsrContext(void) {
+  return s_in_isr ? pdTRUE : pdFALSE;
+}
+
+void host_isr_set(int in_isr) {
+  s_in_isr = in_isr;
+}
 
 static void* task_main(void* p) {
   task_t* t = p;
@@ -48,11 +65,7 @@ static void* task_main(void* p) {
 TaskHandle_t xTaskCreateStatic(TaskFunction_t fn, const char* name, uint32_t stack_depth, void* arg, UBaseType_t prio,
                                StackType_t* stack, StaticTask_t* tcb) {
   (void)name, (void)stack_depth, (void)prio, (void)stack, (void)tcb;
-  task_t* t = calloc(1, sizeof(*t));
-  pthread_mutex_init(&t->m, NULL);
-  pthread_cond_init(&t->c, NULL);
-  t->fn = fn;
-  t->arg = arg;
+  task_t* t = task_new(fn, arg);
   pthread_t th;
   pthread_create(&th, NULL, task_main, t);
   pthread_detach(th);
@@ -60,7 +73,10 @@ TaskHandle_t xTaskCreateStatic(TaskFunction_t fn, const char* name, uint32_t sta
 }
 
 TaskHandle_t xTaskGetCurrentTaskHandle(void) {
-  return s_self != NULL ? s_self : &s_main_task;  /* the test's own thread is a task too, never NULL */
+  if (s_self == NULL) {
+    s_self = task_new(NULL, NULL);  /* a thread not made here (the test's own) is a task too, never NULL */
+  }
+  return s_self;
 }
 
 void host_task_notify_give(TaskHandle_t task) {
@@ -149,6 +165,20 @@ BaseType_t xRingbufferSendComplete(RingbufHandle_t h, void* data) {
   return pdTRUE;
 }
 
+BaseType_t xRingbufferSend(RingbufHandle_t h, const void* data, size_t size, TickType_t ticks) {
+  void* item = NULL;
+  if (xRingbufferSendAcquire(h, &item, size, ticks) != pdTRUE) {
+    return pdFALSE;
+  }
+  memcpy(item, data, size);
+  return xRingbufferSendComplete(h, item);
+}
+
+BaseType_t xRingbufferSendFromISR(RingbufHandle_t h, const void* data, size_t size, BaseType_t* woken) {
+  *woken = pdFALSE;
+  return xRingbufferSend(h, data, size, 0);
+}
+
 void* xRingbufferReceive(RingbufHandle_t h, size_t* size, TickType_t ticks) {
   rb_t* rb = h;
   pthread_mutex_lock(&rb->m);
@@ -194,8 +224,10 @@ typedef struct {
   pthread_mutex_t m;
   pthread_cond_t c;
   bool recursive;
-  uint32_t count;      /* binary: 0 or 1 given; recursive: how deep the owner holds it */
+  bool mutex;          /* a mutex: given at the start, `holder` is the task that took it */
+  uint32_t count;      /* binary / mutex: 0 or 1 given; recursive: how deep the owner holds it */
   pthread_t owner;
+  TaskHandle_t holder;
 } sem_t_;
 
 static sem_t_* sem_new(bool recursive) {
@@ -211,6 +243,14 @@ SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t* buffer) {
   return sem_new(false);
 }
 
+SemaphoreHandle_t xSemaphoreCreateMutexStatic(StaticSemaphore_t* buffer) {
+  (void)buffer;
+  sem_t_* s = sem_new(false);
+  s->mutex = true;
+  s->count = 1;
+  return s;
+}
+
 SemaphoreHandle_t xSemaphoreCreateRecursiveMutexStatic(StaticSemaphore_t* buffer) {
   (void)buffer;
   return sem_new(true);
@@ -218,6 +258,7 @@ SemaphoreHandle_t xSemaphoreCreateRecursiveMutexStatic(StaticSemaphore_t* buffer
 
 BaseType_t xSemaphoreTake(SemaphoreHandle_t h, TickType_t ticks) {
   sem_t_* s = h;
+  TaskHandle_t self = xTaskGetCurrentTaskHandle();
   pthread_mutex_lock(&s->m);
   while (s->count == 0) {
     if (ticks == 0 || !wait_cond(&s->c, &s->m, ticks)) {
@@ -227,6 +268,7 @@ BaseType_t xSemaphoreTake(SemaphoreHandle_t h, TickType_t ticks) {
   const bool taken = s->count > 0;
   if (taken) {
     s->count = 0;
+    s->holder = s->mutex ? self : NULL;
   }
   pthread_mutex_unlock(&s->m);
   return taken ? pdTRUE : pdFALSE;
@@ -237,9 +279,18 @@ BaseType_t xSemaphoreGive(SemaphoreHandle_t h) {
   pthread_mutex_lock(&s->m);
   const bool given = s->count == 0;
   s->count = 1;
+  s->holder = NULL;
   pthread_cond_signal(&s->c);
   pthread_mutex_unlock(&s->m);
   return given ? pdTRUE : pdFALSE;
+}
+
+TaskHandle_t xSemaphoreGetMutexHolder(SemaphoreHandle_t h) {
+  sem_t_* s = h;
+  pthread_mutex_lock(&s->m);
+  TaskHandle_t holder = s->count == 0 ? s->holder : NULL;
+  pthread_mutex_unlock(&s->m);
+  return holder;
 }
 
 BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t h, TickType_t ticks) {

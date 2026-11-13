@@ -7,9 +7,9 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | File | Role |
 |---|---|
 | `errors.h` | Types (`err_t`/`err_h`, `err_sev_e`, `err_tag_info_t`, `err_module_t`), core API, core tags (module 0) |
-| `err_modules.h` | Module IDs (`ERR_MOD_*`) — the single source of truth for module assignment |
+| `err_modules.h` | Module IDs (`ERR_MOD_*`) of the modules that have no number of their own yet |
 | `err_macros.h` | All macros: `ERR_TAG`, `ERR_HDR_LEN`/`ERR_DATA_MAX`, X-macro constructors, `ERR_TRY*` propagation. Included by `errors.h` |
-| `errors.c` | `err_new`, `err_free`, `err_sev`, `err_chain_sev`, `err_root_tag`, core module registration |
+| `errors.c` | `err_new`, `err_free`, `err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`, core module registration |
 | `err_internal.h` | Shared by the component's own files only: the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
 | `err_tags.c` | Module and tag registry, lookup |
@@ -43,7 +43,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 
 - `errors` never includes module headers; it only looks tags up in registered tables (`err_tag_info`, `err_module`, internal).
 - Compile-time checks: payload fits a node, no duplicate tag IDs. Registration asserts: tag belongs to the module, module ID is unique, and count fits `ERRORS_MAX_MODULES`.
-- Module IDs (`ERR_MOD_*`) are assigned only in `err_modules.h` (the list, in order; a new module takes the next number, none is renumbered or reused).
+- A module's ID (`ERR_MOD_*`) is its number (`MODULE_ID_DECLARE`, `module_id.h`: the same number as its router key and the module of its events), or, for a module without one yet, its line in `err_modules.h` (in order; a new module takes the next number, none is renumbered or reused).
 - A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
 - Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_stream`).
 
@@ -71,7 +71,8 @@ Rules:
 - `err_sev_e`: NONE < LOW < MEDIUM < HIGH < CRITICAL. **A tag has one severity**, in its map; a node carries none of its own.
 - `err_sev(e)`: the node's tag's severity (NONE for an unknown tag).
 - `err_chain_sev(chain)`: the highest severity of the chain's nodes. Wrapping never lowers a cause: an expected failure is handled (freed) where it is expected, not reported.
-- `err_root_tag(chain)`: the tag of the deepest node (0 for NULL), for a caller that tolerates one known cause (`sys_io_prepare` and `ERR_DEV_UNKNOWN_OP`).
+- `err_root_tag(chain)`: the tag of the deepest node (0 for NULL).
+- `err_drop(&err, tag)`: an expected cause taken away. When the root cause of `err` is `tag` the chain is freed, `err` becomes NULL and it answers true; any other error stays. For an error that is an answer, not a failure: an op the device doesn't have (`sys_io_prepare`), a probe that found nothing (an I2C bus's PROBE and SCAN), a device not created yet. `if (err_drop(&err, ERR_I2C_DEV_NOT_FOUND)) { continue; } ERR_TRY(err);`
 - Severity picks the log level (HIGH/CRITICAL → error, MEDIUM → warn, else info). The response layer is the device error policy (SYS_DEVICE.MD "Error policy"), built on `err_chain_sev` and run by the app's sink.
 
 ## Logging
@@ -146,6 +147,6 @@ answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0
 
 Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and the two variants (with and without call-site info); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size.
 
-They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity; the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
+They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
 
 Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not), the double-free assertion (it aborts).

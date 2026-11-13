@@ -4,7 +4,8 @@
 #include "sdkconfig.h"
 #include "utils.h"
 #include "err_macros.h"   // all macros: ERR_TAG, ERR_NEW/WRAP, ERR_TRY*, ERR_MODULE_DEFINE, ...
-#include "err_modules.h"  // module IDs (ERR_MOD_*)
+#include "err_modules.h"  // module IDs (ERR_MOD_*) of the modules not yet declaring their own
+#include "module_id.h"   // MODULE_ID_DECLARE: the module declares its own
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,10 +95,21 @@ uint8_t err_sev(err_h e);
 uint8_t err_chain_sev(err_h chain);
 
 /**
- * @brief Tag of the chain's root cause (its deepest node), 0 for NULL. For a caller that tolerates one known cause.
- * @usage if (err_root_tag(err) == ERR_DEV_UNKNOWN_OP) { err_free(err); err = NULL; }
+ * @brief Tag of the chain's root cause (its deepest node), 0 for NULL.
  */
 uint32_t err_root_tag(err_h chain);
+
+/**
+ * @brief Takes away an error that is an answer, not a failure: when the root cause of *err is `tag` (a probe that
+ * found nothing, an op the device doesn't have), the chain is freed and *err becomes NULL. Any other error, and NULL,
+ * is left as it is.
+ * @param[in,out] err The chain, may be NULL
+ * @param[in]     tag The tag of the cause the caller tolerates
+ * @return true when *err had that cause and is gone
+ * @usage (void)err_drop(&err, ERR_DEV_UNKNOWN_OP); return err;
+ *        if (err_drop(&err, ERR_I2C_DEV_NOT_FOUND)) { continue; } ERR_TRY(err);
+ */
+bool err_drop(err_h* err, uint32_t tag);
 
 /* ----------------------------------------------------------------------------
  * Core tags (module 0)

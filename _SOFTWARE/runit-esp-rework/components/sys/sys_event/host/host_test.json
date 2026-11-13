@@ -1,0 +1,7 @@
+{
+  "sources": ["sys_event.c"],
+  "tests": ["host/test_sys_event.c"],
+  "includes": ["errors"],
+  "config": "host/sys_event_host_config.h",
+  "deps": ["errors"]
+}

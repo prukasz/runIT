@@ -2,5 +2,5 @@
 idf_component_register(
     SRCS "board_time.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES esp_timer
+    PRIV_REQUIRES esp_timer esp_rom
 )

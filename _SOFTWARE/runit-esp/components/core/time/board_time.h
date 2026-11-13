@@ -52,3 +52,10 @@ uint64_t board_time_uptime_ms(void);
  * @return The clock at that moment
  */
 uint64_t board_time_at_uptime_ms(uint64_t uptime_ms);
+
+/**
+ * @brief Waits `us` microseconds by busy-waiting: for the few hundred us a chip needs after a command (a wake-up
+ * time), where a task delay is too coarse. Not for long waits: the CPU does nothing else meanwhile.
+ * @param[in] us Microseconds
+ */
+void board_time_delay_us(uint32_t us);

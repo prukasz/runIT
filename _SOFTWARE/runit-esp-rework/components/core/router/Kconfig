@@ -1,0 +1,10 @@
+menu "router"
+
+    config ROUTER_MAX_KEYS
+        int "Root keys"
+        default 24
+        range 2 64
+        help
+          Root table slots (router_register).
+
+endmenu

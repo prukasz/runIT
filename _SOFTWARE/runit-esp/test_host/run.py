@@ -17,6 +17,7 @@ Only the platform is replaced (test_host/include, test_host/src); the component'
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,18 +27,23 @@ FW = ROOT.parent                                # runit-esp
 BUILD = FW / "build_host"
 UNITY = ROOT / "vendor" / "unity"
 CFLAGS = ["-std=gnu11", "-Wall", "-Wextra", "-g", "-pthread"]
+# Where components are found: the firmware's and the rework's (which still takes core/errors etc. from the firmware).
+COMPONENT_ROOTS = [FW / "components", FW.parent / "runit-esp-rework" / "components"]
 
 
 def rel(path):
     """A path relative to runit-esp, with forward slashes (the compiler runs there: short __FILE__ in the output)."""
-    return Path(path).resolve().relative_to(FW).as_posix()
+    return Path(os.path.relpath(Path(path).resolve(), FW)).as_posix()
 
 
 def discover():
     found = {}
-    for manifest in sorted((FW / "components").glob("*/*/host/host_test.json")):
-        comp = manifest.parent.parent
-        found[comp.name] = (comp, json.loads(manifest.read_text(encoding="utf-8")))
+    for root in COMPONENT_ROOTS:
+        for manifest in sorted(root.rglob("host/host_test.json")):
+            comp = manifest.parent.parent
+            if comp.name in found:
+                sys.exit(f"error: two components named '{comp.name}': {found[comp.name][0]} and {comp}")
+            found[comp.name] = (comp, json.loads(manifest.read_text(encoding="utf-8")))
     return found
 
 

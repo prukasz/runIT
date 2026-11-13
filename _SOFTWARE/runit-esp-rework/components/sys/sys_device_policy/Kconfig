@@ -1,0 +1,42 @@
+menu "sys_device_policy"
+
+    config SYS_DEVICE_POLICY_QUEUE_BYTES
+        int "Queue (bytes)"
+        default 1024
+        range 256 8192
+        help
+          Room of the ring buffer for the reported errors that wait for the
+          policy's task, each as a record (the buffer's 8 B and the record).
+          Only an error that needs a response is queued. A full buffer fails
+          the report with ERR_DEV_FAULT_RESPONSE (stage QUEUE). A multiple
+          of 4, at least twice the largest record.
+
+    config SYS_DEVICE_POLICY_RECORD_MAX
+        int "Largest record (bytes)"
+        default 256
+        range 64 1024
+        help
+          The most bytes of one error as it crosses to the policy's task. A
+          chain that does not fit loses its innermost nodes, and with them
+          the root cause the severity may come from. On the stack of the
+          task that reports and of the policy's task.
+
+    config SYS_DEVICE_POLICY_TASK_PRIO
+        int "Task priority"
+        default 14
+        range 1 24
+        help
+          The task that stops the VM and suspends every device on a critical
+          error: above the event task (6) and the router work task (5), so
+          the safe state is not kept waiting by them; below the urgent task
+          (15).
+
+    config SYS_DEVICE_POLICY_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 3072 32768
+        help
+          Runs the responses: the sweep of every device (their suspend()
+          hooks, I2C), a device's SUSPEND or RESET, the action runner.
+
+endmenu

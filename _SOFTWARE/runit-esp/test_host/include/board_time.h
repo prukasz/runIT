@@ -4,3 +4,4 @@
  * host_time_real(true). Both readings are the same clock here. */
 uint64_t board_time_now_ms(void);
 uint64_t board_time_uptime_ms(void);
+uint64_t board_time_at_uptime_ms(uint64_t uptime_ms);  // the same clock: the reading itself

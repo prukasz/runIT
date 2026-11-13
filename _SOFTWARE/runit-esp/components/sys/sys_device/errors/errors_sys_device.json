@@ -90,6 +90,14 @@
     "ERR_DEV_HELD": {
       "message": "{id} cannot be removed: the screen is installed on it",
       "hint": "Reset the screen first."
+    },
+    "ERR_DEV_REENTRY": {
+      "message": "{id} was called from inside its own call",
+      "hint": "A device operation must not call its own device: publish the event deferred, or restructure the call."
+    },
+    "ERR_DEV_NOT_LOCKED": {
+      "message": "{id} was changed without its lock",
+      "hint": "Take the lock of the device first (sys_device_slot_lock)."
     }
   }
 }

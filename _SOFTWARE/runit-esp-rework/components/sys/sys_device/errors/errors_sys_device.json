@@ -1,0 +1,113 @@
+{
+  "$schema": "../../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_DEVICE",
+  "errors": {
+    "ERR_DEV_BAD_ARG": {
+      "message": "A device request is not valid"
+    },
+    "ERR_DEV_BAD_ID": {
+      "message": "{id} is not a valid device ID"
+    },
+    "ERR_DEV_NOT_FOUND": {
+      "message": "{id} does not exist",
+      "hint": "Write the project to the board (toolbar), or check the device ID."
+    },
+    "ERR_DEV_ID_TAKEN": {
+      "message": "The ID of {id} is already taken",
+      "hint": "Give the device another ID."
+    },
+    "ERR_DEV_TYPE_UNKNOWN": {
+      "message": "The board does not know {type}",
+      "hint": "Update the board's firmware, or remove the device: this firmware has no driver for it."
+    },
+    "ERR_DEV_SUSPENDED": {
+      "message": "{id} is suspended",
+      "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
+    },
+    "ERR_DEV_NO_MEM": {
+      "message": "No memory for {id} ({size} bytes)",
+      "hint": "Remove a device or a part of the program you do not need, then try again."
+    },
+    "ERR_DEV_INSTALL": {
+      "message": "While creating {id} ({type})"
+    },
+    "ERR_DEV_ID": {
+      "message": "In {id}"
+    },
+    "ERR_DEV_BAD_PIN": {
+      "message": "{id} has no {pin}",
+      "hint": "Choose a pin the device has."
+    },
+    "ERR_DEV_RANGE": {
+      "message": "{id}: {value} is outside {min}..{max}",
+      "hint": "Use a value within the range shown."
+    },
+    "ERR_DEV_OP": {
+      "message": "In {op}"
+    },
+    "ERR_DEV_UNKNOWN_OP": {
+      "message": "The device cannot do {op}",
+      "hint": "This device does not have that command: use one from its list."
+    },
+    "ERR_DEV_PIN_LOCKED": {
+      "message": "{pin} of {id} is held by {owner}",
+      "hint": "Change the pin through the device that holds it, or choose a free pin.",
+      "fields": {
+        "owner": {
+          "id_kind": "device"
+        }
+      }
+    },
+    "ERR_DEV_PIN_NOT_OWNED": {
+      "message": "{pin} of {id} belongs to {owner}: only that device can free it",
+      "fields": {
+        "owner": {
+          "id_kind": "device"
+        }
+      }
+    },
+    "ERR_DEV_IN_USE": {
+      "message": "{id} cannot be removed: other devices use it ({users})",
+      "hint": "Remove or change the devices that use it first."
+    },
+    "ERR_DEV_SYSTEM": {
+      "message": "{id} is part of the board and cannot be removed"
+    },
+    "ERR_DEV_FAULT_RESPONSE": {
+      "message": "The response to an error of {id} failed (step {stage}, {action})",
+      "hint": "Check the device's error policy and the action it runs. At the step Queue the board had too many errors at once to respond to this one.",
+      "fields": {
+        "stage": {
+          "enum_ref": "sys_device_fault_stage_e"
+        },
+        "action": {
+          "id_kind": "action"
+        }
+      }
+    },
+    "ERR_DEV_REMOTE_DOWN": {
+      "message": "Device {id} is on board {board}, which cannot be reached",
+      "hint": "Check the cable or the link to that board."
+    },
+    "ERR_DEV_LOCAL_OP": {
+      "message": "{op} runs only inside the board, not as a command",
+      "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
+    },
+    "ERR_DEV_REENTRY": {
+      "message": "{id} was called from inside its own call",
+      "hint": "A device operation must not call its own device."
+    },
+    "ERR_DEV_NOT_LOCKED": {
+      "message": "{id} was changed without its lock",
+      "hint": "Take the lock of the device first (sys_device_slot_lock)."
+    },
+    "ERR_DEV_BUSY": {
+      "message": "{id} is busy with {op} and did not answer in time",
+      "hint": "Try again; if it stays busy, the device or the bus it is on does not answer."
+    },
+    "ERR_DEV_CYCLE": {
+      "message": "{id} cannot use {dep}: {dep} already uses {id}",
+      "hint": "Two devices cannot use each other: change one of them."
+    }
+  }
+}

@@ -59,6 +59,18 @@ static void test_wrap_chain_order_root_and_severity(void) {
   ASSERT_POOL_FULL();
 }
 
+static void test_drop_takes_away_only_the_cause_it_names(void) {
+  err_h e = ERR_WRAP(ERR_NEW(T_PLAIN), T_PAIR, .a = 1);  /* the cause is T_PLAIN, wrapped */
+  TEST_ASSERT_FALSE(err_drop(&e, T_PAIR));              /* the outer tag is not the cause: kept */
+  TEST_ASSERT_ERR_TAG(T_PAIR, e);
+  TEST_ASSERT_TRUE(err_drop(&e, T_PLAIN));
+  TEST_ASSERT_NULL(e);
+  ASSERT_POOL_FULL();                                   /* the whole chain freed */
+  err_h none = NULL;
+  TEST_ASSERT_FALSE(err_drop(&none, T_PLAIN));          /* no error: nothing to take */
+  TEST_ASSERT_NULL(none);
+}
+
 static void test_pool_exhaustion(void) {
   err_h held[CONFIG_ERRORS_POOL_BLOCKS];
   for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS; i++) held[i] = ERR_NEW(T_PLAIN);
@@ -545,6 +557,7 @@ int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_new_has_tag_and_data);
   RUN_TEST(test_wrap_chain_order_root_and_severity);
+  RUN_TEST(test_drop_takes_away_only_the_cause_it_names);
   RUN_TEST(test_pool_exhaustion);
   RUN_TEST(test_try_check_esp);
   RUN_TEST(test_keep_first);

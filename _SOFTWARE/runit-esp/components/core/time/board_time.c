@@ -2,6 +2,7 @@
 
 #include <sys/time.h>
 
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 
 uint64_t board_time_now_ms(void) {
@@ -26,6 +27,10 @@ bool board_time_set(uint64_t unix_ms) {
 
 uint64_t board_time_uptime_ms(void) {
   return (uint64_t)(esp_timer_get_time() / 1000);
+}
+
+void board_time_delay_us(uint32_t us) {
+  esp_rom_delay_us(us);
 }
 
 uint64_t board_time_at_uptime_ms(uint64_t uptime_ms) {

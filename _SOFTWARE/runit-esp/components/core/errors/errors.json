@@ -181,8 +181,8 @@
       "id": 1,
       "name": "sys_i2c",
       "symbol": "ERR_MOD_SYS_I2C",
-      "source_file": "runit-esp/components/sys/sys_i2c/errors/sys_i2c_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_i2c/errors/errors_sys_i2c.json",
+      "source_file": "runit-esp/components/sys/bus/sys_i2c/errors/sys_i2c_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_i2c/errors/errors_sys_i2c.json",
       "tags": [
         {
           "code": 1,
@@ -1858,6 +1858,44 @@
           "description": "REMOVE of a device a module holds (sys_device_hold: the screen adapter's display and touch)",
           "message": "{id} cannot be removed: the screen is installed on it",
           "hint": "Reset the screen first."
+        },
+        {
+          "code": 27,
+          "tag": 393243,
+          "name": "ERR_DEV_REENTRY",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a task took the lock of a device it holds already (the lock is not recursive)",
+          "message": "{id} was called from inside its own call",
+          "hint": "A device operation must not call its own device: publish the event deferred, or restructure the call."
+        },
+        {
+          "code": 28,
+          "tag": 393244,
+          "name": "ERR_DEV_NOT_LOCKED",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a slot was changed without its lock",
+          "message": "{id} was changed without its lock",
+          "hint": "Take the lock of the device first (sys_device_slot_lock)."
         }
       ]
     },
@@ -5732,8 +5770,8 @@
       "id": 24,
       "name": "sys_uart",
       "symbol": "ERR_MOD_SYS_UART",
-      "source_file": "runit-esp/components/sys/sys_uart/errors/sys_uart_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_uart/errors/errors_sys_uart.json",
+      "source_file": "runit-esp/components/sys/bus/sys_uart/errors/sys_uart_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_uart/errors/errors_sys_uart.json",
       "tags": [
         {
           "code": 1,

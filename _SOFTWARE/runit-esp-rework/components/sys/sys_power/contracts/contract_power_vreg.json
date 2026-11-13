@@ -1,0 +1,145 @@
+{
+  "$schema": "../../../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "POWER_VREG",
+  "contract_id": 5,
+  "alias": "Regulator",
+  "description": "An adjustable regulator: enable, voltage, current limit",
+  "category": "power",
+  "commands": [
+    {
+      "id": "ENABLE",
+      "op": 0,
+      "symbol": "VREG_OP_ENABLE",
+      "label": "Enable",
+      "description": "Switches the regulator output on or off.",
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "enable",
+              "label": "Output",
+              "type": "choice",
+              "control": "switch",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
+            }
+          ],
+          "struct": "vreg_enable_args_t"
+        }
+      }
+    },
+    {
+      "id": "VOLTAGE",
+      "op": 1,
+      "symbol": "VREG_OP_VOLTAGE",
+      "label": "Output voltage",
+      "description": "Sets the wanted output voltage; the output follows when it is enabled.",
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "The wanted output voltage",
+              "unit": "mV",
+              "control": "slider"
+            }
+          ],
+          "struct": "vreg_voltage_args_t"
+        }
+      }
+    },
+    {
+      "id": "CURRENT",
+      "op": 2,
+      "symbol": "VREG_OP_CURRENT",
+      "label": "Current limit",
+      "description": "Sets the wanted output current limit.",
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "current_mA",
+              "label": "Current limit",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "The wanted output current limit",
+              "unit": "mA",
+              "control": "slider"
+            }
+          ],
+          "struct": "vreg_current_args_t"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "OVP",
+      "event": 0,
+      "code": 1280,
+      "label": "Over-voltage",
+      "description": "The output went above its limit",
+      "notify": true,
+      "symbol": "VREG_EV_OVP",
+      "value": {
+        "description": "The wanted voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "OCP",
+      "event": 1,
+      "code": 1281,
+      "label": "Over-current",
+      "description": "The output passed its current limit",
+      "notify": true,
+      "symbol": "VREG_EV_OCP",
+      "value": {
+        "description": "The current limit",
+        "unit": "mA"
+      }
+    },
+    {
+      "id": "SCP",
+      "event": 2,
+      "code": 1282,
+      "label": "Short circuit",
+      "description": "The output is shorted",
+      "notify": true,
+      "symbol": "VREG_EV_SCP"
+    },
+    {
+      "id": "READY",
+      "event": 3,
+      "code": 1283,
+      "label": "Output ready",
+      "description": "The output settled at the wanted voltage",
+      "notify": false,
+      "symbol": "VREG_EV_READY",
+      "value": {
+        "description": "The voltage",
+        "unit": "mV"
+      }
+    }
+  ]
+}

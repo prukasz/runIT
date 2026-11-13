@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_ROUTER",
+  "errors": {
+    "ERR_ROUTER_KEY": {
+      "message": "In {key}"
+    },
+    "ERR_ROUTER_OP": {
+      "message": "In command {code}"
+    },
+    "ERR_ROUTER_NO_KEY": {
+      "message": "The command ends before it says what it is for"
+    },
+    "ERR_ROUTER_UNKNOWN_KEY": {
+      "message": "The board has nothing that answers {key}"
+    },
+    "ERR_ROUTER_UNKNOWN_OP": {
+      "message": "There is no command {code} here"
+    },
+    "ERR_ROUTER_KEY_TAKEN": {
+      "message": "{key} is registered twice"
+    },
+    "ERR_ROUTER_TABLE_FULL": {
+      "message": "No room to register {key}"
+    },
+    "ERR_CMD_BAD_LEN": {
+      "message": "The command carries {got} bytes; it needs {need}"
+    },
+    "ERR_CMD_OUT_FULL": {
+      "message": "The answer needs {need} bytes; the link takes {cap}"
+    },
+    "ERR_CMD_BAD_ARG": {
+      "message": "A value of the command is not valid"
+    },
+    "ERR_CMD_DIRECTION": {
+      "message": "The command has no {dir} side",
+      "hint": "Read a command that can be read, write one that can be written.",
+      "fields": {
+        "dir": {
+          "enum_ref": "cmd_dir_e"
+        }
+      }
+    }
+  }
+}

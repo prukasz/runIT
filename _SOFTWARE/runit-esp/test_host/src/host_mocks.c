@@ -25,6 +25,7 @@ uint64_t board_time_now_ms(void) {
   return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
 }
 uint64_t board_time_uptime_ms(void) { return board_time_now_ms(); }
+uint64_t board_time_at_uptime_ms(uint64_t uptime_ms) { return uptime_ms; }
 
 const char* esp_err_to_name(esp_err_t code) {
   switch (code) {

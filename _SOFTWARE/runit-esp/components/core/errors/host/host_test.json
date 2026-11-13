@@ -1,6 +1,7 @@
 {
   "sources": ["errors.c", "err_pool.c", "err_tags.c", "err_log.c", "err_wire.c"],
   "tests": ["host/test_errors.c"],
+  "includes": ["../utils"],
   "config": "host/errors_host_config.h",
   "deps": [],
   "variants": {

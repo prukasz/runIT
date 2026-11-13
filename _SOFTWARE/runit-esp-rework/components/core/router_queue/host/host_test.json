@@ -1,0 +1,16 @@
+{
+  "sources": [
+    "router_queue.c"
+  ],
+  "tests": [
+    "host/test_router_queue.c",
+    "host/test_router_tasks.c"
+  ],
+  "includes": [
+    "errors"
+  ],
+  "config": "host/router_host_config.h",
+  "deps": [
+    "router"
+  ]
+}

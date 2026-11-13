@@ -30,6 +30,8 @@
   X(ERR_DEV_SYSTEM,         ERR_TAG(ERR_MOD_SYS_DEVICE, 23), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a board device (SYS_DEVICE_CREATE_SYSTEM) */ \
   X(ERR_DEV_REMOTE_DOWN,    ERR_TAG(ERR_MOD_SYS_DEVICE, 24), ERR_SEV_HIGH,   { uint16_t id; uint8_t board; }) /* a remote device whose board is gone, or no sys_remote on this board */ \
   X(ERR_DEV_LOCAL_OP,       ERR_TAG(ERR_MOD_SYS_DEVICE, 25), ERR_SEV_HIGH,   { uint16_t op; }) /* an op the firmware calls only in C (SYS_DEVICE_OP_LOCAL), sent as a command or to a remote device */ \
-  X(ERR_DEV_HELD,           ERR_TAG(ERR_MOD_SYS_DEVICE, 26), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a device a module holds (sys_device_hold: the screen adapter's display and touch) */
+  X(ERR_DEV_HELD,           ERR_TAG(ERR_MOD_SYS_DEVICE, 26), ERR_SEV_MEDIUM, { uint16_t id; }) /* REMOVE of a device a module holds (sys_device_hold: the screen adapter's display and touch) */ \
+  X(ERR_DEV_REENTRY,        ERR_TAG(ERR_MOD_SYS_DEVICE, 27), ERR_SEV_HIGH,   { uint8_t id; }) /* a task took the lock of a device it holds already (the lock is not recursive) */ \
+  X(ERR_DEV_NOT_LOCKED,     ERR_TAG(ERR_MOD_SYS_DEVICE, 28), ERR_SEV_HIGH,   { uint8_t id; }) /* a slot was changed without its lock */
 
 ERR_TAGS_DECLARE(ERR_SYS_DEVICE_MAP)

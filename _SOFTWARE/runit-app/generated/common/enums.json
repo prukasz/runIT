@@ -1341,7 +1341,7 @@
     "sys_i2c_bus_e": {
       "alias": "I2C Bus",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_i2c/sys_i2c.h",
+      "source_file": "runit-esp/components/sys/bus/sys_i2c/sys_i2c.h",
       "members": [
         {
           "name": "SYS_I2C_BUS_0",
@@ -1360,7 +1360,7 @@
     "sys_i2c_order_e": {
       "alias": "I2C Byte Order",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_i2c/sys_i2c.h",
+      "source_file": "runit-esp/components/sys/bus/sys_i2c/sys_i2c.h",
       "members": [
         {
           "name": "SYS_I2C_BE",
@@ -1999,7 +1999,7 @@
     "sys_uart_mode_e": {
       "alias": "UART mode",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
       "members": [
         {
           "name": "SYS_UART_MODE_FRAMED",
@@ -2030,7 +2030,7 @@
     "sys_uart_parity_e": {
       "alias": "UART parity",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
       "members": [
         {
           "name": "SYS_UART_PARITY_NONE",
@@ -2107,7 +2107,7 @@
       "alias": "UART baud rate",
       "kind": "defines",
       "prefix": "SYS_UART_BAUD_",
-      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
       "members": [
         {
           "name": "SYS_UART_BAUD_MIN",
@@ -2127,7 +2127,7 @@
       "alias": "UART raw command",
       "kind": "defines",
       "prefix": "SYS_UART_RAW_",
-      "source_file": "runit-esp/components/sys/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
       "members": [
         {
           "name": "SYS_UART_RAW_WAIT_MAX_MS",

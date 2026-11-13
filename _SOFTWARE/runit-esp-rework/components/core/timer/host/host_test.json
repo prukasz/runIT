@@ -1,0 +1,6 @@
+{
+  "sources": ["board_timer.c"],
+  "tests": ["host/test_board_timer.c"],
+  "config": "host/timer_host_config.h",
+  "deps": []
+}

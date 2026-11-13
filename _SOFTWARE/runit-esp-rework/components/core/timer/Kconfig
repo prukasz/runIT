@@ -1,0 +1,20 @@
+menu "board_timer"
+
+    config BOARD_TIMER_TASK_PRIO
+        int "Task priority"
+        default 7
+        range 1 24
+        help
+          Runs every board timer's callback (a motor's ramp, a poll, a
+          timeout). Above the event task (6), so a step is not held up by
+          event listeners; below the urgent task (15).
+
+    config BOARD_TIMER_TASK_STACK
+        int "Task stack (bytes)"
+        default 4096
+        range 3072 32768
+        help
+          The callbacks run on it: a driver's step with its bus calls (I2C)
+          and the device calls it makes.
+
+endmenu

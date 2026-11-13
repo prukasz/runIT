@@ -28,24 +28,42 @@ typedef enum { RINGBUF_TYPE_NOSPLIT, RINGBUF_TYPE_ALLOWSPLIT, RINGBUF_TYPE_BYTEB
 void vTaskDelay(TickType_t ticks);
 TickType_t xTaskGetTickCount(void);  // the milliseconds of a monotonic clock
 
-/* Semaphores: a binary semaphore and a recursive mutex (src/host_freertos.c); FromISR is the same call. */
+/* Semaphores: a binary semaphore, a mutex (given at the start, its holder kept: xSemaphoreGetMutexHolder; not
+ * recursive, a second take by its holder waits like any other) and a recursive mutex (src/host_freertos.c); FromISR
+ * is the same call. */
 typedef void* SemaphoreHandle_t;
 typedef struct { int unused; } StaticSemaphore_t;
 SemaphoreHandle_t xSemaphoreCreateBinaryStatic(StaticSemaphore_t* buffer);
+SemaphoreHandle_t xSemaphoreCreateMutexStatic(StaticSemaphore_t* buffer);
 SemaphoreHandle_t xSemaphoreCreateRecursiveMutexStatic(StaticSemaphore_t* buffer);
 BaseType_t xSemaphoreTake(SemaphoreHandle_t sem, TickType_t ticks);
 BaseType_t xSemaphoreGive(SemaphoreHandle_t sem);
+TaskHandle_t xSemaphoreGetMutexHolder(SemaphoreHandle_t mutex);  // NULL when it is free
 BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t mutex, TickType_t ticks);
 BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t mutex);
 #define xSemaphoreGiveFromISR(sem, woken) (*(woken) = pdFALSE, xSemaphoreGive(sem))
 
-/* The critical section of a task (taskENTER_CRITICAL) is the process-wide one of utils.h. */
-#define taskENTER_CRITICAL(m) portENTER_CRITICAL_SAFE(m)
-#define taskEXIT_CRITICAL(m)  portEXIT_CRITICAL_SAFE(m)
+/* A critical section is one process-wide mutex: tasks are threads here, so what a spinlock protects on the board is
+ * protected for real. Not recursive, like a spinlock. */
+typedef int portMUX_TYPE;
+#define portMUX_INITIALIZER_UNLOCKED 0
+void host_critical_enter(void);
+void host_critical_exit(void);
+#define portENTER_CRITICAL_SAFE(m) do { (void)(m); host_critical_enter(); } while (0)
+#define portEXIT_CRITICAL_SAFE(m)  do { (void)(m); host_critical_exit(); } while (0)
+#define portENTER_CRITICAL(m)      portENTER_CRITICAL_SAFE(m)
+#define portEXIT_CRITICAL(m)       portEXIT_CRITICAL_SAFE(m)
+#define taskENTER_CRITICAL(m)      portENTER_CRITICAL_SAFE(m)
+#define taskEXIT_CRITICAL(m)       portEXIT_CRITICAL_SAFE(m)
+
+/* An ISR: no thread is one, unless a test makes the calling thread act as one (host_isr_set), so the ISR side of a
+ * component (sys_event_publish from an ISR) runs on the PC. */
+BaseType_t xPortInIsrContext(void);
+void host_isr_set(int in_isr);
 
 TaskHandle_t xTaskCreateStatic(TaskFunction_t fn, const char* name, uint32_t stack_depth, void* arg, UBaseType_t prio,
                                StackType_t* stack, StaticTask_t* tcb);
-TaskHandle_t xTaskGetCurrentTaskHandle(void);
+TaskHandle_t xTaskGetCurrentTaskHandle(void);  // every thread is a task: one made here or not, never NULL
 void host_task_notify_give(TaskHandle_t task);
 uint32_t ulTaskNotifyTake(BaseType_t clear_on_exit, TickType_t ticks);
 #define xTaskNotifyGive(task) host_task_notify_give(task)
@@ -53,6 +71,8 @@ uint32_t ulTaskNotifyTake(BaseType_t clear_on_exit, TickType_t ticks);
 RingbufHandle_t xRingbufferCreateStatic(size_t size, RingbufferType_t type, uint8_t* storage, StaticRingbuffer_t* st);
 BaseType_t xRingbufferSendAcquire(RingbufHandle_t rb, void** item, size_t size, TickType_t ticks);
 BaseType_t xRingbufferSendComplete(RingbufHandle_t rb, void* item);
+BaseType_t xRingbufferSend(RingbufHandle_t rb, const void* data, size_t size, TickType_t ticks);
+BaseType_t xRingbufferSendFromISR(RingbufHandle_t rb, const void* data, size_t size, BaseType_t* woken);
 void* xRingbufferReceive(RingbufHandle_t rb, size_t* size, TickType_t ticks);
 void vRingbufferReturnItem(RingbufHandle_t rb, void* item);
 

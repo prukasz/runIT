@@ -7,7 +7,7 @@ Component `components/core/time/`. The one place that sets and reads the time. N
 | File | Role |
 |---|---|
 | `board_time.h` / `board_time.c` | The API below. The header is not `time.h`: that would shadow libc's `<time.h>` on every include path |
-| `CMakeLists.txt` | Component registration (`PRIV_REQUIRES esp_timer`) |
+| `CMakeLists.txt` | Component registration (`PRIV_REQUIRES esp_timer esp_rom`) |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Model
@@ -21,6 +21,7 @@ No battery clock: the time is a client's gift (`board_time_set`, the sys router'
 | `board_time_is_set()` | whether a client set it |
 | `board_time_set(unix_ms)` | sets it; false when the system refuses |
 | `board_time_uptime_ms()` | the time since the start, monotonic; setting the clock does not move it. Safe in an ISR (the clock functions take a lock and are not) |
+| `board_time_delay_us(us)` | a busy-wait of a few hundred us (a chip's wake-up time); the one place a driver gets such a delay, so none includes the ROM's |
 | `board_time_at_uptime_ms(up)` | the clock at an earlier `board_time_uptime_ms` reading; for a stamp taken in an ISR, converted in a task |
 
 ## Who uses it

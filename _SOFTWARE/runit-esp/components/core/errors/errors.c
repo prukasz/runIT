@@ -113,3 +113,12 @@ uint32_t err_root_tag(err_h chain) {
   }
   return chain != NULL ? chain->tag : 0;
 }
+
+bool err_drop(err_h* err, uint32_t tag) {
+  if (*err == NULL || err_root_tag(*err) != tag) {
+    return false;
+  }
+  err_free(*err);
+  *err = NULL;
+  return true;
+}

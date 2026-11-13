@@ -1,0 +1,42 @@
+menu "sys_device"
+
+    config SYS_DEVICE_TYPES
+        int "Device types"
+        default 16
+        range 1 64
+        help
+          Driver types this firmware registers (SYS_DEVICE_TYPE_DEFINE).
+
+    config SYS_DEVICE_INTERCEPTORS
+        int "Interceptors"
+        default 2
+        range 1 8
+        help
+          Contracts that can have an interceptor (sys_device_set_interceptor):
+          a module that sees every call of the contract's ops before the
+          device does (the power manager on POWER_VREG).
+
+    config SYS_DEVICE_LOCK_TIMEOUT_MS
+        int "Wait for a device's lock (ms)"
+        default 5000
+        range 100 60000
+        help
+          The longest a call waits for the lock of its device before it fails
+          with ERR_DEV_BUSY (the op that holds the lock is in the error), so
+          one device that hangs does not hold up the tasks that call it for
+          good (the timers' task, the event task, a sweep). Longer than the
+          slowest op of a device: an I2C bus's SCAN is 112 probes.
+
+    config SYS_DEVICE_EVENT_HOLD_BYTES
+        int "Events held during a call (bytes)"
+        default 256
+        range 32 2048
+        help
+          Room for the events published inside device ops, kept until the
+          task's outermost sys_device_call is over and then delivered to the
+          inline listeners. On the stack of the task that makes that call,
+          only while it runs. An event takes 4 B, its 20 B header and its
+          payload, padded to 4 B; one that does not fit goes to the event
+          task. A multiple of 4.
+
+endmenu

@@ -1,0 +1,71 @@
+{
+  "$schema": "../../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "id": "EVENT",
+  "contract_id": 3,
+  "alias": "Event notification",
+  "description": "Contract for devices that listen to events: sys_device_event_subscribe delivers each matching event to the device's ON_EVENT.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "ON_EVENT",
+      "op": 0,
+      "symbol": "EVENT_OP_ON_EVENT",
+      "label": "On event",
+      "description": "An event delivered to the device: its key, its time and its payload. Runs while the device is suspended.",
+      "write": {
+        "args": {
+          "struct": "sys_event_t",
+          "fields": [
+            {
+              "id": "tag",
+              "label": "Event",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "description": "EVT_TAG(module, code) with the flags"
+            },
+            {
+              "id": "source",
+              "label": "Source",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 4,
+              "description": "What published it, as its module defines it (a device, a screen)"
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "type": "channel",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 6,
+              "description": "Pin, channel or object on that source, 0 when it has none"
+            },
+            {
+              "id": "t_ms",
+              "label": "Time",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 8,
+              "unit": "ms",
+              "description": "Time since the start"
+            },
+            {
+              "id": "data",
+              "label": "Payload",
+              "type": "string",
+              "raw_type": "bytes",
+              "offset": 12,
+              "description": "The event's payload (its evt_data_<NAME>_t; runs to the end of the frame)"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

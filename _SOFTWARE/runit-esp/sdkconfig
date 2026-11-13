@@ -3570,17 +3570,6 @@ CONFIG_SYS_FLASHER_TASK_PRIO=3
 # end of sys_flasher
 
 #
-# sys_i2c
-#
-# default:
-CONFIG_SYS_I2C_XFER_TIMEOUT_MS=50
-# default:
-CONFIG_SYS_I2C_PROBE_TIMEOUT_MS=50
-# default:
-CONFIG_SYS_I2C_GLITCH_IGNORE_CNT=7
-# end of sys_i2c
-
-#
 # sys_log
 #
 # default:
@@ -3705,6 +3694,28 @@ CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS=0
 # end of sys_system
 
 #
+# sys_watch
+#
+# default:
+CONFIG_SYS_WATCH_MAX=24
+# default:
+CONFIG_SYS_WATCH_CLIENT_MAX=24
+# default:
+CONFIG_SYS_WATCH_IDLE_MIN_MS=1000
+# end of sys_watch
+
+#
+# sys_i2c
+#
+# default:
+CONFIG_SYS_I2C_XFER_TIMEOUT_MS=50
+# default:
+CONFIG_SYS_I2C_PROBE_TIMEOUT_MS=50
+# default:
+CONFIG_SYS_I2C_GLITCH_IGNORE_CNT=7
+# end of sys_i2c
+
+#
 # sys_uart
 #
 # default:
@@ -3738,17 +3749,6 @@ CONFIG_SYS_UART_LINK_CTS_PIN=-1
 # default:
 CONFIG_SYS_UART_LINK_BAUD=921600
 # end of sys_uart
-
-#
-# sys_watch
-#
-# default:
-CONFIG_SYS_WATCH_MAX=24
-# default:
-CONFIG_SYS_WATCH_CLIENT_MAX=24
-# default:
-CONFIG_SYS_WATCH_IDLE_MIN_MS=1000
-# end of sys_watch
 
 #
 # Device: ESP32-S3 GPIO

@@ -59,7 +59,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
 
 ## 4. Validation happens once, at the boundary
 
-- Check pointers, ranges and state **once**, where data enters: router handlers (sizes are checked by `router_args`), public API functions, device ops, the VM loader. Use `ERR_CHECK` and the device range helpers.
+- Check pointers, ranges and state **once**, where data enters: router handlers (sizes are checked by the handler macros, `CMD_HANDLER`), public API functions, device ops, the VM loader. Use `ERR_CHECK` and the device range helpers.
 - Internal helpers (`static` functions called only after validation) **do not re-check**. Their contract is "caller already checked"; say so in the comment if it isn't obvious.
 - Validate each new value where it first appears (a pointer obtained by lookup is checked right there).
 
@@ -95,7 +95,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
 
   The module segment matches the component folder name.
 
-- **A command is named for its value or action** (`DEADMAN`, `TIME`, `LEVEL`), never for a side: the read and the write of one value are the two sides of one op (CMD.MD "Read and write").
+- **A command is named for its value or action** (`DEADMAN`, `TIME`, `LEVEL`), never for a side: the read and the write of one value are the two sides of one op (ROUTER.MD "Read and write").
 
 ### 5.2 Current deviations (open)
 
