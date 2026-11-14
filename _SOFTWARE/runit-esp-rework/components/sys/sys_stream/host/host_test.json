@@ -1,0 +1,27 @@
+{
+  "sources": [
+    "sys_stream.c",
+    "router/sys_stream_router.c"
+  ],
+  "tests": [
+    "host/test_sys_stream.c"
+  ],
+  "includes": [
+    "config",
+    "errors",
+    "internal",
+    "router"
+  ],
+  "config": "host/sys_stream_host_config.h",
+  "deps": [
+    "sys_data_provider",
+    "router_queue",
+    "timer",
+    "sys_session"
+  ],
+  "variants": {
+    "default": [
+      "-DCONFIG_SYS_DATA_PROVIDER_MAX=4"
+    ]
+  }
+}

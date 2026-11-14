@@ -1,0 +1,21 @@
+menu "sys_system"
+
+    config SYS_SYSTEM_DEADMAN_DEFAULT_MS
+        int "Dead-man timeout at boot (ms, 0 = off)"
+        default 0
+        range 0 60000
+        help
+          0, or the master's and the clients' sessions' timeout (150..60000):
+          their end enters the safe state. Changed at runtime with the sys
+          DEADMAN command; not stored.
+
+    config SYS_SYSTEM_TIME_PERIOD_S
+        int "Time broadcast period (s)"
+        default 60
+        range 5 3600
+        help
+          The root sends its time to every board this often (and when a client
+          sets it, and when a board is reached), so the clocks of all boards
+          are the root's.
+
+endmenu

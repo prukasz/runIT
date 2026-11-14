@@ -1,0 +1,28 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_WATCH",
+  "errors": {
+    "ERR_WATCH_NOT_FOUND": {
+      "message": "Watch {id} not found",
+      "hint": "Check WATCH LIST."
+    },
+    "ERR_WATCH_NOT_READ": {
+      "message": "Watch {id} request is not a read",
+      "hint": "Only commands with dir CMD_DIR_READ (0) can be watched."
+    },
+    "ERR_WATCH_BAD_ARG": {
+      "message": "Watch {id}: bad argument",
+      "hint": "Check id (1..255), period (>= 1), trigger, owner peer id and read length."
+    },
+    "ERR_WATCH_FULL": {
+      "message": "Watch table is full",
+      "hint": "Remove an unused watch first or raise CONFIG_SYS_WATCH_MAX / CONFIG_SYS_WATCH_CLIENT_MAX."
+    },
+    "ERR_WATCH_NO_VALUE": {
+      "message": "No cached watch value from board {board} yet"
+    },
+    "ERR_WATCH_STALE": {
+      "message": "Cached watch value from board {board} is stale ({age_ms} ms old)"
+    }
+  }
+}

@@ -229,6 +229,20 @@ static void tx_task(void* arg) {
   }
 }
 
+// Bytes occupied in a no-split ring (between pucFree and pucAcquire, accounting for wrap and full-vs-empty).
+// xRingbufferGetCurFreeSize() cannot be used here: on a NOSPLIT ring it caps free size at cap / 2 - 8 (xMaxItemSize).
+static uint32_t ring_used(RingbufHandle_t rb, uint32_t cap) {
+  UBaseType_t free_off = 0, acq_off = 0, items = 0;
+  vRingbufferGetInfo(rb, &free_off, NULL, NULL, &acq_off, &items);
+  if (acq_off > free_off) {
+    return (uint32_t)(acq_off - free_off);
+  }
+  if (acq_off < free_off) {
+    return cap - (uint32_t)(free_off - acq_off);
+  }
+  return items > 0 ? cap : 0u;
+}
+
 /* Queues [head][body][crc16] as one item: the CRC runs over both parts, so the TX task encodes the item as it is. A
  * SPARE frame is refused when it would fill its ring past half (sys_data_provider_spare_refused). */
 static err_h provider_send(sys_data_provider_t* self, const uint8_t* head, uint32_t head_len, const uint8_t* body,
@@ -240,7 +254,7 @@ static err_h provider_send(sys_data_provider_t* self, const uint8_t* head, uint3
   RingbufHandle_t rb = urgent ? p->urgent_rb : p->tx_rb;
   const uint32_t len = head_len + body_len;
   const uint32_t cap = urgent ? URGENT_QUEUE : CONFIG_SYS_UART_TX_QUEUE;
-  const uint32_t used = cap - (uint32_t)xRingbufferGetCurFreeSize(rb);  // a snapshot: another send may come between
+  const uint32_t used = ring_used(rb, cap);  // a snapshot: another send may come between
   ERR_CHECK(!sys_data_provider_spare_refused(flags, used, ITEM_BYTES(len + CRC_BYTES), cap), ERR_PROV_BUSY,
             .provider = self->id);
   const TickType_t wait = (flags & SYS_DATA_PROVIDER_SEND_NOWAIT) ? NO_WAIT : MSEC(CONFIG_SYS_UART_SEND_WAIT_MS);

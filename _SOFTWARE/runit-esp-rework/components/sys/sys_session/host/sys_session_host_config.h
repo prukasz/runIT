@@ -1,0 +1,33 @@
+#pragma once
+/* The Kconfig of sys_session for the host tests, with short timeouts: a test that waits for a session's silence or a
+ * call's timeout waits this long. Override with -D. */
+#ifndef CONFIG_SYS_SESSION_MAX
+#define CONFIG_SYS_SESSION_MAX 3
+#endif
+#ifndef CONFIG_SYS_SESSION_CALLS
+#define CONFIG_SYS_SESSION_CALLS 8
+#endif
+#ifndef CONFIG_SYS_SESSION_PEER_IN_FLIGHT
+#define CONFIG_SYS_SESSION_PEER_IN_FLIGHT 2
+#endif
+#ifndef CONFIG_SYS_SESSION_CALL_TIMEOUT_MS
+#define CONFIG_SYS_SESSION_CALL_TIMEOUT_MS 150
+#endif
+#ifndef CONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS
+#define CONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS 100
+#endif
+#ifndef CONFIG_SYS_SESSION_BOARD_ID_DEFAULT
+#define CONFIG_SYS_SESSION_BOARD_ID_DEFAULT 5
+#endif
+#ifndef CONFIG_SYS_SESSION_PEER_LISTENERS
+#define CONFIG_SYS_SESSION_PEER_LISTENERS 4
+#endif
+#ifndef CONFIG_SYS_SESSION_PUSH_LISTENERS
+#define CONFIG_SYS_SESSION_PUSH_LISTENERS 2
+#endif
+#ifndef CONFIG_SYS_SESSION_PUSH_PEERS
+#define CONFIG_SYS_SESSION_PUSH_PEERS 3
+#endif
+#ifndef CONFIG_SYS_SESSION_TIMEOUT_MS
+#define CONFIG_SYS_SESSION_TIMEOUT_MS 200
+#endif

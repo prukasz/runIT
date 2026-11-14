@@ -191,8 +191,9 @@ typedef struct {            // jedna mała tabela w sesji, CONFIG_SYS_SESSION_PU
   od limitu po stronie slave'a).
 - **Koszt:** odbiorca wie, że zgubił N ramek od płytki X, ale nie wie, którego strumienia. Aplikacja po dziurze
   odświeża wszystko, co śledzi z tej płytki, zamiast jednego strumienia. `dropped` na celu strumienia zostaje do
-  diagnostyki. Jeśli aplikacja naprawdę potrzebuje dziury per strumień (resynchronizacja samej telemetrii VM), tę
-  zmianę należy pominąć i zrobić tylko poprawkę B2.
+  diagnostyki. **Decyzja: dziur per strumień nie ma.** Strumień nie wymaga odpowiedzi ani resynchronizacji, więc
+  wystarczy mu najprostszy licznik: wspólny licznik PUSH sesji dla pary (dst, klasa); `seq` nie niesie numeru
+  strumienia.
 
 ### P3. Ciało PUSH
 
@@ -425,10 +426,10 @@ nie poprawia i nic na nim nie testuje.
 | Etap | Do reworku | Zmiany przy kopii | Zależy od | Bramka |
 |---|---|---|---|---|
 | 1 | `sys_nvs`, `sys_data_provider` | P1 (`send(head, body, flags)`), B4 (flaga `SPARE`); `router_done_f` z `const` danymi w `core/router` | — | test hosta providera na fałszywym sterowniku: dwie części, `NOWAIT`, `SPARE` |
-| 2 | `bus/sys_uart`: porty płytki (konsola, link) | P1, B4; prędkość linku = prędkość konsoli (bez osobnej opcji); piny linku zarezerwowane w ESP-IDF; pożyczony link: taski parkowane, nie usuwane | 1 | płytka: konsola przyjmuje i oddaje ramkę (COBS + CRC16) przez wiązanie komend (`runit-esp-rework/tools/console_command.py`); `sys_uart_link_direct` sprawdza etap 6 (flasher) |
-| 3 | `sys_session`, `sys_system` | B1, P7, P8 z czekaniem z własnym limitem, PING na zamkniętej sesji, pole buildu w hello, bez `version`, raport `ERR_SESSION_NONE` raz; `sys_system`: safe state to `sys_device_sweep(SUSPEND)` | 1, 2 | testy hosta sesji (hello, restart peera, timeout, B1); płytka: `router_tests.py`; dwie płytki: `tree_tests.py` (tunel) |
-| 3a | `devices/soc/device_esp32s3_uart` | porty UART tworzone w czasie pracy jako urządzenie (jak `device_esp32s3_i2c`): CREATE przez rejestr, piny przez `sys_io_claim_peripheral`, dostawca robiony w create(), tryby RAW / RAW_LINE / DIRECT, komenda i odpowiedź na porcie; sterownik używający portu deklaruje `sys_device_use` | 2, 3 | płytka: port RAW z mostkiem na drugi UART, komenda i odpowiedź; REMOVE odmówiony, gdy port jest używany |
-| 4 | — | P2 w sesji, tabela po adresatach (albo sama poprawka B2) | 3, decyzja o dziurach per strumień | test hosta: dziury per (peer, klasa), pełna tabela; `tree_tests.py` |
+| 2 | `bus/sys_uart`: porty płytki (konsola, link) | P1, B4; prędkość linku = prędkość konsoli (bez osobnej opcji); piny linku zarezerwowane w ESP-IDF; pożyczony link: taski parkowane, nie usuwane | 1 | płytka: konsola przyjmuje i oddaje ramkę (COBS + CRC16) (`runit-esp-rework/tools/session_client.py`); `sys_uart_link_direct` sprawdza etap 6 (flasher) |
+| 3 | `sys_session`, `sys_system` | B1, P7, P8 z czekaniem z własnym limitem, PING na zamkniętej sesji, pole buildu w hello, bez `version`, raport `ERR_SESSION_NONE` raz; `sys_system`: safe state to `sys_device_sweep(SUSPEND)` | 1, 2 | testy hosta sesji (hello, restart peera, timeout, B1); płytka: `runit-esp-rework/tools/session_client.py` (hello, PING, PEERS, cisza); dwie płytki: tunel przez roota (`--dst`) |
+| 3a | `bus/sys_uart_contract` (napisany), `devices/soc/device_esp32s3_uart` | porty UART jako urządzenie (jak `device_esp32s3_i2c`), także link: UART1 tworzony z `SYS_DEVICE_CREATE_SYSTEM`, jego konfiguracja w profilu płytki zamiast Kconfig, piny przez `sys_io_claim_peripheral` zamiast `esp_gpio_reserve`; w `sys_uart` zostają konsola i silnik linii; kontrakt UART (SYS_UART_CONTRACT.MD): dane przez providera, jeden czytelnik (SUBSCRIBE: dostawa do własnego op urządzenia przez `sys_device_deliver`), RECEIVE NOLOCK budzony od razu, wszystkie op ALWAYS (safe state nie tnie linku), flasher przez LEND / WRITE / READ; odbiór portu na zdarzeniach sterownika zamiast `uart_read_bytes` z 10 ms | 2, 3 | płytka: link jako urządzenie otwiera sesję; UART2 RAW z mostkiem, komenda i odpowiedź; REMOVE linku odmówiony (`ERR_DEV_SYSTEM`), UART2 odmówiony, gdy używany; czas od ostatniego bitu do op subskrybenta (oscyloskop) |
+| 4 | — | P2 w sesji, tabela po adresatach | 3 | test hosta: dziury per (peer, klasa), pełna tabela; na płytce razem z etapem 5 (pierwszy moduł, który wysyła PUSH) |
 | 5 | `sys_stream`, `sys_log` | P4, P3 | 3 | płytka: strumień błędów i logów u klienta; dwie płytki: tunel z dwóch strumieni, ramka DATA do providera slave'a |
 | 6 | `sys_ota`, `sys_flasher` | R5; strażnik OTA bez VM: `NULL` | 2, 3 | OTA slave'a przez roota, potem bez `CONFIRM`; flasher: nowa płytka otwiera sesję z id 0 |
 | 7 | `sys_watch` | serwer: wpis bez `owner` (P3), tick na `board_timer`; klient: P5 napisany od nowa (B3 z definicji) | 3, 4 | test hosta klienta (stany FREE / ADDING / ACTIVE / OLD, B3); `tree_tests.py`: watch na slave'ie przez roota |
@@ -450,9 +451,10 @@ nie poprawia i nic na nim nie testuje.
 - VM: strażnik OTA (`vm_exec_mode`) i bloki urządzeń zdalnych; do tego czasu proxy testują skrypty hosta przez
   komendy urządzeń.
 
-### Decyzje przed startem
+### Decyzje
 
-- Przed etapem 4: czy aplikacja potrzebuje dziur per strumień (P2). Kanał DATA zostaje (P3).
+- Etap 4: dziur per strumień nie ma; strumienie (bez odpowiedzi) mają najprostszy licznik, wspólny licznik PUSH sesji
+  (P2). Kanał DATA zostaje (P3).
 - Przed etapem 9: aplikacja przechodzi na nowy format jednym krokiem. Alternatywa (aplikacja zmieniana z każdym
   etapem) wymaga, żeby rework miał BLE już w etapie 3.
 

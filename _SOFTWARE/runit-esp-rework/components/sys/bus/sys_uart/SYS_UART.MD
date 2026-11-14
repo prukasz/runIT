@@ -15,8 +15,8 @@ Both are the board's own (`STATE_SYSTEM`: never removed) and wired (`STATE_WIRED
 |---|---|
 | `sys_uart.h` | API: `sys_uart_init`; a DIRECT port's `sys_uart_write`, `sys_uart_read`, `sys_uart_flush_input`, `sys_uart_set_baud`; the link lent (`sys_uart_link_direct`) |
 | `sys_uart.c` | COBS and CRC16; per port its provider, rings, RX and TX tasks; the link's UART, its pins reserved, its tasks parked while it is lent |
-| `config/sys_uart_config.h` | The modes (`FRAMED`, `DIRECT`) and the baud limits (published to the app) |
-| `errors/` | `MODULE_ID_UART` (0x13, `ERR_MOD_SYS_UART`), `ERR_SYS_UART_MAP`, the messages |
+| `config/sys_uart_config.h` | The modes (`FRAMED`, `RAW`, `RAW_LINE`, `DIRECT`), the parity, the wait and baud limits (published to the app; the UART contract's too) |
+| `errors/` | `MODULE_ID_UART` (0x13, `ERR_MOD_SYS_UART`, also the UART contract's ID: SYS_UART_CONTRACT.MD), `ERR_SYS_UART_MAP`, the messages |
 | `Kconfig` | RX and TX tasks, the TX queue and its send wait, the driver's RX buffers; the link (`CONFIG_SYS_UART_LINK_*`) |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -59,7 +59,7 @@ ERR_TRY(sys_uart_read(link, buf, sizeof(buf), &n, 100, 4)); // at cap, at a 4 ms
 
 ## Errors (`ERR_MOD_SYS_UART` = `MODULE_ID_UART` 0x13)
 
-`ERR_UART_BAD_ARG`, `_BAD_PORT{port}` (the link lent on a board without one), `_BAD_BAUD{baud}`, `_INIT{port}` (the driver refused the link's UART), `_NOT_DIRECT{provider}`, `_TIMEOUT{provider}` (a write did not leave the line; the link's tasks did not park). A send's failure is the provider's `ERR_PROV_*` (SYS_DATA_PROVIDER.MD).
+`ERR_UART_BAD_ARG`, `_BAD_PORT{port}` (the link lent on a board without one), `_BAD_BAUD{baud}`, `_INIT{port}` (the driver refused the link's UART), `_NOT_DIRECT{provider}`, `_TIMEOUT{provider}` (a write did not leave the line; the link's tasks did not park); the UART contract's `_IN_USE{port, owner}` (the port has a reader or is lent) and `_NOT_OWNER{port, owner}` (SYS_UART_CONTRACT.MD). A send's failure is the provider's `ERR_PROV_*` (SYS_DATA_PROVIDER.MD).
 
 ## Limits
 
@@ -68,8 +68,9 @@ ERR_TRY(sys_uart_read(link, buf, sizeof(buf), &n, 100, 4)); // at cap, at a 4 ms
 
 ## Tests
 
-`python runit-esp-rework/tools/console_command.py <COM port>` sends PROVIDER LIST (`0d 00 02`) over the console with the command binding (the rework's `main` binds the console to the router until a session takes it) and checks the answer: the line in both directions, the CRC over the two parts, the command binding. The link lent is covered by the flasher's test once sys_flasher is in the rework.
+`python runit-esp-rework/tools/session_client.py <COM port>` opens a session over the console (the rework's `main` attaches it `UP`) and runs PING and PEERS: the line in both directions, the CRC over the two parts (SYS_SESSION.MD "Tests"). The link lent is covered by the flasher's test once sys_flasher is in the rework.
 
 ## Open
 
-- **Ports made at run time** (a UART for a device's own protocol: raw, by lines, DIRECT for exact timing; a command and its answer on it) come back as a device of the ESP32-S3's UART, `device_esp32s3_uart` in `devices/soc/` beside `device_esp32s3_i2c`: CREATE through the registry, its pins claimed for it (`sys_io_claim_peripheral`), its provider made in its create(), the drivers that use it declaring the use (PROPOSAL_NETWORK.md section 6).
+- **Ports as devices**: the UART contract is written (`sys_uart_contract`, SYS_UART_CONTRACT.MD); its port, `device_esp32s3_uart` in `devices/soc/` beside `device_esp32s3_i2c`, is not. It makes the link (UART1, a board's device: `SYS_DEVICE_CREATE_SYSTEM`) and a port on UART2: CREATE through the registry, its pins claimed for it (`sys_io_claim_peripheral`), its provider made in its create(). This component then keeps the console and the line's engine (COBS, CRC, the queues, the static tasks per controller), and the link's Kconfig, its `esp_gpio_reserve` and `sys_uart_link_direct` go (PROPOSAL_NETWORK.md section 6, stage 3a).
+- **The RX task's read waits for a full chunk**: `uart_read_bytes(chunk, sizeof(chunk), 10 ms)` returns a short frame only after its 10 ms. The read goes to the driver's event queue (`uart_driver_install` with a queue, the RX timeout at 1–2 characters) and the USB-Serial-JTAG input to a task of its own.

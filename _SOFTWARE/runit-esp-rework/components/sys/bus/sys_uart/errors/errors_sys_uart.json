@@ -22,6 +22,13 @@
     "ERR_UART_TIMEOUT": {
       "message": "UART provider {provider} did not finish sending in time",
       "hint": "Check the rate, and the CTS line if the port uses flow control."
+    },
+    "ERR_UART_IN_USE": {
+      "message": "UART port {port} is in use by device {owner}",
+      "hint": "A driver, a session or a stream reads this port: its messages go to them, not to this command."
+    },
+    "ERR_UART_NOT_OWNER": {
+      "message": "UART port {port} is lent to device {owner}"
     }
   }
 }

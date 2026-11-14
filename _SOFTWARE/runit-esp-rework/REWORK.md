@@ -19,7 +19,11 @@ Build: `.\build.ps1` (activates ESP-IDF, builds, prints the errors, warnings and
 | devices/chips | `device_pca9685`, `device_tca6424a`, `device_tps55289` | here (`runit_device`) |
 | devices/virtual | `device_dc_motor` | here (`runit_device`) |
 | sys | `bus/sys_uart` (the board's UART ports as providers: the console and the link, the line COBS + CRC16, the link lent as a DIRECT port): the second stage | here |
-| main | logs the uptime, starts the router and the UART ports, binds the console to the router (the command binding) until a session takes it | here |
+| sys | `bus/sys_uart_contract` (the UART contract, a port is a device: INFO, BAUD, SEND, RECEIVE, FLUSH, SUBSCRIBE, LEND, WRITE, READ; its client; ID `MODULE_ID_UART` 0x13, claimed by `sys_uart`): written, no port implements it yet (stage 3a) | here |
+| sys | `sys_session` (the board's ways: UP / DOWN, the hello, PEER, forwarding, calls with a wait of their own limit, the PUSH counters per peer and class), `sys_system` (system commands under `MODULE_ID_SYS` 0x28, the safe state as the registry's sweep, the dead-man): the third stage | here |
+| sys | `sys_stream` (named streams, no `dir` — ruled by `SOURCE` presence, no per-stream seq — `sys_session` PUSH counters, 4 target types: `SOURCE`/`SINK`/`PEER`/`CALLBACK`, `MODULE_ID_STREAM` `0x29`), `sys_log` (`ESP_LOG` hook, error record history, `MODULE_ID_LOG` `0x2A`): the fifth stage | here |
+| sys | `sys_watch` (server PUSH `[0x80][id][status][data]` without `owner`, `board_timer` tick, `sys_event_key_t` filter; cache-only client `FREE`/`ADDING`/`ACTIVE`/`OLD` with B3 ADD-reply gate, `MODULE_ID_WATCH` `0x2B`): the seventh stage | here |
+| main | logs the uptime, starts NVS, router, event bus, device policy, sessions, system streams (`TELEMETRY`, `LOGS`, `ERRORS`, `EVENTS`) + `sys_log` + error sink + notify-event forwarding, system commands, watches and UART ports, attaches console `UP` and link `DOWN` | here |
 
 Every module has one number (`core/utils/module_id.h` in `runit-esp`): its router key, the module of its errors and of its events, and a contract's ID. All modules here declare theirs via `MODULE_ID_DECLARE` (`ERR_MOD_CORE` is `0` in `errors.h`).
 
