@@ -1,53 +1,58 @@
 # sys_hbridge — the HBRIDGE contract
 
-Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`CONTRACT_HBRIDGE_CONTRACT` = `0x09`, the contract's own ID) that mean the same on every motor driver. The driver implements the ops it can; chip specifics (current limit, fault latch) are its own `0xFFxx` ops (the DRV8962's are in `components/devices/device_drv8962/`).
+Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`CONTRACT_HBRIDGE_CONTRACT` = `0x09`, the contract's own ID) that mean the same on every motor driver. A driver implements the ops it supports; chip specifics (current limits, fault latching) are that driver's own `0xFFxx` ops.
 
 | File | Contents |
 |---|---|
-| `sys_hbridge.h` | The contract table `CONTRACT_HBRIDGE_OPERATIONS` (prefix `CONTRACT_HBRIDGE`: `OP_DECLARE_READ(CONTRACT_HBRIDGE, …)`, `OP_ENTRY_W(CONTRACT_HBRIDGE, …)`), the fault reasons, the events table, the wrappers |
-| `sys_hbridge.c` | The wrappers (`sys_device_write` of the op, `sys_device_read` for CURRENT; nothing else) |
+| `sys_hbridge.h` | The contract table `CONTRACT_HBRIDGE_OPERATIONS` (prefix `CONTRACT_HBRIDGE`), arg structs (`hbridge_channel_args_t`, `hbridge_drive_args_t`), `SYS_HBRIDGE_DRIVE_MAX`, fault reasons, and `HBRIDGE_EVENTS` |
+| `sys_hbridge.c` | Claims contract `0x09` (`SYS_DEVICE_CONTRACT_DEFINE(HBRIDGE, 0x09)`), linked `WHOLE_ARCHIVE` |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
+| `CMakeLists.txt` | Requires `cmd`, `sys_device`, `sys_event`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
 A channel is a full bridge (a motor, both directions) or a half bridge (a solenoid, one direction), as the driver is configured.
 
-Requests are `[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD).
+Routed requests use the device router frame `[0x20][dir u8][id u8][op u16][args]` ([`SYS_DEVICE_ROUTER.MD`](../sys_device_router/SYS_DEVICE_ROUTER.MD), [`SYS_DEVICE.MD`](../sys_device/SYS_DEVICE.MD)).
 
 | Op | Side | Args | Answer | Notes |
 |---|---|---|---|---|
-| `0x0900` DRIVE | W | `{u8 channel, i16 drive}` | – | PWM steps (12 bits, `IO_PWM_DUTY_MAX`): -4095 (full reverse) .. 4095 (full forward) for a full bridge, 0..4095 for a half bridge; else `ERR_DEV_RANGE`. A full bridge brakes below 20 (0.5 %) |
+| `0x0900` DRIVE | W | `{u8 channel, i16 drive}` | – | PWM steps (12 bits, `SYS_HBRIDGE_DRIVE_MAX` = 4095, `IO_PWM_DUTY_MAX`): `-4095` (full reverse) .. `4095` (full forward) for a full bridge, `0..4095` for a half bridge; else `ERR_DEV_RANGE`. A full bridge brakes below `20` (0.5 %) |
 | `0x0901` BRAKE | W | `{u8 channel}` | – | Short the terminals (outputs on, inputs low) |
 | `0x0902` COAST | W | `{u8 channel}` | – | Release the motor (outputs off) |
 | `0x0903` CURRENT | R | `{u8 channel}` | `i32` mA | Allowed while suspended |
 
-The drive is an integer count of PWM steps. The wire carries no floats: the PWM is 12 bits, so a 12-bit count gives the driver its full resolution.
+The drive is an integer count of PWM steps. The wire carries no floats: 12-bit integer count gives full resolution over standard 12-bit PWM.
 
 - A channel the driver does not have: `ERR_DEV_BAD_PIN {id, pin}`.
 - DRIVE, BRAKE and COAST while suspended: `ERR_DEV_SUSPENDED`.
-- A half bridge has no brake band: drive 0 is PWM 0 with the bridge enabled, not a BRAKE.
+- A half bridge has no brake band: drive `0` is PWM 0 with the bridge enabled, not a BRAKE.
 
-## Events
+## Events (`MODULE_ID_HBRIDGE` = `0x09`)
 
-Per fault, published by the driver: `HBRIDGE_EV_OVERCURRENT` `0x0900`, `HBRIDGE_EV_THERMAL_OR_UVLO` `0x0901`, `HBRIDGE_EV_EXTERNAL` `0x0902`; source = the driver, channel = the channel, value = its current in mA. All three are `SYS_EVENT_NOTIFY`: a fault is something the user must see (the events stream).
+Per fault, published by the driver (`EVT_TAG(0x09, code)`):
 
-`sys_hbridge_fault_reason_e` (NONE, OVERCURRENT, THERMAL_OR_UVLO, EXTERNAL) is the reason a driver keeps per channel.
+| Event | Code (tag) | Flags | Payload |
+|---|---|---|---|
+| `HBRIDGE_EV_OVERCURRENT` | `0x01` (`0x00090001`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
+| `HBRIDGE_EV_THERMAL_OR_UVLO` | `0x02` (`0x00090002`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
+| `HBRIDGE_EV_EXTERNAL` | `0x03` (`0x00090003`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
 
-## The response to a fault
+Source = the driver device, channel = the channel index.
 
-The driver decides the response. With its `turn_off_at_ocp` option set, an overcurrent brakes the channel; without it the channel keeps driving and only the fault is latched and published. The driver's fault line is edge triggered: the driver reads the channel currents to tell which channel faulted (a channel at its limit, else the one channel that was driving, else a chip-wide shutdown). The fault line reports the chip's own protections, not the current limit (VREF regulates without it): the DRV8962 also arms a threshold on each IPROPI pin it reads through an ADC, at the voltage of the limit (an event after 2 readings over it, re-armed 10 % under it), and a pin over it faults its channel as the fault line would. A fault is latched until CLEAR_FAULT: a faulted channel publishes nothing more. Nothing is published while the device is suspended.
+`sys_hbridge_fault_reason_e` (`SYS_HBRIDGE_FAULT_NONE = 0`, `SYS_HBRIDGE_FAULT_OVERCURRENT = 1`, `SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO = 2`, `SYS_HBRIDGE_FAULT_EXTERNAL = 3`) tracks the fault reason a driver keeps per channel. Nothing is published while suspended, and a faulted channel stays latched until the driver clears it. System-wide fault policies are outside this contract.
 
-A system-wide response to a bridge fault (as the power manager gives a supply fault) is not part of this contract. The power mux a bridge is fed from is not checked by the driver: the DRV8962 does not read its `POWER_SUPPLY` device.
+## Calls
 
-## Wrappers
+Call directly from C through [`sys_device`](../sys_device/SYS_DEVICE.MD) with prefix `CONTRACT_HBRIDGE`:
 
-`sys_hbridge_set_drive(device, channel, drive)`, `sys_hbridge_brake(device, channel)`, `sys_hbridge_coast(device, channel)`, `sys_hbridge_get_current_mA(device, channel, &mA)`.
+```c
+ERR_TRY(SYS_DEVICE_SET(bridge, CONTRACT_HBRIDGE, OP_DRIVE, .channel = 0, .drive = 800));
+ERR_TRY(SYS_DEVICE_SET(bridge, CONTRACT_HBRIDGE, OP_BRAKE, .channel = 0));
+ERR_TRY(SYS_DEVICE_SET(bridge, CONTRACT_HBRIDGE, OP_COAST, .channel = 0));
+int32_t mA = 0;
+ERR_TRY(SYS_DEVICE_GET(bridge, CONTRACT_HBRIDGE, OP_CURRENT, &mA, .channel = 0));
+```
 
 ## Devices
 
-| Contract | Implemented by |
-|---|---|
-| HBRIDGE | DRV8962 (`components/devices/device_drv8962`) |
-
-A motor on a channel is the DC motor device (`components/devices/device_dc_motor`): it drives the channel through these ops (DRIVE, BRAKE, COAST, CURRENT) with its ramps, dead zone, start and top speed, trim, reversing through stop and stall stop. The contract stays the raw output; the HBRIDGE block drives a channel directly, the DC motor block the motor.
-
-The VM reaches the contract through the HBRIDGE block (`components/vm/vm_blocks/device-contract/hbridge`, VM_BLOCKS.MD).
+A motor on a channel is the virtual device [`device_dc_motor`](../../devices/virtual/device_dc_motor/device_dc_motor.c): it drives a channel through `DRIVE`, `BRAKE`, `COAST`, and `CURRENT` with ramps, dead zone, start/top speed, trim, reversing through stop, and stall stop.

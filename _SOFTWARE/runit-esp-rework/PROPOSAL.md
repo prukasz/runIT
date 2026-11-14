@@ -25,15 +25,15 @@ Przegląd z czytania kodu rejestru i komponentów wokół niego, dziś w `runit-
 | 7 | Zasoby zwalniane przez rejestr | Wdrożone |
 | — | Lock slotu z timeoutem, własne tagi błędów | Wdrożone |
 | — | Unikalność ID kontraktów bez centralnej listy | Wdrożone |
-| 8 | Izolacja modułów (typ GPIO, `TAIL`, moduły eventów, interceptor) | Wdrożone; moduły błędów i klucze routera do zrobienia |
-| 9 | Podział `devices/`, wspólne taski | Wspólne taski wdrożone (krok urządzenia, sprawiedliwy task timerów); podział `devices/` do zrobienia |
-| 12 | Automatyzacja wzorców sterownika i kontraktu | 12.1–12.4, 12.6–12.9 wdrożone; reszta przy migracji sterowników |
+| 8 | Izolacja modułów (typ GPIO, `TAIL`, moduły eventów, interceptor, `MODULE_ID`, własne `errors/`) | Wdrożone |
+| 9 | Podział `devices/`, wspólne taski | Wdrożone (`devices/{soc,chips,virtual}/` + krok urządzenia i sprawiedliwy task timerów) |
+| 12 | Automatyzacja wzorców sterownika i kontraktu | 12.1–12.9 wdrożone; 12.10–12.11 wycofane; 12.12 i część 12.13 przy migracji |
 
-„Wdrożone” znaczy: napisane w `runit-esp-rework` i zbudowane na cel, nieuruchomione na płytce (wyjątek: testy hosta
-timera, `core/timer/host`). Opis stanu obecnego jest w `sys_device/SYS_DEVICE.MD`; ten plik zostaje jako uzasadnienie
-zmian i lista rzeczy otwartych.
+„Wdrożone” znaczy: napisane w `runit-esp-rework` i zbudowane na cel, nieuruchomione na płytce (testy hosta dla
+`core/*`, `sys_event` i `sys_device` przechodzą w `test_host/run.py`). Opis stanu obecnego jest w `sys_device/SYS_DEVICE.MD`;
+ten plik zostaje jako uzasadnienie zmian i lista rzeczy otwartych.
 
-**Następne kroki:** migracja kolejnych sterowników (INA3221, DRV8962, TPS55289...) wraz z 12.5 i 12.10–12.12.
+**Następne kroki:** migracja kolejnych sterowników (INA3221, DRV8962, ADS7128, DAC53202, AP33772S, POWER_MUX, SERVO...) wraz z 12.12 i 12.13.
 
 Co trzeba sprawdzić po pierwszym buildzie: sekcja 11.
 
@@ -198,8 +198,8 @@ odtwarza to flagami `used / locked / subscribed / keep`. Pominięty krok to wyci
   zbudowana, a `suspend()` działa na cudzych urządzeniach (silnik wysłałby COAST na kanał mostka, którego jeszcze nie
   sprawdził). Krok, który trzeba cofnąć na sprzęcie, jest osobnym zasobem dodanym przed tym krokiem.
 
-Do zrobienia: zależność (`sys_device_use`) jako zasób zamiast osobnego mechanizmu masek przy zwalnianiu; zasób
-dodawany poza `create()` i oddawany przed REMOVE (dziś nie ma zdjęcia z listy).
+Zasoby i zależności są stałe od `create()` do REMOVE — oddawanie zasobu przed REMOVE oraz `sys_device_use` jako
+zasób są wykreślone (żaden sterownik nie zmienia zasobów po `create()`).
 
 Każde roszczenie jest wyłączne: pin i adres I2C mają jednego właściciela, drugi chętny dostaje błąd. Dzielony jest
 tylko dostawca (szyna z wieloma chipami, urządzenie z wieloma pinami), a to pokrywa `used_by`. Trybu dzielonego z
@@ -219,7 +219,7 @@ niczyją zależnością (istnieje sam, napięcie ustawia użytkownik).
   `0x01..0x1F` kontrakty (`0x01` IO, `0x02` I2C, `0x03` EVENT, `0x04` PMON, `0x05` VREG, `0x07` PD, `0x08` SUPPLY,
   `0x09` HBRIDGE), `0x20..0xFE` pozostałe moduły (`0x20` rejestr, `0x21` polityka, `0x22` menedżer zasilania, `0x23`
   router, `0x24` cmd, `0x25` eventy, `0x26` kontrakty zasilania), `0xFF` własne opy urządzenia. Numery eventów
-  urządzeń: `0x8000 | typ`. `router_ids.h` zniknął; `err_modules.h` zawiera już tylko moduły bez własnego numeru.
+  urządzeń: `0x8000 | typ`. `router_ids.h` oraz `err_modules.h` zniknęły (`ERR_MOD_CORE` to `0u` w `errors.h`, reszta bierze numer z `MODULE_ID_*`).
 - **Payloady zmiennej długości.** Wdrożone: flaga `SYS_DEVICE_OP_TAIL` w wierszu tabeli i jeden handler,
   `CMD_HANDLER_TAIL` w `cmd_table.h` (`OP_WRITE_TAIL(P, OP_NAME)` dla sterownika): ciało dostaje `args` (głowa, w miejscu),
   `tail`, `tail_len`. Tabela rozstrzyga: `OP_WRITE` na opie z `TAIL` i `OP_WRITE_TAIL` na opie bez niej nie kompilują
@@ -234,10 +234,10 @@ niczyją zależnością (istnieje sam, napięcie ustawia użytkownik).
 
 ## 9. Izolacja od sprzętu
 
-- **Podział `devices/`.** Do zrobienia. `soc/` (`esp32s3_*`): jedyne miejsce z `esp_driver_*`. `chips/` i urządzenia
-  wirtualne: tylko `core` i kontrakty `sys`. PCA9685 czeka już przez `core/time` (`board_time_delay_us`), nie
-  `esp_rom_delay_us`. Regułę sprawdza skrypt po `PRIV_REQUIRES` (albo funkcja CMake z 12.5), więc każdy chip buduje
-  się na hoście bez zmian.
+- **Podział `devices/`.** Wdrożone: `soc/` (`device_esp32s3_*` — jedyne miejsce z `esp_driver_*` / `esp_adc`), `chips/`
+  (`device_pca9685`, `device_tca6424a`, `device_tps55289`) i `virtual/` (`device_dc_motor`). `chips/` i `virtual/` używają
+  wyłącznie `core` i `sys`; regułę wymusza `runit_device()` w CMake. PCA9685 czeka już przez `core/time`
+  (`board_time_delay_us`), nie `esp_rom_delay_us`.
 - **Wspólne taski robocze.** Task eventów i task timerów wołają opy urządzeń. Z `portMAX_DELAY` jedno zawieszone
   urządzenie zatrzymuje wszystkie eventy (w tym NOTIFY do aplikacji) i wszystkie timery. Dla eventów rozwiązuje to
   timeout locka z pkt 2. Timery: wdrożone. Wygaśnięcie timera urządzenia to krok (`sys_device_step(id, gen, op)`):
@@ -448,10 +448,10 @@ prawdziwym I2C, `SCAN`).
 
 ## 12. Automatyzacja wzorców
 
-Miejsca, gdzie ten sam wzorzec był pisany ręcznie w każdym sterowniku albo kontrakcie. 12.1–12.4 i 12.6–12.9 są
-wdrożone i zbudowane; 12.5 i 12.10–12.13 czekają. 12.7–12.13 pochodzą
+Miejsca, gdzie ten sam wzorzec był pisany ręcznie w każdym sterowniku albo kontrakcie. 12.1–12.9 są
+wdrożone i zbudowane; 12.10–12.11 wycofane; 12.12 i część 12.13 czekają. 12.7–12.13 pochodzą
 z przeglądu starych sterowników (`runit-esp/components/devices/device_*`) i routerów w `sys`. Kolejność:
-12.5 i 12.10–12.12 przy migracji kolejnych sterowników.
+12.12 i reszta 12.13 przy migracji kolejnych sterowników.
 
 ### 12.1 Tabela własnych opów urządzenia (`0xFFxx`)
 
@@ -513,11 +513,12 @@ publikacja i odczyt payloadu się nie zmieniły. `EVENTS_DECLARE` zniknęło. Ev
 
 ### 12.5 CMake sterownika
 
-**Problem.** Każdy `CMakeLists.txt` w `devices/` jest taki sam. Zapomniane `WHOLE_ARCHIVE` daje cichy błąd: typ nie
+**Problem.** Każdy `CMakeLists.txt` w `devices/` był taki sam. Zapomniane `WHOLE_ARCHIVE` daje cichy błąd: typ nie
 istnieje w runtime (`ERR_DEV_TYPE_UNKNOWN`).
 
-**Propozycja.** Funkcja `runit_device(SRCS ... PRIV_REQUIRES ...)` we wspólnym pliku cmake: zawsze `WHOLE_ARCHIVE`,
-bez `INCLUDE_DIRS`. Może też odrzucić `esp_driver_*` poza `soc/`, czyli reguła z sekcji 9 bez osobnego skryptu.
+**Stan: wdrożone.** `components/devices/device.cmake` definiuje `runit_device(SRCS ... PRIV_REQUIRES ...)`: zawsze
+`WHOLE_ARCHIVE`, bez `INCLUDE_DIRS` i `REQUIRES`, zabrania zależności `device_*` oraz odrzuca `esp_driver_*` /
+`esp_adc` / `driver` / `esp_rom` / `soc` / `hal` poza `devices/soc/` (pilnuje podziału na `soc/`, `chips/`, `virtual/`).
 
 ### 12.6 Mniejsze
 
@@ -525,7 +526,6 @@ bez `INCLUDE_DIRS`. Może też odrzucić `esp_driver_*` poza `soc/`, czyli regu�
   zaimplementowane i dostępne w `sys_device`, ale dla jasnego rozdzielenia warstw sterowniki w rework
   (`device_pca9685`, `device_dc_motor`, `device_esp32s3_i2c`, `device_esp32s3_gpio`, `device_tca6424a`,
   `device_tps55289`) oraz `SYS_IO_PINS_HANDLERS` trzymają jawne `c->id` zapisane w `create()`.
-- **Zakresy ustawień.** Zastąpione przez 12.10.
 - **„Zawołaj op urządzenia później”.** Timer: wdrożone. `sys_device_timer` pakuje `[op u16][gen u8][owner u8]`, a
   wygaśnięcie to krok `sys_device_step(id, gen, op)` (punkt 9). Subskrypcja (`sys_device_event`) pakuje tak samo
   i dostarcza eventy przez `sys_device_deliver` (12.8).
@@ -590,25 +590,6 @@ zawieszonym urządzeniu (punkt 9). Pozostałe przypadki (odczyt z kopii, pomini�
 **Stan: wdrożone.** `sys_device_self()` i `sys_device_self_suspended()` z TLS rejestru są dostępne w `sys_device`.
 Sterowniki w rework używają `sys_device_self_suspended()` do sprawdzenia zawieszenia, a własne ID trzymają jawnie w `c->id`.
 
-### 12.10 Tabela pól ustawień z zakresami
-
-**Problem.** W starych sterownikach jest 77 `SYS_DEV_CHECK_IN_RANGE` i 19 ręcznych
-`ERR_CHECK(x <= 1, ERR_CMD_BAD_ARG)` dla pól 0/1 (inny tag niż dla zakresu). Te same sprawdzenia są powtórzone w
-`create()` i w opie `SETTINGS` (DRV8962: `check_cfg` i `set_settings_h` słowo w słowo), a trzeci raz jako min / max w
-`device_*.json`.
-
-**Propozycja.** Tabela `X(pole, min, max)` obok struktury ustawień: z niej funkcja sprawdzająca, wołana w `create()`
-i w `SETTINGS`; pole 0/1 to zakres 0..1 (jeden tag, `ERR_DEV_RANGE`). Ta sama tabela jako źródło min / max dla
-deskryptora (albo sprawdzenie zgodności w `crosscheck.py`). Zastępuje wpis „Zakresy ustawień” z 12.6.
-
-### 12.11 Sprawdzenie kanału
-
-**Problem.** Każdy sterownik z kanałami pisze własne `check_channel`, z różnymi błędami: INA3221 zwraca
-`ERR_POWER_BAD_CHANNEL`, DRV8962 dla tego samego błędu `ERR_DEV_BAD_PIN`.
-
-**Propozycja.** `SYS_DEV_CHECK_CHANNEL(dev, ch, count)` i jeden tag `ERR_DEV_BAD_CHANNEL{id, channel}` w mapie
-rejestru, jak `SYS_DEV_CHECK_IN_RANGE`.
-
 ### 12.12 Rejestry chipa z kopią
 
 **Problem.** Chip traci rejestry po resecie albo po zdjęciu EN, więc sterownik trzyma ich kopie i pisze je od nowa:
@@ -629,10 +610,8 @@ TCA6424A (`config`, `output`, `polarity`, `chip_restore()`), TPS55289 (`tps_appl
   handlery z `router_table.h`.
 - **Opóźnienia w opach.** 11 miejsc z `vTaskDelay` / `esp_rom_delay_us` pod lockiem urządzenia (wybudzenie chipa):
   reguła z sekcji 9 (opóźnienie przez `core/time`), nie automatyzacja.
-- **Bloki VM a sterownik bez nagłówka.** Cztery bloki VM includują `device_x.h` (silnik, DRV8962, serwo, TPS55289)
-  dla struktur i własnych opów. Sterownik w rework nie ma nagłówka. Do rozstrzygnięcia: blok woła op ramką z
-  deskryptora, albo tabela własnych opów (12.1) idzie do małego nagłówka sterownika. Wiąże się z generowaniem
-  deskryptorów z tabel (numery opów, struktury, offsety dziś przepisywane ręcznie do `contract_*.json` i
-  `device_*.json`).
+- **Bloki VM a sterownik bez nagłówka.** Rozstrzygnięte: bloki VM mają pełną dowolność — mogą ingerować we wszystko,
+  co nie jest chronione blokadą pinów (`sys_io` lock) ani mechanizmem usuwania / bramki w `sys_device` (`REMOVE` /
+  `uninstall`). Generowanie deskryptorów z tabel wypada (deskryptory zostają utrzymywane osobno).
 - **`uninstall()`** było w każdym z dwunastu sterowników (30 wystąpień „zwolnij tylko to, co zbudowano”): zasoby z
   punktu 7 usuwają je w całości przy migracji, bez dodatkowej pracy.

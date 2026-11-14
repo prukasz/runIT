@@ -246,8 +246,9 @@ static err_h watch_stall(motor_t* c, uint32_t ms) {
   int32_t mA = 0;
   err_h err = bridge_current(c, &mA);
   if (err != NULL) {
+    err_report(err);
     c->current_failed = true;
-    return err;
+    return NULL;
   }
   if ((mA < 0 ? -mA : mA) < (int32_t)s->stall_mA) {
     c->stall_for_ms = 0;

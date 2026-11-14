@@ -15,27 +15,25 @@
  * ------------------------------------------------------------------------- */
 
 /* Per task. A call made inside an op (a driver calling the device it uses) is nested in the call of that op: the task
- * then holds the lock of every slot on the way. `s_depth` counts them; `s_running` is the device whose op the task
- * runs and `s_caller` the one that called it, each as ID + 1 (0: none, a zeroed TLS). `s_sweeping`: the task is in
- * sys_device_sweep, which tells of the whole sweep with one event. */
-static __thread uint8_t s_depth;
-static __thread uint8_t s_running;
-static __thread uint8_t s_caller;
-static __thread uint8_t s_sweeping;
+ * then holds the lock of every slot on the way. `s_frame` points to the innermost call frame on the task's stack,
+ * linked outward by `up` (NULL outside any call; a zeroed `.tbss` pointer). */
+typedef struct call_frame_s {
+  const struct call_frame_s* up;  // enclosing call frame, or NULL at outermost
+  uint8_t id;                     // device whose op runs on this frame, or SYS_DEVICE_ID_NONE if invalid
+} call_frame_t;
 
-_Static_assert(SYS_DEVICE_COUNT <= UINT8_MAX, "a device ID + 1 fits a u8");
-_Static_assert(CONFIG_SYS_DEVICE_EVENT_HOLD_BYTES % 4 == 0, "the hold is at a 4 B boundary");
+static __thread const call_frame_t* s_frame;
 
 uint8_t sys_device_caller(void) {
-  return s_caller == 0 ? SYS_DEVICE_ID_NONE : (uint8_t)(s_caller - 1u);
+  return (s_frame != NULL && s_frame->up != NULL) ? s_frame->up->id : SYS_DEVICE_ID_NONE;
 }
 
 uint8_t sys_device_self(void) {
-  return s_running == 0 ? SYS_DEVICE_ID_NONE : (uint8_t)(s_running - 1u);
+  return s_frame != NULL ? s_frame->id : SYS_DEVICE_ID_NONE;
 }
 
 bool sys_device_self_suspended(void) {
-  return s_running != 0 && sys_device_slot_is_suspended((uint8_t)(s_running - 1u));
+  return s_frame != NULL && s_frame->id < SYS_DEVICE_COUNT && sys_device_slot_is_suspended(s_frame->id);
 }
 
 /* The safe-state gate: the SUSPEND sweeps running now, on any task. While it is not 0 a write that comes from no
@@ -52,7 +50,7 @@ static void safe_gate(bool enter) {
 
 // Whether the call this task makes now is one the safe-state gate refuses: it comes from no device.
 static bool gated(void) {
-  return s_safe_gate != 0 && s_caller == 0;
+  return s_safe_gate != 0 && sys_device_caller() == SYS_DEVICE_ID_NONE;
 }
 
 /* ----------------------------------------------------------------------------
@@ -94,10 +92,11 @@ static const interceptor_t* find_interceptor(uint16_t op) {
  * A call: caller -> interceptor -> device -> caller, then the interceptor's `done`
  * ------------------------------------------------------------------------- */
 
-/** @brief How a call is made: by C, as a command, as a device's step (sys_device_step), or as a generational delivery. */
+/** @brief How a call is made: by C, as a command, as a device's step (sys_device_step), as a delivery, or in a sweep. */
 typedef struct {
   bool routed;  /**< A command: a LOCAL op is refused on every device */
   bool step;    /**< A step: try-lock only and skip when suspended or gated */
+  bool sweep;   /**< From sys_device_sweep(): tell only of CREATED/REMOVED per device */
   uint8_t gen;  /**< Generation check (step or deliver): 0 for any other call */
 } how_t;
 
@@ -198,16 +197,13 @@ static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
     if (!sys_device_slot_try_lock(id, op)) {
       return NULL;  // busy: the next step comes in its own time
     }
-    if (!sys_device_slot_is_active(id) || sys_device_slot_gen(id) != how->gen || gated()) {
-      sys_device_slot_unlock(id);
-      return NULL;
-    }
   } else {
     ERR_TRY(sys_device_slot_lock(id, op));
-    if (how->gen != 0 && (!sys_device_slot_is_installed(id) || sys_device_slot_gen(id) != how->gen)) {
-      sys_device_slot_unlock(id);
-      return NULL;  // gone, or another device under this ID
-    }
+  }
+  const bool stale = how->gen != 0 && (!sys_device_slot_is_installed(id) || sys_device_slot_gen(id) != how->gen);
+  if (stale || (how->step && (sys_device_slot_is_suspended(id) || gated()))) {
+    sys_device_slot_unlock(id);
+    return NULL;  // gone, another device under this ID, or a step on a suspended/gated slot
   }
   const bool was_installed = sys_device_slot_is_installed(id);
   const bool was_suspended = sys_device_slot_is_suspended(id);
@@ -216,7 +212,7 @@ static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
   const uint8_t gen = sys_device_slot_gen(id);
   sys_device_slot_unlock(id);
   // A sweep tells of SUSPENDED / RESUMED / RESET once, for all its devices; CREATED and REMOVED are always a device's.
-  if (s_sweeping == 0 || change == SYS_DEVICE_EV_CREATED || change == SYS_DEVICE_EV_REMOVED) {
+  if (!how->sweep || change == SYS_DEVICE_EV_CREATED || change == SYS_DEVICE_EV_REMOVED) {
     publish_change(id, change, gen);
   }
   if (later.fn != NULL) {
@@ -230,17 +226,14 @@ static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
   return sys_device_remote_send(id, &remote, dir, op, in, out);
 }
 
-/* One call (outermost or nested): ensures a non-NULL answer buffer, tracks TLS caller/running/depth, runs any
- * contract interceptor around the device call, and wraps any error in ERR_DEV_OP + ERR_DEV_ID. */
+/* One call (outermost or nested): ensures a non-NULL answer buffer, links this call's frame onto `s_frame`, runs
+ * any contract interceptor around the device call, and wraps any error in ERR_DEV_OP + ERR_DEV_ID. */
 static err_h call_exec(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, const how_t* how) {
   cmd_out_t none = {0};  // no answer wanted: a handler still gets a buffer, one that holds nothing
   cmd_out_t* answer = out != NULL ? out : &none;
 
-  const uint8_t was_running = s_running;
-  const uint8_t was_caller = s_caller;
-  s_caller = was_running;
-  s_running = id < SYS_DEVICE_COUNT ? (uint8_t)(id + 1u) : 0;
-  s_depth++;
+  const call_frame_t frame = {.up = s_frame, .id = id < SYS_DEVICE_COUNT ? id : SYS_DEVICE_ID_NONE};
+  s_frame = &frame;
 
   /* Both interceptor stages run without any lock of the registry: the first may clamp/transform args into `buf` (or
    * refuse the call), the second is told how a call it let through ended so it can return any reserved budget. */
@@ -261,9 +254,7 @@ static err_h call_exec(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_ou
     }
   }
 
-  s_depth--;
-  s_running = was_running;
-  s_caller = was_caller;
+  s_frame = frame.up;
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_OP, .op = op, .dir = dir);
     err = ERR_WRAP(err, ERR_DEV_ID, .id = id);
@@ -286,7 +277,7 @@ static __attribute__((noinline)) err_h call_outermost(uint8_t id, uint8_t dir, u
 }
 
 static inline err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, const how_t* how) {
-  return s_depth == 0 ? call_outermost(id, dir, op, in, out, how) : call_exec(id, dir, op, in, out, how);
+  return s_frame == NULL ? call_outermost(id, dir, op, in, out, how) : call_exec(id, dir, op, in, out, how);
 }
 
 err_h sys_device_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
@@ -382,8 +373,8 @@ static uint32_t sweep_event(uint16_t op) {
   }
 }
 
-/* The sweep is one call of the task for its events and its depth: they are held on this frame (unless the task is in
- * an op already, whose outermost call holds them) and go out after the last device, the sweep's own event last. */
+/* The sweep holds its events on this frame (unless the task is in an op already, whose outermost call holds them) and
+ * sends them out after the last device, the sweep's own event last. */
 err_h sys_device_sweep(uint16_t op) {
   ERR_CHECK(op == CONTRACT_SYS_DEVICE_OP_SUSPEND || op == CONTRACT_SYS_DEVICE_OP_RESUME || op == CONTRACT_SYS_DEVICE_OP_RESET ||
                 op == CONTRACT_SYS_DEVICE_OP_REMOVE,
@@ -396,9 +387,8 @@ err_h sys_device_sweep(uint16_t op) {
   if (safe_state) {
     safe_gate(true);  // before the first device: no write from outside starts an output the sweep has not reached
   }
-  s_depth++;
-  s_sweeping++;
 
+  const how_t how = {.sweep = true};
   const uint32_t count = sweep_order(order);
   err_h first = NULL;
   for (uint32_t i = 0; i < count; i++) {
@@ -406,7 +396,7 @@ err_h sys_device_sweep(uint16_t op) {
     if (sweep_skips(id, op)) {
       continue;
     }
-    const err_h err = sys_device_write(id, op, NULL, 0);
+    const err_h err = call_exec(id, CMD_DIR_WRITE, op, (cmd_in_t){0}, NULL, &how);
     if (first == NULL) {
       first = err;
     } else {
@@ -414,8 +404,6 @@ err_h sys_device_sweep(uint16_t op) {
     }
   }
 
-  s_sweeping--;
-  s_depth--;
   if (safe_state) {
     safe_gate(false);
   }

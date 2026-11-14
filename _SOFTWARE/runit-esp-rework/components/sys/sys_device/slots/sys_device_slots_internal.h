@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Private to the registry (sys_device_new): nothing else includes this. The device slots: a static table
+ * @brief Private to the registry (sys_device): nothing else includes this. The device slots: a static table
  * indexed by the device ID, each slot with its own lock, its flags, its resources and the masks of the devices it
  * uses. The table knows no driver: it keeps the type and the instance the registry gives it. Creating a device is the
  * registry's: it takes the lock, builds the instance, then sys_device_slot_install().

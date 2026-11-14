@@ -243,6 +243,32 @@ bool sys_device_self_suspended(void);
 uint8_t sys_device_gen(uint8_t id);
 
 /**
+ * @brief Target op on a specific device instance: `[op u16][gen u8][id u8]` packed into `void*` for timer and event
+ * callbacks, so neither holds a pointer to a device that can go away and a stale expiry/delivery never hits a later
+ * device under the same ID.
+ */
+typedef struct {
+  uint8_t id;
+  uint8_t gen;
+  uint16_t op;
+} sys_device_target_t;
+
+_Static_assert(sizeof(uintptr_t) >= sizeof(uint32_t), "sys_device_target_t packs into void*");
+
+static inline void* sys_device_target_pack(sys_device_target_t target) {
+  return (void*)(uintptr_t)(((uint32_t)target.op << 16) | ((uint32_t)target.gen << 8) | target.id);
+}
+
+static inline sys_device_target_t sys_device_target_unpack(const void* ctx) {
+  const uintptr_t packed = (uintptr_t)ctx;
+  return (sys_device_target_t){
+      .id = (uint8_t)(packed & 0xFFu),
+      .gen = (uint8_t)((packed >> 8) & 0xFFu),
+      .op = (uint16_t)(packed >> 16),
+  };
+}
+
+/**
  * @brief A step of a device that runs by itself (a timer's expiry, sys_device_timer.h): the write of its own op `op`,
  * without args, to device `id` of generation `gen`, made only when the device takes it now. A step is skipped, with
  * no error, when the device is gone or is another one (its generation), is suspended, is refused by the safe-state

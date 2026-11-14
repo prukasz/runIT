@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Private to the registry (sys_device_new): what sys_device_call needs of the registry's own part (types,
+ * @brief Private to the registry (sys_device): what sys_device_call needs of the registry's own part (types,
  * CREATE, the registry's ops). The caller holds the lock of the slot `id`.
  */
 

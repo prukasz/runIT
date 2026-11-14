@@ -19,3 +19,4 @@ err_h sys_device_router(CMD_F_PARAMS) {
 }
 
 ROUTER_MODULE_REGISTER(SYS_DEVICE, sys_device_router)
+  

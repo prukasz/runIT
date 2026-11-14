@@ -1,6 +1,6 @@
 # sys_event — events
 
-Component `components/sys/sys_event_new/`. One publisher, any number of listeners: a source publishes what happened and doesn't know who listens. The layer below the device registry: it knows no device, only numbers (a tag, a source, a channel) and C functions. It has no receiver of its own: what goes to the app or to another board is a listener like any other.
+Component `components/sys/sys_event/`. One publisher, any number of listeners: a source publishes what happened and doesn't know who listens. The layer below the device registry: it knows no device, only numbers (a tag, a source, a channel) and C functions. It has no receiver of its own: what goes to the app or to another board is a listener like any other.
 
 ## Files
 
@@ -145,7 +145,7 @@ A listener is a function `err_h fn(const sys_event_t* event, void* ctx)` and a c
 - The table has `CONFIG_SYS_EVENT_MAX_SUBS` (32, up to 255) slots. `ERR_EVENT_TABLE_FULL` when none is free, and for `SYS_EVENT_RUN_FIRST` when the first slot has its listener.
 - **Handle**: `[generation u8][slot u8]`. The generation counts the listeners the slot has had (1..255, then 1 again; never 0) and stays when the slot is freed, so the next listener of the slot gets another handle. A handle of a listener that is gone names no listener: `sys_event_unsubscribe` answers `ERR_EVENT_NOT_FOUND` and leaves the slot's new listener alone. Handle 0 is never a listener, so a zeroed field is "not subscribed".
 - A matching slot is copied out under a critical section and the function is called without it, one slot at a time, so an unsubscribe doesn't wait for a delivery in progress. A listener may still get an event already being delivered after its unsubscribe.
-- **Context**: it must stay valid until the unsubscribe and a delivery in flight are over. What can go away is passed as an ID, not a pointer, and looked up at each delivery: `sys_device_event_subscribe` (sys_device_event) does it for a device, whose `ON_EVENT` then gets the event.
+- **Context**: it must stay valid until the unsubscribe and a delivery in flight are over. What can go away is passed as an ID, not a pointer, and looked up at each delivery: `sys_device_event_subscribe` / `sys_device_event_subscribe_op` ([`SYS_DEVICE_EVENT.MD`](../sys_device_event/SYS_DEVICE_EVENT.MD)) does it for a device, whose `ON_EVENT` (or own event op) then gets the event.
 - **No loop guard**: a listener that republishes subscribes to one exact source and channel of a device that exists before it (`sys_device_use`), so a chain of republishes is finite and can't close into a cycle.
 
 ## The event task
@@ -167,7 +167,7 @@ Host tests in `host/` (`python test_host/run.py sys_event` from `runit-esp/`, `H
 
 Not covered on the host: priorities, the stack of the event task, an interrupt's timing.
 
-## Errors (`ERR_MOD_SYS_EVENT` = 9)
+## Errors (`ERR_MOD_SYS_EVENT` = 0x25, `MODULE_ID_SYS_EVENT`)
 
 | Tag | Severity | Fields | When |
 |---|---|---|---|

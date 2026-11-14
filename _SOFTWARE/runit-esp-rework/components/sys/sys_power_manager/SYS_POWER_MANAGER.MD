@@ -34,7 +34,7 @@ The board's devices are created at boot and can't be removed (`ERR_DEV_SYSTEM`, 
 
 ## Settings (records, SYS_ACTIONS.MD)
 
-A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x0A][0x01][op][args]`. Nothing replays by itself: the project runs the records when it starts.
+A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x22][0x01][op][args]` (`MODULE_ID_PWRM` = `0x22`, `CMD_DIR_WRITE` = `1`). Nothing replays by itself: the project runs the records when it starts.
 
 | Record ID | Frame | Contents |
 |---|---|---|
@@ -94,16 +94,16 @@ LiPo per-cell curve (4.20 V = 100 %, 3.84 V = 50 %, 3.27 V = 0 %; 21 points, lin
 
 ## Events and the response matrix
 
-The manager's own events (contract `0x06`, **source `SYS_DEVICE_ID_NONE`** = 0xFFFF, channel 0, all NOTIFY):
+The manager's own events (`MODULE_ID_PWRM` = `0x22`, codes `0x01..0x06`, tags `0x00220001..0x00220006`, **source `SYS_DEVICE_ID_NONE`** = `0xFFFF`, channel `0`, all `SYS_EVENT_NOTIFY`):
 
 | Event | ID | Value | Kind |
 |---|---|---|---|
-| `SOURCE_CHANGED` | `0x0600` | the new source | SOURCE_CHANGED |
-| `BATTERY_LOW` | `0x0601` | % | BATTERY_LOW |
-| `BATTERY_CRITICAL` | `0x0602` | % | BATTERY_CRITICAL |
-| `BUDGET_EXCEEDED` | `0x0603` | the limit, mW | BUDGET_EXCEEDED |
-| `INPUT_OVP` | `0x0604` | input mV | OVP |
-| `PD_FIXED` | `0x0605` | the voltage in use, mV | – (information: no response) |
+| `SOURCE_CHANGED` | `0x01` (`0x00220001`) | `u8 source` (the new source) | SOURCE_CHANGED |
+| `BATTERY_LOW` | `0x02` (`0x00220002`) | `u8 pct` | BATTERY_LOW |
+| `BATTERY_CRITICAL` | `0x03` (`0x00220003`) | `u8 pct` | BATTERY_CRITICAL |
+| `BUDGET_EXCEEDED` | `0x04` (`0x00220004`) | `i32 limit_mW` | BUDGET_EXCEEDED |
+| `INPUT_OVP` | `0x05` (`0x00220005`) | `i32 mV` (input mV) | OVP |
+| `PD_FIXED` | `0x06` (`0x00220006`) | `i32 mV` (the voltage in use) | – (information: no response) |
 
 The manager also listens (queued) to the rails' and monitors' events and maps them to a kind:
 
@@ -156,7 +156,7 @@ Requests are `[0x22][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x04` BATTERY | RW | `sys_power_battery_t` (4 B): `u8 chemistry, u8 cells, u8 low_pct, u8 critical_pct` |
 | `0x07` STATUS | R | → `sys_power_status_t` (40 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen), `u32 pd_mV, u32 pd_mA, u8 pd_type` |
 | `0x08` PD | RW | `sys_power_pd_t` (5 B): `u8 mode, u32 voltage_mV` |
-| `0x02` LAYOUT | W | `sys_power_layout_t`, 28 B: the board's limits, input monitor, USB-PD sink and source pins (`0xFFFF`: none). Refused (`ERR_PWRM_BAD_ARG`) once a rail is added |
+| `0x02` LAYOUT | W | `sys_power_layout_t`, 26 B: the board's limits, input monitor, USB-PD sink and source pins (`0xFFFF`: none). Refused (`ERR_PWRM_BAD_ARG`) once a rail is added |
 | `0x05` RAIL | W | `sys_power_rail_t`, 9 B: `u16 vreg, u16 monitor_device, u8 monitor_channel, u32 min_mA`. A rail stays until the board restarts |
 | `0x09` MATRIX | RW | `sys_power_response_row_t[]`, no header: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind. The read answers `1 + rails` rows; the write takes up to that many (a length that is not whole rows, or more rows: `ERR_CMD_BAD_LEN`; a target that is neither the board nor a rail: `ERR_PWRM_NOT_RAIL`; nothing changes) |
 

@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Private to the registry (sys_device_new): remote devices, a local ID for a device of another board. The slot
+ * @brief Private to the registry (sys_device): remote devices, a local ID for a device of another board. The slot
  * keeps its type and, as the instance, where it is (sys_device_remote_t); its calls go to the hook sys_remote sets.
  */
 

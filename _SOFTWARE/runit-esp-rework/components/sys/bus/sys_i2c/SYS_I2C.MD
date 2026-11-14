@@ -1,6 +1,6 @@
 # sys_i2c — the I2C contract and its client
 
-Component `components/sys/bus/sys_i2c/`. A bus is a device: the ESP32-S3's own controller is `device_esp32s3_i2c`, and a mux channel, a bit-banged bus or a simulated one is a device of its own. A project creates as many as it needs, each with its device ID. This component holds the **contract** every bus implements (I2C, `0x02`) and the **client** a chip's driver uses to reach its bus. It makes no bus.
+Component `components/sys/bus/sys_i2c/`. A bus is a device: the ESP32-S3's own controller is [`device_esp32s3_i2c`](../../devices/soc/device_esp32s3_i2c/device_esp32s3_i2c.c), and a mux channel, a bit-banged bus or a simulated one is a device of its own. A project creates as many as it needs, each with its device ID. This component holds the **contract** every bus implements (I2C, `0x02`) and the **client** a chip's driver uses to reach its bus. It makes no bus.
 
 ## Files
 
@@ -10,6 +10,7 @@ Component `components/sys/bus/sys_i2c/`. A bus is a device: the ESP32-S3's own c
 | `sys_i2c.c` | The client; claims the contract's ID (`SYS_DEVICE_CONTRACT_DEFINE`) |
 | `errors/sys_i2c_errors.h`, `errors/errors_sys_i2c.json` | `ERR_SYS_I2C_MAP` (`ERR_MOD_SYS_I2C`) and the messages |
 | `CMakeLists.txt` | Requires `errors`, `cmd`, `sys_device` |
+| `AGENTS.md` | Rules for changing this folder |
 
 ## The contract
 
@@ -32,7 +33,7 @@ Component `components/sys/bus/sys_i2c/`. A bus is a device: the ESP32-S3's own c
 
 `sys_i2c_dev_attach(owner, &dev, bus, addr, speed_Hz)` is called from the chip's `create()`: it declares the use of the bus (the registry then refuses to remove a bus while a chip on it exists and suspends the chips before their bus), then ATTACH. The address is a resource of the owner (`sys_device_res_add`): the registry lets it go when the owner is removed or its `create()` fails. Transfers (`sys_i2c_write`, `_read`, `_write_read`) and register helpers (`sys_i2c_reg_write`, `_reg_read`, `_reg_read_u16`, `_reg_write_u16`, `_reg_update`) are made from an op of the owner (its `create()` and `suspend()` too). A sequence of them (`reg_update`) is not atomic on the bus.
 
-## Errors (`ERR_MOD_SYS_I2C`)
+## Errors (`ERR_MOD_SYS_I2C` = 0x02, `MODULE_ID_I2C`)
 
 A bus device reports its failures split by cause: `ERR_I2C_NO_ACK`, `ERR_I2C_BUS_BUSY`, else `ERR_I2C_XFER` over its cause. The client adds `ERR_I2C_BAD_ARG`, `ERR_I2C_DEV_NOT_ADDED` and `ERR_I2C_REG` (context around a register access). A missing bus is the registry's `ERR_DEV_NOT_FOUND`, a bus still in use `ERR_DEV_IN_USE`. The full list is `ERR_SYS_I2C_MAP`.
 

@@ -14,10 +14,12 @@ extern "C" {
  * resource of it. The timers' task writes the op (no args) to the owner by its ID and generation, under the device's
  * lock, only when the device takes it now: a step is skipped, with no error, when the device is busy (another task
  * holds its lock), suspended, refused by the safe-state sweep, or gone (a device created later under its ID included).
- * So a busy device never holds up the other timers, and the step's handler runs only on a working device: it needs no
- * flag of its own for the safe state. The registry stops the timer when the owner is removed or its create() fails,
+ * So a busy device never holds up the other timers for its own slot lock (nested ops on dependencies inside the step
+ * still wait up to CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS), and the step's handler runs only on a working device: it needs
+ * no flag of its own for the safe state. The registry stops the timer when the owner is removed or its create() fails,
  * before it frees the struct the timer is in: a driver never does. The op is the driver's own and SYS_DEVICE_OP_LOCAL
- * (not a command). A step that fails is reported each time it runs, so its handler stops the timer on a failure.
+ * (not a command). Use sys_device_timer_start() (periodic): since skipped steps drop a tick cleanly, a one-shot timer
+ * would lose a missed step permanently; the handler stops the timer on completion or failure.
  */
 
 /** @brief A device's timer, in the driver's struct (zeroed: not set up). */
@@ -40,11 +42,6 @@ MUST_USE err_h sys_device_timer_init(uint8_t owner, sys_device_timer_t* t, uint1
 /** @brief board_timer_start: the op every `period_ms`; a running timer with the same period keeps its phase. */
 static inline void sys_device_timer_start(sys_device_timer_t* t, uint32_t period_ms) {
   board_timer_start(&t->timer, period_ms);
-}
-
-/** @brief board_timer_once: the op once, `after_ms` from now. */
-static inline void sys_device_timer_once(sys_device_timer_t* t, uint32_t after_ms) {
-  board_timer_once(&t->timer, after_ms);
 }
 
 /** @brief board_timer_stop: no new step starts. One already on its way may still run once after the caller's op (it

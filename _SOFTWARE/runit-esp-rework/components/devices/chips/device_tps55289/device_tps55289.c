@@ -128,7 +128,7 @@ typedef struct {
   sys_io_claim_t intr;        // FB/INT: its falling edge runs our INT op
   sys_io_claim_t en;          // rail enable: locked, driven by tps_set_en
   sys_i2c_dev_t i2c;
-  sys_device_timer_t timer;   // one-shot: the next rise/discharge step (RISE_STEP)
+  sys_device_timer_t timer;   // periodic while active: the next rise/discharge step (RISE_STEP)
 
   /* Wanted settings. The hardware EN pin has priority: while the rail is off EN is low, and the TPS55289 forgets
    * every register, so these are written again each time EN goes high (tps_apply_config). */
@@ -138,7 +138,7 @@ typedef struct {
 
   uint16_t out_mV;              // voltage last written to the chip (the ramp's position)
   uint8_t rise;                 // rise_e; while rising the chip's OCP flag is the inrush, not reported
-  uint64_t rise_start_ms;       // start of the settle window (board_time_uptime_ms)
+  uint64_t rise_start_ms;       // start of the settle or discharge window (board_time_uptime_ms)
   tps55289_protection_t prot;   // wanted protection, written with the other settings
 } tps_t;
 
@@ -219,19 +219,23 @@ static void tps_rise_cancel(tps_t* c) {
   sys_device_timer_stop(&c->timer);
 }
 
-/* One step. RAMP: the next whole step above the output, or the target (then SETTLE). SETTLE: once the window since
- * rise_start_ms is over, the wanted limit, STATUS read (clears the OCP the inrush latched; an overload that persists
- * sets it again and is reported), VREG_EV_READY. */
+/* One step. FALL: drive EN low after the discharge window. RAMP: the next whole step above the output, or the target
+ * (then SETTLE). SETTLE: once the window since rise_start_ms is over, the wanted limit, STATUS read (clears the OCP
+ * the inrush latched; an overload that persists sets it again and is reported), VREG_EV_READY. Uses a periodic timer
+ * so a step skipped while the lock is busy repeats on the next tick. */
 static err_h tps_rise_step(tps_t* c) {
   if (c->rise == RISE_FALL) {
-    c->rise = RISE_IDLE;
+    if (board_time_uptime_ms() - c->rise_start_ms < TPS_DISCHARGE_MS) {
+      return NULL;
+    }
+    tps_rise_cancel(c);
     return tps_set_en(c, false);  // discharged: the hardware switch off
   }
   if (c->rise == RISE_RAMP) {
     const uint32_t next_mV = ((uint32_t)c->out_mV / TPS_RAMP_STEP_MV + 1u) * TPS_RAMP_STEP_MV;
     if (next_mV < c->last_voltage_mV) {
       ERR_TRY(chip_set_voltage(c, (uint16_t)next_mV));
-      sys_device_timer_once(&c->timer, TPS_RAMP_STEP_MS);
+      sys_device_timer_start(&c->timer, TPS_RAMP_STEP_MS);
       return NULL;
     }
     ERR_TRY(chip_set_voltage(c, c->last_voltage_mV));
@@ -239,13 +243,13 @@ static err_h tps_rise_step(tps_t* c) {
   }
   const uint64_t elapsed_ms = board_time_uptime_ms() - c->rise_start_ms;
   if (elapsed_ms < TPS_RAMP_SETTLE_MS) {
-    sys_device_timer_once(&c->timer, (uint32_t)(TPS_RAMP_SETTLE_MS - elapsed_ms));
+    sys_device_timer_start(&c->timer, TPS_RAMP_STEP_MS);
     return NULL;
   }
   ERR_TRY(chip_set_current_limit(c, tps_limit(c->last_current_limit_mA)));
   uint8_t status;
   ERR_TRY(sys_i2c_reg_read(&c->i2c, REG_STATUS, &status, 1));  // clears latched fault bits
-  c->rise = RISE_IDLE;
+  tps_rise_cancel(c);
   return SYS_EVENT_PUBLISH(VREG_EV_READY, c->id, 0, .mV = c->last_voltage_mV);
 }
 
@@ -253,7 +257,11 @@ static err_h tps_rise_step(tps_t* c) {
 static err_h tps_rise_run(tps_t* c) {
   c->rise = RISE_RAMP;
   c->rise_start_ms = board_time_uptime_ms();
-  return tps_rise_step(c);
+  err_h err = tps_rise_step(c);
+  if (err != NULL) {
+    tps_rise_cancel(c);
+  }
+  return err;
 }
 
 /* Write every wanted setting; called right after EN goes high (the chip lost them). An enabled output starts at the
@@ -272,7 +280,7 @@ static err_h tps_apply_config(tps_t* c) {
 
 /* Rise stopped, output off, then EN low; every step runs (EN goes low even if the I2C disable fails). With `discharge`
  * (ENABLE off, not suspend: a fault doesn't wait) EN stays high for TPS_DISCHARGE_MS while the chip sinks the output,
- * and the timer's step drives it low. */
+ * and the timer's periodic step drives it low once the window has elapsed. */
 static err_h tps_rail_off(tps_t* c, bool chip_powered, bool discharge) {
   err_h err = NULL;
   tps_rise_cancel(c);
@@ -281,7 +289,8 @@ static err_h tps_rail_off(tps_t* c, bool chip_powered, bool discharge) {
   }
   if (discharge && err == NULL && chip_powered && c->prot.discharge && c->en.locked) {
     c->rise = RISE_FALL;
-    sys_device_timer_once(&c->timer, TPS_DISCHARGE_MS);
+    c->rise_start_ms = board_time_uptime_ms();
+    sys_device_timer_start(&c->timer, TPS_DISCHARGE_MS);
     return NULL;
   }
   ERR_KEEP_FIRST(err, tps_set_en(c, false));
@@ -338,7 +347,7 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_VOLTAGE) {
   if (c->rise != RISE_IDLE) {
     c->rise = RISE_RAMP;  // the soft-rise limit is already on: keep ramping, new settle window
     c->rise_start_ms = board_time_uptime_ms();
-    sys_device_timer_once(&c->timer, TPS_RAMP_STEP_MS);
+    sys_device_timer_start(&c->timer, TPS_RAMP_STEP_MS);
     return NULL;
   }
   ERR_TRY(chip_set_current_limit(c, TPS_SOFT_RISE_MA));
@@ -367,11 +376,12 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_CURRENT) {
  ******************************************************************************/
 OP_DECLARE_WRITE(OWN_TPS55289, OP_RISE_STEP) {
   if (c->rise == RISE_IDLE) {
+    sys_device_timer_stop(&c->timer);
     return NULL;
   }
   err_h err = tps_rise_step(c);
   if (err != NULL) {
-    c->rise = RISE_IDLE;
+    tps_rise_cancel(c);
   }
   return err;
 }

@@ -15,7 +15,7 @@ Spec: `SYS_DEVICE.MD` (this folder).
 - REMOVE marks the device as being removed in the critical section `sys_device_slot_use` runs in. Never split the check of `used_by` from the mark.
 - A use never closes a cycle (`ERR_DEV_CYCLE`): the sweep's order and the lock order rest on it.
 - Nothing is delivered to a listener while the task holds the lock of a slot: the task's outermost call holds its events and releases them after the last lock. `publish_change` runs inside the call, after the unlock.
-- Per-task state (`s_depth`, `s_running`, `s_caller`, `s_sweeping`) is restored on every way out of a call; the room for held events is on the outermost call's frame, never in TLS.
+- Per-task call state (`s_frame` stack chain of `{up, id}`) is restored on every way out of a call; the room for held events is on the outermost call's stack frame, never in TLS.
 - A device's resources are released by the registry, the last added first, on REMOVE and on a failed `create()`. A type has no uninstall hook; a failed `create()` never runs `suspend()`.
 - CREATED and REMOVED carry the slot's generation; the generation is read under the lock.
 - While a SUSPEND sweep runs, a write from no device and a CREATE are refused; a device's own calls pass. Keep both halves: without the second a `suspend()` hook can't reach the devices it uses.

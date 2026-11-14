@@ -1,16 +1,16 @@
 # sys_device — the device registry
 
-Folder `components/sys/sys_device_new/`. A device is an instance of a type (a driver) under an ID, reached only by its ops: nothing includes a driver, and a driver registers itself. The registry keeps the devices, runs their ops one at a time per device, knows which device uses which, and gives back what a device took when it goes.
+Folder `components/sys/sys_device/`. A device is an instance of a type (a driver) under an ID, reached only by its ops: nothing includes a driver, and a driver registers itself. The registry keeps the devices, runs their ops one at a time per device, knows which device uses which, and gives back what a device took when it goes.
 
 ## Components
 
 | Component | Role | Who requires it |
 |---|---|---|
 | `sys_device/` | The registry: slots, types, calls, the sweep, remote devices | Everything that calls a device or is one |
-| `sys_device_event/` | The EVENT contract (`ON_EVENT`) and the subscription of a device by its ID | Drivers that listen to events |
-| `sys_device_timer/` | A device's timer: its expiry is a step of its owner (`sys_device_step`) | Drivers that run something later or every so often |
-| `sys_device_router/` | The registry as commands (root key `MODULE_ID_SYS_DEVICE`) | Whoever builds the frame; it registers itself |
-| `sys_device_policy/` | The device error policy (root key `MODULE_ID_POLICY`): follows the registry's events, responds in a task of its own | The app's error sink |
+| [`sys_device_event/`](../sys_device_event/SYS_DEVICE_EVENT.MD) | The EVENT contract (`ON_EVENT`) and the subscription of a device by its ID | Drivers that listen to events |
+| [`sys_device_timer/`](../sys_device_timer/SYS_DEVICE_TIMER.MD) | A device's timer: its expiry is a step of its owner (`sys_device_step`) | Drivers that run something later or every so often |
+| [`sys_device_router/`](../sys_device_router/SYS_DEVICE_ROUTER.MD) | The registry as commands (root key `MODULE_ID_SYS_DEVICE`) | Whoever builds the frame; it registers itself |
+| [`sys_device_policy/`](../sys_device_policy/SYS_DEVICE_POLICY.MD) | The device error policy (root key `MODULE_ID_POLICY`): follows the registry's events, responds in a task of its own | The app's error sink |
 
 Inside `sys_device/`:
 
@@ -69,8 +69,8 @@ The ID is spelled as two hex digits, the same in the declare and the define. Two
 ## Calls
 
 ```c
-ERR_TRY(SYS_DEVICE_SET(motor, HBRIDGE, OP_DRIVE, .channel = 0, .drive = 800));
-int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, PMON, OP_CURRENT, &mA, .channel = 1));
+ERR_TRY(SYS_DEVICE_SET(motor, CONTRACT_HBRIDGE, OP_DRIVE, .channel = 0, .drive = 800));
+int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, CONTRACT_PMON, OP_CURRENT, &mA, .channel = 1));
 ```
 
 `SYS_DEVICE_SET / GET` build the frame from the fields given, `SYS_DEVICE_WRITE / READ` take a frame the caller has; all end in `sys_device_call(id, dir, op, in, out)`. The op's number and the sizes come from the contract's table, so they can't be paired wrongly.
@@ -78,7 +78,7 @@ int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, PMON, OP_CURRENT, &mA, .channel = 1));
 One call, in order:
 
 1. The contract's interceptor, if any, without a lock: it may refuse the call or change the payload for the device. After step 5 it is told how the call ended.
-2. The lock of the slot, waited for at most `CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS` (5000).
+2. The lock of the slot, waited for at most `CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS` (500).
 3. The checks: the device exists, has the op and the side, is not suspended for a write (ALWAYS aside), the op is not LOCAL for a command or a remote device.
 4. The handler, with the driver's struct and the payload. A NOLOCK op and a remote device's op run after the lock is let go.
 5. The lock let go; what the op changed is published (see "Events").
@@ -89,7 +89,7 @@ Every error of a call is wrapped in `ERR_DEV_OP{op, dir}` and `ERR_DEV_ID{id}`.
 
 `sys_device_step(id, gen, op)` is the call of a device that runs by itself (a timer's expiry, `sys_device_timer`): the write of its own op, without args, to device `id` of generation `gen` (`sys_device_gen(id)`, taken in its `create()`). It is the same call with two differences in step 2 and 3:
 
-- The lock is taken only when it is free now; else the step is skipped. The timers' task never waits for a device another task holds, so a busy or hung device does not hold up the other timers.
+- The lock is taken only when it is free now; else the step is skipped. The timers' task never waits for its owner's lock, so a busy or hung owner does not hold up the other timers on its own account (nested calls to dependencies inside a step still wait up to `CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS`).
 - It is skipped too when the device is gone or is another one (its generation), is suspended, or is refused by the safe-state sweep.
 
 A skipped step is no error: the next comes in its own time. An error of the op itself is returned (the timer reports it), so the handler of a step stops its timer on a failure. The op is LOCAL and needs no ALWAYS: a step never runs on a suspended device, so its driver keeps no flag of its own for that.
@@ -208,11 +208,11 @@ static err_h create(uint8_t id, pca_t* c, const pca9685_cfg_t* cfg) { ... }  // 
 static err_h suspend(pca_t* c) { ... }                               // the safe state; also the last state
 static err_h resume(pca_t* c) { ... }
 
-static const sys_device_op_t k_ops[] = {OP_ENTRY(IO, OP_LEVEL), ...};
+static const sys_device_op_t k_ops[] = {OP_ENTRY(CONTRACT_IO, OP_LEVEL), ...};
 SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 ```
 
-- **Type ID**: the driver's own, four hex digits, at least `SYS_DEVICE_TYPE_FIRST` (`0x0040`); wire format. `SYS_DEVICE_TYPE_DECLARE(NAME, 0x0041)` at the top of the source writes it once: `NAME_TYPE`, for the definition at the end and for the module of the type's own events (`SYS_EVENT_MODULE_TYPE(NAME_TYPE)`). Two drivers with one ID fail to link. The component is linked whole (`WHOLE_ARCHIVE`): nothing references it.
+- **Type ID**: the driver's own, four hex digits, at least `SYS_DEVICE_TYPE_FIRST` (`0x0040`); wire format. `SYS_DEVICE_TYPE_DECLARE(NAME, 0x0041)` at the top of the source writes it once: `NAME_TYPE`, for the definition at the end and for the module of the type's own events (`SYS_EVENT_MODULE_TYPE(NAME_TYPE)`). Two drivers with one ID fail to link. Drivers live under `components/devices/{soc,chips,virtual}/` and use `runit_device(...)` (`components/devices/device.cmake`, which enforces `WHOLE_ARCHIVE`, no `INCLUDE_DIRS`, no `REQUIRES`, no `device_*` deps, and SoC peripheral drivers under `devices/soc/` only).
 - **The struct**: named once, `#define SYS_DEVICE_CTX pca_t`, after the struct and before the first handler. Every handler's body and the hooks take it typed as `c`; no body casts `ctx` or marks a parameter unused.
 - **Hooks**: `create(id, c, cfg)`, `suspend(c)`, `resume(c)` are required and typed; a hook of another signature fails to compile in `SYS_DEVICE_TYPE_DEFINE`. `cfg` is the frame's bytes, read in place (a create struct is packed, asserted). `SYS_DEVICE_TYPE_DEFINE_HAS_OP` adds `has_op(c, op)` (an op of the table the device can't run as wired). There is no uninstall hook.
 - **The type**: `SYS_DEVICE_TYPE_DEFINE` is the last line. It fills the registry's `sys_device_type_t` (the sizes from the types, the op count from the table) and registers it before `app_main`; a driver never writes that struct.
@@ -227,7 +227,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 
 ## The error policy
 
-`sys_device_policy` is beside the registry, which knows nothing of it. Per device: how much its errors matter (importance) and an action per severity.
+[`sys_device_policy`](../sys_device_policy/SYS_DEVICE_POLICY.MD) is beside the registry, which knows nothing of it. Per device: how much its errors matter (importance) and an action per severity.
 
 - **Following the registry**: a CREATED gives a device the default policy, a REMOVED of the same generation takes it away.
 - **A reported error**: the app's error sink calls `sys_device_policy_handle(chain)` on the task that reported. Nothing runs there, because that task may be inside a device op and hold the lock the response needs. A chain that needs a response is copied as a record (`CONFIG_SYS_DEVICE_POLICY_RECORD_MAX`, 256 B) into the queue of the policy's task; one that needs none is not queued.
@@ -247,7 +247,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 - 64 devices, counting buses, mux channels, virtual devices and remote ones: a use mask has one bit per device.
 - A slot is about 128 B of static RAM (its lock's storage included), 64 of them whether used or not; the driver's struct is on the heap.
 - `CONFIG_SYS_DEVICE_TYPES` (16) types, `CONFIG_SYS_DEVICE_INTERCEPTORS` (2) interceptors.
-- The lock timeout must be longer than the slowest op of a device that runs under its lock. An op longer than that is NOLOCK (an I2C bus's SCAN: 112 probes).
+- The lock timeout must be longer than the slowest op of a device that runs under its lock. An op longer than that is NOLOCK (an I2C bus's SCAN: 112 probes). Under `CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS` (500 ms), single locked ops stay well below the task WDT (5 s).
 
 ## Tests
 
@@ -261,7 +261,7 @@ Host tests in `host/` (`python test_host/run.py sys_device` from `runit-esp/`, `
 
 Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep's RESET skipping a type without one, the device timer (`sys_device_timer`, the step itself is), priorities and stack sizes.
 
-## Errors (`ERR_MOD_SYS_DEVICE` = 6)
+## Errors (`ERR_MOD_SYS_DEVICE` = 0x20, `MODULE_ID_SYS_DEVICE`)
 
 | Tag | Severity | When |
 |---|---|---|
@@ -284,8 +284,3 @@ Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep'
 | `ERR_DEV_RANGE`, `_BAD_PIN`, `_PIN_LOCKED{id, pin, owner}`, `_PIN_NOT_OWNED{id, pin, owner}` | HIGH | Raised by drivers the same way on every device |
 | `ERR_DEV_ID`, `_OP`, `_INSTALL` | NONE | Context of a call or a CREATE |
 | `ERR_DEV_FAULT_RESPONSE` | HIGH | The policy's response failed |
-
-## Open
-
-- A resource can't be given back before REMOVE; a use is kept in the masks, not as a resource.
-- `sys_power_manager_new` is not on this API yet.
