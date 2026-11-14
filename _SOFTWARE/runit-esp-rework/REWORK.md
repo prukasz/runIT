@@ -19,7 +19,7 @@ Build: `.\build.ps1` (activates ESP-IDF, builds, prints the errors, warnings and
 
 Every module has one number (`core/utils/module_id.h` in `runit-esp`): its router key, the module of its errors and of its events, and a contract's ID. All modules here declare theirs via `MODULE_ID_DECLARE` (`ERR_MOD_CORE` is `0` in `errors.h`).
 
-`PROPOSAL.md` is the review of the registry (`sys_device`): the reasons for its design, what is open and in which order, with a list of what to test on the board.
+`PROPOSAL.md` is the review of the registry (`sys_device`): the reasons for its design, what is open and in which order, with a list of what to test on the board. `PROPOSAL_NETWORK.md` is the review of the network part still in `runit-esp/` (sessions, watches, remote devices, streams, providers): its defects, the simpler version to build here and the stages that move it here (its section 6: what each stage copies, what changes at the copy, the test that closes it).
 
 ## Next
 
