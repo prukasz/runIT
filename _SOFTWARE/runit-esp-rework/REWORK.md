@@ -16,7 +16,8 @@ Build: `.\build.ps1` (activates ESP-IDF, builds, prints the errors, warnings and
 | sys | `sys_power_manager` (its POWER_VREG budget is an interceptor of the registry) | here |
 | sys | `sys_nvs` (the NVS partitions, JSON files in chunks), `sys_data_provider` (providers: the send in two parts, `SPARE`, the command binding, its router `MODULE_ID_PROVIDER` 0x0D): the first stage of the network part (`PROPOSAL_NETWORK.md` section 6) | here |
 | devices | `device_esp32s3_gpio` (the ESP32-S3's own pins: digital, PWM, ADC, pin events), `device_esp32s3_i2c` (the ESP32-S3's I2C controller as a bus device), `device_dc_motor`, `device_pca9685`, `device_tca6424a`, `device_tps55289` | here |
-| main | logs the uptime, starts the router | here |
+| sys | `bus/sys_uart` (the board's UART ports as providers: the console and the link, the line COBS + CRC16, the link lent as a DIRECT port): the second stage | here |
+| main | logs the uptime, starts the router and the UART ports, binds the console to the router (the command binding) until a session takes it | here |
 
 Every module has one number (`core/utils/module_id.h` in `runit-esp`): its router key, the module of its errors and of its events, and a contract's ID. All modules here declare theirs via `MODULE_ID_DECLARE` (`ERR_MOD_CORE` is `0` in `errors.h`).
 

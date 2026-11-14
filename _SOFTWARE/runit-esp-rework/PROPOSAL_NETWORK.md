@@ -425,8 +425,9 @@ nie poprawia i nic na nim nie testuje.
 | Etap | Do reworku | Zmiany przy kopii | Zależy od | Bramka |
 |---|---|---|---|---|
 | 1 | `sys_nvs`, `sys_data_provider` | P1 (`send(head, body, flags)`), B4 (flaga `SPARE`); `router_done_f` z `const` danymi w `core/router` | — | test hosta providera na fałszywym sterowniku: dwie części, `NOWAIT`, `SPARE` |
-| 2 | `bus/sys_uart` | P1, B4; piny przez `sys_io` reworku; tryb DIRECT bez zmian (flasher) | 1 | płytka: konsola przyjmuje i oddaje ramkę (COBS + CRC16); `sys_uart_link_direct` tam i z powrotem |
+| 2 | `bus/sys_uart`: porty płytki (konsola, link) | P1, B4; prędkość linku = prędkość konsoli (bez osobnej opcji); piny linku zarezerwowane w ESP-IDF; pożyczony link: taski parkowane, nie usuwane | 1 | płytka: konsola przyjmuje i oddaje ramkę (COBS + CRC16) przez wiązanie komend (`runit-esp-rework/tools/console_command.py`); `sys_uart_link_direct` sprawdza etap 6 (flasher) |
 | 3 | `sys_session`, `sys_system` | B1, P7, P8 z czekaniem z własnym limitem, PING na zamkniętej sesji, pole buildu w hello, bez `version`, raport `ERR_SESSION_NONE` raz; `sys_system`: safe state to `sys_device_sweep(SUSPEND)` | 1, 2 | testy hosta sesji (hello, restart peera, timeout, B1); płytka: `router_tests.py`; dwie płytki: `tree_tests.py` (tunel) |
+| 3a | `devices/soc/device_esp32s3_uart` | porty UART tworzone w czasie pracy jako urządzenie (jak `device_esp32s3_i2c`): CREATE przez rejestr, piny przez `sys_io_claim_peripheral`, dostawca robiony w create(), tryby RAW / RAW_LINE / DIRECT, komenda i odpowiedź na porcie; sterownik używający portu deklaruje `sys_device_use` | 2, 3 | płytka: port RAW z mostkiem na drugi UART, komenda i odpowiedź; REMOVE odmówiony, gdy port jest używany |
 | 4 | — | P2 w sesji, tabela po adresatach (albo sama poprawka B2) | 3, decyzja o dziurach per strumień | test hosta: dziury per (peer, klasa), pełna tabela; `tree_tests.py` |
 | 5 | `sys_stream`, `sys_log` | P4, P3 | 3 | płytka: strumień błędów i logów u klienta; dwie płytki: tunel z dwóch strumieni, ramka DATA do providera slave'a |
 | 6 | `sys_ota`, `sys_flasher` | R5; strażnik OTA bez VM: `NULL` | 2, 3 | OTA slave'a przez roota, potem bez `CONFIRM`; flasher: nowa płytka otwiera sesję z id 0 |
@@ -434,7 +435,7 @@ nie poprawia i nic na nim nie testuje.
 | 8 | `sys_remote` | najpierw R1 i R4 w rejestrze i policy reworku; potem P6, R2, R3; odpowiedź zapisu `WIRED` odrzucana zamiast bufora 16 B | 7 | test hosta mostu (R2, R3, UNSUBSCRIBE bez aliasu); `remote_tests.py`; pomiar kolejki na BLE (sekcja 7) |
 | 9 | `sys_ble`; aplikacja | P1, B4, poza tym bez zmian; `runit-app/src/backend/session` na nowy format; `sync.sh` i deskryptory z reworku | 3..8 | `npm run test:hw` na firmware reworku; OTA i flasher z aplikacji |
 
-- Etapy 5, 6 i 7 nie zależą od siebie: kolejność między nimi jest dowolna.
+- Etapy 3a, 5, 6 i 7 nie zależą od siebie: kolejność między nimi jest dowolna.
 - R1 i R4 (etap 8) dotyczą komponentów, które już są w reworku, więc można je zrobić wcześniej, w dowolnym momencie.
 - `sys_ble` jest na końcu, bo to 2000 linii bez zmian projektu, a wszystko przed nim testuje się po UART. Jeśli
   pomiar kolejki `sys_remote` na BLE (etap 8) ma być zrobiony przed decyzją o kolejce, `sys_ble` wchodzi przed
