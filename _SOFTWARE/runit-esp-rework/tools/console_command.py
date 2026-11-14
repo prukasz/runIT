@@ -79,7 +79,10 @@ def main() -> int:
     args = ap.parse_args()
     cmd = bytes(int(b, 16) for b in args.bytes) if args.bytes else bytes([0x0D, 0x00, 0x02])
 
-    with serial.Serial(args.port, args.baud, timeout=0.05) as s:
+    s = serial.Serial()
+    s.port, s.baudrate, s.timeout = args.port, args.baud, 0.05
+    s.dtr = s.rts = False  # set before open: a devkit's DTR / RTS reset the chip
+    with s:
         s.reset_input_buffer()
         s.write(frame(cmd))
         print(f"-> {cmd.hex(' ')}")
