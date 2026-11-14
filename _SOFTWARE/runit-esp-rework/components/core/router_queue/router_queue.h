@@ -76,12 +76,12 @@ MUST_USE err_h router_init(void);
  * @param ctx     The submitter's.
  * @param cmd     The command answered (its src, seq, flags, request).
  * @param status  router_status_e.
- * @param data    The answer (OK) or the error record (ERROR), in the task's own buffer: the CMD_HEAD bytes in front of
- *                it are the callback's to write (a frame's header), so the answer is framed without a copy.
+ * @param data    The answer (OK) or the error record (ERROR), in the task's own buffer, valid for the call only: a
+ *                callback that frames it sends its header and `data` as the two parts of one send (sys_data_provider).
  * @param len     Bytes in `data`, at most CMD_DATA_MAX.
  * @return NULL; else an error the router reports with the command (the answer is lost: a reader retries).
  */
-typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data,
+typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data,
                                         uint32_t len);
 
 /**

@@ -7,7 +7,7 @@ Spec: `ROUTER_QUEUE.MD` (this folder).
 - Error tags in `ERR_ROUTER_QUEUE_MAP` (`ERR_MOD_ROUTER_QUEUE` = `MODULE_ID_ROUTER_QUEUE`): the app and the scripts know them by name. Changing them requires `sh templates/sync.sh`. The route and handler errors are `router`'s.
 - Commands and tasks:
   - The queue knows commands (`cmd_req_t`), not frames: every command comes with its `done` callback and `ctx`, and the queue keeps nothing of who sent it (no links, no state per peer: the session is the frames' owner, SYS_SESSION.MD). `router_submit` never blocks; what it can't queue it returns, and the caller answers it and reports it (`router_report_cmd`).
-  - Normal commands run on the work task (`CONFIG_ROUTER_WORK_TASK_PRIO` = 5); commands flagged with `ROUTER_FLAG_URGENT` run on the urgent task (`CONFIG_ROUTER_URGENT_TASK_PRIO` = 15). Each task calls the command's `done` after it, from its own buffer (`CMD_HEAD` bytes of room in front of the data). NOREPLY or `done` NULL: no answer; a failure is reported either way.
+  - Normal commands run on the work task (`CONFIG_ROUTER_WORK_TASK_PRIO` = 5); commands flagged with `ROUTER_FLAG_URGENT` run on the urgent task (`CONFIG_ROUTER_URGENT_TASK_PRIO` = 15). Each task calls the command's `done` after it, from its own buffer, read-only for the callback. NOREPLY or `done` NULL: no answer; a failure is reported either way.
   - `router_run_urgent(fn)` runs `fn` once on the urgent task (`ERR_ROUTER_BUSY` while another waits).
 - The board's own commands: `router_inject` submits with src `ROUTER_SRC_SELF`, seq from the queue's counter.
 - Origin: `router_origin()` returns the command currently executing on the calling router task (a module reads its `src`); `router_is_task()` tells a router task.

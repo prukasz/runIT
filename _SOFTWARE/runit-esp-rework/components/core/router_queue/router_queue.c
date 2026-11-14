@@ -26,9 +26,9 @@ typedef struct {
 static struct {
   void (*urgent_fn)(void);  // router_run_urgent: the fn waiting to run, NULL when none
   uint16_t inject_seq;      // seq of the board's own commands
-  // One answer buffer per task (the two run at the same time): CMD_HEAD bytes for the done's header, then the data.
-  uint8_t buf_work[CMD_FRAME_MAX];
-  uint8_t buf_urgent[CMD_FRAME_MAX];
+  // One answer buffer per task (the two run at the same time).
+  uint8_t buf_work[CMD_DATA_MAX];
+  uint8_t buf_urgent[CMD_DATA_MAX];
 } s_dispatch;
 
 static __thread const cmd_req_t* s_route;  // per router task: the command it is routing, NULL between commands
@@ -138,7 +138,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
       .src = item.src,
       .flags = item.flags,
   };
-  cmd_out_t out = {.data = buf + CMD_HEAD, .cap = CMD_DATA_MAX};
+  cmd_out_t out = {.data = buf, .cap = CMD_DATA_MAX};
   s_route = &cmd;
   err_h err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
   s_route = NULL;

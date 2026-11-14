@@ -50,7 +50,7 @@ A command is a `cmd_req_t` (`router_queue.h`; an error record names it): the req
 | `OK` | the handler returned NULL | the answer (`out->len` bytes, maybe none) |
 | `ERROR` | the handler returned a chain | the error record (`cmd_err_record(cmd, chain)`, ERRORS.MD "Error record") |
 
-- `data` is in the task's own buffer with `CMD_HEAD` bytes in front of it that are the callback's to write, so the session frames its answer without a copy. `done` may wait for room on the way back, at most its own bound (the session: its provider's driver).
+- `data` is in the task's own buffer (`CMD_DATA_MAX`), read-only and valid for the call only: a callback that frames it sends its header and `data` as the two parts of one provider send (SYS_DATA_PROVIDER.MD "Use"), so nothing is copied to put a header in front. `done` may wait for room on the way back, at most its own bound (the session: its provider's driver).
 - NOREPLY, or `done` NULL: no answer of any status. Every failure is reported with its command (`router_report_cmd`: the log line `cmd src f0 seq 7 flags 00 req …`, and the errors stream), answered or not. A `done` that fails is reported and its answer lost: a reader retries.
 
 ### Origin, urgent work

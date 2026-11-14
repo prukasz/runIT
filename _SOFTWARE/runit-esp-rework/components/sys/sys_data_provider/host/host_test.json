@@ -1,0 +1,19 @@
+{
+  "sources": [
+    "sys_data_provider.c"
+  ],
+  "tests": [
+    "host/test_sys_data_provider.c"
+  ],
+  "includes": [
+    "config",
+    "driver",
+    "errors",
+    "internal",
+    "router"
+  ],
+  "config": "host/sys_data_provider_host_config.h",
+  "deps": [
+    "router"
+  ]
+}

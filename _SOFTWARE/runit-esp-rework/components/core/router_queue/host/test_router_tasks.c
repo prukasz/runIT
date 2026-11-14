@@ -202,7 +202,7 @@ ROUTER_MODULE_REGISTER(TASKS_SELF,  h_self)
 
 /* ---- the callbacks -------------------------------------------------------------------------------------------- */
 
-static err_h done_cb(void* ctx, const cmd_req_t* cmd, uint8_t status, uint8_t* data, uint32_t len) {
+static err_h done_cb(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   pthread_mutex_lock(&s_lock);
   drec_t* d = &s_d[s_dn++ % MAX_REC];
   d->status = status;

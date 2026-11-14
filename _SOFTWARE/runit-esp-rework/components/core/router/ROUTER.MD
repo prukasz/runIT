@@ -44,7 +44,7 @@ A command has one answer, at most `cap`. Data longer than that is paged by the c
 
 ## Frame size
 
-`CMD_FRAME_MAX` (512) is the largest whole frame on every provider, and `CMD_HEAD` (5) the room a frame keeps for its header in front of its data: the session's header (SYS_SESSION.MD "Frames"). They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
+`CMD_FRAME_MAX` (512) is the largest whole frame on every provider, and `CMD_HEAD` (5) the size of a frame's header before its data: the session's header (SYS_SESSION.MD "Frames"). They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
 
 ```
 CMD_FRAME_MAX
@@ -55,7 +55,7 @@ CMD_FRAME_MAX
  └─ a stream's frame to a subscriber [stream id][payload]: a payload ≤ CMD_DATA_MAX − 1
 ```
 
-Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and the router keeps `CMD_HEAD` bytes in front of an answer for its frame's header (ROUTER.MD "Commands and answers"). A raw provider's link carries less, and its driver refuses what does not fit (SYS_DATA_PROVIDER.MD "Frame size"). No size other than these is known above a driver.
+Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][dst][src][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and whoever frames an answer sends its header and the data as the two parts of one send (SYS_DATA_PROVIDER.MD "Use"). A raw provider's link carries less, and its driver refuses what does not fit (SYS_DATA_PROVIDER.MD "Frame size"). No size other than these is known above a driver.
 
 ## Long work
 

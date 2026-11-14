@@ -14,6 +14,7 @@ Build: `.\build.ps1` (activates ESP-IDF, builds, prints the errors, warnings and
 | sys | `sys_device` (the registry) and its satellites `sys_device_event`, `sys_device_timer`, `sys_device_router`, `sys_device_policy` | here |
 | sys | the contracts `sys_io` (`sys_io.h` + `sys_io_driver.h`), `sys_power`, `sys_hbridge`, `bus/sys_i2c` (a bus is a device: the contract and its client side) | here |
 | sys | `sys_power_manager` (its POWER_VREG budget is an interceptor of the registry) | here |
+| sys | `sys_nvs` (the NVS partitions, JSON files in chunks), `sys_data_provider` (providers: the send in two parts, `SPARE`, the command binding, its router `MODULE_ID_PROVIDER` 0x0D): the first stage of the network part (`PROPOSAL_NETWORK.md` section 6) | here |
 | devices | `device_esp32s3_gpio` (the ESP32-S3's own pins: digital, PWM, ADC, pin events), `device_esp32s3_i2c` (the ESP32-S3's I2C controller as a bus device), `device_dc_motor`, `device_pca9685`, `device_tca6424a`, `device_tps55289` | here |
 | main | logs the uptime, starts the router | here |
 
