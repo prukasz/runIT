@@ -22,9 +22,9 @@ extern "C" {
  * a half bridge: the 12 bits of IO_PWM_DUTY_MAX, so the driver loses no resolution between the contract and the PWM.
  * A full bridge brakes below 20 (0.5 %).
  * A contract only: the calls are SYS_DEVICE_SET / SYS_DEVICE_GET, the answers CMD_REPLY.
- * @usage ERR_TRY(SYS_DEVICE_SET(bridge, HBRIDGE, DRIVE, .channel = 0, .drive = -2048));
- *        ERR_TRY(SYS_DEVICE_SET(bridge, HBRIDGE, BRAKE, .channel = 0));
- *        int32_t mA; ERR_TRY(SYS_DEVICE_GET(bridge, HBRIDGE, CURRENT, &mA, .channel = 0));
+ * @usage ERR_TRY(SYS_DEVICE_SET(bridge, CONTRACT_HBRIDGE, OP_DRIVE, .channel = 0, .drive = -2048));
+ *        ERR_TRY(SYS_DEVICE_SET(bridge, CONTRACT_HBRIDGE, OP_BRAKE, .channel = 0));
+ *        int32_t mA; ERR_TRY(SYS_DEVICE_GET(bridge, CONTRACT_HBRIDGE, OP_CURRENT, &mA, .channel = 0));
  */
 
 //#ref-enum @alias H-Bridge Fault
@@ -49,17 +49,17 @@ typedef struct __attribute__((packed)) {
 } hbridge_drive_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: DRIVE W, BRAKE W, COAST W,
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: DRIVE W, BRAKE W, COAST W,
  * CURRENT R.
  */
-#define HBRIDGE_OPERATIONS(X, P)                                         \
-  X(P, DRIVE,   0x00, cmd_none_t,             hbridge_drive_args_t,   0) \
-  X(P, BRAKE,   0x01, cmd_none_t,             hbridge_channel_args_t, 0) \
-  X(P, COAST,   0x02, cmd_none_t,             hbridge_channel_args_t, 0) \
-  X(P, CURRENT, 0x03, hbridge_channel_args_t, int32_t,                0)
+#define CONTRACT_HBRIDGE_OPERATIONS(X, P)                                            \
+  X(P, OP_DRIVE,   0x00, cmd_none_t,             hbridge_drive_args_t,   0) \
+  X(P, OP_BRAKE,   0x01, cmd_none_t,             hbridge_channel_args_t, 0) \
+  X(P, OP_COAST,   0x02, cmd_none_t,             hbridge_channel_args_t, 0) \
+  X(P, OP_CURRENT, 0x03, hbridge_channel_args_t, int32_t,                0)
 
 MODULE_ID_DECLARE(HBRIDGE, 0x09)
-SYS_DEVICE_CONTRACT_DECLARE(HBRIDGE, 0x09)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_HBRIDGE, HBRIDGE, 0x09)
 
 /* Events of the contract: a channel fault, published by the driver; source = the device, channel = the channel, the
  * payload its current at the time. A fault is something the user must see: NOTIFY. */

@@ -40,6 +40,12 @@ uint64_t board_time_unix_ms(void);
 bool board_time_set(uint64_t unix_ms);
 
 /**
+ * @brief Time since the start in us. Monotonic: setting the clock does not move it. Safe in an ISR.
+ * @return Microseconds since the start
+ */
+uint64_t board_time_uptime_us(void);
+
+/**
  * @brief Time since the start in ms. Monotonic: setting the clock does not move it. Safe in an ISR.
  * @return Milliseconds since the start
  */

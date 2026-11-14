@@ -131,12 +131,17 @@ static void record_handler(uint8_t key, const cmd_in_t* in) {
 
 /* ---- the root handlers ---------------------------------------------------------------------------------------- */
 
-#define KEY_ECHO  0x31
-#define KEY_FAIL  0x32
-#define KEY_BLOCK 0x33
-#define KEY_BIG   0x34
-#define KEY_NEST  0x35
-MODULE_ID_DECLARE(TASKS_SELF, 0x36)
+MODULE_ID_DECLARE(TASKS_ECHO,  0x31)
+MODULE_ID_DECLARE(TASKS_FAIL,  0x32)
+MODULE_ID_DECLARE(TASKS_BLOCK, 0x33)
+MODULE_ID_DECLARE(TASKS_BIG,   0x34)
+MODULE_ID_DECLARE(TASKS_NEST,  0x35)
+MODULE_ID_DECLARE(TASKS_SELF,  0x36)
+#define KEY_ECHO  MODULE_ID_TASKS_ECHO
+#define KEY_FAIL  MODULE_ID_TASKS_FAIL
+#define KEY_BLOCK MODULE_ID_TASKS_BLOCK
+#define KEY_BIG   MODULE_ID_TASKS_BIG
+#define KEY_NEST  MODULE_ID_TASKS_NEST
 #define KEY_SELF  MODULE_ID_TASKS_SELF
 
 static err_h h_echo(CMD_F_PARAMS) {  /* answers what follows the key: [dir][payload] */
@@ -188,7 +193,12 @@ static err_h h_self(CMD_F_PARAMS) {  /* registers itself (ROUTER_MODULE_REGISTER
   return cmd_reply(out, in.data + 1, in.len - 1);
 }
 
-ROUTER_MODULE_REGISTER(TASKS_SELF, h_self)
+ROUTER_MODULE_REGISTER(TASKS_ECHO,  h_echo)
+ROUTER_MODULE_REGISTER(TASKS_FAIL,  h_fail)
+ROUTER_MODULE_REGISTER(TASKS_BLOCK, h_block)
+ROUTER_MODULE_REGISTER(TASKS_BIG,   h_big)
+ROUTER_MODULE_REGISTER(TASKS_NEST,  h_nest)
+ROUTER_MODULE_REGISTER(TASKS_SELF,  h_self)
 
 /* ---- the callbacks -------------------------------------------------------------------------------------------- */
 
@@ -551,11 +561,6 @@ static void test_a_router_that_registered_itself_is_bound_by_router_init(void) {
 }
 
 int main(void) {
-  TEST_ASSERT_NULL(router_register(KEY_ECHO, h_echo));
-  TEST_ASSERT_NULL(router_register(KEY_FAIL, h_fail));
-  TEST_ASSERT_NULL(router_register(KEY_BLOCK, h_block));
-  TEST_ASSERT_NULL(router_register(KEY_BIG, h_big));
-  TEST_ASSERT_NULL(router_register(KEY_NEST, h_nest));
   err_set_sink(sink_cb);
   TEST_ASSERT_NULL(router_init());
 

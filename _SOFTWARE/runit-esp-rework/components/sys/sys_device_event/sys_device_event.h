@@ -14,23 +14,23 @@ extern "C" {
  * No events.
  */
 
-// The contract's only op, a write with a tail (OP_WRITE_ON_EVENT, OP_ENTRY_W(EVENT, ON_EVENT)). Args = sys_event_t,
+// The contract's only op, a write with a tail (OP_DECLARE_ON_EVENT, OP_ENTRY_W(CONTRACT_EVENT, OP_ON_EVENT)). Args = sys_event_t,
 // then the payload (the call is as long as the event: the 20 B header and its `len` bytes).
-#define EVENT_OPERATIONS(X, P) \
-  X(P, ON_EVENT, 0x00, cmd_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL)
+#define CONTRACT_EVENT_OPERATIONS(X, P) \
+  X(P, OP_ON_EVENT, 0x00, cmd_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL)
 
 MODULE_ID_DECLARE(EVENT, 0x03)
-SYS_DEVICE_CONTRACT_DECLARE(EVENT, 0x03)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, EVENT, 0x03)
 
 /**
- * @brief Handler for a device op that receives an event (OP_WRITE_TAIL with args = sys_event_t and tail = event->len
- * bytes, checking tail_len == args->len else ERR_CMD_BAD_LEN). Used for EVENT/ON_EVENT (OP_WRITE_ON_EVENT) and for
+ * @brief Handler for a device op that receives an event (OP_DECLARE_WRITE_TAIL with args = sys_event_t and tail = event->len
+ * bytes, checking tail_len == args->len else ERR_CMD_BAD_LEN). Used for EVENT/ON_EVENT (OP_DECLARE_ON_EVENT) and for
  * a driver's own pin/event ops subscribed via sys_device_event_subscribe_op() or sys_io_claim*().
- * @usage OP_WRITE_EVENT(TCA6424A, INT) { if (sys_device_self_suspended()) { return NULL; } ... }
+ * @usage OP_DECLARE_EVENT(OWN_TCA6424A, OP_INT) { if (sys_device_self_suspended()) { return NULL; } ... }
  */
-#define OP_WRITE_EVENT(P, name)                                                                              \
+#define OP_DECLARE_EVENT(P, name)                                                                            \
   static err_h P##_w_##name##_event(SYS_DEVICE_CTX* c, const sys_event_t* event);                            \
-  OP_WRITE_TAIL(P, name) {                                                                                   \
+  OP_DECLARE_WRITE_TAIL(P, name) {                                                                           \
     ERR_CHECK(tail_len == args->len, ERR_CMD_BAD_LEN, .got = (uint16_t)(sizeof(sys_event_t) + tail_len),     \
               .need = (uint16_t)(sizeof(sys_event_t) + args->len));                                          \
     return P##_w_##name##_event(c, args);                                                                    \
@@ -38,17 +38,17 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, 0x03)
   static err_h P##_w_##name##_event(SYS_DEVICE_CTX* c CMD_UNUSED, const sys_event_t* event CMD_UNUSED)
 
 /**
- * @brief A driver's ON_EVENT handler: OP_WRITE_EVENT(EVENT, ON_EVENT). The row in the op table is
- * OP_ENTRY_W(EVENT, ON_EVENT).
- * @usage OP_WRITE_ON_EVENT { if (event->key.tag == IO_EV_FALLING) { return read_inputs(c); } return NULL; }
+ * @brief A driver's ON_EVENT handler: OP_DECLARE_EVENT(CONTRACT_EVENT, OP_ON_EVENT). The row in the op table is
+ * OP_ENTRY_W(CONTRACT_EVENT, OP_ON_EVENT).
+ * @usage OP_DECLARE_ON_EVENT { if (event->key.tag == IO_EV_FALLING) { return read_inputs(c); } return NULL; }
  */
-#define OP_WRITE_ON_EVENT OP_WRITE_EVENT(EVENT, ON_EVENT)
+#define OP_DECLARE_ON_EVENT OP_DECLARE_EVENT(CONTRACT_EVENT, OP_ON_EVENT)
 
 /**
  * @brief Adds device `device` as an inline listener delivering matching events to `op` of its current generation
  * (sys_device_deliver): wait for the lock and skip cleanly if the device is gone or another device holds the ID.
  * `op` is either the device's own op (SYS_DEVICE_CONTRACT_OWN, LOCAL + TAIL + ALWAYS if it should run suspended) or
- * EVENT_OP_ON_EVENT.
+ * CONTRACT_EVENT_OP_ON_EVENT.
  * @param[in]  filter Which events: a key, each field exact or SYS_EVENT_ANY_*
  * @param[in]  device The listener device (already created or inside its create())
  * @param[in]  op     Target write op
@@ -58,8 +58,8 @@ SYS_DEVICE_CONTRACT_DECLARE(EVENT, 0x03)
 MUST_USE err_h sys_device_event_subscribe_op(sys_event_key_t filter, uint8_t device, uint16_t op, uint16_t* handle);
 
 /**
- * @brief Adds device `device` as an inline listener to EVENT_OP_ON_EVENT: sys_device_event_subscribe_op() with
- * `op = EVENT_OP_ON_EVENT`.
+ * @brief Adds device `device` as an inline listener to CONTRACT_EVENT_OP_ON_EVENT: sys_device_event_subscribe_op() with
+ * `op = CONTRACT_EVENT_OP_ON_EVENT`.
  * @param[in]  filter Which events: a key, each field exact or SYS_EVENT_ANY_*
  * @param[in]  device The listener device
  * @param[out] handle Its handle, for sys_event_unsubscribe()

@@ -3,5 +3,5 @@
 idf_component_register(
     SRCS "sys_i2c.c"
     INCLUDE_DIRS "." "errors"
-    REQUIRES errors router sys_device
+    REQUIRES errors cmd sys_device
 )

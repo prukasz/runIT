@@ -188,7 +188,7 @@ static void urgent_task(void* arg) {
 }
 
 err_h router_init(void) {
-  ERR_TRY(router_register_pending());
+  ERR_TRY(router_root_init());
   if (router_urgent_task_h == NULL) {
     U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
   }

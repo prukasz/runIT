@@ -2,8 +2,8 @@
 
 Spec: `SYS_IO.MD` (this folder).
 
-- Every change in this folder, and in `sys_io_claim`, is followed by an edit of `SYS_IO.MD` and of this file, if it is needed.
-- Op numbers (`IO_OPERATIONS`), event codes (`IO_EVENTS`) and their payloads, the enum values of `sys_io_mode_e` and `sys_io_intr_mode_e`, the error tags and the `SYS_IO_PIN_NONE` encoding are wire format or stored by devices: do not renumber them. New ones go at the end; `0x02`, `0x08` and `0x0E` stay unused.
+- Every change in this folder is followed by an edit of `SYS_IO.MD` and of this file, if it is needed.
+- Op numbers (`CONTRACT_IO_OPERATIONS`), event codes (`IO_EVENTS`) and their payloads, the enum values of `sys_io_mode_e` and `sys_io_intr_mode_e`, the error tags and the `SYS_IO_PIN_NONE` encoding are wire format or stored by devices: do not renumber them. New ones go at the end; `0x02`, `0x08` and `0x0E` stay unused.
 - Changing the contract table, an enum, the events, the error map or `contract_io.json` requires an update in `templates/`: run `sh templates/sync.sh`. A descriptor row names the same op number and args struct as its table row. A new op that takes a pin gets its `pin_state` in `contract_io.json` (templates/AGENTS.md "Command pins"), matching the mode its handlers check: the app lists only such pins.
 - The wrappers in `sys_io.c` are only the ones with logic of their own; a plain call is `SYS_IO_WRITE` / `SYS_IO_READ`. No device-specific logic goes there.
 - `sys_io_prepare` and `sys_io_release` tolerate `ERR_DEV_UNKNOWN_OP` only. `sys_io_prepare_input` also falls back to a plain input on `ERR_IO_MODE_UNSUPPORTED`. Every other failure is returned.

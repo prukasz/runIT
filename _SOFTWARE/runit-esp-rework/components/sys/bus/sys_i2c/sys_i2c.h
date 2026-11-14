@@ -99,21 +99,21 @@ typedef struct __attribute__((packed)) {
 #define SYS_I2C_RAW_SPEED_HZ 100000u  // the clock of RAW's one transfer
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: ATTACH W, DETACH W, XFER W,
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: ATTACH W, DETACH W, XFER W,
  * PROBE R, SCAN R, RECOVER W, RAW R and W. RAW's value is its head: the data follows it (TAIL), so a bus writes its
- * write as OP_WRITE_TAIL(I2C, RAW), with at least 1 byte of tail, and its read answers the head and the data, not
+ * write as OP_DECLARE_WRITE_TAIL(CONTRACT_I2C, OP_RAW), with at least 1 byte of tail, and its read answers the head and the data, not
  * CMD_REPLY.
  */
-#define I2C_OPERATIONS(X, P)                                                                                \
-  X(P, ATTACH,  0x00, cmd_none_t,      i2c_attach_args_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
-  X(P, DETACH,  0x01, cmd_none_t,      i2c_addr_args_t,   SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
-  X(P, XFER,    0x02, cmd_none_t,      i2c_xfer_t,        SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
-  X(P, PROBE,   0x03, i2c_addr_args_t, uint8_t,           0)                                                \
-  X(P, SCAN,    0x04, cmd_none_t,      i2c_scan_t,        SYS_DEVICE_OP_NOLOCK)                             \
-  X(P, RECOVER, 0x05, cmd_none_t,      cmd_none_t,        0)                                                \
-  X(P, RAW,     0x06, i2c_raw_key_t,   i2c_raw_t,         SYS_DEVICE_OP_TAIL)
+#define CONTRACT_I2C_OPERATIONS(X, P)                                                                                   \
+  X(P, OP_ATTACH,  0x00, cmd_none_t,      i2c_attach_args_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
+  X(P, OP_DETACH,  0x01, cmd_none_t,      i2c_addr_args_t,   SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
+  X(P, OP_XFER,    0x02, cmd_none_t,      i2c_xfer_t,        SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
+  X(P, OP_PROBE,   0x03, i2c_addr_args_t, uint8_t,           0)                                                \
+  X(P, OP_SCAN,    0x04, cmd_none_t,      i2c_scan_t,        SYS_DEVICE_OP_NOLOCK)                             \
+  X(P, OP_RECOVER, 0x05, cmd_none_t,      cmd_none_t,        0)                                                \
+  X(P, OP_RAW,     0x06, i2c_raw_key_t,   i2c_raw_t,         SYS_DEVICE_OP_TAIL)
 
-SYS_DEVICE_CONTRACT_DECLARE(I2C, 0x02)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_I2C, I2C, 0x02)
 
 /* ----------------------------------------------------------------------------
  * The client: a chip on a bus

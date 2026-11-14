@@ -6,6 +6,7 @@
 #include "host_assert.h"
 #include "router_table.h"
 #include "host_mocks.h"
+#include "utils.h"
 
 /* ---- a module the tests route to: its table and handlers, as a module writes them ---------------------------- */
 
@@ -18,14 +19,14 @@ typedef struct __attribute__((packed)) {
   uint8_t id;
 } id_args_t;
 
-#define TEST_OPERATIONS(X, P)                          \
-  X(P, PAIR,      0x01, pair_args_t, pair_args_t, 0)   \
-  X(P, PING,      0x02, cmd_none_t,  uint8_t,     0)   \
-  X(P, NAME,      0x03, cmd_none_t,  id_args_t,   0)   \
-  X(P, FAIL,      0x04, id_args_t,   id_args_t,   0)   \
-  X(P, PARTIAL,   0x05, cmd_none_t,  cmd_none_t,  0)   \
-  X(P, READONLY,  0x06, cmd_none_t,  uint8_t,     0)   \
-  X(P, WRITEONLY, 0x07, cmd_none_t,  pair_args_t, 0)
+#define TEST_OPERATIONS(X, P)                             \
+  X(P, OP_PAIR,      0x01, pair_args_t, pair_args_t, 0)   \
+  X(P, OP_PING,      0x02, cmd_none_t,  uint8_t,     0)   \
+  X(P, OP_NAME,      0x03, cmd_none_t,  id_args_t,   0)   \
+  X(P, OP_FAIL,      0x04, id_args_t,   id_args_t,   0)   \
+  X(P, OP_PARTIAL,   0x05, cmd_none_t,  cmd_none_t,  0)   \
+  X(P, OP_READONLY,  0x06, cmd_none_t,  uint8_t,     0)   \
+  X(P, OP_WRITEONLY, 0x07, cmd_none_t,  pair_args_t, 0)
 
 CMD_TABLE_DECLARE(TEST)
 
@@ -49,22 +50,22 @@ static err_h pair(void* ctx, const pair_args_t* args, cmd_out_t* out) {
 static err_h ping(void* ctx, cmd_out_t* out) {
   g.calls++;
   g.ctx = ctx;
-  return CMD_REPLY(TEST, PING, 0x55);
+  return CMD_REPLY(TEST, OP_PING, 0x55);
 }
 
-ROUTER_READ(TEST, PAIR) {
+ROUTER_READ(TEST, OP_PAIR) {
   return pair(c, args, out);
 }
 
-ROUTER_WRITE(TEST, PAIR) {
+ROUTER_WRITE(TEST, OP_PAIR) {
   return pair(c, args, out);
 }
 
-ROUTER_READ(TEST, PING) {
+ROUTER_READ(TEST, OP_PING) {
   return ping(c, out);
 }
 
-ROUTER_WRITE_TAIL(TEST, NAME) {
+ROUTER_WRITE_TAIL(TEST, OP_NAME) {
   g.calls++;
   g.a = args->id;
   g.tail_len = (uint8_t)tail_len;
@@ -72,17 +73,17 @@ ROUTER_WRITE_TAIL(TEST, NAME) {
   return cmd_reply(out, tail, tail_len);
 }
 
-ROUTER_READ(TEST, FAIL) {
+ROUTER_READ(TEST, OP_FAIL) {
   ERR_CHECK(args->id != 0, ERR_CMD_BAD_ARG);  /* id 0 is refused */
   return NULL;
 }
 
-ROUTER_WRITE(TEST, FAIL) {
+ROUTER_WRITE(TEST, OP_FAIL) {
   ERR_CHECK(args->id != 0, ERR_CMD_BAD_ARG);
   return NULL;
 }
 
-static err_h TEST_r_PARTIAL(CMD_F_PARAMS) {
+static err_h TEST_r_OP_PARTIAL(CMD_F_PARAMS) {
   (void)ctx;
   (void)in;
   const uint8_t half[] = {1, 2, 3};
@@ -90,23 +91,27 @@ static err_h TEST_r_PARTIAL(CMD_F_PARAMS) {
   return ERR_NEW(ERR_CMD_BAD_ARG);
 }
 
-ROUTER_READ(TEST, READONLY) {
+ROUTER_READ(TEST, OP_READONLY) {
   return ping(c, out);
 }
 
-ROUTER_WRITE(TEST, WRITEONLY) {
+ROUTER_WRITE(TEST, OP_WRITEONLY) {
   return pair(c, args, out);
 }
 
 static const router_op_t k_ops[] = {
-    ROUTER_ENTRY(TEST, PAIR),        ROUTER_ENTRY_R(TEST, PING),    ROUTER_ENTRY_W(TEST, NAME),
-    ROUTER_ENTRY(TEST, FAIL),        ROUTER_ENTRY_R(TEST, PARTIAL), ROUTER_ENTRY_R(TEST, READONLY),
-    ROUTER_ENTRY_W(TEST, WRITEONLY),
+    ROUTER_ENTRY(TEST, OP_PAIR),        ROUTER_ENTRY_R(TEST, OP_PING),    ROUTER_ENTRY_W(TEST, OP_NAME),
+    ROUTER_ENTRY(TEST, OP_FAIL),        ROUTER_ENTRY_R(TEST, OP_PARTIAL), ROUTER_ENTRY_R(TEST, OP_READONLY),
+    ROUTER_ENTRY_W(TEST, OP_WRITEONLY),
 };
 static ROUTER_MODULE(mod_router, k_ops)
 
-#define KEY_MOD  0x21
-#define KEY_ROOT 0x22  /* a plain handler registered at the root */
+MODULE_ID_DECLARE(TEST_MOD,  0x21)
+MODULE_ID_DECLARE(TEST_ROOT, 0x22)
+#define KEY_MOD  MODULE_ID_TEST_MOD
+#define KEY_ROOT MODULE_ID_TEST_ROOT  /* a plain handler registered at the root */
+
+ROUTER_MODULE_REGISTER(TEST_MOD, mod_router)
 
 static err_h root_handler(CMD_F_PARAMS) {
   g.calls++;
@@ -116,14 +121,15 @@ static err_h root_handler(CMD_F_PARAMS) {
   return cmd_reply(out, in.data, in.len);
 }
 
+ROUTER_MODULE_REGISTER(TEST_ROOT, root_handler)
+
 static int s_registered;  /* keys of the root table so far (it cannot be emptied) */
 
 void setUp(void) {
   host_log_clear();
   memset(&g, 0, sizeof(g));
   if (s_registered == 0) {
-    TEST_ASSERT_NULL(router_register(KEY_MOD, mod_router));
-    TEST_ASSERT_NULL(router_register(KEY_ROOT, root_handler));
+    TEST_ASSERT_NULL(router_root_init());
     s_registered = 2;
   }
 }
@@ -390,13 +396,15 @@ static void test_route_unknown_root_key_and_no_key(void) {
   err_free(e);
 }
 
-/* ---- router_register ------------------------------------------------------------------------------------------ */
+/* ---- router_register / router_root_init ---------------------------------------------------------------- */
 
 static void test_register_refuses_key_zero_and_no_handler(void) {
-  err_h e = router_register(0, root_handler);
+  router_register(0, root_handler);
+  err_h e = router_root_init();
   TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
   err_free(e);
-  e = router_register(0x50, NULL);
+  router_register(0x50, NULL);
+  e = router_root_init();
   TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
   err_free(e);
   const uint8_t req[] = {0x50, 0};  /* and nothing was bound */
@@ -408,7 +416,8 @@ static void test_register_refuses_key_zero_and_no_handler(void) {
 }
 
 static void test_register_refuses_a_key_taken(void) {
-  err_h e = router_register(KEY_MOD, root_handler);
+  router_register(KEY_MOD, root_handler);
+  err_h e = router_root_init();
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY_TAKEN, e);
   TEST_ASSERT_EQUAL_UINT8(KEY_MOD, ERR_DATA(e, ERR_ROUTER_KEY_TAKEN)->key);
   err_free(e);
@@ -423,10 +432,12 @@ static void test_register_a_full_table_refuses_one_more_and_keeps_the_rest(void)
   uint8_t key = 0x40;
   err_h e = NULL;
   while (s_registered < CONFIG_ROUTER_MAX_KEYS) {
-    TEST_ASSERT_NULL(router_register(key++, root_handler));
+    router_register(key++, root_handler);
+    TEST_ASSERT_NULL(router_root_init());
     s_registered++;
   }
-  e = router_register(key, root_handler);
+  router_register(key, root_handler);
+  e = router_root_init();
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_TABLE_FULL, e);
   TEST_ASSERT_EQUAL_UINT8(key, ERR_DATA(e, ERR_ROUTER_TABLE_FULL)->key);
   err_free(e);

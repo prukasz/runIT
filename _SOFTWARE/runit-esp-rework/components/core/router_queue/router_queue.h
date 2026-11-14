@@ -58,9 +58,10 @@ typedef struct cmd_req {
 uint32_t cmd_err_record(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
 
 /**
- * @brief Registers the module routers that registered themselves (router_register_pending), then starts the urgent and
- * work tasks. The app's own router_register calls come before.
- * @return ERR_ROUTER_KEY_TAKEN / ERR_ROUTER_TABLE_FULL of a self-registered router, or the error of the task start
+ * @brief Binds every module router queued via ROUTER_MODULE_REGISTER (router_root_init), then starts the urgent
+ * and work tasks.
+ * @return ERR_CMD_BAD_ARG / ERR_ROUTER_KEY_TAKEN / ERR_ROUTER_TABLE_FULL of a registered router, or the error of the
+ *         task start
  */
 MUST_USE err_h router_init(void);
 

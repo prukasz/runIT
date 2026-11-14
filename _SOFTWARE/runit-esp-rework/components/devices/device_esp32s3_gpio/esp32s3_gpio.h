@@ -46,7 +46,7 @@ typedef struct {
   bool suspended;          /**< Made safe by SUSPEND: PWM at 0, push-pull low, open-drain released */
   bool saved_level;        /**< The output level to bring back after a suspend */
   sys_io_intr_cfg_t intr;  /**< INTR: edges (the ISR) on a digital pin, thresholds (the ADC task) on an ADC pin */
-  int64_t last_isr_us;     /**< The last edge published, for the debounce */
+  uint64_t last_isr_us;    /**< The last edge published, for the debounce */
 } esp32s3_gpio_pin_t;
 
 /**

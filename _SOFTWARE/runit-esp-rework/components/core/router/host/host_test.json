@@ -3,7 +3,6 @@
     "router.c"
   ],
   "tests": [
-    "host/test_cmd.c",
     "host/test_router.c"
   ],
   "includes": [
@@ -11,6 +10,7 @@
   ],
   "config": "host/router_host_config.h",
   "deps": [
+    "cmd",
     "errors"
   ]
 }

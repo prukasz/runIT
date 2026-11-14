@@ -24,6 +24,14 @@ uint64_t board_time_now_ms(void) {
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
 }
+uint64_t board_time_uptime_us(void) {
+  if (!s_real_time) {
+    return s_now_ms * 1000u;
+  }
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
 uint64_t board_time_uptime_ms(void) { return board_time_now_ms(); }
 uint64_t board_time_at_uptime_ms(uint64_t uptime_ms) { return uptime_ms; }
 

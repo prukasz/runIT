@@ -16,8 +16,8 @@ extern "C" {
  * ALERT   - arms a hardware current alert of the channel at a threshold in mA (sys_power_alert_e)
  * POWER   - the channel's power in mW
  * Events  - OCP_WARNING, OCP_CRITICAL (PMON_EVENTS below)
- * @usage int32_t mA; ERR_TRY(SYS_DEVICE_GET(ina, PMON, CURRENT, &mA, .channel = 1));
- *        ERR_TRY(SYS_DEVICE_SET(ina, PMON, ALERT, .channel = 1, .alert = SYS_POWER_ALERT_OCP_WARNING,
+ * @usage int32_t mA; ERR_TRY(SYS_DEVICE_GET(ina, CONTRACT_PMON, OP_CURRENT, &mA, .channel = 1));
+ *        ERR_TRY(SYS_DEVICE_SET(ina, CONTRACT_PMON, OP_ALERT, .channel = 1, .alert = SYS_POWER_ALERT_OCP_WARNING,
  *                               .threshold_mA = 1500));
  */
 
@@ -41,17 +41,17 @@ typedef struct __attribute__((packed)) {
 } pmon_alert_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: VOLTAGE R, CURRENT R, ALERT W,
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: VOLTAGE R, CURRENT R, ALERT W,
  * POWER R.
  */
-#define PMON_OPERATIONS(X, P)                                    \
-  X(P, VOLTAGE, 0x00, pmon_channel_args_t, int32_t,           0) \
-  X(P, CURRENT, 0x01, pmon_channel_args_t, int32_t,           0) \
-  X(P, ALERT,   0x02, cmd_none_t,          pmon_alert_args_t, 0) \
-  X(P, POWER,   0x03, pmon_channel_args_t, int32_t,           0)
+#define CONTRACT_PMON_OPERATIONS(X, P)                                       \
+  X(P, OP_VOLTAGE, 0x00, pmon_channel_args_t, int32_t,           0) \
+  X(P, OP_CURRENT, 0x01, pmon_channel_args_t, int32_t,           0) \
+  X(P, OP_ALERT,   0x02, cmd_none_t,          pmon_alert_args_t, 0) \
+  X(P, OP_POWER,   0x03, pmon_channel_args_t, int32_t,           0)
 
 MODULE_ID_DECLARE(PMON, 0x04)
-SYS_DEVICE_CONTRACT_DECLARE(PMON, 0x04)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PMON, PMON, 0x04)
 
 /* Events of the contract, published by a device for an armed alert: source = the device, channel = the measured
  * channel, the payload the current that crossed it. Both matter to the user: NOTIFY. */

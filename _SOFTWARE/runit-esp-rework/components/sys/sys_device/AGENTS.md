@@ -21,7 +21,7 @@ Spec: `SYS_DEVICE.MD` (this folder).
 - While a SUSPEND sweep runs, a write from no device and a CREATE are refused; a device's own calls pass. Keep both halves: without the second a `suspend()` hook can't reach the devices it uses.
 - A driver's source has one shape: `SYS_DEVICE_TYPE_DECLARE` (the type ID, written once), the struct and `#define SYS_DEVICE_CTX`, the handlers, the typed hooks, the op table, `SYS_DEVICE_TYPE_DEFINE` last. A driver never fills `sys_device_type_t`, casts `ctx` or writes its type ID a second time.
 - Every op is a row of a table, a contract's or the device's own (`SYS_DEVICE_OWN_DECLARE`): its number, key, value and flags come from there. Never a `#define` of an own op, a hand-written row with `.flags`, or a handler named by hand.
-- An op's handler follows its table row: `OP_WRITE_TAIL` for an op marked `SYS_DEVICE_OP_TAIL`, `OP_WRITE` for every other (both are asserted). Never write a `cmd_f` by hand to parse a payload.
+- An op's handler follows its table row: `OP_DECLARE_WRITE_TAIL` for an op marked `SYS_DEVICE_OP_TAIL`, `OP_DECLARE_WRITE` for every other (both are asserted). Never write a `cmd_f` by hand to parse a payload.
 - The interceptor's stages run without any lock of the registry; `done` is called once for every call `fn` let through, whatever happened to it, and never for one `fn` refused.
 - What a device gives out to one device has an owner, `sys_device_caller()` of the op that took it, named in the error and checked by the ops that use and free it. A driver never checks the type of another device.
 - The error map and `errors/errors_sys_device.json` change together; a tag no code raises is removed from both. After a change run `sh templates/sync.sh`.

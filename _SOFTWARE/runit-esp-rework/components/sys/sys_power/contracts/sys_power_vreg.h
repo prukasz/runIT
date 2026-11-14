@@ -15,8 +15,8 @@ extern "C" {
  * VOLTAGE - output voltage in mV
  * CURRENT - output current limit in mA
  * Events  - OVP, OCP, SCP, READY (VREG_EVENTS below)
- * @usage ERR_TRY(SYS_DEVICE_SET(tps, VREG, VOLTAGE, .voltage_mV = 9000));
- *        ERR_TRY(SYS_DEVICE_SET(tps, VREG, ENABLE, .enable = 1));
+ * @usage ERR_TRY(SYS_DEVICE_SET(tps, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 9000));
+ *        ERR_TRY(SYS_DEVICE_SET(tps, CONTRACT_VREG, OP_ENABLE, .enable = 1));
  */
 
 /** @brief ENABLE args */
@@ -35,15 +35,15 @@ typedef struct __attribute__((packed)) {
 } vreg_current_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: ENABLE W, VOLTAGE W, CURRENT W.
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: ENABLE W, VOLTAGE W, CURRENT W.
  */
-#define VREG_OPERATIONS(X, P)                             \
-  X(P, ENABLE,  0x00, cmd_none_t, vreg_enable_args_t,  0) \
-  X(P, VOLTAGE, 0x01, cmd_none_t, vreg_voltage_args_t, 0) \
-  X(P, CURRENT, 0x02, cmd_none_t, vreg_current_args_t, 0)
+#define CONTRACT_VREG_OPERATIONS(X, P)                                \
+  X(P, OP_ENABLE,  0x00, cmd_none_t, vreg_enable_args_t,  0) \
+  X(P, OP_VOLTAGE, 0x01, cmd_none_t, vreg_voltage_args_t, 0) \
+  X(P, OP_CURRENT, 0x02, cmd_none_t, vreg_current_args_t, 0)
 
 MODULE_ID_DECLARE(VREG, 0x05)
-SYS_DEVICE_CONTRACT_DECLARE(VREG, 0x05)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, VREG, 0x05)
 
 /* Events of the contract: source = the device, channel 0. The faults matter to the user (NOTIFY), with the output's
  * setting at the time; READY is code flow (a program waiting for its rail after ENABLE / a higher VOLTAGE, which

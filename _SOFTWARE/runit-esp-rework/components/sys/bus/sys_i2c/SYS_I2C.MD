@@ -6,7 +6,7 @@ Component `components/sys/bus/sys_i2c/`. A bus is a device: the ESP32-S3's own c
 
 | File | Role |
 |---|---|
-| `sys_i2c.h` | The contract table (`I2C_OPERATIONS`), its frames, the client (`sys_i2c_dev_t`, `sys_i2c_dev_attach`, transfers, register helpers) |
+| `sys_i2c.h` | The contract table (`CONTRACT_I2C_OPERATIONS`), its frames, the client (`sys_i2c_dev_t`, `sys_i2c_dev_attach`, transfers, register helpers) |
 | `sys_i2c.c` | The client; claims the contract's ID (`SYS_DEVICE_CONTRACT_DEFINE`) |
 | `errors/sys_i2c_errors.h`, `errors/errors_sys_i2c.json` | `ERR_SYS_I2C_MAP` (`ERR_MOD_SYS_I2C`) and the messages |
 | `CMakeLists.txt` | Requires `errors`, `cmd`, `sys_device` |

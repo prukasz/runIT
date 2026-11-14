@@ -3,6 +3,6 @@
 # (SYS_DEVICE_TYPE_DEFINE) and nothing references it.
 idf_component_register(
     SRCS "device_esp32s3_gpio.c" "esp32s3_gpio_pwm.c" "esp32s3_gpio_adc.c"
-    PRIV_REQUIRES errors utils router sys_device sys_event sys_io esp_driver_gpio esp_driver_ledc esp_adc esp_timer
+    PRIV_REQUIRES errors time utils cmd sys_device sys_event sys_io esp_driver_gpio esp_driver_ledc esp_adc
     WHOLE_ARCHIVE
 )

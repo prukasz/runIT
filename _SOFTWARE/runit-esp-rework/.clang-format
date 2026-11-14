@@ -1,0 +1,4 @@
+# Formatting is off: the code is formatted by hand (120 columns, Google-like, #define values aligned in a column).
+# A clang-format pass would rewrap code and comments and break the `//#ref-*` / `//@alias` markers the generators read.
+DisableFormat: true
+SortIncludes: Never

@@ -4,14 +4,14 @@ Not a module with state: a set of device ops (contract `IO` = `0x01`, its module
 
 | File | Contents |
 |---|---|
-| `sys_io.h` | The caller's side: the table `IO_OPERATIONS`, the frames, `sys_io_mode_e` and `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), the events `IO_EVENTS`, `sys_io_pin_t`, `SYS_IO_WRITE` / `SYS_IO_READ`, the wrappers |
+| `sys_io.h` | The caller's side: the table `CONTRACT_IO_OPERATIONS`, the frames, `sys_io_mode_e` and `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), the events `IO_EVENTS`, `sys_io_pin_t`, `SYS_IO_WRITE` / `SYS_IO_READ`, the wrappers |
 | `sys_io.c` | The wrappers; claims the contract's ID (`SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01)`) and the error module |
-| `driver/sys_io_driver.h`, `.c` | A device with pins: the pin state it keeps (`sys_io_pins_t`), its checks, the lock ops |
+| `driver/sys_io_driver.h`, `.c` | The driver side of IO: pin state (`sys_io_pins_t`), checks and lock ops for a device with pins, plus claiming another device's pin (`sys_io_claim_t`, `sys_io_claim_*`) |
 | `errors/sys_io_errors.h`, `errors/errors_sys_io.json` | The module's error tags and their messages |
 | `contract_io.json` | The contract's descriptor (checked against the table by `templates/sync.sh`) |
 | `AGENTS.md` | Rules for changing this folder |
 
-A device that uses another device's pin (a chip's RST, OE, EN, an alert line) takes it through `sys_io_claim` (`components/sys/sys_io_claim/`), a component of its own: it is the only part of IO that needs the EVENT contract.
+A device that uses another device's pin (a chip's RST, OE, EN, an alert line) takes it through `sys_io_claim_*` in `driver/sys_io_driver.h`: the driver side of IO (`sys_io_driver.h`, analogous to `sys_device_driver.h`) is the only part that bridges into the EVENT contract (`sys_device_event`).
 
 ## Pins
 
@@ -21,7 +21,7 @@ Which device a pin is on is the board's configuration, never a driver's: a drive
 
 ## Ops
 
-The contract is the table `IO_OPERATIONS(X, P)` (`X(P, NAME, n, key_t, value_t, flags)`): `IO_OP_<NAME>`, `IO_key_<NAME>_t` / `IO_value_<NAME>_t`, the handlers `OP_READ(IO, NAME)` / `OP_WRITE(IO, NAME)` and the rows `OP_ENTRY(IO, NAME)` / `OP_ENTRY_R` / `OP_ENTRY_W` all come from it (SYS_DEVICE.MD). The read of an RW op takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which). Payloads are packed little-endian structs.
+The contract is the table `CONTRACT_IO_OPERATIONS(X, P)` (`X(P, OP_NAME, n, key_t, value_t, flags)`): `CONTRACT_IO_<OP_NAME>`, `CONTRACT_IO_key_<OP_NAME>_t` / `CONTRACT_IO_value_<OP_NAME>_t`, the handlers `OP_DECLARE_READ(CONTRACT_IO, OP_NAME)` / `OP_DECLARE_WRITE(CONTRACT_IO, OP_NAME)` and the rows `OP_ENTRY(CONTRACT_IO, OP_NAME)` / `OP_ENTRY_R` / `OP_ENTRY_W` all come from it (SYS_DEVICE.MD). The read of an RW op takes the pin and answers what its write takes, the pin included; a device may have one side only (OPS says which). Payloads are packed little-endian structs.
 
 | Op | Side | Write args / read answer |
 |---|---|---|
@@ -50,12 +50,12 @@ The contract is the table `IO_OPERATIONS(X, P)` (`X(P, NAME, n, key_t, value_t, 
 ## Calls
 
 ```c
-ERR_TRY(SYS_IO_WRITE(pin, LEVEL, .level = 1));
-ERR_TRY(SYS_IO_WRITE(pin, INTR, .cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE}));
-io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, VOLTAGE, &v));
+ERR_TRY(SYS_IO_WRITE(pin, OP_LEVEL, .level = 1));
+ERR_TRY(SYS_IO_WRITE(pin, OP_INTR, .cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE}));
+io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, OP_VOLTAGE, &v));
 ```
 
-`SYS_IO_WRITE(p, NAME, fields)` / `SYS_IO_READ(p, NAME, &answer)` are `SYS_DEVICE_SET` / `SYS_DEVICE_GET` on the pin's device with `.pin` filled in: the frame comes from the table and the compiler checks the field names. The wrappers in `sys_io.c` are only the ones with logic of their own:
+`SYS_IO_WRITE(p, OP_NAME, fields)` / `SYS_IO_READ(p, OP_NAME, &answer)` are `SYS_DEVICE_SET` / `SYS_DEVICE_GET` on the pin's device with `.pin` filled in: the frame comes from the table and the compiler checks the field names. The wrappers in `sys_io.c` are only the ones with logic of their own:
 
 | Wrapper | What it does |
 |---|---|
@@ -70,7 +70,7 @@ io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, VOLTAGE, &v));
 A device keeps one `sys_io_pins_t`: which pins exist (`available`), which are locked (`locked`) and by whom (`owner[64]`). `sys_io_pins_init(&s, count)` makes pins `0..count-1` exist, none locked, every owner `SYS_DEVICE_ID_NONE`; a device whose pins are not contiguous sets `available` itself (the ESP32-S3 has no GPIO 22-25).
 
 - Before every write of the contract the handler calls `sys_io_pins_check_free(&c->pins, c->id, pin)`, before a read `sys_io_pins_check`.
-- AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so they are the same on every device: `SYS_IO_PINS_HANDLERS` writes them (the driver's struct has the member `pins`) and `SYS_IO_PINS_ENTRIES` lists their rows.
+- AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so they are the same on every device: `SYS_IO_PINS_HANDLERS` writes them (the driver's struct has the members `id` and `pins`) and `SYS_IO_PINS_ENTRIES` lists their rows.
 - Nothing is reserved by a driver: a device reports every pin it has in AVAILABLE, whoever uses a pin for something else locks it, and LOCKED says what is taken. Free pins: `AVAILABLE & ~LOCKED`.
 
 ### Locked pins and their owners
@@ -87,7 +87,7 @@ A pin another device depends on (PCA9685's OE, a chip's RST, an I2C bus's SDA) i
 
 `device_esp32s3_gpio` (type `0x0040`, one per board, `runit-esp-rework/components/devices/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
 
-## A device that uses another device's pin (`sys_io_claim`)
+## A device that uses another device's pin (`driver/sys_io_driver.h`)
 
 The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `create()`; the take declares the use of the pin's device (`sys_device_use`) and adds the pin as a resource of the owner, so the registry gives it back when the owner is removed or its `create()` fails. A driver never releases a pin itself.
 
@@ -98,7 +98,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 | `sys_io_claim_input(owner, p, pin, event, op, mode)` | Input (`sys_io_prepare_input`), `event` (0: none) to the owner's own op `op`, interrupt `mode`, locked |
 | `sys_io_claim_peripheral(owner, p, pin)` | Locked, its mode left to a peripheral of the pin's own chip |
 
-- `sys_io_claim_drive(p, level)` writes LEVEL of a pin the owner locked and does nothing for one that is not locked, so an optional pin needs no check. Any other write of a taken pin is the IO op itself: `SYS_IO_WRITE(p->pin, INTR, ...)`.
+- `sys_io_claim_drive(p, level)` writes LEVEL of a pin the owner locked and does nothing for one that is not locked, so an optional pin needs no check. Any other write of a taken pin is the IO op itself: `SYS_IO_WRITE(p->pin, OP_INTR, ...)`.
 - The release undoes what the take did: unsubscribe, UNLOCK, RESET (`sys_io_release`). Set `p->keep = true` after the take to leave an output as it is (PCA9685's OE stays at its outputs-off level).
 - `SYS_IO_PIN_NONE` is stored and nothing is done, so an optional pin needs no check at the call site.
 - Called from an op of the owner only (`create()`, `suspend()`, `resume()`, a timer's op, a subscribed event op): the pin's device lets its owner write because the owner is the caller.
@@ -114,7 +114,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 | `IO_EV_ADC_OUTSIDE` | `0x03` | `i32 mV`: the reading |
 | `IO_EV_ADC_INSIDE` | `0x04` | `i32 mV`: the reading |
 
-The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the event task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_WRITE_EVENT`).
+The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the event task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_DECLARE_EVENT`).
 
 ## Errors (module `0x01`, `ERR_MOD_SYS_IO` = `MODULE_ID_IO`)
 

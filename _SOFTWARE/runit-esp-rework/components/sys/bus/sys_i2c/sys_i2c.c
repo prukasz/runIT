@@ -17,7 +17,7 @@ static err_h check_dev(const sys_i2c_dev_t* dev) {
 static err_h xfer(const sys_i2c_dev_t* dev, const uint8_t* w1, size_t n1, const uint8_t* w2, size_t n2, uint8_t* r,
                   size_t rn) {
   const i2c_xfer_t x = {.addr = dev->addr, .w1 = w1, .n1 = n1, .w2 = w2, .n2 = n2, .r = r, .rn = rn};
-  return SYS_DEVICE_WRITE(dev->bus, I2C, XFER, &x);
+  return SYS_DEVICE_WRITE(dev->bus, CONTRACT_I2C, OP_XFER, &x);
 }
 
 static err_h reg_write(const sys_i2c_dev_t* dev, uint8_t reg, const uint8_t* data, size_t len) {
@@ -41,16 +41,16 @@ static err_h dev_release(void* arg) {
     return NULL;
   }
   dev->attached = 0;
-  return SYS_DEVICE_SET(dev->bus, I2C, DETACH, .addr = dev->addr);
+  return SYS_DEVICE_SET(dev->bus, CONTRACT_I2C, OP_DETACH, .addr = dev->addr);
 }
 
 err_h sys_i2c_dev_attach(uint8_t owner, sys_i2c_dev_t* dev, uint8_t bus, uint8_t addr, uint32_t speed_Hz) {
   ERR_CHECK(dev != NULL, ERR_I2C_BAD_ARG);
   dev->bus = bus;
   dev->addr = addr;
-  ERR_TRY(sys_device_require_op(owner, bus, I2C_OP_XFER, CMD_DIR_WRITE));  // declares the use as well
+  ERR_TRY(sys_device_require_op(owner, bus, CONTRACT_I2C_OP_XFER, CMD_DIR_WRITE));  // declares the use as well
   ERR_TRY(sys_device_res_add(owner, &dev->res, dev_release, dev));         // before the address is taken
-  ERR_TRY(SYS_DEVICE_SET(bus, I2C, ATTACH, .addr = addr, .speed_Hz = speed_Hz));
+  ERR_TRY(SYS_DEVICE_SET(bus, CONTRACT_I2C, OP_ATTACH, .addr = addr, .speed_Hz = speed_Hz));
   dev->attached = 1;
   return NULL;
 }

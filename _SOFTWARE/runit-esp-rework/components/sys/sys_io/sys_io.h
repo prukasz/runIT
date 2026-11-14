@@ -17,7 +17,7 @@ extern "C" {
  * ops it can in its table, an op it doesn't have answers ERR_DEV_UNKNOWN_OP. A device's pin is (device ID, pin); using
  * it is a call of that device's op, the same one a remote command makes. This header is the caller's side: the
  * contract, SYS_IO_WRITE / SYS_IO_READ (the call, typed by the contract table) and the wrappers with logic of their
- * own. A device with pins: sys_io_driver.h; a device that uses another one's pin: sys_io_claim.h.
+ * own. A device driver (with pins or claiming another one's pin): sys_io_driver.h.
  *
  * LEVEL        - the digital level of a pin, set and read
  * TOGGLE       - inverts the level of an output pin
@@ -137,27 +137,28 @@ typedef struct __attribute__((packed)) {
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
- * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives IO_OP_<NAME>, IO_key_<NAME>_t and
- * IO_value_<NAME>_t; a driver writes OP_READ(IO, NAME) / OP_WRITE(IO, NAME) and lists OP_ENTRY(IO, NAME), OP_ENTRY_R,
- * OP_ENTRY_W. Sides: LEVEL RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE RW, AVAILABLE R,
- * LOCKED R, LOCK W, UNLOCK W. 0x02, 0x08 and 0x0E are unused: never assign them.
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
+ * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives CONTRACT_IO_<OP_NAME>,
+ * CONTRACT_IO_key_<OP_NAME>_t and CONTRACT_IO_value_<OP_NAME>_t; a driver writes OP_DECLARE_READ(CONTRACT_IO, OP_NAME) /
+ * OP_DECLARE_WRITE(CONTRACT_IO, OP_NAME) and lists OP_ENTRY(CONTRACT_IO, OP_NAME), OP_ENTRY_R, OP_ENTRY_W. Sides: LEVEL
+ * RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE RW, AVAILABLE R, LOCKED R, LOCK W, UNLOCK W.
+ * 0x02, 0x08 and 0x0E are unused: never assign them.
  */
-#define IO_OPERATIONS(X, P)                                                                              \
-  X(P, LEVEL,        0x00, io_pin_args_t, io_level_args_t,   0)                                          \
-  X(P, TOGGLE,       0x01, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, PWM_DUTY,     0x03, cmd_none_t,    io_duty_args_t,    0)                                          \
-  X(P, PWM_FREQ,     0x04, cmd_none_t,    io_freq_args_t,    0)                                          \
-  X(P, MODE,         0x05, cmd_none_t,    io_mode_args_t,    0)                                          \
-  X(P, RESET,        0x06, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, INTR,         0x07, cmd_none_t,    io_intr_args_t,    0)                                          \
-  X(P, VOLTAGE,      0x09, io_pin_args_t, io_voltage_args_t, 0)                                          \
-  X(P, AVAILABLE,    0x0A, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, LOCKED,       0x0B, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, LOCK,         0x0C, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
-  X(P, UNLOCK,       0x0D, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
+#define CONTRACT_IO_OPERATIONS(X, P)                                                                        \
+  X(P, OP_LEVEL,        0x00, io_pin_args_t, io_level_args_t,   0)                                          \
+  X(P, OP_TOGGLE,       0x01, cmd_none_t,    io_pin_args_t,     0)                                          \
+  X(P, OP_PWM_DUTY,     0x03, cmd_none_t,    io_duty_args_t,    0)                                          \
+  X(P, OP_PWM_FREQ,     0x04, cmd_none_t,    io_freq_args_t,    0)                                          \
+  X(P, OP_MODE,         0x05, cmd_none_t,    io_mode_args_t,    0)                                          \
+  X(P, OP_RESET,        0x06, cmd_none_t,    io_pin_args_t,     0)                                          \
+  X(P, OP_INTR,         0x07, cmd_none_t,    io_intr_args_t,    0)                                          \
+  X(P, OP_VOLTAGE,      0x09, io_pin_args_t, io_voltage_args_t, 0)                                          \
+  X(P, OP_AVAILABLE,    0x0A, cmd_none_t,    uint64_t,          0)                                          \
+  X(P, OP_LOCKED,       0x0B, cmd_none_t,    uint64_t,          0)                                          \
+  X(P, OP_LOCK,         0x0C, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
+  X(P, OP_UNLOCK,       0x0D, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
 
-SYS_DEVICE_CONTRACT_DECLARE(IO, 0x01)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01)
 
 /* Events of the IO contract, published by a device for a pin armed with INTR: source = the device, channel = the pin.
  * Flags 0: an edge is code flow (an alert pin, the VM), not something to show by itself. */
@@ -202,24 +203,24 @@ static inline bool sys_io_pin_valid(sys_io_pin_t p) {
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Writes op NAME of the IO contract on pin `p`: its value_t from the contract table, the pin and the fields
- * given (none for TOGGLE, RESET, LOCK, UNLOCK). The compiler checks the field names against the op's frame.
+ * @brief Writes op OP_NAME of the IO contract on pin `p`: its value_t from the contract table, the pin and the fields
+ * given (none for OP_TOGGLE, OP_RESET, OP_LOCK, OP_UNLOCK). The compiler checks the field names against the op's frame.
  * @return ERR_DEV_UNKNOWN_OP if the device has no such op, ERR_DEV_PIN_LOCKED{owner} for a pin another device locked,
  *         ERR_DEV_PIN_NOT_OWNED{owner} for UNLOCK of one, ERR_DEV_RANGE, or the error of the device write
- * @usage ERR_TRY(SYS_IO_WRITE(pin, LEVEL, .level = 1));
- *        ERR_TRY(SYS_IO_WRITE(pin, PWM_DUTY, .duty = duty));
- *        ERR_TRY(SYS_IO_WRITE(pin, INTR, .cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE}));
- *        ERR_TRY(SYS_IO_WRITE(pin, LOCK));
+ * @usage ERR_TRY(SYS_IO_WRITE(pin, OP_LEVEL, .level = 1));
+ *        ERR_TRY(SYS_IO_WRITE(pin, OP_PWM_DUTY, .duty = duty));
+ *        ERR_TRY(SYS_IO_WRITE(pin, OP_INTR, .cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE}));
+ *        ERR_TRY(SYS_IO_WRITE(pin, OP_LOCK));
  */
-#define SYS_IO_WRITE(p, name, ...) SYS_DEVICE_SET((p).device, IO, name, .pin = (p).pin, __VA_ARGS__)
+#define SYS_IO_WRITE(p, name, ...) SYS_DEVICE_SET((p).device, CONTRACT_IO, name, .pin = (p).pin, __VA_ARGS__)
 
 /**
- * @brief Reads op NAME of the IO contract on pin `p` into `*answer` (its value_t from the contract table, the pin
+ * @brief Reads op OP_NAME of the IO contract on pin `p` into `*answer` (its value_t from the contract table, the pin
  * first).
  * @return As SYS_DEVICE_READ
- * @usage io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, VOLTAGE, &v));
+ * @usage io_voltage_args_t v; ERR_TRY(SYS_IO_READ(pin, OP_VOLTAGE, &v));
  */
-#define SYS_IO_READ(p, name, answer) SYS_DEVICE_GET((p).device, IO, name, (answer), .pin = (p).pin)
+#define SYS_IO_READ(p, name, answer) SYS_DEVICE_GET((p).device, CONTRACT_IO, name, (answer), .pin = (p).pin)
 
 /**
  * @brief MODE for a pin another driver uses: a device without MODE (fixed-function pins: PCA9685 PWM channels, DAC

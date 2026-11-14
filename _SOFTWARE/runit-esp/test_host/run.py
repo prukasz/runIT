@@ -39,10 +39,12 @@ def rel(path):
 def discover():
     found = {}
     for root in COMPONENT_ROOTS:
+        seen_in_root = set()
         for manifest in sorted(root.rglob("host/host_test.json")):
             comp = manifest.parent.parent
-            if comp.name in found:
+            if comp.name in seen_in_root:
                 sys.exit(f"error: two components named '{comp.name}': {found[comp.name][0]} and {comp}")
+            seen_in_root.add(comp.name)
             found[comp.name] = (comp, json.loads(manifest.read_text(encoding="utf-8")))
     return found
 

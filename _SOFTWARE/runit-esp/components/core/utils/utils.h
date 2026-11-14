@@ -103,6 +103,47 @@ extern "C" {
     name = xSemaphoreCreateRecursiveMutexStatic(&_##name##_buffer); \
   }
 
+static inline SemaphoreHandle_t u__mutex_take(SemaphoreHandle_t mtx) {
+  (void)xSemaphoreTake(mtx, portMAX_DELAY);
+  return mtx;
+}
+
+static inline void u__mutex_release(SemaphoreHandle_t* mtx) {
+  if (*mtx != NULL) {
+    (void)xSemaphoreGive(*mtx);
+  }
+}
+
+static inline SemaphoreHandle_t u__rmutex_take(SemaphoreHandle_t mtx) {
+  (void)xSemaphoreTakeRecursive(mtx, portMAX_DELAY);
+  return mtx;
+}
+
+static inline void u__rmutex_release(SemaphoreHandle_t* mtx) {
+  if (*mtx != NULL) {
+    (void)xSemaphoreGiveRecursive(*mtx);
+  }
+}
+
+#define U__CONCAT2(a, b) a##b
+#define U__CONCAT(a, b)  U__CONCAT2(a, b)
+
+/**
+ * @brief Acquires a mutex (U_MUTEX_DEFINE) for the enclosing block and releases it on any exit.
+ * @usage U_MUTEX_GUARD(my_mutex);
+ */
+#define U_MUTEX_GUARD(mtx)                                                                                         \
+  SemaphoreHandle_t U__CONCAT(_u_mtx_guard_, __COUNTER__) __attribute__((cleanup(u__mutex_release), unused)) = \
+      u__mutex_take(mtx)
+
+/**
+ * @brief Acquires a recursive mutex (U_RECURSIVE_MUTEX_DEFINE) for the enclosing block and releases it on any exit.
+ * @usage U_RMUTEX_GUARD(my_rmutex);
+ */
+#define U_RMUTEX_GUARD(mtx)                                                                                         \
+  SemaphoreHandle_t U__CONCAT(_u_rmtx_guard_, __COUNTER__) __attribute__((cleanup(u__rmutex_release), unused)) = \
+      u__rmutex_take(mtx)
+
 /**
  * @brief Static binary semaphore (created empty).
  */

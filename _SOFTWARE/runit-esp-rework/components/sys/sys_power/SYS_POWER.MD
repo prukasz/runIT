@@ -17,7 +17,7 @@ Not a module with state: sets of device ops that mean the same on every device t
 
 ## POWER_MONITOR (`0x04xx`)
 
-`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian. A read takes the key and answers the value; a write takes the value. Prefix `PMON` (`PMON_OP_*`, `PMON_key_*_t` / `PMON_value_*_t`, `OP_READ(PMON, …)` / `OP_WRITE(PMON, …)`, `OP_ENTRY(PMON, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`, `PMON_EV_*`).
+`[05][dir][id u16][op u16][args]` (SYS_DEVICE.MD); payloads are packed little-endian. A read takes the key and answers the value; a write takes the value. Prefix `CONTRACT_PMON` (`CONTRACT_PMON_OP_*`, `CONTRACT_PMON_key_*_t` / `CONTRACT_PMON_value_*_t`, `OP_DECLARE_READ(CONTRACT_PMON, …)` / `OP_DECLARE_WRITE(CONTRACT_PMON, …)`, `OP_ENTRY(CONTRACT_PMON, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`, `PMON_EV_*`).
 
 | Op | Side | Wrapper | Key / write args | Read answer |
 |---|---|---|---|---|
@@ -39,7 +39,7 @@ Channel = the measured channel.
 
 ## POWER_VREG (`0x05xx`)
 
-A regulator with one output. Prefix `VREG`.
+A regulator with one output. Prefix `CONTRACT_VREG`.
 
 | Op | Side | Wrapper | Args |
 |---|---|---|---|
@@ -61,7 +61,7 @@ Channel 0.
 
 ## POWER_USB_PD (`0x07xx`)
 
-A USB Power Delivery sink. Prefix `PD` (`PD_OP_*`, `OP_READ(PD, …)` / `OP_WRITE(PD, …)`, `OP_ENTRY(PD, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`).
+A USB Power Delivery sink. Prefix `CONTRACT_PD` (`CONTRACT_PD_OP_*`, `OP_DECLARE_READ(CONTRACT_PD, …)` / `OP_DECLARE_WRITE(CONTRACT_PD, …)`, `OP_ENTRY(CONTRACT_PD, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`).
 
 | Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|
@@ -73,7 +73,7 @@ The charger may not grant exactly what the SETTINGS write asks; the app reads th
 
 ## POWER_SUPPLY (`0x08xx`)
 
-A power mux: two switched sources into one load (the LM73100 ideal diodes of an H-bridge VM node). Prefix `SUPPLY` (`SUPPLY_OP_*`, `OP_READ(SUPPLY, …)` / `OP_WRITE(SUPPLY, …)`, `OP_ENTRY(SUPPLY, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`).
+A power mux: two switched sources into one load (the LM73100 ideal diodes of an H-bridge VM node). Prefix `CONTRACT_SUPPLY` (`CONTRACT_SUPPLY_OP_*`, `OP_DECLARE_READ(CONTRACT_SUPPLY, …)` / `OP_DECLARE_WRITE(CONTRACT_SUPPLY, …)`, `OP_ENTRY(CONTRACT_SUPPLY, …)` / `OP_ENTRY_R` / `OP_ENTRY_W`).
 
 | Op | Side | Wrapper | Write args / read answer |
 |---|---|---|---|

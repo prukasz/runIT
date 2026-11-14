@@ -7,7 +7,7 @@
 #include "unity.h"
 #include "host_assert.h"
 #include "host_mocks.h"
-#include "freertos/FreeRTOS.h"
+#include "utils.h"
 #include "sys_event.h"
 
 /* A module of the tests' own, with a table in the format every module uses. */

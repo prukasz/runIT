@@ -26,11 +26,11 @@ typedef struct __attribute__((packed)) {
 } sys_device_policy_entry_t;
 
 /**
- * @brief The table, once: X(P, NAME, op code, key_t, value_t, flags) (cmd_table.h). POLICY RW: the read takes the
+ * @brief The table, once: X(P, OP_NAME, op code, key_t, value_t, flags) (cmd_table.h). POLICY RW: the read takes the
  * device and answers its ID and policy, the write takes the same (the mirror).
  */
 #define POLICY_OPERATIONS(X, P) \
-  X(P, POLICY, 0x01, sys_device_policy_key_t, sys_device_policy_entry_t, 0)
+  X(P, OP_POLICY, 0x01, sys_device_policy_key_t, sys_device_policy_entry_t, 0)
 
 CMD_TABLE_DECLARE(POLICY)
 

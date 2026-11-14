@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "router.h"
+#include "cmd.h"
 #include "cmd_table.h"
 #include "errors.h"
 #include "sys_device_errors.h"
@@ -20,9 +20,9 @@ extern "C" {
  * own ID in its header, see below), 0xFFxx the device's own (SYS_DEVICE_OWN_OP). An op has a read side, a write
  * side or both (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes
  * (ROUTER.MD).
- * A contract is ONE table P_OPERATIONS of X(P, NAME, n, key_t, value_t, flags); SYS_DEVICE_CONTRACT_DECLARE(P,
- * contract ID) gives P_CONTRACT, P_OP_<NAME>, P_FLAGS_<NAME>, P_key_<NAME>_t, P_value_<NAME>_t. A device's own ops are
- * a table of the same format, in its driver: SYS_DEVICE_OWN_DECLARE(P) (sys_device_driver.h).
+ * A contract is ONE table P_OPERATIONS of X(P, OP_NAME, n, key_t, value_t, flags); SYS_DEVICE_CONTRACT_DECLARE(P,
+ * mod, contract ID) gives P_CONTRACT, P_<OP_NAME>, P_FLAGS_<OP_NAME>, P_key_<OP_NAME>_t, P_value_<OP_NAME>_t. A
+ * device's own ops are a table of the same format, in its driver: SYS_DEVICE_OWN_DECLARE(P) (sys_device_driver.h).
  */
 
 //#ref-defines device_id @alias Device ID @prefix SYS_DEVICE_ID_
@@ -36,7 +36,7 @@ extern "C" {
 /* Contract IDs. A contract's ID is its module's number (MODULE_ID_DECLARE, module_id.h): the same as the root key of
  * its commands, the module of its errors and of its events. The registry's own is MODULE_ID_SYS_DEVICE (the device's
  * lifecycle ops); 0xFF is a device's own ops, which no contract takes. Every other contract gives its number in its own
- * header, MODULE_ID_DECLARE(IO, 0x01) and SYS_DEVICE_CONTRACT_DECLARE(IO, 0x01), and claims it in one source of its
+ * header, MODULE_ID_DECLARE(IO, 0x01) and SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01), and claims it in one source of its
  * component, SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01): two hex digits and nothing after them, the same everywhere. No list
  * of contracts exists and no file includes them all: two modules with one number fail to link (the global symbol
  * module_id__0x01 defined twice), and fail to compile already where both headers meet (MODULE_ID__0x01 declared
@@ -46,7 +46,7 @@ extern "C" {
 
 enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
 
-#define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)  // what a table of own ops gives P_OP_<NAME>
+#define SYS_DEVICE_OWN_OP(n) SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_OWN, n)  // what a table of own ops gives P_<OP_NAME>
 
 /* An op's flags, the last column of a contract table: what every driver's row of the op gets, so no driver can leave
  * it out.
@@ -61,25 +61,25 @@ enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
  *         The driver makes the op safe against its own locked ops (SUSPEND, RESET, ...) and bounds its time (a
  *         timeout of its args): a NOLOCK call that never returns blocks REMOVE.
  * TAIL:   the write's payload is its value_t (the head, packed) and then bytes of any number (an event's payload, the
- *         data of a register write). Its handler is OP_WRITE_TAIL, which gets the head, the tail and its length;
- *         OP_WRITE refuses to compile for it, and OP_WRITE_TAIL for an op without the flag. */
+ *         data of a register write). Its handler is OP_DECLARE_WRITE_TAIL, which gets the head, the tail and its length;
+ *         OP_DECLARE_WRITE refuses to compile for it, and OP_DECLARE_WRITE_TAIL for an op without the flag. */
 #define SYS_DEVICE_OP_ALWAYS (1u << 0)
 #define SYS_DEVICE_OP_LOCAL  (1u << 1)
 #define SYS_DEVICE_OP_NOLOCK (1u << 2)
 #define SYS_DEVICE_OP_TAIL   (1u << 3)
 
 /* A contract is a table of ops in the format of every set of commands (cmd_table.h: P_OPERATIONS(X, P) of rows
- * X(P, NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, contract
- * ID) gives what the table gives everywhere, the types P_key_<NAME>_t and P_value_<NAME>_t, and what a contract adds:
- * P_CONTRACT (the ID), P_OP_<NAME> = SYS_DEVICE_OP(ID, n) and P_FLAGS_<NAME> (SYS_DEVICE_OP_*). */
-#define SYS_DEVICE__ID(P, name, n, key_t, value_t, flags) P##_OP_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
+ * X(P, OP_NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, mod,
+ * contract ID) gives what the table gives everywhere, the types P_key_<OP_NAME>_t and P_value_<OP_NAME>_t, and what a contract adds:
+ * P_CONTRACT (the ID), P_<OP_NAME> = SYS_DEVICE_OP(ID, n) and P_FLAGS_<OP_NAME> (SYS_DEVICE_OP_*). */
+#define SYS_DEVICE__ID(P, name, n, key_t, value_t, flags) P##_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
 #define SYS_DEVICE__FLAGS(P, name, n, key_t, value_t, flags) P##_FLAGS_##name = (flags),
 #define SYS_DEVICE__TABLE(P, contract)                                   \
   enum { P##_CONTRACT = (contract), P##_OPERATIONS(SYS_DEVICE__ID, P) }; \
   enum { P##_OPERATIONS(SYS_DEVICE__FLAGS, P) };                         \
   P##_OPERATIONS(CMD__TABLE_TYPES, P)
-#define SYS_DEVICE_CONTRACT_DECLARE(P, contract)                                                              \
-  _Static_assert(MODULE_ID_##P == (contract), #P ": the ID differs from its MODULE_ID_DECLARE");            \
+#define SYS_DEVICE_CONTRACT_DECLARE(P, mod, contract)                                                         \
+  _Static_assert(MODULE_ID_##mod == (contract), #mod ": the ID differs from its MODULE_ID_DECLARE");        \
   SYS_DEVICE__TABLE(P, contract)
 
 /**
@@ -97,19 +97,19 @@ typedef struct __attribute__((packed)) {
 } sys_device_info_t;
 
 /**
- * @brief Device contract (the module's number, 0x20xx, prefix SYS_DEVICE): the lifecycle, X(P, NAME, n, key_t, value_t, flags). CREATE
+ * @brief Device contract (the module's number, 0x20xx, prefix CONTRACT_SYS_DEVICE): the lifecycle, X(P, OP_NAME, n, key_t, value_t, flags). CREATE
  * (0x00, write) and CREATE_REMOTE (0x08) are not in the table: they have no instance yet. Writes: RESET, SUSPEND,
  * RESUME, REMOVE; reads: INFO, OPS (answered as a list, so its value is none here). SUSPEND, RESUME, REMOVE, INFO and
  * OPS are the registry's for every device: a driver's op table lists none of them. 0x07 is unused: never assign it.
  * A device's error policy is not here: sys_device_policy.h.
  */
-#define SYS_DEVICE_OPERATIONS(X, P)                     \
-  X(P, RESET,   0x01, cmd_none_t, cmd_none_t,        0) \
-  X(P, SUSPEND, 0x02, cmd_none_t, cmd_none_t,        0) \
-  X(P, RESUME,  0x03, cmd_none_t, cmd_none_t,        0) \
-  X(P, REMOVE,  0x04, cmd_none_t, cmd_none_t,        0) \
-  X(P, INFO,    0x05, cmd_none_t, sys_device_info_t, 0) \
-  X(P, OPS,     0x06, cmd_none_t, cmd_none_t,        0)
+#define CONTRACT_SYS_DEVICE_OPERATIONS(X, P)               \
+  X(P, OP_RESET,   0x01, cmd_none_t, cmd_none_t,        0) \
+  X(P, OP_SUSPEND, 0x02, cmd_none_t, cmd_none_t,        0) \
+  X(P, OP_RESUME,  0x03, cmd_none_t, cmd_none_t,        0) \
+  X(P, OP_REMOVE,  0x04, cmd_none_t, cmd_none_t,        0) \
+  X(P, OP_INFO,    0x05, cmd_none_t, sys_device_info_t, 0) \
+  X(P, OP_OPS,     0x06, cmd_none_t, cmd_none_t,        0)
 
 /* CREATE's [flags u8]. SYSTEM: the board's own device, it can't be removed (ERR_DEV_SYSTEM) and the REMOVE sweep leaves
  * it, so changing the project removes only the other devices. */
@@ -117,10 +117,10 @@ typedef struct __attribute__((packed)) {
 #define SYS_DEVICE_CREATE_SYSTEM 0x01u
 
 enum {
-  SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),  // [type u16][flags u8][create struct]
-  SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
+  CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),  // [type u16][flags u8][create struct]
+  CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
 };
-SYS_DEVICE_CONTRACT_DECLARE(SYS_DEVICE, 0x20)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, SYS_DEVICE, 0x20)
 
 /* A remote device's flags (sys_device_remote_t.flags): how its calls go (SYS_REMOTE.MD "A call"). Exactly one. */
 //#ref-defines device_remote_flag @alias Remote device flags @prefix SYS_DEVICE_REMOTE_
@@ -154,7 +154,7 @@ _Static_assert(sizeof(sys_device_remote_t) == 3, "remote record");
  * within CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS), ERR_DEV_REENTRY (the calling task is inside an op of this device), or
  * the op's error, wrapped in ERR_DEV_ID and ERR_DEV_OP
  * @usage cmd_out_t out = {.data = buf, .cap = sizeof(buf)};
- *        ERR_TRY(sys_device_call(id, CMD_DIR_READ, SYS_DEVICE_OP_OPS, (cmd_in_t){NULL, 0}, &out));
+ *        ERR_TRY(sys_device_call(id, CMD_DIR_READ, CONTRACT_SYS_DEVICE_OP_OPS, (cmd_in_t){NULL, 0}, &out));
  */
 MUST_USE err_h sys_device_call(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out);
 
@@ -187,36 +187,36 @@ MUST_USE err_h sys_device_read(uint8_t id, uint16_t op, const void* args, uint32
  * checks their names); WRITE / READ take a frame the caller has already. */
 
 /**
- * @brief Writes op NAME with its value built from the fields given (none for an op without args).
- * @usage ERR_TRY(SYS_DEVICE_SET(motor, HBRIDGE, DRIVE, .channel = 0, .drive = 800));
- *        ERR_TRY(SYS_DEVICE_SET(id, SYS_DEVICE, SUSPEND));
+ * @brief Writes op OP_NAME with its value built from the fields given (none for an op without args).
+ * @usage ERR_TRY(SYS_DEVICE_SET(motor, CONTRACT_HBRIDGE, OP_DRIVE, .channel = 0, .drive = 800));
+ *        ERR_TRY(SYS_DEVICE_SET(id, CONTRACT_SYS_DEVICE, OP_SUSPEND));
  */
-#define SYS_DEVICE_SET(id, P, name, ...)                                                                    \
-  sys_device_write((id), P##_OP_##name, &(const P##_value_##name##_t){__VA_ARGS__}, sizeof(P##_value_##name##_t))
+#define SYS_DEVICE_SET(id, P, name, ...)                                                                 \
+  sys_device_write((id), P##_##name, &(const P##_value_##name##_t){__VA_ARGS__}, sizeof(P##_value_##name##_t))
 
 /**
- * @brief Reads op NAME into `*answer` (its value type), the key built from the fields given after it (none for an op
+ * @brief Reads op OP_NAME into `*answer` (its value type), the key built from the fields given after it (none for an op
  * without a key). ERR_CMD_BAD_LEN unless the device answered exactly that size.
- * @usage int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, PMON, CURRENT, &mA, .channel = 1));
- *        sys_device_info_t info; ERR_TRY(SYS_DEVICE_GET(id, SYS_DEVICE, INFO, &info));
+ * @usage int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, CONTRACT_PMON, OP_CURRENT, &mA, .channel = 1));
+ *        sys_device_info_t info; ERR_TRY(SYS_DEVICE_GET(id, CONTRACT_SYS_DEVICE, OP_INFO, &info));
  */
-#define SYS_DEVICE_GET(id, P, name, answer, ...)                                                            \
-  sys_device_read((id), P##_OP_##name, &(const P##_key_##name##_t){__VA_ARGS__}, sizeof(P##_key_##name##_t), \
+#define SYS_DEVICE_GET(id, P, name, answer, ...)                                                         \
+  sys_device_read((id), P##_##name, &(const P##_key_##name##_t){__VA_ARGS__}, sizeof(P##_key_##name##_t), \
                   (P##_value_##name##_t*)(answer), sizeof(P##_value_##name##_t))
 
 /**
- * @brief Writes op NAME with a value the caller has (a pointer to its value type).
- * @usage ERR_TRY(SYS_DEVICE_WRITE(id, TOUCH, CALIBRATION, cal));
+ * @brief Writes op OP_NAME with a value the caller has (a pointer to its value type).
+ * @usage ERR_TRY(SYS_DEVICE_WRITE(id, TOUCH, OP_CALIBRATION, cal));
  */
 #define SYS_DEVICE_WRITE(id, P, name, value) \
-  sys_device_write((id), P##_OP_##name, (const P##_value_##name##_t*)(value), sizeof(P##_value_##name##_t))
+  sys_device_write((id), P##_##name, (const P##_value_##name##_t*)(value), sizeof(P##_value_##name##_t))
 
 /**
- * @brief Reads op NAME with a key the caller has (a pointer to its key type, NULL for none) into `*value`.
- * @usage ERR_TRY(SYS_DEVICE_READ(id, TOUCH, POINT, NULL, &point));
+ * @brief Reads op OP_NAME with a key the caller has (a pointer to its key type, NULL for none) into `*value`.
+ * @usage ERR_TRY(SYS_DEVICE_READ(id, TOUCH, OP_POINT, NULL, &point));
  */
-#define SYS_DEVICE_READ(id, P, name, key, value)                                                     \
-  sys_device_read((id), P##_OP_##name, (const P##_key_##name##_t*)(key), sizeof(P##_key_##name##_t), \
+#define SYS_DEVICE_READ(id, P, name, key, value)                                                  \
+  sys_device_read((id), P##_##name, (const P##_key_##name##_t*)(key), sizeof(P##_key_##name##_t), \
                   (P##_value_##name##_t*)(value), sizeof(P##_value_##name##_t))
 
 /**
@@ -230,9 +230,9 @@ MUST_USE err_h sys_device_read(uint8_t id, uint16_t op, const void* args, uint32
  * reached yet; a device's own calls still go through, so a suspend() hook reaches the devices it uses.
  * One event tells of the sweep (SUSPENDED / RESUMED / RESET with source SYS_DEVICE_ID_NONE), published with every
  * event of the sweep after its last device; REMOVE publishes each device's REMOVED.
- * @param[in] op SYS_DEVICE_OP_SUSPEND, _RESUME, _RESET or _REMOVE
+ * @param[in] op CONTRACT_SYS_DEVICE_OP_SUSPEND, _RESUME, _RESET or _REMOVE
  * @return ERR_DEV_UNKNOWN_OP for another op, else the first error of the sweep
- * @usage err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
+ * @usage err_report(sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND));
  */
 MUST_USE err_h sys_device_sweep(uint16_t op);
 

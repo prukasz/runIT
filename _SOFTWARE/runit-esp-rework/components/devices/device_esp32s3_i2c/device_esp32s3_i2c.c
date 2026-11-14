@@ -12,8 +12,7 @@
 #include "soc/soc_caps.h"
 #include "sys_device_driver.h"
 #include "sys_i2c.h"
-#include "sys_io.h"
-#include "sys_io_claim.h"
+#include "sys_io_driver.h"
 
 SYS_DEVICE_TYPE_DECLARE(ESP32S3_I2C, 0x004C)
 
@@ -26,6 +25,7 @@ typedef struct __attribute__((packed)) {
 } esp32s3_i2c_cfg_t;
 
 typedef struct {
+  uint8_t id;
   sys_io_claim_t sda;
   sys_io_claim_t scl;
   sys_device_res_t bus_res;                          // the controller as a resource of the device
@@ -43,11 +43,11 @@ static err_h xfer_error(const esp_i2c_t* c, uint8_t addr, esp_err_t rc) {
     case ESP_OK:
       return NULL;
     case ESP_ERR_INVALID_RESPONSE:
-      return ERR_NEW(ERR_I2C_NO_ACK, .bus = sys_device_self(), .addr = addr);
+      return ERR_NEW(ERR_I2C_NO_ACK, .bus = c->id, .addr = addr);
     case ESP_ERR_TIMEOUT:
-      return ERR_NEW(ERR_I2C_BUS_BUSY, .bus = sys_device_self(), .addr = addr);
+      return ERR_NEW(ERR_I2C_BUS_BUSY, .bus = c->id, .addr = addr);
     default:
-      return ERR_WRAP(ERR_ESP(rc), ERR_I2C_XFER, .bus = sys_device_self(), .addr = addr);
+      return ERR_WRAP(ERR_ESP(rc), ERR_I2C_XFER, .bus = c->id, .addr = addr);
   }
 }
 
@@ -58,11 +58,11 @@ static err_h probe(const esp_i2c_t* c, uint8_t addr) {
     case ESP_OK:
       return NULL;
     case ESP_ERR_NOT_FOUND:
-      return ERR_NEW(ERR_I2C_DEV_NOT_FOUND, .bus = sys_device_self(), .addr = addr);
+      return ERR_NEW(ERR_I2C_DEV_NOT_FOUND, .bus = c->id, .addr = addr);
     case ESP_ERR_TIMEOUT:
-      return ERR_NEW(ERR_I2C_BUS_STUCK, .bus = sys_device_self(), .addr = addr);
+      return ERR_NEW(ERR_I2C_BUS_STUCK, .bus = c->id, .addr = addr);
     default:
-      return ERR_WRAP(ERR_ESP(rc), ERR_I2C_XFER, .bus = sys_device_self(), .addr = addr);
+      return ERR_WRAP(ERR_ESP(rc), ERR_I2C_XFER, .bus = c->id, .addr = addr);
   }
 }
 
@@ -72,14 +72,14 @@ static err_h detach(esp_i2c_t* c, uint8_t addr) {
   }
   esp_err_t rc = i2c_master_bus_rm_device(c->dev[addr]);
   c->dev[addr] = NULL;  // free even when the driver failed
-  return rc == ESP_OK ? NULL : ERR_WRAP(ERR_ESP(rc), ERR_I2C_DEV_REMOVE, .bus = sys_device_self(), .addr = addr);
+  return rc == ESP_OK ? NULL : ERR_WRAP(ERR_ESP(rc), ERR_I2C_DEV_REMOVE, .bus = c->id, .addr = addr);
 }
 
 /* Claimed for the caller of the op and probed, then added to the driver with the chip's own clock. The owner is the
  * device whose op called (a chip's create(); SYS_DEVICE_ID_NONE for RAW from a command). */
 static err_h attach(esp_i2c_t* c, uint8_t addr, uint32_t speed_Hz) {
-  ERR_CHECK(addr <= SYS_I2C_ADDR_MAX && speed_Hz > 0, ERR_I2C_BAD_DEV_CFG, .bus = sys_device_self(), .addr = addr);
-  ERR_CHECK(c->dev[addr] == NULL, ERR_I2C_ADDR_TAKEN, .bus = sys_device_self(), .addr = addr, .owner = c->owner[addr]);
+  ERR_CHECK(addr <= SYS_I2C_ADDR_MAX && speed_Hz > 0, ERR_I2C_BAD_DEV_CFG, .bus = c->id, .addr = addr);
+  ERR_CHECK(c->dev[addr] == NULL, ERR_I2C_ADDR_TAKEN, .bus = c->id, .addr = addr, .owner = c->owner[addr]);
   ERR_TRY(probe(c, addr));
   const i2c_device_config_t cfg = {
       .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -89,7 +89,7 @@ static err_h attach(esp_i2c_t* c, uint8_t addr, uint32_t speed_Hz) {
   esp_err_t rc = i2c_master_bus_add_device(c->bus, &cfg, &c->dev[addr]);
   if (rc != ESP_OK) {
     c->dev[addr] = NULL;
-    return ERR_WRAP(ERR_ESP(rc), ERR_I2C_DEV_ADD, .bus = sys_device_self(), .addr = addr);
+    return ERR_WRAP(ERR_ESP(rc), ERR_I2C_DEV_ADD, .bus = c->id, .addr = addr);
   }
   c->owner[addr] = sys_device_caller();
   return NULL;
@@ -97,15 +97,15 @@ static err_h attach(esp_i2c_t* c, uint8_t addr, uint32_t speed_Hz) {
 
 // DETACH and XFER are the owner's: the device that attached the address. An address not attached has no owner.
 static err_h check_owner(const esp_i2c_t* c, uint8_t addr) {
-  ERR_CHECK(addr <= SYS_I2C_ADDR_MAX, ERR_I2C_BAD_DEV_CFG, .bus = sys_device_self(), .addr = addr);
-  ERR_CHECK(c->dev[addr] == NULL || c->owner[addr] == sys_device_caller(), ERR_I2C_NOT_OWNER, .bus = sys_device_self(),
+  ERR_CHECK(addr <= SYS_I2C_ADDR_MAX, ERR_I2C_BAD_DEV_CFG, .bus = c->id, .addr = addr);
+  ERR_CHECK(c->dev[addr] == NULL || c->owner[addr] == sys_device_caller(), ERR_I2C_NOT_OWNER, .bus = c->id,
             .addr = addr, .owner = c->owner[addr]);
   return NULL;
 }
 
 // One transfer to an attached address, by the buffers that are set (i2c_xfer_t).
 static err_h xfer(const esp_i2c_t* c, const i2c_xfer_t* x) {
-  ERR_CHECK(x->addr <= SYS_I2C_ADDR_MAX && c->dev[x->addr] != NULL, ERR_I2C_DEV_NOT_ADDED, .bus = sys_device_self(),
+  ERR_CHECK(x->addr <= SYS_I2C_ADDR_MAX && c->dev[x->addr] != NULL, ERR_I2C_DEV_NOT_ADDED, .bus = c->id,
             .addr = x->addr);
   i2c_master_dev_handle_t h = c->dev[x->addr];
   const int ms = CONFIG_ESP32S3_I2C_XFER_TIMEOUT_MS;
@@ -144,22 +144,37 @@ static err_h raw(esp_i2c_t* c, const i2c_xfer_t* x) {
 
 /* ---- I2C contract ---- */
 
-OP_WRITE(I2C, ATTACH) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_ATTACH (write, ALWAYS | LOCAL)
+ * Registers a slave address on the bus controller for the calling device.
+ ******************************************************************************/
+OP_DECLARE_WRITE(CONTRACT_I2C, OP_ATTACH) {
   return attach(c, args->addr, args->speed_Hz);
 }
 
-OP_WRITE(I2C, DETACH) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_DETACH (write, ALWAYS | LOCAL)
+ * Removes a previously attached slave address owned by the caller.
+ ******************************************************************************/
+OP_DECLARE_WRITE(CONTRACT_I2C, OP_DETACH) {
   ERR_TRY(check_owner(c, args->addr));
   return detach(c, args->addr);
 }
 
-OP_WRITE(I2C, XFER) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_XFER (write, ALWAYS | LOCAL)
+ * Executes an I2C transfer to an attached slave address owned by the caller.
+ ******************************************************************************/
+OP_DECLARE_WRITE(CONTRACT_I2C, OP_XFER) {
   ERR_TRY(check_owner(c, args->addr));
   return xfer(c, args);
 }
 
-// The answer is the write's layout (the mirror): the head, then the bytes read.
-OP_READ(I2C, RAW) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_RAW (read)
+ * Direct register read (any address); answers with mirror head + bytes read.
+ ******************************************************************************/
+OP_DECLARE_READ(CONTRACT_I2C, OP_RAW) {
   const i2c_raw_t head = {.addr = args->addr, .reg = args->reg};
   const uint32_t need = sizeof(head) + args->len;
   ERR_CHECK(args->len > 0, ERR_I2C_BAD_ARG);
@@ -171,24 +186,34 @@ OP_READ(I2C, RAW) {
   return NULL;
 }
 
-OP_WRITE_TAIL(I2C, RAW) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_RAW (write tail)
+ * Direct register write (any address); requires at least 1 byte of tail data.
+ ******************************************************************************/
+OP_DECLARE_WRITE_TAIL(CONTRACT_I2C, OP_RAW) {
   ERR_CHECK(tail_len > 0, ERR_CMD_BAD_LEN, .got = (uint16_t)sizeof(*args), .need = (uint16_t)(sizeof(*args) + 1));
   const i2c_xfer_t x = {.addr = args->addr, .w1 = &args->reg, .n1 = 1, .w2 = tail, .n2 = tail_len};
   return raw(c, &x);
 }
 
-OP_READ(I2C, PROBE) {
-  ERR_CHECK(args->addr <= SYS_I2C_ADDR_MAX, ERR_I2C_BAD_DEV_CFG, .bus = sys_device_self(), .addr = args->addr);
+/*******************************************************************************
+ * CONTRACT_I2C : OP_PROBE (read)
+ * Checks whether a target I2C address ACKs on the bus.
+ ******************************************************************************/
+OP_DECLARE_READ(CONTRACT_I2C, OP_PROBE) {
+  ERR_CHECK(args->addr <= SYS_I2C_ADDR_MAX, ERR_I2C_BAD_DEV_CFG, .bus = c->id, .addr = args->addr);
   err_h err = probe(c, args->addr);
   const bool absent = err_drop(&err, ERR_I2C_DEV_NOT_FOUND);  // an answer, not a failure
   ERR_TRY(err);
-  return CMD_REPLY(I2C, PROBE, !absent);
+  return CMD_REPLY(CONTRACT_I2C, OP_PROBE, !absent);
 }
 
-/* NOLOCK (the contract's table): runs without the device's lock, so the chips' transfers go in between the probes;
- * each probe takes the driver's bus lock. It reads only c->bus, which lives until REMOVE (REMOVE waits for a SCAN in
- * flight), and changes nothing an op under the lock reads. At most 112 probe timeouts long. */
-OP_READ(I2C, SCAN) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_SCAN (read, NOLOCK)
+ * Scans addresses 0x08..0x77 without the device lock so chip transfers
+ * interleave between probes; removes wait until in-flight scans finish.
+ ******************************************************************************/
+OP_DECLARE_READ(CONTRACT_I2C, OP_SCAN) {
   i2c_scan_t res = {{0}};
   for (uint8_t addr = SYS_I2C_SCAN_ADDR_FIRST; addr <= SYS_I2C_SCAN_ADDR_LAST; addr++) {
     err_h err = probe(c, addr);
@@ -201,10 +226,13 @@ OP_READ(I2C, SCAN) {
   return cmd_reply(out, &res, sizeof(res));
 }
 
-// Recovery of a stuck bus: SCL clocked until a chip lets SDA go.
-OP_WRITE(I2C, RECOVER) {
+/*******************************************************************************
+ * CONTRACT_I2C : OP_RECOVER (write)
+ * Recovers a stuck bus by clocking SCL until a slave releases SDA.
+ ******************************************************************************/
+OP_DECLARE_WRITE(CONTRACT_I2C, OP_RECOVER) {
   esp_err_t rc = i2c_master_bus_reset(c->bus);
-  return rc == ESP_OK ? NULL : ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_RESET, .bus = sys_device_self());
+  return rc == ESP_OK ? NULL : ERR_WRAP(ERR_ESP(rc), ERR_I2C_BUS_RESET, .bus = c->id);
 }
 
 /* ---- Lifecycle ---- */
@@ -224,13 +252,20 @@ static err_h bus_release(void* arg) {
   return err;
 }
 
-/* A bus has no outputs to make safe: SUSPEND and RESUME do nothing, and its transfers stay open (ALWAYS) for the
- * suspend hooks of its chips. */
+/*******************************************************************************
+ * ESP32S3_I2C : suspend (lifecycle)
+ * No-op: bus has no outputs to make safe and transfers stay open (ALWAYS) for
+ * slave devices' suspend hooks.
+ ******************************************************************************/
 static err_h suspend(esp_i2c_t* c) {
   (void)c;
   return NULL;
 }
 
+/*******************************************************************************
+ * ESP32S3_I2C : resume (lifecycle)
+ * No-op: bus stays active across suspend/resume.
+ ******************************************************************************/
 static err_h resume(esp_i2c_t* c) {
   (void)c;
   return NULL;
@@ -238,8 +273,14 @@ static err_h resume(esp_i2c_t* c) {
 
 /* ---- Create ---- */
 
+/*******************************************************************************
+ * ESP32S3_I2C : create (init)
+ * Validates I2C port, locks SDA/SCL as peripheral pins, registers bus_release
+ * resource and creates the ESP-IDF I2C master bus.
+ ******************************************************************************/
 static err_h create(uint8_t id, esp_i2c_t* c, const esp32s3_i2c_cfg_t* cfg) {
   SYS_DEV_CHECK_IN_RANGE(id, cfg->port, 0, SOC_I2C_NUM - 1);
+  c->id = id;
   // Locked on the GPIO device: its IO writes are refused while the bus has them.
   ERR_TRY(sys_io_claim_peripheral(id, &c->sda, cfg->sda));
   ERR_TRY(sys_io_claim_peripheral(id, &c->scl, cfg->scl));
@@ -260,12 +301,16 @@ static err_h create(uint8_t id, esp_i2c_t* c, const esp32s3_i2c_cfg_t* cfg) {
   return NULL;
 }
 
-/* ---- Type ---- */
+/*******************************************************************************
+ * ESP32S3_I2C : type registration (k_ops & SYS_DEVICE_TYPE_DEFINE)
+ * Exposes I2C contract operations (attach/detach/xfer, probe/scan/recover,
+ * raw R/W).
+ ******************************************************************************/
 
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W(I2C, ATTACH),  OP_ENTRY_W(I2C, DETACH), OP_ENTRY_W(I2C, XFER),
-    OP_ENTRY_R(I2C, PROBE),   OP_ENTRY_R(I2C, SCAN),   OP_ENTRY_W(I2C, RECOVER),
-    OP_ENTRY(I2C, RAW),
+    OP_ENTRY_W(CONTRACT_I2C, OP_ATTACH),  OP_ENTRY_W(CONTRACT_I2C, OP_DETACH), OP_ENTRY_W(CONTRACT_I2C, OP_XFER),
+    OP_ENTRY_R(CONTRACT_I2C, OP_PROBE),   OP_ENTRY_R(CONTRACT_I2C, OP_SCAN),   OP_ENTRY_W(CONTRACT_I2C, OP_RECOVER),
+    OP_ENTRY(CONTRACT_I2C, OP_RAW),
 };
 
 SYS_DEVICE_TYPE_DEFINE(ESP32S3_I2C, esp32s3_i2c_cfg_t, create, suspend, resume, k_ops)

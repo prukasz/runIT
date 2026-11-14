@@ -30,14 +30,14 @@ Inside `sys_device/`:
 
 - A device ID is 0..`SYS_DEVICE_COUNT`-1 (64); `SYS_DEVICE_ID_NONE` (`0xFF`) is never a device.
 - An op is `[contract u8][op u8]`, `SYS_DEVICE_OP(contract, n)`, with a read side, a write side or both. The read takes the key and answers what the write takes.
-- A contract is one table `P_OPERATIONS(X, P)` of rows `X(P, NAME, n, key_t, value_t, flags)` (`cmd_table.h`). `SYS_DEVICE_CONTRACT_DECLARE(P, 0x01)` in the contract's header gives `P_CONTRACT`, `P_OP_<NAME>`, `P_FLAGS_<NAME>`, `P_key_<NAME>_t`, `P_value_<NAME>_t`.
+- A contract is one table `P_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` (`cmd_table.h`). `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, P, 0x01)` in the contract's header gives `CONTRACT_P_CONTRACT`, `CONTRACT_P_<OP_NAME>`, `CONTRACT_P_FLAGS_<OP_NAME>`, `CONTRACT_P_key_<OP_NAME>_t`, `CONTRACT_P_value_<OP_NAME>_t`.
 
 **Contract IDs** are the numbers of their modules (`module_id.h`): there is no list of them and no file includes them all. The same number is the root key of the module's commands, the module of its errors and of its events.
 
 | ID | Owner |
 |---|---|
 | `0x20` | The registry (`MODULE_ID_SYS_DEVICE`): the device's lifecycle ops |
-| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(P, 0x01)` and `SYS_DEVICE_CONTRACT_DECLARE(P, 0x01)` in its header, claimed in one source of its component with `SYS_DEVICE_CONTRACT_DEFINE(P, 0x01)` |
+| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(P, 0x01)` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, P, 0x01)` in its header, claimed in one source of its component with `SYS_DEVICE_CONTRACT_DEFINE(P, 0x01)` |
 | `0xFF` | A device's own ops, a table in its driver (`SYS_DEVICE_OWN_DECLARE`); no contract takes it |
 
 The ID is spelled as two hex digits, the same in the declare and the define. Two contracts with one ID fail to link (the symbol `module_id__0x01` defined twice) and already fail to compile where both headers meet. A header-only contract has a source that only claims its ID, linked whole. The ID is wire format and the module of the contract's events.
@@ -49,7 +49,7 @@ The ID is spelled as two hex digits, the same in the declare and the define. Two
 | `SYS_DEVICE_OP_ALWAYS` | The write runs while the device is suspended (an event delivery, a pin lock, a bus transfer) |
 | `SYS_DEVICE_OP_LOCAL` | C only (its args carry a pointer, or it is a driver's op): refused as a command and on a remote device, left out of OPS |
 | `SYS_DEVICE_OP_NOLOCK` | The handler runs without the lock of the slot, counted in flight; REMOVE waits for it. The driver guards it and bounds its time |
-| `SYS_DEVICE_OP_TAIL` | The write's payload is its value (the head, packed) and then bytes of any number; its handler is `OP_WRITE_TAIL` |
+| `SYS_DEVICE_OP_TAIL` | The write's payload is its value (the head, packed) and then bytes of any number; its handler is `OP_DECLARE_WRITE_TAIL` |
 
 **The registry's ops** (contract `0x20`):
 
@@ -69,8 +69,8 @@ The ID is spelled as two hex digits, the same in the declare and the define. Two
 ## Calls
 
 ```c
-ERR_TRY(SYS_DEVICE_SET(motor, HBRIDGE, DRIVE, .channel = 0, .drive = 800));
-int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, PMON, CURRENT, &mA, .channel = 1));
+ERR_TRY(SYS_DEVICE_SET(motor, HBRIDGE, OP_DRIVE, .channel = 0, .drive = 800));
+int32_t mA; ERR_TRY(SYS_DEVICE_GET(mon, PMON, OP_CURRENT, &mA, .channel = 1));
 ```
 
 `SYS_DEVICE_SET / GET` build the frame from the fields given, `SYS_DEVICE_WRITE / READ` take a frame the caller has; all end in `sys_device_call(id, dir, op, in, out)`. The op's number and the sizes come from the contract's table, so they can't be paired wrongly.
@@ -201,14 +201,14 @@ SYS_DEVICE_TYPE_DECLARE(PCA9685, 0x0041)                             // the type
 typedef struct { uint8_t id; ... } pca_t;                            // the driver's struct
 #define SYS_DEVICE_CTX pca_t                                         // every body below sees it as `c`
 
-OP_WRITE(IO, LEVEL) { return chip_set(c, args->pin, args->level); }  // c, args, out
-OP_READ(IO, LEVEL)  { return CMD_REPLY(IO, LEVEL, .pin = args->pin, .level = ...); }
+OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) { return chip_set(c, args->pin, args->level); }  // c, args, out
+OP_DECLARE_READ(CONTRACT_IO, OP_LEVEL)  { return CMD_REPLY(CONTRACT_IO, OP_LEVEL, .pin = args->pin, .level = ...); }
 
 static err_h create(uint8_t id, pca_t* c, const pca9685_cfg_t* cfg) { ... }  // checks cfg, takes resources
 static err_h suspend(pca_t* c) { ... }                               // the safe state; also the last state
 static err_h resume(pca_t* c) { ... }
 
-static const sys_device_op_t k_ops[] = {OP_ENTRY(IO, LEVEL), ...};
+static const sys_device_op_t k_ops[] = {OP_ENTRY(IO, OP_LEVEL), ...};
 SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 ```
 
@@ -218,8 +218,8 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 - **The type**: `SYS_DEVICE_TYPE_DEFINE` is the last line. It fills the registry's `sys_device_type_t` (the sizes from the types, the op count from the table) and registers it before `app_main`; a driver never writes that struct.
 - **`suspend()`** is complete: after it the device may be removed, and REMOVE runs nothing else of the driver but its resources' releases.
 - **Op table**: the type's ops only; SUSPEND, RESUME, REMOVE, INFO and OPS are the registry's and never in it (asserted at boot). RESET is the type's.
-- **Own ops** (`0xFFxx`) are a table like a contract's, in the driver's source: `NAME_OPERATIONS(X, P)` of rows `X(P, OP, n, key_t, value_t, flags)` and `SYS_DEVICE_OWN_DECLARE(NAME)`. They get the same handlers, rows and answers (`OP_READ(DC_MOTOR, SPEED)`, `OP_ENTRY(DC_MOTOR, SPEED)`, `CMD_REPLY(DC_MOTOR, SPEED, ...)`), and their flags come from the table: a timer's op is LOCAL there.
-- **A payload with a tail** (an op marked `SYS_DEVICE_OP_TAIL`: a head of a fixed size, then bytes): `OP_WRITE_TAIL(P, NAME)`, whose body sees `args` (the head, in place), `tail` and `tail_len`. The table decides: `OP_WRITE` of such an op, and `OP_WRITE_TAIL` of any other, fail to compile. `OP_WRITE_ON_EVENT` is `OP_WRITE_TAIL(EVENT, ON_EVENT)` with the event's length checked. An answer of any length is built with `cmd_append` in an `OP_READ`.
+- **Own ops** (`0xFFxx`) are a table like a contract's, in the driver's source: `OWN_NAME_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` and `SYS_DEVICE_OWN_DECLARE(OWN_NAME)`. They get the same handlers, rows and answers (`OP_DECLARE_READ(OWN_DC_MOTOR, OP_SPEED)`, `OP_ENTRY(OWN_DC_MOTOR, OP_SPEED)`, `CMD_REPLY(OWN_DC_MOTOR, OP_SPEED, ...)`), and their flags come from the table: a timer's op is LOCAL there.
+- **A payload with a tail** (an op marked `SYS_DEVICE_OP_TAIL`: a head of a fixed size, then bytes): `OP_DECLARE_WRITE_TAIL(P, OP_NAME)`, whose body sees `args` (the head, in place), `tail` and `tail_len`. The table decides: `OP_DECLARE_WRITE` of such an op, and `OP_DECLARE_WRITE_TAIL` of any other, fail to compile. `OP_DECLARE_ON_EVENT` is `OP_DECLARE_EVENT(CONTRACT_EVENT, OP_ON_EVENT)` with the event's length checked. An answer of any length is built with `cmd_append` in an `OP_DECLARE_READ`.
 - **Another device's type** is never asked for: a driver asks whether the device has the op it needs (`sys_device_require_op`). Which device a pin is on is the board's configuration: the ESP32-S3's I2C controller takes a pin's index as its GPIO.
 - **Events**: a contract's are in its header (`SYS_EVENTS_DECLARE(P)`), the type's own in the driver: a table `P_EVENTS(X, P)` of rows `X(P, NAME, code, flags, { payload })` and `SYS_DEVICE_OWN_EVENTS(P)`, whose module is `SYS_EVENT_MODULE_TYPE(P_TYPE)` (`SYS_EVENT.MD`). Published with `SYS_EVENT_PUBLISH` or `_DEFER`, by what the publishing task can bear.
 - **A timer**: `sys_device_timer_init(id, &c->timer, OP)` in `create()`: its expiry is a step of the device (`sys_device_step`, "A step"), under its lock, skipped while the device is busy, suspended or gone. `OP` is the driver's own and LOCAL. A step's handler that needs the time since the last one reads the clock (`board_time_uptime_ms`): steps are skipped, and a driver may run the same step from its other ops.

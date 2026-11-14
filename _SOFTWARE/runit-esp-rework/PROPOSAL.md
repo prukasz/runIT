@@ -43,7 +43,7 @@ Co trzeba sprawdzić po pierwszym buildzie: sekcja 11.
 
 **Problem.** Wywołania biorą locki w kolejności user → dep (PCA9685 trzyma swój lock i woła szynę). Event opublikowany
 inline z wnętrza opa bierze je odwrotnie: publikujący dep trzyma swój lock, a listener (`ON_EVENT` usera, subskrybowany
-jako `SYS_EVENT_RUN_INLINE` w `sys_io_claim.c`) bierze lock usera.
+jako `SYS_EVENT_RUN_INLINE` w `sys_io_driver.c`) bierze lock usera.
 
 - Dwa taski: task 1 trzyma U i czeka na D, task 2 trzyma D i czeka na U. Deadlock.
 - Jeden task: U trzyma swój lock, woła D, D publikuje inline, listener woła `ON_EVENT` na U. `held_by_me` zwraca błąd,
@@ -221,7 +221,7 @@ niczyją zależnością (istnieje sam, napięcie ustawia użytkownik).
   router, `0x24` cmd, `0x25` eventy, `0x26` kontrakty zasilania), `0xFF` własne opy urządzenia. Numery eventów
   urządzeń: `0x8000 | typ`. `router_ids.h` zniknął; `err_modules.h` zawiera już tylko moduły bez własnego numeru.
 - **Payloady zmiennej długości.** Wdrożone: flaga `SYS_DEVICE_OP_TAIL` w wierszu tabeli i jeden handler,
-  `CMD_HANDLER_TAIL` w `cmd_table.h` (`OP_WRITE_TAIL(P, NAME)` dla sterownika): ciało dostaje `args` (głowa, w miejscu),
+  `CMD_HANDLER_TAIL` w `cmd_table.h` (`OP_WRITE_TAIL(P, OP_NAME)` dla sterownika): ciało dostaje `args` (głowa, w miejscu),
   `tail`, `tail_len`. Tabela rozstrzyga: `OP_WRITE` na opie z `TAIL` i `OP_WRITE_TAIL` na opie bez niej nie kompilują
   się. `OP_WRITE_I2C_RAW` zniknęło, `OP_WRITE_ON_EVENT` to `OP_WRITE_TAIL` plus sprawdzenie długości eventu, `OPS` jest
   zwykłym `OP_READ` z odpowiedzią składaną przez `cmd_append`.
@@ -373,7 +373,7 @@ prawdziwym I2C, `SCAN`).
 ### `TAIL`, moduły eventów, interceptor
 
 - `device_esp32s3_i2c` na pinach GPIO ESP32-S3: szyna działa na GPIO = indeks pinu.
-- `OP_WRITE(I2C, RAW)` i `OP_WRITE_TAIL(IO, LEVEL)` nie kompilują się (asercje flagi `TAIL`).
+- `OP_WRITE(I2C, OP_RAW)` i `OP_WRITE_TAIL(IO, OP_LEVEL)` nie kompilują się (asercje flagi `TAIL`).
 - `RAW` zapis: payload krótszy niż głowa i sama głowa dają `ERR_CMD_BAD_LEN`; głowa + n bajtów pisze n bajtów.
 - `ON_EVENT`: payload krótszy niż 20 B i `len` inne niż długość ogona dają `ERR_CMD_BAD_LEN`; payload eventu jest
   czytany poprawnie przez `SYS_EVENT_DATA`.
@@ -461,8 +461,8 @@ z przeglądu starych sterowników (`runit-esp/components/devices/device_*`) i ro
 ani że handler bierze typ zgodny z opem.
 
 **Stan: wdrożone.** Tabela w formacie tabeli kontraktu w źródle sterownika, `DC_MOTOR_OPERATIONS(X, P)`, i
-`SYS_DEVICE_OWN_DECLARE(DC_MOTOR)` (kontrakt `0xFF`). Sterownik pisze `OP_READ(DC_MOTOR, SPEED)`,
-`OP_ENTRY(DC_MOTOR, SPEED)` i `CMD_REPLY(DC_MOTOR, SPEED, ...)` jak dla kontraktu; flagi (`LOCAL`, `ALWAYS`, `TAIL`)
+`SYS_DEVICE_OWN_DECLARE(DC_MOTOR)` (kontrakt `0xFF`). Sterownik pisze `OP_READ(DC_MOTOR, OP_SPEED)`,
+`OP_ENTRY(DC_MOTOR, OP_SPEED)` i `CMD_REPLY(DC_MOTOR, OP_SPEED, ...)` jak dla kontraktu; flagi (`LOCAL`, `ALWAYS`, `TAIL`)
 idą z tabeli. `SYS_DEVICE_HANDLER` przestało być publiczne (`SYS_DEVICE__HANDLER`): handler pisze się tylko przez
 `OP_READ` / `OP_WRITE` / `OP_WRITE_TAIL`. Numery opów silnika się nie zmieniły.
 
@@ -488,7 +488,7 @@ idą z tabeli. `SYS_DEVICE_HANDLER` przestało być publiczne (`SYS_DEVICE__HAND
 - Przepisane: `device_pca9685.c`, `device_esp32s3_i2c.c`, `device_dc_motor.c`, `device_esp32s3_gpio.c`, opy
   rejestru.
 
-`c->id = id` w `create()` zostaje (patrz 12.6, `sys_device_self()`).
+`c->id = id` w `create()` zostaje dla jasnego rozdzielenia warstw (opcjonalne `sys_device_self()` nadal dostępne w rejestrze, patrz 12.6).
 
 ### 12.3 ID typu pisane raz
 
@@ -521,9 +521,10 @@ bez `INCLUDE_DIRS`. Może też odrzucić `esp_driver_*` poza `soc/`, czyli regu�
 
 ### 12.6 Mniejsze
 
-- **ID urządzenia w strukturze sterownika.** Wdrożone: `sys_device_self()` z TLS rejestru (`s_running`).
-  `SYS_IO_PINS_HANDLERS` i wszystkie cztery sterowniki w rework (`device_pca9685`, `device_dc_motor`,
-  `device_esp32s3_i2c`, `device_esp32s3_gpio`) nie trzymają już `c->id`. `SYS_IO_PINS_HANDLERS` używa nadal `c->pins`.
+- **ID urządzenia w strukturze sterownika.** Opcjonalne `sys_device_self()` z TLS rejestru (`s_running`) jest
+  zaimplementowane i dostępne w `sys_device`, ale dla jasnego rozdzielenia warstw sterowniki w rework
+  (`device_pca9685`, `device_dc_motor`, `device_esp32s3_i2c`, `device_esp32s3_gpio`, `device_tca6424a`,
+  `device_tps55289`) oraz `SYS_IO_PINS_HANDLERS` trzymają jawne `c->id` zapisane w `create()`.
 - **Zakresy ustawień.** Zastąpione przez 12.10.
 - **„Zawołaj op urządzenia później”.** Timer: wdrożone. `sys_device_timer` pakuje `[op u16][gen u8][owner u8]`, a
   wygaśnięcie to krok `sys_device_step(id, gen, op)` (punkt 9). Subskrypcja (`sys_device_event`) pakuje tak samo
@@ -557,7 +558,7 @@ urządzenie z pinami przepuszcza zapisy właściciela i odrzuca cudze.
   `sys_io_pins_check_owner`.
 - `sys_io_claim_drive` zostaje jako skrót: pisze zwykłe `LEVEL` i nic nie robi dla pinu nieużywanego
   (`SYS_IO_PIN_NONE`), więc pin opcjonalny nie wymaga sprawdzenia w sterowniku. Każdy inny zapis zajętego pinu to
-  sam op IO: `SYS_IO_WRITE(p->pin, INTR, ...)`.
+  sam op IO: `SYS_IO_WRITE(p->pin, OP_INTR, ...)`.
 - `LOCK` pinu już zablokowanego dalej zwraca `ERR_DEV_PIN_LOCKED`, także właścicielowi (blokadę bierze się raz).
 
 Przy migracji INA3221 i DRV8962 miejsca z odblokowaniem zamieniają się w jeden zapis `INTR`.
@@ -575,7 +576,7 @@ a TPS55289 i TCA6424A zakładają, że mają jedną subskrypcję.
   `SYS_DEVICE_OP_ALWAYS`, a gdy urządzenie zniknęło albo zmieniło generację, zwraca `NULL`.
 - **`sys_device_event`**: pakuje `[op u16][gen u8][owner u8]` (dla `sys_device_event_subscribe` oraz nowego
   `sys_device_event_subscribe_op`), dodaje makro `OP_WRITE_EVENT(P, name)` (`OP_WRITE_ON_EVENT` to
-  `OP_WRITE_EVENT(EVENT, ON_EVENT)`).
+  `OP_WRITE_EVENT(EVENT, OP_ON_EVENT)`).
 - **`sys_io_claim` / `sys_io_claim_input`**: biorą docelowy własny op `op` właściciela dla subskrypcji eventu pinu.
   Kontrakt `EVENT` z `ON_EVENT` zostaje dla urządzeń słuchających dowolnych eventów.
 
@@ -586,8 +587,8 @@ stan zasilania chipa). W nowym API tego pola nie ma. Silnik już jej nie potrzeb
 zawieszonym urządzeniu (punkt 9). Pozostałe przypadki (odczyt z kopii, pominięcie eventu w `ON_EVENT`, który jest
 `ALWAYS`) zostają.
 
-**Stan: wdrożone.** Razem z `sys_device_self()` z 12.6: ID i stan urządzenia, którego op biegnie
-(`sys_device_self()`, `sys_device_self_suspended()`), z TLS rejestru. `c->id = id` zniknęło ze sterowników w rework.
+**Stan: wdrożone.** `sys_device_self()` i `sys_device_self_suspended()` z TLS rejestru są dostępne w `sys_device`.
+Sterowniki w rework używają `sys_device_self_suspended()` do sprawdzenia zawieszenia, a własne ID trzymają jawnie w `c->id`.
 
 ### 12.10 Tabela pól ustawień z zakresami
 

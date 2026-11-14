@@ -15,6 +15,6 @@ idf_component_register(
          "remote/sys_device_remote.c"
     INCLUDE_DIRS "." "errors" "events"
     PRIV_INCLUDE_DIRS "slots" "registry" "remote"
-    REQUIRES errors router sys_event
+    REQUIRES errors cmd sys_event
     PRIV_REQUIRES utils freertos
 )

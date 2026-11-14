@@ -33,7 +33,7 @@ typedef struct {
  * @param[out] t     The timer, not set up yet
  * @param[in]  op    The owner's own op (SYS_DEVICE_OWN_OP) the timers' task writes, without args
  * @return ERR_DEV_BAD_ARG for an op not the device's own, else the error of sys_device_res_add
- * @usage ERR_TRY(sys_device_timer_init(id, &c->timer, DC_MOTOR_OP_TICK));
+ * @usage ERR_TRY(sys_device_timer_init(id, &c->timer, OWN_DC_MOTOR_OP_TICK));
  */
 MUST_USE err_h sys_device_timer_init(uint8_t owner, sys_device_timer_t* t, uint16_t op);
 

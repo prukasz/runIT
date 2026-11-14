@@ -1,9 +1,9 @@
-/* Host tests of the cmd component: the real cmd.c and errors; only the platform is replaced.
- * Run: python test_host/run.py router   (runit-esp/test_host/HOST_TESTS.MD) */
+/* Host tests of the cmd component: inline cmd_reply / cmd_append and cmd error tags.
+ * Run: python test_host/run.py cmd   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <string.h>
 #include "unity.h"
 #include "host_assert.h"
-#include "router.h"
+#include "cmd.h"
 #include "err_internal.h"  /* the registry lookup (err_module, err_tag_info): only the wire-size test needs it */
 #include "host_mocks.h"
 
@@ -12,84 +12,6 @@ void setUp(void) {
   host_time_set(0);
 }
 void tearDown(void) {}
-
-/* ---- handlers used as the router and the device registry use them --------------------------------------------- */
-
-static err_h h_read(void* ctx, cmd_in_t in, cmd_out_t* out) {
-  (void)in;
-  const uint8_t value = *(const uint8_t*)ctx;
-  return cmd_reply(out, &value, sizeof(value));
-}
-static err_h h_write(void* ctx, cmd_in_t in, cmd_out_t* out) {
-  (void)out;
-  ERR_CHECK(in.len == 1, ERR_CMD_BAD_LEN, .got = (uint16_t)in.len, .need = 1);
-  *(uint8_t*)ctx = in.data[0];
-  return NULL;
-}
-
-/* ---- cmd_side ------------------------------------------------------------------------------------------------- */
-
-static void test_side_picks_the_handler_of_the_direction(void) {
-  cmd_f fn = NULL;
-  TEST_ASSERT_NULL(cmd_side(h_read, h_write, CMD_DIR_READ, &fn));
-  TEST_ASSERT_TRUE(fn == h_read);
-  TEST_ASSERT_NULL(cmd_side(h_read, h_write, CMD_DIR_WRITE, &fn));
-  TEST_ASSERT_TRUE(fn == h_write);
-}
-
-static void test_side_a_command_with_one_side_refuses_the_other(void) {
-  cmd_f fn = h_read;
-  err_h e = cmd_side(h_read, NULL, CMD_DIR_WRITE, &fn);  /* a read-only command asked to write */
-  TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_DIRECTION, e);
-  TEST_ASSERT_EQUAL_UINT8(CMD_DIR_WRITE, ERR_DATA(e, ERR_CMD_DIRECTION)->dir);
-  TEST_ASSERT_NULL(fn);
-  err_free(e);
-
-  e = cmd_side(NULL, h_write, CMD_DIR_READ, &fn);        /* and a write-only one asked to read */
-  TEST_ASSERT_ERR_TAG(ERR_CMD_DIRECTION, e);
-  err_free(e);
-}
-
-static void test_side_a_dir_that_is_neither_read_nor_write(void) {
-  cmd_f fn = h_read;
-  const uint8_t bad[] = {2, 0x7F, 0xFF};
-  for (unsigned i = 0; i < sizeof(bad); i++) {
-    err_h e = cmd_side(h_read, h_write, bad[i], &fn);    /* both sides exist: still refused */
-    TEST_ASSERT_NOT_NULL(e);
-    TEST_ASSERT_ERR_TAG(ERR_CMD_DIRECTION, e);
-    TEST_ASSERT_EQUAL_UINT8(bad[i], ERR_DATA(e, ERR_CMD_DIRECTION)->dir);
-    TEST_ASSERT_NULL(fn);
-    err_free(e);
-    fn = h_read;
-  }
-}
-
-static void test_a_command_is_run_through_its_side(void) {
-  uint8_t state = 41;
-  uint8_t buf[8];
-  cmd_out_t out = {.data = buf, .cap = sizeof(buf), .len = 0};
-  cmd_f fn;
-
-  TEST_ASSERT_NULL(cmd_side(h_read, h_write, CMD_DIR_READ, &fn));
-  TEST_ASSERT_NULL(fn(&state, (cmd_in_t){NULL, 0}, &out));
-  TEST_ASSERT_EQUAL_UINT32(1, out.len);
-  TEST_ASSERT_EQUAL_UINT8(41, buf[0]);
-
-  const uint8_t arg = 42;
-  TEST_ASSERT_NULL(cmd_side(h_read, h_write, CMD_DIR_WRITE, &fn));
-  out.len = 0;
-  TEST_ASSERT_NULL(fn(&state, (cmd_in_t){&arg, 1}, &out));
-  TEST_ASSERT_EQUAL_UINT32(0, out.len);  /* a write answers no data */
-  TEST_ASSERT_EQUAL_UINT8(42, state);
-
-  err_h e = fn(&state, (cmd_in_t){&arg, 2}, &out);  /* the payload size is the handler's to check */
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_LEN, e);
-  TEST_ASSERT_EQUAL_UINT16(2, ERR_DATA(e, ERR_CMD_BAD_LEN)->got);
-  TEST_ASSERT_EQUAL_UINT16(1, ERR_DATA(e, ERR_CMD_BAD_LEN)->need);
-  TEST_ASSERT_EQUAL_UINT8(42, state);               /* nothing was changed */
-  err_free(e);
-}
 
 /* ---- cmd_reply ------------------------------------------------------------------------------------------------ */
 
@@ -186,11 +108,11 @@ static void test_append_past_the_cap_is_refused_and_keeps_the_answer(void) {
 /* ---- the module's errors are on the wire: tags and sizes do not change ------------------------------------------ */
 
 static void test_error_tags_are_registered_with_their_wire_sizes(void) {
-  TEST_ASSERT_EQUAL_STRING("router", err_module(ERR_MOD_ROUTER)->name);
-  TEST_ASSERT_EQUAL_HEX32(0x0023000B, ERR_CMD_BAD_LEN);
-  TEST_ASSERT_EQUAL_HEX32(0x0023000C, ERR_CMD_OUT_FULL);
-  TEST_ASSERT_EQUAL_HEX32(0x0023000D, ERR_CMD_BAD_ARG);
-  TEST_ASSERT_EQUAL_HEX32(0x0023000E, ERR_CMD_DIRECTION);
+  TEST_ASSERT_EQUAL_STRING("cmd", err_module(ERR_MOD_CMD)->name);
+  TEST_ASSERT_EQUAL_HEX32(0x00270001, ERR_CMD_BAD_LEN);
+  TEST_ASSERT_EQUAL_HEX32(0x00270002, ERR_CMD_OUT_FULL);
+  TEST_ASSERT_EQUAL_HEX32(0x00270003, ERR_CMD_BAD_ARG);
+  TEST_ASSERT_EQUAL_HEX32(0x00270004, ERR_CMD_DIRECTION);
   TEST_ASSERT_EQUAL_UINT8(4, err_tag_info(ERR_CMD_BAD_LEN)->size);
   TEST_ASSERT_EQUAL_UINT8(4, err_tag_info(ERR_CMD_OUT_FULL)->size);
   TEST_ASSERT_EQUAL_UINT8(0, err_tag_info(ERR_CMD_BAD_ARG)->size);
@@ -200,10 +122,6 @@ static void test_error_tags_are_registered_with_their_wire_sizes(void) {
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_side_picks_the_handler_of_the_direction);
-  RUN_TEST(test_side_a_command_with_one_side_refuses_the_other);
-  RUN_TEST(test_side_a_dir_that_is_neither_read_nor_write);
-  RUN_TEST(test_a_command_is_run_through_its_side);
   RUN_TEST(test_reply_writes_the_whole_answer);
   RUN_TEST(test_reply_fills_exactly_the_cap);
   RUN_TEST(test_reply_replaces_what_was_there);

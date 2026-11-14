@@ -205,7 +205,7 @@ typedef struct __attribute__((packed)) {
  * API
  * ------------------------------------------------------------------------- */
 
-/** @brief The app's safe state (SAFE_STATE response). Without one: sys_device_sweep(SYS_DEVICE_OP_SUSPEND). */
+/** @brief The app's safe state (SAFE_STATE response). Without one: sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND). */
 typedef void (*sys_power_safe_state_f)(void);
 
 /**

@@ -12,5 +12,5 @@ Spec: `ROUTER_QUEUE.MD` (this folder).
 - The board's own commands: `router_inject` submits with src `ROUTER_SRC_SELF`, seq from the queue's counter.
 - Origin: `router_origin()` returns the command currently executing on the calling router task (a module reads its `src`); `router_is_task()` tells a router task.
 - The queue runs urgent work (`router_run_urgent`); what it means (the safe state) lives in `sys_system` (SYS_SYSTEM.MD), whether a peer is alive in `sys_session`. Keep both out of the queue.
-- `router_init` calls `router_register_pending` (router.h) and starts the tasks; the application's own `router_register` calls come before.
+- `router_init` calls `router_root_init` (router.h) and starts the tasks.
 - Host tests: `host/` (ROUTER_QUEUE.MD "Tests"). A change to the queues or the tasks is run with `python test_host/run.py router_queue` from the firmware project. The tests that run the tasks wait on latches, not on sleeps; keep it so (a test that must show "nothing ran yet" uses a short wait and says so).

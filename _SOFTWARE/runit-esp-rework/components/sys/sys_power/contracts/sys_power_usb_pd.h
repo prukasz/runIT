@@ -13,8 +13,8 @@ extern "C" {
  * OPTIONS  - what the charger offers: an array of sys_power_usb_pd_option_t (sys_power_usb_pd_list_options)
  * LIMITS   - the highest the charger offers (the power manager's USB budget)
  * No events.
- * @usage ERR_TRY(SYS_DEVICE_SET(pd, PD, SETTINGS, .voltage_mV = 12000, .current_mA = 2000));
- *        sys_power_usb_pd_limits_t lim; ERR_TRY(SYS_DEVICE_GET(pd, PD, LIMITS, &lim));
+ * @usage ERR_TRY(SYS_DEVICE_SET(pd, CONTRACT_PD, OP_SETTINGS, .voltage_mV = 12000, .current_mA = 2000));
+ *        sys_power_usb_pd_limits_t lim; ERR_TRY(SYS_DEVICE_GET(pd, CONTRACT_PD, OP_LIMITS, &lim));
  */
 
 /* A source offers at most 7 SPR + 6 EPR power data objects. */
@@ -49,16 +49,16 @@ typedef struct __attribute__((packed)) {
 } sys_power_usb_pd_limits_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: SETTINGS RW, OPTIONS R (an array of
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: SETTINGS RW, OPTIONS R (an array of
  * its value_t, not one), LIMITS R.
  */
-#define PD_OPERATIONS(X, P)                                      \
-  X(P, SETTINGS, 0x00, cmd_none_t, pd_settings_args_t,        0) \
-  X(P, OPTIONS,  0x01, cmd_none_t, sys_power_usb_pd_option_t, 0) \
-  X(P, LIMITS,   0x02, cmd_none_t, sys_power_usb_pd_limits_t, 0)
+#define CONTRACT_PD_OPERATIONS(X, P)                                         \
+  X(P, OP_SETTINGS, 0x00, cmd_none_t, pd_settings_args_t,        0) \
+  X(P, OP_OPTIONS,  0x01, cmd_none_t, sys_power_usb_pd_option_t, 0) \
+  X(P, OP_LIMITS,   0x02, cmd_none_t, sys_power_usb_pd_limits_t, 0)
 
 MODULE_ID_DECLARE(PD, 0x07)
-SYS_DEVICE_CONTRACT_DECLARE(PD, 0x07)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PD, PD, 0x07)
 
 /**
  * @brief Reads what the charger offers (op OPTIONS): an answer of any number of options, so not SYS_DEVICE_GET.

@@ -16,9 +16,9 @@ extern "C" {
  *   SYS_DEVICE_TYPE_DECLARE(PCA9685, 0x0041)     // its type ID, once: PCA9685_TYPE
  *   typedef struct { ... } pca_t;                // its struct
  *   #define SYS_DEVICE_CTX pca_t                 // every handler's body sees it as `c`
- *   OP_WRITE(IO, LEVEL) { ... }                  // the handlers: c, args, out
+ *   OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) { ... }  // the handlers: c, args, out
  *   static err_h create(uint8_t id, pca_t* c, const pca9685_cfg_t* cfg) { ... }
- *   static const sys_device_op_t k_ops[] = {OP_ENTRY(IO, LEVEL), ...};
+ *   static const sys_device_op_t k_ops[] = {OP_ENTRY(CONTRACT_IO, OP_LEVEL), ...};
  *   SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
  */
 
@@ -29,44 +29,46 @@ extern "C" {
 /* Writes a cmd_f of an op (CMD_HANDLER, cmd_table.h): parses the payload (exactly sizeof(args_t) bytes, else
  * ERR_CMD_BAD_LEN) and runs the body that follows. The body sees `c` (the driver's struct, SYS_DEVICE_CTX*), `args`
  * (const args_t*) and `out`, and need not use any of them. `in` is the payload only: the registry strips the op. A
- * driver writes OP_READ / OP_WRITE. */
+ * driver writes OP_DECLARE_READ / OP_DECLARE_WRITE. */
 #define SYS_DEVICE__HANDLER(fn, args_t) CMD_HANDLER(fn, SYS_DEVICE_CTX, args_t)
 
-/* The handlers and op-table rows of op NAME of the table with prefix P, a contract's or the device's own
- * (OP_WRITE(SYS_DEVICE, RESET), OP_ENTRY_R(PD, LIMITS), OP_READ(DC_MOTOR, OUTPUT)): OP_READ / OP_WRITE write the side's
- * cmd_f (the read parses the key, the write the value), OP_ENTRY lists both sides, OP_ENTRY_R / OP_ENTRY_W one. Every
- * row takes the op's flags from its table (SYS_DEVICE_OP_ALWAYS, SYS_DEVICE_OP_LOCAL): a driver can't leave them out.
- * OP_WRITE_TAIL is the write of an op marked SYS_DEVICE_OP_TAIL (cmd_table.h, CMD_HANDLER_TAIL): its body sees `args`
- * (the head, the op's value_t, in place), `tail` and `tail_len`. The table says which of the two an op takes, and the
- * other one fails to compile:
- *   OP_WRITE_TAIL(I2C, RAW) { return raw_write(c, args->addr, args->reg, tail, tail_len); } */
+/* The handlers and op-table rows of op OP_NAME of the table with prefix P, a contract's or the device's own
+ * (OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET), OP_ENTRY_R(CONTRACT_PD, OP_LIMITS),
+ * OP_DECLARE_READ(OWN_DC_MOTOR, OP_OUTPUT)): OP_DECLARE_READ / OP_DECLARE_WRITE write the side's cmd_f (the read
+ * parses the key, the write the value), OP_ENTRY lists both sides, OP_ENTRY_R / OP_ENTRY_W one. Every row takes the
+ * op's flags from its table (SYS_DEVICE_OP_ALWAYS, SYS_DEVICE_OP_LOCAL): a driver can't leave them out.
+ * OP_DECLARE_WRITE_TAIL is the write of an op marked SYS_DEVICE_OP_TAIL (cmd_table.h, CMD_HANDLER_TAIL): its body
+ * sees `args` (the head, the op's value_t, in place), `tail` and `tail_len`. The table says which of the two an op
+ * takes, and the other one fails to compile:
+ *   OP_DECLARE_WRITE_TAIL(CONTRACT_I2C, OP_RAW) { return raw_write(c, args->addr, args->reg, tail, tail_len); } */
 #define SYS_DEVICE__ROW_FLAGS(P, name) .flags = P##_FLAGS_##name
-#define OP_READ(P, name)    SYS_DEVICE__HANDLER(P##_r_##name, P##_key_##name##_t)
-#define OP_WRITE(P, name)                                                                                   \
-  _Static_assert((P##_FLAGS_##name & SYS_DEVICE_OP_TAIL) == 0, #P " " #name " has a tail: OP_WRITE_TAIL");  \
+#define OP_DECLARE_READ(P, name)    SYS_DEVICE__HANDLER(P##_r_##name, P##_key_##name##_t)
+#define OP_DECLARE_WRITE(P, name)                                                                                  \
+  _Static_assert((P##_FLAGS_##name & SYS_DEVICE_OP_TAIL) == 0, #P " " #name " has a tail: OP_DECLARE_WRITE_TAIL"); \
   SYS_DEVICE__HANDLER(P##_w_##name, P##_value_##name##_t)
-#define OP_WRITE_TAIL(P, name)                                                                              \
-  _Static_assert((P##_FLAGS_##name & SYS_DEVICE_OP_TAIL) != 0, #P " " #name " has no tail: OP_WRITE");      \
+#define OP_DECLARE_WRITE_TAIL(P, name)                                                                             \
+  _Static_assert((P##_FLAGS_##name & SYS_DEVICE_OP_TAIL) != 0, #P " " #name " has no tail: OP_DECLARE_WRITE");     \
   CMD_HANDLER_TAIL(P##_w_##name, SYS_DEVICE_CTX, P##_value_##name##_t)
-#define OP_ENTRY(P, name)                                                                            \
-  {.op = P##_OP_##name, .read = P##_r_##name, .write = P##_w_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
-#define OP_ENTRY_R(P, name) {.op = P##_OP_##name, .read = P##_r_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
-#define OP_ENTRY_W(P, name) {.op = P##_OP_##name, .write = P##_w_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
+#define OP_ENTRY(P, name)                                                                     \
+  {.op = P##_##name, .read = P##_r_##name, .write = P##_w_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
+#define OP_ENTRY_R(P, name) {.op = P##_##name, .read = P##_r_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
+#define OP_ENTRY_W(P, name) {.op = P##_##name, .write = P##_w_##name, SYS_DEVICE__ROW_FLAGS(P, name)}
 
 /* A read handler answers with CMD_REPLY (cmd_table.h), its value from the table:
- *   return CMD_REPLY(IO, VOLTAGE, .pin = args->pin, .voltage_mV = mV);
- *   return CMD_REPLY(IO, LOCKED, c->pins.locked); */
+ *   return CMD_REPLY(CONTRACT_IO, OP_VOLTAGE, .pin = args->pin, .voltage_mV = mV);
+ *   return CMD_REPLY(CONTRACT_IO, OP_LOCKED, c->pins.locked); */
 
 /**
  * @brief A device's own ops (0xFFxx), written like a contract: one table P_OPERATIONS(X, P) of rows
- * X(P, NAME, n, key_t, value_t, flags) in the driver's source, P the driver's prefix. Gives P_OP_<NAME> =
- * SYS_DEVICE_OWN_OP(n), P_FLAGS_<NAME>, P_key_<NAME>_t and P_value_<NAME>_t, so an own op has the handlers, the rows
- * and the answer of a contract's (OP_READ, OP_WRITE, OP_WRITE_TAIL, OP_ENTRY*, CMD_REPLY) and its flags come from the
- * table: an op the timers' task calls is LOCAL there, not in a row someone may forget.
- * @usage #define DC_MOTOR_OPERATIONS(X, P)                              \
- *          X(P, SPEED, 0x00, cmd_none_t, dc_motor_speed_t, 0)           \
- *          X(P, TICK,  0x08, cmd_none_t, cmd_none_t, SYS_DEVICE_OP_LOCAL)
- *        SYS_DEVICE_OWN_DECLARE(DC_MOTOR)  // DC_MOTOR_OP_SPEED = 0xFF00, DC_MOTOR_value_SPEED_t, ...
+ * X(P, OP_NAME, n, key_t, value_t, flags) in the driver's source, P the driver's prefix (OWN_<DEVICE>). Gives
+ * P_<OP_NAME> = SYS_DEVICE_OWN_OP(n), P_FLAGS_<OP_NAME>, P_key_<OP_NAME>_t and P_value_<OP_NAME>_t, so an own op has
+ * the handlers, the rows and the answer of a contract's (OP_DECLARE_READ, OP_DECLARE_WRITE, OP_DECLARE_WRITE_TAIL,
+ * OP_ENTRY*, CMD_REPLY) and its flags come from the table: an op the timers' task calls is LOCAL there, not in a row
+ * someone may forget.
+ * @usage #define OWN_DC_MOTOR_OPERATIONS(X, P)                             \
+ *          X(P, OP_SPEED, 0x00, cmd_none_t, dc_motor_speed_t, 0)           \
+ *          X(P, OP_TICK,  0x08, cmd_none_t, cmd_none_t, SYS_DEVICE_OP_LOCAL)
+ *        SYS_DEVICE_OWN_DECLARE(OWN_DC_MOTOR)  // OWN_DC_MOTOR_OP_SPEED = 0xFF00, OWN_DC_MOTOR_value_OP_SPEED_t, ...
  */
 #define SYS_DEVICE_OWN_DECLARE(P) SYS_DEVICE__TABLE(P, SYS_DEVICE_CONTRACT_OWN)
 
@@ -173,7 +175,7 @@ void sys_device_type_register(uint16_t id, const sys_device_type_t* type);
       .suspend  = sys_device__suspend,                                                                        \
       .resume   = sys_device__resume,                                                                         \
       .ops      = (k_ops),                                                                                    \
-      .op_count = ARRAY_LEN(k_ops),                                                                           \
+      .op_count = sizeof(k_ops) / sizeof((k_ops)[0]),                                                         \
       .has_op   = (has_op_ptr),                                                                               \
   };                                                                                                          \
   __attribute__((constructor)) static void sys_device__type_register(void) {                                  \
@@ -319,7 +321,7 @@ MUST_USE err_h sys_device_use(uint8_t user, uint8_t dep);
  * @param[in] op   Op number, SYS_DEVICE_OP(contract, n)
  * @param[in] dir  cmd_dir_e: the side the driver will call
  * @return ERR_DEV_NOT_FOUND{dep} unless it exists, ERR_DEV_UNKNOWN_OP{op} unless it has that op and side
- * @usage ERR_TRY(sys_device_require_op(id, c->oe.device, IO_OP_LEVEL, CMD_DIR_WRITE));
+ * @usage ERR_TRY(sys_device_require_op(id, c->oe.device, CONTRACT_IO_OP_LEVEL, CMD_DIR_WRITE));
  */
 MUST_USE err_h sys_device_require_op(uint8_t user, uint8_t dep, uint16_t op, uint8_t dir);
 

@@ -1,0 +1,4 @@
+#include "cmd.h"
+
+ERR_MODULE_DEFINE(ERR_MOD_CMD, "cmd", ERR_CMD_MAP)
+MODULE_ID_DEFINE(CMD, 0x27)

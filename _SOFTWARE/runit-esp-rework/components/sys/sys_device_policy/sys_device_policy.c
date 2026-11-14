@@ -56,14 +56,11 @@ static bool is_response(uint32_t action) {
   return (action >> 24) == RESPONSE_CLASS;
 }
 
-static bool response_known(uint32_t action) {
-  return action == SYS_DEVICE_RESPONSE_SUSPEND || action == SYS_DEVICE_RESPONSE_RESET;
-}
-
 err_h sys_device_policy_set(uint8_t id, const sys_device_error_policy_t* p) {
   SYS_DEV_CHECK_IN_RANGE(id, p->importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   for (uint32_t i = 0; i < SYS_DEVICE_ERR_LEVELS; i++) {
-    ERR_CHECK(!is_response(p->actions[i]) || response_known(p->actions[i]), ERR_DEV_BAD_ARG);
+    const uint32_t a = p->actions[i];
+    ERR_CHECK(!is_response(a) || a == SYS_DEVICE_RESPONSE_SUSPEND || a == SYS_DEVICE_RESPONSE_RESET, ERR_DEV_BAD_ARG);
   }
   bool present = false;
   if (id < SYS_DEVICE_COUNT) {
@@ -136,7 +133,7 @@ static err_h system_fault(uint8_t id) {
                           .stage = SYS_DEVICE_FAULT_STAGE_VM_STOP, .action = 0u);
     }
   }
-  err_h err = sys_device_sweep(SYS_DEVICE_OP_SUSPEND);
+  err_h err = sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
                    .stage = SYS_DEVICE_FAULT_STAGE_SUSPEND, .action = 0u);
@@ -149,9 +146,9 @@ static err_h system_fault(uint8_t id) {
 static err_h run_response(uint8_t id, uint32_t action) {
   switch (action) {
     case SYS_DEVICE_RESPONSE_SUSPEND:
-      return sys_device_write(id, SYS_DEVICE_OP_SUSPEND, NULL, 0);
+      return sys_device_write(id, CONTRACT_SYS_DEVICE_OP_SUSPEND, NULL, 0);
     case SYS_DEVICE_RESPONSE_RESET:
-      return sys_device_write(id, SYS_DEVICE_OP_RESET, NULL, 0);
+      return sys_device_write(id, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0);
     default:
       return ERR_NEW(ERR_DEV_BAD_ARG);
   }

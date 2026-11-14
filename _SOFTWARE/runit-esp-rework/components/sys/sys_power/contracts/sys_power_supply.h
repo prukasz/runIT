@@ -12,7 +12,7 @@ extern "C" {
  * and the new one on after the device's switch delay, so the two are never on together.
  * SOURCE - which source feeds the load (sys_power_supply_source_e), set and read
  * No events.
- * @usage ERR_TRY(SYS_DEVICE_SET(mux, SUPPLY, SOURCE, .source = SYS_POWER_SUPPLY_B));
+ * @usage ERR_TRY(SYS_DEVICE_SET(mux, CONTRACT_SUPPLY, OP_SOURCE, .source = SYS_POWER_SUPPLY_B));
  */
 
 //#ref-enum @alias Supply Source
@@ -28,13 +28,13 @@ typedef struct __attribute__((packed)) {
 } supply_select_args_t;
 
 /**
- * @brief The contract, once: X(P, NAME, op number, key_t, value_t, flags). Sides: SOURCE RW.
+ * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). Sides: SOURCE RW.
  */
-#define SUPPLY_OPERATIONS(X, P)                           \
-  X(P, SOURCE, 0x00, cmd_none_t, supply_select_args_t, 0)
+#define CONTRACT_SUPPLY_OPERATIONS(X, P)                              \
+  X(P, OP_SOURCE, 0x00, cmd_none_t, supply_select_args_t, 0)
 
 MODULE_ID_DECLARE(SUPPLY, 0x08)
-SYS_DEVICE_CONTRACT_DECLARE(SUPPLY, 0x08)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SUPPLY, SUPPLY, 0x08)
 
 #ifdef __cplusplus
 }

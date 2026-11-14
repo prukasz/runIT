@@ -68,11 +68,11 @@ typedef void (*sys_device_intercept_done_f)(uint8_t id, uint8_t dir, uint16_t op
 
 /**
  * @brief Sets the interceptor of `contract`. Boot only; one per contract, up to CONFIG_SYS_DEVICE_INTERCEPTORS.
- * @param[in] contract The contract's ID: its P_CONTRACT (VREG_CONTRACT)
+ * @param[in] contract The contract's ID: its P_CONTRACT (CONTRACT_VREG_CONTRACT)
  * @param[in] fn       The first stage: before the device
  * @param[in] done     The second stage: after the device; NULL for an interceptor that keeps nothing per call
  * @return The error when all CONFIG_SYS_DEVICE_INTERCEPTORS are used or the contract has one
- * @usage ERR_TRY(sys_device_set_interceptor(VREG_CONTRACT, budget_take, budget_settle));
+ * @usage ERR_TRY(sys_device_set_interceptor(CONTRACT_VREG_CONTRACT, budget_take, budget_settle));
  */
 MUST_USE err_h sys_device_set_interceptor(uint8_t contract, sys_device_interceptor_f fn,
                                           sys_device_intercept_done_f done);

@@ -5,6 +5,6 @@
 idf_component_register(
     SRCS "sys_power.c"
     INCLUDE_DIRS "." "contracts" "errors"
-    REQUIRES errors router sys_device sys_event
+    REQUIRES errors cmd sys_device sys_event
     WHOLE_ARCHIVE
 )

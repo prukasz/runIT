@@ -2,7 +2,7 @@
 
 #include <string.h>  // memcpy in CMD_HANDLER
 
-#include "router.h"
+#include "cmd.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,22 +11,22 @@ extern "C" {
 /**
  * @file cmd_table.h
  * @brief A table of ops, the one format for every set of commands: a device contract (sys_device) and a module's router
- * (router) alike. The ops are written once, as P_OPERATIONS(X, P) of rows X(P, NAME, n, key_t, value_t, flags): the
+ * (router) alike. The ops are written once, as P_OPERATIONS(X, P) of rows X(P, OP_NAME, n, key_t, value_t, flags): the
  * read takes key_t and answers value_t, the write takes value_t (the mirror; cmd_none_t for a side with nothing).
- * CMD_TABLE_DECLARE(P) gives P_OP_<NAME> = n and the types P_key_<NAME>_t, P_value_<NAME>_t, so a handler, its answer
- * and a caller's frame all come from the table and the compiler checks them. `flags` are the user's (the registry's
- * SYS_DEVICE_OP_*); a router's are 0.
- * @usage #define PWRM_OPERATIONS(X, P)                                    \
- *          X(P, PSU,    0x03, cmd_none_t, sys_power_psu_t,    0)         \
- *          X(P, STATUS, 0x07, cmd_none_t, sys_power_status_t, 0)
- *        CMD_TABLE_DECLARE(PWRM)  // PWRM_OP_PSU = 0x03, PWRM_value_PSU_t = sys_power_psu_t, ...
+ * CMD_TABLE_DECLARE(P) gives P_<OP_NAME> = n (e.g. PWRM_OP_PSU) and the types P_key_<OP_NAME>_t, P_value_<OP_NAME>_t, so
+ * a handler, its answer and a caller's frame all come from the table and the compiler checks them. `flags` are the
+ * user's (the registry's SYS_DEVICE_OP_*); a router's are 0.
+ * @usage #define PWRM_OPERATIONS(X, P)                                       \
+ *          X(P, OP_PSU,    0x03, cmd_none_t, sys_power_psu_t,    0)         \
+ *          X(P, OP_STATUS, 0x07, cmd_none_t, sys_power_status_t, 0)
+ *        CMD_TABLE_DECLARE(PWRM)  // PWRM_OP_PSU = 0x03, PWRM_value_OP_PSU_t = sys_power_psu_t, ...
  */
 
 /** @brief A key or value of nothing (an op without args, a read without a key). */
 typedef struct __attribute__((packed)) {
 } cmd_none_t;
 
-#define CMD__TABLE_CODE(P, name, n, key_t, value_t, flags) P##_OP_##name = (n),
+#define CMD__TABLE_CODE(P, name, n, key_t, value_t, flags) P##_##name = (n),
 #define CMD__TABLE_TYPES(P, name, n, key_t, value_t, flags) \
   typedef key_t P##_key_##name##_t;                         \
   typedef value_t P##_value_##name##_t;
@@ -37,9 +37,9 @@ typedef struct __attribute__((packed)) {
   P##_OPERATIONS(CMD__TABLE_TYPES, P)
 
 /**
- * @brief The answer of a read handler of op NAME of table P: its value_t built from the fields given (or the value
+ * @brief The answer of a read handler of op OP_NAME of table P: its value_t built from the fields given (or the value
  * itself, for a scalar), written to the handler's `out`.
- * @usage return CMD_REPLY(PWRM, STATUS, .input_mV = mv, .limit_mW = limit);
+ * @usage return CMD_REPLY(PWRM, OP_STATUS, .input_mV = mv, .limit_mW = limit);
  */
 #define CMD_REPLY(P, name, ...) \
   cmd_reply(out, &(const P##_value_##name##_t){__VA_ARGS__}, sizeof(P##_value_##name##_t))
@@ -49,7 +49,7 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Writes a cmd_f whose payload is exactly one args_t (cmd_none_t: nothing), the handler of every fixed frame: a
- * module's op (ROUTER_READ / ROUTER_WRITE) and a device's (OP_READ / OP_WRITE). `in` is the payload only. The body that
+ * module's op (ROUTER_READ / ROUTER_WRITE) and a device's (OP_DECLARE_READ / OP_DECLARE_WRITE). `in` is the payload only. The body that
  * follows sees `c` (the handler's ctx as ctx_t*; void for none), `args` (a copy, aligned) and `out`, and need not use
  * any of them. ERR_CMD_BAD_LEN{got, need} for a payload of another size.
  * @usage CMD_HANDLER(get_level, pca_t, io_pin_args_t) { return reply_level(c, args->pin, out); }

@@ -15,7 +15,6 @@ set(RUNIT_SHARED "${CMAKE_CURRENT_LIST_DIR}/../runit-esp/components")
 list(APPEND EXTRA_COMPONENT_DIRS
     "${RUNIT_SHARED}/core/utils"
     "${RUNIT_SHARED}/core/time"
-    "${RUNIT_SHARED}/core/errors"
 )
 list(APPEND EXTRA_COMPONENT_DIRS "components/core")
 list(APPEND EXTRA_COMPONENT_DIRS "components/sys")

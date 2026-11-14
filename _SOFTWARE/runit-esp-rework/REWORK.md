@@ -8,21 +8,21 @@ Build: `.\build.ps1` (activates ESP-IDF, builds, prints the errors, warnings and
 
 | Layer | Component | Where |
 |---|---|---|
-| core | `utils`, `time`, `errors` | shared: `runit-esp/components/core/` |
-| core | `router` (the handler, the op tables with `cmd_table.h` and `router_table.h`, routing), `router_queue` (the queue and the two tasks), `timer` (the board's timers) | here |
+| core | `utils`, `time` | shared: `runit-esp/components/core/` |
+| core | `errors`, `cmd` (`cmd.h`, `cmd_table.h`, `ERR_CMD_*`), `router` (module op tables, `router_table.h`, routing), `router_queue` (the queue and the two tasks), `timer` (the board's timers) | here |
 | sys | `sys_event` | here |
 | sys | `sys_device` (the registry) and its satellites `sys_device_event`, `sys_device_timer`, `sys_device_router`, `sys_device_policy` | here |
-| sys | the contracts `sys_io` (+ `sys_io_claim`), `sys_power`, `sys_hbridge`, `bus/sys_i2c` (a bus is a device: the contract and its client side) | here |
+| sys | the contracts `sys_io` (`sys_io.h` + `sys_io_driver.h`), `sys_power`, `sys_hbridge`, `bus/sys_i2c` (a bus is a device: the contract and its client side) | here |
 | sys | `sys_power_manager` (its POWER_VREG budget is an interceptor of the registry) | here |
-| devices | `device_esp32s3_gpio` (the ESP32-S3's own pins: digital, PWM, ADC, pin events), `device_esp32s3_i2c` (the ESP32-S3's I2C controller as a bus device), `device_dc_motor`, `device_pca9685`, `device_tca6424a` | here |
+| devices | `device_esp32s3_gpio` (the ESP32-S3's own pins: digital, PWM, ADC, pin events), `device_esp32s3_i2c` (the ESP32-S3's I2C controller as a bus device), `device_dc_motor`, `device_pca9685`, `device_tca6424a`, `device_tps55289` | here |
 | main | logs the uptime, starts the router | here |
 
-Every module has one number (`core/utils/module_id.h` in `runit-esp`): its router key, the module of its errors and of its events, and a contract's ID. The modules here declare theirs; `err_modules.h` lists only the modules not moved yet (there is no list of router keys).
+Every module has one number (`core/utils/module_id.h` in `runit-esp`): its router key, the module of its errors and of its events, and a contract's ID. All modules here declare theirs via `MODULE_ID_DECLARE` (`ERR_MOD_CORE` is `0` in `errors.h`).
 
 `PROPOSAL.md` is the review of the registry (`sys_device`): the reasons for its design, what is open and in which order, with a list of what to test on the board.
 
 ## Next
 
-1. the other devices, one by one (`device_ina3221`, `device_tps55289`, `device_drv8962`, ...)
+1. the other devices, one by one (`device_ina3221`, `device_drv8962`, ...)
 2. the rest of `sys` with minimal changes
 3. the descriptors of the moved components (`device_*.json`, `contract_*.json`) and `templates/sync.sh`, which still look in `runit-esp/`

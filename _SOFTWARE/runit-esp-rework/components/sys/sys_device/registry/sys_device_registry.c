@@ -39,7 +39,7 @@ const sys_device_op_t* sys_device_type_op(uint8_t id, uint16_t op) {
 }
 
 /* ----------------------------------------------------------------------------
- * The registry's ops: written like a driver's (OP_READ / OP_WRITE, a sys_device_op_t table), but their ctx is the
+ * The registry's ops: written like a driver's (OP_DECLARE_READ / OP_DECLARE_WRITE, a sys_device_op_t table), but their ctx is the
  * device's ID, and the slot's lock is held.
  * ------------------------------------------------------------------------- */
 
@@ -54,7 +54,7 @@ const sys_device_op_t* sys_device_type_op(uint8_t id, uint16_t op) {
 
 // SUSPEND: the hook makes the hardware safe, the registry owns the flag (set even when the hook failed: a half-safe
 // device refuses writes).
-OP_WRITE(SYS_DEVICE, SUSPEND) {
+OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_SUSPEND) {
   const uint8_t id = CTX_ID;
   err_h err = sys_device_slot_is_remote(id) ? NULL : sys_device_slot_type(id)->suspend(sys_device_slot_instance(id));
   ERR_KEEP_FIRST(err, sys_device_slot_set_suspended(id, true));
@@ -62,7 +62,7 @@ OP_WRITE(SYS_DEVICE, SUSPEND) {
 }
 
 // RESUME: only while suspended; a failing hook leaves the device suspended.
-OP_WRITE(SYS_DEVICE, RESUME) {
+OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESUME) {
   const uint8_t id = CTX_ID;
   if (!sys_device_slot_is_suspended(id)) {
     return NULL;
@@ -101,7 +101,7 @@ err_h sys_device_res_add(uint8_t owner, sys_device_res_t* res, sys_device_res_f 
 // REMOVE: refused for a board device and while other devices use it (sys_device_use). Otherwise the NOLOCK calls in flight are waited
 // for (the lock held, no new one starts), a device not suspended yet goes into its safe state (the type's suspend(),
 // its last state), its resources are released and the slot freed, even if a step failed.
-OP_WRITE(SYS_DEVICE, REMOVE) {
+OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_REMOVE) {
   const uint8_t id = CTX_ID;
   ERR_CHECK(!sys_device_slot_is_system(id), ERR_DEV_SYSTEM, .id = id);
   uint64_t users = 0;  // checked and marked as being removed in one step: no device declares a use of it afterwards
@@ -120,18 +120,18 @@ OP_WRITE(SYS_DEVICE, REMOVE) {
   return err;
 }
 
-OP_READ(SYS_DEVICE, INFO) {
+OP_DECLARE_READ(CONTRACT_SYS_DEVICE, OP_INFO) {
   const uint8_t id = CTX_ID;
   const sys_device_info_t info = {.type_id = sys_device_type_id(sys_device_slot_type(id)),
                                   .suspended = sys_device_slot_is_suspended(id)};
   return cmd_reply(out, &info, sizeof(info));
 }
 
-static err_h SYS_DEVICE_r_OPS(CMD_F_PARAMS);  // lists the table below, itself in it: defined after it
+static err_h CONTRACT_SYS_DEVICE_r_OP_OPS(CMD_F_PARAMS);  // lists the table below, itself in it: defined after it
 
 static const sys_device_op_t k_registry_ops[] = {
-    OP_ENTRY_W(SYS_DEVICE, SUSPEND), OP_ENTRY_W(SYS_DEVICE, RESUME), OP_ENTRY_W(SYS_DEVICE, REMOVE),
-    OP_ENTRY_R(SYS_DEVICE, INFO),    OP_ENTRY_R(SYS_DEVICE, OPS),
+    OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_SUSPEND), OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESUME), OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_REMOVE),
+    OP_ENTRY_R(CONTRACT_SYS_DEVICE, OP_INFO),    OP_ENTRY_R(CONTRACT_SYS_DEVICE, OP_OPS),
 };
 
 // An OPS row: [op u16][sides u8], for an op the device answers as a command (a local op is left out).
@@ -146,7 +146,7 @@ static err_h append_op(const sys_device_op_t* row, cmd_out_t* out) {
 
 // OPS: the registry's ops, then the ones of the type this device runs (sys_device_type_op). The answer is a list, built
 // with cmd_append.
-OP_READ(SYS_DEVICE, OPS) {
+OP_DECLARE_READ(CONTRACT_SYS_DEVICE, OP_OPS) {
   const uint8_t id = CTX_ID;
   const sys_device_type_t* type = sys_device_slot_type(id);
   for (uint32_t i = 0; i < ARRAY_LEN(k_registry_ops); i++) {

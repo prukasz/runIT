@@ -150,7 +150,7 @@ static uint32_t limit_of(uint32_t budget_mW) {
 
 /* A write of the manager's own to a rail. The VREG interceptor lets it pass: the manager's task holds the mutex. */
 static err_h vreg_direct(uint16_t id, uint16_t op, uint32_t value) {
-  if (op == VREG_OP_ENABLE) {
+  if (op == CONTRACT_VREG_OP_ENABLE) {
     const vreg_enable_args_t a = {.enable = value != 0};
     return sys_device_write(id, op, &a, sizeof(a));
   }
@@ -171,14 +171,14 @@ static void apply_response(uint8_t kind, int target) {
     if (s_pm.safe_state != NULL) {
       s_pm.safe_state();
     } else {
-      err_report(sys_device_sweep(SYS_DEVICE_OP_SUSPEND));
+      err_report(sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND));
     }
     return;
   }
   if (response != SYS_POWER_RESPONSE_DISABLE && response != SYS_POWER_RESPONSE_RESET) {
     return;
   }
-  const uint16_t op = response == SYS_POWER_RESPONSE_DISABLE ? SYS_DEVICE_OP_SUSPEND : SYS_DEVICE_OP_RESET;
+  const uint16_t op = response == SYS_POWER_RESPONSE_DISABLE ? CONTRACT_SYS_DEVICE_OP_SUSPEND : CONTRACT_SYS_DEVICE_OP_RESET;
   for (uint8_t i = 0; i < s_pm.board->consumer_count; i++) {
     if (target != BOARD_TARGET && target != i) {
       continue;
@@ -227,7 +227,7 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
   if (ev->len >= sizeof(value)) {
     memcpy(&value, ev->data, sizeof(value));
   }
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   int target = NO_TARGET;
   const int rail = consumer_index(source);
   if (rail >= 0) {
@@ -244,7 +244,6 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
                        .response = response_of(kind, target), .value = value));
     apply_response(kind, target);
   }
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -286,7 +285,7 @@ static err_h rebalance(void) {
       continue;
     }
     if (cap_mA != r->applied_mA) {
-      err_h set_err = vreg_direct(s_pm.board->consumers[i].vreg, VREG_OP_CURRENT, cap_mA);
+      err_h set_err = vreg_direct(s_pm.board->consumers[i].vreg, CONTRACT_VREG_OP_CURRENT, cap_mA);
       const uint32_t root = err_root_tag(set_err);
       if (root == ERR_DEV_SUSPENDED || root == ERR_DEV_NOT_FOUND) {
         err_free(set_err);  // off (a fault) or gone: it gets its share when it is back
@@ -336,7 +335,7 @@ static err_h take_rail(int i, rail_t next) {
 }
 
 static bool is_vreg_set(uint16_t op) {
-  return op == VREG_OP_ENABLE || op == VREG_OP_VOLTAGE || op == VREG_OP_CURRENT;
+  return op == CONTRACT_VREG_OP_ENABLE || op == CONTRACT_VREG_OP_VOLTAGE || op == CONTRACT_VREG_OP_CURRENT;
 }
 
 /* The manager's own writes to a rail (rebalance) come from its mutex holder and pass untouched. */
@@ -352,46 +351,40 @@ static err_h vreg_take(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_ou
   if (i < 0 || dir != CMD_DIR_WRITE || !is_vreg_set(op) || is_own_call()) {
     return NULL;
   }
-  const uint32_t need = op == VREG_OP_ENABLE ? sizeof(vreg_enable_args_t) : sizeof(uint32_t);
+  const uint32_t need = op == CONTRACT_VREG_OP_ENABLE ? sizeof(vreg_enable_args_t) : sizeof(uint32_t);
   ERR_CHECK(in.len == need, ERR_CMD_BAD_LEN, .got = (uint16_t)in.len, .need = (uint16_t)need);
   uint32_t value = 0;
   memcpy(&value, in.data, need);
-  err_h err = NULL;
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   rail_t next = s_pm.rails[i];
-  if (op == VREG_OP_ENABLE) {
+  if (op == CONTRACT_VREG_OP_ENABLE) {
     next.enabled = value != 0;
-    err = take_rail(i, next);
-  } else if (op == VREG_OP_VOLTAGE) {
-    if (value > s_pm.board->max_mV) {
-      err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_pm.board->max_mV);
-    } else {
-      next.set_mV = value;
-      err = take_rail(i, next);
-    }
-  } else if (value > s_pm.board->max_mA) {
-    err = ERR_NEW(ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0, .max = (int32_t)s_pm.board->max_mA);
-  } else if (value == 0) {
+    return take_rail(i, next);
+  }
+  if (op == CONTRACT_VREG_OP_VOLTAGE) {
+    ERR_CHECK(value <= s_pm.board->max_mV, ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0,
+              .max = (int32_t)s_pm.board->max_mV);
+    next.set_mV = value;
+    return take_rail(i, next);
+  }
+  ERR_CHECK(value <= s_pm.board->max_mA, ERR_DEV_RANGE, .id = id, .value = (int32_t)value, .min = 0,
+            .max = (int32_t)s_pm.board->max_mA);
+  if (value == 0) {
     s_pm.undo[i] = s_pm.rails[i];
     s_pm.rails[i].user_mA = 0;
-    err = rebalance();
+    ERR_TRY(rebalance());
     // The device gets the share it now has; none programmed yet: the board's cap.
     const uint32_t share = s_pm.rails[i].applied_mA != 0 ? s_pm.rails[i].applied_mA : s_pm.board->max_mA;
-    if (err == NULL) {
-      err = cmd_reply(out, &share, sizeof(share));
-    }
+    const err_h err = cmd_reply(out, &share, sizeof(share));
     if (err != NULL) {
       s_pm.rails[i] = s_pm.undo[i];
     }
-  } else {
-    next.user_mA = value;
-    err = take_rail(i, next);
-    if (err == NULL) {
-      s_pm.rails[i].applied_mA = value;
-    }
+    return err;
   }
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
-  return err;
+  next.user_mA = value;
+  ERR_TRY(take_rail(i, next));
+  s_pm.rails[i].applied_mA = value;
+  return NULL;
 }
 
 /* The interceptor's second stage: a write it let through failed (the device refused it, is suspended, is not there).
@@ -402,17 +395,16 @@ static void vreg_settle(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t passed, e
   if (err == NULL || i < 0 || dir != CMD_DIR_WRITE || !is_vreg_set(op) || is_own_call()) {
     return;
   }
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  if (op == VREG_OP_ENABLE) {
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
+  if (op == CONTRACT_VREG_OP_ENABLE) {
     s_pm.rails[i].enabled = s_pm.undo[i].enabled;
-  } else if (op == VREG_OP_VOLTAGE) {
+  } else if (op == CONTRACT_VREG_OP_VOLTAGE) {
     s_pm.rails[i].set_mV = s_pm.undo[i].set_mV;
   } else {
     s_pm.rails[i].user_mA = s_pm.undo[i].user_mA;
     s_pm.rails[i].applied_mA = s_pm.undo[i].applied_mA;
   }
   err_report(rebalance());
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 /* ---- Source and battery ---- */
@@ -487,7 +479,7 @@ static void update_pd(sys_power_source_e source) {
   if (o.mV == s_pm.pd_req.mV && o.mA == s_pm.pd_req.mA) return;
   s_pm.pd_req.mV = o.mV;  // recorded first: a refusal is reported once, not every tick
   s_pm.pd_req.mA = o.mA;
-  err_report(SYS_DEVICE_SET(s_pm.board->usb_pd, PD, SETTINGS, .voltage_mV = o.mV, .current_mA = o.mA));
+  err_report(SYS_DEVICE_SET(s_pm.board->usb_pd, CONTRACT_PD, OP_SETTINGS, .voltage_mV = o.mV, .current_mA = o.mA));
   if (pd.mode == SYS_POWER_PD_VOLTAGE && o.mV != pd.voltage_mV) {
     err_report(SYS_EVENT_PUBLISH(PWRM_EV_PD_FIXED, SYS_DEVICE_ID_NONE, 0, .mV = (int32_t)o.mV));
   }
@@ -563,9 +555,9 @@ static void program_input_alerts(uint32_t limit_mA) {
   const sys_power_channel_t in = s_pm.board->input;
   if (!s_pm_preset.cfg.enabled || in.device == SYS_DEVICE_ID_NONE || limit_mA == 0 || limit_mA == s_pm.alert_mA) return;
   const uint32_t warn_mA = limit_mA * CONFIG_SYS_POWER_MANAGER_INPUT_WARNING_PCT / 100u;
-  err_h err = SYS_DEVICE_SET(in.device, PMON, ALERT, .channel = in.channel, .alert = SYS_POWER_ALERT_OCP_CRITICAL,
+  err_h err = SYS_DEVICE_SET(in.device, CONTRACT_PMON, OP_ALERT, .channel = in.channel, .alert = SYS_POWER_ALERT_OCP_CRITICAL,
                              .threshold_mA = (int32_t)limit_mA);
-  ERR_KEEP_FIRST(err, SYS_DEVICE_SET(in.device, PMON, ALERT, .channel = in.channel, .alert = SYS_POWER_ALERT_OCP_WARNING,
+  ERR_KEEP_FIRST(err, SYS_DEVICE_SET(in.device, CONTRACT_PMON, OP_ALERT, .channel = in.channel, .alert = SYS_POWER_ALERT_OCP_WARNING,
                                      .threshold_mA = (int32_t)warn_mA));
   if (err == NULL) {
     s_pm.alert_mA = limit_mA;
@@ -581,9 +573,9 @@ static bool read_input(bool* have_input) {
     return true;
   }
   int32_t mV = 0, mA = 0;
-  err_h err = SYS_DEVICE_GET(s_pm.board->input.device, PMON, VOLTAGE, &mV, .channel = s_pm.board->input.channel);
+  err_h err = SYS_DEVICE_GET(s_pm.board->input.device, CONTRACT_PMON, OP_VOLTAGE, &mV, .channel = s_pm.board->input.channel);
   if (err == NULL) {
-    err = SYS_DEVICE_GET(s_pm.board->input.device, PMON, CURRENT, &mA, .channel = s_pm.board->input.channel);
+    err = SYS_DEVICE_GET(s_pm.board->input.device, CONTRACT_PMON, OP_CURRENT, &mA, .channel = s_pm.board->input.channel);
   }
   // Can't be read now: keep the last status, recompute nothing.
   if (err_drop(&err, ERR_DEV_SUSPENDED) || (!s_pm.input_seen && err_drop(&err, ERR_DEV_NOT_FOUND))) {
@@ -648,7 +640,7 @@ static void update_budget(sys_power_source_e source, bool have_input) {
 }
 
 static void tick(void) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   bool have_input;
   const bool readable = read_input(&have_input);  // false: the budget and the battery estimate wait for the input
   const sys_power_source_e source = detect_source();
@@ -665,7 +657,6 @@ static void tick(void) {
                                 (s_pm_preset.cfg.strict ? SYS_POWER_FLAG_STRICT : 0) |
                                 (s_pm.latched.over ? SYS_POWER_FLAG_OVER_BUDGET : 0) |
                                 (s_pm.input_seen ? SYS_POWER_FLAG_INPUT_SEEN : 0));
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
 }
 
 static void power_task(void* arg) {
@@ -696,18 +687,18 @@ err_h sys_power_manager_set_config(const sys_power_manager_cfg_t* cfg) {
   ERR_TRY(check_range(cfg->strict, 0, 1));
   ERR_TRY(check_range(cfg->soft_margin_pct, 0, 100));
   ERR_TRY(check_range(cfg->source, SYS_POWER_SOURCE_UNKNOWN, SYS_POWER_SOURCE_BATTERY));
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  s_pm_preset.cfg = *cfg;
-  s_pm.alert_mA = 0;  // reprogram the input alerts for the new limit
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  {
+    U_RMUTEX_GUARD(sys_pwrm_mutex);
+    s_pm_preset.cfg = *cfg;
+    s_pm.alert_mA = 0;  // reprogram the input alerts for the new limit
+  }
   wake();
   return NULL;
 }
 
 err_h sys_power_manager_get_config(sys_power_manager_cfg_t* out) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   *out = s_pm_preset.cfg;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -715,19 +706,19 @@ err_h sys_power_manager_set_pd(const sys_power_pd_t* pd) {
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   ERR_TRY(check_range(pd->mode, SYS_POWER_PD_OFF, SYS_POWER_PD_VOLTAGE));
   if (pd->mode == SYS_POWER_PD_VOLTAGE) ERR_TRY(check_range((int32_t)pd->voltage_mV, 1, (int32_t)s_pm.board->max_mV));
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  s_pm_preset.pd = *pd;
-  if (pd->mode != SYS_POWER_PD_VOLTAGE) s_pm_preset.pd.voltage_mV = 0;
-  s_pm.pd_req.mV = s_pm.pd_req.mA = 0;  // asked again on the next tick
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  {
+    U_RMUTEX_GUARD(sys_pwrm_mutex);
+    s_pm_preset.pd = *pd;
+    if (pd->mode != SYS_POWER_PD_VOLTAGE) s_pm_preset.pd.voltage_mV = 0;
+    s_pm.pd_req.mV = s_pm.pd_req.mA = 0;  // asked again on the next tick
+  }
   wake();
   return NULL;
 }
 
 err_h sys_power_manager_get_pd(sys_power_pd_t* out) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   *out = s_pm_preset.pd;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -737,9 +728,10 @@ err_h sys_power_manager_set_psu(const sys_power_psu_t* psu) {
     ERR_TRY(check_range((int32_t)psu->max_mV, 1, INT32_MAX));
     ERR_TRY(check_range((int32_t)psu->max_mA, 1, INT32_MAX));
   }
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  s_pm.psu = *psu;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  {
+    U_RMUTEX_GUARD(sys_pwrm_mutex);
+    s_pm.psu = *psu;
+  }
   wake();
   return NULL;
 }
@@ -754,26 +746,25 @@ err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
     ERR_TRY(check_range(battery->critical_pct, 1, battery->low_pct - 1));
     b = *battery;
   }
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  s_pm.battery = b;
-  s_pm.latched.low = false;
-  s_pm.latched.critical = false;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
+  {
+    U_RMUTEX_GUARD(sys_pwrm_mutex);
+    s_pm.battery = b;
+    s_pm.latched.low = false;
+    s_pm.latched.critical = false;
+  }
   wake();
   return NULL;
 }
 
 err_h sys_power_manager_get_psu(sys_power_psu_t* out) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   *out = s_pm.psu;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
 err_h sys_power_manager_get_battery(sys_power_battery_t* out) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   *out = s_pm.battery;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -799,9 +790,8 @@ err_h sys_power_manager_set_matrix(const sys_power_response_row_t* rows, uint8_t
       ERR_TRY(check_range(rows[i].responses[k], SYS_POWER_RESPONSE_NOTIFY, SYS_POWER_RESPONSE_SAFE_STATE));
     }
   }
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   for (uint8_t i = 0; i < count; i++) memcpy(s_pm.responses[at[i]], rows[i].responses, SYS_POWER_KIND_COUNT);
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -809,21 +799,21 @@ err_h sys_power_manager_get_matrix(sys_power_response_row_t* rows, uint8_t cap, 
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
   const uint8_t n = (uint8_t)(1 + s_pm.board->consumer_count);
   ERR_CHECK(cap >= n, ERR_CMD_BAD_LEN, .got = cap, .need = n);
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  for (uint8_t i = 0; i < n; i++) {
-    rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_pm.board->consumers[i - 1].vreg;
-    memcpy(rows[i].responses, s_pm.responses[i], SYS_POWER_KIND_COUNT);
+  {
+    U_RMUTEX_GUARD(sys_pwrm_mutex);
+    for (uint8_t i = 0; i < n; i++) {
+      rows[i].target = i == 0 ? SYS_POWER_TARGET_BOARD : s_pm.board->consumers[i - 1].vreg;
+      memcpy(rows[i].responses, s_pm.responses[i], SYS_POWER_KIND_COUNT);
+    }
   }
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   *count = n;
   return NULL;
 }
 
 err_h sys_power_manager_get_status(sys_power_status_t* out) {
   ERR_CHECK(s_pm.board != NULL, ERR_PWRM_NOT_READY);
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   *out = s_pm.status;
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
   return NULL;
 }
 
@@ -831,40 +821,32 @@ err_h sys_power_manager_get_status(sys_power_status_t* out) {
 
 err_h sys_power_manager_set_layout(const sys_power_layout_t* layout) {
   ERR_TRY(check_range(layout->vreg_efficiency_pct, 1, 100));
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
-  err_h err = NULL;
-  if (s_board.consumer_count != 0) {
-    err = ERR_NEW(ERR_PWRM_BAD_ARG, .value = s_board.consumer_count, .min = 0, .max = 0);
-  } else {
-    s_board.max_mV = layout->max_mV;
-    s_board.max_mA = layout->max_mA;
-    s_board.reserve_mW = layout->reserve_mW;
-    s_board.unknown_source_mA = layout->unknown_source_mA;
-    s_board.vreg_efficiency_pct = layout->vreg_efficiency_pct;
-    s_board.input = (sys_power_channel_t){.device = layout->input_device, .channel = layout->input_channel};
-    s_board.usb_pd = layout->usb_pd;
-    s_source_pins = (sys_power_source_pins_t){.usb_ok = layout->usb_ok, .ext_ok = layout->ext_ok};
-    s_board.source_pins = layout->usb_ok.device == SYS_DEVICE_ID_NONE ? NULL : &s_source_pins;
-    s_pm.recompute = true;
-  }
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
-  return err;
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
+  ERR_CHECK(s_board.consumer_count == 0, ERR_PWRM_BAD_ARG, .value = s_board.consumer_count, .min = 0, .max = 0);
+  s_board.max_mV = layout->max_mV;
+  s_board.max_mA = layout->max_mA;
+  s_board.reserve_mW = layout->reserve_mW;
+  s_board.unknown_source_mA = layout->unknown_source_mA;
+  s_board.vreg_efficiency_pct = layout->vreg_efficiency_pct;
+  s_board.input = (sys_power_channel_t){.device = layout->input_device, .channel = layout->input_channel};
+  s_board.usb_pd = layout->usb_pd;
+  s_source_pins = (sys_power_source_pins_t){.usb_ok = layout->usb_ok, .ext_ok = layout->ext_ok};
+  s_board.source_pins = layout->usb_ok.device == SYS_DEVICE_ID_NONE ? NULL : &s_source_pins;
+  s_pm.recompute = true;
+  return NULL;
 }
 
 err_h sys_power_manager_add_rail(const sys_power_rail_t* rail) {
-  xSemaphoreTakeRecursive(sys_pwrm_mutex, portMAX_DELAY);
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
   const uint8_t n = s_board.consumer_count;
-  err_h err = check_range(n, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS - 1);
-  if (err == NULL) {
-    s_consumers[n] = (sys_power_consumer_t){.vreg = rail->vreg,
-                                            .monitor = {.device = rail->monitor_device, .channel = rail->monitor_channel},
-                                            .min_mA = rail->min_mA};
-    memcpy(s_pm.responses[1 + n], s_pm.responses[0], SYS_POWER_KIND_COUNT);
-    s_board.consumer_count = n + 1u;  // last: the rail is whole when the task sees it
-    s_pm.recompute = true;
-  }
-  xSemaphoreGiveRecursive(sys_pwrm_mutex);
-  return err;
+  ERR_TRY(check_range(n, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS - 1));
+  s_consumers[n] = (sys_power_consumer_t){.vreg = rail->vreg,
+                                          .monitor = {.device = rail->monitor_device, .channel = rail->monitor_channel},
+                                          .min_mA = rail->min_mA};
+  memcpy(s_pm.responses[1 + n], s_pm.responses[0], SYS_POWER_KIND_COUNT);
+  s_board.consumer_count = n + 1u;  // last: the rail is whole when the task sees it
+  s_pm.recompute = true;
+  return NULL;
 }
 
 err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
@@ -880,14 +862,14 @@ err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
   memcpy(s_pm.responses[0], board->responses, SYS_POWER_KIND_COUNT);  // a rail takes these when it is added
   s_pm.board = board;  // last: the API answers ERR_PWRM_NOT_READY until here
 
-  ERR_TRY(sys_device_set_interceptor(VREG_CONTRACT, vreg_take, vreg_settle));
+  ERR_TRY(sys_device_set_interceptor(CONTRACT_VREG_CONTRACT, vreg_take, vreg_settle));
   // Every event of the two contracts, queued (the event task): filtered in on_event.
   uint16_t handle;
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(VREG_CONTRACT, SYS_EVENT_ANY_CODE),
+  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_VREG_CONTRACT, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
                               on_event, NULL, SYS_EVENT_RUN_QUEUED, &handle));
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(PMON_CONTRACT, SYS_EVENT_ANY_CODE),
+  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_PMON_CONTRACT, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
                               on_event, NULL, SYS_EVENT_RUN_QUEUED, &handle));

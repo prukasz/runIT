@@ -20,23 +20,28 @@
 
 SYS_DEVICE_TYPE_DECLARE(DC_MOTOR, 0x004B)  // DC_MOTOR_TYPE: also the module of the own events
 
-/* ----------------------------------------------------------------------------
- * Wire format: CREATE, the own ops, the own events
- * ------------------------------------------------------------------------- */
+/*******************************************************************************
+ * DC_MOTOR : own events (SYS_EVENT_MODULE_TYPE(DC_MOTOR_TYPE), source = motor, channel 0)
+ * Published deferred under the motor's lock:
+ *   STALL   - stall stopped the motor; payload = bridge current mA (NOTIFY)
+ *   REACHED - target speed reached; payload = target speed_x10 (code flow)
+ ******************************************************************************/
+#define DC_MOTOR_EVENTS(X, P)                                   \
+  X(P, STALL,   0x01, SYS_EVENT_NOTIFY, { int32_t mA; })        \
+  X(P, REACHED, 0x02, 0,                { int16_t speed_x10; })
 
-typedef enum {
-  DC_MOTOR_STOP_BRAKE = 0,  // shorts the motor: it stops fast and holds
-  DC_MOTOR_STOP_COAST = 1,  // releases the motor: it rolls to a stop
-} dc_motor_stop_e;
+SYS_DEVICE_OWN_EVENTS(DC_MOTOR)
 
-#define DC_MOTOR_SPEED_MAX        1000  // tenths of a percent: 100 %
-#define DC_MOTOR_MIN_PCT_MAX      60
-#define DC_MOTOR_DEADZONE_PCT_MAX 20
-#define DC_MOTOR_TRIM_PCT_MAX     20
-#define DC_MOTOR_RAMP_MS_MAX      10000
-#define DC_MOTOR_PAUSE_MS_MAX     2000
-#define DC_MOTOR_STALL_MS_MIN     50
-#define DC_MOTOR_STALL_MS_MAX     5000
+/*******************************************************************************
+ * OWN_DC_MOTOR : own operations (0xFFxx)
+ *   OP_SPEED (RW), OP_OUTPUT (R), OP_STOP (W), OP_BRAKE (W), OP_COAST (W),
+ *   OP_SETTINGS (RW), OP_CURRENT (R), OP_STALLED (R), OP_TICK (W, LOCAL)
+ ******************************************************************************/
+
+/** @brief SPEED's value, both sides. */
+typedef struct __attribute__((packed)) {
+  int16_t speed_x10;  /**< Tenths of a percent: -1000 (full reverse) .. 1000 (full forward) */
+} dc_motor_speed_t;
 
 /** @brief The settings that change live: CREATE takes them after the bridge and the channel, SETTINGS reads and
  * writes them with the same names. */
@@ -55,6 +60,36 @@ typedef struct __attribute__((packed)) {
   uint16_t stall_ms;          /**< How long the stall current lasts before the motor stops, 50..5000 ms */
 } dc_motor_settings_t;
 
+#define OWN_DC_MOTOR_OPERATIONS(X, P)                                    \
+  X(P, OP_SPEED,    0x00, cmd_none_t, dc_motor_speed_t,    0)            \
+  X(P, OP_OUTPUT,   0x01, cmd_none_t, int32_t,             0)            \
+  X(P, OP_STOP,     0x02, cmd_none_t, cmd_none_t,          0)            \
+  X(P, OP_BRAKE,    0x03, cmd_none_t, cmd_none_t,          0)            \
+  X(P, OP_COAST,    0x04, cmd_none_t, cmd_none_t,          0)            \
+  X(P, OP_SETTINGS, 0x05, cmd_none_t, dc_motor_settings_t, 0)            \
+  X(P, OP_CURRENT,  0x06, cmd_none_t, int32_t,             0)            \
+  X(P, OP_STALLED,  0x07, cmd_none_t, uint8_t,             0)            \
+  X(P, OP_TICK,     0x08, cmd_none_t, cmd_none_t,          SYS_DEVICE_OP_LOCAL)
+
+SYS_DEVICE_OWN_DECLARE(OWN_DC_MOTOR)
+
+/*******************************************************************************
+ * DC_MOTOR : limits & config
+ ******************************************************************************/
+typedef enum {
+  DC_MOTOR_STOP_BRAKE = 0,  // shorts the motor: it stops fast and holds
+  DC_MOTOR_STOP_COAST = 1,  // releases the motor: it rolls to a stop
+} dc_motor_stop_e;
+
+#define DC_MOTOR_SPEED_MAX        1000  // tenths of a percent: 100 %
+#define DC_MOTOR_MIN_PCT_MAX      60
+#define DC_MOTOR_DEADZONE_PCT_MAX 20
+#define DC_MOTOR_TRIM_PCT_MAX     20
+#define DC_MOTOR_RAMP_MS_MAX      10000
+#define DC_MOTOR_PAUSE_MS_MAX     2000
+#define DC_MOTOR_STALL_MS_MIN     50
+#define DC_MOTOR_STALL_MS_MAX     5000
+
 /** @brief CREATE's struct (wire format). */
 typedef struct __attribute__((packed)) {
   uint8_t bridge;                /**< The motor driver's device ID (a device with the HBRIDGE contract) */
@@ -62,48 +97,6 @@ typedef struct __attribute__((packed)) {
   uint8_t one_way;               /**< 1 = a half bridge: forward only */
   dc_motor_settings_t settings;  /**< The settings that change live */
 } dc_motor_cfg_t;
-
-/** @brief SPEED's value, both sides. */
-typedef struct __attribute__((packed)) {
-  int16_t speed_x10;  /**< Tenths of a percent: -1000 (full reverse) .. 1000 (full forward) */
-} dc_motor_speed_t;
-
-/* Own ops: X(P, NAME, n, key_t, value_t, flags), the read answers what the write takes.
- *   SPEED    - the speed to reach, both sides
- *   OUTPUT   - where the ramp is now, tenths of a percent
- *   STOP     - to 0 along the ramp, then stop_mode
- *   BRAKE    - at once, no ramp: shorts the motor
- *   COAST    - at once, no ramp: releases the motor
- *   SETTINGS - the live settings, both sides
- *   CURRENT  - the bridge channel's current in mA
- *   STALLED  - 1 = stopped by a stall since the last SPEED
- *   TICK     - the ramp's step, internal: the board timers' task runs it (a step, LOCAL), never while suspended */
-#define DC_MOTOR_OPERATIONS(X, P)                                       \
-  X(P, SPEED,    0x00, cmd_none_t, dc_motor_speed_t,    0)              \
-  X(P, OUTPUT,   0x01, cmd_none_t, int32_t,             0)              \
-  X(P, STOP,     0x02, cmd_none_t, cmd_none_t,          0)              \
-  X(P, BRAKE,    0x03, cmd_none_t, cmd_none_t,          0)              \
-  X(P, COAST,    0x04, cmd_none_t, cmd_none_t,          0)              \
-  X(P, SETTINGS, 0x05, cmd_none_t, dc_motor_settings_t, 0)              \
-  X(P, CURRENT,  0x06, cmd_none_t, int32_t,             0)              \
-  X(P, STALLED,  0x07, cmd_none_t, uint8_t,             0)              \
-  X(P, TICK,     0x08, cmd_none_t, cmd_none_t,          SYS_DEVICE_OP_LOCAL)
-
-SYS_DEVICE_OWN_DECLARE(DC_MOTOR)
-
-/* Own events: module SYS_EVENT_MODULE_TYPE(DC_MOTOR_TYPE), source = the motor, channel 0. Both are published from an
- * op, under the motor's lock (not recursive), most from TICK in the board timers' task: always deferred, so no
- * listener runs under that lock (one calling the motor back would be refused) nor holds up the next steps.
- *   STALL   - a stall stopped the motor; the payload the bridge channel's current then. NOTIFY: the user must see it.
- *   REACHED - the motor is at the speed asked for (SPEED, STOP, SETTINGS; a dead zone's 0 included), once per ask,
- *             also when it was there already; the payload that speed. Not after BRAKE / COAST / RESET / a suspend (at
- *             once, nothing to wait for) nor a stall (STALL instead). Code flow (a program waits for it), not
- *             something to show by itself. */
-#define DC_MOTOR_EVENTS(X, P)                                   \
-  X(P, STALL,   0x01, SYS_EVENT_NOTIFY, { int32_t mA; })        \
-  X(P, REACHED, 0x02, 0,                { int16_t speed_x10; })
-
-SYS_DEVICE_OWN_EVENTS(DC_MOTOR)
 
 /* ----------------------------------------------------------------------------
  * The driver
@@ -118,6 +111,7 @@ SYS_DEVICE_OWN_EVENTS(DC_MOTOR)
 typedef enum { SENT_NONE = 0, SENT_DRIVE, SENT_BRAKE, SENT_COAST } sent_e;
 
 typedef struct {
+  uint8_t id;
   dc_motor_cfg_t cfg;           // the live settings are cfg.settings
   dc_motor_settings_t initial;  // the settings create took: RESET returns to them
   sys_device_timer_t timer;     // the ramp's step (TICK): runs while the motor moves or is watched
@@ -147,9 +141,9 @@ static err_h motor_halt(motor_t* c, uint8_t mode) {
     return NULL;
   }
   if (kind == SENT_COAST) {
-    ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, HBRIDGE, COAST, .channel = c->cfg.channel));
+    ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, CONTRACT_HBRIDGE, OP_COAST, .channel = c->cfg.channel));
   } else {
-    ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, HBRIDGE, BRAKE, .channel = c->cfg.channel));
+    ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, CONTRACT_HBRIDGE, OP_BRAKE, .channel = c->cfg.channel));
   }
   c->sent = kind;
   c->drive = 0;
@@ -177,14 +171,14 @@ static err_h motor_apply(motor_t* c) {
   if (c->sent == SENT_DRIVE && drive == c->drive) {
     return NULL;
   }
-  ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, HBRIDGE, DRIVE, .channel = c->cfg.channel, .drive = drive));
+  ERR_TRY(SYS_DEVICE_SET(c->cfg.bridge, CONTRACT_HBRIDGE, OP_DRIVE, .channel = c->cfg.channel, .drive = drive));
   c->sent = SENT_DRIVE;
   c->drive = drive;
   return NULL;
 }
 
 static err_h bridge_current(const motor_t* c, int32_t* mA) {
-  return SYS_DEVICE_GET(c->cfg.bridge, HBRIDGE, CURRENT, mA, .channel = c->cfg.channel);
+  return SYS_DEVICE_GET(c->cfg.bridge, CONTRACT_HBRIDGE, OP_CURRENT, mA, .channel = c->cfg.channel);
 }
 
 /* ---- The ramp ---- */
@@ -271,7 +265,7 @@ static err_h watch_stall(motor_t* c, uint32_t ms) {
   c->stalled = true;
   c->reach_pending = false;
   ERR_TRY(motor_halt(c, s->stop_mode));
-  return SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_STALL, sys_device_self(), 0, .mA = mA);
+  return SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_STALL, c->id, 0, .mA = mA);
 }
 
 /* One step now, by the time since the last one, then the timer runs while there is more to do: the ramp, the pause,
@@ -283,7 +277,7 @@ static err_h motor_tick(motor_t* c) {
   ERR_TRY(motor_apply(c));
   if (c->reach_pending && c->out == c->target && c->pause_ms == 0) {
     c->reach_pending = false;
-    ERR_TRY(SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_REACHED, sys_device_self(), 0, .speed_x10 = c->target_x10));
+    ERR_TRY(SYS_EVENT_PUBLISH_DEFER(DC_MOTOR_EV_REACHED, c->id, 0, .speed_x10 = c->target_x10));
   }
   ERR_TRY(watch_stall(c, ms));
   const bool watched = c->out != 0 && c->cfg.settings.stall_mA != 0 && !c->current_failed;
@@ -331,62 +325,103 @@ static err_h check_settings(uint8_t id, const dc_motor_settings_t* s, uint8_t on
 
 /* ---- Own ops ---- */
 
-OP_WRITE(DC_MOTOR, SPEED) {
-  SYS_DEV_CHECK_IN_RANGE(sys_device_self(), args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_SPEED (write)
+ * Sets target speed (x10), clears any latched stall and steps the ramp.
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_SPEED) {
+  SYS_DEV_CHECK_IN_RANGE(c->id, args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
   set_target(c, args->speed_x10);
   c->stalled = false;
   return motor_tick(c);
 }
 
-OP_READ(DC_MOTOR, SPEED) {
-  return CMD_REPLY(DC_MOTOR, SPEED, .speed_x10 = c->target_x10);
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_SPEED (read)
+ * Returns the current target speed (x10).
+ ******************************************************************************/
+OP_DECLARE_READ(OWN_DC_MOTOR, OP_SPEED) {
+  return CMD_REPLY(OWN_DC_MOTOR, OP_SPEED, .speed_x10 = c->target_x10);
 }
 
-OP_READ(DC_MOTOR, OUTPUT) {
-  return CMD_REPLY(DC_MOTOR, OUTPUT, c->out / X10_TO_FULL);
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_OUTPUT (read)
+ * Returns the drive currently applied to the bridge.
+ ******************************************************************************/
+OP_DECLARE_READ(OWN_DC_MOTOR, OP_OUTPUT) {
+  return CMD_REPLY(OWN_DC_MOTOR, OP_OUTPUT, c->out / X10_TO_FULL);
 }
 
-OP_WRITE(DC_MOTOR, STOP) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_STOP (write)
+ * Sets target speed to 0 and ramps down to a stop.
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_STOP) {
   set_target(c, 0);
   return motor_tick(c);
 }
 
-OP_WRITE(DC_MOTOR, BRAKE) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_BRAKE (write)
+ * Immediate active brake, bypassing the ramp.
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_BRAKE) {
   return stop_now(c, DC_MOTOR_STOP_BRAKE);
 }
 
-OP_WRITE(DC_MOTOR, COAST) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_COAST (write)
+ * Immediate coast release, bypassing the ramp.
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_COAST) {
   return stop_now(c, DC_MOTOR_STOP_COAST);
 }
 
-OP_READ(DC_MOTOR, SETTINGS) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_SETTINGS (read)
+ * Returns the current runtime motor settings.
+ ******************************************************************************/
+OP_DECLARE_READ(OWN_DC_MOTOR, OP_SETTINGS) {
   return cmd_reply(out, &c->cfg.settings, sizeof(c->cfg.settings));
 }
 
-// Takes effect at once: the dead zone on the speed already set, the ceiling and the trim on the drive.
-OP_WRITE(DC_MOTOR, SETTINGS) {
-  ERR_TRY(check_settings(sys_device_self(), args, c->cfg.one_way));
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_SETTINGS (write)
+ * Applies new motor settings at once (dead zone, ceiling and trim on current
+ * target speed).
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_SETTINGS) {
+  ERR_TRY(check_settings(c->id, args, c->cfg.one_way));
   c->cfg.settings = *args;
   c->current_failed = false;
   set_target(c, c->target_x10);
   return motor_tick(c);
 }
 
-// A read: allowed while suspended (the bridge answers its current then too).
-OP_READ(DC_MOTOR, CURRENT) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_CURRENT (read)
+ * Bridge motor current in mA; allowed while suspended.
+ ******************************************************************************/
+OP_DECLARE_READ(OWN_DC_MOTOR, OP_CURRENT) {
   int32_t mA = 0;
   ERR_TRY(bridge_current(c, &mA));
-  return CMD_REPLY(DC_MOTOR, CURRENT, mA);
+  return CMD_REPLY(OWN_DC_MOTOR, OP_CURRENT, mA);
 }
 
-OP_READ(DC_MOTOR, STALLED) {
-  return CMD_REPLY(DC_MOTOR, STALLED, c->stalled ? 1 : 0);
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_STALLED (read)
+ * Returns 1 if stall detection latched, else 0.
+ ******************************************************************************/
+OP_DECLARE_READ(OWN_DC_MOTOR, OP_STALLED) {
+  return CMD_REPLY(OWN_DC_MOTOR, OP_STALLED, c->stalled ? 1 : 0);
 }
 
-// The timer's step, only on a working motor (the registry skips it while suspended). A step after the timer stopped
-// (one on its way) finds nothing to do and stops it again. A failed step stops the ramp, so it is reported once; the
-// next SPEED, STOP or SETTINGS starts it again.
-OP_WRITE(DC_MOTOR, TICK) {
+/*******************************************************************************
+ * OWN_DC_MOTOR : OP_TICK (write, LOCAL)
+ * Timer ramp/stall step (runs only on a working motor; skipped while suspended).
+ * A failed step stops the ramp until the next SPEED, STOP or SETTINGS.
+ ******************************************************************************/
+OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_TICK) {
   const err_h err = motor_tick(c);
   if (err != NULL) {
     timer_stop(c);
@@ -396,44 +431,64 @@ OP_WRITE(DC_MOTOR, TICK) {
 
 /* ---- Lifecycle ---- */
 
-OP_WRITE(SYS_DEVICE, RESET) {
+/*******************************************************************************
+ * CONTRACT_SYS_DEVICE : OP_RESET (write)
+ * Restores initial settings, clears latched flags and stops in configured mode.
+ ******************************************************************************/
+OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
   c->cfg.settings = c->initial;
   c->stalled = false;
   c->current_failed = false;
   return stop_now(c, c->cfg.settings.stop_mode);
 }
 
-// Fault safe state, and the motor's last state before REMOVE: no drive, the motor released at once; it stays stopped
-// after RESUME until a new SPEED.
+/*******************************************************************************
+ * DC_MOTOR : suspend (lifecycle)
+ * Fault safe state (and last state before REMOVE): releases drive immediately
+ * via coast; stays stopped after resume until a new OP_SPEED.
+ ******************************************************************************/
 static err_h suspend(motor_t* c) {
   return stop_now(c, DC_MOTOR_STOP_COAST);
 }
 
-// A failing resume leaves the device suspended.
+/*******************************************************************************
+ * DC_MOTOR : resume (lifecycle)
+ * Halts motor in configured stop_mode; a failing resume leaves it suspended.
+ ******************************************************************************/
 static err_h resume(motor_t* c) {
   return motor_halt(c, c->cfg.settings.stop_mode);
 }
 
 /* ---- Create ---- */
 
+/*******************************************************************************
+ * DC_MOTOR : create (init)
+ * Validates config/settings, initializes OP_TICK timer, verifies bridge
+ * OP_DRIVE availability and puts motor into initial stop_mode.
+ ******************************************************************************/
 static err_h create(uint8_t id, motor_t* c, const dc_motor_cfg_t* cfg) {
-  ERR_TRY(sys_device_timer_init(id, &c->timer, DC_MOTOR_OP_TICK));
+  c->id = id;
+  ERR_TRY(sys_device_timer_init(id, &c->timer, OWN_DC_MOTOR_OP_TICK));
   ERR_CHECK(cfg->one_way <= 1, ERR_CMD_BAD_ARG);
   ERR_TRY(check_settings(id, &cfg->settings, cfg->one_way));
   c->cfg = *cfg;
   c->initial = cfg->settings;
-  ERR_TRY(sys_device_require_op(id, cfg->bridge, HBRIDGE_OP_DRIVE, CMD_DIR_WRITE));
+  ERR_TRY(sys_device_require_op(id, cfg->bridge, CONTRACT_HBRIDGE_OP_DRIVE, CMD_DIR_WRITE));
   return motor_halt(c, cfg->settings.stop_mode);  // the bridge checks the channel; the motor starts stopped
 }
 
-/* ---- Type ---- */
+/*******************************************************************************
+ * DC_MOTOR : type registration (k_ops & SYS_DEVICE_TYPE_DEFINE)
+ * Exposes lifecycle reset and all DC_MOTOR own ops (speed, output, stop/brake/
+ * coast, settings, current, stalled, timer tick).
+ ******************************************************************************/
 
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W(SYS_DEVICE, RESET),
-    OP_ENTRY(DC_MOTOR, SPEED),    OP_ENTRY_R(DC_MOTOR, OUTPUT),
-    OP_ENTRY_W(DC_MOTOR, STOP),   OP_ENTRY_W(DC_MOTOR, BRAKE),   OP_ENTRY_W(DC_MOTOR, COAST),
-    OP_ENTRY(DC_MOTOR, SETTINGS), OP_ENTRY_R(DC_MOTOR, CURRENT), OP_ENTRY_R(DC_MOTOR, STALLED),
-    OP_ENTRY_W(DC_MOTOR, TICK),
+    OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
+    OP_ENTRY(OWN_DC_MOTOR, OP_SPEED),    OP_ENTRY_R(OWN_DC_MOTOR, OP_OUTPUT),
+    OP_ENTRY_W(OWN_DC_MOTOR, OP_STOP),   OP_ENTRY_W(OWN_DC_MOTOR, OP_BRAKE),   OP_ENTRY_W(OWN_DC_MOTOR, OP_COAST),
+    OP_ENTRY(OWN_DC_MOTOR, OP_SETTINGS), OP_ENTRY_R(OWN_DC_MOTOR, OP_CURRENT), OP_ENTRY_R(OWN_DC_MOTOR, OP_STALLED),
+    OP_ENTRY_W(OWN_DC_MOTOR, OP_TICK),
 };
 
 SYS_DEVICE_TYPE_DEFINE(DC_MOTOR, dc_motor_cfg_t, create, suspend, resume, k_ops)

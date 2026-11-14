@@ -8,7 +8,7 @@
   "tests": ["host/test_sys_device.c"],
   "includes": ["errors", "events", "slots", "registry", "remote"],
   "config": "host/sys_device_host_config.h",
-  "deps": ["router", "sys_event"],
+  "deps": ["cmd", "sys_event"],
   "variants": {
     "default": ["-DCONFIG_ERRORS_POOL_BLOCK_SIZE=40"]
   }

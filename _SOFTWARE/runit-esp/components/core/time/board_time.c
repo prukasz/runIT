@@ -25,8 +25,12 @@ bool board_time_set(uint64_t unix_ms) {
   return settimeofday(&tv, NULL) == 0;
 }
 
+uint64_t board_time_uptime_us(void) {
+  return (uint64_t)esp_timer_get_time();
+}
+
 uint64_t board_time_uptime_ms(void) {
-  return (uint64_t)(esp_timer_get_time() / 1000);
+  return board_time_uptime_us() / 1000u;
 }
 
 void board_time_delay_us(uint32_t us) {
