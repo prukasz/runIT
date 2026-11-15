@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "data_matrix.h"
 #include "freertos/ringbuf.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -13,6 +14,7 @@
 #include "sys_event.h"
 #include "sys_remote_router.h"
 #include "sys_session.h"
+#include "sys_session_events.h"
 #include "sys_watch.h"
 #include "utils.h"
 
@@ -23,15 +25,15 @@ ERR_MODULE_DEFINE(ERR_MOD_SYS_REMOTE, "sys_remote", ERR_SYS_REMOTE_MAP)
 #define ANSWER_MAX 16u                                      // a write's answer has no data; a little room anyway
 #define REQ_HEAD   (1u + sizeof(sys_device_router_hdr_t))   // a device command: [key][dir][id][op u16], then the args
 #define DEV_TARGET 1u                                       // the bytes after the dir byte that name the device: its id
-#define FRAME_HEAD 3u                                       // a frame of the channel: [SYS_REMOTE_CHANNEL][id][kind]
+#define FRAME_HEAD 2u                                       // a frame of the channel: [id][kind], then the data
+#define OUT_HEAD   1u                                       // a frame to send, queued: [OUT], then the frame
 #define IN_HEAD    2u                                       // a frame come in, queued: [IN][board], then the frame
 #define ERROR_MAX  160u                                     // an error record of a device, on the reporter's stack
 #define CHAIN_MAX  (CONFIG_ERRORS_POOL_BLOCKS + 1u)
 
-/* The queue's items: what goes out starts with the channel's byte, what came in with IN (no channel has 0). */
-#define IN 0u
-
-_Static_assert(SYS_REMOTE_CHANNEL != IN, "the queue's marks");
+/* The queue's items start with their mark: what came in with IN, what goes out with OUT. */
+#define IN  0u
+#define OUT 1u
 
 // A peer subscribed to a device of this board (SUBSCRIBE). The first entry of a device holds its event subscription.
 typedef struct {
@@ -65,18 +67,18 @@ static bool has_subscriber(uint8_t id) {
   return any;
 }
 
-/* Queues a frame [CHANNEL_REMOTE][id][kind][data] for the subscribers of device `id`. Only queues: a reporter may be a
+/* Queues a frame [id][kind][data] of the channel SYS_REMOTE_CHANNEL for the subscribers of device `id`. Only queues: a reporter may be a
    timer's task, and the frame goes out from the task. A frame the queue can't take is lost. */
 static void queue_out(uint8_t id, uint8_t kind, const void* data, uint32_t len) {
   void* slot = NULL;
-  if (xRingbufferSendAcquire(sys_remote_rb, &slot, FRAME_HEAD + len, NO_WAIT) != pdTRUE) {
+  if (xRingbufferSendAcquire(sys_remote_rb, &slot, OUT_HEAD + FRAME_HEAD + len, NO_WAIT) != pdTRUE) {
     return;
   }
   uint8_t* item = slot;
-  item[0] = SYS_REMOTE_CHANNEL;
+  item[0] = OUT;
   item[1] = id;
   item[2] = kind;
-  memcpy(item + FRAME_HEAD, data, len);
+  memcpy(item + OUT_HEAD + FRAME_HEAD, data, len);
   xRingbufferSendComplete(sys_remote_rb, slot);
 }
 
@@ -194,7 +196,7 @@ void sys_remote_unsubscribe(uint8_t id, uint8_t peer) {
 
 // A frame for the subscribers of its device, on the task: each gets it, NOWAIT.
 static void send_out(const uint8_t* frame, uint32_t len) {
-  const uint8_t id = frame[1];
+  const uint8_t id = frame[0];
   uint8_t to[CONFIG_SYS_REMOTE_SUBSCRIPTIONS];
   uint32_t n = 0;
   xSemaphoreTake(sys_remote_lock, portMAX_DELAY);
@@ -204,9 +206,13 @@ static void send_out(const uint8_t* frame, uint32_t len) {
     }
   }
   xSemaphoreGive(sys_remote_lock);
-  const uint8_t flags = frame[2] == SYS_REMOTE_ERROR ? ROUTER_FLAG_URGENT : 0;
+  const uint8_t flags = frame[1] == SYS_REMOTE_ERROR ? DATA_MATRIX_URGENT : 0;
   for (uint32_t i = 0; i < n; i++) {
-    err_free(sys_session_push(to[i], (cmd_in_t){frame, len}, flags));  // not taken: a gap in the session's count
+    uint8_t provider = 0;
+    if (sys_session_route(to[i], &provider)) {
+      const data_matrix_end_t end = DATA_MATRIX_END_TAGGED(provider, SYS_REMOTE_CHANNEL);
+      err_free(data_matrix_send_to(&end, frame, len, flags));  // not taken: a gap in the session's count
+    }
   }
 }
 
@@ -215,8 +221,10 @@ static void send_out(const uint8_t* frame, uint32_t len) {
  * ------------------------------------------------------------------------- */
 
 // A frame of the remote channel from a board, on the RX task: queued, it is published and reported on the task.
-static void on_push(uint8_t src, const uint8_t* data, uint32_t len) {
-  if (len < FRAME_HEAD || data[0] != SYS_REMOTE_CHANNEL) {
+static void on_frame(void* ctx, const data_matrix_end_t* from, const uint8_t* data, uint32_t len) {
+  (void)ctx;
+  const uint8_t src = sys_session_peer(from->a);  // the board whose session it came on
+  if (len < FRAME_HEAD || src == SYS_SESSION_ID_NONE) {
     return;
   }
   void* slot = NULL;
@@ -265,21 +273,21 @@ static void send_subscription(uint8_t board, uint8_t remote_id, uint8_t op) {
 static void take_in(const uint8_t* item, uint32_t len) {
   const uint8_t board = item[1];
   const uint8_t* frame = item + IN_HEAD;
-  const uint8_t local = sys_device_find_remote(board, frame[1]);
+  const uint8_t local = sys_device_find_remote(board, frame[0]);
   if (local == SYS_DEVICE_ID_NONE) {
-    send_subscription(board, frame[1], REMOTE_OP_UNSUBSCRIBE);
+    send_subscription(board, frame[0], REMOTE_OP_UNSUBSCRIBE);
     return;
   }
   const uint8_t* data = frame + FRAME_HEAD;
   const uint32_t data_len = len - IN_HEAD - FRAME_HEAD;
-  if (frame[2] == SYS_REMOTE_EVENT && data_len >= sizeof(sys_event_t)) {
+  if (frame[1] == SYS_REMOTE_EVENT && data_len >= sizeof(sys_event_t)) {
     sys_event_t ev;
     memcpy(&ev, data, sizeof(ev));
     if (data_len == sizeof(ev) + ev.len) {
       ev.key.source = local;
       err_report(sys_event_publish(ev.key, ev.flags | SYS_EVENT_DEFER, data + sizeof(ev), ev.len));
     }
-  } else if (frame[2] == SYS_REMOTE_ERROR) {
+  } else if (frame[1] == SYS_REMOTE_ERROR) {
     err_h chain = NULL;
     err_free(err_record_parse(data, data_len, &chain));
     err_report(ERR_WRAP(ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0), ERR_DEV_ID, .id = local));
@@ -300,9 +308,9 @@ static err_h on_created(const sys_event_t* event, void* ctx) {
  * Peers gone and reached
  * ------------------------------------------------------------------------- */
 
-// A peer gone: its subscriptions here end. The master's session ending (BROADCAST) names every peer.
-static void on_gone(uint8_t peer, uint8_t role) {
-  (void)role;
+// A peer gone: its subscriptions here end.
+static void on_gone(uint8_t peer, uint8_t safety) {
+  (void)safety;
   const bool all = peer == SYS_SESSION_ID_BROADCAST;
   for (uint32_t i = 0; i < CONFIG_SYS_REMOTE_SUBSCRIPTIONS; i++) {
     xSemaphoreTake(sys_remote_lock, portMAX_DELAY);
@@ -321,6 +329,20 @@ static void on_reached(uint8_t peer) {
       send_subscription(peer, where.remote_id, REMOTE_OP_SUBSCRIBE);
     }
   }
+}
+
+// A session ended (SESSION_EV_GONE): the peer is the event's source.
+static err_h on_gone_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
+  return NULL;
+}
+
+// A session opened (SESSION_EV_REACHED): the peer is the event's source.
+static err_h on_reached_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_reached((uint8_t)event->key.source);
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
@@ -414,16 +436,19 @@ static void remote_task(void* arg) {
     if (item[0] == IN) {
       take_in(item, (uint32_t)size);
     } else {
-      send_out(item, (uint32_t)size);
+      send_out(item + OUT_HEAD, (uint32_t)size - OUT_HEAD);
     }
     vRingbufferReturnItem(sys_remote_rb, item);
   }
 }
 
 err_h sys_remote_init(void) {
-  ERR_TRY(sys_session_on_gone(on_gone));
-  ERR_TRY(sys_session_on_reached(on_reached));
-  ERR_TRY(sys_session_on_push(on_push));
+  uint16_t session_handle = 0;
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &session_handle));
+  ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &session_handle));
+  data_matrix_end_t frames;
+  ERR_TRY(data_matrix_listen(on_frame, NULL, &frames));
+  ERR_TRY(data_matrix_route(&(data_matrix_route_t){DATA_MATRIX_END_TAGGED(DATA_MATRIX_ANY, SYS_REMOTE_CHANNEL), frames}));
   uint16_t handle = 0;
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},

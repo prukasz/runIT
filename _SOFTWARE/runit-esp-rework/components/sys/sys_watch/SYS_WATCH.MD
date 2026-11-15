@@ -1,13 +1,13 @@
 # sys_watch
 
-Component `components/sys/sys_watch/`. A **watch** is a read command run on this board by a **trigger** (`PERIODIC`, `ON_CHANGE`, `ON_EVENT`) whose answers are sent to the peer that added it (`owner`) as session PUSH frames on the channel `SYS_WATCH_CHANNEL`. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
+Component `components/sys/sys_watch/`. A **watch** is a read command run on this board by a **trigger** (`PERIODIC`, `ON_CHANGE`, `ON_EVENT`) whose answers are sent to the peer that added it (`owner`) as PUSH frames of the data matrix on the channel `SYS_WATCH_CHANNEL`. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
 
 ## Files
 
 | File | Role |
 |---|---|
 | `sys_watch.h` | The wire format (`sys_watch_head_t` 14 B, `sys_watch_info_t` 16 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
-| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), the `sys_event` listener, `router_inject`, the entry (`[SYS_WATCH_CHANNEL][id][status][data]`), `SYS_WATCH_CHANNEL`, `MODULE_ID_DEFINE(WATCH, 0x2B)`, `ERR_MODULE_DEFINE` |
+| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), the `sys_event` listener, `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `MODULE_ID_DEFINE(WATCH, 0x2B)`, `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
 | `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(WATCH, 0x2B)` (`ERR_MOD_SYS_WATCH`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
@@ -30,11 +30,11 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 - The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry the session refuses (no route, a busy provider) is not counted as sent: the next read sends it.
 - An ERROR answer is sent once: the next errors are not sent until an OK entry goes.
 - An answer too long for one entry (`3 + len > CMD_DATA_MAX`) is reported once (`ERR_CMD_OUT_FULL` with the read) and the watch reads no more.
-- A peer gone (`sys_session_on_gone`): its watches are removed (every watch for `SYS_SESSION_ID_BROADCAST`).
+- A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `SYS_SESSION_ID_BROADCAST`).
 
 ### The entry (PUSH channel `SYS_WATCH_CHANNEL`)
 
-`[SYS_WATCH_CHANNEL][id u8][status u8][data ...]`, sent with `sys_session_push(owner, ..., 0)`.
+`[id u8][status u8][data ...]` as the payload of the tag `SYS_WATCH_CHANNEL`, sent with `data_matrix_send_to(T(provider of the owner's session, SYS_WATCH_CHANNEL), ...)`; the client takes the entries from its callback end, routed from `T(DATA_MATRIX_ANY, SYS_WATCH_CHANNEL)` (the board is the peer of the session the entry came on).
 
 - No `owner` byte (the PUSH frame's `dst` is its owner).
 - No per-watch sequence number (the `seq` of a PUSH is `sys_session`'s count per `(peer, class)`).
@@ -47,10 +47,10 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 
 1. **States:** `FREE -> ADDING -> ACTIVE -> FREE`, and `ACTIVE -> ADDING` when the watch has to be added again.
 2. **The first read** `sys_watch_read(board, read, buf, cap, &len)` takes a `FREE` slot, sends `WATCH ADD` (`id = slot + 1`, `SYS_WATCH_ON_CHANGE`, period `CONFIG_SYS_WATCH_READ_PERIOD_MS`, `max_silence` twice that) and returns `ERR_WATCH_NO_VALUE`. While the slot is `ADDING`, a read sends ADD again when the last one went a period ago (it was refused, did not go, or its answer is late: ADD of an id that exists only replaces the watch).
-3. **B3:** an entry `[SYS_WATCH_CHANNEL][id][status][data]` from `board` with `id == slot + 1` is taken only while the slot is `ACTIVE`, that is after ADD's OK: what came before it may be of the watch that had the id before.
+3. **B3:** an entry `[id][status][data]` from `board` with `id == slot + 1` is taken only while the slot is `ACTIVE`, that is after ADD's OK: what came before it may be of the watch that had the id before.
 4. **A read of an `ACTIVE` slot** returns the entry kept: its bytes, or its error as a chain under `ERR_REMOTE{board, 0}`. No entry yet: `ERR_WATCH_NO_VALUE`; one older than `3 * CONFIG_SYS_WATCH_READ_PERIOD_MS`: `ERR_WATCH_STALE`. An answer longer than `SYS_WATCH_COPY_MAX` (`32 B`) is not kept.
 5. **After a write (`sys_watch_stale`):** the slots on `board` whose command has the write's router key and `target_len` bytes after `dir` go back to `ADDING` and send ADD again. ADD's OK comes after the write's answer, so every entry taken from then on was read after the write, and a watch just added sends its first read at once.
-6. **A peer gone** (`sys_session_on_gone`): its slots go back to `ADDING`; the next read adds the watch again.
+6. **A peer gone** (`SESSION_EV_GONE`): its slots go back to `ADDING`; the next read adds the watch again.
 7. **Idle:** a slot not read for `CONFIG_SYS_WATCH_IDLE_MS` is freed and its watch removed with `WATCH REMOVE` (a 100 ms `board_timer`).
 
 ## Remote (`sys_watch_router`, root key `MODULE_ID_WATCH` `0x2B`)

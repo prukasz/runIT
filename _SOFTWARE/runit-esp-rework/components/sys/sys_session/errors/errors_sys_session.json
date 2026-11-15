@@ -18,7 +18,11 @@
     },
     "ERR_SESSION_NOT_FRAMED": {
       "message": "A session needs a link that carries a whole frame; this one is raw",
-      "hint": "Attach a framed provider. A raw one is for a stream or a command binding."
+      "hint": "Give a framed provider the Session role. A raw one is for the Raw or Commands role."
+    },
+    "ERR_SESSION_NOT_OPEN": {
+      "message": "No session is open on provider {provider}",
+      "hint": "Its peer has not said hello yet, or the session ended."
     },
     "ERR_SESSION_FULL": {
       "message": "No room for another board connection",

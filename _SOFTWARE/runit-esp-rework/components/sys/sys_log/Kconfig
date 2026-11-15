@@ -5,7 +5,7 @@ menu "sys_log"
         default 160
         range 64 512
         help
-          Longest cleaned ESP_LOG line queued to SYS_STREAM_LOGS; longer lines
+          Longest cleaned ESP_LOG line queued to LOG_STREAM_LOGS; longer lines
           are truncated before sending.
 
     config SYS_LOG_ERRORS_KEPT

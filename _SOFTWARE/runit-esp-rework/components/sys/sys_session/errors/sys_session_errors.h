@@ -13,10 +13,10 @@ MODULE_ID_DECLARE(SESSION, 0x0E)  //@alias Sessions @description Framed RPC and 
   X(ERR_SESSION_NO_ROUTE,     ERR_TAG(ERR_MOD_SYS_SESSION, 4),  ERR_SEV_MEDIUM, { uint8_t dst; }) /* no session leads to dst */ \
   X(ERR_SESSION_TIMEOUT,      ERR_TAG(ERR_MOD_SYS_SESSION, 6),  ERR_SEV_MEDIUM, { uint8_t dst; uint16_t seq; }) /* a call without an answer */ \
   X(ERR_SESSION_PEER_DOWN,    ERR_TAG(ERR_MOD_SYS_SESSION, 7),  ERR_SEV_MEDIUM, { uint8_t board; }) /* the session the call went through ended */ \
-  X(ERR_SESSION_FULL,         ERR_TAG(ERR_MOD_SYS_SESSION, 11), ERR_SEV_MEDIUM, {}) /* every session or listener slot taken */ \
+  X(ERR_SESSION_FULL,         ERR_TAG(ERR_MOD_SYS_SESSION, 11), ERR_SEV_MEDIUM, {}) /* every session slot taken */ \
   X(ERR_SESSION_CALLS_FULL,   ERR_TAG(ERR_MOD_SYS_SESSION, 12), ERR_SEV_MEDIUM, {}) /* every CONFIG_SYS_SESSION_CALLS slot in use */ \
   X(ERR_REMOTE,               ERR_TAG(ERR_MOD_SYS_SESSION, 13), ERR_SEV_NONE,   { uint8_t board; uint16_t seq; }) /* context: the chain below is that board's */ \
   X(ERR_SESSION_WOULD_BLOCK,  ERR_TAG(ERR_MOD_SYS_SESSION, 14), ERR_SEV_HIGH,   {}) /* call_wait to this board on a router task: it would wait for itself */ \
-  X(ERR_SESSION_NOT_FRAMED,   ERR_TAG(ERR_MOD_SYS_SESSION, 16), ERR_SEV_MEDIUM, {}) /* attach: a raw provider carries no whole frame */
+  X(ERR_SESSION_NOT_FRAMED,   ERR_TAG(ERR_MOD_SYS_SESSION, 16), ERR_SEV_MEDIUM, {}) /* attach: a raw provider carries no whole frame */   X(ERR_SESSION_NOT_OPEN,     ERR_TAG(ERR_MOD_SYS_SESSION, 17), ERR_SEV_LOW,    { uint8_t provider; }) /* push: no open session on the provider */
 
 ERR_TAGS_DECLARE(ERR_SYS_SESSION_MAP)

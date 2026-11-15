@@ -3,13 +3,11 @@
 
     python runit-esp-rework/tools/session_client.py COM10                 # the hello, PING and PEERS
     python runit-esp-rework/tools/session_client.py COM10 28 00 01        # one command by hand: [key][dir][op][args]
-    python runit-esp-rework/tools/session_client.py COM10 --dst 9 0e 00 04  # to a slave of this board, through it
     python runit-esp-rework/tools/session_client.py COM10 --listen 2      # subscribe / run cmd, then print PUSH frames
-    python runit-esp-rework/tools/session_client.py COM10 --stage5        # verify Stage 5 (sys_stream + sys_log)
     python runit-esp-rework/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
 
 Line: 00 cobs([frame][crc16 LE]) 00, CRC16-CCITT (poly 0x1021, init 0xFFFF) (PROVIDER_CONSOLE.MD "The line" / sys_uart_codec.h).
-Frame: [frame byte][dst][src][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is 0xF0, the first of the clients'.
+Frame: [frame byte][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is 0xF0, the first of the clients'.
 Bytes that are no frame (the boot's text, the log) are shown as text. Exit 0 when every step answered as it should.
 """
 import argparse
@@ -21,8 +19,8 @@ import serial  # pyserial (in the ESP-IDF python env)
 
 CLIENT = 0xF0
 REQUEST, ANSWER, PUSH, CONTROL = 0, 1, 2, 3
-HELLO, PING, NO_SESSION, PEER = 1, 2, 3, 4
-KEY_SYS, KEY_SESSION, KEY_STREAM, KEY_LOG, KEY_WATCH = 0x28, 0x0E, 0x29, 0x2A, 0x2B
+HELLO, PING, NO_SESSION = 1, 2, 3
+KEY_SYS, KEY_SESSION, KEY_LOG, KEY_WATCH = 0x28, 0x0E, 0x2A, 0x2B
 STREAM_TELEMETRY, STREAM_LOGS, STREAM_ERRORS, STREAM_EVENTS = 0x02, 0x03, 0x04, 0x06
 CH_WATCHES = 0x80 | 0x2B  # SYS_SESSION_CHANNEL(MODULE_ID_WATCH)
 F_URGENT, F_ERROR = 0x01, 0x04
@@ -80,13 +78,13 @@ class Link:
         self.s, self.buf, self.seq, self.board, self.boot_id = s, bytearray(), 0, None, int(time.time()) & 0xFFFFFFFF
         self.pushes, self.push_seq, self.push_gaps = [], {}, []
 
-    def send(self, kind: int, dst: int, body: bytes, seq: int = 0, flags: int = 0):
-        frame = bytes([(kind << 6) | flags, dst, CLIENT]) + struct.pack("<H", seq) + body
+    def send(self, kind: int, body: bytes, seq: int = 0, flags: int = 0):
+        frame = bytes([(kind << 6) | flags]) + struct.pack("<H", seq) + body
         c = crc16(frame)
         self.s.write(b"\x00" + cobs_encode(frame + bytes([c & 0xFF, c >> 8])) + b"\x00")
 
     def frames(self, wait: float):
-        """The frames that come in `wait` seconds, as (kind, flags, dst, src, seq, body)."""
+        """The frames that come in `wait` seconds, as (kind, flags, src, seq, body); src is the board's id once its hello is in."""
         end = time.monotonic() + wait
         while time.monotonic() < end:
             self.buf += self.s.read(512)
@@ -94,18 +92,18 @@ class Link:
                 cut = self.buf.index(0)
                 cand, self.buf = bytes(self.buf[:cut]), self.buf[cut + 1:]
                 raw = cobs_decode(cand) if cand else None
-                if raw is None or len(raw) < 7 or crc16(raw[:-2]) != (raw[-2] | raw[-1] << 8):
+                if raw is None or len(raw) < 5 or crc16(raw[:-2]) != (raw[-2] | raw[-1] << 8):
                     text = cand.decode("utf-8", "replace").strip()
                     if text:
                         print(f"   text: {text}")
                     continue
                 f = raw[:-2]
-                yield f[0] >> 6, f[0] & 0x3F, f[1], f[2], struct.unpack_from("<H", f, 3)[0], f[5:]
+                yield f[0] >> 6, f[0] & 0x3F, self.board, struct.unpack_from("<H", f, 1)[0], f[3:]
 
     def hello(self, timeout_ms: int = 3000) -> bool:
         body = bytes([HELLO, CLIENT]) + struct.pack("<IIH", self.boot_id, 0, timeout_ms)
-        self.send(CONTROL, 0xFF, body)
-        for kind, _, _, src, _, b in self.frames(2.0):
+        self.send(CONTROL, body)
+        for kind, _, src, _, b in self.frames(2.0):
             if kind == CONTROL and b[:1] == bytes([HELLO]) and len(b) >= 12:
                 bid, boot, build, tmo = struct.unpack_from("<BIIH", b, 1)
                 self.board = bid
@@ -131,18 +129,16 @@ class Link:
                 print(f"<- watch id={payload[0]} status={payload[1]} seq={seq}: {payload[2:].hex(' ')}")
             else:
                 print(f"<- {tag}: {payload.hex(' ')}")
-        elif kind == CONTROL and b[:1] == bytes([PEER]) and len(b) >= 3:
-            print(f"<- peer {b[1]:#04x} {'up' if b[2] else 'gone'}")
 
     def listen(self, wait: float):
-        for kind, flags, _, src, seq, b in self.frames(wait):
+        for kind, flags, src, seq, b in self.frames(wait):
             self._record_async(kind, flags, src, seq, b)
 
     def call(self, dst: int, cmd: bytes, wait: float = 2.0):
         self.seq = (self.seq + 1) & 0xFFFF
-        self.send(REQUEST, dst, cmd, self.seq)
+        self.send(REQUEST, cmd, self.seq)
         print(f"-> {dst:#04x} seq {self.seq}: {cmd.hex(' ')}")
-        for kind, flags, _, src, seq, b in self.frames(wait):
+        for kind, flags, src, seq, b in self.frames(wait):
             if kind == ANSWER and seq == self.seq:
                 status = 1 if flags & F_ERROR else 0
                 print(f"<- {src:#04x} seq {seq}: status {status} ({'OK' if status == 0 else 'ERROR'}) {b.hex(' ')}")
@@ -164,98 +160,6 @@ def _decode_streams(buf: bytes) -> dict[int, tuple[int, list[tuple[int, int, int
         out[sid] = (flags, targets)
     assert pos == len(buf), f"LIST trailing bytes: {pos} != {len(buf)}"
     return out
-
-
-def run_stage5(link: Link, dst: int) -> bool:
-    def expect_ok(cmd: bytes) -> bytes | None:
-        st, body = link.call(dst, cmd)
-        return body if st == 0 else None
-
-    def expect_err(cmd: bytes) -> bytes | None:
-        st, body = link.call(dst, cmd)
-        return body if st == 1 else None
-
-    cfg = expect_ok(bytes([KEY_LOG, 0, 0x01]))
-    if cfg != bytes([3, 0, 1, 1, 1]):
-        print(f"FAIL: unexpected default LOG CONFIG: {cfg!r}")
-        return False
-
-    raw_list = expect_ok(bytes([KEY_STREAM, 0, 0x07]))
-    if raw_list is None:
-        return False
-    streams = _decode_streams(raw_list)
-    for sid, exp_flags in [(STREAM_TELEMETRY, 0), (STREAM_LOGS, 0), (STREAM_ERRORS, 1), (STREAM_EVENTS, 1)]:
-        if sid not in streams or streams[sid][0] != exp_flags:
-            print(f"FAIL: system stream {sid:#04x} missing or bad metadata: {streams.get(sid)}")
-            return False
-
-    if expect_ok(bytes([KEY_STREAM, 1, 0x08, STREAM_LOGS])) is None:
-        return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x08, STREAM_ERRORS])) is None:
-        return False
-
-    # Valid LOG CONFIG write (level=2 WARN <= CONFIG_LOG_MAXIMUM_LEVEL) + restore + out-of-range write (ERR_LOG_BAD_LEVEL) + system stream remove (ERR_STREAM_SYSTEM).
-    if expect_ok(bytes([KEY_LOG, 1, 0x01, 2, 0, 1, 1, 1])) is None:
-        return False
-    if expect_ok(bytes([KEY_LOG, 0, 0x01])) != bytes([2, 0, 1, 1, 1]):
-        print("FAIL: LOG CONFIG did not update")
-        return False
-    if expect_ok(bytes([KEY_LOG, 1, 0x01, 3, 0, 1, 1, 1])) is None:
-        return False
-    if expect_err(bytes([KEY_LOG, 1, 0x01, 99, 0, 1, 1, 1])) is None:
-        return False
-    if expect_err(bytes([KEY_STREAM, 1, 0x02, STREAM_ERRORS])) is None:
-        return False
-
-    link.listen(0.4)
-    err_pushes = [p for p in link.pushes if p[3] == STREAM_ERRORS]
-    log_pushes = [p for p in link.pushes if p[3] == STREAM_LOGS]
-    if len(err_pushes) < 2 or not all(p[0] & F_URGENT for p in err_pushes):
-        print(f"FAIL: expected >=2 urgent ERRORS pushes, got {len(err_pushes)}: {err_pushes}")
-        return False
-    if not log_pushes or not any(b"ERR_" in p[4] for p in log_pushes):
-        print(f"FAIL: expected traced ERR_* line on LOGS stream, got {len(log_pushes)}")
-        return False
-    if link.push_gaps:
-        print(f"FAIL: PUSH sequence gaps: {link.push_gaps}")
-        return False
-
-    hist = expect_ok(bytes([KEY_LOG, 0, 0x03, 0]))
-    if hist is None or len(hist) < 2 or hist[0] < 2:
-        print(f"FAIL: expected >=2 stored error records, got {hist!r}")
-        return False
-    past = expect_ok(bytes([KEY_LOG, 0, 0x03, 250]))
-    if past != bytes([hist[0]]):
-        print(f"FAIL: expected past-end LOG ERRORS [total], got {past!r}")
-        return False
-
-    # User stream 0x10 lifecycle: CREATE -> SUBSCRIBE -> SINK (remote) -> LIST -> UNBIND 0xFF -> REMOVE.
-    link.call(dst, bytes([KEY_STREAM, 1, 0x02, 0x10]))
-    if expect_ok(bytes([KEY_STREAM, 1, 0x01, 0x10, 0x00])) is None:
-        return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x08, 0x10])) is None:
-        return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x04, 0x10, 0x22, 0x01])) is None:
-        return False
-    raw_after = expect_ok(bytes([KEY_STREAM, 0, 0x07]))
-    if raw_after is None:
-        return False
-    st_after = _decode_streams(raw_after)
-    targets = st_after.get(0x10, (0, []))[1]
-    if not any(t[0] == 2 and t[1] == CLIENT for t in targets) or not any(t[0] == 1 and t[1] == 0x22 and t[2] == 0x01 for t in targets):
-        print(f"FAIL: user stream 0x10 missing expected PEER/SINK targets in LIST: {st_after.get(0x10)}")
-        return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x05, 0x10, 0xFF])) is None:
-        return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x02, 0x10])) is None:
-        return False
-    if expect_err(bytes([KEY_STREAM, 1, 0x02, 0x10])) is None:
-        return False
-
-    expect_ok(bytes([KEY_STREAM, 1, 0x09, STREAM_LOGS]))
-    expect_ok(bytes([KEY_STREAM, 1, 0x09, STREAM_ERRORS]))
-    print("Stage 5 verification PASSED")
-    return True
 
 
 def run_stage7(link: Link, dst: int) -> bool:
@@ -332,8 +236,8 @@ def run_stage7(link: Link, dst: int) -> bool:
         print("FAIL: expected ON_CHANGE max_silence heartbeat for watch 2")
         return False
 
-    # 3. Replace watch 1 with SESSION PEERS (0x0E 00 04), verify WATCH LIST (16 B rows), then REMOVE both.
-    if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 20) + bytes([KEY_SESSION, 0, 0x04])) is None:
+    # 3. Replace watch 1 with SESSION PEERS (0x0E 00 02), verify WATCH LIST (16 B rows), then REMOVE both.
+    if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 20) + bytes([KEY_SESSION, 0, 0x02])) is None:
         return False
     raw_list = expect_ok(bytes([KEY_WATCH, 0, 0x03]))
     if raw_list is None or len(raw_list) != 1 + 2 * 16 or raw_list[0] != 2:
@@ -362,10 +266,8 @@ def main() -> int:
     ap.add_argument("port")
     ap.add_argument("bytes", nargs="*", help="one command in hex bytes; default: PING and PEERS")
     ap.add_argument("--baud", type=int, default=115200, help="CONFIG_ESP_CONSOLE_UART_BAUDRATE")
-    ap.add_argument("--dst", type=lambda v: int(v, 0), default=None, help="the board it goes to (default: this one)")
     ap.add_argument("--silence", type=float, default=0, help="after the hello, say nothing this many seconds")
     ap.add_argument("--listen", type=float, default=0, help="after commands, listen for PUSH frames this many seconds")
-    ap.add_argument("--stage5", action="store_true", help="run Stage 5 (sys_stream + sys_log) verification")
     ap.add_argument("--stage7", action="store_true", help="run Stage 7 (sys_watch) verification")
     args = ap.parse_args()
 
@@ -373,7 +275,7 @@ def main() -> int:
     if not link.hello():
         print("<- no hello")
         return 1
-    dst = link.board if args.dst is None else args.dst
+    dst = link.board
     ok = True
     if args.silence:
         link.listen(args.silence)
@@ -381,12 +283,10 @@ def main() -> int:
         ok = status is None  # the session ended: the request is answered NO_SESSION, not with an answer
         print("session ended by the silence" if ok else "session still open")
         return 0 if ok else 1
-    if args.stage5:
-        return 0 if run_stage5(link, dst) else 1
     if args.stage7:
         return 0 if run_stage7(link, dst) else 1
     cmds = [bytes(int(b, 16) for b in args.bytes)] if args.bytes else [bytes([KEY_SYS, 0, 0x01]),
-                                                                       bytes([KEY_SESSION, 0, 0x04])]
+                                                                       bytes([KEY_SESSION, 0, 0x02])]
     for cmd in cmds:
         status, _ = link.call(dst, cmd)
         ok &= status == 0

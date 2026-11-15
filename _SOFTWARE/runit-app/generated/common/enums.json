@@ -95,7 +95,7 @@
           "name": "RUNIT_BLE_LOGS_SERVICE",
           "value": 65512,
           "alias": "Logs service",
-          "description": "The board's own: the stream LOGS as text"
+          "description": "The board's own: the log stream as text"
         },
         {
           "name": "RUNIT_BLE_LOGS",
@@ -138,7 +138,7 @@
         },
         {
           "name": "CMD_HEAD",
-          "value": 5,
+          "value": 3,
           "alias": "Frame header",
           "description": "Bytes of a frame's header, before its data"
         }
@@ -167,6 +167,88 @@
           "value": 4,
           "alias": "No wait",
           "description": "Fail immediately when TX queue is full instead of waiting"
+        }
+      ]
+    },
+    "data_matrix_const": {
+      "alias": "Data matrix",
+      "kind": "defines",
+      "prefix": "DATA_MATRIX_",
+      "source_file": "runit-esp-rework/components/sys/data_matrix/data_matrix.h",
+      "members": [
+        {
+          "name": "DATA_MATRIX_ANY",
+          "value": 255,
+          "alias": "Every session",
+          "description": "A T source's provider: that tag from the session of any provider"
+        },
+        {
+          "name": "DATA_MATRIX_STREAM_LAST",
+          "value": 127,
+          "alias": "Last stream",
+          "description": "Streams are 0x01..0x7F; from 0x80 a tag is a module's channel"
+        },
+        {
+          "name": "DATA_MATRIX_URGENT",
+          "value": 1,
+          "alias": "Urgent",
+          "description": "A stream's flag: its frames go to the front of every provider's queue"
+        }
+      ]
+    },
+    "data_matrix_end_kind_e": {
+      "alias": "End kind",
+      "kind": "enum",
+      "source_file": "runit-esp-rework/components/sys/data_matrix/data_matrix.h",
+      "members": [
+        {
+          "name": "DATA_MATRIX_END_P",
+          "value": 0,
+          "alias": "Provider",
+          "description": "a = the provider; b unused"
+        },
+        {
+          "name": "DATA_MATRIX_END_T",
+          "value": 1,
+          "alias": "Tagged",
+          "description": "a = the provider, b = the tag (a stream id, or a module's channel from 0x80)"
+        },
+        {
+          "name": "DATA_MATRIX_END_S",
+          "value": 2,
+          "alias": "Stream",
+          "description": "a = the stream id (1..0x7F); b unused"
+        },
+        {
+          "name": "DATA_MATRIX_END_C",
+          "value": 3,
+          "alias": "Callback",
+          "description": "a = what data_matrix_listen() gave; never made by a command"
+        }
+      ]
+    },
+    "data_matrix_role_e": {
+      "alias": "Provider role",
+      "kind": "enum",
+      "source_file": "runit-esp-rework/components/sys/data_matrix/data_matrix.h",
+      "members": [
+        {
+          "name": "DATA_MATRIX_ROLE_RAW",
+          "value": 0,
+          "alias": "Raw",
+          "description": "Its bytes are sent and taken as they are, no frame and no tag; routes from and to P, to T"
+        },
+        {
+          "name": "DATA_MATRIX_ROLE_SESSION",
+          "value": 1,
+          "alias": "Session",
+          "description": "A session runs on it (sys_session): REQUEST, ANSWER and CONTROL are the session's, PUSH is T"
+        },
+        {
+          "name": "DATA_MATRIX_ROLE_COMMANDS",
+          "value": 2,
+          "alias": "Commands",
+          "description": "Each message in is one command for the router, its answer goes back on the provider"
         }
       ]
     },
@@ -492,12 +574,6 @@
           "description": "System info, reboot, ping, and board diagnostics module ID"
         },
         {
-          "name": "MODULE_ID_STREAM",
-          "value": 41,
-          "alias": "Data streams",
-          "description": "Periodic telemetry stream service module ID"
-        },
-        {
           "name": "MODULE_ID_LOG",
           "value": 42,
           "alias": "Logging",
@@ -532,6 +608,12 @@
           "value": 47,
           "alias": "Remote devices",
           "description": "Cross-board remote device bridge module ID"
+        },
+        {
+          "name": "MODULE_ID_DATA_MATRIX",
+          "value": 48,
+          "alias": "Data matrix",
+          "description": "Roles of the providers and routes of the data that are not commands"
         }
       ]
     },
@@ -658,6 +740,20 @@
         }
       ]
     },
+    "session_flag": {
+      "alias": "Session flags",
+      "kind": "defines",
+      "prefix": "SYS_SESSION_",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
+      "members": [
+        {
+          "name": "SYS_SESSION_SAFETY",
+          "value": 1,
+          "alias": "Safety",
+          "description": "The end of the session enters the safe state"
+        }
+      ]
+    },
     "session_frame": {
       "alias": "Frame byte",
       "kind": "defines",
@@ -724,13 +820,13 @@
           "name": "SYS_SESSION_ID_SELF",
           "value": 254,
           "alias": "This board",
-          "description": "A command's src when the board runs its own (ROUTER_SRC_SELF); never in a frame's header"
+          "description": "A command's src when the board runs its own (ROUTER_SRC_SELF); never on the wire"
         },
         {
           "name": "SYS_SESSION_ID_BROADCAST",
           "value": 255,
-          "alias": "Every board",
-          "description": "Every board (STOP, time); never answered"
+          "alias": "Every peer",
+          "description": "A listener's mark for every peer; on no frame"
         }
       ]
     },
@@ -777,10 +873,10 @@
           "description": "Bluetooth GATT services and APPLY"
         },
         {
-          "name": "SYS_ACTIONS_ID_STREAM",
+          "name": "SYS_ACTIONS_ID_DATA_MATRIX",
           "value": 16777223,
-          "alias": "Data streams",
-          "description": "Data streams and bindings"
+          "alias": "Data matrix",
+          "description": "Provider roles and routes of the data"
         },
         {
           "name": "SYS_ACTIONS_ID_POWER_PD",
@@ -793,72 +889,6 @@
           "value": 16777225,
           "alias": "Links to boards",
           "description": "The BLE links to other boards: BLE CONNECT and SESSION ATTACH per board"
-        }
-      ]
-    },
-    "stream": {
-      "alias": "Streams",
-      "kind": "defines",
-      "prefix": "SYS_STREAM_",
-      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_TELEMETRY",
-          "value": 2,
-          "alias": "Telemetry",
-          "description": "Telemetry: the VM's subscribed values"
-        },
-        {
-          "name": "SYS_STREAM_LOGS",
-          "value": 3,
-          "alias": "Logs",
-          "description": "The log lines"
-        },
-        {
-          "name": "SYS_STREAM_ERRORS",
-          "value": 4,
-          "alias": "Errors",
-          "description": "The error records (urgent)"
-        },
-        {
-          "name": "SYS_STREAM_EVENTS",
-          "value": 6,
-          "alias": "Events",
-          "description": "The event notifications (urgent)"
-        }
-      ]
-    },
-    "stream_flag": {
-      "alias": "Stream flags",
-      "kind": "defines",
-      "prefix": "SYS_STREAM_FLAG_",
-      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_FLAG_URGENT",
-          "value": 1,
-          "alias": "Urgent",
-          "description": "Its frames go first on every way out"
-        }
-      ]
-    },
-    "stream_range": {
-      "alias": "Stream ids",
-      "kind": "defines",
-      "prefix": "SYS_STREAM_ID_",
-      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_ID_USER_FIRST",
-          "value": 16,
-          "alias": "First user stream",
-          "description": "User streams are 0x10..0x7F"
-        },
-        {
-          "name": "SYS_STREAM_ID_LAST",
-          "value": 127,
-          "alias": "Last stream",
-          "description": "From 0x80 the byte is a module's channel"
         }
       ]
     },
@@ -1429,12 +1459,6 @@
           "value": 3,
           "alias": "No session",
           "description": "A frame on a session that is not open here: send your hello again"
-        },
-        {
-          "name": "SYS_SESSION_PEER",
-          "value": 4,
-          "alias": "Peer",
-          "description": "sys_session_peer_t: the root's session with that peer opened or ended; to every other peer"
         }
       ]
     },
@@ -1447,13 +1471,13 @@
           "name": "SYS_SESSION_REQUEST",
           "value": 0,
           "alias": "Request",
-          "description": "A command for dst; its answer goes back to src"
+          "description": "A command for the peer; its answer comes back with the same seq"
         },
         {
           "name": "SYS_SESSION_ANSWER",
           "value": 1,
           "alias": "Answer",
-          "description": "The answer to the request src/seq: its status in the frame byte, then data"
+          "description": "The answer to the request seq: its status in the frame byte, then data"
         },
         {
           "name": "SYS_SESSION_PUSH",
@@ -1465,69 +1489,7 @@
           "name": "SYS_SESSION_CONTROL",
           "value": 3,
           "alias": "Control",
-          "description": "The session's own: hello, ping, no session, peer"
-        }
-      ]
-    },
-    "sys_session_peer_e": {
-      "alias": "Peer",
-      "kind": "enum",
-      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
-      "members": [
-        {
-          "name": "SYS_SESSION_UNKNOWN",
-          "value": 0,
-          "alias": "Unknown",
-          "description": "Not told: the hello says, master or client (the console, the runIT BLE pair); nothing before it"
-        },
-        {
-          "name": "SYS_SESSION_MASTER",
-          "value": 1,
-          "alias": "Master",
-          "description": "This board's master: a board's hello on a way not told; then the board's only session"
-        },
-        {
-          "name": "SYS_SESSION_SLAVE",
-          "value": 2,
-          "alias": "Slave",
-          "description": "A board of this one, told at ATTACH (a framed provider: a UART port, a BLE link made as a central)"
-        },
-        {
-          "name": "SYS_SESSION_CLIENT",
-          "value": 3,
-          "alias": "Client",
-          "description": "A client's hello on a way not told (the app, a test host): on the root only"
-        }
-      ]
-    },
-    "sys_stream_target_e": {
-      "alias": "Stream target",
-      "kind": "enum",
-      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_TARGET_SOURCE",
-          "value": 0,
-          "alias": "Source",
-          "description": "A provider the stream reads from (takes its rx hook)"
-        },
-        {
-          "name": "SYS_STREAM_TARGET_SINK",
-          "value": 1,
-          "alias": "Sink",
-          "description": "A provider of this board (SYS_SESSION_ID_SELF) or another peer where messages go as is"
-        },
-        {
-          "name": "SYS_STREAM_TARGET_PEER",
-          "value": 2,
-          "alias": "Peer",
-          "description": "A subscriber: [stream id][payload] in a PUSH frame of its session"
-        },
-        {
-          "name": "SYS_STREAM_TARGET_CALLBACK",
-          "value": 3,
-          "alias": "Callback",
-          "description": "The board's own code (a listener), on the stream task"
+          "description": "The session's own: hello, ping, no session"
         }
       ]
     },
@@ -1649,6 +1611,16 @@
     "CMD_SEND_NOWAIT": "cmd_send_flag",
     "CMD_SEND_SPARE": "cmd_send_flag",
     "CMD_SEND_URGENT": "cmd_send_flag",
+    "DATA_MATRIX_ANY": "data_matrix_const",
+    "DATA_MATRIX_END_C": "data_matrix_end_kind_e",
+    "DATA_MATRIX_END_P": "data_matrix_end_kind_e",
+    "DATA_MATRIX_END_S": "data_matrix_end_kind_e",
+    "DATA_MATRIX_END_T": "data_matrix_end_kind_e",
+    "DATA_MATRIX_ROLE_COMMANDS": "data_matrix_role_e",
+    "DATA_MATRIX_ROLE_RAW": "data_matrix_role_e",
+    "DATA_MATRIX_ROLE_SESSION": "data_matrix_role_e",
+    "DATA_MATRIX_STREAM_LAST": "data_matrix_const",
+    "DATA_MATRIX_URGENT": "data_matrix_const",
     "DC_MOTOR_STOP_BRAKE": "dc_motor_stop_e",
     "DC_MOTOR_STOP_COAST": "dc_motor_stop_e",
     "ERR_RECORD_REQ_CUT": "err_record_flag",
@@ -1665,6 +1637,7 @@
     "MODULE_ID_BLE": "module_id",
     "MODULE_ID_BOARD": "module_id",
     "MODULE_ID_CMD": "module_id",
+    "MODULE_ID_DATA_MATRIX": "module_id",
     "MODULE_ID_EVENT": "module_id",
     "MODULE_ID_HBRIDGE": "module_id",
     "MODULE_ID_I2C": "module_id",
@@ -1680,7 +1653,6 @@
     "MODULE_ID_ROUTER": "module_id",
     "MODULE_ID_ROUTER_QUEUE": "module_id",
     "MODULE_ID_SESSION": "module_id",
-    "MODULE_ID_STREAM": "module_id",
     "MODULE_ID_SUPPLY": "module_id",
     "MODULE_ID_SYS": "module_id",
     "MODULE_ID_SYS_DEVICE": "module_id",
@@ -1704,6 +1676,7 @@
     "SYS_ACTIONS_CLASS_SYSTEM": "action_class",
     "SYS_ACTIONS_CLASS_USER": "action_class",
     "SYS_ACTIONS_ID_BLE": "settings_record",
+    "SYS_ACTIONS_ID_DATA_MATRIX": "settings_record",
     "SYS_ACTIONS_ID_LINKS": "settings_record",
     "SYS_ACTIONS_ID_LOG": "settings_record",
     "SYS_ACTIONS_ID_POWER_BATTERY": "settings_record",
@@ -1711,7 +1684,6 @@
     "SYS_ACTIONS_ID_POWER_PD": "settings_record",
     "SYS_ACTIONS_ID_POWER_PSU": "settings_record",
     "SYS_ACTIONS_ID_POWER_RESPONSES": "settings_record",
-    "SYS_ACTIONS_ID_STREAM": "settings_record",
     "SYS_ACTIONS_ONBOARD_HARD_RESET": "onboard_action",
     "SYS_ACTIONS_ONBOARD_RESET": "onboard_action",
     "SYS_ACTIONS_ONBOARD_RESUME": "onboard_action",
@@ -1805,7 +1777,6 @@
     "SYS_SAFE_STOP": "sys_safe_reason_e",
     "SYS_SESSION_ANSWER": "sys_session_kind_e",
     "SYS_SESSION_CHANNEL_FIRST": "session_channel",
-    "SYS_SESSION_CLIENT": "sys_session_peer_e",
     "SYS_SESSION_CONTROL": "sys_session_kind_e",
     "SYS_SESSION_FRAME_FLAGS": "session_frame",
     "SYS_SESSION_FRAME_KIND": "session_frame",
@@ -1818,25 +1789,11 @@
     "SYS_SESSION_ID_LAST": "session_id",
     "SYS_SESSION_ID_NONE": "session_id",
     "SYS_SESSION_ID_SELF": "session_id",
-    "SYS_SESSION_MASTER": "sys_session_peer_e",
     "SYS_SESSION_NO_SESSION": "sys_session_control_e",
-    "SYS_SESSION_PEER": "sys_session_control_e",
     "SYS_SESSION_PING": "sys_session_control_e",
     "SYS_SESSION_PUSH": "sys_session_kind_e",
     "SYS_SESSION_REQUEST": "sys_session_kind_e",
-    "SYS_SESSION_SLAVE": "sys_session_peer_e",
-    "SYS_SESSION_UNKNOWN": "sys_session_peer_e",
-    "SYS_STREAM_ERRORS": "stream",
-    "SYS_STREAM_EVENTS": "stream",
-    "SYS_STREAM_FLAG_URGENT": "stream_flag",
-    "SYS_STREAM_ID_LAST": "stream_range",
-    "SYS_STREAM_ID_USER_FIRST": "stream_range",
-    "SYS_STREAM_LOGS": "stream",
-    "SYS_STREAM_TARGET_CALLBACK": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_PEER": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_SINK": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_SOURCE": "sys_stream_target_e",
-    "SYS_STREAM_TELEMETRY": "stream",
+    "SYS_SESSION_SAFETY": "session_flag",
     "SYS_UART_BAUD_MAX": "uart_baud",
     "SYS_UART_BAUD_MIN": "uart_baud",
     "SYS_UART_MODE_FRAMED": "sys_uart_mode_e",

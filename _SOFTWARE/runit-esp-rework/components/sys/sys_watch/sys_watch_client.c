@@ -2,16 +2,18 @@
 
 #include "board_time.h"
 #include "board_timer.h"
+#include "data_matrix.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
+#include "sys_session_events.h"
 #include "sys_watch.h"
 #include "sys_watch_internal.h"
 #include "sys_watch_router.h"
 #include "utils.h"
 
 #define IDLE_TICK_MS  100u
-#define ENTRY_HEAD    3u    // [SYS_WATCH_CHANNEL][id][status]
+#define ENTRY_HEAD    2u    // [id][status], then the answer: the payload of the channel SYS_WATCH_CHANNEL
 #define ENTRY_MAX     128u  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
 #define PERIOD_MS     ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
 #define PERIOD_TICKS  ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
@@ -91,13 +93,14 @@ static void send_add(uint8_t slot, uint8_t gen, uint8_t board, cmd_in_t read) {
  * Entries in (the driver's RX task), peers gone, reads not read any more
  * ------------------------------------------------------------------------- */
 
-static void on_push(uint8_t src, const uint8_t* data, uint32_t len) {
-  if (len < ENTRY_HEAD || data[0] != SYS_WATCH_CHANNEL || data[1] == 0u ||
-      data[1] > CONFIG_SYS_WATCH_CLIENT_MAX) {
+static void on_entry(void* ctx, const data_matrix_end_t* from, const uint8_t* data, uint32_t len) {
+  (void)ctx;
+  const uint8_t src = sys_session_peer(from->a);  // the board whose session it came on
+  if (len < ENTRY_HEAD || data[0] == 0u || data[0] > CONFIG_SYS_WATCH_CLIENT_MAX) {
     return;
   }
-  slot_t* s = &s_cl.slots[data[1] - 1u];
-  const uint8_t status = data[2];
+  slot_t* s = &s_cl.slots[data[0] - 1u];
+  const uint8_t status = data[1];
   const uint32_t n = len - ENTRY_HEAD;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   if (s->state == SLOT_ACTIVE && s->board == src) {  // B3: only after ADD's OK
@@ -111,8 +114,8 @@ static void on_push(uint8_t src, const uint8_t* data, uint32_t len) {
 }
 
 // A board is gone, and its watch with it: the next read adds it again.
-static void on_gone(uint8_t peer, uint8_t role) {
-  (void)role;
+static void on_gone(uint8_t peer, uint8_t safety) {
+  (void)safety;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   FOR_EACH_SLOT(s) {
     if (s->state != SLOT_FREE && (peer == SYS_SESSION_ID_BROADCAST || s->board == peer)) {
@@ -122,6 +125,13 @@ static void on_gone(uint8_t peer, uint8_t role) {
     }
   }
   xSemaphoreGive(sys_watch_client_mutex);
+}
+
+// A session ended (SESSION_EV_GONE): the peer is the event's source.
+static err_h on_gone_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
+  return NULL;
 }
 
 // A read nobody read for CONFIG_SYS_WATCH_IDLE_MS: its slot is free and its watch removed from its board.
@@ -232,6 +242,9 @@ void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
 err_h sys_watch_client_init(void) {
   board_timer_init(&s_cl.timer, on_idle_tick, NULL);
   board_timer_start(&s_cl.timer, IDLE_TICK_MS);
-  ERR_TRY(sys_session_on_gone(on_gone));
-  return sys_session_on_push(on_push);
+  uint16_t handle = 0;
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  data_matrix_end_t entries;
+  ERR_TRY(data_matrix_listen(on_entry, NULL, &entries));
+  return data_matrix_route(&(data_matrix_route_t){DATA_MATRIX_END_TAGGED(DATA_MATRIX_ANY, SYS_WATCH_CHANNEL), entries});
 }

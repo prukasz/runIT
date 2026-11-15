@@ -45,7 +45,7 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 - Compile-time checks: payload fits a node, no duplicate tag IDs. Registration asserts: tag belongs to the module, module ID is unique, and count fits `ERRORS_MAX_MODULES`.
 - A module's ID (`ERR_MOD_*`) is its number (`MODULE_ID_DECLARE`, `module_id.h`: the same number as its router key and the module of its events); `ERR_MOD_CORE` is `0`.
 - A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
-- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `sys_stream`).
+- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `data_matrix`).
 
 ## Creating and propagating
 
@@ -82,7 +82,7 @@ Rules:
 ## Reporting (end of a chain)
 
 - `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. `errors` knows the command only as `struct cmd_req` (`cmd_req_t`, CMD.MD): it passes it on and never reads it.
-- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors stream (SYS_STREAM.MD) and in the history (SYS_LOG.MD).
+- `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors stream (`LOG_STREAM_ERRORS`, DATA_MATRIX.MD) and in the history (SYS_LOG.MD).
 - `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
 - The sink must not report errors itself (loop); code on the reporting path (stream task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.

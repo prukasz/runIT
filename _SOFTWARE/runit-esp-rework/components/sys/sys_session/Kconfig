@@ -5,8 +5,7 @@ menu "sys_session"
         default 4
         range 1 16
         help
-          Providers attached to a peer: a slave's master, or the master's
-          slaves and clients.
+          Sessions: providers with a peer on them, a board or a client.
 
     #@limit @alias Calls to other boards
     config SYS_SESSION_CALLS
@@ -36,34 +35,5 @@ menu "sys_session"
         help
           The board's id when none is kept in NVS (ID). Two boards of one
           project need different ids: the app sets them with ID.
-
-    config SYS_SESSION_PEER_LISTENERS
-        int "Peer listeners"
-        default 5
-        range 1 8
-        help
-          sys_session_on_gone and sys_session_on_reached slots, each: the
-          dead-man and the time (sys_system), the streams, the watches, the
-          remote devices.
-
-    config SYS_SESSION_PUSH_LISTENERS
-        int "Push listeners"
-        default 2
-        range 1 4
-        help
-          sys_session_on_push slots: who takes the PUSH frames
-          of a session channel.
-
-    #@limit @alias Session timeout @unit ms
-    config SYS_SESSION_TIMEOUT_MS
-        int "Session timeout (ms)"
-        default 3000
-        range 150 60000
-        help
-          A slave's session with nothing received for this long ends: its
-          calls fail, its peers are gone, the hello starts again. The hello
-          tells the peer, which sends at least every third of it. The master's
-          and the clients' sessions take the dead-man's time instead
-          (sys_session_set_timeout).
 
 endmenu

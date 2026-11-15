@@ -17,7 +17,7 @@ MODULE_ID_DECLARE(SYS, 0x28)  //@alias System control @description System info, 
 
 /** @brief DEADMAN value */
 typedef struct __attribute__((packed)) {
-  uint32_t timeout_ms;  /**< The master's and the clients' sessions' timeout in ms; their end is the safe state (0 = off) */
+  uint32_t timeout_ms;  /**< The dead-man of the session the command came on: its time in ms; its end is the safe state (0 = off, the session never ends by silence) */
 } sys_system_deadman_t;
 
 /** @brief TIME value */
@@ -33,9 +33,9 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief The table, once: X(P, OP_NAME, op code, key_t, value_t, flags) (cmd_table.h). Sides: PING R (the uptime in
- * ms), STOP W (the safe state, reason STOP; the root's dead-man sends it to every board), RESTART W (the board
+ * ms), STOP W (the safe state, reason STOP; a dead-man's end sends it on every open session), RESTART W (the board
  * restarts RESTART_DELAY_MS after the answer), DEADMAN RW, BYE W (the client leaves on purpose: the dead-man is
- * disarmed), TIME RW (the root sends a time it is given to every board), SAFE R, SAFE_LEAVE W (every device resumed).
+ * disarmed), TIME RW (a time it is given goes on every open session), SAFE R, SAFE_LEAVE W (every device resumed).
  */
 #define SYS_OPERATIONS(X, P)                                               \
   X(P, OP_PING,       0x01, cmd_none_t, uint32_t,             0)           \

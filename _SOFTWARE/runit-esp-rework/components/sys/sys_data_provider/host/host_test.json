@@ -1,7 +1,6 @@
 {
   "sources": [
     "sys_data_provider.c",
-    "sys_data_provider_cmd.c",
     "router/sys_data_provider_router.c"
   ],
   "tests": [

@@ -46,22 +46,9 @@ MUST_USE err_h sys_system_leave_safe_state(void);
 void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms);
 
 /**
- * @brief Runtime dead-man: the silence of the master's and the clients' sessions. `timeout_ms` 0 = off (the sessions
- * keep CONFIG_SYS_SESSION_TIMEOUT_MS); else it is their timeout (sys_session_set_timeout), and such a session that
- * ends (silence that long, its link lost) enters the safe state. Not stored: after a restart it is
- * CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS again.
- * @param[in] timeout_ms 0: off, else SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS
- * @return NULL when set; ERR_CMD_BAD_ARG (not 0 and outside SYS_SESSION_TIMEOUT_MIN_MS..SYS_SESSION_TIMEOUT_MAX_MS)
- */
-MUST_USE err_h sys_system_deadman_set(uint32_t timeout_ms);
-
-/** @brief The dead-man's time in ms; 0 = off. */
-uint32_t sys_system_deadman_get(void);
-
-/**
- * @brief The root sends its clock to every board, so an event's t_ms compares across boards: when a client sets it,
- * when a board is reached, and every CONFIG_SYS_SYSTEM_TIME_PERIOD_S. Nothing on a board with a master, or while no
- * client has set the time. Any task.
+ * @brief Sends this board's clock on every open session, so an event's t_ms compares across boards: when a client sets
+ * it, when a peer is reached, and every CONFIG_SYS_SYSTEM_TIME_PERIOD_S. Nothing while no client has set the time. Any
+ * task.
  */
 void sys_system_broadcast_time(void);
 

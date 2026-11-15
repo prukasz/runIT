@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "data_matrix.h"
 #include "board_time.h"
 #include "cmd.h"
 #include "cmd_table.h"
@@ -235,8 +236,10 @@ static bool next_kind(fake_t* f, uint8_t want_kind, sent_t* out, int ms) {
 
 static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t seq, const void* body,
                     uint32_t body_len) {
+  (void)dst;
+  (void)src;
   uint8_t buf[CMD_FRAME_MAX];
-  const sys_session_hdr_t hdr = {.frame = frame, .dst = dst, .src = src, .seq = seq};
+  const sys_session_hdr_t hdr = {.frame = frame, .seq = seq};
   memcpy(buf, &hdr, sizeof(hdr));
   if (body_len > 0u) {
     memcpy(buf + sizeof(hdr), body, body_len);
@@ -245,7 +248,8 @@ static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t
 }
 
 static void send_hello(fake_t* f, uint8_t from, uint32_t boot, uint16_t timeout) {
-  const sys_session_hello_t h = {.id = from, .boot_id = boot, .build_id = 0x11112222u, .timeout_ms = timeout};
+  const sys_session_hello_t h = {.id = from, .boot_id = boot, .build_id = 0x11112222u};
+  (void)timeout;
   uint8_t body[1 + sizeof(h)];
   body[0] = SYS_SESSION_HELLO;
   memcpy(body + 1, &h, sizeof(h));
@@ -292,9 +296,15 @@ static bool next_watch_push(fake_t* f, uint8_t* id, uint8_t* status, uint8_t* pa
   }
 }
 
+// A provider a session runs on: its role.
+static err_h attach(uint8_t provider) {
+  const data_matrix_role_args_t role = {.provider = provider, .role = DATA_MATRIX_ROLE_SESSION};
+  return data_matrix_set_role(&role);
+}
+
 static void open_sessions(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
+  TEST_ASSERT_NULL(attach(UP_ID));
+  TEST_ASSERT_NULL(attach(DOWN_ID));
   send_hello(&s_up, CLIENT, 0xAAAA0001u, 1500u);
   send_hello(&s_down, SLAVE, 0xBBBB0002u, 1500u);
   sent_t m;
@@ -488,13 +498,13 @@ void test_server_on_event_and_gone(void) {
   TEST_ASSERT_EQUAL_UINT8(4, id);
 
   // Detach SLAVE -> SLAVE watch removed, CLIENT watch remains
-  TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
+  TEST_ASSERT_NULL(data_matrix_clear_role(DOWN_ID));
   sys_watch_info_t info[CONFIG_SYS_WATCH_MAX];
   TEST_ASSERT_EQUAL_UINT8(1, sys_watch_list(info));
   TEST_ASSERT_EQUAL_UINT8(CLIENT, info[0].owner);
 
   // Re-attach SLAVE so later tests have both sessions up
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
+  TEST_ASSERT_NULL(attach(DOWN_ID));
   send_hello(&s_down, SLAVE, 0xBBBB0003u, 1500u);
   sent_t m;
   TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
@@ -670,11 +680,11 @@ void test_client_staleness_gone_and_idle_remove(void) {
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len));
 
   // SLAVE goes down -> on_gone moves slots to ADDING; read returns NO_VALUE and does not serve old value
-  TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
+  TEST_ASSERT_NULL(data_matrix_clear_role(DOWN_ID));
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len), ERR_WATCH_NO_VALUE);
 
   // Re-attach SLAVE -> next read past retry backoff (20 ms) sends fresh WATCH ADD
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
+  TEST_ASSERT_NULL(attach(DOWN_ID));
   send_hello(&s_down, SLAVE, 0xBBBB0009u, 1500u);
   sent_t m;
   TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
@@ -708,6 +718,7 @@ int main(void) {
   TEST_ASSERT_NULL(router_init());
   TEST_ASSERT_NULL(sys_event_init());
   TEST_ASSERT_NULL(sys_session_init());
+  TEST_ASSERT_NULL(data_matrix_init());
   TEST_ASSERT_NULL(sys_watch_init());
   fake_add(&s_up, UP_ID);
   fake_add(&s_down, DOWN_ID);

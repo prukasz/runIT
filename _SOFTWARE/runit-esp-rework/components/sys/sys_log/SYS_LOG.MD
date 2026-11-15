@@ -1,6 +1,6 @@
 # sys_log — logs and error records
 
-Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` prints, routes cleaned log lines to `SYS_STREAM_LOGS`, stores the latest error records for history reads, and sends error records to `SYS_STREAM_ERRORS`.
+Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` prints, routes cleaned log lines to `LOG_STREAM_LOGS`, stores the latest error records for history reads, and sends error records to `LOG_STREAM_ERRORS`.
 
 ## Files
 
@@ -15,9 +15,9 @@ Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` p
 
 ## Behaviour
 
-- **Defaults at boot (`sys_log_init`)**: it makes the streams `SYS_STREAM_LOGS` and `SYS_STREAM_ERRORS` (urgent); `level = CONFIG_LOG_DEFAULT_LEVEL`, `mirror_serial = 0`, `trace_errors = 1`, `send_errors = 1`, `send_logs = 1`. Setting `mirror_serial = 0` keeps text `ESP_LOG` output off the console UART once `sys_log_init()` runs (important when `provider_console` runs COBS framing on the same UART). Session binary frames and `SYS_STREAM_ERRORS` records never go through `ESP_LOG`, so log level settings never silence them.
-- **vprintf hook (`log_vprintf`)**: skips stream queuing if the scheduler is not running, in ISR context, or running inside the stream task (`sys_stream_is_task()`), avoiding infinite recursion if stream delivery logs an error. Queue-full errors from `sys_stream_send()` are freed silently (`err_free`) so reporting does not recurse.
-- **Error sink integration (`app/runit`)**: the error sink calls `sys_log_report(chain, cmd)`, which builds the record with `cmd_err_record` (up to `SYS_LOG_RECORD_MAX` = 192 bytes) and passes it to `sys_log_error()`; that records every error in the ring buffer regardless of `send_errors`, and forwards to `SYS_STREAM_ERRORS` when `send_errors != 0`.
+- **Defaults at boot (`sys_log_init`)**: it tells the data matrix the module's streams (`LOG_STREAMS` in `sys_log.h`: `LOG_STREAM_LOGS` and `LOG_STREAM_ERRORS`, urgent), which go where its routes say (`app/runit` sets the board's own); `level = CONFIG_LOG_DEFAULT_LEVEL`, `mirror_serial = 0`, `trace_errors = 1`, `send_errors = 1`, `send_logs = 1`. Setting `mirror_serial = 0` keeps text `ESP_LOG` output off the console UART once `sys_log_init()` runs (important when `provider_console` runs COBS framing on the same UART). Session binary frames and `LOG_STREAM_ERRORS` records never go through `ESP_LOG`, so log level settings never silence them.
+- **vprintf hook (`log_vprintf`)**: skips stream queuing if the scheduler is not running, in ISR context, or running inside the matrix's task (`data_matrix_is_task()`), avoiding infinite recursion if stream delivery logs an error. Queue-full errors from `data_matrix_send()` are freed silently (`err_free`) so reporting does not recurse.
+- **Error sink integration (`app/runit`)**: the error sink calls `sys_log_report(chain, cmd)`, which builds the record with `cmd_err_record` (up to `SYS_LOG_RECORD_MAX` = 192 bytes) and passes it to `sys_log_error()`; that records every error in the ring buffer regardless of `send_errors`, and forwards to `LOG_STREAM_ERRORS` when `send_errors != 0`.
 - **Thread safety**: `s_log_preset.lock` (`portMUX_TYPE`) guards reads/writes of `s_log_preset.cfg` and the circular history buffer `s_log.history[]`.
 
 ## Remote (`sys_log_router`, root key `MODULE_ID_LOG` = 0x2A)

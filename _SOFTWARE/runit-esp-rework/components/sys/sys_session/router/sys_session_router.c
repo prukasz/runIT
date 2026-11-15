@@ -12,14 +12,6 @@ ROUTER_WRITE(SESSION, OP_ID) {
   return sys_session_board_save_id(args->board_id);
 }
 
-ROUTER_WRITE(SESSION, OP_ATTACH) {
-  return sys_session_attach(args->provider, args->peer);
-}
-
-ROUTER_WRITE(SESSION, OP_DETACH) {
-  return sys_session_detach(args->provider);
-}
-
 // PEERS: u8 count, then rows of its value, one per session.
 ROUTER_READ(SESSION, OP_PEERS) {
   SESSION_value_OP_PEERS_t list[CONFIG_SYS_SESSION_MAX];
@@ -30,8 +22,6 @@ ROUTER_READ(SESSION, OP_PEERS) {
 
 static const router_op_t k_ops[] = {
     ROUTER_ENTRY(SESSION, OP_ID),
-    ROUTER_ENTRY_W(SESSION, OP_ATTACH),
-    ROUTER_ENTRY_W(SESSION, OP_DETACH),
     ROUTER_ENTRY_R(SESSION, OP_PEERS),
 };
 

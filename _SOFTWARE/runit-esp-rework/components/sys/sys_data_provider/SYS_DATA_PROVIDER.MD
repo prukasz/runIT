@@ -18,15 +18,14 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
   - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM` / `ERR_PROV_IN_USE` if open or sending, then calls `type->remove(p, ctx)` and frees `ctx` when `ctx_size > 0`
   - `0x0D02` (`OP_LIST`, R on `ID_NONE` `0xFF`): returns `[u8 count][sys_data_provider_entry_t...]` (`provider u8, type u8, state u8`, 3 B each)
   - `0x0D03` (`OP_SEND`, W, `TAIL`): sends raw payload bytes directly
-  - `0x0D04` (`OP_BIND_COMMANDS`, W) / `0x0D05` (`OP_UNBIND_COMMANDS`, W): command binding via `sys_data_provider_cmd.c`
-  - `0x0D06` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
-  - `0x0D07` (`OP_OPS`, R): returns `[op u16][sides u8]` rows for registry ops and non-`LOCAL` driver ops
+  - `0x0D04` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
+  - `0x0D05` (`OP_OPS`, R): returns `[op u16][sides u8]` rows for registry ops and non-`LOCAL` driver ops
 - `router/contract_provider.json` describes the wire commands; `errors/` owns `ERR_MOD_SYS_DATA_PROVIDER` (`MODULE_ID_PROVIDER`, tags `1..9`, `11..15`).
 
 ## Headers
 
 `sys_data_provider.h` (the types, the state bits, the contract's ops and rows, the control calls, `sys_data_provider_create_system` (CREATE of the board's own provider: it builds the frame), `open` / `close` / `send` / `state`), `driver/sys_data_provider_driver.h` (for a driver only), `router/sys_data_provider_router.h`, `errors/sys_data_provider_errors.h`; `internal/` is the sources' own.
 
-## Command binding (`sys_data_provider_cmd.c`)
+## Who owns the rx hook
 
-`BIND_COMMANDS` opens the provider's rx hook for commands: each message in is one command `[key][dir][code | id + op][args]`, run by the router with `src` `ROUTER_SRC_NONE`; its answer goes back on that provider as `[status][data]`, `NOWAIT`. The binding keeps only the list of bound provider ids: an answer for a provider unbound meanwhile is dropped.
+A provider carries bytes and knows nothing of what they are. The one owner of its rx hook is whoever the data matrix's role (`data_matrix`, `DATA_MATRIX.MD`) made it: a session (`sys_session`), a raw port (its bytes go along the routes) or a command port (each message in is one command for the router). `open` refuses a second owner with `ERR_PROV_IN_USE`, and a provider with an owner cannot be removed: clear its role first.

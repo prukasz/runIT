@@ -15,11 +15,8 @@ Internal interface between sys_session.c, call/, router/, and board/. Not on the
 extern "C" {
 #endif
 
-/** @brief The provider a frame for `dst` leaves on: the master's, else the open session with `dst`; false: no route. */
-bool sys_session_route(uint8_t dst, uint8_t* provider);
-
 /** @brief Sends one request of this board, [hdr REQUEST, seq][req], on `provider` (NOWAIT; URGENT by `flags`). */
-MUST_USE err_h sys_session_send_request(uint8_t provider, uint8_t dst, uint16_t seq, cmd_in_t req, uint8_t flags);
+MUST_USE err_h sys_session_send_request(uint8_t provider, uint16_t seq, cmd_in_t req, uint8_t flags);
 
 /** @brief Copies every session out as PEERS sends it; returns how many. */
 uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]);

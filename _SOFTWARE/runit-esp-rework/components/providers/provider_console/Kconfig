@@ -32,7 +32,7 @@ menu "provider_console"
           Frames waiting for the TX task (answers, PUSH frames); each takes
           its length and CRC (2) rounded to 4, + 8 bytes. Urgent frames have a queue of
           their own, written first. Larger than the stream queue
-          (CONFIG_SYS_STREAM_QUEUE_SIZE), so a burst of PUSH frames
+          (CONFIG_DATA_MATRIX_QUEUE_SIZE), so a burst of PUSH frames
           fills that one first and its producer is refused (and resends), not
           lost here unseen. Multiple of 4.
 

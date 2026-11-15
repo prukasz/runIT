@@ -19,8 +19,8 @@ extern "C" {
  */
 
 /* ----------------------------------------------------------------------------
- * Wire format (never renumber): the ADD head, the LIST row, the triggers. Entries travel on the module's PUSH channel
- * SYS_WATCH_CHANNEL as [SYS_WATCH_CHANNEL][id u8][status u8][data]; the frame's dst is the watch's owner.
+ * Wire format (never renumber): the ADD head, the LIST row, the triggers. Entries travel on the module's channel
+ * SYS_WATCH_CHANNEL (the data matrix's tag) as [id u8][status u8][data], to the watch's owner.
  * ------------------------------------------------------------------------- */
 
 #define SYS_WATCH_CHANNEL SYS_SESSION_CHANNEL(MODULE_ID_WATCH)

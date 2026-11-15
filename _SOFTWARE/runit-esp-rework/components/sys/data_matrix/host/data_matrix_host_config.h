@@ -1,0 +1,20 @@
+#pragma once
+/* Kconfig defaults for data_matrix host tests. Override with -D. */
+#ifndef CONFIG_DATA_MATRIX_ROLES
+#define CONFIG_DATA_MATRIX_ROLES 6
+#endif
+#ifndef CONFIG_DATA_MATRIX_ROUTES
+#define CONFIG_DATA_MATRIX_ROUTES 12
+#endif
+#ifndef CONFIG_DATA_MATRIX_CALLBACKS
+#define CONFIG_DATA_MATRIX_CALLBACKS 3
+#endif
+#ifndef CONFIG_DATA_MATRIX_QUEUE_SIZE
+#define CONFIG_DATA_MATRIX_QUEUE_SIZE 2048
+#endif
+#ifndef CONFIG_DATA_MATRIX_TASK_PRIO
+#define CONFIG_DATA_MATRIX_TASK_PRIO 4
+#endif
+#ifndef CONFIG_DATA_MATRIX_TASK_STACK
+#define CONFIG_DATA_MATRIX_TASK_STACK 4096
+#endif

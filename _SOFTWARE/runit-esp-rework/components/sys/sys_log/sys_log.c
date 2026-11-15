@@ -3,11 +3,10 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_log_router.h"
-#include "sys_stream.h"
-#include "sys_stream_router.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
 MODULE_ID_DEFINE(LOG, 0x2A)
+DATA_MATRIX_STREAMS_DEFINE(LOG)
 
 #define ANSI_ESC  '\x1b'
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
@@ -65,14 +64,14 @@ static int log_vprintf(const char* fmt, va_list args) {
 
   // Only from tasks (not the stream task: its own logs would loop), and after the scheduler runs.
   if (cfg.send_logs && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && !xPortInIsrContext() &&
-      !sys_stream_is_task()) {
+      !data_matrix_is_task()) {
     char line[CONFIG_SYS_LOG_LINE_MAX];
     const int n = vsnprintf(line, sizeof(line), fmt, copy);
     if (n > 0) {
       size_t len = (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1;
       len = clean_line(line, len);
       if (len > 0) {
-        err_free(sys_stream_send(SYS_STREAM_LOGS, line, (uint32_t)len));  // full queue drops silently: reporting loops
+        err_free(data_matrix_send(LOG_STREAM_LOGS, line, (uint32_t)len));  // full queue drops silently: reporting loops
       }
     }
   }
@@ -86,10 +85,7 @@ static void apply(const sys_log_cfg_t* cfg) {
 }
 
 err_h sys_log_init(void) {
-  static const sys_stream_cfg_t k_logs = {.id = SYS_STREAM_LOGS, .flags = 0};
-  static const sys_stream_cfg_t k_errors = {.id = SYS_STREAM_ERRORS, .flags = SYS_STREAM_FLAG_URGENT};
-  ERR_TRY(sys_stream_create(&k_logs));
-  ERR_TRY(sys_stream_create(&k_errors));
+  ERR_TRY(data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT));
   if (s_log.console == NULL) {
     s_log.console = esp_log_set_vprintf(log_vprintf);
   }
@@ -128,7 +124,7 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
   const bool send = s_log_preset.cfg.send_errors != 0;
   portEXIT_CRITICAL(&s_log_preset.lock);
   if (send) {
-    err_free(sys_stream_send(SYS_STREAM_ERRORS, record, len));  // full queue drops it: reporting would loop
+    err_free(data_matrix_send(LOG_STREAM_ERRORS, record, len));  // full queue drops it: reporting would loop
   }
 }
 

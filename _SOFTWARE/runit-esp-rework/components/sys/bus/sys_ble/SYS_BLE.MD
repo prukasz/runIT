@@ -75,7 +75,7 @@ Reads only. The table is changed by the providers (PROVIDER_BLE.MD): one way to 
 
 A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_CHR_*`). A TX buffer needs NOTIFY or INDICATE (`ERR_CMD_BAD_ARG`); it holds about half its bytes as one item.
 
-Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then a stream SINK on that provider.
+Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then the role `RAW` on that provider and a route from the stream to it (DATA_MATRIX.MD).
 
 ## Errors (`ERR_MOD_SYS_BLE` = `MODULE_ID_BLE` 0x2E)
 

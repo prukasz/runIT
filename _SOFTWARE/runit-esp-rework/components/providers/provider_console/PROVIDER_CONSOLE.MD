@@ -30,4 +30,4 @@ The console is marked `STATE_WIRED | STATE_FRAMED | STATE_UP` (plus `STATE_SYSTE
 
 ## Tests
 
-`python runit-esp-rework/tools/session_client.py <COM port>` opens a session over the console (`app/runit` attaches it, not told as a slave) and runs PING and PEERS (`SYS_SESSION.MD` "Tests").
+`python runit-esp-rework/tools/session_client.py <COM port>` opens a session over the console (`app/runit` attaches it) and runs PING and PEERS (`SYS_SESSION.MD` "Tests").

@@ -15,11 +15,11 @@ Component `runit-esp-rework/components/sys/sys_system/`. The board's system comm
 
 ## The dead-man
 
-The silence of the master's and the clients' sessions (SYS_SESSION.MD "Gone peers"). DEADMAN sets its time (`sys_system_deadman_set`): 0 is off and the sessions keep `CONFIG_SYS_SESSION_TIMEOUT_MS`; else it is their timeout (`sys_session_set_timeout`), told to the peer in a new hello. A session of the master or a client that ends while it is armed (silence that long, the link lost) enters the safe state: the gone listener notes the reason and has the router's urgent task run it (`router_run_urgent`). The root's dead-man also sends STOP to every board (a broadcast, URGENT, NOREPLY): a slave's own dead-man follows its master's session, which stays up when only the app is gone. BYE (the client leaving on purpose) disarms it. A command with no peer (a provider's command binding) can't arm it (`ERR_CMD_BAD_ARG`): no session whose silence could be noticed. Not stored: after a restart it is `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` again.
+A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (`app/runit` gives the console's and the BLE pair's `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS`, with the safety flag when it is not 0), and DEADMAN sets the time of the session the command came on, with the safety flag (`sys_session_deadman_set`): 0 is off and that session never ends by silence; else it is its silence limit, and a third of it the keepalive. A session with the safety flag that ends (silence that long, the link lost) enters the safe state: the listener of `SESSION_EV_GONE` (`safety` 1) notes the reason and has the router's urgent task run it (`router_run_urgent`), and sends STOP on every other open session (a broadcast, URGENT, NOREPLY). BYE turns the dead-man of its session off: the client leaves on purpose.
 
 ## The time
 
-The time a client sets on the root (TIME) the root sends to every board as a broadcast, when a board is reached and every `CONFIG_SYS_SYSTEM_TIME_PERIOD_S` (a board timer), so every board's clock is the root's and an event's `t_ms` compares across boards. Nothing on a board with a master, or while no client has set the time.
+A board that has a time (a client set it with TIME) sends it on every open session as a broadcast, when a peer is reached and every `CONFIG_SYS_SYSTEM_TIME_PERIOD_S` (a board timer), so the clocks of the boards that talk agree and an event's `t_ms` compares across them. Nothing while no client has set the time.
 
 ## Remote (`sys_system_router`, root key `MODULE_ID_SYS` 0x28)
 
@@ -41,7 +41,7 @@ The time a client sets on the root (TIME) the root sends to every board as a bro
 | Option | Default | Meaning |
 |---|---|---|
 | `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` | 0 | the dead-man at boot: 0, or the sessions' timeout (150..60000) |
-| `CONFIG_SYS_SYSTEM_TIME_PERIOD_S` | 60 | the root sends its time to every board this often |
+| `CONFIG_SYS_SYSTEM_TIME_PERIOD_S` | 60 | a board sends its time on every open session this often |
 
 ## Tests
 

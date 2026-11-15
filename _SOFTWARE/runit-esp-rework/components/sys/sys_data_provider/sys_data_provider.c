@@ -140,8 +140,6 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   } k_pub_ops[] = {
       {CONTRACT_PROVIDER_OP_REMOVE,          0x02u},
       {CONTRACT_PROVIDER_OP_SEND,            0x02u},
-      {CONTRACT_PROVIDER_OP_BIND_COMMANDS,   0x02u},
-      {CONTRACT_PROVIDER_OP_UNBIND_COMMANDS, 0x02u},
       {CONTRACT_PROVIDER_OP_INFO,            0x01u},
       {CONTRACT_PROVIDER_OP_OPS,             0x01u},
   };
@@ -324,10 +322,6 @@ static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cm
       U_MUTEX_GUARD(s_prov_ctrl_lock);
       return remove_locked(id);
     }
-    case CONTRACT_PROVIDER_OP_BIND_COMMANDS:
-      return sys_data_provider_bind_commands(id);
-    case CONTRACT_PROVIDER_OP_UNBIND_COMMANDS:
-      return sys_data_provider_unbind_commands(id);
     case CONTRACT_PROVIDER_OP_INFO:
       return info_reply(id, answer);
     case CONTRACT_PROVIDER_OP_OPS:

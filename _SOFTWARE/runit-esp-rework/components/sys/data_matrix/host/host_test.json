@@ -1,21 +1,19 @@
 {
   "sources": [
-    "sys_stream.c",
-    "router/sys_stream_router.c"
+    "data_matrix.c",
+    "data_matrix_commands.c",
+    "router/data_matrix_router.c"
   ],
   "tests": [
-    "host/test_sys_stream.c"
+    "host/test_data_matrix.c"
   ],
   "includes": [
     "errors",
     "internal",
     "router"
   ],
-  "config": "host/sys_stream_host_config.h",
+  "config": "host/data_matrix_host_config.h",
   "deps": [
-    "sys_data_provider",
-    "router_queue",
-    "timer",
     "sys_session"
   ],
   "variants": {

@@ -1206,7 +1206,7 @@
           "severity": 2,
           "size": 0,
           "fields": [],
-          "description": "every session or listener slot taken",
+          "description": "every session slot taken",
           "message": "No room for another board connection",
           "hint": "Remove one first."
         },
@@ -1264,7 +1264,26 @@
           "fields": [],
           "description": "attach: a raw provider carries no whole frame",
           "message": "A session needs a link that carries a whole frame; this one is raw",
-          "hint": "Attach a framed provider. A raw one is for a stream or a command binding."
+          "hint": "Give a framed provider the Session role. A raw one is for the Raw or Commands role."
+        },
+        {
+          "code": 17,
+          "tag": 917521,
+          "name": "ERR_SESSION_NOT_OPEN",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "push: no open session on the provider",
+          "message": "No session is open on provider {provider}",
+          "hint": "Its peer has not said hello yet, or the session ended."
         }
       ]
     },
@@ -2678,190 +2697,6 @@
       ]
     },
     {
-      "id": 41,
-      "name": "sys_stream",
-      "symbol": "ERR_MOD_SYS_STREAM",
-      "source_file": "runit-esp-rework/components/sys/sys_stream/errors/sys_stream_errors.h",
-      "texts_file": "runit-esp-rework/components/sys/sys_stream/errors/errors_sys_stream.json",
-      "tags": [
-        {
-          "code": 2,
-          "tag": 2686978,
-          "name": "ERR_STREAM_NOT_FOUND",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "message": "Stream {stream} does not exist"
-        },
-        {
-          "code": 3,
-          "tag": 2686979,
-          "name": "ERR_STREAM_EXISTS",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "message": "Stream {stream} already exists",
-          "hint": "Choose another number."
-        },
-        {
-          "code": 4,
-          "tag": 2686980,
-          "name": "ERR_STREAM_SYSTEM",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "description": "remove: a system stream",
-          "message": "Stream {stream} belongs to the board and cannot be removed"
-        },
-        {
-          "code": 6,
-          "tag": 2686982,
-          "name": "ERR_STREAM_TARGETS_FULL",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "description": "source, sink, subscribe, listen: every target slot taken",
-          "message": "Stream {stream} has no room for another connection or subscriber",
-          "hint": "Remove one of them first."
-        },
-        {
-          "code": 7,
-          "tag": 2686983,
-          "name": "ERR_STREAM_TOO_LONG",
-          "severity": 2,
-          "size": 5,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            },
-            {
-              "name": "max",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "description": "send: past the stream's own limit",
-          "message": "{len} bytes are too long for stream {stream} (at most {max})",
-          "hint": "Send less at once."
-        },
-        {
-          "code": 8,
-          "tag": 2686984,
-          "name": "ERR_STREAM_QUEUE_FULL",
-          "severity": 1,
-          "size": 3,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "description": "payload dropped",
-          "message": "Stream {stream} is sending faster than its connections carry: {len} bytes dropped",
-          "hint": "Send less often."
-        },
-        {
-          "code": 9,
-          "tag": 2686985,
-          "name": "ERR_STREAM_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "Invalid stream settings"
-        },
-        {
-          "code": 11,
-          "tag": 2686987,
-          "name": "ERR_STREAM_FULL",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "description": "every CONFIG_SYS_STREAM_MAX slot taken",
-          "message": "No room for stream {stream}: every slot is taken",
-          "hint": "Remove a stream first."
-        },
-        {
-          "code": 15,
-          "tag": 2686991,
-          "name": "ERR_STREAM_DIRECTION",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "stream",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "stream"
-            }
-          ],
-          "description": "send on a stream with a source, or source on a system stream",
-          "message": "Stream {stream} has a source or belongs to the firmware",
-          "hint": "Direct sends only work on a stream without a source, and system streams take no source."
-        }
-      ]
-    },
-    {
       "id": 42,
       "name": "log",
       "symbol": "ERR_MOD_SYS_LOG",
@@ -3572,6 +3407,127 @@
           "description": "SUBSCRIBE with every CONFIG_SYS_REMOTE_SUBSCRIPTIONS slot taken",
           "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
           "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "data_matrix",
+      "symbol": "ERR_MOD_DATA_MATRIX",
+      "source_file": "runit-esp-rework/components/sys/data_matrix/errors/data_matrix_errors.h",
+      "texts_file": "runit-esp-rework/components/sys/data_matrix/errors/errors_data_matrix.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 3145729,
+          "name": "ERR_DATA_MATRIX_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every role, route or callback slot taken",
+          "message": "The data matrix has no room for another role, route or callback",
+          "hint": "Remove one first."
+        },
+        {
+          "code": 2,
+          "tag": 3145730,
+          "name": "ERR_DATA_MATRIX_PAIR",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "from",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "to",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "the kinds of the ends: not a pair, or a provider without the role it needs",
+          "message": "A route from end kind {from} to end kind {to} is not possible",
+          "hint": "Raw bytes need a provider with the Raw role, tagged data one with the Session role (or Raw as a target); a stream cannot feed a stream."
+        },
+        {
+          "code": 3,
+          "tag": 3145731,
+          "name": "ERR_DATA_MATRIX_ROLE",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "the provider has another role",
+          "message": "Provider {provider} has another role already",
+          "hint": "Clear its role first."
+        },
+        {
+          "code": 4,
+          "tag": 3145732,
+          "name": "ERR_DATA_MATRIX_TOO_LONG",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "send: past the frame",
+          "message": "{len} bytes are too long to send (at most {max})",
+          "hint": "Send less at once."
+        },
+        {
+          "code": 5,
+          "tag": 3145733,
+          "name": "ERR_DATA_MATRIX_QUEUE_FULL",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "stream",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "stream"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "payload dropped",
+          "message": "Stream {stream} is sending faster than its connections carry: {len} bytes dropped",
+          "hint": "Send less often."
+        },
+        {
+          "code": 6,
+          "tag": 3145734,
+          "name": "ERR_DATA_MATRIX_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "Invalid data matrix settings"
         }
       ]
     }

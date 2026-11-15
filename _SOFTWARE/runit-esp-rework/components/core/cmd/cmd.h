@@ -21,7 +21,7 @@ extern "C" {
    client, so nothing is sized per link. */
 //#ref-defines cmd_frame @alias Frame size @prefix CMD_
 #define CMD_FRAME_MAX 512u  //@alias Largest frame @description Bytes of a whole frame, its header included
-#define CMD_HEAD      5u    //@alias Frame header @description Bytes of a frame's header, before its data
+#define CMD_HEAD      3u    //@alias Frame header @description Bytes of a frame's header, before its data
 
 // What a frame carries after its header: a request's command, an answer's data, a PUSH frame's [stream id or channel][payload].
 #define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)

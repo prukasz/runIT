@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_DATA_MATRIX",
+  "errors": {
+    "ERR_DATA_MATRIX_FULL": {
+      "message": "The data matrix has no room for another role, route or callback",
+      "hint": "Remove one first."
+    },
+    "ERR_DATA_MATRIX_PAIR": {
+      "message": "A route from end kind {from} to end kind {to} is not possible",
+      "hint": "Raw bytes need a provider with the Raw role, tagged data one with the Session role (or Raw as a target); a stream cannot feed a stream."
+    },
+    "ERR_DATA_MATRIX_ROLE": {
+      "message": "Provider {provider} has another role already",
+      "hint": "Clear its role first."
+    },
+    "ERR_DATA_MATRIX_TOO_LONG": {
+      "message": "{len} bytes are too long to send (at most {max})",
+      "hint": "Send less at once."
+    },
+    "ERR_DATA_MATRIX_QUEUE_FULL": {
+      "message": "Stream {stream} is sending faster than its connections carry: {len} bytes dropped",
+      "hint": "Send less often."
+    },
+    "ERR_DATA_MATRIX_BAD_ARG": {
+      "message": "Invalid data matrix settings"
+    }
+  }
+}

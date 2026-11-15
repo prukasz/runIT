@@ -9,22 +9,18 @@
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_device.h"
+#include "sys_event.h"
 #include "sys_session.h"
+#include "sys_session_events.h"
 #include "sys_system_router.h"
 
 #define TAG __FILE_NAME__
 
 #define RESTART_DELAY_MS 100u  // lets the answer leave before the restart
 
-_Static_assert(CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS == 0 ||
-                   (CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS >= SYS_SESSION_TIMEOUT_MIN_MS &&
-                    CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS <= SYS_SESSION_TIMEOUT_MAX_MS),
-               "CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS: 0, or a session's timeout");
-
 static struct {
-  volatile uint32_t deadman_ms;  // the dead-man's time, 0 = off: a single word, read by the gone listener
   uint32_t pending;              // bit per sys_safe_reason_e waiting for the urgent task
-  board_timer_t time_timer;      // the root's clock to every board
+  board_timer_t time_timer;      // this board's clock on every open session
   board_timer_t restart_timer;   // RESTART, once
   /* The safe state as noted for SAFE: the reason of the last entry (0 = not in it) and its tick. Single words, a torn
    * pair only skews the age by one entry. */
@@ -55,7 +51,7 @@ void sys_system_safe_state_get(uint8_t* reason, uint32_t* for_ms) {
 }
 
 /* ----------------------------------------------------------------------------
- * Dead-man: the silence of the master's or a client's session (SYS_SESSION.MD "Gone peers"). Its end only notes the
+ * Dead-man: the end of a session that has it on (SYS_SESSION.MD "The dead-man"). Its end only notes the
  * reason and runs on_urgent on the router's urgent task (router_run_urgent: the sweep takes every device's lock),
  * which enters the safe state.
  * ------------------------------------------------------------------------- */
@@ -74,14 +70,14 @@ static void on_urgent(void) {
   }
 }
 
-// A command for every board, from the root: never answered.
+// A command for every open session: never answered.
 static void broadcast(const uint8_t* req, uint32_t len, uint8_t flags) {
   err_report(sys_session_broadcast((cmd_in_t){req, len}, flags));
 }
 
 void sys_system_broadcast_time(void) {
   const uint64_t unix_ms = board_time_unix_ms();
-  if (unix_ms == 0 || !sys_session_is_root()) {
+  if (unix_ms == 0) {
     return;
   }
   uint8_t req[3 + sizeof(unix_ms)] = {MODULE_ID_SYS, CMD_DIR_WRITE, SYS_OP_TIME};
@@ -94,34 +90,35 @@ static void on_time_tick(void* arg) {
   sys_system_broadcast_time();
 }
 
-// A peer is reached: a board that has just come up takes the root's time.
+// A peer is reached: a board that has just come up takes this board's time.
 static void on_reached(uint8_t peer) {
   (void)peer;
   sys_system_broadcast_time();
 }
 
-// A peer gone: a client's (or the master's) session ended, by silence or its link lost. Armed: the safe state, and the
-// root's dead-man stops every board (a slave's own follows its master's session, which stays up when only the app is
-// gone).
-static void on_gone(uint8_t peer, uint8_t role) {
+// A peer gone: a session with the safety flag ended, by silence or its link lost. The safe state, and every other open
+// session is told to stop.
+static void on_gone(uint8_t peer, uint8_t safety) {
   (void)peer;
-  if (s_sys.deadman_ms > 0 && (role == SYS_SESSION_CLIENT || role == SYS_SESSION_MASTER)) {
+  if (safety != 0u) {
     trigger(SYS_SAFE_DEADMAN);
-    if (sys_session_is_root()) {
-      const uint8_t req[] = {MODULE_ID_SYS, CMD_DIR_WRITE, SYS_OP_STOP};
-      broadcast(req, sizeof(req), ROUTER_FLAG_URGENT);
-    }
+    const uint8_t req[] = {MODULE_ID_SYS, CMD_DIR_WRITE, SYS_OP_STOP};
+    broadcast(req, sizeof(req), ROUTER_FLAG_URGENT);
   }
 }
 
-err_h sys_system_deadman_set(uint32_t timeout_ms) {
-  ERR_TRY(sys_session_set_timeout(timeout_ms > 0 ? timeout_ms : CONFIG_SYS_SESSION_TIMEOUT_MS));
-  s_sys.deadman_ms = timeout_ms;
+// A session ended (SESSION_EV_GONE): the peer is the event's source.
+static err_h on_gone_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
   return NULL;
 }
 
-uint32_t sys_system_deadman_get(void) {
-  return s_sys.deadman_ms;
+// A session opened (SESSION_EV_REACHED): the peer is the event's source.
+static err_h on_reached_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_reached((uint8_t)event->key.source);
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
@@ -138,10 +135,11 @@ void sys_system_restart_later(void) {
 }
 
 err_h sys_system_init(void) {
-  ERR_TRY(sys_session_on_gone(on_gone));
-  ERR_TRY(sys_session_on_reached(on_reached));
+  uint16_t handle = 0;
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   board_timer_init(&s_sys.restart_timer, restart_now, NULL);
   board_timer_init(&s_sys.time_timer, on_time_tick, NULL);
   board_timer_start(&s_sys.time_timer, CONFIG_SYS_SYSTEM_TIME_PERIOD_S * 1000u);
-  return sys_system_deadman_set(CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS);
+  return NULL;
 }

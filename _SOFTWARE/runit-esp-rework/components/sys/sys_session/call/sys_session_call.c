@@ -82,7 +82,7 @@ void sys_session_call_answer(const sys_session_hdr_t* hdr, const uint8_t* body, 
   // That board's chain under ERR_REMOTE, so the error policy's walk stops at it.
   err_h chain = NULL;
   err_free(err_record_parse(body, len, &chain));
-  finish_call(&call, ROUTER_STATUS_ERROR, ERR_WRAP(chain, ERR_REMOTE, .board = hdr->src, .seq = hdr->seq), NULL, 0);
+  finish_call(&call, ROUTER_STATUS_ERROR, ERR_WRAP(chain, ERR_REMOTE, .board = call.dst, .seq = hdr->seq), NULL, 0);
 }
 
 void sys_session_call_fail_via(uint8_t provider) {
@@ -134,7 +134,7 @@ static err_h call_remote(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t time
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(kept, ERR_SESSION_CALLS_FULL);
   *seq = call.seq;
-  err_h err = sys_session_send_request(via, dst, call.seq, req, flags);
+  err_h err = sys_session_send_request(via, call.seq, req, flags);
   if (err != NULL && !take_call(BY_SEQ, call.seq, &call)) {  // its session ended meanwhile: the callback has the end
     err_free(err);
     return NULL;

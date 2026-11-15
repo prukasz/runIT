@@ -3,16 +3,18 @@
 #include <string.h>
 
 #include "board_timer.h"
+#include "data_matrix.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
+#include "sys_session_events.h"
 #include "sys_watch_internal.h"
 #include "utils.h"
 
 MODULE_ID_DEFINE(WATCH, 0x2B)
 ERR_MODULE_DEFINE(ERR_MOD_SYS_WATCH, "sys_watch", ERR_SYS_WATCH_MAP)
 
-#define ENTRY_HEAD 3u  // [SYS_WATCH_CHANNEL][id][status]
+#define ENTRY_HEAD 2u  // [id][status], then the read's answer: the payload of the channel SYS_WATCH_CHANNEL
 
 typedef struct {
   bool used;
@@ -55,8 +57,16 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 }
 
 /* ----------------------------------------------------------------------------
- * A read's answer (the router's task): the entry to the owner, [SYS_WATCH_CHANNEL][id][status][data]
+ * A read's answer (the router's task): the entry to the owner, [id][status][data] on SYS_WATCH_CHANNEL
  * ------------------------------------------------------------------------- */
+
+// The entry on the channel, to the owner's session.
+static err_h push_entry(uint8_t owner, const uint8_t* entry, uint32_t len) {
+  uint8_t provider = 0;
+  ERR_CHECK(sys_session_route(owner, &provider), ERR_SESSION_NO_ROUTE, .dst = owner);
+  const data_matrix_end_t to = DATA_MATRIX_END_TAGGED(provider, SYS_WATCH_CHANNEL);
+  return data_matrix_send_to(&to, entry, len, 0);
+}
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
@@ -74,11 +84,10 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     const bool send = ok ? (!on_change || !w->have_crc || crc != w->crc || silent) : !w->err_sent;
     if (send) {
       uint8_t entry[ENTRY_HEAD + len];
-      entry[0] = SYS_WATCH_CHANNEL;
-      entry[1] = w->head.id;
-      entry[2] = status;
+      entry[0] = w->head.id;
+      entry[1] = status;
       memcpy(entry + ENTRY_HEAD, data, len);
-      err_h err = sys_session_push(w->owner, (cmd_in_t){entry, sizeof(entry)}, 0);
+      err_h err = push_entry(w->owner, entry, sizeof(entry));
       if (err == NULL) {  // one that did not go is sent by the next read
         w->err_sent = !ok;
         w->have_crc = ok && on_change;
@@ -229,14 +238,22 @@ uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]) {
 }
 
 // A peer is gone: its watches go with it.
-static void on_gone(uint8_t peer, uint8_t role) {
-  (void)role;
+static void on_gone(uint8_t peer, uint8_t safety) {
+  (void)safety;
   (void)remove_watches(peer, 0);
+}
+
+// A session ended (SESSION_EV_GONE): the peer is the event's source.
+static err_h on_gone_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
+  return NULL;
 }
 
 err_h sys_watch_init(void) {
   board_timer_init(&s_watch.timer, on_tick, NULL);
   board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
-  ERR_TRY(sys_session_on_gone(on_gone));
+  uint16_t handle = 0;
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   return sys_watch_client_init();
 }

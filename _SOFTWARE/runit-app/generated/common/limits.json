@@ -25,14 +25,6 @@
       "unit": "ms",
       "source_file": "runit-esp-rework/components/sys/sys_session/Kconfig"
     },
-    "SYS_SESSION_TIMEOUT_MS": {
-      "config": "CONFIG_SYS_SESSION_TIMEOUT_MS",
-      "value": 3000,
-      "alias": "Session timeout",
-      "description": "A slave's session with nothing received for this long ends: its calls fail, its peers are gone, the hello starts again. The hello tells the peer, which sends at least every third of it. The master's and the clients' sessions take the dead-man's time instead (sys_session_set_timeout).",
-      "unit": "ms",
-      "source_file": "runit-esp-rework/components/sys/sys_session/Kconfig"
-    },
     "SYS_WATCH_MAX": {
       "config": "CONFIG_SYS_WATCH_MAX",
       "value": 24,
