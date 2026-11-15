@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(IO, 0x01)
+MODULE_ID_DECLARE(IO, 0x01)  //@alias IO contract @description Pin I/O, PWM, and ADC contract and module ID
 #define ERR_MOD_SYS_IO MODULE_ID_IO
 
 /* ----------------------------------------------------------------------------

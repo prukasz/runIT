@@ -185,7 +185,7 @@ typedef struct __attribute__((packed)) {
 
 #define SYS_IO_PIN_NONE ((sys_io_pin_t){.device = SYS_IO_PIN_NONE_DEVICE, .pin = SYS_IO_PIN_NONE_INDEX})
 
-//#ref-defines io_pin_none @alias Unused pin @prefix SYS_IO_PIN_NONE_
+//#ref-defines io_pin_none @alias Unused pin @prefix SYS_IO_PIN_NONE_ @duplicates
 #define SYS_IO_PIN_NONE_DEVICE SYS_DEVICE_ID_NONE  //@alias Device @description The device of an unused pin: no pin is used when the device is this
 #define SYS_IO_PIN_NONE_INDEX  0xFFu               //@alias Pin @description The pin index of an unused pin
 

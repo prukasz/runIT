@@ -121,8 +121,8 @@
   "events": [
     {
       "id": "OVERCURRENT",
-      "event": 0,
-      "code": 2304,
+      "event": 1,
+      "code": 589825,
       "label": "Over-current",
       "description": "The channel drew more than its current limit",
       "notify": true,
@@ -130,8 +130,8 @@
     },
     {
       "id": "THERMAL_OR_UVLO",
-      "event": 1,
-      "code": 2305,
+      "event": 2,
+      "code": 589826,
       "label": "Overheat or low supply",
       "description": "The chip overheated or its supply dropped: every channel stopped",
       "notify": true,
@@ -139,8 +139,8 @@
     },
     {
       "id": "EXTERNAL",
-      "event": 2,
-      "code": 2306,
+      "event": 3,
+      "code": 589827,
       "label": "External fault",
       "description": "An external fault input fired",
       "notify": true,

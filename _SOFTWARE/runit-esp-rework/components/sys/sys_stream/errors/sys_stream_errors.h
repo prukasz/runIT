@@ -3,7 +3,7 @@
 #include "errors.h"
 
 /* The module's one number: root key, errors (ERR_MOD_SYS_STREAM = MODULE_ID_STREAM). */
-MODULE_ID_DECLARE(STREAM, 0x29)
+MODULE_ID_DECLARE(STREAM, 0x29)  //@alias Data streams @description Periodic telemetry stream service module ID
 #define ERR_MOD_SYS_STREAM MODULE_ID_STREAM
 
 // Every tag but BAD_ARG carries the stream's id. A source provider's failure (open, send) is its ERR_PROV_*, which

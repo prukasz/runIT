@@ -39,11 +39,12 @@ DEFINES_RE = re.compile(r"^//#ref-defines(?P<rest>[^\n]*)\n(?P<body>(?:[ \t]*#de
 DEFINE_LINE_RE = re.compile(r"^\s*#define\s+(?P<name>\w+)\s+(?P<value>.+?)\s*(?://\s*(?P<comment>.*))?$")
 MEMBER_RE = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*(?:=\s*(?P<value>[^,/]+?))?\s*,?\s*(?://\s*(?P<comment>.*))?$")
 DEFINE_RE = re.compile(r"^#define[ \t]+(\w+)(\([^)]*\))?[ \t]+(.+?)[ \t]*(?://.*|/\*.*)?$", re.MULTILINE)
+MODULE_ID_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(?P<name>\w+)\s*,\s*(?P<value>0x[0-9a-fA-F]+|\d+)u?\s*\)\s*(?://\s*(?P<comment>.*))?$", re.MULTILINE)
 TAG_RE = re.compile(r"(?:^|(?<=\s))@([a-z][a-z0-9-]*)(?=\s|$)")
 CAST_RE = re.compile(r"\(\s*(?:u?int(?:8|16|32|64)_t|unsigned|int|size_t)\s*\)")
 CONFIG_RE = re.compile(r"^(CONFIG_\w+)=(0x[0-9a-fA-F]+|-?\d+)\s*$", re.MULTILINE)
 MEMBER_TAGS = {"alias", "description", "wire-size", "mem-size", "format", "stack-op"}  # format / stack-op belong to the VM block descriptor: accepted, not published
-HEAD_TAGS = {"alias", "prefix"}
+HEAD_TAGS = {"alias", "prefix", "duplicates"}
 
 
 def parse_tags(text, allowed, context):
@@ -71,7 +72,7 @@ def sdkconfig():
 
 @lru_cache(maxsize=None)
 def defines():
-    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under runit-esp/components/."""
+    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under runit-esp-rework/components/."""
     plain, macros = {}, {}
     for header in sources(".h"):
         for name, params, body in DEFINE_RE.findall(read(header)):
@@ -159,7 +160,7 @@ def member(name, value, comment, context):
     return out
 
 
-def build_members(items, where):
+def build_members(items, where, unique=True):
     """The members of a group from `(name, value expression or None, comment)`; a missing value is the previous one plus one."""
     members, names, value = [], {}, -1
     for name, expr, comment in items:
@@ -169,7 +170,7 @@ def build_members(items, where):
             members.append(member(name, value, comment, f"{where}: {name}"))
     if not members:
         fail(f"{where}: no members")
-    if len({m["value"] for m in members}) != len(members):
+    if unique and len({m["value"] for m in members}) != len(members):
         fail(f"{where}: two members have the same value")
     return members
 
@@ -208,26 +209,46 @@ def parse_defines(m, path):
         if not dm.group("name").startswith(head["prefix"]):
             fail(f"{where}: {dm.group('name')} does not start with the prefix {head['prefix']}")
         items.append((dm.group("name"), dm.group("value"), dm.group("comment")))
-    return name, {"alias": head["alias"], "kind": "defines", "prefix": head["prefix"], "source_file": rel(path), "members": build_members(items, where)}
+    return name, {
+        "alias": head["alias"],
+        "kind": "defines",
+        "prefix": head["prefix"],
+        "source_file": rel(path),
+        "members": build_members(items, where, unique="duplicates" not in head),
+    }
 
 
 def scan():
-    """({name: group}, {member: group name}) of everything published under runit-esp/components/."""
-    groups = {}
-    for header in sources(".h"):
-        text = read(header)
+    """({name: group}, {member: group name}) of everything published under runit-esp-rework/components/."""
+    groups, module_items = {}, []
+    for src in sources(".h", ".c"):
+        text = read(src)
+        if src.suffix == ".h":
+            for m in MODULE_ID_RE.finditer(text):
+                module_items.append((int(m.group("value"), 0), f"MODULE_ID_{m.group('name')}", m.group("value"), m.group("comment"), rel(src)))
         if "//#ref-" not in text:
             continue
         found = 0
         for regex, parse in ((ENUM_RE, parse_enum), (DEFINES_RE, parse_defines)):
             for m in regex.finditer(text):
-                name, group = parse(m, header)
+                name, group = parse(m, src)
                 if name in groups:
-                    fail(f"{rel(header)}: {name} is published twice (also in {groups[name]['source_file']})")
+                    fail(f"{rel(src)}: {name} is published twice (also in {groups[name]['source_file']})")
                 groups[name] = group
                 found += 1
         if found != len(re.findall(r"^//#ref-(?:enum|defines)", text, re.MULTILINE)):
-            fail(f"{rel(header)}: a `//#ref-enum` / `//#ref-defines` marker is not directly above a `typedef enum {{...}} name;` / its #define lines")
+            fail(f"{rel(src)}: a `//#ref-enum` / `//#ref-defines` marker is not directly above a `typedef enum {{...}} name;` / its #define lines")
+    if module_items:
+        if "module_id" in groups:
+            fail("module_id conflicts with an explicit //#ref- group")
+        module_items.sort(key=lambda item: item[0])
+        groups["module_id"] = {
+            "alias": "Module IDs",
+            "kind": "defines",
+            "prefix": "MODULE_ID_",
+            "source_file": "runit-esp-rework/components/core/utils/module_id.h",
+            "members": build_members([(name, expr, comment) for _, name, expr, comment, _ in module_items], "MODULE_ID_DECLARE"),
+        }
     symbols = {}
     for name, group in groups.items():
         for mem in group["members"]:

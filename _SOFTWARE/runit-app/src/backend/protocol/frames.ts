@@ -102,7 +102,7 @@ export const HELLO_BYTES = 10
 
 /**
  * Who a peer is. Both sides send one when a session opens, each with its own id (SYS_SESSION.MD "A session's life"): the board
- * its place in the project, the app `SYS_SESSION_ID_APP`. The session opens when both have passed with the same version.
+ * its place in the project, the app a client id. The session opens when both have passed with the same version.
  */
 export interface Hello {
   readonly version: number

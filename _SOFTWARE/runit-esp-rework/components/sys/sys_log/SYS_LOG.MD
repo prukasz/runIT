@@ -6,7 +6,7 @@ Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` p
 
 | File | Role |
 |---|---|
-| `sys_log.h` | API: `sys_log_init`, `sys_log_set`, `sys_log_get`, `sys_log_error`, `sys_log_error_get` |
+| `sys_log.h` | API: `sys_log_init`, `sys_log_set`, `sys_log_get`, `sys_log_report`, `sys_log_error`, `sys_log_error_get` |
 | `sys_log.c` | `esp_log_set_vprintf` hook, ANSI strip + CR/LF trim, error history ring buffer, `ERR_MODULE_DEFINE`, `MODULE_ID_DEFINE(LOG, 0x2A)` |
 | `router/sys_log_router.h` / `.c` | Remote interface (`MODULE_ID_LOG` `0x2A`, `LOG_OPERATIONS`), self-registers via `ROUTER_MODULE_REGISTER(LOG, sys_log_router)` |
 | `router/contract_log.json` | Router contract descriptor (`router_key`: 42) |
@@ -15,9 +15,9 @@ Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` p
 
 ## Behaviour
 
-- **Defaults at boot (`sys_log_init`)**: `level = CONFIG_LOG_DEFAULT_LEVEL`, `mirror_serial = 0`, `trace_errors = 1`, `send_errors = 1`, `send_logs = 1`. Setting `mirror_serial = 0` keeps text `ESP_LOG` output off the console UART once `sys_log_init()` runs (important when `sys_uart` runs COBS framing on the same UART). Session binary frames and `SYS_STREAM_ERRORS` records never go through `ESP_LOG`, so log level settings never silence them.
+- **Defaults at boot (`sys_log_init`)**: it makes the streams `SYS_STREAM_LOGS` and `SYS_STREAM_ERRORS` (urgent); `level = CONFIG_LOG_DEFAULT_LEVEL`, `mirror_serial = 0`, `trace_errors = 1`, `send_errors = 1`, `send_logs = 1`. Setting `mirror_serial = 0` keeps text `ESP_LOG` output off the console UART once `sys_log_init()` runs (important when `provider_console` runs COBS framing on the same UART). Session binary frames and `SYS_STREAM_ERRORS` records never go through `ESP_LOG`, so log level settings never silence them.
 - **vprintf hook (`log_vprintf`)**: skips stream queuing if the scheduler is not running, in ISR context, or running inside the stream task (`sys_stream_is_task()`), avoiding infinite recursion if stream delivery logs an error. Queue-full errors from `sys_stream_send()` are freed silently (`err_free`) so reporting does not recurse.
-- **Error sink integration (`main`)**: the error sink converts reported chains via `cmd_err_record(cmd, chain, rec, sizeof(rec))` (up to `SYS_LOG_RECORD_MAX` = 192 bytes) and passes them to `sys_log_error()`, which records every error in the ring buffer regardless of `send_errors`, and forwards to `SYS_STREAM_ERRORS` when `send_errors != 0`.
+- **Error sink integration (`app/runit`)**: the error sink calls `sys_log_report(chain, cmd)`, which builds the record with `cmd_err_record` (up to `SYS_LOG_RECORD_MAX` = 192 bytes) and passes it to `sys_log_error()`; that records every error in the ring buffer regardless of `send_errors`, and forwards to `SYS_STREAM_ERRORS` when `send_errors != 0`.
 - **Thread safety**: `s_log_preset.lock` (`portMUX_TYPE`) guards reads/writes of `s_log_preset.cfg` and the circular history buffer `s_log.history[]`.
 
 ## Remote (`sys_log_router`, root key `MODULE_ID_LOG` = 0x2A)

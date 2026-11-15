@@ -53,6 +53,9 @@
       "message": "{pin} of {id} is held by {owner}",
       "hint": "Change the pin through the device that holds it, or choose a free pin.",
       "fields": {
+        "pin": {
+          "of": "id"
+        },
         "owner": {
           "id_kind": "device"
         }
@@ -61,6 +64,9 @@
     "ERR_DEV_PIN_NOT_OWNED": {
       "message": "{pin} of {id} belongs to {owner}: only that device can free it",
       "fields": {
+        "pin": {
+          "of": "id"
+        },
         "owner": {
           "id_kind": "device"
         }

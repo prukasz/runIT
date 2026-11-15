@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "BOARD",
-  "router_key": 17,
+  "router_key": 45,
   "alias": "Board profile",
   "description": "The definition of the board kept on it as a JSON file: written and read in chunks by the app.",
   "category": "system",
@@ -12,7 +12,7 @@
     {
       "id": "JSON_APPEND",
       "op": 1,
-      "symbol": "SYS_BOARD_OP_JSON_APPEND",
+      "symbol": "BOARD_OP_JSON_APPEND",
       "label": "Append to the board's JSON",
       "description": "Adds one chunk at the end of the file. The offset must be the file's length.",
       "write": {
@@ -43,7 +43,7 @@
     {
       "id": "JSON_ERASE",
       "op": 2,
-      "symbol": "SYS_BOARD_OP_JSON_ERASE",
+      "symbol": "BOARD_OP_JSON_ERASE",
       "label": "Erase the board's JSON",
       "description": "Empties the file.",
       "write": {}
@@ -51,7 +51,7 @@
     {
       "id": "JSON_INFO",
       "op": 3,
-      "symbol": "SYS_BOARD_OP_JSON_INFO",
+      "symbol": "BOARD_OP_JSON_INFO",
       "label": "Board's JSON info",
       "description": "The file's length, CRC-32 and number of chunks.",
       "read": {
@@ -91,7 +91,7 @@
     {
       "id": "JSON_READ",
       "op": 4,
-      "symbol": "SYS_BOARD_OP_JSON_READ",
+      "symbol": "BOARD_OP_JSON_READ",
       "label": "Read the board's JSON",
       "description": "Sends back one chunk of the file.",
       "read": {

@@ -11,7 +11,7 @@ Folder `components/sys/sys_device_policy/`. Decides how the board reacts to erro
 | `router/sys_device_policy_router.h` | `MODULE_ID_DECLARE(POLICY, 0x21)`, `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
 | `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(POLICY, sys_device_policy_router)` |
 | `Kconfig` | Queue size, max serialized record size, task priority and stack size |
-| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
+| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `sys_session` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Model
@@ -45,6 +45,7 @@ typedef struct __attribute__((packed)) {
    - performs a dry walk of `chain` to see if any node is admitted; if none, returns `NULL` without queuing;
    - serializes `chain` via `err_record` into a stack buffer of `CONFIG_SYS_DEVICE_POLICY_RECORD_MAX` bytes and pushes it to `sys_device_policy_ring` (zero blocking; returns `ERR_DEV_FAULT_RESPONSE` with `SYS_DEVICE_FAULT_STAGE_QUEUE` if serialization fails or the ring is full).
 4. **Policy task (`sys_device_policy_task_h`)**: pops one serialized record, parses it with `err_record_parse`, and walks from outermost node to root:
+   - the walk ends at `ERR_REMOTE`: a remote device's error is `ERR_DEV_ID{local id}` over `ERR_REMOTE{board, seq}` over that board's chain, whose device IDs are not this board's (the severity from the device down still counts the whole chain);
    - first `ERR_DEV_ID` occurrence per device (`HANDLED_MAX` = 16 unique devices per chain), computing the sub-chain severity from that node down (`err_chain_sev`);
    - a `CRITICAL` node before any `ERR_DEV_ID` triggers `vm_stop(SYS_DEVICE_ID_NONE)` + `sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND)` once per chain;
    - on an admitted `CRITICAL` device node, runs `vm_stop(id)` + global `SUSPEND` sweep (`sys_device_sweep`) before running the slot's action;

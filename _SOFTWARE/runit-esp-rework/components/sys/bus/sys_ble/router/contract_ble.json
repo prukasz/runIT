@@ -1,0 +1,231 @@
+{
+  "$schema": "../../../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "service-definition",
+  "scope": "system",
+  "id": "BLE",
+  "router_key": 46,
+  "alias": "Bluetooth Low Energy (GATT and status)",
+  "description": "Manages the run-time GATT table (creates and removes services and characteristics, applies the changes) and reads the link's state.",
+  "category": "system",
+  "commands": [
+    {
+      "id": "SVC_CREATE",
+      "op": 1,
+      "symbol": "BLE_OP_SVC_CREATE",
+      "label": "Create GATT service",
+      "description": "Registers a new GATT service with the given 16-bit UUID.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_svc_args_t",
+          "fields": [
+            {
+              "id": "uuid",
+              "label": "Service UUID",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "16-bit GATT service UUID"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "bits": [
+                {
+                  "bit": 0,
+                  "label": "Primary"
+                }
+              ],
+              "description": "Bit 0: a primary service"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "SVC_REMOVE",
+      "op": 2,
+      "symbol": "BLE_OP_SVC_REMOVE",
+      "label": "Remove GATT service",
+      "description": "Removes the GATT service with the given UUID, unless it is locked.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_uuid_args_t",
+          "fields": [
+            {
+              "id": "uuid",
+              "label": "Service UUID",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "16-bit GATT service UUID"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "CHAR_CREATE",
+      "op": 3,
+      "symbol": "BLE_OP_CHAR_CREATE",
+      "label": "Create GATT characteristic",
+      "description": "Adds a characteristic to a GATT service, with its flags, its TX buffer and its name.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_char_args_t",
+          "fields": [
+            {
+              "id": "svc",
+              "label": "Service UUID",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "16-bit UUID of its service"
+            },
+            {
+              "id": "uuid",
+              "label": "Characteristic UUID",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "16-bit GATT characteristic UUID, unique in the table"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4,
+              "bits": [
+                {
+                  "bit": 0,
+                  "label": "Write"
+                },
+                {
+                  "bit": 1,
+                  "label": "Indicate"
+                },
+                {
+                  "bit": 2,
+                  "label": "Notify"
+                },
+                {
+                  "bit": 3,
+                  "label": "Framed"
+                }
+              ],
+              "description": "Bit 0 the client writes it, 1 out as indications, 2 out as notifications, 3 a fragment header on every packet (frames longer than the MTU)"
+            },
+            {
+              "id": "tx",
+              "label": "TX buffer size",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 5,
+              "unit": "B",
+              "min": 0,
+              "max": 4096,
+              "step": 16,
+              "description": "TX buffer size in bytes (0 = no TX); only for a characteristic that notifies or indicates"
+            },
+            {
+              "id": "name",
+              "label": "Name",
+              "type": "string",
+              "raw_type": "string",
+              "description": "Optional name (descriptor 0x2901), NUL-ended, the last field; none: nothing"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "CHAR_REMOVE",
+      "op": 4,
+      "symbol": "BLE_OP_CHAR_REMOVE",
+      "label": "Remove GATT characteristic",
+      "description": "Removes the given characteristic from its GATT service.",
+      "write": {
+        "args": {
+          "struct": "sys_ble_uuid_args_t",
+          "fields": [
+            {
+              "id": "uuid",
+              "label": "Characteristic UUID",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "16-bit GATT characteristic UUID"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "APPLY",
+      "op": 5,
+      "symbol": "BLE_OP_APPLY",
+      "label": "Apply GATT changes",
+      "description": "Applies the staged GATT configuration to the BLE stack. With a client connected, it runs about 200 ms later, so this command is answered first; the client may reconnect.",
+      "write": {}
+    },
+    {
+      "id": "STATUS",
+      "op": 6,
+      "symbol": "BLE_OP_STATUS",
+      "label": "Read BLE status",
+      "description": "Returns the connection state, the negotiated MTU and the number of RX items dropped on a full buffer.",
+      "read": {
+        "returns": {
+          "struct": "sys_ble_status_t",
+          "fields": [
+            {
+              "id": "connected",
+              "label": "Connected",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 = a client is connected"
+            },
+            {
+              "id": "mtu",
+              "label": "MTU",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 1,
+              "unit": "B",
+              "description": "The link's MTU"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "LIST",
+      "op": 7,
+      "symbol": "BLE_OP_LIST",
+      "label": "Read GATT table",
+      "description": "Returns every service and characteristic of the GATT table as the next APPLY leaves it.",
+      "read": {
+        "returns": {
+          "type": "bytes",
+          "label": "Table",
+          "description": "u8 service count; per service: u16 UUID, u8 flags (bit 0 primary, bit 1 locked), u8 characteristic count; per characteristic: u16 UUID, u8 flags (as CHAR_CREATE), u16 tx, name (NUL-ended). SYS_BLE.MD \"Remote\"."
+        }
+      }
+    }
+  ]
+}

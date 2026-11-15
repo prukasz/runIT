@@ -1,0 +1,259 @@
+{
+  "$schema": "../../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "scope": "device",
+  "id": "UART",
+  "contract_id": 19,
+  "alias": "UART bus",
+  "description": "Contract for hardware UART serial ports supporting raw stream or framed transfers, dynamic baud rate changes, queue flushing, and synchronous transactions.",
+  "category": "bus",
+  "commands": [
+    {
+      "id": "INFO",
+      "op": 0,
+      "symbol": "CONTRACT_UART_OP_INFO",
+      "label": "Port info",
+      "description": "Reads the current framing mode, baud rate, parity, and stop bits of the UART port.",
+      "read": {
+        "returns": {
+          "struct": "sys_uart_info_t",
+          "fields": [
+            {
+              "id": "mode",
+              "label": "Line mode",
+              "type": "enum",
+              "enum": "sys_uart_mode_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "baud",
+              "label": "Baud rate",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "unit": "baud"
+            },
+            {
+              "id": "parity",
+              "label": "Parity",
+              "type": "enum",
+              "enum": "sys_uart_parity_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 5
+            },
+            {
+              "id": "stop_bits",
+              "label": "Stop bits",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 6,
+              "description": "1 or 2 stop bits (8 data bits)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BAUD",
+      "op": 1,
+      "symbol": "CONTRACT_UART_OP_BAUD",
+      "label": "Baud rate",
+      "description": "Gets or changes the UART baud rate at runtime.",
+      "read": {
+        "returns": {
+          "fields": [
+            {
+              "id": "baud",
+              "label": "Baud rate",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "min": 1200,
+              "max": 5000000,
+              "unit": "baud"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "fields": [
+            {
+              "id": "baud",
+              "label": "Baud rate",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0,
+              "min": 1200,
+              "max": 5000000,
+              "unit": "baud"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "SEND",
+      "op": 2,
+      "symbol": "CONTRACT_UART_OP_SEND",
+      "label": "Send bytes",
+      "description": "Enqueues bytes or a framed message for transmission on the UART port.",
+      "write": {
+        "args": {
+          "struct": "sys_uart_send_t",
+          "fields": [
+            {
+              "id": "wait_ms",
+              "label": "Wait timeout",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "min": 0,
+              "max": 10000,
+              "default": 0,
+              "unit": "ms",
+              "description": "Time to wait for room in the TX queue (0 = NOWAIT)"
+            },
+            {
+              "id": "flags",
+              "label": "Send flags",
+              "type": "bitmask",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "CMD_SEND_* bitmask (0 = normal TX queue)",
+              "bits": [
+                {
+                  "bit": 0,
+                  "label": "Urgent"
+                },
+                {
+                  "bit": 1,
+                  "label": "Keep spare"
+                },
+                {
+                  "bit": 2,
+                  "label": "No wait"
+                }
+              ]
+            },
+            {
+              "id": "data",
+              "label": "Payload",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "TX bytes following the header (at least 1 byte)"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "RECEIVE",
+      "op": 3,
+      "symbol": "CONTRACT_UART_OP_RECEIVE",
+      "label": "Receive bytes",
+      "description": "Reads one incoming message or buffered chunk from the UART port.",
+      "read": {
+        "args": {
+          "struct": "sys_uart_receive_t",
+          "fields": [
+            {
+              "id": "wait_ms",
+              "label": "Wait timeout",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "min": 0,
+              "max": 10000,
+              "default": 0,
+              "unit": "ms"
+            }
+          ]
+        },
+        "returns": {
+          "type": "bytes",
+          "label": "Received bytes",
+          "description": "Raw UART payload or unframed message returned directly"
+        }
+      }
+    },
+    {
+      "id": "FLUSH",
+      "op": 4,
+      "symbol": "CONTRACT_UART_OP_FLUSH",
+      "label": "Flush buffers",
+      "description": "Discards queued RX data and pending messages on the UART port.",
+      "write": {}
+    },
+    {
+      "id": "TRANSACT",
+      "op": 6,
+      "symbol": "CONTRACT_UART_OP_TRANSACT",
+      "label": "Transact",
+      "description": "Flushes RX, sends TX bytes, and waits for and returns the reply bytes.",
+      "write": {
+        "args": {
+          "struct": "sys_uart_transact_t",
+          "fields": [
+            {
+              "id": "wait_ms",
+              "label": "Wait timeout",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "min": 0,
+              "max": 10000,
+              "default": 50,
+              "unit": "ms"
+            },
+            {
+              "id": "data",
+              "label": "Request bytes",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "TX bytes to transmit (at least 1 byte)"
+            }
+          ]
+        },
+        "returns": {
+          "type": "bytes",
+          "label": "Reply bytes",
+          "description": "Received reply bytes"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "OVERFLOW",
+      "event": 1,
+      "code": 1245185,
+      "label": "RX buffer overflow",
+      "description": "The hardware RX FIFO or driver receive buffer overflowed and lost bytes.",
+      "notify": true,
+      "symbol": "UART_EV_OVERFLOW",
+      "payload": [
+        {
+          "id": "dropped",
+          "label": "Overflow count",
+          "type": "integer",
+          "raw_type": "u16",
+          "size": 2,
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

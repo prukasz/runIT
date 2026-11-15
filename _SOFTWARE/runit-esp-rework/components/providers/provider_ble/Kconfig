@@ -1,0 +1,11 @@
+menu "provider_ble"
+
+    config PROVIDER_BLE_SEND_WAIT_MS
+        int "Send wait (ms)"
+        default 100
+        range 1 5000
+        help
+          How long a send without CMD_SEND_NOWAIT (an answer) waits for room in its characteristic's buffer, then
+          ERR_PROV_BUSY. A NOWAIT send (a PUSH frame) is ERR_PROV_BUSY at once.
+
+endmenu

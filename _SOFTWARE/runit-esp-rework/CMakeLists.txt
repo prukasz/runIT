@@ -23,5 +23,6 @@ list(APPEND EXTRA_COMPONENT_DIRS "components/devices/soc")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices/chips")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices/virtual")
 list(APPEND EXTRA_COMPONENT_DIRS "components/providers")
+list(APPEND EXTRA_COMPONENT_DIRS "components/app")
 
 project(runIT_rework)

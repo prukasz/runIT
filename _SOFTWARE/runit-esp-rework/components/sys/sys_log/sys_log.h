@@ -2,6 +2,7 @@
 
 #include "cmd.h"
 #include "errors.h"
+#include "router_queue.h"
 #include "sys_log_errors.h"
 #include "utils.h"
 
@@ -29,9 +30,9 @@ extern "C" {
 typedef struct sys_log_cfg sys_log_cfg_t;
 
 /**
- * @brief Takes over ESP_LOG: every line goes to the console (if mirror_serial) and, without ANSI colours and the line
- * end, cut to CONFIG_SYS_LOG_LINE_MAX, to SYS_STREAM_LOGS; then applies the defaults (INFO, mirror off, trace on, send
- * errors on, send logs on). Boot step, after the logs and errors streams exist.
+ * @brief Makes the streams SYS_STREAM_LOGS and SYS_STREAM_ERRORS (urgent) and takes over ESP_LOG: every line goes to
+ * the console (if mirror_serial) and, without ANSI colours and the line end, cut to CONFIG_SYS_LOG_LINE_MAX, to
+ * SYS_STREAM_LOGS; then applies the defaults (INFO, mirror off, trace on, send errors on, send logs on).
  * @return The error of the hook or of the defaults
  */
 MUST_USE err_h sys_log_init(void);
@@ -60,6 +61,14 @@ void sys_log_get(sys_log_cfg_t* out);
  * @param[in] len    Its size in bytes
  */
 void sys_log_error(const uint8_t* record, uint32_t len);
+
+/**
+ * @brief A reported error chain as a record (cmd_err_record, `cmd` the command it came from, or NULL): sys_log_error
+ * of it. The error sink's call. Any task; never reports.
+ * @param[in] chain The chain
+ * @param[in] cmd   The command it came from, or NULL
+ */
+void sys_log_report(err_h chain, const cmd_req_t* cmd);
 
 /**
  * @brief The kept record at `index` copied to `out`.

@@ -1,0 +1,28 @@
+menu "sys_actions"
+
+    config SYS_ACTIONS_PARTITION
+        string "NVS partition"
+        default "nvs"
+        help
+          NVS data partition whose "actions" namespace holds the stored
+          records, one blob (the image) per record, key "a<id>" with the 32-bit
+          ID as 8 hex digits. main makes it ready (sys_nvs_init).
+
+    config SYS_ACTIONS_MAX_BYTES
+        int "Largest record (bytes)"
+        default 4096
+        range 256 16384
+        help
+          Largest image (frames with their u16 length). Also the most heap a
+          record takes while it is written.
+
+    config SYS_ACTIONS_MAX_DEPTH
+        int "Nested runs"
+        default 3
+        range 1 8
+        help
+          How deep a RUN inside an action may nest. Each level holds its image
+          and a router frame of heap, and a few hundred bytes of the router
+          task's stack.
+
+endmenu

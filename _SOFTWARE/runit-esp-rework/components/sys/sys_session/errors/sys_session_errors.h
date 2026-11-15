@@ -3,13 +3,12 @@
 #include "errors.h"
 
 /* The module's one number: the root key of its commands (router/) and the module of its errors. */
-MODULE_ID_DECLARE(SESSION, 0x0E)
+MODULE_ID_DECLARE(SESSION, 0x0E)  //@alias Sessions @description Framed RPC and session routing module ID
 #define ERR_MOD_SYS_SESSION MODULE_ID_SESSION
 
 // A tag about a board carries its id; one about a request its seq (the source's). The provider busy, down or too
 // short is its provider's own ERR_PROV_BUSY / _DOWN / _TOO_LONG.
 #define ERR_SYS_SESSION_MAP(X)                                                                                         \
-  X(ERR_SESSION_NONE,         ERR_TAG(ERR_MOD_SYS_SESSION, 2),  ERR_SEV_MEDIUM, { uint8_t src; }) /* frames on a session not open here: NO_SESSION; once per closing */ \
   X(ERR_SESSION_ID_TAKEN,     ERR_TAG(ERR_MOD_SYS_SESSION, 3),  ERR_SEV_HIGH,   { uint8_t board; }) /* hello: two peers with one id, or an id of the wrong kind */ \
   X(ERR_SESSION_NO_ROUTE,     ERR_TAG(ERR_MOD_SYS_SESSION, 4),  ERR_SEV_MEDIUM, { uint8_t dst; }) /* no session leads to dst */ \
   X(ERR_SESSION_TIMEOUT,      ERR_TAG(ERR_MOD_SYS_SESSION, 6),  ERR_SEV_MEDIUM, { uint8_t dst; uint16_t seq; }) /* a call without an answer */ \
@@ -18,7 +17,6 @@ MODULE_ID_DECLARE(SESSION, 0x0E)
   X(ERR_SESSION_CALLS_FULL,   ERR_TAG(ERR_MOD_SYS_SESSION, 12), ERR_SEV_MEDIUM, {}) /* every CONFIG_SYS_SESSION_CALLS slot in use */ \
   X(ERR_REMOTE,               ERR_TAG(ERR_MOD_SYS_SESSION, 13), ERR_SEV_NONE,   { uint8_t board; uint16_t seq; }) /* context: the chain below is that board's */ \
   X(ERR_SESSION_WOULD_BLOCK,  ERR_TAG(ERR_MOD_SYS_SESSION, 14), ERR_SEV_HIGH,   {}) /* call_wait to this board on a router task: it would wait for itself */ \
-  X(ERR_SESSION_BUSY,         ERR_TAG(ERR_MOD_SYS_SESSION, 15), ERR_SEV_LOW,    { uint8_t dst; }) /* calls in flight to dst at the limit: later */ \
   X(ERR_SESSION_NOT_FRAMED,   ERR_TAG(ERR_MOD_SYS_SESSION, 16), ERR_SEV_MEDIUM, {}) /* attach: a raw provider carries no whole frame */
 
 ERR_TAGS_DECLARE(ERR_SYS_SESSION_MAP)

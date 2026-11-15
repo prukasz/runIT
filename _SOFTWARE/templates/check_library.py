@@ -40,7 +40,7 @@ def unique(problems, where, ids, what):
         seen.add(i)
 
 
-def check(path, doc, types, boards, problems):
+def check(path, doc, types, boards, problems, skipped):
     where = rel(path)
     if doc["id"] != path.parent.name:
         problems.append(f"{where}: id '{doc['id']}' is not its folder's name '{path.parent.name}'")
@@ -53,11 +53,15 @@ def check(path, doc, types, boards, problems):
         if not box or [float(v) for v in box.group(1).split()][2:] != [float(size["w"]), float(size["h"])]:
             problems.append(f"{where}: {doc['graphic']} has no viewBox '0 0 {size['w']} {size['h']}' (its size in mm)")
     device = doc.get("device")
-    fields = {}
+    fields, has_device_schema = {}, True
     if device:
         descriptor = types.get(device["type"])
         if descriptor is None:
-            problems.append(f"{where}: device type '{device['type']}' is not a published device descriptor")
+            if not boards:
+                skipped["devices"].add(device["type"])
+                has_device_schema = False
+            else:
+                problems.append(f"{where}: device type '{device['type']}' is not a published device descriptor")
         else:
             fields = {f["id"]: f for f in descriptor.get("config", {}).get("fields", [])}
             presets = {p["id"] for p in descriptor.get("presets", [])}
@@ -66,8 +70,11 @@ def check(path, doc, types, boards, problems):
             for key in device.get("config", {}):
                 if key not in fields:
                     problems.append(f"{where}: config '{key}' is not a field of {device['type']}")
-    if "board" in doc and (doc["board"]["name"], doc["board"]["revision"]) not in boards:
-        problems.append(f"{where}: no board.json is board '{doc['board']['name']}' revision {doc['board']['revision']}")
+    if "board" in doc:
+        if not boards:
+            skipped["boards"] += 1
+        elif (doc["board"]["name"], doc["board"]["revision"]) not in boards:
+            problems.append(f"{where}: no board.json is board '{doc['board']['name']}' revision {doc['board']['revision']}")
     nets = {n["id"]: n for n in doc.get("nets", [])}
     unique(problems, where, [n["id"] for n in doc.get("nets", [])], "net")
     unique(problems, where, [c["id"] for c in doc["connectors"]], "connector")
@@ -86,7 +93,7 @@ def check(path, doc, types, boards, problems):
                 problems.append(f"{at}: net '{pin['net']}' is not a net of the part")
             if "hbridge" in pin and pin["hbridge"].get("supply") not in (None, *nets):
                 problems.append(f"{at}: supply '{pin['hbridge']['supply']}' is not a net of the part")
-            if "config" in pin:
+            if "config" in pin and has_device_schema:
                 field = fields.get(pin["config"])
                 if not field or field.get("type") != "pin":
                     problems.append(f"{at}: config '{pin['config']}' is not a pin field of the part's device")
@@ -115,7 +122,7 @@ def main():
         if path.exists():
             doc = json.loads(read(path))
             boards.add((doc["name"], doc["revision"]))
-    problems, checked = [], 0
+    problems, skipped, checked = [], {"devices": set(), "boards": 0}, 0
     for path in sorted(LIBRARY.glob("*/part.json")):
         checked += 1
         doc = json.loads(read(path))
@@ -124,10 +131,13 @@ def main():
             where = "/".join(map(str, error.path)) or "(root)"
             problems.append(f"{rel(path)}: {where}: {error.message[:140]}")
         if not errors:
-            check(path, doc, types, boards, problems)
+            check(path, doc, types, boards, problems, skipped)
     if problems:
         fail(f"{len(problems)} problem(s) in {checked} library parts:\n  " + "\n  ".join(problems))
-    print(f"{checked} library parts conform to part.schema.json; their devices, presets, fields and nets exist")
+    extra = ""
+    if skipped["devices"] or skipped["boards"]:
+        extra = f" (skipped un-migrated devices [{', '.join(sorted(skipped['devices']))}] and {skipped['boards']} board ref(s); no board.json in firmware yet)"
+    print(f"{checked} library parts conform to part.schema.json; their migrated devices, presets, fields and nets exist{extra}")
 
 
 if __name__ == "__main__":

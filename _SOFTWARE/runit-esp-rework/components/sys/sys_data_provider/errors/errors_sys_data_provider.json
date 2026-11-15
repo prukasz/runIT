@@ -1,83 +1,62 @@
 {
-  "$schema": "../../../../templates/error.schema.json",
-  "schemaVersion": 3,
-  "module": "SYS_DATA_PROVIDER",
-  "title": "Provider",
-  "tags": {
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_DATA_PROVIDER",
+  "errors": {
     "ERR_PROV_NOT_FOUND": {
-      "label": "Provider not found",
-      "description": "No provider registered under this id.",
-      "action": "Create or check the provider list first."
+      "message": "Data provider {provider} was not found",
+      "hint": "Check the provider ID or create the provider first."
     },
     "ERR_PROV_EXISTS": {
-      "label": "Provider id in use",
-      "description": "Another provider already uses this id.",
-      "action": "Pick another provider id or remove the existing one."
+      "message": "Data provider {provider} already exists",
+      "hint": "Choose another provider ID or remove the existing one first."
     },
     "ERR_PROV_FULL": {
-      "label": "Provider table full",
-      "description": "Every CONFIG_SYS_DATA_PROVIDER_MAX slot is occupied.",
-      "action": "Remove an unused provider."
+      "message": "No free slot for another data provider",
+      "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
     },
     "ERR_PROV_IN_USE": {
-      "label": "Provider in use",
-      "description": "The provider has an active RX owner or a send in progress.",
-      "action": "Close or wait for sends to finish before opening or removing."
+      "message": "Data provider {provider} is in use",
+      "hint": "Wait until active transfers finish or detach the session before closing or removing the provider."
     },
     "ERR_PROV_SYSTEM": {
-      "label": "System provider",
-      "description": "Board system providers cannot be removed.",
-      "action": "Do not attempt to remove system providers."
+      "message": "Cannot remove system data provider {provider}",
+      "hint": "Built-in board providers cannot be removed."
     },
     "ERR_PROV_DOWN": {
-      "label": "Provider down",
-      "description": "The link is currently down.",
-      "action": "Reconnect the underlying transport before sending."
+      "message": "Data provider {provider} link is down",
+      "hint": "Check the physical connection or reconnect the peer before sending."
     },
     "ERR_PROV_TOO_LONG": {
-      "label": "Frame too long",
-      "description": "Frame exceeds CMD_FRAME_MAX and will not be fragmented.",
-      "action": "Keep frames within CMD_FRAME_MAX."
+      "message": "Frame for provider {provider} is too long ({len} bytes, limit {max})",
+      "hint": "Reduce the payload size so the complete frame fits within the provider limit."
     },
     "ERR_PROV_SEND": {
-      "label": "Send failed",
-      "description": "Underlying driver failed to transmit the frame.",
-      "action": "Inspect the wrapped lower-layer error."
+      "message": "Transmission on provider {provider} failed"
     },
     "ERR_PROV_BUSY": {
-      "label": "Provider busy",
-      "description": "Driver transmit queue could not accept the frame.",
-      "action": "Retry later or check link backpressure."
-    },
-    "ERR_PROV_NO_RX": {
-      "label": "No RX hook",
-      "description": "Provider does not deliver frames through the RX hook.",
-      "action": "Open with rx == NULL and read from the underlying driver."
+      "message": "Data provider {provider} send queue is full",
+      "hint": "Wait briefly or reduce traffic on this provider."
     },
     "ERR_PROV_BAD_ID": {
-      "label": "Invalid provider id",
-      "description": "SYS_DATA_PROVIDER_ID_NONE (0xFF) passed to an instance op, or instance id passed to LIST.",
-      "action": "Use 0..0xFE for providers and 0xFF for LIST."
+      "message": "Invalid data provider ID {provider}"
     },
     "ERR_PROV_TYPE_UNKNOWN": {
-      "label": "Unknown provider type",
-      "description": "No self-registered driver exists for this provider type (u8).",
-      "action": "Link the corresponding provider_* component."
+      "message": "Unknown data provider type ({type})",
+      "fields": {
+        "type": {
+          "enum_ref": "sys_data_provider_type_e"
+        }
+      }
     },
     "ERR_PROV_UNKNOWN_OP": {
-      "label": "Unknown provider op",
-      "description": "Op not supported by this provider or invalid direction for the op.",
-      "action": "Query CONTRACT_PROVIDER_OP_OPS for supported operations."
+      "message": "Provider does not support operation {op}"
     },
     "ERR_PROV_LOCAL_OP": {
-      "label": "Local provider op",
-      "description": "C-only LOCAL op invoked through the router.",
-      "action": "Call LOCAL ops directly from firmware C."
+      "message": "Provider operation {op} is local to firmware only"
     },
     "ERR_PROV_NO_MEM": {
-      "label": "Out of memory",
-      "description": "Failed to allocate driver context during CREATE.",
-      "action": "Free heap memory or reduce active providers."
+      "message": "Out of memory creating provider {provider} ({size} bytes needed)",
+      "hint": "Free memory by removing unused providers or devices."
     }
   }
 }

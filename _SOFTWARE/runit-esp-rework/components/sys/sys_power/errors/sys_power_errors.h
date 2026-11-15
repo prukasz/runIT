@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(SYS_POWER, 0x26)
+MODULE_ID_DECLARE(SYS_POWER, 0x26)  //@alias Power subsystem @description Power subsystem errors module ID
 #define ERR_MOD_SYS_POWER MODULE_ID_SYS_POWER
 
 /* ----------------------------------------------------------------------------

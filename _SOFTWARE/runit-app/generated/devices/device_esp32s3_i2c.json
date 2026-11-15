@@ -1,0 +1,92 @@
+{
+  "$schema": "../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "esp32s3_i2c",
+  "alias": "ESP32-S3 I2C Bus",
+  "description": "Hardware I2C master controller on the ESP32-S3 SoC (ports 0 and 1).",
+  "protocols": [
+    "native",
+    "i2c"
+  ],
+  "tags": [
+    "soc",
+    "i2c",
+    "bus"
+  ],
+  "type_id": 76,
+  "type": {
+    "symbol": "ESP32S3_I2C_TYPE",
+    "id": 76
+  },
+  "config": {
+    "struct": "esp32s3_i2c_cfg_t",
+    "size": 6,
+    "fields": [
+      {
+        "id": "port",
+        "label": "I2C controller port",
+        "type": "choice",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 0,
+        "options": [
+          {
+            "label": "I2C0",
+            "value": 0
+          },
+          {
+            "label": "I2C1",
+            "value": 1
+          }
+        ],
+        "default": 0,
+        "description": "ESP32-S3 hardware I2C peripheral port number (0 or 1)"
+      },
+      {
+        "id": "sda",
+        "label": "SDA pin",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 2,
+        "offset": 1,
+        "pin_ref": true,
+        "description": "ESP32-S3 GPIO pin used for SDA"
+      },
+      {
+        "id": "scl",
+        "label": "SCL pin",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 2,
+        "offset": 3,
+        "pin_ref": true,
+        "description": "ESP32-S3 GPIO pin used for SCL"
+      },
+      {
+        "id": "pullup",
+        "label": "Internal pull-ups",
+        "type": "choice",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 5,
+        "options": [
+          {
+            "label": "Disabled",
+            "value": 0
+          },
+          {
+            "label": "Enabled",
+            "value": 1
+          }
+        ],
+        "default": 1,
+        "description": "Enable internal weak pull-ups on SDA and SCL GPIOs"
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "I2C"
+  ]
+}

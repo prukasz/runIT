@@ -8,30 +8,22 @@
       "value": 16,
       "alias": "Remote subscriptions",
       "description": "Peers subscribed to a device of this board (SUBSCRIBE): each gets the device's events and errors. Another board's remote device takes one.",
-      "source_file": "runit-esp/components/sys/sys_remote/Kconfig"
+      "source_file": "runit-esp-rework/components/sys/sys_remote/Kconfig"
     },
     "SYS_SESSION_CALLS": {
       "config": "CONFIG_SYS_SESSION_CALLS",
       "value": 16,
       "alias": "Calls to other boards",
-      "description": "The board's own requests to other boards waiting for an answer (sys_session_call); a call to this board takes none. Every call to another board is answered, so each write of a remote device in flight takes one. More than SYS_SESSION_MAX x SYS_SESSION_PEER_IN_FLIGHT are never used: a slot is about 52 B.",
-      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+      "description": "The board's own requests to other boards waiting for an answer (sys_session_call); a call to this board takes none. Every call to another board is answered, so each write of a remote device in flight takes one. A slot is about 52 B.",
+      "source_file": "runit-esp-rework/components/sys/sys_session/Kconfig"
     },
     "SYS_SESSION_CALL_TIMEOUT_MS": {
       "config": "CONFIG_SYS_SESSION_CALL_TIMEOUT_MS",
       "value": 1000,
       "alias": "Call timeout",
-      "description": "A call without an answer this long ends with ERR_SESSION_TIMEOUT: over a radio (BLE, MQTT, ESP-NOW) or further than a neighbour. Longer than a radio's tail, so a slow answer is not taken for a lost one.",
+      "description": "A call without an answer this long ends with ERR_SESSION_TIMEOUT, unless the caller gives its own. Longer than a radio's tail, so a slow answer is not taken for a lost one.",
       "unit": "ms",
-      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
-    },
-    "SYS_SESSION_CALL_TIMEOUT_WIRED_MS": {
-      "config": "CONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS",
-      "value": 50,
-      "alias": "Wired call timeout",
-      "description": "The same to the peer of a session on a WIRED provider (a cable): its round trip is about a millisecond.",
-      "unit": "ms",
-      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+      "source_file": "runit-esp-rework/components/sys/sys_session/Kconfig"
     },
     "SYS_SESSION_TIMEOUT_MS": {
       "config": "CONFIG_SYS_SESSION_TIMEOUT_MS",
@@ -39,110 +31,21 @@
       "alias": "Session timeout",
       "description": "A slave's session with nothing received for this long ends: its calls fail, its peers are gone, the hello starts again. The hello tells the peer, which sends at least every third of it. The master's and the clients' sessions take the dead-man's time instead (sys_session_set_timeout).",
       "unit": "ms",
-      "source_file": "runit-esp/components/sys/sys_session/Kconfig"
+      "source_file": "runit-esp-rework/components/sys/sys_session/Kconfig"
     },
     "SYS_WATCH_MAX": {
       "config": "CONFIG_SYS_WATCH_MAX",
       "value": 24,
-      "alias": "Watches",
-      "description": "Reads run by a trigger, of every owner; each keeps its read and the CRC of its last entry sent (ON_CHANGE).",
-      "source_file": "runit-esp/components/sys/sys_watch/Kconfig"
+      "alias": "Server watches",
+      "description": "Reads that peers added on this board (ADD), of every owner.",
+      "source_file": "runit-esp-rework/components/sys/sys_watch/Kconfig"
     },
-    "VM_EXEC_MAX_SPAN_DEPTH": {
-      "config": "CONFIG_VM_EXEC_MAX_SPAN_DEPTH",
-      "value": 4,
-      "alias": "Nested span depth",
-      "description": "Maximum nested loop/span depth allowed during block execution.",
-      "unit": "levels",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_RETAIN_MAX_BYTES": {
-      "config": "CONFIG_VM_RETAIN_MAX_BYTES",
-      "value": 1024,
-      "alias": "Retained values record",
-      "description": "Size of the stored record (2 + per object: 4 + name + value). A program retaining more is refused at load (ERR_VM_RETAIN_TOO_BIG). Costs twice this in RAM.",
-      "unit": "bytes",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_BLOCK_MAX_IN": {
-      "config": "CONFIG_VM_BLOCK_MAX_IN",
-      "value": 16,
-      "alias": "Inputs per block",
-      "description": "Maximum number of input accessors allowed for a single VM execution block.",
-      "unit": "pins",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_BLOCK_MAX_OUT": {
-      "config": "CONFIG_VM_BLOCK_MAX_OUT",
-      "value": 16,
-      "alias": "Outputs per block",
-      "description": "Maximum number of output objects allowed for a single VM execution block.",
-      "unit": "pins",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_BLOCK_MAX_EN": {
-      "config": "CONFIG_VM_BLOCK_MAX_EN",
-      "value": 16,
-      "alias": "Enables per block",
-      "description": "Maximum number of enable accessors allowed for a single VM execution block.",
-      "unit": "pins",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_STORE_MAX_POOL": {
-      "config": "CONFIG_VM_STORE_MAX_POOL",
-      "value": 131072,
-      "alias": "Program arena",
-      "description": "Hard ceiling in bytes for the bump-allocated program storage arena.",
-      "unit": "bytes",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_ACCESSOR_MAX_DEPTH": {
-      "config": "CONFIG_VM_ACCESSOR_MAX_DEPTH",
-      "value": 8,
-      "alias": "Accessor depth",
-      "description": "Maximum chain depth when resolving nested accessor paths.",
-      "unit": "levels",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_OBJ_COPY_MAX_DEPTH": {
-      "config": "CONFIG_VM_OBJ_COPY_MAX_DEPTH",
-      "value": 8,
-      "alias": "Object copy depth",
-      "description": "Maximum tree recursion depth allowed when copying objects.",
-      "unit": "levels",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_DYN_MAX": {
-      "config": "CONFIG_VM_DYN_MAX",
-      "value": 128,
-      "alias": "Dynamic objects",
-      "description": "Upper ceiling of live dynamically registered objects on the heap.",
-      "unit": "objects",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_SUB_MAX_SUBSCRIBERS": {
-      "config": "CONFIG_VM_SUB_MAX_SUBSCRIBERS",
-      "value": 128,
-      "alias": "Subscribed objects",
-      "description": "Maximum count of object IDs that can be subscribed to simultaneously. A subscribe packet with more IDs is refused.",
-      "unit": "objects",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_SUB_MAX_FRAME_LEN": {
-      "config": "CONFIG_VM_SUB_MAX_FRAME_LEN",
-      "value": 512,
-      "alias": "Telemetry frame",
-      "description": "Maximum byte size of a generated telemetry output packet.",
-      "unit": "bytes",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
-    },
-    "VM_SUB_MAX_TRACKED": {
-      "config": "CONFIG_VM_SUB_MAX_TRACKED",
-      "value": 256,
-      "alias": "Tracked objects",
-      "description": "Objects telemetry keeps track of: every subscribed object plus everything reachable through its PTR children. Each costs 24 bytes of RAM (16 per entry, table sized 1.5x). Objects past the limit are not sent (ERR_VM_SUB_TRACK_FULL).",
-      "unit": "objects",
-      "source_file": "runit-esp/components/vm/vm_core/Kconfig"
+    "SYS_WATCH_CLIENT_MAX": {
+      "config": "CONFIG_SYS_WATCH_CLIENT_MAX",
+      "value": 24,
+      "alias": "Client watches",
+      "description": "Cached remote reads kept by the watch client (sys_watch_read).",
+      "source_file": "runit-esp-rework/components/sys/sys_watch/Kconfig"
     }
   }
 }

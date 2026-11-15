@@ -42,7 +42,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_VOLTAGE, 0x01, cmd_none_t, vreg_voltage_args_t, 0) \
   X(P, OP_CURRENT, 0x02, cmd_none_t, vreg_current_args_t, 0)
 
-MODULE_ID_DECLARE(VREG, 0x05)
+MODULE_ID_DECLARE(VREG, 0x05)  //@alias Voltage regulator contract @description Programmable voltage regulator contract and module ID
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, VREG, 0x05)
 
 /* Events of the contract: source = the device, channel 0. The faults matter to the user (NOTIFY), with the output's

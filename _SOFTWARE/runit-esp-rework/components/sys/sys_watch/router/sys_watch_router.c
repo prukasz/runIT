@@ -1,7 +1,7 @@
 #include "sys_watch_router.h"
 
 #include "router_queue.h"
-#include "sdkconfig.h"
+#include "sys_watch_internal.h"
 
 ROUTER_WRITE_TAIL(WATCH, OP_ADD) {
   const cmd_req_t* origin = router_origin();
@@ -17,7 +17,7 @@ ROUTER_WRITE(WATCH, OP_REMOVE) {
 
 ROUTER_READ(WATCH, OP_LIST) {
   sys_watch_info_t list[CONFIG_SYS_WATCH_MAX];
-  const uint8_t count = sys_watch_list(list, CONFIG_SYS_WATCH_MAX);
+  const uint8_t count = sys_watch_list(list);
   ERR_TRY(cmd_append(out, &count, sizeof(count)));
   return cmd_append(out, list, (uint32_t)count * sizeof(list[0]));
 }

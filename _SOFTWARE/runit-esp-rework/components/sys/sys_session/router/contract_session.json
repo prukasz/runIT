@@ -73,14 +73,14 @@
               "description": "The provider's id"
             },
             {
-              "id": "way",
-              "label": "Way",
+              "id": "peer",
+              "label": "Peer",
               "type": "enum",
-              "enum": "sys_session_way_e",
+              "enum": "sys_session_peer_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "Where it leads: UP (a client or this board's master, as the hello says) or DOWN (a slave)"
+              "description": "What the provider leads to: SLAVE (a board of this one), or UNKNOWN (not told: a client or this board's master, as the hello says)"
             }
           ]
         }
@@ -119,7 +119,7 @@
         "returns": {
           "type": "u8",
           "label": "Number of sessions",
-          "description": "Then per session (sys_session_info_t, 11 B): provider u8, way u8 (sys_session_way_e), role u8 (sys_session_role_e), open u8, peer id u8, build id u32, timeout_ms u16."
+          "description": "Then per session (sys_session_info_t, 10 B): provider u8, peer u8 (sys_session_peer_e), open u8, peer id u8, build id u32, timeout_ms u16."
         }
       }
     }

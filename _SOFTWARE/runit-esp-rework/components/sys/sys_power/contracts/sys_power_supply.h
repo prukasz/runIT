@@ -33,7 +33,7 @@ typedef struct __attribute__((packed)) {
 #define CONTRACT_SUPPLY_OPERATIONS(X, P)                              \
   X(P, OP_SOURCE, 0x00, cmd_none_t, supply_select_args_t, 0)
 
-MODULE_ID_DECLARE(SUPPLY, 0x08)
+MODULE_ID_DECLARE(SUPPLY, 0x08)  //@alias Power supply contract @description Fixed power supply contract and module ID
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SUPPLY, SUPPLY, 0x08)
 
 #ifdef __cplusplus

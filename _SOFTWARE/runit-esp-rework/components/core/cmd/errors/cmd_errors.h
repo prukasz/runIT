@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(CMD, 0x27)
+MODULE_ID_DECLARE(CMD, 0x27)  //@alias Command frames @description Core command framing module ID
 #define ERR_MOD_CMD MODULE_ID_CMD
 
 /* ----------------------------------------------------------------------------

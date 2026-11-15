@@ -12,15 +12,23 @@ void sys_device_set_remote(sys_device_remote_f fn) {
   s_remote = fn;
 }
 
-// The local ID of the remote device at `where`, SYS_DEVICE_ID_NONE when it has none. A snapshot (no lock).
-static uint8_t find_remote(const sys_device_remote_t* where) {
+uint8_t sys_device_find_remote(uint8_t board, uint8_t remote_id) {
   for (uint8_t i = 0; i < SYS_DEVICE_COUNT; i++) {
     const sys_device_remote_t* r = sys_device_slot_is_remote(i) ? sys_device_slot_instance(i) : NULL;
-    if (r != NULL && r->board == where->board && r->remote_id == where->remote_id) {
+    if (r != NULL && r->board == board && r->remote_id == remote_id) {
       return i;
     }
   }
   return SYS_DEVICE_ID_NONE;
+}
+
+bool sys_device_remote_of(uint8_t id, sys_device_remote_t* where) {
+  const sys_device_remote_t* r = sys_device_slot_is_remote(id) ? sys_device_slot_instance(id) : NULL;
+  if (r == NULL) {
+    return false;
+  }
+  *where = *r;
+  return true;
 }
 
 err_h sys_device_remote_create(uint8_t id, cmd_in_t in) {
@@ -36,7 +44,7 @@ err_h sys_device_remote_create(uint8_t id, cmd_in_t in) {
   const sys_device_type_t* type = sys_device_type_find(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(!sys_device_slot_is_installed(id), ERR_DEV_ID_TAKEN, .id = id);
-  const uint8_t twin = find_remote(&where);
+  const uint8_t twin = sys_device_find_remote(where.board, where.remote_id);
   ERR_CHECK(twin == SYS_DEVICE_ID_NONE, ERR_DEV_ID_TAKEN, .id = twin);
   ERR_TRY(sys_device_slot_begin_create(id));
 

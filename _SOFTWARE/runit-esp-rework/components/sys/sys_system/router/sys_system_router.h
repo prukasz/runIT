@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 /* The module's one number: the root key of its commands. */
-MODULE_ID_DECLARE(SYS, 0x28)
+MODULE_ID_DECLARE(SYS, 0x28)  //@alias System control @description System info, reboot, ping, and board diagnostics module ID
 
 /* Ops under the root key MODULE_ID_SYS (SYS_SYSTEM.MD "Remote"), packed, little-endian; contract_sys.json names them.
  * Never renumber; 0x05 and 0x08 are unused: never assign them. Whether a command runs urgent is the client's choice

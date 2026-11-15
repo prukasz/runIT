@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "ACTIONS",
-  "router_key": 6,
+  "router_key": 44,
   "alias": "Action management (Actions & Macros)",
   "description": "Storing, replaying and reading back command lists (macros) in Flash, and managing them.",
   "category": "system",
@@ -12,7 +12,7 @@
     {
       "id": "RUN",
       "op": 1,
-      "symbol": "SYS_ACTIONS_OP_RUN",
+      "symbol": "ACTIONS_OP_RUN",
       "label": "Run an action",
       "description": "Replays the command list of the given record ID (stops at the first error).",
       "write": {
@@ -35,7 +35,7 @@
     {
       "id": "BEGIN",
       "op": 4,
-      "symbol": "SYS_ACTIONS_OP_BEGIN",
+      "symbol": "ACTIONS_OP_BEGIN",
       "label": "Start writing a record",
       "description": "Opens a ready-made action record image of the given length in bytes for writing.",
       "write": {
@@ -66,7 +66,7 @@
     {
       "id": "WRITE",
       "op": 5,
-      "symbol": "SYS_ACTIONS_OP_WRITE",
+      "symbol": "ACTIONS_OP_WRITE",
       "label": "Write a chunk",
       "description": "Writes a chunk of the record being written at the given offset.",
       "write": {
@@ -96,7 +96,7 @@
     {
       "id": "COMMIT",
       "op": 6,
-      "symbol": "SYS_ACTIONS_OP_COMMIT",
+      "symbol": "ACTIONS_OP_COMMIT",
       "label": "Commit the record",
       "description": "Checks the CRC-32 and stores the action record in Flash.",
       "write": {
@@ -118,7 +118,7 @@
     {
       "id": "READ",
       "op": 7,
-      "symbol": "SYS_ACTIONS_OP_READ",
+      "symbol": "ACTIONS_OP_READ",
       "label": "Read the action's image",
       "description": "Sends back the stored image of the action from the given offset, as many bytes as fit in one answer (none at the end). Read from 0 up to INFO's size and check its CRC-32.",
       "read": {
@@ -161,7 +161,7 @@
     {
       "id": "INFO",
       "op": 8,
-      "symbol": "SYS_ACTIONS_OP_INFO",
+      "symbol": "ACTIONS_OP_INFO",
       "label": "Read the action's metadata",
       "description": "Returns the size, the number of stored frames and the CRC-32 of the given record.",
       "read": {
@@ -214,7 +214,7 @@
     {
       "id": "LIST",
       "op": 9,
-      "symbol": "SYS_ACTIONS_OP_LIST",
+      "symbol": "ACTIONS_OP_LIST",
       "label": "List of action records",
       "description": "Returns the IDs of the action records stored in Flash, starting from the given ID.",
       "read": {
@@ -241,7 +241,7 @@
     {
       "id": "REMOVE",
       "op": 10,
-      "symbol": "SYS_ACTIONS_OP_REMOVE",
+      "symbol": "ACTIONS_OP_REMOVE",
       "label": "Remove an action record",
       "description": "Removes the given action record from Flash.",
       "write": {
@@ -263,7 +263,7 @@
     {
       "id": "ABORT",
       "op": 11,
-      "symbol": "SYS_ACTIONS_OP_ABORT",
+      "symbol": "ACTIONS_OP_ABORT",
       "label": "Abort the record being written",
       "description": "Drops the record being written and the data not stored yet.",
       "write": {}
@@ -271,7 +271,7 @@
     {
       "id": "RUN_ALL",
       "op": 13,
-      "symbol": "SYS_ACTIONS_OP_RUN_ALL",
+      "symbol": "ACTIONS_OP_RUN_ALL",
       "label": "Run every frame of an action",
       "description": "Replays every frame of the action record without stopping at an error (the first error is returned).",
       "write": {
@@ -293,7 +293,7 @@
     {
       "id": "REMOVE_ALL",
       "op": 14,
-      "symbol": "SYS_ACTIONS_OP_REMOVE_ALL",
+      "symbol": "ACTIONS_OP_REMOVE_ALL",
       "label": "Remove all action records",
       "description": "Removes every stored record (settings, devices, the project and the user's actions). Refused while a record is being written.",
       "write": {}

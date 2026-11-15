@@ -42,7 +42,9 @@ extern "C" {
  * module_id__0x01 defined twice), and fail to compile already where both headers meet (MODULE_ID__0x01 declared
  * twice). The ID is wire format (an op is [contract u8][op u8]): never renumber it. */
 #define SYS_DEVICE_CONTRACT_DEVICE MODULE_ID_SYS_DEVICE
-#define SYS_DEVICE_CONTRACT_OWN    0xFFu
+
+//#ref-defines device_contract_own @alias Device own ops @prefix SYS_DEVICE_CONTRACT_
+#define SYS_DEVICE_CONTRACT_OWN    0xFFu  //@alias Device own ops @description Op prefix reserved for a device driver's own commands (not a shared contract)
 
 enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
 
@@ -167,6 +169,20 @@ MUST_USE err_h sys_device_call(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in
  * @return As sys_device_call
  */
 MUST_USE err_h sys_device_write(uint8_t id, uint16_t op, const void* args, uint32_t args_len);
+
+/** @brief The largest create struct sys_device_create_system takes. */
+#define SYS_DEVICE_CREATE_CFG_MAX 32u
+
+/**
+ * @brief CREATE of the board's own device (SYS_DEVICE_CREATE_SYSTEM: it can't be removed): the frame
+ * [type u16][flags u8][cfg] built here, so the caller names the type and the create struct only. Boot code.
+ * @param[in] id      The device ID
+ * @param[in] type_id The driver's type
+ * @param[in] cfg     The driver's create struct (NULL with `cfg_len` 0 when it has none)
+ * @param[in] cfg_len Its size, at most SYS_DEVICE_CREATE_CFG_MAX
+ * @return As CREATE; ERR_CMD_BAD_LEN when `cfg_len` is over the limit
+ */
+MUST_USE err_h sys_device_create_system(uint8_t id, uint16_t type_id, const void* cfg, uint32_t cfg_len);
 
 /**
  * @brief The read side of `op` with the key `args`, whose answer has a fixed size (a reading, a mask): ERR_CMD_BAD_LEN

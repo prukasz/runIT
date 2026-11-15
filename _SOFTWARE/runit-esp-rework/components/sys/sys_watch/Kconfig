@@ -1,6 +1,6 @@
 menu "sys_watch"
 
-    #@limit Server watches
+    #@limit @alias Server watches
     config SYS_WATCH_MAX
         int "Maximum watches on this board"
         default 24
@@ -8,7 +8,7 @@ menu "sys_watch"
         help
           Reads that peers added on this board (ADD), of every owner.
 
-    #@limit Client watches
+    #@limit @alias Client watches
     config SYS_WATCH_CLIENT_MAX
         int "Maximum remote reads cached on this board"
         default 24
@@ -25,12 +25,12 @@ menu "sys_watch"
           is twice this and a cached copy turns ERR_WATCH_STALE after three
           times this without a fresh entry.
 
-    config SYS_WATCH_IDLE_MIN_MS
-        int "Minimum idle time before removing a cached read watch (ms)"
-        default 1000
+    config SYS_WATCH_IDLE_MS
+        int "Idle time before a cached read is removed (ms)"
+        default 3000
         range 100 60000
         help
-          A cached read not read for 10 x stale limit (and at least this
-          long) is removed from its board with WATCH REMOVE.
+          A cached read not read for this long is freed and its watch
+          removed from its board with WATCH REMOVE.
 
 endmenu

@@ -6,7 +6,7 @@
   "id": "WATCH",
   "router_key": 43,
   "alias": "Watches",
-  "description": "Reads this board runs by a trigger (a period, a change of the answer, an event) and pushes as entries [0x80][id][status][data] to the caller that added them.",
+  "description": "Reads this board runs by a trigger (a period, a change of the answer, an event) and pushes as entries [channel][id][status][data] on the watches' channel to the caller that added them.",
   "category": "system",
   "commands": [
     {
@@ -18,7 +18,6 @@
       "write": {
         "args": {
           "struct": "sys_watch_head_t",
-          "tail": "read",
           "fields": [
             {
               "id": "id",
@@ -83,6 +82,13 @@
               "size": 2,
               "offset": 12,
               "description": "sys_event_key_t.channel for ON_EVENT (SYS_EVENT_ANY_CHANNEL = 0xFFFF)"
+            },
+            {
+              "id": "read",
+              "label": "Read command",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Watched read command (2..48 B, dir == CMD_DIR_READ)"
             }
           ]
         }
@@ -118,9 +124,10 @@
       "label": "List watches",
       "description": "Returns u8 count followed by count sys_watch_info_t records (16 B each).",
       "read": {
-        "reply": {
-          "variable": true,
-          "struct": "sys_watch_info_t"
+        "returns": {
+          "type": "bytes",
+          "label": "Watch list",
+          "description": "u8 count followed by count sys_watch_info_t records (16 B each)"
         }
       }
     }

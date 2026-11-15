@@ -4,84 +4,91 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "WATCH",
-  "router_key": 15,
+  "router_key": 43,
   "alias": "Watches",
-  "description": "Reads this board runs by a trigger (a period, a change of the answer, an event) and sends to the one who added them, by itself, after one ADD.",
+  "description": "Reads this board runs by a trigger (a period, a change of the answer, an event) and pushes as entries [channel][id][status][data] on the watches' channel to the caller that added them.",
   "category": "system",
   "commands": [
     {
       "id": "ADD",
       "op": 1,
-      "symbol": "SYS_WATCH_OP_ADD",
+      "symbol": "WATCH_OP_ADD",
       "label": "Add a watch",
-      "description": "Adds a watch of the sender, or replaces its watch with that id. The read follows the head: [key][dir READ][code | id u16 + op u16][args]; each answer goes back to the sender as an entry in the session's Watches channel: [owner][id][status][data].",
+      "description": "Adds or replaces a watch identified by (owner, id); payload is sys_watch_head_t (14 B) followed by the read command (2..48 B).",
       "write": {
         "args": {
           "struct": "sys_watch_head_t",
           "fields": [
             {
               "id": "id",
-              "label": "Watch",
+              "label": "Id",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The owner's id of the watch; adding an id the owner has replaces that watch"
+              "description": "Caller's watch id (1..255); adding an existing id replaces it"
             },
             {
               "id": "trigger",
               "label": "Trigger",
               "type": "enum",
-              "enum": "sys_watch_trigger_e",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "When the read runs"
+              "enum": "sys_watch_trigger_e",
+              "description": "PERIODIC (0), ON_CHANGE (1), ON_EVENT (2)"
             },
             {
               "id": "period",
-              "label": "Period (ticks)",
+              "label": "Period",
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "Ticks of 10 ms. Every period: the read; on change: how often it reads; on event: the shortest gap"
+              "description": "Ticks of 10 ms (>= 1). PERIODIC/ON_CHANGE cadence; ON_EVENT minimum gap"
             },
             {
               "id": "max_silence",
-              "label": "Silence (ticks)",
+              "label": "Max silence",
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
               "offset": 4,
-              "description": "On change: sent anyway after this many ticks, so silence never looks dead; 0 never"
+              "description": "Ticks of 10 ms. ON_CHANGE sends unchanged value after this many silent ticks (0 = never)"
             },
             {
-              "id": "filter_source",
-              "label": "Event source",
+              "id": "tag",
+              "label": "Filter tag",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u32",
+              "size": 4,
               "offset": 6,
-              "description": "On event: device id, or 0xFFFF for any"
+              "description": "sys_event_key_t.tag for ON_EVENT (SYS_EVENT_ANY_TAG = 0)"
             },
             {
-              "id": "filter_event",
-              "label": "Event",
+              "id": "source",
+              "label": "Filter source",
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 8,
-              "description": "On event: the event id, 0xFFFF for any, or (contract << 8) | 0xFF for any of a contract"
+              "offset": 10,
+              "description": "sys_event_key_t.source for ON_EVENT (SYS_EVENT_ANY_SOURCE = 0xFFFF)"
             },
             {
-              "id": "filter_channel",
-              "label": "Event channel",
+              "id": "channel",
+              "label": "Filter channel",
               "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 10,
-              "description": "On event: pin / channel, or 0xFF for any"
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 12,
+              "description": "sys_event_key_t.channel for ON_EVENT (SYS_EVENT_ANY_CHANNEL = 0xFFFF)"
+            },
+            {
+              "id": "read",
+              "label": "Read command",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Watched read command (2..48 B, dir == CMD_DIR_READ)"
             }
           ]
         }
@@ -90,21 +97,21 @@
     {
       "id": "REMOVE",
       "op": 2,
-      "symbol": "SYS_WATCH_OP_REMOVE",
+      "symbol": "WATCH_OP_REMOVE",
       "label": "Remove a watch",
-      "description": "Removes the sender's watch with this id.",
+      "description": "Removes the watch identified by (origin->src, id).",
       "write": {
         "args": {
           "struct": "sys_watch_ref_t",
           "fields": [
             {
               "id": "id",
-              "label": "Watch",
+              "label": "Id",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The sender's id of the watch"
+              "description": "Watch id to remove"
             }
           ]
         }
@@ -113,14 +120,14 @@
     {
       "id": "LIST",
       "op": 3,
-      "symbol": "SYS_WATCH_OP_LIST",
-      "label": "List the watches",
-      "description": "Returns every watch of every owner.",
+      "symbol": "WATCH_OP_LIST",
+      "label": "List watches",
+      "description": "Returns u8 count followed by count sys_watch_info_t records (16 B each).",
       "read": {
         "returns": {
-          "type": "u8",
-          "label": "Number of watches",
-          "description": "Then per watch: its head (11 B as ADD takes it), its owner u8 and the length of its read u8."
+          "type": "bytes",
+          "label": "Watch list",
+          "description": "u8 count followed by count sys_watch_info_t records (16 B each)"
         }
       }
     }

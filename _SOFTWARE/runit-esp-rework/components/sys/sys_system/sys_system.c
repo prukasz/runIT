@@ -76,8 +76,7 @@ static void on_urgent(void) {
 
 // A command for every board, from the root: never answered.
 static void broadcast(const uint8_t* req, uint32_t len, uint8_t flags) {
-  err_report(sys_session_call(SYS_SESSION_ID_BROADCAST, (cmd_in_t){req, len}, (uint8_t)(flags | ROUTER_FLAG_NOREPLY), 0,
-                              NULL, NULL));
+  err_report(sys_session_broadcast((cmd_in_t){req, len}, flags));
 }
 
 void sys_system_broadcast_time(void) {

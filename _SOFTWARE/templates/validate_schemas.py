@@ -1,11 +1,11 @@
 """Checks that every descriptor conforms to its schema, and that every enum a descriptor names is published in enums.json.
 
-  device.schema.json    runit-esp/components/devices/*/device_*.json
-  contract.schema.json  runit-esp/components/**/contract_*.json
-  vm-block.schema.json  runit-esp/components/vm/vm_blocks/**/block_*.json
-  errors.schema.json    runit-esp/components/core/errors/errors.json
-  error-texts.schema.json  runit-esp/components/**/errors_<module>.json (the message templates of a module's errors)
-  board.schema.json     runit-esp/components/app/runit/board.json, board_devkit.json
+  device.schema.json    runit-esp-rework/components/devices/**/device_*.json
+  contract.schema.json  runit-esp-rework/components/**/contract_*.json
+  vm-block.schema.json  runit-esp-rework/components/vm/vm_blocks/**/block_*.json
+  errors.schema.json    runit-esp-rework/components/core/errors/errors.json
+  error-texts.schema.json  runit-esp-rework/components/**/errors_<module>.json (the message templates of a module's errors)
+  board.schema.json     runit-esp-rework/components/app/runit/board.json, board_devkit.json (when present)
   enums.schema.json     runit-app/generated/common/enums.json
   limits.schema.json    runit-app/generated/common/limits.json
 
@@ -37,7 +37,7 @@ CHECKS = (
     ("vm-block.schema.json", descriptors("block_")),
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
     ("error-texts.schema.json", descriptors("errors_")),
-    ("board.schema.json", [COMPONENTS_DIR / "app" / "runit" / "board.json", COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"]),
+    ("board.schema.json", [p for p in (COMPONENTS_DIR / "app" / "runit" / "board.json", COMPONENTS_DIR / "app" / "runit" / "board_devkit.json") if p.exists()]),
     ("enums.schema.json", [ENUMS]),
     ("limits.schema.json", [LIMITS]),
 )

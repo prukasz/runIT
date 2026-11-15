@@ -88,7 +88,7 @@
         "symbol",
         "tags"
       ],
-      "description": "Definicja modułu błędów (ERR_MOD_* w err_modules.h).",
+      "description": "Definicja modułu błędów (ERR_MOD_* / MODULE_ID_DECLARE).",
       "properties": {
         "id": {
           "type": "integer",
@@ -215,6 +215,8 @@
             "i16",
             "u32",
             "i32",
+            "u64",
+            "i64",
             "f32",
             "chars"
           ],

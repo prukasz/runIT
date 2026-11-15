@@ -58,7 +58,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_COAST,   0x02, cmd_none_t,             hbridge_channel_args_t, 0) \
   X(P, OP_CURRENT, 0x03, hbridge_channel_args_t, int32_t,                0)
 
-MODULE_ID_DECLARE(HBRIDGE, 0x09)
+MODULE_ID_DECLARE(HBRIDGE, 0x09)  //@alias H-bridge contract @description H-bridge motor driver contract and module ID
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_HBRIDGE, HBRIDGE, 0x09)
 
 /* Events of the contract: a channel fault, published by the driver; source = the device, channel = the channel, the

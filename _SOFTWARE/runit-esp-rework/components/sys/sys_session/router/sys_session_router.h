@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 #include "router_table.h"
-#include "sys_session_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,7 +19,7 @@ typedef struct __attribute__((packed)) {
 /** @brief ATTACH args */
 typedef struct __attribute__((packed)) {
   uint8_t provider;  /**< The provider the session runs over */
-  uint8_t way;       /**< sys_session_way_e */
+  uint8_t peer;      /**< sys_session_peer_e: SLAVE, or UNKNOWN (the hello says) */
 } sys_session_attach_args_t;
 
 /** @brief DETACH args */
@@ -31,8 +30,7 @@ typedef struct __attribute__((packed)) {
 /** @brief A session as PEERS sends it: one row of its answer. */
 typedef struct __attribute__((packed)) {
   uint8_t provider;     /**< The provider it runs over */
-  uint8_t way;          /**< sys_session_way_e */
-  uint8_t role;         /**< sys_session_role_e: its peer now (UNKNOWN on an UP way before the hello) */
+  uint8_t peer;         /**< sys_session_peer_e: what it is now (UNKNOWN before the hello of a way not told) */
   uint8_t open;         /**< 1 = both hellos passed */
   uint8_t peer_id;      /**< Its id, from its hello; SYS_SESSION_ID_NONE before it */
   uint32_t build_id;    /**< Its firmware's build, from its hello; 0 from a client */

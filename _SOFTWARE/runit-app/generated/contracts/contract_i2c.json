@@ -1,0 +1,185 @@
+{
+  "$schema": "../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "scope": "device",
+  "id": "I2C",
+  "contract_id": 2,
+  "alias": "I2C bus",
+  "description": "Contract for I2C bus controllers supporting probing, scanning 7-bit addresses, bus recovery, and raw register transfers for unowned addresses.",
+  "category": "bus",
+  "commands": [
+    {
+      "id": "PROBE",
+      "op": 3,
+      "symbol": "CONTRACT_I2C_OP_PROBE",
+      "label": "Probe address",
+      "description": "Checks whether an I2C device acknowledges the specified 7-bit address.",
+      "read": {
+        "args": {
+          "struct": "i2c_addr_args_t",
+          "fields": [
+            {
+              "id": "addr",
+              "label": "7-bit address",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 127
+            }
+          ]
+        },
+        "returns": {
+          "fields": [
+            {
+              "id": "ack",
+              "label": "Present",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "1 if the address acknowledged, 0 otherwise"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "SCAN",
+      "op": 4,
+      "symbol": "CONTRACT_I2C_OP_SCAN",
+      "label": "Scan bus",
+      "description": "Probes all valid 7-bit addresses and returns a 128-bit bitmap of responding devices.",
+      "read": {
+        "returns": {
+          "struct": "i2c_scan_t",
+          "fields": [
+            {
+              "id": "found",
+              "label": "Address bitmap",
+              "type": "string",
+              "raw_type": "bytes",
+              "size": 16,
+              "offset": 0,
+              "description": "4 x uint32_t little-endian bitmask: address a sets bit (a & 31) of found[a >> 5]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "RECOVER",
+      "op": 5,
+      "symbol": "CONTRACT_I2C_OP_RECOVER",
+      "label": "Recover bus",
+      "description": "Pulses SCL to release a stuck SDA line and restore I2C communication.",
+      "write": {}
+    },
+    {
+      "id": "RAW",
+      "op": 6,
+      "symbol": "CONTRACT_I2C_OP_RAW",
+      "label": "Raw register transfer",
+      "description": "Reads or writes bytes at a register address on an unattached 7-bit address (refused for addresses claimed by a chip driver).",
+      "read": {
+        "args": {
+          "struct": "i2c_raw_key_t",
+          "fields": [
+            {
+              "id": "addr",
+              "label": "7-bit address",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 127
+            },
+            {
+              "id": "reg",
+              "label": "Register",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "len",
+              "label": "Byte count",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "min": 1,
+              "max": 255
+            }
+          ]
+        },
+        "returns": {
+          "struct": "i2c_raw_t",
+          "fields": [
+            {
+              "id": "addr",
+              "label": "7-bit address",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 127
+            },
+            {
+              "id": "reg",
+              "label": "Register",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "data",
+              "label": "Bytes",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Register payload bytes (at least 1 byte)"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "i2c_raw_t",
+          "fields": [
+            {
+              "id": "addr",
+              "label": "7-bit address",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 127
+            },
+            {
+              "id": "reg",
+              "label": "Register",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "data",
+              "label": "Bytes",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Register payload bytes (at least 1 byte)"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

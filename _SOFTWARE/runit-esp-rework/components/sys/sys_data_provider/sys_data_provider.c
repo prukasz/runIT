@@ -349,6 +349,18 @@ err_h sys_data_provider_write(uint8_t id, uint16_t op, const void* args, uint32_
   return sys_data_provider_call(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL);
 }
 
+err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
+  uint8_t frame[SYS_DATA_PROVIDER_CREATE_HDR + SYS_DATA_PROVIDER_CREATE_CFG_MAX];
+  ERR_CHECK(cfg_len <= SYS_DATA_PROVIDER_CREATE_CFG_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)cfg_len,
+            .need = (uint16_t)SYS_DATA_PROVIDER_CREATE_CFG_MAX);
+  frame[0] = type_id;
+  frame[1] = SYS_DATA_PROVIDER_CREATE_SYSTEM;
+  if (cfg_len > 0u) {
+    memcpy(frame + SYS_DATA_PROVIDER_CREATE_HDR, cfg, cfg_len);
+  }
+  return sys_data_provider_write(id, CONTRACT_PROVIDER_OP_CREATE, frame, SYS_DATA_PROVIDER_CREATE_HDR + cfg_len);
+}
+
 err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
                              uint32_t out_size) {
   cmd_out_t answer = {.data = out, .cap = out_size, .len = 0};
@@ -366,8 +378,7 @@ err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx) {
   prov_slot_t* s = find_slot_locked(id);
   sys_data_provider_t* p = s != NULL ? &s->p : NULL;
   const bool taken = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_OPEN) != 0;
-  const bool no_rx = p != NULL && rx != NULL && (p->state & SYS_DATA_PROVIDER_STATE_NO_RX) != 0;
-  if (p != NULL && !taken && !no_rx) {
+  if (p != NULL && !taken) {
     p->rx = rx;
     p->ctx = ctx;
     p->state |= SYS_DATA_PROVIDER_STATE_OPEN;
@@ -376,7 +387,6 @@ err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx) {
 
   ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, .provider = id);
   ERR_CHECK(!taken, ERR_PROV_IN_USE, .provider = id);
-  ERR_CHECK(!no_rx, ERR_PROV_NO_RX, .provider = id);
   return NULL;
 }
 

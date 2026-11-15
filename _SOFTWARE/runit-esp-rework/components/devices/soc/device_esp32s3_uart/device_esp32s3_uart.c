@@ -1,298 +1,477 @@
 /*
- * ESP32-S3 UART controller as a device, type 0x004D: implements the UART contract (sys_uart_contract.h) on
- * esp_driver_uart, completely isolated from sys_data_provider.
- *
- * Static allocation: ESP32-S3 has SOC_UART_NUM (3) physical UARTs. Rather than heap-allocating tasks, ring buffers,
- * and 520 B line buffers inside SYS_DEVICE_CTX (which fragments heap on REMOVE/CREATE), up to
- * CONFIG_ESP32S3_UART_MAX_PORTS engine slots live statically in .bss (esp32s3_uart_slot.c). Static tasks are created
- * once on first slot claim and parked between REMOVE and the next CREATE; SYS_DEVICE_CTX only holds pin claims,
- * resource handle, and slot ref.
+ * The ESP32-S3's UART controller as a device, type 0x004D: implements the UART contract (sys_uart_contract.h) on
+ * esp_driver_uart. A port is made by CREATE with any controller, mode, rate and pins (a way to another board, a port
+ * for a device, a raw port the app reads); its struct (the registry's, on the heap), its rings and its two tasks live
+ * as long as it does. Its reader is one at a time (sys_uart_contract.h); its TX queue is the line's (sys_uart_codec.h).
  */
 
+#include <string.h>
+
 #include "driver/gpio.h"
-#include "esp32s3_uart.h"
+#include "driver/uart.h"
+#include "esp_intr_alloc.h"
 #include "sys_io_driver.h"
+#include "sys_uart_codec.h"
+#include "sys_uart_contract.h"
+#include "utils.h"
 
 SYS_DEVICE_TYPE_DECLARE(ESP32S3_UART, 0x004D)
 
+#define RX_TIMEOUT_SYMS  2u    // TOUT after ~2 idle symbols: a RAW message ends at a pause
+#define RX_FLOW_THRESH   100u  // RTS asserted at this fill of the 128 B FIFO
+#define RX_CHUNK         128u
+#define TX_SLICE_WAIT_MS 50u   // a write waits in slices, so a REMOVE never waits on 1200 baud or CTS
+#define PIN_COUNT        4u    // tx, rx, rts, cts
+
+/** @brief CREATE config: 16 B, packed. */
+typedef struct __attribute__((packed)) {
+  uint8_t uart_num;              /**< Controller 0..SOC_UART_NUM-1, not one another driver has (the console's) */
+  uint8_t mode;                  /**< sys_uart_mode_e */
+  uint32_t baud;                 /**< SYS_UART_BAUD_MIN..MAX */
+  uint8_t parity;                /**< sys_uart_parity_e */
+  uint8_t stop_bits;             /**< 1 or 2 */
+  sys_io_pin_t pins[PIN_COUNT];  /**< tx, rx, rts, cts; SYS_IO_PIN_NONE for none (tx or rx at least) */
+} esp32s3_uart_cfg_t;
+
+_Static_assert(sizeof(esp32s3_uart_cfg_t) == 16, "esp32s3_uart_cfg_t size");
+
 typedef struct {
   uint8_t id;
-  esp32s3_uart_slot_t* slot;
-  sys_io_claim_t tx;
-  sys_io_claim_t rx;
-  sys_io_claim_t rts;
-  sys_io_claim_t cts;
-  sys_device_res_t uart_res;
-} esp_uart_dev_t;
+  uart_port_t uart;
+  uint8_t mode;
+  uint8_t parity;
+  uint8_t stop_bits;
+  uint32_t baud;
+  uint32_t init_baud;
+  sys_io_claim_t pins[PIN_COUNT];
+  sys_device_res_t res;
+  SemaphoreHandle_t lock;  // the reader: claimed and copied under it
+  sys_uart_rx_cb_f cb;     // the reader: an RX_HOOK, or
+  void* cb_ctx;
+  uint8_t owner;           // a subscriber (SYS_DEVICE_ID_NONE: none), its generation and op, or
+  uint8_t owner_gen;
+  uint16_t owner_op;
+  bool reading;            // a RECEIVE / TRANSACT under way
+  volatile uint32_t flush_seq;  // FLUSH and TRANSACT count it: the RX task drops what it was assembling
+  volatile bool stopping;
+  bool installed;
+  QueueHandle_t events;     // esp_driver_uart's
+  RingbufHandle_t rx_rb;    // messages for RECEIVE while nobody reads
+  sys_uart_txq_t txq;
+  TaskHandle_t rx_task;
+  TaskHandle_t tx_task;
+  SemaphoreHandle_t exited;  // given by each task as it ends
+  struct __attribute__((packed)) {
+    sys_uart_rx_t hdr;  // what a subscriber gets before the message
+    uint8_t data[SYS_UART_WIRE_MAX];
+  } rx;
+  uint8_t chunk[RX_CHUNK];
+} port_t;
 
-#define SYS_DEVICE_CTX esp_uart_dev_t
+#define SYS_DEVICE_CTX port_t
+
+static bool has_reader(const port_t* c) {
+  return c->cb != NULL || c->owner != SYS_DEVICE_ID_NONE || c->reading;
+}
+
+#define IN_USE(c) ERR_NEW(ERR_UART_IN_USE, .port = (c)->id, .owner = (c)->owner)
+
+// Under the lock: what came in so far is dropped, here and at the RX task.
+static void flush_rx(port_t* c) {
+  c->flush_seq++;
+  (void)uart_flush_input(c->uart);
+  size_t len = 0;
+  void* item = NULL;
+  while ((item = xRingbufferReceive(c->rx_rb, &len, 0)) != NULL) {
+    vRingbufferReturnItem(c->rx_rb, item);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+ * RX task: the driver's events -> one message -> the reader, or the RECEIVE ring
+ * ------------------------------------------------------------------------- */
+
+// One whole message in c->rx.data. `seq`: the task's count of flushes; one since: the message is from before it.
+static void deliver(port_t* c, uint32_t len, uint32_t* seq) {
+  if (len == 0) {
+    return;
+  }
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  const bool flushed = *seq != c->flush_seq;
+  *seq = c->flush_seq;
+  const sys_uart_rx_cb_f cb = c->cb;
+  void* ctx = c->cb_ctx;
+  const uint8_t owner = c->owner;
+  const uint8_t gen = c->owner_gen;
+  const uint16_t op = c->owner_op;
+  if (!flushed && cb == NULL && owner == SYS_DEVICE_ID_NONE) {  // for RECEIVE: when full, the oldest goes
+    size_t old_len = 0;
+    void* old = NULL;
+    while (xRingbufferSend(c->rx_rb, c->rx.data, len, 0) != pdTRUE &&
+           (old = xRingbufferReceive(c->rx_rb, &old_len, 0)) != NULL) {
+      vRingbufferReturnItem(c->rx_rb, old);
+    }
+  }
+  xSemaphoreGive(c->lock);
+  if (flushed) {
+    return;
+  }
+  if (owner != SYS_DEVICE_ID_NONE) {
+    c->rx.hdr.port = c->id;
+    err_report(sys_device_deliver(owner, gen, op, &c->rx, (uint32_t)sizeof(c->rx.hdr) + len));
+  } else if (cb != NULL) {
+    cb(ctx, c->rx.data, len);
+  }
+}
+
+/* FRAMED: a candidate ends at 0x00 (one longer than any frame is dropped there); RAW_LINE: a line at '\n' (a '\r'
+ * before it goes); RAW and RAW_LINE: CMD_FRAME_MAX bytes are a message too. */
+static void feed(port_t* c, const uint8_t* buf, int n, uint32_t* len, bool* skip, uint32_t* seq) {
+  const bool framed = c->mode == SYS_UART_MODE_FRAMED;
+  for (int i = 0; i < n; i++) {
+    const uint8_t b = buf[i];
+    if (framed && b == 0) {
+      deliver(c, *skip ? 0 : sys_uart_unframe(c->rx.data, *len), seq);
+      *len = 0;
+      *skip = false;
+    } else if (c->mode == SYS_UART_MODE_RAW_LINE && b == '\n') {
+      deliver(c, (*len > 0 && c->rx.data[*len - 1u] == '\r') ? *len - 1u : *len, seq);
+      *len = 0;
+    } else if (*len < (framed ? sizeof(c->rx.data) : CMD_FRAME_MAX)) {
+      c->rx.data[(*len)++] = b;
+      if (!framed && *len == CMD_FRAME_MAX) {
+        deliver(c, *len, seq);
+        *len = 0;
+      }
+    } else {
+      *skip = true;
+    }
+  }
+}
+
+static void rx_task(void* arg) {
+  port_t* c = arg;
+  uint32_t len = 0;  // the message being assembled
+  bool skip = false;
+  uint32_t seq = c->flush_seq;
+  uart_event_t ev;
+  while (!c->stopping) {
+    if (xQueueReceive(c->events, &ev, portMAX_DELAY) != pdTRUE || c->stopping) {
+      continue;
+    }
+    if (seq != c->flush_seq) {
+      seq = c->flush_seq;
+      len = 0;
+      skip = false;
+    }
+    if (ev.type == UART_DATA) {
+      int got = 0;
+      while ((got = uart_read_bytes(c->uart, c->chunk, sizeof(c->chunk), 0)) > 0) {
+        feed(c, c->chunk, got, &len, &skip, &seq);
+      }
+      if (c->mode == SYS_UART_MODE_RAW && ev.timeout_flag) {  // a pause in the line: a RAW message ends
+        deliver(c, len, &seq);
+        len = 0;
+      }
+    } else if (ev.type == UART_FIFO_OVF || ev.type == UART_BUFFER_FULL) {
+      (void)uart_flush_input(c->uart);
+      (void)xQueueReset(c->events);
+      len = 0;
+      skip = c->mode == SYS_UART_MODE_FRAMED;  // to the next 0x00
+      err_report(SYS_EVENT_PUBLISH_DEFER(UART_EV_OVERFLOW, c->id, 0, .dropped = 1));
+    }
+  }
+  xSemaphoreGive(c->exited);
+  vTaskDelete(NULL);
+}
+
+/* ----------------------------------------------------------------------------
+ * TX task: the queue's next frame onto the line
+ * ------------------------------------------------------------------------- */
+
+static void tx_task(void* arg) {
+  port_t* c = arg;
+  while (!c->stopping) {
+    const uint32_t len = sys_uart_txq_pop(&c->txq, portMAX_DELAY);
+    uint32_t pos = 0;
+    while (pos < len && !c->stopping) {
+      const int n = uart_tx_chars(c->uart, (const char*)(c->txq.line + pos), len - pos);
+      if (n > 0) {
+        pos += (uint32_t)n;
+      } else {
+        (void)uart_wait_tx_done(c->uart, MSEC(TX_SLICE_WAIT_MS));
+      }
+    }
+  }
+  xSemaphoreGive(c->exited);
+  vTaskDelete(NULL);
+}
+
+static err_h send(port_t* c, cmd_in_t frame, uint16_t wait_ms, uint8_t flags) {
+  ERR_CHECK(frame.len > 0 && frame.len <= CMD_FRAME_MAX && wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  const TickType_t wait = wait_ms == 0 ? 0 : MSEC(wait_ms);
+  ERR_CHECK(sys_uart_txq_push(&c->txq, frame, flags, wait), ERR_UART_BUSY, .port = c->id);
+  return NULL;
+}
 
 /* ----------------------------------------------------------------------------
  * Contract operations (CONTRACT_UART)
  * ------------------------------------------------------------------------- */
 
 OP_DECLARE_READ(CONTRACT_UART, OP_INFO) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  const sys_uart_info_t info = {
-      .mode = slot->mode,
-      .baud = slot->baud,
-      .parity = slot->parity,
-      .stop_bits = slot->stop_bits,
-  };
-  xSemaphoreGive(slot->lock);
+  const sys_uart_info_t info = {.mode = c->mode, .baud = c->baud, .parity = c->parity, .stop_bits = c->stop_bits};
   return cmd_reply(out, &info, sizeof(info));
 }
 
 OP_DECLARE_READ(CONTRACT_UART, OP_BAUD) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  const uint32_t baud = slot->baud;
-  xSemaphoreGive(slot->lock);
-  return cmd_reply(out, &baud, sizeof(baud));
+  return cmd_reply(out, &c->baud, sizeof(c->baud));
 }
 
 OP_DECLARE_WRITE(CONTRACT_UART, OP_BAUD) {
-  esp32s3_uart_slot_t* slot = c->slot;
   ERR_CHECK(*args >= SYS_UART_BAUD_MIN && *args <= SYS_UART_BAUD_MAX, ERR_UART_BAD_BAUD, .baud = *args);
-  (void)uart_wait_tx_done(slot->uart, MSEC(100));
-  ERR_TRY(ERR_ESP(uart_set_baudrate(slot->uart, *args)));
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  slot->baud = *args;
-  xSemaphoreGive(slot->lock);
+  (void)uart_wait_tx_done(c->uart, MSEC(100));
+  ERR_TRY(ERR_ESP(uart_set_baudrate(c->uart, *args)));
+  c->baud = *args;
   return NULL;
 }
 
+// Refused on a port a subscriber holds (but for it), and on a FRAMED one a hook holds: raw bytes would break frames.
 OP_DECLARE_WRITE_TAIL(CONTRACT_UART, OP_SEND) {
-  return esp32s3_uart_send(c->slot, sys_device_caller(), (cmd_in_t){tail, tail_len}, args->wait_ms, args->flags, false,
-                           NULL);
+  const bool held = c->owner != SYS_DEVICE_ID_NONE ? c->owner != sys_device_caller()
+                                                   : c->cb != NULL && c->mode == SYS_UART_MODE_FRAMED;
+  ERR_CHECK(!held, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
+  return send(c, (cmd_in_t){tail, tail_len}, args->wait_ms, args->flags);
 }
 
 OP_DECLARE_WRITE(CONTRACT_UART, OP_SEND_FRAME) {
-  return esp32s3_uart_send(c->slot, sys_device_caller(), args->frame, args->wait_ms, args->flags, true, args->token);
+  return send(c, args->frame, args->wait_ms, args->flags);
+}
+
+// RECEIVE (`tx` empty) and TRANSACT: the caller the port's reader for the call; TRANSACT flushes, sends, then reads.
+static err_h read_one(port_t* c, cmd_in_t tx, uint16_t wait_ms, cmd_out_t* out) {
+  ERR_CHECK(wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  const bool busy = has_reader(c);
+  if (!busy) {
+    c->reading = true;
+    if (tx.len > 0) {
+      flush_rx(c);
+    }
+  }
+  xSemaphoreGive(c->lock);
+  ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
+  const TickType_t start = xTaskGetTickCount();
+  const TickType_t total = MSEC(wait_ms);
+  err_h err = tx.len > 0 ? send(c, tx, wait_ms, 0) : NULL;
+  if (err == NULL) {
+    const TickType_t spent = xTaskGetTickCount() - start;
+    size_t len = 0;
+    void* item = xRingbufferReceive(c->rx_rb, &len, spent < total ? total - spent : 0);
+    if (item != NULL) {  // none came: an empty answer
+      err = cmd_reply(out, item, (uint32_t)len);
+      vRingbufferReturnItem(c->rx_rb, item);
+    }
+  }
+  c->reading = false;
+  return err;
 }
 
 OP_DECLARE_READ(CONTRACT_UART, OP_RECEIVE) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  ERR_CHECK(args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
-
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  uint8_t owner = SYS_DEVICE_ID_NONE;
-  if (esp32s3_uart_has_reader_locked(slot, &owner)) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-  }
-  slot->rx_reader_busy = true;
-  xSemaphoreGive(slot->lock);
-
-  const TickType_t wait = args->wait_ms == 0 ? 0 : MSEC(args->wait_ms);
-  const err_h err = esp32s3_uart_receive_one(slot, wait, out);
-
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  slot->rx_reader_busy = false;
-  xSemaphoreGive(slot->lock);
-  return err;
-}
-
-OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  uint8_t owner = SYS_DEVICE_ID_NONE;
-  if (esp32s3_uart_has_reader_locked(slot, &owner)) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-  }
-  esp32s3_uart_flush_rx_locked(slot);
-  xSemaphoreGive(slot->lock);
-  return NULL;
-}
-
-OP_DECLARE_WRITE(CONTRACT_UART, OP_SUBSCRIBE) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  const uint8_t caller = sys_device_caller();
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-
-  if (args->op == 0) {
-    if (slot->sub_id == SYS_DEVICE_ID_NONE) {
-      if (slot->hook.cb != NULL || slot->rx_reader_busy) {
-        xSemaphoreGive(slot->lock);
-        return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = SYS_DEVICE_ID_NONE);
-      }
-      xSemaphoreGive(slot->lock);
-      return NULL;
-    }
-    if (caller != slot->sub_id) {
-      const uint8_t owner = slot->sub_id;
-      xSemaphoreGive(slot->lock);
-      return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-    }
-    slot->sub_id = SYS_DEVICE_ID_NONE;
-    slot->sub_gen = 0;
-    slot->sub_op = 0;
-    xSemaphoreGive(slot->lock);
-    return NULL;
-  }
-
-  const uint8_t caller_gen = caller < SYS_DEVICE_COUNT ? sys_device_gen(caller) : 0u;
-  if (caller >= SYS_DEVICE_COUNT || caller_gen == 0u || (args->op >> 8) != SYS_DEVICE_CONTRACT_OWN) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_BAD_ARG);
-  }
-  uint8_t owner = SYS_DEVICE_ID_NONE;
-  if (esp32s3_uart_has_reader_locked(slot, &owner)) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-  }
-  slot->sub_id = caller;
-  slot->sub_gen = caller_gen;
-  slot->sub_op = args->op;
-  esp32s3_uart_drain_ring(slot->rx_rb);
-  xSemaphoreGive(slot->lock);
-  return NULL;
-}
-
-OP_DECLARE_WRITE(CONTRACT_UART, OP_RX_HOOK) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-
-  if (args->cb == NULL) {
-    if (slot->sub_id != SYS_DEVICE_ID_NONE) {
-      const uint8_t owner = slot->sub_id;
-      xSemaphoreGive(slot->lock);
-      return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-    }
-    if (slot->rx_reader_busy) {
-      xSemaphoreGive(slot->lock);
-      return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = SYS_DEVICE_ID_NONE);
-    }
-    if (slot->hook.cb != NULL) {
-      if (args->ctx != slot->hook.ctx) {
-        xSemaphoreGive(slot->lock);
-        return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = SYS_DEVICE_ID_NONE);
-      }
-      slot->hook = (esp32s3_uart_hook_t){0};
-      slot->hook_notify_up = false;
-    }
-    xSemaphoreGive(slot->lock);
-    return NULL;
-  }
-
-  uint8_t owner = SYS_DEVICE_ID_NONE;
-  if (esp32s3_uart_has_reader_locked(slot, &owner)) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
-  }
-  slot->hook = (esp32s3_uart_hook_t){.cb = args->cb, .ctx = args->ctx, .allow_send = args->allow_send};
-  slot->hook_notify_up = true;
-  esp32s3_uart_drain_ring(slot->rx_rb);
-  xSemaphoreGive(slot->lock);
-  esp32s3_uart_notify_rx_wakeup(slot);
-  return NULL;
+  return read_one(c, (cmd_in_t){0}, args->wait_ms, out);
 }
 
 OP_DECLARE_WRITE_TAIL(CONTRACT_UART, OP_TRANSACT) {
-  esp32s3_uart_slot_t* slot = c->slot;
-  ERR_CHECK(args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
-  ERR_CHECK(tail_len > 0 && tail_len <= CMD_FRAME_MAX, ERR_UART_BAD_ARG);
+  ERR_CHECK(tail_len > 0, ERR_UART_BAD_ARG);
+  return read_one(c, (cmd_in_t){tail, tail_len}, args->wait_ms, out);
+}
 
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  uint8_t owner = SYS_DEVICE_ID_NONE;
-  if (esp32s3_uart_has_reader_locked(slot, &owner)) {
-    xSemaphoreGive(slot->lock);
-    return ERR_NEW(ERR_UART_IN_USE, .port = c->id, .owner = owner);
+OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  const bool busy = has_reader(c);
+  if (!busy) {
+    flush_rx(c);
   }
-  slot->rx_reader_busy = true;
-  esp32s3_uart_flush_rx_locked(slot);
-  xSemaphoreGive(slot->lock);
+  xSemaphoreGive(c->lock);
+  ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
+  return NULL;
+}
 
-  const TickType_t start = xTaskGetTickCount();
-  const TickType_t total_ticks = args->wait_ms == 0 ? 0 : MSEC(args->wait_ms);
-  const TickType_t deadline = start + total_ticks;
-
-  err_h err = esp32s3_uart_send(slot, sys_device_caller(), (cmd_in_t){tail, tail_len}, args->wait_ms, 0u, false, NULL);
-  if (err == NULL) {
-    const TickType_t now = xTaskGetTickCount();
-    const TickType_t elapsed = now - start;
-    const TickType_t rem = elapsed >= total_ticks ? 0 : (deadline - now);
-    err = esp32s3_uart_receive_one(slot, rem, out);
+// The caller (a device, in its create()) the reader: each message to its own op. `op` 0: it lets go.
+OP_DECLARE_WRITE(CONTRACT_UART, OP_SUBSCRIBE) {
+  const uint8_t caller = sys_device_caller();
+  ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_UART_BAD_ARG);
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  const bool busy = args->op != 0 && has_reader(c);
+  if (args->op == 0 && c->owner == caller) {
+    c->owner = SYS_DEVICE_ID_NONE;
+  } else if (args->op != 0 && !busy) {
+    c->owner = caller;
+    c->owner_gen = sys_device_gen(caller);
+    c->owner_op = args->op;
+    flush_rx(c);
   }
+  xSemaphoreGive(c->lock);
+  ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
+  return NULL;
+}
 
-  xSemaphoreTake(slot->lock, portMAX_DELAY);
-  slot->rx_reader_busy = false;
-  xSemaphoreGive(slot->lock);
-  return err;
+// A C reader (a provider adapter). `cb` NULL: the hook with this `ctx` lets go.
+OP_DECLARE_WRITE(CONTRACT_UART, OP_RX_HOOK) {
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  const bool busy = args->cb != NULL && has_reader(c);
+  if (args->cb == NULL && c->cb_ctx == args->ctx) {
+    c->cb = NULL;
+  } else if (args->cb != NULL && !busy) {
+    c->cb = args->cb;
+    c->cb_ctx = args->ctx;
+    flush_rx(c);
+  }
+  xSemaphoreGive(c->lock);
+  ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
+  return NULL;
+}
+
+OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
+  (void)uart_wait_tx_done(c->uart, MSEC(100));
+  ERR_TRY(ERR_ESP(uart_set_baudrate(c->uart, c->init_baud)));
+  c->baud = c->init_baud;
+  sys_uart_txq_clear(&c->txq);
+  xSemaphoreTake(c->lock, portMAX_DELAY);
+  flush_rx(c);
+  xSemaphoreGive(c->lock);
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
- * Lifecycle (reset, suspend, resume, create, release)
+ * Create and release
  * ------------------------------------------------------------------------- */
 
-OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
-  return esp32s3_uart_slot_reset(c->slot);
-}
-
-static err_h suspend(esp_uart_dev_t* c) {
-  (void)c;
-  return NULL;  // SYS_UART_CONTRACT: port keeps running during safe state so link stays reachable
-}
-
-static err_h resume(esp_uart_dev_t* c) {
+// A port has no outputs to make safe: suspended (the safe state), it keeps carrying a session's frames.
+static err_h suspend(port_t* c) {
   (void)c;
   return NULL;
 }
 
-static err_h uart_release(void* arg) {
-  esp_uart_dev_t* c = arg;
-  esp32s3_uart_slot_release(c->slot);
-  c->slot = NULL;
+static err_h resume(port_t* c) {
+  (void)c;
+  return NULL;
+}
+
+// Its resource, also after a create() that failed half-way: the tasks end first, then the hook hears the port go.
+static err_h port_release(void* arg) {
+  port_t* c = arg;
+  c->stopping = true;
+  const uint32_t tasks = (c->rx_task != NULL) + (c->tx_task != NULL);
+  if (c->installed) {
+    (void)uart_set_hw_flow_ctrl(c->uart, UART_HW_FLOWCTRL_DISABLE, 0);
+    (void)uart_disable_rx_intr(c->uart);
+    const uart_event_t stop = {.type = UART_EVENT_MAX};
+    (void)xQueueSendToFront(c->events, &stop, MSEC(100));
+  }
+  if (c->tx_task != NULL) {
+    xTaskNotifyGive(c->tx_task);
+  }
+  for (uint32_t i = 0; i < tasks; i++) {
+    (void)xSemaphoreTake(c->exited, portMAX_DELAY);
+  }
+  if (c->cb != NULL) {
+    c->cb(c->cb_ctx, NULL, 0);
+  }
+  if (c->installed) {
+    (void)uart_driver_delete(c->uart);
+  }
+  sys_uart_txq_free(&c->txq);
+  if (c->rx_rb != NULL) {
+    vRingbufferDelete(c->rx_rb);
+  }
+  if (c->exited != NULL) {
+    vSemaphoreDelete(c->exited);
+  }
+  if (c->lock != NULL) {
+    vSemaphoreDelete(c->lock);
+  }
   return NULL;
 }
 
 static err_h validate_cfg(uint8_t id, const esp32s3_uart_cfg_t* cfg) {
   ERR_CHECK(cfg->uart_num < SOC_UART_NUM, ERR_DEV_RANGE, .id = id, .value = cfg->uart_num, .min = 0,
             .max = SOC_UART_NUM - 1);
-  ERR_CHECK(cfg->mode <= SYS_UART_MODE_RAW_LINE, ERR_UART_BAD_ARG);
+  ERR_CHECK(cfg->mode <= SYS_UART_MODE_RAW_LINE && cfg->parity <= SYS_UART_PARITY_ODD &&
+                (cfg->stop_bits == 1u || cfg->stop_bits == 2u) &&
+                (sys_io_pin_valid(cfg->pins[0]) || sys_io_pin_valid(cfg->pins[1])),
+            ERR_UART_BAD_ARG);
   ERR_CHECK(cfg->baud >= SYS_UART_BAUD_MIN && cfg->baud <= SYS_UART_BAUD_MAX, ERR_UART_BAD_BAUD, .baud = cfg->baud);
-  ERR_CHECK(cfg->parity <= SYS_UART_PARITY_ODD, ERR_DEV_RANGE, .id = id, .value = cfg->parity, .min = 0,
-            .max = SYS_UART_PARITY_ODD);
-  ERR_CHECK(cfg->stop_bits == 1u || cfg->stop_bits == 2u, ERR_DEV_RANGE, .id = id, .value = cfg->stop_bits, .min = 1,
-            .max = 2);
-  ERR_CHECK(sys_io_pin_valid(cfg->tx) || sys_io_pin_valid(cfg->rx), ERR_UART_BAD_ARG);
-  if (sys_io_pin_valid(cfg->tx)) {
-    ERR_CHECK(GPIO_IS_VALID_OUTPUT_GPIO(cfg->tx.pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->tx.pin);
+  for (uint32_t i = 0; i < PIN_COUNT; i++) {
+    const bool output = i == 0 || i == 2;  // tx, rts
+    const sys_io_pin_t p = cfg->pins[i];
+    ERR_CHECK(!sys_io_pin_valid(p) || (output ? GPIO_IS_VALID_OUTPUT_GPIO(p.pin) : GPIO_IS_VALID_GPIO(p.pin)),
+              ERR_DEV_BAD_PIN, .id = id, .pin = p.pin);
   }
-  if (sys_io_pin_valid(cfg->rx)) {
-    ERR_CHECK(GPIO_IS_VALID_GPIO(cfg->rx.pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->rx.pin);
-  }
-  if (sys_io_pin_valid(cfg->rts)) {
-    ERR_CHECK(GPIO_IS_VALID_OUTPUT_GPIO(cfg->rts.pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->rts.pin);
-  }
-  if (sys_io_pin_valid(cfg->cts)) {
-    ERR_CHECK(GPIO_IS_VALID_GPIO(cfg->cts.pin), ERR_DEV_BAD_PIN, .id = id, .pin = cfg->cts.pin);
-  }
+  ERR_CHECK(!uart_is_driver_installed(cfg->uart_num), ERR_UART_IN_USE, .port = id, .owner = SYS_DEVICE_ID_NONE);
   return NULL;
 }
 
-static err_h create(uint8_t id, esp_uart_dev_t* c, const esp32s3_uart_cfg_t* cfg) {
-  c->id = id;
+static int gpio_of(sys_io_pin_t p) {
+  return sys_io_pin_valid(p) ? (int)p.pin : UART_PIN_NO_CHANGE;
+}
+
+static err_h create(uint8_t id, port_t* c, const esp32s3_uart_cfg_t* cfg) {
   ERR_TRY(validate_cfg(id, cfg));
-
-  ERR_TRY(sys_io_claim_peripheral(id, &c->tx, cfg->tx));
-  ERR_TRY(sys_io_claim_peripheral(id, &c->rx, cfg->rx));
-  ERR_TRY(sys_io_claim_peripheral(id, &c->rts, cfg->rts));
-  ERR_TRY(sys_io_claim_peripheral(id, &c->cts, cfg->cts));
-
-  esp32s3_uart_slot_t* slot = NULL;
-  ERR_TRY(esp32s3_uart_slot_claim(id, cfg->uart_num, &slot));
-  c->slot = slot;
-
-  const err_h res_err = sys_device_res_add(id, &c->uart_res, uart_release, c);
-  if (res_err != NULL) {
-    esp32s3_uart_slot_release(slot);
-    c->slot = NULL;
-    return res_err;
+  for (uint32_t i = 0; i < PIN_COUNT; i++) {
+    ERR_TRY(sys_io_claim_peripheral(id, &c->pins[i], cfg->pins[i]));  // the registry's resources: c stays where it is
   }
-  return esp32s3_uart_slot_open(slot, cfg);
+  c->id = id;
+  c->uart = (uart_port_t)cfg->uart_num;
+  c->mode = cfg->mode;
+  c->parity = cfg->parity;
+  c->stop_bits = cfg->stop_bits;
+  c->baud = cfg->baud;
+  c->init_baud = cfg->baud;
+  c->owner = SYS_DEVICE_ID_NONE;
+  ERR_TRY(sys_device_res_add(id, &c->res, port_release, c));  // from here on, a failure releases what was made
+  c->lock = xSemaphoreCreateMutex();
+  c->exited = xSemaphoreCreateCounting(2, 0);
+  c->rx_rb = xRingbufferCreate(CONFIG_ESP32S3_UART_RX_QUEUE, RINGBUF_TYPE_NOSPLIT);
+  const bool made = sys_uart_txq_init(&c->txq, CONFIG_ESP32S3_UART_TX_QUEUE, cfg->mode == SYS_UART_MODE_FRAMED);
+  ERR_CHECK(made && c->lock != NULL && c->exited != NULL && c->rx_rb != NULL, ERR_DEV_NO_MEM, .id = id,
+            .size = CONFIG_ESP32S3_UART_TX_QUEUE + CONFIG_ESP32S3_UART_RX_QUEUE);
+
+#if CONFIG_UART_ISR_IN_IRAM
+  const int intr = ESP_INTR_FLAG_IRAM;
+#else
+  const int intr = 0;
+#endif
+  esp_err_t rc = uart_driver_install(c->uart, CONFIG_ESP32S3_UART_ISR_RX_BUF, 0, CONFIG_ESP32S3_UART_EVT_QUEUE_LEN,
+                                     &c->events, intr);
+  c->installed = rc == ESP_OK;
+  const uart_config_t ucfg = {
+      .baud_rate = (int)cfg->baud,
+      .data_bits = UART_DATA_8_BITS,
+      .parity = cfg->parity == SYS_UART_PARITY_EVEN  ? UART_PARITY_EVEN
+                : cfg->parity == SYS_UART_PARITY_ODD ? UART_PARITY_ODD
+                                                     : UART_PARITY_DISABLE,
+      .stop_bits = cfg->stop_bits == 2u ? UART_STOP_BITS_2 : UART_STOP_BITS_1,
+      .flow_ctrl = (uart_hw_flowcontrol_t)((sys_io_pin_valid(cfg->pins[2]) ? UART_HW_FLOWCTRL_RTS : 0) |
+                                           (sys_io_pin_valid(cfg->pins[3]) ? UART_HW_FLOWCTRL_CTS : 0)),
+      .rx_flow_ctrl_thresh = RX_FLOW_THRESH,
+      .source_clk = UART_SCLK_DEFAULT,
+  };
+  rc = rc == ESP_OK ? uart_param_config(c->uart, &ucfg) : rc;
+  rc = rc == ESP_OK ? uart_set_pin(c->uart, gpio_of(cfg->pins[0]), gpio_of(cfg->pins[1]), gpio_of(cfg->pins[2]),
+                                   gpio_of(cfg->pins[3]))
+                    : rc;
+  rc = rc == ESP_OK ? uart_set_rx_timeout(c->uart, RX_TIMEOUT_SYMS) : rc;
+  ERR_CHECK(rc == ESP_OK, ERR_UART_INIT, .port = id);
+  (void)uart_set_always_rx_timeout(c->uart, true);
+
+  (void)xTaskCreate(rx_task, "uart_rx", CONFIG_ESP32S3_UART_RX_TASK_STACK, c, CONFIG_ESP32S3_UART_RX_TASK_PRIO,
+                    &c->rx_task);
+  (void)xTaskCreate(tx_task, "uart_tx", CONFIG_ESP32S3_UART_TX_TASK_STACK, c, CONFIG_ESP32S3_UART_TX_TASK_PRIO,
+                    &c->tx_task);
+  c->txq.task = c->tx_task;
+  ERR_CHECK(c->rx_task != NULL && c->tx_task != NULL, ERR_DEV_NO_MEM, .id = id,
+            .size = CONFIG_ESP32S3_UART_RX_TASK_STACK + CONFIG_ESP32S3_UART_TX_TASK_STACK);
+  return NULL;
 }
 
 /* ----------------------------------------------------------------------------
@@ -300,16 +479,11 @@ static err_h create(uint8_t id, esp_uart_dev_t* c, const esp32s3_uart_cfg_t* cfg
  * ------------------------------------------------------------------------- */
 
 static const sys_device_op_t k_ops[] = {
-    OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
-    OP_ENTRY_R(CONTRACT_UART, OP_INFO),
-    OP_ENTRY(CONTRACT_UART, OP_BAUD),
-    OP_ENTRY_W(CONTRACT_UART, OP_SEND),
-    OP_ENTRY_R(CONTRACT_UART, OP_RECEIVE),
-    OP_ENTRY_W(CONTRACT_UART, OP_FLUSH),
-    OP_ENTRY_W(CONTRACT_UART, OP_SUBSCRIBE),
-    OP_ENTRY_W(CONTRACT_UART, OP_TRANSACT),
-    OP_ENTRY_W(CONTRACT_UART, OP_SEND_FRAME),
-    OP_ENTRY_W(CONTRACT_UART, OP_RX_HOOK),
+    OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),  OP_ENTRY_R(CONTRACT_UART, OP_INFO),
+    OP_ENTRY(CONTRACT_UART, OP_BAUD),           OP_ENTRY_W(CONTRACT_UART, OP_SEND),
+    OP_ENTRY_R(CONTRACT_UART, OP_RECEIVE),      OP_ENTRY_W(CONTRACT_UART, OP_FLUSH),
+    OP_ENTRY_W(CONTRACT_UART, OP_SUBSCRIBE),    OP_ENTRY_W(CONTRACT_UART, OP_TRANSACT),
+    OP_ENTRY_W(CONTRACT_UART, OP_SEND_FRAME),   OP_ENTRY_W(CONTRACT_UART, OP_RX_HOOK),
 };
 
 SYS_DEVICE_TYPE_DEFINE(ESP32S3_UART, esp32s3_uart_cfg_t, create, suspend, resume, k_ops)

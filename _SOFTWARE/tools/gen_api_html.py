@@ -70,24 +70,39 @@ def rows(cmds, opfmt):
 
 THEAD = "<thead><tr><th>OP</th><th>Nazwa</th><th>R/W</th><th>Do czego</th><th>Read</th><th>Write</th></tr></thead>"
 
+
+def events_html(evs, mod_id):
+    if not evs:
+        return ""
+    evs = [dict(e, event=e.get("event", i)) for i, e in enumerate(evs, 1)]
+    r = "".join(
+        f'<tr><td class="op">0x{e.get("code", (mod_id << 16) | e["event"]):08X}</td><td><b>{E(e["id"])}</b></td>'
+        f'<td><b>{E(e.get("label", ""))}</b><div>{E(e.get("description", ""))}</div></td></tr>'
+        for e in sorted(evs, key=lambda e: e["event"])
+    )
+    return f'<h4>Zdarzenia</h4><table class="ev"><thead><tr><th>Event tag</th><th>Nazwa</th><th>Opis</th></tr></thead><tbody>{r}</tbody></table>'
+
+
 nav, sec = [], []
 
 # ---- Routers
 services = sorted((load(p) for p in glob.glob(os.path.join(GEN, "services", "*.json"))), key=lambda d: d["router_key"])
 dev_contract = load(os.path.join(GEN, "contracts", "contract_device.json"))
+dev_key = dev_contract["router_key"]
+dev_cid = dev_contract["contract_id"]
 nav.append('<div class="nh">Routery (root key)</div>')
-router_list = services + [{"_device": True, "router_key": 5}]
+router_list = services + [{"_device": True, "router_key": dev_key}]
 router_list.sort(key=lambda d: d["router_key"])
 for d in router_list:
     if d.get("_device"):
         aid = "r-DEVICE"
-        nav.append(f'<a href="#{aid}"><span class="k">0x05</span> DEVICE</a>')
+        nav.append(f'<a href="#{aid}"><span class="k">0x{dev_key:02X}</span> DEVICE</a>')
         sec.append(
-            f'<section id="{aid}" class="card"><h3><span class="k">0x05</span> DEVICE — Devices</h3>'
-            '<p>Ramka: <code>[0x05][dir][id u16][op u16][args]</code>. <code>op</code> = <code>(contract &lt;&lt; 8) | n</code>; '
+            f'<section id="{aid}" class="card"><h3><span class="k">0x{dev_key:02X}</span> DEVICE — Devices</h3>'
+            f'<p>Ramka: <code>[0x{dev_key:02X}][dir][id u8][op u16][args]</code>. <code>op</code> = <code>(contract &lt;&lt; 8) | n</code>; '
             'operacje kontraktów i urządzeń są w sekcji <a href="#contracts">Kontrakty</a> i <a href="#devices">Urządzenia</a>. '
-            'Poniżej kontrakt DEVICE (0x00xx), który ma każde urządzenie. <code>id = 0xFFFF</code> — wszystkie urządzenia (sweep).</p>'
-            f'<table>{THEAD}<tbody>{rows(dev_contract["commands"], lambda o: f"0x{o:04X}")}</tbody></table></section>'
+            f'Poniżej kontrakt DEVICE (0x{dev_cid:02X}nn), który ma każde urządzenie.</p>'
+            f'<table>{THEAD}<tbody>{rows(dev_contract["commands"], lambda o, b=dev_cid << 8: f"0x{(b | o):04X}")}</tbody></table></section>'
         )
         continue
     k = d["router_key"]
@@ -96,7 +111,8 @@ for d in router_list:
     sec.append(
         f'<section id="{aid}" class="card"><h3><span class="k">0x{k:02X}</span> {E(d["id"])} — {E(d.get("alias", ""))}</h3>'
         f'<p>{E(d.get("description", ""))}</p><p class="sub">Ramka: <code>[0x{k:02X}][dir][op u8][args]</code></p>'
-        f'<table>{THEAD}<tbody>{rows(d["commands"], lambda o: f"0x{o:02X}")}</tbody></table></section>'
+        f'<table>{THEAD}<tbody>{rows(d["commands"], lambda o: f"0x{o:02X}")}</tbody></table>'
+        f'{events_html(d.get("events"), k)}</section>'
     )
 
 router_html = "".join(sec)
@@ -113,18 +129,6 @@ for dv in devices:
         used_by.setdefault(c, []).append(dv["alias"])
 
 
-def events_html(evs, base):
-    if not evs:
-        return ""
-    evs = [dict(e, event=e.get("event", i)) for i, e in enumerate(evs)]
-    r = "".join(
-        f'<tr><td class="op">0x{(base | e["event"]):04X}</td><td><b>{E(e["id"])}</b></td>'
-        f'<td><b>{E(e.get("label", ""))}</b><div>{E(e.get("description", ""))}</div></td></tr>'
-        for e in sorted(evs, key=lambda e: e["event"])
-    )
-    return f'<h4>Zdarzenia</h4><table class="ev"><thead><tr><th>Event ID</th><th>Nazwa</th><th>Opis</th></tr></thead><tbody>{r}</tbody></table>'
-
-
 nav.append('<div class="nh" id="contracts-nav">Kontrakty urządzeń</div>')
 all_c = [dev_contract] + contracts
 for c in all_c:
@@ -137,7 +141,7 @@ for c in all_c:
         f'<section id="{aid}" class="card"><h3><span class="k">0x{cid:02X}</span> {E(c["id"])} — {E(c.get("alias", ""))}</h3>'
         f'<p>{E(c.get("description", ""))}</p><p class="sub">op = <code>0x{cid:02X}nn</code> · implementują: {E(who or "—")}</p>'
         f'<table>{THEAD}<tbody>{rows(c["commands"], lambda o, b=base: f"0x{(b | o):04X}")}</tbody></table>'
-        f'{events_html(c.get("events"), base)}</section>'
+        f'{events_html(c.get("events"), cid)}</section>'
     )
 contract_html = "".join(sec)
 sec = []
@@ -154,7 +158,7 @@ for dv in devices:
     sec.append(
         f'<section id="{aid}" class="card"><h3><span class="k">type {dv["type_id"]}</span> {E(dv["alias"])} <code>{E(dv["id"])}</code></h3>'
         f'<p>{E(dv.get("description", ""))}</p><p>Kontrakty: {cs}</p>{tbl}'
-        f'{events_html(dv.get("events"), 0xFF00)}</section>'
+        f'{events_html(dv.get("events"), 0x8000 | dv["type_id"])}</section>'
     )
 device_html = "".join(sec)
 
@@ -184,15 +188,15 @@ td.na{{color:var(--mut)}}.sub{{color:var(--mut);font-size:12px}}.io{{margin-top:
 #q{{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}}
 .frame td,.frame th{{font-size:13px}}
 @media (max-width:800px){{.wrap{{grid-template-columns:1fr}}nav{{position:static;height:auto;max-height:40vh}}main{{padding:16px}}}}
-</style></head><body><div class="wrap"><nav><input id="q" placeholder="Szukaj (np. SCAN, 0x0A, servo)…">{"".join(nav)}</nav><main>
+</style></head><body><div class="wrap"><nav><input id="q" placeholder="Szukaj (np. SCAN, 0x20, GPIO)…">{"".join(nav)}</nav><main>
 <h1>runIT — API: opcode'y routerów i urządzeń</h1>
-<p class="sub">Wygenerowane z <code>runit-app/generated/</code> (contract_*.json, device_*.json); opy tylko lokalne (np. DISPLAY FLUSH) nie są komendami i ich tu nie ma. Odświeżenie: <code>python tools/gen_api_html.py</code>. Routery: {n_router} operacji · kontrakty: {n_c} · operacje własne urządzeń: {n_d}.</p>
+<p class="sub">Wygenerowane z <code>runit-app/generated/</code> (contract_*.json, device_*.json); opy tylko lokalne nie są komendami i ich tu nie ma. Odświeżenie: <code>python tools/gen_api_html.py</code>. Routery: {n_router} operacji · kontrakty: {n_c} · operacje własne urządzeń: {n_d}.</p>
 <div class="card"><h3>Format ramek</h3><table class="frame"><thead><tr><th>Cel</th><th>Ramka (po nagłówku sesji, little-endian, packed)</th></tr></thead><tbody>
 <tr><td>Router modułu</td><td><code>[router_key u8][dir u8][op u8][args…]</code></td></tr>
-<tr><td>Urządzenie</td><td><code>[0x05][dir u8][device id u16][op u16][args…]</code> — op = <code>(contract &lt;&lt; 8) | n</code>, własne urządzenia: <code>0xFFnn</code></td></tr>
+<tr><td>Urządzenie</td><td><code>[0x{dev_key:02X}][dir u8][id u8][op u16][args…]</code> — op = <code>(contract &lt;&lt; 8) | n</code>, własne urządzenia: <code>0xFFnn</code></td></tr>
 <tr><td>dir</td><td><span class="b R">R</span> <code>CMD_DIR_READ = 0</code> — pyta o wartość · <span class="b W">W</span> <code>CMD_DIR_WRITE = 1</code> — ustawia / wykonuje akcję</td></tr>
-<tr><td>Zdarzenia</td><td><code>[0x07][NOTIFY 0x01][sys_event_t]</code> na strumieniu events (bez komend); event ID = <code>(contract &lt;&lt; 8) | n</code></td></tr>
-</tbody></table><p class="sub">Klucze wolne: 0x09 (nigdy nie przydzielać). Log: op 0x02 nieużywany.</p></div>
+<tr><td>Zdarzenia</td><td><code>[0x06][sys_event_t]</code> (PUSH na strumieniu <code>SYS_STREAM_EVENTS = 0x06</code>); tag = <code>(module &lt;&lt; 16) | n</code> (<code>0x8000 | type_id</code> dla własnych urządzeń)</td></tr>
+</tbody></table><p class="sub">Klucze routerów = numery modułów <code>MODULE_ID_*</code> (<code>module_id.h</code>). Kontrakt <code>DEVICE</code> ma <code>0x{dev_key:02X}</code> (op <code>0x07</code> zarezerwowany).</p></div>
 <h2 id="routers">Routery</h2>{router_html}
 <h2 id="contracts">Kontrakty urządzeń</h2>{contract_html}
 <h2 id="devices">Urządzenia</h2>{device_html}

@@ -16,7 +16,7 @@ Inside `sys_device/`:
 
 | File | Role |
 |---|---|
-| `sys_device.h` | For every caller: IDs, ops and contracts, the calls, the sweep |
+| `sys_device.h` | For every caller: IDs, ops and contracts, the calls, `sys_device_create_system` (CREATE of the board's own device: it builds the frame), the sweep |
 | `sys_device_driver.h` | For a driver: the type's ID and definition, the op table and handler macros, own ops, resources, uses, the caller, the generation, a step and an event delivery |
 | `sys_device_hooks.h` | For the app's wiring: the routed call, interceptors, the remote hook |
 | `slots/` | Private: the table of devices (a lock, flags, resources and use masks per ID) |
@@ -240,7 +240,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 
 - **Interceptor** (`sys_device_set_interceptor(contract, fn, done)`, boot only, one per contract): two stages, both without any lock of the registry; both may call other devices (an ordinary nested call). `fn` sees every call of a contract's ops before the device: it refuses the call or writes the payload the device gets (at most 32 B). `done` (optional) is told how every call `fn` let through ended: the payload the device got and the call's error, NULL when the op worked. What the interceptor decides on is shared by all devices and tasks (a budget), so `fn` decides and takes under a lock of its own module, and `done` gives back what a failed call did not use.
 - **Routed call** (`sys_device_call_routed`): the call a command makes; LOCAL ops are refused on every device.
-- **Remote device**: CREATE_REMOTE keeps the type and where the device is (`sys_device_remote_t`: board, ID there, WIRED or WIRELESS). Its ops are checked here against the type and sent through the remote hook (`sys_device_set_remote`) after the lock is let go.
+- **Remote device**: CREATE_REMOTE keeps the type and where the device is (`sys_device_remote_t`: board, ID there, WIRED or WIRELESS). Its ops are checked here against the type and sent through the remote hook (`sys_device_set_remote`) after the lock is let go. `sys_device_find_remote(board, remote_id)` gives the local ID of the remote device that names a device of a board, `sys_device_remote_of(id, &where)` where a remote device is (both a snapshot, no lock): what `sys_remote` follows the registry with.
 
 ## Limits
 

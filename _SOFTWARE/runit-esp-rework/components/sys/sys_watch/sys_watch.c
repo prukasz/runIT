@@ -3,12 +3,8 @@
 #include <string.h>
 
 #include "board_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "router.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
-#include "sys_event.h"
 #include "sys_session.h"
 #include "sys_watch_internal.h"
 #include "utils.h"
@@ -16,60 +12,35 @@
 MODULE_ID_DEFINE(WATCH, 0x2B)
 ERR_MODULE_DEFINE(ERR_MOD_SYS_WATCH, "sys_watch", ERR_SYS_WATCH_MAP)
 
-#define ERR_RECORD_MAX 160u
-#define ENTRY_HEAD_LEN 3u  // [SYS_SESSION_CHANNEL_WATCHES][id][status]
+#define ENTRY_HEAD 3u  // [SYS_WATCH_CHANNEL][id][status]
 
 typedef struct {
   bool used;
-  bool busy;        // read injected on router queue, awaiting watch_done
-  bool pending;     // ON_EVENT: matching event waits for minimum period gap
-  bool have_crc;    // ON_CHANGE: valid CRC-32 kept from last sent OK entry
-  bool err_sent;    // last entry sent was an error (deduplicates repeated errors)
-  bool subscribed;  // active sys_event subscription
+  bool busy;        // its read is on the router's queue
+  bool pending;     // ON_EVENT: an event came, its read has not run yet
+  bool have_crc;    // ON_CHANGE: `crc` is of the last OK entry sent
+  bool err_sent;    // the last entry sent was an error: the next ones are not sent until an OK goes
+  bool subscribed;  // ON_EVENT: `ev_handle` is its subscription
   uint8_t owner;
   uint8_t read_len;
+  uint8_t gen;          // changes when the slot is taken again: a read of the watch before is dropped
   uint16_t ev_handle;
-  uint16_t gen;         // bumped on slot reuse/removal so late callbacks are dropped
-  uint16_t since_read;  // ticks since last read injection
-  uint16_t since_sent;  // ticks since last entry left for transport
-  uint32_t crc;         // CRC-32 of last sent OK data (ON_CHANGE)
+  uint16_t since_read;  // ticks since its last read started
+  uint16_t since_sent;  // ticks since its last entry went
+  uint32_t crc;
   sys_watch_head_t head;
   uint8_t read[SYS_WATCH_READ_MAX];
 } watch_t;
 
+/* The watches. Held over a push and a router_inject (neither blocks nor calls back here), never over sys_event. */
+U_MUTEX_DEFINE(sys_watch_mutex);
+
 static struct {
   watch_t watches[CONFIG_SYS_WATCH_MAX];
-  uint8_t count;
   board_timer_t timer;
 } s_watch;
 
-static StaticSemaphore_t s_lock_buf;
-static SemaphoreHandle_t s_lock;
-
-__attribute__((constructor)) static void watch_lock_init(void) {
-  if (s_lock == NULL) {
-    s_lock = xSemaphoreCreateMutexStatic(&s_lock_buf);
-  }
-}
-
-static void lock(void) {
-  watch_lock_init();
-  xSemaphoreTake(s_lock, portMAX_DELAY);
-}
-
-static void unlock(void) {
-  xSemaphoreGive(s_lock);
-}
-
-static void* pack_ctx(uint8_t slot, uint16_t gen) {
-  return (void*)((uintptr_t)slot | ((uintptr_t)gen << 8));
-}
-
-static void unpack_ctx(void* ctx, uint8_t* slot, uint16_t* gen) {
-  const uintptr_t v = (uintptr_t)ctx;
-  *slot = (uint8_t)(v & 0xFFu);
-  *gen = (uint16_t)((v >> 8) & 0xFFFFu);
-}
+#define FOR_EACH_WATCH(w) for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++)
 
 static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
   uint32_t crc = 0xFFFFFFFFu;
@@ -83,392 +54,189 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
   return ~crc;
 }
 
-static void tick_inc(uint16_t* v) {
-  if (*v < UINT16_MAX) {
-    (*v)++;
+/* ----------------------------------------------------------------------------
+ * A read's answer (the router's task): the entry to the owner, [SYS_WATCH_CHANNEL][id][status][data]
+ * ------------------------------------------------------------------------- */
+
+static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
+  (void)cmd;
+  if (ENTRY_HEAD + len > CMD_DATA_MAX) {
+    return ERR_NEW(ERR_CMD_OUT_FULL, .need = (uint16_t)(ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
   }
-}
-
-static err_h push_entry(uint8_t owner, uint8_t id, uint8_t status, const uint8_t* data, uint32_t len) {
-  ERR_CHECK(ENTRY_HEAD_LEN + len <= CMD_DATA_MAX, ERR_CMD_OUT_FULL,
-            .need = (uint16_t)(ENTRY_HEAD_LEN + len), .cap = (uint16_t)CMD_DATA_MAX);
-  uint8_t frame[CMD_DATA_MAX];
-  frame[0] = SYS_SESSION_CHANNEL_WATCHES;
-  frame[1] = id;
-  frame[2] = status;
-  if (len > 0u) {
-    memcpy(frame + ENTRY_HEAD_LEN, data, len);
-  }
-  return sys_session_push(owner, frame, ENTRY_HEAD_LEN + len, 0);
-}
-
-static void mark_err_sent(uint8_t slot, uint16_t gen) {
-  lock();
-  watch_t* w = &s_watch.watches[slot];
-  if (w->used && w->gen == gen) {
-    w->err_sent = true;
-    w->have_crc = false;
-    w->since_sent = 0;
-  }
-  unlock();
-}
-
-static void send_err_record(uint8_t slot, uint16_t gen, uint8_t owner, uint8_t id, const cmd_req_t* cmd, err_h err) {
-  uint8_t frame[ENTRY_HEAD_LEN + ERR_RECORD_MAX];
-  frame[0] = SYS_SESSION_CHANNEL_WATCHES;
-  frame[1] = id;
-  frame[2] = ROUTER_STATUS_ERROR;
-  const uint32_t rlen = cmd_err_record(cmd, err, frame + ENTRY_HEAD_LEN, ERR_RECORD_MAX);
-  err_h perr = sys_session_push(owner, frame, ENTRY_HEAD_LEN + rlen, 0);
-  if (perr == NULL) {
-    mark_err_sent(slot, gen);
-  } else {
-    err_free(perr);
-  }
-}
-
-static err_h watch_done(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
-  uint8_t slot = 0;
-  uint16_t gen = 0;
-  unpack_ctx(ctx, &slot, &gen);
-  if (slot >= CONFIG_SYS_WATCH_MAX) {
-    return NULL;
-  }
-
-  lock();
-  watch_t* w = &s_watch.watches[slot];
-  if (!w->used || w->gen != gen) {
-    unlock();
-    return NULL;
-  }
-  w->busy = false;
-  const uint8_t owner = w->owner;
-  const uint8_t id = w->head.id;
-  const uint8_t trigger = w->head.trigger;
-  const uint16_t max_silence = w->head.max_silence;
-  const uint16_t since_sent = w->since_sent;
-  const uint32_t prev_crc = w->crc;
-  const bool have_crc = w->have_crc;
-  const bool err_sent = w->err_sent;
-  unlock();
-
-  if (status == ROUTER_STATUS_OK) {
-    if (ENTRY_HEAD_LEN + len > CMD_DATA_MAX) {
-      if (!err_sent) {
-        err_h oob = ERR_NEW(ERR_CMD_OUT_FULL, .need = (uint16_t)(ENTRY_HEAD_LEN + len), .cap = (uint16_t)CMD_DATA_MAX);
-        send_err_record(slot, gen, owner, id, cmd, oob);
-        err_free(oob);
-      }
-      return NULL;
-    }
-
-    const uint32_t crc = (trigger == SYS_WATCH_ON_CHANGE) ? crc32_le(data, len) : 0u;
-    const bool silent = max_silence != 0u && since_sent >= max_silence;
-    const bool send = (trigger != SYS_WATCH_ON_CHANGE) || !have_crc || err_sent || crc != prev_crc || silent;
-    if (!send) {
-      return NULL;
-    }
-
-    err_h perr = push_entry(owner, id, ROUTER_STATUS_OK, data, len);
-    if (perr == NULL) {
-      lock();
-      if (w->used && w->gen == gen) {
-        w->err_sent = false;
+  watch_t* w = &s_watch.watches[(uintptr_t)ctx & 0xFFu];
+  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  if (w->used && w->gen == (uint8_t)((uintptr_t)ctx >> 8)) {
+    w->busy = false;
+    const bool ok = status == ROUTER_STATUS_OK;
+    const bool on_change = w->head.trigger == SYS_WATCH_ON_CHANGE;
+    const uint32_t crc = (ok && on_change) ? crc32_le(data, len) : 0u;
+    const bool silent = w->head.max_silence != 0u && w->since_sent >= w->head.max_silence;
+    const bool send = ok ? (!on_change || !w->have_crc || crc != w->crc || silent) : !w->err_sent;
+    if (send) {
+      uint8_t entry[ENTRY_HEAD + len];
+      entry[0] = SYS_WATCH_CHANNEL;
+      entry[1] = w->head.id;
+      entry[2] = status;
+      memcpy(entry + ENTRY_HEAD, data, len);
+      err_h err = sys_session_push(w->owner, (cmd_in_t){entry, sizeof(entry)}, 0);
+      if (err == NULL) {  // one that did not go is sent by the next read
+        w->err_sent = !ok;
+        w->have_crc = ok && on_change;
+        w->crc = crc;
         w->since_sent = 0;
-        if (trigger == SYS_WATCH_ON_CHANGE) {
-          w->crc = crc;
-          w->have_crc = true;
-        }
       }
-      unlock();
-    } else {
-      err_free(perr);
-    }
-    return NULL;
-  }
-
-  if (!err_sent) {
-    err_h perr = push_entry(owner, id, status, data, len);
-    if (perr == NULL) {
-      mark_err_sent(slot, gen);
-    } else {
-      err_free(perr);
+      err_free(err);
     }
   }
+  xSemaphoreGive(sys_watch_mutex);
   return NULL;
 }
 
-static void start_if_due(uint8_t slot) {
-  uint8_t req[SYS_WATCH_READ_MAX];
-  uint8_t req_len = 0;
-  uint8_t owner = 0;
-  uint8_t id = 0;
-  uint16_t gen = 0;
-  bool err_sent = false;
+/* ----------------------------------------------------------------------------
+ * The tick (the board timers' task) and the events (sys_event's task)
+ * ------------------------------------------------------------------------- */
 
-  lock();
-  watch_t* w = &s_watch.watches[slot];
-  const bool event = w->head.trigger == SYS_WATCH_ON_EVENT;
-  const bool due = w->used && !w->busy && w->since_read >= w->head.period && (!event || w->pending);
-  if (due) {
-    w->busy = true;
-    w->pending = false;
-    w->since_read = 0;
-    req_len = w->read_len;
-    gen = w->gen;
-    owner = w->owner;
-    id = w->head.id;
-    err_sent = w->err_sent;
-    memcpy(req, w->read, req_len);
-  }
-  unlock();
-
-  if (!due) {
-    return;
-  }
-
-  err_h err = router_inject((cmd_in_t){req, req_len}, 0, watch_done, pack_ctx(slot, gen));
-  if (err != NULL) {
-    lock();
-    if (w->used && w->gen == gen) {
-      w->busy = false;
+static void on_tick(void* arg) {
+  (void)arg;
+  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  FOR_EACH_WATCH(w) {
+    if (!w->used) {
+      continue;
     }
-    unlock();
-    if (!err_sent) {
-      const cmd_req_t cmd = {.req = req, .req_len = req_len, .src = owner};
-      send_err_record(slot, gen, owner, id, &cmd, err);
+    w->since_read = w->since_read < UINT16_MAX ? (uint16_t)(w->since_read + 1u) : UINT16_MAX;
+    w->since_sent = w->since_sent < UINT16_MAX ? (uint16_t)(w->since_sent + 1u) : UINT16_MAX;
+    const bool wanted = w->head.trigger != SYS_WATCH_ON_EVENT || w->pending;
+    if (w->busy || !wanted || w->since_read < w->head.period) {
+      continue;
+    }
+    void* ctx = (void*)((uintptr_t)(w - s_watch.watches) | ((uintptr_t)w->gen << 8));
+    err_h err = router_inject((cmd_in_t){w->read, w->read_len}, 0, on_read, ctx);
+    if (err == NULL) {  // a full queue: the next tick tries again
+      w->busy = true;
+      w->pending = false;
+      w->since_read = 0;
     }
     err_free(err);
   }
+  xSemaphoreGive(sys_watch_mutex);
 }
 
-static void on_tick(void* ctx) {
-  (void)ctx;
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_MAX; i++) {
-    lock();
-    watch_t* w = &s_watch.watches[i];
-    if (w->used) {
-      tick_inc(&w->since_read);
-      tick_inc(&w->since_sent);
-    }
-    unlock();
-    start_if_due(i);
-  }
-}
-
+// ctx: owner | id << 8. Its read starts at the next tick, at most once per period.
 static err_h on_event(const sys_event_t* ev, void* ctx) {
   (void)ev;
-  uint8_t slot = 0;
-  uint16_t gen = 0;
-  unpack_ctx(ctx, &slot, &gen);
-  if (slot >= CONFIG_SYS_WATCH_MAX) {
-    return NULL;
+  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  FOR_EACH_WATCH(w) {
+    if (w->used && w->owner == ((uintptr_t)ctx & 0xFFu) && w->head.id == ((uintptr_t)ctx >> 8)) {
+      w->pending = true;
+    }
   }
-
-  bool trigger = false;
-  lock();
-  watch_t* w = &s_watch.watches[slot];
-  if (w->used && w->gen == gen && w->head.trigger == SYS_WATCH_ON_EVENT) {
-    w->pending = true;
-    trigger = true;
-  }
-  unlock();
-
-  if (trigger) {
-    start_if_due(slot);
-  }
+  xSemaphoreGive(sys_watch_mutex);
   return NULL;
 }
 
-static bool valid_owner(uint8_t owner) {
-  return owner != SYS_SESSION_ID_SELF && owner != SYS_SESSION_ID_NONE && owner != SYS_SESSION_ID_BROADCAST;
-}
+/* ----------------------------------------------------------------------------
+ * Add, remove, list
+ * ------------------------------------------------------------------------- */
 
 err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) {
-  ERR_CHECK(head != NULL, ERR_WATCH_BAD_ARG, .id = 0);
-  ERR_CHECK(head->id != 0 && head->period != 0 && head->trigger <= SYS_WATCH_ON_EVENT &&
-                read.data != NULL && read.len >= 2u && read.len <= SYS_WATCH_READ_MAX && valid_owner(owner),
+  ERR_CHECK(head->id != 0 && head->period != 0 && head->trigger <= SYS_WATCH_ON_EVENT && read.len >= 2u &&
+                read.len <= SYS_WATCH_READ_MAX && owner <= SYS_SESSION_ID_CLIENT_LAST,
             ERR_WATCH_BAD_ARG, .id = head->id);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = head->id);
 
-  lock();
-  int32_t at = -1;
-  int32_t free_at = -1;
-  for (int32_t i = 0; i < CONFIG_SYS_WATCH_MAX; i++) {
-    const watch_t* w = &s_watch.watches[i];
-    if (!w->used) {
-      if (free_at < 0) {
-        free_at = i;
-      }
-    } else if (w->owner == owner && w->head.id == head->id) {
-      at = i;
+  // The subscription first, so the watch is whole when it gets its slot.
+  const bool on_event_trigger = head->trigger == SYS_WATCH_ON_EVENT;
+  uint16_t handle = 0;
+  if (on_event_trigger) {
+    void* ctx = (void*)((uintptr_t)owner | ((uintptr_t)head->id << 8));
+    ERR_TRY(sys_event_subscribe(head->filter, on_event, ctx, SYS_EVENT_RUN_QUEUED, &handle));
+  }
+
+  watch_t* at = NULL;
+  bool unsubscribe = on_event_trigger;  // the new one's when no slot takes it, the replaced watch's else
+  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  FOR_EACH_WATCH(w) {
+    if (w->used && w->owner == owner && w->head.id == head->id) {
+      at = w;  // ADD with an id it has replaces that watch
       break;
     }
-  }
-  const bool replacing = at >= 0;
-  if (!replacing) {
-    at = free_at;
-  }
-  if (at < 0) {
-    unlock();
-    return ERR_NEW(ERR_WATCH_FULL);
-  }
-
-  watch_t* w = &s_watch.watches[at];
-  const bool had_sub = w->used && w->subscribed;
-  const uint16_t old_handle = w->ev_handle;
-  const uint16_t gen = (uint16_t)(w->gen + 1u);
-  const bool start_timer = s_watch.count == 0u;
-
-  memset(w, 0, sizeof(*w));
-  w->used = true;
-  w->owner = owner;
-  w->read_len = (uint8_t)read.len;
-  w->gen = gen;
-  w->since_read = head->period;  // first PERIODIC/ON_CHANGE read runs on the next tick
-  w->head = *head;
-  memcpy(w->read, read.data, read.len);
-  if (!replacing) {
-    s_watch.count++;
-  }
-  unlock();
-
-  if (had_sub) {
-    err_report(sys_event_unsubscribe(old_handle));
-  }
-
-  if (head->trigger == SYS_WATCH_ON_EVENT) {
-    const sys_event_key_t filter = head->filter;
-    uint16_t ev_handle = 0;
-    err_h err = sys_event_subscribe(filter, on_event, pack_ctx((uint8_t)at, gen), SYS_EVENT_RUN_QUEUED, &ev_handle);
-    if (err != NULL) {
-      bool stop_timer = false;
-      lock();
-      if (w->used && w->gen == gen) {
-        w->used = false;
-        w->gen++;
-        s_watch.count--;
-        stop_timer = s_watch.count == 0u;
-      }
-      unlock();
-      if (stop_timer) {
-        board_timer_stop(&s_watch.timer);
-      }
-      return err;
-    }
-
-    bool unsub_orphan = false;
-    lock();
-    if (w->used && w->gen == gen) {
-      w->ev_handle = ev_handle;
-      w->subscribed = true;
-    } else {
-      unsub_orphan = true;
-    }
-    unlock();
-    if (unsub_orphan) {
-      err_report(sys_event_unsubscribe(ev_handle));
-      return NULL;
+    if (!w->used && at == NULL) {
+      at = w;
     }
   }
-
-  if (start_timer) {
-    board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
+  if (at != NULL) {
+    const uint16_t old_handle = at->ev_handle;
+    unsubscribe = at->used && at->subscribed;
+    *at = (watch_t){
+        .used = true,
+        .subscribed = on_event_trigger,
+        .owner = owner,
+        .read_len = (uint8_t)read.len,
+        .gen = (uint8_t)(at->gen + 1u),
+        .ev_handle = handle,
+        .since_read = head->period,  // the first read at the next tick
+        .head = *head,
+    };
+    memcpy(at->read, read.data, read.len);
+    handle = old_handle;
   }
+  xSemaphoreGive(sys_watch_mutex);
+  if (unsubscribe) {
+    err_report(sys_event_unsubscribe(handle));
+  }
+  ERR_CHECK(at != NULL, ERR_WATCH_FULL);
   return NULL;
+}
+
+// Removes the watches of `owner` (SYS_SESSION_ID_BROADCAST: of everyone) with `id` (0: every id); how many.
+static uint32_t remove_watches(uint8_t owner, uint8_t id) {
+  uint32_t removed = 0;
+  FOR_EACH_WATCH(w) {
+    xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+    const bool theirs = owner == SYS_SESSION_ID_BROADCAST || w->owner == owner;
+    const bool hit = w->used && theirs && (id == 0 || w->head.id == id);
+    const bool subscribed = hit && w->subscribed;
+    const uint16_t handle = w->ev_handle;
+    if (hit) {
+      w->used = false;
+      w->gen++;
+      removed++;
+    }
+    xSemaphoreGive(sys_watch_mutex);
+    if (subscribed) {
+      err_report(sys_event_unsubscribe(handle));
+    }
+  }
+  return removed;
 }
 
 err_h sys_watch_remove(uint8_t owner, uint8_t id) {
-  ERR_CHECK(id != 0 && valid_owner(owner), ERR_WATCH_NOT_FOUND, .id = id);
-
-  bool found = false;
-  bool had_sub = false;
-  uint16_t old_handle = 0;
-  bool stop_timer = false;
-
-  lock();
-  for (int32_t i = 0; i < CONFIG_SYS_WATCH_MAX; i++) {
-    watch_t* w = &s_watch.watches[i];
-    if (w->used && w->owner == owner && w->head.id == id) {
-      found = true;
-      had_sub = w->subscribed;
-      old_handle = w->ev_handle;
-      w->used = false;
-      w->subscribed = false;
-      w->gen++;
-      s_watch.count--;
-      stop_timer = s_watch.count == 0u;
-      break;
-    }
-  }
-  unlock();
-
-  ERR_CHECK(found, ERR_WATCH_NOT_FOUND, .id = id);
-
-  if (had_sub) {
-    err_report(sys_event_unsubscribe(old_handle));
-  }
-  if (stop_timer) {
-    board_timer_stop(&s_watch.timer);
-  }
+  ERR_CHECK(id != 0 && owner != SYS_SESSION_ID_BROADCAST && remove_watches(owner, id) > 0, ERR_WATCH_NOT_FOUND,
+            .id = id);
   return NULL;
 }
 
-uint8_t sys_watch_list(sys_watch_info_t* out, uint8_t max) {
-  if (out == NULL || max == 0u) {
-    return 0u;
-  }
+uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]) {
   uint8_t n = 0;
-  lock();
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_MAX && n < max; i++) {
-    const watch_t* w = &s_watch.watches[i];
+  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  FOR_EACH_WATCH(w) {
     if (w->used) {
-      out[n++] = (sys_watch_info_t){
-          .head = w->head,
-          .owner = w->owner,
-          .read_len = w->read_len,
-      };
+      out[n++] = (sys_watch_info_t){.head = w->head, .owner = w->owner, .read_len = w->read_len};
     }
   }
-  unlock();
+  xSemaphoreGive(sys_watch_mutex);
   return n;
 }
 
+// A peer is gone: its watches go with it.
 static void on_gone(uint8_t peer, uint8_t role) {
   (void)role;
-  uint16_t handles[CONFIG_SYS_WATCH_MAX];
-  uint8_t handle_n = 0;
-  bool stop_timer = false;
-
-  lock();
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_MAX; i++) {
-    watch_t* w = &s_watch.watches[i];
-    if (w->used && (peer == SYS_SESSION_ID_BROADCAST || w->owner == peer)) {
-      if (w->subscribed) {
-        handles[handle_n++] = w->ev_handle;
-      }
-      w->used = false;
-      w->subscribed = false;
-      w->gen++;
-      s_watch.count--;
-      if (s_watch.count == 0u) {
-        stop_timer = true;
-      }
-    }
-  }
-  unlock();
-
-  for (uint8_t i = 0; i < handle_n; i++) {
-    err_report(sys_event_unsubscribe(handles[i]));
-  }
-  if (stop_timer) {
-    board_timer_stop(&s_watch.timer);
-  }
+  (void)remove_watches(peer, 0);
 }
 
 err_h sys_watch_init(void) {
-  watch_lock_init();
   board_timer_init(&s_watch.timer, on_tick, NULL);
+  board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
   ERR_TRY(sys_session_on_gone(on_gone));
   return sys_watch_client_init();
 }

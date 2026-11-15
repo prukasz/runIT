@@ -52,7 +52,7 @@ def block_numbers():
 
 
 def struct_sizes():
-    """{type name: bytes} of every `sizeof(T) == N` a _Static_assert under runit-esp/components/ pins down."""
+    """{type name: bytes} of every `sizeof(T) == N` a _Static_assert under runit-esp-rework/components/ pins down."""
     sizes = {}
     for path in sources(".c", ".h"):
         for condition in ASSERT_RE.findall(read(path)):
@@ -118,6 +118,8 @@ class Checker:
 
     def blocks(self):
         """Checks every block descriptor; returns (how many, block types without one)."""
+        if not BLOCK_IDS.exists():
+            return 0, []
         numbers, limit = block_numbers()
         lengths, problems = state_lengths()
         self.problems.extend(problems)
@@ -135,7 +137,7 @@ class Checker:
                 self.error(path, "wire_id", f"{wire} is also the wire_id of '{seen[wire]}'")
             seen[wire] = block_id
             if macro not in lengths:
-                self.error(path, "state_len", f"{macro} has no VM_BLOCK_TYPE_DEFINE under runit-esp/components/")
+                self.error(path, "state_len", f"{macro} has no VM_BLOCK_TYPE_DEFINE under runit-esp-rework/components/")
             elif lengths[macro] != block["state_len"]:
                 self.error(path, "state_len", f"{block['state_len']} but the .state_len of {macro} is {lengths[macro]} in C")
             self.block(path, block)
@@ -165,9 +167,12 @@ class Checker:
                     if option["value"] not in codes:
                         self.error(path, f"fields/idle/options/{option['alias']}", f"{option['value']} is not 0 or an op code of contract {contract['id']} ((contract_id << 8) | op)")
         if device is not None and contract is None:  # a device's own command is (SYS_DEVICE_CONTRACT_OWN << 8) | op
-            own = next((m["value"] for m in self.enums.get("device_contract", {}).get("members", []) if m["name"] == "SYS_DEVICE_CONTRACT_OWN"), None)
+            own = next(
+                (m["value"] for g in ("device_contract", "device_contract_own") for m in self.enums.get(g, {}).get("members", []) if m["name"] == "SYS_DEVICE_CONTRACT_OWN"),
+                None,
+            )
             if own is None:
-                self.error(path, "device.device_type", "SYS_DEVICE_CONTRACT_OWN is not published in enums.json (device_contract)")
+                self.error(path, "device.device_type", "SYS_DEVICE_CONTRACT_OWN is not published in enums.json (device_contract_own)")
             else:
                 codes = {0} | {(own << 8) | c["op"] for c in device.get("commands", []) if "write" in c}
                 for field in block.get("fields", []):

@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(ROUTER_QUEUE, 0x24)
+MODULE_ID_DECLARE(ROUTER_QUEUE, 0x24)  //@alias Router queue @description Router dispatch queue module ID
 #define ERR_MOD_ROUTER_QUEUE MODULE_ID_ROUTER_QUEUE
 
 /* ----------------------------------------------------------------------------

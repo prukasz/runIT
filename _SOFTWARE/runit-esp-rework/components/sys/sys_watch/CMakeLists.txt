@@ -2,9 +2,9 @@
 # WHOLE_ARCHIVE: the router registers itself (ROUTER_MODULE_REGISTER) from a source nothing else references.
 idf_component_register(
     SRCS "sys_watch.c" "sys_watch_client.c" "router/sys_watch_router.c"
-    INCLUDE_DIRS "." "config" "errors" "router"
+    INCLUDE_DIRS "." "errors" "router"
     PRIV_INCLUDE_DIRS "internal"
-    REQUIRES cmd errors router sys_event utils
-    PRIV_REQUIRES router_queue sys_session timer time
+    REQUIRES cmd errors router sys_event sys_session utils
+    PRIV_REQUIRES router_queue timer time
     WHOLE_ARCHIVE
 )

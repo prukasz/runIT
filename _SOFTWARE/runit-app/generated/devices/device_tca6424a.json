@@ -7,7 +7,7 @@
   "description": "24-bit I2C GPIO expander: adds extra digital input/output pins over I2C.",
   "type_id": 66,
   "type": {
-    "symbol": "SYS_DEVICE_TYPE_TCA6424A",
+    "symbol": "TCA6424A_TYPE",
     "id": 66
   },
   "protocols": [
@@ -22,7 +22,7 @@
   "datasheet": "https://www.ti.com/lit/ds/symlink/tca6424a.pdf",
   "config": {
     "struct": "tca6424a_cfg_t",
-    "size": 8,
+    "size": 6,
     "fields": [
       {
         "id": "i2c_bus",
@@ -30,9 +30,9 @@
         "description": "The I2C bus the chip is on",
         "offset": 0,
         "size": 1,
-        "type": "enum",
-        "enum": "sys_i2c_bus_e",
-        "raw_type": "u8"
+        "type": "device",
+        "raw_type": "u8",
+        "requires_contract": "I2C"
       },
       {
         "id": "i2c_addr",
@@ -59,19 +59,19 @@
         "label": "INT",
         "description": "Open-drain, active-low: an input changed; needs CONFIGURE_INTR on its device",
         "offset": 2,
-        "size": 3,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
-        "requires": "output",
+        "requires": "input",
         "optional": true
       },
       {
         "id": "rst_pin",
         "label": "RESET",
         "description": "Active-low; suspending the device holds the chip in reset",
-        "offset": 5,
-        "size": 3,
+        "offset": 4,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
@@ -82,8 +82,7 @@
   },
   "contracts": [
     "DEVICE",
-    "IO",
-    "PINS"
+    "IO"
   ],
   "bus": {
     "type": "i2c",

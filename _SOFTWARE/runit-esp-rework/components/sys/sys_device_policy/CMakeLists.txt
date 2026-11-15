@@ -5,6 +5,6 @@ idf_component_register(
     SRCS "sys_device_policy.c" "router/sys_device_policy_router.c"
     INCLUDE_DIRS "." "router"
     REQUIRES errors router
-    PRIV_REQUIRES sys_device sys_event utils freertos log
+    PRIV_REQUIRES sys_device sys_event sys_session utils freertos log
     WHOLE_ARCHIVE
 )

@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "SYS",
-  "router_key": 1,
+  "router_key": 40,
   "alias": "Board system commands (System Control)",
   "description": "Basic board control: checking the link (ping), stopping the system safely, restarting, and the communication watchdog (dead-man).",
   "category": "system",
@@ -12,7 +12,7 @@
     {
       "id": "PING",
       "op": 1,
-      "symbol": "SYS_SYSTEM_OP_PING",
+      "symbol": "SYS_OP_PING",
       "label": "Ping",
       "description": "Checks that the board answers and returns its uptime in milliseconds.",
       "read": {
@@ -36,7 +36,7 @@
     {
       "id": "STOP",
       "op": 2,
-      "symbol": "SYS_SYSTEM_OP_STOP",
+      "symbol": "SYS_OP_STOP",
       "urgent": true,
       "label": "Stop the system",
       "description": "Puts the board in its safe state: switches off the device outputs and stops the VM.",
@@ -45,7 +45,7 @@
     {
       "id": "RESTART",
       "op": 3,
-      "symbol": "SYS_SYSTEM_OP_RESTART",
+      "symbol": "SYS_OP_RESTART",
       "label": "Restart the board",
       "description": "Restarts the ESP32 after the answer is sent (about 100 ms later).",
       "write": {}
@@ -53,7 +53,7 @@
     {
       "id": "DEADMAN",
       "op": 4,
-      "symbol": "SYS_SYSTEM_OP_DEADMAN",
+      "symbol": "SYS_OP_DEADMAN",
       "label": "Dead-man",
       "description": "Sets the dead-man: the timeout of the clients' sessions, whose end (silence that long, the link lost) enters the safe state. 0 = off: the board then runs its program on its own, with no client. Runtime only: after a restart the board is as built (off by default).",
       "read": {
@@ -101,7 +101,7 @@
     {
       "id": "BYE",
       "op": 6,
-      "symbol": "SYS_SYSTEM_OP_BYE",
+      "symbol": "SYS_OP_BYE",
       "label": "Say goodbye",
       "description": "The app leaves on purpose (its Disconnect, its window closing): the board turns the dead-man off and goes on with what it runs. Without it a dead-man the app armed would stop the board after the silence that follows. A link that drops without it (power, range) is a lost link as before.",
       "write": {}
@@ -109,7 +109,7 @@
     {
       "id": "TIME",
       "op": 7,
-      "symbol": "SYS_SYSTEM_OP_TIME",
+      "symbol": "SYS_OP_TIME",
       "label": "Clock",
       "description": "The board's wall clock (UTC, milliseconds since 1970). The board has no battery clock: the app sets it whenever it connects; the read answers 0 until a client set it since the power came on.",
       "tags": [
@@ -154,7 +154,7 @@
     {
       "id": "SAFE",
       "op": 9,
-      "symbol": "SYS_SYSTEM_OP_SAFE",
+      "symbol": "SYS_OP_SAFE",
       "label": "Safe state",
       "description": "Whether the board is in its safe state (the VM stopped, every device output off and suspended), why it entered it and how long ago. A reason of 0: not in it.",
       "read": {
@@ -189,7 +189,7 @@
     {
       "id": "SAFE_LEAVE",
       "op": 10,
-      "symbol": "SYS_SYSTEM_OP_SAFE_LEAVE",
+      "symbol": "SYS_OP_SAFE_LEAVE",
       "label": "Leave the safe state",
       "description": "Resumes every device (oldest first) and clears the safe state. The program stays stopped: start it with VM EXEC. Motors move again when the devices resume.",
       "write": {}

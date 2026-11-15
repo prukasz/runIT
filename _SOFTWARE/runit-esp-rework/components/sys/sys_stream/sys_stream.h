@@ -2,8 +2,6 @@
 
 #include "cmd.h"
 #include "errors.h"
-#include "sys_data_provider.h"
-#include "sys_stream_config.h"
 #include "sys_stream_errors.h"
 
 /**
@@ -13,14 +11,46 @@
  * provider's rx hook), SINK (a provider on this board or another peer where messages go as is), PEER (subscribed peer:
  * [stream id][payload] in a PUSH frame of its session), and CALLBACK (the board's code). A stream with a SOURCE reads
  * from it and refuses sys_stream_send(); a stream without a SOURCE takes sys_stream_send(). A stream keeps nothing:
- * what a consumer keeps is its own. Commands do not go through streams (sys_session.h).
- * @usage ERR_TRY(sys_stream_sink(id, SYS_SESSION_ID_SELF, provider));
+ * what a consumer keeps is its own. Commands do not go through streams (sys_session.h). Sources, sinks and
+ * subscriptions are the remote interface's (sys_stream_router); the board's code sends and listens.
+ * @usage ERR_TRY(sys_stream_listen(id, on_message, ctx));
  *        ERR_TRY(sys_stream_send(id, payload, len));
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* ----------------------------------------------------------------------------
+ * Wire format (never renumber; published to the app by templates/generate_enums.py)
+ * ------------------------------------------------------------------------- */
+
+/* The stream id byte, the first of a PUSH frame's body (SYS_SESSION.MD "Push frames"): 0x00 is invalid; 0x01..0x0F the
+   board's own streams (created at boot by sys_log and app/runit; ERRORS and EVENTS urgent); 0x10..0x7F user streams; from
+   SYS_SESSION_CHANNEL_FIRST (0x80) the modules' channels, which no stream takes. */
+//#ref-defines stream @alias Streams @prefix SYS_STREAM_
+#define SYS_STREAM_TELEMETRY 0x02u  //@alias Telemetry @description Telemetry: the VM's subscribed values
+#define SYS_STREAM_LOGS      0x03u  //@alias Logs @description The log lines
+#define SYS_STREAM_ERRORS    0x04u  //@alias Errors @description The error records (urgent)
+#define SYS_STREAM_EVENTS    0x06u  //@alias Events @description The event notifications (urgent)
+
+/* The ranges of the stream id byte. */
+//#ref-defines stream_range @alias Stream ids @prefix SYS_STREAM_ID_
+#define SYS_STREAM_ID_USER_FIRST 0x10u  //@alias First user stream @description User streams are 0x10..0x7F
+#define SYS_STREAM_ID_LAST       0x7Fu  //@alias Last stream @description From 0x80 the byte is a module's channel
+
+/* A stream's flags, set at create. URGENT: its frames go to the front of every provider's queue. */
+//#ref-defines stream_flag @alias Stream flags @prefix SYS_STREAM_FLAG_
+#define SYS_STREAM_FLAG_URGENT (1u << 0)  //@alias Urgent @description Its frames go first on every way out
+
+/** @brief A stream's target: one list of the four kinds. */
+//#ref-enum @alias Stream target
+typedef enum {
+  SYS_STREAM_TARGET_SOURCE = 0,    //@alias Source @description A provider the stream reads from (takes its rx hook)
+  SYS_STREAM_TARGET_SINK = 1,      //@alias Sink @description A provider of this board (SYS_SESSION_ID_SELF) or another peer where messages go as is
+  SYS_STREAM_TARGET_PEER = 2,      //@alias Peer @description A subscriber: [stream id][payload] in a PUSH frame of its session
+  SYS_STREAM_TARGET_CALLBACK = 3,  //@alias Callback @description The board's own code (a listener), on the stream task
+} sys_stream_target_e;
 
 #define SYS_STREAM_PAYLOAD_MAX (CMD_DATA_MAX - 1u)  // the largest payload: a subscriber's frame is [stream id][payload]
 
@@ -38,89 +68,20 @@ typedef struct sys_stream_cfg sys_stream_cfg_t;
 typedef void (*sys_stream_callback_f)(void* ctx, uint8_t id, const uint8_t* data, uint32_t len);
 
 /**
- * @brief Starts the stream task and listens for gone peers. Makes no stream: main creates the board's own and
- * marks them (sys_stream_mark_system). Boot step, after the session.
+ * @brief Starts the stream task and listens for gone peers. Makes no stream: main creates the board's own. Boot step,
+ * after the session.
  * @return NULL when started; the session's error.
  */
 MUST_USE err_h sys_stream_init(void);
 
 /**
- * @brief Creates a stream: the board's own at boot (then sys_stream_mark_system), the board's code and the remote
- * interface (CREATE).
+ * @brief Creates a stream: the board's own at boot (ids below SYS_STREAM_ID_USER_FIRST: never removed, never take a
+ * SOURCE), the board's code and the remote interface (CREATE, user ids only).
  * @param[in] cfg What it is (`id`, `flags`).
  * @return NULL when created; ERR_STREAM_BAD_ARG (id 0 or from 0x80, unknown flag), ERR_STREAM_EXISTS,
  *         ERR_STREAM_FULL (CONFIG_SYS_STREAM_MAX).
  */
 MUST_USE err_h sys_stream_create(const sys_stream_cfg_t* cfg);
-
-/**
- * @brief Every stream that exists now is the board's own (state SYSTEM): REMOVE refuses it and SOURCE is rejected on
- * it. Boot, once main has made the board's streams.
- */
-void sys_stream_mark_system(void);
-
-/**
- * @brief Removes a user stream: its targets end, its SOURCE providers are closed.
- * @param[in] id The stream
- * @return ERR_STREAM_SYSTEM for a system stream, ERR_STREAM_NOT_FOUND
- */
-MUST_USE err_h sys_stream_remove(uint8_t id);
-
-/**
- * @brief Adds a local provider as a stream's source: opens its rx hook and queues incoming frames into the stream
- * (which then refuses sys_stream_send with ERR_STREAM_DIRECTION). Bound already: nothing changes. Not allowed on a
- * system stream.
- * @param[in] id       The stream.
- * @param[in] provider The provider.
- * @return NULL when bound; ERR_STREAM_NOT_FOUND, ERR_STREAM_DIRECTION (a system stream), ERR_STREAM_TARGETS_FULL; or
- *         the provider's open error (ERR_PROV_NOT_FOUND, ERR_PROV_IN_USE).
- */
-MUST_USE err_h sys_stream_source(uint8_t id, uint8_t provider);
-
-/**
- * @brief Adds a provider (on this board or another peer) as a sink: payloads go there as they are (without a stream
- * header). When `board` is this board's id or SYS_SESSION_ID_SELF, sends directly via sys_data_provider_send(); for
- * another peer, sends a DATA frame via sys_session_data() (requires len <= CMD_DATA_MAX - 3). SINK is configuration: it
- * stays when a remote peer is gone, and failed sends count in `dropped`. Already present: nothing changes.
- * @param[in] id       The stream.
- * @param[in] board    Target board or client id (this board's id or SYS_SESSION_ID_SELF for local).
- * @param[in] provider The provider's id on that board.
- * @return NULL when added or there already; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG, ERR_STREAM_TARGETS_FULL.
- */
-MUST_USE err_h sys_stream_sink(uint8_t id, uint8_t board, uint8_t provider);
-
-/**
- * @brief Removes every SOURCE and SINK target of `provider` (on any board); a SOURCE gives its provider's rx hook back.
- * @param[in] id       The stream.
- * @param[in] provider The provider.
- * @return NULL; ERR_STREAM_NOT_FOUND.
- */
-MUST_USE err_h sys_stream_unbind(uint8_t id, uint8_t provider);
-
-/**
- * @brief Removes every SOURCE and SINK target of the stream, closing all SOURCE providers.
- * @param[in] id The stream.
- * @return NULL; ERR_STREAM_NOT_FOUND.
- */
-MUST_USE err_h sys_stream_unbind_all(uint8_t id);
-
-/**
- * @brief Subscribes a peer to a stream: each of its messages goes to the peer as a PUSH frame, [stream id][payload]
- * (sys_session_push). Again for the same peer: one subscription. Until UNSUBSCRIBE or the peer is gone.
- * @param[in] id   The stream.
- * @param[in] peer A peer id (SUBSCRIBE: the command's src).
- * @return NULL when subscribed; ERR_STREAM_NOT_FOUND, ERR_STREAM_BAD_ARG (SYS_SESSION_ID_SELF, NONE or BROADCAST),
- *         ERR_STREAM_TARGETS_FULL.
- */
-MUST_USE err_h sys_stream_subscribe(uint8_t id, uint8_t peer);
-
-/**
- * @brief Ends a peer's subscription.
- * @param[in] id   The stream.
- * @param[in] peer The peer.
- * @return NULL when ended or not subscribed; ERR_STREAM_NOT_FOUND.
- */
-MUST_USE err_h sys_stream_unsubscribe(uint8_t id, uint8_t peer);
 
 /**
  * @brief Adds a callback of the board's code as a target: it gets each message on the stream task (the VM's input

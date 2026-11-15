@@ -1,4 +1,4 @@
-/* Host tests of the provider registry (sys_data_provider.c) on fake & typed drivers: two-part send, limits,
+/* Host tests of the provider registry (sys_data_provider.c) on fake & typed drivers: flat send, limits,
  * flags, spare rule, open/close, CREATE/REMOVE, up/down, delivery, router dispatch, INFO/LIST/OPS, and 0xFFxx own ops.
  * Run: python runit-esp/test_host/run.py sys_data_provider */
 #include <string.h>
@@ -272,12 +272,6 @@ static void test_the_rx_hook_has_one_owner(void) {
   TEST_ASSERT_NULL(sys_data_provider_open(7, user_rx, NULL));  // free again
   ASSERT_ERR(ERR_PROV_NOT_FOUND, sys_data_provider_open(9, user_rx, NULL));
   ASSERT_ERR(ERR_PROV_NOT_FOUND, sys_data_provider_close(9));
-}
-
-static void test_a_provider_without_rx_is_opened_only_without_a_hook(void) {
-  fake_add(0, 7, SYS_DATA_PROVIDER_STATE_NO_RX);
-  ASSERT_ERR(ERR_PROV_NO_RX, sys_data_provider_open(7, user_rx, NULL));
-  TEST_ASSERT_NULL(sys_data_provider_open(7, NULL, NULL));  // its owner reads from its driver
 }
 
 static void test_up_down_is_told_once_per_change_and_frames_reach_the_owner(void) {
@@ -585,7 +579,6 @@ int main(void) {
   RUN_TEST(test_spare_is_refused_past_half_the_queue);
   RUN_TEST(test_spare_frames_leave_room_for_the_answers);
   RUN_TEST(test_the_rx_hook_has_one_owner);
-  RUN_TEST(test_a_provider_without_rx_is_opened_only_without_a_hook);
   RUN_TEST(test_up_down_is_told_once_per_change_and_frames_reach_the_owner);
   RUN_TEST(test_ids_are_unique_and_the_slots_are_counted);
   RUN_TEST(test_the_boards_own_provider_stays_others_can_be_removed);

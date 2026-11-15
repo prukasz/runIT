@@ -17,7 +17,7 @@ typedef struct __attribute__((packed)) sys_stream_cfg {
   uint8_t flags;  /**< SYS_STREAM_FLAG_* */
 } sys_stream_cfg_t;
 
-/** @brief REMOVE / UNBIND_ALL / SUBSCRIBE / UNSUBSCRIBE args */
+/** @brief REMOVE / SUBSCRIBE / UNSUBSCRIBE args */
 typedef struct __attribute__((packed)) {
   uint8_t id;  /**< The stream */
 } sys_stream_ref_t;
@@ -25,7 +25,7 @@ typedef struct __attribute__((packed)) {
 /** @brief SOURCE / UNBIND args */
 typedef struct __attribute__((packed)) {
   uint8_t id;        /**< The stream */
-  uint8_t provider;  /**< The provider */
+  uint8_t provider;  /**< The provider; UNBIND: SYS_DATA_PROVIDER_ID_NONE (0xFF) for every one */
 } sys_stream_source_t;
 
 /** @brief SINK args */
@@ -35,10 +35,9 @@ typedef struct __attribute__((packed)) {
   uint8_t provider;  /**< The provider's id on that board */
 } sys_stream_sink_t;
 
-/** @brief LIST answer: a stream's head, what it is, its state, how many targets follow. */
+/** @brief LIST answer: a stream's head, what it is and how many targets follow (a system stream: its id). */
 typedef struct __attribute__((packed)) {
   sys_stream_cfg_t cfg;  /**< What the stream is */
-  uint8_t state;         /**< SYS_STREAM_STATE_* */
   uint8_t targets;       /**< How many sys_stream_target_t follow */
 } sys_stream_head_t;
 
@@ -47,12 +46,13 @@ typedef struct __attribute__((packed)) {
   uint8_t type;      /**< sys_stream_target_e */
   uint8_t peer;      /**< PEER: its id; SINK: the board or client (SYS_SESSION_ID_SELF on this board); else 0 */
   uint8_t provider;  /**< SOURCE / SINK: the provider; else 0 */
-  uint16_t dropped;  /**< Messages not given to it: busy, down, too long, no route; stops at 0xFFFF */
 } sys_stream_target_t;
+
+_Static_assert(sizeof(sys_stream_head_t) == 3 && sizeof(sys_stream_target_t) == 3, "LIST rows");
 
 /**
  * @brief The table, once: X(P, OP_NAME, op code, key_t, value_t, flags) (cmd_table.h).
- * Sides: CREATE W, REMOVE W, SOURCE W, SINK W, UNBIND W, UNBIND_ALL W, LIST R (answer: u8 count, then per stream
+ * Sides: CREATE W, REMOVE W, SOURCE W, SINK W, UNBIND W, LIST R (answer: u8 count, then per stream
  * sys_stream_head_t and head.targets sys_stream_target_t), SUBSCRIBE W, UNSUBSCRIBE W.
  */
 #define STREAM_OPERATIONS(X, P)                                            \
@@ -61,7 +61,6 @@ typedef struct __attribute__((packed)) {
   X(P, OP_SOURCE,      0x03, cmd_none_t, sys_stream_source_t, 0)           \
   X(P, OP_SINK,        0x04, cmd_none_t, sys_stream_sink_t,   0)           \
   X(P, OP_UNBIND,      0x05, cmd_none_t, sys_stream_source_t, 0)           \
-  X(P, OP_UNBIND_ALL,  0x06, cmd_none_t, sys_stream_ref_t,    0)           \
   X(P, OP_LIST,        0x07, cmd_none_t, sys_stream_head_t,   0)           \
   X(P, OP_SUBSCRIBE,   0x08, cmd_none_t, sys_stream_ref_t,    0)           \
   X(P, OP_UNSUBSCRIBE, 0x09, cmd_none_t, sys_stream_ref_t,    0)

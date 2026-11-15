@@ -1,12 +1,12 @@
-"""Copies the descriptors that live next to the code in runit-esp/components/ into runit-app/generated/, where the app reads them.
+"""Copies the descriptors that live next to the code in runit-esp-rework/components/ into runit-app/generated/, where the app reads them.
 
-  runit-app/generated/devices/    device_*.json                          (runit-esp/components/devices/*/)
-  runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp/components/sys/*/ and others)
+  runit-app/generated/devices/    device_*.json                          (runit-esp-rework/components/devices/**/device_*/)
+  runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp-rework/components/sys/*/ and others)
   runit-app/generated/services/   contract_*.json with scope "system"
-  runit-app/generated/blocks/     block_*.json                           (runit-esp/components/vm/vm_blocks/**/)
-  runit-app/generated/common/     errors.json, board.json, board_devkit.json (enums.json is written there by generate_enums.py)
-  runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp/components/devices/device_*/manual/)
-  runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp/components/devices/device_*/)
+  runit-app/generated/blocks/     block_*.json                           (runit-esp-rework/components/vm/vm_blocks/**/, when present)
+  runit-app/generated/common/     errors.json, optional board*.json (enums.json and limits.json are written there directly)
+  runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp-rework/components/devices/**/device_*/manual/)
+  runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp-rework/components/devices/**/device_*/)
 
 A copy is the same JSON with its `$schema` pointing at templates/ from the new place. Copies of descriptors that no longer
 exist are deleted from the four folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the
@@ -44,8 +44,10 @@ def plan():
             fail(f"{rel(path)} and {rel(files[target][0])} would both become runit-app/generated/{target}")
         files[target] = (path, schema)
     files["common/errors.json"] = (ERRORS, "errors.schema.json")
-    files["common/board.json"] = (BOARD, "board.schema.json")
-    files["common/board_devkit.json"] = (BOARD_DEVKIT, "board.schema.json")
+    if BOARD.exists():
+        files["common/board.json"] = (BOARD, "board.schema.json")
+    if BOARD_DEVKIT.exists():
+        files["common/board_devkit.json"] = (BOARD_DEVKIT, "board.schema.json")
     return files
 
 
@@ -94,12 +96,20 @@ def main():
     docs = docs_plan()
     stale_docs = [p for root in ("manuals", "sources") for p in sorted((GENERATED / root).rglob("*")) if p.is_file() and p.relative_to(GENERATED).as_posix() not in docs]
     stale = [p for folder in MANAGED for p in sorted((GENERATED / folder).glob("*.json")) if f"{folder}/{p.name}" not in files]
+    stale += [p for p in sorted((GENERATED / "common").glob("*.json")) if p.name not in {"enums.json", "limits.json"} and f"common/{p.name}" not in files]
     changed = [target for target, (source, schema) in sorted(files.items()) if sync_file(GENERATED / target, render(copy_of(source, schema, target)))]
     changed += [target for target, source in sorted(docs.items()) if (sync_bytes(GENERATED / target, source.read_bytes()) if source.suffix.lower() in IMAGES else sync_file(GENERATED / target, read(source)))]
     for path in stale_docs:
         changed.append(f"{rel(path)} (stale)")
         if not CHECK:
             path.unlink()
+    if not CHECK:
+        for root in ("manuals", "sources"):
+            base = GENERATED / root
+            if base.is_dir():
+                for d in sorted((p for p in base.rglob("*") if p.is_dir()), reverse=True):
+                    if not any(d.iterdir()):
+                        d.rmdir()
     for path in stale:
         changed.append(f"{rel(path)} (stale)")
         if not CHECK:

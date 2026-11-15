@@ -27,9 +27,10 @@ extern "C" {
 #define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)
 
 /* Shared TX queue flags for transport contracts (CONTRACT_UART), sys_data_provider, and drivers (0 = normal TX queue). */
-#define CMD_SEND_URGENT (1u << 0)  /**< Priority queue / sent before normal frames (matches ROUTER_FLAG_URGENT) */
-#define CMD_SEND_SPARE  (1u << 1)  /**< Keep half of the queue free for replies/control (e.g. PUSH) */
-#define CMD_SEND_NOWAIT (1u << 2)  /**< Fail immediately when TX queue is full instead of waiting */
+//#ref-defines cmd_send_flag @alias Send flags @prefix CMD_SEND_
+#define CMD_SEND_URGENT (1u << 0)  //@alias Urgent @description Priority queue, sent before normal frames (matches ROUTER_FLAG_URGENT)
+#define CMD_SEND_SPARE  (1u << 1)  //@alias Keep spare @description Keep half of the queue free for replies and control frames
+#define CMD_SEND_NOWAIT (1u << 2)  //@alias No wait @description Fail immediately when TX queue is full instead of waiting
 
 /** @brief A handler's input: the payload only (an op's args). The router strips [dir][code], the device registry the
  * op; a module router (a root entry) gets its whole command, its key first. */

@@ -1,450 +1,237 @@
-#include "sys_watch.h"
-
 #include <string.h>
 
 #include "board_time.h"
 #include "board_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
+#include "sys_watch.h"
 #include "sys_watch_internal.h"
 #include "sys_watch_router.h"
+#include "utils.h"
 
-#define CLIENT_TICK_MS 100u
-#define ERR_REC_MAX    128u
-#define PERIOD_MS      ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
-#define WATCH_TICKS    ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
-#define SILENCE_TICKS  (2u * WATCH_TICKS)
-#define MAX_AGE_MS     (3u * PERIOD_MS)
+#define IDLE_TICK_MS  100u
+#define ENTRY_HEAD    3u    // [SYS_WATCH_CHANNEL][id][status]
+#define ENTRY_MAX     128u  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
+#define PERIOD_MS     ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
+#define PERIOD_TICKS  ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
+#define MAX_AGE_MS    (3u * PERIOD_MS)
+
+_Static_assert(2u * PERIOD_TICKS <= UINT16_MAX, "CONFIG_SYS_WATCH_READ_PERIOD_MS in a watch's ticks");
 
 typedef enum {
   SLOT_FREE = 0,
-  SLOT_ADDING,  // ADD sent (or awaiting retry on next read); entries ignored here (B3)
-  SLOT_ACTIVE,  // ADD answered OK; PUSH entries on 0x80 accepted here
-  SLOT_OLD,     // write invalidated copy (sys_watch_stale); refresh read in flight
+  SLOT_ADDING,  // ADD is on its way, or is sent again by a read: entries are not taken (B3)
+  SLOT_ACTIVE,  // ADD answered OK: the entries of its watch are taken
 } slot_state_e;
 
+/* A cached read: the watch `index + 1` on `board`. */
 typedef struct {
-  slot_state_e state;
-  bool add_in_flight;
-  bool have_copy;
-  bool has_err;
+  uint8_t state;     // slot_state_e
+  bool have;         // an entry came since ADD's OK
+  uint8_t status;    // of that entry: router_status_e
+  uint8_t len;       // bytes of `data`
   uint8_t board;
   uint8_t req_len;
-  uint8_t copy_len;
-  uint8_t err_len;
-  uint16_t gen;
-  uint64_t copy_ms;
-  uint64_t last_read_ms;
-  uint64_t next_try_ms;
+  uint8_t gen;       // changes when the slot starts again: an ADD's answer from before is dropped
+  uint32_t entry_ms;  // when the entry came
+  uint32_t read_ms;   // the last sys_watch_read of it
+  uint32_t add_ms;    // the last ADD sent
   uint8_t req[SYS_WATCH_READ_MAX];
-  uint8_t copy[SYS_WATCH_COPY_MAX];
-  uint8_t err_rec[ERR_REC_MAX];
+  uint8_t data[ENTRY_MAX];
 } slot_t;
+
+U_MUTEX_DEFINE(sys_watch_client_mutex);  // the slots: copies only, never held over a send
 
 static struct {
   slot_t slots[CONFIG_SYS_WATCH_CLIENT_MAX];
-  uint8_t count;
   board_timer_t timer;
 } s_cl;
 
-static StaticSemaphore_t s_cl_lock_buf;
-static SemaphoreHandle_t s_cl_lock;
+#define FOR_EACH_SLOT(s) for (slot_t* s = s_cl.slots; s < s_cl.slots + CONFIG_SYS_WATCH_CLIENT_MAX; s++)
 
-__attribute__((constructor)) static void cl_lock_init(void) {
-  if (s_cl_lock == NULL) {
-    s_cl_lock = xSemaphoreCreateMutexStatic(&s_cl_lock_buf);
-  }
+static uint32_t now_ms(void) {
+  return (uint32_t)board_time_uptime_ms();
 }
 
-static void lock(void) {
-  cl_lock_init();
-  xSemaphoreTake(s_cl_lock, portMAX_DELAY);
-}
+/* ----------------------------------------------------------------------------
+ * ADD: its OK opens the slot for the watch's entries
+ * ------------------------------------------------------------------------- */
 
-static void unlock(void) {
-  xSemaphoreGive(s_cl_lock);
-}
-
-static void* pack_ctx(uint8_t slot, uint16_t gen) {
-  return (void*)((uintptr_t)slot | ((uintptr_t)gen << 8));
-}
-
-static void unpack_ctx(void* ctx, uint8_t* slot, uint16_t* gen) {
-  const uintptr_t v = (uintptr_t)ctx;
-  *slot = (uint8_t)(v & 0xFFu);
-  *gen = (uint16_t)((v >> 8) & 0xFFFFu);
-}
-
-static uint64_t idle_limit_ms(void) {
-  const uint64_t scaled = 10ull * (uint64_t)MAX_AGE_MS;
-  return scaled > (uint64_t)CONFIG_SYS_WATCH_IDLE_MIN_MS ? scaled : (uint64_t)CONFIG_SYS_WATCH_IDLE_MIN_MS;
-}
-
-static err_h cl_on_noop(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
-  (void)ctx;
-  (void)cmd;
-  (void)status;
-  (void)data;
-  (void)len;
-  return NULL;
-}
-
-static err_h cl_on_add_done(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
+static err_h on_added(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
   (void)data;
   (void)len;
-  uint8_t slot = 0;
-  uint16_t gen = 0;
-  unpack_ctx(ctx, &slot, &gen);
-  if (slot >= CONFIG_SYS_WATCH_CLIENT_MAX) {
-    return NULL;
-  }
-
-  lock();
-  slot_t* s = &s_cl.slots[slot];
-  if (s->state == SLOT_ADDING && s->gen == gen) {
-    s->add_in_flight = false;
-    if (status == ROUTER_STATUS_OK) {
-      s->state = SLOT_ACTIVE;
-      s->have_copy = false;
-      s->has_err = false;
-    } else {
-      s->next_try_ms = board_time_uptime_ms() + PERIOD_MS;
-    }
-  }
-  unlock();
-  return NULL;
-}
-
-static err_h cl_on_refresh(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
-  (void)cmd;
-  uint8_t slot = 0;
-  uint16_t gen = 0;
-  unpack_ctx(ctx, &slot, &gen);
-  if (slot >= CONFIG_SYS_WATCH_CLIENT_MAX) {
-    return NULL;
-  }
-
-  lock();
-  slot_t* s = &s_cl.slots[slot];
-  if (s->state == SLOT_OLD && s->gen == gen) {
-    if (status == ROUTER_STATUS_OK && len <= SYS_WATCH_COPY_MAX) {
-      if (len > 0u) {
-        memcpy(s->copy, data, len);
-      }
-      s->copy_len = (uint8_t)len;
-      s->copy_ms = board_time_uptime_ms();
-      s->have_copy = true;
-      s->has_err = false;
-    } else {
-      s->have_copy = false;
-      s->has_err = false;
-    }
+  slot_t* s = &s_cl.slots[(uintptr_t)ctx & 0xFFu];
+  xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+  if (s->state == SLOT_ADDING && s->gen == (uint8_t)((uintptr_t)ctx >> 8) && status == ROUTER_STATUS_OK) {
     s->state = SLOT_ACTIVE;
+    s->have = false;
   }
-  unlock();
+  xSemaphoreGive(sys_watch_client_mutex);
   return NULL;
 }
 
-static void send_add(uint8_t slot, uint16_t gen, uint8_t board, const uint8_t* read_req, uint8_t read_len) {
+// One that does not go, or is refused, is sent again by a read a period later.
+static void send_add(uint8_t slot, uint8_t gen, uint8_t board, cmd_in_t read) {
   const sys_watch_head_t head = {
       .id = (uint8_t)(slot + 1u),
       .trigger = SYS_WATCH_ON_CHANGE,
-      .period = (uint16_t)(WATCH_TICKS > UINT16_MAX ? UINT16_MAX : WATCH_TICKS),
-      .max_silence = (uint16_t)(SILENCE_TICKS > UINT16_MAX ? UINT16_MAX : SILENCE_TICKS),
-      .filter = {0},
+      .period = (uint16_t)PERIOD_TICKS,
+      .max_silence = (uint16_t)(2u * PERIOD_TICKS),
   };
-  uint8_t buf[3u + sizeof(head) + SYS_WATCH_READ_MAX];
-  buf[0] = MODULE_ID_WATCH;
-  buf[1] = CMD_DIR_WRITE;
-  buf[2] = WATCH_OP_ADD;
-  memcpy(buf + 3u, &head, sizeof(head));
-  memcpy(buf + 3u + sizeof(head), read_req, read_len);
-
-  err_h err = sys_session_call(board, (cmd_in_t){buf, (uint32_t)(3u + sizeof(head) + read_len)}, 0, 0, cl_on_add_done,
-                               pack_ctx(slot, gen));
-  if (err != NULL) {
-    err_free(err);
-    lock();
-    slot_t* s = &s_cl.slots[slot];
-    if (s->state == SLOT_ADDING && s->gen == gen) {
-      s->add_in_flight = false;
-      s->next_try_ms = board_time_uptime_ms() + PERIOD_MS;
-    }
-    unlock();
-  }
+  uint8_t req[3u + sizeof(head) + SYS_WATCH_READ_MAX] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_ADD};
+  memcpy(req + 3u, &head, sizeof(head));
+  memcpy(req + 3u + sizeof(head), read.data, read.len);
+  void* ctx = (void*)((uintptr_t)slot | ((uintptr_t)gen << 8));
+  err_free(sys_session_call(board, (cmd_in_t){req, 3u + sizeof(head) + read.len}, 0, 0, on_added, ctx));
 }
 
-static void send_remove(uint8_t board, uint8_t id) {
-  const uint8_t req[] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_REMOVE, id};
-  err_h err = sys_session_call(board, (cmd_in_t){req, sizeof(req)}, 0, 0, cl_on_noop, NULL);
-  if (err != NULL) {
-    err_free(err);
-  }
-}
+/* ----------------------------------------------------------------------------
+ * Entries in (the driver's RX task), peers gone, reads not read any more
+ * ------------------------------------------------------------------------- */
 
-static void cl_on_push(uint8_t src, uint16_t lost, const uint8_t* data, uint32_t len) {
-  (void)lost;
-  if (len < 3u || data[0] != SYS_SESSION_CHANNEL_WATCHES) {
+static void on_push(uint8_t src, const uint8_t* data, uint32_t len) {
+  if (len < ENTRY_HEAD || data[0] != SYS_WATCH_CHANNEL || data[1] == 0u ||
+      data[1] > CONFIG_SYS_WATCH_CLIENT_MAX) {
     return;
   }
-  const uint8_t id = data[1];
+  slot_t* s = &s_cl.slots[data[1] - 1u];
   const uint8_t status = data[2];
-  if (id == 0u || id > CONFIG_SYS_WATCH_CLIENT_MAX) {
-    return;
+  const uint32_t n = len - ENTRY_HEAD;
+  xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+  if (s->state == SLOT_ACTIVE && s->board == src) {  // B3: only after ADD's OK
+    s->have = status != ROUTER_STATUS_OK || n <= SYS_WATCH_COPY_MAX;  // a longer answer is not kept
+    s->status = status;
+    s->len = (uint8_t)(n < ENTRY_MAX ? n : ENTRY_MAX);
+    s->entry_ms = now_ms();
+    memcpy(s->data, data + ENTRY_HEAD, s->len);
   }
-  const uint8_t* payload = data + 3u;
-  const uint32_t plen = len - 3u;
-  slot_t* s = &s_cl.slots[id - 1u];
-
-  lock();
-  /* B3: accept entries only once ADD succeeded (SLOT_ACTIVE) and never while OLD awaits post-write refresh. */
-  if (s->state == SLOT_ACTIVE && s->board == src) {
-    if (status == ROUTER_STATUS_OK) {
-      if (plen <= SYS_WATCH_COPY_MAX) {
-        if (plen > 0u) {
-          memcpy(s->copy, payload, plen);
-        }
-        s->copy_len = (uint8_t)plen;
-        s->copy_ms = board_time_uptime_ms();
-        s->have_copy = true;
-        s->has_err = false;
-      } else {
-        s->have_copy = false;
-        s->has_err = false;
-      }
-    } else {
-      const uint8_t keep = (uint8_t)(plen <= ERR_REC_MAX ? plen : ERR_REC_MAX);
-      if (keep > 0u) {
-        memcpy(s->err_rec, payload, keep);
-      }
-      s->err_len = keep;
-      s->copy_ms = board_time_uptime_ms();
-      s->have_copy = false;
-      s->has_err = true;
-    }
-  }
-  unlock();
+  xSemaphoreGive(sys_watch_client_mutex);
 }
 
-static void cl_on_gone(uint8_t peer, uint8_t role) {
+// A board is gone, and its watch with it: the next read adds it again.
+static void on_gone(uint8_t peer, uint8_t role) {
   (void)role;
-  lock();
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_CLIENT_MAX; i++) {
-    slot_t* s = &s_cl.slots[i];
+  xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+  FOR_EACH_SLOT(s) {
     if (s->state != SLOT_FREE && (peer == SYS_SESSION_ID_BROADCAST || s->board == peer)) {
       s->state = SLOT_ADDING;
-      s->add_in_flight = false;
-      s->have_copy = false;
-      s->has_err = false;
-      s->copy_len = 0;
-      s->err_len = 0;
-      s->next_try_ms = 0;
       s->gen++;
+      s->add_ms = now_ms() - PERIOD_MS;
     }
   }
-  unlock();
+  xSemaphoreGive(sys_watch_client_mutex);
 }
 
-static void cl_on_idle_tick(void* ctx) {
-  (void)ctx;
-  const uint64_t now = board_time_uptime_ms();
-  const uint64_t limit = idle_limit_ms();
-
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_CLIENT_MAX; i++) {
-    bool send_rem = false;
-    uint8_t board = 0;
-
-    lock();
-    slot_t* s = &s_cl.slots[i];
-    if (s->state != SLOT_FREE && now >= s->last_read_ms && (now - s->last_read_ms) > limit) {
-      send_rem = s->state == SLOT_ACTIVE || s->state == SLOT_OLD || s->add_in_flight;
-      board = s->board;
+// A read nobody read for CONFIG_SYS_WATCH_IDLE_MS: its slot is free and its watch removed from its board.
+static void on_idle_tick(void* arg) {
+  (void)arg;
+  FOR_EACH_SLOT(s) {
+    xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+    const bool idle = s->state != SLOT_FREE && now_ms() - s->read_ms > CONFIG_SYS_WATCH_IDLE_MS;
+    const uint8_t board = s->board;
+    if (idle) {
       s->state = SLOT_FREE;
-      s->add_in_flight = false;
-      s->have_copy = false;
-      s->has_err = false;
       s->gen++;
-      s_cl.count--;
     }
-    unlock();
-
-    if (send_rem) {
-      send_remove(board, (uint8_t)(i + 1u));
+    xSemaphoreGive(sys_watch_client_mutex);
+    if (idle) {
+      const uint8_t req[] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_REMOVE, (uint8_t)(s - s_cl.slots + 1)};
+      err_free(sys_session_call(board, (cmd_in_t){req, sizeof(req)}, 0, 0, NULL, NULL));
     }
-  }
-
-  lock();
-  const bool empty = s_cl.count == 0u;
-  unlock();
-  if (empty) {
-    board_timer_stop(&s_cl.timer);
   }
 }
 
-static bool valid_peer(uint8_t board) {
-  return board != SYS_SESSION_ID_NONE && board != SYS_SESSION_ID_SELF && board != SYS_SESSION_ID_BROADCAST &&
-         board != sys_session_get_board_id();
-}
+/* ----------------------------------------------------------------------------
+ * Read and stale
+ * ------------------------------------------------------------------------- */
 
 err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint32_t* len) {
-  ERR_CHECK(valid_peer(board) && read.data != NULL && read.len >= 2u && read.len <= SYS_WATCH_READ_MAX &&
-                len != NULL && (cap == 0u || buf != NULL),
+  ERR_CHECK(board <= SYS_SESSION_ID_LAST && board != sys_session_get_board_id() && read.len >= 2u &&
+                read.len <= SYS_WATCH_READ_MAX,
             ERR_WATCH_BAD_ARG, .id = 0);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = 0);
 
-  const uint64_t now = board_time_uptime_ms();
-  bool send_now = false;
-  bool start_timer = false;
-  uint8_t slot_idx = 0;
-  uint16_t gen = 0;
-
-  lock();
-  int32_t at = -1;
-  int32_t free_at = -1;
-  for (int32_t i = 0; i < CONFIG_SYS_WATCH_CLIENT_MAX; i++) {
-    const slot_t* s = &s_cl.slots[i];
-    if (s->state == SLOT_FREE) {
-      if (free_at < 0) {
-        free_at = i;
-      }
-    } else if (s->board == board && s->req_len == read.len && memcmp(s->req, read.data, read.len) == 0) {
-      at = i;
+  const uint32_t now = now_ms();
+  slot_t* at = NULL;
+  slot_t got = {0};
+  bool add = false;
+  xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+  FOR_EACH_SLOT(s) {
+    const bool same = s->board == board && s->req_len == read.len && memcmp(s->req, read.data, read.len) == 0;
+    if (s->state != SLOT_FREE && same) {
+      at = s;
       break;
     }
+    if (s->state == SLOT_FREE && at == NULL) {
+      at = s;
+    }
+  }
+  if (at != NULL) {
+    if (at->state == SLOT_FREE) {
+      *at = (slot_t){.state = SLOT_ADDING, .board = board, .req_len = (uint8_t)read.len, .gen = (uint8_t)(at->gen + 1u),
+                     .add_ms = now - PERIOD_MS};
+      memcpy(at->req, read.data, read.len);
+    }
+    at->read_ms = now;
+    add = at->state == SLOT_ADDING && now - at->add_ms >= PERIOD_MS;
+    if (add) {
+      at->add_ms = now;
+    }
+    got = *at;
+  }
+  xSemaphoreGive(sys_watch_client_mutex);
+  ERR_CHECK(at != NULL, ERR_WATCH_FULL);
+  if (add) {
+    send_add((uint8_t)(at - s_cl.slots), got.gen, board, read);
   }
 
-  if (at < 0) {
-    if (free_at < 0) {
-      unlock();
-      return ERR_NEW(ERR_WATCH_FULL);
-    }
-    slot_t* s = &s_cl.slots[free_at];
-    start_timer = s_cl.count == 0u;
-    gen = (uint16_t)(s->gen + 1u);
-    memset(s, 0, sizeof(*s));
-    s->state = SLOT_ADDING;
-    s->add_in_flight = true;
-    s->board = board;
-    s->req_len = (uint8_t)read.len;
-    s->gen = gen;
-    s->last_read_ms = now;
-    memcpy(s->req, read.data, read.len);
-    s_cl.count++;
-    slot_idx = (uint8_t)free_at;
-    send_now = true;
-    unlock();
-
-    if (start_timer) {
-      board_timer_start(&s_cl.timer, CLIENT_TICK_MS);
-    }
-    send_add(slot_idx, gen, board, read.data, (uint8_t)read.len);
-    return ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
-  }
-
-  slot_t* s = &s_cl.slots[at];
-  s->last_read_ms = now;
-
-  if (s->state == SLOT_ADDING) {
-    if (!s->add_in_flight && now >= s->next_try_ms) {
-      s->add_in_flight = true;
-      gen = s->gen;
-      slot_idx = (uint8_t)at;
-      send_now = true;
-    }
-    unlock();
-    if (send_now) {
-      send_add(slot_idx, gen, board, read.data, (uint8_t)read.len);
-    }
-    return ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
-  }
-
-  if (s->state == SLOT_OLD || (!s->have_copy && !s->has_err)) {
-    unlock();
-    return ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
-  }
-
-  const uint64_t age = (now >= s->copy_ms) ? (now - s->copy_ms) : 0u;
-  if (age > MAX_AGE_MS) {
-    unlock();
-    return ERR_NEW(ERR_WATCH_STALE, .board = board, .age_ms = (uint16_t)(age > UINT16_MAX ? UINT16_MAX : age));
-  }
-
-  if (s->has_err) {
-    uint8_t err_rec[ERR_REC_MAX];
-    const uint8_t err_len = s->err_len;
-    if (err_len > 0u) {
-      memcpy(err_rec, s->err_rec, err_len);
-    }
-    unlock();
+  ERR_CHECK(got.state == SLOT_ACTIVE && got.have, ERR_WATCH_NO_VALUE, .board = board);
+  const uint32_t age = now - got.entry_ms;
+  ERR_CHECK(age <= MAX_AGE_MS, ERR_WATCH_STALE, .board = board,
+            .age_ms = (uint16_t)(age > UINT16_MAX ? UINT16_MAX : age));
+  if (got.status != ROUTER_STATUS_OK) {  // that board's chain under ERR_REMOTE
     err_h chain = NULL;
-    err_free(err_record_parse(err_rec, err_len, &chain));
+    err_free(err_record_parse(got.data, got.len, &chain));
     return ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0);
   }
-
-  uint8_t copy[SYS_WATCH_COPY_MAX];
-  const uint8_t copy_len = s->copy_len;
-  if (copy_len > 0u) {
-    memcpy(copy, s->copy, copy_len);
-  }
-  unlock();
-
-  *len = copy_len;
-  ERR_CHECK(copy_len <= cap, ERR_CMD_BAD_LEN, .got = (uint16_t)copy_len, .need = (uint16_t)cap);
-  if (copy_len > 0u) {
-    memcpy(buf, copy, copy_len);
-  }
+  *len = got.len;
+  ERR_CHECK(got.len <= cap, ERR_CMD_BAD_LEN, .got = got.len, .need = (uint16_t)cap);
+  memcpy(buf, got.data, got.len);
   return NULL;
 }
 
+/* A write went to `board`: what its cached reads hold is from before it. Their watches are added again: ADD's OK
+ * comes after the write's answer, so every entry taken from then on was read after the write, and the watch sends its
+ * first read at once. */
 void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
-  if (write.data == NULL || write.len < 2u + target_len) {
+  if (write.len < 2u + target_len) {
     return;
   }
-
-  for (uint8_t i = 0; i < CONFIG_SYS_WATCH_CLIENT_MAX; i++) {
+  FOR_EACH_SLOT(s) {
     uint8_t req[SYS_WATCH_READ_MAX];
-    uint8_t req_len = 0;
-    uint16_t gen = 0;
-    bool matched = false;
-
-    lock();
-    slot_t* s = &s_cl.slots[i];
-    if ((s->state == SLOT_ACTIVE || s->state == SLOT_OLD) && s->board == board && s->req[0] == write.data[0] &&
-        s->req_len >= 2u + target_len && memcmp(s->req + 2u, write.data + 2u, target_len) == 0) {
-      s->state = SLOT_OLD;
-      s->have_copy = false;
-      s->has_err = false;
+    xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
+    const bool hit = s->state == SLOT_ACTIVE && s->board == board && s->req[0] == write.data[0] &&
+                     s->req_len >= 2u + target_len && memcmp(s->req + 2u, write.data + 2u, target_len) == 0;
+    if (hit) {
+      s->state = SLOT_ADDING;
       s->gen++;
-      gen = s->gen;
-      req_len = s->req_len;
-      memcpy(req, s->req, req_len);
-      matched = true;
+      s->add_ms = now_ms();
+      memcpy(req, s->req, s->req_len);
     }
-    unlock();
-
-    if (!matched) {
-      continue;
-    }
-
-    err_h err = sys_session_call(board, (cmd_in_t){req, req_len}, 0, 0, cl_on_refresh, pack_ctx(i, gen));
-    if (err != NULL) {
-      err_free(err);
-      lock();
-      if (s->state == SLOT_OLD && s->gen == gen) {
-        s->state = SLOT_ACTIVE;
-      }
-      unlock();
+    const uint8_t gen = s->gen;
+    const uint8_t req_len = s->req_len;
+    xSemaphoreGive(sys_watch_client_mutex);
+    if (hit) {
+      send_add((uint8_t)(s - s_cl.slots), gen, board, (cmd_in_t){req, req_len});
     }
   }
 }
 
 err_h sys_watch_client_init(void) {
-  cl_lock_init();
-  board_timer_init(&s_cl.timer, cl_on_idle_tick, NULL);
-  ERR_TRY(sys_session_on_gone(cl_on_gone));
-  return sys_session_on_push(cl_on_push);
+  board_timer_init(&s_cl.timer, on_idle_tick, NULL);
+  board_timer_start(&s_cl.timer, IDLE_TICK_MS);
+  ERR_TRY(sys_session_on_gone(on_gone));
+  return sys_session_on_push(on_push);
 }

@@ -49,7 +49,7 @@ A command has one answer, at most `cap`. Data longer than that is paged by the c
 ```
 CMD_FRAME_MAX
  ├─ a framed provider: a frame it takes or sends whole; its driver's buffers hold one
- │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, sys_uart)
+ │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, device_esp32s3_uart / provider_console)
  ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
  │    the answer buffer of a replay
  └─ a stream's frame to a subscriber [stream id][payload]: a payload ≤ CMD_DATA_MAX − 1

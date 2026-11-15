@@ -3,7 +3,7 @@
 #include "errors.h"
 
 /* The module's one number: root key and errors (ERR_MOD_SYS_LOG = MODULE_ID_LOG). */
-MODULE_ID_DECLARE(LOG, 0x2A)
+MODULE_ID_DECLARE(LOG, 0x2A)  //@alias Logging @description Firmware log level and output module ID
 #define ERR_MOD_SYS_LOG MODULE_ID_LOG
 
 #define ERR_SYS_LOG_MAP(X)                                                                                    \

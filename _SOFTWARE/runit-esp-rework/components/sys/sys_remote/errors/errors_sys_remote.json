@@ -1,0 +1,14 @@
+{
+  "$schema": "../../../../templates/error-texts.schema.json",
+  "module": "ERR_MOD_SYS_REMOTE",
+  "errors": {
+    "ERR_REMOTE_NOT_WIRED": {
+      "message": "Board {board} is not reached by a cable now: its wired devices do not wait for their answers",
+      "hint": "The program's timing has changed. Check the cable to that board."
+    },
+    "ERR_REMOTE_SUBS_FULL": {
+      "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
+      "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
+    }
+  }
+}

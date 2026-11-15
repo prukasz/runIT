@@ -49,5 +49,5 @@ On a board: `python runit-esp-rework/tools/session_client.py <COM port>` runs PI
 
 ## Open
 
-- The power manager's safe state (reason POWER) is wired when the power manager is started in `main`.
+- The power manager's safe state (reason POWER) is wired when the power manager is started in `app/runit`.
 - The VM's stop joins the safe state when the VM is in the rework.

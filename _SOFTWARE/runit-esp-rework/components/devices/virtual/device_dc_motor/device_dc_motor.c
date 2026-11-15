@@ -76,9 +76,10 @@ SYS_DEVICE_OWN_DECLARE(OWN_DC_MOTOR)
 /*******************************************************************************
  * DC_MOTOR : limits & config
  ******************************************************************************/
+//#ref-enum @alias DC Motor Stop
 typedef enum {
-  DC_MOTOR_STOP_BRAKE = 0,  // shorts the motor: it stops fast and holds
-  DC_MOTOR_STOP_COAST = 1,  // releases the motor: it rolls to a stop
+  DC_MOTOR_STOP_BRAKE = 0,  //@alias Brake @description Shorts the motor: stops fast and holds
+  DC_MOTOR_STOP_COAST = 1,  //@alias Coast @description Releases the motor: rolls to a stop
 } dc_motor_stop_e;
 
 #define DC_MOTOR_SPEED_MAX        1000  // tenths of a percent: 100 %

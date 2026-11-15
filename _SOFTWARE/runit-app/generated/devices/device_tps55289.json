@@ -7,7 +7,7 @@
   "description": "Adjustable I2C buck-boost voltage regulator: a programmable power output with a current limit and enable control.",
   "type_id": 67,
   "type": {
-    "symbol": "SYS_DEVICE_TYPE_TPS55289",
+    "symbol": "TPS55289_TYPE",
     "id": 67
   },
   "protocols": [
@@ -23,7 +23,7 @@
   "datasheet": "https://www.ti.com/lit/ds/symlink/tps55289.pdf",
   "config": {
     "struct": "tps55289_cfg_t",
-    "size": 8,
+    "size": 6,
     "fields": [
       {
         "id": "i2c_bus",
@@ -31,9 +31,9 @@
         "description": "The I2C bus the chip is on",
         "offset": 0,
         "size": 1,
-        "type": "enum",
-        "enum": "sys_i2c_bus_e",
-        "raw_type": "u8"
+        "type": "device",
+        "raw_type": "u8",
+        "requires_contract": "I2C"
       },
       {
         "id": "i2c_addr",
@@ -60,19 +60,19 @@
         "label": "FB/INT",
         "description": "Open-drain, active-low: faults; needs CONFIGURE_INTR on its device",
         "offset": 2,
-        "size": 3,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
-        "requires": "output",
+        "requires": "input",
         "optional": true
       },
       {
         "id": "en_pin",
         "label": "EN",
         "description": "The hardware switch of the rail; the chip forgets its registers while it is low",
-        "offset": 5,
-        "size": 3,
+        "offset": 4,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
@@ -83,7 +83,7 @@
   },
   "ranges": {
     "VOLTAGE.voltage_mV": {
-      "min": 4000,
+      "min": 3000,
       "max": 20000,
       "step": 100
     },
@@ -101,7 +101,7 @@
     {
       "id": "protection",
       "op": 1,
-      "symbol": "TPS55289_OP_PROTECTION",
+      "symbol": "OWN_TPS55289_OP_PROTECTION",
       "label": "Protection",
       "description": "How the chip protects itself: OCP delay, hiccup, the faults it reports.",
       "read": {

@@ -8,7 +8,6 @@
     "host/test_sys_watch.c"
   ],
   "includes": [
-    "config",
     "errors",
     "internal",
     "router"
@@ -24,8 +23,7 @@
   "variants": {
     "default": [
       "-DCONFIG_SYS_SESSION_TIMEOUT_MS=5000",
-      "-DCONFIG_SYS_SESSION_CALL_TIMEOUT_MS=500",
-      "-DCONFIG_SYS_SESSION_CALL_TIMEOUT_WIRED_MS=500"
+      "-DCONFIG_SYS_SESSION_CALL_TIMEOUT_MS=500"
     ]
   }
 }

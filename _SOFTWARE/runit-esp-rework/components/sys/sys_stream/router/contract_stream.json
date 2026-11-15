@@ -15,7 +15,7 @@
       "op": 1,
       "symbol": "SYS_STREAM_OP_CREATE",
       "label": "Create a stream",
-      "description": "Creates a user stream with its byte id and flags.",
+      "description": "Creates a user stream with its byte id and flags. User streams only (0x10..0x7F): the board makes its own.",
       "write": {
         "args": {
           "struct": "sys_stream_cfg_t",
@@ -27,7 +27,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The new stream: 0x01..0x7F, not one that exists (0x80 and more are the session's channels)"
+              "description": "The new stream: 0x01..0x7F, not one that exists (0x80 and more are the modules' channels)"
             },
             {
               "id": "flags",
@@ -143,7 +143,7 @@
       "op": 5,
       "symbol": "SYS_STREAM_OP_UNBIND",
       "label": "Unbind from a provider",
-      "description": "Removes every SOURCE and SINK target of this provider (on any board); a SOURCE closes its provider RX hook.",
+      "description": "Removes every SOURCE and SINK target of this provider (on any board), or of every provider for provider 0xFF; a SOURCE closes its provider RX hook.",
       "write": {
         "args": {
           "struct": "sys_stream_source_t",
@@ -164,30 +164,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "The provider's id"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "UNBIND_ALL",
-      "op": 6,
-      "symbol": "SYS_STREAM_OP_UNBIND_ALL",
-      "label": "Unbind everything",
-      "description": "Removes every SOURCE and SINK target of the stream.",
-      "write": {
-        "args": {
-          "struct": "sys_stream_ref_t",
-          "fields": [
-            {
-              "id": "id",
-              "label": "Stream",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "The stream"
+              "description": "The provider's id; 0xFF: every provider"
             }
           ]
         }
@@ -198,12 +175,12 @@
       "op": 7,
       "symbol": "SYS_STREAM_OP_LIST",
       "label": "List the streams",
-      "description": "Returns every stream, its state and its targets.",
+      "description": "Returns every stream and its targets.",
       "read": {
         "returns": {
           "type": "u8",
           "label": "Number of streams",
-          "description": "Then, per stream: its head (id, flags, state, target count), then its targets (type u8, peer u8, provider u8, dropped u16)."
+          "description": "Then, per stream: its head (id, flags, target count), then its targets (type u8, peer u8, provider u8)."
         }
       }
     },

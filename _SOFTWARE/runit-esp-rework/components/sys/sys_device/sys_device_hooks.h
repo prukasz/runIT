@@ -91,7 +91,7 @@ MUST_USE err_h sys_device_set_interceptor(uint8_t contract, sys_device_intercept
  * @param op    Op number, SYS_DEVICE_OP(contract, n)
  * @param in    The op's payload
  * @param out   The answer: a read's value
- * @return NULL; ERR_DEV_REMOTE_DOWN, ERR_SESSION_BUSY (later), ERR_WATCH_NO_VALUE (later), the answer's error.
+ * @return NULL; ERR_DEV_REMOTE_DOWN, ERR_WATCH_NO_VALUE (later), the answer's error.
  */
 typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cmd_in_t in,
                                      cmd_out_t* out);
@@ -101,6 +101,22 @@ typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t d
  * @param[in] fn The hook; valid for good.
  */
 void sys_device_set_remote(sys_device_remote_f fn);
+
+/**
+ * @brief The local ID of the remote device that is device `remote_id` of `board`. A snapshot, no lock.
+ * @param[in] board     Its board
+ * @param[in] remote_id Its ID there
+ * @return The local ID, SYS_DEVICE_ID_NONE when no remote device names it
+ */
+uint8_t sys_device_find_remote(uint8_t board, uint8_t remote_id);
+
+/**
+ * @brief Where remote device `id` is. A snapshot, no lock.
+ * @param[in]  id    A local device
+ * @param[out] where A copy of its record
+ * @return false: `id` is not a remote device
+ */
+bool sys_device_remote_of(uint8_t id, sys_device_remote_t* where);
 
 #ifdef __cplusplus
 }

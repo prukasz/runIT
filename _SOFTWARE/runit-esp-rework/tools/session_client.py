@@ -8,8 +8,8 @@
     python runit-esp-rework/tools/session_client.py COM10 --stage5        # verify Stage 5 (sys_stream + sys_log)
     python runit-esp-rework/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
 
-Line: 00 cobs([frame][crc16 LE]) 00, CRC16-CCITT (poly 0x1021, init 0xFFFF) (SYS_UART.MD "The line").
-Frame: [frame byte][dst][src][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is the app's, 0xF0.
+Line: 00 cobs([frame][crc16 LE]) 00, CRC16-CCITT (poly 0x1021, init 0xFFFF) (PROVIDER_CONSOLE.MD "The line" / sys_uart_codec.h).
+Frame: [frame byte][dst][src][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is 0xF0, the first of the clients'.
 Bytes that are no frame (the boot's text, the log) are shown as text. Exit 0 when every step answered as it should.
 """
 import argparse
@@ -24,8 +24,8 @@ REQUEST, ANSWER, PUSH, CONTROL = 0, 1, 2, 3
 HELLO, PING, NO_SESSION, PEER = 1, 2, 3, 4
 KEY_SYS, KEY_SESSION, KEY_STREAM, KEY_LOG, KEY_WATCH = 0x28, 0x0E, 0x29, 0x2A, 0x2B
 STREAM_TELEMETRY, STREAM_LOGS, STREAM_ERRORS, STREAM_EVENTS = 0x02, 0x03, 0x04, 0x06
-CH_WATCHES = 0x80
-F_URGENT, F_ERROR, F_UNCOUNTED = 0x01, 0x04, 0x08
+CH_WATCHES = 0x80 | 0x2B  # SYS_SESSION_CHANNEL(MODULE_ID_WATCH)
+F_URGENT, F_ERROR = 0x01, 0x04
 
 
 def crc16(data: bytes) -> int:
@@ -116,13 +116,12 @@ class Link:
     def _record_async(self, kind: int, flags: int, src: int, seq: int, b: bytes):
         if kind == PUSH:
             urgent = bool(flags & F_URGENT)
-            if not (flags & F_UNCOUNTED):
-                key = (src, urgent)
-                prev = self.push_seq.get(key)
-                if prev is not None and seq != ((prev + 1) & 0xFFFF):
-                    self.push_gaps.append((key, prev, seq))
-                    print(f"!! PUSH GAP from {src:#04x} urgent={int(urgent)}: expected {(prev + 1) & 0xFFFF}, got {seq}")
-                self.push_seq[key] = seq
+            key = (src, urgent)
+            prev = self.push_seq.get(key)
+            if prev is not None and seq != ((prev + 1) & 0xFFFF):
+                self.push_gaps.append((key, prev, seq))
+                print(f"!! PUSH GAP from {src:#04x} urgent={int(urgent)}: expected {(prev + 1) & 0xFFFF}, got {seq}")
+            self.push_seq[key] = seq
             sid, payload = (b[0], b[1:]) if b else (0, b"")
             self.pushes.append((flags, src, seq, sid, payload))
             tag = f"push {src:#04x} stream={sid:#04x} seq={seq}" + (" URGENT" if urgent else "")
@@ -153,16 +152,16 @@ class Link:
         return None, b""
 
 
-def _decode_streams(buf: bytes) -> dict[int, tuple[int, int, list[tuple[int, int, int, int]]]]:
+def _decode_streams(buf: bytes) -> dict[int, tuple[int, list[tuple[int, int, int]]]]:
     out, pos = {}, 1
     for _ in range(buf[0]):
-        sid, flags, state, ntargets = struct.unpack_from("<BBBB", buf, pos)
-        pos += 4
+        sid, flags, ntargets = struct.unpack_from("<BBB", buf, pos)
+        pos += 3
         targets = []
         for _ in range(ntargets):
-            targets.append(struct.unpack_from("<BBBH", buf, pos))
-            pos += 5
-        out[sid] = (flags, state, targets)
+            targets.append(struct.unpack_from("<BBB", buf, pos))
+            pos += 3
+        out[sid] = (flags, targets)
     assert pos == len(buf), f"LIST trailing bytes: {pos} != {len(buf)}"
     return out
 
@@ -186,7 +185,7 @@ def run_stage5(link: Link, dst: int) -> bool:
         return False
     streams = _decode_streams(raw_list)
     for sid, exp_flags in [(STREAM_TELEMETRY, 0), (STREAM_LOGS, 0), (STREAM_ERRORS, 1), (STREAM_EVENTS, 1)]:
-        if sid not in streams or streams[sid][:2] != (exp_flags, 1):
+        if sid not in streams or streams[sid][0] != exp_flags:
             print(f"FAIL: system stream {sid:#04x} missing or bad metadata: {streams.get(sid)}")
             return False
 
@@ -230,7 +229,7 @@ def run_stage5(link: Link, dst: int) -> bool:
         print(f"FAIL: expected past-end LOG ERRORS [total], got {past!r}")
         return False
 
-    # User stream 0x10 lifecycle: CREATE -> SUBSCRIBE -> SINK (remote) -> LIST -> UNBIND_ALL -> REMOVE.
+    # User stream 0x10 lifecycle: CREATE -> SUBSCRIBE -> SINK (remote) -> LIST -> UNBIND 0xFF -> REMOVE.
     link.call(dst, bytes([KEY_STREAM, 1, 0x02, 0x10]))
     if expect_ok(bytes([KEY_STREAM, 1, 0x01, 0x10, 0x00])) is None:
         return False
@@ -242,11 +241,11 @@ def run_stage5(link: Link, dst: int) -> bool:
     if raw_after is None:
         return False
     st_after = _decode_streams(raw_after)
-    targets = st_after.get(0x10, (0, 0, []))[2]
+    targets = st_after.get(0x10, (0, []))[1]
     if not any(t[0] == 2 and t[1] == CLIENT for t in targets) or not any(t[0] == 1 and t[1] == 0x22 and t[2] == 0x01 for t in targets):
         print(f"FAIL: user stream 0x10 missing expected PEER/SINK targets in LIST: {st_after.get(0x10)}")
         return False
-    if expect_ok(bytes([KEY_STREAM, 1, 0x06, 0x10])) is None:
+    if expect_ok(bytes([KEY_STREAM, 1, 0x05, 0x10, 0xFF])) is None:
         return False
     if expect_ok(bytes([KEY_STREAM, 1, 0x02, 0x10])) is None:
         return False
@@ -282,7 +281,7 @@ def run_stage7(link: Link, dst: int) -> bool:
     if expect_err(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 5) + log_cfg_w2) is None:
         return False
 
-    # 1. PERIODIC watch id=1 on SYS PING (u32 uptime every 50 ms) -> check [0x80][id][status][u32] (NO owner byte!).
+    # 1. PERIODIC watch id=1 on SYS PING (u32 uptime every 50 ms) -> check [CH_WATCHES][id][status][u32] (NO owner byte!).
     link.pushes.clear()
     if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 5) + ping_cmd) is None:
         return False

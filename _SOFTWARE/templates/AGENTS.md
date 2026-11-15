@@ -8,10 +8,10 @@
 
 | Descriptor | Where | Schema |
 |---|---|---|
-| Device | `runit-esp/components/devices/device_<name>/device_<name>.json` | `device.schema.json` |
-| Contract | `runit-esp/components/sys/sys_<name>/router/contract_<name>.json` (also `sys/sys_system/router/contract_sys.json`, `vm/vm_core/router`) | `contract.schema.json` |
-| Board | `runit-esp/components/app/runit/board.json` (the PCB), `board_devkit.json` (a devkit: device 0 only, no power sources, monitor or rails) | `board.schema.json` |
-| VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (one per block type of `vm_block_ids.h`; `crosscheck.py` lists any without one) | `vm-block.schema.json` |
+| Device | `runit-esp-rework/components/devices/<category>/device_<name>/device_<name>.json` | `device.schema.json` |
+| Contract | `runit-esp-rework/components/sys/**/contract_<name>.json` (under `sys_<name>/router/`, `sys_<name>/contracts/`, `sys/bus/*/`, etc.) | `contract.schema.json` |
+| Board | `runit-esp-rework/components/app/runit/board.json` (the PCB), `board_devkit.json` (optional while not yet migrated in rework) | `board.schema.json` |
+| VM block | `runit-esp-rework/components/vm/vm_blocks/**/block_<name>.json` (optional while VM is not yet migrated in rework; `crosscheck.py` skips when `vm_block_ids.h` is absent) | `vm-block.schema.json` |
 | Hardware part | `library/parts/<id>/part.json` with its drawing `part.svg` (the Devices canvas; [library/LIBRARY.md](../library/LIBRARY.md)). Not copied into `runit-app/generated/`: the app reads `library/` itself (`@library`) | `part.schema.json` |
 
 Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`), so a new device or contract needs no registration.
@@ -32,15 +32,15 @@ A pin field (`type: pin`) says the mode its pin must have in `requires` (`output
 |---|---|---|
 | `generate_enums.py` | `runit-app/generated/common/enums.json` | `enums.schema.json` |
 | `generate_limits.py` | `runit-app/generated/common/limits.json` | `limits.schema.json` |
-| `generate_errors.py` | `runit-esp/components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
+| `generate_errors.py` | `runit-esp-rework/components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
 
-Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand. Re-run them after changing a marked enum or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
+Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand. Re-run them after changing a marked enum, `MODULE_ID_DECLARE`, or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
 
-`generate_errors.py` reads `ERR_MOD_*` from `runit-esp/components/core/errors/err_modules.h`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `runit-esp/components/`.
+`generate_errors.py` reads `MODULE_ID_DECLARE` (`core/utils/module_id.h`), `#define ERR_MOD_*`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `runit-esp-rework/components/`.
 
 ### Errors: what a user reads, what an error is about
 
-Each error module has `errors_<module name>.json` next to the header of its map, in the `errors/` folder of its component (`runit-esp/components/sys/bus/sys_i2c/errors/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
+Each error module has `errors_<module name>.json` next to the header of its map, in the `errors/` folder of its component (`runit-esp-rework/components/sys/bus/sys_i2c/errors/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
 
 ```json
 { "module": "ERR_MOD_SYS_IO", "errors": {
@@ -59,19 +59,19 @@ A command of a device contract whose field is of type `pin` (the device's own pi
 
 ## The `runit-app/generated/` bundle (what the app reads)
 
-`generate_bundle.py` copies the descriptors from `runit-esp/components/` into `runit-app/generated/`, so the app reads one place and never the source tree:
+`generate_bundle.py` copies the descriptors from `runit-esp-rework/components/` into `runit-app/generated/`, so the app reads one place and never the source tree:
 
 | Folder | Content | Taken from |
 |---|---|---|
-| `runit-app/generated/devices/` | `device_*.json` | `runit-esp/components/devices/*/` |
-| `runit-app/generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `runit-esp/components/sys/*/` and others |
+| `runit-app/generated/devices/` | `device_*.json` | `runit-esp-rework/components/devices/**/device_*/` |
+| `runit-app/generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `runit-esp-rework/components/sys/*/` and others |
 | `runit-app/generated/services/` | `contract_*.json` with `scope` `system` | the same places |
-| `runit-app/generated/blocks/` | `block_*.json` | `runit-esp/components/vm/vm_blocks/**/` |
-| `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp/components/devices/*/manual/` |
-| `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp/components/devices/*/` |
-| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), `board.json`, `board_devkit.json` | generated / `runit-esp/components/core/errors/`, `runit-esp/components/app/runit/` |
+| `runit-app/generated/blocks/` | `block_*.json` | `runit-esp-rework/components/vm/vm_blocks/**/` (when present) |
+| `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp-rework/components/devices/**/device_*/manual/` |
+| `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp-rework/components/devices/**/device_*/` |
+| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), optional `board.json`, `board_devkit.json` | generated / `runit-esp-rework/components/core/errors/`, `runit-esp-rework/components/app/runit/` |
 
-A device's manual is written by hand in `runit-esp/components/devices/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `runit-app/generated/`.
+A device's manual is written by hand in `runit-esp-rework/components/devices/<category>/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `runit-app/generated/`.
 
 ### What is published: only what is marked
 
@@ -89,7 +89,8 @@ typedef enum {
 ```
 
 - `@alias` is required on the marker and on every member. It is the name a user sees. Nothing is derived from a C identifier or from a plain comment, and text outside a tag is an error.
-- `@description` is optional. `@wire-size <bytes>` and `@mem-size <bytes>` pass through as `wire_size` / `mem_size`.
+- `@description` is optional. `@wire-size <bytes>` and `@mem-size <bytes>` pass through as `wire_size` / `mem_size`. `@duplicates` on `//#ref-defines` allows distinct constants to share a numeric value (for example `SYS_IO_PIN_NONE_DEVICE` and `SYS_IO_PIN_NONE_INDEX`).
+- `MODULE_ID_DECLARE(NAME, value)` (`core/utils/module_id.h`) lines with `//@alias ...` are scanned automatically and published as the `module_id` defines group (`prefix: "MODULE_ID_"`).
 - A value is a literal, an expression of earlier members, a `#define`, or a `CONFIG_*` option read from `sdkconfig`. `*_CNT` and `*_COUNT` sentinels are left out.
 - A member name belongs to exactly one published group; `symbols` maps it back to that group.
 
@@ -129,4 +130,4 @@ sh templates/sync.sh            # regenerate enums.json and errors.json, refresh
 sh templates/sync.sh --check    # CI: fail when a generated file or a copy in runit-app/generated/ is out of date, then validate
 ```
 
-Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py`, `crosscheck.py` and `check_library.py`. `check_library.py` holds every part of `library/parts/` to `part.schema.json` and checks its references: the folder is its id and its drawing has a `viewBox` of its size in mm; its device type is a published device descriptor, its preset one of the descriptor's, its `config` keys fields of it; a pin's `config` is a pin field of that device, `device_pin: "self"` needs a device, `net` / `supply` / an element's `in` and `out` name nets of the part; a board part names a board.json; ids are unique. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a command with both sides is a mirror (above); a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `runit-esp/components/vm/vm_core/block/vm_block_ids.h`, and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or the op code of a command with a write side (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract, its `dir` one of that command's sides (required when it has both) and its `args` keys are arguments of that side; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors and the `errors_<module>.json` texts, board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).
+Run it after any change to a descriptor, a schema, a marked enum or define group, or an error map; the commit should leave it green. `sync.sh` runs `generate_enums.py`, `generate_limits.py`, `generate_errors.py`, `generate_bundle.py`, `validate_schemas.py`, `crosscheck.py` and `check_library.py`. `check_library.py` holds every part of `library/parts/` to `part.schema.json` and checks its references: the folder is its id and its drawing has a `viewBox` of its size in mm; its device type is a published device descriptor, its preset one of the descriptor's, its `config` keys fields of it; a pin's `config` is a pin field of that device, `device_pin: "self"` needs a device, `net` / `supply` / an element's `in` and `out` name nets of the part; a board part names a board.json (when present; while `board.json` or un-migrated devices are not yet in `runit-esp-rework/`, those un-migrated refs are skipped with a notice); ids are unique. `crosscheck.py` checks what no single schema can: a device's `contracts` name existing contracts; a command with both sides is a mirror (above); a VM block's `wire_id` is unique, below `VM_BLOCK_TYPES_MAX` and equals `VM_BLK_<ID>` of `runit-esp-rework/components/vm/vm_core/block/vm_block_ids.h` (when present), and its `state_len` equals the `.state_len` of its `VM_BLOCK_TYPE_DEFINE` (a `sizeof` that a `_Static_assert` pins to a number; 0 when the definition names none), and the `idle` options of a device block are 0 or the op code of a command with a write side (`(contract_id << 8) | op`, or `0xFF00 | op` for a device's own command); `device.contract` / `device.device_type` exist; a block's `opcodes.enum` (the opcode group of an expression block, with the type of its constants) is published in `enums.json` and the block has an `editor`; a variant's `op` is a command of that contract, its `dir` one of that command's sides (required when it has both) and its `args` keys are arguments of that side; `fixed` / `default` / condition values are members of the enum group, options or contract choice they refer to; `{name}` in a header or body is a field, argument, pin, `device` or `variant`; a condition names a field of the block, `device.<config id>` of the block's `device_type` (a contract block has no device config to name) or a variant. Block types without a descriptor are listed, not failed. The validator checks every descriptor (devices, contracts, VM blocks, errors and the `errors_<module>.json` texts, optional board, enums, limits) against its schema (JSON Schema 2020-12) and that each enum a descriptor names (`"enum"` of a field, `enum_ref` of an error field) is published in `enums.json`. `sync.sh` uses the Python of the repository's `.venv` (agents run it that way too), falling back to `python`; `PYTHON=<interpreter>` overrides it. The validator needs `jsonschema` in that Python (`.venv/Scripts/python.exe -m pip install jsonschema`).

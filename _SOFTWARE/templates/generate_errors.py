@@ -1,11 +1,11 @@
-"""Publishes the error catalog of the firmware as one JSON: runit-esp/components/core/errors/errors.json.
+"""Publishes the error catalog of the firmware as one JSON: runit-esp-rework/components/core/errors/errors.json.
 
-Reads ERR_MOD_* from runit-esp/components/core/errors/err_modules.h, and the ERR_MODULE_DEFINE and ERR_*_MAP macros from the headers
-and sources under runit-esp/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
+Reads MODULE_ID_DECLARE / ERR_MOD_* defines and the ERR_MODULE_DEFINE and ERR_*_MAP macros from the headers
+and sources under runit-esp-rework/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
 its map (templates/error-texts.schema.json): a message template per error and what a field refers to where the field's
 name does not say it. Enum groups named there are read from runit-app/generated/common/enums.json (generate_enums.py runs first).
 
-Output: runit-esp/components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
+Output: runit-esp-rework/components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
 
 Usage: python templates/generate_errors.py [--check]
 """
@@ -28,6 +28,8 @@ TYPES = {
     "int16_t": ("i16", 2),
     "uint32_t": ("u32", 4),
     "int32_t": ("i32", 4),
+    "uint64_t": ("u64", 8),
+    "int64_t": ("i64", 8),
     "esp_err_t": ("i32", 4),
     "float": ("f32", 4),
     "bool": ("u8", 1),
@@ -69,7 +71,8 @@ ID_KIND_INFO = {
 ID_KINDS = {"pin": "pin", "source_pin": "pin", "bus": "i2c_bus", "provider": "transport", "stream": "stream", "contract": "contract", "tag": "error_tag", "root_tag": "error_tag"}
 MODULE_ID_KINDS = {
     "ERR_MOD_SYS_I2C": {"addr": "i2c_address"},
-    "ERR_MOD_SYS_DEVICE": {"id": "device", "user": "device", "type": "device_type", "op": "device_op"},
+    "ERR_MOD_SYS_UART": {"port": "device", "owner": "device"},
+    "ERR_MOD_SYS_DEVICE": {"id": "device", "user": "device", "owner": "device", "dep": "device", "type": "device_type", "op": "device_op"},
     "ERR_MOD_SYS_IO": {"id": "device"},
     "ERR_MOD_SYS_POWER": {"id": "device", "channel": "channel"},
     "ERR_MOD_SYS_DISPLAY": {"id": "device"},
@@ -85,7 +88,8 @@ MODULE_ID_KINDS = {
 }
 UNITS = {"_Hz": "Hz", "_mV": "mV", "_mA": "mA", "_ms": "ms", "_us": "us"}  # field name suffix -> unit
 
-MOD_DEFINE_RE = re.compile(r"^#define\s+(ERR_MOD_\w+)\s+(\d+)u?\b", re.MULTILINE)
+MODULE_DECLARE_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(\w+)\s*,\s*(0x[0-9a-fA-F]+|\d+)u?\s*\)", re.MULTILINE)
+MOD_DEFINE_RE = re.compile(r"^#define\s+(ERR_MOD_\w+)\s+(\w+)\b", re.MULTILINE)
 MODULE_DEFINE_RE = re.compile(r'^ERR_MODULE_DEFINE\(\s*(ERR_MOD_\w+)\s*,\s*"([^"]*)"\s*,\s*(\w+)\s*\)', re.MULTILINE)
 MAP_RE = re.compile(r"^#define\s+(\w+_MAP)\(X\)((?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
 TAG_CALL_RE = re.compile(r"ERR_TAG\(\s*(ERR_MOD_\w+)\s*,\s*(\d+)\s*\)")
@@ -296,11 +300,13 @@ def apply_texts(module, tags, path):
 
 
 def scan():
-    ids, names, maps, map_file = {}, {}, {}, {}
+    module_ids, raw_defs, names, maps, map_file = {}, {}, {}, {}, {}
     for path in sources(".h", ".c"):
         text = read(path)
-        if path.name == "err_modules.h":
-            ids.update({m[0]: int(m[1]) for m in MOD_DEFINE_RE.findall(text)})
+        for m in MODULE_DECLARE_RE.finditer(text):
+            module_ids[f"MODULE_ID_{m[1]}"] = int(m[2], 0)
+        for m in MOD_DEFINE_RE.finditer(text):
+            raw_defs[m[1]] = m[2]
         for m in MODULE_DEFINE_RE.finditer(text):
             if m[1] in names:
                 fail(f"{rel(path)}: duplicate ERR_MODULE_DEFINE for {m[1]}")
@@ -309,10 +315,17 @@ def scan():
             maps[m[1]] = m[2].replace("\\\n", " ")
             map_file[m[1]] = path
 
+    ids = {}
+    for sym, val in raw_defs.items():
+        if re.fullmatch(r"(?:0x[0-9a-fA-F]+|\d+)[uUlL]*", val):
+            ids[sym] = int(val.rstrip("uUlL"), 0)
+        elif val in module_ids:
+            ids[sym] = module_ids[val]
+
     modules = []
     for symbol, (name, map_name) in sorted(names.items(), key=lambda item: ids.get(item[0], 1 << 16)):
         if symbol not in ids:
-            fail(f"{symbol} has no #define in err_modules.h")
+            fail(f"{symbol} has no numeric #define or MODULE_ID_DECLARE value")
         if map_name not in maps:
             fail(f"{symbol}: map {map_name} not found in headers")
         module = {

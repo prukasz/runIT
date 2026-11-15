@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(SYS_EVENT, 0x25)
+MODULE_ID_DECLARE(SYS_EVENT, 0x25)  //@alias System events @description Event bus and forwarding module ID
 #define ERR_MOD_SYS_EVENT MODULE_ID_SYS_EVENT
 
 /* ----------------------------------------------------------------------------

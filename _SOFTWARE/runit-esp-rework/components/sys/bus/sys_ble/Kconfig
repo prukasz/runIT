@@ -1,0 +1,29 @@
+menu "sys_ble"
+
+    config SYS_BLE_DEVICE_NAME
+        string "Device name"
+        default "runit"
+        help
+          The GAP name the board advertises.
+
+    config SYS_BLE_TASK_PRIO
+        int "BLE task priority"
+        default 5
+        range 1 24
+        help
+          The task that sends the queued items and applies the staged GATT changes.
+
+    config SYS_BLE_TASK_STACK
+        int "BLE task stack (bytes)"
+        default 4096
+        range 2048 32768
+
+    config SYS_BLE_APPLY_DELAY_MS
+        int "Apply delay with a client connected (ms)"
+        default 200
+        range 0 5000
+        help
+          APPLY with a client connected waits this long, so the command that asked for it is answered before the
+          Service Changed indication.
+
+endmenu

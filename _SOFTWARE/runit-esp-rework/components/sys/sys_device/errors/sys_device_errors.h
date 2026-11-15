@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(SYS_DEVICE, 0x20)
+MODULE_ID_DECLARE(SYS_DEVICE, 0x20)  //@alias Devices @description Device registry and lifecycle contract and module ID
 #define ERR_MOD_SYS_DEVICE MODULE_ID_SYS_DEVICE
 
 /* ----------------------------------------------------------------------------

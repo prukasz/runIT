@@ -5,6 +5,7 @@
 #include "sys_device.h"
 #include "sys_device_driver.h"
 #include "sys_device_events.h"
+#include "sys_session_errors.h"
 #include "utils.h"
 
 #define TAG __FILE_NAME__
@@ -180,7 +181,8 @@ static bool is_response_failure(err_h chain) {
 }
 
 /* The policy on one chain. Walks from the outermost node: each device (ERR_DEV_ID) once, at its first mention, with
- * the severity from there down; a device at importance NONE ends the walk. A critical node before any device is the
+ * the severity from there down; a device at importance NONE ends the walk, and so does ERR_REMOTE (the rest is another
+ * board's chain; the severity of a device above it still counts all of it). A critical node before any device is the
  * system's. With `act` the responses run and the first failure is returned; without it nothing runs and `*needed`
  * says whether one would (the reporting task's question: is the chain worth the policy's task). */
 static err_h walk(err_h chain, bool act, bool* needed) {
@@ -191,6 +193,9 @@ static err_h walk(err_h chain, bool act, bool* needed) {
   uint32_t left = WALK_MAX;
   *needed = false;
   for (err_h n = chain; n != NULL && left-- > 0 && (act || !*needed); n = n->next) {
+    if (n->tag == ERR_REMOTE) {
+      break;  // below it the chain is another board's: its device IDs are not this board's
+    }
     if (n->tag != ERR_DEV_ID) {
       // A critical failure above every device: nobody to attribute it to.
       if (handled_count == 0 && !system_done && err_sev(n) == ERR_SEV_CRITICAL) {

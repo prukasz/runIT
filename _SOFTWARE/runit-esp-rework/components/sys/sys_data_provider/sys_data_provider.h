@@ -5,7 +5,6 @@
 
 #include "cmd.h"
 #include "errors.h"
-#include "sys_data_provider_config.h"
 #include "sys_data_provider_errors.h"
 #include "utils.h"
 
@@ -17,6 +16,23 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** @brief Provider driver types (u8 wire identifier in CREATE / INFO / LIST). */
+//#ref-enum @alias Provider Type
+typedef enum {
+  SYS_DATA_PROVIDER_TYPE_UART    = 1,  //@alias UART @description UART bridge provider
+  SYS_DATA_PROVIDER_TYPE_BLE     = 2,  //@alias Bluetooth LE @description BLE link provider
+  SYS_DATA_PROVIDER_TYPE_MQTT    = 3,  //@alias MQTT @description MQTT topic provider
+  SYS_DATA_PROVIDER_TYPE_CONSOLE = 4,  //@alias Console @description Board UART/USB-JTAG console
+} sys_data_provider_type_e;
+
+/* Provider state bits (filled by the driver inside create() and sys_data_provider_set_up(); OPEN is the registry's). */
+//#ref-defines prov_state @alias Provider state @prefix SYS_DATA_PROVIDER_STATE_
+#define SYS_DATA_PROVIDER_STATE_SYSTEM (1u << 0)  //@alias System @description The board's own: not removed
+#define SYS_DATA_PROVIDER_STATE_OPEN   (1u << 1)  //@alias Open @description Its rx hook has an owner
+#define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 3)  //@alias Wired @description Connection realised by cable - low latency
+#define SYS_DATA_PROVIDER_STATE_UP     (1u << 4)  //@alias Up @description It delivers frames now
+#define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 5)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw
 
 #define SYS_DATA_PROVIDER_ID_NONE 0xFFu  /**< Never a provider; OP_LIST targets it */
 
@@ -59,6 +75,20 @@ typedef struct __attribute__((packed)) {
 
 MUST_USE err_h sys_data_provider_call(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out);
 MUST_USE err_h sys_data_provider_write(uint8_t id, uint16_t op, const void* args, uint32_t args_len);
+
+/** @brief The largest driver cfg sys_data_provider_create_system takes. */
+#define SYS_DATA_PROVIDER_CREATE_CFG_MAX 16u
+
+/**
+ * @brief CREATE of the board's own provider (SYS_DATA_PROVIDER_CREATE_SYSTEM: it can't be removed): the frame
+ * [type u8][flags u8][cfg] built here, so the caller names the type and the driver's cfg only. Boot code.
+ * @param[in] id      The provider ID
+ * @param[in] type_id sys_data_provider_type_e
+ * @param[in] cfg     The driver's cfg (NULL with `cfg_len` 0 when it has none)
+ * @param[in] cfg_len Its size, at most SYS_DATA_PROVIDER_CREATE_CFG_MAX
+ * @return As CREATE; ERR_CMD_BAD_LEN when `cfg_len` is over the limit
+ */
+MUST_USE err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len);
 MUST_USE err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
                                       uint32_t out_size);
 

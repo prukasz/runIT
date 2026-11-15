@@ -7,7 +7,7 @@
   "description": "ESP32-S3 GPIO. Some pins are reserved for internal use, the rest are free for yours.",
   "type_id": 64,
   "type": {
-    "symbol": "SYS_DEVICE_TYPE_ESP32S3_GPIO",
+    "symbol": "ESP32S3_GPIO_TYPE",
     "id": 64
   },
   "protocols": [
@@ -28,8 +28,7 @@
   },
   "contracts": [
     "DEVICE",
-    "IO",
-    "PINS"
+    "IO"
   ],
   "provides": {
     "pins": {

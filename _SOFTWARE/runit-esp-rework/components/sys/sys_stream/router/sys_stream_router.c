@@ -1,10 +1,11 @@
 #include "sys_stream_router.h"
 
 #include "router_queue.h"
-#include "sdkconfig.h"
 #include "sys_stream_internal.h"
 
+// The board's own streams are made by main: CREATE makes user streams.
 ROUTER_WRITE(STREAM, OP_CREATE) {
+  ERR_CHECK(args->id >= SYS_STREAM_ID_USER_FIRST, ERR_STREAM_BAD_ARG);
   return sys_stream_create(args);
 }
 
@@ -22,10 +23,6 @@ ROUTER_WRITE(STREAM, OP_SINK) {
 
 ROUTER_WRITE(STREAM, OP_UNBIND) {
   return sys_stream_unbind(args->id, args->provider);
-}
-
-ROUTER_WRITE(STREAM, OP_UNBIND_ALL) {
-  return sys_stream_unbind_all(args->id);
 }
 
 ROUTER_READ(STREAM, OP_LIST) {
@@ -54,11 +51,9 @@ ROUTER_WRITE(STREAM, OP_UNSUBSCRIBE) {
 }
 
 static const router_op_t k_ops[] = {
-    ROUTER_ENTRY_W(STREAM, OP_CREATE),      ROUTER_ENTRY_W(STREAM, OP_REMOVE),
-    ROUTER_ENTRY_W(STREAM, OP_SOURCE),      ROUTER_ENTRY_W(STREAM, OP_SINK),
-    ROUTER_ENTRY_W(STREAM, OP_UNBIND),      ROUTER_ENTRY_W(STREAM, OP_UNBIND_ALL),
-    ROUTER_ENTRY_R(STREAM, OP_LIST),        ROUTER_ENTRY_W(STREAM, OP_SUBSCRIBE),
-    ROUTER_ENTRY_W(STREAM, OP_UNSUBSCRIBE),
+    ROUTER_ENTRY_W(STREAM, OP_CREATE),    ROUTER_ENTRY_W(STREAM, OP_REMOVE),    ROUTER_ENTRY_W(STREAM, OP_SOURCE),
+    ROUTER_ENTRY_W(STREAM, OP_SINK),      ROUTER_ENTRY_W(STREAM, OP_UNBIND),    ROUTER_ENTRY_R(STREAM, OP_LIST),
+    ROUTER_ENTRY_W(STREAM, OP_SUBSCRIBE), ROUTER_ENTRY_W(STREAM, OP_UNSUBSCRIBE),
 };
 
 ROUTER_MODULE(sys_stream_router, k_ops)

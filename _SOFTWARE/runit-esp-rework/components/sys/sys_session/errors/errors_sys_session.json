@@ -2,10 +2,6 @@
   "$schema": "../../../../templates/error-texts.schema.json",
   "module": "ERR_MOD_SYS_SESSION",
   "errors": {
-    "ERR_SESSION_NONE": {
-      "message": "A frame from {src} came before it said who it is",
-      "hint": "It is asked to say it again; nothing to do."
-    },
     "ERR_SESSION_ID_TAKEN": {
       "message": "Two boards have the id {board}",
       "hint": "Give one of them another id."
@@ -33,10 +29,6 @@
     },
     "ERR_REMOTE": {
       "message": "On board {board}"
-    },
-    "ERR_SESSION_BUSY": {
-      "message": "Board {dst} is still answering earlier requests",
-      "hint": "It is sent again later; nothing to do."
     },
     "ERR_SESSION_WOULD_BLOCK": {
       "message": "A wait for another board's answer was asked where nothing may wait",

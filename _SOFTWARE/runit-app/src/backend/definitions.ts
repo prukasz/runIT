@@ -56,7 +56,7 @@ export interface LinkDefinitions {
     readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number; readonly gone: number }
     /** What a session's peer is to the board (`sys_session_peer_e`): its master, a slave, a client. */
     readonly peer: { readonly master: number; readonly slave: number; readonly client: number }
-    /** `app`: the id the app says in its hello (`SYS_SESSION_ID_APP`); other clients pick one in `clientFirst..clientLast`. */
+    /** `app`: the id the app says in its hello, the app's own choice (the first of the clients': `clientFirst`); other clients pick one in `clientFirst..clientLast`. */
     readonly id: {
       readonly none: number; readonly self: number; readonly broadcast: number; readonly app: number
       readonly clientFirst: number; readonly clientLast: number; readonly boardLast: number
@@ -114,10 +114,11 @@ export const linkDefinitions = (
       events: value(enums, 'stream', 'SYS_STREAM_EVENTS'),
     },
     channels: {
-      first: value(enums, 'stream_range', 'SYS_STREAM_ID_LAST') + 1,
-      watches: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_WATCHES'),
-      remote: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_REMOTE'),
-      data: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_DATA'),
+      first: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_FIRST'),
+      // A channel is its module's number with bit 7 set (`SYS_SESSION_CHANNEL(MODULE_ID_x)`).
+      watches: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_FIRST') | value(enums, 'module_id', 'MODULE_ID_WATCH'),
+      remote: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_FIRST') | value(enums, 'module_id', 'MODULE_ID_REMOTE'),
+      data: value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_FIRST') | value(enums, 'module_id', 'MODULE_ID_SESSION'),
     },
     stream: {
       dir: { out: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_OUT'), in: value(enums, 'sys_stream_dir_e', 'SYS_STREAM_IN') },
@@ -163,7 +164,7 @@ export const linkDefinitions = (
         none: value(enums, 'session_id', 'SYS_SESSION_ID_NONE'),
         self: value(enums, 'session_id', 'SYS_SESSION_ID_SELF'),
         broadcast: value(enums, 'session_id', 'SYS_SESSION_ID_BROADCAST'),
-        app: value(enums, 'session_id', 'SYS_SESSION_ID_APP'),
+        app: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_FIRST'),
         clientFirst: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_FIRST'),
         clientLast: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_LAST'),
         boardLast: value(enums, 'session_id', 'SYS_SESSION_ID_LAST'),

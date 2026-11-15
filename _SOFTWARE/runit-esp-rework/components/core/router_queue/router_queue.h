@@ -77,7 +77,7 @@ MUST_USE err_h router_init(void);
  * @param cmd     The command answered (its src, seq, flags, request).
  * @param status  router_status_e.
  * @param data    The answer (OK) or the error record (ERROR), in the task's own buffer, valid for the call only: a
- *                callback that frames it prepends its header for sys_data_provider_send.
+ *                callback that frames it copies it with its header into the flat frame for sys_data_provider_send.
  * @param len     Bytes in `data`, at most CMD_DATA_MAX.
  * @return NULL; else an error the router reports with the command (the answer is lost: a reader retries).
  */

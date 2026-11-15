@@ -19,7 +19,7 @@ extern "C" {
 #define CONTRACT_EVENT_OPERATIONS(X, P) \
   X(P, OP_ON_EVENT, 0x00, cmd_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL)
 
-MODULE_ID_DECLARE(EVENT, 0x03)
+MODULE_ID_DECLARE(EVENT, 0x03)  //@alias Device event contract @description Hardware event stream contract and module ID
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, EVENT, 0x03)
 
 /**

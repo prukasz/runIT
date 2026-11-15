@@ -7,7 +7,7 @@
       "alias": "Action classes",
       "kind": "defines",
       "prefix": "SYS_ACTIONS_CLASS_",
-      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
+      "source_file": "runit-esp-rework/components/sys/sys_actions/sys_actions.h",
       "members": [
         {
           "name": "SYS_ACTIONS_CLASS_USER",
@@ -32,6 +32,12 @@
           "value": 3,
           "alias": "Project",
           "description": "stored project run list and sections"
+        },
+        {
+          "name": "SYS_ACTIONS_CLASS_BOARD",
+          "value": 4,
+          "alias": "Board",
+          "description": "the board's profile: its buses, ports and devices"
         }
       ]
     },
@@ -39,7 +45,7 @@
       "alias": "Fragment header",
       "kind": "defines",
       "prefix": "SYS_BLE_FRAG_",
-      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_ble/sys_ble.h",
       "members": [
         {
           "name": "SYS_BLE_FRAG_LAST",
@@ -65,76 +71,32 @@
       "alias": "runIT GATT UUIDs",
       "kind": "defines",
       "prefix": "SYS_BLE_",
-      "source_file": "runit-esp/components/sys/sys_ble/core/sys_ble.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_ble/sys_ble.h",
       "members": [
         {
           "name": "SYS_BLE_SVC_RUNIT",
           "value": 65504,
           "alias": "runIT service",
-          "description": "The primary service that carries the router link and the streams"
+          "description": "The board's own service: the client's session"
         },
         {
           "name": "SYS_BLE_CHR_RUNIT_TX",
           "value": 65505,
-          "alias": "Answers and telemetry",
-          "description": "Notify, framed: router answers, the telemetry and events streams"
+          "alias": "Session out",
+          "description": "Notify, framed: the session's frames to the client"
         },
         {
           "name": "SYS_BLE_CHR_RUNIT_RX",
           "value": 65506,
-          "alias": "Requests",
-          "description": "Write, framed: router requests"
-        },
-        {
-          "name": "SYS_BLE_CHR_RUNIT_LOGS",
-          "value": 65507,
-          "alias": "Logs and errors",
-          "description": "Notify, framed: the logs and errors streams"
-        },
-        {
-          "name": "SYS_BLE_CHT_RUNIT_STATUS",
-          "value": 65508,
-          "alias": "Status",
-          "description": "Notify, unframed: created, nothing sends on it yet"
-        }
-      ]
-    },
-    "board_provider": {
-      "alias": "Board's providers",
-      "kind": "defines",
-      "prefix": "RUNIT_BOARD_PROVIDER_",
-      "source_file": "runit-esp/components/app/runit/runit_board_cfg.h",
-      "members": [
-        {
-          "name": "RUNIT_BOARD_PROVIDER_UART_CONSOLE",
-          "value": 1,
-          "alias": "Console",
-          "description": "The console's UART: a client's session"
-        },
-        {
-          "name": "RUNIT_BOARD_PROVIDER_UART_LINK",
-          "value": 2,
-          "alias": "Board link",
-          "description": "The UART to another board (CONFIG_SYS_UART_LINK)"
-        },
-        {
-          "name": "RUNIT_BOARD_PROVIDER_BLE_RUNIT",
-          "value": 3,
-          "alias": "Bluetooth link",
-          "description": "The runIT BLE pair: a client's session"
-        },
-        {
-          "name": "RUNIT_BOARD_PROVIDER_BLE_LOGS",
-          "value": 4,
-          "alias": "Bluetooth logs",
-          "description": "The LOGS characteristic"
+          "alias": "Session in",
+          "description": "Write, framed: the session's frames from the client"
         }
       ]
     },
     "cmd_dir_e": {
       "alias": "Command Direction",
       "kind": "enum",
-      "source_file": "runit-esp/components/core/cmd/cmd.h",
+      "source_file": "runit-esp-rework/components/core/cmd/cmd.h",
       "members": [
         {
           "name": "CMD_DIR_READ",
@@ -154,7 +116,7 @@
       "alias": "Frame size",
       "kind": "defines",
       "prefix": "CMD_",
-      "source_file": "runit-esp/components/core/cmd/cmd.h",
+      "source_file": "runit-esp-rework/components/core/cmd/cmd.h",
       "members": [
         {
           "name": "CMD_FRAME_MAX",
@@ -166,112 +128,66 @@
           "name": "CMD_HEAD",
           "value": 5,
           "alias": "Frame header",
-          "description": "Bytes a frame keeps for its header in front of its data"
+          "description": "Bytes of a frame's header, before its data"
+        }
+      ]
+    },
+    "cmd_send_flag": {
+      "alias": "Send flags",
+      "kind": "defines",
+      "prefix": "CMD_SEND_",
+      "source_file": "runit-esp-rework/components/core/cmd/cmd.h",
+      "members": [
+        {
+          "name": "CMD_SEND_URGENT",
+          "value": 1,
+          "alias": "Urgent",
+          "description": "Priority queue, sent before normal frames (matches ROUTER_FLAG_URGENT)"
+        },
+        {
+          "name": "CMD_SEND_SPARE",
+          "value": 2,
+          "alias": "Keep spare",
+          "description": "Keep half of the queue free for replies and control frames"
+        },
+        {
+          "name": "CMD_SEND_NOWAIT",
+          "value": 4,
+          "alias": "No wait",
+          "description": "Fail immediately when TX queue is full instead of waiting"
         }
       ]
     },
     "dc_motor_stop_e": {
       "alias": "DC Motor Stop",
       "kind": "enum",
-      "source_file": "runit-esp/components/devices/device_dc_motor/device_dc_motor.h",
+      "source_file": "runit-esp-rework/components/devices/virtual/device_dc_motor/device_dc_motor.c",
       "members": [
         {
           "name": "DC_MOTOR_STOP_BRAKE",
           "value": 0,
           "alias": "Brake",
-          "description": "Shorts the motor: it stops fast and holds"
+          "description": "Shorts the motor: stops fast and holds"
         },
         {
           "name": "DC_MOTOR_STOP_COAST",
           "value": 1,
           "alias": "Coast",
-          "description": "Releases the motor: it rolls to a stop"
+          "description": "Releases the motor: rolls to a stop"
         }
       ]
     },
-    "device_contract": {
-      "alias": "Device Contract",
+    "device_contract_own": {
+      "alias": "Device own ops",
       "kind": "defines",
       "prefix": "SYS_DEVICE_CONTRACT_",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device/sys_device.h",
       "members": [
-        {
-          "name": "SYS_DEVICE_CONTRACT_DEVICE",
-          "value": 0,
-          "alias": "Device",
-          "description": "Device lifecycle operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_IO",
-          "value": 1,
-          "alias": "IO pins",
-          "description": "IO pins operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_PINS",
-          "value": 2,
-          "alias": "Pin locks",
-          "description": "Pin locks operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_EVENT",
-          "value": 3,
-          "alias": "Events",
-          "description": "Events operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_POWER_MONITOR",
-          "value": 4,
-          "alias": "Power monitor",
-          "description": "Power monitor operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_POWER_VREG",
-          "value": 5,
-          "alias": "Regulator",
-          "description": "Voltage regulator operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_POWER_MANAGER",
-          "value": 6,
-          "alias": "Power manager events",
-          "description": "Power manager operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_POWER_USB_PD",
-          "value": 7,
-          "alias": "USB-PD sink",
-          "description": "USB-PD sink operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_POWER_SUPPLY",
-          "value": 8,
-          "alias": "Power mux",
-          "description": "Power supply/mux operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_HBRIDGE",
-          "value": 9,
-          "alias": "H-bridge",
-          "description": "H-bridge motor driver operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_DISPLAY",
-          "value": 10,
-          "alias": "Display",
-          "description": "Display panel operations"
-        },
-        {
-          "name": "SYS_DEVICE_CONTRACT_TOUCH",
-          "value": 11,
-          "alias": "Touch",
-          "description": "Touch panel operations"
-        },
         {
           "name": "SYS_DEVICE_CONTRACT_OWN",
           "value": 255,
-          "alias": "Device-specific",
-          "description": "Device-specific own operations"
+          "alias": "Device own ops",
+          "description": "Op prefix reserved for a device driver's own commands (not a shared contract)"
         }
       ]
     },
@@ -279,13 +195,13 @@
       "alias": "Device ID",
       "kind": "defines",
       "prefix": "SYS_DEVICE_ID_",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_ID_NONE",
-          "value": 65535,
+          "value": 255,
           "alias": "No device",
-          "description": "Never registered: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device"
+          "description": "Never a device: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device"
         }
       ]
     },
@@ -293,13 +209,19 @@
       "alias": "Remote device flags",
       "kind": "defines",
       "prefix": "SYS_DEVICE_REMOTE_",
-      "source_file": "runit-esp/components/sys/sys_device/registry/sys_device_remote.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device/sys_device.h",
       "members": [
         {
           "name": "SYS_DEVICE_REMOTE_WIRED",
           "value": 1,
           "alias": "Wired",
           "description": "A neighbour on a wired link: every call waits for its answer, no copies"
+        },
+        {
+          "name": "SYS_DEVICE_REMOTE_WIRELESS",
+          "value": 2,
+          "alias": "Wireless",
+          "description": "A board over a radio: a write returns once taken, a read gives the latest copy"
         }
       ]
     },
@@ -307,7 +229,7 @@
       "alias": "Device Response",
       "kind": "defines",
       "prefix": "SYS_DEVICE_RESPONSE_",
-      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device_policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_RESPONSE_SUSPEND",
@@ -323,74 +245,11 @@
         }
       ]
     },
-    "display_flags": {
-      "alias": "Display flags",
-      "kind": "defines",
-      "prefix": "SYS_DISPLAY_FLAG_",
-      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
-      "members": [
-        {
-          "name": "SYS_DISPLAY_FLAG_BGR",
-          "value": 1,
-          "alias": "BGR",
-          "description": "The glass's subpixels are blue, green, red"
-        },
-        {
-          "name": "SYS_DISPLAY_FLAG_INVERT",
-          "value": 2,
-          "alias": "Invert",
-          "description": "Inverted colours (most IPS glass)"
-        },
-        {
-          "name": "SYS_DISPLAY_FLAG_MIRROR_X",
-          "value": 4,
-          "alias": "Mirror X",
-          "description": "The glass is mounted mirrored left to right"
-        },
-        {
-          "name": "SYS_DISPLAY_FLAG_MIRROR_Y",
-          "value": 8,
-          "alias": "Mirror Y",
-          "description": "The glass is mounted mirrored top to bottom"
-        },
-        {
-          "name": "SYS_DISPLAY_FLAG_BL_ACTIVE_LOW",
-          "value": 16,
-          "alias": "Backlight active low",
-          "description": "The backlight is on when its pin is low"
-        },
-        {
-          "name": "SYS_DISPLAY_FLAG_READABLE",
-          "value": 32,
-          "alias": "Readable",
-          "description": "The module's SDO is wired to the bus's MISO: HEALTH reads the panel"
-        }
-      ]
-    },
-    "drv8962_topology_e": {
-      "alias": "DRV8962 Topology",
-      "kind": "enum",
-      "source_file": "runit-esp/components/devices/device_drv8962/device_drv8962.h",
-      "members": [
-        {
-          "name": "DRV8962_TOPOLOGY_2_FULL_BRIDGES",
-          "value": 0,
-          "alias": "Two full bridges",
-          "description": "Two full bridges: ch0 (OUT1+OUT2), ch1 (OUT3+OUT4)"
-        },
-        {
-          "name": "DRV8962_TOPOLOGY_4_HALF_BRIDGES",
-          "value": 1,
-          "alias": "Four half bridges",
-          "description": "Four half bridges: ch0..ch3 (OUT1..OUT4)"
-        }
-      ]
-    },
     "err_record_flag": {
       "alias": "Error Record Flags",
       "kind": "defines",
       "prefix": "ERR_RECORD_",
-      "source_file": "runit-esp/components/core/errors/errors.h",
+      "source_file": "runit-esp-rework/components/core/errors/errors.h",
       "members": [
         {
           "name": "ERR_RECORD_REQ_CUT",
@@ -409,7 +268,7 @@
     "err_record_src_e": {
       "alias": "Error Record Source",
       "kind": "enum",
-      "source_file": "runit-esp/components/core/errors/errors.h",
+      "source_file": "runit-esp-rework/components/core/errors/errors.h",
       "members": [
         {
           "name": "ERR_RECORD_SRC_INTERNAL",
@@ -434,7 +293,7 @@
     "err_sev_e": {
       "alias": "Error Severity",
       "kind": "enum",
-      "source_file": "runit-esp/components/core/errors/errors.h",
+      "source_file": "runit-esp-rework/components/core/errors/errors.h",
       "members": [
         {
           "name": "ERR_SEV_NONE",
@@ -468,29 +327,15 @@
         }
       ]
     },
-    "event_op": {
-      "alias": "Event frames",
-      "kind": "defines",
-      "prefix": "SYS_EVENT_OP_",
-      "source_file": "runit-esp/components/sys/sys_event/sys_event.h",
-      "members": [
-        {
-          "name": "SYS_EVENT_OP_NOTIFY",
-          "value": 1,
-          "alias": "Notify",
-          "description": "an event on the events stream: [ROUTER_KEY_EVENT][NOTIFY][sys_event_t]"
-        }
-      ]
-    },
     "io_pin_none": {
       "alias": "Unused pin",
       "kind": "defines",
       "prefix": "SYS_IO_PIN_NONE_",
-      "source_file": "runit-esp/components/sys/sys_io/sys_io.h",
+      "source_file": "runit-esp-rework/components/sys/sys_io/sys_io.h",
       "members": [
         {
           "name": "SYS_IO_PIN_NONE_DEVICE",
-          "value": 65535,
+          "value": 255,
           "alias": "Device",
           "description": "The device of an unused pin: no pin is used when the device is this"
         },
@@ -502,11 +347,187 @@
         }
       ]
     },
+    "module_id": {
+      "alias": "Module IDs",
+      "kind": "defines",
+      "prefix": "MODULE_ID_",
+      "source_file": "runit-esp-rework/components/core/utils/module_id.h",
+      "members": [
+        {
+          "name": "MODULE_ID_IO",
+          "value": 1,
+          "alias": "IO contract",
+          "description": "Pin I/O, PWM, and ADC contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_I2C",
+          "value": 2,
+          "alias": "I2C contract",
+          "description": "I2C bus contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_EVENT",
+          "value": 3,
+          "alias": "Device event contract",
+          "description": "Hardware event stream contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_PMON",
+          "value": 4,
+          "alias": "Power monitor contract",
+          "description": "Voltage, current, and power monitoring contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_VREG",
+          "value": 5,
+          "alias": "Voltage regulator contract",
+          "description": "Programmable voltage regulator contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_PD",
+          "value": 7,
+          "alias": "USB PD contract",
+          "description": "USB Power Delivery sink contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_SUPPLY",
+          "value": 8,
+          "alias": "Power supply contract",
+          "description": "Fixed power supply contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_HBRIDGE",
+          "value": 9,
+          "alias": "H-bridge contract",
+          "description": "H-bridge motor driver contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_PROVIDER",
+          "value": 13,
+          "alias": "Data providers",
+          "description": "Transport provider registry module ID"
+        },
+        {
+          "name": "MODULE_ID_SESSION",
+          "value": 14,
+          "alias": "Sessions",
+          "description": "Framed RPC and session routing module ID"
+        },
+        {
+          "name": "MODULE_ID_UART",
+          "value": 19,
+          "alias": "UART contract",
+          "description": "UART serial bus contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_NVS",
+          "value": 22,
+          "alias": "NVS storage",
+          "description": "Non-volatile key-value storage module ID"
+        },
+        {
+          "name": "MODULE_ID_SYS_DEVICE",
+          "value": 32,
+          "alias": "Devices",
+          "description": "Device registry and lifecycle contract and module ID"
+        },
+        {
+          "name": "MODULE_ID_POLICY",
+          "value": 33,
+          "alias": "Device fault policy",
+          "description": "Device fault response policy module ID"
+        },
+        {
+          "name": "MODULE_ID_PWRM",
+          "value": 34,
+          "alias": "Power manager",
+          "description": "Power budget and rail fault manager module ID"
+        },
+        {
+          "name": "MODULE_ID_ROUTER",
+          "value": 35,
+          "alias": "Router",
+          "description": "Core command router module ID"
+        },
+        {
+          "name": "MODULE_ID_ROUTER_QUEUE",
+          "value": 36,
+          "alias": "Router queue",
+          "description": "Router dispatch queue module ID"
+        },
+        {
+          "name": "MODULE_ID_SYS_EVENT",
+          "value": 37,
+          "alias": "System events",
+          "description": "Event bus and forwarding module ID"
+        },
+        {
+          "name": "MODULE_ID_SYS_POWER",
+          "value": 38,
+          "alias": "Power subsystem",
+          "description": "Power subsystem errors module ID"
+        },
+        {
+          "name": "MODULE_ID_CMD",
+          "value": 39,
+          "alias": "Command frames",
+          "description": "Core command framing module ID"
+        },
+        {
+          "name": "MODULE_ID_SYS",
+          "value": 40,
+          "alias": "System control",
+          "description": "System info, reboot, ping, and board diagnostics module ID"
+        },
+        {
+          "name": "MODULE_ID_STREAM",
+          "value": 41,
+          "alias": "Data streams",
+          "description": "Periodic telemetry stream service module ID"
+        },
+        {
+          "name": "MODULE_ID_LOG",
+          "value": 42,
+          "alias": "Logging",
+          "description": "Firmware log level and output module ID"
+        },
+        {
+          "name": "MODULE_ID_WATCH",
+          "value": 43,
+          "alias": "Watch",
+          "description": "Watchdog and periodic health rule module ID"
+        },
+        {
+          "name": "MODULE_ID_ACTIONS",
+          "value": 44,
+          "alias": "Actions and rules",
+          "description": "Stored start actions, schedules, and event rules module ID"
+        },
+        {
+          "name": "MODULE_ID_BOARD",
+          "value": 45,
+          "alias": "Board profile",
+          "description": "Board manifest and identity service module ID"
+        },
+        {
+          "name": "MODULE_ID_BLE",
+          "value": 46,
+          "alias": "Bluetooth Low Energy",
+          "description": "BLE GATT transport and configuration service module ID"
+        },
+        {
+          "name": "MODULE_ID_REMOTE",
+          "value": 47,
+          "alias": "Remote devices",
+          "description": "Cross-board remote device bridge module ID"
+        }
+      ]
+    },
     "onboard_action": {
       "alias": "Onboard actions",
       "kind": "defines",
       "prefix": "SYS_ACTIONS_ONBOARD_",
-      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
+      "source_file": "runit-esp-rework/components/sys/sys_actions/sys_actions.h",
       "members": [
         {
           "name": "SYS_ACTIONS_ONBOARD_RESUME",
@@ -538,7 +559,7 @@
       "alias": "Provider state",
       "kind": "defines",
       "prefix": "SYS_DATA_PROVIDER_STATE_",
-      "source_file": "runit-esp/components/sys/sys_data_provider/config/sys_data_provider_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_data_provider/sys_data_provider.h",
       "members": [
         {
           "name": "SYS_DATA_PROVIDER_STATE_SYSTEM",
@@ -565,16 +586,10 @@
           "description": "It delivers frames now"
         },
         {
-          "name": "SYS_DATA_PROVIDER_STATE_NO_RX",
-          "value": 64,
-          "alias": "No receive hook",
-          "description": "What comes in reaches no hook: whoever holds it reads it from its driver"
-        },
-        {
           "name": "SYS_DATA_PROVIDER_STATE_FRAMED",
           "value": 32,
           "alias": "Framed",
-          "description": "Its driver carries a whole CMD_FRAME_MAX frame; else raw: what the link takes at once"
+          "description": "Its driver carries a whole CMD_FRAME_MAX frame; else raw"
         }
       ]
     },
@@ -582,7 +597,7 @@
       "alias": "Request Flags",
       "kind": "defines",
       "prefix": "ROUTER_FLAG_",
-      "source_file": "runit-esp/components/core/router/router.h",
+      "source_file": "runit-esp-rework/components/core/router_queue/router_queue.h",
       "members": [
         {
           "name": "ROUTER_FLAG_URGENT",
@@ -598,138 +613,10 @@
         }
       ]
     },
-    "router_key": {
-      "alias": "Command Target",
-      "kind": "defines",
-      "prefix": "ROUTER_KEY_",
-      "source_file": "runit-esp/components/core/router/router_ids.h",
-      "members": [
-        {
-          "name": "ROUTER_KEY_SYS",
-          "value": 1,
-          "alias": "System",
-          "description": "System: ping, stop, restart, dead-man, clock, safe state"
-        },
-        {
-          "name": "ROUTER_KEY_I2C",
-          "value": 2,
-          "alias": "I2C",
-          "description": "I2C: bus diagnostics (scan, probe)"
-        },
-        {
-          "name": "ROUTER_KEY_BLE",
-          "value": 3,
-          "alias": "Bluetooth",
-          "description": "Bluetooth: runtime GATT table and BLE status"
-        },
-        {
-          "name": "ROUTER_KEY_STREAM",
-          "value": 4,
-          "alias": "Data streams",
-          "description": "Data streams: create, bind, subscribe and list the board's streams"
-        },
-        {
-          "name": "ROUTER_KEY_DEVICE",
-          "value": 5,
-          "alias": "Devices",
-          "description": "Devices: create, remove and use devices"
-        },
-        {
-          "name": "ROUTER_KEY_ACTIONS",
-          "value": 6,
-          "alias": "Actions",
-          "description": "Actions: stored command lists (run, record, upload, read back)"
-        },
-        {
-          "name": "ROUTER_KEY_EVENT",
-          "value": 7,
-          "alias": "Events",
-          "description": "Events: frame shape of the events stream (no commands)"
-        },
-        {
-          "name": "ROUTER_KEY_LOG",
-          "value": 8,
-          "alias": "Log",
-          "description": "Log: log output options"
-        },
-        {
-          "name": "ROUTER_KEY_POWER",
-          "value": 10,
-          "alias": "Power manager",
-          "description": "Power manager: power budget, supply, battery and event responses"
-        },
-        {
-          "name": "ROUTER_KEY_VM",
-          "value": 11,
-          "alias": "Program",
-          "description": "Program: build, run and watch the VM program"
-        },
-        {
-          "name": "ROUTER_KEY_PROJECT",
-          "value": 12,
-          "alias": "Project",
-          "description": "Project: save a whole project as one stream, run it, read state"
-        },
-        {
-          "name": "ROUTER_KEY_PROVIDER",
-          "value": 13,
-          "alias": "Providers",
-          "description": "Providers: the ways bytes go out and come in (list, remove, send)"
-        },
-        {
-          "name": "ROUTER_KEY_SESSION",
-          "value": 14,
-          "alias": "Sessions",
-          "description": "Sessions: this board's id, its peers (attach, detach, list)"
-        },
-        {
-          "name": "ROUTER_KEY_WATCH",
-          "value": 15,
-          "alias": "Watches",
-          "description": "Watches: reads this board runs by a trigger and sends by itself (add, remove, list)"
-        },
-        {
-          "name": "ROUTER_KEY_REMOTE",
-          "value": 16,
-          "alias": "Remote devices",
-          "description": "Remote devices: subscriptions of other boards to this board's devices (their events and errors)"
-        },
-        {
-          "name": "ROUTER_KEY_OTA",
-          "value": 18,
-          "alias": "Firmware update",
-          "description": "Firmware update: a new firmware into the other slot, what runs now"
-        },
-        {
-          "name": "ROUTER_KEY_BOARD",
-          "value": 17,
-          "alias": "Board profile",
-          "description": "Board profile: the definition of the board kept on it as JSON (write, read back)"
-        },
-        {
-          "name": "ROUTER_KEY_UART",
-          "value": 19,
-          "alias": "UART ports",
-          "description": "UART ports: create a port as a provider, with its rate, format and pins"
-        },
-        {
-          "name": "ROUTER_KEY_FLASHER",
-          "value": 20,
-          "alias": "Flasher",
-          "description": "Flasher: program the board on the link with this board's firmware, through its ROM bootloader"
-        },
-        {
-          "name": "ROUTER_KEY_LVGL",
-          "value": 21,
-          "alias": "Screen",
-          "description": "Screen: LVGL on a display and a touch (install, rotation, start, stop, status)"
-        }
-      ]
-    },
     "router_status_e": {
       "alias": "Response Status",
       "kind": "enum",
-      "source_file": "runit-esp/components/core/router/router.h",
+      "source_file": "runit-esp-rework/components/core/router_queue/router_queue.h",
       "members": [
         {
           "name": "ROUTER_STATUS_OK",
@@ -745,48 +632,17 @@
         }
       ]
     },
-    "servo_type_e": {
-      "alias": "Servo Type",
-      "kind": "enum",
-      "source_file": "runit-esp/components/devices/device_servo/device_servo.h",
-      "members": [
-        {
-          "name": "SERVO_TYPE_ANGLE",
-          "value": 0,
-          "alias": "Angle servo",
-          "description": "Angle servo: moves to angle between limits"
-        },
-        {
-          "name": "SERVO_TYPE_CONTINUOUS",
-          "value": 1,
-          "alias": "Continuous (360) servo",
-          "description": "Continuous rotation (360) servo: speed -100..100"
-        }
-      ]
-    },
     "session_channel": {
       "alias": "Session channels",
       "kind": "defines",
       "prefix": "SYS_SESSION_CHANNEL_",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
-          "name": "SYS_SESSION_CHANNEL_WATCHES",
+          "name": "SYS_SESSION_CHANNEL_FIRST",
           "value": 128,
-          "alias": "Watches",
-          "description": "A watch's entry, to its owner (SYS_WATCH.MD \"Entries\")"
-        },
-        {
-          "name": "SYS_SESSION_CHANNEL_REMOTE",
-          "value": 129,
-          "alias": "Remote devices",
-          "description": "A device's events and errors, to its subscribers (SYS_REMOTE.MD)"
-        },
-        {
-          "name": "SYS_SESSION_CHANNEL_DATA",
-          "value": 130,
-          "alias": "Data",
-          "description": "[to id][from id][data]: data for the provider to id of dst, sent on it as is (SYS_SESSION.MD \"Data to a provider\")"
+          "alias": "First channel",
+          "description": "From this byte a PUSH frame is a module's channel: the module's number with bit 7 set; below it a stream's id"
         }
       ]
     },
@@ -794,7 +650,7 @@
       "alias": "Frame byte",
       "kind": "defines",
       "prefix": "SYS_SESSION_FRAME_",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
           "name": "SYS_SESSION_FRAME_FLAGS",
@@ -820,13 +676,13 @@
       "alias": "Peer ids",
       "kind": "defines",
       "prefix": "SYS_SESSION_ID_",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
           "name": "SYS_SESSION_ID_DEFAULT",
           "value": 0,
           "alias": "Default",
-          "description": "A board's id until the app sets one; the master's by convention"
+          "description": "A board's id until one is set"
         },
         {
           "name": "SYS_SESSION_ID_LAST",
@@ -835,16 +691,10 @@
           "description": "Boards are 0x00..0xEF"
         },
         {
-          "name": "SYS_SESSION_ID_APP",
-          "value": 240,
-          "alias": "App",
-          "description": "The app's id, reserved"
-        },
-        {
           "name": "SYS_SESSION_ID_CLIENT_FIRST",
-          "value": 241,
-          "alias": "First other client",
-          "description": "Other clients (a test host) are 0xF1..0xFC; each picks its own"
+          "value": 240,
+          "alias": "First client",
+          "description": "Clients (the app, a test host) are 0xF0..0xFC; each picks its own"
         },
         {
           "name": "SYS_SESSION_ID_CLIENT_LAST",
@@ -872,25 +722,11 @@
         }
       ]
     },
-    "session_version": {
-      "alias": "Session version",
-      "kind": "defines",
-      "prefix": "SYS_SESSION_VERSION",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
-      "members": [
-        {
-          "name": "SYS_SESSION_VERSION",
-          "value": 0,
-          "alias": "Version",
-          "description": "The frame format with CMD_FRAME_MAX and CMD_HEAD"
-        }
-      ]
-    },
     "settings_record": {
       "alias": "Settings records",
       "kind": "defines",
       "prefix": "SYS_ACTIONS_ID_",
-      "source_file": "runit-esp/components/sys/sys_actions/sys_actions.h",
+      "source_file": "runit-esp-rework/components/sys/sys_actions/sys_actions.h",
       "members": [
         {
           "name": "SYS_ACTIONS_ID_LOG",
@@ -952,7 +788,7 @@
       "alias": "Streams",
       "kind": "defines",
       "prefix": "SYS_STREAM_",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
       "members": [
         {
           "name": "SYS_STREAM_TELEMETRY",
@@ -984,7 +820,7 @@
       "alias": "Stream flags",
       "kind": "defines",
       "prefix": "SYS_STREAM_FLAG_",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
       "members": [
         {
           "name": "SYS_STREAM_FLAG_URGENT",
@@ -998,7 +834,7 @@
       "alias": "Stream ids",
       "kind": "defines",
       "prefix": "SYS_STREAM_ID_",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
       "members": [
         {
           "name": "SYS_STREAM_ID_USER_FIRST",
@@ -1010,53 +846,45 @@
           "name": "SYS_STREAM_ID_LAST",
           "value": 127,
           "alias": "Last stream",
-          "description": "From 0x80 the byte is a session channel"
+          "description": "From 0x80 the byte is a module's channel"
         }
       ]
     },
-    "stream_state": {
-      "alias": "Stream state",
-      "kind": "defines",
-      "prefix": "SYS_STREAM_STATE_",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_STATE_SYSTEM",
-          "value": 1,
-          "alias": "System",
-          "description": "The board's own: not removed"
-        }
-      ]
-    },
-    "sys_data_provider_link_e": {
-      "alias": "Link",
+    "sys_data_provider_type_e": {
+      "alias": "Provider Type",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_data_provider/config/sys_data_provider_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_data_provider/sys_data_provider.h",
       "members": [
         {
-          "name": "SYS_DATA_PROVIDER_LINK_UART",
+          "name": "SYS_DATA_PROVIDER_TYPE_UART",
           "value": 1,
-          "alias": "Serial",
-          "description": "A UART port"
+          "alias": "UART",
+          "description": "UART bridge provider"
         },
         {
-          "name": "SYS_DATA_PROVIDER_LINK_BLE",
+          "name": "SYS_DATA_PROVIDER_TYPE_BLE",
           "value": 2,
           "alias": "Bluetooth LE",
-          "description": "A BLE characteristic, or the RX / TX pair"
+          "description": "BLE link provider"
         },
         {
-          "name": "SYS_DATA_PROVIDER_LINK_MQTT",
+          "name": "SYS_DATA_PROVIDER_TYPE_MQTT",
           "value": 3,
           "alias": "MQTT",
-          "description": "a ble topic sub pub"
+          "description": "MQTT topic provider"
+        },
+        {
+          "name": "SYS_DATA_PROVIDER_TYPE_CONSOLE",
+          "value": 4,
+          "alias": "Console",
+          "description": "Board UART/USB-JTAG console"
         }
       ]
     },
     "sys_device_fault_stage_e": {
       "alias": "Fault Response Stage",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device_policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_FAULT_STAGE_VM_STOP",
@@ -1075,13 +903,19 @@
           "value": 2,
           "alias": "Action",
           "description": "Run configured action"
+        },
+        {
+          "name": "SYS_DEVICE_FAULT_STAGE_QUEUE",
+          "value": 3,
+          "alias": "Queue",
+          "description": "Hand the error to the policy's task"
         }
       ]
     },
     "sys_device_importance_e": {
       "alias": "Device Error Importance",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_device/policy/sys_device_policy.h",
+      "source_file": "runit-esp-rework/components/sys/sys_device_policy/sys_device_policy.h",
       "members": [
         {
           "name": "SYS_DEVICE_IMPORTANCE_NONE",
@@ -1115,202 +949,10 @@
         }
       ]
     },
-    "sys_display_format_e": {
-      "alias": "Pixel format",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
-      "members": [
-        {
-          "name": "SYS_DISPLAY_FORMAT_RGB565_SWAPPED",
-          "value": 0,
-          "alias": "RGB565",
-          "description": "16 bit, 2 bytes per pixel, the high byte first (as the panel takes it)"
-        },
-        {
-          "name": "SYS_DISPLAY_FORMAT_RGB888",
-          "value": 1,
-          "alias": "RGB888",
-          "description": "24 bit, 3 bytes per pixel B, G, R; an 18-bit panel uses the 6 high bits"
-        }
-      ]
-    },
-    "sys_display_health_e": {
-      "alias": "Display health",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
-      "members": [
-        {
-          "name": "SYS_DISPLAY_HEALTH_UNKNOWN",
-          "value": 0,
-          "alias": "Unknown",
-          "description": "The module cannot be read (SDO not wired): not checked"
-        },
-        {
-          "name": "SYS_DISPLAY_HEALTH_OK",
-          "value": 1,
-          "alias": "OK",
-          "description": "The panel answers and runs as the driver set it"
-        },
-        {
-          "name": "SYS_DISPLAY_HEALTH_NO_ANSWER",
-          "value": 2,
-          "alias": "No answer",
-          "description": "Nothing answers: the cable or the module's power is off"
-        },
-        {
-          "name": "SYS_DISPLAY_HEALTH_RESTARTED",
-          "value": 3,
-          "alias": "Restarted",
-          "description": "The panel answers but runs no more: it lost its power and needs a RESET"
-        }
-      ]
-    },
-    "sys_display_orientation_e": {
-      "alias": "Display orientation",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
-      "members": [
-        {
-          "name": "SYS_DISPLAY_ORIENTATION_0",
-          "value": 0,
-          "alias": "0 deg",
-          "description": "Native"
-        },
-        {
-          "name": "SYS_DISPLAY_ORIENTATION_90",
-          "value": 1,
-          "alias": "90 deg",
-          "description": "Rotated 90 deg"
-        },
-        {
-          "name": "SYS_DISPLAY_ORIENTATION_180",
-          "value": 2,
-          "alias": "180 deg",
-          "description": "Rotated 180 deg"
-        },
-        {
-          "name": "SYS_DISPLAY_ORIENTATION_270",
-          "value": 3,
-          "alias": "270 deg",
-          "description": "Rotated 270 deg"
-        }
-      ]
-    },
-    "sys_display_panel_e": {
-      "alias": "Display controller",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_display/sys_display_contract.h",
-      "members": [
-        {
-          "name": "SYS_DISPLAY_PANEL_ILI9341",
-          "value": 0,
-          "alias": "ILI9341",
-          "description": "240x320, RGB565"
-        },
-        {
-          "name": "SYS_DISPLAY_PANEL_ST7789",
-          "value": 1,
-          "alias": "ST7789",
-          "description": "240x320 RAM (240x240, 135x240, 170x320 glass), RGB565"
-        },
-        {
-          "name": "SYS_DISPLAY_PANEL_ST7735",
-          "value": 2,
-          "alias": "ST7735",
-          "description": "132x162 RAM (128x160, 80x160 glass), RGB565"
-        },
-        {
-          "name": "SYS_DISPLAY_PANEL_GC9A01",
-          "value": 3,
-          "alias": "GC9A01",
-          "description": "240x240 round, RGB565"
-        },
-        {
-          "name": "SYS_DISPLAY_PANEL_ST7796",
-          "value": 4,
-          "alias": "ST7796",
-          "description": "320x480, RGB565"
-        },
-        {
-          "name": "SYS_DISPLAY_PANEL_ILI9488",
-          "value": 5,
-          "alias": "ILI9488",
-          "description": "320x480, RGB888 (18 bit on SPI)"
-        }
-      ]
-    },
-    "sys_flasher_state_e": {
-      "alias": "Flasher state",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_flasher/sys_flasher.h",
-      "members": [
-        {
-          "name": "SYS_FLASHER_IDLE",
-          "value": 0,
-          "alias": "Idle",
-          "description": "Nothing was flashed since the start"
-        },
-        {
-          "name": "SYS_FLASHER_RUNNING",
-          "value": 1,
-          "alias": "Running",
-          "description": "The attached board is being flashed"
-        },
-        {
-          "name": "SYS_FLASHER_DONE",
-          "value": 2,
-          "alias": "Done",
-          "description": "Flashed, checked and restarted"
-        },
-        {
-          "name": "SYS_FLASHER_FAILED",
-          "value": 3,
-          "alias": "Failed",
-          "description": "Stopped by an error or ABORT: the error says which"
-        }
-      ]
-    },
-    "sys_flasher_step_e": {
-      "alias": "Flasher step",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_flasher/sys_flasher.h",
-      "members": [
-        {
-          "name": "SYS_FLASHER_STEP_CONNECT",
-          "value": 0,
-          "alias": "Connect",
-          "description": "The ROM bootloader: BOOT, EN, SYNC, the rate, the flash"
-        },
-        {
-          "name": "SYS_FLASHER_STEP_BOOTLOADER",
-          "value": 1,
-          "alias": "Bootloader",
-          "description": "The bootloader and the partition table"
-        },
-        {
-          "name": "SYS_FLASHER_STEP_ERASE",
-          "value": 2,
-          "alias": "Erase",
-          "description": "nvs and otadata"
-        },
-        {
-          "name": "SYS_FLASHER_STEP_APP",
-          "value": 3,
-          "alias": "Firmware",
-          "description": "The app into ota_0"
-        },
-        {
-          "name": "SYS_FLASHER_STEP_RESTART",
-          "value": 4,
-          "alias": "Restart",
-          "description": "The board restarts into it; the link is taken back"
-        }
-      ]
-    },
     "sys_hbridge_fault_reason_e": {
       "alias": "H-Bridge Fault",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_hbridge/sys_hbridge.h",
+      "source_file": "runit-esp-rework/components/sys/sys_hbridge/sys_hbridge.h",
       "members": [
         {
           "name": "SYS_HBRIDGE_FAULT_NONE",
@@ -1338,29 +980,10 @@
         }
       ]
     },
-    "sys_i2c_bus_e": {
-      "alias": "I2C Bus",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/bus/sys_i2c/sys_i2c.h",
-      "members": [
-        {
-          "name": "SYS_I2C_BUS_0",
-          "value": 0,
-          "alias": "Bus 0",
-          "description": "I2C Bus 0"
-        },
-        {
-          "name": "SYS_I2C_BUS_1",
-          "value": 1,
-          "alias": "Bus 1",
-          "description": "I2C Bus 1"
-        }
-      ]
-    },
     "sys_i2c_order_e": {
       "alias": "I2C Byte Order",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/bus/sys_i2c/sys_i2c.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_i2c/sys_i2c.h",
       "members": [
         {
           "name": "SYS_I2C_BE",
@@ -1379,7 +1002,7 @@
     "sys_io_intr_mode_e": {
       "alias": "Interrupt Mode",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_io/sys_io.h",
+      "source_file": "runit-esp-rework/components/sys/sys_io/sys_io.h",
       "members": [
         {
           "name": "SYS_IO_INTR_DISABLE",
@@ -1422,7 +1045,7 @@
     "sys_io_mode_e": {
       "alias": "IO Mode",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_io/sys_io.h",
+      "source_file": "runit-esp-rework/components/sys/sys_io/sys_io.h",
       "members": [
         {
           "name": "SYS_IO_MODE_INPUT",
@@ -1480,66 +1103,10 @@
         }
       ]
     },
-    "sys_lvgl_state_e": {
-      "alias": "Screen adapter state",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_lvgl/sys_lvgl.h",
-      "members": [
-        {
-          "name": "SYS_LVGL_STATE_EMPTY",
-          "value": 0,
-          "alias": "Empty",
-          "description": "No display: LVGL is not running and holds no memory"
-        },
-        {
-          "name": "SYS_LVGL_STATE_RUNNING",
-          "value": 1,
-          "alias": "Running",
-          "description": "Draws and reads the touch"
-        },
-        {
-          "name": "SYS_LVGL_STATE_STOPPED",
-          "value": 2,
-          "alias": "Stopped",
-          "description": "Stopped by STOP: the screen and its objects are kept"
-        },
-        {
-          "name": "SYS_LVGL_STATE_PAUSED",
-          "value": 3,
-          "alias": "Paused",
-          "description": "The display is suspended: drawing resumes with it"
-        }
-      ]
-    },
-    "sys_ota_state_e": {
-      "alias": "Firmware state",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_ota/sys_ota.h",
-      "members": [
-        {
-          "name": "SYS_OTA_STATE_UNKNOWN",
-          "value": 0,
-          "alias": "Flashed",
-          "description": "Flashed by cable: nothing to confirm"
-        },
-        {
-          "name": "SYS_OTA_STATE_VALID",
-          "value": 1,
-          "alias": "Confirmed",
-          "description": "Written over the air and confirmed"
-        },
-        {
-          "name": "SYS_OTA_STATE_PENDING",
-          "value": 2,
-          "alias": "Not confirmed",
-          "description": "The first boot of a new firmware: the next restart goes back unless it is confirmed"
-        }
-      ]
-    },
     "sys_power_alert_e": {
       "alias": "Current Alert",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_monitor.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power/contracts/sys_power_monitor.h",
       "members": [
         {
           "name": "SYS_POWER_ALERT_OCP_WARNING",
@@ -1558,7 +1125,7 @@
     "sys_power_battery_e": {
       "alias": "Battery Chemistry",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power_manager/sys_power_manager.h",
       "members": [
         {
           "name": "SYS_POWER_BATTERY_NONE",
@@ -1577,7 +1144,7 @@
     "sys_power_kind_e": {
       "alias": "Power Event",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power_manager/sys_power_manager.h",
       "members": [
         {
           "name": "SYS_POWER_KIND_NONE",
@@ -1650,7 +1217,7 @@
     "sys_power_pd_mode_e": {
       "alias": "USB-PD Request",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power_manager/sys_power_manager.h",
       "members": [
         {
           "name": "SYS_POWER_PD_OFF",
@@ -1675,7 +1242,7 @@
     "sys_power_response_e": {
       "alias": "Power Event Response",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power_manager/sys_power_manager.h",
       "members": [
         {
           "name": "SYS_POWER_RESPONSE_NOTIFY",
@@ -1706,7 +1273,7 @@
     "sys_power_source_e": {
       "alias": "Power Source",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power_manager/sys_power_manager.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power_manager/sys_power_manager.h",
       "members": [
         {
           "name": "SYS_POWER_SOURCE_UNKNOWN",
@@ -1737,7 +1304,7 @@
     "sys_power_supply_source_e": {
       "alias": "Supply Source",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_supply.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power/contracts/sys_power_supply.h",
       "members": [
         {
           "name": "SYS_POWER_SUPPLY_OFF",
@@ -1762,7 +1329,7 @@
     "sys_power_usb_pd_option_type_e": {
       "alias": "USB-PD Option Type",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_power/contracts/sys_power_usb_pd.h",
+      "source_file": "runit-esp-rework/components/sys/sys_power/contracts/sys_power_usb_pd.h",
       "members": [
         {
           "name": "SYS_POWER_USB_PD_OPTION_FIXED",
@@ -1784,35 +1351,10 @@
         }
       ]
     },
-    "sys_project_boot_e": {
-      "alias": "Project at start",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_project/sys_project.h",
-      "members": [
-        {
-          "name": "SYS_PROJECT_BOOT_NONE",
-          "value": 0,
-          "alias": "Nothing",
-          "description": "The board starts with its defaults; the project waits for LOAD or RUN"
-        },
-        {
-          "name": "SYS_PROJECT_BOOT_LOAD",
-          "value": 1,
-          "alias": "Load",
-          "description": "Settings, devices and program loaded; the program waits to be started"
-        },
-        {
-          "name": "SYS_PROJECT_BOOT_RUN",
-          "value": 2,
-          "alias": "Run",
-          "description": "Loaded and started"
-        }
-      ]
-    },
     "sys_remote_kind_e": {
       "alias": "Remote frame",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_remote/config/sys_remote_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_remote/config/sys_remote_config.h",
       "members": [
         {
           "name": "SYS_REMOTE_EVENT",
@@ -1831,7 +1373,7 @@
     "sys_safe_reason_e": {
       "alias": "Safe State Reason",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_system/sys_system.h",
+      "source_file": "runit-esp-rework/components/sys/sys_system/sys_system.h",
       "members": [
         {
           "name": "SYS_SAFE_STOP",
@@ -1856,7 +1398,7 @@
     "sys_session_control_e": {
       "alias": "Control op",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
           "name": "SYS_SESSION_HELLO",
@@ -1874,20 +1416,20 @@
           "name": "SYS_SESSION_NO_SESSION",
           "value": 3,
           "alias": "No session",
-          "description": "A frame before the hello: send your hello again"
+          "description": "A frame on a session that is not open here: send your hello again"
         },
         {
-          "name": "SYS_SESSION_GONE",
+          "name": "SYS_SESSION_PEER",
           "value": 4,
-          "alias": "Gone",
-          "description": "[client]: a client of the master no longer reached; to every slave"
+          "alias": "Peer",
+          "description": "sys_session_peer_t: the root's session with that peer opened or ended; to every other peer"
         }
       ]
     },
     "sys_session_kind_e": {
       "alias": "Frame kind",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
           "name": "SYS_SESSION_REQUEST",
@@ -1911,101 +1453,82 @@
           "name": "SYS_SESSION_CONTROL",
           "value": 3,
           "alias": "Control",
-          "description": "The session's own: hello, ping, gone"
+          "description": "The session's own: hello, ping, no session, peer"
         }
       ]
     },
     "sys_session_peer_e": {
       "alias": "Peer",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_session/config/sys_session_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_session/sys_session.h",
       "members": [
         {
-          "name": "SYS_SESSION_MASTER",
+          "name": "SYS_SESSION_UNKNOWN",
           "value": 0,
+          "alias": "Unknown",
+          "description": "Not told: the hello says, master or client (the console, the runIT BLE pair); nothing before it"
+        },
+        {
+          "name": "SYS_SESSION_MASTER",
+          "value": 1,
           "alias": "Master",
-          "description": "The board's master: its only session; a board without one is the master"
+          "description": "This board's master: a board's hello on a way not told; then the board's only session"
         },
         {
           "name": "SYS_SESSION_SLAVE",
-          "value": 1,
+          "value": 2,
           "alias": "Slave",
-          "description": "A board of this master"
+          "description": "A board of this one, told at ATTACH (a framed provider: a UART port, a BLE link made as a central)"
         },
         {
           "name": "SYS_SESSION_CLIENT",
-          "value": 2,
+          "value": 3,
           "alias": "Client",
-          "description": "The app, a test host: on the master only"
-        }
-      ]
-    },
-    "sys_stream_dir_e": {
-      "alias": "Stream direction",
-      "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
-      "members": [
-        {
-          "name": "SYS_STREAM_OUT",
-          "value": 0,
-          "alias": "Out",
-          "description": "The board sends (sys_stream_send): to its providers, peers, callbacks"
-        },
-        {
-          "name": "SYS_STREAM_IN",
-          "value": 1,
-          "alias": "In",
-          "description": "What comes in on its providers: to its outputs, peers and callbacks"
+          "description": "A client's hello on a way not told (the app, a test host): on the root only"
         }
       ]
     },
     "sys_stream_target_e": {
       "alias": "Stream target",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_stream/config/sys_stream_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_stream/sys_stream.h",
       "members": [
         {
-          "name": "SYS_STREAM_TARGET_PROVIDER",
+          "name": "SYS_STREAM_TARGET_SOURCE",
           "value": 0,
-          "alias": "Provider",
-          "description": "A binding: OUT sends the payload there as is, IN takes what comes in there"
+          "alias": "Source",
+          "description": "A provider the stream reads from (takes its rx hook)"
+        },
+        {
+          "name": "SYS_STREAM_TARGET_SINK",
+          "value": 1,
+          "alias": "Sink",
+          "description": "A provider of this board (SYS_SESSION_ID_SELF) or another peer where messages go as is"
         },
         {
           "name": "SYS_STREAM_TARGET_PEER",
-          "value": 1,
+          "value": 2,
           "alias": "Peer",
           "description": "A subscriber: [stream id][payload] in a PUSH frame of its session"
         },
         {
           "name": "SYS_STREAM_TARGET_CALLBACK",
-          "value": 2,
+          "value": 3,
           "alias": "Callback",
           "description": "The board's own code (a listener), on the stream task"
-        },
-        {
-          "name": "SYS_STREAM_TARGET_REMOTE",
-          "value": 4,
-          "alias": "Remote",
-          "description": "A provider of another board, or a client's receiver: a data frame through the session"
-        },
-        {
-          "name": "SYS_STREAM_TARGET_OUTPUT",
-          "value": 3,
-          "alias": "Output",
-          "description": "An IN stream's way out: what came in goes to this provider as is"
         }
       ]
     },
     "sys_uart_mode_e": {
       "alias": "UART mode",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_uart_contract/sys_uart_contract.h",
       "members": [
         {
           "name": "SYS_UART_MODE_FRAMED",
           "value": 0,
           "alias": "Framed",
-          "description": "COBS and CRC16 frames: a session can attach it (the link to another board)"
+          "description": "COBS and CRC16 frames: a session can attach it (a way to another board)"
         },
         {
           "name": "SYS_UART_MODE_RAW",
@@ -2018,19 +1541,13 @@
           "value": 2,
           "alias": "Raw lines",
           "description": "The bytes as they are; a message ends at a line feed (a GPS's sentences)"
-        },
-        {
-          "name": "SYS_UART_MODE_DIRECT",
-          "value": 3,
-          "alias": "Direct",
-          "description": "No tasks of its own: a device driver writes and reads on its own task, for protocols with exact timing"
         }
       ]
     },
     "sys_uart_parity_e": {
       "alias": "UART parity",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_uart_contract/sys_uart_contract.h",
       "members": [
         {
           "name": "SYS_UART_PARITY_NONE",
@@ -2053,53 +1570,27 @@
       ]
     },
     "sys_watch_trigger_e": {
-      "alias": "Watch trigger",
+      "alias": "Watch Trigger",
       "kind": "enum",
-      "source_file": "runit-esp/components/sys/sys_watch/config/sys_watch_config.h",
+      "source_file": "runit-esp-rework/components/sys/sys_watch/sys_watch.h",
       "members": [
         {
           "name": "SYS_WATCH_PERIODIC",
           "value": 0,
-          "alias": "Every period",
-          "description": "The read every period, its answer sent"
+          "alias": "Periodic",
+          "description": "Every period: run read and send answer"
         },
         {
           "name": "SYS_WATCH_ON_CHANGE",
           "value": 1,
           "alias": "On change",
-          "description": "The read every period, sent when its answer changed"
+          "description": "Every period: run read, send when CRC-32 differs from last sent or max_silence elapsed"
         },
         {
           "name": "SYS_WATCH_ON_EVENT",
           "value": 2,
           "alias": "On event",
-          "description": "The read when a matching event happens, at most every period"
-        }
-      ]
-    },
-    "touch_axes": {
-      "alias": "Touch axes",
-      "kind": "defines",
-      "prefix": "TOUCH_AXES_",
-      "source_file": "runit-esp/components/sys/sys_touch/sys_touch_contract.h",
-      "members": [
-        {
-          "name": "TOUCH_AXES_SWAP_XY",
-          "value": 1,
-          "alias": "Swap X and Y",
-          "description": "The touch panel's X is the glass's Y"
-        },
-        {
-          "name": "TOUCH_AXES_MIRROR_X",
-          "value": 2,
-          "alias": "Mirror X",
-          "description": "X counts from the right edge"
-        },
-        {
-          "name": "TOUCH_AXES_MIRROR_Y",
-          "value": 4,
-          "alias": "Mirror Y",
-          "description": "Y counts from the bottom edge"
+          "description": "When a matching event occurs, at most once per period"
         }
       ]
     },
@@ -2107,7 +1598,7 @@
       "alias": "UART baud rate",
       "kind": "defines",
       "prefix": "SYS_UART_BAUD_",
-      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_uart_contract/sys_uart_contract.h",
       "members": [
         {
           "name": "SYS_UART_BAUD_MIN",
@@ -2123,854 +1614,17 @@
         }
       ]
     },
-    "uart_raw": {
-      "alias": "UART raw command",
+    "uart_wait": {
+      "alias": "UART wait",
       "kind": "defines",
-      "prefix": "SYS_UART_RAW_",
-      "source_file": "runit-esp/components/sys/bus/sys_uart/config/sys_uart_config.h",
+      "prefix": "SYS_UART_WAIT_",
+      "source_file": "runit-esp-rework/components/sys/bus/sys_uart_contract/sys_uart_contract.h",
       "members": [
         {
-          "name": "SYS_UART_RAW_WAIT_MAX_MS",
+          "name": "SYS_UART_WAIT_MAX_MS",
           "value": 1000,
           "alias": "Longest wait",
-          "description": "The longest a raw command waits for an answer (ms)"
-        }
-      ]
-    },
-    "vm_bit_op_e": {
-      "alias": "Bit Expression Opcode",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_blocks/core/expr_core/vm_expr_core.h",
-      "members": [
-        {
-          "name": "VM_BIT_END",
-          "value": 0,
-          "alias": "end",
-          "description": "Stop; the rest of the code is ignored."
-        },
-        {
-          "name": "VM_BIT_IN",
-          "value": 1,
-          "alias": "in",
-          "description": "-> input[operand] (as u32)"
-        },
-        {
-          "name": "VM_BIT_K",
-          "value": 2,
-          "alias": "const",
-          "description": "-> constant[operand]"
-        },
-        {
-          "name": "VM_BIT_DUP",
-          "value": 3,
-          "alias": "dup",
-          "description": "a -> a a"
-        },
-        {
-          "name": "VM_BIT_DROP",
-          "value": 4,
-          "alias": "drop",
-          "description": "a ->"
-        },
-        {
-          "name": "VM_BIT_SWAP",
-          "value": 5,
-          "alias": "swap",
-          "description": "a b -> b a"
-        },
-        {
-          "name": "VM_BIT_AND",
-          "value": 6,
-          "alias": "&",
-          "description": "a b -> a AND b"
-        },
-        {
-          "name": "VM_BIT_OR",
-          "value": 7,
-          "alias": "|",
-          "description": "a b -> a OR b"
-        },
-        {
-          "name": "VM_BIT_XOR",
-          "value": 8,
-          "alias": "^",
-          "description": "a b -> a XOR b"
-        },
-        {
-          "name": "VM_BIT_SHL",
-          "value": 9,
-          "alias": "<<",
-          "description": "a n -> a shifted left by n (n >= 32 gives 0)"
-        },
-        {
-          "name": "VM_BIT_SHR",
-          "value": 10,
-          "alias": ">>",
-          "description": "a n -> a shifted right by n, zero fill (n >= 32 gives 0)"
-        },
-        {
-          "name": "VM_BIT_SAR",
-          "value": 11,
-          "alias": ">>>",
-          "description": "a n -> a shifted right by n, sign fill"
-        },
-        {
-          "name": "VM_BIT_ROL",
-          "value": 12,
-          "alias": "rol",
-          "description": "a n -> a rotated left by n mod 32"
-        },
-        {
-          "name": "VM_BIT_ROR",
-          "value": 13,
-          "alias": "ror",
-          "description": "a n -> a rotated right by n mod 32"
-        },
-        {
-          "name": "VM_BIT_GET",
-          "value": 14,
-          "alias": "bit",
-          "description": "a n -> bit n mod 32 of a (1 or 0)"
-        },
-        {
-          "name": "VM_BIT_SET",
-          "value": 15,
-          "alias": "set",
-          "description": "a n -> a with bit n mod 32 set"
-        },
-        {
-          "name": "VM_BIT_CLR",
-          "value": 16,
-          "alias": "clear",
-          "description": "a n -> a with bit n mod 32 cleared"
-        },
-        {
-          "name": "VM_BIT_TGL",
-          "value": 17,
-          "alias": "toggle",
-          "description": "a n -> a with bit n mod 32 flipped"
-        },
-        {
-          "name": "VM_BIT_NOT",
-          "value": 18,
-          "alias": "~",
-          "description": "a -> every bit flipped"
-        },
-        {
-          "name": "VM_BIT_POPCNT",
-          "value": 19,
-          "alias": "popcount",
-          "description": "a -> number of set bits"
-        },
-        {
-          "name": "VM_BIT_CLZ",
-          "value": 20,
-          "alias": "clz",
-          "description": "a -> leading zero bits (32 for 0)"
-        },
-        {
-          "name": "VM_BIT_CTZ",
-          "value": 21,
-          "alias": "ctz",
-          "description": "a -> trailing zero bits (32 for 0)"
-        },
-        {
-          "name": "VM_BIT_BSWAP",
-          "value": 22,
-          "alias": "bswap",
-          "description": "a -> byte order reversed"
-        }
-      ]
-    },
-    "vm_blk_en_mode_e": {
-      "alias": "Enable Mode",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/block/vm_block.h",
-      "members": [
-        {
-          "name": "VM_BLK_EN_ANY",
-          "value": 0,
-          "alias": "Any",
-          "description": "The block runs while at least one of its enable sources is on"
-        },
-        {
-          "name": "VM_BLK_EN_ALL",
-          "value": 1,
-          "alias": "All",
-          "description": "The block runs only while every enable source is on"
-        }
-      ]
-    },
-    "vm_blk_on_error_e": {
-      "alias": "On Error",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/block/vm_block.h",
-      "members": [
-        {
-          "name": "VM_BLK_ERR_STOP",
-          "value": 0,
-          "alias": "Stop",
-          "description": "A failing call drops ENO, so the blocks that depend on it skip"
-        },
-        {
-          "name": "VM_BLK_ERR_CONTINUE",
-          "value": 1,
-          "alias": "Continue",
-          "description": "A failing call is reported and ENO is left as the block set it"
-        }
-      ]
-    },
-    "vm_exec_command_e": {
-      "alias": "VM Exec Command",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/exec/vm_exec.h",
-      "members": [
-        {
-          "name": "VM_EXEC_SCAN_MODE",
-          "value": 0,
-          "alias": "Scan mode",
-          "description": "Scan mode"
-        },
-        {
-          "name": "VM_EXEC_ONCE",
-          "value": 1,
-          "alias": "Once",
-          "description": "Once"
-        },
-        {
-          "name": "VM_EXEC_BLOCK_MODE",
-          "value": 2,
-          "alias": "Block mode",
-          "description": "Block mode"
-        },
-        {
-          "name": "VM_EXEC_NEXT",
-          "value": 3,
-          "alias": "Next",
-          "description": "Next"
-        },
-        {
-          "name": "VM_EXEC_RESET_TO_START",
-          "value": 4,
-          "alias": "Reset to start",
-          "description": "Reset to start"
-        },
-        {
-          "name": "VM_EXEC_NORMAL_MODE",
-          "value": 5,
-          "alias": "Normal mode",
-          "description": "Normal mode"
-        },
-        {
-          "name": "VM_EXEC_PAUSE",
-          "value": 6,
-          "alias": "Pause",
-          "description": "Pause"
-        },
-        {
-          "name": "VM_EXEC_RESUME",
-          "value": 7,
-          "alias": "Resume",
-          "description": "Resume"
-        },
-        {
-          "name": "VM_EXEC_RESET",
-          "value": 8,
-          "alias": "Reset",
-          "description": "Reset"
-        },
-        {
-          "name": "VM_EXEC_ACK_FAULT",
-          "value": 9,
-          "alias": "Ack fault",
-          "description": "Ack fault"
-        },
-        {
-          "name": "VM_EXEC_RETAIN_CLEAR",
-          "value": 10,
-          "alias": "Retain clear",
-          "description": "Forget retained values (vm_retain_clear)"
-        }
-      ]
-    },
-    "vm_expr_op_e": {
-      "alias": "Expression Opcode",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_blocks/core/expr_core/vm_expr_core.h",
-      "members": [
-        {
-          "name": "VM_EXPR_END",
-          "value": 0,
-          "alias": "end",
-          "description": "Stop; the rest of the code is ignored."
-        },
-        {
-          "name": "VM_EXPR_IN",
-          "value": 1,
-          "alias": "in",
-          "description": "-> input[operand] (as float)"
-        },
-        {
-          "name": "VM_EXPR_K",
-          "value": 2,
-          "alias": "const",
-          "description": "-> constant[operand]"
-        },
-        {
-          "name": "VM_EXPR_DUP",
-          "value": 3,
-          "alias": "dup",
-          "description": "a -> a a"
-        },
-        {
-          "name": "VM_EXPR_DROP",
-          "value": 4,
-          "alias": "drop",
-          "description": "a ->"
-        },
-        {
-          "name": "VM_EXPR_SWAP",
-          "value": 5,
-          "alias": "swap",
-          "description": "a b -> b a"
-        },
-        {
-          "name": "VM_EXPR_ADD",
-          "value": 6,
-          "alias": "+",
-          "description": "a b -> a + b"
-        },
-        {
-          "name": "VM_EXPR_SUB",
-          "value": 7,
-          "alias": "-",
-          "description": "a b -> a - b"
-        },
-        {
-          "name": "VM_EXPR_MUL",
-          "value": 8,
-          "alias": "*",
-          "description": "a b -> a * b"
-        },
-        {
-          "name": "VM_EXPR_DIV",
-          "value": 9,
-          "alias": "/",
-          "description": "a b -> a / b (b = 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_MOD",
-          "value": 10,
-          "alias": "mod",
-          "description": "a b -> fmod(a, b) (b = 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_POW",
-          "value": 11,
-          "alias": "pow",
-          "description": "a b -> a to the power b (a < 0 with fractional b faults)"
-        },
-        {
-          "name": "VM_EXPR_ROOT",
-          "value": 12,
-          "alias": "root",
-          "description": "a b -> b-th root of a (b = 0 faults; a < 0 needs an odd integer b)"
-        },
-        {
-          "name": "VM_EXPR_MIN",
-          "value": 13,
-          "alias": "min",
-          "description": "a b -> the smaller"
-        },
-        {
-          "name": "VM_EXPR_MAX",
-          "value": 14,
-          "alias": "max",
-          "description": "a b -> the larger"
-        },
-        {
-          "name": "VM_EXPR_ATAN2",
-          "value": 15,
-          "alias": "atan2",
-          "description": "y x -> atan2(y, x), radians"
-        },
-        {
-          "name": "VM_EXPR_HYPOT",
-          "value": 16,
-          "alias": "hypot",
-          "description": "a b -> sqrt(a*a + b*b)"
-        },
-        {
-          "name": "VM_EXPR_NEG",
-          "value": 17,
-          "alias": "neg",
-          "description": "a -> -a"
-        },
-        {
-          "name": "VM_EXPR_ABS",
-          "value": 18,
-          "alias": "abs",
-          "description": "a -> |a|"
-        },
-        {
-          "name": "VM_EXPR_SQRT",
-          "value": 19,
-          "alias": "sqrt",
-          "description": "a -> square root (a < 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_SQUARE",
-          "value": 20,
-          "alias": "sq",
-          "description": "a -> a * a"
-        },
-        {
-          "name": "VM_EXPR_RECIP",
-          "value": 21,
-          "alias": "1/x",
-          "description": "a -> 1 / a (a = 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_FLOOR",
-          "value": 22,
-          "alias": "floor",
-          "description": "a -> round down"
-        },
-        {
-          "name": "VM_EXPR_CEIL",
-          "value": 23,
-          "alias": "ceil",
-          "description": "a -> round up"
-        },
-        {
-          "name": "VM_EXPR_ROUND",
-          "value": 24,
-          "alias": "round",
-          "description": "a -> round half away from zero"
-        },
-        {
-          "name": "VM_EXPR_TRUNC",
-          "value": 25,
-          "alias": "trunc",
-          "description": "a -> round toward zero"
-        },
-        {
-          "name": "VM_EXPR_SIGN",
-          "value": 26,
-          "alias": "sign",
-          "description": "a -> -1, 0 or 1"
-        },
-        {
-          "name": "VM_EXPR_SIN",
-          "value": 27,
-          "alias": "sin",
-          "description": "a -> sin(a), radians"
-        },
-        {
-          "name": "VM_EXPR_COS",
-          "value": 28,
-          "alias": "cos",
-          "description": "a -> cos(a), radians"
-        },
-        {
-          "name": "VM_EXPR_TAN",
-          "value": 29,
-          "alias": "tan",
-          "description": "a -> tan(a), radians"
-        },
-        {
-          "name": "VM_EXPR_ASIN",
-          "value": 30,
-          "alias": "asin",
-          "description": "a -> asin(a) (|a| > 1 faults)"
-        },
-        {
-          "name": "VM_EXPR_ACOS",
-          "value": 31,
-          "alias": "acos",
-          "description": "a -> acos(a) (|a| > 1 faults)"
-        },
-        {
-          "name": "VM_EXPR_ATAN",
-          "value": 32,
-          "alias": "atan",
-          "description": "a -> atan(a)"
-        },
-        {
-          "name": "VM_EXPR_EXP",
-          "value": 33,
-          "alias": "exp",
-          "description": "a -> e to the power a"
-        },
-        {
-          "name": "VM_EXPR_LOG",
-          "value": 34,
-          "alias": "ln",
-          "description": "a -> natural log (a <= 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_LOG10",
-          "value": 35,
-          "alias": "log10",
-          "description": "a -> base-10 log (a <= 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_LOG2",
-          "value": 36,
-          "alias": "log2",
-          "description": "a -> base-2 log (a <= 0 faults)"
-        },
-        {
-          "name": "VM_EXPR_DEG",
-          "value": 37,
-          "alias": "deg",
-          "description": "a -> radians to degrees"
-        },
-        {
-          "name": "VM_EXPR_RAD",
-          "value": 38,
-          "alias": "rad",
-          "description": "a -> degrees to radians"
-        },
-        {
-          "name": "VM_EXPR_LT",
-          "value": 39,
-          "alias": "<",
-          "description": "a b -> a < b"
-        },
-        {
-          "name": "VM_EXPR_LE",
-          "value": 40,
-          "alias": "<=",
-          "description": "a b -> a <= b"
-        },
-        {
-          "name": "VM_EXPR_GT",
-          "value": 41,
-          "alias": ">",
-          "description": "a b -> a > b"
-        },
-        {
-          "name": "VM_EXPR_GE",
-          "value": 42,
-          "alias": ">=",
-          "description": "a b -> a >= b"
-        },
-        {
-          "name": "VM_EXPR_EQ",
-          "value": 43,
-          "alias": "==",
-          "description": "a b -> a == b (exact)"
-        },
-        {
-          "name": "VM_EXPR_NE",
-          "value": 44,
-          "alias": "!=",
-          "description": "a b -> a != b (exact)"
-        },
-        {
-          "name": "VM_EXPR_AND",
-          "value": 45,
-          "alias": "and",
-          "description": "a b -> a and b"
-        },
-        {
-          "name": "VM_EXPR_OR",
-          "value": 46,
-          "alias": "or",
-          "description": "a b -> a or b"
-        },
-        {
-          "name": "VM_EXPR_XOR",
-          "value": 47,
-          "alias": "xor",
-          "description": "a b -> exactly one of a, b"
-        },
-        {
-          "name": "VM_EXPR_NOT",
-          "value": 48,
-          "alias": "not",
-          "description": "a -> not a"
-        },
-        {
-          "name": "VM_EXPR_SEL",
-          "value": 49,
-          "alias": "select",
-          "description": "c t f -> t if c is non-zero, else f"
-        }
-      ]
-    },
-    "vm_index_kind_e": {
-      "alias": "VM Index Kind",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/obj/vm_obj_access_core.h",
-      "members": [
-        {
-          "name": "VM_IDX_LITERAL",
-          "value": 0,
-          "alias": "Literal Index",
-          "description": "Literal index: a fixed array position"
-        },
-        {
-          "name": "VM_IDX_REF",
-          "value": 1,
-          "alias": "Accessor Reference",
-          "description": "Accessor reference: read another accessor to obtain the index"
-        },
-        {
-          "name": "VM_IDX_NAME",
-          "value": 2,
-          "alias": "Child Name",
-          "description": "Child name: find a child object by its tag"
-        }
-      ]
-    },
-    "vm_load_state_e": {
-      "alias": "Program Load State",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/loader/vm_loader.h",
-      "members": [
-        {
-          "name": "VM_LOAD_EMPTY",
-          "value": 0,
-          "alias": "Empty",
-          "description": "No storage; all ID lookups resolve to NULL"
-        },
-        {
-          "name": "VM_LOAD_OPEN",
-          "value": 1,
-          "alias": "Open",
-          "description": "Storage reserved; objects, accessors, and blocks may be loaded"
-        }
-      ]
-    },
-    "vm_obj_flag": {
-      "alias": "Object Flags",
-      "kind": "defines",
-      "prefix": "VM_OBJ_F_",
-      "source_file": "runit-esp/components/vm/vm_core/obj/vm_obj.h",
-      "members": [
-        {
-          "name": "VM_OBJ_F_MUTABLE",
-          "value": 1,
-          "alias": "Writable",
-          "description": "Writable at run time"
-        },
-        {
-          "name": "VM_OBJ_F_TAGGED",
-          "value": 8,
-          "alias": "Named by the board",
-          "description": "Named by the board"
-        },
-        {
-          "name": "VM_OBJ_F_RETENTIVE",
-          "value": 16,
-          "alias": "Retained",
-          "description": "Retained after restart"
-        },
-        {
-          "name": "VM_OBJ_F_DYNAMIC",
-          "value": 32,
-          "alias": "Heap object",
-          "description": "Heap object"
-        },
-        {
-          "name": "VM_OBJ_F_USR_PROTECTED",
-          "value": 64,
-          "alias": "User-protected",
-          "description": "User runtime writes refused"
-        }
-      ]
-    },
-    "vm_obj_t_e": {
-      "alias": "VM Data Type",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/obj/vm_obj.h",
-      "members": [
-        {
-          "name": "VM_OBJ_NONE",
-          "value": 0,
-          "alias": "Empty",
-          "description": "Empty: no payload type"
-        },
-        {
-          "name": "VM_OBJ_PTR",
-          "value": 1,
-          "alias": "Object Reference",
-          "description": "Object reference: reference to another VM object (wire: 2B, mem: 4B)"
-        },
-        {
-          "name": "VM_OBJ_U8",
-          "value": 2,
-          "alias": "Unsigned 8-bit Integer",
-          "description": "Unsigned 8-bit integer (wire: 1B, mem: 1B)"
-        },
-        {
-          "name": "VM_OBJ_U32",
-          "value": 3,
-          "alias": "Unsigned 32-bit Integer",
-          "description": "Unsigned 32-bit integer (wire: 4B, mem: 4B)"
-        },
-        {
-          "name": "VM_OBJ_I32",
-          "value": 4,
-          "alias": "Signed 32-bit Integer",
-          "description": "Signed 32-bit integer (wire: 4B, mem: 4B)"
-        },
-        {
-          "name": "VM_OBJ_F",
-          "value": 5,
-          "alias": "Float",
-          "description": "32-bit float (wire: 4B, mem: 4B)"
-        },
-        {
-          "name": "VM_OBJ_B",
-          "value": 6,
-          "alias": "Boolean",
-          "description": "Boolean (wire: 1B, mem: 1B)"
-        },
-        {
-          "name": "VM_OBJ_STR",
-          "value": 7,
-          "alias": "Text",
-          "description": "Text string (wire: 1B, mem: 1B)"
-        }
-      ]
-    },
-    "vm_ref_kind": {
-      "alias": "Block wiring point",
-      "kind": "defines",
-      "prefix": "VM_REF_KIND_",
-      "source_file": "runit-esp/components/vm/vm_core/errors/vm_err.h",
-      "members": [
-        {
-          "name": "VM_REF_KIND_IN",
-          "value": 0,
-          "alias": "Input",
-          "description": "An input pin: an accessor"
-        },
-        {
-          "name": "VM_REF_KIND_OUT",
-          "value": 1,
-          "alias": "Output",
-          "description": "An output pin: an object"
-        },
-        {
-          "name": "VM_REF_KIND_EN",
-          "value": 2,
-          "alias": "Enable",
-          "description": "An enable source: an accessor"
-        },
-        {
-          "name": "VM_REF_KIND_ENO",
-          "value": 3,
-          "alias": "ENO",
-          "description": "The enable output: an object"
-        }
-      ]
-    },
-    "vm_reg_e": {
-      "alias": "VM registry",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/store/vm_store.h",
-      "members": [
-        {
-          "name": "VM_REG_OBJ",
-          "value": 0,
-          "alias": "Objects",
-          "description": "The program's variables and their elements"
-        },
-        {
-          "name": "VM_REG_ACC",
-          "value": 1,
-          "alias": "Accessors",
-          "description": "The paths blocks read and write through"
-        },
-        {
-          "name": "VM_REG_BLK",
-          "value": 2,
-          "alias": "Blocks",
-          "description": "The program's blocks"
-        }
-      ]
-    },
-    "vm_run_mode_e": {
-      "alias": "Program Run Mode",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_core/exec/vm_exec.h",
-      "members": [
-        {
-          "name": "VM_RUN_STOPPED",
-          "value": 0,
-          "alias": "Stopped",
-          "description": "Supervisor idle; explicit non-supervisor passes remain available"
-        },
-        {
-          "name": "VM_RUN_RUNNING",
-          "value": 1,
-          "alias": "Running",
-          "description": "Continuous cyclic passes (1 pass per tick)"
-        },
-        {
-          "name": "VM_RUN_FROZEN",
-          "value": 2,
-          "alias": "Frozen",
-          "description": "Paused before next block dispatch"
-        },
-        {
-          "name": "VM_RUN_STEP",
-          "value": 3,
-          "alias": "Step",
-          "description": "Run single pass, then transition to FROZEN"
-        },
-        {
-          "name": "VM_RUN_SCAN",
-          "value": 4,
-          "alias": "Scan",
-          "description": "Scan mode; waits for VM_EXEC_ONCE"
-        },
-        {
-          "name": "VM_RUN_BLOCK",
-          "value": 5,
-          "alias": "Block",
-          "description": "Block mode; waits for VM_EXEC_NEXT"
-        },
-        {
-          "name": "VM_RUN_BLOCK_STEP",
-          "value": 6,
-          "alias": "Block step",
-          "description": "Execute single pending block dispatch"
-        }
-      ]
-    },
-    "vm_timer_unit_e": {
-      "alias": "Time Unit",
-      "kind": "enum",
-      "source_file": "runit-esp/components/vm/vm_blocks/core/timer/vm_block_timer.h",
-      "members": [
-        {
-          "name": "VM_TIMER_UNIT_MS",
-          "value": 0,
-          "alias": "Milliseconds",
-          "description": "1 ms"
-        },
-        {
-          "name": "VM_TIMER_UNIT_SEC",
-          "value": 1,
-          "alias": "Seconds",
-          "description": "1,000 ms"
-        },
-        {
-          "name": "VM_TIMER_UNIT_MIN",
-          "value": 2,
-          "alias": "Minutes",
-          "description": "60,000 ms"
-        },
-        {
-          "name": "VM_TIMER_UNIT_HR",
-          "value": 3,
-          "alias": "Hours",
-          "description": "3,600,000 ms"
+          "description": "The longest SEND waits for room and RECEIVE / TRANSACT for a message (ms)"
         }
       ]
     }
@@ -2980,10 +1634,11 @@
     "CMD_DIR_WRITE": "cmd_dir_e",
     "CMD_FRAME_MAX": "cmd_frame",
     "CMD_HEAD": "cmd_frame",
+    "CMD_SEND_NOWAIT": "cmd_send_flag",
+    "CMD_SEND_SPARE": "cmd_send_flag",
+    "CMD_SEND_URGENT": "cmd_send_flag",
     "DC_MOTOR_STOP_BRAKE": "dc_motor_stop_e",
     "DC_MOTOR_STOP_COAST": "dc_motor_stop_e",
-    "DRV8962_TOPOLOGY_2_FULL_BRIDGES": "drv8962_topology_e",
-    "DRV8962_TOPOLOGY_4_HALF_BRIDGES": "drv8962_topology_e",
     "ERR_RECORD_REQ_CUT": "err_record_flag",
     "ERR_RECORD_SRC_BOARD": "err_record_src_e",
     "ERR_RECORD_SRC_COMMAND": "err_record_src_e",
@@ -2994,36 +1649,39 @@
     "ERR_SEV_LOW": "err_sev_e",
     "ERR_SEV_MEDIUM": "err_sev_e",
     "ERR_SEV_NONE": "err_sev_e",
+    "MODULE_ID_ACTIONS": "module_id",
+    "MODULE_ID_BLE": "module_id",
+    "MODULE_ID_BOARD": "module_id",
+    "MODULE_ID_CMD": "module_id",
+    "MODULE_ID_EVENT": "module_id",
+    "MODULE_ID_HBRIDGE": "module_id",
+    "MODULE_ID_I2C": "module_id",
+    "MODULE_ID_IO": "module_id",
+    "MODULE_ID_LOG": "module_id",
+    "MODULE_ID_NVS": "module_id",
+    "MODULE_ID_PD": "module_id",
+    "MODULE_ID_PMON": "module_id",
+    "MODULE_ID_POLICY": "module_id",
+    "MODULE_ID_PROVIDER": "module_id",
+    "MODULE_ID_PWRM": "module_id",
+    "MODULE_ID_REMOTE": "module_id",
+    "MODULE_ID_ROUTER": "module_id",
+    "MODULE_ID_ROUTER_QUEUE": "module_id",
+    "MODULE_ID_SESSION": "module_id",
+    "MODULE_ID_STREAM": "module_id",
+    "MODULE_ID_SUPPLY": "module_id",
+    "MODULE_ID_SYS": "module_id",
+    "MODULE_ID_SYS_DEVICE": "module_id",
+    "MODULE_ID_SYS_EVENT": "module_id",
+    "MODULE_ID_SYS_POWER": "module_id",
+    "MODULE_ID_UART": "module_id",
+    "MODULE_ID_VREG": "module_id",
+    "MODULE_ID_WATCH": "module_id",
     "ROUTER_FLAG_NOREPLY": "router_flag",
     "ROUTER_FLAG_URGENT": "router_flag",
-    "ROUTER_KEY_ACTIONS": "router_key",
-    "ROUTER_KEY_BLE": "router_key",
-    "ROUTER_KEY_BOARD": "router_key",
-    "ROUTER_KEY_DEVICE": "router_key",
-    "ROUTER_KEY_EVENT": "router_key",
-    "ROUTER_KEY_FLASHER": "router_key",
-    "ROUTER_KEY_I2C": "router_key",
-    "ROUTER_KEY_LOG": "router_key",
-    "ROUTER_KEY_LVGL": "router_key",
-    "ROUTER_KEY_OTA": "router_key",
-    "ROUTER_KEY_POWER": "router_key",
-    "ROUTER_KEY_PROJECT": "router_key",
-    "ROUTER_KEY_PROVIDER": "router_key",
-    "ROUTER_KEY_REMOTE": "router_key",
-    "ROUTER_KEY_SESSION": "router_key",
-    "ROUTER_KEY_STREAM": "router_key",
-    "ROUTER_KEY_SYS": "router_key",
-    "ROUTER_KEY_UART": "router_key",
-    "ROUTER_KEY_VM": "router_key",
-    "ROUTER_KEY_WATCH": "router_key",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
-    "RUNIT_BOARD_PROVIDER_BLE_LOGS": "board_provider",
-    "RUNIT_BOARD_PROVIDER_BLE_RUNIT": "board_provider",
-    "RUNIT_BOARD_PROVIDER_UART_CONSOLE": "board_provider",
-    "RUNIT_BOARD_PROVIDER_UART_LINK": "board_provider",
-    "SERVO_TYPE_ANGLE": "servo_type_e",
-    "SERVO_TYPE_CONTINUOUS": "servo_type_e",
+    "SYS_ACTIONS_CLASS_BOARD": "action_class",
     "SYS_ACTIONS_CLASS_DEVICE": "action_class",
     "SYS_ACTIONS_CLASS_PROJECT": "action_class",
     "SYS_ACTIONS_CLASS_SYSTEM": "action_class",
@@ -3041,37 +1699,24 @@
     "SYS_ACTIONS_ONBOARD_RESET": "onboard_action",
     "SYS_ACTIONS_ONBOARD_RESUME": "onboard_action",
     "SYS_ACTIONS_ONBOARD_SUSPEND": "onboard_action",
-    "SYS_BLE_CHR_RUNIT_LOGS": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_RX": "ble_runit_uuid",
     "SYS_BLE_CHR_RUNIT_TX": "ble_runit_uuid",
-    "SYS_BLE_CHT_RUNIT_STATUS": "ble_runit_uuid",
     "SYS_BLE_FRAG_COUNT_MASK": "ble_frag",
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
     "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
-    "SYS_DATA_PROVIDER_LINK_BLE": "sys_data_provider_link_e",
-    "SYS_DATA_PROVIDER_LINK_MQTT": "sys_data_provider_link_e",
-    "SYS_DATA_PROVIDER_LINK_UART": "sys_data_provider_link_e",
     "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
-    "SYS_DATA_PROVIDER_STATE_NO_RX": "prov_state",
     "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
     "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",
     "SYS_DATA_PROVIDER_STATE_UP": "prov_state",
     "SYS_DATA_PROVIDER_STATE_WIRED": "prov_state",
-    "SYS_DEVICE_CONTRACT_DEVICE": "device_contract",
-    "SYS_DEVICE_CONTRACT_DISPLAY": "device_contract",
-    "SYS_DEVICE_CONTRACT_EVENT": "device_contract",
-    "SYS_DEVICE_CONTRACT_HBRIDGE": "device_contract",
-    "SYS_DEVICE_CONTRACT_IO": "device_contract",
-    "SYS_DEVICE_CONTRACT_OWN": "device_contract",
-    "SYS_DEVICE_CONTRACT_PINS": "device_contract",
-    "SYS_DEVICE_CONTRACT_POWER_MANAGER": "device_contract",
-    "SYS_DEVICE_CONTRACT_POWER_MONITOR": "device_contract",
-    "SYS_DEVICE_CONTRACT_POWER_SUPPLY": "device_contract",
-    "SYS_DEVICE_CONTRACT_POWER_USB_PD": "device_contract",
-    "SYS_DEVICE_CONTRACT_POWER_VREG": "device_contract",
-    "SYS_DEVICE_CONTRACT_TOUCH": "device_contract",
+    "SYS_DATA_PROVIDER_TYPE_BLE": "sys_data_provider_type_e",
+    "SYS_DATA_PROVIDER_TYPE_CONSOLE": "sys_data_provider_type_e",
+    "SYS_DATA_PROVIDER_TYPE_MQTT": "sys_data_provider_type_e",
+    "SYS_DATA_PROVIDER_TYPE_UART": "sys_data_provider_type_e",
+    "SYS_DEVICE_CONTRACT_OWN": "device_contract_own",
     "SYS_DEVICE_FAULT_STAGE_ACTION": "sys_device_fault_stage_e",
+    "SYS_DEVICE_FAULT_STAGE_QUEUE": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_SUSPEND": "sys_device_fault_stage_e",
     "SYS_DEVICE_FAULT_STAGE_VM_STOP": "sys_device_fault_stage_e",
     "SYS_DEVICE_ID_NONE": "device_id",
@@ -3081,47 +1726,14 @@
     "SYS_DEVICE_IMPORTANCE_MEDIUM": "sys_device_importance_e",
     "SYS_DEVICE_IMPORTANCE_NONE": "sys_device_importance_e",
     "SYS_DEVICE_REMOTE_WIRED": "device_remote_flag",
+    "SYS_DEVICE_REMOTE_WIRELESS": "device_remote_flag",
     "SYS_DEVICE_RESPONSE_RESET": "device_response",
     "SYS_DEVICE_RESPONSE_SUSPEND": "device_response",
-    "SYS_DISPLAY_FLAG_BGR": "display_flags",
-    "SYS_DISPLAY_FLAG_BL_ACTIVE_LOW": "display_flags",
-    "SYS_DISPLAY_FLAG_INVERT": "display_flags",
-    "SYS_DISPLAY_FLAG_MIRROR_X": "display_flags",
-    "SYS_DISPLAY_FLAG_MIRROR_Y": "display_flags",
-    "SYS_DISPLAY_FLAG_READABLE": "display_flags",
-    "SYS_DISPLAY_FORMAT_RGB565_SWAPPED": "sys_display_format_e",
-    "SYS_DISPLAY_FORMAT_RGB888": "sys_display_format_e",
-    "SYS_DISPLAY_HEALTH_NO_ANSWER": "sys_display_health_e",
-    "SYS_DISPLAY_HEALTH_OK": "sys_display_health_e",
-    "SYS_DISPLAY_HEALTH_RESTARTED": "sys_display_health_e",
-    "SYS_DISPLAY_HEALTH_UNKNOWN": "sys_display_health_e",
-    "SYS_DISPLAY_ORIENTATION_0": "sys_display_orientation_e",
-    "SYS_DISPLAY_ORIENTATION_180": "sys_display_orientation_e",
-    "SYS_DISPLAY_ORIENTATION_270": "sys_display_orientation_e",
-    "SYS_DISPLAY_ORIENTATION_90": "sys_display_orientation_e",
-    "SYS_DISPLAY_PANEL_GC9A01": "sys_display_panel_e",
-    "SYS_DISPLAY_PANEL_ILI9341": "sys_display_panel_e",
-    "SYS_DISPLAY_PANEL_ILI9488": "sys_display_panel_e",
-    "SYS_DISPLAY_PANEL_ST7735": "sys_display_panel_e",
-    "SYS_DISPLAY_PANEL_ST7789": "sys_display_panel_e",
-    "SYS_DISPLAY_PANEL_ST7796": "sys_display_panel_e",
-    "SYS_EVENT_OP_NOTIFY": "event_op",
-    "SYS_FLASHER_DONE": "sys_flasher_state_e",
-    "SYS_FLASHER_FAILED": "sys_flasher_state_e",
-    "SYS_FLASHER_IDLE": "sys_flasher_state_e",
-    "SYS_FLASHER_RUNNING": "sys_flasher_state_e",
-    "SYS_FLASHER_STEP_APP": "sys_flasher_step_e",
-    "SYS_FLASHER_STEP_BOOTLOADER": "sys_flasher_step_e",
-    "SYS_FLASHER_STEP_CONNECT": "sys_flasher_step_e",
-    "SYS_FLASHER_STEP_ERASE": "sys_flasher_step_e",
-    "SYS_FLASHER_STEP_RESTART": "sys_flasher_step_e",
     "SYS_HBRIDGE_FAULT_EXTERNAL": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_NONE": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_OVERCURRENT": "sys_hbridge_fault_reason_e",
     "SYS_HBRIDGE_FAULT_THERMAL_OR_UVLO": "sys_hbridge_fault_reason_e",
     "SYS_I2C_BE": "sys_i2c_order_e",
-    "SYS_I2C_BUS_0": "sys_i2c_bus_e",
-    "SYS_I2C_BUS_1": "sys_i2c_bus_e",
     "SYS_I2C_LE": "sys_i2c_order_e",
     "SYS_IO_INTR_ADC_WINDOW_INSIDE": "sys_io_intr_mode_e",
     "SYS_IO_INTR_ADC_WINDOW_OUTSIDE": "sys_io_intr_mode_e",
@@ -3140,13 +1752,6 @@
     "SYS_IO_MODE_PWM": "sys_io_mode_e",
     "SYS_IO_PIN_NONE_DEVICE": "io_pin_none",
     "SYS_IO_PIN_NONE_INDEX": "io_pin_none",
-    "SYS_LVGL_STATE_EMPTY": "sys_lvgl_state_e",
-    "SYS_LVGL_STATE_PAUSED": "sys_lvgl_state_e",
-    "SYS_LVGL_STATE_RUNNING": "sys_lvgl_state_e",
-    "SYS_LVGL_STATE_STOPPED": "sys_lvgl_state_e",
-    "SYS_OTA_STATE_PENDING": "sys_ota_state_e",
-    "SYS_OTA_STATE_UNKNOWN": "sys_ota_state_e",
-    "SYS_OTA_STATE_VALID": "sys_ota_state_e",
     "SYS_POWER_ALERT_OCP_CRITICAL": "sys_power_alert_e",
     "SYS_POWER_ALERT_OCP_WARNING": "sys_power_alert_e",
     "SYS_POWER_BATTERY_LIPO": "sys_power_battery_e",
@@ -3179,26 +1784,19 @@
     "SYS_POWER_USB_PD_OPTION_AVS": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_FIXED": "sys_power_usb_pd_option_type_e",
     "SYS_POWER_USB_PD_OPTION_PPS": "sys_power_usb_pd_option_type_e",
-    "SYS_PROJECT_BOOT_LOAD": "sys_project_boot_e",
-    "SYS_PROJECT_BOOT_NONE": "sys_project_boot_e",
-    "SYS_PROJECT_BOOT_RUN": "sys_project_boot_e",
     "SYS_REMOTE_ERROR": "sys_remote_kind_e",
     "SYS_REMOTE_EVENT": "sys_remote_kind_e",
     "SYS_SAFE_DEADMAN": "sys_safe_reason_e",
     "SYS_SAFE_POWER": "sys_safe_reason_e",
     "SYS_SAFE_STOP": "sys_safe_reason_e",
     "SYS_SESSION_ANSWER": "sys_session_kind_e",
-    "SYS_SESSION_CHANNEL_DATA": "session_channel",
-    "SYS_SESSION_CHANNEL_REMOTE": "session_channel",
-    "SYS_SESSION_CHANNEL_WATCHES": "session_channel",
+    "SYS_SESSION_CHANNEL_FIRST": "session_channel",
     "SYS_SESSION_CLIENT": "sys_session_peer_e",
     "SYS_SESSION_CONTROL": "sys_session_kind_e",
     "SYS_SESSION_FRAME_FLAGS": "session_frame",
     "SYS_SESSION_FRAME_KIND": "session_frame",
     "SYS_SESSION_FRAME_STATUS": "session_frame",
-    "SYS_SESSION_GONE": "sys_session_control_e",
     "SYS_SESSION_HELLO": "sys_session_control_e",
-    "SYS_SESSION_ID_APP": "session_id",
     "SYS_SESSION_ID_BROADCAST": "session_id",
     "SYS_SESSION_ID_CLIENT_FIRST": "session_id",
     "SYS_SESSION_ID_CLIENT_LAST": "session_id",
@@ -3208,165 +1806,34 @@
     "SYS_SESSION_ID_SELF": "session_id",
     "SYS_SESSION_MASTER": "sys_session_peer_e",
     "SYS_SESSION_NO_SESSION": "sys_session_control_e",
+    "SYS_SESSION_PEER": "sys_session_control_e",
     "SYS_SESSION_PING": "sys_session_control_e",
     "SYS_SESSION_PUSH": "sys_session_kind_e",
     "SYS_SESSION_REQUEST": "sys_session_kind_e",
     "SYS_SESSION_SLAVE": "sys_session_peer_e",
-    "SYS_SESSION_VERSION": "session_version",
+    "SYS_SESSION_UNKNOWN": "sys_session_peer_e",
     "SYS_STREAM_ERRORS": "stream",
     "SYS_STREAM_EVENTS": "stream",
     "SYS_STREAM_FLAG_URGENT": "stream_flag",
     "SYS_STREAM_ID_LAST": "stream_range",
     "SYS_STREAM_ID_USER_FIRST": "stream_range",
-    "SYS_STREAM_IN": "sys_stream_dir_e",
     "SYS_STREAM_LOGS": "stream",
-    "SYS_STREAM_OUT": "sys_stream_dir_e",
-    "SYS_STREAM_STATE_SYSTEM": "stream_state",
     "SYS_STREAM_TARGET_CALLBACK": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_OUTPUT": "sys_stream_target_e",
     "SYS_STREAM_TARGET_PEER": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_PROVIDER": "sys_stream_target_e",
-    "SYS_STREAM_TARGET_REMOTE": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_SINK": "sys_stream_target_e",
+    "SYS_STREAM_TARGET_SOURCE": "sys_stream_target_e",
     "SYS_STREAM_TELEMETRY": "stream",
     "SYS_UART_BAUD_MAX": "uart_baud",
     "SYS_UART_BAUD_MIN": "uart_baud",
-    "SYS_UART_MODE_DIRECT": "sys_uart_mode_e",
     "SYS_UART_MODE_FRAMED": "sys_uart_mode_e",
     "SYS_UART_MODE_RAW": "sys_uart_mode_e",
     "SYS_UART_MODE_RAW_LINE": "sys_uart_mode_e",
     "SYS_UART_PARITY_EVEN": "sys_uart_parity_e",
     "SYS_UART_PARITY_NONE": "sys_uart_parity_e",
     "SYS_UART_PARITY_ODD": "sys_uart_parity_e",
-    "SYS_UART_RAW_WAIT_MAX_MS": "uart_raw",
+    "SYS_UART_WAIT_MAX_MS": "uart_wait",
     "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
     "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
-    "SYS_WATCH_PERIODIC": "sys_watch_trigger_e",
-    "TOUCH_AXES_MIRROR_X": "touch_axes",
-    "TOUCH_AXES_MIRROR_Y": "touch_axes",
-    "TOUCH_AXES_SWAP_XY": "touch_axes",
-    "VM_BIT_AND": "vm_bit_op_e",
-    "VM_BIT_BSWAP": "vm_bit_op_e",
-    "VM_BIT_CLR": "vm_bit_op_e",
-    "VM_BIT_CLZ": "vm_bit_op_e",
-    "VM_BIT_CTZ": "vm_bit_op_e",
-    "VM_BIT_DROP": "vm_bit_op_e",
-    "VM_BIT_DUP": "vm_bit_op_e",
-    "VM_BIT_END": "vm_bit_op_e",
-    "VM_BIT_GET": "vm_bit_op_e",
-    "VM_BIT_IN": "vm_bit_op_e",
-    "VM_BIT_K": "vm_bit_op_e",
-    "VM_BIT_NOT": "vm_bit_op_e",
-    "VM_BIT_OR": "vm_bit_op_e",
-    "VM_BIT_POPCNT": "vm_bit_op_e",
-    "VM_BIT_ROL": "vm_bit_op_e",
-    "VM_BIT_ROR": "vm_bit_op_e",
-    "VM_BIT_SAR": "vm_bit_op_e",
-    "VM_BIT_SET": "vm_bit_op_e",
-    "VM_BIT_SHL": "vm_bit_op_e",
-    "VM_BIT_SHR": "vm_bit_op_e",
-    "VM_BIT_SWAP": "vm_bit_op_e",
-    "VM_BIT_TGL": "vm_bit_op_e",
-    "VM_BIT_XOR": "vm_bit_op_e",
-    "VM_BLK_EN_ALL": "vm_blk_en_mode_e",
-    "VM_BLK_EN_ANY": "vm_blk_en_mode_e",
-    "VM_BLK_ERR_CONTINUE": "vm_blk_on_error_e",
-    "VM_BLK_ERR_STOP": "vm_blk_on_error_e",
-    "VM_EXEC_ACK_FAULT": "vm_exec_command_e",
-    "VM_EXEC_BLOCK_MODE": "vm_exec_command_e",
-    "VM_EXEC_NEXT": "vm_exec_command_e",
-    "VM_EXEC_NORMAL_MODE": "vm_exec_command_e",
-    "VM_EXEC_ONCE": "vm_exec_command_e",
-    "VM_EXEC_PAUSE": "vm_exec_command_e",
-    "VM_EXEC_RESET": "vm_exec_command_e",
-    "VM_EXEC_RESET_TO_START": "vm_exec_command_e",
-    "VM_EXEC_RESUME": "vm_exec_command_e",
-    "VM_EXEC_RETAIN_CLEAR": "vm_exec_command_e",
-    "VM_EXEC_SCAN_MODE": "vm_exec_command_e",
-    "VM_EXPR_ABS": "vm_expr_op_e",
-    "VM_EXPR_ACOS": "vm_expr_op_e",
-    "VM_EXPR_ADD": "vm_expr_op_e",
-    "VM_EXPR_AND": "vm_expr_op_e",
-    "VM_EXPR_ASIN": "vm_expr_op_e",
-    "VM_EXPR_ATAN": "vm_expr_op_e",
-    "VM_EXPR_ATAN2": "vm_expr_op_e",
-    "VM_EXPR_CEIL": "vm_expr_op_e",
-    "VM_EXPR_COS": "vm_expr_op_e",
-    "VM_EXPR_DEG": "vm_expr_op_e",
-    "VM_EXPR_DIV": "vm_expr_op_e",
-    "VM_EXPR_DROP": "vm_expr_op_e",
-    "VM_EXPR_DUP": "vm_expr_op_e",
-    "VM_EXPR_END": "vm_expr_op_e",
-    "VM_EXPR_EQ": "vm_expr_op_e",
-    "VM_EXPR_EXP": "vm_expr_op_e",
-    "VM_EXPR_FLOOR": "vm_expr_op_e",
-    "VM_EXPR_GE": "vm_expr_op_e",
-    "VM_EXPR_GT": "vm_expr_op_e",
-    "VM_EXPR_HYPOT": "vm_expr_op_e",
-    "VM_EXPR_IN": "vm_expr_op_e",
-    "VM_EXPR_K": "vm_expr_op_e",
-    "VM_EXPR_LE": "vm_expr_op_e",
-    "VM_EXPR_LOG": "vm_expr_op_e",
-    "VM_EXPR_LOG10": "vm_expr_op_e",
-    "VM_EXPR_LOG2": "vm_expr_op_e",
-    "VM_EXPR_LT": "vm_expr_op_e",
-    "VM_EXPR_MAX": "vm_expr_op_e",
-    "VM_EXPR_MIN": "vm_expr_op_e",
-    "VM_EXPR_MOD": "vm_expr_op_e",
-    "VM_EXPR_MUL": "vm_expr_op_e",
-    "VM_EXPR_NE": "vm_expr_op_e",
-    "VM_EXPR_NEG": "vm_expr_op_e",
-    "VM_EXPR_NOT": "vm_expr_op_e",
-    "VM_EXPR_OR": "vm_expr_op_e",
-    "VM_EXPR_POW": "vm_expr_op_e",
-    "VM_EXPR_RAD": "vm_expr_op_e",
-    "VM_EXPR_RECIP": "vm_expr_op_e",
-    "VM_EXPR_ROOT": "vm_expr_op_e",
-    "VM_EXPR_ROUND": "vm_expr_op_e",
-    "VM_EXPR_SEL": "vm_expr_op_e",
-    "VM_EXPR_SIGN": "vm_expr_op_e",
-    "VM_EXPR_SIN": "vm_expr_op_e",
-    "VM_EXPR_SQRT": "vm_expr_op_e",
-    "VM_EXPR_SQUARE": "vm_expr_op_e",
-    "VM_EXPR_SUB": "vm_expr_op_e",
-    "VM_EXPR_SWAP": "vm_expr_op_e",
-    "VM_EXPR_TAN": "vm_expr_op_e",
-    "VM_EXPR_TRUNC": "vm_expr_op_e",
-    "VM_EXPR_XOR": "vm_expr_op_e",
-    "VM_IDX_LITERAL": "vm_index_kind_e",
-    "VM_IDX_NAME": "vm_index_kind_e",
-    "VM_IDX_REF": "vm_index_kind_e",
-    "VM_LOAD_EMPTY": "vm_load_state_e",
-    "VM_LOAD_OPEN": "vm_load_state_e",
-    "VM_OBJ_B": "vm_obj_t_e",
-    "VM_OBJ_F": "vm_obj_t_e",
-    "VM_OBJ_F_DYNAMIC": "vm_obj_flag",
-    "VM_OBJ_F_MUTABLE": "vm_obj_flag",
-    "VM_OBJ_F_RETENTIVE": "vm_obj_flag",
-    "VM_OBJ_F_TAGGED": "vm_obj_flag",
-    "VM_OBJ_F_USR_PROTECTED": "vm_obj_flag",
-    "VM_OBJ_I32": "vm_obj_t_e",
-    "VM_OBJ_NONE": "vm_obj_t_e",
-    "VM_OBJ_PTR": "vm_obj_t_e",
-    "VM_OBJ_STR": "vm_obj_t_e",
-    "VM_OBJ_U32": "vm_obj_t_e",
-    "VM_OBJ_U8": "vm_obj_t_e",
-    "VM_REF_KIND_EN": "vm_ref_kind",
-    "VM_REF_KIND_ENO": "vm_ref_kind",
-    "VM_REF_KIND_IN": "vm_ref_kind",
-    "VM_REF_KIND_OUT": "vm_ref_kind",
-    "VM_REG_ACC": "vm_reg_e",
-    "VM_REG_BLK": "vm_reg_e",
-    "VM_REG_OBJ": "vm_reg_e",
-    "VM_RUN_BLOCK": "vm_run_mode_e",
-    "VM_RUN_BLOCK_STEP": "vm_run_mode_e",
-    "VM_RUN_FROZEN": "vm_run_mode_e",
-    "VM_RUN_RUNNING": "vm_run_mode_e",
-    "VM_RUN_SCAN": "vm_run_mode_e",
-    "VM_RUN_STEP": "vm_run_mode_e",
-    "VM_RUN_STOPPED": "vm_run_mode_e",
-    "VM_TIMER_UNIT_HR": "vm_timer_unit_e",
-    "VM_TIMER_UNIT_MIN": "vm_timer_unit_e",
-    "VM_TIMER_UNIT_MS": "vm_timer_unit_e",
-    "VM_TIMER_UNIT_SEC": "vm_timer_unit_e"
+    "SYS_WATCH_PERIODIC": "sys_watch_trigger_e"
   }
 }

@@ -17,17 +17,7 @@ menu "sys_session"
           The board's own requests to other boards waiting for an answer
           (sys_session_call); a call to this board takes none. Every call to
           another board is answered, so each write of a remote device in
-          flight takes one. More than SYS_SESSION_MAX x
-          SYS_SESSION_PEER_IN_FLIGHT are never used: a slot is about 52 B.
-
-    config SYS_SESSION_PEER_IN_FLIGHT
-        int "Calls in flight to one board"
-        default 4
-        range 1 16
-        help
-          Calls to one board on the way at once; one more is ERR_SESSION_BUSY
-          (no failure: the caller sends it later). Keeps a fast caller from
-          queuing a backlog on a slow link.
+          flight takes one. A slot is about 52 B.
 
     #@limit @alias Call timeout @unit ms
     config SYS_SESSION_CALL_TIMEOUT_MS
@@ -35,19 +25,9 @@ menu "sys_session"
         default 1000
         range 50 10000
         help
-          A call without an answer this long ends with ERR_SESSION_TIMEOUT:
-          over a radio (BLE, MQTT, ESP-NOW) or further than a neighbour.
-          Longer than a radio's tail, so a slow answer is not taken for a
-          lost one.
-
-    #@limit @alias Wired call timeout @unit ms
-    config SYS_SESSION_CALL_TIMEOUT_WIRED_MS
-        int "Wired call timeout (ms)"
-        default 50
-        range 10 1000
-        help
-          The same to the peer of a session on a WIRED provider (a cable):
-          its round trip is about a millisecond.
+          A call without an answer this long ends with ERR_SESSION_TIMEOUT,
+          unless the caller gives its own. Longer than a radio's tail, so a
+          slow answer is not taken for a lost one.
 
     config SYS_SESSION_BOARD_ID_DEFAULT
         int "Board id until the app sets one"
@@ -73,17 +53,6 @@ menu "sys_session"
         help
           sys_session_on_push slots: who takes the PUSH frames
           of a session channel.
-
-    config SYS_SESSION_PUSH_PEERS
-        int "Peers with PUSH counters"
-        default 8
-        range 1 32
-        help
-          The peers this board counts PUSH frames with, both ways: on a
-          slave the root and each client of the root it sends to or hears
-          from, on the root its slaves and its clients. One entry is 10 B.
-          With every entry taken a PUSH to another peer still goes, without
-          a counter (no gap is known for it).
 
     #@limit @alias Session timeout @unit ms
     config SYS_SESSION_TIMEOUT_MS

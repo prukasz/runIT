@@ -1,7 +1,6 @@
 {
   "sources": [
     "sys_session.c",
-    "hello/sys_session_hello.c",
     "call/sys_session_call.c",
     "router/sys_session_router.c"
   ],
@@ -9,8 +8,6 @@
     "host/test_sys_session.c"
   ],
   "includes": [
-    "config",
-    "frame",
     "errors",
     "internal",
     "router"

@@ -11,7 +11,7 @@ import type { CommandOptions } from './commands'
  * The link to one board: a session (SYS_SESSION.MD), the commands, the streams, and a connection that keeps itself up.
  *
  *   - Opening is one call of the platform (connect, runIT service, two subscriptions), then the session (SYS_SESSION.MD "A
- *     session's life"): this client's HELLO with its own id (the app's, `SYS_SESSION_ID_APP`), the board's HELLO in answer with
+ *     session's life"): this client's HELLO with its own id (the app's own, the first client id), the board's HELLO in answer with
  *     its id (the `dst` of every request), then SUBSCRIBE of the errors, telemetry and events streams (STREAM, SYS_STREAM.MD).
  *     The log lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
  *   - A PUSH frame's first byte is a stream's id, or from 0x80 a channel of the session: a watch's entries (`watches`), a
@@ -67,7 +67,7 @@ export interface LinkOptions {
   readonly reconnect?: Partial<ReconnectPolicy> | false
   /** How long a command waits for a link that is coming back (default 5000 ms). */
   readonly waitForLinkMs?: number
-  /** The id this client says in its hello (default the app's, `SYS_SESSION_ID_APP`; another client picks one of `defs.session.id.clientFirst..clientLast`). */
+  /** The id this client says in its hello (default the app's own, the first client id; another client picks one of `defs.session.id.clientFirst..clientLast`). */
   readonly clientId?: number
 }
 

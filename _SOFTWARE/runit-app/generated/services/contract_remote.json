@@ -4,15 +4,15 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "REMOTE",
-  "router_key": 16,
+  "router_key": 47,
   "alias": "Remote devices",
-  "description": "Subscriptions to this board's devices: a subscriber gets a device's events and errors outside a command, in the session's Remote devices channel: [0x81][id u16][kind][data].",
+  "description": "Subscriptions to this board's devices: a subscriber gets a device's events and errors outside a command, in the remote devices' channel: [channel][id][kind][data].",
   "category": "system",
   "commands": [
     {
       "id": "SUBSCRIBE",
       "op": 1,
-      "symbol": "SYS_REMOTE_OP_SUBSCRIBE",
+      "symbol": "REMOTE_OP_SUBSCRIBE",
       "label": "Follow a device",
       "description": "Subscribes the sender to a device of this board: its events and its errors outside a command come to the sender until UNSUBSCRIBE or the sender is gone.",
       "write": {
@@ -23,8 +23,8 @@
               "id": "id",
               "label": "Device",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
               "description": "A device of this board"
             }
@@ -35,7 +35,7 @@
     {
       "id": "UNSUBSCRIBE",
       "op": 2,
-      "symbol": "SYS_REMOTE_OP_UNSUBSCRIBE",
+      "symbol": "REMOTE_OP_UNSUBSCRIBE",
       "label": "Stop following a device",
       "description": "Ends the sender's subscription to a device of this board.",
       "write": {
@@ -46,8 +46,8 @@
               "id": "id",
               "label": "Device",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
               "description": "A device of this board"
             }

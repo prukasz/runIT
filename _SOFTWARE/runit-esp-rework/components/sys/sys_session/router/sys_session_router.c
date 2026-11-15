@@ -8,11 +8,12 @@ ROUTER_READ(SESSION, OP_ID) {
 }
 
 ROUTER_WRITE(SESSION, OP_ID) {
-  return sys_session_set_board_id(args->board_id);
+  ERR_CHECK_IN_RANGE(args->board_id, 0, SYS_SESSION_ID_LAST, ERR_CMD_BAD_ARG);
+  return sys_session_board_save_id(args->board_id);
 }
 
 ROUTER_WRITE(SESSION, OP_ATTACH) {
-  return sys_session_attach(args->provider, args->way);
+  return sys_session_attach(args->provider, args->peer);
 }
 
 ROUTER_WRITE(SESSION, OP_DETACH) {

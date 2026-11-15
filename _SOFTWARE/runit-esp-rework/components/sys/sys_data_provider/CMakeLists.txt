@@ -3,7 +3,7 @@
 # nothing else references, and the linker would drop the registration.
 idf_component_register(
     SRCS "sys_data_provider.c" "sys_data_provider_cmd.c" "router/sys_data_provider_router.c"
-    INCLUDE_DIRS "." "config" "driver" "errors" "router"
+    INCLUDE_DIRS "." "driver" "errors" "router"
     PRIV_INCLUDE_DIRS "internal"
     REQUIRES errors utils cmd router
     PRIV_REQUIRES router_queue

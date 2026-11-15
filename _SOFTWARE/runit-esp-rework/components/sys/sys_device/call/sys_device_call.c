@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
@@ -310,6 +311,18 @@ err_h sys_device_call(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out
 
 err_h sys_device_write(uint8_t id, uint16_t op, const void* args, uint32_t args_len) {
   return sys_device_call(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL);
+}
+
+err_h sys_device_create_system(uint8_t id, uint16_t type_id, const void* cfg, uint32_t cfg_len) {
+  uint8_t frame[SYS_DEVICE_CREATE_HDR + SYS_DEVICE_CREATE_CFG_MAX];
+  ERR_CHECK(cfg_len <= SYS_DEVICE_CREATE_CFG_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)cfg_len,
+            .need = (uint16_t)SYS_DEVICE_CREATE_CFG_MAX);
+  memcpy(frame, &type_id, sizeof(type_id));
+  frame[sizeof(type_id)] = SYS_DEVICE_CREATE_SYSTEM;
+  if (cfg_len > 0u) {
+    memcpy(frame + SYS_DEVICE_CREATE_HDR, cfg, cfg_len);
+  }
+  return sys_device_write(id, CONTRACT_SYS_DEVICE_OP_CREATE, frame, SYS_DEVICE_CREATE_HDR + cfg_len);
 }
 
 err_h sys_device_read(uint8_t id, uint16_t op, const void* args, uint32_t args_len, void* out, uint32_t out_size) {

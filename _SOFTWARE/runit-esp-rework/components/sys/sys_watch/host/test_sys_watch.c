@@ -17,11 +17,13 @@
 #include "sys_data_provider_driver.h"
 #include "sys_event.h"
 #include "sys_session.h"
-#include "sys_session_frame.h"
-#include "sys_session_internal.h"
 #include "sys_watch.h"
+#include "sys_watch_internal.h"
 #include "sys_watch_router.h"
 #include "unity.h"
+
+#define FRAME SYS_SESSION_FRAME
+#define FRAME_KIND SYS_SESSION_FRAME_KIND_OF
 
 #define ASSERT_ERR(call, tag)       \
   do {                              \
@@ -278,7 +280,7 @@ static bool next_watch_push(fake_t* f, uint8_t* id, uint8_t* status, uint8_t* pa
     }
     const uint8_t* b = m.data + sizeof(sys_session_hdr_t);
     const uint32_t blen = m.len - sizeof(sys_session_hdr_t);
-    if (blen >= 3u && b[0] == SYS_SESSION_CHANNEL_WATCHES) {
+    if (blen >= 3u && b[0] == SYS_WATCH_CHANNEL) {
       *id = b[1];
       *status = b[2];
       *plen = blen - 3u;
@@ -291,8 +293,8 @@ static bool next_watch_push(fake_t* f, uint8_t* id, uint8_t* status, uint8_t* pa
 }
 
 static void open_sessions(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_DOWN));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
+  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
   send_hello(&s_up, CLIENT, 0xAAAA0001u, 1500u);
   send_hello(&s_down, SLAVE, 0xBBBB0002u, 1500u);
   sent_t m;
@@ -304,7 +306,7 @@ static void open_sessions(void) {
 
 static void clear_all_server_watches(void) {
   sys_watch_info_t list[CONFIG_SYS_WATCH_MAX];
-  const uint8_t n = sys_watch_list(list, CONFIG_SYS_WATCH_MAX);
+  const uint8_t n = sys_watch_list(list);
   for (uint8_t i = 0; i < n; i++) {
     err_h e = sys_watch_remove(list[i].owner, list[i].head.id);
     if (e != NULL) {
@@ -367,7 +369,7 @@ void test_server_add_validation_and_list(void) {
   TEST_ASSERT_NULL(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT));
 
   sys_watch_info_t info[CONFIG_SYS_WATCH_MAX];
-  TEST_ASSERT_EQUAL_UINT8(CONFIG_SYS_WATCH_MAX, sys_watch_list(info, CONFIG_SYS_WATCH_MAX));
+  TEST_ASSERT_EQUAL_UINT8(CONFIG_SYS_WATCH_MAX, sys_watch_list(info));
   TEST_ASSERT_EQUAL_UINT16(5, info[0].head.period);
   TEST_ASSERT_EQUAL_UINT8(CLIENT, info[0].owner);
 
@@ -488,11 +490,11 @@ void test_server_on_event_and_gone(void) {
   // Detach SLAVE -> SLAVE watch removed, CLIENT watch remains
   TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
   sys_watch_info_t info[CONFIG_SYS_WATCH_MAX];
-  TEST_ASSERT_EQUAL_UINT8(1, sys_watch_list(info, CONFIG_SYS_WATCH_MAX));
+  TEST_ASSERT_EQUAL_UINT8(1, sys_watch_list(info));
   TEST_ASSERT_EQUAL_UINT8(CLIENT, info[0].owner);
 
   // Re-attach SLAVE so later tests have both sessions up
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_DOWN));
+  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
   send_hello(&s_down, SLAVE, 0xBBBB0003u, 1500u);
   sent_t m;
   TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
@@ -522,7 +524,7 @@ static uint16_t expect_client_add(uint8_t* watch_id) {
 
 static void inject_slave_push(uint8_t watch_id, uint8_t status, const void* payload, uint32_t plen) {
   uint8_t body[CMD_DATA_MAX];
-  body[0] = SYS_SESSION_CHANNEL_WATCHES;
+  body[0] = SYS_WATCH_CHANNEL;
   body[1] = watch_id;
   body[2] = status;
   if (plen > 0u) {
@@ -605,7 +607,7 @@ void test_client_b3_gate_error_and_size_limits(void) {
   TEST_ASSERT_TRUE(got_rem);
 }
 
-void test_client_stale_old_and_refresh(void) {
+void test_client_stale_adds_the_watch_again(void) {
   uint32_t out = 0, out_len = 0;
 
   // Claim & activate slot for k_val_read
@@ -620,38 +622,29 @@ void test_client_stale_old_and_refresh(void) {
   TEST_ASSERT_EQUAL_HEX32(v1, out);
 
   fake_clear(&s_down);
-  // Write completes -> call sys_watch_stale -> slot becomes OLD & sends direct read
+  // A write's answer came -> sys_watch_stale drops the copy and sends ADD for the same watch again
   sys_watch_stale(SLAVE, (cmd_in_t){k_val_write, sizeof(k_val_write)}, 2u);
+  uint8_t wid2 = 0;
+  const uint16_t add_seq2 = expect_client_add(&wid2);
+  TEST_ASSERT_EQUAL_UINT8(wid, wid2);
 
-  sent_t ref_req;
-  uint16_t ref_seq = 0;
-  while (next_kind(&s_down, SYS_SESSION_REQUEST, &ref_req, WAIT_MS)) {
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)ref_req.data;
-    const uint8_t* b = ref_req.data + sizeof(*h);
-    if (b[0] == MODULE_ID_TESTW && b[1] == CMD_DIR_READ && b[2] == TESTW_OP_VAL) {
-      ref_seq = h->seq;
-      break;
-    }
-  }
-  TEST_ASSERT_NOT_EQUAL(0u, ref_seq);
-
-  // Pre-write PUSH arriving while OLD must NOT overwrite or clear OLD!
+  // An entry from before the write, arriving before that ADD's OK, is not taken
   const uint32_t pre_write = 0x22222222u;
   inject_slave_push(wid, ROUTER_STATUS_OK, &pre_write, sizeof(pre_write));
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
              ERR_WATCH_NO_VALUE);
 
-  // Direct refresh answer arrives -> updates copy & restores ACTIVE
+  // ADD's OK, then the watch's first entry: the value after the write
+  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, add_seq2, NULL, 0);
   const uint32_t post_write = 0x33333333u;
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, ref_seq, &post_write, sizeof(post_write));
+  inject_slave_push(wid, ROUTER_STATUS_OK, &post_write, sizeof(post_write));
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len));
   TEST_ASSERT_EQUAL_HEX32(post_write, out);
 
-  // Later PUSH entries are accepted again
-  const uint32_t v4 = 0x44444444u;
-  inject_slave_push(wid, ROUTER_STATUS_OK, &v4, sizeof(v4));
+  // A write to another target leaves it as it is
+  const uint8_t other_write[] = {MODULE_ID_TESTW, CMD_DIR_WRITE, TESTW_OP_VAL, 0x09, 0x00, 1, 0, 0, 0};
+  sys_watch_stale(SLAVE, (cmd_in_t){other_write, sizeof(other_write)}, 2u);
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len));
-  TEST_ASSERT_EQUAL_HEX32(v4, out);
 }
 
 void test_client_staleness_gone_and_idle_remove(void) {
@@ -681,7 +674,7 @@ void test_client_staleness_gone_and_idle_remove(void) {
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len), ERR_WATCH_NO_VALUE);
 
   // Re-attach SLAVE -> next read past retry backoff (20 ms) sends fresh WATCH ADD
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_DOWN));
+  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
   send_hello(&s_down, SLAVE, 0xBBBB0009u, 1500u);
   sent_t m;
   TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
@@ -726,7 +719,7 @@ int main(void) {
   RUN_TEST(test_server_on_change_silence_and_error_recovery);
   RUN_TEST(test_server_on_event_and_gone);
   RUN_TEST(test_client_b3_gate_error_and_size_limits);
-  RUN_TEST(test_client_stale_old_and_refresh);
+  RUN_TEST(test_client_stale_adds_the_watch_again);
   RUN_TEST(test_client_staleness_gone_and_idle_remove);
   return UNITY_END();
 }

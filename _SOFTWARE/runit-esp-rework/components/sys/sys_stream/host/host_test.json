@@ -7,7 +7,6 @@
     "host/test_sys_stream.c"
   ],
   "includes": [
-    "config",
     "errors",
     "internal",
     "router"

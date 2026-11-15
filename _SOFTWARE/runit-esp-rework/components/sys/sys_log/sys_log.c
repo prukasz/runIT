@@ -4,6 +4,7 @@
 #include "sdkconfig.h"
 #include "sys_log_router.h"
 #include "sys_stream.h"
+#include "sys_stream_router.h"
 
 ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
 MODULE_ID_DEFINE(LOG, 0x2A)
@@ -85,6 +86,10 @@ static void apply(const sys_log_cfg_t* cfg) {
 }
 
 err_h sys_log_init(void) {
+  static const sys_stream_cfg_t k_logs = {.id = SYS_STREAM_LOGS, .flags = 0};
+  static const sys_stream_cfg_t k_errors = {.id = SYS_STREAM_ERRORS, .flags = SYS_STREAM_FLAG_URGENT};
+  ERR_TRY(sys_stream_create(&k_logs));
+  ERR_TRY(sys_stream_create(&k_errors));
   if (s_log.console == NULL) {
     s_log.console = esp_log_set_vprintf(log_vprintf);
   }
@@ -125,6 +130,11 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
   if (send) {
     err_free(sys_stream_send(SYS_STREAM_ERRORS, record, len));  // full queue drops it: reporting would loop
   }
+}
+
+void sys_log_report(err_h chain, const cmd_req_t* cmd) {
+  uint8_t record[SYS_LOG_RECORD_MAX];
+  sys_log_error(record, cmd_err_record(cmd, chain, record, sizeof(record)));
 }
 
 uint32_t sys_log_error_get(uint32_t index, uint8_t* out, uint32_t* total) {

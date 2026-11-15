@@ -2,43 +2,53 @@
   "$schema": "../../../templates/contract.schema.json",
   "schemaVersion": 3,
   "kind": "contract-definition",
+  "scope": "device",
   "id": "DEVICE",
-  "contract_id": 0,
+  "contract_id": 32,
+  "router_key": 32,
   "alias": "Device",
-  "description": "Creating a device and the operations every device has: reset, suspend, resume",
+  "description": "Lifecycle and inspection interface shared by all managed devices on the board (create, reset, suspend, resume, remove, info, operation discovery).",
   "category": "system",
   "commands": [
     {
       "id": "CREATE",
       "op": 0,
-      "symbol": "SYS_DEVICE_OP_CREATE",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_CREATE",
       "label": "Create device",
-      "description": "Creates a device of a type: its type id, its flags, then the create struct of that type (the device descriptor lists its fields).",
+      "description": "Creates a new local device instance in the target slot using its device type ID, creation flags, and packed type-specific configuration.",
       "write": {
         "args": {
           "fields": [
             {
               "id": "type",
               "label": "Device type",
-              "type": "number",
+              "type": "integer",
               "raw_type": "u16",
               "size": 2,
-              "offset": 0
+              "offset": 0,
+              "description": "Numeric device type ID (sys_device_type_t)"
             },
             {
               "id": "flags",
-              "label": "Flags",
+              "label": "Create flags",
               "type": "bitmask",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "Bit 0: the board's own device, it can't be removed and a project's change leaves it",
+              "description": "Bit 0 (SYS_DEVICE_CREATE_SYSTEM): system device owned by the board",
               "bits": [
                 {
                   "bit": 0,
-                  "label": "Board device"
+                  "label": "System device"
                 }
               ]
+            },
+            {
+              "id": "config",
+              "label": "Configuration",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Packed configuration structure defined by the device type"
             }
           ]
         }
@@ -47,49 +57,49 @@
     {
       "id": "RESET",
       "op": 1,
-      "symbol": "SYS_DEVICE_OP_RESET",
-      "label": "Reset",
-      "description": "Puts the device's outputs off and its settings back to defaults; the device's RESET event follows.",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_RESET",
+      "label": "Reset device",
+      "description": "Reinitializes hardware registers and driver state back to the default state configured at creation.",
       "write": {}
     },
     {
       "id": "SUSPEND",
       "op": 2,
-      "symbol": "SYS_DEVICE_OP_SUSPEND",
-      "label": "Suspend",
-      "description": "Makes the outputs safe; the device refuses writes until it is resumed.",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_SUSPEND",
+      "label": "Suspend device",
+      "description": "Puts the device into a safe low-power or stopped state and rejects non-system operations until resumed.",
       "write": {}
     },
     {
       "id": "RESUME",
       "op": 3,
-      "symbol": "SYS_DEVICE_OP_RESUME",
-      "label": "Resume",
-      "description": "Lets a suspended device work again.",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_RESUME",
+      "label": "Resume device",
+      "description": "Restores the device after suspension and resumes normal operation.",
       "write": {}
     },
     {
       "id": "REMOVE",
       "op": 4,
-      "symbol": "SYS_DEVICE_OP_REMOVE",
-      "label": "Remove",
-      "description": "Releases the device's hardware and removes it (refused while another device uses it).",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_REMOVE",
+      "label": "Remove device",
+      "description": "Destroys the device instance, frees its slot and hardware resources. Refused for system devices or devices used by others.",
       "write": {}
     },
     {
       "id": "INFO",
       "op": 5,
-      "symbol": "SYS_DEVICE_OP_INFO",
-      "label": "Info",
-      "description": "What the device is: its type and whether it is suspended.",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_INFO",
+      "label": "Device info",
+      "description": "Reads the runtime metadata of an existing device slot (type ID and suspend state).",
       "read": {
         "returns": {
-          "type": "struct",
+          "struct": "sys_device_info_t",
           "fields": [
             {
               "id": "type_id",
               "label": "Device type",
-              "type": "number",
+              "type": "integer",
               "raw_type": "u16",
               "size": 2,
               "offset": 0
@@ -97,38 +107,26 @@
             {
               "id": "suspended",
               "label": "Suspended",
-              "type": "choice",
-              "control": "switch",
+              "type": "boolean",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "options": [
-                {
-                  "label": "No",
-                  "value": 0
-                },
-                {
-                  "label": "Yes",
-                  "value": 1
-                }
-              ]
+              "description": "1 when suspended, 0 otherwise"
             }
-          ],
-          "struct": "sys_device_info_t",
-          "size": 3
+          ]
         }
       }
     },
     {
       "id": "OPS",
       "op": 6,
-      "symbol": "SYS_DEVICE_OP_OPS",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_OPS",
       "label": "List operations",
-      "description": "Every operation the device answers as a command, with the sides it has (a local op, run only inside the board, is left out).",
+      "description": "Returns all remote-callable operations supported by this device along with their supported directions (LOCAL ops excluded).",
       "read": {
         "returns": {
           "label": "Operations",
-          "description": "One row per operation: the registry's, then the device type's",
+          "description": "One row per operation: the device registry ops followed by the driver ops",
           "array": true,
           "fields": [
             {
@@ -138,7 +136,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0,
-              "description": "(contract << 8) | op"
+              "description": "Packed (contract << 8) | op"
             },
             {
               "id": "sides",
@@ -147,7 +145,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "Bit 0: the op has a read side; bit 1: a write side",
+              "description": "Bit 0: read supported; bit 1: write supported",
               "bits": [
                 {
                   "bit": 0,
@@ -164,107 +162,49 @@
       }
     },
     {
-      "id": "ERROR_POLICY",
-      "op": 7,
-      "symbol": "SYS_DEVICE_OP_ERROR_POLICY",
-      "label": "Error policy",
-      "description": "How much the device's errors matter and the action run for each severity.",
-      "read": {
-        "description": "The device's error policy.",
-        "returns": {
-          "struct": "sys_device_error_policy_t",
-          "fields": [
-            {
-              "id": "importance",
-              "label": "Importance",
-              "type": "enum",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "Which of the device's errors get a response"
-            },
-            {
-              "id": "actions",
-              "label": "Actions",
-              "type": "number",
-              "raw_type": "u32",
-              "size": 16,
-              "offset": 1,
-              "description": "What runs for an admitted error of severity low, medium, high, critical: a record, or a response of the policy on the failing device (SYS_DEVICE_RESPONSE_*); 0: none"
-            }
-          ]
-        }
-      },
-      "write": {
-        "description": "Which of the device's errors get a response, and which record runs.",
-        "args": {
-          "fields": [
-            {
-              "id": "importance",
-              "label": "Importance",
-              "type": "enum",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "Which of the device's errors get a response"
-            },
-            {
-              "id": "actions",
-              "label": "Actions",
-              "type": "number",
-              "raw_type": "u32",
-              "size": 16,
-              "offset": 1,
-              "description": "What runs for an admitted error of severity low, medium, high, critical: a record, or a response of the policy on the failing device (SYS_DEVICE_RESPONSE_*); 0: none"
-            }
-          ],
-          "struct": "sys_device_error_policy_t"
-        }
-      }
-    },
-    {
       "id": "CREATE_REMOTE",
       "op": 8,
-      "symbol": "SYS_DEVICE_OP_CREATE_REMOTE",
-      "label": "Create remote device",
-      "description": "Makes a local id that names a device of another board: the type, then where it is. A call on it is that board's device command with the id swapped; its events and errors come here as this device's. Its config is the other board's; nothing is asked of that board but the subscription to its events and errors.",
+      "symbol": "CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE",
+      "label": "Create remote device proxy",
+      "description": "Creates a proxy slot for a device running on another board over a session link.",
       "write": {
         "args": {
           "fields": [
             {
               "id": "type",
               "label": "Device type",
-              "type": "number",
+              "type": "integer",
               "raw_type": "u16",
               "size": 2,
               "offset": 0
             },
             {
               "id": "board",
-              "label": "Board",
-              "type": "number",
+              "label": "Remote board",
+              "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "The board the device is on"
+              "description": "Session peer board ID owning the hardware device"
             },
             {
               "id": "remote_id",
-              "label": "Device id there",
-              "type": "number",
-              "raw_type": "u16",
-              "size": 2,
+              "label": "Remote device ID",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
               "offset": 3,
-              "description": "Its id on that board"
+              "description": "Device slot ID on the remote board"
             },
             {
               "id": "flags",
-              "label": "Flags",
-              "type": "number",
+              "label": "Link flags",
+              "type": "enum",
+              "enum": "device_remote_flag",
               "raw_type": "u8",
               "size": 1,
-              "offset": 5,
-              "description": "SYS_DEVICE_REMOTE_*: WIRED, a neighbour on a cable (every call waits for its answer); else reads come from a watch's copy and writes do not wait"
+              "offset": 4,
+              "description": "Exactly one SYS_DEVICE_REMOTE_* transport mode flag"
             }
           ]
         }
@@ -274,39 +214,68 @@
   "events": [
     {
       "id": "SUSPENDED",
-      "event": 0,
-      "code": 0,
-      "label": "Suspended",
-      "description": "The device was suspended: its outputs are safe and it refuses writes until it is resumed. Source 0xFFFF: a sweep (the safe state, a critical fault, SUSPEND of every device) suspended devices.",
+      "event": 1,
+      "code": 2097153,
+      "label": "Device suspended",
+      "description": "The device entered the suspended state.",
       "notify": true,
-      "symbol": "DEVICE_EV_SUSPENDED",
-      "value": {
-        "description": "Always 0"
-      }
+      "symbol": "SYS_DEVICE_EV_SUSPENDED"
     },
     {
       "id": "RESUMED",
-      "event": 1,
-      "code": 1,
-      "label": "Resumed",
-      "description": "The device works again. Source 0xFFFF: a sweep (RESUME of every device, leaving the safe state) resumed devices.",
+      "event": 2,
+      "code": 2097154,
+      "label": "Device resumed",
+      "description": "The device resumed normal operation.",
       "notify": true,
-      "symbol": "DEVICE_EV_RESUMED",
-      "value": {
-        "description": "Always 0"
-      }
+      "symbol": "SYS_DEVICE_EV_RESUMED"
     },
     {
       "id": "RESET",
-      "event": 2,
-      "code": 2,
-      "label": "Reset",
-      "description": "A RESET put the device's settings back to the defaults (its outputs off). Source 0xFFFF: a sweep (RESET of every device) reset devices. A module that keeps state on the device (the screen adapter on its display) sets it again.",
+      "event": 3,
+      "code": 2097155,
+      "label": "Device reset",
+      "description": "The device was reset to its configured defaults.",
       "notify": true,
-      "symbol": "DEVICE_EV_RESET",
-      "value": {
-        "description": "Always 0"
-      }
+      "symbol": "SYS_DEVICE_EV_RESET"
+    },
+    {
+      "id": "CREATED",
+      "event": 4,
+      "code": 2097156,
+      "label": "Device created",
+      "description": "A new device instance was created in this slot.",
+      "notify": false,
+      "symbol": "SYS_DEVICE_EV_CREATED",
+      "payload": [
+        {
+          "id": "gen",
+          "label": "Slot generation",
+          "type": "integer",
+          "raw_type": "u8",
+          "size": 1,
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "id": "REMOVED",
+      "event": 5,
+      "code": 2097157,
+      "label": "Device removed",
+      "description": "The device instance was removed from this slot.",
+      "notify": false,
+      "symbol": "SYS_DEVICE_EV_REMOVED",
+      "payload": [
+        {
+          "id": "gen",
+          "label": "Slot generation",
+          "type": "integer",
+          "raw_type": "u8",
+          "size": 1,
+          "offset": 0
+        }
+      ]
     }
   ]
 }

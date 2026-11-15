@@ -3,10 +3,10 @@
 #include "errors.h"
 
 /* The module's one number: the root key of its commands (router/) and the module of its errors. */
-MODULE_ID_DECLARE(PROVIDER, 0x0D)
+MODULE_ID_DECLARE(PROVIDER, 0x0D)  //@alias Data providers @description Transport provider registry module ID
 #define ERR_MOD_SYS_DATA_PROVIDER MODULE_ID_PROVIDER
 
-// Tags 1..10 keep their historical wire numbers; 11..15 belong to the typed registry / router ops.
+// Tags 11..15 belong to the typed registry / router ops.
 #define ERR_SYS_DATA_PROVIDER_MAP(X)                                                                                    \
   X(ERR_PROV_NOT_FOUND,    ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 1),  ERR_SEV_MEDIUM,   { uint8_t provider; })             \
   X(ERR_PROV_EXISTS,       ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 2),  ERR_SEV_MEDIUM,   { uint8_t provider; }) /* create: id taken */ \
@@ -17,7 +17,6 @@ MODULE_ID_DECLARE(PROVIDER, 0x0D)
   X(ERR_PROV_TOO_LONG,     ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 7),  ERR_SEV_MEDIUM,   { uint8_t provider; uint16_t len; uint16_t max; }) /* send: never cut */ \
   X(ERR_PROV_SEND,         ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 8),  ERR_SEV_NONE,     { uint8_t provider; }) /* context: driver's send failed */ \
   X(ERR_PROV_BUSY,         ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 9),  ERR_SEV_LOW,      { uint8_t provider; }) /* send queue full */ \
-  X(ERR_PROV_NO_RX,        ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 10), ERR_SEV_MEDIUM,   { uint8_t provider; }) /* open with rx: NO_RX provider */ \
   X(ERR_PROV_BAD_ID,       ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 11), ERR_SEV_HIGH,     { uint8_t provider; }) /* ID_NONE for instance op, or vice versa for LIST */ \
   X(ERR_PROV_TYPE_UNKNOWN, ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 12), ERR_SEV_HIGH,     { uint8_t type; }) /* CREATE with unknown type */ \
   X(ERR_PROV_UNKNOWN_OP,   ERR_TAG(ERR_MOD_SYS_DATA_PROVIDER, 13), ERR_SEV_HIGH,     { uint16_t op; }) /* op not in contract / type table, or missing side */ \

@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(PWRM, 0x22)
+MODULE_ID_DECLARE(PWRM, 0x22)  //@alias Power manager @description Power budget and rail fault manager module ID
 #define ERR_MOD_SYS_POWER_MANAGER MODULE_ID_PWRM
 
 /* ----------------------------------------------------------------------------

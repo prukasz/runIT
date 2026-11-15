@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(I2C, 0x02)
+MODULE_ID_DECLARE(I2C, 0x02)  //@alias I2C contract @description I2C bus contract and module ID
 #define ERR_MOD_SYS_I2C MODULE_ID_I2C
 
 /* ----------------------------------------------------------------------------

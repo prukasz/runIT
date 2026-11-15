@@ -5,10 +5,6 @@
     "ERR_UART_BAD_ARG": {
       "message": "A UART request is not valid"
     },
-    "ERR_UART_BAD_PORT": {
-      "message": "This board has no link to another board (UART {port})",
-      "hint": "Turn the link on in the firmware's configuration (SYS_UART_LINK)."
-    },
     "ERR_UART_BUSY": {
       "message": "UART port {port} TX queue is full"
     },
@@ -18,13 +14,6 @@
     },
     "ERR_UART_INIT": {
       "message": "UART {port} could not start"
-    },
-    "ERR_UART_NOT_DIRECT": {
-      "message": "Provider {provider} is not a UART port in direct mode"
-    },
-    "ERR_UART_TIMEOUT": {
-      "message": "UART provider {provider} did not finish sending in time",
-      "hint": "Check the rate, and the CTS line if the port uses flow control."
     },
     "ERR_UART_IN_USE": {
       "message": "UART port {port} is in use by device {owner}",

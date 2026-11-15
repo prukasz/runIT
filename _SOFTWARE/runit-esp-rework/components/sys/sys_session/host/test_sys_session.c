@@ -1,5 +1,5 @@
-/* Host tests of the sessions (sys_session.c, hello/, call/, router/) on two fake providers: an UP way (a client or
- * this board's master) and a DOWN way (a slave). The router's tasks and the board timers' task run for real; the
+/* Host tests of the sessions (sys_session.c, call/, router/) on two fake providers: a way not told (a client or
+ * this board's master) and a way to a slave. The router's tasks and the board timers' task run for real; the
  * test is the peers, delivering their frames as a driver's RX task would and reading what the board sends.
  * Run: python test_host/run.py sys_session   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
@@ -14,14 +14,18 @@
 #include "sys_data_provider_driver.h"
 #include "sys_session.h"
 #include "sys_session_internal.h"
+
+#define HDR SYS_SESSION_HDR_BYTES
+#define FRAME SYS_SESSION_FRAME
+#define FRAME_KIND SYS_SESSION_FRAME_KIND_OF
 #include "unity.h"
 
 #define BOARD    5u     // CONFIG_SYS_SESSION_BOARD_ID_DEFAULT: this board
 #define CLIENT   0xF0u  // the app
 #define SLAVE    9u
 #define MASTER   3u
-#define UP_ID    1u     // the UP way's provider
-#define DOWN_ID  2u     // the DOWN way's provider
+#define UP_ID    1u     // the provider of the way not told
+#define DOWN_ID  2u     // the provider of the way to a slave
 #define WAIT_MS  2000
 
 /* ---- the board's identity (board/ on the chip) ---------------------------------------------------------------- */
@@ -201,7 +205,7 @@ static void deliver_control(fake_t* f, uint8_t src, uint8_t op, const void* data
 
 static const uint8_t k_peers_req[] = {MODULE_ID_SESSION, CMD_DIR_READ, SESSION_OP_PEERS};
 
-/* ---- what the listeners and the error sink were told ---------------------------------------------------------- */
+/* ---- what the listeners were told ----------------------------------------------------------------------------- */
 
 static struct {
   pthread_mutex_t m;
@@ -210,7 +214,6 @@ static struct {
   uint8_t gone_role;
   int reached;
   uint8_t reached_peer;
-  int none;  // ERR_SESSION_NONE reported
 } s_seen = {.m = PTHREAD_MUTEX_INITIALIZER};
 
 static void on_gone(uint8_t peer, uint8_t role) {
@@ -228,18 +231,7 @@ static void on_reached(uint8_t peer) {
   pthread_mutex_unlock(&s_seen.m);
 }
 
-static void on_push(uint8_t src, uint16_t lost, const uint8_t* data, uint32_t len);  // the PUSH tests'
-
-static void sink(err_h chain, const struct cmd_req* cmd) {
-  (void)cmd;
-  for (err_h n = chain; n != NULL; n = n->next) {
-    if (n->tag == ERR_SESSION_NONE) {
-      pthread_mutex_lock(&s_seen.m);
-      s_seen.none++;
-      pthread_mutex_unlock(&s_seen.m);
-    }
-  }
-}
+static void on_push(uint8_t src, const uint8_t* data, uint32_t len);  // the PUSH tests'
 
 static int seen(const int* field) {
   pthread_mutex_lock(&s_seen.m);
@@ -273,7 +265,6 @@ void setUp(void) {
   if (!started) {
     started = true;
     host_time_real(true);
-    err_set_sink(sink);
     TEST_ASSERT_NULL(router_init());
     TEST_ASSERT_NULL(sys_session_init());
     TEST_ASSERT_NULL(sys_session_on_gone(on_gone));
@@ -284,7 +275,7 @@ void setUp(void) {
   }
   host_log_clear();
   pthread_mutex_lock(&s_seen.m);
-  s_seen.gone = s_seen.reached = s_seen.none = 0;
+  s_seen.gone = s_seen.reached = 0;
   pthread_mutex_unlock(&s_seen.m);
   fake_clear(&s_up);
   fake_clear(&s_down);
@@ -296,9 +287,9 @@ void tearDown(void) {
   sys_data_provider_set_up(s_up.p, true);
 }
 
-// Attaches the UP way and opens it with the client's hello; the board's hellos are read off.
+// Attaches the way not told and opens it with the client's hello; the board's hellos are read off.
 static void open_client(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));  // the board's, on attach (up already)
   deliver_hello(&s_up, CLIENT, 0xC0FFEEu);
@@ -306,7 +297,7 @@ static void open_client(void) {
 }
 
 static void open_slave(void) {
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_DOWN));
+  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_down, SYS_SESSION_HELLO, &s, WAIT_MS));
   deliver_hello(&s_down, SLAVE, 0x5A5Au);
@@ -315,26 +306,35 @@ static void open_slave(void) {
 
 /* ---- the hello ------------------------------------------------------------------------------------------------ */
 
+static void test_attach_takes_only_a_slave_or_unknown(void) {
+  err_h master = sys_session_attach(UP_ID, SYS_SESSION_MASTER);
+  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, master);
+  err_free(master);
+  err_h client = sys_session_attach(UP_ID, SYS_SESSION_CLIENT);
+  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, client);
+  err_free(client);
+}
+
 static void test_attach_says_hello_and_the_clients_hello_opens_the_session(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
   sys_session_hello_t hello;
   memcpy(&hello, s.data + HDR + 1, sizeof(hello));
   TEST_ASSERT_EQUAL_HEX8(BOARD, hello.id);
-  TEST_ASSERT_EQUAL_HEX32(0x12345678u | 1u, hello.boot_id);
+  TEST_ASSERT_EQUAL_HEX32(0x12345678u, hello.boot_id);
   TEST_ASSERT_EQUAL_HEX32(0xB01DB01Du, hello.build_id);
   TEST_ASSERT_EQUAL_UINT16(CONFIG_SYS_SESSION_TIMEOUT_MS, hello.timeout_ms);
   sys_session_info_t row;
   TEST_ASSERT_TRUE(peers_row(UP_ID, &row));
-  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_UNKNOWN, row.role);  // an UP way before its hello
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_UNKNOWN, row.peer);  // a way not told, before its hello
   TEST_ASSERT_EQUAL_UINT8(0, row.open);
 
   deliver_hello(&s_up, CLIENT, 0xC0FFEEu);
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
   TEST_ASSERT_TRUE(peers_row(UP_ID, &row));
   TEST_ASSERT_EQUAL_UINT8(1, row.open);
-  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_CLIENT, row.role);
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_CLIENT, row.peer);
   TEST_ASSERT_EQUAL_HEX8(CLIENT, row.peer_id);
   TEST_ASSERT_EQUAL_INT(1, seen(&s_seen.reached));
   TEST_ASSERT_TRUE(sys_session_is_root());
@@ -355,18 +355,25 @@ static void test_a_request_over_the_session_is_answered_to_its_source(void) {
   TEST_ASSERT_EQUAL_HEX8(0, s.flags & CMD_SEND_SPARE);  // an answer never takes only spare room
 }
 
-static void test_frames_on_a_closed_session_start_over_and_are_reported_once(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
-  for (int i = 0; i < 3; i++) {
-    deliver(&s_up, FRAME(SYS_SESSION_REQUEST), BOARD, CLIENT, (uint16_t)i, k_peers_req, sizeof(k_peers_req));
-    sent_t s;
-    TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_NO_SESSION, &s, WAIT_MS));
-  }
-  TEST_ASSERT_EQUAL_INT(1, seen(&s_seen.none));
+static void test_a_frame_on_a_session_not_open_here_starts_over(void) {
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
+  sent_t s;
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));  // the board's, on attach
+  deliver(&s_up, FRAME(SYS_SESSION_REQUEST), BOARD, CLIENT, 1, k_peers_req, sizeof(k_peers_req));
+  TEST_ASSERT_TRUE(next_sent(&s_up, &s, WAIT_MS));
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_CONTROL, FRAME_KIND(hdr_of(&s).frame));
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_NO_SESSION, s.data[HDR]);
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
+
+  // An open session takes its peer's frames only: a client's carry its own id.
+  deliver_hello(&s_up, CLIENT, 0xC0FFEEu);
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
+  deliver(&s_up, FRAME(SYS_SESSION_REQUEST), BOARD, CLIENT + 1, 2, k_peers_req, sizeof(k_peers_req));
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_NO_SESSION, &s, WAIT_MS));
 }
 
 static void test_a_ping_on_a_session_not_open_here_is_answered_no_session(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   deliver_control(&s_up, CLIENT, SYS_SESSION_PING, NULL, 0);
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_NO_SESSION, &s, WAIT_MS));
@@ -405,11 +412,11 @@ static void test_the_provider_down_ends_the_session(void) {
 
 static void test_a_boards_hello_on_an_up_way_makes_it_the_master_and_ends_the_rest(void) {
   open_slave();
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   deliver_hello(&s_up, MASTER, 0x77u);
   sys_session_info_t row;
   TEST_ASSERT_TRUE(peers_row(UP_ID, &row));
-  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_MASTER, row.role);
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_MASTER, row.peer);
   TEST_ASSERT_EQUAL_UINT8(1, row.open);
   TEST_ASSERT_TRUE(peers_row(DOWN_ID, &row));
   TEST_ASSERT_EQUAL_UINT8(0, row.open);  // a board with a master has no other session
@@ -454,13 +461,66 @@ static void test_the_root_forwards_between_a_client_and_a_slave_as_it_is(void) {
   TEST_ASSERT_EQUAL_HEX8_ARRAY(k_peers_req, s.data + HDR, sizeof(k_peers_req));
 }
 
-/* ---- PUSH: spare room only, the session's counters ------------------------------------------------------------ */
+static void test_a_request_for_a_board_not_here_is_answered_no_route(void) {
+  open_client();
+  for (int i = 0; i < 2 * CONFIG_ERRORS_POOL_BLOCKS; i++) {  // every refusal gives its chain back to the pool
+    deliver(&s_up, FRAME(SYS_SESSION_REQUEST), SLAVE, CLIENT, (uint16_t)i, k_peers_req, sizeof(k_peers_req));
+    sent_t s;
+    TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_ANSWER, &s, WAIT_MS));
+    const sys_session_hdr_t h = hdr_of(&s);
+    TEST_ASSERT_EQUAL_HEX8(CLIENT, h.dst);
+    TEST_ASSERT_EQUAL_UINT16(i, h.seq);
+    TEST_ASSERT_EQUAL_HEX8(SYS_SESSION_FRAME_STATUS, h.frame & SYS_SESSION_FRAME_STATUS);
+    err_h chain = NULL;
+    TEST_ASSERT_NULL(err_record_parse(s.data + HDR, s.len - HDR, &chain));
+    TEST_ASSERT_NOT_NULL(chain);
+    TEST_ASSERT_EQUAL_HEX32(ERR_SESSION_NO_ROUTE, chain->tag);
+    err_free(chain);
+  }
+}
+
+static const uint8_t k_stop_req[] = {0x28, CMD_DIR_WRITE, 0x7F};
+
+static void test_a_broadcast_goes_to_the_boards_and_not_back(void) {
+  open_client();
+  open_slave();
+  fake_clear(&s_up);
+  fake_clear(&s_down);
+  // This board's: to its slave, never to a client.
+  TEST_ASSERT_NULL(sys_session_broadcast((cmd_in_t){k_stop_req, sizeof(k_stop_req)}, ROUTER_FLAG_URGENT));
+  sent_t s;
+  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  sys_session_hdr_t h = hdr_of(&s);
+  TEST_ASSERT_EQUAL_HEX8(SYS_SESSION_ID_BROADCAST, h.dst);
+  TEST_ASSERT_EQUAL_HEX8(BOARD, h.src);
+  TEST_ASSERT_EQUAL_HEX8(ROUTER_FLAG_URGENT | ROUTER_FLAG_NOREPLY, h.frame & SYS_SESSION_FRAME_FLAGS);
+  TEST_ASSERT_EQUAL_HEX8(CMD_SEND_URGENT | CMD_SEND_NOWAIT, s.flags);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(k_stop_req, s.data + HDR, sizeof(k_stop_req));
+  TEST_ASSERT_FALSE(next_kind(&s_up, SYS_SESSION_REQUEST, &s, 30));
+
+  // A client's: run here (not answered) and sent on to the slave as it is.
+  deliver(&s_up, (uint8_t)(FRAME(SYS_SESSION_REQUEST) | ROUTER_FLAG_NOREPLY), SYS_SESSION_ID_BROADCAST, CLIENT, 9,
+          k_peers_req, sizeof(k_peers_req));
+  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  h = hdr_of(&s);
+  TEST_ASSERT_EQUAL_HEX8(CLIENT, h.src);
+  TEST_ASSERT_EQUAL_UINT16(9, h.seq);
+  TEST_ASSERT_FALSE(next_kind(&s_up, SYS_SESSION_ANSWER, &s, 30));
+
+  // The slave's: not back to it.
+  fake_clear(&s_down);
+  deliver(&s_down, (uint8_t)(FRAME(SYS_SESSION_REQUEST) | ROUTER_FLAG_NOREPLY), SYS_SESSION_ID_BROADCAST, SLAVE, 3,
+          k_peers_req, sizeof(k_peers_req));
+  TEST_ASSERT_FALSE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, 30));
+}
+
+/* ---- PUSH: spare room only, the seq per peer and class, DATA -------------------------------------------------- */
 
 static const uint8_t k_msg[] = {0x10, 0xAB};
 
 static void test_a_push_takes_only_spare_room(void) {
   open_client();
-  TEST_ASSERT_NULL(sys_session_push(CLIENT, k_msg, sizeof(k_msg), 0));
+  TEST_ASSERT_NULL(sys_session_push(CLIENT, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
   sent_t s;
   TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_PUSH, &s, WAIT_MS));
   TEST_ASSERT_EQUAL_HEX8(CMD_SEND_SPARE | CMD_SEND_NOWAIT, s.flags);
@@ -479,95 +539,64 @@ static void test_push_seq_counts_per_peer_and_class(void) {
   open_slave();
   fake_clear(&s_up);
   fake_clear(&s_down);
-  TEST_ASSERT_NULL(sys_session_push(CLIENT, k_msg, sizeof(k_msg), 0));
-  TEST_ASSERT_NULL(sys_session_push(CLIENT, k_msg, sizeof(k_msg), 0));
-  TEST_ASSERT_NULL(sys_session_push(CLIENT, k_msg, sizeof(k_msg), ROUTER_FLAG_URGENT));
-  TEST_ASSERT_NULL(sys_session_data(CLIENT, 0x01, 0x02, k_msg, sizeof(k_msg), 0));
-  TEST_ASSERT_NULL(sys_session_push(SLAVE, k_msg, sizeof(k_msg), 0));
+  TEST_ASSERT_NULL(sys_session_push(CLIENT, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
+  TEST_ASSERT_NULL(sys_session_push(CLIENT, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
+  TEST_ASSERT_NULL(sys_session_push(CLIENT, (cmd_in_t){k_msg, sizeof(k_msg)}, ROUTER_FLAG_URGENT));
+  TEST_ASSERT_NULL(sys_session_data(CLIENT, 0x01, 0x02, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
+  TEST_ASSERT_NULL(sys_session_push(SLAVE, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
   const uint16_t want[] = {0, 1, 0, 2};  // normal, normal, urgent (its own counter), DATA (the normal one's)
+  uint16_t first[2] = {0, 0};  // the counters run on from the tests before: the first seen of each class
   for (uint32_t i = 0; i < ARRAY_LEN(want); i++) {
     const sys_session_hdr_t h = next_push(&s_up);
-    TEST_ASSERT_EQUAL_UINT16(want[i], h.seq);
-    TEST_ASSERT_EQUAL_HEX8(0, h.frame & SYS_SESSION_FRAME_UNCOUNTED);
+    const uint32_t urgent = h.frame & ROUTER_FLAG_URGENT;
+    if (want[i] == 0) {
+      first[urgent] = h.seq;
+    }
+    TEST_ASSERT_EQUAL_UINT16((uint16_t)(first[urgent] + want[i]), h.seq);
   }
   const sys_session_hdr_t h = next_push(&s_down);
   TEST_ASSERT_EQUAL_HEX8(SLAVE, h.dst);
-  TEST_ASSERT_EQUAL_UINT16(0, h.seq);  // another peer: a counter of its own
+  TEST_ASSERT_EQUAL_UINT16(0, h.seq);  // another peer: a counter of its own, its first frame
 }
 
 static struct {
   int calls;
   uint8_t src;
-  uint16_t lost;
+  uint8_t first;
 } s_push;
 
-static void on_push(uint8_t src, uint16_t lost, const uint8_t* data, uint32_t len) {
-  (void)data;
-  (void)len;
+static void on_push(uint8_t src, const uint8_t* data, uint32_t len) {
   s_push.calls++;
   s_push.src = src;
-  s_push.lost = lost;
+  s_push.first = len > 0 ? data[0] : 0;
 }
 
-// A PUSH from `src` delivered on `f`; what the listener was told as lost (it runs on this thread, as on an RX task).
-static uint16_t push_in(fake_t* f, uint8_t src, uint8_t frame_flags, uint16_t seq) {
-  const int before = s_push.calls;
-  deliver(f, (uint8_t)(FRAME(SYS_SESSION_PUSH) | frame_flags), BOARD, src, seq, k_msg, sizeof(k_msg));
-  TEST_ASSERT_EQUAL_INT(before + 1, s_push.calls);
-  TEST_ASSERT_EQUAL_HEX8(src, s_push.src);
-  return s_push.lost;
-}
-
-static void test_a_gap_in_a_peers_counter_of_a_class_is_told_as_lost(void) {
+static void test_a_push_goes_to_the_listeners_and_data_to_its_provider(void) {
   open_client();
   open_slave();
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, 0, 10));  // the first: no gap known
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, 0, 11));
-  TEST_ASSERT_EQUAL_UINT16(2, push_in(&s_up, CLIENT, 0, 14));
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, ROUTER_FLAG_URGENT, 3));  // urgent: a counter of its own
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, ROUTER_FLAG_URGENT, 4));
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, 0, 15));
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_down, SLAVE, 0, 100));  // another peer
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_down, SLAVE, 0, 101));
+  const int before = s_push.calls;  // the listener runs on this thread, as on an RX task
+  deliver(&s_up, FRAME(SYS_SESSION_PUSH), BOARD, CLIENT, 0, k_msg, sizeof(k_msg));
+  TEST_ASSERT_EQUAL_INT(before + 1, s_push.calls);
+  TEST_ASSERT_EQUAL_HEX8(CLIENT, s_push.src);
+  TEST_ASSERT_EQUAL_HEX8(k_msg[0], s_push.first);
 
-  // DATA is a PUSH of the same counter: after it, 17 missing is one frame lost, not two.
-  const uint8_t data[] = {SYS_SESSION_CHANNEL_DATA, 0x7F, 0x01, 0xAA};
-  const int calls = s_push.calls;
-  deliver(&s_up, FRAME(SYS_SESSION_PUSH), BOARD, CLIENT, 16, data, sizeof(data));
-  TEST_ASSERT_EQUAL_INT(calls, s_push.calls);  // DATA goes to the provider, not to the listeners
-  TEST_ASSERT_EQUAL_UINT16(1, push_in(&s_up, CLIENT, 0, 18));
+  // DATA: its data on the provider `to id`, no header; the listeners do not see it.
+  fake_clear(&s_down);
+  const uint8_t data[] = {SYS_SESSION_CHANNEL_DATA, DOWN_ID, 0x01, 0xAA, 0xBB};
+  deliver(&s_up, FRAME(SYS_SESSION_PUSH), BOARD, CLIENT, 1, data, sizeof(data));
+  TEST_ASSERT_EQUAL_INT(before + 1, s_push.calls);
+  sent_t s;
+  TEST_ASSERT_TRUE(next_sent(&s_down, &s, WAIT_MS));
+  TEST_ASSERT_EQUAL_UINT32(2, s.len);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(data + 3, s.data, 2);
 
-  // The client restarts: its counters start again with its session, no false gap.
-  deliver_hello(&s_up, CLIENT, 0xBEEFu);
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, 0, 5));
-  // An uncounted one (the sender's table full) tells nothing and leaves the counter as it is.
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, SYS_SESSION_FRAME_UNCOUNTED, 0));
-  TEST_ASSERT_EQUAL_UINT16(0, push_in(&s_up, CLIENT, 0, 6));
-}
-
-static void test_a_full_table_sends_the_push_uncounted(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
-  deliver_hello(&s_up, MASTER, 0x77u);  // a slave: every peer through its master
+  // And out: [SYS_SESSION_CHANNEL_DATA][to id][from id][data] as one PUSH.
   fake_clear(&s_up);
-  for (uint8_t peer = 0x20; peer < 0x20 + CONFIG_SYS_SESSION_PUSH_PEERS; peer++) {
-    TEST_ASSERT_NULL(sys_session_push(peer, k_msg, sizeof(k_msg), 0));
-    TEST_ASSERT_EQUAL_HEX8(0, next_push(&s_up).frame & SYS_SESSION_FRAME_UNCOUNTED);
-  }
-  const uint8_t extra = 0x20 + CONFIG_SYS_SESSION_PUSH_PEERS;
-  for (int i = 0; i < 2; i++) {
-    TEST_ASSERT_NULL(sys_session_push(extra, k_msg, sizeof(k_msg), 0));  // never refused
-    const sys_session_hdr_t h = next_push(&s_up);
-    TEST_ASSERT_EQUAL_HEX8(SYS_SESSION_FRAME_UNCOUNTED, h.frame & SYS_SESSION_FRAME_UNCOUNTED);
-    TEST_ASSERT_EQUAL_UINT16(0, h.seq);
-  }
-
-  // The master's PEER: 0x20 went, so its entry is free and the next peer is counted.
-  const sys_session_peer_t gone = {.id = 0x20, .up = 0};
-  deliver_control(&s_up, MASTER, SYS_SESSION_PEER, &gone, sizeof(gone));
-  TEST_ASSERT_NULL(sys_session_push(extra, k_msg, sizeof(k_msg), 0));
-  const sys_session_hdr_t h = next_push(&s_up);
-  TEST_ASSERT_EQUAL_HEX8(0, h.frame & SYS_SESSION_FRAME_UNCOUNTED);
-  TEST_ASSERT_EQUAL_UINT16(0, h.seq);
+  TEST_ASSERT_NULL(sys_session_data(CLIENT, 0x07, 0x02, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
+  TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_PUSH, &s, WAIT_MS));
+  const uint8_t want[] = {SYS_SESSION_CHANNEL_DATA, 0x07, 0x02, k_msg[0], k_msg[1]};
+  TEST_ASSERT_EQUAL_UINT32(HDR + sizeof(want), s.len);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, s.data + HDR, sizeof(want));
 }
 
 /* ---- calls: B1, the waiter's own limit ------------------------------------------------------------------------ */
@@ -665,7 +694,7 @@ static void test_a_call_through_a_session_that_ends_fails_peer_down(void) {
 }
 
 static void test_a_peer_timeout_below_min_is_clamped(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
   deliver_hello_timeout(&s_up, CLIENT, 1, 0);
@@ -681,11 +710,33 @@ static void test_a_peer_timeout_below_min_is_clamped(void) {
   TEST_ASSERT_LESS_OR_EQUAL_INT(3, pings);
 }
 
+static void test_a_refused_hello_does_not_keep_the_session_alive(void) {
+  TEST_ASSERT_NULL(sys_session_set_timeout(300));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
+  sent_t s;
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
+
+  // Peer timeout 300 -> PING every 10 ticks (100 ms of ticks); board expires at tick 31 (silent_ms > 300).
+  deliver_hello_timeout(&s_up, CLIENT, 0xC0FFEEu, 300);
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_PING, &s, WAIT_MS));  // ~tick 10
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_PING, &s, WAIT_MS));  // ~tick 20
+  TEST_ASSERT_EQUAL_INT(0, seen(&s_seen.gone));
+
+  // A hello with an id of the wrong kind is refused: it is not its peer's sign of life.
+  deliver_hello_timeout(&s_up, SYS_SESSION_ID_SELF, 0xBADu, 3000);
+  TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_PING, &s, WAIT_MS));  // ~tick 30
+  sleep_ms(80);                                                          // past tick 31, well before reset tick 51
+  TEST_ASSERT_EQUAL_INT(1, seen(&s_seen.gone));
+  TEST_ASSERT_NULL(sys_session_set_timeout(CONFIG_SYS_SESSION_TIMEOUT_MS));
+}
+
 int main(void) {
   UNITY_BEGIN();
+  RUN_TEST(test_attach_takes_only_a_slave_or_unknown);
   RUN_TEST(test_attach_says_hello_and_the_clients_hello_opens_the_session);
   RUN_TEST(test_a_request_over_the_session_is_answered_to_its_source);
-  RUN_TEST(test_frames_on_a_closed_session_start_over_and_are_reported_once);
+  RUN_TEST(test_a_frame_on_a_session_not_open_here_starts_over);
   RUN_TEST(test_a_ping_on_a_session_not_open_here_is_answered_no_session);
   RUN_TEST(test_a_new_boot_id_ends_the_session_and_opens_it_again);
   RUN_TEST(test_silence_past_the_timeout_ends_the_session);
@@ -693,14 +744,16 @@ int main(void) {
   RUN_TEST(test_a_boards_hello_on_an_up_way_makes_it_the_master_and_ends_the_rest);
   RUN_TEST(test_the_root_tells_its_other_peers_when_a_session_opens_and_ends);
   RUN_TEST(test_the_root_forwards_between_a_client_and_a_slave_as_it_is);
+  RUN_TEST(test_a_request_for_a_board_not_here_is_answered_no_route);
+  RUN_TEST(test_a_broadcast_goes_to_the_boards_and_not_back);
   RUN_TEST(test_a_push_takes_only_spare_room);
   RUN_TEST(test_push_seq_counts_per_peer_and_class);
-  RUN_TEST(test_a_gap_in_a_peers_counter_of_a_class_is_told_as_lost);
-  RUN_TEST(test_a_full_table_sends_the_push_uncounted);
+  RUN_TEST(test_a_push_goes_to_the_listeners_and_data_to_its_provider);
   RUN_TEST(test_a_waited_call_ends_with_its_answer_not_with_another_wake);
   RUN_TEST(test_a_waited_call_without_an_answer_ends_in_its_time);
   RUN_TEST(test_an_error_answer_comes_back_under_err_remote);
   RUN_TEST(test_a_call_through_a_session_that_ends_fails_peer_down);
   RUN_TEST(test_a_peer_timeout_below_min_is_clamped);
+  RUN_TEST(test_a_refused_hello_does_not_keep_the_session_alive);
   return UNITY_END();
 }

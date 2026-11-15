@@ -12,11 +12,15 @@
 #include "router_queue.h"
 #include "sys_data_provider_driver.h"
 #include "sys_session.h"
-#include "sys_session_internal.h"
+#include "sys_data_provider.h"
 #include "sys_stream.h"
 #include "sys_stream_internal.h"
 #include "sys_stream_router.h"
 #include "unity.h"
+
+#define HDR SYS_SESSION_HDR_BYTES
+#define FRAME SYS_SESSION_FRAME
+#define FRAME_KIND SYS_SESSION_FRAME_KIND_OF
 
 #define ASSERT_ERR(call, tag)        \
   do {                               \
@@ -261,7 +265,6 @@ void setUp(void) {
     TEST_ASSERT_NULL(sys_stream_init());
     const sys_stream_cfg_t sys_err = {.id = SYS_STREAM_ERRORS, .flags = SYS_STREAM_FLAG_URGENT};
     TEST_ASSERT_NULL(sys_stream_create(&sys_err));
-    sys_stream_mark_system();
 
     fake_add(&s_up, UP_ID, SYS_DATA_PROVIDER_TYPE_UART,
              SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP | SYS_DATA_PROVIDER_STATE_WIRED);
@@ -285,8 +288,8 @@ void tearDown(void) {
   const uint8_t n = sys_stream_list(list);
   for (uint8_t i = 0; i < n; i++) {
     const uint8_t id = list[i].head.cfg.id;
-    if (list[i].head.state & SYS_STREAM_STATE_SYSTEM) {
-      err_free(sys_stream_unbind_all(id));
+    if (id < SYS_STREAM_ID_USER_FIRST) {
+      err_free(sys_stream_unbind(id, SYS_DATA_PROVIDER_ID_NONE));
       err_free(sys_stream_unlisten(id, on_cb, NULL));
       err_free(sys_stream_unsubscribe(id, CLIENT));
       err_free(sys_stream_unsubscribe(id, SLAVE));
@@ -299,7 +302,7 @@ void tearDown(void) {
 }
 
 static void open_client(void) {
-  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UP));
+  TEST_ASSERT_NULL(sys_session_attach(UP_ID, SYS_SESSION_UNKNOWN));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
   deliver_hello(&s_up, CLIENT, 0x100u);
@@ -307,7 +310,7 @@ static void open_client(void) {
 }
 
 static void open_slave(void) {
-  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_DOWN));
+  TEST_ASSERT_NULL(sys_session_attach(DOWN_ID, SYS_SESSION_SLAVE));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_down, SYS_SESSION_HELLO, &s, WAIT_MS));
   deliver_hello(&s_down, SLAVE, 0x200u);
@@ -372,7 +375,7 @@ static void test_send_delivers_to_local_sink_remote_sink_peer_and_callback(void)
   TEST_ASSERT_EQUAL_UINT8_ARRAY(msg, raw_out.data, sizeof(msg));
   TEST_ASSERT_EQUAL_HEX8(CMD_SEND_NOWAIT | CMD_SEND_URGENT, raw_out.flags);
 
-  // 2) Remote SINK gets SYS_SESSION_CHANNEL_DATA [0x82][to][from][payload] through slave session.
+  // 2) Remote SINK gets SYS_SESSION_CHANNEL_DATA [to][from][payload] through slave session.
   sent_t rem_out;
   TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_PUSH, &rem_out, WAIT_MS));
   TEST_ASSERT_TRUE((hdr_of(&rem_out).frame & ROUTER_FLAG_URGENT) != 0);
@@ -447,7 +450,7 @@ static void test_source_takes_rx_refuses_direct_send_and_forwards_to_local_and_r
   TEST_ASSERT_EQUAL_UINT8_ARRAY(direct, out.data + HDR + 1u, sizeof(direct));
 }
 
-static void test_gone_peer_drops_subscription_but_keeps_sink_and_counts_dropped(void) {
+static void test_gone_peer_drops_subscription_but_keeps_sink(void) {
   open_client();
   open_slave();
   const sys_stream_cfg_t cfg = {.id = 0x11u, .flags = 0};
@@ -459,36 +462,19 @@ static void test_gone_peer_drops_subscription_but_keeps_sink_and_counts_dropped(
   TEST_ASSERT_NULL(sys_session_detach(UP_ID));
   TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
 
-  // Sending while SLAVE has no route fails for SINK and increments its `dropped` counter without error return.
+  // Sending while SLAVE has no route: the SINK does not take it, the send still succeeds, the callback still gets it.
   const uint8_t payload[] = {9, 8, 7};
-  TEST_ASSERT_NULL(sys_stream_send(0x11u, payload, sizeof(payload)));
   TEST_ASSERT_NULL(sys_stream_listen(0x11u, on_cb, NULL));
   TEST_ASSERT_NULL(sys_stream_send(0x11u, payload, sizeof(payload)));
-  TEST_ASSERT_TRUE(wait_cb(1, WAIT_MS));  // wait until stream task finished delivering
+  TEST_ASSERT_TRUE(wait_cb(1, WAIT_MS));
 
   sys_stream_info_t list[CONFIG_SYS_STREAM_MAX];
+  const uint8_t n = sys_stream_list(list);
   const sys_stream_info_t* found = NULL;
-  uint16_t sink_dropped = 0;
-  // account() updates target `dropped` after all target callbacks return in deliver(); wait briefly for it to finish.
-  for (int attempt = 0; attempt < WAIT_MS; attempt++) {
-    const uint8_t n = sys_stream_list(list);
-    found = NULL;
-    for (uint8_t i = 0; i < n; i++) {
-      if (list[i].head.cfg.id == 0x11u) {
-        found = &list[i];
-      }
+  for (uint8_t i = 0; i < n; i++) {
+    if (list[i].head.cfg.id == 0x11u) {
+      found = &list[i];
     }
-    if (found != NULL) {
-      for (uint8_t k = 0; k < found->head.targets; k++) {
-        if (found->targets[k].type == SYS_STREAM_TARGET_SINK) {
-          sink_dropped = found->targets[k].dropped;
-        }
-      }
-    }
-    if (sink_dropped >= 2u) {
-      break;
-    }
-    vTaskDelay(1);
   }
   TEST_ASSERT_NOT_NULL(found);
   TEST_ASSERT_EQUAL_UINT8(2, found->head.targets);  // SINK + CALLBACK, no PEER
@@ -498,7 +484,6 @@ static void test_gone_peer_drops_subscription_but_keeps_sink_and_counts_dropped(
       saw_sink = true;
       TEST_ASSERT_EQUAL_UINT8(SLAVE, found->targets[k].peer);
       TEST_ASSERT_EQUAL_UINT8(REM_PROV_ID, found->targets[k].provider);
-      TEST_ASSERT_EQUAL_UINT16(2, found->targets[k].dropped);
     }
   }
   TEST_ASSERT_TRUE(saw_sink);
@@ -514,6 +499,11 @@ static void test_router_commands_create_source_sink_subscribe_list_unbind_remove
   const uint8_t create_cmd[] = {MODULE_ID_STREAM, CMD_DIR_WRITE, STREAM_OP_CREATE, 0x30u, 0x00u};
   send_cmd(&s_up, CLIENT, seq++, create_cmd, sizeof(create_cmd), &ans);
   TEST_ASSERT_EQUAL_UINT8(0, hdr_of(&ans).frame & SYS_SESSION_FRAME_STATUS);
+
+  // CREATE of a board's own id is refused
+  const uint8_t create_sys[] = {MODULE_ID_STREAM, CMD_DIR_WRITE, STREAM_OP_CREATE, 0x05u, 0x00u};
+  send_cmd(&s_up, CLIENT, seq++, create_sys, sizeof(create_sys), &ans);
+  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_FRAME_STATUS, hdr_of(&ans).frame & SYS_SESSION_FRAME_STATUS);
 
   // SOURCE 0x30 <- RAW_A_ID
   const uint8_t src_cmd[] = {MODULE_ID_STREAM, CMD_DIR_WRITE, STREAM_OP_SOURCE, 0x30u, RAW_A_ID};
@@ -560,6 +550,14 @@ static void test_router_commands_create_source_sink_subscribe_list_unbind_remove
   TEST_ASSERT_EQUAL_UINT8(0x30u, out.data[HDR]);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(msg, out.data + HDR + 1u, sizeof(msg));
 
+  // UNBIND 0xFF: every SOURCE and SINK goes, RAW_A_ID's rx hook is free; the PEER stays
+  const uint8_t unbind_cmd[] = {MODULE_ID_STREAM, CMD_DIR_WRITE, STREAM_OP_UNBIND, 0x30u, SYS_DATA_PROVIDER_ID_NONE};
+  send_cmd(&s_up, CLIENT, seq++, unbind_cmd, sizeof(unbind_cmd), &ans);
+  TEST_ASSERT_EQUAL_UINT8(0, hdr_of(&ans).frame & SYS_SESSION_FRAME_STATUS);
+  TEST_ASSERT_NULL(sys_data_provider_open(RAW_A_ID, NULL, NULL));
+  TEST_ASSERT_NULL(sys_data_provider_close(RAW_A_ID));
+  TEST_ASSERT_NULL(sys_stream_source(0x30u, RAW_A_ID));
+
   // REMOVE 0x30 frees RAW_A_ID RX hook cleanly
   const uint8_t rm_cmd[] = {MODULE_ID_STREAM, CMD_DIR_WRITE, STREAM_OP_REMOVE, 0x30u};
   send_cmd(&s_up, CLIENT, seq++, rm_cmd, sizeof(rm_cmd), &ans);
@@ -588,7 +586,7 @@ int main(void) {
   RUN_TEST(test_system_stream_cannot_be_removed_or_take_a_source);
   RUN_TEST(test_send_delivers_to_local_sink_remote_sink_peer_and_callback);
   RUN_TEST(test_source_takes_rx_refuses_direct_send_and_forwards_to_local_and_remote_sink);
-  RUN_TEST(test_gone_peer_drops_subscription_but_keeps_sink_and_counts_dropped);
+  RUN_TEST(test_gone_peer_drops_subscription_but_keeps_sink);
   RUN_TEST(test_router_commands_create_source_sink_subscribe_list_unbind_remove);
   RUN_TEST(test_tunnel_round_trip_source_remote_sink_and_incoming_data_channel);
   return UNITY_END();

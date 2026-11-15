@@ -2,7 +2,7 @@
 
 #include "errors.h"
 
-MODULE_ID_DECLARE(ROUTER, 0x23)
+MODULE_ID_DECLARE(ROUTER, 0x23)  //@alias Router @description Core command router module ID
 #define ERR_MOD_ROUTER MODULE_ID_ROUTER
 
 /* ----------------------------------------------------------------------------
