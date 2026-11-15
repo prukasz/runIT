@@ -195,7 +195,7 @@ td.na{{color:var(--mut)}}.sub{{color:var(--mut);font-size:12px}}.io{{margin-top:
 <tr><td>Router modułu</td><td><code>[router_key u8][dir u8][op u8][args…]</code></td></tr>
 <tr><td>Urządzenie</td><td><code>[0x{dev_key:02X}][dir u8][id u8][op u16][args…]</code> — op = <code>(contract &lt;&lt; 8) | n</code>, własne urządzenia: <code>0xFFnn</code></td></tr>
 <tr><td>dir</td><td><span class="b R">R</span> <code>CMD_DIR_READ = 0</code> — pyta o wartość · <span class="b W">W</span> <code>CMD_DIR_WRITE = 1</code> — ustawia / wykonuje akcję</td></tr>
-<tr><td>Zdarzenia</td><td><code>[0x06][sys_event_t]</code> (PUSH na strumieniu <code>RUNIT_STREAM_EVENTS = 0x06</code>); tag = <code>(module &lt;&lt; 16) | n</code> (<code>0x8000 | type_id</code> dla własnych urządzeń)</td></tr>
+<tr><td>Zdarzenia</td><td><code>[0x06][sys_event_t]</code> (PUSH na strumieniu <code>EVENT_STREAM_NOTIFY = 0x06</code>); tag = <code>(module &lt;&lt; 16) | n</code> (<code>0x8000 | type_id</code> dla własnych urządzeń)</td></tr>
 </tbody></table><p class="sub">Klucze routerów = numery modułów <code>MODULE_ID_*</code> (<code>module_id.h</code>). Kontrakt <code>DEVICE</code> ma <code>0x{dev_key:02X}</code> (op <code>0x07</code> zarezerwowany).</p></div>
 <h2 id="routers">Routery</h2>{router_html}
 <h2 id="contracts">Kontrakty urządzeń</h2>{contract_html}

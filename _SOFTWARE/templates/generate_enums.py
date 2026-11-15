@@ -13,6 +13,8 @@ Only what is marked is published, so a private enum never becomes wire vocabular
 Markers:
   //#ref-enum @alias <title>                            directly above `typedef enum [tag] { ... } name;`
   //#ref-defines <group> @alias <title> @prefix <P_>    directly above its `#define` lines
+  //#ref-streams <group> @alias <title> @prefix <P_>    directly above a module's `#define NAME_STREAMS(X, P)` table
+                                                        (X(P, NAME, id, flags, "text"): the member P_NAME, the text its alias)
 
 Every member needs `@alias` (the name a user sees; nothing is derived from a C identifier or a plain comment) and may have
 `@description`. Text in the comment outside a tag is an error. A value is a literal, an expression of earlier members,
@@ -40,6 +42,8 @@ DEFINE_LINE_RE = re.compile(r"^\s*#define\s+(?P<name>\w+)\s+(?P<value>.+?)\s*(?:
 MEMBER_RE = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*(?:=\s*(?P<value>[^,/]+?))?\s*,?\s*(?://\s*(?P<comment>.*))?$")
 DEFINE_RE = re.compile(r"^#define[ \t]+(\w+)(\([^)]*\))?[ \t]+(.+?)[ \t]*(?://.*|/\*.*)?$", re.MULTILINE)
 MODULE_ID_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(?P<name>\w+)\s*,\s*(?P<value>0x[0-9a-fA-F]+|\d+)u?\s*\)\s*(?://\s*(?P<comment>.*))?$", re.MULTILINE)
+STREAMS_RE = re.compile(r"^//#ref-streams(?P<rest>[^\n]*)\n(?P<body>[ \t]*#define[ \t]+\w+\(X, P\)(?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
+STREAM_ROW_RE = re.compile(r'X\(P,\s*(?P<name>\w+)\s*,\s*(?P<id>0x[0-9a-fA-F]+|\d+)\s*,\s*[^,]+,\s*"(?P<text>[^"]+)"\s*\)')
 TAG_RE = re.compile(r"(?:^|(?<=\s))@([a-z][a-z0-9-]*)(?=\s|$)")
 CAST_RE = re.compile(r"\(\s*(?:u?int(?:8|16|32|64)_t|unsigned|int|size_t)\s*\)")
 CONFIG_RE = re.compile(r"^(CONFIG_\w+)=(0x[0-9a-fA-F]+|-?\d+)\s*$", re.MULTILINE)
@@ -218,6 +222,22 @@ def parse_defines(m, path):
     }
 
 
+def parse_streams(m, path):
+    parts = m.group("rest").split(None, 1)
+    name = parts[0] if parts else ""
+    _, head = parse_tags(parts[1] if len(parts) > 1 else "", HEAD_TAGS, rel(path))
+    where = f"{rel(path)}: //#ref-streams {name}"
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name) or not head.get("alias") or not head.get("prefix"):
+        fail(f"{where}: `//#ref-streams <group> @alias <title> @prefix <PREFIX_>`")
+    rows = list(STREAM_ROW_RE.finditer(m.group("body")))
+    if not rows:
+        fail(f"{where}: no `X(P, NAME, id, flags, \"text\")` rows")
+    members = [{"name": head["prefix"] + r.group("name"), "value": int(r.group("id"), 0), "alias": r.group("text")} for r in rows]
+    if len({x["value"] for x in members}) != len(members):
+        fail(f"{where}: two streams have the same id")
+    return name, {"alias": head["alias"], "kind": "defines", "prefix": head["prefix"], "source_file": rel(path), "members": members}
+
+
 def scan():
     """({name: group}, {member: group name}) of everything published under runit-esp-rework/components/."""
     groups, module_items = {}, []
@@ -229,15 +249,15 @@ def scan():
         if "//#ref-" not in text:
             continue
         found = 0
-        for regex, parse in ((ENUM_RE, parse_enum), (DEFINES_RE, parse_defines)):
+        for regex, parse in ((ENUM_RE, parse_enum), (DEFINES_RE, parse_defines), (STREAMS_RE, parse_streams)):
             for m in regex.finditer(text):
                 name, group = parse(m, src)
                 if name in groups:
                     fail(f"{rel(src)}: {name} is published twice (also in {groups[name]['source_file']})")
                 groups[name] = group
                 found += 1
-        if found != len(re.findall(r"^//#ref-(?:enum|defines)", text, re.MULTILINE)):
-            fail(f"{rel(src)}: a `//#ref-enum` / `//#ref-defines` marker is not directly above a `typedef enum {{...}} name;` / its #define lines")
+        if found != len(re.findall(r"^//#ref-(?:enum|defines|streams)", text, re.MULTILINE)):
+            fail(f"{rel(src)}: a `//#ref-enum` / `//#ref-defines` / `//#ref-streams` marker is not directly above a `typedef enum {{...}} name;` / its #define lines / a streams table")
     if module_items:
         if "module_id" in groups:
             fail("module_id conflicts with an explicit //#ref- group")

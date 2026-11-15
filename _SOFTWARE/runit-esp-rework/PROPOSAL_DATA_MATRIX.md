@@ -121,17 +121,16 @@ Zrobione (host: 21 testów `data_matrix`, 22 `sys_session`, 7 `sys_watch`; oraz 
 2. **`data_matrix` zamiast `sys_stream`:** końcówki `P`, `T`, `S`, `C`, role, trasy, komendy `ROLE`, `CLEAR_ROLE`, `ROUTE`, `UNROUTE`, `CLEAR`, `LIST` (moduł `0x30`); `sys_stream` usunięty; `sys_log` i `runit` na `data_matrix_send` i domyślnych trasach.
 3. **Role `SESSION` i `COMMANDS`:** `ATTACH` / `DETACH` zniknęły z routera sesji, `BIND_COMMANDS` z providera.
 4. **Watch i remote jako zwykli odbiorcy:** kanały modułów (`SYS_WATCH_CHANNEL`, `SYS_REMOTE_CHANNEL`) to callback `C` z trasą `T(ANY, tag)`; wysyłka do sesji przez `data_matrix_send_to(T(provider, tag))`.
-5. **Standard strumieni modułu:** tabela `X(P, NAZWA, id, flagi, opis)` (`LOG_STREAMS`, `RUNIT_STREAMS`), `DATA_MATRIX_STREAMS_DECLARE` / `_DEFINE`, id zajmowane symbolem linkera. Strona `DM_IN` (`data_matrix_serve`) nie istnieje: pierwszy konsument strumienia wejściowego (sloty VM) ją doda.
+5. **Standard strumieni modułu:** tabela `X(P, NAZWA, id, flagi, opis)` (`LOG_STREAMS`, `EVENT_STREAMS`), `DATA_MATRIX_STREAMS_DECLARE` / `_DEFINE`, id zajmowane symbolem linkera. Strona `DM_IN` (`data_matrix_serve`) nie istnieje: pierwszy konsument strumienia wejściowego (sloty VM) ją doda.
 
 Zostało:
 
 6. **`CALL {board, request}`** na masterze (aplikacja → komenda slave'a) i `forward` strumienia slave'a do BLE (`ROUTE T(uart_slave, telemetria) → T(ble, telemetria)` działa już jako trasa, brakuje komendy aplikacji).
-7. **Rekord płytki:** ramki `ROLE` i `ROUTE` w `sys_board` / `SYS_ACTIONS_ID_DATA_MATRIX`, zapis master → slave przez sesję. Do tego czasu role i trasy płytki są tymi z `runit_ways_init`.
+7. **Rekord płytki:** ramki `ROLE` i `ROUTE` w `sys_board` / `SYS_ACTIONS_ID_DATA_MATRIX`, zapis master → slave przez sesję. Do tego czasu role i trasy płytki są tabelami w `app/runit/connectivity/data_matrix_setup.c`.
 8. **Aplikacja:** migracja na deskryptory reworku (nagłówek 3 B, `PEERS`, kontrakt `data_matrix`, tag PUSH-a zamiast kanału), czytanie logów z osobnej charakterystyki.
 
 ## 10. Otwarte
 
-- Publikacja tabel strumieni do aplikacji (nazwa, kierunek, opis): generator jeszcze ich nie zbiera, tak jak eventów, więc id `LOGS`, `ERRORS`, `EVENTS` nie są jeszcze w `enums.json`.
 - Jedno `DATA_MATRIX_ANY` na wszystkie sesje (kanały modułów) to wyjątek od „trasa per provider”: lista tras pokazuje go jako provider `0xFF`.
 - Tag PUSH-a nie niesie flagi `urgent` do odbiorcy: dane wchodzące z sesji do trasy mają flagi 0.
-- Cały model nie był na płytce. Na sprzęcie trzeba sprawdzić BLE z dwoma service (`0xFFE0`, `0xFFE8`), sesję przez UART między płytkami, keepalive i to, że `ERRORS` / `EVENTS` dochodzą do aplikacji jako PUSH.
+- Cały model nie był na płytce. Na sprzęcie trzeba sprawdzić BLE z jednym service (`0xFFE0`) i trzema charakterystykami (`0xFFE1`, `0xFFE2`, `0xFFE9`), sesję przez UART między płytkami, keepalive i to, że `ERRORS` / zdarzenia (`EVENT_STREAM_NOTIFY`) dochodzą do aplikacji jako PUSH.

@@ -29,7 +29,10 @@ extern "C" {
 
 /* The streams the module sends on (DATA_MATRIX.MD "Streams of a module"): the log lines, and the error records (urgent).
    What they reach is the matrix's routes. */
-#define LOG_STREAMS(X, P)                                                                      X(P, LOGS,   0x03, 0,                  "the log lines, as text")                             X(P, ERRORS, 0x04, DATA_MATRIX_URGENT, "the error records of every reported chain")
+//#ref-streams log_stream @alias Log streams @prefix LOG_STREAM_
+#define LOG_STREAMS(X, P)                                                            \
+  X(P, LOGS,   0x03, 0,                  "the log lines, as text")                             \
+  X(P, ERRORS, 0x04, DATA_MATRIX_URGENT, "the error records of every reported chain")
 DATA_MATRIX_STREAMS_DECLARE(LOG)
 
 /** @brief The five options: the frame of CONFIG, defined in sys_log_router.h. */

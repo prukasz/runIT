@@ -52,7 +52,7 @@ extern "C" {
 #define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
 #define SYS_ACTIONS_ID_DATA_MATRIX     SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data matrix @description Provider roles and routes of the data
 #define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
-#define SYS_ACTIONS_ID_LINKS           SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 9)  //@alias Links to boards @description The BLE links to other boards: BLE CONNECT and SESSION ATTACH per board
+#define SYS_ACTIONS_ID_LINKS           SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 9)  //@alias Links to boards @description The BLE links to other boards: BLE CONNECT and data matrix ROLE per board
 
 /**
  * @brief The firmware's own actions: user-class records sys_actions_init() writes at every boot (SYS_ACTIONS.MD "Onboard

@@ -378,6 +378,16 @@ static err_h sync(void) {
  * TX (the BLE task sends what sys_ble_send queued)
  * ------------------------------------------------------------------------- */
 
+// Whether a frame that may be lost (SPARE) is refused: the TX buffer holds frames of CMD_FRAME_MAX, and half of them are
+// kept for what may not be lost. Counted in frames: the free bytes of a no-split buffer are only the longest run it has,
+// which a half-used ring has less than half of.
+static bool spare_refused(const ble_char_t* c) {
+  const uint32_t frames = c->tx_size / (CMD_FRAME_MAX + 8u);
+  UBaseType_t waiting = 0;
+  vRingbufferGetInfo(c->tx, NULL, NULL, NULL, NULL, &waiting);
+  return (waiting + 1u) * 2u > frames;
+}
+
 err_h sys_ble_send(uint16_t uuid, cmd_in_t data, uint8_t flags, uint32_t wait_ms) {
   const TickType_t start = xTaskGetTickCount();
   while (data.len > 0) {
@@ -396,7 +406,7 @@ err_h sys_ble_send(uint16_t uuid, cmd_in_t data, uint8_t flags, uint32_t wait_ms
       max = max < CMD_FRAME_MAX ? max : CMD_FRAME_MAX;
       if (data.len > max) {
         err = ERR_NEW(ERR_BLE_TOO_LONG, .uuid = uuid, .len = (uint16_t)data.len, .max = (uint16_t)max);
-      } else if ((flags & CMD_SEND_SPARE) && xRingbufferGetCurFreeSize(c->tx) < c->tx_size / 2u) {
+      } else if ((flags & CMD_SEND_SPARE) && spare_refused(c)) {
         err = ERR_NEW(ERR_BLE_TX_FULL, .uuid = uuid, .len = (uint16_t)data.len);  // half kept for the answers
       } else {
         full = xRingbufferSend(c->tx, data.data, data.len, NO_WAIT) != pdTRUE;

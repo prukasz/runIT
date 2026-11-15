@@ -88,6 +88,7 @@ typedef enum {
 #define ROUTER_KEY_SYS 0x01u  //@alias System @description The system router
 ```
 
+- `//#ref-streams <group> @alias <title> @prefix <P_>` goes directly above a module's `#define NAME_STREAMS(X, P)` table of the data matrix (`X(P, NAME, id, flags, "text")`): each row is a member `<prefix>NAME` with the id as its value and the text as its alias (the group is published as `defines`).
 - `@alias` is required on the marker and on every member. It is the name a user sees. Nothing is derived from a C identifier or from a plain comment, and text outside a tag is an error.
 - `@description` is optional. `@wire-size <bytes>` and `@mem-size <bytes>` pass through as `wire_size` / `mem_size`. `@duplicates` on `//#ref-defines` allows distinct constants to share a numeric value (for example `SYS_IO_PIN_NONE_DEVICE` and `SYS_IO_PIN_NONE_INDEX`).
 - `MODULE_ID_DECLARE(NAME, value)` (`core/utils/module_id.h`) lines with `//@alias ...` are scanned automatically and published as the `module_id` defines group (`prefix: "MODULE_ID_"`).

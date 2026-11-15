@@ -42,7 +42,7 @@ A module that sends on streams declares them in a table of its own, like its eve
 DATA_MATRIX_STREAMS_DECLARE(LOG)   // LOG_STREAM_LOGS = 0x03, LOG_STREAM_ERRORS = 0x04, LOG_STREAMS_COUNT
 ```
 
-One `.c` has `DATA_MATRIX_STREAMS_DEFINE(LOG)` (the table `LOG_streams`, and a symbol per id, so two modules with one id do not link; the id is written with two hex digits), and the module's init gives the matrix its flags: `data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT)`. `DATA_MATRIX_URGENT`: the stream's frames go to the front of every provider's queue. The ids in use: `LOGS` `0x03`, `ERRORS` `0x04` (`sys_log.h`), `EVENTS` `0x06` (`app/runit`).
+One `.c` has `DATA_MATRIX_STREAMS_DEFINE(LOG)` (the table `LOG_streams`, and a symbol per id, so two modules with one id do not link; the id is written with two hex digits), and the module's init gives the matrix its flags: `data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT)`. `DATA_MATRIX_URGENT`: the stream's frames go to the front of every provider's queue. The table is published to the app by `//#ref-streams` above it (`templates/generate_enums.py`: `LOG_STREAM_*`, `EVENT_STREAM_*` in `enums.json`). The ids in use: `LOGS` `0x03`, `ERRORS` `0x04` (`sys_log.h`), `NOTIFY` `0x06` and `REMOTE` `0x07` (`sys_event_stream.h`).
 
 ## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
 

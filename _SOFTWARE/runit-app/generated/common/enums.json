@@ -92,16 +92,10 @@
           "description": "Write, framed: the session's frames from the client"
         },
         {
-          "name": "RUNIT_BLE_LOGS_SERVICE",
-          "value": 65512,
-          "alias": "Logs service",
-          "description": "The board's own: the log stream as text"
-        },
-        {
           "name": "RUNIT_BLE_LOGS",
           "value": 65513,
           "alias": "Logs",
-          "description": "Notify, raw: the log lines, no session"
+          "description": "Notify, raw: the log lines, no session (in the runIT service)"
         }
       ]
     },
@@ -421,6 +415,24 @@
         }
       ]
     },
+    "event_stream": {
+      "alias": "Event streams",
+      "kind": "defines",
+      "prefix": "EVENT_STREAM_",
+      "source_file": "runit-esp-rework/components/sys/sys_event_stream/sys_event_stream.h",
+      "members": [
+        {
+          "name": "EVENT_STREAM_NOTIFY",
+          "value": 6,
+          "alias": "this board's notify events, sys_event_t"
+        },
+        {
+          "name": "EVENT_STREAM_REMOTE",
+          "value": 7,
+          "alias": "events of other boards, sys_event_t: published here without NOTIFY"
+        }
+      ]
+    },
     "io_pin_none": {
       "alias": "Unused pin",
       "kind": "defines",
@@ -438,6 +450,24 @@
           "value": 255,
           "alias": "Pin",
           "description": "The pin index of an unused pin"
+        }
+      ]
+    },
+    "log_stream": {
+      "alias": "Log streams",
+      "kind": "defines",
+      "prefix": "LOG_STREAM_",
+      "source_file": "runit-esp-rework/components/sys/sys_log/sys_log.h",
+      "members": [
+        {
+          "name": "LOG_STREAM_LOGS",
+          "value": 3,
+          "alias": "the log lines, as text"
+        },
+        {
+          "name": "LOG_STREAM_ERRORS",
+          "value": 4,
+          "alias": "the error records of every reported chain"
         }
       ]
     },
@@ -888,7 +918,7 @@
           "name": "SYS_ACTIONS_ID_LINKS",
           "value": 16777225,
           "alias": "Links to boards",
-          "description": "The BLE links to other boards: BLE CONNECT and SESSION ATTACH per board"
+          "description": "The BLE links to other boards: BLE CONNECT and data matrix ROLE per board"
         }
       ]
     },
@@ -1633,6 +1663,10 @@
     "ERR_SEV_LOW": "err_sev_e",
     "ERR_SEV_MEDIUM": "err_sev_e",
     "ERR_SEV_NONE": "err_sev_e",
+    "EVENT_STREAM_NOTIFY": "event_stream",
+    "EVENT_STREAM_REMOTE": "event_stream",
+    "LOG_STREAM_ERRORS": "log_stream",
+    "LOG_STREAM_LOGS": "log_stream",
     "MODULE_ID_ACTIONS": "module_id",
     "MODULE_ID_BLE": "module_id",
     "MODULE_ID_BOARD": "module_id",
@@ -1666,7 +1700,6 @@
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
     "RUNIT_BLE_LOGS": "ble_runit_uuid",
-    "RUNIT_BLE_LOGS_SERVICE": "ble_runit_uuid",
     "RUNIT_BLE_RX": "ble_runit_uuid",
     "RUNIT_BLE_SERVICE": "ble_runit_uuid",
     "RUNIT_BLE_TX": "ble_runit_uuid",

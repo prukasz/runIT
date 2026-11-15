@@ -41,12 +41,11 @@ void runit_start(void) {
   err_report(sys_event_init());
   err_report(sys_device_policy_init());
   err_report(sys_session_init());
-  err_report(runit_streams_init());
+  err_report(runit_data_matrix_setup());
   err_set_sink(error_sink);
   err_report(sys_system_init());
   err_report(sys_watch_init());
   err_report(sys_remote_init());
-  err_report(runit_ways_init());
   err_report(sys_device_create_system(RUNIT_DEV_GPIO, RUNIT_DEV_TYPE_GPIO, NULL, 0u));
   err_report(sys_board_boot());  // the profile's devices, after the board's own: its frames name the GPIO's pins
 }

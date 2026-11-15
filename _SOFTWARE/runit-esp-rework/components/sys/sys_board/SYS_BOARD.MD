@@ -15,7 +15,7 @@ The profile is two stored things:
 
 | | Frames | JSON |
 |---|---|---|
-| What | The record `SYS_ACTIONS_ID_BOARD` (class `0x04`, SYS_ACTIONS.MD): the power layout and rails, the I2C buses and the UART ports (a port's CREATE: the way to a slave, a device's port, a raw port), the providers and `ATTACH` of the board's ways to other boards, the `CREATE` of each device but the ESP32-S3's GPIO, and the board's settings | The app's descriptor of the board |
+| What | The record `SYS_ACTIONS_ID_BOARD` (class `0x04`, SYS_ACTIONS.MD): the power layout and rails, the I2C buses and the UART ports (a port's CREATE: the way to a slave, a device's port, a raw port), the providers of the board's ways to other boards and their data matrix frames (`ROLE`, `ROUTE`: DATA_MATRIX.MD; the board's own console and BLE are made by `app/runit`, and a record frame of the same role or route changes nothing), the `CREATE` of each device but the ESP32-S3's GPIO, and the board's settings | The app's descriptor of the board |
 | Read by | The firmware, at boot | The app, never the firmware |
 
 The app (`runit-app/src/app/devices/boardProfile.ts`) encodes its board descriptor into frames and compares them and the JSON with what is stored each time the board connects; a board without them gets them and restarts. The record is written like any record (sys_actions BEGIN, WRITE, COMMIT).
@@ -45,6 +45,6 @@ The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare
 
 ## Open
 
-- The app does not yet write the provider `CREATE` and `ATTACH` frames of the ways to other boards (`boardProfile.ts` writes the ports).
+- The app does not yet write the provider `CREATE` and the data matrix `ROLE` / `ROUTE` frames of the ways to other boards (`boardProfile.ts` writes the ports).
 - The app still names the board's router by the old firmware's key (`0x11`): it follows when the app moves to the rework's descriptors.
 - Not run on a board yet.

@@ -4,21 +4,10 @@
 #include <string.h>
 
 #include "errors.h"
+#include "provider_ble.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_data_provider_driver.h"
-
-#define FLAG_FRAMED (1u << 0)  // both characteristics carry frames (a session's way); else raw bytes (a stream's)
-#define FLAG_LOCKED (1u << 1)  // the service is the board's own: no change, no removal afterwards
-
-/** CREATE cfg: the service and the characteristics a provider's frames go out on and come in from. */
-typedef struct __attribute__((packed)) {
-  uint16_t svc;   /**< The service they are in: made here when it is new */
-  uint16_t tx;    /**< Out: notify, with a TX buffer; 0 = none */
-  uint16_t rx;    /**< In: written by the client; 0 = none (at least one of tx and rx) */
-  uint8_t flags;  /**< FLAG_* */
-  char name[16];  /**< The user description of the characteristics (descriptor 0x2901), NUL-ended; "" = none */
-} provider_ble_cfg_t;
 
 typedef struct {
   uint16_t svc;
@@ -93,11 +82,11 @@ static err_h make_service(provider_ble_t* ctx, uint16_t svc) {
 static err_h provider_ble_create(sys_data_provider_t* p, void* ctx_in, const void* cfg_in) {
   provider_ble_t* ctx = ctx_in;
   const provider_ble_cfg_t* cfg = cfg_in;
-  ERR_CHECK(cfg->svc != 0 && (cfg->tx != 0 || cfg->rx != 0) && (cfg->flags & ~(FLAG_FRAMED | FLAG_LOCKED)) == 0u &&
+  ERR_CHECK(cfg->svc != 0 && (cfg->tx != 0 || cfg->rx != 0) && (cfg->flags & ~PROVIDER_BLE_FRAMED) == 0u &&
                 memchr(cfg->name, '\0', sizeof(cfg->name)) != NULL,
             ERR_CMD_BAD_ARG);
   char text[sizeof(cfg->name) + 4];
-  const uint8_t framed = (cfg->flags & FLAG_FRAMED) != 0u ? SYS_BLE_CHR_FRAMED : 0u;
+  const uint8_t framed = (cfg->flags & PROVIDER_BLE_FRAMED) != 0u ? SYS_BLE_CHR_FRAMED : 0u;
   *ctx = (provider_ble_t){.svc = cfg->svc};
   ERR_TRY(make_service(ctx, cfg->svc));
   err_h err = cfg->rx != 0 ? sys_ble_char_create(cfg->svc, cfg->rx, SYS_BLE_CHR_WRITE | framed, 0,
@@ -116,9 +105,6 @@ static err_h provider_ble_create(sys_data_provider_t* p, void* ctx_in, const voi
   }
   if (err == NULL && ctx->tx != 0) {
     err = sys_ble_hook(ctx->tx, on_ble_rx, p, NULL);
-  }
-  if (err == NULL && (cfg->flags & FLAG_LOCKED) != 0u) {
-    err = sys_ble_service_lock(cfg->svc);
   }
   if (err != NULL) {
     drop(p, ctx);  // a failed create is not removed

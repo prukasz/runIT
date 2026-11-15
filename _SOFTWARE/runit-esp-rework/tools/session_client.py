@@ -100,14 +100,14 @@ class Link:
                 f = raw[:-2]
                 yield f[0] >> 6, f[0] & 0x3F, self.board, struct.unpack_from("<H", f, 1)[0], f[3:]
 
-    def hello(self, timeout_ms: int = 3000) -> bool:
-        body = bytes([HELLO, CLIENT]) + struct.pack("<IIH", self.boot_id, 0, timeout_ms)
+    def hello(self) -> bool:
+        body = bytes([HELLO, CLIENT]) + struct.pack("<II", self.boot_id, 0)  # {id, boot_id, build_id}: a client has no build
         self.send(CONTROL, body)
         for kind, _, src, _, b in self.frames(2.0):
-            if kind == CONTROL and b[:1] == bytes([HELLO]) and len(b) >= 12:
-                bid, boot, build, tmo = struct.unpack_from("<BIIH", b, 1)
+            if kind == CONTROL and b[:1] == bytes([HELLO]) and len(b) >= 10:
+                bid, boot, build = struct.unpack_from("<BII", b, 1)
                 self.board = bid
-                print(f"<- hello: board {bid:#04x}, boot {boot:#010x}, build {build:#010x}, timeout {tmo} ms")
+                print(f"<- hello: board {bid:#04x}, boot {boot:#010x}, build {build:#010x}")
                 return True
         return False
 

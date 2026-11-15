@@ -45,7 +45,7 @@ single-packet frame: C0 <frame>
 
 ## Data paths
 
-`sys_ble_send(uuid, data, flags, wait_ms)`: no client → dropped (NULL). Else the item is queued on the characteristic's TX buffer (a no-split ring buffer), at most its largest item and `CMD_FRAME_MAX` (`ERR_BLE_TOO_LONG`), none `ERR_BLE_NO_TX`. A full buffer is polled for `wait_ms`, then `ERR_BLE_TX_FULL`. `CMD_SEND_SPARE` is `ERR_BLE_TX_FULL` while less than half the buffer is free: the rest is kept for the answers. Items keep their order: `CMD_SEND_URGENT` goes in turn. The BLE task sends items once the client has subscribed (CCCD); NimBLE's `BLE_HS_ENOMEM` is retried every 10 ms while the same link is up. On disconnect the TX buffers are emptied.
+`sys_ble_send(uuid, data, flags, wait_ms)`: no client → dropped (NULL). Else the item is queued on the characteristic's TX buffer (a no-split ring buffer), at most its largest item and `CMD_FRAME_MAX` (`ERR_BLE_TOO_LONG`), none `ERR_BLE_NO_TX`. A full buffer is polled for `wait_ms`, then `ERR_BLE_TX_FULL`. `CMD_SEND_SPARE` is `ERR_BLE_TX_FULL` once the frames waiting (counted as frames of `CMD_FRAME_MAX`, not as free bytes: a no-split ring's free bytes are only its longest run) are half the buffer: the rest is kept for the answers. Items keep their order: `CMD_SEND_URGENT` goes in turn. The BLE task sends items once the client has subscribed (CCCD); NimBLE's `BLE_HS_ENOMEM` is retried every 10 ms while the same link is up. On disconnect the TX buffers are emptied.
 
 ## Run-time changes
 
@@ -98,5 +98,5 @@ Errors on the host or BLE task (a sync, a frame dropped, advertising) have no ca
 
 ## Open
 
-- Not run on a board yet. The old firmware's version was verified from Windows (MTU 527, the framing at the full MTU, reconnects, a service added with a client connected); this one drops the board's own MTU request and pairing, and moves the joining of frames and the split of unframed items into this module.
+- Run from Windows (bleak) on the devkit: the one runIT service with the session's pair and the logs' characteristic, the hello, PING, PEERS, PUSH frames of the errors and of a watch, the log lines as text. The old firmware's version was verified from Windows (MTU 527, the framing at the full MTU, reconnects, a service added with a client connected); this one drops the board's own MTU request and pairing, and moves the joining of frames and the split of unframed items into this module.
 - The app still talks to the old firmware's BLE (router key 0x03, the old CHAR_CREATE and LIST, the LOGS characteristic 0xFFE3): it follows when it moves to the rework.
