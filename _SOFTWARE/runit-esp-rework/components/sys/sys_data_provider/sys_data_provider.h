@@ -77,7 +77,7 @@ MUST_USE err_h sys_data_provider_call(uint8_t id, uint8_t dir, uint16_t op, cmd_
 MUST_USE err_h sys_data_provider_write(uint8_t id, uint16_t op, const void* args, uint32_t args_len);
 
 /** @brief The largest driver cfg sys_data_provider_create_system takes. */
-#define SYS_DATA_PROVIDER_CREATE_CFG_MAX 16u
+#define SYS_DATA_PROVIDER_CREATE_CFG_MAX 32u
 
 /**
  * @brief CREATE of the board's own provider (SYS_DATA_PROVIDER_CREATE_SYSTEM: it can't be removed): the frame

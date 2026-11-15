@@ -35,7 +35,7 @@ A stream is `sys_stream_cfg_t` `{u8 id, u8 flags}`, set at CREATE and never chan
 | Kind | Made by | What it does |
 |---|---|---|
 | **SOURCE** | SOURCE | Opens the local provider's RX hook (`sys_data_provider_open`): what comes in enters the stream queue. Refused on system streams. UNBIND or REMOVE closes the provider. |
-| **SINK** | SINK | When `board` is this board (`SYS_SESSION_ID_SELF` or its own id; kept as `SYS_SESSION_ID_SELF`), sends payloads as they are via `sys_data_provider_send(..., NOWAIT)`. Otherwise sends `[DATA][provider][id][payload]` via `sys_session_data()` (max payload `CMD_DATA_MAX - 3`). Configuration: stays when that peer is gone. |
+| **SINK** | SINK (`sys_stream_sink`, also for the board's code) | When `board` is this board (`SYS_SESSION_ID_SELF` or its own id; kept as `SYS_SESSION_ID_SELF`), sends payloads as they are via `sys_data_provider_send(..., NOWAIT)`. Otherwise sends `[DATA][provider][id][payload]` via `sys_session_data()` (max payload `CMD_DATA_MAX - 3`). Configuration: stays when that peer is gone. |
 | **PEER** | SUBSCRIBE | Sends `[id][payload]` via `sys_session_push()`; its `seq` is the session's count per `(peer, class)`. Removed when the peer is gone (`sys_session_on_gone`). |
 | **CALLBACK** | `sys_stream_listen(id, fn, ctx)` | Calls `fn(ctx, id, payload, len)` on the stream task. |
 

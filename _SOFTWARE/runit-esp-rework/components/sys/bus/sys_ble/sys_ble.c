@@ -9,8 +9,6 @@
 ERR_MODULE_DEFINE(ERR_MOD_SYS_BLE, "sys_ble", ERR_SYS_BLE_MAP)
 MODULE_ID_DEFINE(BLE, 0x2E)
 
-#define ITEM_HDR       8u   // bytes a no-split ring buffer keeps in front of each item
-#define RUNIT_TX_SIZE  ((CMD_FRAME_MAX + ITEM_HDR) * 4u)  // the runIT TX: 4 frames
 #define ATT_HDR        3u   // a notification's opcode and handle
 #define SEND_POLL_MS   2u   // sys_ble_send: poll interval while the TX buffer is full
 #define NOMEM_RETRY_MS 10u  // NimBLE out of buffers: the packet again
@@ -165,6 +163,17 @@ err_h sys_ble_service_create(uint16_t uuid, bool primary) {
   unlock();
   ERR_CHECK(!taken, ERR_BLE_UUID_TAKEN, .uuid = uuid);
   ERR_CHECK(s != NULL, ERR_BLE_NO_MEM, .uuid = uuid, .size = sizeof(*s));
+  return NULL;
+}
+
+err_h sys_ble_service_lock(uint16_t uuid) {
+  lock();
+  ble_svc_t* s = find_svc(uuid);
+  if (s != NULL) {
+    s->locked = true;
+  }
+  unlock();
+  ERR_CHECK(s != NULL, ERR_BLE_NOT_FOUND, .uuid = uuid);
   return NULL;
 }
 
@@ -609,31 +618,39 @@ void sys_ble_on_subscribe(uint16_t val_handle, bool subscribed) {
  * Init
  * ------------------------------------------------------------------------- */
 
-// The runIT service, locked: a change would rebuild it and drop the client's subscriptions under its session.
-err_h sys_ble_init(void) {
-  ERR_TRY(sys_ble_service_create(SYS_BLE_SVC_RUNIT, true));
-  ERR_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, SYS_BLE_CHR_RUNIT_RX, SYS_BLE_CHR_WRITE | SYS_BLE_CHR_FRAMED, 0,
-                              "runit RX"));
-  ERR_TRY(sys_ble_char_create(SYS_BLE_SVC_RUNIT, SYS_BLE_CHR_RUNIT_TX, SYS_BLE_CHR_NOTIFY | SYS_BLE_CHR_FRAMED,
-                              RUNIT_TX_SIZE, "runit TX"));
+// Boot: each staged service goes to NimBLE as its own definition (what a later sync does for one), before the host
+// runs. The characteristics were made by the providers; a service locked at the first start is never rebuilt, which
+// would drop the client's subscriptions under its session.
+static err_h add_boot_svc(ble_svc_t* s) {
   struct ble_gatt_svc_def* defs = calloc(2, sizeof(*defs));
-  ERR_CHECK(defs != NULL, ERR_BLE_NO_MEM, .uuid = SYS_BLE_SVC_RUNIT, .size = 2 * sizeof(*defs));
-  lock();
-  ble_svc_t* s = g_ble.services;
-  s->locked = true;
+  ERR_CHECK(defs != NULL, ERR_BLE_NO_MEM, .uuid = s->uuid, .size = 2 * sizeof(*defs));
   err_h err = sys_ble_compile(&defs[0], s);
   if (err == NULL) {
-    err = sys_ble_stack_start(defs);  // the host does not run yet: no lock order to keep
+    err = sys_ble_stack_add_boot(defs);
   }
-  if (err == NULL) {
-    s->def = defs;  // NimBLE keeps pointing at it
-    mark_registered(s);
-  }
-  unlock();
   if (err != NULL) {
     sys_ble_free_defs(defs);
     return err;
   }
+  s->def = defs;  // NimBLE keeps pointing at it
+  mark_registered(s);
+  return NULL;
+}
+
+err_h sys_ble_start(uint16_t adv_service) {
+  ERR_TRY(sys_ble_stack_init(adv_service));
+  lock();
+  err_h err = NULL;
+  ble_svc_t* s;
+  LL_FOREACH(g_ble.services, s) {
+    if (err == NULL && !s->removing) {
+      err = add_boot_svc(s);
+    }
+  }
+  g_ble.apply_pending = false;
+  unlock();
+  ERR_TRY(err);
+  ERR_TRY(sys_ble_stack_run());
   U_TASK_START_ON_CORE(ble_task_h, sys_ble_task, NULL, CONFIG_SYS_BLE_TASK_PRIO, 0);
   return NULL;
 }

@@ -219,7 +219,7 @@ await loadProgram(link, [...result.frames, engine.exec('normal')], {
 | Fact | Source | Held against it by |
 |---|---|---|
 | Router keys, flags, status, stream ids and channels, the session | `enums.json` (`router_key`, `router_flag`, `router_status_e`, `stream`, `stream_*`, `sys_stream_*`, `session_*`, `sys_session_*`) | `protocol.test.ts` reads `router_ids.h`, `cmd.h` and `sys_session_config.h` |
-| GATT UUIDs, fragment bits | `enums.json` (`ble_runit_uuid`, `ble_frag`, marked in `sys_ble.h`) | `protocol.test.ts` reads `sys_ble.h`; the framing tests use the examples of SYS_BLE.MD |
+| GATT UUIDs, fragment bits | `enums.json` (`ble_runit_uuid`, marked in `runit_ids.h`; `ble_frag`, in `sys_ble.h`) | `protocol.test.ts` reads `sys_ble.h`; the framing tests use the examples of SYS_BLE.MD |
 | Frame limit | `enums.json` (`cmd_frame`: `CMD_FRAME_MAX`, `CMD_HEAD`) | `protocol.test.ts` reads `cmd.h` |
 | Error record | `ROUTER.MD`, `errors.json` | `protocol.test.ts` decodes the example of ROUTER.MD |
 | OPEN and RESET of the VM router (`loadProgram`) | `generated/services/contract_vm.json` | `send.test.ts`: the catalog has them, the engine's load starts with that OPEN |

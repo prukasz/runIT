@@ -10,5 +10,5 @@
  */
 MUST_USE err_h runit_streams_init(void);
 
-/** @brief The console and the BLE pair, each a provider attached `UNKNOWN` (not told: the hello says a client or the master). */
+/** @brief The console and the BLE pair (its characteristics made by the provider), then BLE started; each provider attached `UNKNOWN` (not told: the hello says a client or the master). */
 MUST_USE err_h runit_ways_init(void);

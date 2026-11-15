@@ -1,20 +1,30 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "errors.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_data_provider_driver.h"
 
-/** CREATE cfg: the characteristics a provider's frames go out on and come in from, 0 = none (at least one). */
+#define FLAG_FRAMED (1u << 0)  // both characteristics carry frames (a session's way); else raw bytes (a stream's)
+#define FLAG_LOCKED (1u << 1)  // the service is the board's own: no change, no removal afterwards
+
+/** CREATE cfg: the service and the characteristics a provider's frames go out on and come in from. */
 typedef struct __attribute__((packed)) {
-  uint16_t tx;  /**< Out: notify / indicate, with a TX buffer */
-  uint16_t rx;  /**< In: written by the client */
+  uint16_t svc;   /**< The service they are in: made here when it is new */
+  uint16_t tx;    /**< Out: notify, with a TX buffer; 0 = none */
+  uint16_t rx;    /**< In: written by the client; 0 = none (at least one of tx and rx) */
+  uint8_t flags;  /**< FLAG_* */
+  char name[16];  /**< The user description of the characteristics (descriptor 0x2901), NUL-ended; "" = none */
 } provider_ble_cfg_t;
 
 typedef struct {
+  uint16_t svc;
   uint16_t tx;
   uint16_t rx;
+  bool own_svc;  // the provider made the service: it removes it
 } provider_ble_t;
 
 // Both characteristics' hooks: a write is one message (one frame on a framed one), NULL the link's state.
@@ -37,33 +47,86 @@ static err_h provider_ble_send(sys_data_provider_t* p, cmd_in_t frame, uint8_t f
   return err;
 }
 
-static err_h provider_ble_remove(sys_data_provider_t* p, void* ctx_in) {
-  const provider_ble_t* ctx = ctx_in;
-  err_h err = ctx->tx != 0 ? sys_ble_hook(ctx->tx, NULL, p, NULL) : NULL;
-  if (err == NULL && ctx->rx != 0) {
-    err = sys_ble_hook(ctx->rx, NULL, p, NULL);
+// What the provider made, taken out again: the hooks, the characteristics, the service it made.
+static void drop(sys_data_provider_t* p, const provider_ble_t* ctx) {
+  if (ctx->tx != 0) {
+    err_free(sys_ble_hook(ctx->tx, NULL, p, NULL));
+    err_free(sys_ble_char_remove(ctx->tx));
   }
+  if (ctx->rx != 0) {
+    err_free(sys_ble_hook(ctx->rx, NULL, p, NULL));
+    err_free(sys_ble_char_remove(ctx->rx));
+  }
+  if (ctx->own_svc) {
+    err_free(sys_ble_service_remove(ctx->svc));
+  }
+  sys_ble_apply();
+}
+
+static err_h provider_ble_remove(sys_data_provider_t* p, void* ctx_in) {
+  drop(p, ctx_in);
+  return NULL;
+}
+
+// The description of a characteristic: the name, with " TX" or " RX" after it when the provider has both.
+static const char* describe(char* out, size_t cap, const provider_ble_cfg_t* cfg, const char* suffix) {
+  if (cfg->name[0] == '\0') {
+    return NULL;
+  }
+  const bool both = cfg->tx != 0 && cfg->rx != 0;
+  snprintf(out, cap, "%s%s", cfg->name, both ? suffix : "");
+  return out;
+}
+
+// A service that exists is joined (its characteristics are added), unless it is locked. Up while a client is connected:
+// the hooks tell it.
+static err_h make_service(provider_ble_t* ctx, uint16_t svc) {
+  err_h err = sys_ble_service_create(svc, true);
+  if (err != NULL && err_root_tag(err) == ERR_BLE_UUID_TAKEN) {
+    err_free(err);
+    return NULL;
+  }
+  ctx->own_svc = err == NULL;
   return err;
 }
 
-// Framed when its characteristics are: a session's way. Up while a client is connected: the hooks tell it.
 static err_h provider_ble_create(sys_data_provider_t* p, void* ctx_in, const void* cfg_in) {
   provider_ble_t* ctx = ctx_in;
   const provider_ble_cfg_t* cfg = cfg_in;
-  ERR_CHECK(cfg->tx != 0 || cfg->rx != 0, ERR_CMD_BAD_ARG);
-  bool rx_framed = true;
-  bool tx_framed = true;
-  if (cfg->rx != 0) {
-    ERR_TRY(sys_ble_hook(cfg->rx, on_ble_rx, p, &rx_framed));
+  ERR_CHECK(cfg->svc != 0 && (cfg->tx != 0 || cfg->rx != 0) && (cfg->flags & ~(FLAG_FRAMED | FLAG_LOCKED)) == 0u &&
+                memchr(cfg->name, '\0', sizeof(cfg->name)) != NULL,
+            ERR_CMD_BAD_ARG);
+  char text[sizeof(cfg->name) + 4];
+  const uint8_t framed = (cfg->flags & FLAG_FRAMED) != 0u ? SYS_BLE_CHR_FRAMED : 0u;
+  *ctx = (provider_ble_t){.svc = cfg->svc};
+  ERR_TRY(make_service(ctx, cfg->svc));
+  err_h err = cfg->rx != 0 ? sys_ble_char_create(cfg->svc, cfg->rx, SYS_BLE_CHR_WRITE | framed, 0,
+                                                 describe(text, sizeof(text), cfg, " RX"))
+                           : NULL;
+  if (err == NULL) {
+    ctx->rx = cfg->rx;
+    err = cfg->tx != 0 ? sys_ble_char_create(cfg->svc, cfg->tx, SYS_BLE_CHR_NOTIFY | framed,
+                                              SYS_BLE_TX_BYTES(CONFIG_PROVIDER_BLE_TX_ITEMS),
+                                              describe(text, sizeof(text), cfg, " TX"))
+                       : NULL;
   }
-  err_h err = cfg->tx != 0 ? sys_ble_hook(cfg->tx, on_ble_rx, p, &tx_framed) : NULL;
+  if (err == NULL) {
+    ctx->tx = cfg->tx;
+    err = ctx->rx != 0 ? sys_ble_hook(ctx->rx, on_ble_rx, p, NULL) : NULL;
+  }
+  if (err == NULL && ctx->tx != 0) {
+    err = sys_ble_hook(ctx->tx, on_ble_rx, p, NULL);
+  }
+  if (err == NULL && (cfg->flags & FLAG_LOCKED) != 0u) {
+    err = sys_ble_service_lock(cfg->svc);
+  }
   if (err != NULL) {
-    err_free(cfg->rx != 0 ? sys_ble_hook(cfg->rx, NULL, p, NULL) : NULL);  // a failed create is not removed
+    drop(p, ctx);  // a failed create is not removed
     return err;
   }
-  *ctx = (provider_ble_t){.tx = cfg->tx, .rx = cfg->rx};
+  sys_ble_apply();
   p->send = provider_ble_send;
-  p->state |= rx_framed && tx_framed ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u;
+  p->state |= framed != 0u ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u;
   return NULL;
 }
 

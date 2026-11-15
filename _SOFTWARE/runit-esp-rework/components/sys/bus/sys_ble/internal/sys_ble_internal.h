@@ -59,13 +59,7 @@ extern ble_t g_ble;
 extern SemaphoreHandle_t g_ble_lock;  // the registry and g_ble; released around NimBLE calls that wait on the host
 extern SemaphoreHandle_t g_ble_wake;  // wakes the BLE task
 
-/* sys_ble.c: the table (staged; sys_ble_apply puts it live) */
-MUST_USE err_h sys_ble_service_create(uint16_t uuid, bool primary);
-MUST_USE err_h sys_ble_service_remove(uint16_t uuid);
-MUST_USE err_h sys_ble_char_create(uint16_t svc, uint16_t uuid, uint8_t flags, uint16_t tx, const char* name);
-MUST_USE err_h sys_ble_char_remove(uint16_t uuid);
-/** Applies the staged changes: at once, or CONFIG_SYS_BLE_APPLY_DELAY_MS later on the BLE task with a client. */
-void sys_ble_apply(void);
+/* sys_ble.c: the router's reads */
 MUST_USE err_h sys_ble_status(sys_ble_status_t* out);
 /** The LIST answer (sys_ble_router.h). */
 MUST_USE err_h sys_ble_list(cmd_out_t* out);
@@ -80,8 +74,10 @@ int sys_ble_on_write(ble_char_t* c, const uint8_t* data, uint32_t len);
 /** The BLE task's loop. */
 void sys_ble_task(void* arg);
 
-/* sys_ble_stack.c */
-MUST_USE err_h sys_ble_stack_start(struct ble_gatt_svc_def* svcs);
+/* sys_ble_stack.c: the start in three steps (the host does not run until the third: no lock order to keep) */
+MUST_USE err_h sys_ble_stack_init(uint16_t adv_service);
+MUST_USE err_h sys_ble_stack_add_boot(struct ble_gatt_svc_def* svcs);
+MUST_USE err_h sys_ble_stack_run(void);
 /** On failure the partial definition stays in `def`: sys_ble_free_defs frees it. */
 MUST_USE err_h sys_ble_compile(struct ble_gatt_svc_def* def, ble_svc_t* s);
 void sys_ble_free_defs(struct ble_gatt_svc_def* svcs);

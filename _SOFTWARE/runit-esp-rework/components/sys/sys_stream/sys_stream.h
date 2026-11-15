@@ -94,6 +94,14 @@ MUST_USE err_h sys_stream_create(const sys_stream_cfg_t* cfg);
 MUST_USE err_h sys_stream_listen(uint8_t id, sys_stream_callback_f fn, void* ctx);
 
 /**
+ * @brief Adds a provider as the stream's sink: the payloads go there as they are (to a provider of another board as
+ * DATA, sys_session_data). `board` is this board's id or SYS_SESSION_ID_SELF for a provider here. Configuration: it stays
+ * when that peer is gone. There already: nothing changes.
+ * @return NULL; ERR_STREAM_BAD_ARG, ERR_STREAM_NOT_FOUND, ERR_STREAM_TARGETS_FULL.
+ */
+MUST_USE err_h sys_stream_sink(uint8_t id, uint8_t board, uint8_t provider);
+
+/**
  * @brief Removes a callback added with sys_stream_listen(). It may still get a message being delivered now.
  * @param[in] id  The stream
  * @param[in] fn  The callback

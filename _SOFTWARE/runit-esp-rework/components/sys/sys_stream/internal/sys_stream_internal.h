@@ -31,14 +31,6 @@ MUST_USE err_h sys_stream_remove(uint8_t id);
 MUST_USE err_h sys_stream_source(uint8_t id, uint8_t provider);
 
 /**
- * @brief Adds a provider of this board (`board` its id or SYS_SESSION_ID_SELF) or of another peer as a sink: the
- * payloads go there as they are (to another peer as DATA, sys_session_data). Configuration: it stays when that peer is
- * gone. There already: nothing changes.
- * @return NULL; ERR_STREAM_BAD_ARG, ERR_STREAM_NOT_FOUND, ERR_STREAM_TARGETS_FULL.
- */
-MUST_USE err_h sys_stream_sink(uint8_t id, uint8_t board, uint8_t provider);
-
-/**
  * @brief Removes the SOURCE and SINK targets of `provider` (on any board; SYS_DATA_PROVIDER_ID_NONE: all of them); a
  * SOURCE gives its provider's rx hook back.
  * @return NULL; ERR_STREAM_NOT_FOUND.

@@ -23,15 +23,14 @@
 #define UUID_USER_DESC     0x2901u
 
 static uint8_t s_own_addr_type;
+static ble_uuid16_t s_adv_service;  // in the advertisement: a client filters by it
 
 static int gap_event(struct ble_gap_event* event, void* arg);
 
 static void adv_start(void) {
   const char* name = ble_svc_gap_device_name();
-  // The runIT service in the advertisement: a client filters by it.
-  static const ble_uuid16_t runit = BLE_UUID16_INIT(SYS_BLE_SVC_RUNIT);
   const struct ble_hs_adv_fields fields = {
-      .uuids16 = &runit,
+      .uuids16 = &s_adv_service,
       .num_uuids16 = 1,
       .uuids16_is_complete = 1,
       .flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP,
@@ -227,20 +226,28 @@ static void host_task(void* arg) {
   nimble_port_freertos_deinit();
 }
 
-err_h sys_ble_stack_start(struct ble_gatt_svc_def* svcs) {
+err_h sys_ble_stack_init(uint16_t adv_service) {
+  s_adv_service = (ble_uuid16_t)BLE_UUID16_INIT(adv_service);
   ERR_TRY_ESP(nimble_port_init());
   ble_hs_cfg.reset_cb = on_reset;
   ble_hs_cfg.sync_cb = on_sync;
   ble_svc_gap_init();
   ble_svc_gatt_init();
-  int rc = ble_svc_gap_device_name_set(CONFIG_SYS_BLE_DEVICE_NAME);
-  if (rc == 0) {
-    rc = ble_gatts_count_cfg(svcs);
-  }
+  const int rc = ble_svc_gap_device_name_set(CONFIG_SYS_BLE_DEVICE_NAME);
+  ERR_CHECK(rc == 0, ERR_BLE_STACK, .rc = rc);
+  return NULL;
+}
+
+err_h sys_ble_stack_add_boot(struct ble_gatt_svc_def* svcs) {
+  int rc = ble_gatts_count_cfg(svcs);
   if (rc == 0) {
     rc = ble_gatts_add_svcs(svcs);
   }
   ERR_CHECK(rc == 0, ERR_BLE_STACK, .rc = rc);
+  return NULL;
+}
+
+err_h sys_ble_stack_run(void) {
   nimble_port_freertos_init(host_task);
   return NULL;
 }

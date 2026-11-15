@@ -171,10 +171,10 @@ export const linkDefinitions = (
       },
     },
     gatt: {
-      service: value(enums, 'ble_runit_uuid', 'SYS_BLE_SVC_RUNIT'),
-      tx: value(enums, 'ble_runit_uuid', 'SYS_BLE_CHR_RUNIT_TX'),
-      rx: value(enums, 'ble_runit_uuid', 'SYS_BLE_CHR_RUNIT_RX'),
-      logs: value(enums, 'ble_runit_uuid', 'SYS_BLE_CHR_RUNIT_LOGS'),
+      service: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_SERVICE'),
+      tx: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_TX'),
+      rx: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_RX'),
+      logs: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_LOGS'),
       status: value(enums, 'ble_runit_uuid', 'SYS_BLE_CHT_RUNIT_STATUS'),
     },
     frag: {

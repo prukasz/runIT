@@ -8,4 +8,12 @@ menu "provider_ble"
           How long a send without CMD_SEND_NOWAIT (an answer) waits for room in its characteristic's buffer, then
           ERR_PROV_BUSY. A NOWAIT send (a PUSH frame) is ERR_PROV_BUSY at once.
 
+    config PROVIDER_BLE_TX_ITEMS
+        int "TX buffer (frames)"
+        default 4
+        range 1 16
+        help
+          How many frames of CMD_FRAME_MAX the TX buffer of a characteristic the provider makes holds
+          (SYS_BLE_TX_BYTES).
+
 endmenu

@@ -70,26 +70,38 @@
     "ble_runit_uuid": {
       "alias": "runIT GATT UUIDs",
       "kind": "defines",
-      "prefix": "SYS_BLE_",
-      "source_file": "runit-esp-rework/components/sys/bus/sys_ble/sys_ble.h",
+      "prefix": "RUNIT_BLE_",
+      "source_file": "runit-esp-rework/components/app/runit/runit_ids.h",
       "members": [
         {
-          "name": "SYS_BLE_SVC_RUNIT",
+          "name": "RUNIT_BLE_SERVICE",
           "value": 65504,
           "alias": "runIT service",
           "description": "The board's own service: the client's session"
         },
         {
-          "name": "SYS_BLE_CHR_RUNIT_TX",
+          "name": "RUNIT_BLE_TX",
           "value": 65505,
           "alias": "Session out",
           "description": "Notify, framed: the session's frames to the client"
         },
         {
-          "name": "SYS_BLE_CHR_RUNIT_RX",
+          "name": "RUNIT_BLE_RX",
           "value": 65506,
           "alias": "Session in",
           "description": "Write, framed: the session's frames from the client"
+        },
+        {
+          "name": "RUNIT_BLE_LOGS_SERVICE",
+          "value": 65512,
+          "alias": "Logs service",
+          "description": "The board's own: the stream LOGS as text"
+        },
+        {
+          "name": "RUNIT_BLE_LOGS",
+          "value": 65513,
+          "alias": "Logs",
+          "description": "Notify, raw: the log lines, no session"
         }
       ]
     },
@@ -1681,6 +1693,11 @@
     "ROUTER_FLAG_URGENT": "router_flag",
     "ROUTER_STATUS_ERROR": "router_status_e",
     "ROUTER_STATUS_OK": "router_status_e",
+    "RUNIT_BLE_LOGS": "ble_runit_uuid",
+    "RUNIT_BLE_LOGS_SERVICE": "ble_runit_uuid",
+    "RUNIT_BLE_RX": "ble_runit_uuid",
+    "RUNIT_BLE_SERVICE": "ble_runit_uuid",
+    "RUNIT_BLE_TX": "ble_runit_uuid",
     "SYS_ACTIONS_CLASS_BOARD": "action_class",
     "SYS_ACTIONS_CLASS_DEVICE": "action_class",
     "SYS_ACTIONS_CLASS_PROJECT": "action_class",
@@ -1699,12 +1716,9 @@
     "SYS_ACTIONS_ONBOARD_RESET": "onboard_action",
     "SYS_ACTIONS_ONBOARD_RESUME": "onboard_action",
     "SYS_ACTIONS_ONBOARD_SUSPEND": "onboard_action",
-    "SYS_BLE_CHR_RUNIT_RX": "ble_runit_uuid",
-    "SYS_BLE_CHR_RUNIT_TX": "ble_runit_uuid",
     "SYS_BLE_FRAG_COUNT_MASK": "ble_frag",
     "SYS_BLE_FRAG_FIRST": "ble_frag",
     "SYS_BLE_FRAG_LAST": "ble_frag",
-    "SYS_BLE_SVC_RUNIT": "ble_runit_uuid",
     "SYS_DATA_PROVIDER_STATE_FRAMED": "prov_state",
     "SYS_DATA_PROVIDER_STATE_OPEN": "prov_state",
     "SYS_DATA_PROVIDER_STATE_SYSTEM": "prov_state",

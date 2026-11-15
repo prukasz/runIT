@@ -4,7 +4,7 @@ Component `runit-esp-rework/components/sys/bus/sys_ble/`. NimBLE as a peripheral
 
 | File | Role |
 |---|---|
-| `sys_ble.h` | `sys_ble_init`, `sys_ble_hook`, `sys_ble_send`; the runIT UUIDs and the fragment header bits |
+| `sys_ble.h` | `sys_ble_start`, the table's calls, `sys_ble_hook`, `sys_ble_send`; the service and characteristic flags and the fragment header bits |
 | `internal/sys_ble_internal.h` | The nodes, the lock, what the sources share (the table's calls for the router) |
 | `sys_ble.c` | The table (staged), the sync to NimBLE, the hooks, TX (the BLE task), RX and the framing, the connection; `MODULE_ID_DEFINE(BLE, 0x2E)` |
 | `sys_ble_stack.c` | NimBLE: init, advertising, GAP events, GATT access, the table's definitions, notify |
@@ -15,17 +15,11 @@ Component `runit-esp-rework/components/sys/bus/sys_ble/`. NimBLE as a peripheral
 
 ## Boot
 
-`sys_ble_init` (once, in `app/runit`) creates the runIT service, locks it and starts NimBLE, advertising and the BLE task. `app/runit` then creates the provider of the runIT pair (`provider_ble`, `{tx 0xFFE1, rx 0xFFE2}`, system) and attaches a session to it, not told (`SYS_SESSION_UNKNOWN`: the hello says a client).
+`sys_ble_start(adv_service)` (once, in `app/runit`, after the board's first providers) adds the services staged so far to NimBLE, starts it, advertising of `adv_service` (a client filters by it) and the BLE task. The module has no service of its own: the characteristics are made by the providers (`provider_ble`: its CREATE makes its service and characteristics, PROVIDER_BLE.MD), and the board's own pair by `app/runit` (RUNIT.MD "Connectivity"). Before the start they are only staged; after it, each CREATE or REMOVE of a provider is applied live.
 
-## The runIT service
+## The table
 
-| UUID | Name | Props | TX | Framed | Use |
-|---|---|---|---|---|---|
-| `0xFFE0` | runIT service | primary, **locked** | | | |
-| `0xFFE1` | runit TX | notify | 4 frames | yes | the session's frames to the client: answers, PUSH frames (streams, watches), control |
-| `0xFFE2` | runit RX | write | | yes | the session's frames from the client |
-
-The UUIDs and the fragment header bits are published to the app as the enum groups `ble_runit_uuid` and `ble_frag` (markers in `sys_ble.h`). Logs and errors reach a client as its session's streams (SYS_STREAM.MD). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
+`sys_ble_service_create / _remove / _lock`, `sys_ble_char_create / _remove` and `sys_ble_apply` (`sys_ble.h`) are the providers' calls, the only ones that change the table. A service **locked** with `sys_ble_service_lock` (the board's own, after its characteristics) takes no change and no removal, because a rebuild would drop the client's subscriptions under its session. A characteristic's TX buffer is `SYS_BLE_TX_BYTES(frames)` bytes. The UUIDs of the runIT service are `app/runit`'s (`runit_ids.h`). The fragment header bits are published to the app as the enum group `ble_frag` (markers in `sys_ble.h`). Logs and errors reach a client as its session's streams (SYS_STREAM.MD). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
 
 ## Framing
 
@@ -68,23 +62,20 @@ Changes are **staged** and applied by APPLY on the BLE task: at once with no cli
 - The board asks for the connection parameters only (interval 7.5 ms, latency 0, supervision timeout 2 s; the central may refuse or round them up). The MTU exchange, the PHY and the packet length are the central's: a request from the board collides with the central's and can leave a link-layer procedure unanswered, and the link drops exactly 40 s after connecting (reason `0x222`). The board offers `CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU` (527) when the client asks; a PC negotiates 527.
 - On connect the MTU is the link's current one (a client may finish the exchange before the connect event).
 - On disconnect: TX buffers emptied, subscriptions and half-joined frames dropped, advertising restarts, the hooks hear down.
-- Advertising carries the runIT service (0xFFE0) next to the name, so a client can filter by it. No pairing: `CONFIG_BT_NIMBLE_SECURITY_ENABLE` is off.
+- Advertising carries the service `sys_ble_start` was given (`app/runit`'s runIT service) next to the name, so a client can filter by it. No pairing: `CONFIG_BT_NIMBLE_SECURITY_ENABLE` is off.
 
 ## Remote (`sys_ble_router`, root key `MODULE_ID_BLE` 0x2E)
 
+Reads only. The table is changed by the providers (PROVIDER_BLE.MD): one way to make a service or a characteristic. What the module itself will be set with (a password, pairing) goes through this router.
+
 | Op | Side | Args | Answer |
 |---|---|---|---|
-| `0x01` SVC_CREATE | W | `sys_ble_svc_args_t` `{u16 uuid, u8 flags}` (bit 0 primary) | – |
-| `0x02` SVC_REMOVE | W | `sys_ble_uuid_args_t` `{u16 uuid}` | – |
-| `0x03` CHAR_CREATE | W | `sys_ble_char_args_t` `{u16 svc, u16 uuid, u8 flags, u16 tx}`, then the name (NUL-ended; none: nothing), the descriptor 0x2901 | – |
-| `0x04` CHAR_REMOVE | W | `sys_ble_uuid_args_t` `{u16 uuid}` | – |
-| `0x05` APPLY | W | – | – (applied on the BLE task) |
-| `0x06` STATUS | R | – | `sys_ble_status_t` `{u8 connected, u16 mtu}` |
-| `0x07` LIST | R | – | `u8 count`, per service `{u16 uuid, u8 flags (bit 0 primary, bit 1 locked), u8 n}`, then n × `{u16 uuid, u8 flags, u16 tx, name NUL-ended}`: the table as the next APPLY leaves it |
+| `0x01` STATUS | R | – | `sys_ble_status_t` `{u8 connected, u16 mtu}` |
+| `0x02` LIST | R | – | `u8 count`, per service `{u16 uuid, u8 flags (bit 0 primary, bit 1 locked), u8 n}`, then n × `{u16 uuid, u8 flags, u16 tx, name NUL-ended}`: the table as the next `sys_ble_apply` leaves it |
 
-A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_CHR_*`). A TX buffer needs NOTIFY or INDICATE (`ERR_CMD_BAD_ARG`); it holds about half its bytes as one item. The app reads LIST to see what a save must change.
+A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_CHR_*`). A TX buffer needs NOTIFY or INDICATE (`ERR_CMD_BAD_ARG`); it holds about half its bytes as one item.
 
-Example: a user service with a characteristic a stream sends on (notify, unframed, TX 96 B): `2E 01 01 00 EE 01` (SVC_CREATE 0xEE00, primary), `2E 01 03 00 EE 01 EE 04 60 00 74 65 6D 70 00` (CHAR_CREATE 0xEE01 "temp"), `2E 01 05` (APPLY), then a provider of it: PROVIDER CREATE type BLE, cfg `{tx 0xEE01, rx 0}` (PROVIDER_BLE.MD). The session adds its own frame header.
+Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then a stream SINK on that provider.
 
 ## Errors (`ERR_MOD_SYS_BLE` = `MODULE_ID_BLE` 0x2E)
 

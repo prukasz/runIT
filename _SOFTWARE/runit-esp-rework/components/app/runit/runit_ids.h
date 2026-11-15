@@ -6,3 +6,12 @@
 
 #define RUNIT_PROVIDER_CONSOLE 0x01u  // the console (UART0 + USB-Serial-JTAG): a client's or the master's way
 #define RUNIT_PROVIDER_BLE     0x03u  // the runIT pair of BLE: a client's way
+#define RUNIT_PROVIDER_BLE_LOGS 0x04u  // the BLE characteristic of the logs: the stream LOGS's sink, no session
+
+/* The runIT GATT service: the client's session. The board's provider of it is made in connectivity/runit_ways.c. */
+//#ref-defines ble_runit_uuid @alias runIT GATT UUIDs @prefix RUNIT_BLE_
+#define RUNIT_BLE_SERVICE 0xFFE0  //@alias runIT service @description The board's own service: the client's session
+#define RUNIT_BLE_TX      0xFFE1  //@alias Session out @description Notify, framed: the session's frames to the client
+#define RUNIT_BLE_RX      0xFFE2  //@alias Session in @description Write, framed: the session's frames from the client
+#define RUNIT_BLE_LOGS_SERVICE 0xFFE8  //@alias Logs service @description The board's own: the stream LOGS as text
+#define RUNIT_BLE_LOGS    0xFFE9  //@alias Logs @description Notify, raw: the log lines, no session
