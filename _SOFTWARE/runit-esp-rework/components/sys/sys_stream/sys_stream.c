@@ -12,6 +12,8 @@ MODULE_ID_DEFINE(STREAM, 0x29)
 
 _Static_assert(SYS_STREAM_PAYLOAD_MAX == CMD_DATA_MAX - ID_BYTE, "a stream's frame fits");
 _Static_assert(SYS_STREAM_ID_LAST < SYS_SESSION_CHANNEL_FIRST, "a stream id is never a session channel");
+_Static_assert(SYS_STREAM_FLAG_URGENT == CMD_SEND_URGENT, "SYS_STREAM_FLAG_URGENT must match CMD_SEND_URGENT");
+_Static_assert(ROUTER_FLAG_URGENT == CMD_SEND_URGENT, "ROUTER_FLAG_URGENT must match CMD_SEND_URGENT");
 
 static void stream_task(void* arg);
 
@@ -383,15 +385,14 @@ static void account(target_t* t, err_h err) {
   err_free(err);
 }
 
-static err_h send_sink(uint8_t id, const target_t* t, const uint8_t* payload, uint32_t len, bool urgent) {
+static err_h send_sink(uint8_t id, const target_t* t, const uint8_t* payload, uint32_t len, uint8_t urgent) {
   if (len == 0) {
     return NULL;
   }
   if (t->t.peer == SYS_SESSION_ID_SELF || t->t.peer == sys_session_get_board_id()) {
-    const uint8_t flags = (uint8_t)(SYS_DATA_PROVIDER_SEND_NOWAIT | (urgent ? SYS_DATA_PROVIDER_SEND_URGENT : 0u));
-    return sys_data_provider_send(t->t.provider, payload, len, NULL, 0, flags);
+    return sys_data_provider_send(t->t.provider, (cmd_in_t){payload, len}, (uint8_t)(CMD_SEND_NOWAIT | urgent));
   }
-  return sys_session_data(t->t.peer, t->t.provider, id, payload, len, urgent ? ROUTER_FLAG_URGENT : 0u);
+  return sys_session_data(t->t.peer, t->t.provider, id, payload, len, urgent);
 }
 
 static void deliver(const uint8_t* frame, uint32_t len) {
@@ -406,7 +407,7 @@ static void deliver(const uint8_t* frame, uint32_t len) {
   const uint8_t n = s->head.targets;
   memcpy(targets, s->targets, n * sizeof(targets[0]));
   xSemaphoreGive(sys_stream_mutex);
-  const bool urgent = (cfg.flags & SYS_STREAM_FLAG_URGENT) != 0u;
+  const uint8_t urgent = (uint8_t)(cfg.flags & CMD_SEND_URGENT);
   const uint8_t* payload = frame + ID_BYTE;
   const uint32_t payload_len = len - ID_BYTE;
 
@@ -421,7 +422,7 @@ static void deliver(const uint8_t* frame, uint32_t len) {
         errs[i] = send_sink(cfg.id, t, payload, payload_len, urgent);
         break;
       case SYS_STREAM_TARGET_PEER:
-        errs[i] = sys_session_push(t->t.peer, frame, len, urgent ? ROUTER_FLAG_URGENT : 0u);
+        errs[i] = sys_session_push(t->t.peer, frame, len, urgent);
         break;
       default:
         t->fn(t->ctx, cfg.id, payload, payload_len);

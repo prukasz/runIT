@@ -8,8 +8,8 @@
 /**
  * @file sys_session_frame.h
  * @brief A session's frames (SYS_SESSION.MD "Frames"), packed, little-endian: one 5-byte header on every frame, so a
- * frame is routed by its dst without reading or changing its body. The provider's driver splits and joins a frame;
- * the session sees it whole and sends it as two parts, the header and the body.
+ * frame is routed by its dst without reading or changing its body. The provider's driver takes one flat frame (`cmd_in_t`);
+ * sys_session sends forwarded frames zero-copy via sys_session_send and joins separate header + body only at send.
  *
  *   request  [hdr REQUEST, flags ][key][dir][code | id + op][args]
  *   answer   [hdr ANSWER, status ][data]                 data: the answer, or the error record (ERROR)

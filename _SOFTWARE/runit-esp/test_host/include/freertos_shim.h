@@ -92,6 +92,13 @@ void vRingbufferReturnItem(RingbufHandle_t rb, void* item);
     name = xSemaphoreCreateBinaryStatic(&_##name##_buffer);     \
   }
 
+#define U_MUTEX_DEFINE(name)                                    \
+  static StaticSemaphore_t _##name##_buffer;                    \
+  SemaphoreHandle_t name = NULL;                                \
+  __attribute__((constructor)) static void _init_##name(void) { \
+    name = xSemaphoreCreateMutexStatic(&_##name##_buffer);      \
+  }
+
 #define U_RECURSIVE_MUTEX_DEFINE(name)                              \
   static StaticSemaphore_t _##name##_buffer;                        \
   SemaphoreHandle_t name = NULL;                                    \

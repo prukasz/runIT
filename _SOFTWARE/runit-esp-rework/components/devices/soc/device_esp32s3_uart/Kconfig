@@ -1,0 +1,71 @@
+menu "device_esp32s3_uart"
+
+    config ESP32S3_UART_MAX_PORTS
+        int "Maximum concurrent UART port devices (static slots)"
+        default 2
+        range 1 3
+        help
+          Number of static port engine slots (tasks, TX/RX ring buffers, line
+          buffers). ESP32-S3 has 3 UART controllers (0..2); UART0 is normally
+          the console, leaving UART1 and UART2 (2 slots). Set to 3 only if
+          all 3 controllers are used as devices.
+
+    config ESP32S3_UART_ISR_RX_BUF
+        int "ESP-IDF UART RX driver buffer size (bytes)"
+        default 4096
+        range 256 16384
+        help
+          Per-port RX ring buffer allocated by esp_driver_uart (> 128 B HW FIFO)
+          so flash writes / NVS pauses do not overflow RX.
+
+    config ESP32S3_UART_EVT_QUEUE_LEN
+        int "ESP-IDF UART event queue length"
+        default 16
+        range 8 64
+        help
+          Queue entries allocated by esp_driver_uart for UART_DATA and error
+          interrupt notifications.
+
+    config ESP32S3_UART_TX_QUEUE
+        int "Static TX ring buffer size per port (bytes)"
+        default 4096
+        range 1088 16384
+        help
+          Must be a multiple of 4 and hold at least two max frames
+          (2 * 524 = 1048 B). SPARE sends fail with ERR_UART_BUSY once past half.
+
+    config ESP32S3_UART_RX_QUEUE
+        int "Static RX message queue size per port (bytes)"
+        default 2048
+        range 544 16384
+        help
+          Messages queued for OP_RECEIVE / OP_TRANSACT when neither SUBSCRIBE
+          nor RX_HOOK is active. Must be a multiple of 4 and hold at least one
+          512-byte message (520 B).
+
+    config ESP32S3_UART_RX_TASK_STACK
+        int "RX task stack size (bytes)"
+        default 4096
+        range 2048 16384
+
+    config ESP32S3_UART_TX_TASK_STACK
+        int "TX task stack size (bytes)"
+        default 3072
+        range 2048 16384
+
+    config ESP32S3_UART_RX_TASK_PRIO
+        int "RX task priority"
+        default 10
+        range 1 24
+
+    config ESP32S3_UART_TX_TASK_PRIO
+        int "TX task priority"
+        default 5
+        range 1 24
+
+    config ESP32S3_UART_OVERFLOW_THROTTLE_MS
+        int "Minimum interval between UART_EV_OVERFLOW events (ms)"
+        default 1000
+        range 100 60000
+
+endmenu

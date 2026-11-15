@@ -10,6 +10,7 @@
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_data_provider.h"
+#include "sys_data_provider_internal.h"
 #include "utils.h"
 
 #define ERROR_MAX 160u  // a refused command's error record, on the RX task's stack
@@ -42,15 +43,23 @@ static bool binding_of(void* ctx, uint8_t* id) {
   return same;
 }
 
-/* The answer, on the router's task: [status] and the router's data as the two parts of one frame, so nothing is
-   copied. NOWAIT: a full driver queue loses it (the router reports that with the command). */
+/* The answer, on the router's task: [status] followed by the router's data in one flat frame. NOWAIT: a full driver
+   queue loses it (the router reports that with the command). */
 static err_h on_answer(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
   uint8_t id;
   if (!binding_of(ctx, &id)) {
     return NULL;  // unbound meanwhile: nobody to answer
   }
-  return sys_data_provider_send(id, &status, sizeof(status), data, len, SYS_DATA_PROVIDER_SEND_NOWAIT);
+  ERR_CHECK(len == 0 || data != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(len <= CMD_FRAME_MAX - 1u, ERR_PROV_TOO_LONG, .provider = id,
+            .len = len > UINT16_MAX - 1u ? UINT16_MAX : (uint16_t)(len + 1u), .max = CMD_FRAME_MAX);
+  uint8_t frame[CMD_FRAME_MAX];
+  frame[0] = status;
+  if (len > 0) {
+    memcpy(frame + 1u, data, len);
+  }
+  return sys_data_provider_send(id, (cmd_in_t){frame, 1u + len}, CMD_SEND_NOWAIT);
 }
 
 // One message in, on the driver's RX task: a command for the router. One the router refuses is answered here.
@@ -67,10 +76,10 @@ static void on_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_t len) {
   if (err == NULL) {
     return;
   }
-  const uint8_t status = ROUTER_STATUS_ERROR;
-  uint8_t record[ERROR_MAX];
-  const uint32_t n = cmd_err_record(&cmd, err, record, sizeof(record));
-  err_free(sys_data_provider_send(id, &status, sizeof(status), record, n, SYS_DATA_PROVIDER_SEND_NOWAIT));
+  uint8_t frame[1u + ERROR_MAX];
+  frame[0] = ROUTER_STATUS_ERROR;
+  const uint32_t n = cmd_err_record(&cmd, err, frame + 1u, ERROR_MAX);
+  err_free(sys_data_provider_send(id, (cmd_in_t){frame, 1u + n}, CMD_SEND_NOWAIT));
   router_report_cmd(&cmd, err);  // as the session does with a command the router refused
 }
 

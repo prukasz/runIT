@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "cmd.h"
+#include "cmd_table.h"
 #include "host_assert.h"
 #include "host_mocks.h"
 #include "router_queue.h"
@@ -51,7 +52,7 @@ typedef struct {
 #define SENT_MAX 64
 
 typedef struct {
-  sys_data_provider_t p;
+  sys_data_provider_t* p;
   pthread_mutex_t m;
   pthread_cond_t c;
   sent_t sent[SENT_MAX];
@@ -62,25 +63,54 @@ typedef struct {
 static fake_t s_up = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 static fake_t s_down = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 
-static err_h fake_send(sys_data_provider_t* self, const uint8_t* head, uint32_t head_len, const uint8_t* body,
-                       uint32_t body_len, uint8_t flags) {
+static err_h fake_send(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags) {
   fake_t* f = self->driver;
   pthread_mutex_lock(&f->m);
   sent_t* s = &f->sent[f->tail++ % SENT_MAX];
-  memcpy(s->data, head, head_len);
-  memcpy(s->data + head_len, body, body_len);
-  s->len = head_len + body_len;
+  memcpy(s->data, frame.data, frame.len);
+  s->len = frame.len;
   s->flags = flags;
   pthread_cond_broadcast(&f->c);
   pthread_mutex_unlock(&f->m);
   return NULL;
 }
 
+typedef struct __attribute__((packed)) {
+  uintptr_t fake;
+  uint8_t state;
+} fake_prov_cfg_t;
+
+static err_h fake_create(sys_data_provider_t* p, void* ctx, const void* cfg_in) {
+  (void)ctx;
+  fake_prov_cfg_t cfg;
+  memcpy(&cfg, cfg_in, sizeof(cfg));
+  fake_t* f = (fake_t*)cfg.fake;
+  f->p = p;
+  p->driver = f;
+  p->send = fake_send;
+  p->state |= cfg.state;
+  return NULL;
+}
+
+static err_h fake_remove(sys_data_provider_t* p, void* ctx) {
+  (void)ctx;
+  fake_t* f = p->driver;
+  if (f != NULL && f->p == p) {
+    f->p = NULL;
+  }
+  return NULL;
+}
+
+SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, fake_prov_cfg_t, cmd_none_t, fake_create, fake_remove, NULL, 0)
+
 static void fake_add(fake_t* f, uint8_t id) {
-  f->p = (sys_data_provider_t){.send = fake_send, .driver = f, .id = id, .link = SYS_DATA_PROVIDER_LINK_UART,
-                               .state = SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP |
-                                        SYS_DATA_PROVIDER_STATE_WIRED};
-  TEST_ASSERT_NULL(sys_data_provider_add(&f->p));
+  uint8_t args[SYS_DATA_PROVIDER_CREATE_HDR + sizeof(fake_prov_cfg_t)] = {SYS_DATA_PROVIDER_TYPE_UART, 0};
+  const fake_prov_cfg_t cfg = {
+      .fake = (uintptr_t)f,
+      .state = SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP | SYS_DATA_PROVIDER_STATE_WIRED,
+  };
+  memcpy(args + SYS_DATA_PROVIDER_CREATE_HDR, &cfg, sizeof(cfg));
+  TEST_ASSERT_NULL(sys_data_provider_write(id, CONTRACT_PROVIDER_OP_CREATE, args, sizeof(args)));
 }
 
 static void fake_clear(fake_t* f) {
@@ -149,7 +179,7 @@ static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t
   const sys_session_hdr_t h = {.frame = frame, .dst = dst, .src = src, .seq = seq};
   memcpy(buf, &h, HDR);
   memcpy(buf + HDR, body, len);
-  sys_data_provider_deliver(&f->p, buf, HDR + len);
+  sys_data_provider_deliver(f->p, buf, HDR + len);
 }
 
 static void deliver_hello_timeout(fake_t* f, uint8_t src, uint32_t boot_id, uint16_t timeout_ms) {
@@ -263,7 +293,7 @@ void setUp(void) {
 void tearDown(void) {
   err_free(sys_session_detach(UP_ID));
   err_free(sys_session_detach(DOWN_ID));
-  sys_data_provider_set_up(&s_up.p, true);
+  sys_data_provider_set_up(s_up.p, true);
 }
 
 // Attaches the UP way and opens it with the client's hello; the board's hellos are read off.
@@ -322,7 +352,7 @@ static void test_a_request_over_the_session_is_answered_to_its_source(void) {
   TEST_ASSERT_EQUAL_HEX8(0, h.frame & SYS_SESSION_FRAME_STATUS);  // OK
   TEST_ASSERT_EQUAL_UINT8(1, s.data[HDR]);                       // one session: the client's
   TEST_ASSERT_EQUAL_UINT32(HDR + 1 + sizeof(sys_session_info_t), s.len);
-  TEST_ASSERT_EQUAL_HEX8(0, s.flags & SYS_DATA_PROVIDER_SEND_SPARE);  // an answer never takes only spare room
+  TEST_ASSERT_EQUAL_HEX8(0, s.flags & CMD_SEND_SPARE);  // an answer never takes only spare room
 }
 
 static void test_frames_on_a_closed_session_start_over_and_are_reported_once(void) {
@@ -367,7 +397,7 @@ static void test_silence_past_the_timeout_ends_the_session(void) {
 
 static void test_the_provider_down_ends_the_session(void) {
   open_client();
-  sys_data_provider_set_up(&s_up.p, false);
+  sys_data_provider_set_up(s_up.p, false);
   TEST_ASSERT_EQUAL_INT(1, seen(&s_seen.gone));
 }
 
@@ -433,7 +463,7 @@ static void test_a_push_takes_only_spare_room(void) {
   TEST_ASSERT_NULL(sys_session_push(CLIENT, k_msg, sizeof(k_msg), 0));
   sent_t s;
   TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_PUSH, &s, WAIT_MS));
-  TEST_ASSERT_EQUAL_HEX8(SYS_DATA_PROVIDER_SEND_SPARE | SYS_DATA_PROVIDER_SEND_NOWAIT, s.flags);
+  TEST_ASSERT_EQUAL_HEX8(CMD_SEND_SPARE | CMD_SEND_NOWAIT, s.flags);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(k_msg, s.data + HDR, sizeof(k_msg));
 }
 

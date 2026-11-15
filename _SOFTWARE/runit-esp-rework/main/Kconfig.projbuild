@@ -1,0 +1,50 @@
+menu "Board"
+
+    config BOARD_UART_LINK
+        bool "Board-to-board UART link"
+        default y
+        help
+          Create the board's link UART (ESP32S3_UART, SYS_DEVICE_CREATE_SYSTEM) to connect to
+          another runIT board's console UART and bridge it as a FRAMED provider via provider_uart.
+
+    config BOARD_UART_LINK_PORT
+        int "Link UART port"
+        depends on BOARD_UART_LINK
+        default 1
+        range 1 2
+        help
+          Hardware UART controller for the board-to-board link (distinct from console UART0).
+
+    config BOARD_UART_LINK_TX_PIN
+        int "Link TX pin (GPIO)"
+        depends on BOARD_UART_LINK
+        default 18
+        range 0 48
+        help
+          Joined to the peer board's U0RXD (GPIO 44 on ESP32-S3).
+
+    config BOARD_UART_LINK_RX_PIN
+        int "Link RX pin (GPIO)"
+        depends on BOARD_UART_LINK
+        default 17
+        range 0 48
+        help
+          Joined to the peer board's U0TXD (GPIO 43 on ESP32-S3).
+
+    config BOARD_UART_LINK_RTS_PIN
+        int "Link RTS pin (GPIO, -1 = none)"
+        depends on BOARD_UART_LINK
+        default -1
+        range -1 48
+        help
+          Optional hardware flow-control RTS pin on ESP32-S3 GPIO (-1 = unused).
+
+    config BOARD_UART_LINK_CTS_PIN
+        int "Link CTS pin (GPIO, -1 = none)"
+        depends on BOARD_UART_LINK
+        default -1
+        range -1 48
+        help
+          Optional hardware flow-control CTS pin on ESP32-S3 GPIO (-1 = unused).
+
+endmenu

@@ -6,71 +6,84 @@
   "id": "PROVIDER",
   "router_key": 13,
   "alias": "Providers",
-  "description": "The ways bytes go out of the board and come in: a BLE characteristic, a UART port.",
+  "description": "Typed provider registry (sys_device_router-style wire header [0x0D][dir u8][id u8][op u16][args], where op = 0x0D00 | n or driver own op 0xFFxx).",
   "category": "system",
   "commands": [
     {
-      "id": "REMOVE",
-      "op": 1,
-      "symbol": "PROVIDER_OP_REMOVE",
-      "label": "Remove a provider",
-      "description": "Removes a provider no one uses (not the board's own).",
+      "id": "CREATE",
+      "op": 0,
+      "symbol": "CONTRACT_PROVIDER_OP_CREATE",
+      "label": "Create a provider",
+      "description": "Creates a typed provider under `id` from a self-registered driver type.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_ref_t",
           "fields": [
             {
-              "id": "provider",
-              "label": "Provider",
+              "id": "type",
+              "label": "Provider type",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The provider's id"
+              "description": "Registered driver type (sys_data_provider_type_e)"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Bit 0: SYS_DATA_PROVIDER_CREATE_SYSTEM"
+            },
+            {
+              "id": "cfg",
+              "label": "Config",
+              "type": "string",
+              "raw_type": "bytes",
+              "description": "Driver type's packed create configuration struct"
             }
           ]
         }
       }
     },
     {
+      "id": "REMOVE",
+      "op": 1,
+      "symbol": "CONTRACT_PROVIDER_OP_REMOVE",
+      "label": "Remove a provider",
+      "description": "Removes a provider no one uses (not the board's own, no active RX owner or in-flight send), releasing its resources LIFO.",
+      "write": {}
+    },
+    {
       "id": "LIST",
       "op": 2,
-      "symbol": "PROVIDER_OP_LIST",
-      "label": "List the providers",
-      "description": "Returns every provider.",
+      "symbol": "CONTRACT_PROVIDER_OP_LIST",
+      "label": "List providers",
+      "description": "Called with id = 0xFF (SYS_DATA_PROVIDER_ID_NONE); returns every registered provider.",
       "read": {
         "returns": {
           "type": "u8",
           "label": "Number of providers",
-          "description": "Then per provider: its id u8, link u8 (sys_data_provider_link_e), state u8 (SYS_DATA_PROVIDER_STATE_*)."
+          "description": "Followed by sys_data_provider_entry_t rows (3 B each: provider u8, type u8, state u8)."
         }
       }
     },
     {
       "id": "SEND",
       "op": 3,
-      "symbol": "PROVIDER_OP_SEND",
+      "symbol": "CONTRACT_PROVIDER_OP_SEND",
       "label": "Send on a provider",
-      "description": "Sends one frame on a provider, whoever reads from it. Do not use it on a provider a session runs on: the bytes land between its frames.",
+      "description": "Sends one frame on a provider. Do not use it on a provider a session runs on: the bytes land between its frames.",
       "write": {
         "args": {
-          "struct": "sys_data_provider_ref_t",
           "fields": [
-            {
-              "id": "provider",
-              "label": "Provider",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "The provider's id"
-            },
             {
               "id": "data",
               "label": "Data",
               "type": "string",
               "raw_type": "bytes",
-              "description": "The frame, as it is (runs to the end of the command)"
+              "description": "The frame bytes (runs to the end of the command)"
             }
           ]
         }
@@ -79,46 +92,62 @@
     {
       "id": "BIND_COMMANDS",
       "op": 4,
-      "symbol": "PROVIDER_OP_BIND_COMMANDS",
+      "symbol": "CONTRACT_PROVIDER_OP_BIND_COMMANDS",
       "label": "Bind to the router",
-      "description": "Makes the provider's messages commands for this board, with no header: each message is [key][dir][code][args], its answer comes back on the provider as [status][data] (on ERROR the error record). The binding is the provider's one user; such a command has no peer, so what is kept for a peer (a watch, a subscription, the dead-man) is refused.",
-      "write": {
-        "args": {
-          "struct": "sys_data_provider_ref_t",
+      "description": "Makes the provider's messages commands for this board ([key][dir][code][args]), returning answers on the same provider.",
+      "write": {}
+    },
+    {
+      "id": "UNBIND_COMMANDS",
+      "op": 5,
+      "symbol": "CONTRACT_PROVIDER_OP_UNBIND_COMMANDS",
+      "label": "Unbind from the router",
+      "description": "Ends the provider's command binding; the provider is free again.",
+      "write": {}
+    },
+    {
+      "id": "INFO",
+      "op": 6,
+      "symbol": "CONTRACT_PROVIDER_OP_INFO",
+      "label": "Provider info",
+      "description": "Returns type (u8) and state (u8) as sys_data_provider_info_t (2 B).",
+      "read": {
+        "returns": {
+          "struct": "sys_data_provider_info_t",
           "fields": [
             {
-              "id": "provider",
-              "label": "Provider",
+              "id": "type",
+              "label": "Provider type",
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "The provider's id"
+              "description": "sys_data_provider_type_e"
+            },
+            {
+              "id": "state",
+              "label": "State",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "SYS_DATA_PROVIDER_STATE_* bitmask"
             }
           ]
         }
       }
     },
     {
-      "id": "UNBIND_COMMANDS",
-      "op": 5,
-      "symbol": "PROVIDER_OP_UNBIND_COMMANDS",
-      "label": "Unbind from the router",
-      "description": "Ends the provider's command binding; the provider is free again.",
-      "write": {
-        "args": {
-          "struct": "sys_data_provider_ref_t",
-          "fields": [
-            {
-              "id": "provider",
-              "label": "Provider",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "The provider's id"
-            }
-          ]
+      "id": "OPS",
+      "op": 7,
+      "symbol": "CONTRACT_PROVIDER_OP_OPS",
+      "label": "Supported ops",
+      "description": "Returns [op u16][sides u8] rows (bit 0 = read, bit 1 = write) for registry ops and non-LOCAL driver own ops.",
+      "read": {
+        "returns": {
+          "type": "bytes",
+          "label": "Op rows",
+          "description": "Repeated 3-byte [op u16][sides u8] tuples"
         }
       }
     }

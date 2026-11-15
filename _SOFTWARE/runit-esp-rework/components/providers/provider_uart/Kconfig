@@ -1,0 +1,10 @@
+menu "provider_uart"
+
+    config PROVIDER_UART_SEND_WAIT_MS
+        int "Queued send wait (ms)"
+        default 1000
+        range 10 1000
+        help
+          Wait passed to OP_SEND_FRAME when CMD_SEND_NOWAIT is clear (up to SYS_UART_WAIT_MAX_MS).
+
+endmenu

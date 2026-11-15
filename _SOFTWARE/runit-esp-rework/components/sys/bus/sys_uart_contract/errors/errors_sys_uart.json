@@ -9,6 +9,9 @@
       "message": "This board has no link to another board (UART {port})",
       "hint": "Turn the link on in the firmware's configuration (SYS_UART_LINK)."
     },
+    "ERR_UART_BUSY": {
+      "message": "UART port {port} TX queue is full"
+    },
     "ERR_UART_BAD_BAUD": {
       "message": "{baud} is not a baud rate this UART takes",
       "hint": "Choose a rate from 1200 to 5000000."
@@ -25,10 +28,7 @@
     },
     "ERR_UART_IN_USE": {
       "message": "UART port {port} is in use by device {owner}",
-      "hint": "A driver, a session or a stream reads this port: its messages go to them, not to this command."
-    },
-    "ERR_UART_NOT_OWNER": {
-      "message": "UART port {port} is lent to device {owner}"
+      "hint": "A subscriber, a session or a stream is using this port."
     }
   }
 }

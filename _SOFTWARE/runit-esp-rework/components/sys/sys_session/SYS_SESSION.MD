@@ -15,7 +15,7 @@ Component `runit-esp-rework/components/sys/sys_session/`. A **session** is a pro
 | File | Role |
 |---|---|
 | `sys_session.h` | Use: start and this board; attach, detach, wired; calls (call, call and wait); push, data; listeners (gone, reached, push) |
-| `sys_session.c` | The sessions and the route, the frames out (two parts each), the listeners, opening and ending a session, PEER, the answers, the frames in, the tick, attach and detach |
+| `sys_session.c` | The sessions and the route, the frames out (`sys_session_send` / `sys_session_send_parts`), the listeners, opening and ending a session, PEER, the answers, the frames in, the tick, attach and detach |
 | `config/sys_session_config.h` | The ids, the frame byte, the kinds, the channels, the control ops, the ways and the roles (published to the app) |
 | `frame/sys_session_frame.h` | The header (`sys_session_hdr_t`), HELLO's body (`sys_session_hello_t`), PEER's (`sys_session_peer_t`) |
 | `hello/sys_session_hello.c` | The handshake: this board's hello, the peer's, NO_SESSION |
@@ -53,7 +53,7 @@ A frame so takes at most two hops and never loops. The slave does not know wheth
 
 ## Frames
 
-One header on every frame (`sys_session_hdr_t`, 5 B = `CMD_HEAD`): the frame byte, `dst`, `src`, `seq u16`. A board forwards a frame by its `dst` without reading or changing the rest. Every frame leaves as **two parts**, the header and the body (SYS_DATA_PROVIDER.MD "Use"), and a forwarded one as one part, as it came: nothing is copied to join them.
+One header on every frame (`sys_session_hdr_t`, 5 B = `CMD_HEAD`): the frame byte, `dst`, `src`, `seq u16`. A board forwards a frame by its `dst` without reading or changing the rest. Every frame leaves `sys_data_provider_send` as one flat `cmd_in_t` frame (SYS_DATA_PROVIDER.MD "Use"): a forwarded one goes zero-copy via `sys_session_send`, and a header + body pair is joined at send by `sys_session_send_parts`.
 
 | Frame byte | Meaning |
 |---|---|

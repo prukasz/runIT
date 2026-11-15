@@ -8,6 +8,7 @@
 
 #include "board_time.h"
 #include "cmd.h"
+#include "cmd_table.h"
 #include "host_assert.h"
 #include "host_mocks.h"
 #include "router.h"
@@ -123,7 +124,7 @@ typedef struct {
 #define SENT_MAX 64
 
 typedef struct {
-  sys_data_provider_t p;
+  sys_data_provider_t* p;
   pthread_mutex_t m;
   pthread_cond_t c;
   sent_t sent[SENT_MAX];
@@ -134,28 +135,54 @@ typedef struct {
 static fake_t s_up = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 static fake_t s_down = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 
-static err_h fake_send(sys_data_provider_t* self, const uint8_t* head, uint32_t head_len, const uint8_t* body,
-                       uint32_t body_len, uint8_t flags) {
+static err_h fake_send(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags) {
   fake_t* f = self->driver;
   pthread_mutex_lock(&f->m);
   sent_t* s = &f->sent[f->tail++ % SENT_MAX];
-  memcpy(s->data, head, head_len);
-  memcpy(s->data + head_len, body, body_len);
-  s->len = head_len + body_len;
+  memcpy(s->data, frame.data, frame.len);
+  s->len = frame.len;
   s->flags = flags;
   pthread_cond_broadcast(&f->c);
   pthread_mutex_unlock(&f->m);
   return NULL;
 }
 
+typedef struct __attribute__((packed)) {
+  uintptr_t fake;
+  uint8_t state;
+} fake_prov_cfg_t;
+
+static err_h fake_create(sys_data_provider_t* p, void* ctx, const void* cfg_in) {
+  (void)ctx;
+  fake_prov_cfg_t cfg;
+  memcpy(&cfg, cfg_in, sizeof(cfg));
+  fake_t* f = (fake_t*)cfg.fake;
+  f->p = p;
+  p->driver = f;
+  p->send = fake_send;
+  p->state |= cfg.state;
+  return NULL;
+}
+
+static err_h fake_remove(sys_data_provider_t* p, void* ctx) {
+  (void)ctx;
+  fake_t* f = p->driver;
+  if (f != NULL && f->p == p) {
+    f->p = NULL;
+  }
+  return NULL;
+}
+
+SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, fake_prov_cfg_t, cmd_none_t, fake_create, fake_remove, NULL, 0)
+
 static void fake_add(fake_t* f, uint8_t id) {
-  f->p = (sys_data_provider_t){.send = fake_send,
-                               .driver = f,
-                               .id = id,
-                               .link = SYS_DATA_PROVIDER_LINK_UART,
-                               .state = SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP |
-                                        SYS_DATA_PROVIDER_STATE_WIRED};
-  TEST_ASSERT_NULL(sys_data_provider_add(&f->p));
+  uint8_t args[SYS_DATA_PROVIDER_CREATE_HDR + sizeof(fake_prov_cfg_t)] = {SYS_DATA_PROVIDER_TYPE_UART, 0};
+  const fake_prov_cfg_t cfg = {
+      .fake = (uintptr_t)f,
+      .state = SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP | SYS_DATA_PROVIDER_STATE_WIRED,
+  };
+  memcpy(args + SYS_DATA_PROVIDER_CREATE_HDR, &cfg, sizeof(cfg));
+  TEST_ASSERT_NULL(sys_data_provider_write(id, CONTRACT_PROVIDER_OP_CREATE, args, sizeof(args)));
 }
 
 static void fake_clear(fake_t* f) {
@@ -212,7 +239,7 @@ static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t
   if (body_len > 0u) {
     memcpy(buf + sizeof(hdr), body, body_len);
   }
-  sys_data_provider_deliver(&f->p, buf, sizeof(hdr) + body_len);
+  sys_data_provider_deliver(f->p, buf, sizeof(hdr) + body_len);
 }
 
 static void send_hello(fake_t* f, uint8_t from, uint32_t boot, uint16_t timeout) {

@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "cmd.h"
+#include "cmd_table.h"
 #include "host_assert.h"
 #include "host_mocks.h"
 #include "router_queue.h"
@@ -61,7 +62,7 @@ typedef struct {
 #define SENT_MAX 32
 
 typedef struct {
-  sys_data_provider_t p;
+  sys_data_provider_t* p;
   pthread_mutex_t m;
   pthread_cond_t c;
   sent_t sent[SENT_MAX];
@@ -75,8 +76,7 @@ static fake_t s_down = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIA
 static fake_t s_raw_a = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 static fake_t s_raw_b = {.m = PTHREAD_MUTEX_INITIALIZER, .c = PTHREAD_COND_INITIALIZER};
 
-static err_h fake_send(sys_data_provider_t* self, const uint8_t* head, uint32_t head_len, const uint8_t* body,
-                       uint32_t body_len, uint8_t flags) {
+static err_h fake_send(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags) {
   fake_t* f = self->driver;
   pthread_mutex_lock(&f->m);
   err_h fail = f->next_err;
@@ -86,18 +86,47 @@ static err_h fake_send(sys_data_provider_t* self, const uint8_t* head, uint32_t 
     return fail;
   }
   sent_t* s = &f->sent[f->tail++ % SENT_MAX];
-  memcpy(s->data, head, head_len);
-  memcpy(s->data + head_len, body, body_len);
-  s->len = head_len + body_len;
+  memcpy(s->data, frame.data, frame.len);
+  s->len = frame.len;
   s->flags = flags;
   pthread_cond_broadcast(&f->c);
   pthread_mutex_unlock(&f->m);
   return NULL;
 }
 
-static void fake_add(fake_t* f, uint8_t id, uint8_t link, uint8_t state) {
-  f->p = (sys_data_provider_t){.send = fake_send, .driver = f, .id = id, .link = link, .state = state};
-  TEST_ASSERT_NULL(sys_data_provider_add(&f->p));
+typedef struct __attribute__((packed)) {
+  uintptr_t fake;
+  uint8_t state;
+} fake_prov_cfg_t;
+
+static err_h fake_create(sys_data_provider_t* p, void* ctx, const void* cfg_in) {
+  (void)ctx;
+  fake_prov_cfg_t cfg;
+  memcpy(&cfg, cfg_in, sizeof(cfg));
+  fake_t* f = (fake_t*)cfg.fake;
+  f->p = p;
+  p->driver = f;
+  p->send = fake_send;
+  p->state |= cfg.state;
+  return NULL;
+}
+
+static err_h fake_remove(sys_data_provider_t* p, void* ctx) {
+  (void)ctx;
+  fake_t* f = p->driver;
+  if (f != NULL && f->p == p) {
+    f->p = NULL;
+  }
+  return NULL;
+}
+
+SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, fake_prov_cfg_t, cmd_none_t, fake_create, fake_remove, NULL, 0)
+
+static void fake_add(fake_t* f, uint8_t id, uint8_t type, uint8_t state) {
+  uint8_t args[SYS_DATA_PROVIDER_CREATE_HDR + sizeof(fake_prov_cfg_t)] = {type, 0};
+  const fake_prov_cfg_t cfg = {.fake = (uintptr_t)f, .state = state};
+  memcpy(args + SYS_DATA_PROVIDER_CREATE_HDR, &cfg, sizeof(cfg));
+  TEST_ASSERT_NULL(sys_data_provider_write(id, CONTRACT_PROVIDER_OP_CREATE, args, sizeof(args)));
 }
 
 static void fake_clear(fake_t* f) {
@@ -166,7 +195,7 @@ static void deliver_session(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, 
   if (len > 0) {
     memcpy(buf + HDR, body, len);
   }
-  sys_data_provider_deliver(&f->p, buf, HDR + len);
+  sys_data_provider_deliver(f->p, buf, HDR + len);
 }
 
 static void deliver_hello(fake_t* f, uint8_t src, uint32_t boot_id) {
@@ -234,12 +263,12 @@ void setUp(void) {
     TEST_ASSERT_NULL(sys_stream_create(&sys_err));
     sys_stream_mark_system();
 
-    fake_add(&s_up, UP_ID, SYS_DATA_PROVIDER_LINK_UART,
+    fake_add(&s_up, UP_ID, SYS_DATA_PROVIDER_TYPE_UART,
              SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP | SYS_DATA_PROVIDER_STATE_WIRED);
-    fake_add(&s_down, DOWN_ID, SYS_DATA_PROVIDER_LINK_UART,
+    fake_add(&s_down, DOWN_ID, SYS_DATA_PROVIDER_TYPE_UART,
              SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP | SYS_DATA_PROVIDER_STATE_WIRED);
-    fake_add(&s_raw_a, RAW_A_ID, SYS_DATA_PROVIDER_LINK_UART, SYS_DATA_PROVIDER_STATE_UP);
-    fake_add(&s_raw_b, RAW_B_ID, SYS_DATA_PROVIDER_LINK_UART, SYS_DATA_PROVIDER_STATE_UP);
+    fake_add(&s_raw_a, RAW_A_ID, SYS_DATA_PROVIDER_TYPE_UART, SYS_DATA_PROVIDER_STATE_UP);
+    fake_add(&s_raw_b, RAW_B_ID, SYS_DATA_PROVIDER_TYPE_UART, SYS_DATA_PROVIDER_STATE_UP);
   }
   host_log_clear();
   fake_clear(&s_up);
@@ -341,7 +370,7 @@ static void test_send_delivers_to_local_sink_remote_sink_peer_and_callback(void)
   TEST_ASSERT_TRUE(next_sent(&s_raw_a, &raw_out, WAIT_MS));
   TEST_ASSERT_EQUAL_UINT32(sizeof(msg), raw_out.len);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(msg, raw_out.data, sizeof(msg));
-  TEST_ASSERT_EQUAL_HEX8(SYS_DATA_PROVIDER_SEND_NOWAIT | SYS_DATA_PROVIDER_SEND_URGENT, raw_out.flags);
+  TEST_ASSERT_EQUAL_HEX8(CMD_SEND_NOWAIT | CMD_SEND_URGENT, raw_out.flags);
 
   // 2) Remote SINK gets SYS_SESSION_CHANNEL_DATA [0x82][to][from][payload] through slave session.
   sent_t rem_out;
@@ -393,7 +422,7 @@ static void test_source_takes_rx_refuses_direct_send_and_forwards_to_local_and_r
 
   // Incoming data on RAW_A_ID goes to local SINK (RAW_B_ID), remote SINK (SLAVE/REM_PROV_ID), and PEER (CLIENT).
   const uint8_t pkt[] = {0xAA, 0xBB, 0xCC, 0xDD};
-  sys_data_provider_deliver(&s_raw_a.p, pkt, sizeof(pkt));
+  sys_data_provider_deliver(s_raw_a.p, pkt, sizeof(pkt));
 
   sent_t out;
   TEST_ASSERT_TRUE(next_sent(&s_raw_b, &out, WAIT_MS));
@@ -523,7 +552,7 @@ static void test_router_commands_create_source_sink_subscribe_list_unbind_remove
 
   // Deliver via RAW_A_ID -> CLIENT receives PUSH
   const uint8_t msg[] = {'r', 'o', 'u', 't', 'e'};
-  sys_data_provider_deliver(&s_raw_a.p, msg, sizeof(msg));
+  sys_data_provider_deliver(s_raw_a.p, msg, sizeof(msg));
   sent_t out;
   TEST_ASSERT_TRUE(next_sent(&s_raw_b, &out, WAIT_MS));
   TEST_ASSERT_EQUAL_UINT8_ARRAY(msg, out.data, sizeof(msg));

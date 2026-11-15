@@ -1,14 +1,6 @@
-# sys_data_provider
+# sys_data_provider — agent notes
 
-Spec: `SYS_DATA_PROVIDER.MD` (this folder).
-
-- Every change in this folder is followed by an edit of this file, if it is needed.
-- The provider id (one byte, only a name: no number means anything and no module compares it with a constant), the links (`sys_data_provider_link_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `sys_data_provider_info_t`, the router ops and the error tags (`ERR_MOD_SYS_DATA_PROVIDER` = `MODULE_ID_PROVIDER` 0x0D, also the root key) are wire format: never renumber or re-layout them. `contract_provider.json` and `errors/errors_sys_data_provider.json` follow every change of them.
-- `sys_data_provider.h` is for the users (the session, the streams, the command binding of this component), `driver/sys_data_provider_driver.h` for the drivers only (`sys_uart`, `sys_ble`), `internal/` for the router only.
-- The registry's spinlock guards a lookup and a copy, nothing more: never call a driver's `send` or `destroy`, or a user's `rx`, under it. `busy` keeps a provider while its driver sends; remove refuses it meanwhile.
-- A user's `rx` runs on the driver's RX task: it copies and returns, and sends only with `NOWAIT`. A driver's `send` with `NOWAIT` only queues and raises `ERR_PROV_BUSY` itself when full; the registry wraps any other driver error in `ERR_PROV_SEND`.
-- A frame is sent in two parts (`head`, `body`) and joined only in the driver's queue: never add a buffer above a driver that copies a header and its data together.
-- `SYS_DATA_PROVIDER_SEND_SPARE` has one rule, `sys_data_provider_spare_refused` in the driver header: a driver calls it and never writes its own threshold. A frame that may be dropped (a PUSH) carries the flag; an answer or a control frame never does.
-- Never cut a frame: longer than `CMD_FRAME_MAX` is `ERR_PROV_TOO_LONG`. No size of a link above its driver: a provider is up or down, framed or raw.
-- The command binding (`sys_data_provider_cmd.c`) adds no header: in is the command as the router takes it, out `[status][data]`, the status and the router's read-only answer as the two parts of one send. Its commands' `src` is `ROUTER_SRC_NONE`; a module that keeps something for a peer refuses it. Its answer finds the binding by the callback's context (slot and generation), never by a pointer the router keeps.
-- `host/test_sys_data_provider.c` covers the registry: a change of the send, its limits, the flags or open / remove adds its case there.
+- Keep `SYS_DATA_PROVIDER.MD` and `errors/errors_sys_data_provider.json` + `router/contract_provider.json` aligned with code changes.
+- Wire invariants: `MODULE_ID_PROVIDER = 0x0D` (`ERR_MOD_SYS_DATA_PROVIDER`), `sys_data_provider_type_e` (`u8`), `SYS_DATA_PROVIDER_STATE_*`, `sys_data_provider_info_t` (2 B), `sys_data_provider_entry_t` (3 B), `sys_data_provider_router_hdr_t` (`[dir u8][id u8][op u16]`, 4 B LE), `CONTRACT_PROVIDER_OP_*` (`0x0D00..0x0D07`), own ops `0xFFxx`, and error tags `1..15` (`tags 1..10` preserve historical numbers).
+- Do not add `.destroy` back to `sys_data_provider_t` and do not add X-macro wrapper generators or static `add()` bypasses; drivers set `p->send` inside `create()` and cleanup lives on `sys_data_provider_type_t.remove`.
+- Keep `sys_data_provider` lean: avoid heavy per-slot state machines, generation tokens, or resource-stack abstractions.

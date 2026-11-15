@@ -20,6 +20,7 @@ MODULE_ID_DEFINE(SESSION, 0x0E)
 
 _Static_assert(CONFIG_SYS_SESSION_TIMEOUT_MS >= SYS_SESSION_TIMEOUT_MIN_MS, "CONFIG_SYS_SESSION_TIMEOUT_MS too short");
 _Static_assert((ROUTER_FLAG_URGENT | ROUTER_FLAG_NOREPLY) == SYS_SESSION_FRAME_FLAGS, "the frame byte's flags");
+_Static_assert(ROUTER_FLAG_URGENT == CMD_SEND_URGENT, "ROUTER_FLAG_URGENT must match CMD_SEND_URGENT");
 _Static_assert(ROUTER_STATUS_ERROR == 1, "the frame byte's status bit");
 _Static_assert(ROUTER_SRC_SELF == SYS_SESSION_ID_SELF, "the board's own commands");
 _Static_assert(ROUTER_SRC_NONE == SYS_SESSION_ID_NONE, "a command with no peer");
@@ -105,7 +106,7 @@ bool sys_session_wired(uint8_t peer) {
   const int32_t at = find_by_peer_id(peer);
   const uint8_t provider = at >= 0 ? s_state.sessions[at].provider : 0;
   portEXIT_CRITICAL(&s_lock);
-  return at >= 0 && sys_data_provider_is_wired(provider);
+  return at >= 0 && (sys_data_provider_state(provider) & SYS_DATA_PROVIDER_STATE_WIRED) != 0;
 }
 
 uint32_t sys_session_timeout(int32_t at) {
@@ -158,19 +159,24 @@ uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
 }
 
 /* ----------------------------------------------------------------------------
- * Frames out: every frame is two parts, the header and the body, joined only in the provider's queue
+ * Frames out: sent flat to the provider's queue (sys_session_send_parts joins header + body once when both are non-empty)
  * ------------------------------------------------------------------------- */
 
 /* Every frame to a peer leaves here, so a frame sent is the peer's sign of life: the next ping waits a third of its
  * timeout from it (a ping only on a session with nothing else to send). */
-err_h sys_session_send_parts(int32_t at, const void* head, uint32_t head_len, const void* body, uint32_t body_len,
-                             uint8_t flags) {
+static err_h session_provider(int32_t at, uint8_t* provider_out) {
   portENTER_CRITICAL(&s_lock);
   const bool used = at >= 0 && at < CONFIG_SYS_SESSION_MAX && s_state.sessions[at].used;
-  const uint8_t provider = used ? s_state.sessions[at].provider : 0;
+  *provider_out = used ? s_state.sessions[at].provider : 0;
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(used, ERR_SESSION_PEER_DOWN);
-  err_h err = sys_data_provider_send(provider, head, head_len, body, body_len, flags);
+  return NULL;
+}
+
+err_h sys_session_send(int32_t at, cmd_in_t frame, uint8_t flags) {
+  uint8_t provider;
+  ERR_TRY(session_provider(at, &provider));
+  err_h err = sys_data_provider_send(provider, frame, flags);
   if (err == NULL) {
     portENTER_CRITICAL(&s_lock);
     session_slot_t* s = &s_state.sessions[at];
@@ -182,6 +188,28 @@ err_h sys_session_send_parts(int32_t at, const void* head, uint32_t head_len, co
   return err;
 }
 
+err_h sys_session_send_parts(int32_t at, const void* head, uint32_t head_len, const void* body, uint32_t body_len,
+                             uint8_t flags) {
+  if (head_len == 0) {
+    return sys_session_send(at, (cmd_in_t){body, body_len}, flags);
+  }
+  if (body_len == 0) {
+    return sys_session_send(at, (cmd_in_t){head, head_len}, flags);
+  }
+  ERR_CHECK(head != NULL && body != NULL, ERR_CMD_BAD_ARG);
+  uint8_t provider;
+  ERR_TRY(session_provider(at, &provider));
+  ERR_CHECK(head_len <= CMD_FRAME_MAX && body_len <= CMD_FRAME_MAX - head_len, ERR_PROV_TOO_LONG,
+            .provider = provider,
+            .len = (head_len > UINT16_MAX || body_len > UINT16_MAX - head_len) ? UINT16_MAX
+                                                                                : (uint16_t)(head_len + body_len),
+            .max = CMD_FRAME_MAX);
+  uint8_t frame[CMD_FRAME_MAX];
+  memcpy(frame, head, head_len);
+  memcpy(frame + head_len, body, body_len);
+  return sys_session_send(at, (cmd_in_t){frame, head_len + body_len}, flags);
+}
+
 err_h sys_session_send_control(int32_t at, uint8_t op, const void* data, uint32_t len) {
   ERR_CHECK(len <= CONTROL_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = CONTROL_MAX);
   portENTER_CRITICAL(&s_lock);
@@ -191,7 +219,7 @@ err_h sys_session_send_control(int32_t at, uint8_t op, const void* data, uint32_
     sys_session_hdr_t hdr;
     uint8_t op;
   } head = {.hdr = {.frame = FRAME(SYS_SESSION_CONTROL), .dst = dst, .src = s_state.board_id}, .op = op};
-  return sys_session_send_parts(at, &head, sizeof(head), data, len, SYS_DATA_PROVIDER_SEND_NOWAIT);
+  return sys_session_send_parts(at, &head, sizeof(head), data, len, CMD_SEND_NOWAIT);
 }
 
 /* ----------------------------------------------------------------------------
@@ -383,7 +411,7 @@ static void tell_reached(uint8_t peer) {
  * driver's RX task, so NOWAIT; what can't go is dropped, as a PUSH frame that can't go on is (a gap in seq). */
 static void tell_provider(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
   if (len > DATA_HEAD) {
-    err_free(sys_data_provider_send(body[1], NULL, 0, body + DATA_HEAD, len - DATA_HEAD,
+    err_free(sys_data_provider_send(body[1], (cmd_in_t){body + DATA_HEAD, len - DATA_HEAD},
                                     sys_session_send_flags(hdr->frame)));
   }
 }
@@ -485,7 +513,7 @@ static err_h session_answer(void* ctx, const cmd_req_t* cmd, uint8_t status, con
       .src = s_state.board_id,
       .seq = cmd->seq,
   };
-  const uint8_t urgent = (cmd->flags & ROUTER_FLAG_URGENT) ? SYS_DATA_PROVIDER_SEND_URGENT : 0;
+  const uint8_t urgent = (uint8_t)(cmd->flags & CMD_SEND_URGENT);
   return sys_session_send_parts(at, &hdr, HDR, data, len, (uint8_t)((uintptr_t)ctx | urgent));
 }
 
@@ -493,7 +521,7 @@ static err_h session_answer(void* ctx, const cmd_req_t* cmd, uint8_t status, con
 static void answer_error(const cmd_req_t* cmd, err_h err) {
   uint8_t record[REJECT_BYTES];
   const uint32_t n = cmd_err_record(cmd, err, record, sizeof(record));
-  void* const nowait = (void*)(uintptr_t)SYS_DATA_PROVIDER_SEND_NOWAIT;
+  void* const nowait = (void*)(uintptr_t)CMD_SEND_NOWAIT;
   err_report(session_answer(nowait, cmd, ROUTER_STATUS_ERROR, record, n));
 }
 
@@ -577,7 +605,7 @@ static void forward(int32_t from, const sys_session_hdr_t* hdr, const uint8_t* f
   }
   portEXIT_CRITICAL(&s_lock);
   err_h err = to < 0 ? ERR_NEW(ERR_SESSION_NO_ROUTE, .dst = hdr->dst)
-                     : sys_session_send_parts(to, NULL, 0, frame, len, sys_session_send_flags(hdr->frame));
+                     : sys_session_send(to, (cmd_in_t){frame, len}, sys_session_send_flags(hdr->frame));
   if (err == NULL) {
     return;
   }
@@ -675,7 +703,7 @@ static void on_tick(void* arg) {
       s->ping_ms = (uint16_t)(s->ping_ms + TICK_MS);
     }
     const bool silent = live && s->silent_ms > timeout_of(s);
-    // Nothing sent for a third of the peer's timeout (sys_session_send_parts zeroes it).
+    // Nothing sent for a third of the peer's timeout (sys_session_send zeroes it).
     const bool ping = live && s->ping_ms >= s->hello.timeout_ms / 3u;
     if (ping) {
       s->ping_ms = 0;  // a busy queue too: the next try a third later
@@ -772,7 +800,7 @@ err_h sys_session_attach(uint8_t provider, uint8_t way) {
   ERR_CHECK(attached < 0, ERR_CMD_BAD_ARG);
   ERR_CHECK(at >= 0, ERR_SESSION_FULL);
   err_h err = sys_data_provider_open(provider, on_rx, (void*)(uintptr_t)at);
-  if (err == NULL && !sys_data_provider_is_framed(provider)) {
+  if (err == NULL && (sys_data_provider_state(provider) & SYS_DATA_PROVIDER_STATE_FRAMED) == 0) {
     err_free(sys_data_provider_close(provider));
     err = ERR_NEW(ERR_SESSION_NOT_FRAMED);
   }
@@ -780,7 +808,7 @@ err_h sys_session_attach(uint8_t provider, uint8_t way) {
     slot_free(at);
     return err;
   }
-  if (sys_data_provider_is_up(provider)) {
+  if ((sys_data_provider_state(provider) & SYS_DATA_PROVIDER_STATE_UP) != 0) {
     err_free(sys_session_hello_send(at));  // up already (UART): the hello goes now; else when its rx says up
   }
   return NULL;

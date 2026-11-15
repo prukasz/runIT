@@ -27,8 +27,8 @@ extern "C" {
  * (a frame that may be dropped never takes the room an answer needs).
  */
 static inline uint8_t sys_session_send_flags(uint8_t frame) {
-  return (uint8_t)(SYS_DATA_PROVIDER_SEND_NOWAIT | ((frame & ROUTER_FLAG_URGENT) ? SYS_DATA_PROVIDER_SEND_URGENT : 0u) |
-                   (FRAME_KIND(frame) == SYS_SESSION_PUSH ? SYS_DATA_PROVIDER_SEND_SPARE : 0u));
+  return (uint8_t)(CMD_SEND_NOWAIT | (frame & CMD_SEND_URGENT) |
+                   (FRAME_KIND(frame) == SYS_SESSION_PUSH ? CMD_SEND_SPARE : 0u));
 }
 
 /* ----------------------------------------------------------------------------
@@ -113,7 +113,8 @@ void sys_session_start_over(int32_t at, uint8_t src);
  * Frames out
  * ------------------------------------------------------------------------- */
 
-/** @brief One frame on session `at`'s provider as its two parts (the header, the body). */
+/** @brief One flat frame on session `at`'s provider. */
+MUST_USE err_h sys_session_send(int32_t at, cmd_in_t frame, uint8_t flags);
 MUST_USE err_h sys_session_send_parts(int32_t at, const void* head, uint32_t head_len, const void* body,
                                       uint32_t body_len, uint8_t flags);
 
