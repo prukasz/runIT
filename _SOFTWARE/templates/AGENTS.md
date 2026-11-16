@@ -84,8 +84,8 @@ typedef enum {
   SYS_IO_MODE_COUNT,    // sentinel: left out
 } sys_io_mode_e;
 
-//#ref-defines router_key @alias Command targets @prefix ROUTER_KEY_
-#define ROUTER_KEY_SYS 0x01u  //@alias System @description The system router
+//#ref-defines session_id @alias Peer ids @prefix SYS_SESSION_ID_
+#define SYS_SESSION_ID_DEFAULT 0x00u  //@alias Default @description A board's id until one is set
 ```
 
 - `//#ref-streams <group> @alias <title> @prefix <P_>` goes directly above a module's `#define NAME_STREAMS(X, P)` table of the data matrix (`X(P, NAME, id, flags, "text")`): each row is a member `<prefix>NAME` with the id as its value and the text as its alias (the group is published as `defines`).
@@ -115,6 +115,8 @@ config VM_BLOCK_MAX_IN
 ## Core versus scanned
 
 The interpretation of a contract (what an operation does) lives in code and is core. Everything the app shows, validates or encodes comes from these descriptors, so a new device, contract, enum member or error needs a descriptor, not a code change in the app.
+
+**How a descriptor is addressed.** A `router_key` and a `contract_id` are module numbers (`MODULE_ID_*`, the group `module_id` of `enums.json`): the key is a router's first byte, the contract id the high byte of a device command's op (`op = contract_id << 8 | n`; a device type's own commands take `0xFF`, `SYS_DEVICE_CONTRACT_OWN`, the group `device_contract_own`). A service has `[key][dir][op]`; a service with a `contract_id` as well (`PROVIDER`) is addressed as the device router is, `[key][dir][id u8][op u16]`; a contract with `scope` `device` is reached through the device router (`SYS_DEVICE` key), and the one that is both a key and a contract is the device lifecycle contract (`DEVICE`: CREATE, INFO, OPS, ...). A pin reference is a `sys_io_pin_t`, 2 bytes: `device u8`, `pin u8`.
 
 A command (`id`, `op`, `symbol`, `label`, `description`, `record`, ...: `contract.schema.json`, `device.schema.json`) has a `read` side, a `write` side or both, each with its own `description`, `args` and `returns`; no `args` or `returns` outside them. The request's direction byte after the root key picks one (`cmd_dir_e`: read 0, write 1); a side the command lacks, or a byte above 1, is refused with `ERR_CMD_DIRECTION`. With both it is a mirror: the read's `args` are the key (a pin, a channel; none for a module's setting) and its `returns` are the write's `args` (`crosscheck.py` holds the two field for field: id, `raw_type` and `size`, in order; the read's `args` are left to the descriptor). A write answers no data unless it gives `returns`. A VM block variant on a command with both sides names the one it runs in `dir` (`vm-block.schema.json`). A variant's `args` and `returns` may give an argument or a returned value the block's own `unit` and `scale` (the wire value is the shown value × scale: volts in the block where the contract has mV, `scale` 1000); the block's C table holds the same number (`scale` for an argument, `rscale` for a result, `vm_block_device.h`), which `crosscheck.py` does not compare.
 

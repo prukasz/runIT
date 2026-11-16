@@ -113,18 +113,19 @@ src 1: err_record_cmd_t (5 B, after the stamp)
 - `src 0` (internal: device task, timer, boot) has no command header.
 - `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`.
 
-Example (an ERROR answer) — scan of bus 0 (only bus 1 is open), from the client 0xF0 (SYS_SESSION.MD "Frames"):
+Example (an ERROR answer), a read of INFO of device 9 that is not there, from the client 0xF0 (SYS_SESSION.MD "Frames"), as the board sent it:
 
 ```
-request   00 00 f0 07 00 | 02 00 02 00               REQUEST to board 0 from f0, seq 7; i2c read SCAN bus 0
-answer    44 f0 00 07 00                             ANSWER (status ERROR) to f0, seq 7
-          01 | 00 00 00 00 00 00 00 00                command; clock not set (time since the start, here 0)
-          f0 | 07 00 | 00                            from f0, seq 7, flags 0
-          04 | 02 00 02 00                           request: 4 B
-          03                                         chain: 3 nodes
-          01 00 02 00 01 02                          ERR_ROUTER_KEY        key 02 (i2c)
-          02 00 02 00 01 02                          ERR_ROUTER_OP         code 02 (SCAN)
-          02 00 01 00 01 00                          ERR_I2C_BAD_BUS       bus 0
+request   00 01 00 | 20 00 09 05 20                REQUEST, seq 1; sys_device key 0x20, dir read, device 9, op 0x2005 (INFO)
+answer    44 01 00                                   ANSWER (status ERROR), seq 1
+          01 | 45 ed 0a 00 00 00 00 00              command; clock not set (time since the start: 0x0aed45 ms)
+          f0 | 01 00 | 00                            from f0, seq 1, flags 0
+          05 | 20 00 09 05 20                        request: 5 B
+          04                                         chain: 4 nodes
+          01 00 23 00 | 01 | 20                       ERR_ROUTER_KEY        key 0x20 (sys_device)
+          0d 00 20 00 | 01 | 09                       ERR_DEV_ID            id 9
+          11 00 20 00 | 03 | 05 20 00                 ERR_DEV_OP            op 0x2005, dir 0
+          03 00 20 00 | 01 | 09                       ERR_DEV_NOT_FOUND     id 9
 ```
 
 ## Core Errors (`ERR_MOD_CORE` = 0)

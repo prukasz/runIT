@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { bundledServiceCatalog, RunitLink, serviceCall, Watches } from '@backend'
-import { answer, CLIENT_ID, defs, FakeBoard, until } from './fakes'
+import { answer, defs, FakeBoard, until } from './fakes'
 
-/** A watch entry as the board sends it: a PUSH frame on the session's channel [WATCHES][owner][id][status][data]. */
+/** A watch entry as the board sends it: a PUSH frame on the session's channel [WATCHES][id][status][data]. */
 const entry = (board: FakeBoard, id: number, ok: boolean, data: number[], seq: number) =>
-  board.stream(defs.channels.watches, [CLIENT_ID, id, ok ? 0 : 1, ...data], seq)
+  board.stream(defs.channels.watches, [id, ok ? 0 : 1, ...data], seq)
 
 describe('Watches.follow', () => {
   it('adds one watch for a read and hands each answer over decoded as the command answers it', async () => {

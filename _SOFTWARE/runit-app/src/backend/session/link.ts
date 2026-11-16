@@ -1,7 +1,10 @@
-import { bundledLinkDefinitions, errorCatalog } from '../definitions'
+import type { ServiceCatalog } from '../catalog/services'
+import { bundledLinkDefinitions, bundledServiceCatalog, errorCatalog } from '../definitions'
 import type { ErrorInfo, LinkDefinitions } from '../definitions'
 import { decodeFrame, decodeHello, decodeResponse, encodeFrame, encodeHello } from '../protocol/frames'
-import type { Request } from '../protocol/frames'
+import type { Hello, Request } from '../protocol/frames'
+import { decodePeers } from '../protocol/peers'
+import { serviceCall } from '../protocol/services'
 import { fragment, Reassembler } from '../transport/framing'
 import type { BleChannel, BleDeviceRef, BlePlatform } from '../transport/types'
 import { CommandClient, CommandError } from './commands'
@@ -11,13 +14,14 @@ import type { CommandOptions } from './commands'
  * The link to one board: a session (SYS_SESSION.MD), the commands, the streams, and a connection that keeps itself up.
  *
  *   - Opening is one call of the platform (connect, runIT service, two subscriptions), then the session (SYS_SESSION.MD "A
- *     session's life"): this client's HELLO with its own id (the app's own, the first client id), the board's HELLO in answer with
- *     its id (the `dst` of every request), then SUBSCRIBE of the errors, telemetry and events streams (STREAM, SYS_STREAM.MD).
- *     The log lines come as they are on the LOGS characteristic (the board config binds the logs stream to it).
- *   - A PUSH frame's first byte is a stream's id, or from 0x80 a channel of the session: a watch's entries (`watches`), a
- *     remote device's events and errors (`remote`). Both come to `onStream` by name.
- *   - The session lives on PINGs: something goes to the board at least every third of its timeout (its HELLO says it). A board
- *     that answers NO_SESSION (it restarted, or ended the session) gets a new HELLO and the streams are subscribed again.
+ *     session's life"): this client's HELLO with its own id (the app's own, the first client id), the board's HELLO in answer
+ *     with its id, boot id and build, then SESSION PEERS for the dead-man's time of this session. No stream is subscribed: the
+ *     board's setup routes its errors and events to the session (DATA_MATRIX.MD), and the log lines come as text on their own
+ *     characteristic.
+ *   - A PUSH frame's first byte is a stream's id, or from 0x80 a channel of a module: a watch's entries (`watches`), a remote
+ *     device's frames (`remote`). Both come to `onStream` by name.
+ *   - With the dead-man on, the session lives on PINGs: something goes to the board at least every third of its time (a PING when
+ *     nothing else does). A board that answers NO_SESSION (it restarted, or ended the session) gets a new HELLO.
  *   - A link that drops by itself is reopened at once (the first retry has no delay); the delays grow only when the board does
  *     not come back, to a ceiling, and never stop until `disconnect()`.
  *   - A command in flight when the link drops fails with `link-lost` (it may have run: only the caller knows whether it can be
@@ -69,53 +73,37 @@ export interface LinkOptions {
   readonly waitForLinkMs?: number
   /** The id this client says in its hello (default the app's own, the first client id; another client picks one of `defs.session.id.clientFirst..clientLast`). */
   readonly clientId?: number
+  /** The catalog the link reads SESSION PEERS from (default the bundled one). */
+  readonly catalog?: ServiceCatalog
 }
 
 /** The longest value of a GATT attribute (BLE Core spec): the largest packet one write can carry. */
 export const ATT_VALUE_MAX = 512
 
-/** The board's own streams, then the session's channels (`watches`: a watch's entries; `remote`: a remote device's events and errors). */
-export const STREAM_NAMES = ['telemetry', 'logs', 'errors', 'events', 'watches', 'remote'] as const
+/** The board's streams (`logs`: raw text, `errors`, `events`), then the session's channels (`watches`: a watch's entries; `remote`: a remote device's frames). */
+export const STREAM_NAMES = ['logs', 'errors', 'events', 'watches', 'remote'] as const
 export type StreamName = (typeof STREAM_NAMES)[number]
 
-/** The streams the link subscribes to once the session opens (logs come on their own characteristic; the watches' entries come to the one who added the watch, with no subscription). */
-const SUBSCRIBED: readonly (keyof LinkDefinitions['streams'])[] = ['errors', 'telemetry', 'events']
-
-/** How long the board waits for this client: the host never ends the session itself. */
-const CLIENT_TIMEOUT_MS = 60_000
 /** A HELLO that gets no answer is sent again this often while the session opens. */
 const HELLO_RETRY_MS = 500
 
 /** The session as the board's HELLO gave it. */
 export interface SessionInfo {
-  /** This client's id, said in its own hello: the `src` of its requests. */
+  /** This client's id, said in its own hello. */
   readonly clientId: number
-  /** The board's id (its place in the project): the `dst` of every request. */
+  /** The board's id (its place in the project). */
   readonly boardId: number
   /** Random per boot of the board: another one is a restart. */
   readonly bootId: number
-  readonly fwVersion: number
-  /** The board ends the session after this much silence. */
-  readonly timeoutMs: number
-}
-
-/** Data addressed to this client (SYS_SESSION.MD "Data to a provider"). */
-export interface DataFrame {
-  /** The receiver this client chose, as a stream's remote target names it. */
-  readonly to: number
-  /** Who sent it: the board or client, and its provider or stream. */
-  readonly src: number
-  readonly from: number
-  readonly data: Uint8Array
-  /** The sender's counter: a gap is frames lost. */
-  readonly seq: number
-  /** When it arrived (ms since the epoch). */
-  readonly at: number
+  /** The board's build: the first 4 bytes of its firmware's ELF SHA-256. */
+  readonly buildId: number
+  /** The board ends this session after this much silence; 0: it never does. */
+  readonly deadmanMs: number
 }
 
 export interface StreamFrame {
   readonly stream: number
-  /** Undefined for a stream byte the firmware does not publish. */
+  /** Undefined for a tag the firmware does not publish. */
   readonly name?: StreamName
   /** The frame without its stream byte. */
   readonly data: Uint8Array
@@ -125,7 +113,7 @@ export interface StreamFrame {
   readonly at: number
 }
 
-/** `unknown-stream`: a PUSH frame whose first byte is neither a stream the firmware publishes, a user stream, nor a channel. */
+/** `unknown-stream`: a PUSH frame whose first byte is neither a stream the firmware publishes nor a channel. */
 export type LinkDiagnostic = { readonly kind: 'dropped'; readonly characteristic: number; readonly reason: string } | { readonly kind: 'unknown-stream'; readonly stream: number }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -138,8 +126,6 @@ export class RunitLink {
   private readonly waitForLinkMs: number
   private readonly stateHandlers = new Set<(status: LinkStatus) => void>()
   private readonly streamHandlers = new Set<(frame: StreamFrame) => void>()
-  private readonly dataHandlers = new Set<(frame: DataFrame) => void>()
-  private dataSeq = 0
   private readonly diagnosticHandlers = new Set<(diagnostic: LinkDiagnostic) => void>()
   private readonly waiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>()
   private readonly streamNames = new Map<number, StreamName>()
@@ -152,11 +138,12 @@ export class RunitLink {
   private current: BleDeviceRef | undefined
   private status: LinkStatus = { state: 'idle' }
   private sessionInfo: SessionInfo | undefined
-  private helloWaiter: ((hello: SessionInfo) => void) | undefined
+  private helloWaiter: ((hello: Hello) => void) | undefined
   private lastSentAt = 0
   private pinger: ReturnType<typeof setInterval> | undefined
   private reopening = false
   private readonly clientId: number
+  private readonly catalog: ServiceCatalog
   /** This client's boot id, one per link: the board sees a new one as a client that started over. */
   private readonly bootId = Math.floor(Math.random() * 0x100000000) >>> 0
 
@@ -169,13 +156,13 @@ export class RunitLink {
     this.packetBytes = Math.min(options.packetBytes ?? ATT_VALUE_MAX, ATT_VALUE_MAX)
     this.waitForLinkMs = options.waitForLinkMs ?? 5000
     this.clientId = options.clientId ?? this.defs.session.id.app
+    this.catalog = options.catalog ?? bundledServiceCatalog()
     const { streams, channels } = this.defs
     const bytes: Record<StreamName, number> = { ...streams, watches: channels.watches, remote: channels.remote }
     for (const name of STREAM_NAMES) this.streamNames.set(bytes[name], name)
     this.commands = new CommandClient({
       defs: this.defs,
       send: (frame) => this.sendFrame(frame),
-      address: () => ({ dst: this.sessionInfo?.boardId ?? 0, src: this.clientId }),
       errors: options.errors ?? errorCatalog(),
       timeoutMs: options.timeoutMs,
       maxInFlight: options.maxInFlight,
@@ -264,33 +251,13 @@ export class RunitLink {
     return () => this.stateHandlers.delete(handler)
   }
 
-  /** Every frame that is not an answer: telemetry, logs, errors, events. */
+  /** Every frame that is not an answer: logs, errors, events, a channel's. */
   onStream(handler: (frame: StreamFrame) => void): () => void {
     this.streamHandlers.add(handler)
     return () => this.streamHandlers.delete(handler)
   }
 
-  /** Data addressed to this client: to one of its receivers, from a provider or a stream of a board. */
-  onData(handler: (frame: DataFrame) => void): () => void {
-    this.dataHandlers.add(handler)
-    return () => this.dataHandlers.delete(handler)
-  }
-
-  /** Data for provider `to` of board `dst`: it leaves that provider as it is. `from` is this client's receiver, the address of a reply. No answer: what is lost shows only as a gap at the other end. */
-  sendData(dst: number, to: number, from: number, data: Uint8Array, { urgent = false }: { urgent?: boolean } = {}): Promise<void> {
-    const max = this.defs.frameMax - this.defs.frameHead - 3
-    if (data.length > max) return Promise.reject(new RangeError(`Data of ${data.length} bytes is over the ${max} a frame takes.`))
-    const body = new Uint8Array(3 + data.length)
-    body[0] = this.defs.channels.data
-    body[1] = to
-    body[2] = from
-    body.set(data, 3)
-    const seq = this.dataSeq
-    this.dataSeq = (seq + 1) & 0xffff
-    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.push, flags: urgent ? this.defs.flags.urgent : 0, dst, src: this.clientId, seq }, body))
-  }
-
-  /** The frames of one stream (`telemetry`, `logs`, `errors`, `events`) or channel (`watches`, `remote`), raw. */
+  /** The frames of one stream (`logs`, `errors`, `events`) or channel (`watches`, `remote`), raw. */
   on(name: StreamName, handler: (data: Uint8Array, frame: StreamFrame) => void): () => void {
     return this.onStream((frame) => {
       if (frame.name === name) handler(frame.data, frame)
@@ -351,24 +318,22 @@ export class RunitLink {
 
   /* ---- the session ---- */
 
-  /** HELLO until the board answers with its own, then the streams' SUBSCRIBE; the PINGs start. */
+  /** HELLO until the board answers with its own, then SESSION PEERS for this session's dead-man; the PINGs start. */
   private async openSession(limitMs: number): Promise<void> {
     this.sessionInfo = undefined
-    const answered = new Promise<SessionInfo>((resolve) => (this.helloWaiter = resolve))
+    const answered = new Promise<Hello>((resolve) => (this.helloWaiter = resolve))
     const deadline = Date.now() + limitMs
-    let info: SessionInfo | undefined
-    while (!info) {
+    let hello: Hello | undefined
+    while (!hello) {
       if (Date.now() > deadline) throw new Error(`The board did not open a session within ${limitMs} ms.`)
-      await this.sendControl(encodeHello(this.defs, { id: this.clientId, bootId: this.bootId, timeoutMs: CLIENT_TIMEOUT_MS }))
-      info = await Promise.race([answered, sleep(HELLO_RETRY_MS).then(() => undefined)])
+      await this.sendControl(encodeHello(this.defs, { id: this.clientId, bootId: this.bootId }))
+      hello = await Promise.race([answered, sleep(HELLO_RETRY_MS).then(() => undefined)])
     }
-    this.sessionInfo = info
+    this.sessionInfo = { clientId: this.clientId, boardId: hello.id, bootId: hello.bootId, buildId: hello.buildId, deadmanMs: 0 }
+    const peers = decodePeers(this.defs, await this.commands.request(serviceCall(this.catalog, 'SESSION', 'PEERS').request, { label: 'SESSION PEERS' }))
+    const mine = peers.find((peer) => peer.open && peer.peerId === this.clientId)
+    this.sessionInfo = { ...this.sessionInfo, deadmanMs: mine?.deadmanMs ?? 0 }
     this.startPings()
-    const { keys, ops, opDirs, streams } = this.defs
-    for (const name of SUBSCRIBED) {
-      const request = { keys: [keys.stream!, opDirs.stream.SUBSCRIBE!, ops.stream.SUBSCRIBE!], payload: Uint8Array.of(streams[name]) }
-      await this.commands.request(request, { label: `SUBSCRIBE ${name}` })
-    }
   }
 
   private endSession(): void {
@@ -378,36 +343,32 @@ export class RunitLink {
     this.pinger = undefined
   }
 
-  /** A PING whenever nothing went to the board for a third of its timeout (less a margin for the radio). */
+  /** With the board's dead-man on: a PING whenever nothing went to the board for a third of its time (less a margin for the radio). */
   private startPings(): void {
     clearInterval(this.pinger)
+    this.pinger = undefined
+    const time = this.sessionInfo?.deadmanMs ?? 0
+    if (time <= 0) return
     this.pinger = setInterval(() => {
-      const info = this.sessionInfo
-      if (!info || !this.channel) return
-      if (Date.now() - this.lastSentAt >= (info.timeoutMs / 3) * 0.7) void this.sendControl(Uint8Array.of(this.defs.session.control.ping)).catch(() => undefined)
-    }, 100)
+      if (!this.sessionInfo || !this.channel) return
+      if (Date.now() - this.lastSentAt >= (time / 3) * 0.7) void this.sendControl(Uint8Array.of(this.defs.session.control.ping)).catch(() => undefined)
+    }, Math.max(20, time / 10))
   }
 
   private sendControl(body: Uint8Array): Promise<void> {
-    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.control, dst: this.sessionInfo?.boardId ?? 0, src: this.clientId, seq: 0 }, body))
+    return this.sendFrame(encodeFrame(this.defs, { kind: this.defs.session.kind.control, seq: 0 }, body))
   }
 
   private onControl(body: Uint8Array): void {
     const hello = decodeHello(this.defs, body)
     if (hello) {
-      if (hello.version !== this.defs.session.version) return // the board stays without a session too (ERR_SESSION_VERSION)
-      const info: SessionInfo = {
-        clientId: this.clientId, boardId: hello.id, bootId: hello.bootId, fwVersion: hello.fwVersion, timeoutMs: hello.timeoutMs || 3000,
-      }
       const known = this.sessionInfo
       if (this.helloWaiter) {
-        this.helloWaiter(info)
+        this.helloWaiter(hello)
         this.helloWaiter = undefined
-      } else if (known && (known.bootId !== info.bootId || known.boardId !== info.boardId)) this.reopenSession('The board restarted.')
-      else if (known) this.sessionInfo = info // a new timeout (the dead-man was armed)
+      } else if (known && (known.bootId !== hello.bootId || known.boardId !== hello.id)) this.reopenSession('The board restarted.')
       return
     }
-    // GONE (peers the board can no longer reach) names boards behind it and other clients: nothing this link keeps.
     if (body[0] === this.defs.session.control.noSession && this.sessionInfo) this.reopenSession('The board ended the session.')
   }
 
@@ -516,7 +477,7 @@ export class RunitLink {
       this.diagnosticHandlers.forEach((h) => h({ kind: 'dropped', characteristic, reason: result.dropped }))
       return
     }
-    // The LOGS characteristic carries the logs stream's payloads as they are: no session header.
+    // The LOGS characteristic carries the logs stream's text as it is: no session header.
     if (characteristic === this.defs.gatt.logs) {
       this.emitStream(this.defs.streams.logs, result.frame)
       return
@@ -525,19 +486,12 @@ export class RunitLink {
     if (!frame) return
     if (frame.kind === this.defs.session.kind.control) this.onControl(frame.body)
     else if (frame.kind === this.defs.session.kind.answer) this.commands.onResponse(decodeResponse(this.defs, result.frame)!)
-    else if (frame.kind === this.defs.session.kind.push && frame.body[0] === this.defs.channels.data) {
-      if (frame.body.length >= 3) {
-        const data: DataFrame = { to: frame.body[1]!, from: frame.body[2]!, src: frame.src, data: frame.body.subarray(3), seq: frame.seq, at: Date.now() }
-        this.dataHandlers.forEach((h) => h(data))
-      }
-    } else if (frame.kind === this.defs.session.kind.push && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1), frame.seq)
+    else if (frame.kind === this.defs.session.kind.push && frame.body.length > 0) this.emitStream(frame.body[0]!, frame.body.subarray(1), frame.seq)
   }
 
   private emitStream(stream: number, data: Uint8Array, seq?: number): void {
     const name = this.streamNames.get(stream)
-    // A user stream (0x10..0x7F) has no name here: it is the project's (Streams.subscribe takes it by its id).
-    const user = stream >= this.defs.stream.userFirst && stream <= this.defs.stream.last
-    if (!name && !user) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
+    if (!name) this.diagnosticHandlers.forEach((h) => h({ kind: 'unknown-stream', stream }))
     const frame: StreamFrame = { stream, ...(name ? { name } : {}), data, ...(seq !== undefined ? { seq } : {}), at: Date.now() }
     this.streamHandlers.forEach((h) => h(frame))
   }

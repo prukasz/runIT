@@ -25,7 +25,7 @@
               "raw_type": "u32",
               "size": 4,
               "offset": 0,
-              "description": "EVT_TAG(module, code) with the flags"
+              "description": "EVT_TAG(module, code): the module's number in the upper 16 bits, the event's code in the lower"
             },
             {
               "id": "source",
@@ -49,18 +49,36 @@
               "id": "t_ms",
               "label": "Time",
               "type": "number",
-              "raw_type": "u32",
-              "size": 4,
+              "raw_type": "u64",
+              "size": 8,
               "offset": 8,
               "unit": "ms",
-              "description": "Time since the start"
+              "description": "The board's clock when it was published: UTC once a client set it, else the time since the start"
+            },
+            {
+              "id": "flags",
+              "label": "Flags",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 16,
+              "description": "SYS_EVENT_NOTIFY or 0: the events table's"
+            },
+            {
+              "id": "len",
+              "label": "Payload size",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 18,
+              "description": "Bytes of the payload after the header"
             },
             {
               "id": "data",
               "label": "Payload",
               "type": "string",
               "raw_type": "bytes",
-              "offset": 12,
+              "offset": 20,
               "description": "The event's payload (its evt_data_<NAME>_t; runs to the end of the frame)"
             }
           ]

@@ -5,6 +5,7 @@
   "scope": "system",
   "id": "PROVIDER",
   "router_key": 13,
+  "contract_id": 13,
   "alias": "Providers",
   "description": "Typed provider registry (sys_device_router-style wire header [0x0D][dir u8][id u8][op u16][args], where op = 0x0D00 | n or driver own op 0xFFxx).",
   "category": "system",

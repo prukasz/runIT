@@ -8,7 +8,7 @@ Folder `components/sys/sys_device_event/`. Bridges [`sys_event`](../sys_event/SY
 |---|---|
 | `sys_device_event.h` | `CONTRACT_EVENT` (`0x03`), `CONTRACT_EVENT_OPERATIONS` (`OP_ON_EVENT`), `OP_DECLARE_EVENT`, `OP_DECLARE_ON_EVENT`, `sys_device_event_subscribe_op`, `sys_device_event_subscribe` |
 | `sys_device_event.c` | `SYS_DEVICE_CONTRACT_DEFINE(EVENT, 0x03)` and the subscription adapter (`sys_device_target_pack`/`unpack` + `sys_device_deliver`) |
-| `contract_event.json` | Descriptor of the `EVENT` contract (`OP_ON_EVENT`) |
+| `contract_event.json` | Descriptor of the `EVENT` contract (`OP_ON_EVENT`): the 20 B `sys_event_t` and its payload (`services.test.ts` of the app holds it against the C struct) |
 | `CMakeLists.txt` | Requires `sys_device` and `sys_event` |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -56,7 +56,3 @@ MUST_USE err_h sys_device_event_subscribe(sys_event_key_t filter, uint8_t device
 ## Tests
 
 No dedicated host suite in this folder; `sys_device_deliver` (lock wait, `ALWAYS`, generation mismatch) is tested in `sys_device/host/test_sys_device.c`, and inline subscription mechanics in `sys_event/host/test_sys_event.c`.
-
-## Open
-
-- `contract_event.json` still lists the older 12 B header layout (`t_ms` u32 at offset 8, payload at 12) instead of the 20 B `sys_event_t` in [`sys_event.h`](../sys_event/sys_event.h) (`t_ms` u64 at 8, `flags` u16 at 16, `len` u16 at 18, `data[]` at 20).

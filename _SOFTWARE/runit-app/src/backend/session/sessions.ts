@@ -1,25 +1,24 @@
-import { decodePeers } from '../protocol/streams'
-import type { PeerKind, SessionPeer } from '../protocol/streams'
+import { decodePeers } from '../protocol/peers'
+import type { SessionPeer } from '../protocol/peers'
 import type { CommandOptions } from './commands'
 import type { RunitLink } from './link'
 import { Services } from './services'
 
 /*
- * The board's sessions (SYS_SESSION.MD), through the SESSION router: its id (its place in the project, the `dst` of what goes to
- * it), the sessions it has (PEERS: on which provider, to whom, open or not), and a provider made the way to a peer (ATTACH) or
- * not (DETACH). The session of this link itself is `RunitLink`'s (its HELLO, `link.session`); this is the board's view of all
- * of them: a board with others on a cable has its master's or its slaves' sessions there.
+ * The board's sessions (SYS_SESSION.MD), through the SESSION router: its id (its place in the project) and the sessions it has
+ * (PEERS: on which provider, to whom, open or not, with which dead-man). The session of this link itself is `RunitLink`'s (its
+ * HELLO, `link.session`); this is the board's view of all of them. A session is made and ended by the data matrix's roles
+ * (`DATA_MATRIX ROLE`, `CLEAR_ROLE`), which the catalog's commands reach.
  *
  *   const sessions = new Sessions(link)
  *   await sessions.boardId()                                          // 0: the root, by convention
  *   await sessions.setBoardId(1)                                      // kept in NVS, used from the next start
- *   await sessions.peers()                                            // [{ provider, kind: 'client', open: true, peerId: 0xf0, timeoutMs }]
- *   await sessions.attach(0x10, 'slave')                              // a UART port (its provider's id) to another board, below this one
+ *   await sessions.peers()                                            // [{ provider, open: true, peerId: 0xf0, deadmanMs: 0, ... }]
  *
  * The commands are the descriptor's (`contract_session.json`), named once in `SESSION_COMMANDS`.
  */
 
-export const SESSION_COMMANDS = { service: 'SESSION', id: 'ID', attach: 'ATTACH', detach: 'DETACH', peers: 'PEERS' } as const
+export const SESSION_COMMANDS = { service: 'SESSION', id: 'ID', peers: 'PEERS' } as const
 
 export class Sessions {
   private readonly services: Services
@@ -48,15 +47,5 @@ export class Sessions {
   async peers(options?: CommandOptions): Promise<SessionPeer[]> {
     const { data } = await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.peers, undefined, options)
     return decodePeers(this.link.defs, data)
-  }
-
-  /** Makes a provider the way to a peer of this kind; the session opens when both hellos have passed. */
-  async attach(provider: number, kind: PeerKind, options?: CommandOptions): Promise<void> {
-    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.attach, { provider, peer: this.link.defs.session.peer[kind] }, options)
-  }
-
-  /** Ends the session on a provider and leaves the provider free. */
-  async detach(provider: number, options?: CommandOptions): Promise<void> {
-    await this.services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.detach, { provider }, options)
   }
 }

@@ -1,12 +1,9 @@
-import {
-  CommandError, DeadMan, ErrorInterpreter, RunitLink, Services, WebBluetoothPlatform, bundledLinkDefinitions, crc32, eraseProject, leaveSafeState, loadProgram, projectInfo,
-  projectStream, saveProject, sendProgram, setProjectBoot, vmFrame, deviceFrame, deviceRecordId,
-} from '@backend'
-import type { LinkStatus, ProjectContent } from '@backend'
-import { blk, build, engine, num, project, read } from '../engine/helpers'
+import { CommandError, DeadMan, ErrorInterpreter, RunitLink, Services, WebBluetoothPlatform, bundledLinkDefinitions, decodePeers } from '@backend'
+import type { LinkStatus } from '@backend'
 
 /* The backend in a real browser on Web Bluetooth: the platform the app ships (`WebBluetoothPlatform`), against the board. The runner
- * (run.mjs) opens this page in Chrome, picks the board in the chooser through the DevTools protocol and calls `runSuite()`. */
+ * (run.mjs) opens this page in Chrome, picks the board in the chooser through the DevTools protocol and calls `runSuite()`. Device 0 is
+ * the ESP32-S3's GPIO; PIN is a free pin of the devkit. */
 
 interface Result {
   readonly name: string
@@ -25,31 +22,28 @@ const until = async <T>(check: () => T | undefined | false | Promise<T | undefin
   }
 }
 
-const IO_LEVEL = 0x0100 // (contract IO = 1) << 8 | LEVEL (its write: deviceFrame)
-const PIN = 22
+const PIN = 4
 const defs = bundledLinkDefinitions()
 
-const program = () =>
-  build(
-    project(
-      [num('x'), num('y', 'y', { initial: 3 }), num('z')],
-      [blk('e', 'expr', { groups: { inputs: 2 }, inputs: [read('x'), read('y')], outputs: [{ path: { root: 'z', steps: [] } }], editor: { text: 'in0 * 2 + in1' } })],
-    ),
-  )
-
-async function runSuite(): Promise<Result[]> {
-  const results: Result[] = []
-  const test = async (name: string, body: () => Promise<void>): Promise<void> => {
+const tester = (results: Result[]) => ({
+  test: async (name: string, body: () => Promise<void>): Promise<void> => {
     try {
       await body()
       results.push({ name, ok: true })
     } catch (error) {
       results.push({ name, ok: false, detail: error instanceof Error ? `${error.message}` : String(error) })
     }
-  }
-  const expect = (condition: unknown, message: string): void => {
+  },
+  expect: (condition: unknown, message: string): void => {
     if (!condition) throw new Error(message)
-  }
+  },
+})
+
+const suspended = async (services: Services) => ((await services.device(0, 'DEVICE', 'INFO')).value as { suspended: boolean }).suspended
+
+async function runSuite(): Promise<Result[]> {
+  const results: Result[] = []
+  const { test, expect } = tester(results)
 
   const platform = new WebBluetoothPlatform(defs)
   const link = new RunitLink(platform, { timeoutMs: 3000 })
@@ -68,9 +62,15 @@ async function runSuite(): Promise<Result[]> {
   if (link.state !== 'connected') return results
 
   // a board a failed run left armed or in its safe state would fail the tests that follow for the wrong reason
-  await services.call('SYS', 'DEADMAN', { timeout_ms: 0, on_link_lost: false }, { side: 'write' })
-  await leaveSafeState(link)
-  await services.call('VM', 'RESET')
+  await services.call('SYS', 'DEADMAN', { timeout_ms: 0 }, { side: 'write' })
+  await services.call('SYS', 'SAFE_LEAVE')
+
+  await test('the session: the board id, its boot and build, and this client open on a provider', async () => {
+    const session = link.session!
+    expect(session.bootId > 0 && session.buildId > 0, `session ${JSON.stringify(session)}`)
+    const peers = decodePeers(defs, (await services.call('SESSION', 'PEERS')).data)
+    expect(peers.some((p) => p.open && p.peerId === session.clientId), 'this client is not an open session')
+  })
 
   await test('PING through the catalog', async () => {
     expect((await uptime()) > 0, 'no uptime')
@@ -82,8 +82,10 @@ async function runSuite(): Promise<Result[]> {
   })
 
   await test('every read without a key decodes', async () => {
-    for (const [service, command] of [['SYS', 'DEADMAN'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['CONNECTOR', 'INFO'], ['LOG', 'CONFIG'], ['POWER_MANAGER', 'CONFIG'], ['POWER_MANAGER', 'STATUS'], ['PROJECT', 'INFO']] as const) {
-      await services.call(service, command, undefined, { side: 'read' })
+    for (const [service, command] of [['SYS', 'DEADMAN'], ['SESSION', 'ID'], ['BLE', 'STATUS'], ['BLE', 'LIST'], ['LOG', 'CONFIG'], ['WATCH', 'LIST'], ['DATA_MATRIX', 'LIST']] as const) {
+      await services.call(service, command, undefined, { side: 'read' }).catch((e: unknown) => {
+        if (!(e instanceof CommandError && e.record)) throw e // an error record is an answer; nothing else is
+      })
     }
   })
 
@@ -98,13 +100,16 @@ async function runSuite(): Promise<Result[]> {
     expect(/9/.test(report.message), report.message)
   })
 
-  await test('IO on the status LED: TOGGLE twice, read back', async () => {
-    const level = async () => String(((await services.device(1, 'IO', 'LEVEL', { pin: 23 }, { side: 'read' })).value as { level: unknown }).level)
-    expect(/High|1|true/i.test(await level()), 'LED is not lit at the start')
-    await services.device(1, 'IO', 'TOGGLE', { pin: 23 })
-    expect(/Low|0|false/i.test(await level()), 'TOGGLE did not put it out')
-    await services.device(1, 'IO', 'TOGGLE', { pin: 23 })
-    expect(/High|1|true/i.test(await level()), 'second TOGGLE did not light it')
+  await test('GPIO: a pin set as an output, TOGGLE twice, read back', async () => {
+    const level = async () => String(((await services.device(0, 'IO', 'LEVEL', { pin: PIN }, { side: 'read' })).value as { level: unknown }).level)
+    await services.device(0, 'IO', 'RESET', { pin: PIN }) // a pin a run before set up is set up again
+    await services.device(0, 'IO', 'MODE', { pin: PIN, mode: 'SYS_IO_MODE_OUTPUT_PUSH_PULL' }, { side: 'write' })
+    await services.device(0, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
+    expect(/Low|0|false/i.test(await level()), 'the pin is not low')
+    await services.device(0, 'IO', 'TOGGLE', { pin: PIN })
+    expect(/High|1|true/i.test(await level()), 'TOGGLE did not raise it')
+    await services.device(0, 'IO', 'TOGGLE', { pin: PIN })
+    expect(/Low|0|false/i.test(await level()), 'second TOGGLE did not lower it')
   })
 
   await test('a request of 500 bytes goes out in one write, and the link is fine after it', async () => {
@@ -113,56 +118,30 @@ async function runSuite(): Promise<Result[]> {
     await uptime() // the link is fine after it
   })
 
-  await test('a program loads, runs, and a runtime write comes back as telemetry', async () => {
-    const result = program()
-    await loadProgram(link, [...result.frames, engine.exec('normal')])
-    const reader = engine.telemetry(result)
-    const latest = new Map<string, unknown>()
-    const off = link.on('telemetry', (d) => reader.read(d)?.values.forEach((v) => v.variable && latest.set(v.variable, v.value)))
-    await sendProgram(link, [engine.subscribe([...result.ids.variables.values()])])
-    expect(await until(() => latest.get('y') === 3, 3000), 'no first telemetry')
-    const sent = performance.now()
-    await sendProgram(link, engine.write(result, [{ variable: 'x', value: 5 }]))
-    expect(await until(() => latest.get('z') === 13, 3000), `z is ${String(latest.get('z'))}, not 13`)
-    results.push({ name: `  runtime write to telemetry: ${Math.round(performance.now() - sent)} ms`, ok: true })
+  await test('events: a device suspended is an event of the stream, named by the DEVICE contract', async () => {
+    const seen: string[] = []
+    const off = link.on('events', () => seen.push('event'))
+    await services.device(0, 'DEVICE', 'SUSPEND')
+    await services.device(0, 'DEVICE', 'RESUME')
+    expect(await until(() => seen.length >= 2, 3000), 'no events')
     off()
-    await services.call('VM', 'RESET')
   })
 
   await test('the dead-man arms and feeds, and disarms', async () => {
     const deadman = new DeadMan(link, { timeoutMs: 1500 })
     await deadman.start()
     expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 1500, 'not armed')
-    await sleep(3500) // longer than the timeout: only the heartbeat keeps the board out of the safe state
-    expect(((await services.device(4, 'DEVICE', 'INFO')).value as { suspended: number }).suspended === 0, 'the board entered its safe state')
+    await sleep(3000) // two timeouts: the heartbeat alone keeps the session
+    expect(!(await suspended(services)), 'the board entered its safe state')
     await deadman.stop()
-    expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'not disarmed')
+    expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'still armed')
   })
 
-  await test('a stored project: save, read back verified, nothing at start, erase', async () => {
-    const result = program()
-    const content: ProjectContent = {
-      sections: [{ id: deviceRecordId(1), frames: [deviceFrame(defs, 1, IO_LEVEL, Uint8Array.of(PIN, 1))] }],
-      program: result.frames.map((f) => vmFrame(defs, f.op, f.payload)),
-      start: [vmFrame(defs, engine.exec('normal').op, engine.exec('normal').payload)],
-    }
-    const stream = projectStream(defs, content)
-    try {
-      expect(JSON.stringify(await saveProject(link, content, { boot: defs.projectBoot.none })) === JSON.stringify({ bytes: stream.length, crc: crc32(stream) }), 'saved size or CRC')
-      expect((await projectInfo(link)).stored, 'not stored')
-    } finally {
-      await setProjectBoot(link, defs.projectBoot.none).catch(() => undefined)
-      await eraseProject(link).catch(() => undefined)
-      await services.device(1, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' }).catch(() => undefined)
-    }
-    expect((await projectInfo(link)).stored === false, 'not erased')
-  })
-
-  await test('the safe state is left again (STOP, then leaveSafeState)', async () => {
+  await test('the safe state is left again (STOP, then SAFE_LEAVE)', async () => {
     await services.call('SYS', 'STOP')
-    expect(((await services.device(4, 'DEVICE', 'INFO')).value as { suspended: number }).suspended === 1, 'not suspended')
-    await leaveSafeState(link)
-    expect(((await services.device(4, 'DEVICE', 'INFO')).value as { suspended: number }).suspended === 0, 'not resumed')
+    expect(await suspended(services), 'not suspended')
+    await services.call('SYS', 'SAFE_LEAVE')
+    expect(!(await suspended(services)), 'not resumed')
   })
 
   await test('reopen() picks the link up again with no chooser', async () => {
@@ -196,9 +175,9 @@ async function runSuite(): Promise<Result[]> {
 }
 
 /* ---- reloading the tab ----
- * A reload drops the link with no goodbye. `beforeReload` leaves the board running a program, armed (dead-man with on_link_lost) or not;
- * the runner reloads the page; `afterReload` connects again with no chooser (the browser remembers the board) and holds what the board
- * did about the loss against what the app can see. */
+ * A reload drops the link with no goodbye. `beforeReload` leaves the board with the dead-man armed (its safety flag: the end of the
+ * session is the safe state) or not; the runner reloads the page; `afterReload` connects again with no chooser (the browser remembers
+ * the board) and holds what the board did about the loss against what the app can see. */
 
 interface Before {
   readonly uptime: number
@@ -206,7 +185,6 @@ interface Before {
 
 const reloadWindow = globalThis as { __link?: RunitLink }
 
-/** One plain attempt first (what a user's click does); when the browser still tears the old connection down, the attempts of the reconnect policy. */
 /** One plain attempt first (what a user's click does); when the browser still tears the old connection down, the attempts of the reconnect policy. */
 const connectAgain = async (platform: WebBluetoothPlatform, link: RunitLink): Promise<{ fromKnown: boolean; ms: number; firstFailed?: string }> => {
   const known = await platform.knownDevices()
@@ -231,30 +209,17 @@ async function beforeReload(arm: boolean): Promise<Before> {
   reloadWindow.__link = link
   await connectAgain(platform, link)
   const services = new Services(link)
-  const result = program()
-  await loadProgram(link, [...result.frames, engine.exec('normal')])
-  if (arm) await services.call('SYS', 'DEADMAN', { timeout_ms: 20_000, on_link_lost: true }, { side: 'write' })
+  if (arm) await services.call('SYS', 'DEADMAN', { timeout_ms: 20_000 }, { side: 'write' })
   return { uptime: ((await services.call('SYS', 'PING')).value as { uptime_ms: number }).uptime_ms }
 }
 
-/** `arm`: the board was left armed with on_link_lost, so the reload put it in its safe state. */
+/** `arm`: the board was left armed, so the reload put it in its safe state. */
 async function afterReload(before: Before, arm: boolean): Promise<Result[]> {
   const results: Result[] = []
-  const test = async (name: string, body: () => Promise<void>): Promise<void> => {
-    try {
-      await body()
-      results.push({ name, ok: true })
-    } catch (error) {
-      results.push({ name, ok: false, detail: error instanceof Error ? error.message : String(error) })
-    }
-  }
-  const expect = (condition: unknown, message: string): void => {
-    if (!condition) throw new Error(message)
-  }
+  const { test, expect } = tester(results)
   const platform = new WebBluetoothPlatform(defs)
   const link = new RunitLink(platform, { timeoutMs: 3000 })
   const services = new Services(link)
-  const suspended = async () => ((await services.device(4, 'DEVICE', 'INFO')).value as { suspended: number }).suspended
 
   await test('the new page connects with no chooser', async () => {
     const { fromKnown, ms, firstFailed } = await connectAgain(platform, link)
@@ -270,31 +235,21 @@ async function afterReload(before: Before, arm: boolean): Promise<Result[]> {
 
   if (arm) {
     await test('the reload was a lost link: the board is in its safe state (devices suspended)', async () => {
-      expect(await until(async () => (await suspended()) === 1, 10_000, 200), 'the devices were not suspended')
+      expect(await until(() => suspended(services), 10_000, 200), 'the devices were not suspended')
     })
-    await test('leaveSafeState and the program that was loaded runs again', async () => {
-      const result = program()
-      await leaveSafeState(link, { start: engine.exec('normal') })
-      expect((await suspended()) === 0, 'still suspended')
-      const reader = engine.telemetry(result)
-      const latest = new Map<string, unknown>()
-      const off = link.on('telemetry', (d) => reader.read(d)?.values.forEach((v) => v.variable && latest.set(v.variable, v.value)))
-      await sendProgram(link, [engine.subscribe([...result.ids.variables.values()])])
-      expect(await until(() => latest.get('y') === 3, 3000), 'the program is gone')
-      await sendProgram(link, engine.write(result, [{ variable: 'x', value: 2 }]))
-      expect(await until(() => latest.get('z') === 7, 3000), 'the program does not compute')
-      off()
+    await test('SAFE_LEAVE resumes them', async () => {
+      await services.call('SYS', 'SAFE_LEAVE')
+      expect(!(await suspended(services)), 'still suspended')
     })
   } else {
     await test('nothing was armed: a reload leaves the board out of the safe state', async () => {
       await sleep(4000) // longer than the board takes to hear of the loss
-      expect((await suspended()) === 0, 'suspended')
+      expect(!(await suspended(services)), 'suspended')
     })
   }
 
   await test('the board is left disarmed and clean', async () => {
-    await services.call('SYS', 'DEADMAN', { timeout_ms: 0, on_link_lost: false }, { side: 'write' })
-    await services.call('VM', 'RESET')
+    await services.call('SYS', 'DEADMAN', { timeout_ms: 0 }, { side: 'write' })
     expect(((await services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }).timeout_ms === 0, 'still armed')
   })
   await link.disconnect()

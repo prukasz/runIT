@@ -14,6 +14,7 @@ export default defineConfig({
     },
   },
   test: {
+    pool: 'vmThreads', // the default pool fails on Node 22.23 with vitest 5.0.4 before a test runs
     include: ['tests/**/*.test.ts'],
     exclude: ['tests/hardware/**', 'node_modules/**'], // the board's own: npm run test:hw
     environment: 'node',

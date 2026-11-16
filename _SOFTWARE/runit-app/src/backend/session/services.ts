@@ -27,6 +27,8 @@ export interface Answer {
 /** The options of a call: the link's, and the side of a command that has both. */
 export interface CallOptions extends CommandOptions {
   readonly side?: Side
+  /** The id a service addressed by one takes (a provider's); left out, none (PROVIDER LIST). */
+  readonly id?: number
 }
 
 export class Services {
@@ -36,8 +38,8 @@ export class Services {
   ) {}
 
   /** A command of a system service (`SYS`, `I2C`, `BLE`, `LOG`, ... as the catalog has them). */
-  call(service: string, command: string, args?: CallArgs, { side, ...options }: CallOptions = {}): Promise<Answer> {
-    return this.send(serviceCall(this.catalog, service, command, args, side), options)
+  call(service: string, command: string, args?: CallArgs, { side, id, ...options }: CallOptions = {}): Promise<Answer> {
+    return this.send(serviceCall(this.catalog, service, command, args, side, id), options)
   }
 
   /** A command to a device: a contract's (`IO`, `DEVICE`, ...) or one of its type's own (`servo`). */

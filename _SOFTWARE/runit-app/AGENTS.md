@@ -1,6 +1,6 @@
 # runit-app
 
-The runIT app, written from scratch. So far: the VM engine in `src/engine/` (read `src/engine/ENGINE.md` first) the link to the board in `src/backend/` (`src/backend/BACKEND.md`), the UI kit in `src/ui/` and `design/`, and the app in `src/app/` (its frame, the connection, Run and Stop, the open project, the Project screen, the Devices view and its canvas (the board and the parts wired to it, the part creator), the Code view (variables, blocks and their canvas), Run with its live view and the Console), in a browser or as the desktop app in `electron/` (below).
+The runIT app, written from scratch. So far: the VM engine in `src/engine/` (read `src/engine/ENGINE.md` first) the link to the board in `src/backend/` (`src/backend/BACKEND.md`: it speaks the session of `runit-esp-rework/`, the firmware that is built a step at a time; the VM, project, OTA and flasher have no client in it until the firmware has them, and the engine and the screens of `src/app/` below wait for those), the UI kit in `src/ui/` and `design/`, and the app in `src/app/` (its frame, the connection, Run and Stop, the open project, the Project screen, the Devices view and its canvas (the board and the parts wired to it, the part creator), the Code view (variables, blocks and their canvas), Run with its live view and the Console), in a browser or as the desktop app in `electron/` (below).
 
 ## Rules
 

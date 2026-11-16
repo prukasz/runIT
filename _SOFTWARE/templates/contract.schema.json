@@ -45,13 +45,13 @@
     "contract_id": {
       "type": "integer",
       "minimum": 0,
-      "description": "Numeryczny identyfikator kontraktu w firmware / ramce binarnej (np. 0 dla DEVICE, 1 dla IO, 9 dla HBRIDGE)."
+      "description": "Numer kontraktu: starszy bajt op w ramce (op = contract_id << 8 | op kontraktu), numer jego modułu (MODULE_ID_*): 1 dla IO, 32 dla DEVICE, 9 dla HBRIDGE. Kontrakt urządzenia (scope device) adresuje się przez router urządzeń; usługa z router_key i contract_id (np. PROVIDER) ma tę samą ramkę: [dir][id u8][op u16]."
     },
     "router_key": {
       "type": "integer",
       "minimum": 1,
       "maximum": 255,
-      "description": "Numeryczny klucz routera systemowego w firmware (ROUTER_KEY_* w router_ids.h, np. 1 dla SYS, 2 dla I2C, 3 dla BLE, 4 dla CONN, 12 dla PROJECT)."
+      "description": "Klucz routera w firmware: numer jego modułu (MODULE_ID_*, np. 40 dla SYS, 46 dla BLE, 43 dla WATCH), pierwszy bajt żądania."
     },
     "alias": {
       "type": "string",

@@ -31,7 +31,7 @@ export interface PinRef {
 }
 
 /** `sizeof(sys_io_pin_t)`: u16 device, u8 pin (packed). */
-export const PIN_REF_SIZE = 3
+export const PIN_REF_SIZE = 2
 
 export interface WireField {
   readonly id: string
@@ -263,10 +263,10 @@ const pinBytes = (field: WireField, input: FieldInput): Uint8Array => {
       pin = field.pinNone
     } else if (isPinRef(item)) pin = item
     else throw new PayloadError(`${field.id} takes { device, pin }, or null for no pin.`)
-    if (!Number.isInteger(pin.device) || pin.device < 0 || pin.device > 0xffff) throw new PayloadError(`${field.id}: device ${pin.device} is not a u16.`)
+    if (!Number.isInteger(pin.device) || pin.device < 0 || pin.device > 0xff) throw new PayloadError(`${field.id}: device ${pin.device} is not a u8.`)
     if (!Number.isInteger(pin.pin) || pin.pin < 0 || pin.pin > 0xff) throw new PayloadError(`${field.id}: pin ${pin.pin} is not a u8.`)
-    view.setUint16(i * PIN_REF_SIZE, pin.device, true)
-    view.setUint8(i * PIN_REF_SIZE + 2, pin.pin)
+    view.setUint8(i * PIN_REF_SIZE, pin.device)
+    view.setUint8(i * PIN_REF_SIZE + 1, pin.pin)
   })
   return out
 }
@@ -369,8 +369,8 @@ const readPins = (data: Uint8Array, field: WireField): FieldValue => {
   const count = field.size! / PIN_REF_SIZE
   const pins = Array.from({ length: count }, (_, i): PinRef | null => {
     const at = field.offset + i * PIN_REF_SIZE
-    const device = view.getUint16(at, true)
-    return field.pinNone && device === field.pinNone.device ? null : { device, pin: view.getUint8(at + 2) }
+    const device = view.getUint8(at)
+    return field.pinNone && device === field.pinNone.device ? null : { device, pin: view.getUint8(at + 1) }
   })
   return count === 1 ? pins[0]! : pins
 }

@@ -1,42 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  bundledEnums, combineResolvers, CommandError, deviceRefs, ErrorInterpreter, ErrorLog, errorCatalog, errorIdKinds, programRefs, refKey, RunitLink,
-} from '@backend'
+import { bundledEnums, CommandError, deviceRefs, ErrorInterpreter, ErrorLog, errorCatalog, errorIdKinds, refKey, RunitLink } from '@backend'
 import type { ErrorReport } from '@backend'
-import { blk, build, num, project, read } from '../engine/helpers'
 import { defs, FakeBoard, until } from './fakes'
+import { record, tagOf, u16, u32 } from './records'
 
 const catalog = errorCatalog()
 const kinds = errorIdKinds()
-const tagOf = (name: string) => [...catalog.values()].find((e) => e.name === name)!.tag
-
-const u16 = (n: number) => [n & 0xff, n >> 8]
-const u32 = (n: number) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, n >>> 24]
-
-/** The payload of an error from its field values, laid out as errors.json says. */
-const payload = (name: string, values: Record<string, number> = {}): number[] => {
-  const info = catalog.get(tagOf(name))!
-  const out = new Array<number>(info.fields.reduce((n, f) => Math.max(n, f.offset + f.size), 0)).fill(0)
-  for (const f of info.fields) {
-    const v = values[f.name] ?? 0
-    const bytes = f.type === 'f32' ? [...new Uint8Array(Float32Array.of(v).buffer)] : f.size === 1 ? [v & 0xff] : f.size === 2 ? u16(v) : u32(v)
-    out.splice(f.offset, f.size, ...bytes)
-  }
-  return out
-}
-
-/** An error record (ERRORS.MD "Error record"): a command's when `request` is given, else an internal one. */
-const record = (nodes: [string, Record<string, number>?][], request?: number[], seq = 7, time = 0): Uint8Array => {
-  const stamp = [...u32(time), ...u32(0)]  // u64 LE
-  const head = request ? [defs.errorRecord.srcCommand, ...stamp, 0xf0, ...u16(seq), 0, request.length, ...request] : [defs.errorRecord.srcInternal, ...stamp]
-  const chain = nodes.flatMap(([name, values]) => {
-    const info = catalog.get(tagOf(name))!
-    const p = payload(name, values)
-    return [...u32(info.tag), p.length, ...p]
-  })
-  return Uint8Array.from([...head, nodes.length, ...chain])
-}
-
 const ioMode = bundledEnums().sys_io_mode_e!.members[0]!
 
 describe('errors.json', () => {
@@ -63,21 +32,11 @@ describe('errors.json', () => {
 describe('reading an error', () => {
   const interpreter = new ErrorInterpreter({ resolve: deviceRefs(new Map([[3, 'Left motor']])) })
 
-  it('no device (the source of the board events) reads as the board, never as its id', () => {
-    const report = interpreter.read(record([['ERR_VM_EVENT_OVERFLOW', { source: 0xffff, depth: 16, dropped: 3 }]]))!
-    expect(report.message).toBe('Too many events from the board: 3 dropped (queue of 16)')
-  })
-
-  it('a float field reads as the number it was, not its float32 digits', () => {
-    const report = interpreter.read(record([['ERR_VM_DEV_HELD', { block_idx: 0, field: 1, value: 12.3, min: -100, max: 100 }]]))!
-    expect(report.message).toMatch(/: 12\.3 is outside -100\.\.100, the nearest end is sent$/)
-  })
-
   it('a device command: the route, the device and its pin, the message with names, enum aliases and the command', () => {
     const op = 0x0101 // IO contract, op 1
     const data = record(
-      [['ERR_ROUTER_KEY', { key: defs.keys.device! }], ['ERR_DEV_ID', { id: 3 }], ['ERR_DEV_OP', { op, dir: defs.dir.write }], ['ERR_IO_PIN_IN_USE', { id: 3, pin: 22, mode: ioMode.value }]],
-      [defs.keys.device!, defs.dir.write, ...u16(3), ...u16(op), 22],
+      [['ERR_ROUTER_KEY', { key: defs.keys.sys_device! }], ['ERR_DEV_ID', { id: 3 }], ['ERR_DEV_OP', { op, dir: defs.dir.write }], ['ERR_IO_PIN_IN_USE', { id: 3, pin: 22, mode: ioMode.value }]],
+      [defs.keys.sys_device!, defs.dir.write, ...u16(3), ...u16(op), 22],
     )
     const report = interpreter.read(data)!
     expect(report.message).toBe(`Pin 22 of Left motor is already set up as ${ioMode.alias}`)
@@ -85,7 +44,7 @@ describe('reading an error', () => {
     expect(report.where[1]).toBe('In Left motor')
     expect(report.where[2]).toMatch(/^In IO/)
     expect(report.command!.label).toMatch(/\(Left motor\)$/)
-    expect(report.refs.map(refKey)).toEqual(expect.arrayContaining(['device:3', 'device:3/device_op:257', 'device:3/pin:22', `router_key:${defs.keys.device}`]))
+    expect(report.refs.map(refKey)).toEqual(expect.arrayContaining(['device:3', 'device:3/device_op:257', 'device:3/pin:22', `router_key:${defs.keys.sys_device}`]))
     expect(report.cause!.fields.find((f) => f.name === 'pin')!.ref).toEqual({ kind: 'pin', id: 22, scope: { kind: 'device', id: 3 } })
     expect(interpreter.target(report.cause!.fields[1]!.ref!)).toEqual({ kind: 'pin', device: 3, pin: 22 })
     expect(report.severity).toBe(catalog.get(tagOf('ERR_IO_PIN_IN_USE'))!.severity)
@@ -99,45 +58,19 @@ describe('reading an error', () => {
     expect(report.cause!.refs).toEqual([{ kind: 'device_op', id: 0x0907, scope: { kind: 'device', id: 3 } }])
   })
 
-  it('a field whose kind another field selects (id_kind_by), and a bare number in the kind\'s format', () => {
-    const report = interpreter.read(record([['ERR_VM_BLK_BAD_REF', { blk_id: 4, ref_id: 9, slot: 1, kind: 0 }], ['ERR_I2C_DEV_NOT_FOUND', { bus: 0, addr: 0x3c }]]))!
-    const [bad, i2c] = report.chain
-    expect(bad!.refs.map(refKey).sort()).toEqual(['vm_accessor:9', 'vm_block:4', 'vm_block:4/vm_block_input:1'])
-    expect(i2c!.message).toBe('Nothing answers at I2C address 0x3C on I2C bus 0')
+  it('a bare number in the kind\'s format', () => {
+    const report = interpreter.read(record([['ERR_I2C_DEV_NOT_FOUND', { bus: 0, addr: 0x3c }]]))!
+    expect(report.chain[0]!.message).toBe('Nothing answers at I2C address 0x3C on I2C bus 0')
   })
 
-  it('names from the descriptors: device types, error tags', () => {
-    const report = interpreter.read(record([['ERR_DEV_TYPE_UNKNOWN', { type: 0x41 }], ['ERR_VM_EXEC_FAULT_LATCHED', { device_id: 3, root_tag: tagOf('ERR_DEV_SUSPENDED') }]]))!
+  it('names from the descriptors: device types', () => {
+    const report = interpreter.read(record([['ERR_DEV_TYPE_UNKNOWN', { type: 0x41 }]]))!
     expect(report.chain[0]!.message).not.toMatch(/Device type 65/)
-    expect(report.chain[1]!.message).toBe('The program is stopped by a critical error of Left motor (ERR_DEV_SUSPENDED): acknowledge it to start again')
   })
 
   it('a tag errors.json does not have keeps its number', () => {
     const report = interpreter.read(Uint8Array.from([defs.errorRecord.srcInternal, ...u32(0), ...u32(0), 1, ...u32(0x7fff0001), 0]))!
     expect(report.cause).toMatchObject({ known: false, name: '0x7FFF0001', message: 'Error 0x7FFF0001' })
-  })
-})
-
-describe('the program behind an error', () => {
-  const p = project([num('x', 'speed'), num('y', 'limit')], [blk('e', 'expr', { name: 'Scale', groups: { inputs: 2 }, inputs: [read('x'), read('y')], editor: { text: 'in0 * 2 + in1' } })])
-  const result = build(p)
-  const interpreter = new ErrorInterpreter({ resolve: combineResolvers(programRefs(p, result), deviceRefs(new Map())) })
-  const blockId = result.ids.blocks.get('e')!
-
-  it('variables, blocks and block pins by name, pointing at the project', () => {
-    const report = interpreter.read(record([['ERR_VM_BLOCK_PIN_UNLINKED', { block_idx: blockId, pin_id: 1, is_out: 0 }], ['ERR_VM_OBJ_NOT_MUTABLE', { obj_id: result.ids.variables.get('x')! }]]))!
-    expect(report.chain[0]!.message).toBe('input 2 of Scale is not connected')
-    expect(report.chain[1]!.message).toBe('speed cannot be written')
-    const pin = report.chain[0]!.fields.find((f) => f.name === 'pin_id')!.ref!
-    expect(interpreter.target(pin)).toEqual({ kind: 'block', block: 'e', pin: { kind: 'input', index: 1 } })
-    expect(interpreter.target(report.chain[1]!.refs[0]!)).toEqual({ kind: 'variable', variable: 'x' })
-  })
-
-  it('an accessor is the block pin that reads through it', () => {
-    const acc = result.ir!.blocks.find((b) => b.id === blockId)!.inputs[0]!
-    const report = interpreter.read(record([['ERR_VM_ACCESSOR_UNKNOWN_ID', { id: acc }]]))!
-    expect(report.message).toBe('input 1 of Scale does not exist')
-    expect(interpreter.target(report.refs[0]!)).toEqual({ kind: 'block', block: 'e', pin: { kind: 'input', index: 0 } })
   })
 })
 
@@ -147,7 +80,7 @@ describe('the error log', () => {
     let t = 1000
     return { now: () => t, tick: (ms: number) => (t += ms) }
   }
-  const pinError = (seq: number, pin = 22) => record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin }]], [defs.keys.device!, ...u16(3), 1, 1], seq)
+  const pinError = (seq: number, pin = 22) => record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin }]], [defs.keys.sys_device!, ...u16(3), 1, 1], seq)
 
   it('an answer and its copy on the stream are one; the same error again counts up and is unread again', () => {
     const c = clock()
@@ -168,7 +101,7 @@ describe('the error log', () => {
   it("dates an entry by the board's clock in its record: UTC as it is, a time since the start once the clock is known, never twice for one record", () => {
     const stamp = (ms: number) => [...u32(ms % 2 ** 32), ...u32(Math.floor(ms / 2 ** 32))]
     const rec = (ms: number, seq: number) => {
-      const bytes = record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin: 22 }]], [defs.keys.device!, ...u16(3), 1, 1], seq, 0)
+      const bytes = record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin: 22 }]], [defs.keys.sys_device!, ...u16(3), 1, 1], seq, 0)
       bytes.set(stamp(ms), 1)
       return bytes
     }
@@ -236,16 +169,3 @@ describe('the error log', () => {
 // the report is plain data an app can keep
 const _typed: (r: ErrorReport) => string = (r) => r.message
 void _typed
-
-describe('the UI kit\'s errors (design/board-errors.json)', () => {
-  it('are records in the board\'s format: every one is read whole, each node a tag errors.json has', async () => {
-    const { readFileSync } = await import('node:fs')
-    const samples = JSON.parse(readFileSync(new URL('../../design/board-errors.json', import.meta.url), 'utf8')) as { id: string; hex: string }[]
-    const interpreter = new ErrorInterpreter({})
-    for (const s of samples) {
-      const report = interpreter.read(Uint8Array.from(Buffer.from(s.hex, 'hex')))
-      expect(report, s.id).toBeDefined()
-      expect(report!.chain.every((n) => n.known), s.id).toBe(true)
-    }
-  })
-})

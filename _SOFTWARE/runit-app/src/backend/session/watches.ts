@@ -14,7 +14,7 @@ import { Services } from './services'
  *
  *   const watches = new Watches(link)
  *   const stop = await watches.add({ head: { trigger: 'SYS_WATCH_ON_CHANGE', period: 10, max_silence: 100 },
- *                                    read: requestFrame(deviceCall(...)) }, (entry, lost) => ...)
+ *                                    read: requestFrame(deviceCall(...)) }, (entry) => ...)
  *   await stop()
  */
 
@@ -35,13 +35,12 @@ export interface FollowSpec {
 /** The ticks of a period (`SYS_WATCH_TICK_MS`, 10 ms): at least one. */
 const ticks = (ms: number): number => Math.min(0xffff, Math.max(1, Math.round(ms / 10)))
 
-/** Called for each entry; `lost` is the entries of this watch missed since the one before (the gap in the frame's `seq`). */
-export type WatchHandler = (entry: WatchEntry, lost: number) => void
+/** Called for each entry. */
+export type WatchHandler = (entry: WatchEntry) => void
 
 interface Held {
   readonly spec: WatchSpec
   readonly handler: WatchHandler
-  seq: number | undefined
   /** The board has it: its ADD was answered on this connection. The board ends a client's watches with its session, so a lost link clears it. */
   onBoard: boolean
 }
@@ -75,10 +74,7 @@ export class Watches {
       const entry = decodeWatchEntry(link.defs, frame.data)
       const held = entry && this.held.get(entry.id)
       if (!entry || !held) return
-      const seq = frame.seq
-      const lost = held.seq === undefined || seq === undefined ? 0 : (seq - held.seq - 1 + 0x10000) & 0xffff
-      if (seq !== undefined) held.seq = seq
-      held.handler(entry, lost)
+      held.handler(entry)
     })
     this.offStatus = link.onStatus((status) => {
       const was = this.connected
@@ -91,7 +87,7 @@ export class Watches {
   /** Adds a watch; resolves with the function that removes it. */
   async add(spec: WatchSpec, handler: WatchHandler, options?: CommandOptions): Promise<() => Promise<void>> {
     const id = this.freeId()
-    const held: Held = { spec, handler, seq: undefined, onBoard: false }
+    const held: Held = { spec, handler, onBoard: false }
     this.held.set(id, held)
     try {
       await this.send(id, spec, options)
@@ -123,9 +119,9 @@ export class Watches {
       period: ticks(spec.periodMs),
       max_silence: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs),
       // the event filter is for ON_EVENT: these are its "any" values (SYS_EVENT_ANY_*)
-      filter_source: 0xffff,
-      filter_event: 0xffff,
-      filter_channel: 0xff,
+      tag: 0xffffffff,
+      source: 0xffff,
+      channel: 0xffff,
     }
     return this.add({ head, read: requestFrame(call.request) }, (entry) => handler(entry.ok ? decodeAnswer(call, entry.data) : undefined), options)
   }
@@ -161,7 +157,6 @@ export class Watches {
 
   private async addAll(): Promise<void> {
     for (const [id, held] of this.held) {
-      held.seq = undefined
       try {
         await this.send(id, held.spec)
         held.onBoard = this.connected

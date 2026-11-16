@@ -17,11 +17,12 @@ afterAll(async () => {
 })
 
 describe('following a read', () => {
-  it('VM STATUS every second arrives with no request after the first, and stops when the watch is removed', async () => {
+  it('PING every 200 ms arrives with no request after the first, and stops when the watch is removed', async () => {
     const seen: unknown[] = []
-    const stop = await watches.follow(serviceCall(board.services.catalog, 'VM', 'STATUS', undefined, 'read'), { trigger: 'every', periodMs: 200 }, (v) => seen.push(v))
+    const stop = await watches.follow(serviceCall(board.services.catalog, 'SYS', 'PING'), { trigger: 'every', periodMs: 200 }, (v) => seen.push(v))
     expect(await until(() => seen.length >= 5, 5000)).toBeTruthy()
-    expect(seen[0]).toMatchObject({ mode: expect.anything() })
+    expect(seen[0]).toMatchObject({ uptime_ms: expect.any(Number) })
+    expect((seen.at(-1) as { uptime_ms: number }).uptime_ms).toBeGreaterThan((seen[0] as { uptime_ms: number }).uptime_ms)
     await stop()
     await sleep(300)
     const n = seen.length

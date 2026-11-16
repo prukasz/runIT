@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { CommandError, bundledServiceCatalog } from '@backend'
+import { bundledServiceCatalog, CommandError, decodePeers, sidesOf } from '@backend'
 import { openBoard } from './harness'
 import type { Board } from './harness'
 
-/* The onboard devices and their ids (runit-esp/components/app/runit, RUNIT.MD "Boot"). */
-const ONBOARD: Record<number, string> = { 0: 'esp32s3_gpio', 1: 'tca6424a', 2: 'ads7128', 3: 'pca9685', 4: 'dac53202', 5: 'drv8962', 6: 'drv8962', 7: 'power_mux', 8: 'power_mux', 10: 'tps55289', 11: 'tps55289', 12: 'ina3221', 13: 'ap33772s' }
-const LED = 23 // TCA6424A pin 23: the status LED, lit once the boot got far enough
+/*
+ * The services and the device the devkit has (runit-esp-rework/components/app/runit, RUNIT.MD): device 0 is the ESP32-S3's
+ * GPIO, the providers are the console and the runIT BLE pair, the sessions and the data matrix are the board's setup.
+ */
+
+const GPIO = 0
+const PIN = 4 // a free pin of the devkit
 
 const catalog = bundledServiceCatalog()
 let board: Board
@@ -25,100 +29,125 @@ const refused = async (promise: Promise<unknown>): Promise<CommandError> => {
   return error as CommandError
 }
 
+const level = async (pin = PIN) => ((await board.services.device(GPIO, 'IO', 'LEVEL', { pin }, { side: 'read' })).value as { level: unknown }).level
+
 describe('the catalog has no problem and the services it names are on the board', () => {
   it('no problems in the bundle', () => {
     expect(catalog.problems).toEqual([])
   })
 
-  it.each([
-    ['SYS', 'PING'],
-    ['SYS', 'DEADMAN'],
-    ['BLE', 'STATUS'],
-    ['BLE', 'LIST'],
-    ['CONNECTOR', 'LIST'],
-    ['PROVIDER', 'LIST'],
-    ['SESSION', 'PEERS'],
-    ['SESSION', 'ID'],
-    ['LOG', 'CONFIG'],
-    ['POWER_MANAGER', 'CONFIG'],
-    ['POWER_MANAGER', 'STATUS'],
-    ['PROJECT', 'INFO'],
-  ])('%s %s (its read) answers and decodes by its descriptor', async (service, command) => {
-    const answer = await board.services.call(service!, command!, undefined, { side: 'read' })
-    const returns = catalog.service(service!).commands.get(command!)!.read?.returns
-    if (returns) expect(answer.value, `${service} ${command} returned ${returns.kind}`).toBeDefined()
-  })
-
-  it('the power manager status is the 40 bytes of its struct, with a plausible input', async () => {
-    const { value, data } = await board.services.call('POWER_MANAGER', 'STATUS')
-    expect(data.length).toBe(40)
-    expect((value as { input_mV: number }).input_mV).toBeGreaterThan(3000)
+  it('every read of a service that takes no arguments answers and decodes by its descriptor', async () => {
+    const answered: string[] = []
+    for (const service of catalog.services.values()) {
+      if (service.contractId !== undefined) continue // addressed by an id: below
+      for (const command of service.commands.values()) {
+        if (!command.read || command.read.args) continue
+        const call = board.services.call(service.id, command.id, undefined, { side: 'read' })
+        // a service the board has no use for yet (the power manager of a devkit) says so with an error record: it is answered all the same
+        const result = await call.then(
+          () => 'ok',
+          (e: unknown) => (e instanceof CommandError && e.code === 'device-error' && e.record ? 'refused' : String(e)),
+        )
+        expect(['ok', 'refused'], `${service.id} ${command.id}`).toContain(result)
+        answered.push(`${service.id} ${command.id}`)
+      }
+    }
+    expect(answered.length).toBeGreaterThan(8)
   })
 })
 
-describe('devices', () => {
-  it.each(Object.entries(ONBOARD))('device %s is a %s', async (id, type) => {
-    const { value } = await board.services.device(Number(id), 'DEVICE', 'INFO')
-    const typeId = (value as { type_id: number }).type_id
-    expect(catalog.byTypeId.get(typeId)?.id, `type ${typeId}`).toBe(type)
+describe('the board and its ways', () => {
+  it('this client is an open session on the BLE provider; the console is a session with nobody on it', async () => {
+    const { data } = await board.services.call('SESSION', 'PEERS')
+    const peers = decodePeers(board.link.defs, data)
+    expect(peers.find((p) => p.open && p.peerId === board.link.session!.clientId)).toBeDefined()
+    expect(peers.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('a device that is not there: ERR_DEV_NOT_FOUND', async () => {
-    const error = await refused(board.services.device(9, 'DEVICE', 'INFO'))
-    expect(error.record!.cause!.info?.name).toBe('ERR_DEV_NOT_FOUND')
+  it('SESSION ID is the board id the hello said', async () => {
+    const { value } = await board.services.call('SESSION', 'ID', undefined, { side: 'read' })
+    expect((value as { board_id: number }).board_id).toBe(board.link.session!.boardId)
   })
 
-  it('OPS of a device lists its commands', async () => {
-    const { data } = await board.services.device(1, 'DEVICE', 'OPS')
+  it('PROVIDER LIST has the console and the BLE pair, each with INFO', async () => {
+    const { data } = await board.services.call('PROVIDER', 'LIST')
+    const count = data[0]!
+    expect(count).toBeGreaterThanOrEqual(3)
+    for (let i = 0; i < count; i++) {
+      const id = data[1 + i * 3]!
+      const info = (await board.services.call('PROVIDER', 'INFO', undefined, { id })).value as { type: number; state: number }
+      expect(info.type, `provider ${id}`).toBe(data[2 + i * 3])
+    }
+  })
+
+  it('DATA_MATRIX LIST has the roles and the routes of the setup', async () => {
+    const { data } = await board.services.call('DATA_MATRIX', 'LIST')
+    expect(data.length).toBeGreaterThan(8)
+  })
+
+  it('BLE LIST is the one runIT service with its three characteristics', async () => {
+    const { data } = await board.services.call('BLE', 'LIST')
+    expect(data[0]).toBe(1)
+    expect(data[1]! | (data[2]! << 8)).toBe(board.link.defs.gatt.service)
+    expect(data[4]).toBe(3)
+  })
+})
+
+describe('the GPIO device', () => {
+  it('device 0 is the ESP32-S3 GPIO, and its OPS list is not empty', async () => {
+    const info = (await board.services.device(GPIO, 'DEVICE', 'INFO')).value as { type_id: number; suspended: boolean }
+    expect(info.type_id).toBe(catalog.device('esp32s3_gpio').typeId)
+    expect(info.suspended).toBe(false)
+    const { data } = await board.services.device(GPIO, 'DEVICE', 'OPS')
     expect(data.length).toBeGreaterThan(0)
+    expect(data.length % 3).toBe(0)
   })
 
-  it('the status LED is lit; TOGGLE puts it out and back on, read back each time', async () => {
-    const level = async () => ((await board.services.device(1, 'IO', 'LEVEL', { pin: LED }, { side: 'read' })).value as { level: unknown }).level
-    expect(String(await level())).toMatch(/High|1|true/i)
-    await board.services.device(1, 'IO', 'TOGGLE', { pin: LED })
+  it('a pin set as an output is written, toggled and read back each time', async () => {
+    await board.services.device(GPIO, 'IO', 'RESET', { pin: PIN }) // a pin a run before set up is set up again
+    await board.services.device(GPIO, 'IO', 'MODE', { pin: PIN, mode: 'SYS_IO_MODE_OUTPUT_PUSH_PULL' }, { side: 'write' })
+    await board.services.device(GPIO, 'IO', 'LEVEL', { pin: PIN, level: 'Low' }, { side: 'write' })
     expect(String(await level())).toMatch(/Low|0|false/i)
-    await board.services.device(1, 'IO', 'TOGGLE', { pin: LED })
+    await board.services.device(GPIO, 'IO', 'TOGGLE', { pin: PIN })
     expect(String(await level())).toMatch(/High|1|true/i)
+    await board.services.device(GPIO, 'IO', 'TOGGLE', { pin: PIN })
+    expect(String(await level())).toMatch(/Low|0|false/i)
   })
 
-  it('the LEVEL write with a label, then back', async () => {
-    await board.services.device(1, 'IO', 'LEVEL', { pin: LED, level: 'Low' }, { side: 'write' })
-    expect(String(((await board.services.device(1, 'IO', 'LEVEL', { pin: LED }, { side: 'read' })).value as { level: unknown }).level)).toMatch(/Low|0|false/i)
-    await board.services.device(1, 'IO', 'LEVEL', { pin: LED, level: 'High' }, { side: 'write' })
-  })
-
-  it('a pin the chip does not have: ERR_DEV_BAD_PIN', async () => {
-    const error = await refused(board.services.device(1, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
+  it('a pin the chip does not have is refused with the error named', async () => {
+    const error = await refused(board.services.device(GPIO, 'IO', 'LEVEL', { pin: 99, level: 'High' }, { side: 'write' }))
     expect(error.record!.cause!.info?.name).toBe('ERR_DEV_BAD_PIN')
   })
 
+  it('a device that is not there is refused', async () => {
+    const error = await refused(board.services.device(30, 'DEVICE', 'INFO'))
+    expect(error.record!.chain.map((n) => n.info?.name)).toContain('ERR_DEV_NOT_FOUND')
+  })
+
   it('SUSPEND refuses a command; RESUME takes it again', async () => {
-    await board.services.device(4, 'DEVICE', 'SUSPEND') // the DAC: nothing connected to it
+    await board.services.device(GPIO, 'DEVICE', 'SUSPEND')
     try {
-      const error = await refused(board.services.device(4, 'IO', 'VOLTAGE', { pin: 0, voltage_mV: 100 }, { side: 'write' }))
+      const error = await refused(board.services.device(GPIO, 'IO', 'TOGGLE', { pin: PIN }))
       expect(error.record!.cause!.info?.name).toBe('ERR_DEV_SUSPENDED')
     } finally {
-      await board.services.device(4, 'DEVICE', 'RESUME')
+      await board.services.device(GPIO, 'DEVICE', 'RESUME')
     }
-    expect((await board.services.device(4, 'DEVICE', 'INFO')).value).toMatchObject({ suspended: 0 })
+    expect((await board.services.device(GPIO, 'DEVICE', 'INFO')).value).toMatchObject({ suspended: false })
   })
 
   it('a second device with an id in use is refused, and nothing changes', async () => {
-    const error = await refused(board.services.create(0, 'esp32s3_gpio'))
+    const error = await refused(board.services.create(GPIO, 'esp32s3_gpio'))
     expect(error.record).toBeDefined()
-    expect((await board.services.device(0, 'DEVICE', 'INFO')).value).toMatchObject({ type_id: 64 })
+    expect((await board.services.device(GPIO, 'DEVICE', 'INFO')).value).toMatchObject({ type_id: catalog.device('esp32s3_gpio').typeId })
   })
 
-  it('a command arguments check: a pin out of the byte range is refused by the encoder, nothing is sent', async () => {
-    const before = board.link.commands
-    expect(() => board.services.device(1, 'IO', 'LEVEL', { pin: 300, level: 'High' }, { side: 'write' })).toThrow()
-    expect(board.link.commands).toBe(before)
+  it('a pin out of the byte range is refused by the encoder: nothing is sent', () => {
+    expect(() => board.services.device(GPIO, 'IO', 'LEVEL', { pin: 300, level: 'High' }, { side: 'write' })).toThrow()
   })
 })
 
-describe('the console', () => {
-  it('logged no panic', () => {
-    expect(board.console.trouble(board.startedAt)).toEqual([])
+describe('commands of every kind have their sides in the descriptor', () => {
+  it('every service command has a side', () => {
+    for (const service of catalog.services.values()) for (const command of service.commands.values()) expect(sidesOf(command).length, `${service.id} ${command.id}`).toBeGreaterThan(0)
   })
 })

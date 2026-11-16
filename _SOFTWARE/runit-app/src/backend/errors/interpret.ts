@@ -215,7 +215,7 @@ export class ErrorInterpreter {
   private command(request: Uint8Array): { label: string; refs: Ref[] } | undefined {
     const key = request[0]
     if (key === undefined) return undefined
-    if (key === this.defs.keys.device && request.length >= 6) {
+    if (key === this.defs.keys.sys_device && request.length >= 6) {
       const id = request[2]! | (request[3]! << 8)
       const device: Ref = { kind: 'device', id }
       const op: Ref = { kind: 'device_op', id: request[4]! | (request[5]! << 8), scope: device }

@@ -3,9 +3,9 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 
-/* A Python helper behind JSON lines: bleak for the radio (bleak_bridge.py), pyserial for the console (uart_tap.py). */
+/* A Python helper behind JSON lines: bleak for the radio (bleak_bridge.py). */
 
-/** The repository's venv has bleak and pyserial; HW_PYTHON overrides it. */
+/** The repository's venv has bleak; HW_PYTHON overrides it. */
 export const PYTHON = process.env.HW_PYTHON ?? fileURLToPath(new URL('../../../.venv/Scripts/python.exe', import.meta.url))
 const script = (name: string) => fileURLToPath(new URL(name, import.meta.url))
 

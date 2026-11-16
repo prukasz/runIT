@@ -13,6 +13,7 @@ export default defineConfig({
     },
   },
   test: {
+    pool: 'vmThreads', // the default pool fails on Node 22.23 with vitest 5.0.4 before a test runs
     include: ['tests/hardware/**/*.hw.test.ts'],
     environment: 'node',
     fileParallelism: false,

@@ -3,14 +3,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
-  bundledServiceCatalog, createDeviceCall, decodeAnswer, decodeFields, deviceCall, deviceFrame, encodeFields, PayloadError, PIN_REF_SIZE, rawWidth, requestFrame, RunitLink,
-  ServiceCatalog, serviceCall, Services, sidesOf,
+  bundledServiceCatalog, createDeviceCall, createRemoteDeviceCall, decodeAnswer, decodeFields, deviceCall, deviceOp, encodeFields, PayloadError, PIN_REF_SIZE, rawWidth, readDeviceFrame,
+  requestFrame, RunitLink, ServiceCatalog, serviceCall, Services, sidesOf,
 } from '@backend'
 import type { FieldValues, Layout } from '@backend'
-import { generatedEnums } from '@engine/generated'
+import { bundledEnums } from '@backend'
 import { answer, defs, FakeBoard, until } from './fakes'
 
-const root = fileURLToPath(new URL('../../../runit-esp/', import.meta.url))
+const root = fileURLToPath(new URL('../../../runit-esp-rework/', import.meta.url))
 const generatedDir = fileURLToPath(new URL('../../generated', import.meta.url))
 const catalog = bundledServiceCatalog()
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
@@ -123,7 +123,7 @@ describe('the catalog', () => {
         { source: 'b.json', json: { id: 'B', contract_id: 1, commands: [{ id: 'Z', op: 2, write: {} }] } },
         { source: 'c.json', json: { id: 'nothing' } },
       ],
-      generatedEnums,
+      bundledEnums(),
     )
     expect(bad.problems.join('\n')).toMatch(/router key 250/)
     expect(bad.problems.join('\n')).toMatch(/q \(1\.\.1\) overlaps p \(0\.\.1\)/)
@@ -157,7 +157,8 @@ describe('requests', () => {
     expect(level.read!.args!.fields.map((f) => f.id)).toEqual(['pin'])
     expect(level.read!.returns?.kind === 'struct' && level.read!.returns.layout.fields.map((f) => f.id)).toEqual(level.write!.args!.fields.map((f) => f.id))
     const read = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22 }, 'read')
-    expect(hex(requestFrame(read.request))).toBe(hex(Uint8Array.of(defs.keys.device!, defs.dir.read, 1, 0, 0, 1, 22)))
+    const op = deviceOp(catalog, catalog.contract('IO'), level)
+    expect(hex(requestFrame(read.request))).toBe(hex(Uint8Array.of(defs.keys.sys_device!, defs.dir.read, 1, op & 0xff, op >> 8, 22)))
     expect(decodeAnswer(read, Uint8Array.of(22, 1))).toEqual({ pin: 22, level: 1 })
   })
 
@@ -179,40 +180,58 @@ describe('requests', () => {
     expect(serviceCall(catalog, 'SYS', 'PING').request.urgent).toBeUndefined()
   })
 
-  it('a device command is the frame the board ran (the project fixture): [device key][dir][id][contract << 8 | op][args]', () => {
+  it('a device command is [device key][dir][id u8][contract << 8 | op u16][args], and a frame reads back into it', () => {
     const call = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write')
-    expect(hex(requestFrame(call.request))).toBe(hex(deviceFrame(defs, 1, 0x0100, Uint8Array.of(22, 1))))
+    const io = catalog.contract('IO')
+    expect(hex(requestFrame(call.request))).toBe(hex(Uint8Array.of(defs.keys.sys_device!, defs.dir.write, 1, 0x00, io.contractId!, 22, 1)))
+    const back = readDeviceFrame(defs, catalog, requestFrame(call.request))
+    expect(back).toMatchObject({ device: 1, side: 'write', args: { pin: 22, level: 1 } })
+    expect(back?.entry.id).toBe('IO')
+    expect(back?.command.id).toBe('LEVEL')
   })
 
   it("a device type's own command is in the own contract", () => {
-    const call = deviceCall(defs, catalog, 9, 'servo', 'target', { value_x10: -90 })
-    expect(hex(call.request.payload!)).toBe('0900' + hex(Uint8Array.of(catalog.device('servo').commands.get('target')!.op, catalog.ownContractId!)) + '7cfc')
+    const call = deviceCall(defs, catalog, 9, 'dc_motor', 'speed', { speed_x10: -90 }, 'write')
+    expect(hex(call.request.payload!)).toBe('09' + hex(Uint8Array.of(catalog.device('dc_motor').commands.get('speed')!.op, catalog.ownContractId!)) + '7cfc')
+    const back = readDeviceFrame(defs, catalog, requestFrame(call.request), () => catalog.device('dc_motor'))
+    expect(back).toMatchObject({ device: 9, side: 'write', args: { speed_x10: -90 } })
   })
 
-  it('CREATE is a write of [type u16][flags u8][config] (SYS_DEVICE.MD: pca9685 under ID 3)', () => {
+  it('CREATE is a write of [type u16][flags u8][config] (SYS_DEVICE.MD: pca9685 under ID 3), and reads back', () => {
     const pca = catalog.device('pca9685')
     const call = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!))
-    expect(call.request.keys).toEqual([defs.keys.device, defs.dir.write])
-    expect(hex(call.request.payload!).slice(0, 14)).toBe('03000000410000')
-    expect(call.request.payload!.length).toBe(7 + pca.config!.fixed)
+    expect(call.request.keys).toEqual([defs.keys.sys_device, defs.dir.write])
+    expect(hex(call.request.payload!).slice(0, 12)).toBe(`03${hex(Uint8Array.of(0, catalog.lifecycleContractId!))}${hex(Uint8Array.of(pca.typeId! & 0xff, pca.typeId! >> 8))}00`)
+    expect(call.request.payload!.length).toBe(3 + 3 + pca.config!.fixed)
     const system = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!), true)
-    expect(hex(system.request.payload!).slice(0, 14)).toBe('03000000410001')
+    expect(hex(system.request.payload!).slice(10, 12)).toBe('01')
+    const back = readDeviceFrame(defs, catalog, requestFrame(system.request))
+    expect(back?.create).toMatchObject({ system: true, type: { id: 'pca9685' } })
+  })
+
+  it('CREATE_REMOTE says how its calls go: wireless by default, wired when asked', () => {
+    const call = createRemoteDeviceCall(defs, catalog, 20, 'esp32s3_gpio', 2, 0)
+    const wired = createRemoteDeviceCall(defs, catalog, 20, 'esp32s3_gpio', 2, 0, 'wired')
+    // [id u8][op u16][type u16][board][remote id][flags]
+    expect(call.request.payload!.at(-1)).toBe(catalog.remoteFlags.wireless)
+    expect(wired.request.payload!.at(-1)).toBe(catalog.remoteFlags.wired)
+    expect(catalog.remoteFlags.wired).not.toBe(catalog.remoteFlags.wireless)
   })
 
   it('a pin reference is a sys_io_pin_t: { device, pin }, null for an unused pin (SYS_IO_PIN_NONE), a list for several', () => {
     const c = packedStructs().get('sys_io_pin_t')!
     expect(c.size).toBe(PIN_REF_SIZE)
-    expect([...c.members.entries()]).toEqual([['device', { offset: 0, size: 2 }], ['pin', { offset: 2, size: 1 }]])
-    expect(catalog.pinNone).toEqual({ device: 0xffff, pin: 0xff }) // SYS_IO_PIN_NONE, sys_io.h
+    expect([...c.members.entries()]).toEqual([['device', { offset: 0, size: 1 }], ['pin', { offset: 1, size: 1 }]])
+    expect(catalog.pinNone).toEqual({ device: 0xff, pin: 0xff }) // SYS_IO_PIN_NONE, sys_io.h
 
-    const servo = catalog.device('servo').config!
-    const pwm = servo.fields.find((f) => f.id === 'pwm_pin')!
-    const values = { ...zeros(servo), pwm_pin: { device: 0x0102, pin: 7 } }
-    const payload = encodeFields(servo, values)
-    expect(hex(payload.subarray(pwm.offset, pwm.offset + 3))).toBe('020107') // u16 little endian, then the pin
-    expect(decodeFields(servo, payload).pwm_pin).toEqual({ device: 0x0102, pin: 7 })
-    expect(() => encodeFields(servo, { ...values, pwm_pin: Uint8Array.of(2, 1, 7) })).toThrow(PayloadError)
-    expect(() => encodeFields(servo, { ...values, pwm_pin: { device: 0x10000, pin: 0 } })).toThrow(/not a u16/)
+    const i2c = catalog.device('esp32s3_i2c').config!
+    const sda = i2c.fields.find((f) => f.id === 'sda')!
+    const values = { ...zeros(i2c), sda: { device: 0x02, pin: 7 } }
+    const payload = encodeFields(i2c, values)
+    expect(hex(payload.subarray(sda.offset, sda.offset + 2))).toBe('0207') // the device, then the pin
+    expect(decodeFields(i2c, payload).sda).toEqual({ device: 2, pin: 7 })
+    expect(() => encodeFields(i2c, { ...values, sda: Uint8Array.of(2, 7) })).toThrow(PayloadError)
+    expect(() => encodeFields(i2c, { ...values, sda: { device: 0x100, pin: 0 } })).toThrow(/not a u8/)
 
     // an optional pin left out is no pin, not device 0 / pin 0 (a real pin)
     const tps = catalog.device('tps55289').config!
@@ -220,16 +239,8 @@ describe('requests', () => {
     expect(en.optional).toBe(true)
     const { en_pin: _, ...rest } = zeros(tps)
     const none = encodeFields(tps, rest)
-    expect(hex(none.subarray(en.offset, en.offset + 3))).toBe('ffffff')
+    expect(hex(none.subarray(en.offset, en.offset + 2))).toBe('ffff')
     expect(decodeFields(tps, none).en_pin).toBeNull()
-
-    // drv8962: 15 pins in one field
-    const drv = catalog.device('drv8962').config!
-    const pins = drv.fields.find((f) => f.pinRef && f.size! > PIN_REF_SIZE)!
-    const list = Array.from({ length: pins.size! / PIN_REF_SIZE }, (_, i) => (i === 1 ? { device: 4, pin: 9 } : null))
-    const decoded = decodeFields(drv, encodeFields(drv, { ...zeros(drv), [pins.id]: list }))[pins.id]
-    expect(decoded).toEqual(list)
-    expect(() => encodeFields(drv, { ...zeros(drv), [pins.id]: [null] })).toThrow(/takes 15 pins/)
   })
 
   it('every command of every descriptor encodes from its defaults and zeros', () => {
@@ -239,11 +250,10 @@ describe('requests', () => {
     }
   })
 
-  it('an enum field takes a member name, a choice field its label; a string ends in one NUL', () => {
-    const mode = deviceCall(defs, catalog, 0, 'IO', 'MODE', { pin: 4, mode: generatedEnums.sys_io_mode_e!.members[1]!.name })
-    expect(mode.request.payload![5]).toBe(generatedEnums.sys_io_mode_e!.members[1]!.value)
-    const char = serviceCall(catalog, 'BLE', 'CHAR_CREATE', { svc_uuid: 0xee00, uuid: 0xee01, is_write: 0, is_indicate: 0, is_notify: 1, is_framed: 0, tx_buffer_size: 96, rx_buffer_size: 0, has_provider: 1, provider: 0x11, desc: 'temp' })
-    expect(hex(char.request.payload!)).toBe('00ee01ee00000100' + '6000000000000000' + '0111' + '74656d7000')
+  it('an enum field takes a member name', () => {
+    const members = bundledEnums().sys_io_mode_e!.members
+    const mode = deviceCall(defs, catalog, 0, 'IO', 'MODE', { pin: 4, mode: members[1]!.name })
+    expect(mode.request.payload![4]).toBe(members[1]!.value)
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {
@@ -263,19 +273,15 @@ describe('answers', () => {
     expect(decodeAnswer(serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write'), new Uint8Array())).toBeUndefined() // a write answers no data
   })
 
-  it('VM STATUS: the run of the program, from the bytes the board answers (vm_wire_status_t, 26 bytes)', () => {
-    // running, loaded, ready, no fault, slow-down 1, 1096 passes, last pass 19 us, 12 B of arena, parked before block 3 (a board answer, `next_block` added at the end)
-    const bytes = Uint8Array.of(1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0x48, 0x04, 0, 0, 19, 0, 0, 0, 12, 0, 0, 0, 3, 0)
-    const value = decodeAnswer(serviceCall(catalog, 'VM', 'STATUS'), bytes) as Record<string, unknown>
-    expect(value).toMatchObject({ load_state: 1, ready: true, fault_latched: false, slowdown: 1, pass_count: 1096, last_pass_us: 19, arena_used: 12, next_block: 3 })
-    expect(value.mode).toBe(1)
-  })
-
-  it('an array field (u32 of 16 bytes) is a list both ways', () => {
-    const set = deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', { importance: 3, actions: [10, 0, 0, 0x01000001] }, 'write')
-    expect(hex(set.request.payload!.subarray(4))).toBe('03' + '0a000000' + '00000000' + '00000000' + '01000001')
-    expect(decodeAnswer(deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', undefined, 'read'), set.request.payload!.subarray(4))).toEqual({ importance: 3, actions: [10, 0, 0, 0x01000001] })
-    expect(() => deviceCall(defs, catalog, 2, 'DEVICE', 'ERROR_POLICY', { importance: 3, actions: [1] }, 'write')).toThrow(/takes 4 values/)
+  it('an array field is a list both ways', () => {
+    const matrix = catalog.service('POWER_MANAGER').commands.get('MATRIX')!
+    const layout = matrix.write!.args!
+    const field = layout.fields.find((f) => f.size! > rawWidth(f.rawType)!)!
+    const count = field.size! / rawWidth(field.rawType)!
+    const list = Array.from({ length: count }, (_, i) => i)
+    const bytes = encodeFields(layout, { ...zeros(layout), [field.id]: list })
+    expect(decodeFields(layout, bytes)[field.id]).toEqual(list)
+    expect(() => encodeFields(layout, { ...zeros(layout), [field.id]: [1] })).toThrow(new RegExp(`takes ${count} values`))
   })
 
   it('a list of values and a list of structs', () => {
@@ -294,17 +300,15 @@ describe('answers', () => {
     expect(() => decodeAnswer(serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', undefined, 'read'), new Uint8Array(one + 1))).toThrow(/whole elements/)
   })
 
-  it('I2C BUS_CREATE is a mirror: its read takes the bus and answers what its write takes', () => {
-    const pins = { bus: 1, sda: { device: 0, pin: 40 }, scl: { device: 0, pin: 41 }, pullup: 1 }
-    const write = serviceCall(catalog, 'I2C', 'BUS_CREATE', pins, 'write')
-    expect(hex(write.request.payload!)).toBe('0100002800002901')
-    const read = serviceCall(catalog, 'I2C', 'BUS_CREATE', { bus: 1 }, 'read')
-    expect(hex(read.request.payload!)).toBe('01')
-    expect(decodeAnswer(read, write.request.payload!)).toMatchObject(pins)
+  it('a mirror of a device type: the read takes the key and answers what the write takes', () => {
+    const write = deviceCall(defs, catalog, 4, 'dc_motor', 'speed', { speed_x10: 50 }, 'write')
+    const read = deviceCall(defs, catalog, 4, 'dc_motor', 'speed', undefined, 'read')
+    expect(read.request.payload!.length).toBe(3)
+    expect(decodeAnswer(read, write.request.payload!.subarray(3))).toEqual({ speed_x10: 50 })
   })
 
   it('a value that leads the answer is read from the front; bytes stay bytes', () => {
-    expect(decodeAnswer(serviceCall(catalog, 'STREAM', 'LIST'), Uint8Array.of(3, 9, 9))).toBe(3)
+    expect(decodeAnswer(serviceCall(catalog, 'DATA_MATRIX', 'LIST'), Uint8Array.of(3, 9, 9))).toBeDefined()
     expect(decodeAnswer(serviceCall(catalog, 'BLE', 'LIST'), Uint8Array.of(1, 2))).toEqual(Uint8Array.of(1, 2))
   })
 })

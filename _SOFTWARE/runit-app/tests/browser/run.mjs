@@ -152,7 +152,7 @@ try {
       console.log(`${r.ok ? 'PASS' : 'FAIL'}  [${label}] ${r.name.trim()}${r.ok ? '' : `  -- ${r.detail ?? ''}`}`)
     }
   }
-  for (const [label, arm] of [['reload, board armed', true], ['reload, nothing armed', false]]) {
+  for (const [label, arm] of [['reload, dead-man armed', true], ['reload, nothing armed', false]]) {
     const before = await call(`window.beforeReload(${arm})`)
     await reload()
     show(label, await call(`window.afterReload(${JSON.stringify(before)}, ${arm})`))

@@ -127,7 +127,7 @@ Zostało:
 
 6. **`CALL {board, request}`** na masterze (aplikacja → komenda slave'a) i `forward` strumienia slave'a do BLE (`ROUTE T(uart_slave, telemetria) → T(ble, telemetria)` działa już jako trasa, brakuje komendy aplikacji).
 7. **Rekord płytki:** ramki `ROLE` i `ROUTE` w `sys_board` / `SYS_ACTIONS_ID_DATA_MATRIX`, zapis master → slave przez sesję. Do tego czasu role i trasy płytki są tabelami w `app/runit/connectivity/data_matrix_setup.c`.
-8. **Aplikacja:** migracja na deskryptory reworku (nagłówek 3 B, `PEERS`, kontrakt `data_matrix`, tag PUSH-a zamiast kanału), czytanie logów z osobnej charakterystyki.
+8. **Aplikacja:** backend (`runit-app/src/backend`) jest już na deskryptorach reworku (nagłówek 3 B, hello `{id, boot_id, build_id}`, `PEERS`, tag PUSH-a zamiast kanału, logi z osobnej charakterystyki `0xFFE9`) i przechodzi zestawy sprzętowe i przeglądarkowe na devkicie (`BACKEND.md`). Zostaje klient kontraktu `data_matrix` (ROLE, ROUTE, LIST jako typowane wywołania) i ekrany `src/app/`, które czekają na VM, projekt, OTA i flasher w firmware.
 
 ## 10. Otwarte
 

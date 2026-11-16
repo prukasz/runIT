@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CommandError, RunitLink } from '@backend'
+import { CommandError, errorCatalog, RunitLink } from '@backend'
 import type { LinkStatus } from '@backend'
 import { answer, defs, FakeBoard, until } from './fakes'
 
@@ -24,7 +24,7 @@ describe('commands', () => {
     expect([...(await link.request({ ...PING, payload: Uint8Array.of(1, 2, 3) }))]).toEqual([1, 2, 3])
     const big = Uint8Array.from({ length: 480 }, (_, i) => i & 0xff)
     expect(await link.request({ ...PING, payload: big })).toEqual(big)
-    expect(board.packets.slice(1)).toEqual([488]) // a 487 B frame: one packet, the fragment byte on it
+    expect(board.packets.slice(1)).toEqual([486]) // a 485 B frame: one packet, the fragment byte on it
     const max = new Uint8Array(defs.frameMax - defs.frameHead - 2).fill(7) // keys and payload: CMD_DATA_MAX
     expect(await link.request({ ...PING, payload: max })).toEqual(max)
     expect(defs.frameHead + 2 + max.length).toBe(defs.frameMax) // the session header, the two keys, the payload: CMD_FRAME_MAX
@@ -47,7 +47,9 @@ describe('commands', () => {
 
   it('an ERROR answer rejects with the decoded record', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x01, 0x05], false)) // internal, clock 0; ERR_ROUTER_KEY key 5
+    const tag = [...errorCatalog().values()].find((e) => e.name === 'ERR_ROUTER_KEY')!.tag
+    // internal, clock 0, a chain of one: the tag (u32), the length of its data, the key 5
+    board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, tag & 0xff, (tag >> 8) & 0xff, (tag >> 16) & 0xff, tag >>> 24, 0x01, 0x05], false))
     const link = await linkTo(board)
     const error = await link.request(PING).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(CommandError)
@@ -135,12 +137,12 @@ describe('streams', () => {
     const link = await linkTo(board)
     const seen: [string | undefined, number[]][] = []
     link.onStream((f) => seen.push([f.name, [...f.data]]))
-    board.stream(defs.streams.telemetry, [1, 2, 3])
+    board.stream(defs.channels.watches, [1, 2, 3])
     board.notify(Uint8Array.of(9), defs.gatt.logs)
     board.stream(defs.streams.errors, [7])
     board.stream(defs.streams.events, [5])
     await until(() => seen.length === 4)
-    expect(seen).toEqual([['telemetry', [1, 2, 3]], ['logs', [9]], ['errors', [7]], ['events', [5]]])
+    expect(seen).toEqual([['watches', [1, 2, 3]], ['logs', [9]], ['errors', [7]], ['events', [5]]])
     await link.close()
   })
 
@@ -149,7 +151,7 @@ describe('streams', () => {
     const link = await linkTo(board)
     const seen: number[] = []
     link.onStream((f) => seen.push(f.data.length))
-    board.stream(defs.streams.telemetry, new Uint8Array(99).fill(1))
+    board.stream(defs.channels.remote, new Uint8Array(99).fill(1))
     board.notify(new Uint8Array(60).fill(defs.streams.logs), defs.gatt.logs)
     await until(() => seen.length === 2)
     expect(seen.sort((a, b) => a - b)).toEqual([60, 99])

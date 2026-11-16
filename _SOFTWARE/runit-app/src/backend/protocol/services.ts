@@ -58,13 +58,21 @@ const concat = (...parts: readonly Uint8Array[]): Uint8Array => {
 
 /**
  * A command of a system service: `serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write')`. `side`
- * may be left out for a command with one side.
+ * may be left out for a command with one side. A service that has a contract id (PROVIDER) is addressed as a device router
+ * is, `[key][dir][id u8][op u16]`, by `id` (the provider; `catalog.allDevices`, the id of none, when left out: LIST).
  */
-export const serviceCall = (catalog: ServiceCatalog, service: string, command: string, args?: CallArgs, side?: Side): ServiceCall => {
+export const serviceCall = (catalog: ServiceCatalog, service: string, command: string, args?: CallArgs, side?: Side, id?: number): ServiceCall => {
   const entry = catalog.service(service)
   const def = catalog.command(entry, command)
   const s = sideOf(def, side)
-  return { request: { keys: [entry.key!, catalog.dirs[s], def.op], payload: argsOf(def, s, args), ...(def.urgent ? { urgent: true } : {}) }, entry, command: def, side: s, label: `${entry.id} ${named(def, s)}` }
+  const label = `${entry.id} ${named(def, s)}`
+  if (entry.contractId === undefined) return { request: { keys: [entry.key!, catalog.dirs[s], def.op], payload: argsOf(def, s, args), ...(def.urgent ? { urgent: true } : {}) }, entry, command: def, side: s, label }
+  const none = catalog.allDevices
+  if (id === undefined && none === undefined) throw new Error(`${entry.id} is addressed by an id, and no id of none is published (device_id).`)
+  const target = id ?? none!
+  if (!Number.isInteger(target) || target < 0 || target > 0xff) throw new PayloadError(`${entry.id}: id ${target} is not a u8.`)
+  const op = deviceOp(catalog, entry, def)
+  return { request: { keys: [entry.key!, catalog.dirs[s]], payload: concat(Uint8Array.of(target, op & 0xff, op >> 8), argsOf(def, s, args)), ...(def.urgent ? { urgent: true } : {}) }, entry, command: def, side: s, label }
 }
 
 /** The u16 op of a device command: the contract in the high byte (a contract's id, or the own-ops id for a device type's own command). */
@@ -75,8 +83,8 @@ export const deviceOp = (catalog: ServiceCatalog, entry: CatalogEntry, command: 
 }
 
 const deviceRequest = (defs: LinkDefinitions, dir: number, device: number, op: number, payload: Uint8Array, urgent: boolean): Request => {
-  if (!Number.isInteger(device) || device < 0 || device > 0xffff) throw new PayloadError(`Device ID ${device} is not a u16.`)
-  return { keys: [defs.keys.device!, dir], payload: concat(Uint8Array.of(device & 0xff, device >> 8, op & 0xff, op >> 8), payload), ...(urgent ? { urgent: true } : {}) }
+  if (!Number.isInteger(device) || device < 0 || device > 0xff) throw new PayloadError(`Device ID ${device} is not a u8.`)
+  return { keys: [defs.keys.sys_device!, dir], payload: concat(Uint8Array.of(device, op & 0xff, op >> 8), payload), ...(urgent ? { urgent: true } : {}) }
 }
 
 /**
@@ -99,7 +107,7 @@ const CREATE_SYSTEM = 0x01
 
 /**
  * CREATE of a device of type `type` (a device descriptor's id or type id) under `device`: the generic command of the device
- * contract with the type and the flags, then the type's config struct (SYS_DEVICE.MD: `[type u16][flags u8][create struct]`).
+ * contract with the type, the flags and the type's config struct as its tail (SYS_DEVICE.MD: `[type u16][flags u8][create struct]`).
  * `system`: the device is the board's own.
  */
 export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, config?: FieldValues, system = false): ServiceCall => {
@@ -108,12 +116,12 @@ export const createDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog,
   if (!lifecycle) throw new Error('No descriptor of the device contract (SYS_DEVICE_CONTRACT_DEVICE): devices cannot be created.')
   const create = catalog.command(lifecycle, CREATE)
   const createArgs = create.write?.args
-  const [typeField, flagsField] = createArgs?.fields ?? []
-  if (!createArgs || !typeField || !flagsField) throw new Error(`${lifecycle.id} ${CREATE} has no write with a type and flags fields.`)
-  const head = encodeFields(createArgs, { [typeField.id]: deviceType.typeId!, [flagsField.id]: system ? CREATE_SYSTEM : 0 })
+  const [typeField, flagsField, configField] = createArgs?.fields ?? []
+  if (!createArgs || !typeField || !flagsField || !configField) throw new Error(`${lifecycle.id} ${CREATE} has no write with a type, flags and config fields.`)
   if (!deviceType.config && config && Object.keys(config).length > 0) throw new PayloadError(`${deviceType.id} has no config.`)
   const body = deviceType.config ? encodeFields(deviceType.config, config) : new Uint8Array(0)
-  return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), concat(head, body), false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE} ${deviceType.id}` }
+  const payload = encodeFields(createArgs, { [typeField.id]: deviceType.typeId!, [flagsField.id]: system ? CREATE_SYSTEM : 0, [configField.id]: body })
+  return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), payload, false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE} ${deviceType.id}` }
 }
 
 /** The command of the device contract that makes a device of another board under a local id (SYS_REMOTE.MD). */
@@ -121,10 +129,11 @@ const CREATE_REMOTE = 'CREATE_REMOTE'
 
 /**
  * CREATE_REMOTE under `device`: an alias of device `remoteId` of type `type` on board `board`, reached through the session
- * (SYS_DEVICE.MD "Remote devices"). Its fields by their place in the descriptor: the type, the board, the remote id, the flags
- * (none: over a radio the writes do not wait and the reads come from a watch's copy, SYS_REMOTE.MD).
+ * (SYS_DEVICE.MD "Remote devices"). Its fields by their place in the descriptor: the type, the board, the remote id, the flags: how its
+ * calls go (`device_remote_flag`): `wired` waits for every answer, `wireless` (the default: over a radio the writes do not wait and the
+ * reads come from a watch's copy, SYS_REMOTE.MD).
  */
-export const createRemoteDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, board: number, remoteId: number): ServiceCall => {
+export const createRemoteDeviceCall = (defs: LinkDefinitions, catalog: ServiceCatalog, device: number, type: string | number, board: number, remoteId: number, link: 'wired' | 'wireless' = 'wireless'): ServiceCall => {
   const deviceType = catalog.device(type)
   const lifecycle = catalog.lifecycleContractId === undefined ? undefined : catalog.byContractId.get(catalog.lifecycleContractId)
   if (!lifecycle) throw new Error('No descriptor of the device contract (SYS_DEVICE_CONTRACT_DEVICE): devices cannot be created.')
@@ -132,7 +141,7 @@ export const createRemoteDeviceCall = (defs: LinkDefinitions, catalog: ServiceCa
   const args = create.write?.args
   const [typeField, boardField, idField, flagsField] = args?.fields ?? []
   if (!args || !typeField || !boardField || !idField || !flagsField) throw new Error(`${lifecycle.id} ${CREATE_REMOTE} has no write with a type, a board, a remote id and flags.`)
-  const payload = encodeFields(args, { [typeField.id]: deviceType.typeId!, [boardField.id]: board, [idField.id]: remoteId, [flagsField.id]: 0 })
+  const payload = encodeFields(args, { [typeField.id]: deviceType.typeId!, [boardField.id]: board, [idField.id]: remoteId, [flagsField.id]: catalog.remoteFlags[link] })
   return { request: deviceRequest(defs, catalog.dirs.write, device, deviceOp(catalog, lifecycle, create), payload, false), entry: lifecycle, command: create, side: 'write', label: `device ${device} ${lifecycle.id} ${CREATE_REMOTE} ${deviceType.id} on board ${board}` }
 }
 
@@ -147,18 +156,18 @@ export interface DeviceFrame {
 }
 
 /**
- * A frame of a record (`[device key][dir][id u16][op u16][args]`, no seq or flags) back into the command it is, by the catalog: the
+ * A frame of a record (`[device key][dir][id u8][op u16][args]`, no seq or flags) back into the command it is, by the catalog: the
  * mirror of `deviceCall` / `createDeviceCall`. A device type's own op is read with the type `typeOf` gives for the device (the
  * op alone does not say whose it is). Undefined for a frame that is not a device command the catalog describes, or whose
  * arguments do not fit its layout.
  */
 export const readDeviceFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, frame: Uint8Array, typeOf: (device: number) => CatalogEntry | undefined = () => undefined): DeviceFrame | undefined => {
-  if (frame.length < 6 || frame[0] !== defs.keys.device) return undefined
+  if (frame.length < 5 || frame[0] !== defs.keys.sys_device) return undefined
   const side = catalog.sideOfDir(frame[1]!)
-  const device = frame[2]! | (frame[3]! << 8)
-  const op = frame[4]! | (frame[5]! << 8)
+  const device = frame[2]!
+  const op = frame[3]! | (frame[4]! << 8)
   const contract = op >> 8
-  const payload = frame.subarray(6)
+  const payload = frame.subarray(5)
   const entry = contract === catalog.ownContractId ? typeOf(device) : catalog.byContractId.get(contract)
   const command = entry && [...entry.commands.values()].find((c) => c.op === (op & 0xff))
   if (!side || !entry || !command || !command[side]) return undefined
@@ -168,7 +177,7 @@ export const readDeviceFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, 
       const head = decodeFields(args, payload)
       const type = catalog.byTypeId.get(Number(head[args.fields[0]!.id]))
       if (!type) return undefined
-      const body = payload.subarray(args.fixed)
+      const body = head[args.fields[2]!.id] as Uint8Array
       const system = (Number(head[args.fields[1]!.id]) & CREATE_SYSTEM) !== 0
       return { device, entry, command, side, create: { type, system, ...(type.config ? { config: decodeFields(type.config, body) } : {}) } }
     }

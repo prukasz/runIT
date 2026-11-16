@@ -174,10 +174,12 @@ export class ServiceCatalog {
   readonly devices = new Map<string, CatalogEntry>()
   readonly byTypeId = new Map<number, CatalogEntry>()
   readonly problems: string[] = []
-  /** The contract id of a device's own ops (`device_contract`, `SYS_DEVICE_CONTRACT_OWN`). */
+  /** The contract id of a device's own ops (`device_contract_own`, `SYS_DEVICE_CONTRACT_OWN`). */
   readonly ownContractId: number | undefined
-  /** The contract id of the lifecycle ops every device answers (`SYS_DEVICE_CONTRACT_DEVICE`: CREATE, INFO, OPS, ...). */
-  readonly lifecycleContractId: number | undefined
+  /** The contract id of the lifecycle ops every device answers (CREATE, INFO, OPS, ...): the device contract that is also a router's root key (`SYS_DEVICE_CONTRACT_DEVICE`). */
+  lifecycleContractId: number | undefined
+  /** How a remote device's calls go (`device_remote_flag`): the flag of CREATE_REMOTE. */
+  readonly remoteFlags: { readonly wired: number; readonly wireless: number }
   /** The values of an unused pin (`io_pin_none`: `SYS_IO_PIN_NONE`). */
   readonly pinNone: PinRef | undefined
   /** The device ID that addresses every device (`SYS_DEVICE_ID_NONE`): SUSPEND, RESUME and RESET sent to it are sweeps (SYS_DEVICE.MD). */
@@ -189,10 +191,13 @@ export class ServiceCatalog {
     files: readonly DescriptorFile[],
     private readonly enums: EnumTables,
   ) {
-    const own = enums.device_contract?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_OWN')
+    const own = enums.device_contract_own?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_OWN')
     this.ownContractId = own?.value
-    if (own === undefined) this.problems.push("generated/common/enums.json: group 'device_contract' has no SYS_DEVICE_CONTRACT_OWN: no device's own ops can be addressed.")
-    this.lifecycleContractId = enums.device_contract?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_DEVICE')?.value
+    if (own === undefined) this.problems.push("generated/common/enums.json: group 'device_contract_own' has no SYS_DEVICE_CONTRACT_OWN: no device's own ops can be addressed.")
+    const remote = (name: string) => enums.device_remote_flag?.members.find((m) => m.name === name)?.value
+    const [wired, wireless] = [remote('SYS_DEVICE_REMOTE_WIRED'), remote('SYS_DEVICE_REMOTE_WIRELESS')]
+    if (wired === undefined || wireless === undefined) this.problems.push("generated/common/enums.json: group 'device_remote_flag' has no SYS_DEVICE_REMOTE_WIRED / _WIRELESS: no remote device can be created.")
+    this.remoteFlags = { wired: wired ?? 0, wireless: wireless ?? 0 }
     const none = (name: string) => enums.io_pin_none?.members.find((m) => m.name === name)?.value
     const [device, pin] = [none('SYS_IO_PIN_NONE_DEVICE'), none('SYS_IO_PIN_NONE_INDEX')]
     this.pinNone = device !== undefined && pin !== undefined ? { device, pin } : undefined
@@ -251,8 +256,11 @@ export class ServiceCatalog {
     const key = num(json.router_key)
     const contractId = num(json.contract_id)
     const typeId = num(json.type_id)
-    const kind: EntryKind | undefined = typeId !== undefined ? 'device' : key !== undefined ? 'service' : contractId !== undefined ? 'contract' : undefined
+    // A device contract (`scope: device`) is addressed by its contract id; the one that is also a router's root key is the lifecycle one.
+    const kind: EntryKind | undefined =
+      typeId !== undefined ? 'device' : json.scope === 'device' && contractId !== undefined ? 'contract' : key !== undefined ? 'service' : contractId !== undefined ? 'contract' : undefined
     if (!kind) return problem('neither a router key, a contract id nor a type id: nothing addresses it.')
+    if (kind === 'contract' && key !== undefined) this.lifecycleContractId = contractId
 
     const commands = new Map<string, CommandDef>()
     const ops = new Map<number, string>()
@@ -320,8 +328,9 @@ export class ServiceCatalog {
       source: file.source,
     }
 
-    if (key !== undefined && !this.enumHas('router_key', key)) problem(`router key ${key} is not one the firmware publishes (router_key).`)
-    if (contractId !== undefined && !this.enumHas('device_contract', contractId)) problem(`contract id ${contractId} is not one the firmware publishes (device_contract).`)
+    // A router's root key and a contract's id are a module's number (SYS_DEVICE_CONTRACT_DEVICE is MODULE_ID_SYS_DEVICE).
+    if (key !== undefined && !this.enumHas('module_id', key)) problem(`router key ${key} is not a module the firmware publishes (module_id).`)
+    if (contractId !== undefined && !this.enumHas('module_id', contractId)) problem(`contract id ${contractId} is not a module the firmware publishes (module_id).`)
 
     const [map, index, number] =
       kind === 'service' ? [this.services, this.byKey, key!] : kind === 'contract' ? [this.contracts, this.byContractId, contractId!] : [this.devices, this.byTypeId, typeId!]

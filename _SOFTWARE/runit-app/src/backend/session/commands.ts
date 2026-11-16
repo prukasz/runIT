@@ -47,8 +47,6 @@ export interface CommandOptions {
   readonly timeoutMs?: number
   /** Shown in the observer events. */
   readonly label?: string
-  /** The board it goes to, when not the one of this session (a child reached through it); its answer comes back the same way. */
-  readonly board?: number
 }
 
 export type CommandEvent =
@@ -62,8 +60,6 @@ export interface CommandClientOptions {
   readonly defs: LinkDefinitions
   /** Puts one whole frame on the link; rejects when it could not. */
   readonly send: (frame: Uint8Array) => Promise<void>
-  /** The session's addresses of a request: the board (`dst`) and this client's id (`src`), as the board gave it. */
-  readonly address: () => { readonly dst: number; readonly src: number }
   /** Default wait for an answer (default 2000 ms). */
   readonly timeoutMs?: number
   /** Commands on the wire at once (default 4). */
@@ -204,8 +200,7 @@ export class CommandClient {
 
   private async write(entry: Pending): Promise<void> {
     const seq = entry.seq!
-    const address = this.options.address()
-    const frame = encodeRequest(this.defs, seq, entry.request, entry.options.board === undefined ? address : { ...address, dst: entry.options.board })
+    const frame = encodeRequest(this.defs, seq, entry.request)
     entry.sentAt = this.now()
     try {
       await this.send(frame)

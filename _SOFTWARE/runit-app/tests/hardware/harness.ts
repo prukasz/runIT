@@ -1,29 +1,23 @@
 import { RunitLink, Services, bundledLinkDefinitions } from '@backend'
 import type { LinkOptions, LinkStatus } from '@backend'
 import { BleakPlatform } from './bleakPlatform'
-import { Console } from './uart'
 
 export const defs = bundledLinkDefinitions()
 
-/** The board under test: a link over BLE through the PC's radio, the console as a witness beside it. */
+/** The board under test: a link over BLE through the PC's radio. */
 export interface Board {
   readonly platform: BleakPlatform
   readonly link: RunitLink
   readonly services: Services
-  readonly console: Console
   readonly statuses: LinkStatus[]
-  /** Everything the board logged or failed since the suite began, for the final check that it never panicked. */
+  /** When the suite opened the link (ms since the epoch). */
   readonly startedAt: number
   close(): Promise<void>
 }
 
-const noConsole = (): Console => ({ lines: [], since: () => [], waitFor: async () => undefined, trouble: () => [], reset: () => undefined, stop: () => undefined }) as unknown as Console
-
-/** HW_UART is the console port (default COM9), HW_NAME the advertised name (default runit), HW_ADDRESS pins a board. */
+/** HW_NAME is the advertised name (default runit), HW_ADDRESS pins a board, HW_PYTHON the Python with bleak (default ../.venv). */
 export async function openBoard(options: LinkOptions = {}): Promise<Board> {
   const platform = new BleakPlatform(defs, { name: process.env.HW_NAME, address: process.env.HW_ADDRESS })
-  // HW_UART=none: no console witness, the port is left to something else.
-  const console_ = process.env.HW_UART === 'none' ? noConsole() : new Console(process.env.HW_UART ?? 'COM9')
   const link = new RunitLink(platform, { timeoutMs: 3000, ...options })
   const statuses: LinkStatus[] = []
   link.onStatus((s) => statuses.push(s))
@@ -33,13 +27,11 @@ export async function openBoard(options: LinkOptions = {}): Promise<Board> {
     platform,
     link,
     services: new Services(link),
-    console: console_,
     statuses,
     startedAt,
     close: async () => {
       await link.disconnect()
       platform.stop()
-      console_.stop()
     },
   }
 }

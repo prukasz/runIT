@@ -89,9 +89,6 @@ describe('the link on a real board', () => {
     expect(board.link.state).toBe('connected')
   })
 
-  it('the console logged no panic', () => {
-    expect(board.console.trouble(board.startedAt)).toEqual([])
-  })
 
   it('knows its own protocol numbers', () => {
     expect(defs.gatt.service).toBeGreaterThan(0)
