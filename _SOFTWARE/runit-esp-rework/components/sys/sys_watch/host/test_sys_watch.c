@@ -65,9 +65,6 @@ ERR_TAGS_DECLARE(ERR_TESTW_MAP)
 MODULE_ID_DEFINE(TESTW, 0x3F)
 ERR_MODULE_DEFINE(ERR_MOD_TESTW, "testw", ERR_TESTW_MAP)
 
-#define TESTW_EVENTS(X, P) X(P, CHANGE, 0x01, 0, { uint32_t v; })
-SYS_EVENTS_DECLARE(TESTW)
-
 typedef struct __attribute__((packed)) {
   uint16_t target;
 } testw_target_t;
@@ -454,7 +451,7 @@ void test_server_on_change_silence_and_error_recovery(void) {
   memcpy(&v, payload, sizeof(v));
   TEST_ASSERT_EQUAL_UINT32(77u, v);
 
-  // Read error -> pushed once, then deduplicated by err_sent
+  // Read error -> pushed once, then deduplicated (the last entry sent was an error)
   atomic_store(&s_fail_read, true);
   TEST_ASSERT_TRUE(next_watch_push(&s_up, &id, &status, payload, &plen, 200));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, status);
@@ -468,30 +465,16 @@ void test_server_on_change_silence_and_error_recovery(void) {
   TEST_ASSERT_EQUAL_UINT32(77u, v);
 }
 
-void test_server_on_event_and_gone(void) {
-  const sys_watch_head_t ev_head = {
-      .id = 9,
-      .trigger = SYS_WATCH_ON_EVENT,
-      .period = 2,
-      .filter = {.tag = TESTW_EV_CHANGE, .source = 0x11, .channel = 0},
-  };
-  TEST_ASSERT_NULL(sys_watch_add(&ev_head, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT));
-
-  // Add a second watch for SLAVE too
-  const sys_watch_head_t sl_head = {.id = 4, .trigger = SYS_WATCH_ON_EVENT, .period = 2, .filter = ev_head.filter};
+void test_server_a_gone_peer_takes_its_watches(void) {
+  // One watch of each peer, ON_CHANGE without a heartbeat: one entry each, then quiet while the value stays.
+  atomic_store(&s_val, 555u);
+  const sys_watch_head_t up_head = {.id = 9, .trigger = SYS_WATCH_ON_CHANGE, .period = 2, .max_silence = 0};
+  TEST_ASSERT_NULL(sys_watch_add(&up_head, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT));
+  const sys_watch_head_t sl_head = {.id = 4, .trigger = SYS_WATCH_ON_CHANGE, .period = 2, .max_silence = 0};
   TEST_ASSERT_NULL(sys_watch_add(&sl_head, (cmd_in_t){k_val_read, sizeof(k_val_read)}, SLAVE));
 
   uint8_t id = 0, status = 0, payload[CMD_DATA_MAX];
   uint32_t plen = 0;
-
-  // Non-matching event -> nothing emitted
-  uint32_t ev_d = 100;
-  TEST_ASSERT_NULL(sys_event_publish((sys_event_key_t){TESTW_EV_CHANGE, 0x22, 0}, 0, &ev_d, sizeof(ev_d)));
-  TEST_ASSERT_FALSE(next_watch_push(&s_up, &id, &status, payload, &plen, 50));
-
-  // Matching event -> both watches emit
-  atomic_store(&s_val, 555u);
-  TEST_ASSERT_NULL(sys_event_publish((sys_event_key_t){TESTW_EV_CHANGE, 0x11, 0}, 0, &ev_d, sizeof(ev_d)));
   TEST_ASSERT_TRUE(next_watch_push(&s_up, &id, &status, payload, &plen, WAIT_MS));
   TEST_ASSERT_EQUAL_UINT8(9, id);
   TEST_ASSERT_TRUE(next_watch_push(&s_down, &id, &status, payload, &plen, WAIT_MS));
@@ -728,7 +711,7 @@ int main(void) {
   RUN_TEST(test_server_add_validation_and_list);
   RUN_TEST(test_server_periodic_and_router_no_owner);
   RUN_TEST(test_server_on_change_silence_and_error_recovery);
-  RUN_TEST(test_server_on_event_and_gone);
+  RUN_TEST(test_server_a_gone_peer_takes_its_watches);
   RUN_TEST(test_client_b3_gate_error_and_size_limits);
   RUN_TEST(test_client_stale_adds_the_watch_again);
   RUN_TEST(test_client_staleness_gone_and_idle_remove);

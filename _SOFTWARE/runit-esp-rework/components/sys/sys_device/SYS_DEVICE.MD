@@ -123,7 +123,7 @@ A device that gives something out to one device (a pin's lock, a bus address) ke
 An event published inside an op is not delivered there. The task's outermost `sys_device_call` holds the events of everything under it (`sys_event_hold`, `CONFIG_SYS_DEVICE_EVENT_HOLD_BYTES` = 256 B on that frame) and releases them when its last lock is gone. An inline listener then runs in the same task and may take the lock of any device, the publisher's and the caller's included.
 
 - "Inline" for an op means "before the outermost call returns", not "before the op ends". An op that needs a reaction before its own end calls that device.
-- An event that does not fit the hold goes to the event task.
+- An event that does not fit the hold goes to its lane's task.
 - A NOLOCK op that blocks for long publishes with `SYS_EVENT_PUBLISH_DEFER`: its events would wait for its return.
 
 ## Lifecycle
@@ -168,7 +168,7 @@ Two `uint64_t` masks per slot (`uses`, `used_by`), cleared when the device goes.
 
 ## Sweep
 
-`sys_device_sweep(op)` runs SUSPEND, RESUME, RESET or REMOVE on every device.
+`sys_device_sweep(op)` runs SUSPEND, RESUME, RESET or REMOVE on every device. A command does the same: the op written to `SYS_DEVICE_ID_NONE` (`sys_device_router`).
 
 - **Order**: a device before the devices it uses; RESUME the other way round.
 - **Skipped**: REMOVE leaves the board's own devices; RESET a device whose type has none.
@@ -221,7 +221,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 - **Own ops** (`0xFFxx`) are a table like a contract's, in the driver's source: `OWN_NAME_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` and `SYS_DEVICE_OWN_DECLARE(OWN_NAME)`. They get the same handlers, rows and answers (`OP_DECLARE_READ(OWN_DC_MOTOR, OP_SPEED)`, `OP_ENTRY(OWN_DC_MOTOR, OP_SPEED)`, `CMD_REPLY(OWN_DC_MOTOR, OP_SPEED, ...)`), and their flags come from the table: a timer's op is LOCAL there.
 - **A payload with a tail** (an op marked `SYS_DEVICE_OP_TAIL`: a head of a fixed size, then bytes): `OP_DECLARE_WRITE_TAIL(P, OP_NAME)`, whose body sees `args` (the head, in place), `tail` and `tail_len`. The table decides: `OP_DECLARE_WRITE` of such an op, and `OP_DECLARE_WRITE_TAIL` of any other, fail to compile. `OP_DECLARE_ON_EVENT` is `OP_DECLARE_EVENT(CONTRACT_EVENT, OP_ON_EVENT)` with the event's length checked. An answer of any length is built with `cmd_append` in an `OP_DECLARE_READ`.
 - **Another device's type** is never asked for: a driver asks whether the device has the op it needs (`sys_device_require_op`). Which device a pin is on is the board's configuration: the ESP32-S3's I2C controller takes a pin's index as its GPIO.
-- **Events**: a contract's are in its header (`SYS_EVENTS_DECLARE(P)`), the type's own in the driver: a table `P_EVENTS(X, P)` of rows `X(P, NAME, code, flags, { payload })` and `SYS_DEVICE_OWN_EVENTS(P)`, whose module is `SYS_EVENT_MODULE_TYPE(P_TYPE)` (`SYS_EVENT.MD`). Published with `SYS_EVENT_PUBLISH` or `_DEFER`, by what the publishing task can bear.
+- **Events**: a contract's are in its header (`SYS_EVENTS_DECLARE(P, DEVICE)`), the type's own in the driver: a table `P_EVENTS(X, P)` of rows `X(P, NAME, code, flags, { payload })` and `SYS_DEVICE_OWN_EVENTS(P)`, whose module is `SYS_EVENT_MODULE_TYPE(P_TYPE)` and lane `DEVICE` (`SYS_EVENT.MD`). Published with `SYS_EVENT_PUBLISH` or `_DEFER`, by what the publishing task can bear.
 - **A timer**: `sys_device_timer_init(id, &c->timer, OP)` in `create()`: its expiry is a step of the device (`sys_device_step`, "A step"), under its lock, skipped while the device is busy, suspended or gone. `OP` is the driver's own and LOCAL. A step's handler that needs the time since the last one reads the clock (`board_time_uptime_ms`): steps are skipped, and a driver may run the same step from its other ops.
 - **Hardware**: only a driver of the SoC's own peripherals includes ESP-IDF drivers; a chip's driver reaches the hardware through contracts.
 
@@ -231,7 +231,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 
 - **Following the registry**: a CREATED gives a device the default policy, a REMOVED of the same generation takes it away.
 - **A reported error**: the app's error sink calls `sys_device_policy_handle(chain)` on the task that reported. Nothing runs there, because that task may be inside a device op and hold the lock the response needs. A chain that needs a response is copied as a record (`CONFIG_SYS_DEVICE_POLICY_RECORD_MAX`, 256 B) into the queue of the policy's task; one that needs none is not queued.
-- **The policy's task** (`CONFIG_SYS_DEVICE_POLICY_TASK_PRIO` = 14, above the event task and the router work task) makes the record a chain again and responds: a critical error stops the VM and suspends every device (the sweep), then the device's action for that severity runs. It reports a response's failure itself.
+- **The policy's task** (`CONFIG_SYS_DEVICE_POLICY_TASK_PRIO` = 14, above the tasks of the event lanes and the router work task) makes the record a chain again and responds: a critical error stops the VM and suspends every device (the sweep), then the device's action for that severity runs. It reports a response's failure itself.
 - **No loops**: a chain that holds `ERR_DEV_FAULT_RESPONSE`, and any error reported by the policy's task, is not handled.
 - **Full queue**: `ERR_DEV_FAULT_RESPONSE{stage QUEUE}` to the sink; that response does not run.
 - A record that is too small for the chain loses its innermost nodes, and the severity may come from them.

@@ -8,6 +8,7 @@
   "alias": "Bluetooth Low Energy (GATT table and status)",
   "description": "Reads the GATT table (the providers make its services and characteristics) and the link's state.",
   "category": "system",
+  "record": "SYS_ACTIONS_ID_BLE",
   "commands": [
     {
       "id": "STATUS",

@@ -1,6 +1,7 @@
-import { bundledEnums, createDeviceCall, createRemoteDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, requestFrame, sidesOf } from '@backend'
-import type { BoardDescriptor, CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldValues, LinkDefinitions, PinRef, Section, ServiceCatalog, Side, WireField } from '@backend'
+import { bundledEnums, createDeviceCall, createRemoteDeviceCall, deviceCall, deviceOp, isMirror, onboardActionIds, rangesForConfig, requestFrame, serviceCall, sidesOf } from '@backend'
+import type { CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldValues, LinkDefinitions, PinRef, ServiceCall, ServiceCatalog, Side, WireField } from '@backend'
 import type { ProjectDevice, ProjectFile, Step } from '../project/projectFile'
+import type { BoardDescriptor, BoardDevice } from './boardDescriptor'
 
 /*
  * The devices of the Devices view, pure (no link, no UI): the board's own (board.json, created by the profile the app writes to it) and the
@@ -158,14 +159,23 @@ const listDevices = (project: ProjectFile, catalog: ServiceCatalog, board: Board
   })),
 ]
 
-/**
- * The bus of the user's devices (board.json `i2c_buses[].name`): bus 0 belongs to the board's own chips, so a project device gets
- * the user bus and its form does not offer the choice. (Unlocking the internal bus is a setting of the app, later.)
- */
-export const USER_I2C_BUS = 'user'
+/** The descriptor of the device that is an I2C bus of the ESP32-S3: a bus is a device, the chips on it name it by its id. */
+export const I2C_BUS_DESCRIPTOR = 'device_esp32s3_i2c'
 
-/** The field of a config that names an I2C bus. */
-export const isBusField = (field: WireField): boolean => field.enum === 'sys_i2c_bus_e'
+/**
+ * The controller port of the bus of the user's devices: port 0 belongs to the board's own chips, so a project device gets the user
+ * bus and its form does not offer the choice. (Unlocking the internal bus is a setting of the app, later.)
+ */
+export const USER_I2C_PORT = 1
+
+/** The field of a config that names an I2C bus: a device of the I2C contract. */
+export const isBusField = (field: WireField): boolean => field.type === 'device' && field.requiresContract === 'I2C'
+
+/** The I2C bus devices of a board, with the controller port each is. */
+export const i2cBuses = (board: BoardDescriptor): readonly BoardDevice[] => board.devices.filter((d) => d.descriptor === I2C_BUS_DESCRIPTOR)
+
+/** The device of the I2C bus on controller port `port`. */
+export const busDeviceOf = (board: BoardDescriptor, port: number): number | undefined => i2cBuses(board).find((d) => d.config.port === port)?.id
 
 /** The config a new project device starts from: its I2C bus is the user bus. */
 /** A device's config with the descriptor's default for every field it does not set: what the device runs with. */
@@ -176,9 +186,9 @@ const withConfigDefaults = (type: CatalogEntry | undefined, config: FieldValues)
 
 export const baseConfig = (type: CatalogEntry | undefined, board: BoardDescriptor, scope: 'app' | 'board' = 'app'): FieldValues => {
   // The board's own devices start on the board's own bus (the first), the project's on the user bus.
-  const bus = scope === 'board' ? board.i2cBuses[0] : board.i2cBuses.find((b) => b.name === USER_I2C_BUS)
+  const bus = scope === 'board' ? i2cBuses(board)[0]?.id : busDeviceOf(board, USER_I2C_PORT)
   const field = type?.config?.fields.find(isBusField)
-  return bus && field ? { [field.id]: bus.bus } : {}
+  return bus !== undefined && field ? { [field.id]: bus } : {}
 }
 
 /**
@@ -526,7 +536,13 @@ export const lifecycleOf = (catalog: ServiceCatalog): CatalogEntry => {
 
 /** The frame of a step, as a record holds it: a step is a write (a record holds writes only, SYS_ACTIONS.MD). */
 export const stepFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, step: Step): Uint8Array =>
-  step.kind === 'frame' ? Uint8Array.from(step.bytes) : requestFrame(deviceCall(defs, catalog, step.device, step.contract, step.command, step.args, 'write').request)
+  step.kind === 'frame' ? Uint8Array.from(step.bytes) : requestFrame(stepCall(defs, catalog, step).request)
+
+/** The write a device step sends: a device command, or the device's error policy (the POLICY service, the device in its args). */
+export const stepCall = (defs: LinkDefinitions, catalog: ServiceCatalog, step: Extract<Step, { kind: 'device' }>): ServiceCall =>
+  step.contract === POLICY.service
+    ? serviceCall(catalog, POLICY.service, POLICY.command, { id: step.device, ...step.args } as never, 'write')
+    : deviceCall(defs, catalog, step.device, step.contract, step.command, step.args, 'write')
 
 /** The install packet of a project device: CREATE with its type and config. */
 export const installFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice): Uint8Array =>
@@ -547,6 +563,12 @@ export const deviceFrames = (defs: LinkDefinitions, catalog: ServiceCatalog, pro
 }
 
 /** The sections of the stored project the devices are: the board's devices with start commands, then every project device. */
+/** A record the app writes: its id (SYS_ACTIONS.MD) and its frames. */
+export interface Section {
+  readonly id: number
+  readonly frames: readonly Uint8Array[]
+}
+
 export const deviceSections = (defs: LinkDefinitions, catalog: ServiceCatalog, project: ProjectFile, board: BoardDescriptor): Section[] =>
   deviceList(project, catalog, board)
     .filter((d) => !d.system || d.defaults.length > 0)
@@ -624,11 +646,11 @@ export const showValue = (field: WireField, value: unknown, nameOf: (device: num
 /** A step in one line: the device, the command and its arguments. */
 export const describeStep = (catalog: ServiceCatalog, step: Step, nameOf: (device: number) => string | undefined, pinName: PinNamer): { readonly device?: number; readonly command: string; readonly args: string } => {
   if (step.kind === 'frame') return { command: 'Command', args: step.bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ') }
-  const entry = catalog.contracts.get(step.contract) ?? catalog.devices.get(step.contract)
+  const entry = catalog.contracts.get(step.contract) ?? catalog.devices.get(step.contract) ?? (step.contract === POLICY.service ? catalog.service(POLICY.service) : undefined)
   const command = entry?.commands.get(step.command)
   // An edge interrupt has no window: its threshold fields are not shown (INTR takes them, ignored for an edge).
   const window = step.args?.mode === 4 || step.args?.mode === 5
-  const fields = (command?.write?.args?.fields ?? []).filter((f) => window || !WINDOW_FIELDS.includes(f.id))
+  const fields = (command?.write?.args?.fields ?? []).filter((f) => (window || !WINDOW_FIELDS.includes(f.id)) && !(step.contract === POLICY.service && f.id === 'id'))
   const args = fields.map((f) => `${f.label} ${showValue(f, step.args?.[f.id] ?? f.default, nameOf, pinName, step.device)}`).join(' · ')
   return { device: step.device, command: command ? `${entry!.label}: ${command.label}` : `${step.contract} ${step.command}`, args }
 }
@@ -651,7 +673,13 @@ export const showAnswer = (command: CommandDef, side: Side, value: unknown, name
 /** The types a project cannot add more of: the chip's own GPIO, which the board already has (board.json). */
 export const SINGLE_TYPES: ReadonlySet<string> = new Set(['esp32s3_gpio'])
 
-export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME', policy: 'ERROR_POLICY' } as const
+export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME' } as const
+
+/**
+ * A device's error policy is the POLICY service's (SYS_DEVICE_POLICY): the device is an argument of it, not the header's. A step of it
+ * names the service as its contract, the device as its `device`, and `importance` and `actions` as its args.
+ */
+export const POLICY = { service: 'POLICY', command: 'POLICY' } as const
 
 /** The device contract's events the view follows (`contract_device.json`, SYS_DEVICE_EVENTS): a device's `suspended` flag changed. */
 export const DEVICE_EVENTS = { suspended: 'SUSPENDED', resumed: 'RESUMED' } as const

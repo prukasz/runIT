@@ -11,7 +11,7 @@ import type { CatalogEntry, CommandDef, Decoded, FieldInput, FieldValues, Layout
  *   form    the write takes one struct, the read answers it. Its fields make the form.
  *   table   both sides are rows (`array`): the row's target first, then an array field whose elements are the columns
  *           (`index_enum` naming them). The write is matched by target: a row left out keeps its values.
- *   record  a service whose settings are one record (`record` on the service: the GATT table, the data streams). Its
+ *   record  a service whose settings are one record (`record` on the service: the Bluetooth providers). Its
  *           editor is the app's (gatt.ts, streams.ts); the commands and their fields still come from the descriptor.
  *
  * A form or table with `record` is the project's (written as that settings record, applied at every start); one without is
@@ -42,7 +42,7 @@ export interface SettingTable {
 }
 
 /** The editor of a service kept as one record, by what the service does. */
-export type RecordEditor = 'gatt' | 'streams'
+export type RecordEditor = 'ble'
 
 /** The settings of one service descriptor: a tab of the Project view. */
 export interface SettingSection {
@@ -56,7 +56,7 @@ export interface SettingSection {
 }
 
 /** The services whose record the app edits with its own editor, by the descriptor's id. */
-export const RECORD_EDITORS: Readonly<Record<string, RecordEditor>> = { BLE: 'gatt', STREAM: 'streams' }
+export const RECORD_EDITORS: Readonly<Record<string, RecordEditor>> = { BLE: 'ble' }
 
 /** The fields the read of a command answers when it answers one struct (or each element of a list of them). */
 const answerFields = (command: CommandDef, array: boolean): readonly WireField[] | undefined => {
@@ -78,7 +78,9 @@ export const settingSections = (catalog: ServiceCatalog, problems: string[] = []
       const { read, write } = command
       if (!read || !write || (read.args?.fields.length ?? 0) > 0 || command.tags.includes('app')) continue
       const key = `${service.id}.${command.id}`
-      const record = command.recordId !== undefined ? { recordId: command.recordId } : {}
+      // A service kept as one record (`record` on the service) gives its settings that record; a command's own mark wins.
+      const recordId = command.recordId ?? (RECORD_EDITORS[service.id] === undefined ? service.recordId : undefined)
+      const record = recordId !== undefined ? { recordId } : {}
       const struct = answerFields(command, false)
       const rows = answerFields(command, true)
       if (struct && write.args && !write.args.array && !write.args.variable && write.args.fields.every((f) => struct.some((a) => a.id === f.id))) {
@@ -91,7 +93,6 @@ export const settingSections = (catalog: ServiceCatalog, problems: string[] = []
     }
     const editor = RECORD_EDITORS[service.id]
     const record = service.recordId !== undefined && editor ? { id: service.recordId, editor } : undefined
-    if (service.recordId !== undefined && !editor) problems.push(`${service.id}: record ${service.recordId} has no editor in the app.`)
     if (groups.length === 0 && tables.length === 0 && !record) return []
     return [{ service, title: service.label.replace(/\s*\([^)]*\)\s*$/, ''), groups, tables, ...(record ? { record } : {}) }]
   })

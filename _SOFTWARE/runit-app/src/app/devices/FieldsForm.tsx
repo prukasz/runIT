@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { ChoiceField, FormGrid, FormRow, NumberField, Slider, Switch, TextField, ToggleChip } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { bundledServiceCatalog } from '@backend'
-import type { BoardDescriptor, FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
+import type { FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
 import { boardDeviceId, deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import { useAppPrefs } from '../appSettings/AppPrefs'
+import type { BoardDescriptor } from './boardDescriptor'
 
 /*
  * The fields of a layout as a form: a device's config, a command's arguments. Each field gets the control its descriptor

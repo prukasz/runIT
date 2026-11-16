@@ -138,7 +138,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_UART, UART, 0x13)
 #define UART_EVENTS(X, P) \
   X(P, OVERFLOW, 0x01, SYS_EVENT_NOTIFY, { uint16_t dropped; })
 
-SYS_EVENTS_DECLARE(UART)
+SYS_EVENTS_DECLARE(UART, DEVICE)
 
 /* ----------------------------------------------------------------------------
  * The client: a driver subscribing to a port

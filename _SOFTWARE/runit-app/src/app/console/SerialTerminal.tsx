@@ -1,43 +1,40 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, RefreshCw, Send, Trash2 } from 'lucide-react'
-import { bundledLinkDefinitions, Services, Streams } from '@backend'
-import type { FieldValues, RunitLink } from '@backend'
-import { Button, Card, ChoiceField, FieldError, FormGrid, FormRow, LogLine, NumberField, SegmentedSwitch, Switch, TextField } from '@ui/components'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { Download, Send } from 'lucide-react'
+import { Services } from '@backend'
+import type { RunitLink } from '@backend'
+import { Button, Card, ChoiceField, FieldError, FormGrid, FormRow, LogLine, NumberField, SegmentedSwitch, TextField } from '@ui/components'
 import type { LogLevel } from '@ui/components'
-import { FieldsForm } from '../devices/FieldsForm'
-import type { PinContext } from '../devices/FieldsForm'
-import { canListen, decodeProviders, encodeInput, LINE_ENDINGS, providerLabel, rawProviders, showBytes } from './serial'
-import type { LineEnding, ProviderInfo, SerialFormat } from './serial'
+import { encodeInput, LINE_ENDINGS, showBytes } from './serial'
+import type { LineEnding, SerialFormat } from './serial'
 import { clock } from './ErrorView'
 
 /*
- * The serial terminal: a UART port made by hand and a command typed to what hangs on it (a GPS, a LoRa module). Send is UART RAW, the
- * command and its answer as one request, or, while listening, PROVIDER SEND with what comes back arriving on an IN stream.
+ * The serial terminal: a command typed to what hangs on a UART port of the board (a GPS, a LoRa module). A port is a device of the UART
+ * contract (SYS_UART_CONTRACT.MD): Send is TRANSACT (the RX flushed, the command sent, its answer waited for, one request), Send only
+ * is SEND, and Receive is RECEIVE: what the device says by itself, read when asked. The port is made in Devices, like any device.
  */
 
-const RX_MAX = 256 // bytes of an answer asked for
-const WAIT_LIMIT_MS = 1000 // SYS_UART_RAW_WAIT_MAX_MS
-const ANSWER_MARGIN_MS = 2000 // on top of the board's own wait
+const CONTRACT = 'UART'
+const WAIT_LIMIT_MS = 1000 // the longest wait the board takes in a request
 const LINES_KEPT = 500
 
 interface TerminalLine { readonly id: number; readonly at: number; readonly level: LogLevel; readonly source: string; readonly text: string }
 
 const message = (failure: unknown): string => (failure instanceof Error ? failure.message : String(failure))
 
-export function SerialTerminal({ link, connected, context }: { link: RunitLink; connected: boolean; context: PinContext }) {
+/** A UART port the terminal can talk to: a device of the board or the project. */
+export interface SerialPort { readonly id: number; readonly name: string }
+
+export function SerialTerminal({ link, connected, ports }: { link: RunitLink; connected: boolean; ports: readonly SerialPort[] }) {
   const services = useMemo(() => new Services(link), [link])
-  const createLayout = services.catalog.command(services.catalog.service('UART'), 'CREATE').write!.args!
-  const [port, setPort] = useState<FieldValues>({ provider: 0x10, port: 2, baud: 115200, mode: 2, parity: 0, stop_bits: 1, rts: null, cts: null })
-  const [providers, setProviders] = useState<readonly ProviderInfo[]>([])
-  const [provider, setProvider] = useState<number | undefined>()
+  const [chosen, setChosen] = useState<number | undefined>()
+  const port = ports.some((p) => p.id === chosen) ? chosen : ports[0]?.id
   const [text, setText] = useState('')
   const [format, setFormat] = useState<SerialFormat>('text')
   const [ending, setEnding] = useState<LineEnding>('crlf')
   const [waitMs, setWaitMs] = useState(300)
   const [lines, setLines] = useState<readonly TerminalLine[]>([])
   const [error, setError] = useState<string | undefined>()
-  const [listening, setListening] = useState(false)
-  const stopListening = useRef<(() => Promise<void>) | undefined>(undefined)
   const nextLine = useRef(0)
 
   const add = useCallback((level: LogLevel, source: string, line: string) => {
@@ -45,94 +42,44 @@ export function SerialTerminal({ link, connected, context }: { link: RunitLink; 
     setLines((old) => [...old.slice(1 - LINES_KEPT), { id, at: Date.now(), level, source, text: line }])
   }, [])
 
-  const refresh = useCallback(async () => {
+  const run = async (work: (port: number) => Promise<void>) => {
+    if (port === undefined) return
     try {
-      const { data } = await services.call('PROVIDER', 'LIST')
-      const raw = rawProviders(decodeProviders(data))
-      setProviders(raw)
-      setProvider((old) => (raw.some((p) => p.id === old) ? old : raw[0]?.id))
-      setError(undefined)
-    } catch (failure) { setError(message(failure)) }
-  }, [services])
-
-  useEffect(() => { if (connected) void refresh() }, [connected, refresh])
-  // Leaving the view stops listening: the stream it made goes with it.
-  useEffect(() => () => { void stopListening.current?.().catch(() => undefined) }, [])
-
-  const run = async (work: () => Promise<void>) => {
-    try {
-      await work()
+      await work(port)
       setError(undefined)
     } catch (failure) { setError(message(failure)) }
   }
 
-  const create = () => run(async () => {
-    await services.call('UART', 'CREATE', port, { side: 'write' })
-    await refresh()
-    setProvider(Number(port.provider))
-  })
+  const answer = (data: Uint8Array) => add(data.length > 0 ? 'I' : 'W', 'in', data.length > 0 ? showBytes(data) : `Nothing came back in ${waitMs} ms.`)
 
-  const remove = () => provider !== undefined && run(async () => {
-    await services.call('PROVIDER', 'REMOVE', { provider })
-    await refresh()
-  })
-
-  /** An IN stream on the provider, this client subscribed: what the device says by itself (a GPS's sentences). */
-  const listen = async (on: boolean) => {
-    if (!on) {
-      await run(async () => { await stopListening.current?.() })
-      stopListening.current = undefined
-      setListening(false)
-      return
-    }
-    if (provider === undefined) return
-    await run(async () => {
-      const streams = new Streams(link, services)
-      const taken = new Set((await streams.list()).map((s) => s.id))
-      const defs = bundledLinkDefinitions().stream
-      let id = defs.last
-      while (taken.has(id) && id > defs.userFirst) id--
-      await streams.create(id, { dir: 'in' })
-      await streams.bind(id, provider)
-      const unsubscribe = await streams.subscribe(id, (data) => add('I', 'in', showBytes(data)))
-      stopListening.current = async () => {
-        await unsubscribe()
-        await streams.remove(id)
-        streams.close()
-      }
-      setListening(true)
-    })
-  }
-
-  const send = () => provider !== undefined && run(async () => {
+  /** The command and its answer as one request (TRANSACT). */
+  const send = () => run(async (id) => {
     const data = encodeInput(text, format, ending)
     if (data.length === 0) return
     add('D', 'out', showBytes(data))
-    if (listening) {
-      await services.call('PROVIDER', 'SEND', { provider, data })
-      return
-    }
-    const answer = await services.call('UART', 'RAW', { provider, wait_ms: waitMs, rx_max: RX_MAX, data }, { timeoutMs: waitMs + ANSWER_MARGIN_MS })
-    add(answer.data.length > 0 ? 'I' : 'W', 'in', answer.data.length > 0 ? showBytes(answer.data) : `Nothing came back in ${waitMs} ms.`)
+    answer((await services.device(id, CONTRACT, 'TRANSACT', { wait_ms: waitMs, data }, { side: 'write', timeoutMs: waitMs + 2000 })).data)
   })
 
-  const choices = providers.map((p) => ({ value: p.id, label: providerLabel(p) }))
+  /** The command only (SEND): what comes back is read with Receive. */
+  const sendOnly = () => run(async (id) => {
+    const data = encodeInput(text, format, ending)
+    if (data.length === 0) return
+    add('D', 'out', showBytes(data))
+    await services.device(id, CONTRACT, 'SEND', { wait_ms: 0, flags: 0, data }, { side: 'write' })
+  })
+
+  /** What the device has said since (RECEIVE). */
+  const receive = () => run(async (id) => {
+    answer((await services.device(id, CONTRACT, 'RECEIVE', { wait_ms: waitMs }, { side: 'read', timeoutMs: waitMs + 2000 })).data)
+  })
+
+  const choices = ports.map((p) => ({ value: p.id, label: p.name }))
   return (
     <div className="console-serial">
-      <Card title="Make a port" help="A free UART of the board as a raw port. The console's UART and the board's link are not free.">
-        <FieldsForm layout={createLayout} values={port} onChange={setPort} context={context} />
-        <div className="project-actions">
-          <Button disabled={!connected} onClick={() => void create()}><Plus aria-hidden="true" />Make the port</Button>
-        </div>
-      </Card>
-      <Card title="Talk to it" help="Send waits for one answer. Listen shows everything the device says, also by itself."
-        actions={<Button size="sm" disabled={!connected} title="Read the board's raw ports again" onClick={() => void refresh()}><RefreshCw aria-hidden="true" />Refresh</Button>}>
+      <Card title="Talk to a port" help="Send waits for one answer. Send only sends, Receive reads what the device said. A port is a UART device: add one in Devices.">
         <FormGrid>
           <FormRow label="Port">
-            <ChoiceField<number> aria-label="Port" value={provider} choices={choices} disabled={listening} placeholder="No raw port yet" onChange={(p) => p !== undefined && setProvider(p)} />
-          </FormRow>
-          <FormRow label="Listen" note="While listening, what comes in shows below at once and Send waits for nothing. A direct port can't: its driver reads it.">
-            <Switch label={listening ? 'On' : 'Off'} checked={listening} disabled={!connected || !canListen(providers.find((p) => p.id === provider))} onChange={(on) => void listen(on)} />
+            <ChoiceField<number> aria-label="Port" value={port} choices={choices} placeholder="No UART device yet" onChange={(p) => p !== undefined && setChosen(p)} />
           </FormRow>
           <FormRow label="Format">
             <SegmentedSwitch label="Format" value={format} options={[['text', 'Text'], ['hex', 'Hex']]} onChange={setFormat} />
@@ -142,19 +89,18 @@ export function SerialTerminal({ link, connected, context }: { link: RunitLink; 
               <ChoiceField<LineEnding> aria-label="Line ends with" value={ending} choices={LINE_ENDINGS.map((e) => ({ value: e.value, label: e.label }))} onChange={(e) => e !== undefined && setEnding(e)} />
             </FormRow>
           )}
-          {!listening && (
-            <FormRow label="Wait for an answer (ms)" note={`The board waits at most ${WAIT_LIMIT_MS} ms, and runs no other normal command meanwhile.`}>
-              <NumberField aria-label="Wait for an answer" integer min={0} max={WAIT_LIMIT_MS} value={waitMs} onCommit={setWaitMs} />
-            </FormRow>
-          )}
+          <FormRow label="Wait for an answer (ms)" note={`The board waits at most ${WAIT_LIMIT_MS} ms, and runs no other normal command meanwhile.`}>
+            <NumberField aria-label="Wait for an answer" integer min={0} max={WAIT_LIMIT_MS} value={waitMs} onCommit={setWaitMs} />
+          </FormRow>
           <FormRow label="Command">
             <TextField aria-label="Command" value={text} placeholder={format === 'hex' ? 'B5 62 06 08' : 'AT+VER?'} onChange={(e) => setText(e.currentTarget.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void send() }} />
           </FormRow>
         </FormGrid>
         <div className="project-actions">
-          <Button disabled={!connected || provider === undefined} onClick={() => void send()}><Send aria-hidden="true" />Send</Button>
-          <Button disabled={!connected || provider === undefined || listening} title="Remove this port" onClick={() => void remove()}><Trash2 aria-hidden="true" />Remove the port</Button>
+          <Button disabled={!connected || port === undefined} onClick={() => void send()}><Send aria-hidden="true" />Send</Button>
+          <Button disabled={!connected || port === undefined} onClick={() => void sendOnly()}>Send only</Button>
+          <Button disabled={!connected || port === undefined} onClick={() => void receive()}><Download aria-hidden="true" />Receive</Button>
           <Button disabled={lines.length === 0} onClick={() => setLines([])}>Clear</Button>
         </div>
         <FieldError>{error}</FieldError>

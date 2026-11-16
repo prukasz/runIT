@@ -276,10 +276,10 @@ describe('the program that comes out', () => {
     const v = view(open!.payload)
     expect([v.getUint16(0, true), v.getUint16(2, true), v.getUint16(4, true)]).toEqual([r.ir!.objects.length, r.ir!.accessors.length, r.ir!.blocks.length])
     expect(v.getUint32(6, true)).toBe(r.arena!.total)
-    expect(open!.op).toBe(engine.wire.ops.open)
-    expect(objects!.op).toBe(engine.wire.ops.addObjects)
-    expect(rest.filter((f) => f.op === engine.wire.ops.addBlock)).toHaveLength(2)
-    expect(rest.at(-1)!.op).toBe(engine.wire.ops.addBlock)
+    expect(open!.op).toBe(engine.wire!.ops.open)
+    expect(objects!.op).toBe(engine.wire!.ops.addObjects)
+    expect(rest.filter((f) => f.op === engine.wire!.ops.addBlock)).toHaveLength(2)
+    expect(rest.at(-1)!.op).toBe(engine.wire!.ops.addBlock)
   })
 
   it('reports every variable and block with the id it has on the board', () => {

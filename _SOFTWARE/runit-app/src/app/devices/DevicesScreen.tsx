@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, ListChecks, Lock, Play, Plus, RotateCcw } from 'lucide-react'
-import { bundledEnums, deviceCall, onboardActions, sendInOrder } from '@backend'
+import { bundledEnums, deviceCall, onboardActions } from '@backend'
 import type { Request } from '@backend'
 import { Badge, Button, Card, CardStack, ChoiceField, DeviceTile, EditableField, FieldError, FormGrid, FormRow, PanelHeader, RefPill, TreeSlab, deviceIcon } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
@@ -14,7 +14,7 @@ import { LiveBadge } from './DevicesExplorer'
 import { StepList } from './StepList'
 import { isCanvasStep } from '../hardware/apply'
 import { boardNameOf } from '../boards/boards'
-import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, SINGLE_TYPES, startSettings, usedBy } from './devices'
+import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, POLICY, SINGLE_TYPES, startSettings, stepCall, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState } from './useDevices'
 import './Devices.css'
@@ -100,11 +100,11 @@ function SettingsCard({ device, state }: { device: DeviceInfo; state: DevicesSta
   )
 }
 
-/** The error policy a device starts with: its ERROR_POLICY write in the start commands (`sys_device` starts at LOW, no actions). */
+/** The error policy a device starts with: its POLICY write in the start commands (`sys_device` starts at LOW, no actions). */
 interface Policy { readonly importance: number; readonly actions: readonly number[] }
 
 const isPolicyStep = (step: Step, state: DevicesState): boolean =>
-  step.kind === 'device' && step.contract === state.lifecycle.id && step.command === DEVICE_COMMANDS.policy
+  step.kind === 'device' && step.contract === POLICY.service && step.command === POLICY.command
 
 function policyOf(device: DeviceInfo, state: DevicesState): Policy {
   const step = device.defaults.find((s) => isPolicyStep(s, state))
@@ -117,7 +117,7 @@ function policyOf(device: DeviceInfo, state: DevicesState): Policy {
 const setPolicy = (device: DeviceInfo, state: DevicesState, policy: Policy) =>
   state.setDefaults(device, (steps) => [
     ...steps.filter((s) => !isPolicyStep(s, state)),
-    { kind: 'device', device: device.id, contract: state.lifecycle.id, command: DEVICE_COMMANDS.policy, args: { importance: policy.importance, actions: [...policy.actions] } },
+    { kind: 'device', device: device.id, contract: POLICY.service, command: POLICY.command, args: { importance: policy.importance, actions: [...policy.actions] } },
   ])
 
 function PolicyCard({ device, state }: { device: DeviceInfo; state: DevicesState }) {
@@ -289,14 +289,14 @@ function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: De
 
 /** The request of a step (a write), to send it live. */
 const stepRequest = (state: DevicesState, step: Step): Request =>
-  step.kind === 'frame' ? { keys: [step.bytes[0]!], payload: Uint8Array.from(step.bytes.slice(1)) } : deviceCall(state.services.link.defs, state.catalog, step.device, step.contract, step.command, step.args, 'write').request
+  step.kind === 'frame' ? { keys: [step.bytes[0]!], payload: Uint8Array.from(step.bytes.slice(1)) } : stepCall(state.services.link.defs, state.catalog, step).request
 
 function ActionScreen({ action, state }: { action: ProjectAction; state: DevicesState }) {
   const [result, setResult] = useState<{ tone: 'info' | 'error'; text: string } | undefined>()
   const runNow = async () => {
     setResult(undefined)
     try {
-      await sendInOrder(state.services.link, action.steps.map((s) => stepRequest(state, s)))
+      for (const step of action.steps) await state.services.link.request(stepRequest(state, step), { label: `action ${action.name}` })
       setResult({ tone: 'info', text: `Sent ${action.steps.length} command(s).` })
     } catch (failure) {
       setResult({ tone: 'error', text: state.explain(failure) })

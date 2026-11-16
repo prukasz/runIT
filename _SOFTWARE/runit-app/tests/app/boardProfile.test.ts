@@ -1,7 +1,8 @@
 import { profileFromBoard } from '../../src/app/devices/boardEditor'
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, frameImage, parseImage, readDeviceFrame } from '../../src/backend'
+import { bundledLinkDefinitions, bundledServiceCatalog, frameImage, parseImage, readDeviceFrame } from '../../src/backend'
 import { boardProfileFrames, boardProfileJson } from '../../src/app/devices/boardProfile'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 const defs = bundledLinkDefinitions()
 const catalog = bundledServiceCatalog()
@@ -62,11 +63,12 @@ describe('the board\'s profile', () => {
     expect(hex(boardProfileJson(profile))).toBe(hex(boardProfileJson(profileFromBoard(bundledBoard('pcb'), catalog))))
   })
 
-  it('a devkit: the ESP pins and its buses, no rails, no monitor', () => {
+  it('a devkit: the ESP pins and its two bus devices, no rails, no monitor', () => {
     const devkit = bundledBoard('devkit')
     const own = boardProfileFrames(defs, catalog, devkit)
     expect(own.filter((f) => f[0] === defs.keys.device && f[4] === 0 && f[5] === 0)).toHaveLength(0) // its one device is the chip's GPIO
-    expect(own.filter((f) => f[0] === defs.keys.i2c)).toHaveLength(devkit.i2cBuses.length)
+    const created = (id: number) => own.some((f) => f[0] === defs.keys.device && (f[2]! | (f[3]! << 8)) === id)
+    expect(devkit.devices.filter((d) => d.descriptor === 'device_esp32s3_i2c').map((d) => created(d.id))).toEqual([true, true])
     expect(own.filter((f) => f[0] === defs.keys.power)).toHaveLength(1)
   })
 })

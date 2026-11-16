@@ -4,8 +4,8 @@ import { refKey } from '@backend'
 import type { ErrorEntry } from '@backend'
 import type { RunitLink } from '@backend'
 import { Badge, Button, DeviceTile, LogLine, PanelHeader, SegmentedSwitch, TreeSlab } from '@ui/components'
-import type { PinContext } from '../devices/FieldsForm'
 import { SerialTerminal } from './SerialTerminal'
+import type { SerialPort } from './SerialTerminal'
 import { clock, ErrorView } from './ErrorView'
 import type { ConsoleJumps, ConsoleLine, ConsoleState } from './useConsole'
 
@@ -66,8 +66,8 @@ const ERROR_TRACE = 'err_log.c'
 type FeedItem = { kind: 'line'; at: number; line: ConsoleLine } | { kind: 'error'; at: number; entry: ErrorEntry }
 
 /** The feed: the lines and the errors in the order they came (an error that came again moves down with its count). */
-export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, link, connected, context }: {
-  link: RunitLink; connected: boolean; context: PinContext
+export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, link, connected, ports }: {
+  link: RunitLink; connected: boolean; ports: readonly SerialPort[]
   state: ConsoleState; jumps: ConsoleJumps; show: ConsoleShow; onShow: (show: ConsoleShow) => void; subject: string | undefined; onSubject: (key: string | undefined) => void
 }) {
   const entries = state.entries.filter((e) => subject === undefined || subjectOf(e, jumps).key === subject)
@@ -95,8 +95,8 @@ export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, 
         {show !== 'serial' && <Button size="sm" disabled={unread.length === 0} onClick={() => state.markRead({ ids: unread })}><CheckCheck aria-hidden="true" />Mark read</Button>}
         {show !== 'serial' && <Button size="sm" title="Remove what is shown" onClick={() => { if (show !== 'logs') state.clear({ ids: entries.map((e) => e.id) }); if (show !== 'errors' && subject === undefined) state.clearLines() }}><Trash2 aria-hidden="true" />Clear</Button>}
       </div>
-      {show === 'serial' ? <SerialTerminal link={link} connected={connected} context={context} /> : <div className="console-feed" ref={feed} onScroll={(event) => { const el = event.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
-        {items.length === 0 && <p className="devices-hint">{show === 'logs' ? 'No log lines yet. The board sends them while it is connected and Logging sends them (Project, Logging settings).' : 'Nothing yet: what the board reports appears here.'}</p>}
+      {show === 'serial' ? <SerialTerminal link={link} connected={connected} ports={ports} /> : <div className="console-feed" ref={feed} onScroll={(event) => { const el = event.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>
+        {items.length === 0 && <p className="devices-hint">{show === 'logs' ? 'No log lines yet. The board sends them while it is connected and Logging sends them (Project, Logs and errors).' : 'Nothing yet: what the board reports appears here.'}</p>}
         {items.map((item) => item.kind === 'line'
           ? <LogLine key={`l${item.line.id}`} time={clock(item.line.at)} level={item.line.level} source={item.line.source} text={item.line.text} />
           : <div key={`e${item.entry.id}`} className="console-error"><ErrorView entry={item.entry} state={state} jumps={jumps} /></div>)}

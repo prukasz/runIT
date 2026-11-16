@@ -868,11 +868,11 @@ err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_VREG_CONTRACT, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_event, NULL, SYS_EVENT_RUN_QUEUED, &handle));
+                              on_event, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_PMON_CONTRACT, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_event, NULL, SYS_EVENT_RUN_QUEUED, &handle));
+                              on_event, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
 
   s_pm.recompute = true;
   U_TASK_START(sys_pwrm_task_h, power_task, NULL, CONFIG_SYS_POWER_MANAGER_TASK_PRIO);

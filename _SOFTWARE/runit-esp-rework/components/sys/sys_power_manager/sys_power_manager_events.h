@@ -29,7 +29,7 @@ extern "C" {
   X(P, INPUT_OVP,        0x05, SYS_EVENT_NOTIFY, { int32_t mV; })       \
   X(P, PD_FIXED,         0x06, SYS_EVENT_NOTIFY, { int32_t mV; })
 
-SYS_EVENTS_DECLARE(PWRM)
+SYS_EVENTS_DECLARE(PWRM, SYS)
 
 #ifdef __cplusplus
 }

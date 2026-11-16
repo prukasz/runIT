@@ -17,13 +17,13 @@ Usage: python templates/generate_bundle.py [--check]
 import json
 import re
 
-from _common import CHECK, COMPONENTS_DIR, GENERATED, fail, read, render, rel, sources, sync_file
+from _common import BOARDS_DIR, CHECK, COMPONENTS_DIR, GENERATED, fail, read, render, rel, sources, sync_file
 
 IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 
 ERRORS = COMPONENTS_DIR / "core" / "errors" / "errors.json"
-BOARD = COMPONENTS_DIR / "app" / "runit" / "board.json"
-BOARD_DEVKIT = COMPONENTS_DIR / "app" / "runit" / "board_devkit.json"  # a devkit's profile
+BOARD = BOARDS_DIR / "board.json"
+BOARD_DEVKIT = BOARDS_DIR / "board_devkit.json"  # a devkit's profile
 MANAGED = ("devices", "contracts", "services", "blocks")  # folders whose every .json is owned by this script
 
 

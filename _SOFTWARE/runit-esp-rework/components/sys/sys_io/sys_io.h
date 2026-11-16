@@ -168,7 +168,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01)
   X(P, ADC_OUTSIDE, 0x03, 0, { int32_t mV; }) \
   X(P, ADC_INSIDE,  0x04, 0, { int32_t mV; })
 
-SYS_EVENTS_DECLARE(IO)
+SYS_EVENTS_DECLARE(IO, DEVICE)
 
 /* ----------------------------------------------------------------------------
  * A pin reference

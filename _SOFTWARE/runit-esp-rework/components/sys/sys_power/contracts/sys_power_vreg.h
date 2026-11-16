@@ -54,7 +54,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, VREG, 0x05)
   X(P, SCP,   0x03, SYS_EVENT_NOTIFY, {})              \
   X(P, READY, 0x04, 0,                { int32_t mV; })
 
-SYS_EVENTS_DECLARE(VREG)
+SYS_EVENTS_DECLARE(VREG, DEVICE)
 
 #ifdef __cplusplus
 }

@@ -18,13 +18,12 @@ import { DevicesScreen } from './devices/DevicesScreen'
 import { DeviceTestPanel, PinPanel } from './devices/DeviceTestPanel'
 import { useDevices } from './devices/useDevices'
 import { useBoardProfile } from './devices/useBoardProfile'
-import { BusesScreen } from './devices/BusesScreen'
 import { BoardProfileScreen } from './devices/BoardProfileScreen'
 import { useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { APP_TAB, BOARD_DEVICES_TAB, BOARDS_TAB, BUSES_TAB, PROFILE_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { APP_TAB, BOARD_DEVICES_TAB, BOARDS_TAB, PROFILE_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
 import { BoardsScreen } from './boards/BoardsScreen'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
@@ -137,6 +136,8 @@ export function App() {
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
   const boardProfile = useBoardProfile()
   const devices = useDevices(link, state, project, autoSync, boardProfile)
+  // The UART ports of the board and the project: devices of the UART contract, what the Console's terminal talks to.
+  const uartPorts = useMemo(() => devices.devices.filter((d) => d.type?.id === 'esp32s3_uart').map((d) => ({ id: d.id, name: d.name })), [devices.devices])
   // The Project view's board editor: the same Devices state over the board's profile alone.
   const boardEditor = useDevices(link, state, boardProfile, false, boardProfile, 'board')
   const blocks = useBlocks(project, code.engine, devices)
@@ -154,8 +155,7 @@ export function App() {
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
   // The board editor (Project > Board devices) is the Devices view over the board's profile: the toolbar, the panels and the centre act on it.
   const boardEdit = view === 'Project' && projectTab === BOARD_DEVICES_TAB
-  // The Buses tab edits the same profile: the toolbar's Write, Read, Undo and Redo act on it there too.
-  const profileEdit = boardEdit || (view === 'Project' && (projectTab === BUSES_TAB || projectTab === PROFILE_TAB))
+  const profileEdit = boardEdit || (view === 'Project' && projectTab === PROFILE_TAB)
   const ed = profileEdit ? boardEditor : devices
   const showView = (next: ViewName) => {
     if (next === 'Project' && view !== 'Project') setProjectTab(PROJECT_TAB)
@@ -468,7 +468,7 @@ export function App() {
           }
         >
           {view === 'Console'
-            ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} link={link} connected={state === 'connected'} context={pinContext} />
+            ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} link={link} connected={state === 'connected'} ports={uartPorts} />
             : view === 'Devices' && mode === 'details'
             ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} /></div>
             : view === 'Code' && mode === 'details'
@@ -486,15 +486,13 @@ export function App() {
                 ? <AppSettingsScreen zoom={appZoom} />
                 : projectTab === PROFILE_TAB
                 ? <BoardProfileScreen profile={boardProfile} />
-                : projectTab === BUSES_TAB
-                ? <BusesScreen state={boardEditor} />
                 : projectTab === BOARD_DEVICES_TAB
                 ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : tabSection
                 ? <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />
-                : <ProjectScreen project={project} link={link} connected={state === 'connected'} run={vm.board} settings={boardSettings} context={pinContext} nameOf={nameOf} />)
+                : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)
               : <div className="view-placeholder"><h2>{current.title}</h2><p>Nothing here yet.</p></div>}
         </MainScreen>
       </div>

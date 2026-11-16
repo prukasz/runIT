@@ -2,16 +2,14 @@ import type { ReactNode } from 'react'
 import { Download, Plus, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { bundledEnums } from '@backend'
 import type { FieldValues, WireField } from '@backend'
-import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, PanelHeader, Switch, TextField } from '@ui/components'
+import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
-import type { DataStream, GattCharacteristic, GattService } from '../project/projectFile'
+import type { GattCharacteristic, GattService } from '../project/projectFile'
 import { FieldsForm } from '../devices/FieldsForm'
 import type { PinContext } from '../devices/FieldsForm'
-import { GATT } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
-import { dirOf, STREAMS } from './streams'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
 
 /*
@@ -103,22 +101,26 @@ const parseHex = (text: string): number | undefined => {
   return Number.isInteger(n) && n > 0 && n <= 0xffff ? n : undefined
 }
 
-/** A 16-bit UUID as hex text. */
-function UuidField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <TextField aria-label={label} defaultValue={hex(value)} key={value} onBlur={(event) => { const n = parseHex(event.target.value); if (n !== undefined) onChange(n) }} />
+/** A 16-bit UUID as hex text; `optional`: empty is 0 (none). */
+function UuidField({ label, value, optional, onChange }: { label: string; value: number; optional?: boolean; onChange: (value: number) => void }) {
+  return (
+    <TextField aria-label={label} defaultValue={optional && value === 0 ? '' : hex(value)} key={value} onBlur={(event) => {
+      if (optional && event.target.value.trim() === '') return onChange(0)
+      const n = parseHex(event.target.value)
+      if (n !== undefined) onChange(n)
+    }} />
+  )
 }
 
-function GattEditor({ section, state, context }: { section: SettingSection; state: BoardSettingsState; context: PinContext }) {
-  const catalog = state.sectionCatalog
-  const entry = catalog.service(GATT.service)
-  const svcFields = catalog.command(entry, GATT.createService).write!.args!
-  const charLayout = catalog.command(entry, GATT.createChar).write!.args!
-  const label = (layout: typeof svcFields, id: string) => layout.fields.find((f) => f.id === id)?.label ?? id
+function GattEditor({ section, state }: { section: SettingSection; state: BoardSettingsState }) {
   const services = state.gattServices()
-  const locked = (state.live.gatt ?? []).filter((s) => s.locked)
-  const taken = new Set([...locked, ...services].flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)]))
+  const board = state.live.gatt ?? []
+  const taken = new Set([
+    ...board.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)]),
+    ...services.flatMap((s) => [s.uuid, ...s.characteristics.flatMap((c) => [c.tx, c.rx])]),
+  ])
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
-  // A new characteristic's provider: a number no characteristic of the project has, above the board's own.
+  // A new provider's id: a number no provider of the project has, above the board's own.
   const freeProvider = () => {
     const used = new Set(services.flatMap((s) => s.characteristics.map((c) => c.provider)))
     let n = 0x10
@@ -127,166 +129,57 @@ function GattEditor({ section, state, context }: { section: SettingSection; stat
   }
   const set = (next: readonly GattService[]) => state.changeGatt(next)
   const setService = (i: number, s: GattService) => set(services.map((o, j) => (j === i ? s : o)))
-  const charValues = (c: GattCharacteristic): FieldValues => ({ is_write: c.write, is_indicate: c.indicate, is_notify: c.notify, is_framed: c.framed, tx_buffer_size: c.tx, rx_buffer_size: c.rx, has_provider: c.provider !== undefined, provider: c.provider ?? 0, desc: c.name })
-  // A buffer only exists for a direction the characteristic has (the board refuses a TX buffer without notify / indicate and an RX buffer without write):
-  // turning a direction on gives it a usual size, turning it off drops it.
-  const USUAL = 128
-  const fromValues = (c: GattCharacteristic, v: FieldValues): GattCharacteristic => {
-    const [write, indicate, notify] = [Boolean(v.is_write), Boolean(v.is_indicate), Boolean(v.is_notify)]
-    const out = notify || indicate
-    const [tx, rx] = [Number(v.tx_buffer_size ?? 0), Number(v.rx_buffer_size ?? 0)]
-    const { provider: _provider, ...rest } = c
-    return {
-      ...rest, write, indicate, notify, framed: Boolean(v.is_framed), name: String(v.desc ?? ''),
-      ...(v.has_provider ? { provider: c.provider === undefined ? freeProvider() : Number(v.provider ?? c.provider) } : {}),
-      tx: !out ? 0 : tx === 0 && !(c.notify || c.indicate) ? USUAL : tx,
-      rx: !write ? 0 : rx === 0 && !c.write ? USUAL : rx,
-    }
-  }
+  const setChar = (i: number, k: number, change: (c: GattCharacteristic) => GattCharacteristic) =>
+    setService(i, { ...services[i]!, characteristics: services[i]!.characteristics.map((o, j) => (j === k ? change(o) : o)) })
   return (
     <>
-      <Card title="Bluetooth services" help={section.service.description}
+      <Card title="Bluetooth" help={section.service.description}
         actions={<span className="settings-actions"><SourceBar source={state.gattSource()} differs={state.gattDiffers()} kept connected={state.connected} busy={state.busy !== undefined}
           onApply={() => state.applyGatt(section)} onDrop={() => state.dropGatt()} /></span>}>
-        <p className="project-note">Apply now rebuilds the table at once: the board drops the Bluetooth link for a moment and the app connects again. The table is lost at a restart unless Write (the toolbar) stores it with the project.</p>
+        <p className="project-note">A way is a provider of the board: the characteristic its frames go out on (notify) and the one they come in from (written). The first way of a service makes the service. Apply now builds them at once: the board drops the Bluetooth link for a moment and the app connects again. They are lost at a restart unless Write (the toolbar) stores them with the project.</p>
         <FieldError>{state.error(section.service.id)}</FieldError>
       </Card>
-      {locked.map((s) => (
-        <Card key={s.uuid} title={`${hex(s.uuid)} · the board's`} help="The board's own service: the app's link. It cannot be changed.">
+      {board.map((s) => (
+        <Card key={s.uuid} title={`${hex(s.uuid)} · ${s.locked ? "the board's" : 'on the board now'}`} help={s.locked ? "The board's own service: the app's link. It cannot be changed." : 'A service the board has now.'}>
           <ul className="settings-list">{s.characteristics.map((c) => <li key={c.uuid}><code>{hex(c.uuid)}</code> {c.name}</li>)}</ul>
         </Card>
       ))}
       {services.map((s, i) => (
-        <Card key={`${i}:${s.uuid}`} title={`Service ${hex(s.uuid)}`} help={catalog.command(entry, GATT.createService).description}
-          actions={<Button size="sm" title="Remove this service" onClick={() => set(services.filter((_, j) => j !== i))}><Trash2 aria-hidden="true" />Remove</Button>}>
+        <Card key={`${i}:${s.uuid}`} title={`Service ${hex(s.uuid)}`}
+          actions={<Button size="sm" title="Remove this service with its ways" onClick={() => set(services.filter((_, j) => j !== i))}><Trash2 aria-hidden="true" />Remove</Button>}>
           <FormGrid>
-            <FormRow label={label(svcFields, 'uuid')} note={svcFields.fields.find((f) => f.id === 'uuid')?.description}><UuidField label={label(svcFields, 'uuid')} value={s.uuid} onChange={(uuid) => setService(i, { ...s, uuid })} /></FormRow>
-            <FormRow label={label(svcFields, 'is_primary')} note={svcFields.fields.find((f) => f.id === 'is_primary')?.description}>
-              <Switch label={s.primary ? 'On' : 'Off'} checked={s.primary} onChange={(primary) => setService(i, { ...s, primary })} />
-            </FormRow>
+            <FormRow label="UUID" note="The 16-bit UUID of the service, shared by its ways."><UuidField label="Service UUID" value={s.uuid} onChange={(uuid) => setService(i, { ...s, uuid })} /></FormRow>
           </FormGrid>
           {s.characteristics.map((c, k) => (
-            <div key={`${k}:${c.uuid}`} className="settings-char">
+            <div key={`${k}:${c.provider}`} className="settings-char">
               <div className="settings-group-head">
-                <FormRow label={label(charLayout, 'uuid')} note={charLayout.fields.find((f) => f.id === 'uuid')?.description}>
-                  <UuidField label={label(charLayout, 'uuid')} value={c.uuid} onChange={(uuid) => setService(i, { ...s, characteristics: s.characteristics.map((o, j) => (j === k ? { ...o, uuid } : o)) })} />
+                <FormRow label="Provider" note="The id of this way: what the data matrix routes to and from.">
+                  <NumberField aria-label="Provider id" integer min={1} max={254} value={c.provider} onCommit={(provider) => setChar(i, k, (o) => ({ ...o, provider }))} />
                 </FormRow>
-                <Button size="sm" title="Remove this characteristic" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
+                <Button size="sm" title="Remove this way" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
               </div>
-              <FieldsForm layout={charLayout} values={charValues(c)} context={context} hide={(f) => f.id === 'svc_uuid' || f.id === 'uuid' || (f.id === 'provider' && c.provider === undefined) || (f.id === 'tx_buffer_size' && !(c.notify || c.indicate)) || (f.id === 'rx_buffer_size' && !c.write)}
-                onChange={(v) => setService(i, { ...s, characteristics: s.characteristics.map((o, j) => (j === k ? fromValues(o, v) : o)) })} />
+              <FormGrid>
+                <FormRow label="Out (notify)" note="The characteristic its frames go out on; empty: none."><UuidField label="Out UUID" value={c.tx} optional onChange={(tx) => setChar(i, k, (o) => ({ ...o, tx }))} /></FormRow>
+                <FormRow label="In (written)" note="The characteristic the client writes; empty: none."><UuidField label="In UUID" value={c.rx} optional onChange={(rx) => setChar(i, k, (o) => ({ ...o, rx }))} /></FormRow>
+                <FormRow label="Frames" note="Both carry frames (a session's way); off: raw bytes (a stream's).">
+                  <Switch label={c.framed ? 'On' : 'Off'} checked={c.framed} onChange={(framed) => setChar(i, k, (o) => ({ ...o, framed }))} />
+                </FormRow>
+                <FormRow label="Name" note="The user description of the characteristics (up to 15 characters).">
+                  <TextField aria-label="Way name" maxLength={15} value={c.name} onChange={(event) => setChar(i, k, (o) => ({ ...o, name: event.target.value }))} />
+                </FormRow>
+              </FormGrid>
+              {c.tx === 0 && c.rx === 0 && <FieldError>{`Provider ${c.provider}: give it an out or an in UUID.`}</FieldError>}
             </div>
           ))}
           <div className="project-actions">
-            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { uuid: free(s.uuid + 1), name: '', write: false, indicate: false, notify: true, framed: false, tx: 128, rx: 0, provider: freeProvider() }] })}>
-              <Plus aria-hidden="true" />{catalog.command(entry, GATT.createChar).label}
+            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { provider: freeProvider(), tx: free(s.uuid + 1), rx: 0, framed: false, name: '' }] })}>
+              <Plus aria-hidden="true" />A way
             </Button>
           </div>
         </Card>
       ))}
       <div className="project-actions">
-        <Button onClick={() => set([...services, { uuid: free(0xee00), primary: true, characteristics: [] }])}><Plus aria-hidden="true" />{catalog.command(entry, GATT.createService).label}</Button>
-      </div>
-    </>
-  )
-}
-
-function StreamsEditor({ section, state, context }: { section: SettingSection; state: BoardSettingsState; context: PinContext }) {
-  const catalog = state.sectionCatalog
-  const entry = catalog.service(STREAMS.service)
-  const create = catalog.command(entry, STREAMS.create).write!.args!
-  const bind = catalog.command(entry, STREAMS.bind)
-  const output = catalog.command(entry, STREAMS.output)
-  const remote = catalog.command(entry, STREAMS.remote)
-  const streams = state.streamsOf()
-  // The board's four are named by the group `stream`; the project's by its own label.
-  const streamNames = new Map((bundledEnums().stream?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
-  // A stream's direction (`sys_stream_dir_e`), as CREATE's `dir` field names it.
-  const dirField = create.fields.find((f) => f.id === 'dir')
-  const dirChoices: Choice<'out' | 'in'>[] = [{ value: 'out', label: 'Out: the board sends it' }, { value: 'in', label: 'In: what comes in on its bindings' }]
-  const byteName = (stream: number) => `Stream 0x${stream.toString(16).toUpperCase().padStart(2, '0')}`
-  const title = (s: DataStream) => (s.system ? streamNames.get(s.stream) : s.name) || byteName(s.stream)
-  // What a stream can be bound to: the providers of the characteristics, the board's and the project's; an OUT stream's sends, an IN stream's is written.
-  const chars = [...(state.live.gatt ?? []).filter((s) => s.locked), ...state.gattServices()].flatMap((s) => s.characteristics).filter((c) => c.provider !== undefined)
-  const uuidNames = new Map((bundledEnums().ble_runit_uuid?.members ?? []).map((m) => [m.value, m.alias ?? m.name]))
-  const providersOf = (s: DataStream): { readonly value: number; readonly label: string }[] => {
-    const list = chars.filter((c) => !state.live.sessionProviders?.includes(c.provider!) && (dirOf(s) === 'in' ? c.write : c.notify || c.indicate)).map((c) => ({ value: c.provider!, label: `${hex(c.uuid)} ${uuidNames.get(c.uuid) ?? c.name}`.trim() }))
-    // A binding to a provider none of them is (a UART port): shown by its id, so it can be dropped.
-    const others = s.bindings.filter((b) => !list.some((p) => p.value === b.provider)).map((b) => ({ value: b.provider, label: `Provider ${hex(b.provider)}` }))
-    return [...list, ...others]
-  }
-  const set = (next: readonly DataStream[]) => state.changeStreams(next)
-  const setStream = (at: number, change: (s: DataStream) => DataStream) => set(streams.map((s, i) => (i === at ? change(s) : s)))
-  return (
-    <>
-      <Card title={section.title} help={section.service.description}
-        actions={<span className="settings-actions"><SourceBar source={state.streamsSource()} differs={state.streamsDiffer()} kept connected={state.connected} busy={state.busy !== undefined}
-          onApply={() => state.applyStreams(section)} onDrop={() => state.dropStreams()} /></span>}>
-        <FieldError>{state.error(section.service.id)}</FieldError>
-      </Card>
-      {streams.map((s, at) => (
-        <Card key={at} title={title(s)} help={s.system ? "One of the board's own streams: it can be sent elsewhere, not removed." : undefined}
-          actions={(
-            <span className="settings-actions">
-              {s.system ? <Badge tone="system">the board's</Badge> : <Button size="sm" title="Remove this stream" onClick={() => set(streams.filter((_, i) => i !== at))}><Trash2 aria-hidden="true" />Remove</Button>}
-            </span>
-          )}>
-          <FormGrid>
-            {s.system
-              ? <FormRow label={create.fields.find((f) => f.id === 'id')?.label ?? 'Stream'}><span>{streamNames.get(s.stream) ?? s.stream}</span></FormRow>
-              : <>
-                  <FormRow label="Name" note="The project's own label: the board keeps no name.">
-                    <TextField value={s.name ?? ''} placeholder={byteName(s.stream)} aria-label={`${title(s)}: name`} onChange={(e) => setStream(at, (o) => ({ ...o, name: e.currentTarget.value }))} />
-                  </FormRow>
-                  <FieldsForm grid={false} layout={{ ...create, fields: create.fields.filter((f) => f.id === 'id') }} values={{ id: s.stream }} context={context}
-                    onChange={(v) => setStream(at, (o) => ({ ...o, stream: Number(v.id ?? o.stream) }))} />
-                  <FormRow label={dirField?.label ?? 'Direction'} note={dirField?.description}>
-                    <ChoiceField<'out' | 'in'> aria-label={`${title(s)}: direction`} value={dirOf(s)} choices={dirChoices}
-                      onChange={(dir) => dir !== undefined && setStream(at, (o) => ({ ...o, dir }))} />
-                  </FormRow>
-                </>}
-            {s.system && <FormRow label={dirField?.label ?? 'Direction'}><span>{dirChoices.find((c) => c.value === dirOf(s))?.label}</span></FormRow>}
-          </FormGrid>
-          {providersOf(s).map((t) => {
-            const bound = s.bindings.some((b) => b.provider === t.value)
-            const last = s.system && s.bindings.length === 1 && bound
-            return (
-              <FormGrid key={t.value}>
-                <FormRow label={t.label} note={bind.description}>
-                  <Switch label={bound ? (dirOf(s) === 'in' ? 'Taken in' : 'Sent') : (dirOf(s) === 'in' ? 'Not taken in' : 'Not sent')} checked={bound} disabled={last}
-                    onChange={(on) => setStream(at, (o) => ({ ...o, bindings: on ? [...o.bindings, { provider: t.value }] : o.bindings.filter((b) => b.provider !== t.value) }))} />
-                </FormRow>
-              </FormGrid>
-            )
-          })}
-          {(s.outputs ?? []).map((provider) => (
-            <FormGrid key={`output:${provider}`}>
-              <FormRow label={`Goes out on provider ${hex(provider)}`} note={output.description}>
-                <Button size="sm" title="Remove this way out" onClick={() => setStream(at, ({ outputs, ...o }) => {
-                  const left = (outputs ?? []).filter((p) => p !== provider)
-                  return left.length > 0 ? { ...o, outputs: left } : o
-                })}><Trash2 aria-hidden="true" />Remove</Button>
-              </FormRow>
-            </FormGrid>
-          ))}
-          {(s.remotes ?? []).map((r) => (
-            <FormGrid key={`remote:${r.board}:${r.provider}`}>
-              <FormRow label={`Goes to provider ${hex(r.provider)} of board ${r.board}`} note={remote.description}>
-                <Button size="sm" title="Remove this target" onClick={() => setStream(at, ({ remotes, ...o }) => {
-                  const left = (remotes ?? []).filter((x) => x.board !== r.board || x.provider !== r.provider)
-                  return left.length > 0 ? { ...o, remotes: left } : o
-                })}><Trash2 aria-hidden="true" />Remove</Button>
-              </FormRow>
-            </FormGrid>
-          ))}
-        </Card>
-      ))}
-      <div className="project-actions">
-        <Button onClick={() => {
-          let stream = 0x10
-          while (streams.some((s) => s.stream === stream) || streamNames.has(stream)) stream++
-          set([...streams, { stream, system: false, dir: 'out', bindings: [] }])
-        }}><Plus aria-hidden="true" />{catalog.command(entry, STREAMS.create).label}</Button>
+        <Button onClick={() => set([...services, { uuid: free(0xee00), characteristics: [{ provider: freeProvider(), tx: free(0xee01), rx: 0, framed: false, name: '' }] }])}><Plus aria-hidden="true" />A service</Button>
       </div>
     </>
   )
@@ -298,8 +191,7 @@ export function SettingsCards({ section, state, context, nameOf }: { section: Se
     <>
       {section.groups.map((g) => <FormCard key={g.key} group={g} state={state} context={context} />)}
       {section.tables.map((t) => <TableCard key={t.key} table={t} state={state} nameOf={nameOf} />)}
-      {section.record?.editor === 'gatt' && <GattEditor section={section} state={state} context={context} />}
-      {section.record?.editor === 'streams' && <StreamsEditor section={section} state={state} context={context} />}
+      {section.record?.editor === 'ble' && <GattEditor section={section} state={state} />}
     </>
   )
 }

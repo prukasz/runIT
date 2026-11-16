@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, requestFrame, serviceCall } from '../../src/backend'
+import { bundledLinkDefinitions, bundledServiceCatalog } from '../../src/backend'
 import { emptyProject, parseProject, serializeProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import { boardType, deviceRecordOf, deviceSections, SINGLE_TYPES } from '../../src/app/devices/devices'
-import { addressBytes, boardProblems, boardSections, decodeFound, formatAddress, LINKS_RECORD, linksSection, nextLinkProvider } from '../../src/app/boards/boards'
+import { addressBytes, boardProblems, boardSections, formatAddress, nextLinkProvider } from '../../src/app/boards/boards'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 const defs = bundledLinkDefinitions()
 const catalog = bundledServiceCatalog()
@@ -11,7 +12,7 @@ const board = bundledBoard()
 const gpio = board.devices.find((d) => SINGLE_TYPES.has(boardType(catalog, d.descriptor)?.id ?? ''))!
 const gpioType = boardType(catalog, gpio.descriptor)!.id
 
-/** A master and one slave over BLE: the slave's GPIO as device 20 here, its pin 5 an output at start; a servo on the slave on pin 6. */
+/** A master and one slave: the slave's GPIO as device 20 here, its pin 5 an output at start; a servo on the slave on pin 6. */
 const project: ProjectFile = {
   ...emptyProject('Two boards'),
   boards: [{ id: 2, name: 'Arm', address: 'F4:12:FA:01:02:03', addressType: 0, provider: 0x30 }],
@@ -30,24 +31,7 @@ describe('the other boards of a project', () => {
     expect(addressBytes('F4:12:FA')).toBeUndefined()
   })
 
-  it('reads FOUND: the scan still running and each board (sys_ble_found_info_t, 24 B)', () => {
-    const entry = [1, 3, 2, 1, 0xfa, 0x12, 0xf4, 0xc4, ...new TextEncoder().encode('runit'), ...new Array(11).fill(0)]
-    const found = decodeFound(Uint8Array.from([1, 1, ...entry]))
-    expect(found.scanning).toBe(true)
-    expect(found.boards).toEqual([{ addressType: 1, address: 'F4:12:FA:01:02:03', rssi: -60, name: 'runit' }])
-    expect(decodeFound(Uint8Array.of(0, 0))).toEqual({ scanning: false, boards: [] })
-  })
-
-  it('links each board at start: BLE CONNECT of its provider and address, then SESSION ATTACH as SLAVE', () => {
-    const section = linksSection(defs, catalog, project)!
-    expect(section.id).toBe(LINKS_RECORD)
-    expect(section.frames.map(hex)).toEqual([
-      hex(requestFrame(serviceCall(catalog, 'BLE', 'CONNECT', { provider: 0x30, addr_type: 0, addr_lo: 0xfa010203, addr_hi: 0xf412 }, 'write').request)),
-      hex(requestFrame(serviceCall(catalog, 'SESSION', 'ATTACH', { provider: 0x30, peer: defs.session.peer.slave }, 'write').request)),
-    ])
-    // [BLE key][write][CONNECT][provider][type][address, least significant first]
-    expect(hex(section.frames[0]!)).toBe(hex(Uint8Array.of(defs.keys.ble!, defs.dir.write, 0x0a, 0x30, 0, 3, 2, 1, 0xfa, 0x12, 0xf4)))
-    expect(linksSection(defs, catalog, emptyProject())).toBeUndefined()
+  it('gives a new link the next provider id the project leaves free', () => {
     expect(nextLinkProvider(project)).toBe(0x31)
   })
 

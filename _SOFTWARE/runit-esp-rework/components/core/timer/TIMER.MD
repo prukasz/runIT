@@ -25,7 +25,7 @@ board_timer_stop(&m->timer);                     // before the struct is freed
 ```
 
 - **A timer is a `board_timer_t` in its owner's struct**: no table, so no capacity and no error; the calls return nothing. Any task, not an ISR.
-- **The callbacks run in one task**, `CONFIG_BOARD_TIMER_TASK_PRIO` (7: above the event task, below the urgent one) with `CONFIG_BOARD_TIMER_TASK_STACK` (4096 B), one after another. Never in an ISR nor on the esp_timer task: a slow callback (I2C) holds up only the other board timers. It may block on I/O, never sleep, and never wait long for a lock (a device's step takes the device's lock only when it is free). The task starts with the first timer started.
+- **The callbacks run in one task**, `CONFIG_BOARD_TIMER_TASK_PRIO` (7: as the SYS lane of the events, above the DEVICE lane, below the urgent one) with `CONFIG_BOARD_TIMER_TASK_STACK` (4096 B), one after another. Never in an ISR nor on the esp_timer task: a slow callback (I2C) holds up only the other board timers. It may block on I/O, never sleep, and never wait long for a lock (a device's step takes the device's lock only when it is free). The task starts with the first timer started.
 - **Fair**: of the timers due, the one that has waited longest runs first, so a callback slower than its own period (due again when it ends) does not starve the others.
 - **Time** is the RTOS tick (1 ms). A callback that runs late skips the periods it missed; they are not run in a burst. A callback that needs the real time between its calls reads the clock (`board_time_uptime_ms`).
 - **Stop**: no new call starts after `board_timer_stop()`, but one already started runs to its end. So a callback whose owner can go away (a device) takes an ID as its ctx, not a pointer.

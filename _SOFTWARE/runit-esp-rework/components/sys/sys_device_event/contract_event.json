@@ -62,7 +62,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 16,
-              "description": "SYS_EVENT_NOTIFY or 0: the events table's"
+              "description": "The events table's: bit 0 SYS_EVENT_NOTIFY (it matters to the user), bits 4..7 the lane (0 SYS, 1 DEVICE)"
             },
             {
               "id": "len",

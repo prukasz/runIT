@@ -1,40 +1,26 @@
-import { bundledEnums, createDeviceCall, requestFrame, serviceCall } from '@backend'
-import type { BoardDescriptor, LinkDefinitions, Section, ServiceCall, ServiceCatalog } from '@backend'
+import { createDeviceCall, requestFrame } from '@backend'
+import type { LinkDefinitions, ServiceCatalog } from '@backend'
 import type { ProjectBoard, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 import { boardDeviceId, configPins, deviceList, deviceRecordOf, stepFrame } from '../devices/devices'
+import type { Section } from '../devices/devices'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
- * The other boards of the project, pure (no link, no UI): boards linked to the one the app is connected to over BLE, each
- * reached through it (SYS_BLE.MD "Central", SYS_SESSION.MD "Boards, clients, the star").
+ * The other boards of the project, pure (no link, no UI): boards the project leads, each with its id, its address and the
+ * provider of its link, and the devices a project puts on them.
  *
- *   find      BLE SCAN on this board, then FOUND: the runIT boards it sees (`decodeFound`).
- *   link      BLE CONNECT (this board's provider to that board's runIT pair) and SESSION ATTACH of that provider as SLAVE: the
- *             board's hello makes this board its master. Both are the settings record SYS_ACTIONS_ID_LINKS of the stored
- *             project (`linksSection`), so this board links again at every start.
  *   devices   a project device on another board (`ProjectDevice.board`) is created there with its config and start commands, its
  *             ids those of that board (`boardSections`), and is an alias on this board (devices.ts `remoteFrame`).
+ *
+ * Finding a board (a BLE scan) and linking it (CONNECT, the data matrix's role and route) are not here: the firmware has no BLE
+ * central yet.
  */
 
-/** The service commands this file sends (BLE and SESSION descriptors). */
-export const BOARD_COMMANDS = {
-  ble: 'BLE', scan: 'SCAN', found: 'FOUND', connect: 'CONNECT',
-  session: 'SESSION', attach: 'ATTACH', detach: 'DETACH', id: 'ID',
-  provider: 'PROVIDER', remove: 'REMOVE',
-  system: 'SYS', restart: 'RESTART',
-} as const
-
-/** How long a scan runs (BLE SCAN takes 100 to 30000 ms). */
-export const SCAN_MS = 3000
+/** The service commands this file sends (SYS descriptors). */
+export const BOARD_COMMANDS = { system: 'SYS', restart: 'RESTART' } as const
 
 /** The first provider id the app gives a link: above the board's own (1..4) and the ports and characteristics a project makes (0x10..). */
 const FIRST_LINK_PROVIDER = 0x30
-
-/** The settings record of the links (`settings_record` in enums.json). */
-export const LINKS_RECORD = (() => {
-  const member = bundledEnums().settings_record?.members.find((m) => m.name === 'SYS_ACTIONS_ID_LINKS')
-  if (!member) throw new Error("generated/common/enums.json: group 'settings_record' has no SYS_ACTIONS_ID_LINKS.")
-  return member.value >>> 0
-})()
 
 /* ---- addresses ---- */
 
@@ -49,41 +35,6 @@ export const addressBytes = (address: string): number[] | undefined => {
   return parts.map((p) => parseInt(p, 16)).reverse()
 }
 
-/* ---- the scan ---- */
-
-/** A runIT board the scan found. */
-export interface FoundBoard {
-  readonly address: string
-  readonly addressType: number
-  /** dBm. */
-  readonly rssi: number
-  readonly name: string
-}
-
-/* FOUND's answer: sys_ble_found_head_t {u8 scanning, u8 count}, then count x sys_ble_found_info_t {u8 addr_type, u8 addr[6],
-   i8 rssi, char name[16]} (sys_ble_router.h). */
-const FOUND_HEAD = 2
-const FOUND_ENTRY = 24
-const FOUND_NAME = 16
-
-/** FOUND's answer: whether the scan still runs and the boards it found. */
-export const decodeFound = (data: Uint8Array): { readonly scanning: boolean; readonly boards: FoundBoard[] } => {
-  if (data.length < FOUND_HEAD) return { scanning: false, boards: [] }
-  const count = Math.min(data[1]!, Math.floor((data.length - FOUND_HEAD) / FOUND_ENTRY))
-  const boards = Array.from({ length: count }, (_, i): FoundBoard => {
-    const at = FOUND_HEAD + i * FOUND_ENTRY
-    const name = data.subarray(at + 8, at + 8 + FOUND_NAME)
-    const end = name.indexOf(0)
-    return {
-      addressType: data[at]!,
-      address: formatAddress(data.subarray(at + 1, at + 7)),
-      rssi: (data[at + 7]! << 24) >> 24,
-      name: new TextDecoder().decode(end < 0 ? name : name.subarray(0, end)),
-    }
-  })
-  return { scanning: data[0] === 1, boards }
-}
-
 /* ---- the links ---- */
 
 /** The provider id a new link gets: the lowest from FIRST_LINK_PROVIDER the project's boards leave free. */
@@ -92,24 +43,6 @@ export const nextLinkProvider = (project: ProjectFile): number => {
   let id = FIRST_LINK_PROVIDER
   while (taken.has(id)) id++
   return id
-}
-
-/** The commands that link this board to `board`: BLE CONNECT, then SESSION ATTACH as SLAVE. */
-export const linkCalls = (defs: LinkDefinitions, catalog: ServiceCatalog, board: ProjectBoard): ServiceCall[] => {
-  const bytes = addressBytes(board.address)
-  if (!bytes) throw new Error(`${board.name}: "${board.address}" is not a BLE address (six hex bytes).`)
-  const lo = (bytes[0]! | (bytes[1]! << 8) | (bytes[2]! << 16) | (bytes[3]! << 24)) >>> 0
-  const hi = bytes[4]! | (bytes[5]! << 8)
-  return [
-    serviceCall(catalog, BOARD_COMMANDS.ble, BOARD_COMMANDS.connect, { provider: board.provider, addr_type: board.addressType, addr_lo: lo, addr_hi: hi }, 'write'),
-    serviceCall(catalog, BOARD_COMMANDS.session, BOARD_COMMANDS.attach, { provider: board.provider, peer: defs.session.peer.slave }, 'write'),
-  ]
-}
-
-/** The links as the settings record of the stored project; none when the project has no other board. */
-export const linksSection = (defs: LinkDefinitions, catalog: ServiceCatalog, project: ProjectFile): Section | undefined => {
-  const boards = project.boards ?? []
-  return boards.length === 0 ? undefined : { id: LINKS_RECORD, frames: boards.flatMap((b) => linkCalls(defs, catalog, b).map((c) => requestFrame(c.request))) }
 }
 
 /**

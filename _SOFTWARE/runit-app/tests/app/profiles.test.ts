@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledServiceCatalog } from '../../src/backend'
-import type { BoardKind } from '../../src/backend'
+import { bundledServiceCatalog } from '../../src/backend'
 import { profileFromBoard } from '../../src/app/devices/boardEditor'
 import { parseProject } from '../../src/app/project/projectFile'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
+import type { BoardKind } from '../../src/app/devices/boardDescriptor'
 
 /* runit-app/profiles/: the bundled boards' profiles as files, to open in the board editor. They follow board.json and board_devkit.json. */
 const catalog = bundledServiceCatalog()
@@ -15,7 +16,6 @@ describe.each([['pcb', 'runit-board-r1'], ['devkit', 'esp32s3-devkit']] as [Boar
     const expected = profileFromBoard(bundledBoard(kind), catalog)
     if (read.ok) {
       expect(read.project.devices).toEqual(expected.devices)
-      expect(read.project.i2cBuses).toEqual(expected.i2cBuses)
       expect(read.project.pinAliases).toEqual(expected.pinAliases)
       expect(read.project.reservedPins).toEqual(expected.reservedPins)
       expect(read.project.power).toEqual(expected.power)

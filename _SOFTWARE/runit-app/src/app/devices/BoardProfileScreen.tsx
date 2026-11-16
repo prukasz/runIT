@@ -17,7 +17,7 @@ export function BoardProfileScreen({ profile }: { profile: BoardProfileState }) 
         <Button size="sm" title="Open a board profile file (runit-app/profiles has the bundled boards'); Undo goes back" onClick={profile.open}><FolderOpen aria-hidden="true" />Open…</Button>
         <Button size="sm" title="Save this board profile as a file" onClick={profile.save}><Save aria-hidden="true" />Save</Button>
       </PanelHeader>
-      <p className="project-note">What the board is: its devices with their settings and Board boot, its I2C buses and UART ports. Kept in the app and on the board; Write puts it there. Open a file to start from a board's defaults: runit-app/profiles has the runIT board's and the devkit's.</p>
+      <p className="project-note">What the board is: its devices with their settings and Board boot (the I2C buses and UART ports are devices too). Kept in the app and on the board; Write puts it there. Open a file to start from a board's defaults: runit-app/profiles has the runIT board's and the devkit's.</p>
       {profile.note && (profile.note.tone === 'error'
         ? <FieldError>{profile.note.text}</FieldError>
         : <p className="project-note" role="status" onClick={profile.clearNote}>{profile.note.text}</p>)}
@@ -26,8 +26,6 @@ export function BoardProfileScreen({ profile }: { profile: BoardProfileState }) 
           <FormGrid>
             <FormRow label="Devices"><span>{p.devices.length}</span></FormRow>
             <FormRow label="Board boot commands"><span>{boot}</span></FormRow>
-            <FormRow label="I2C buses"><span>{p.i2cBuses?.length ?? 0}</span></FormRow>
-            <FormRow label="UART ports"><span>{p.uartPorts?.length ?? 0}</span></FormRow>
           </FormGrid>
         </Card>
       </CardStack>

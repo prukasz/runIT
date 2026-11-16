@@ -24,7 +24,8 @@ extern "C" {
  *
  *  - Inline listener: called in the publisher's task before
  *    sys_event_publish() returns. It may block on I/O (I2C), never on a delay.
- *  - Queued listener: called later by the event task.
+ *  - Queued listener: called later by the task of one lane, for that lane's events (each events table picks its
+ *    lane: a ring buffer and a task of its own, so one lane never waits behind another).
  *
  * A listener is a C function and a context. A listener that outlives what its context points to (a device that can be
  * removed) takes an ID as the context, not a pointer, and looks it up when it is called: sys_device_event_subscribe
@@ -52,11 +53,27 @@ extern "C" {
 #define EVT_MODULE(tag)       ((uint16_t)((tag) >> 16))
 #define EVT_CODE(tag)         ((uint16_t)((tag) & 0xFFFFu))
 
+/* The lanes (SYS_EVENT.MD "Lanes"): each a ring buffer and a task of its own (CONFIG_SYS_EVENT_<LANE>_QUEUE_BYTES,
+ * _TASK_PRIO, _TASK_STACK), so the deferred events and the queued listeners of one lane never wait behind another's.
+ * An events table picks its lane (SYS_EVENTS_DECLARE), a queued listener runs in one (SYS_EVENT_RUN_QUEUED_<LANE>).
+ * A lane is a row here and its three options in the Kconfig. */
+#define SYS_EVENT_LANES(X) \
+  X(SYS)                   \
+  X(DEVICE)
+
+#define SYS_EVENT__LANE_ENUM(L) SYS_EVENT_LANE_##L,
+typedef enum { SYS_EVENT_LANES(SYS_EVENT__LANE_ENUM) SYS_EVENT_LANE_COUNT } sys_event_lane_e;
+
 /* Flags of a publish (sys_event_publish). The event's own ones (SYS_EVENT_FLAGS_EVENT) come from its events table and
  * travel in sys_event_t.flags; the others say only how this publish is delivered and are never in an event. */
-#define SYS_EVENT_NOTIFY      0x0001u  // event: it matters to the user (what the app gets); from the events table
-#define SYS_EVENT_DEFER       0x8000u  // publish: all of it in the event task (SYS_EVENT_PUBLISH_DEFER), never in an event
-#define SYS_EVENT_FLAGS_EVENT 0x00FFu  // the bits of a publish's flags that go into the event
+#define SYS_EVENT_NOTIFY          0x0001u  // event: it matters to the user (what the app gets); from the events table
+#define SYS_EVENT_FLAGS_LANE      0x00F0u  // event: its lane (SYS_EVENT_FLAG_LANE); from the events table
+#define SYS_EVENT_DEFER           0x8000u  // publish: all of it in the lane's task; never in an event
+#define SYS_EVENT_FLAGS_EVENT     0x00FFu  // the bits of a publish's flags that go into the event
+#define SYS_EVENT_FLAG_LANE(lane) ((uint16_t)((lane) << 4))
+#define SYS_EVENT_LANE_OF(flags)  ((uint32_t)(((flags) & SYS_EVENT_FLAGS_LANE) >> 4))
+
+_Static_assert(SYS_EVENT_LANE_COUNT <= 16, "a lane is 4 bits of the flags");
 
 /* "Any" values of a key used as a filter. */
 #define SYS_EVENT_ANY_SOURCE  0xFFFFu      // any source
@@ -68,8 +85,8 @@ extern "C" {
 /* The most bytes of a tag's payload. */
 #define SYS_EVENT_DATA_MAX CONFIG_SYS_EVENT_DATA_MAX
 
-/** @brief What happened, who and where: an event's key. As a filter (a subscription, the VM's ON_EVENT block, a
- * watch, as commands and descriptors carry it) each field is exact or "any". */
+/** @brief What happened, who and where: an event's key. As a filter (a subscription, the VM's ON_EVENT block, as
+ * commands and descriptors carry it) each field is exact or "any". */
 typedef struct __attribute__((packed)) {
   uint32_t tag;      /**< EVT_TAG(module, code); filter: or EVT_TAG(module, SYS_EVENT_ANY_CODE), SYS_EVENT_ANY_TAG,
                           SYS_EVENT_ANY_NOTIFY */
@@ -88,7 +105,7 @@ typedef struct __attribute__((packed)) {
   sys_event_key_t key;  /**< What, who, where */
   uint64_t t_ms;        /**< Set by sys_event_publish: the board's clock in ms, the stamp of an error record
                              (board_time_now_ms: UTC once a client set it, else the time since the start) */
-  uint16_t flags;       /**< SYS_EVENT_NOTIFY or 0: the events table's */
+  uint16_t flags;       /**< SYS_EVENT_NOTIFY and the lane (SYS_EVENT_FLAG_LANE): the events table's */
   uint16_t len;         /**< Payload bytes after the header, at most SYS_EVENT_DATA_MAX */
   uint8_t data[];       /**< The payload */
 } sys_event_t;
@@ -98,7 +115,7 @@ _Static_assert(SYS_EVENT_DATA_MAX <= 0xFFFF, "an event's len is u16");
 
 /**
  * @brief Whether an event passes a filter: the rule of a subscription, for code that filters events itself (the VM's
- * ON_EVENT block, a watch). Any context, an ISR too.
+ * ON_EVENT block). Any context, an ISR too.
  * @param[in] filter A key, each field exact or "any".
  * @param[in] e      The event.
  * @return true when it passes.
@@ -109,41 +126,43 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
  * Events tables
  *
  * A module lists its events once, in the format of every table (cmd_table.h): P_EVENTS(X, P) of rows
- * X(P, NAME, code, flags, { payload fields }). The module of the tags comes from the table's prefix, never from a row,
- * so no row can name another module's:
- *   SYS_EVENTS_DECLARE(P)     the module's number, MODULE_ID_<P> (module_id.h): a module's, a contract's ID
- *   SYS_DEVICE_OWN_EVENTS(P)  a device type's own events, SYS_EVENT_MODULE_TYPE(P_TYPE) (sys_device_driver.h)
- * Both give P_EV_<NAME> = EVT_TAG(module, code), its flags P_EV_<NAME>_FLAGS and its payload evt_data_P_EV_<NAME>_t:
+ * X(P, NAME, code, flags, { payload fields }). The module of the tags and their lane come from the table, never from a
+ * row, so no row can name another module's or go another way than its module's:
+ *   SYS_EVENTS_DECLARE(P, LANE) the module's number, MODULE_ID_<P> (module_id.h): a module's, a contract's ID
+ *   SYS_DEVICE_OWN_EVENTS(P)    a device type's own events, SYS_EVENT_MODULE_TYPE(P_TYPE), lane DEVICE
+ *                               (sys_device_driver.h)
+ * Both give P_EV_<NAME> = EVT_TAG(module, code), its flags P_EV_<NAME>_FLAGS (the row's and the lane), its payload
+ * evt_data_P_EV_<NAME>_t, the module P_EV_MODULE and the lane P_EV_LANE:
  *   #define IO_EVENTS(X, P)                     \
  *     X(P, RISING, 0x01, 0,                {}) \
  *     X(P, FAULT,  0x02, SYS_EVENT_NOTIFY, { uint16_t mA; })
- *   SYS_EVENTS_DECLARE(IO)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, evt_data_IO_EV_RISING_t
- * flags = SYS_EVENT_NOTIFY for events that matter to the user (an over-current, a fault), 0 for the ones that only
- * drive code (an edge, an alert pin); it goes into the event's flags. Publishing with SYS_EVENT_PUBLISH takes the
- * tag, the flags and the payload size from the table.
+ *   SYS_EVENTS_DECLARE(IO, DEVICE)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, ...
+ * A row's flags are SYS_EVENT_NOTIFY for events that matter to the user (an over-current, a fault), 0 for the ones that
+ * only drive code (an edge, an alert pin); they go into the event's flags with the lane. Publishing with
+ * SYS_EVENT_PUBLISH takes the tag, the flags and the payload size from the table.
  * ------------------------------------------------------------------------- */
 
 #define SYS_EVENT__ENUM(P, name, code, flags, ...) \
-  P##_EV_##name = EVT_TAG(P##_EV_MODULE, code), P##_EV_##name##_FLAGS = (flags),
+  P##_EV_##name = EVT_TAG(P##_EV_MODULE, code), P##_EV_##name##_FLAGS = (flags) | SYS_EVENT_FLAG_LANE(P##_EV_LANE),
 #define SYS_EVENT__TYPE(P, name, code, flags, ...)                                                             \
   typedef struct __attribute__((packed)) __VA_ARGS__ evt_data_##P##_EV_##name##_t;                            \
   _Static_assert(sizeof(evt_data_##P##_EV_##name##_t) <= SYS_EVENT_DATA_MAX, #P "_EV_" #name ": payload too big"); \
   _Static_assert((code) >= 1u && (code) <= 0xFFFEu, #P "_EV_" #name ": the code is not 1..0xFFFE");           \
-  _Static_assert(((flags) & ~SYS_EVENT_FLAGS_EVENT) == 0u, #P "_EV_" #name ": only the event's flags (NOTIFY)");
+  _Static_assert(((flags) & ~SYS_EVENT_NOTIFY) == 0u, #P "_EV_" #name ": a row's flag is NOTIFY only");
 
-/* The table P_EVENTS under module `module` (SYS_EVENTS_DECLARE, SYS_DEVICE_OWN_EVENTS). */
-#define SYS_EVENT__TABLE(P, module)                                                                       \
+/* The table P_EVENTS under module `module`, in lane `lane` (SYS_EVENTS_DECLARE, SYS_DEVICE_OWN_EVENTS). */
+#define SYS_EVENT__TABLE(P, module, lane)                                                                 \
   _Static_assert((module) >= 0x0001u && (module) <= 0xFFFEu, #P ": an event's module is 0x0001..0xFFFE"); \
-  enum { P##_EV_MODULE = (module) };                                                                      \
+  enum { P##_EV_MODULE = (module), P##_EV_LANE = SYS_EVENT_LANE_##lane };                                 \
   enum { P##_EVENTS(SYS_EVENT__ENUM, P) };                                                                \
   P##_EVENTS(SYS_EVENT__TYPE, P)
 
 /**
  * @brief The events of module P, table P_EVENTS(X, P), under the module's number MODULE_ID_<P> (a contract's events:
- * its ID). After the module's MODULE_ID_DECLARE.
- * @usage SYS_EVENTS_DECLARE(PWRM)  // PWRM_EV_BATTERY_LOW = EVT_TAG(MODULE_ID_PWRM, 0x02), ...
+ * its ID), in the lane LANE (a row of SYS_EVENT_LANES). After the module's MODULE_ID_DECLARE.
+ * @usage SYS_EVENTS_DECLARE(PWRM, SYS)  // PWRM_EV_BATTERY_LOW = EVT_TAG(MODULE_ID_PWRM, 0x02), ...
  */
-#define SYS_EVENTS_DECLARE(P) SYS_EVENT__TABLE(P, MODULE_ID_##P)
+#define SYS_EVENTS_DECLARE(P, LANE) SYS_EVENT__TABLE(P, MODULE_ID_##P, LANE)
 
 
 
@@ -152,8 +171,8 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Starts the event task. Boot.
- * @return The error of the task start
+ * @brief Starts the task of every lane. Boot.
+ * @return NULL
  */
 MUST_USE err_h sys_event_init(void);
 
@@ -164,6 +183,8 @@ MUST_USE err_h sys_event_init(void);
  * @return An error is reported by the dispatcher; other listeners still run.
  */
 typedef err_h (*sys_event_handler_f)(const sys_event_t* event, void* ctx);
+
+#define SYS_EVENT__RUN_QUEUED(L) SYS_EVENT_RUN_QUEUED_##L,
 
 /**
  * @brief Where a listener runs. The inline listeners run before the queued ones, each kind in the order of the table.
@@ -176,13 +197,17 @@ typedef enum {
    * the device registry does it around every call, so an event published inside a device op reaches its inline
    * listeners in the same task once the task's outermost sys_device_call is over, not while the op runs. */
   SYS_EVENT_RUN_INLINE,
-  /** In the event task, for a module with locks of its own (the power manager) that would take them inside a device
-   * op, against the lock order. */
-  SYS_EVENT_RUN_QUEUED,
   /** Inline, before every other listener: the table's first slot, kept for one. The one that sends the events to the
    * app (SYS_EVENT_ANY_NOTIFY), so an action stopping the board can't hide its cause, whatever subscribed before it. */
   SYS_EVENT_RUN_FIRST,
+  /** SYS_EVENT_RUN_QUEUED_<LANE>: in the task of that lane, for the events of that lane only, so it never runs in two
+   * tasks at once. For a module with locks of its own (the power manager) that would take them inside a device op,
+   * against the lock order. A filter that spans lanes is subscribed once per lane. */
+  SYS_EVENT_LANES(SYS_EVENT__RUN_QUEUED)
 } sys_event_run_e;
+
+/* SYS_EVENT_RUN_QUEUED_<LANE> of lane `lane` (a sys_event_lane_e): for a filter subscribed in a loop over the lanes. */
+#define SYS_EVENT_RUN_QUEUED_IN(lane) ((sys_event_run_e)((uint32_t)SYS_EVENT_RUN_FIRST + 1u + (uint32_t)(lane)))
 
 /**
  * @brief Adds `fn(event, ctx)` as a listener of the events that pass `filter`.
@@ -192,7 +217,8 @@ typedef enum {
  *                    so what can go away is passed as an ID
  * @param[in]  run    Where it runs
  * @param[out] handle Its handle, for sys_event_unsubscribe(): never 0, and not the handle of any listener before it
- * @return ERR_EVENT_BAD_ARG for a NULL fn or handle, ERR_EVENT_TABLE_FULL when all CONFIG_SYS_EVENT_MAX_SUBS are used
+ * @return ERR_EVENT_BAD_ARG for a NULL fn or handle or an unknown run, ERR_EVENT_TABLE_FULL when all
+ *         CONFIG_SYS_EVENT_MAX_SUBS are used
  *         (for SYS_EVENT_RUN_FIRST: when the first slot has its listener).
  * @usage ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = IO_EV_FALLING, .source = id, .channel = 21}, on_edge,
  *                                    NULL, SYS_EVENT_RUN_INLINE, &h));
@@ -210,18 +236,21 @@ MUST_USE err_h sys_event_unsubscribe(uint16_t handle);
 
 /**
  * @brief Publishes an event, the one way in: stamps t_ms, runs the inline listeners (table order), then queues one
- * copy for the queued listeners if one matches. With SYS_EVENT_DEFER all of it runs later in the event task: for a
- * task an op may wait for (the ESP32-S3 GPIO's ADC task, sys_remote's link, the screen's task), where an inline
- * listener could need a lock that op holds. From an ISR it is always deferred (the clock is read there by the event
- * task, at the moment of the ISR); a drop there is counted and reported by the task. Use SYS_EVENT_PUBLISH /
- * SYS_EVENT_PUBLISH_DEFER; a module that passes on an event it did not declare (sys_remote) calls this.
+ * copy into its lane for the queued listeners of the lane if one matches. With SYS_EVENT_DEFER all of it runs later in
+ * the lane's task: for a task an op may wait for (the ESP32-S3 GPIO's ADC task, sys_remote's link, the screen's task),
+ * where an inline listener could need a lock that op holds. From an ISR it is always deferred (the clock is read there
+ * by the lane's task, at the moment of the ISR); a drop there is counted and reported by that task. Use
+ * SYS_EVENT_PUBLISH / SYS_EVENT_PUBLISH_DEFER; a module that passes on an event it did not declare (sys_remote) calls
+ * this with the event's flags, its lane with them.
  * @param[in] key   What, who and where
- * @param[in] flags The event's flags (SYS_EVENT_NOTIFY, from its table) and how to deliver it (SYS_EVENT_DEFER)
+ * @param[in] flags The event's flags (SYS_EVENT_NOTIFY and the lane, from its table) and how to deliver it
+ *                  (SYS_EVENT_DEFER)
  * @param[in] data  The payload, NULL when `len` is 0
  * @param[in] len   Payload bytes, at most SYS_EVENT_DATA_MAX
  * While the task holds its events (sys_event_hold) a publish without SYS_EVENT_DEFER is kept in the hold and delivered
- * by sys_event_release(); one that does not fit there is deferred to the event task.
- * @return ERR_EVENT_BAD_ARG for a payload that is too long, ERR_EVENT_QUEUE_FULL when the queued copy didn't fit.
+ * by sys_event_release(); one that does not fit there is deferred to the lane's task.
+ * @return ERR_EVENT_BAD_ARG for a payload that is too long or an unknown lane, ERR_EVENT_QUEUE_FULL when the queued
+ *         copy didn't fit its lane.
  *         Listener failures are reported, not returned.
  */
 MUST_USE err_h sys_event_publish(sys_event_key_t key, uint16_t flags, const void* data, uint32_t len);
@@ -271,7 +300,7 @@ void sys_event_release(sys_event_hold_t* hold);
 #define SYS_EVENT_PUBLISH(NAME, src, ch, ...) SYS_EVENT__PUBLISH(NAME, 0u, src, ch, __VA_ARGS__)
 
 /**
- * @brief SYS_EVENT_PUBLISH with SYS_EVENT_DEFER: all of it in the event task, from a task an op may wait for.
+ * @brief SYS_EVENT_PUBLISH with SYS_EVENT_DEFER: all of it in the lane's task, from a task an op may wait for.
  * @usage err_report(SYS_EVENT_PUBLISH_DEFER(IO_EV_ADC_INSIDE, c->id, pin, .mV = mv));
  */
 #define SYS_EVENT_PUBLISH_DEFER(NAME, src, ch, ...) SYS_EVENT__PUBLISH(NAME, SYS_EVENT_DEFER, src, ch, __VA_ARGS__)

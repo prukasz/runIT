@@ -16,7 +16,7 @@ import {
 import type { AccessorDef, BlockDef, DataDef, ObjectDef, ObjectFlags, ProgramIR } from '@engine/wire'
 import golden from '../fixtures/vm-golden.json'
 
-const defs = loadWireDefinitions()
+const defs = loadWireDefinitions()!
 
 describe('wire numbers come from the generated descriptors', () => {
   it('match the firmware (VM_CORE.MD op table, vm_obj.h, vm_block.h)', () => {

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog } from '../../src/backend'
-import type { BoardKind } from '../../src/backend'
+import { bundledLinkDefinitions, bundledServiceCatalog } from '../../src/backend'
 import { boardProfileFrames } from '../../src/app/devices/boardProfile'
 import { boardFromProfile, bootSteps, profileFromBoard, withBoard } from '../../src/app/devices/boardEditor'
 import { parseProject, serializeProject } from '../../src/app/project/projectFile'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
+import type { BoardKind } from '../../src/app/devices/boardDescriptor'
 
 const defs = bundledLinkDefinitions()
 const catalog = bundledServiceCatalog()
@@ -47,62 +48,36 @@ describe('a device added to the profile', () => {
 describe('the I2C buses of the profile', () => {
   const base = bundledBoard('pcb')
   const profile = profileFromBoard(base, catalog)
-  const gpio = base.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!
 
-  it('are the bundled board\'s to start with', () => {
-    expect(profile.i2cBuses?.map((b) => b.bus)).toEqual(base.i2cBuses.map((b) => b.bus))
-    expect(boardFromProfile(profile, base, catalog).i2cBuses).toEqual(base.i2cBuses)
+  it('are devices of the bundled board, ports 0 and 1, each on its pins', () => {
+    const buses = profile.devices.filter((d) => d.type === 'esp32s3_i2c')
+    expect(buses.map((d) => d.config?.port)).toEqual([0, 1])
+    expect(buses.map((d) => `${(d.config?.sda as { pin: number }).pin}/${(d.config?.scl as { pin: number }).pin}`)).toEqual(['15/16', '40/41'])
+    expect(buses.every((d) => d.config?.pullup === 1)).toBe(true)
   })
 
-  it('a bus added makes a BUS_CREATE frame and reserves its pins', () => {
-    const next = { ...profile, i2cBuses: [...(profile.i2cBuses ?? []), { bus: 2, name: 'Bus 2', sda: { device: gpio.id, pin: 30 }, scl: { device: gpio.id, pin: 31 }, pullup: true }] }
-    const board = boardFromProfile(next, base, catalog)
-    expect(boardProfileFrames(defs, catalog, board).length).toBe(boardProfileFrames(defs, catalog, base).length + 1)
-    expect(board.reservedPins.filter((r) => r.label.startsWith('I2C 2'))).toEqual([{ device: gpio.id, pin: 30, label: 'I2C 2 SDA' }, { device: gpio.id, pin: 31, label: 'I2C 2 SCL' }])
+  it('come before the chips on them: the board creates in that order', () => {
+    const board = boardFromProfile(profile, base, catalog)
+    const at = (id: number) => board.devices.findIndex((d) => d.id === id)
+    const chips = board.devices.filter((d) => d.i2c)
+    expect(chips.length).toBeGreaterThan(0)
+    for (const chip of chips) expect(at(chip.i2c!.bus)).toBeLessThan(at(chip.id))
+    // Even from a profile that lists a chip first.
+    const flipped = { ...profile, devices: [...profile.devices].reverse() }
+    const again = boardFromProfile(flipped, base, catalog)
+    for (const chip of again.devices.filter((d) => d.i2c)) expect(again.devices.findIndex((d) => d.id === chip.i2c!.bus)).toBeLessThan(again.devices.findIndex((d) => d.id === chip.id))
   })
 
-  it('a bus removed takes its frame and its reserved pins', () => {
-    const next = { ...profile, i2cBuses: (profile.i2cBuses ?? []).filter((b) => b.bus !== 0) }
-    const board = boardFromProfile(next, base, catalog)
-    expect(boardProfileFrames(defs, catalog, board).length).toBe(boardProfileFrames(defs, catalog, base).length - 1)
-    expect(board.reservedPins.some((r) => r.label.startsWith('I2C 0'))).toBe(false)
-  })
-})
-
-describe('the record\'s order', () => {
-  it('creates every I2C bus before any device', () => {
-    const frames = boardProfileFrames(defs, catalog, bundledBoard('pcb'))
-    const lastBus = frames.map((f) => f[0]).lastIndexOf(defs.keys.i2c)
-    const firstDevice = frames.findIndex((f) => f[0] === defs.keys.device)
-    expect(lastBus).toBeGreaterThanOrEqual(0)
-    expect(lastBus).toBeLessThan(firstDevice)
+  it('reserve no pins of their own: the pins of a bus are those of its device', () => {
+    expect(boardFromProfile(profile, base, catalog).reservedPins.some((r) => r.label.startsWith('I2C'))).toBe(false)
   })
 })
 
-describe('the UART ports of the profile', () => {
-  const base = bundledBoard('pcb')
-  const gpio = base.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!
-  const profile = { ...profileFromBoard(base, catalog), uartPorts: [{ provider: 5, port: 2, baud: 115200, mode: 0, parity: 0, stop_bits: 1, tx: { device: gpio.id, pin: 30 }, rx: { device: gpio.id, pin: 31 }, rts: null, cts: null }] }
-  const board = boardFromProfile(profile, base, catalog)
-
-  it('a port makes a UART CREATE frame before any device', () => {
-    const frames = boardProfileFrames(defs, catalog, board)
-    const uart = frames.findIndex((f) => f[0] === defs.keys.uart)
-    expect(uart).toBeGreaterThanOrEqual(0)
-    expect(uart).toBeLessThan(frames.findIndex((f) => f[0] === defs.keys.device))
-  })
-
-  it('reserves its pins', () => {
-    expect(board.reservedPins.filter((r) => r.label.startsWith('UART'))).toEqual([{ device: gpio.id, pin: 30, label: 'UART 2 TX' }, { device: gpio.id, pin: 31, label: 'UART 2 RX' }])
-  })
-})
-
-describe('a profile kept without buses', () => {
+describe('a profile kept without reserved pins', () => {
   it("has the bundled board's", () => {
     const base = bundledBoard('pcb')
-    const { i2cBuses: _, ...old } = profileFromBoard(base, catalog)
-    expect(withBoard(old, base).i2cBuses).toEqual(base.i2cBuses)
-    expect(base.i2cBuses.map((b) => `${b.bus}:${b.sda.pin}/${b.scl.pin}:${b.pullup}`)).toEqual(['0:15/16:true', '1:40/41:true'])
+    const { reservedPins: _, ...old } = profileFromBoard(base, catalog)
+    expect(withBoard(old, base).reservedPins).toEqual(base.reservedPins)
   })
 })
 

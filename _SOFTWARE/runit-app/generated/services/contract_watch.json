@@ -6,7 +6,7 @@
   "id": "WATCH",
   "router_key": 43,
   "alias": "Watches",
-  "description": "Reads this board runs by a trigger (a period, a change of the answer, an event) and pushes as entries [channel][id][status][data] on the watches' channel to the caller that added them.",
+  "description": "Reads this board runs every period and pushes (all of them, or the ones whose answer changed) as entries [channel][id][status][data] on the watches' channel to the caller that added them.",
   "category": "system",
   "commands": [
     {
@@ -14,7 +14,7 @@
       "op": 1,
       "symbol": "WATCH_OP_ADD",
       "label": "Add a watch",
-      "description": "Adds or replaces a watch identified by (owner, id); payload is sys_watch_head_t (14 B) followed by the read command (2..48 B).",
+      "description": "Adds or replaces a watch identified by (owner, id); payload is sys_watch_head_t (6 B) followed by the read command (2..48 B).",
       "write": {
         "args": {
           "struct": "sys_watch_head_t",
@@ -36,7 +36,7 @@
               "size": 1,
               "offset": 1,
               "enum": "sys_watch_trigger_e",
-              "description": "PERIODIC (0), ON_CHANGE (1), ON_EVENT (2)"
+              "description": "PERIODIC (0), ON_CHANGE (1)"
             },
             {
               "id": "period",
@@ -45,7 +45,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "Ticks of 10 ms (>= 1). PERIODIC/ON_CHANGE cadence; ON_EVENT minimum gap"
+              "description": "Ticks of 10 ms (>= 1): how often the read runs"
             },
             {
               "id": "max_silence",
@@ -55,33 +55,6 @@
               "size": 2,
               "offset": 4,
               "description": "Ticks of 10 ms. ON_CHANGE sends unchanged value after this many silent ticks (0 = never)"
-            },
-            {
-              "id": "tag",
-              "label": "Filter tag",
-              "type": "integer",
-              "raw_type": "u32",
-              "size": 4,
-              "offset": 6,
-              "description": "sys_event_key_t.tag for ON_EVENT (SYS_EVENT_ANY_TAG = 0)"
-            },
-            {
-              "id": "source",
-              "label": "Filter source",
-              "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 10,
-              "description": "sys_event_key_t.source for ON_EVENT (SYS_EVENT_ANY_SOURCE = 0xFFFF)"
-            },
-            {
-              "id": "channel",
-              "label": "Filter channel",
-              "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 12,
-              "description": "sys_event_key_t.channel for ON_EVENT (SYS_EVENT_ANY_CHANNEL = 0xFFFF)"
             },
             {
               "id": "read",
@@ -122,12 +95,12 @@
       "op": 3,
       "symbol": "WATCH_OP_LIST",
       "label": "List watches",
-      "description": "Returns u8 count followed by count sys_watch_info_t records (16 B each).",
+      "description": "Returns u8 count followed by count sys_watch_info_t records (8 B each).",
       "read": {
         "returns": {
           "type": "bytes",
           "label": "Watch list",
-          "description": "u8 count followed by count sys_watch_info_t records (16 B each)"
+          "description": "u8 count followed by count sys_watch_info_t records (8 B each)"
         }
       }
     }

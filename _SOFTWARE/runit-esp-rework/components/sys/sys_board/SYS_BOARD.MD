@@ -45,6 +45,5 @@ The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare
 
 ## Open
 
-- The app does not yet write the provider `CREATE` and the data matrix `ROLE` / `ROUTE` frames of the ways to other boards (`boardProfile.ts` writes the ports).
-- The app still names the board's router by the old firmware's key (`0x11`): it follows when the app moves to the rework's descriptors.
+- The app does not yet write the provider `CREATE` and the data matrix `ROLE` / `ROUTE` frames of the ways to other boards.
 - Not run on a board yet.

@@ -33,4 +33,4 @@
   X(P, CREATED,   0x04, 0,                { uint8_t gen; }) \
   X(P, REMOVED,   0x05, 0,                { uint8_t gen; })
 
-SYS_EVENTS_DECLARE(SYS_DEVICE)
+SYS_EVENTS_DECLARE(SYS_DEVICE, DEVICE)

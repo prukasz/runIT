@@ -9,10 +9,12 @@ export interface GeneratedLimits {
 
 /**
  * The board's limits from the published Kconfig values. An option the firmware no longer publishes stops the load with a
- * message that names it, instead of the engine checking against a number nobody confirmed.
+ * message that names it, instead of the engine checking against a number nobody confirmed; one that publishes none (no VM) leaves
+ * the engine's defaults.
  */
 export const limitsFromGenerated = (published: GeneratedLimits): Partial<VmLimits> =>
-  Object.fromEntries(
+  // A firmware without a VM publishes none of them: the engine keeps its DEFAULT_LIMITS.
+  !Object.values<string>(LIMIT_SYMBOLS).some((symbol) => published.limits[symbol]) ? {} : Object.fromEntries(
     Object.entries<string>(LIMIT_SYMBOLS).map(([key, symbol]) => {
       const limit = published.limits[symbol]
       if (!limit) throw new Error(`generated/common/limits.json has no limit '${symbol}' (mark its option in a Kconfig with #@limit).`)

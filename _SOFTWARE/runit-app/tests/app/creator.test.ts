@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledServiceCatalog } from '../../src/backend'
+import { bundledServiceCatalog } from '../../src/backend'
 import { deviceList } from '../../src/app/devices/devices'
 import { emptyProject } from '../../src/app/project/projectFile'
 import { buildSvg, draftProblems, newConnector, newDraft, partFiles, roleChoices, roleOf, slug, withPinCount, withRole } from '../../src/app/hardware/creator'
@@ -7,6 +7,7 @@ import { connectorPinPoints } from '../../src/app/hardware/geometry'
 import { maskOf, simplify, vectorize } from '../../src/app/hardware/imageTrace'
 import type { Pixels } from '../../src/app/hardware/imageTrace'
 import { bundledLibrary } from '../../src/app/hardware/library'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 const catalog = bundledServiceCatalog()
 const board = bundledBoard('pcb')

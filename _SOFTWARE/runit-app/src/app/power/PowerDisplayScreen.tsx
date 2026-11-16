@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
-import type { BoardDescriptor, FieldValues, Services } from '@backend'
+import type { FieldValues, Services } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { deviceChannels } from '../devices/devices'
@@ -9,6 +9,7 @@ import { answerFields, commandOf, defaultReadings, readArgs, readCommands, readK
 import type { PowerReading } from './powerDisplay'
 import { usePowerLive, usePowerOps } from './usePowerLive'
 import './PowerLive.css'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The Project view's Live power display tab: what the display in the right panel reads, one reading a card: its name, the command

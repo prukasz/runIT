@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledServiceCatalog } from '../../src/backend'
+import { bundledServiceCatalog } from '../../src/backend'
 import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import { applyHardware, contextOf, hardwareOf, isCanvasStep, placePart, removeItems } from '../../src/app/hardware/apply'
@@ -12,6 +12,7 @@ import { buildNetlist, pinsNear } from '../../src/app/hardware/netlist'
 import { pathTo, solvePower } from '../../src/app/hardware/power'
 import { canWire } from '../../src/app/hardware/wiring'
 import type { Scene } from '../../src/app/hardware/wiring'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 const catalog = bundledServiceCatalog()
 const board = bundledBoard('pcb')
@@ -189,7 +190,7 @@ describe('the Devices canvas', () => {
     let { project, item: pca } = place(base, 'pca9685_breakout')
     const pcaId = project.devices.at(-1)!.id
     project = wire(project, { item: pca, pin: 'ctrl_in.sda' }, { item: BOARD_ITEM, pin: 'user_i2c.sda' })
-    expect(project.devices.at(-1)!.config?.i2c_bus).toBe(1)
+    expect(project.devices.at(-1)!.config?.i2c_bus).toBe(board.devices.find((d) => d.descriptor === 'device_esp32s3_i2c' && d.config.port === 1)!.id)
     let servo: string
     ;({ project, item: servo } = place(project, 'servo_mg996r'))
     project = wire(project, { item: servo, pin: 'lead.sig' }, { item: pca, pin: 'ch5.pwm' })

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard, bundledLinkDefinitions, bundledServiceCatalog, createDeviceCall, deviceCall, deviceOp, onboardActionIds, readDeviceFrame, requestFrame, withRanges } from '../../src/backend'
+import { bundledLinkDefinitions, bundledServiceCatalog, createDeviceCall, deviceCall, deviceOp, onboardActionIds, readDeviceFrame, requestFrame, withRanges } from '../../src/backend'
 import { bundledEnums } from '../../src/backend'
 import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 import {
-  actionRecordOf, admittedSeverities, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
+  actionRecordOf, admittedSeverities, POLICY, stepCall, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
 } from '../../src/app/devices/devices'
 
 const defs = bundledLinkDefinitions()
@@ -141,8 +142,8 @@ describe('the devices of the view', () => {
   })
 
   it('a new project device is on the user I2C bus, not the internal one of the board', () => {
-    const user = board.i2cBuses.find((b) => b.name === 'user')!
-    expect(baseConfig(catalog.devices.get('ap33772s'), board)).toEqual({ i2c_bus: user.bus })
+    const user = board.devices.find((d) => d.descriptor === 'device_esp32s3_i2c' && d.config.port === 1)!
+    expect(baseConfig(catalog.devices.get('pca9685'), board)).toEqual({ i2c_bus: user.id })
     expect(baseConfig(catalog.devices.get('servo'), board)).toEqual({}) // no bus in its config
   })
 
@@ -159,14 +160,15 @@ describe('the devices of the view', () => {
   it("the policy offers the board's own responses on the failing device and writes them as the u32 the firmware reads", () => {
     const members = bundledEnums().device_response?.members ?? []
     expect(members.map((m) => [m.name, m.value])).toEqual([['SYS_DEVICE_RESPONSE_SUSPEND', 0xff000001], ['SYS_DEVICE_RESPONSE_RESET', 0xff000002]])
-    const call = deviceCall(defs, catalog, 20, lifecycleOf(catalog).id, 'ERROR_POLICY', { importance: 2, actions: [0, 0, members[0]!.value, members[1]!.value] }, 'write')
-    // [... importance u8][4 x u32 LE]: the responses are the last two slots (HIGH, CRITICAL)
+    const call = stepCall(defs, catalog, { kind: 'device', device: 20, contract: POLICY.service, command: POLICY.command, args: { importance: 2, actions: [0, 0, members[0]!.value, members[1]!.value] } })
+    // [POLICY key][write][op][device u8][importance u8][4 x u32 LE]: the responses are the last two slots (HIGH, CRITICAL)
     expect(Array.from(requestFrame(call.request).slice(-8))).toEqual([0x01, 0x00, 0x00, 0xff, 0x02, 0x00, 0x00, 0xff])
   })
 
-  it('the pins the board keeps (I2C, strapping, the expander lines) are reserved; the others are not', () => {
+  it("the pins the board keeps (strapping, USB, the expander lines) are reserved; the pins of a bus are its device's; the others are free", () => {
     const esp = board.devices.find((d) => d.descriptor === 'device_esp32s3_gpio')!.id
-    for (const pin of [15, 16, 40, 41]) expect(isReserved(board, esp, pin), `pin ${pin}`).toBe(true)
+    for (const pin of [0, 45, 46]) expect(isReserved(board, esp, pin), `pin ${pin}`).toBe(true)
+    expect(board.devices.filter((d) => d.descriptor === 'device_esp32s3_i2c').flatMap((d) => d.pins.map((p) => p.pin))).toEqual([15, 16, 40, 41])
     expect(isReserved(board, esp, 3)).toBe(false)
   })
 

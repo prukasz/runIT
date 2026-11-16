@@ -20,7 +20,7 @@ extern "C" {
   X(P, REACHED, 0x01, 0, {})        \
   X(P, GONE,    0x02, 0, { uint8_t safety; })
 
-SYS_EVENTS_DECLARE(SESSION)
+SYS_EVENTS_DECLARE(SESSION, SYS)
 
 /** @brief Every peer's REACHED / GONE, for sys_event_subscribe. */
 #define SESSION_REACHED_FILTER \

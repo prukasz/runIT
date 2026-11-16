@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { bundledEnums, bundledLinkDefinitions, bundledServiceCatalog, encodeFields, serviceCall } from '../../src/backend'
-import type { DataStream, GattService } from '../../src/app/project/projectFile'
+import type { GattService } from '../../src/app/project/projectFile'
 import { emptySettings } from '../../src/app/project/projectFile'
-import { decodeGattList, gattApply, gattFromRecord, gattRecord } from '../../src/app/settings/gatt'
+import { decodeBleProviders, decodeGattList, gattApply, gattFromRecord, gattRecord, sameGatt } from '../../src/app/settings/gatt'
 import { groupValues, sameValues, settingSections } from '../../src/app/settings/settings'
 import { settingsRecords } from '../../src/app/settings/settingsRecords'
-import { decodeStreamsInfo, sameStreams, streamsApply, streamsFromRecord, streamsRecord } from '../../src/app/settings/streams'
 
 const catalog = bundledServiceCatalog()
 const problems: string[] = []
@@ -25,12 +24,12 @@ describe('the board settings from the service descriptors', () => {
 
   it('takes the mirrors whose read takes no key, each read answering what its write takes, one section per service', () => {
     expect(problems).toEqual([])
-    for (const key of ['LOG.CONFIG', 'POWER_MANAGER.CONFIG', 'POWER_MANAGER.PSU', 'POWER_MANAGER.BATTERY', 'POWER_MANAGER.PD', 'PROJECT.OPTIONS', 'SYS.DEADMAN']) {
+    for (const key of ['LOG.CONFIG', 'POWER_MANAGER.CONFIG', 'POWER_MANAGER.PSU', 'POWER_MANAGER.BATTERY', 'POWER_MANAGER.PD', 'SYS.DEADMAN']) {
       const g = group(key)
       expect(g, key).toBeDefined()
       expect(g!.command.read && g!.command.write, key).toBeTruthy()
     }
-    expect(sections.find((s) => s.service.id === 'LOG')?.title).toBe('Logging settings')
+    expect(sections.find((s) => s.service.id === 'LOG')?.title).toBe('Logs and errors')
   })
 
   it('a read with a key (I2C RAW: bus, address, register) is no setting', () => {
@@ -41,11 +40,9 @@ describe('the board settings from the service descriptors', () => {
     expect(group('LOG.CONFIG')?.recordId).toBe(record('SYS_ACTIONS_ID_LOG'))
     expect(group('POWER_MANAGER.PSU')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PSU'))
     expect(group('POWER_MANAGER.PD')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PD'))
-    expect(group('PROJECT.OPTIONS')?.recordId).toBeUndefined()
     // The dead-man is runtime only: the project never keeps it, so a board that restarts runs offline.
     expect(group('SYS.DEADMAN')?.recordId).toBeUndefined()
-    expect(sections.find((s) => s.service.id === 'BLE')?.record).toEqual({ id: record('SYS_ACTIONS_ID_BLE'), editor: 'gatt' })
-    expect(sections.find((s) => s.service.id === 'STREAM')?.record).toEqual({ id: record('SYS_ACTIONS_ID_STREAM'), editor: 'streams' })
+    expect(sections.find((s) => s.service.id === 'BLE')?.record).toEqual({ id: record('SYS_ACTIONS_ID_BLE'), editor: 'ble' })
   })
 
   it('reads the response matrix as a table: a target per row, a column per power event kind, rows both ways', () => {
@@ -63,11 +60,9 @@ describe('the board settings from the service descriptors', () => {
   })
 
   it('shows only the written fields of an answer, and compares values as the board gets them', () => {
-    const options = group('PROJECT.OPTIONS')!
-    const values = groupValues(options, { boot: 2, other: 3 })
-    expect(values).toEqual({ boot: 2 })
-    expect([...encodeFields(options.layout, values)]).toEqual([2])
     const log = group('LOG.CONFIG')!
+    const written = groupValues(log, { level: 3, mirror_serial: true, trace_errors: false, send_errors: true, send_logs: false, other: 9 })
+    expect(written).toEqual({ level: 3, mirror_serial: true, trace_errors: false, send_errors: true, send_logs: false })
     const board = groupValues(log, { level: 3, mirror_serial: true, trace_errors: false, send_errors: true, send_logs: false })
     expect(() => serviceCall(catalog, 'LOG', 'CONFIG', board, 'write')).not.toThrow()
     expect(sameValues(log.layout, board, { ...board, level: 3 })).toBe(true)
@@ -76,68 +71,30 @@ describe('the board settings from the service descriptors', () => {
 })
 
 describe('the settings the project keeps, as records of the stored project', () => {
-  const gatt: GattService[] = [{ uuid: 0xee00, primary: true, characteristics: [{ uuid: 0xee01, name: 'temp', write: false, indicate: false, notify: true, framed: false, tx: 96, rx: 0, provider: 0x11 }] }]
-  const streams: DataStream[] = [
-    { stream: 3, system: true, dir: 'out', bindings: [{ provider: 4 }] },
-    { stream: 0x10, name: 'mine', system: false, dir: 'in', bindings: [{ provider: 0x11 }] },
-  ]
-
-  it('builds the GATT record as SYS_BLE.MD shows it: the service, its characteristic, APPLY', () => {
-    const frames = gattRecord(catalog, gatt).map((f) => [...f])
-    expect(frames[0]).toEqual([0x03, 0x01, 0x01, 0x00, 0xee, 0x01]) // [BLE key][write][SVC_CREATE][uuid u16][primary]
-    expect(frames[1]).toEqual([0x03, 0x01, 0x03, 0x00, 0xee, 0x01, 0xee, 0, 0, 1, 0, 0x60, 0, 0, 0, 0, 0, 0, 0, 1, 0x11, 0x74, 0x65, 0x6d, 0x70, 0])
-    expect(frames[2]).toEqual([0x03, 0x01, 0x05])
-    expect(gattFromRecord(catalog, gattRecord(catalog, gatt))).toEqual(gatt)
+  const gatt: GattService[] = [{ uuid: 0xee00, characteristics: [{ provider: 0x11, tx: 0xee01, rx: 0, framed: false, name: 'temp' }] }]
+  it('builds the BLE record as PROVIDER_BLE.MD shows it: a PROVIDER CREATE of type BLE with its cfg', () => {
+    const frames = gattRecord(catalog, gatt)
+    expect(frames).toHaveLength(1)
+    // [PROVIDER key][write][provider][op u16: contract 13, CREATE 0][type BLE][flags], then provider_ble_cfg_t: svc, tx, rx, flags, name[16]
+    expect([...frames[0]!]).toEqual([0x0d, 0x01, 0x11, 0x00, 0x0d, 0x02, 0x00, 0x00, 0xee, 0x01, 0xee, 0, 0, 0, 0x74, 0x65, 0x6d, 0x70, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    expect(gattFromRecord(catalog, frames)).toEqual(gatt)
+    expect(gattRecord(catalog, [])).toEqual([])
   })
 
-  it('reads the GATT table of LIST, and rebuilds only the user services', () => {
-    const list = Uint8Array.of(2, 0xe0, 0xff, 0b11, 0, 0x00, 0xee, 0b01, 1, 0x01, 0xee, 0b10100, 0x60, 0, 0, 0, 0, 0, 0, 0, 0x11, 0x74, 0x65, 0x6d, 0x70, 0)
+  it('reads the table of BLE LIST and the BLE providers of PROVIDER LIST', () => {
+    const list = Uint8Array.of(2, 0xe0, 0xff, 0b11, 1, 0xe1, 0xff, 0b0111, 0x60, 0, 0x6c, 0x6f, 0x67, 0, 0x00, 0xee, 0b01, 1, 0x01, 0xee, 0b0100, 0x60, 0, 0x74, 0x65, 0x6d, 0x70, 0)
     const live = decodeGattList(list)
-    expect(live[0]).toMatchObject({ uuid: 0xffe0, locked: true })
-    expect(live[1]).toMatchObject({ uuid: 0xee00, locked: false, characteristics: [{ uuid: 0xee01, name: 'temp', notify: true, tx: 96, provider: 0x11 }] })
-    expect(gattApply(catalog, live, gatt).map((c) => c.command.id)).toEqual(['SVC_REMOVE', 'SVC_CREATE', 'CHAR_CREATE', 'APPLY'])
+    expect(live[0]).toMatchObject({ uuid: 0xffe0, locked: true, characteristics: [{ uuid: 0xffe1, name: 'log', write: true, indicate: true, notify: true }] })
+    expect(live[1]).toMatchObject({ uuid: 0xee00, locked: false, characteristics: [{ uuid: 0xee01, name: 'temp', notify: true, write: false }] })
+    expect(decodeBleProviders(Uint8Array.of(3, 1, 2, 3, 0x11, 2, 3, 5, 1, 3))).toEqual([1, 0x11]) // type 2: BLE
   })
 
-  it('builds the streams record: the user stream created with its direction, every binding dropped, then set', () => {
-    const frames = streamsRecord(catalog, streams)
-    const op = (id: string) => catalog.command(catalog.service('STREAM'), id).op
-    expect(frames.map((f) => f[2])).toEqual([op('UNBIND_ALL'), op('BIND'), op('CREATE'), op('UNBIND_ALL'), op('BIND')])
-    expect([...frames[2]!]).toEqual([0x04, 0x01, op('CREATE'), 0x10, 1, 0]) // [STREAM][write][CREATE][id][dir IN][flags]
-    // LIST: one stream, 0x03, OUT, no flags, system, 3 targets: a subscriber (0xf0), bindings to providers 0x11 and 4 (2 dropped)
-    const info = Uint8Array.of(1, 3, 0, 0, 1, 3, 1, 0xf0, 0, 0, 0, 0, 0, 0x11, 0, 0, 0, 0, 4, 2, 0)
-    const live = decodeStreamsInfo(info)
-    expect(live).toEqual([{ stream: 3, system: true, dir: 'out', bindings: [{ provider: 0x11 }, { provider: 4 }] }])
-    // the board keeps no name: a stream read back from the record has none
-    expect(streamsFromRecord(catalog, streamsRecord(catalog, streams), live)).toEqual(streams.map(({ name: _, ...s }) => s))
-    expect(sameStreams(streamsFromRecord(catalog, streamsRecord(catalog, streams), live), streams)).toBe(true)
-    expect(streamsApply(catalog, live, streams).map((c) => c.command.id)).toEqual(['UNBIND_ALL', 'BIND', 'CREATE', 'BIND'])
-  })
-
-  it('keeps an IN stream\'s outputs and remote targets: read from LIST, in the record, replayed, compared', () => {
-    const op = (id: string) => catalog.command(catalog.service('STREAM'), id).op
-    const tunnel: DataStream[] = [{ stream: 0x20, system: false, dir: 'in', bindings: [{ provider: 0x11 }], outputs: [0x10], remotes: [{ board: 2, provider: 0x13 }] }]
-    const frames = streamsRecord(catalog, tunnel)
-    expect(frames.map((f) => f[2])).toEqual([op('CREATE'), op('UNBIND_ALL'), op('BIND'), op('OUTPUT'), op('REMOTE')])
-    expect(streamsFromRecord(catalog, frames, [])).toEqual(tunnel)
-    expect(sameStreams(streamsFromRecord(catalog, frames, []), tunnel)).toBe(true)
-    expect(sameStreams(tunnel, [{ ...tunnel[0]!, outputs: [] }])).toBe(false)
-    expect(sameStreams(tunnel, [{ ...tunnel[0]!, remotes: [] }])).toBe(false)
-    // LIST: stream 0x20, IN, a binding, an output, a remote target
-    const { target } = bundledLinkDefinitions().stream
-    const info = Uint8Array.of(1, 0x20, 1, 0, 0, 3, target.provider, 0, 0x11, 0, 0, target.output, 0, 0x10, 0, 0, target.remote, 2, 0x13, 0, 0)
-    expect(decodeStreamsInfo(info)).toEqual(tunnel)
-    // nothing differs: nothing sent; one target less: everything is set again, since UNBIND takes a provider's targets on every board
-    expect(streamsApply(catalog, tunnel, tunnel)).toEqual([])
-    expect(streamsApply(catalog, tunnel, [{ ...tunnel[0]!, remotes: [] }]).map((c) => c.command.id)).toEqual(['UNBIND_ALL', 'BIND', 'OUTPUT'])
-    expect(streamsApply(catalog, [{ ...tunnel[0]!, outputs: [] }], tunnel).map((c) => c.command.id)).toEqual(['OUTPUT'])
-  })
-
-  it('makes a stream again when the project has it the other way: its direction is set when it is made', () => {
-    const live = [{ stream: 0x10, system: false, dir: 'out' as const, bindings: [{ provider: 0x11 }] }]
-    const project = [{ stream: 0x10, system: false, dir: 'in' as const, bindings: [{ provider: 0x11 }] }]
-    expect(streamsApply(catalog, live, project).map((c) => c.command.id)).toEqual(['REMOVE', 'CREATE', 'BIND'])
-    expect(streamsApply(catalog, live, live).map((c) => c.command.id)).toEqual([]) // nothing differs: nothing sent
-    expect(sameStreams([{ stream: 0x10, system: false, bindings: [] }], [{ stream: 0x10, system: false, dir: 'out', bindings: [] }])).toBe(true) // no direction: OUT
+  it('applies by removing the providers of the project the board has, then creating them all; a table differs by its UUIDs', () => {
+    expect(gattApply(catalog, [0x11, 3], gatt).map((c) => c.command.id)).toEqual(['REMOVE', 'CREATE'])
+    expect(gattApply(catalog, [3], gatt).map((c) => c.command.id)).toEqual(['CREATE'])
+    const live = decodeGattList(Uint8Array.of(1, 0x00, 0xee, 0b01, 1, 0x01, 0xee, 0b0100, 0x60, 0, 0x74, 0x65, 0x6d, 0x70, 0))
+    expect(sameGatt(gatt, live)).toBe(true)
+    expect(sameGatt([{ uuid: 0xee00, characteristics: [{ provider: 0x11, tx: 0xee02, rx: 0, framed: false, name: '' }] }], live)).toBe(false)
   })
 
   it('writes each kept setting as its record', () => {
@@ -146,10 +103,10 @@ describe('the settings the project keeps, as records of the stored project', () 
       ...emptySettings(),
       values: { 'LOG.CONFIG': { level: 2, mirror_serial: true, trace_errors: false, send_errors: true, send_logs: false } },
       tables: { 'POWER_MANAGER.MATRIX': rows },
-      gatt, streams,
+      gatt,
     }
     const records = settingsRecords(catalog, settings)
-    expect(records.map((r) => r.id)).toEqual([record('SYS_ACTIONS_ID_LOG'), record('SYS_ACTIONS_ID_POWER_RESPONSES'), record('SYS_ACTIONS_ID_BLE'), record('SYS_ACTIONS_ID_STREAM')].sort((a, b) => records.findIndex((r) => r.id === a) - records.findIndex((r) => r.id === b)))
+    expect(records.map((r) => r.id)).toEqual([record('SYS_ACTIONS_ID_LOG'), record('SYS_ACTIONS_ID_POWER_RESPONSES'), record('SYS_ACTIONS_ID_BLE')].sort((a, b) => records.findIndex((r) => r.id === a) - records.findIndex((r) => r.id === b)))
     // the matrix's write: [key][write][MATRIX], then each row's target (u16) and its 11 cells
     const matrix = records.find((r) => r.id === record('SYS_ACTIONS_ID_POWER_RESPONSES'))!.frames[0]!
     expect([...matrix.subarray(3)]).toEqual(rows.flatMap((r) => [r.target & 0xff, r.target >> 8, ...r.cells]))

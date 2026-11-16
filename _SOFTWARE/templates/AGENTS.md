@@ -10,7 +10,7 @@
 |---|---|---|
 | Device | `runit-esp-rework/components/devices/<category>/device_<name>/device_<name>.json` | `device.schema.json` |
 | Contract | `runit-esp-rework/components/sys/**/contract_<name>.json` (under `sys_<name>/router/`, `sys_<name>/contracts/`, `sys/bus/*/`, etc.) | `contract.schema.json` |
-| Board | `runit-esp-rework/components/app/runit/board.json` (the PCB), `board_devkit.json` (optional while not yet migrated in rework) | `board.schema.json` |
+| Board | `runit-app/boards/board.json` (the PCB), `board_devkit.json`: the app's own descriptors of the boards it knows, which the firmware never reads | `board.schema.json` |
 | VM block | `runit-esp-rework/components/vm/vm_blocks/**/block_<name>.json` (optional while VM is not yet migrated in rework; `crosscheck.py` skips when `vm_block_ids.h` is absent) | `vm-block.schema.json` |
 | Hardware part | `library/parts/<id>/part.json` with its drawing `part.svg` (the Devices canvas; [library/LIBRARY.md](../library/LIBRARY.md)). Not copied into `runit-app/generated/`: the app reads `library/` itself (`@library`) | `part.schema.json` |
 
@@ -69,7 +69,7 @@ A command of a device contract whose field is of type `pin` (the device's own pi
 | `runit-app/generated/blocks/` | `block_*.json` | `runit-esp-rework/components/vm/vm_blocks/**/` (when present) |
 | `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp-rework/components/devices/**/device_*/manual/` |
 | `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp-rework/components/devices/**/device_*/` |
-| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), optional `board.json`, `board_devkit.json` | generated / `runit-esp-rework/components/core/errors/`, `runit-esp-rework/components/app/runit/` |
+| `runit-app/generated/common/` | `enums.json` (written by `generate_enums.py`), `limits.json` (written by `generate_limits.py`), `errors.json` (with every module's messages), optional `board.json`, `board_devkit.json` | generated / `runit-esp-rework/components/core/errors/`, `runit-app/boards/` |
 
 A device's manual is written by hand in `runit-esp-rework/components/devices/<category>/device_<chip>/manual/manual.md` (English). Another language is `manual.<lang>.md` beside it (`manual.pl.md` is Polish); the app shows the reader's language and falls back to English. Pictures sit in the same folder, named in the markdown as `![alt](name.png)`. The manual describes the chip; a picture is an example board. The manual and the code copy are read by the app's device page; a device without a manual folder shows "No manual yet". A copy is the source with `$schema` rewritten to point at `templates/` from its folder. The script also deletes copies whose source is gone. A new device or contract appears in the bundle by its file name; there is no list to edit. The source stays in `components/`; edit it there, never in `runit-app/generated/`.
 

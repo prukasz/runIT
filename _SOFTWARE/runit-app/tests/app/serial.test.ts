@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { bundledServiceCatalog, serviceCall } from '../../src/backend'
-import { canListen, decodeProviders, encodeInput, parseHex, providerLabel, rawProviders, showBytes } from '../../src/app/console/serial'
+import { bundledLinkDefinitions, bundledServiceCatalog, deviceCall, requestFrame } from '../../src/backend'
+import { encodeInput, parseHex, showBytes } from '../../src/app/console/serial'
 
 describe('the serial terminal', () => {
   it('turns what is typed into bytes: a text line with its ending, hex as it is', () => {
@@ -16,27 +16,15 @@ describe('the serial terminal', () => {
     expect(showBytes(Uint8Array.of(0xb5, 0x62, 0x00))).toBe('B5 62 00')
   })
 
-  it('reads PROVIDER LIST, and offers only the raw providers', () => {
-    const framed = 1 << 5
-    const list = decodeProviders(Uint8Array.of(2, 1, 1, framed, 0x10, 1, 0))
-    expect(list).toEqual([{ id: 1, link: 1, state: framed }, { id: 0x10, link: 1, state: 0 }])
-    expect(rawProviders(list).map((p) => p.id)).toEqual([0x10])
-    expect(providerLabel(list[1]!)).toBe('Serial 0x10')
-    expect(decodeProviders(Uint8Array.of(2, 1, 1))).toEqual([]) // cut short
-    expect(canListen(list[1])).toBe(true)
-    expect(canListen({ id: 0x11, link: 1, state: 1 << 6 })).toBe(false) // a direct port
-    expect(canListen(undefined)).toBe(false)
-  })
-
-  it('builds the commands as the descriptor lays them out', () => {
+  it('builds the commands of the UART contract as the descriptor lays them out: TRANSACT, SEND, RECEIVE of a device', () => {
     const catalog = bundledServiceCatalog()
-    const raw = serviceCall(catalog, 'UART', 'RAW', { provider: 0x10, wait_ms: 300, rx_max: 256, data: Uint8Array.of(0x41) })
-    expect([...raw.request.payload!]).toEqual([0x10, 0x2c, 0x01, 0x00, 0x01, 0x41])
-    const receive = serviceCall(catalog, 'UART', 'RECEIVE', { provider: 0x10, wait_ms: 300, rx_max: 256 })
-    expect([...receive.request.payload!]).toEqual([0x10, 0x2c, 0x01, 0x00, 0x01])
-    const send = serviceCall(catalog, 'PROVIDER', 'SEND', { provider: 0x10, data: Uint8Array.of(0x41) })
-    expect([...send.request.payload!]).toEqual([0x10, 0x41])
-    const create = serviceCall(catalog, 'UART', 'CREATE', { provider: 0x10, port: 2, baud: 9600, mode: 2, parity: 0, stop_bits: 1, tx: { device: 0, pin: 4 }, rx: { device: 0, pin: 5 }, rts: null, cts: null }, 'write')
-    expect([...create.request.payload!]).toEqual([0x10, 2, 0x80, 0x25, 0, 0, 2, 0, 1, 0, 0, 4, 0, 0, 5, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
+    const defs = bundledLinkDefinitions()
+    const transact = deviceCall(defs, catalog, 7, 'UART', 'TRANSACT', { wait_ms: 300, data: Uint8Array.of(0x41) }, 'write')
+    // [key][write][device u8][op u16: contract 19, TRANSACT 6]: then wait_ms u16, the bytes
+    expect(Array.from(requestFrame(transact.request).slice(2))).toEqual([7, 0x06, 0x13, 0x2c, 0x01, 0x41])
+    const send = deviceCall(defs, catalog, 7, 'UART', 'SEND', { wait_ms: 0, flags: 0, data: Uint8Array.of(0x41) }, 'write')
+    expect(Array.from(requestFrame(send.request).slice(2))).toEqual([7, 0x02, 0x13, 0x00, 0x00, 0x00, 0x41])
+    const receive = deviceCall(defs, catalog, 7, 'UART', 'RECEIVE', { wait_ms: 300 }, 'read')
+    expect(Array.from(requestFrame(receive.request).slice(2))).toEqual([7, 0x03, 0x13, 0x2c, 0x01])
   })
 })

@@ -5,7 +5,7 @@
   vm-block.schema.json  runit-esp-rework/components/vm/vm_blocks/**/block_*.json
   errors.schema.json    runit-esp-rework/components/core/errors/errors.json
   error-texts.schema.json  runit-esp-rework/components/**/errors_<module>.json (the message templates of a module's errors)
-  board.schema.json     runit-esp-rework/components/app/runit/board.json, board_devkit.json (when present)
+  board.schema.json     runit-app/boards/board.json, board_devkit.json (when present)
   enums.schema.json     runit-app/generated/common/enums.json
   limits.schema.json    runit-app/generated/common/limits.json
 
@@ -15,7 +15,7 @@ Needs the jsonschema package (pip install jsonschema). Usage: python templates/v
 """
 import json
 
-from _common import COMPONENTS_DIR, GENERATED, ROOT, fail, read, rel, sources
+from _common import BOARDS_DIR, COMPONENTS_DIR, GENERATED, ROOT, fail, read, rel, sources
 
 try:
     from jsonschema import Draft202012Validator
@@ -37,7 +37,7 @@ CHECKS = (
     ("vm-block.schema.json", descriptors("block_")),
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
     ("error-texts.schema.json", descriptors("errors_")),
-    ("board.schema.json", [p for p in (COMPONENTS_DIR / "app" / "runit" / "board.json", COMPONENTS_DIR / "app" / "runit" / "board_devkit.json") if p.exists()]),
+    ("board.schema.json", [p for p in (BOARDS_DIR / "board.json", BOARDS_DIR / "board_devkit.json") if p.exists()]),
     ("enums.schema.json", [ENUMS]),
     ("limits.schema.json", [LIMITS]),
 )

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { bundledLinkDefinitions, decodePeers, serviceCall, SESSION_COMMANDS, Services } from '@backend'
 import type { FieldValues, RunitLink, ServiceCall } from '@backend'
-import type { DataStream, GattService, ProjectSettings, SettingsRow } from '../project/projectFile'
+import type { GattService, ProjectSettings, SettingsRow } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
-import { decodeGattList, GATT, gattApply, sameGatt } from './gatt'
+import { decodeBleProviders, decodeGattList, GATT, gattApply, sameGatt } from './gatt'
 import type { LiveGattService } from './gatt'
 import { groupValues, sameRows, sameValues, settingSections, tableArgs, tableRows } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
-import { decodeStreamsInfo, sameStreams, STREAMS, streamsApply } from './streams'
 
 /*
  * The board's settings: what the board has now (read when the link comes up, and again on demand) and what the project keeps.
@@ -27,9 +26,8 @@ export interface LiveSettings {
   readonly values: Readonly<Record<string, FieldValues>>
   readonly tables: Readonly<Record<string, readonly SettingsRow[]>>
   readonly gatt?: readonly LiveGattService[]
-  readonly streams?: readonly DataStream[]
-  /** The providers the board's sessions run on: no stream is bound there, its bytes would land between their frames. */
-  readonly sessionProviders?: readonly number[]
+  /** The ids of the board's providers of type BLE. */
+  readonly bleProviders?: readonly number[]
 }
 
 /** Where a setting's values come from: the project, the board (the project keeps none), or nowhere yet. */
@@ -46,7 +44,7 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
   const settings = project.project.settings
   const setError = (key: string, text: string | undefined) => setErrors(({ [key]: _, ...rest }) => (text ? { ...rest, [key]: text } : rest))
 
-  /** Reads one section from the board: its forms, its tables, and its record's table (GATT LIST, streams INFO). */
+  /** Reads one section from the board: its forms, its tables, and its record's table (GATT LIST). */
   const readSection = useCallback(async (section: SettingSection): Promise<boolean> => {
     let ok = true
     for (const g of section.groups) {
@@ -66,15 +64,9 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     if (section.record) {
       const key = section.service.id
       try {
-        if (section.record.editor === 'gatt') {
-          const { data } = await services.call(GATT.service, GATT.list)
-          setLive((l) => ({ ...l, gatt: decodeGattList(data) }))
-        } else {
-          const { data } = await services.call(STREAMS.service, STREAMS.list)
-          const peers = await services.call(SESSION_COMMANDS.service, SESSION_COMMANDS.peers)
-          const sessionProviders = decodePeers(bundledLinkDefinitions(), peers.data).map((p) => p.provider)
-          setLive((l) => ({ ...l, streams: decodeStreamsInfo(data), sessionProviders }))
-        }
+        const table = await services.call(GATT.service, GATT.list)
+        const providers = await services.call(GATT.providers, GATT.providerList)
+        setLive((l) => ({ ...l, gatt: decodeGattList(table.data), bleProviders: decodeBleProviders(providers.data) }))
         setError(key, undefined)
       } catch (failure) { ok = false; setError(key, `Reading: ${message(failure)}`) }
     }
@@ -174,24 +166,14 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     dropTable: (t: SettingTable) => editSettings(({ tables: { [t.key]: _, ...tables }, ...s }) => ({ ...s, tables })),
 
     /* ---- GATT ---- */
-    gattSource: (): SettingSource => (settings.gatt ? 'project' : live.gatt ? 'board' : 'none'),
-    gattServices: (): readonly GattService[] => settings.gatt ?? (live.gatt ?? []).filter((s) => !s.locked),
-    gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt.filter((s) => !s.locked)),
+    gattSource: (): SettingSource => (settings.gatt ? 'project' : 'none'),
+    gattServices: (): readonly GattService[] => settings.gatt ?? [],
+    gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt),
     changeGatt: (services: readonly GattService[]) => editSettings((s) => ({ ...s, gatt: services }), 'setting:gatt'),
     applyGatt: (section: SettingSection) => {
-      if (settings.gatt && live.gatt) void send(section.service.id, gattApply(services.catalog, live.gatt, settings.gatt), section)
+      if (settings.gatt && live.bleProviders) void send(section.service.id, gattApply(services.catalog, live.bleProviders, settings.gatt), section)
     },
     dropGatt: () => editSettings(({ gatt: _, ...s }) => s),
-
-    /* ---- data streams ---- */
-    streamsSource: (): SettingSource => (settings.streams ? 'project' : live.streams ? 'board' : 'none'),
-    streamsOf: (): readonly DataStream[] => settings.streams ?? live.streams ?? [],
-    streamsDiffer: (): boolean => settings.streams !== undefined && live.streams !== undefined && !sameStreams(settings.streams, live.streams),
-    changeStreams: (streams: readonly DataStream[]) => editSettings((s) => ({ ...s, streams }), 'setting:streams'),
-    applyStreams: (section: SettingSection) => {
-      if (settings.streams && live.streams) void send(section.service.id, streamsApply(services.catalog, live.streams, settings.streams), section)
-    },
-    dropStreams: () => editSettings(({ streams: _, ...s }) => s),
 
     /**
      * Reads a section from the board and shows what it has: the project's values for it are dropped (Undo brings them back),
@@ -200,15 +182,15 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     read: (section?: SettingSection) => {
       void read(section).then(() => {
         const mine = (s: SettingSection) => ({
-          keys: [...s.groups, ...s.tables].map((x) => x.key), gatt: s.record?.editor === 'gatt', streams: s.record?.editor === 'streams',
+          keys: [...s.groups, ...s.tables].map((x) => x.key), gatt: s.record?.editor === 'ble',
         })
         const parts = (section ? [section] : sections).map(mine)
         editSettings((s) => {
           const values = { ...s.values }
           const tables = { ...s.tables }
           for (const p of parts) for (const k of p.keys) { delete values[k]; delete tables[k] }
-          const { gatt, streams, ...rest } = s
-          return { ...rest, values, tables, ...(parts.some((p) => p.gatt) ? {} : gatt ? { gatt } : {}), ...(parts.some((p) => p.streams) ? {} : streams ? { streams } : {}) }
+          const { gatt, ...rest } = s
+          return { ...rest, values, tables, ...(parts.some((p) => p.gatt) ? {} : gatt ? { gatt } : {}) }
         })
         setEdits({})
       })

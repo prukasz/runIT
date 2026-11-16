@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { appBoardKind, bundledBoard, bundledServiceCatalog } from '@backend'
+import { bundledServiceCatalog } from '@backend'
 import { readStored, writeStored } from '@ui/hooks/useStorage'
 import { amend, record, redo as redoHistory, startHistory, undo as undoHistory } from '../project/history'
 import type { History } from '../project/history'
@@ -7,6 +7,7 @@ import { parseProject, serializeProject } from '../project/projectFile'
 import { chooseFile, download } from '../project/useProject'
 import type { ProjectFile } from '../project/projectFile'
 import { boardFromProfile, profileFromBoard, profileKey, withBoard } from './boardEditor'
+import { bundledBoard } from './boardDescriptor'
 
 /*
  * The board's profile in the app (boardEditor.ts): the devices of the board and their boot packages, kept in the app's own storage
@@ -26,10 +27,9 @@ export interface ProfileState {
 }
 
 export function useBoardProfile() {
-  const kind = useMemo(appBoardKind, [])
-  const base = useMemo(() => bundledBoard(kind), [kind])
+  const base = useMemo(() => bundledBoard(), [])
   const catalog = useMemo(bundledServiceCatalog, [])
-  const key = profileKey(kind)
+  const key = profileKey('pcb')
   const [history, setHistory] = useState<History<ProjectFile>>(() => {
     const stored = readStored<ProjectFile | undefined>(key, (raw) => { const read = parseProject(raw); return read.ok ? read.project : undefined }, undefined)
     // A profile kept without buses has the bundled board's: the board made them so.

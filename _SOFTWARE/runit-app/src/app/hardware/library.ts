@@ -1,4 +1,4 @@
-import type { BoardDescriptor } from '@backend'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The hardware library (_SOFTWARE/library/parts/<id>/: part.json and its drawing part.svg; templates/part.schema.json,

@@ -1,6 +1,7 @@
-import type { BoardDescriptor, CommandDef, FieldValues, ServiceCatalog, WireField } from '@backend'
+import type { CommandDef, FieldValues, ServiceCatalog, WireField } from '@backend'
 import { answers } from '../devices/devices'
 import type { DeviceInfo, DeviceOps } from '../devices/devices'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The Live power display, pure: what it reads (the project's `powerDisplay`, else the board's default), the commands a reading can

@@ -1,6 +1,6 @@
 /* Host tests of sys_event: the real sys_event.c and errors; only the platform is replaced (tasks are threads, an ISR is
- * a thread that says it is one: host_isr_set). The tests up to the queue's are run without the event task; the ones
- * after it start it (sys_event_init) and it stays: a test there waits for what the task delivers.
+ * a thread that says it is one: host_isr_set). The tests up to the queue's are run without the lanes' tasks; the ones
+ * after it start them (sys_event_init) and they stay: a test there waits for what a task delivers.
  * Run: python test_host/run.py sys_event   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
@@ -16,9 +16,14 @@ MODULE_ID_DECLARE(TESTEV, 0x3A)
   X(P, PING, 0x01, 0,                {})                 \
   X(P, ODD,  0x02, SYS_EVENT_NOTIFY, { uint8_t b[3]; })  \
   X(P, WORD, 0x03, 0,                { uint32_t v; })
-SYS_EVENTS_DECLARE(TESTEV)
+SYS_EVENTS_DECLARE(TESTEV, SYS)
 
-#define WAIT_MS 1000  // the longest a test waits for the event task
+/* A second one, in the other lane. */
+MODULE_ID_DECLARE(TESTDEV, 0x3C)
+#define TESTDEV_EVENTS(X, P) X(P, BEEP, 0x01, 0, { uint32_t v; })
+SYS_EVENTS_DECLARE(TESTDEV, DEVICE)
+
+#define WAIT_MS 1000  // the longest a test waits for a lane's task
 
 /* ---- what the listeners saw (any task) ------------------------------------------------------------------------ */
 
@@ -172,6 +177,15 @@ static void test_a_table_takes_its_module_from_its_prefix(void) {
   TEST_ASSERT_EQUAL_UINT32(0, sizeof(evt_data_TESTEV_EV_PING_t));
 }
 
+static void test_a_table_puts_its_lane_into_its_events_flags(void) {
+  TEST_ASSERT_EQUAL_INT(SYS_EVENT_LANE_SYS, TESTEV_EV_LANE);
+  TEST_ASSERT_EQUAL_INT(SYS_EVENT_LANE_DEVICE, TESTDEV_EV_LANE);
+  TEST_ASSERT_EQUAL_HEX16(SYS_EVENT_FLAG_LANE(SYS_EVENT_LANE_DEVICE), TESTDEV_EV_BEEP_FLAGS);
+  TEST_ASSERT_EQUAL_UINT32(SYS_EVENT_LANE_DEVICE, SYS_EVENT_LANE_OF(TESTDEV_EV_BEEP_FLAGS));
+  TEST_ASSERT_EQUAL_UINT32(SYS_EVENT_LANE_SYS, SYS_EVENT_LANE_OF(TESTEV_EV_ODD_FLAGS));
+  TEST_ASSERT_EQUAL_INT(SYS_EVENT_RUN_QUEUED_DEVICE, SYS_EVENT_RUN_QUEUED_IN(SYS_EVENT_LANE_DEVICE));
+}
+
 /* ---- publish and the inline listeners ------------------------------------------------------------------------- */
 
 static void test_an_inline_listener_runs_before_publish_returns(void) {
@@ -237,6 +251,9 @@ static void test_a_payload_too_long_or_missing_is_refused(void) {
   e = sys_event_publish(key(TESTEV_EV_WORD, 1, 0), 0, NULL, 4);
   TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
   err_free(e);
+  e = sys_event_publish(key(TESTEV_EV_PING, 1, 0), SYS_EVENT_FLAG_LANE(SYS_EVENT_LANE_COUNT), NULL, 0);  // no lane
+  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  err_free(e);
   TEST_ASSERT_EQUAL_INT(0, rec_count());
 }
 
@@ -287,6 +304,9 @@ static void test_a_full_table_refuses_one_more_and_bad_arguments_are_refused(voi
   err_free(e);
   e = sys_event_subscribe(key(TESTEV_EV_PING, 0, 0), recorder, NULL, SYS_EVENT_RUN_INLINE, NULL);
   TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  err_free(e);
+  e = sys_event_subscribe(key(TESTEV_EV_PING, 0, 0), recorder, NULL, SYS_EVENT_RUN_QUEUED_IN(SYS_EVENT_LANE_COUNT), &h);
+  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);  // no such lane
   err_free(e);
 }
 
@@ -386,7 +406,7 @@ static void test_a_listener_may_publish_while_a_hold_is_released(void) {
 /* ---- the queue, before the event task runs: it only fills ----------------------------------------------------- */
 
 static void test_without_the_event_task_the_queue_fills_and_says_so(void) {
-  sub(key(TESTEV_EV_PING, 0x77, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED);
+  sub(key(TESTEV_EV_PING, 0x77, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED_SYS);
   err_h e = NULL;
   int queued = 0;
   while (e == NULL && queued < 1000) {
@@ -406,15 +426,19 @@ static void test_without_the_event_task_the_queue_fills_and_says_so(void) {
   TEST_ASSERT_EQUAL_INT(1, sink_count());
   TEST_ASSERT_EQUAL_HEX32(ERR_EVENT_QUEUE_FULL, s_sink_outer);
   TEST_ASSERT_EQUAL_INT(0, rec_count());  // no task: nothing was delivered
+  // The other lane has its own ring: the full one does not stop it.
+  sub(key(TESTDEV_EV_BEEP, 0x77, SYS_EVENT_ANY_CHANNEL), recorder, 2, SYS_EVENT_RUN_QUEUED_DEVICE);
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTDEV_EV_BEEP, 0x77, 0, .v = 1));
 }
 
-/* ---- the event task (started here and kept) ------------------------------------------------------------------- */
+/* ---- the lanes' tasks (started here and kept) ----------------------------------------------------------------- */
 
-/* Waits until the event task has taken everything queued before: a marker (source 0x7E) is queued, retried while the
- * ring is full, and the ring is a FIFO, so when the marker's queued listener has it, nothing older is left. The
- * marker's record is then forgotten. */
+/* Waits until the SYS lane's task has taken everything queued before: a marker (source 0x7E) is queued, retried while
+ * the ring is full, and the ring is a FIFO, so when the marker's queued listener has it, nothing older is left. The
+ * marker's record is then forgotten. (The DEVICE lane holds one BEEP of source 0x77 from the test before: no
+ * listener of a later test takes that source.) */
 static void drain_queue(void) {
-  sub(key(TESTEV_EV_PING, 0x7E, SYS_EVENT_ANY_CHANNEL), recorder, 0x7E, SYS_EVENT_RUN_QUEUED);
+  sub(key(TESTEV_EV_PING, 0x7E, SYS_EVENT_ANY_CHANNEL), recorder, 0x7E, SYS_EVENT_RUN_QUEUED_SYS);
   const int before = rec_count();
   err_h e = SYS_EVENT_PUBLISH(TESTEV_EV_PING, 0x7E, 0);
   for (int i = 0; i < WAIT_MS && e != NULL; i++) {
@@ -432,7 +456,7 @@ static void drain_queue(void) {
 static void test_the_event_task_gives_queued_listeners_a_copy(void) {
   TEST_ASSERT_NULL(sys_event_init());
   drain_queue();  // what the test before left, to no listener
-  sub(key(SYS_EVENT_ANY_TAG, 0x10, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED);
+  sub(key(SYS_EVENT_ANY_TAG, 0x10, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED_SYS);
   sub(key(SYS_EVENT_ANY_TAG, 0x10, SYS_EVENT_ANY_CHANNEL), recorder, 2, SYS_EVENT_RUN_INLINE);
   TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTEV_EV_WORD, 0x10, 0, .v = 7));
   TEST_ASSERT_TRUE(wait_rec(2));
@@ -448,6 +472,25 @@ static void test_the_event_task_gives_queued_listeners_a_copy(void) {
   TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTEV_EV_PING, 0x10, 0));
   sys_event_release(&s_hold);
   TEST_ASSERT_TRUE(wait_rec(4));
+}
+
+static void test_a_queued_listener_hears_only_its_lane_in_its_lanes_task(void) {
+  sub(key(SYS_EVENT_ANY_TAG, 0x15, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED_SYS);
+  sub(key(SYS_EVENT_ANY_TAG, 0x15, SYS_EVENT_ANY_CHANNEL), recorder, 2, SYS_EVENT_RUN_QUEUED_DEVICE);
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTEV_EV_PING, 0x15, 0));
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTDEV_EV_BEEP, 0x15, 0, .v = 2));
+  TEST_ASSERT_TRUE(wait_rec(2));
+  vTaskDelay(20);
+  TEST_ASSERT_EQUAL_INT(2, rec_count());  // each event once: to the listener of its lane
+  const int ping = s_rec[0].tag == TESTEV_EV_PING ? 0 : 1;
+  TEST_ASSERT_EQUAL_HEX32(TESTEV_EV_PING, s_rec[ping].tag);
+  TEST_ASSERT_EQUAL_INT(1, s_rec[ping].who);
+  TEST_ASSERT_EQUAL_HEX32(TESTDEV_EV_BEEP, s_rec[1 - ping].tag);
+  TEST_ASSERT_EQUAL_INT(2, s_rec[1 - ping].who);
+  TEST_ASSERT_EQUAL_HEX16(TESTDEV_EV_BEEP_FLAGS, s_rec[1 - ping].flags);  // the lane travels in the event
+  TEST_ASSERT_NOT_EQUAL(s_rec[0].task, s_rec[1].task);                    // two tasks
+  TEST_ASSERT_NOT_EQUAL(xTaskGetCurrentTaskHandle(), s_rec[0].task);
+  TEST_ASSERT_NOT_EQUAL(xTaskGetCurrentTaskHandle(), s_rec[1].task);
 }
 
 static void test_a_deferred_publish_runs_the_inline_listeners_in_the_event_task(void) {
@@ -518,6 +561,7 @@ int main(void) {
   setvbuf(stdout, NULL, _IONBF, 0);  // every line out before a crash
   UNITY_BEGIN();
   RUN_TEST(test_a_table_takes_its_module_from_its_prefix);
+  RUN_TEST(test_a_table_puts_its_lane_into_its_events_flags);
   RUN_TEST(test_an_inline_listener_runs_before_publish_returns);
   RUN_TEST(test_publish_stamps_the_clock_the_tables_flags_and_the_payload);
   RUN_TEST(test_a_filter_matches_each_field_exact_or_any);
@@ -531,7 +575,8 @@ int main(void) {
   RUN_TEST(test_a_hold_inside_a_hold_keeps_nothing);
   RUN_TEST(test_a_listener_may_publish_while_a_hold_is_released);
   RUN_TEST(test_without_the_event_task_the_queue_fills_and_says_so);  // before the task: the queue only fills
-  RUN_TEST(test_the_event_task_gives_queued_listeners_a_copy);        // starts the task: it stays
+  RUN_TEST(test_the_event_task_gives_queued_listeners_a_copy);        // starts the tasks: they stay
+  RUN_TEST(test_a_queued_listener_hears_only_its_lane_in_its_lanes_task);
   RUN_TEST(test_a_deferred_publish_runs_the_inline_listeners_in_the_event_task);
   RUN_TEST(test_an_event_that_does_not_fit_the_hold_goes_to_the_event_task);
   RUN_TEST(test_a_publish_from_an_isr_is_deferred_and_a_drop_is_reported_by_the_task);

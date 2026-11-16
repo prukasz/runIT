@@ -147,7 +147,7 @@
           "properties": {
             "type": { "type": "string", "enum": ["i2c", "spi", "uart", "usb"] },
             "line": { "type": "string", "enum": ["sda", "scl", "mosi", "miso", "sck", "cs", "tx", "rx", "dp", "dm"] },
-            "bus": { "type": "integer", "description": "A board's bus number (board.json i2c_buses). A part that needs a bus leaves it out: its device's bus follows the wire." }
+            "bus": { "type": "integer", "description": "A board's I2C controller port (the `port` of a bus device in board.json). A part that needs a bus leaves it out: its device's bus follows the wire." }
           }
         },
         "hbridge": {

@@ -1,11 +1,12 @@
 import { checkVariables, flattenVariables } from '@engine'
 import type { PowerReading } from '../power/powerDisplay'
 import type { Project } from '@engine'
-import type { BoardPower, FieldValues } from '@backend'
+import type { FieldValues } from '@backend'
 import { EMPTY_LAYOUT, readLayout } from '../code/canvas/layout'
 import type { CanvasLayout } from '../code/canvas/layout'
 import { readHardware } from '../hardware/layout'
 import type { HardwareLayout } from '../hardware/layout'
+import type { BoardPower } from '../devices/boardDescriptor'
 
 /*
  * The project as the user keeps it: a name, the program (the engine's variables and blocks), the devices the project makes
@@ -32,16 +33,6 @@ export type Step =
  * A device the project creates on the board (`Services.create`): its id there, its type (a device descriptor's id), its name, its
  * config, and the commands it gets right after it is created (`defaults`). Stored as the device's record (SYS_ACTIONS.MD).
  */
-/** An I2C bus the board creates at every load, kept in the board's profile (`devices/boardEditor.ts`): its pins are pins of device `sda.device`. */
-export interface ProfileI2cBus {
-  readonly bus: number
-  readonly name: string
-  readonly sda: { readonly device: number; readonly pin: number }
-  readonly scl: { readonly device: number; readonly pin: number }
-  readonly pullup: boolean
-  readonly description?: string
-}
-
 /** A pin of the board nothing may take (the board's profile): which device's, what it is and why. */
 export interface ProfileReservedPin {
   readonly device: number
@@ -109,52 +100,23 @@ export interface SettingsRow {
   readonly cells: readonly number[]
 }
 
-/** A GATT characteristic of a user service (BLE CHAR_CREATE). */
+/**
+ * What the project adds to the board's Bluetooth, one provider (PROVIDER_BLE.MD): its id, the notify characteristic frames go out
+ * on (`tx`, a 16-bit UUID, 0 = none), the writable one they come in from (`rx`, 0 = none; at least one), whether they carry
+ * frames, and their name.
+ */
 export interface GattCharacteristic {
-  readonly uuid: number
-  readonly name: string
-  readonly write: boolean
-  readonly indicate: boolean
-  readonly notify: boolean
-  readonly framed: boolean
+  readonly provider: number
   readonly tx: number
   readonly rx: number
-  /** The id of its provider, what a stream binds to; absent: none. Only an unframed characteristic has one. */
-  readonly provider?: number
+  readonly framed: boolean
+  readonly name: string
 }
 
-/** A GATT service the project adds (BLE SVC_CREATE); the board's own service is the firmware's. */
+/** A GATT service the project adds: the UUID its providers share (the first makes it); the board's own service is the firmware's. */
 export interface GattService {
   readonly uuid: number
-  readonly primary: boolean
   readonly characteristics: readonly GattCharacteristic[]
-}
-
-/** Where a data stream is sent: a provider, by its id. */
-export interface StreamBinding {
-  readonly provider: number
-}
-
-/** A stream's target on another board: `provider` of `board`. */
-export interface StreamRemote {
-  readonly board: number
-  readonly provider: number
-}
-
-/** A data stream (SYS_STREAM.MD): the board's own (logs, errors, telemetry, events) or the project's. */
-export interface DataStream {
-  /** Its id on the board: the byte that starts each of its frames (the board's own 0x01..0x0F, the project's 0x10..0x7F). */
-  readonly stream: number
-  /** The project's label of its own stream; the board keeps none (the board's four are named by the group `stream`). */
-  readonly name?: string
-  readonly system: boolean
-  /** OUT: the board sends it to its bindings; IN: what comes in on its bindings. Set when it is made. Absent: OUT. */
-  readonly dir?: 'out' | 'in'
-  readonly bindings: readonly StreamBinding[]
-  /** An IN stream's ways out: the ids of the providers what comes in goes to. Absent: none. */
-  readonly outputs?: readonly number[]
-  /** Providers of other boards (or a client's receivers) it goes to. Absent: none. */
-  readonly remotes?: readonly StreamRemote[]
 }
 
 /**
@@ -168,8 +130,6 @@ export interface ProjectSettings {
   readonly tables: Readonly<Record<string, readonly SettingsRow[]>>
   /** The user's GATT services. */
   readonly gatt?: readonly GattService[]
-  /** Every data stream, the board's and the user's. */
-  readonly streams?: readonly DataStream[]
 }
 
 export const emptySettings = (): ProjectSettings => ({ values: {}, tables: {} })
@@ -193,11 +153,7 @@ export interface ProjectFile {
   readonly hardware?: HardwareLayout
   /** The other boards of the project, linked to this one over BLE. Absent: none. */
   readonly boards?: readonly ProjectBoard[]
-  /** The board's profile only: the I2C buses it creates at every load. Absent: the bundled board's. */
-  readonly i2cBuses?: readonly ProfileI2cBus[]
-  /** The board's profile only: the UART ports it creates at every load, each `UART CREATE`'s arguments. Absent: none. */
-  readonly uartPorts?: readonly FieldValues[]
-  /** The board's profile only: the pins nothing may take (strapping pins, USB), with why. The buses' and ports' pins are reserved by them. */
+  /** The board's profile only: the pins nothing may take (strapping pins, USB), with why. A bus's or a port's pins are its device's. */
   readonly reservedPins?: readonly ProfileReservedPin[]
   /** The board's profile only: its power (limits, the input's and the rails' monitors, the USB-PD sink, the source pins). */
   readonly power?: BoardPower
@@ -247,7 +203,7 @@ export const parseProject = (text: string): ParseResult => {
   }
   const settings = data.settings ?? emptySettings()
   if (!isObject(settings) || !isObject(settings.values ?? {}) || !isObject(settings.tables ?? {})
-    || (settings.gatt !== undefined && !Array.isArray(settings.gatt)) || (settings.streams !== undefined && !Array.isArray(settings.streams))) {
+    || (settings.gatt !== undefined && !Array.isArray(settings.gatt))) {
     return { ok: false, error: "The board settings of the project are not readable." }
   }
   const boards = data.boards ?? []
@@ -267,8 +223,6 @@ export const parseProject = (text: string): ParseResult => {
     ...(Array.isArray(data.powerDisplay) && data.powerDisplay.every((r) => isObject(r) && typeof r.name === 'string' && isObject(r.read)) ? { powerDisplay: data.powerDisplay as unknown as PowerReading[] } : {}),
     ...(data.hardware !== undefined ? { hardware: readHardware(data.hardware) } : {}),
     ...(boards.length > 0 ? { boards: boards as unknown as ProjectBoard[] } : {}),
-    ...(Array.isArray(data.i2cBuses) && data.i2cBuses.every((b) => isObject(b) && Number.isInteger(b.bus) && isObject(b.sda) && isObject(b.scl)) ? { i2cBuses: data.i2cBuses as unknown as ProfileI2cBus[] } : {}),
-    ...(Array.isArray(data.uartPorts) && data.uartPorts.every(isObject) ? { uartPorts: data.uartPorts as unknown as FieldValues[] } : {}),
     ...(Array.isArray(data.reservedPins) && data.reservedPins.every((r) => isObject(r) && Number.isInteger(r.device) && Number.isInteger(r.pin) && typeof r.label === 'string') ? { reservedPins: data.reservedPins as unknown as ProfileReservedPin[] } : {}),
     ...(isObject(data.power) && isObject(data.power.limits) && Array.isArray(data.power.rails) ? { power: data.power as unknown as BoardPower } : {}),
   }

@@ -5,12 +5,9 @@ import { createServer } from 'vite'
 
 // Starts the desktop app. `npm run app`: on the Vite dev server (hot reload; an `npm run dev` already serving the page is reused; another app on the port stops the launch).
 // `npm run app:start` (`--built`): on the built page in dist/, as the installed app runs.
-// `--mode devkit` (`npm run app:devkit`): the app for a devkit board, on its own dev server port (vite.config.ts DEV_PORTS).
 const root = fileURLToPath(new URL('..', import.meta.url))
 const built = process.argv.includes('--built')
-const modeAt = process.argv.indexOf('--mode')
-const mode = modeAt > 0 ? process.argv[modeAt + 1] : undefined
-const URL_DEV = `http://localhost:${mode === 'devkit' ? 5181 : 2137}/`
+const URL_DEV = 'http://localhost:2137/'
 
 // Whatever answers on the port is reused only if it is this app's page: another project's dev server on the same port would
 // otherwise open in the window.
@@ -20,12 +17,12 @@ if (probe !== undefined && !/<title>runIT/.test(probe)) {
   process.exit(1)
 }
 const running = built || probe !== undefined
-const server = running ? undefined : await createServer({ root, ...(mode ? { mode } : {}) })
+const server = running ? undefined : await createServer({ root })
 await server?.listen()
 
 // A terminal inside VS Code (itself Electron) has ELECTRON_RUN_AS_NODE set: Electron would then start as plain Node.
 const { ELECTRON_RUN_AS_NODE: _node, ...env } = process.env
-const args = [root, ...process.argv.slice(2).filter((arg, i, all) => arg !== '--built' && arg !== '--mode' && all[i - 1] !== '--mode')]
+const args = [root, ...process.argv.slice(2).filter((arg) => arg !== '--built')]
 const child = spawn(electron, args, { stdio: 'inherit', env: built ? env : { ...env, RUNIT_DEV_URL: URL_DEV } })
 child.on('exit', async (code) => {
   await server?.close()

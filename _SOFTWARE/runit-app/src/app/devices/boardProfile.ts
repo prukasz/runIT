@@ -1,15 +1,16 @@
 import { createDeviceCall, crc32, deviceCall, frameImage, recordInfo, requestFrame, serviceCall, storeRecord, CommandError } from '@backend'
-import type { BoardDescriptor, LinkDefinitions, RunitLink, ServiceCatalog } from '@backend'
+import type { LinkDefinitions, RunitLink, ServiceCatalog } from '@backend'
 import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectFile, Step } from '../project/projectFile'
 import { boardType, SINGLE_TYPES, stepFrame } from './devices'
+import type { BoardDescriptor } from './boardDescriptor'
 
 /*
  * The board's profile (SYS_BOARD.MD): what the board is, kept on it. The firmware runs the record at every start and checks
  * nothing; this module writes it and compares it with the board's descriptor.
  *
- *   record  frames, in the order a device can only use what exists: the power layout and its rails, the I2C buses and the UART
- *           ports (on the chip's GPIO pins), then each device's CREATE with the flag of the board's own, each followed by the set-up of its pins. The chip's
+ *   record  frames, in the order a device can only use what exists: the power layout and its rails, then each device's CREATE with the flag of the board's own
+ *           (an I2C bus and a UART port are devices like any: the bus before the chips on it), each followed by the set-up of its pins. The chip's
  *           own GPIO (a single type) has no CREATE: the firmware makes it at every boot, the frames after it only name its pins
  *           and then the device's start commands (its boot package, `ProjectDevice.defaults` of the profile)
  *   JSON    the profile as the app keeps it (`boardEditor.ts`: a project file whose devices are the board's), for reading back;
@@ -24,7 +25,7 @@ const BOARD_SERVICE = 'BOARD'
 
 const frameOf = (call: { readonly request: Parameters<typeof requestFrame>[0] }): Uint8Array => requestFrame(call.request)
 
-/** A device's create struct from board.json: its config, its place on an I2C bus, its pins (those with a slot in the list of pins). */
+/** A device's create struct from board.json: its config, its place on an I2C bus (the bus device's id and the address), its pins (those with a slot in the list of pins). */
 export const createConfig = (catalog: ServiceCatalog, device: BoardDescriptor['devices'][number]): Record<string, unknown> => {
   const config: Record<string, unknown> = { ...device.config }
   if (device.i2c) Object.assign(config, { i2c_bus: device.i2c.bus, i2c_addr: device.i2c.address })
@@ -62,11 +63,6 @@ export const boardProfileFrames = (defs: LinkDefinitions, catalog: ServiceCatalo
       monitor_channel: r.monitor?.channel ?? 0,
       min_mA: r.min_mA,
     }))),
-    // The I2C buses before any device: their pins are the chip's GPIO, which the firmware makes before the record runs, and the
-    // devices on a bus need it to exist.
-    ...board.i2cBuses.map((bus) => frameOf(serviceCall(catalog, 'I2C', 'BUS_CREATE', { bus: bus.bus, sda: bus.sda, scl: bus.scl, pullup: bus.pullup ? 1 : 0 } as never, 'write'))),
-    // The UART ports too: their pins are the chip's GPIO as well, and a device may talk over one.
-    ...(board.uartPorts ?? []).map((port) => frameOf(serviceCall(catalog, 'UART', 'CREATE', port as never, 'write'))),
   ]
   for (const device of board.devices) {
     const type = boardType(catalog, device.descriptor)
@@ -87,9 +83,9 @@ export const boardProfileJson = (profile: ProjectFile): Uint8Array => new TextEn
 
 interface JsonInfo { readonly bytes: number; readonly crc32: number }
 
-const storedRecord = async (link: RunitLink): Promise<{ readonly bytes: number; readonly crc: number } | undefined> => {
+const storedRecord = async (link: RunitLink, catalog: ServiceCatalog): Promise<{ readonly bytes: number; readonly crc: number } | undefined> => {
   try {
-    return await recordInfo(link, BOARD_RECORD_ID)
+    return await recordInfo(link, catalog, BOARD_RECORD_ID)
   } catch (failure) {
     if (failure instanceof CommandError && failure.code === 'device-error') return undefined
     throw failure
@@ -106,7 +102,7 @@ const jsonInfo = async (link: RunitLink, catalog: ServiceCatalog): Promise<JsonI
 export const boardHasProfile = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, profile: ProjectFile, boot: ReadonlyMap<number, readonly Step[]>): Promise<boolean> => {
   const image = frameImage(boardProfileFrames(link.defs, catalog, board, boot))
   const json = boardProfileJson(profile)
-  const record = await storedRecord(link)
+  const record = await storedRecord(link, catalog)
   if (!record || record.bytes !== image.length || record.crc !== crc32(image)) return false
   const info = await jsonInfo(link, catalog)
   return info.bytes === json.length && info.crc32 === crc32(json)
@@ -122,7 +118,7 @@ export const writeBoardProfile = async (link: RunitLink, catalog: ServiceCatalog
   }
   const info = await jsonInfo(link, catalog)
   if (info.bytes !== json.length || info.crc32 !== crc32(json)) throw new Error('The board\'s profile did not read back whole: connect again to write it again.')
-  await storeRecord(link, BOARD_RECORD_ID, boardProfileFrames(link.defs, catalog, board, boot))
+  await storeRecord(link, catalog, BOARD_RECORD_ID, boardProfileFrames(link.defs, catalog, board, boot))
 }
 
 /** The profile the board keeps as JSON; none when it keeps none (or not one this app reads). */

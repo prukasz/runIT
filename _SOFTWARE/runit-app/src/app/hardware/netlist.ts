@@ -1,12 +1,13 @@
-import type { BoardDescriptor, CatalogEntry, WireField } from '@backend'
+import type { CatalogEntry, WireField } from '@backend'
 import type { DeviceInfo } from '../devices/devices'
-import { devicePins, isReserved } from '../devices/devices'
+import { devicePins, isBusField, isReserved } from '../devices/devices'
 import { connectorPinPoints, layLead, placedPins, takesWires, toCanvas, toPart, turnBy } from './geometry'
 import type { DrawnConnector } from './geometry'
 import type { Connector, Library, LibraryPart, PartPin, Point } from './library'
 import { boardPartFor, partPins } from './library'
 import { BOARD_ITEM, endKey } from './layout'
 import type { HardwareLayout, PinEnd } from './layout'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The canvas's nets, pure: every pin of every placed part, what it is (ground, power, a device's pin that something can use, a
@@ -175,8 +176,8 @@ export const pinTakenBy = (ctx: HardwareContext, device: number, pin: number, ex
   return by && `${by.name} (${by.uses.find((u) => u.pin.device === device && u.pin.pin === pin)?.use ?? 'a pin'})`
 }
 
-/** The I2C bus field of a device type. */
-export const busField = (type: CatalogEntry | undefined): WireField | undefined => type?.config?.fields.find((f) => f.enum === 'sys_i2c_bus_e')
+/** The I2C bus field of a device type: the bus device the chip is on. */
+export const busField = (type: CatalogEntry | undefined): WireField | undefined => type?.config?.fields.find(isBusField)
 
 /** The pins a wire may go on (`takesWires`) nearest to a point (mm) first; `radius` keeps only those within it, `item` only one part's. */
 export const pinsNear = (net: Netlist, at: Point, { radius, item }: { radius?: number; item?: string } = {}): PinNode[] =>

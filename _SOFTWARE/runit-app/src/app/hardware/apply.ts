@@ -1,6 +1,6 @@
 import { bundledEnums } from '@backend'
-import type { BoardDescriptor, FieldValues, PinRef, ServiceCatalog } from '@backend'
-import { baseConfig, deviceList, nextDeviceId } from '../devices/devices'
+import type { FieldValues, PinRef, ServiceCatalog } from '@backend'
+import { baseConfig, busDeviceOf, deviceList, nextDeviceId } from '../devices/devices'
 import type { ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 import type { HardwareItem, HardwareLayout } from './layout'
 import { EMPTY_HARDWARE, freshId } from './layout'
@@ -10,6 +10,7 @@ import { buildNetlist, busField, groupOf } from './netlist'
 import type { HardwareContext, Netlist, PinNode } from './netlist'
 import { solvePower } from './power'
 import type { PowerResult } from './power'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * What the Devices canvas decides, written into the project (pure): a part with a device is a project device (made when the part
@@ -156,7 +157,8 @@ export const applyHardware = (project: ProjectFile, a: ApplyContext): ProjectFil
     }
     if (node.kind === 'bus' && node.pin.bus?.type === 'i2c' && node.pin.bus.bus === undefined) {
       const field = busField(type)
-      const boardBus = groupOf(net, node.key).find((m) => m.pin.bus?.bus !== undefined)?.pin.bus?.bus
+      const port = groupOf(net, node.key).find((m) => m.pin.bus?.bus !== undefined)?.pin.bus?.bus
+      const boardBus = port === undefined ? undefined : busDeviceOf(a.board, port)
       if (field && boardBus !== undefined && device.config?.[field.id] !== boardBus) changes.set(device.id, { ...changes.get(device.id), [field.id]: boardBus })
     }
   }

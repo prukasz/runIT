@@ -5,7 +5,7 @@ import { Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, Nu
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
 import type { ProjectDevice, Step } from '../project/projectFile'
-import { isBoardOwn, onBoardValue } from '../boards/boards'
+import { isBoardOwn } from '../boards/boards'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { bundledEnums, withRanges } from '@backend'
@@ -112,10 +112,11 @@ function LifecycleBar({ device, state }: { device: DeviceInfo; state: DevicesSta
     }
     void state.probe()
   }
-  // A device on another board: created there (not that board's own GPIO, which it has), then its alias here.
+  // A device on another board is that board's: its alias is made here (the board's own GPIO), anything else is made there, which
+  // the firmware cannot reach yet (no link to another board).
   const install = async (d: ProjectDevice) => {
     if (d.board === undefined) return state.services.create(d.id, d.type, d.config)
-    if (!isBoardOwn(state.board, d)) await state.services.create(boardDeviceId(d), d.type, onBoardValue(state.project, d.board, d.config ?? {}), { board: d.board })
+    if (!isBoardOwn(state.board, d)) throw new Error(`${d.name} is a device of another board: it is made there, and the firmware cannot reach another board yet.`)
     return state.services.createRemote(d.id, d.type, d.board, boardDeviceId(d))
   }
   return (

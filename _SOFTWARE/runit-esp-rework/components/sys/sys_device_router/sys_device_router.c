@@ -5,6 +5,13 @@
 #include "sys_device.h"
 #include "sys_device_hooks.h"
 
+// A write of one of these lifecycle ops to SYS_DEVICE_ID_NONE is a sweep: the op on every device.
+static bool is_sweep(const sys_device_router_hdr_t* h) {
+  return h->id == SYS_DEVICE_ID_NONE && h->dir == CMD_DIR_WRITE &&
+         (h->op == CONTRACT_SYS_DEVICE_OP_SUSPEND || h->op == CONTRACT_SYS_DEVICE_OP_RESUME ||
+          h->op == CONTRACT_SYS_DEVICE_OP_RESET || h->op == CONTRACT_SYS_DEVICE_OP_REMOVE);
+}
+
 // The command is a sys_device_call: the same code runs for a command and for a call from the firmware, but an op
 // marked local (SYS_DEVICE_OP_LOCAL) is refused here (sys_device_call_routed).
 err_h sys_device_router(CMD_F_PARAMS) {
@@ -15,6 +22,9 @@ err_h sys_device_router(CMD_F_PARAMS) {
   sys_device_router_hdr_t h;
   memcpy(&h, in.data + 1, sizeof(h));  // little-endian target
   const cmd_in_t args = {.data = in.data + 1 + sizeof(h), .len = got - sizeof(h)};
+  if (is_sweep(&h)) {
+    return sys_device_sweep(h.op);
+  }
   return sys_device_call_routed(h.id, h.dir, h.op, args, out);
 }
 

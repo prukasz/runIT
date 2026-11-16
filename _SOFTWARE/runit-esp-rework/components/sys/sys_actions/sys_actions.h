@@ -49,7 +49,7 @@ extern "C" {
 #define SYS_ACTIONS_ID_POWER_PSU       SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 3)  //@alias Power supply @description Power supply: the PSU write
 #define SYS_ACTIONS_ID_POWER_BATTERY   SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 4)  //@alias Battery @description Battery: the BATTERY write
 #define SYS_ACTIONS_ID_POWER_RESPONSES SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 5)  //@alias Power responses @description Power responses: the MATRIX write
-#define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth GATT services and APPLY
+#define SYS_ACTIONS_ID_BLE             SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 6)  //@alias Bluetooth @description Bluetooth: the BLE providers (their characteristics) the app adds
 #define SYS_ACTIONS_ID_DATA_MATRIX     SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 7)  //@alias Data matrix @description Provider roles and routes of the data
 #define SYS_ACTIONS_ID_POWER_PD        SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 8)  //@alias USB-PD request @description USB-PD request: the PD write
 #define SYS_ACTIONS_ID_LINKS           SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_SYSTEM, 9)  //@alias Links to boards @description The BLE links to other boards: BLE CONNECT and data matrix ROLE per board

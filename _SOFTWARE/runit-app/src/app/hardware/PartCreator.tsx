@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { PointerEvent, WheelEvent } from 'react'
 import { Maximize, Minus, Plus, Trash2, X } from 'lucide-react'
-import type { BoardDescriptor, ServiceCatalog } from '@backend'
+import type { ServiceCatalog } from '@backend'
 import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, SegmentedSwitch, Slider, Switch, TextField } from '@ui/components'
 import { desktop } from '../desktop'
 import { ConnectorShape } from './ConnectorShape'
@@ -14,6 +14,7 @@ import type { Pixels } from './imageTrace'
 import { CATEGORY_LABELS, svgUrl } from './library'
 import type { ChipPlacement, Connector, ConnectorType, ElementKind, NetRole, Part, PartCategory, PartNet, Point, PowerElement, Rotation } from './library'
 import type { HardwareState } from './useHardware'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The part creator (the pen of the Devices canvas): a devkit, a module, a sensor, an actuator, a chip or a whole board, as simple

@@ -1,14 +1,15 @@
-import type { BoardDescriptor, BoardDevice, BoardKind, CatalogEntry, FieldValues, PinRef, ServiceCatalog } from '@backend'
+import type { CatalogEntry, FieldValues, PinRef, ServiceCatalog } from '@backend'
 import { emptyProject } from '../project/projectFile'
 import type { ProfileReservedPin, ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 import { createConfig } from './boardProfile'
 import { boardType } from './devices'
+import type { BoardDescriptor, BoardDevice, BoardKind } from './boardDescriptor'
 
 /*
  * The board's profile as the app edits and keeps it, pure. The board is a list of devices, each its install (type and config, its
  * pins and place on an I2C bus inside the config) and its boot package (`defaults`: the commands it gets after it is created, at
- * every start of the board), the way a project's devices are: the profile is a project file whose `devices` are the board's. What is
- * not a device (the I2C buses, the pins set up at boot, the reserved pins, the power layout) stays the bundled board's.
+ * every start of the board), the way a project's devices are: the profile is a project file whose `devices` are the board's, an I2C
+ * bus or a UART port among them (a device of its own). What is not a device (the reserved pins, the power layout) stays the bundled board's.
  *
  *   profileFromBoard   the profile a board starts from: its bundled devices
  *   boardFromProfile   the board descriptor the app and the board's record are made of: the bundled board's static parts and the
@@ -21,9 +22,6 @@ import { boardType } from './devices'
 /** Where the app keeps the profile of a kind of board. */
 export const profileKey = (kind: BoardKind): string => `runit.board.${kind}`
 
-/** The pin fields of `UART CREATE`: what a port's pins reserve. */
-const UART_PINS = ['tx', 'rx', 'rts', 'cts'] as const
-
 /** The config fields a device's `i2c` is kept in (`createConfig` writes them). */
 const I2C_BUS = 'i2c_bus'
 const I2C_ADDR = 'i2c_addr'
@@ -31,7 +29,6 @@ const I2C_ADDR = 'i2c_addr'
 /** The profile a board starts from: its bundled devices, each as the config its CREATE carries. */
 export const profileFromBoard = (board: BoardDescriptor, catalog: ServiceCatalog): ProjectFile => ({
   ...emptyProject(board.name),
-  i2cBuses: board.i2cBuses.map((b) => ({ ...b })),
   reservedPins: ownReserved(board),
   power: board.power,
   devices: board.devices.flatMap((d): ProjectDevice[] => {
@@ -96,7 +93,7 @@ const boardDevice = (device: ProjectDevice, type: CatalogEntry, base: BoardDevic
   }
 }
 
-/** The devices each after the devices whose pins it uses; the others as listed. A cycle keeps the listed order between its devices. */
+/** The devices each after the devices whose pins it uses and the bus it is on; the others as listed. A cycle keeps the listed order between its devices. */
 const inCreationOrder = (devices: readonly BoardDevice[]): BoardDevice[] => {
   const byId = new Map(devices.map((d) => [d.id, d]))
   const placed = new Set<number>()
@@ -108,6 +105,9 @@ const inCreationOrder = (devices: readonly BoardDevice[]): BoardDevice[] => {
       const used = byId.get(pin.device)
       if (used) place(used, path)
     }
+    // A chip on an I2C bus is created after the bus device it names.
+    const bus = d.i2c && byId.get(d.i2c.bus)
+    if (bus) place(bus, path)
     if (!placed.has(d.id)) {
       placed.add(d.id)
       out.push(d)
@@ -120,24 +120,13 @@ const inCreationOrder = (devices: readonly BoardDevice[]): BoardDevice[] => {
 /** The board the profile makes: `base`'s static parts and the profile's devices (a device whose type no descriptor describes is left out). */
 export const boardFromProfile = (profile: ProjectFile, base: BoardDescriptor, catalog: ServiceCatalog): BoardDescriptor => {
   const full = withBoard(profile, base)
-  const buses = full.i2cBuses ?? []
-  const reserved = (b: (typeof buses)[number], line: 'SDA' | 'SCL') => ({ ...(line === 'SDA' ? b.sda : b.scl), label: `I2C ${b.bus} ${line}`, ...(b.description ? { reason: b.description } : {}) })
   // Everything from the profile; of the bundled board only its name and revision (which drawing of the hardware library it is).
   return {
     name: base.name,
     revision: base.revision,
-    i2cBuses: buses,
     pinSetup: pinSetupOf(profile),
     power: full.power ?? base.power,
-    reservedPins: [
-      ...(full.reservedPins ?? []),
-      ...buses.flatMap((b) => [reserved(b, 'SDA'), reserved(b, 'SCL')]),
-      ...(profile.uartPorts ?? []).flatMap((u) => UART_PINS.flatMap((line) => {
-        const at = u[line]
-        return isPin(at) ? [{ device: at.device, pin: at.pin, label: `UART ${String(u.port)} ${line.toUpperCase()}` }] : []
-      })),
-    ],
-    uartPorts: profile.uartPorts ?? [],
+    reservedPins: full.reservedPins ?? [],
     devices: inCreationOrder(profile.devices.flatMap((d) => {
     const type = catalog.devices.get(d.type)
     return type ? [boardDevice(d, type, base.devices.find((b) => b.id === d.id))] : []
@@ -145,16 +134,12 @@ export const boardFromProfile = (profile: ProjectFile, base: BoardDescriptor, ca
   }
 }
 
-/** The bundled board's reserved pins but its buses' (those the profile's buses reserve). */
-const ownReserved = (board: BoardDescriptor): ProfileReservedPin[] => {
-  const busPins = new Set(board.i2cBuses.flatMap((b) => [b.sda, b.scl]).map((p) => `${p.device}/${p.pin}`))
-  return board.reservedPins.filter((r) => !busPins.has(`${r.device}/${r.pin}`)).map((r) => ({ ...r }))
-}
+/** The bundled board's reserved pins. */
+const ownReserved = (board: BoardDescriptor): ProfileReservedPin[] => board.reservedPins.map((r) => ({ ...r }))
 
-/** A whole profile: one kept (or read from a board) without its buses, reserved pins or power has the bundled board's. */
+/** A whole profile: one kept (or read from a board) without its reserved pins or power has the bundled board's. */
 export const withBoard = (profile: ProjectFile, base: BoardDescriptor): ProjectFile => ({
   ...profile,
-  i2cBuses: profile.i2cBuses ?? base.i2cBuses.map((b) => ({ ...b })),
   reservedPins: profile.reservedPins ?? ownReserved(base),
   power: profile.power ?? base.power,
 })

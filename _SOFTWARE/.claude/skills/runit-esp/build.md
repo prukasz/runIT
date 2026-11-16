@@ -118,7 +118,7 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 
 **`vm_suite.py`** drives GPIO 12 of device 0 (`VM_SUITE_PIN` changes it) and only reads the INA3221; it never starts a motor, servo or regulator block, and clears the retained values it made. Most tests step the VM one pass at a time (scan mode, ONCE) and read the result from the telemetry of that pass, so they don't depend on timing; the time blocks use wide margins and watch only objects that change rarely (an object that changes every pass floods the link).
 
-**One build for every board.** `sdkconfig` is for 16 MB of flash (the PCB, an N16R8 devkit): `idf.py -p <PORT> flash`. The app for a devkit: `npm run dev:devkit` or `npm run app:devkit` in `runit-app/` (board_devkit.json).
+**One build for every board.** `sdkconfig` is for 16 MB of flash (the PCB, an N16R8 devkit): `idf.py -p <PORT> flash`. A devkit in the app is a board profile (`runit-app/profiles/esp32s3-devkit.runit-board.json`) opened in its Board profile tab.
 
 **Two boards on a cable.** Both run the same build; the root programs its child itself. Wiring (SYS_UART.MD "The link to another board", SYS_FLASHER.MD): **root GPIO18 (link TX) to the child's U0RXD (GPIO 44, its RX pin), root GPIO17 (link RX) to its U0TXD (GPIO 43, its TX pin), root GPIO46 to its GPIO 0 (BOOT), root GPIO3 to its EN, GND to GND** (3.3 V logic, no power wire). Power the child by its native USB or 5 V, not by the port of its USB-UART bridge: a powered bridge drives U0RXD too.
 

@@ -164,7 +164,7 @@ err_h sys_remote_subscribe(uint8_t id, uint8_t peer) {
   uint16_t handle = 0;
   err_h err = sys_event_subscribe(
       (sys_event_key_t){.tag = SYS_EVENT_ANY_TAG, .source = id, .channel = SYS_EVENT_ANY_CHANNEL}, on_device_event, NULL,
-      SYS_EVENT_RUN_QUEUED, &handle);
+      SYS_EVENT_RUN_QUEUED_DEVICE, &handle);
   xSemaphoreTake(sys_remote_lock, portMAX_DELAY);
   sub_t* s = &s_rem.subs[at];
   const bool same = s->used && s->id == id && s->peer == peer;
@@ -452,7 +452,7 @@ err_h sys_remote_init(void) {
   uint16_t handle = 0;
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_created, NULL, SYS_EVENT_RUN_QUEUED, &handle));
+                              on_created, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
   if (sys_remote_task_h == NULL) {
     U_TASK_START(sys_remote_task_h, remote_task, NULL, CONFIG_SYS_REMOTE_TASK_PRIO);
   }

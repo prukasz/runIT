@@ -1,13 +1,13 @@
 # sys_watch
 
-Component `components/sys/sys_watch/`. A **watch** is a read command run on this board by a **trigger** (`PERIODIC`, `ON_CHANGE`, `ON_EVENT`) whose answers are sent to the peer that added it (`owner`) as PUSH frames of the data matrix on the channel `SYS_WATCH_CHANNEL`. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
+Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers are sent to the peer that added it (`owner`) as PUSH frames of the data matrix on the channel `SYS_WATCH_CHANNEL`. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
 
 ## Files
 
 | File | Role |
 |---|---|
-| `sys_watch.h` | The wire format (`sys_watch_head_t` 14 B, `sys_watch_info_t` 16 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
-| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), the `sys_event` listener, `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `MODULE_ID_DEFINE(WATCH, 0x2B)`, `ERR_MODULE_DEFINE` |
+| `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
+| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `MODULE_ID_DEFINE(WATCH, 0x2B)`, `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
 | `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(WATCH, 0x2B)` (`ERR_MOD_SYS_WATCH`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
@@ -18,13 +18,12 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 
 A watch is added, removed and listed by commands only (Remote); its owner is the command's source.
 
-### Adding & triggers (`sys_watch_head_t`, 14 B)
+### Adding & triggers (`sys_watch_head_t`, 6 B)
 
-- `id` (`1..255`): the owner's watch id. ADD with an `(owner, id)` that exists replaces that watch: its event subscription ends and a read of it still under way is dropped (the slot's `gen`).
+- `id` (`1..255`): the owner's watch id. ADD with an `(owner, id)` that exists replaces that watch: a read of it still under way is dropped (the slot's `gen`).
 - `trigger` (`sys_watch_trigger_e`):
   - `SYS_WATCH_PERIODIC` (`0`): runs the read every `period` ticks (`10 ms` per tick) and sends every answer.
   - `SYS_WATCH_ON_CHANGE` (`1`): runs every `period` ticks, hashes an OK answer with IEEE CRC-32, and sends it when the CRC differs from the last OK entry sent, after an error, or after `max_silence` ticks without an entry (`0` = never).
-  - `SYS_WATCH_ON_EVENT` (`2`): subscribes `head->filter` (`sys_event_key_t`, 8 B) with `SYS_EVENT_RUN_QUEUED`; a matching event marks the watch `pending`, and its read starts at the next tick, at most once per `period` ticks.
 - `owner` is `router_origin()->src`: a board or a client (else `ERR_WATCH_BAD_ARG`). `read` is `2..SYS_WATCH_READ_MAX` bytes with `read[1] == CMD_DIR_READ` (else `ERR_WATCH_NOT_READ`).
 - One `board_timer` runs every `SYS_WATCH_TICK_MS` (`10 ms`) from `sys_watch_init`. It starts the reads that are due with `router_inject`; one the router's queue refuses is tried again at the next tick.
 - The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry the session refuses (no route, a busy provider) is not counted as sent: the next read sends it.
@@ -57,9 +56,9 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 
 | Op | Side | Args | Answer |
 |---|---|---|---|
-| `0x01` `WATCH_OP_ADD` | W | `sys_watch_head_t` (14 B) + `read` (`2..48 B`) | – |
+| `0x01` `WATCH_OP_ADD` | W | `sys_watch_head_t` (6 B) + `read` (`2..48 B`) | – |
 | `0x02` `WATCH_OP_REMOVE` | W | `sys_watch_ref_t` (`u8 id`) | – |
-| `0x03` `WATCH_OP_LIST` | R | – | `u8 count` + `count * sys_watch_info_t` (16 B each) |
+| `0x03` `WATCH_OP_LIST` | R | – | `u8 count` + `count * sys_watch_info_t` (8 B each) |
 
 ## Errors (`ERR_MOD_SYS_WATCH` = `0x2B` / `43`)
 

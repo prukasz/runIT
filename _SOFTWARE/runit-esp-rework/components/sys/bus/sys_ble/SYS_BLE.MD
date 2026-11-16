@@ -99,4 +99,4 @@ Errors on the host or BLE task (a sync, a frame dropped, advertising) have no ca
 ## Open
 
 - Run from Windows (bleak) on the devkit: the one runIT service with the session's pair and the logs' characteristic, the hello, PING, PEERS, PUSH frames of the errors and of a watch, the log lines as text. The old firmware's version was verified from Windows (MTU 527, the framing at the full MTU, reconnects, a service added with a client connected); this one drops the board's own MTU request and pairing, and moves the joining of frames and the split of unframed items into this module.
-- The app still talks to the old firmware's BLE (router key 0x03, the old CHAR_CREATE and LIST, the LOGS characteristic 0xFFE3): it follows when it moves to the rework.
+- The app's settings tab makes the user characteristics as BLE providers (`PROVIDER CREATE` of type BLE) and reads this table with LIST; not run on a board yet.

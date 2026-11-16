@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ESP = ROOT / "runit-esp-rework"
 COMPONENTS_DIR = ESP / "components"
 GENERATED = ROOT / "runit-app" / "generated"
+BOARDS_DIR = ROOT / "runit-app" / "boards"  # the app's own descriptors of the boards it knows: board.json (the PCB), board_devkit.json
+OLD_DEVICES = ROOT / "runit-esp" / "components" / "devices"  # the devices not moved to the rework yet
 SKIP_DIRS = {"build", ".git", "host"}
 
 

@@ -26,7 +26,7 @@ extern "C" {
  */
 
 //#ref-defines device_id @alias Device ID @prefix SYS_DEVICE_ID_
-#define SYS_DEVICE_ID_NONE 0xFFu  //@alias No device @description Never a device: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device
+#define SYS_DEVICE_ID_NONE 0xFFu  //@alias No device @description Never a device: no device in a pin reference; SUSPEND, RESUME, RESET and REMOVE written to it run on every device
 
 /** @brief The number of devices a board holds: the IDs are 0..SYS_DEVICE_COUNT-1. */
 #define SYS_DEVICE_COUNT 64u

@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 #include "cmd.h"
-#include "sys_event.h"
 #include "sys_session.h"
 #include "sys_watch_errors.h"
 
@@ -13,7 +12,7 @@ extern "C" {
 
 /**
  * @file sys_watch.h
- * @brief Watches (SYS_WATCH.MD): reads run on this board by a trigger (period, change, or event) whose answers are
+ * @brief Watches (SYS_WATCH.MD): reads run on this board every period, their answers (all, or the changed ones)
  * pushed to the peer that added them (ADD, REMOVE, LIST of sys_watch_router), and the cached reads of other boards
  * made of them (sys_watch_read / sys_watch_stale).
  */
@@ -35,7 +34,6 @@ _Static_assert(MODULE_ID_WATCH < SYS_SESSION_CHANNEL_FIRST, "a module with a cha
 typedef enum {
   SYS_WATCH_PERIODIC = 0,   //@alias Periodic @description Every period: run read and send answer
   SYS_WATCH_ON_CHANGE = 1,  //@alias On change @description Every period: run read, send when CRC-32 differs from last sent or max_silence elapsed
-  SYS_WATCH_ON_EVENT = 2,   //@alias On event @description When a matching event occurs, at most once per period
 } sys_watch_trigger_e;
 
 /**
@@ -43,14 +41,13 @@ typedef enum {
  * Packed, little-endian (consumed in place by CMD_HANDLER_TAIL).
  */
 typedef struct __attribute__((packed)) {
-  uint8_t id;             /**< Owner's watch id (1..255); ADD with an existing id replaces it */
-  uint8_t trigger;        /**< sys_watch_trigger_e */
-  uint16_t period;        /**< Ticks of SYS_WATCH_TICK_MS (>= 1) */
-  uint16_t max_silence;   /**< Ticks (ON_CHANGE: send anyway after this many silent ticks; 0 = never) */
-  sys_event_key_t filter; /**< Event filter for ON_EVENT (0 otherwise) */
+  uint8_t id;            /**< Owner's watch id (1..255); ADD with an existing id replaces it */
+  uint8_t trigger;       /**< sys_watch_trigger_e */
+  uint16_t period;       /**< Ticks of SYS_WATCH_TICK_MS (>= 1) */
+  uint16_t max_silence;  /**< Ticks (ON_CHANGE: send anyway after this many silent ticks; 0 = never) */
 } sys_watch_head_t;
 
-_Static_assert(sizeof(sys_watch_head_t) == 14, "sys_watch_head_t size");
+_Static_assert(sizeof(sys_watch_head_t) == 6, "sys_watch_head_t size");
 _Static_assert(_Alignof(sys_watch_head_t) == 1, "sys_watch_head_t must be packed");
 
 /** @brief LIST answer row: one per watch on this board. */
@@ -60,7 +57,7 @@ typedef struct __attribute__((packed)) {
   uint8_t read_len;  /**< Length of the read command (the command bytes are not sent) */
 } sys_watch_info_t;
 
-_Static_assert(sizeof(sys_watch_info_t) == 16, "sys_watch_info_t size");
+_Static_assert(sizeof(sys_watch_info_t) == 8, "sys_watch_info_t size");
 
 /**
  * @brief Starts the watches of this board and its cached reads. Boot, after router, sys_event and sys_session.

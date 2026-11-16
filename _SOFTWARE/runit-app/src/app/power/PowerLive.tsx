@@ -1,11 +1,12 @@
 import { ChevronDown, ChevronUp, Zap } from 'lucide-react'
-import type { BoardDescriptor, Services } from '@backend'
+import type { Services } from '@backend'
 import { usePersistedFlag } from '@ui/hooks/useStorage'
 import type { DeviceInfo } from '../devices/devices'
 import { commandOf, showValue, valueSpec } from './powerDisplay'
 import type { PowerReading } from './powerDisplay'
 import { usePowerLive } from './usePowerLive'
 import './PowerLive.css'
+import type { BoardDescriptor } from '../devices/boardDescriptor'
 
 /*
  * The Live power display: the readings the Project view's tab sets (power/PowerDisplayScreen.tsx), read every second while connected.

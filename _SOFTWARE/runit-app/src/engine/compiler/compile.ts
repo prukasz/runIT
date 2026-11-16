@@ -44,7 +44,8 @@ import { encodeState } from './block/state'
 
 export interface CompileContext {
   readonly catalog: Catalog
-  readonly wire: WireDefinitions
+  /** The VM's wire numbers; absent without a VM: the program is checked, no load frame made. */
+  readonly wire?: WireDefinitions
   readonly codecs: CodecRegistry
   readonly limits?: VmLimits
 }
@@ -334,7 +335,7 @@ export const compile = (ctx: CompileContext, project: Project, options: CompileO
     }
   }
 
-  let frames = !hasErrors(diagnostics) && blocks.length === project.blocks.length ? loadFrames(ctx.wire, ir, limits, options.arenaBytes) : []
+  let frames = ctx.wire && !hasErrors(diagnostics) && blocks.length === project.blocks.length ? loadFrames(ctx.wire, ir, limits, options.arenaBytes) : []
   // a frame is packed to fit, but one record cannot be cut: a block whose pins and state outgrow a frame cannot be loaded at all
   frames.forEach((frame, n) => {
     if (frame.payload.length > frameCapacity(limits)) {

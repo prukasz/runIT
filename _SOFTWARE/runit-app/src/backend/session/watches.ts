@@ -118,10 +118,6 @@ export class Watches {
       trigger: spec.trigger === 'change' ? 'SYS_WATCH_ON_CHANGE' : 'SYS_WATCH_PERIODIC',
       period: ticks(spec.periodMs),
       max_silence: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs),
-      // the event filter is for ON_EVENT: these are its "any" values (SYS_EVENT_ANY_*)
-      tag: 0xffffffff,
-      source: 0xffff,
-      channel: 0xffff,
     }
     return this.add({ head, read: requestFrame(call.request) }, (entry) => handler(entry.ok ? decodeAnswer(call, entry.data) : undefined), options)
   }

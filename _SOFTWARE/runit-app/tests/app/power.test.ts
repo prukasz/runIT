@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { bundledBoard } from '@backend'
 import { defaultReadings, formatReading } from '../../src/app/power/powerDisplay'
+import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 describe('the power readings', () => {
   it('are short, in volts, amps and watts', () => {
@@ -57,17 +57,17 @@ describe('readings with the OPS answers', () => {
 })
 
 describe('a devkit board (board_devkit.json)', () => {
-  it('has the ESP pins only: no chips, no power layout, the input read from the power manager alone', async () => {
+  it('has the ESP pins and its two I2C buses only: no chips, no power layout, the input read from the power manager alone', async () => {
     const { bundledServiceCatalog } = await import('@backend')
     const { deviceList } = await import('../../src/app/devices/devices')
     const { emptyProject } = await import('../../src/app/project/projectFile')
     const board = bundledBoard('devkit')
-    expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_esp32s3_gpio']])
+    expect(board.devices.map((d) => [d.id, d.descriptor])).toEqual([[0, 'device_esp32s3_gpio'], [1, 'device_esp32s3_i2c'], [2, 'device_esp32s3_i2c']])
     expect(board.pinSetup).toEqual([])
     expect(board.power.rails).toEqual([])
     expect(board.power.input).toBeUndefined()
     expect(defaultReadings(board).map((r) => [r.read.command, r.field])).toEqual([['STATUS', 'source'], ['STATUS', 'input_mV']])
-    expect(deviceList(emptyProject(), bundledServiceCatalog(), board).map((d) => d.id)).toEqual([0])
+    expect(deviceList(emptyProject(), bundledServiceCatalog(), board).map((d) => d.id)).toEqual([0, 1, 2])
   })
 
   it('is not the default: the app is the PCB\'s unless it was started for a devkit', () => {

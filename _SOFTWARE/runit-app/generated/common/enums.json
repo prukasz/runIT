@@ -289,7 +289,7 @@
           "name": "SYS_DEVICE_ID_NONE",
           "value": 255,
           "alias": "No device",
-          "description": "Never a device: no device in a pin reference; SUSPEND, RESUME and RESET sent to it run on every device"
+          "description": "Never a device: no device in a pin reference; SUSPEND, RESUME, RESET and REMOVE written to it run on every device"
         }
       ]
     },
@@ -900,7 +900,7 @@
           "name": "SYS_ACTIONS_ID_BLE",
           "value": 16777222,
           "alias": "Bluetooth",
-          "description": "Bluetooth GATT services and APPLY"
+          "description": "Bluetooth: the BLE providers (their characteristics) the app adds"
         },
         {
           "name": "SYS_ACTIONS_ID_DATA_MATRIX",
@@ -1589,12 +1589,6 @@
           "value": 1,
           "alias": "On change",
           "description": "Every period: run read, send when CRC-32 differs from last sent or max_silence elapsed"
-        },
-        {
-          "name": "SYS_WATCH_ON_EVENT",
-          "value": 2,
-          "alias": "On event",
-          "description": "When a matching event occurs, at most once per period"
         }
       ]
     },
@@ -1837,7 +1831,6 @@
     "SYS_UART_PARITY_ODD": "sys_uart_parity_e",
     "SYS_UART_WAIT_MAX_MS": "uart_wait",
     "SYS_WATCH_ON_CHANGE": "sys_watch_trigger_e",
-    "SYS_WATCH_ON_EVENT": "sys_watch_trigger_e",
     "SYS_WATCH_PERIODIC": "sys_watch_trigger_e"
   }
 }

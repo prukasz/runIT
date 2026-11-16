@@ -6,17 +6,7 @@ menu "sys_event"
         range 4 255
         help
           Listeners made by C code: inline ones (a device's ON_EVENT) and
-          queued ones (the VM, the power manager; the event task).
-
-    config SYS_EVENT_QUEUE_BYTES
-        int "Queue (bytes)"
-        default 1024
-        range 256 16384
-        help
-          Room of the ring buffer for events waiting for the event task (for
-          the queued listeners, events from ISRs and deferred publishes). An
-          event takes the buffer's 8 B, its own 4 B, its 20 B header and
-          its payload. A multiple of 4. A full buffer drops the event.
+          queued ones (the power manager, sys_remote; a lane's task).
 
     config SYS_EVENT_DATA_MAX
         int "Largest payload (bytes)"
@@ -26,19 +16,66 @@ menu "sys_event"
           The most bytes of an event's payload (a text of a screen's object).
           A larger payload in an events table fails to compile.
 
-    config SYS_EVENT_TASK_PRIO
-        int "Task priority"
-        default 6
-        range 1 24
-        help
-          Above the router work task (5), below the urgent task (15).
+    menu "Lane SYS"
 
-    config SYS_EVENT_TASK_STACK
-        int "Task stack (bytes)"
-        default 4096
-        range 3072 32768
-        help
-          Runs the queued listeners (the VM, the power manager) and every
-          listener of an ISR or deferred event: device ON_EVENT ops (I2C).
+        config SYS_EVENT_SYS_QUEUE_BYTES
+            int "Queue (bytes)"
+            default 1024
+            range 256 16384
+            help
+              Room of the lane's ring buffer for its events waiting for its
+              task (for its queued listeners, its events from ISRs and its
+              deferred publishes). An event takes the buffer's 8 B, its own
+              4 B, its 20 B header and its payload. A multiple of 4. A full
+              buffer drops the event.
+
+        config SYS_EVENT_SYS_TASK_PRIO
+            int "Task priority"
+            default 7
+            range 1 24
+            help
+              Above the device lane (6), so a flood of device events can't hold
+              the system's back; below the urgent task (15).
+
+        config SYS_EVENT_SYS_TASK_STACK
+            int "Task stack (bytes)"
+            default 4096
+            range 3072 32768
+            help
+              Runs the queued listeners of the system's events (the power
+              manager's own, the sessions') and their deferred ones.
+
+    endmenu
+
+    menu "Lane DEVICE"
+
+        config SYS_EVENT_DEVICE_QUEUE_BYTES
+            int "Queue (bytes)"
+            default 1024
+            range 256 16384
+            help
+              Room of the lane's ring buffer for its events waiting for its
+              task (for its queued listeners, its events from ISRs and its
+              deferred publishes). An event takes the buffer's 8 B, its own
+              4 B, its 20 B header and its payload. A multiple of 4. A full
+              buffer drops the event.
+
+        config SYS_EVENT_DEVICE_TASK_PRIO
+            int "Task priority"
+            default 6
+            range 1 24
+            help
+              Above the router work task (5), below the system lane (7).
+
+        config SYS_EVENT_DEVICE_TASK_STACK
+            int "Task stack (bytes)"
+            default 4096
+            range 3072 32768
+            help
+              Runs the queued listeners of the devices' events (the power
+              manager, sys_remote) and every listener of an ISR
+              or deferred device event: device ON_EVENT ops (I2C).
+
+    endmenu
 
 endmenu

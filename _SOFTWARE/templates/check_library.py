@@ -1,7 +1,7 @@
 """Checks the parts of the hardware library (library/parts/<id>/part.json) against part.schema.json and their references.
 
   - the folder is the part's id, and its drawing (part.svg) is there with a viewBox of its size in mm
-  - a device type is a published device descriptor; its preset is one of the descriptor's; a config key is a field of it
+  - a device type is a published device descriptor (or a device not moved to the rework yet: its folder is still in runit-esp/); its preset is one of the descriptor's; a config key is a field of it
   - a pin's `config` is a pin-reference field of the part's device; `device_pin` 'self' needs a device
   - a pin's `net`, an H-bridge's `supply`, an element's `in` / `out` and a net's role match the part's nets
   - a board part names a board.json (name and revision)
@@ -12,7 +12,7 @@ Needs the jsonschema package. Usage: python templates/check_library.py
 import json
 import re
 
-from _common import COMPONENTS_DIR, GENERATED, ROOT, fail, read, rel
+from _common import BOARDS_DIR, GENERATED, OLD_DEVICES, ROOT, fail, read, rel
 
 try:
     from jsonschema import Draft202012Validator
@@ -21,7 +21,7 @@ except ImportError:
 
 LIBRARY = ROOT / "library" / "parts"
 SCHEMA = ROOT / "templates" / "part.schema.json"
-BOARDS = (COMPONENTS_DIR / "app" / "runit" / "board.json", COMPONENTS_DIR / "app" / "runit" / "board_devkit.json")
+BOARDS = (BOARDS_DIR / "board.json", BOARDS_DIR / "board_devkit.json")
 
 
 def devices():
@@ -57,7 +57,7 @@ def check(path, doc, types, boards, problems, skipped):
     if device:
         descriptor = types.get(device["type"])
         if descriptor is None:
-            if not boards:
+            if (OLD_DEVICES / f"device_{device['type']}").is_dir():
                 skipped["devices"].add(device["type"])
                 has_device_schema = False
             else:
@@ -70,11 +70,8 @@ def check(path, doc, types, boards, problems, skipped):
             for key in device.get("config", {}):
                 if key not in fields:
                     problems.append(f"{where}: config '{key}' is not a field of {device['type']}")
-    if "board" in doc:
-        if not boards:
-            skipped["boards"] += 1
-        elif (doc["board"]["name"], doc["board"]["revision"]) not in boards:
-            problems.append(f"{where}: no board.json is board '{doc['board']['name']}' revision {doc['board']['revision']}")
+    if "board" in doc and (doc["board"]["name"], doc["board"]["revision"]) not in boards:
+        problems.append(f"{where}: no board.json is board '{doc['board']['name']}' revision {doc['board']['revision']}")
     nets = {n["id"]: n for n in doc.get("nets", [])}
     unique(problems, where, [n["id"] for n in doc.get("nets", [])], "net")
     unique(problems, where, [c["id"] for c in doc["connectors"]], "connector")
@@ -122,7 +119,7 @@ def main():
         if path.exists():
             doc = json.loads(read(path))
             boards.add((doc["name"], doc["revision"]))
-    problems, skipped, checked = [], {"devices": set(), "boards": 0}, 0
+    problems, skipped, checked = [], {"devices": set()}, 0
     for path in sorted(LIBRARY.glob("*/part.json")):
         checked += 1
         doc = json.loads(read(path))
@@ -135,8 +132,8 @@ def main():
     if problems:
         fail(f"{len(problems)} problem(s) in {checked} library parts:\n  " + "\n  ".join(problems))
     extra = ""
-    if skipped["devices"] or skipped["boards"]:
-        extra = f" (skipped un-migrated devices [{', '.join(sorted(skipped['devices']))}] and {skipped['boards']} board ref(s); no board.json in firmware yet)"
+    if skipped["devices"]:
+        extra = f" (skipped un-migrated devices [{', '.join(sorted(skipped['devices']))}])"
     print(f"{checked} library parts conform to part.schema.json; their migrated devices, presets, fields and nets exist{extra}")
 
 

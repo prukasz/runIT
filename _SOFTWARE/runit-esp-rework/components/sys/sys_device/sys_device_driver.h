@@ -75,11 +75,12 @@ extern "C" {
 /**
  * @brief A device type's own events: one table P_EVENTS(X, P) of rows X(P, NAME, code, flags, { payload }) in the
  * driver's source, under the module of the type's own events, SYS_EVENT_MODULE_TYPE(P_TYPE) (sys_event.h, "Events
- * tables"): after SYS_DEVICE_TYPE_DECLARE(P, ...). Gives P_EV_<NAME>, P_EV_<NAME>_FLAGS and evt_data_P_EV_<NAME>_t.
+ * tables"), in the lane DEVICE: after SYS_DEVICE_TYPE_DECLARE(P, ...). Gives P_EV_<NAME>, P_EV_<NAME>_FLAGS and
+ * evt_data_P_EV_<NAME>_t.
  * @usage #define DC_MOTOR_EVENTS(X, P) X(P, STALL, 0x01, SYS_EVENT_NOTIFY, { int32_t mA; })
  *        SYS_DEVICE_OWN_EVENTS(DC_MOTOR)  // DC_MOTOR_EV_STALL = EVT_TAG(SYS_EVENT_MODULE_TYPE(DC_MOTOR_TYPE), 0x01)
  */
-#define SYS_DEVICE_OWN_EVENTS(P) SYS_EVENT__TABLE(P, SYS_EVENT_MODULE_TYPE(P##_TYPE))
+#define SYS_DEVICE_OWN_EVENTS(P) SYS_EVENT__TABLE(P, SYS_EVENT_MODULE_TYPE(P##_TYPE), DEVICE)
 
 /**
  * @brief ERR_DEV_RANGE unless lo <= v <= hi. The bounds are written once: the check and the error's min / max come from

@@ -11,7 +11,6 @@
     "name",
     "revision",
     "source_files",
-    "i2c_buses",
     "power",
     "devices",
     "pin_setup",
@@ -30,28 +29,6 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Firmware and schematic source files defining this board"
-    },
-    "i2c_buses": {
-      "type": "array",
-      "description": "I2C buses on the board",
-      "items": {
-        "type": "object",
-        "required": ["bus", "name", "sda_pin", "scl_pin", "description"],
-        "additionalProperties": false,
-        "properties": {
-          "bus": { "type": "integer", "minimum": 0, "maximum": 7 },
-          "name": { "type": "string" },
-          "sda_pin": {
-            "$ref": "#/$defs/pinRef"
-          },
-          "scl_pin": {
-            "$ref": "#/$defs/pinRef"
-          },
-          "pullup": { "type": "boolean", "description": "The ESP32's internal pull-ups on" },
-          "frequency_hz": { "type": "integer" },
-          "description": { "type": "string" }
-        }
-      }
     },
     "power": {
       "type": "object",
@@ -196,14 +173,7 @@
       "description": "Onboard hardware chips created at boot",
       "items": {
         "type": "object",
-        "required": [
-          "id",
-          "symbol",
-          "name",
-          "alias",
-          "type",
-          "descriptor"
-        ],
+        "required": ["id", "name", "descriptor"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "integer", "minimum": 0, "maximum": 255 },
@@ -234,7 +204,7 @@
             "required": ["bus", "address"],
             "additionalProperties": false,
             "properties": {
-              "bus": { "type": "integer" },
+              "bus": { "type": "integer", "description": "The id of the bus device (a device of the I2C contract: device_esp32s3_i2c) the chip is on" },
               "address": { "type": "integer" },
               "address_hex": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" }
             }

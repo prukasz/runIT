@@ -1,8 +1,6 @@
-import { bundledEnums } from '@backend'
-
 /*
- * The serial terminal's pure part: what is typed as the bytes that go out (a GPS's command, a LoRa module's AT line), what comes back
- * as text to read, and PROVIDER LIST's answer (`[count]` then `sys_data_provider_info_t`: `[provider][link][state]`, 3 B each).
+ * The serial terminal's pure part: what is typed as the bytes that go out (a GPS's command, a LoRa module's AT line) and what comes back
+ * as text to read.
  */
 
 export type SerialFormat = 'text' | 'hex'
@@ -42,37 +40,4 @@ const hexOf = (data: Uint8Array): string => [...data].map((b) => b.toString(16).
 export const showBytes = (data: Uint8Array): string => {
   const printable = data.every((b) => (b >= 0x20 && b < 0x7f) || b === 0x09 || b === 0x0a || b === 0x0d)
   return printable ? new TextDecoder().decode(data).replace(/[\r\n]+$/, '') : hexOf(data)
-}
-
-export interface ProviderInfo {
-  readonly id: number
-  readonly link: number
-  readonly state: number
-}
-
-const INFO_BYTES = 3
-
-/** PROVIDER LIST's answer; a record cut short ends the list. */
-export const decodeProviders = (data: Uint8Array): ProviderInfo[] => {
-  const out: ProviderInfo[] = []
-  for (let n = 0, at = 1; n < (data[0] ?? 0) && at + INFO_BYTES <= data.length; n++, at += INFO_BYTES) {
-    out.push({ id: data[at]!, link: data[at + 1]!, state: data[at + 2]! })
-  }
-  return out
-}
-
-const framedBit = (): number => bundledEnums().prov_state?.members.find((m) => m.name === 'SYS_DATA_PROVIDER_STATE_FRAMED')?.value ?? 0
-
-/** The providers a device talks raw on: the framed ones carry runIT's frames. */
-export const rawProviders = (list: readonly ProviderInfo[]): ProviderInfo[] => list.filter((p) => (p.state & framedBit()) === 0)
-
-const noRxBit = (): number => bundledEnums().prov_state?.members.find((m) => m.name === 'SYS_DATA_PROVIDER_STATE_NO_RX')?.value ?? 0
-
-/** Whether a stream can follow it: a DIRECT port hands what comes in to no one but its driver. */
-export const canListen = (p: ProviderInfo | undefined): boolean => p !== undefined && (p.state & noRxBit()) === 0
-
-/** A provider's name in the list: its link and its id. */
-export const providerLabel = (p: ProviderInfo): string => {
-  const link = bundledEnums().sys_data_provider_link_e?.members.find((m) => m.value === p.link)
-  return `${link?.alias ?? link?.name ?? 'Provider'} 0x${p.id.toString(16).toUpperCase().padStart(2, '0')}`
 }

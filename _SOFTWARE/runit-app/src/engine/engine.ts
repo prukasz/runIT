@@ -35,7 +35,8 @@ import type { ExecCommand } from './wire/format/types'
  */
 
 export interface EngineDefinitions {
-  readonly wire: WireDefinitions
+  /** The VM's wire numbers; absent when the firmware has no VM: a program is checked but no frame can be built. */
+  readonly wire?: WireDefinitions
   /** The descriptors the catalog is built from (generated/blocks, contracts, devices and the enums). */
   readonly input: GeneratedInput
 }
@@ -50,7 +51,7 @@ export interface EngineOptions {
 
 export class Engine {
   readonly catalog: Catalog
-  readonly wire: WireDefinitions
+  readonly wire: WireDefinitions | undefined
   readonly limits: VmLimits
   readonly codecs: CodecRegistry
   private readonly enums: GeneratedInput['enums']
@@ -92,16 +93,22 @@ export class Engine {
     return type ? concretePins(type, instance) : undefined
   }
 
+  /** The wire numbers a frame is built from. */
+  private get vm(): WireDefinitions {
+    if (!this.wire) throw new Error('The firmware publishes no VM (generated/services/contract_vm.json): there is no frame to build.')
+    return this.wire
+  }
+
   /* ---- the running VM ---- */
 
   /** The frames that write these variables of a compiled, running program (the remote control). */
   write(result: CompileResult, writes: readonly VariableWrite[]): LoadFrame[] {
-    return variableWriteFrames(this.wire, result, writes, this.limits)
+    return variableWriteFrames(this.vm, result, writes, this.limits)
   }
 
   /** A reader of this program's telemetry frames (the telemetry stream's, without the stream byte): values with their variable. */
   telemetry(result: CompileResult): TelemetryReader {
-    return variableTelemetryReader(this.wire, result)
+    return variableTelemetryReader(this.vm, result)
   }
 
   /** What to subscribe to for a live view (`flow`) or a debug view (`full`), within the board's limits (`watchPlan`). */
@@ -110,20 +117,20 @@ export class Engine {
   }
 
   reset(): LoadFrame {
-    return resetFrame(this.wire)
+    return resetFrame(this.vm)
   }
 
   exec(command: ExecCommand): LoadFrame {
-    return execFrame(this.wire, command)
+    return execFrame(this.vm, command)
   }
 
   /** Slow motion, and the program time a stepped pass adds (`speedFrame`). */
   speed(factor: number, stepMs?: number): LoadFrame {
-    return speedFrame(this.wire, factor, stepMs)
+    return speedFrame(this.vm, factor, stepMs)
   }
 
   /** Telemetry for these objects (the ids `compile` returns); none clears. */
   subscribe(objectIds: readonly number[]): LoadFrame {
-    return subscribeFrame(this.wire, objectIds, this.limits)
+    return subscribeFrame(this.vm, objectIds, this.limits)
   }
 }

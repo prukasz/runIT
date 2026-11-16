@@ -38,7 +38,7 @@ System IDs (class `0x01`):
 | `0x01000003` `SYS_ACTIONS_ID_POWER_PSU` | power PSU | power |
 | `0x01000004` `SYS_ACTIONS_ID_POWER_BATTERY` | power BATTERY | power |
 | `0x01000005` `SYS_ACTIONS_ID_POWER_RESPONSES` | power MATRIX (the response matrix) | power |
-| `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth GATT services and APPLY | BLE |
+| `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth: the BLE providers (characteristics) the app adds | the app |
 | `0x01000007` `SYS_ACTIONS_ID_DATA_MATRIX` | provider roles and routes of the data | data_matrix |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
 | `0x01000009` `SYS_ACTIONS_ID_LINKS` | the links to other boards: CONNECT and the data matrix ROLE per board | the app's Boards page |

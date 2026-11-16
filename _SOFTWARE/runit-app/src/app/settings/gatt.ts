@@ -1,51 +1,71 @@
-import { decodeFields, requestFrame, serviceCall } from '@backend'
+import { bundledEnums, deviceOp, requestFrame, serviceCall } from '@backend'
 import type { ServiceCall, ServiceCatalog } from '@backend'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
 
 /*
- * The GATT table (SYS_BLE.MD "Runtime changes"): the services and characteristics the project adds next to the board's own
- * (locked) service. The commands and their fields are the BLE descriptor's (`contract_ble.json`); this file only knows which
- * command does what, and the layout of LIST's answer, which the descriptor gives as bytes.
+ * What the project adds to the board's Bluetooth (SYS_BLE.MD, PROVIDER_BLE.MD). The board's GATT table is made by the providers: a
+ * provider of type BLE (`PROVIDER CREATE`) makes its service when that is new, a notify characteristic frames go out on (`tx`) and
+ * a writable one they come in from (`rx`), and takes them with it when it is removed. So the project keeps providers, grouped by
+ * the service they are in; the service is only the UUID they share.
  *
- *   record   the frames of the settings record: every user service and its characteristics created, then APPLY (a start
- *            builds the table again from it)
- *   apply    what changes the board now: every user service it has removed, the project's created, then APPLY (the link
- *            drops and comes back when a client is connected)
+ *   record   the frames of the settings record: one `PROVIDER CREATE` per provider (the table is built again from it)
+ *   apply    what changes the board now: the providers of the project it has removed, then every one created; the board drops the
+ *            Bluetooth link for a moment when a client is connected
+ *   table    `BLE LIST`: the table as the board has it, to show it and to compare it with the project
  */
 
-/** The BLE descriptor's commands and fields this file builds frames of. */
-export const GATT = {
-  service: 'BLE', createService: 'SVC_CREATE', removeService: 'SVC_REMOVE', createChar: 'CHAR_CREATE', apply: 'APPLY', list: 'LIST',
-} as const
+/** The commands this file builds frames of, and reads. */
+export const GATT = { service: 'BLE', list: 'LIST', providers: 'PROVIDER', create: 'CREATE', remove: 'REMOVE', providerList: 'LIST' } as const
 
-/** A service of the board's table as LIST gives it: `locked` is the board's own (runIT), never changed. */
-export interface LiveGattService extends GattService {
+/** `SYS_DATA_PROVIDER_TYPE_BLE`: the provider type CREATE takes (`sys_data_provider_type_e` of enums.json). */
+const bleType = (): number => {
+  const member = bundledEnums().sys_data_provider_type_e?.members.find((m) => m.name === 'SYS_DATA_PROVIDER_TYPE_BLE')
+  if (!member) throw new Error("generated/common/enums.json: group 'sys_data_provider_type_e' has no SYS_DATA_PROVIDER_TYPE_BLE.")
+  return member.value
+}
+
+/** `PROVIDER_BLE_FRAMED` (provider_ble.h): both characteristics carry frames. */
+const FRAMED = 0x01
+/** `provider_ble_cfg_t`: `{u16 svc, u16 tx, u16 rx, u8 flags, char name[16]}`, 23 B. */
+const CFG_BYTES = 23
+const NAME_BYTES = 16
+
+/** A characteristic of the board's table as `BLE LIST` gives it; `locked` marks the board's own service (the app's link), never changed. */
+export interface LiveCharacteristic {
+  readonly uuid: number
+  readonly name: string
+  readonly write: boolean
+  readonly indicate: boolean
+  readonly notify: boolean
+  readonly framed: boolean
+}
+
+export interface LiveGattService {
+  readonly uuid: number
+  readonly primary: boolean
   readonly locked: boolean
+  readonly characteristics: readonly LiveCharacteristic[]
 }
 
 const u16 = (d: Uint8Array, at: number): number => d[at]! | (d[at + 1]! << 8)
-const u32 = (d: Uint8Array, at: number): number => (d[at]! | (d[at + 1]! << 8) | (d[at + 2]! << 16)) + d[at + 3]! * 0x1000000
 const nameAt = (d: Uint8Array, at: number): [string, number] => {
   let end = at
   while (end < d.length && d[end] !== 0) end++
   return [new TextDecoder().decode(d.subarray(at, end)), end + 1]
 }
 
-/** LIST's answer: `u8 count`, per service `u16 uuid, u8 flags (primary, locked), u8 n`, n × `u16 uuid, u8 flags, u32 tx, u32 rx, u8 provider (with flag 16), name\0`. */
+/** LIST's answer: `u8 count`, per service `u16 uuid, u8 flags (primary, locked), u8 n`, n × `u16 uuid, u8 flags, u16 tx, name\0`. */
 export const decodeGattList = (data: Uint8Array): LiveGattService[] => {
   const services: LiveGattService[] = []
   let at = 1
   for (let s = 0; s < (data[0] ?? 0) && at + 4 <= data.length; s++) {
     const [uuid, flags, n] = [u16(data, at), data[at + 2]!, data[at + 3]!]
     at += 4
-    const characteristics: GattCharacteristic[] = []
-    for (let c = 0; c < n && at + 12 <= data.length; c++) {
+    const characteristics: LiveCharacteristic[] = []
+    for (let c = 0; c < n && at + 5 <= data.length; c++) {
       const charFlags = data[at + 2]!
-      const [name, next] = nameAt(data, at + 12)
-      characteristics.push({
-        uuid: u16(data, at), name, write: (charFlags & 1) !== 0, indicate: (charFlags & 2) !== 0, notify: (charFlags & 4) !== 0, framed: (charFlags & 8) !== 0,
-        tx: u32(data, at + 3), rx: u32(data, at + 7), ...((charFlags & 16) !== 0 ? { provider: data[at + 11]! } : {}),
-      })
+      const [name, next] = nameAt(data, at + 5)
+      characteristics.push({ uuid: u16(data, at), name, write: (charFlags & 1) !== 0, indicate: (charFlags & 2) !== 0, notify: (charFlags & 4) !== 0, framed: (charFlags & 8) !== 0 })
       at = next
     }
     services.push({ uuid, primary: (flags & 1) !== 0, locked: (flags & 2) !== 0, characteristics })
@@ -53,63 +73,71 @@ export const decodeGattList = (data: Uint8Array): LiveGattService[] => {
   return services
 }
 
-/** Whether the board makes a provider of a characteristic: unframed, written with no RX buffer or sending with a TX buffer (SYS_BLE.MD). */
-const hasProvider = (c: GattCharacteristic): boolean => !c.framed && ((c.write && c.rx === 0) || ((c.notify || c.indicate) && c.tx > 0))
+/** `PROVIDER LIST`'s answer: `u8 count`, then `{provider u8, type u8, state u8}` per provider: the ids of the BLE ones. */
+export const decodeBleProviders = (data: Uint8Array): number[] => {
+  const ids: number[] = []
+  for (let i = 0; i < (data[0] ?? 0) && 1 + 3 * i + 3 <= data.length; i++) if (data[2 + 3 * i] === bleType()) ids.push(data[1 + 3 * i]!)
+  return ids
+}
 
-/** The id of a characteristic's provider as the board has it; undefined: none. */
-const providerOf = (c: GattCharacteristic): number | undefined => (hasProvider(c) ? c.provider : undefined)
+/** The create config of a provider (`provider_ble_cfg_t`) of the characteristics `c` in service `service`. */
+const cfgOf = (service: number, c: GattCharacteristic): Uint8Array => {
+  const cfg = new Uint8Array(CFG_BYTES)
+  const view = new DataView(cfg.buffer)
+  view.setUint16(0, service, true)
+  view.setUint16(2, c.tx, true)
+  view.setUint16(4, c.rx, true)
+  cfg[6] = c.framed ? FRAMED : 0
+  cfg.set(new TextEncoder().encode(c.name).subarray(0, NAME_BYTES - 1), 7)
+  return cfg
+}
 
-const createService = (catalog: ServiceCatalog, s: GattService): ServiceCall =>
-  serviceCall(catalog, GATT.service, GATT.createService, { uuid: s.uuid, is_primary: s.primary })
+const createCall = (catalog: ServiceCatalog, service: number, c: GattCharacteristic): ServiceCall =>
+  serviceCall(catalog, GATT.providers, GATT.create, { type: bleType(), flags: 0, cfg: cfgOf(service, c) }, 'write', c.provider)
 
-const createChar = (catalog: ServiceCatalog, s: GattService, c: GattCharacteristic): ServiceCall =>
-  serviceCall(catalog, GATT.service, GATT.createChar, {
-    svc_uuid: s.uuid, uuid: c.uuid, is_write: c.write, is_indicate: c.indicate, is_notify: c.notify, is_framed: c.framed,
-    tx_buffer_size: c.tx, rx_buffer_size: c.rx, has_provider: providerOf(c) !== undefined, provider: providerOf(c) ?? 0, desc: c.name,
-  })
+const removeCall = (catalog: ServiceCatalog, provider: number): ServiceCall => serviceCall(catalog, GATT.providers, GATT.remove, undefined, 'write', provider)
 
 const build = (catalog: ServiceCatalog, services: readonly GattService[]): ServiceCall[] =>
-  services.flatMap((s) => [createService(catalog, s), ...s.characteristics.map((c) => createChar(catalog, s, c))])
+  services.flatMap((s) => s.characteristics.map((c) => createCall(catalog, s.uuid, c)))
 
-/** The frames of the GATT record: the user services built, then APPLY. None when the project adds no service. */
+/** The frames of the BLE record: the project's providers created. None when the project adds none. */
 export const gattRecord = (catalog: ServiceCatalog, services: readonly GattService[]): Uint8Array[] =>
-  services.length === 0 ? [] : [...build(catalog, services), serviceCall(catalog, GATT.service, GATT.apply)].map((c) => requestFrame(c.request))
+  build(catalog, services).map((c) => requestFrame(c.request))
 
-/** The commands that bring the board's table to the project's: the board's user services removed, the project's built, APPLY. */
-export const gattApply = (catalog: ServiceCatalog, live: readonly LiveGattService[], services: readonly GattService[]): ServiceCall[] => [
-  ...live.filter((s) => !s.locked).map((s) => serviceCall(catalog, GATT.service, GATT.removeService, { uuid: s.uuid })),
+/** The project's providers the board has (`have`: the BLE providers it lists) removed: a CREATE of one that exists is refused, so they go before the record runs. */
+export const gattRemoves = (catalog: ServiceCatalog, have: readonly number[], services: readonly GattService[]): ServiceCall[] =>
+  services.flatMap((s) => s.characteristics.map((c) => c.provider)).filter((id) => have.includes(id)).map((id) => removeCall(catalog, id))
+
+/** The commands that bring the board to the project's providers: the ones it has removed, then every one created. */
+export const gattApply = (catalog: ServiceCatalog, have: readonly number[], services: readonly GattService[]): ServiceCall[] => [
+  ...gattRemoves(catalog, have, services),
   ...build(catalog, services),
-  serviceCall(catalog, GATT.service, GATT.apply),
 ]
 
-/** The user services a stored GATT record builds (its SVC_CREATE and CHAR_CREATE frames, by the descriptor's layouts). */
+/** The services a stored BLE record builds (its `PROVIDER CREATE` frames of type BLE): `[key][dir][provider][op u16][type][flags][cfg]`. */
 export const gattFromRecord = (catalog: ServiceCatalog, frames: readonly Uint8Array[]): GattService[] => {
-  const entry = catalog.service(GATT.service)
-  const svc = catalog.command(entry, GATT.createService)
-  const chr = catalog.command(entry, GATT.createChar)
+  const entry = catalog.service(GATT.providers)
+  const create = catalog.command(entry, GATT.create)
   const services: GattService[] = []
   for (const frame of frames) {
-    if (frame[0] !== entry.key || frame[1] !== catalog.dirs.write) continue // [key][dir][op][args]
-    const args = (command: typeof svc) => decodeFields(command.write!.args!, frame.subarray(3)) as Readonly<Record<string, unknown>>
-    if (frame[2] === svc.op) services.push({ uuid: Number(args(svc).uuid), primary: Boolean(args(svc).is_primary), characteristics: [] })
-    else if (frame[2] === chr.op) {
-      const a = args(chr)
-      const at = services.findIndex((s) => s.uuid === Number(a.svc_uuid))
-      if (at < 0) continue
-      const c: GattCharacteristic = {
-        uuid: Number(a.uuid), name: String(a.desc ?? ''), write: Boolean(a.is_write), indicate: Boolean(a.is_indicate), notify: Boolean(a.is_notify),
-        framed: Boolean(a.is_framed), tx: Number(a.tx_buffer_size), rx: Number(a.rx_buffer_size), ...(a.has_provider ? { provider: Number(a.provider) } : {}),
-      }
-      services[at] = { ...services[at]!, characteristics: [...services[at]!.characteristics, c] }
-    }
+    const op = frame[3]! | (frame[4]! << 8)
+    if (frame[0] !== entry.key || frame[1] !== catalog.dirs.write || op !== deviceOp(catalog, entry, create) || frame[5] !== bleType() || frame.length < 7 + CFG_BYTES) continue
+    const cfg = frame.subarray(7)
+    const [svc, tx, rx] = [u16(cfg, 0), u16(cfg, 2), u16(cfg, 4)]
+    const [name] = nameAt(cfg, 7)
+    const c: GattCharacteristic = { provider: frame[2]!, tx, rx, framed: (cfg[6]! & FRAMED) !== 0, name }
+    const at = services.findIndex((s) => s.uuid === svc)
+    if (at < 0) services.push({ uuid: svc, characteristics: [c] })
+    else services[at] = { ...services[at]!, characteristics: [...services[at]!.characteristics, c] }
   }
   return services
 }
 
-/** Two GATT tables equal (the user services, in order). */
-export const sameGatt = (a: readonly GattService[], b: readonly GattService[]): boolean => {
-  const norm = (list: readonly GattService[]) => JSON.stringify(list.map(({ uuid, primary, characteristics }) => ({
-    uuid, primary, characteristics: characteristics.map((c) => ({ uuid: c.uuid, name: c.name, write: c.write, indicate: c.indicate, notify: c.notify, framed: c.framed, tx: c.tx, rx: c.rx, provider: providerOf(c) ?? null })),
-  })))
-  return norm(a) === norm(b)
-}
+/** The characteristic UUIDs of each service, as a comparable text: what the project's providers make and what the board's table has. */
+const uuids = (services: readonly { readonly uuid: number; readonly chars: readonly number[] }[]): string =>
+  JSON.stringify(services.map((s) => [s.uuid, [...s.chars].sort((a, b) => a - b)]).sort((a, b) => (a[0] as number) - (b[0] as number)))
+
+/** Whether the board's table has what the project's providers make (services and their characteristics by UUID). */
+export const sameGatt = (project: readonly GattService[], live: readonly LiveGattService[]): boolean =>
+  uuids(project.map((s) => ({ uuid: s.uuid, chars: s.characteristics.flatMap((c) => [c.tx, c.rx].filter((u) => u !== 0)) })))
+  === uuids(live.filter((s) => !s.locked).map((s) => ({ uuid: s.uuid, chars: s.characteristics.map((c) => c.uuid) })))

@@ -105,7 +105,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 ## Events
 
-`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO)`, module `0x01`; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
+`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO, DEVICE)`, module `0x01`, the DEVICE lane; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
 
 | Event | Code | Payload |
 |---|---|---|
@@ -114,7 +114,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 | `IO_EV_ADC_OUTSIDE` | `0x03` | `i32 mV`: the reading |
 | `IO_EV_ADC_INSIDE` | `0x04` | `i32 mV`: the reading |
 
-The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the event task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_DECLARE_EVENT`).
+The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the DEVICE lane's task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_DECLARE_EVENT`).
 
 ## Errors (module `0x01`, `ERR_MOD_SYS_IO` = `MODULE_ID_IO`)
 
