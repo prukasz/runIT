@@ -9,3 +9,4 @@
 - A module's channel tag is `SYS_SESSION_CHANNEL(MODULE_ID_x)` (from `0x80`) with the module's callback routed from `T(DATA_MATRIX_ANY, tag)`.
 - Wire format (`data_matrix_end_t`, `data_matrix_route_t`, `data_matrix_role_args_t`, the commands' codes) never renumbers; `contract_data_matrix.json` and `data_matrix.h`'s enums (published by `templates/generate_enums.py`) change with it, then `templates/sync.sh`.
 - Tests: `python test_host/run.py data_matrix` (from `runit-esp/`); the matrix's task and the router's run for real on fake providers.
+- `stream/` (`data_stream`: the switch the matrix becomes, DATA_MATRIX.MD "data_stream") is not in the build: keep it out of `CMakeLists.txt` until the matrix is replaced; it stays a switch only: no role, session, tag, format, queue or task, and its port contract is written in `data_stream.h`.

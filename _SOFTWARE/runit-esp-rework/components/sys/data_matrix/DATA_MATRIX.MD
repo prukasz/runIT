@@ -44,6 +44,18 @@ DATA_MATRIX_STREAMS_DECLARE(LOG)   // LOG_STREAM_LOGS = 0x03, LOG_STREAM_ERRORS 
 
 One `.c` has `DATA_MATRIX_STREAMS_DEFINE(LOG)` (the table `LOG_streams`, and a symbol per id, so two modules with one id do not link; the id is written with two hex digits), and the module's init gives the matrix its flags: `data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT)`. `DATA_MATRIX_URGENT`: the stream's frames go to the front of every provider's queue. The table is published to the app by `//#ref-streams` above it (`templates/generate_enums.py`: `LOG_STREAM_*`, `EVENT_STREAM_*` in `enums.json`). The ids in use: `LOGS` `0x03`, `ERRORS` `0x04` (`sys_log.h`), `NOTIFY` `0x06` and `REMOTE` `0x07` (`sys_event_stream.h`).
 
+## data_stream: the next matrix (`stream/`, not in the build)
+
+`stream/data_stream.h` / `.c` are written beside the matrix above and not built (`CMakeLists.txt` does not list them): the matrix it will become, a switch and nothing else.
+
+- A **port** is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider, later a session's channel. `data_stream_port_t`: its name `{kind, id}` (`DATA_STREAM_PORT_MODULE` or `_PROVIDER`), `pass` (its input: the switch hands it bytes) and `attach` (its output: the switch gives it `out` when it becomes the source of its first link, NULL when its last link goes).
+- A **link** `{from, to}` (4 bytes) sends the output of one port to the input of another. `data_stream_connect` refuses an unknown port, a port to itself, `from` with no output, `to` with no input and a link that would close a cycle; `data_stream_disconnect`, `data_stream_links`. `data_stream_register` / `_unregister` (its links go with it).
+- **Synchronous:** `out` calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. No role, no session, no tag, no format, no queue, no task. The contract of a port (`data_stream.h`): `pass` is short, never blocks, never sends on its own output, copies what it keeps; `out` only from a task; a packet with no link is dropped.
+- The tables change under a spinlock, from one task (boot, the commands); `out` copies its targets under it and calls them after it. `CONFIG_DATA_STREAM_PORTS` 32 (the cycle check's bitmask), `CONFIG_DATA_STREAM_LINKS` 24, defaults in the source until it joins the build.
+- Errors: `ERR_DATA_MATRIX_BAD_ARG`, `ERR_DATA_MATRIX_FULL` of the map above.
+
+What the matrix above does besides switching moves out to the modules that have the logic when the switch replaces it: a provider's port (`pass` = `sys_data_provider_send`, `attach` = `sys_data_provider_open`) to `sys_data_provider`, a session's tagged channels to `sys_session`, the command port to a module beside the router's queue; roles, `S` and `C` ends go.
+
 ## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
 
 | Op | Args | Meaning |
