@@ -39,19 +39,22 @@ typedef enum {
   DATA_STREAM_PORT_PROVIDER = 1,  /**< A provider, by its id (sys_data_provider) */
 } data_stream_port_kind_e;
 
-/** @brief A port's name: its kind and its id. Two bytes, the same in a link, a command and a stored record. */
-typedef struct __attribute__((packed)) {
-  uint8_t kind;  /**< data_stream_port_kind_e */
-  uint8_t id;    /**< The module's stream id, or the provider's id */
-} data_stream_port_id_t;
+/** @brief A port's name: its kind in the high byte, its id in the low one (DATA_STREAM_PORT). Compared as a whole. */
+typedef uint16_t data_stream_port_id_t;
+
+/**
+ * @brief A port's name from its kind (data_stream_port_kind_e) and its id (the module's stream, the provider's id).
+ * @usage DATA_STREAM_PORT(DATA_STREAM_PORT_MODULE, 0x04)   // the errors out
+ */
+#define DATA_STREAM_PORT(kind, id) ((data_stream_port_id_t)(((kind) << 8) | (id)))
 
 /** @brief A link: the output of `from` goes to the input of `to`. */
 typedef struct __attribute__((packed)) {
-  data_stream_port_id_t from;  /**< The port that sends */
-  data_stream_port_id_t to;    /**< The port that takes */
+  data_stream_port_id_t from;  /**< The port that sends (u16 LE) */
+  data_stream_port_id_t to;    /**< The port that takes (u16 LE) */
 } data_stream_link_t;
 
-_Static_assert(sizeof(data_stream_port_id_t) == 2 && sizeof(data_stream_link_t) == 4, "data_stream wire sizes");
+_Static_assert(sizeof(data_stream_link_t) == 4, "data_stream wire size");
 
 /**
  * @brief A port's output: what the switch gives the port to send with. Calls the input of every port linked from it.
@@ -101,7 +104,7 @@ MUST_USE err_h data_stream_unregister(data_stream_port_id_t id);
 /**
  * @brief Links the output of `from` to the input of `to`. The same link again changes nothing.
  * @param link  The link.
- * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, `from` with no output, `to` with no input, a port to itself),
+ * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, `from` with no output, `to` with no input),
  *         ERR_DATA_MATRIX_FULL (CONFIG_DATA_STREAM_LINKS taken)
  */
 MUST_USE err_h data_stream_connect(const data_stream_link_t* link);

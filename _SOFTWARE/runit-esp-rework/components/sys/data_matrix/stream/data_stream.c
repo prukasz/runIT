@@ -30,14 +30,10 @@ static struct {
 
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
-static bool same(data_stream_port_id_t a, data_stream_port_id_t b) {
-  return a.kind == b.kind && a.id == b.id;
-}
-
 // The registered port with this name, NULL when there is none. Under the lock.
 static const data_stream_port_t* find(data_stream_port_id_t id) {
   for (uint32_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {
-    if (s_ds.ports[i] != NULL && same(s_ds.ports[i]->id, id)) {
+    if (s_ds.ports[i] != NULL && s_ds.ports[i]->id == id) {
       return s_ds.ports[i];
     }
   }
@@ -51,7 +47,7 @@ static void out(void* link, const uint8_t* data, uint32_t len) {
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < s_ds.link_count; i++) {
-    if (same(s_ds.links[i].from, from->id)) {
+    if (s_ds.links[i].from == from->id) {
       to[n++] = find(s_ds.links[i].to);
     }
   }
@@ -86,14 +82,14 @@ err_h data_stream_unregister(data_stream_port_id_t id) {
   const data_stream_port_t* port = NULL;
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {
-    if (s_ds.ports[i] != NULL && same(s_ds.ports[i]->id, id)) {
+    if (s_ds.ports[i] != NULL && s_ds.ports[i]->id == id) {
       port = s_ds.ports[i];
       s_ds.ports[i] = NULL;
     }
   }
   uint32_t kept = 0;
   for (uint32_t i = 0; i < s_ds.link_count; i++) {
-    if (!same(s_ds.links[i].from, id) && !same(s_ds.links[i].to, id)) {
+    if (s_ds.links[i].from != id && s_ds.links[i].to != id) {
       s_ds.links[kept++] = s_ds.links[i];
     }
   }
@@ -113,10 +109,10 @@ err_h data_stream_connect(const data_stream_link_t* link) {
   portENTER_CRITICAL(&s_lock);
   const data_stream_port_t* from = find(link->from);
   const data_stream_port_t* to = find(link->to);
-  ok = from != NULL && to != NULL && from != to && from->attach != NULL && to->pass != NULL;
+  ok = from != NULL && to != NULL && from->attach != NULL && to->pass != NULL;
   bool there = false;
   for (uint32_t i = 0; ok && i < s_ds.link_count; i++) {
-    there |= same(s_ds.links[i].from, link->from) && same(s_ds.links[i].to, link->to);
+    there |= s_ds.links[i].from == link->from && s_ds.links[i].to == link->to;
   }
   full = ok && !there && s_ds.link_count == CONFIG_DATA_STREAM_LINKS;
   if (ok && !there && !full) {
@@ -132,7 +128,7 @@ err_h data_stream_disconnect(const data_stream_link_t* link) {
   ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < s_ds.link_count; i++) {
-    if (same(s_ds.links[i].from, link->from) && same(s_ds.links[i].to, link->to)) {
+    if (s_ds.links[i].from == link->from && s_ds.links[i].to == link->to) {
       memmove(&s_ds.links[i], &s_ds.links[i + 1], (s_ds.link_count - i - 1) * sizeof(s_ds.links[0]));
       s_ds.link_count--;
       break;
