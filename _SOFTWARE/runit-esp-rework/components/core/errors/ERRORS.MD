@@ -6,14 +6,14 @@ Component `components/core/errors/`. The foundational error handling and propaga
 
 | File | Role |
 |---|---|
-| `errors.h` | The public API only: types (`err_t`/`err_h`, `err_info_t`: where a node was made, `err_sev_e`), the calls (creating, reading, freeing and reporting a chain: `err_report`), `MODULE_ID_CORE` (0) and core tags |
+| `errors.h` | The public API only: types (`err_h`: an opaque node, `err_info_t`: where a node was made, `err_sev_e`), the calls (creating, reading a node: `err_tag` / `err_cause` / `err_data` / `err_find`, freeing and reporting a chain: `err_report`), `MODULE_ID_CORE` (0) and core tags |
 | `err_sink.h` | The sinks (`err_set_sink`, `err_set_board_sink`, set by the app at boot) and the reports that carry more than `err_report`: `err_report_ex` (a command's chain, `struct cmd_req`) and `err_report_board` (in `errors.c`) |
 | `err_log.h` | `err_log` (a chain as log text, for a sink that prints a chain it must not report) and `err_log_enable` (in `err_log.c`) |
 | `err_record.h` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` and `err_record_parse` (in `err_wire.c`); for the modules that send, keep or read records |
 
 | `err_macros.h` | Every macro: the tags (`ERR_TAG`, `ERR_TAGS_DECLARE`), the node size (`ERR_HDR_LEN` / `ERR_DATA_MAX`), the registration of a module's map (`ERR_MODULE_DEFINE`), constructors (`ERR_NEW` / `ERR_WRAP` / `ERR_DATA`) and propagation (`ERR_TRY`, `ERR_CHECK*`, `ERR_KEEP_FIRST`, `ERR_ESP`); and what only they use, never called directly: `err_tag_info_t`, `err_module_t`, `err__register_module`, `err__new`. Included by `errors.h` |
-| `errors.c` | `err__new`, `err_free`, `err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`, core module registration |
-| `err_internal.h` | Shared by the component's own files only: `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
+| `errors.c` | `err__new`, `err_free`, `err_tag`, `err_cause`, `err_data`, `err_find`, `err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`, core module registration |
+| `err_internal.h` | Shared by the component's own files only: the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
 | `err_tags.c` | Module and tag registry, lookup |
 | `err_log.c` | `err_log`, `err_log_ctx`, `err_log_enable` — chain formatting to `ESP_LOG` |
@@ -27,11 +27,11 @@ Component `components/core/errors/`. The foundational error handling and propaga
 
 ## Model
 
-- An error is a **chain** of nodes. `err_h` = pointer to the outermost node; **`NULL` = success**. `next` = the cause (deeper node), `NULL` at the root cause.
+- An error is a **chain** of nodes. `err_h` = pointer to the outermost node; **`NULL` = success**. The node is opaque: its layout is in `err_internal.h`, the rest of the firmware reads it with `err_tag(e)`, `err_cause(e)` (the deeper node, `NULL` at the root cause), `err_data(e)` / `ERR_DATA` and `err_find(chain, tag)` (the first node with that tag, from the top, or `NULL`). Each answers 0 / `NULL` for `NULL`.
 - One node = one pool block: `[info*] next tag data[]` (header 12 B with call-site info, 8 B without on the board's 4-byte pointers; payload max `ERR_DATA_MAX` = block − header, 20 B by default). Packed, no padding.
 - `tag = ERR_TAG(module, code)`: high 16 bits module, low 16 bits code; compared as a whole. Tag 0 = none / success.
 - `info` = pointer to a `static const err_info_t {file, func, line}` per call site (flash, not RAM); `NULL` for the static `ERR_POOL_EMPTY` node, which has no call site (`err_log` then prints no location).
-- Payload = the tag's packed struct `err_data_<TAG>_t`, read with `ERR_DATA(e, TAG)` after checking `e->tag`.
+- Payload = the tag's packed struct `err_data_<TAG>_t`, read with `ERR_DATA(e, TAG)` after checking `err_tag(e)` (or on the node `err_find` gave).
 
 ## Tags and modules
 
@@ -159,6 +159,6 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 
 Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and the two variants (with and without call-site info); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size.
 
-They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_CHECK_RANGE` (the tag by the type of `v`, the payload, `v` evaluated once, NaN) / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
+They cover: nodes and payloads (the rest of a reused block is zeroed), reading a node (`err_tag`, `err_cause`, `err_data`, `err_find`, NULL), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_CHECK_RANGE` (the tag by the type of `v`, the payload, `v` evaluated once, NaN) / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
 
 Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not), the double-free assertion (it aborts).

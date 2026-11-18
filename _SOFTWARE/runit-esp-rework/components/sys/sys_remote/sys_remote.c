@@ -30,7 +30,6 @@ ERR_MODULE_DEFINE(MODULE_ID_REMOTE, ERR_SYS_REMOTE_MAP)
 #define OUT_HEAD   1u                                       // a frame to send, queued: [OUT], then the frame
 #define IN_HEAD    2u                                       // a frame come in, queued: [IN][board], then the frame
 #define ERROR_MAX  160u                                     // an error record of a device, on the reporter's stack
-#define CHAIN_MAX  (CONFIG_ERRORS_POOL_BLOCKS + 1u)
 
 /* The queue's items start with their mark: what came in with IN, what goes out with OUT. */
 #define IN  0u
@@ -97,12 +96,8 @@ void sys_remote_on_error(err_h chain, const cmd_req_t* cmd) {
   if (cmd != NULL) {
     return;  // a command's errors go in its answer, to whoever gave it
   }
-  uint32_t left = CHAIN_MAX;
-  err_h n = chain;
-  while (n != NULL && left-- > 0 && n->tag != ERR_DEV_ID) {
-    n = n->next;
-  }
-  if (n == NULL || n->tag != ERR_DEV_ID) {
+  const err_h n = err_find(chain, ERR_DEV_ID);
+  if (n == NULL) {
     return;
   }
   const uint8_t id = ERR_DATA(n, ERR_DEV_ID)->id;
@@ -352,7 +347,7 @@ static err_h on_reached_event(const sys_event_t* event, void* ctx) {
 
 // Reaching a board failed because it is gone: the device is down. A busy way ("later") and the board's own answer stay.
 static err_h down(err_h err, uint8_t board, uint8_t remote_id) {
-  if (err == NULL || (err->tag != ERR_SESSION_NO_ROUTE && err->tag != ERR_SESSION_PEER_DOWN)) {
+  if (err == NULL || (err_tag(err) != ERR_SESSION_NO_ROUTE && err_tag(err) != ERR_SESSION_PEER_DOWN)) {
     return err;
   }
   err_free(err);

@@ -303,9 +303,9 @@ static err_h write(uint8_t id, uint16_t op) {
   return sys_device_write(id, op, NULL, 0);
 }
 
-static const err_t* root_of(const err_t* e) {
-  while (e != NULL && e->next != NULL) {
-    e = e->next;
+static err_h root_of(err_h e) {
+  while (e != NULL && err_cause(e) != NULL) {
+    e = err_cause(e);
   }
   return e;
 }
@@ -478,8 +478,8 @@ static void test_a_call_names_the_device_and_the_op_and_a_local_op_is_c_only(voi
   err_h e = sys_device_call(1, CMD_DIR_READ, OWN_PROBE_OP_PING, (cmd_in_t){NULL, 0}, NULL);  // PING has no read side
   TEST_ASSERT_ERR_TAG(ERR_DEV_ID, e);
   TEST_ASSERT_EQUAL_UINT8(1, ERR_DATA(e, ERR_DEV_ID)->id);
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_OP, e->next->tag);
-  TEST_ASSERT_EQUAL_HEX16(OWN_PROBE_OP_PING, ERR_DATA(e->next, ERR_DEV_OP)->op);
+  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_OP, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_HEX16(OWN_PROBE_OP_PING, ERR_DATA(err_cause(e), ERR_DEV_OP)->op);
   TEST_ASSERT_EQUAL_HEX32(ERR_DEV_UNKNOWN_OP, err_root_tag(e));
   err_free(e);
   TEST_ASSERT_ROOT(ERR_DEV_UNKNOWN_OP, write(1, SYS_DEVICE_OP(0xFF, 0x7F)));
@@ -603,7 +603,7 @@ static void test_a_failed_create_gives_back_what_it_took_last_first_and_runs_no_
   uint8_t frame[SYS_DEVICE_CREATE_HDR + sizeof(probe_cfg_t)];
   err_h e = create_at(frame, 6, 3, 1, 0);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_INSTALL, e->next->next->tag);  // ID, OP, then the CREATE's context
+  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_INSTALL, err_tag(err_cause(err_cause(e))));  // ID, OP, then the CREATE's context
   TEST_ASSERT_EQUAL_HEX32(ERR_DEV_BAD_ARG, err_root_tag(e));
   err_free(e);
   TEST_ASSERT_EQUAL_INT(2, s_log_n);
@@ -660,9 +660,9 @@ static void test_remove_of_a_device_in_use_is_refused_and_names_the_users(void) 
   make(3, NONE);
   make(4, 3);
   err_h e = write(3, CONTRACT_SYS_DEVICE_OP_REMOVE);
-  const err_t* r = root_of(e);
+  const err_h r = root_of(e);
   TEST_ASSERT_NOT_NULL(r);
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_IN_USE, r->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_IN_USE, err_tag(r));
   TEST_ASSERT_EQUAL_HEX64(1ull << 4, ERR_DATA(r, ERR_DEV_IN_USE)->users);
   err_free(e);
   TEST_ASSERT_TRUE(exists(3));
@@ -674,9 +674,9 @@ static void test_a_use_never_closes_a_cycle(void) {
   make(10, NONE);
   make(11, 10);  // 11 uses 10
   err_h e = SYS_DEVICE_SET(10, OWN_PROBE, OP_USE, 11);
-  const err_t* r = root_of(e);
+  const err_h r = root_of(e);
   TEST_ASSERT_NOT_NULL(r);
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_CYCLE, r->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_CYCLE, err_tag(r));
   TEST_ASSERT_EQUAL_UINT8(10, ERR_DATA(r, ERR_DEV_CYCLE)->id);
   TEST_ASSERT_EQUAL_UINT8(11, ERR_DATA(r, ERR_DEV_CYCLE)->dep);
   err_free(e);
@@ -695,9 +695,9 @@ static void test_a_lock_held_too_long_fails_with_the_op_that_holds_it(void) {
   start_job(job_block);
   TEST_ASSERT_TRUE(xSemaphoreTake(s_blocked, WAIT_MS) == pdTRUE);
   err_h e = write(13, OWN_PROBE_OP_PING);
-  const err_t* r = root_of(e);
+  const err_h r = root_of(e);
   TEST_ASSERT_NOT_NULL(r);
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_BUSY, r->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_BUSY, err_tag(r));
   TEST_ASSERT_EQUAL_HEX16(OWN_PROBE_OP_BLOCK, ERR_DATA(r, ERR_DEV_BUSY)->op);
   err_free(e);
   xSemaphoreGive(s_release);

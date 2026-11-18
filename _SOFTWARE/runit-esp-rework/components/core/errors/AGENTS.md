@@ -11,6 +11,7 @@ Spec: `ERRORS.MD` (this folder).
   - Every tag has its user message (and, when the user can act on it, a `hint`: what to do) in `errors_<module>.json` next to the header of its map (templates/AGENTS.md "Errors"); a new module has a new file. Changing an error map or adding a tag requires updating it and `templates/`: run `sh templates/sync.sh` (runs `generate_errors.py`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
 - Node lifecycle and chain ownership:
   - An error is a linked chain of nodes (`err_h` = pointer to outermost node). `NULL` strictly indicates success. Never return `NULL` for a failure.
+  - The node is opaque: `struct err` is in `err_internal.h` only, never in a public header. Outside this folder a node is read with `err_tag` / `err_cause` / `err_data` (`ERR_DATA`) / `err_find`, made with `ERR_NEW` / `ERR_WRAP` only, and never changed. A test that must reach inside (a cyclic chain) includes `err_internal.h`.
   - Nodes are allocated from a static fixed block pool (`err_pool_alloc` / `err_pool_free`), task- and ISR-safe under a spinlock critical section.
   - Double-free detection is enforced by a bitmask; double-freeing asserts.
   - Never share cause nodes across chains. Cyclical chains are bounded by `ERRORS_POOL_BLOCKS + 1`.

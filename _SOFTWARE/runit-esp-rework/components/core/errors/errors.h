@@ -20,7 +20,7 @@ extern "C" {
 /**
  * @brief Error diagnostics - the node only points to it. Only the fields enabled in
  * Kconfig (CONFIG_ERRORS_INFO_FILE/FUNC/LINE) exist. With all three off there
- * is no err_info_t and no `info` field in err_t.
+ * is no err_info_t and no `info` field in a node. Public: ERR_NEW builds one where it is called.
  */
 typedef struct err_info {
 #if CONFIG_ERRORS_INFO_FILE
@@ -35,25 +35,34 @@ typedef struct err_info {
 } err_info_t;
 #endif
 
-typedef struct err err_t;
-typedef err_t* err_h;
+/**
+ * @brief One error in a chain, opaque: its layout is the errors component's own (err_internal.h). A node has a tag
+ * (ERR_TAG(module, code), err_tag), the tag's payload (err_data, ERR_DATA) and its cause, the deeper error
+ * (err_cause, NULL at the root cause). Only ERR_NEW / ERR_WRAP make one; whoever holds it returns it, frees it
+ * (err_free) or reports it (err_report).
+ */
+typedef struct err* err_h;
 
 /**
- * @brief One error in a chain. `next` points to the cause (the deeper error),
- * NULL at the root cause. `tag` is ERR_TAG(module, code); its severity is the
- * tag's (err_sev). `data` is the tag's payload, stored right after the node.
- * `info` (where enabled) is NULL only for the static ERR_POOL_EMPTY node.
- *
- * Packed - no padding anywhere, `data` starts right after `tag`. aligned(4)
+ * @brief The node's tag, 0 for NULL.
  */
-struct __attribute__((packed, aligned(4))) err {
-#if CONFIG_ERRORS_INFO
-  const err_info_t* info;
-#endif
-  err_h next;
-  uint32_t tag;
-  uint8_t data[];
-};
+uint32_t err_tag(err_h e);
+
+/**
+ * @brief The node's cause (the next, deeper node), NULL at the root cause and for NULL.
+ */
+err_h err_cause(err_h e);
+
+/**
+ * @brief The node's payload, as its tag's map declares it (err_data_<TAG>_t; ERR_DATA gives it typed). NULL for NULL.
+ */
+const void* err_data(err_h e);
+
+/**
+ * @brief The first node of the chain with `tag`, from the top, or NULL when no node has it.
+ * @usage err_h n = err_find(chain, ERR_DEV_ID); if (n != NULL) { id = ERR_DATA(n, ERR_DEV_ID)->id; }
+ */
+err_h err_find(err_h chain, uint32_t tag);
 
 /**
  * @brief Severity: each tag has one, in its module's map. How a device reacts

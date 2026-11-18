@@ -101,12 +101,12 @@ static void sink(err_h chain, const struct cmd_req* cmd) {
   (void)cmd;
   pthread_mutex_lock(&s_sink_lock);
   s_sink_n++;
-  s_sink_outer = chain->tag;
+  s_sink_outer = err_tag(chain);
   s_sink_root = err_root_tag(chain);
-  if (chain->tag == ERR_EVENT_QUEUE_FULL) {
+  if (err_tag(chain) == ERR_EVENT_QUEUE_FULL) {
     s_sink_dropped += ERR_DATA(chain, ERR_EVENT_QUEUE_FULL)->dropped;
   }
-  if (chain->tag == ERR_EVENT_DELIVERY) {
+  if (err_tag(chain) == ERR_EVENT_DELIVERY) {
     s_sink_source = ERR_DATA(chain, ERR_EVENT_DELIVERY)->source;
     s_sink_channel = ERR_DATA(chain, ERR_EVENT_DELIVERY)->channel;
   }

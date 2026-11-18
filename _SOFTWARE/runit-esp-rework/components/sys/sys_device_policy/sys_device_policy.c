@@ -172,13 +172,7 @@ static err_h device_fault(uint8_t id, uint8_t sev, uint32_t action, err_h chain)
 }
 
 static bool is_response_failure(err_h chain) {
-  uint32_t left = WALK_MAX;
-  for (err_h n = chain; n != NULL && left-- > 0; n = n->next) {
-    if (n->tag == ERR_DEV_FAULT_RESPONSE) {
-      return true;
-    }
-  }
-  return false;
+  return err_find(chain, ERR_DEV_FAULT_RESPONSE) != NULL;
 }
 
 /* The policy on one chain. Walks from the outermost node: each device (ERR_DEV_ID) once, at its first mention, with
@@ -193,11 +187,11 @@ static err_h walk(err_h chain, bool act, bool* needed) {
   bool system_done = false;
   uint32_t left = WALK_MAX;
   *needed = false;
-  for (err_h n = chain; n != NULL && left-- > 0 && (act || !*needed); n = n->next) {
-    if (n->tag == ERR_REMOTE) {
+  for (err_h n = chain; n != NULL && left-- > 0 && (act || !*needed); n = err_cause(n)) {
+    if (err_tag(n) == ERR_REMOTE) {
       break;  // below it the chain is another board's: its device IDs are not this board's
     }
-    if (n->tag != ERR_DEV_ID) {
+    if (err_tag(n) != ERR_DEV_ID) {
       // A critical failure above every device: nobody to attribute it to.
       if (handled_count == 0 && !system_done && err_sev(n) == ERR_SEV_CRITICAL) {
         system_done = true;

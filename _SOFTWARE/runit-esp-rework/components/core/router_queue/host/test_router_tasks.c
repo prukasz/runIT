@@ -225,8 +225,8 @@ static void sink_cb(err_h chain, const struct cmd_req* cmd) {
   pthread_mutex_lock(&s_lock);
   srec_t* r = &s_s[s_sn++ % MAX_REC];
   r->depth = 0;
-  for (err_h e = chain; e != NULL; e = e->next) {
-    if (r->depth < 4) r->tags[r->depth] = e->tag;
+  for (err_h e = chain; e != NULL; e = err_cause(e)) {
+    if (r->depth < 4) r->tags[r->depth] = err_tag(e);
     r->depth++;
   }
   r->has_cmd = cmd != NULL;
@@ -344,7 +344,7 @@ static void test_a_failure_answers_with_the_error_record_and_is_reported(void) {
   err_h chain = chain_of(&s_d[0]);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, chain);
   TEST_ASSERT_EQUAL_UINT8(KEY_FAIL, ERR_DATA(chain, ERR_ROUTER_KEY)->key);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, chain->next->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(chain)));
   err_free(chain);
 
   TEST_ASSERT_EQUAL_INT(1, s_sn);  /* the same chain went to the errors stream, with its command */
@@ -394,9 +394,9 @@ static void test_the_answer_may_fill_the_frame_but_not_exceed_it(void) {
   TEST_ASSERT_EQUAL_HEX8(0xAB, s_d[0].data[CMD_DATA_MAX - 1]);
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_d[1].status);  /* one byte more: refused, not cut */
   err_h chain = chain_of(&s_d[1]);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_OUT_FULL, chain->next->tag);
-  TEST_ASSERT_EQUAL_UINT16(CMD_DATA_MAX + 1, ERR_DATA(chain->next, ERR_CMD_OUT_FULL)->need);
-  TEST_ASSERT_EQUAL_UINT16(CMD_DATA_MAX, ERR_DATA(chain->next, ERR_CMD_OUT_FULL)->cap);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_OUT_FULL, err_tag(err_cause(chain)));
+  TEST_ASSERT_EQUAL_UINT16(CMD_DATA_MAX + 1, ERR_DATA(err_cause(chain), ERR_CMD_OUT_FULL)->need);
+  TEST_ASSERT_EQUAL_UINT16(CMD_DATA_MAX, ERR_DATA(err_cause(chain), ERR_CMD_OUT_FULL)->cap);
   err_free(chain);
 }
 

@@ -11,6 +11,22 @@ extern "C" {
 
 /* Shared between the errors component's own files only. */
 
+/**
+ * @brief One error in a chain (err_h). `next` points to the cause (the deeper error), NULL at the root cause. `tag` is
+ * ERR_TAG(module, code); its severity is the tag's (err_sev). `data` is the tag's payload, stored right after the
+ * node. `info` (where enabled) is NULL only for the static ERR_POOL_EMPTY node.
+ *
+ * Packed - no padding anywhere, `data` starts right after `tag`. aligned(4)
+ */
+struct __attribute__((packed, aligned(4))) err {
+#if CONFIG_ERRORS_INFO
+  const err_info_t* info;
+#endif
+  err_h next;
+  uint32_t tag;
+  uint8_t data[];
+};
+
 /** @brief The module and the code of a tag (ERR_TAG). */
 #define ERR_MODULE(tag) ((tag) >> 16)
 #define ERR_CODE(tag) ((uint16_t)(tag))

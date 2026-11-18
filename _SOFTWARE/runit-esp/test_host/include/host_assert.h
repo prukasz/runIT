@@ -6,5 +6,5 @@
 #define TEST_ASSERT_ERR_TAG(expected, e)                                                     \
   do {                                                                                    \
     TEST_ASSERT_NOT_NULL_MESSAGE((e), "expected an error chain, got success (NULL)");     \
-    TEST_ASSERT_EQUAL_HEX32((expected), (e)->tag);                                          \
+    TEST_ASSERT_EQUAL_HEX32((expected), err_tag(e));                                        \
   } while (0)

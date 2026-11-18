@@ -581,8 +581,8 @@ void test_client_b3_gate_error_and_size_limits(void) {
   inject_slave_push(wid, ROUTER_STATUS_ERROR, rec, rlen);
   err_h got_err = sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len);
   TEST_ASSERT_ERR_TAG(ERR_REMOTE, got_err);
-  TEST_ASSERT_NOT_NULL(got_err->next);
-  TEST_ASSERT_ERR_TAG(ERR_TESTW_FAIL, got_err->next);
+  TEST_ASSERT_NOT_NULL(err_cause(got_err));
+  TEST_ASSERT_ERR_TAG(ERR_TESTW_FAIL, err_cause(got_err));
   err_free(got_err);
 
   // Wait out idle cleanup before next test (board_timer frees client slot after IDLE_MS = 600 ms)

@@ -120,13 +120,13 @@ static err_h h_probe(CMD_F_PARAMS) {
   err_h e = sys_actions_run(id, in.data[6] != 0);
   pthread_mutex_lock(&s_lock);
   s_probe = (probe_t){.is_null = e == NULL};
-  for (err_h n = e; n != NULL; n = n->next) {
+  for (err_h n = e; n != NULL; n = err_cause(n)) {
     if (s_probe.depth < 32) {
-      s_probe.tags[s_probe.depth] = n->tag;
+      s_probe.tags[s_probe.depth] = err_tag(n);
     }
     s_probe.depth++;
   }
-  if (e != NULL && e->tag == ERR_ACTION_STEP) {
+  if (e != NULL && err_tag(e) == ERR_ACTION_STEP) {
     s_probe.step = ERR_DATA(e, ERR_ACTION_STEP)->step;
     s_probe.id = ERR_DATA(e, ERR_ACTION_STEP)->id;
   }

@@ -8,7 +8,33 @@ ERR_MODULE_DEFINE(MODULE_ID_CORE, ERR_CORE_MAP)
 
 // Returned by err__new when the pool is empty and there is no cause to fall
 // back on. Never freed; static, so its `next` and `info` are NULL.
-static err_t s_pool_empty = {.tag = ERR_POOL_EMPTY};
+static struct err s_pool_empty = {.tag = ERR_POOL_EMPTY};
+
+// A well-formed chain is never longer than the pool; the limit only stops a corrupted (cyclic) chain from looping
+// forever.
+#define CHAIN_LEFT (CONFIG_ERRORS_POOL_BLOCKS + 1)
+
+uint32_t err_tag(err_h e) {
+  return e != NULL ? e->tag : 0;
+}
+
+err_h err_cause(err_h e) {
+  return e != NULL ? e->next : NULL;
+}
+
+const void* err_data(err_h e) {
+  return e != NULL ? e->data : NULL;
+}
+
+err_h err_find(err_h chain, uint32_t tag) {
+  uint32_t left = CHAIN_LEFT;
+  for (err_h e = chain; e != NULL && left-- > 0; e = e->next) {
+    if (e->tag == tag) {
+      return e;
+    }
+  }
+  return NULL;
+}
 
 #if CONFIG_ERRORS_INFO
 err_h err__new(const err_info_t* info, uint32_t tag, const void* data, uint32_t len, err_h cause)
@@ -41,9 +67,7 @@ err_h err__new(uint32_t tag, const void* data, uint32_t len, err_h cause)
 }
 
 void err_free(err_h chain) {
-  // A well-formed chain is never longer than the pool; the limit only stops a
-  // corrupted (cyclic) chain from looping forever.
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;
+  uint32_t left = CHAIN_LEFT;
 
   while (chain != NULL && left-- > 0) {
     err_h next = chain->next;  // read before the block is reused by the pool
@@ -99,7 +123,7 @@ uint8_t err_sev(err_h e) {
 
 uint8_t err_chain_sev(err_h chain) {
   uint8_t sev = ERR_SEV_NONE;
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;  // cycle guard, as in err_free
+  uint32_t left = CHAIN_LEFT;
 
   for (err_h e = chain; e != NULL && left-- > 0; e = e->next) {
     const uint8_t s = err_sev(e);
@@ -109,7 +133,7 @@ uint8_t err_chain_sev(err_h chain) {
 }
 
 uint32_t err_root_tag(err_h chain) {
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;  // cycle guard, as in err_free
+  uint32_t left = CHAIN_LEFT;
   while (chain != NULL && chain->next != NULL && left-- > 0) {
     chain = chain->next;
   }

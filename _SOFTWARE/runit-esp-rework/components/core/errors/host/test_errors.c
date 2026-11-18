@@ -63,6 +63,27 @@ static void test_wrap_chain_order_root_and_severity(void) {
   ASSERT_POOL_FULL();
 }
 
+/* The opaque node is read through err_tag / err_cause / err_data / err_find; NULL reads as nothing. */
+static void test_accessors_and_find(void) {
+  err_h e = ERR_WRAP(ERR_WRAP(ERR_NEW(T_PLAIN), T_PAIR, .a = 5, .b = 6), T_CRIT, .x = 9);
+  TEST_ASSERT_EQUAL_HEX32(T_CRIT, err_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(T_PAIR, err_tag(err_cause(e)));
+  TEST_ASSERT_NULL(err_cause(err_cause(err_cause(e))));
+  TEST_ASSERT_EQUAL_UINT8(9, ERR_DATA(e, T_CRIT)->x);
+  err_h pair = err_find(e, T_PAIR);
+  TEST_ASSERT_EQUAL_PTR(err_cause(e), pair);
+  TEST_ASSERT_EQUAL_UINT8(5, ERR_DATA(pair, T_PAIR)->a);
+  TEST_ASSERT_EQUAL_HEX16(6, ERR_DATA(pair, T_PAIR)->b);
+  TEST_ASSERT_EQUAL_PTR(e, err_find(e, T_CRIT));     /* the outermost node counts */
+  TEST_ASSERT_NULL(err_find(e, T_MED));              /* no node has it */
+  TEST_ASSERT_NULL(err_find(NULL, T_PLAIN));
+  TEST_ASSERT_EQUAL_HEX32(0, err_tag(NULL));
+  TEST_ASSERT_NULL(err_cause(NULL));
+  TEST_ASSERT_NULL(err_data(NULL));
+  err_free(e);
+  ASSERT_POOL_FULL();
+}
+
 static void test_drop_takes_away_only_the_cause_it_names(void) {
   err_h e = ERR_WRAP(ERR_NEW(T_PLAIN), T_PAIR, .a = 1);  /* the cause is T_PLAIN, wrapped */
   TEST_ASSERT_FALSE(err_drop(&e, T_PAIR));              /* the outer tag is not the cause: kept */
@@ -419,6 +440,7 @@ static void test_cyclic_chain_is_bounded(void) {
   b->next = a;                                                  /* a -> b -> a -> ... */
   TEST_ASSERT_EQUAL_UINT8(ERR_SEV_CRITICAL, err_chain_sev(a));  /* these return */
   (void)err_root_tag(a);
+  TEST_ASSERT_NULL(err_find(a, T_MED));                         /* no node has it: the walk still ends */
   uint8_t buf[256];
   uint32_t n = err_record(a, buf, sizeof(buf));
   TEST_ASSERT_TRUE(n > 0 && n <= sizeof(buf));
@@ -625,6 +647,7 @@ int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_new_has_tag_and_data);
   RUN_TEST(test_wrap_chain_order_root_and_severity);
+  RUN_TEST(test_accessors_and_find);
   RUN_TEST(test_drop_takes_away_only_the_cause_it_names);
   RUN_TEST(test_pool_exhaustion);
   RUN_TEST(test_try_check_esp);

@@ -217,8 +217,8 @@ static void test_busy_passes_as_it_is_other_driver_errors_are_wrapped(void) {
   err_h e = sys_data_provider_send(7, (cmd_in_t){a, 1}, 0);
   TEST_ASSERT_ERR_TAG(ERR_PROV_SEND, e);
   TEST_ASSERT_EQUAL_UINT8(7, ERR_DATA(e, ERR_PROV_SEND)->provider);
-  TEST_ASSERT_NOT_NULL(e->next);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, e->next->tag);
+  TEST_ASSERT_NOT_NULL(err_cause(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, err_tag(err_cause(e)));
   err_free(e);
 }
 

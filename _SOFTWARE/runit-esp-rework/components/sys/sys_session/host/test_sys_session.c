@@ -634,7 +634,7 @@ static void test_a_waited_call_without_an_answer_ends_in_its_time(void) {
   err_h err = sys_session_call_wait(SLAVE, (cmd_in_t){k_peers_req, sizeof(k_peers_req)}, 0, 100, buf, sizeof(buf), &len);
   const uint32_t took = (uint32_t)(xTaskGetTickCount() - start);
   TEST_ASSERT_NOT_NULL(err);
-  TEST_ASSERT_EQUAL_HEX32(ERR_SESSION_TIMEOUT, err->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_SESSION_TIMEOUT, err_tag(err));
   err_free(err);
   TEST_ASSERT_TRUE(took >= 100 && took < 400);
 }
@@ -655,10 +655,10 @@ static void test_an_error_answer_comes_back_under_err_remote(void) {
           record, n);
   pthread_join(t, NULL);
   TEST_ASSERT_NOT_NULL(w.err);
-  TEST_ASSERT_EQUAL_HEX32(ERR_REMOTE, w.err->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_REMOTE, err_tag(w.err));
   TEST_ASSERT_EQUAL_UINT8(SLAVE, ERR_DATA(w.err, ERR_REMOTE)->board);
-  TEST_ASSERT_NOT_NULL(w.err->next);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, w.err->next->tag);
+  TEST_ASSERT_NOT_NULL(err_cause(w.err));
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(w.err)));
   err_free(w.err);
 }
 
@@ -673,7 +673,7 @@ static void test_a_call_through_a_session_that_ends_fails_peer_down(void) {
   TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
   pthread_join(t, NULL);
   TEST_ASSERT_NOT_NULL(w.err);
-  TEST_ASSERT_EQUAL_HEX32(ERR_SESSION_PEER_DOWN, w.err->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_SESSION_PEER_DOWN, err_tag(w.err));
   err_free(w.err);
 }
 

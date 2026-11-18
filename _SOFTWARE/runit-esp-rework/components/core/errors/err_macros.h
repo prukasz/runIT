@@ -208,10 +208,10 @@ __attribute__((warn_unused_result)) struct err* err__new(uint32_t tag, const voi
 #define ERR_NEW(tag, ...) ERR_WRAP(NULL, tag, __VA_ARGS__)
 
 /**
- * @brief Typed view of a node's payload. The caller checks e->tag first.
- * @usage if (e->tag == ERR_I2C_NACK) { uint8_t a = ERR_DATA(e, ERR_I2C_NACK)->addr; }
+ * @brief Typed view of a node's payload (err_data). The caller checks the node's tag first (err_tag, err_find).
+ * @usage if (err_tag(e) == ERR_I2C_NACK) { uint8_t a = ERR_DATA(e, ERR_I2C_NACK)->addr; }
  */
-#define ERR_DATA(e, tag) ((const err_data_##tag##_t*)(e)->data)
+#define ERR_DATA(e, tag) ((const err_data_##tag##_t*)err_data(e))
 
 /* ----------------------------------------------------------------------------
  * Propagation

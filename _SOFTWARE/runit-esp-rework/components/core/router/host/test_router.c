@@ -162,16 +162,16 @@ static void test_handler_refuses_a_payload_of_the_wrong_size(void) {
   const uint8_t req[] = {CMD_DIR_WRITE, TEST_OP_PAIR, 1, 2, 3, 4};
   err_h e = call_op(NULL, req, 4, &out);  /* one byte short */
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_OP, e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, e->next->tag);
-  TEST_ASSERT_EQUAL_UINT16(2, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->got);  /* the payload's bytes, without [dir][code] */
-  TEST_ASSERT_EQUAL_UINT16(3, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->need);
-  TEST_ASSERT_NULL(e->next->next);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_UINT16(2, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->got);  /* the payload's bytes, without [dir][code] */
+  TEST_ASSERT_EQUAL_UINT16(3, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->need);
+  TEST_ASSERT_NULL(err_cause(err_cause(e)));
   err_free(e);
   e = call_op(NULL, req, 6, &out);  /* one byte too many */
-  TEST_ASSERT_EQUAL_UINT16(4, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->got);
+  TEST_ASSERT_EQUAL_UINT16(4, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->got);
   err_free(e);
   e = call_op(NULL, req, 2, &out);  /* no payload at all */
-  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->got);
+  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->got);
   err_free(e);
   TEST_ASSERT_EQUAL_INT(0, g.calls);  /* the body never ran */
 }
@@ -183,8 +183,8 @@ static void test_handler_of_no_args_refuses_a_byte_after_the_code(void) {
   TEST_ASSERT_NULL(call_op(NULL, ok, sizeof(ok), &out));
   const uint8_t extra[] = {CMD_DIR_READ, TEST_OP_PING, 1};
   err_h e = call_op(NULL, extra, sizeof(extra), &out);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, e->next->tag);
-  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->need);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->need);
   err_free(e);
 }
 
@@ -209,9 +209,9 @@ static void test_tail_may_be_empty_and_the_head_is_needed(void) {
   TEST_ASSERT_EQUAL_UINT8(0, g.tail_len);
   const uint8_t no_head[] = {CMD_DIR_WRITE, TEST_OP_NAME};
   err_h e = call_op(NULL, no_head, sizeof(no_head), &out);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, e->next->tag);
-  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->got);
-  TEST_ASSERT_EQUAL_UINT16(1, ERR_DATA(e->next, ERR_CMD_BAD_LEN)->need);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_LEN, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_UINT16(0, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->got);
+  TEST_ASSERT_EQUAL_UINT16(1, ERR_DATA(err_cause(e), ERR_CMD_BAD_LEN)->need);
   err_free(e);
 }
 
@@ -252,7 +252,7 @@ static void test_op_unknown_code(void) {
   err_h e = call_op(NULL, req, sizeof(req), &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_UNKNOWN_OP, e);
   TEST_ASSERT_EQUAL_UINT8(0x99, ERR_DATA(e, ERR_ROUTER_UNKNOWN_OP)->code);
-  TEST_ASSERT_NULL(e->next);  /* not wrapped: there was no op to name */
+  TEST_ASSERT_NULL(err_cause(e));  /* not wrapped: there was no op to name */
   err_free(e);
   TEST_ASSERT_EQUAL_INT(0, g.calls);
 }
@@ -264,16 +264,16 @@ static void test_op_a_side_the_command_does_not_have(void) {
   err_h e = call_op(NULL, write_to_readonly, 2, &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_OP, e);  /* the route step wraps the cause */
   TEST_ASSERT_EQUAL_UINT8(TEST_OP_READONLY, ERR_DATA(e, ERR_ROUTER_OP)->code);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, e->next->tag);
-  TEST_ASSERT_EQUAL_UINT8(CMD_DIR_WRITE, ERR_DATA(e->next, ERR_CMD_DIRECTION)->dir);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_UINT8(CMD_DIR_WRITE, ERR_DATA(err_cause(e), ERR_CMD_DIRECTION)->dir);
   err_free(e);
   const uint8_t read_of_writeonly[] = {CMD_DIR_READ, TEST_OP_WRITEONLY};
   e = call_op(NULL, read_of_writeonly, 2, &out);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, e->next->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, err_tag(err_cause(e)));
   err_free(e);
   const uint8_t odd_dir[] = {0x05, TEST_OP_PAIR};  /* both sides exist, the direction is neither */
   e = call_op(NULL, odd_dir, 2, &out);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, e->next->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_DIRECTION, err_tag(err_cause(e)));
   err_free(e);
   TEST_ASSERT_EQUAL_INT(0, g.calls);  /* no handler ran */
 }
@@ -330,7 +330,7 @@ static void test_call_wraps_a_failure_in_the_key(void) {
   err_h e = router_call(table, 1, NULL, (cmd_in_t){in, sizeof(in)}, &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, e);
   TEST_ASSERT_EQUAL_UINT8(0x10, ERR_DATA(e, ERR_ROUTER_KEY)->key);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, e->next->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(e)));
   err_free(e);
 }
 
@@ -356,10 +356,10 @@ static void test_route_a_failure_is_a_chain_of_the_steps_taken(void) {
   err_h e = router_route((cmd_in_t){req, sizeof(req)}, &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, e);                    /* outermost: where it started */
   TEST_ASSERT_EQUAL_UINT8(KEY_MOD, ERR_DATA(e, ERR_ROUTER_KEY)->key);
-  TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_OP, e->next->tag);
-  TEST_ASSERT_EQUAL_UINT8(TEST_OP_FAIL, ERR_DATA(e->next, ERR_ROUTER_OP)->code);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, e->next->next->tag);       /* the cause */
-  TEST_ASSERT_NULL(e->next->next->next);
+  TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_OP, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_UINT8(TEST_OP_FAIL, ERR_DATA(err_cause(e), ERR_ROUTER_OP)->code);
+  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(err_cause(e))));       /* the cause */
+  TEST_ASSERT_NULL(err_cause(err_cause(err_cause(e))));
   TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
   TEST_ASSERT_EQUAL_UINT8(ERR_SEV_HIGH, err_chain_sev(e));            /* the route steps add no severity */
   err_free(e);
@@ -393,7 +393,7 @@ static void test_route_unknown_root_key_and_no_key(void) {
   const uint8_t key_only[] = {KEY_MOD};  /* a module with no [dir][code] */
   e = router_route((cmd_in_t){key_only, 1}, &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_NO_KEY, e->next->tag);
+  TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_NO_KEY, err_tag(err_cause(e)));
   err_free(e);
 }
 
