@@ -10,6 +10,15 @@
     },
     "ERR_RECORD_CUT": {
       "message": "An error report of {len} bytes from another board was cut short"
+    },
+    "ERR_NULL_PTR": {
+      "message": "A function was called with a NULL pointer"
+    },
+    "ERR_RANGE": {
+      "message": "The value {value} is outside {min}..{max}"
+    },
+    "ERR_RANGE_F": {
+      "message": "The value {value} is outside {min}..{max}"
     }
   }
 }

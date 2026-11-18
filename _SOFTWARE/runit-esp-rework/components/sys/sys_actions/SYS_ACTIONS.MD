@@ -117,4 +117,8 @@ All IDs are u32 LE. `info` = `sys_actions_info_t` `{u16 bytes, u16 count, u32 cr
 
 - The records share the `nvs` partition (24 KB of the default single-app table): a `project` partition of its own joins with the board's partition table.
 - Its users: the board's profile (`sys_board`, its record run at boot); later the project (store, copy, list, nested RUNs), the error policy's runner and the VM (`sys_actions_request`).
-- Not run on a board yet; no host tests.
+- Not run on a board yet.
+
+## Tests
+
+`host/test_sys_actions.c`: `python test_host/run.py sys_actions` (from `runit-esp/`), on the real router tasks (threads) and a table in RAM in place of NVS (`host/host_nvs.c`, `host/nvs.h`, `host/esp_rom_crc.h`). Frames land in a recording module, so what a replay does is what it saw: the onboard actions stored at init and not written again; a record written by BEGIN, WRITE (in pieces that split frames) and COMMIT, read back byte for byte with INFO and READ; kept across a second `sys_actions_init`; replaced by a second upload; a bad CRC, a broken frame, an incomplete image, a second draft, an out-of-order write and the size limits stored nothing; LIST pages by the last ID; copy and dump; REMOVE and REMOVE_ALL; RUN injecting every frame in order with its own direction, run again and again; `sys_actions_request` (normal and urgent); RUN stopping at the first failing frame (`ERR_ACTION_STEP` with the step and the ID) and RUN_ALL running all of them; a RUN frame inside a record; a record that runs itself stopping at `ERR_ACTION_DEPTH`; RUN off the router tasks (`ERR_ACTION_WRONG_TASK`).

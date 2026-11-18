@@ -198,10 +198,36 @@
   } while (0)
 
 
-/* Whether lo <= v <= hi (ERR_CHECK_IN_RANGE) */
-static inline bool err_in_range(int64_t v, int64_t lo, int64_t hi) {
+static inline bool err__in_range_i(int64_t v, int64_t lo, int64_t hi) {
   return v >= lo && v <= hi;
 }
+static inline bool err__in_range_f(double v, double lo, double hi) {
+  return v >= lo && v <= hi;  // NaN: false
+}
+/**
+ * @brief Whether lo <= v <= hi: compared in int64_t, in double for a float or double v (NaN is never in range).
+ * @usage if (!err_in_range(ms, 1, 1000)) { ... }
+ */
+#define err_in_range(v, lo, hi) \
+  _Generic((v), float: err__in_range_f, double: err__in_range_f, default: err__in_range_i)(v, lo, hi)
+
+#define ERR__RANGE_I(v, lo, hi) ERR_NEW(ERR_RANGE, .value = (int32_t)(v), .min = (int32_t)(lo), .max = (int32_t)(hi))
+#define ERR__RANGE_F(v, lo, hi) ERR_NEW(ERR_RANGE_F, .value = (float)(v), .min = (float)(lo), .max = (float)(hi))
+/**
+ * @brief Returns ERR_RANGE {value, min, max} from the current function unless lo <= v <= hi; ERR_RANGE_F for a float
+ * or double v. The check is exact (err_in_range); the payload is int32_t / float, so a value past them is reported cut.
+ * v is evaluated once, lo and hi twice.
+ * @usage ERR_CHECK_RANGE(args->duty, 0, IO_PWM_DUTY_MAX);
+ */
+#define ERR_CHECK_RANGE(v, lo, hi)                                                                         \
+  do {                                                                                                     \
+    const __typeof__(v) _err_v_ = (v);                                                                     \
+    if (!err_in_range(_err_v_, lo, hi)) {                                                                  \
+      return _Generic(_err_v_, float: ERR__RANGE_F(_err_v_, lo, hi), double: ERR__RANGE_F(_err_v_, lo, hi), \
+                      default: ERR__RANGE_I(_err_v_, lo, hi));                                             \
+    }                                                                                                      \
+  } while (0)
+
 /**
  * @brief Returns a new error from the current function unless lo <= v <= hi (err_in_range: no -Wtype-limits warning for
  * an unsigned v and a lo of 0).

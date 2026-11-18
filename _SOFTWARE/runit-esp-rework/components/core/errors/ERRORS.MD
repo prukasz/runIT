@@ -54,7 +54,9 @@ ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)     // one .c: table + constr
 | `ERR_NEW(TAG, .f = v)` / `ERR_WRAP(cause, TAG, …)` | New root error / new node over `cause` (takes ownership) |
 | `ERR_TRY(call)` | Return the error of `call` if any |
 | `ERR_CHECK(cond, TAG, …)` | Return a new error if `cond` is false |
-| `ERR_CHECK_IN_RANGE(v, lo, hi, TAG, …)` | Return a new error unless `lo <= v <= hi` (no `-Wtype-limits` warning for an unsigned `v` and `lo` 0) |
+| `ERR_CHECK_RANGE(v, lo, hi)` | Return `ERR_RANGE {value, min, max}` unless `lo <= v <= hi`; `ERR_RANGE_F` for a `float` or `double` `v` (`_Generic` on the type of `v`, evaluated once). The check is exact, the payload is `int32_t` / `float` |
+| `ERR_CHECK_IN_RANGE(v, lo, hi, TAG, …)` | The same check with the module's own tag and payload |
+| `err_in_range(v, lo, hi)` | `lo <= v <= hi`, compared in `int64_t`, in `double` for a `float` / `double` `v` (NaN never in range; no `-Wtype-limits` warning for an unsigned `v` and `lo` 0) |
 | `ERR_KEEP_FIRST(acc, call)` | Run `call`, keep the first error in `acc`, free a later one (teardown: every step runs) |
 | `ERR_ESP(esp_call)` / `ERR_TRY_ESP(esp_call)` | `esp_err_t` → `NULL` or `ERR_ESP_ERR{code}` |
 
@@ -135,6 +137,9 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 | `ERR_POOL_EMPTY` | LOW | – | Error node pool exhausted; static fallback node returned |
 | `ERR_ESP_ERR` | HIGH | `esp_err_t code` | Underlying ESP-IDF driver or system call failed |
 | `ERR_RECORD_CUT` | MEDIUM | `u16 len` | `err_record_parse`: a record cut short |
+| `ERR_NULL_PTR` | HIGH | – | A C function got a NULL pointer: a bug of its caller, not a bad value in a command (that is the module's own tag, `ERR_CMD_BAD_ARG` for a frame) |
+| `ERR_RANGE` | HIGH | `i32 value, i32 min, i32 max` | `ERR_CHECK_RANGE`: a value outside `min..max` |
+| `ERR_RANGE_F` | HIGH | `f32 value, f32 min, f32 max` | `ERR_CHECK_RANGE` of a `float` / `double` value |
 
 ## Limits
 
@@ -148,6 +153,6 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 
 Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and the two variants (with and without call-site info); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size.
 
-They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
+They cover: nodes and payloads (the rest of a reused block is zeroed), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_CHECK_RANGE` (the tag by the type of `v`, the payload, `v` evaluated once, NaN) / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
 
 Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not), the double-free assertion (it aborts).

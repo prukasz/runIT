@@ -81,6 +81,16 @@ static bool takes(const data_matrix_end_t* from, const data_matrix_end_t* src) {
   }
 }
 
+// Whether some route takes what comes out of `src`.
+static bool has_route_from(const data_matrix_end_t* src) {
+  for (uint8_t i = 0; i < s_dm.route_count; i++) {
+    if (takes(&s_dm.routes[i].from, src)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Removes route i: the last one takes its place.
 static void drop_route(uint8_t i) {
   s_dm.routes[i] = s_dm.routes[--s_dm.route_count];
@@ -112,17 +122,17 @@ void data_matrix_list(data_matrix_role_args_t roles[CONFIG_DATA_MATRIX_ROLES], u
  * Delivery: out to the providers, the queue and the callbacks
  * ------------------------------------------------------------------------- */
 
-static bool queue_push(uint8_t stream, const void* data, uint32_t len) {
+// Into the queue as [stream][data], for the matrix's task; a full queue drops it.
+static err_h queue_send(uint8_t stream, const void* data, uint32_t len) {
   uint8_t* item = NULL;
-  if (xRingbufferSendAcquire(data_matrix_rb, (void**)&item, STREAM_BYTE + len, NO_WAIT) != pdTRUE) {
-    return false;
-  }
+  ERR_CHECK(xRingbufferSendAcquire(data_matrix_rb, (void**)&item, STREAM_BYTE + len, NO_WAIT) == pdTRUE,
+            ERR_DATA_MATRIX_QUEUE_FULL, .stream = stream, .len = (uint16_t)len);
   item[0] = stream;
   if (len > 0) {
     memcpy(item + STREAM_BYTE, data, len);
   }
   xRingbufferSendComplete(data_matrix_rb, item);
-  return true;
+  return NULL;
 }
 
 static err_h provider_send(uint8_t provider, const uint8_t* data, uint32_t len, uint8_t flags) {
@@ -161,7 +171,7 @@ static err_h put(const data_matrix_end_t* to, const data_matrix_end_t* from, con
     case DATA_MATRIX_END_T:
       return tagged_send(to->a, to->b, data, len, flags);
     case DATA_MATRIX_END_S:
-      return queue_push(to->a, data, len) ? NULL : ERR_NEW(ERR_DATA_MATRIX_QUEUE_FULL, .stream = to->a, .len = (uint16_t)len);
+      return queue_send(to->a, data, len);
     case DATA_MATRIX_END_C: {
       callback_t cb = {0};
       portENTER_CRITICAL(&s_lock);
@@ -257,7 +267,7 @@ err_h data_matrix_listen(data_matrix_callback_f fn, void* ctx, data_matrix_end_t
   ERR_CHECK(fn != NULL && out != NULL, ERR_DATA_MATRIX_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   int at = -1;
-  for (uint8_t i = 0; i < s_dm.callback_count; i++) {
+  for (uint8_t i = 0; i < s_dm.callback_count && at < 0; i++) {
     if (s_dm.callbacks[i].fn == fn && s_dm.callbacks[i].ctx == ctx) {
       at = i;
     }
@@ -276,17 +286,13 @@ err_h data_matrix_send(uint8_t stream, const void* data, uint32_t len) {
   ERR_CHECK(stream_ok(stream), ERR_DATA_MATRIX_BAD_ARG);
   ERR_CHECK(len <= PAYLOAD_MAX, ERR_DATA_MATRIX_TOO_LONG, .len = (uint16_t)len, .max = PAYLOAD_MAX);
   const data_matrix_end_t from = DATA_MATRIX_END_STREAM(stream);
-  bool routed = false;
   portENTER_CRITICAL(&s_lock);
-  for (uint8_t i = 0; i < s_dm.route_count; i++) {
-    routed = routed || takes(&s_dm.routes[i].from, &from);
-  }
+  const bool routed = has_route_from(&from);
   portEXIT_CRITICAL(&s_lock);
   if (!routed) {
     return NULL;  // nowhere to go: nothing to queue
   }
-  ERR_CHECK(queue_push(stream, data, len), ERR_DATA_MATRIX_QUEUE_FULL, .stream = stream, .len = (uint16_t)len);
-  return NULL;
+  return queue_send(stream, data, len);
 }
 
 err_h data_matrix_send_to(const data_matrix_end_t* to, const void* data, uint32_t len, uint8_t flags) {
@@ -295,16 +301,16 @@ err_h data_matrix_send_to(const data_matrix_end_t* to, const void* data, uint32_
   switch (to->kind) {
     case DATA_MATRIX_END_P:
       ERR_CHECK(data_matrix_role_of(to->a) == DATA_MATRIX_ROLE_RAW, ERR_DATA_MATRIX_ROLE, .provider = to->a);
-      return provider_send(to->a, data, len, flags);
-    case DATA_MATRIX_END_T:
-      return tagged_send(to->a, to->b, data, len, flags);
+      break;
     case DATA_MATRIX_END_S:
       ERR_CHECK(stream_ok(to->a), ERR_DATA_MATRIX_BAD_ARG);
-      ERR_CHECK(queue_push(to->a, data, len), ERR_DATA_MATRIX_QUEUE_FULL, .stream = to->a, .len = (uint16_t)len);
-      return NULL;
-    default:
+      break;
+    case DATA_MATRIX_END_T:
+      break;
+    default:  // a callback takes no send of the board's code
       return ERR_NEW(ERR_DATA_MATRIX_PAIR, .from = to->kind, .to = to->kind);
   }
+  return put(to, to, data, len, flags);
 }
 
 /* ----------------------------------------------------------------------------

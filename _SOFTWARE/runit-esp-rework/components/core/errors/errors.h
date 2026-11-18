@@ -124,10 +124,13 @@ bool err_drop(err_h* err, uint32_t tag);
 
 #define ERR_MOD_CORE 0u
 
-#define ERR_CORE_MAP(X)                                                                                         \
-  X(ERR_POOL_EMPTY, ERR_TAG(ERR_MOD_CORE, 1), ERR_SEV_LOW,    {}) /* no block for a new error */                \
-  X(ERR_ESP_ERR,    ERR_TAG(ERR_MOD_CORE, 2), ERR_SEV_HIGH,   { esp_err_t code; }) /* ESP-IDF call failed */    \
-  X(ERR_RECORD_CUT, ERR_TAG(ERR_MOD_CORE, 3), ERR_SEV_MEDIUM, { uint16_t len; }) /* err_record_parse: cut short */
+#define ERR_CORE_MAP(X)                                                                                                               \
+  X(ERR_POOL_EMPTY, ERR_TAG(ERR_MOD_CORE, 1), ERR_SEV_LOW,    {}) /* no block for a new error */                                      \
+  X(ERR_ESP_ERR,    ERR_TAG(ERR_MOD_CORE, 2), ERR_SEV_HIGH,   { esp_err_t code; }) /* ESP-IDF call failed */                          \
+  X(ERR_RECORD_CUT, ERR_TAG(ERR_MOD_CORE, 3), ERR_SEV_MEDIUM, { uint16_t len; }) /* err_record_parse: cut short */                    \
+  X(ERR_NULL_PTR,   ERR_TAG(ERR_MOD_CORE, 4), ERR_SEV_HIGH,   {}) /* a C function got a NULL pointer: its caller's bug */             \
+  X(ERR_RANGE,      ERR_TAG(ERR_MOD_CORE, 5), ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; }) /* ERR_CHECK_RANGE */     \
+  X(ERR_RANGE_F,    ERR_TAG(ERR_MOD_CORE, 6), ERR_SEV_HIGH,   { float value; float min; float max; }) /* ERR_CHECK_RANGE, float v */
 
 ERR_TAGS_DECLARE(ERR_CORE_MAP)
 

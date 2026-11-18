@@ -1,0 +1,57 @@
+menu "sys_lvgl"
+
+    config SYS_LVGL_HEAP_DEFAULT
+        int "LVGL's pool at INSTALL (B)"
+        default 65536
+        range 32768 4194304
+        help
+          LVGL's one pool when INSTALL gives 0: every object, style and
+          cache of the screen. Taken whole at INSTALL, freed at RESET.
+
+    config SYS_LVGL_POOL_RESERVE
+        int "Pool reserve (B)"
+        default 8192
+        range 2048 65536
+        help
+          What sys_lvgl_pool_check keeps free in LVGL's pool for what LVGL
+          allocates by itself while it draws (layers, label lines). A widget
+          that would eat into it is refused (ERR_LVGL_POOL_FULL).
+
+    config SYS_LVGL_BUFFER_MAX
+        int "Largest draw buffer (B)"
+        default 32768
+        range 1024 262144
+        help
+          One draw buffer at most (two are made). Also limited by the
+          display's largest FLUSH (GEOMETRY flush_max).
+
+    config SYS_LVGL_FLUSH_TIMEOUT_MS
+        int "FLUSH limit (ms)"
+        default 200
+        range 20 5000
+        help
+          The longest wait for the end of a FLUSH; past it the adapter reports
+          ERR_DISPLAY_FLUSH_TIMEOUT and resets the display.
+
+    config SYS_LVGL_HEALTH_MS
+        int "Display check period (ms)"
+        default 1000
+        range 0 60000
+        help
+          How often the adapter reads its display's HEALTH while it draws
+          (a display whose SDO is wired, SYS_DISPLAY_FLAG_READABLE): no
+          answer is reported once (ERR_DISPLAY_LOST) and the screen redrawn
+          when it answers again; a panel that lost its power is reset and
+          redrawn. 0: never.
+
+    config SYS_LVGL_TASK_STACK
+        int "LVGL task stack (B)"
+        default 8192
+        range 4096 32768
+
+    config SYS_LVGL_TASK_PRIO
+        int "LVGL task priority"
+        default 4
+        range 1 20
+
+endmenu

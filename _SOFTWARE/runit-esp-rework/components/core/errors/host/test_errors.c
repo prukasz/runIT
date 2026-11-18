@@ -1,5 +1,6 @@
 /* Host tests of the errors component: the real code; only the platform (clock, log, spinlock, sdkconfig) is replaced.
  * Run: python test_host/run.py errors   (HOST_TESTS.MD) */
+#include <math.h>
 #include <pthread.h>
 #include <string.h>
 #include "unity.h"
@@ -513,6 +514,70 @@ static void test_check_in_range_is_inclusive(void) {
   TEST_ASSERT_FALSE(err_in_range(2, -1, 1));
 }
 
+static int s_range_calls;
+static int16_t next_i16(void) {
+  s_range_calls++;
+  return -5;
+}
+static err_h range_i(int16_t v) {
+  ERR_CHECK_RANGE(v, -3, 7);
+  return NULL;
+}
+static err_h range_u(uint32_t v) {
+  ERR_CHECK_RANGE(v, 0, 10);
+  return NULL;
+}
+static err_h range_once(void) {
+  ERR_CHECK_RANGE(next_i16(), -3, 7);
+  return NULL;
+}
+static err_h range_f(float v) {
+  ERR_CHECK_RANGE(v, -1.5f, 2.5f);
+  return NULL;
+}
+static err_h range_d(double v) {
+  ERR_CHECK_RANGE(v, 0, 1);
+  return NULL;
+}
+static void test_check_range_picks_the_tag_by_type(void) {
+  TEST_ASSERT_NULL(range_i(-3));
+  TEST_ASSERT_NULL(range_i(7));
+  err_h e = range_i(-4);
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE, e->tag);
+  TEST_ASSERT_EQUAL_INT32(-4, ERR_DATA(e, ERR_RANGE)->value);
+  TEST_ASSERT_EQUAL_INT32(-3, ERR_DATA(e, ERR_RANGE)->min);
+  TEST_ASSERT_EQUAL_INT32(7, ERR_DATA(e, ERR_RANGE)->max);
+  err_free(e);
+
+  e = range_u(4000000000u);  // the check is exact; the payload is int32_t
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE, e->tag);
+  err_free(e);
+
+  e = range_once();
+  TEST_ASSERT_EQUAL_INT(1, s_range_calls);  // v evaluated once
+  TEST_ASSERT_EQUAL_INT32(-5, ERR_DATA(e, ERR_RANGE)->value);
+  err_free(e);
+
+  TEST_ASSERT_NULL(range_f(-1.5f));
+  TEST_ASSERT_NULL(range_f(2.5f));
+  e = range_f(2.75f);
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE_F, e->tag);
+  TEST_ASSERT_EQUAL_FLOAT(2.75f, ERR_DATA(e, ERR_RANGE_F)->value);
+  TEST_ASSERT_EQUAL_FLOAT(-1.5f, ERR_DATA(e, ERR_RANGE_F)->min);
+  TEST_ASSERT_EQUAL_FLOAT(2.5f, ERR_DATA(e, ERR_RANGE_F)->max);
+  err_free(e);
+
+  e = range_f(NAN);  // never in range
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE_F, e->tag);
+  err_free(e);
+
+  e = range_d(1.25);
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE_F, e->tag);
+  TEST_ASSERT_EQUAL_FLOAT(1.25f, ERR_DATA(e, ERR_RANGE_F)->value);
+  err_free(e);
+  ASSERT_POOL_FULL();
+}
+
 /* ---- the pool under real concurrency -------------------------------------------------------------------------- */
 
 typedef struct {
@@ -583,6 +648,7 @@ int main(void) {
   RUN_TEST(test_report_with_log_off_still_sinks_and_frees);
   RUN_TEST(test_report_board);
   RUN_TEST(test_check_in_range_is_inclusive);
+  RUN_TEST(test_check_range_picks_the_tag_by_type);
   RUN_TEST(test_pool_is_safe_across_tasks);
   return UNITY_END();
 }
