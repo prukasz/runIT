@@ -1,15 +1,8 @@
 #pragma once
 /* The Kconfig defaults of errors/Kconfig for the host tests. Override with -D (the variants in host_test.json). */
-#ifndef CONFIG_ERRORS_INFO_FILE
-#define CONFIG_ERRORS_INFO_FILE 1
+#ifndef CONFIG_ERRORS_INFO
+#define CONFIG_ERRORS_INFO 1
 #endif
-#ifndef CONFIG_ERRORS_INFO_FUNC
-#define CONFIG_ERRORS_INFO_FUNC 1
-#endif
-#ifndef CONFIG_ERRORS_INFO_LINE
-#define CONFIG_ERRORS_INFO_LINE 1
-#endif
-#define CONFIG_ERRORS_INFO (CONFIG_ERRORS_INFO_FILE || CONFIG_ERRORS_INFO_FUNC || CONFIG_ERRORS_INFO_LINE)
 #ifndef CONFIG_ERRORS_POOL_BLOCKS
 #define CONFIG_ERRORS_POOL_BLOCKS 32
 #endif

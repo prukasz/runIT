@@ -6,6 +6,6 @@
   "deps": [],
   "variants": {
     "info": [],
-    "no_info": ["-DCONFIG_ERRORS_INFO_FILE=0", "-DCONFIG_ERRORS_INFO_FUNC=0", "-DCONFIG_ERRORS_INFO_LINE=0"]
+    "no_info": ["-DCONFIG_ERRORS_INFO=0"]
   }
 }

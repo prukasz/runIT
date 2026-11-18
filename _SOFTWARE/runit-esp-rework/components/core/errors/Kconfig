@@ -1,32 +1,14 @@
 menu "Errors"
 
-    config ERRORS_INFO_FILE
-        bool "Record file name in errors"
-        default y
-        help
-          Store the source file name (__FILE_NAME__, without the path) of the
-          place an error was created. Costs one string per source file in
-          flash.
-
-    config ERRORS_INFO_FUNC
-        bool "Record function name in errors"
-        default y
-        help
-          Store the name of the function (__func__) that created the error.
-          Costs one string per function that creates errors, in flash.
-
-    config ERRORS_INFO_LINE
-        bool "Record line number in errors"
-        default y
-        help
-          Store the source line (__LINE__) where the error was created.
-
     config ERRORS_INFO
-        bool
-        default y if ERRORS_INFO_FILE || ERRORS_INFO_FUNC || ERRORS_INFO_LINE
+        bool "Record where errors are created"
+        default y
         help
-          Derived, not user-visible: on when any ERRORS_INFO_* option is on.
-          When off, error nodes have no `info` field at all.
+          Store the place an error was created: the source file name
+          (__FILE_NAME__, without the path), the line and the function. One
+          record per call site, in flash; the node points to it. Costs one
+          string per source file and per function that creates errors, in
+          flash. When off, error nodes have no `info` field at all.
 
     config ERRORS_POOL_BLOCKS
         int "Error pool: number of blocks"

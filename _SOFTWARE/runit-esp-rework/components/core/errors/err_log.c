@@ -55,16 +55,7 @@ static void format_node(char* line, uint32_t index, err_h e) {
 
 #if CONFIG_ERRORS_INFO
   if (e->info != NULL) {
-    append(line, &pos, " @");
-#if CONFIG_ERRORS_INFO_FILE
-    append(line, &pos, " %s", e->info->file);
-#endif
-#if CONFIG_ERRORS_INFO_LINE
-    append(line, &pos, ":%lu", (unsigned long)e->info->line);
-#endif
-#if CONFIG_ERRORS_INFO_FUNC
-    append(line, &pos, " %s()", e->info->func);
-#endif
+    append(line, &pos, " @ %s:%lu %s()", e->info->file, (unsigned long)e->info->line, e->info->func);
   }
 #endif
 }

@@ -144,39 +144,16 @@ void err__register_module(const err_module_t* module);
  * unchanged (the deeper error is kept, only this level is lost).
  * ------------------------------------------------------------------------- */
 
-#if CONFIG_ERRORS_INFO_FILE
-#define ERR__INFO_FILE .file = __FILE_NAME__,
-#else
-#define ERR__INFO_FILE
-#endif
-#if CONFIG_ERRORS_INFO_FUNC
-#define ERR__INFO_FUNC .func = __func__,
-#else
-#define ERR__INFO_FUNC
-#endif
-#if CONFIG_ERRORS_INFO_LINE
-#define ERR__INFO_LINE .line = __LINE__,
-#else
-#define ERR__INFO_LINE
-#endif
-
 #if CONFIG_ERRORS_INFO
 /**
  * @brief Where a node was made: ERR__NEW builds one per call site (static, in flash) and the node only points to it;
- * err_log prints it. Only the fields enabled in Kconfig (CONFIG_ERRORS_INFO_FILE/FUNC/LINE) exist; with all three
- * off there is no err_info_t and no `info` in a node. Here, not in errors.h, because only the macros use it: it is
+ * err_log prints it. With CONFIG_ERRORS_INFO off there is no err_info_t and no `info` in a node. Here, not in errors.h, because only the macros use it: it is
  * complete where ERR_NEW is called, never read outside the errors component.
  */
 typedef struct err_info {
-#if CONFIG_ERRORS_INFO_FILE
   const char* file;  // __FILE_NAME__
-#endif
-#if CONFIG_ERRORS_INFO_FUNC
   const char* func;  // __func__
-#endif
-#if CONFIG_ERRORS_INFO_LINE
-  uint32_t line;  // __LINE__
-#endif
+  uint32_t line;     // __LINE__
 } err_info_t;
 #endif
 
@@ -205,7 +182,7 @@ __attribute__((warn_unused_result)) struct err* err__new(uint32_t tag, const voi
 #endif
 #if CONFIG_ERRORS_INFO
 #define ERR__NEW(tag, data, len, cause) \
-  err__new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, tag, data, len, cause)
+  err__new(&(ERR__INFO_STORAGE const err_info_t){__FILE_NAME__, __func__, __LINE__}, tag, data, len, cause)
 #else
 #define ERR__NEW(tag, data, len, cause) err__new((tag), (data), (len), (cause))
 #endif
