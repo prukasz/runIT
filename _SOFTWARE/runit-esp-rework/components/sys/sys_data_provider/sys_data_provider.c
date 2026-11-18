@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cmd.h"
+#include "data_stream.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_internal.h"
@@ -27,8 +28,6 @@ static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
 U_MUTEX_DEFINE(s_prov_ctrl_lock);  // Serializes CREATE / REMOVE / driver own ops
-static sys_data_provider_port_hook_f s_port_added;    // set by the app: a provider's port made
-static sys_data_provider_port_hook_f s_port_removed;  // set by the app: a provider's port about to go
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // Short critical section for slot reads & data plane
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
@@ -184,17 +183,6 @@ static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, uint
   err_free(send_frame((uint8_t)self->id, frame, (uint8_t)(flags | CMD_SEND_NOWAIT)));  // not taken: lost
 }
 
-void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_data_provider_port_hook_f removed) {
-  U_MUTEX_GUARD(s_prov_ctrl_lock);
-  s_port_added = added;
-  s_port_removed = removed;
-  for (uint32_t i = 0; added != NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i].used) {
-      err_report(added(&s_slots[i].p.port));
-    }
-  }
-}
-
 static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const void* cfg, uint32_t cfg_len) {
   ERR_CHECK((flags & ~SYS_DATA_PROVIDER_CREATE_SYSTEM) == 0, ERR_CMD_BAD_ARG);
 
@@ -232,24 +220,22 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
     return err;
   }
 
-  // Every driver must populate p->send inside create(); treat a missing TX hook as a contract violation.
-  if (slot->p.send == NULL) {
-    err_h rerr = type->remove(&slot->p, slot->p.driver);
-    err_free(rerr);
+  // A driver that set no TX hook breaks its contract; a provider the data matrix has no room for can't be linked:
+  // either way the provider is not made.
+  err = slot->p.send == NULL ? ERR_NEW(ERR_CMD_BAD_ARG) : data_stream_register(&slot->p.port);
+  if (err != NULL) {
+    err_free(type->remove(&slot->p, slot->p.driver));
     if (type->ctx_size > 0) {
       free(instance);
     }
     memset(slot, 0, sizeof(*slot));
-    return ERR_NEW(ERR_CMD_BAD_ARG);
+    return err;
   }
 
   portENTER_CRITICAL(&s_lock);
   slot->type = type;
   slot->used = true;
   portEXIT_CRITICAL(&s_lock);
-  if (s_port_added != NULL) {
-    err_report(s_port_added(&slot->p.port));
-  }
   return NULL;
 }
 
@@ -275,9 +261,7 @@ static err_h remove_locked(uint8_t id) {
   ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
   ERR_CHECK(!in_use, ERR_PROV_IN_USE, .provider = id);
 
-  if (s_port_removed != NULL) {
-    err_report(s_port_removed(&slot->p.port));  // its links go before its driver does
-  }
+  err_report(data_stream_unregister(&slot->p.port));  // out of the data matrix first: its links go before its driver
   err_h err = type->remove(&slot->p, instance);
   if (type->ctx_size > 0) {
     free(instance);

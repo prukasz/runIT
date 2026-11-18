@@ -18,11 +18,11 @@ A **port** (`core/utils/data_stream_port.h`, below every layer) is anything that
 - its name, a `u16`: `DATA_STREAM_PORT(kind, id)`, the kind (`DATA_STREAM_PORT_MODULE` 0 or `DATA_STREAM_PORT_PROVIDER` 1) in the high byte;
 - `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_STREAM_OWNER`).
 
-The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_stream_send(&port, data, len)`, an inline call of `out`: a module never links to the switch.
+The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_stream_send(&port, flags, data, len)`, an inline call of `out`: a module never links to the switch.
 
 **The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
-**Providers are ports by themselves:** the app hands the switch's `data_stream_register` / `data_stream_unregister` to the providers' registry (`sys_data_provider_set_port_hooks`, `app/runit`), so every provider made is registered (and every one already made) and every one removed is unregistered, its links with it. The switch and the providers never name each other.
+**Providers are ports by themselves:** a provider's CREATE registers its port, its REMOVE unregisters it first (SYS_DATA_PROVIDER.MD "Stream port"). The switch never names a provider; the providers call the switch.
 
 ## Links
 
@@ -50,5 +50,5 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 - Not in the build: the ESP build and the host tests wait for the modules that used the matrix's streams, roles and callbacks to become ports: `sys_session` (its channels, a send to one session), `sys_log` (`LOGS`, the loop guard of a log line made in a delivery), the errors' stream (`ERRORS`, `ERRORS_IN`), `sys_event_stream`, `sys_watch`, `sys_remote`, `app/runit` (links instead of roles and routes).
 - A self-registration macro for a module's port.
-- A send in flight may still call the `pass` of a port unregistered meanwhile (its targets are copied under the lock, called after it): a provider removed in that moment (`REMOVE` frees its place) gets a stale call. Closing it needs a count of the sends in flight per port, which `unregister` waits for.
+- A send in flight may still call the `pass` of a port unregistered meanwhile (its targets are copied under the lock, called after it). A provider survives it (its port keeps its name, the call finds no provider); a module's port must stay valid as long as it may be sent to.
 - Host tests of the switch.

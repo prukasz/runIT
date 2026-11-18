@@ -33,8 +33,7 @@ typedef struct __attribute__((packed)) {
 _Static_assert(sizeof(data_stream_link_t) == 4, "data_stream wire size");
 
 /**
- * @brief Registers a port: sets its `out` and its place. A module's at boot; a provider's when it is made (the app
- * hands this to sys_data_provider_set_port_hooks: its shape is sys_data_provider_port_hook_f).
+ * @brief Registers a port: sets its `out` and its place. A module's at boot; a provider's by its CREATE.
  * @param port  The port, the owner's (kept by pointer), its id and pass filled.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (NULL, a name already registered), ERR_DATA_MATRIX_FULL
  *         (CONFIG_DATA_STREAM_PORTS taken)
@@ -42,7 +41,7 @@ _Static_assert(sizeof(data_stream_link_t) == 4, "data_stream wire size");
 MUST_USE err_h data_stream_register(data_stream_port_t* port);
 
 /**
- * @brief Unregisters a port: its links go with it, its `out` is cleared. A provider's when it is removed.
+ * @brief Unregisters a port: its links go with it, its `out` is cleared. A provider's first thing at its REMOVE.
  * @param port  The port.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (not registered)
  */

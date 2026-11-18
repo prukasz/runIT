@@ -13,7 +13,7 @@ Component `runit-esp-rework/components/app/runit/`. The last layer: it knows eve
 
 ## Boot order
 
-`sys_nvs_init`, `sys_actions_init`, `sys_board_init`, `router_init`, `sys_event_init`, `sys_device_policy_init`, `sys_session_init`, the providers made ports of the data matrix (`sys_data_provider_set_port_hooks(data_stream_register, data_stream_unregister)`: neither names the other, so this layer joins them), `runit_data_matrix_setup` (the matrix, the providers, their roles and routes, BLE), the error sink, `sys_system_init`, `sys_watch_init`, `sys_remote_init`, the ESP32-S3's GPIO (`0x00`, system), `sys_board_boot`. A step that fails is reported (`err_report`) and the next one runs.
+`sys_nvs_init`, `sys_actions_init`, `sys_board_init`, `router_init`, `sys_event_init`, `sys_device_policy_init`, `sys_session_init`, `runit_data_matrix_setup` (the matrix, the providers, their roles and routes, BLE), the error sink, `sys_system_init`, `sys_watch_init`, `sys_remote_init`, the ESP32-S3's GPIO (`0x00`, system), `sys_board_boot`. A step that fails is reported (`err_report`) and the next one runs.
 
 - The console is a provider before the GPIO device, so ESP-IDF reserves its pins first (`PROVIDER_CONSOLE.MD`).
 - The board's profile comes last, after every device of the board's own: its frames name the GPIO's pins.

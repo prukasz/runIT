@@ -2,7 +2,6 @@
 
 #include <esp_log.h>
 #include "board_time.h"
-#include "data_stream.h"
 #include "err_log.h"
 #include "err_sink.h"
 #include "errors.h"
@@ -11,7 +10,6 @@
 #include "runit_ids.h"
 #include "sys_actions.h"
 #include "sys_board.h"
-#include "sys_data_provider.h"
 #include "sys_device.h"
 #include "sys_device_policy.h"
 #include "sys_event.h"
@@ -45,7 +43,6 @@ void runit_start(void) {
   err_report(sys_event_init());
   err_report(sys_device_policy_init());
   err_report(sys_session_init());
-  sys_data_provider_set_port_hooks(data_stream_register, data_stream_unregister);  // providers are the matrix's ports
   err_report(runit_data_matrix_setup());
   err_set_sink(error_sink);
   err_report(sys_system_init());
