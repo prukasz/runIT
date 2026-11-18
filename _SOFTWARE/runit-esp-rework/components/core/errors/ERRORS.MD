@@ -74,6 +74,7 @@ Rules:
 
 - `err_sev_e`: NONE < LOW < MEDIUM < HIGH < CRITICAL. **A tag has one severity**, in its map; a node carries none of its own.
 - `err_sev(e)`: the node's tag's severity (NONE for an unknown tag).
+- The error record carries no severity: the app reads each tag's from `errors.json`.
 - `err_chain_sev(chain)`: the highest severity of the chain's nodes. Wrapping never lowers a cause: an expected failure is handled (freed) where it is expected, not reported.
 - `err_root_tag(chain)`: the tag of the deepest node (0 for NULL).
 - `err_drop(&err, tag)`: an expected cause taken away. When the root cause of `err` is `tag` the chain is freed, `err` becomes NULL and it answers true; any other error stays. For an error that is an answer, not a failure: an op the device doesn't have (`sys_io_prepare`), a probe that found nothing (an I2C bus's PROBE and SCAN), a device not created yet. `if (err_drop(&err, ERR_I2C_DEV_NOT_FOUND)) { continue; } ERR_TRY(err);`
@@ -81,7 +82,7 @@ Rules:
 
 ## Logging
 
-`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. One log level for the whole chain (`err_chain_sev`). `err_log_enable(false)` stops the text of every chain (`err_log`, `err_log_ctx`, so `err_report` too) without touching the sink: `sys_log` sets it from its `trace_errors` option. Task context only. Walks are bounded by `ERR_CHAIN_MAX` (cyclic chain guard).
+`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. One log level for the whole chain (`err_chain_sev`). Both only borrow the chain: they never free it. `err_log_enable(false)` stops the text of every chain (`err_log`, `err_log_ctx`, so `err_report` too) without touching the sink: `sys_log` sets it from its `trace_errors` option. Task context only. Walks are bounded by `ERR_CHAIN_MAX` (cyclic chain guard).
 
 ## Reporting (end of a chain)
 

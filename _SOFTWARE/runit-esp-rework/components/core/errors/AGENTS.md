@@ -1,31 +1,22 @@
 # errors
 
-Spec: `ERRORS.MD` (this folder).
+What the module is and how it is used: `ERRORS.MD` (this folder). This file holds only the rules for changing it.
 
-- Every change in this folder is followed by an edit of this file, if it is needed.
-- A module's errors are under its number, `MODULE_ID_<NAME>` (`MODULE_ID_DECLARE` in the module's `<module>_id.h`, which its errors header includes: `errors.h` does not); the map passes it as `M` and `ERR_TAGS_DECLARE(MODULE_ID_X, MAP)` / `ERR_MODULE_DEFINE(MODULE_ID_X, MAP)` take it, never an alias. Numbers are unique firmware-wide and never renumbered. `MODULE_ID_CORE` is 0.
-- Error tags: `ERR_TAG(module, code)` packs module (bits 16..31) and code (bits 0..15). Tag 0 represents success / no error. Error codes are wire format; do not renumber them.
-- Tag maps and registration:
-  - Each module declares its tags via `ERR_TAGS_DECLARE(MAP)` in its header.
-  - The module registers the table once via `ERR_MODULE_DEFINE(mod_id, name, MAP)` in a `.c` file that is guaranteed to be linked.
-  - Every tag has its user message (and, when the user can act on it, a `hint`: what to do) in `errors_<module>.json` next to the header of its map (templates/AGENTS.md "Errors"); a new module has a new file. Changing an error map or adding a tag requires updating it and `templates/`: run `sh templates/sync.sh` (runs `generate_errors.py`, refreshes `runit-app/generated/`, validates). Commit with `--check` green.
-- Node lifecycle and chain ownership:
-  - An error is a linked chain of nodes (`err_h` = pointer to outermost node). `NULL` strictly indicates success. Never return `NULL` for a failure.
-  - The node is opaque: `struct err` is in `internal/err_internal.h` only, never in a public header. Outside this folder a node is read with `err_tag` / `err_cause` / `err_data` (`ERR_DATA`) / `err_find`, made with `ERR_NEW` / `ERR_WRAP` only, and never changed. A test that must reach inside (a cyclic chain) includes `err_internal.h`.
-  - Nodes are allocated from a static fixed block pool (`err_pool_alloc` / `err_pool_free`), task- and ISR-safe under a spinlock critical section.
-  - Double-free detection is enforced by a bitmask; double-freeing asserts.
-  - Never share cause nodes across chains. Cyclical chains are bounded: every walk, here and in a module that walks with `err_cause`, takes `ERR_CHAIN_MAX`, never its own copy.
-  - Whoever terminates a chain owns it and must free it via `err_free(chain)` or `err_report` (which passes it to the sink and frees it). `err_log` only borrows.
-- Pool exhaustion behavior:
-  - `ERR_NEW` returns the static `ERR_POOL_EMPTY` node when the pool is exhausted.
-  - `ERR_WRAP` returns `cause` unchanged when the pool is exhausted.
-- Severity:
-  - A tag has one severity, in its map; a node stores none. `err_chain_sev(chain)` is the highest of the chain's nodes. A severity that must differ is a different tag.
-  - The error record does not send severities: the app reads them from `errors.json`.
-- Reporting and Sinks:
-  - `err_report` / `err_report_ex` logs the chain, forwards it to the registered `err_sink_f` (set at boot by the application), and frees the chain.
-  - Code on the reporting path (stream task, logging capture) must never call `err_report` (to avoid recursion loops); use `err_log` and `err_free` instead.
-- Error record:
-  - `err_record` (ERRORS.MD "Error record") is wire format: the router's ERROR answer, the errors stream and the kept history. `ERR_RECORD_*`, `err_record_src_e`, `err_record_cmd_t` and the header layout are published or fixed (`enums.json`, the `_Static_assert` on its size); a change needs `sh templates/sync.sh` and the app's decoder (`runit-app/src/backend/protocol/errors.ts`) and `router_link.py` in step. `err_record_parse` reads the same layout back.
-  - `errors` has no dependency beyond `utils` and libc: the command is `cmd.h`'s `cmd_req_t`, known here only as `struct cmd_req` (passed on to the sink, never read); a command's record gets its fields from `cmd_err_record` (`cmd.h`) through `err_record_cmd`; nothing here includes a cmd, router, session or transport header. So `errors` raises its own tags (`ERR_RECORD_CUT`), never `ERR_CMD_*`.
-- Host tests: `host/` (ERRORS.MD "Tests", `runit-esp/test_host/HOST_TESTS.MD`). A change to the pool, the chain, the record or the log is run with `python test_host/run.py errors` from `runit-esp/` (all three variants: `info`, `no_info`, `no_assert`); a new behaviour gets its test there first, and no test waits (no sleep, no delay: threads are joined). `host/` is not in `CMakeLists.txt`. The node header is sized by `sizeof(void*)` so the host build works: keep it that way.
+## Never break
+
+- The node is opaque: `struct err` lives in `internal/err_internal.h` only, never in a public header. Outside this folder a node is read with `err_tag` / `err_cause` / `err_data` / `err_find`, made with `ERR_NEW` / `ERR_WRAP` and never changed.
+- Every walk along a chain, here and in any module, is bounded by `ERR_CHAIN_MAX`: never a copy of its own.
+- `errors` depends on `utils` and libc only: no cmd, router, session or transport header. A command is `struct cmd_req`, passed on to the sink and never read; `errors` raises its own tags, never `ERR_CMD_*`.
+- Module numbers and tag codes are wire format: never renumbered. A new tag goes at the end of its map with the next code; a module's number is its `MODULE_ID_DECLARE` in its `<module>_id.h`.
+- No allocation outside the static pool; nothing here blocks or waits (the pool is safe from ISRs).
+- `ERR_HDR_LEN` is sized by `sizeof(void*)` and checked against the node (`err_internal.h`), so the host build with 8-byte pointers stays true.
+
+## A change here also changes
+
+- A tag added or changed (here or in any module): its message in the `errors_<module>.json` next to its map, then `sh templates/sync.sh` (fails on a tag without a message).
+- The error record's layout (`err_record.h`, `ERR_RECORD_*`): `sh templates/sync.sh`, the app's decoder (`runit-app/src/backend/protocol/errors.ts`) and `.claude/skills/runit-esp/scripts/router_link.py`, in the same change.
+- Any behaviour: `ERRORS.MD`, and the `errors.md` checklist of the `runit-esp` skill when a rule for every module changes.
+
+## Tests
+
+`python test_host/run.py errors` from `runit-esp/`, all three variants (`info`, `no_info`, `no_assert`). A new behaviour gets its test first; what a misuse does with asserts off goes in the `#ifdef NDEBUG` part. No test waits: no sleep, no delay; threads are joined.
