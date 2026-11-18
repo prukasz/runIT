@@ -4,7 +4,7 @@ Current hardware revision. Sources of truth, in order:
 
 1. [runit-esp/boards/runit_r1_defs.h](../../../runit-esp/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
 2. [runit-esp/boards/runit_r1_devices.c](../../../runit-esp/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
-3. `runit-esp/components/devices/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `runit-app/generated/devices/`)
+3. `runit-esp-rework/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` (a device not moved yet: `runit-esp/components/devices/device_<chip>/`) — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
 

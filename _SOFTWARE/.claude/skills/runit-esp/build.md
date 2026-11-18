@@ -6,7 +6,7 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 | Item | Path |
 |---|---|
-| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in `runit-esp/CMakeLists.txt`) |
+| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in `runit-esp-rework/CMakeLists.txt`) |
 | Tools | `C:\Espressif\tools` |
 | Python venv | `C:\Espressif\tools\python\v6.1\venv` |
 | Activation script | `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1` |
@@ -15,10 +15,10 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 ## 2. Commands
 
-Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be `runit-esp` (`_SOFTWARE\runit-esp`, the firmware project: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
+Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be the project (`_SOFTWARE\runit-esp-rework`, the firmware project, whose `build.ps1` does all of this: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp-rework build
 ```
 
 | Task | Command (after activation) | Time |
@@ -63,7 +63,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: `runit-esp/components/app/runit`, `core/{errors,router}`, `sys/{sys_actions,sys_ble,sys_device,sys_event,sys_i2c,sys_log,sys_power_manager,sys_project,sys_remote,sys_session,sys_stream,sys_uart,sys_watch}`, `vm/vm_core`, `devices/device_esp32s3_gpio`.
+Project Kconfig files: the `Kconfig` of the components under `runit-esp-rework/components/` (and `core/time` in `runit-esp/components/`).
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 

@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE, streams and VM. Load for any work under runit-esp/ (components/, main/), and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE, streams and VM. Load for any work under runit-esp-rework/ (the firmware) or runit-esp/ (the parts not moved yet), and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -22,50 +22,45 @@ Session context and hardware: `runit-root` skill ([SKILL.md](../runit-root/SKILL
 
 ## Component docs
 
-Paths are under `runit-esp/components/`. Each `core`, `sys` and `vm` folder also holds its `AGENTS.md`.
+The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with its `build.ps1`; `REWORK.md` lists what is in the build). Paths below are under `runit-esp-rework/components/`. Each component also holds its `AGENTS.md`.
 
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
-| core | `core/utils` | `utils.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists |
-| core | `core/errors` | `ERRORS.MD` | the error chain, tags and modules (`err_modules.h`), severity, reporting, wire format, the error record (`err_record`, `err_record_cmd`; a command's via `cmd_err_record`) |
-| core | `core/time` | `TIME.MD` | the board's clock (`board_time_*`): set by a client, UTC once set, the uptime; everything that needs the time takes it from here |
-| core | `core/router` | `ROUTER.MD` | how a command is handled: the handler type (`cmd_f`, `cmd_reply`, `ERR_CMD_*`), the direction (read / write sides, the mirror), the frame size, the op tables (`cmd_table.h`, `router_table.h`), the tree of module routers and the root table (keyed by the modules' numbers, `module_id.h`); what the device registry and the queue both build on. In the rework project `runit-esp-rework` |
-| core | `core/router_queue` | `ROUTER_QUEUE.MD` | the commands of this board in a queue: `cmd_req_t` (a command and its origin), dispatcher tasks (work, urgent), answers to the callbacks, origin, urgent work. In `runit-esp-rework` |
-| sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in (a BLE characteristic, the UART), by id, one user each; their drivers (key `0x0D`). The rework's own is in `runit-esp-rework/components/sys/sys_data_provider` (the send in two parts, `SPARE`, host tests) |
-| sys | `sys/sys_session` | `SYS_SESSION.MD` | sessions: a parent, children and clients on providers, the frame header, HELLO / PING, ids, the route and forwarding, the board's calls to other boards, answers, PUSH frames, gone peers and the dead-man's silence (key `0x0E`). The rework's `runit-esp-rework/components/sys/sys_session`: a session is a framed provider with one peer, no routing, a 3-byte frame header, a dead-man of its own, a wait with its own limit, PUSH `seq` counted by the session per class, host tests (key `0x0E`) |
-| sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period, a change or an event, their entries sent to the one who added them (key `0x0F`) |
-| sys | `sys/sys_stream` | `SYS_STREAM.MD` | streams: one byte and one direction (OUT, IN), one list of targets (bindings to providers, an IN stream's outputs, providers of other boards, peers subscribed over their session, callbacks); nothing kept |
-| sys | `sys/bus/sys_uart`, `sys/sys_ble` | `SYS_UART.MD`, `SYS_BLE.MD` | UART ports as providers: the console and the board-to-board link (framed: COBS + CRC16) and the ports made at run time, framed or raw, with their rate, format and pins, a command and its answer on a raw port (key `0x13`); BLE (GATT, MTU, fragment framing, the runIT pair and LOGS providers; the central, links to other boards, is written but not built). The rework's UART is `sys_uart_contract` (below); its BLE is `runit-esp-rework/components/sys/bus/sys_ble` (key `MODULE_ID_BLE` `0x2E`: no service of its own, no LOGS, no central, no pairing; a hook per characteristic; the providers in `providers/provider_ble`, cfg `{u16 svc, u16 tx, u16 rx, u8 flags, char name[16]}`: the provider makes its service and characteristics) |
-| sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (key `0x01`): ping, stop, restart, clock; the safe state and the dead-man. The rework's `runit-esp-rework/components/sys/sys_system`: key `0x28`, the safe state is the registry's sweep |
-| sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, log options (key `0x08`) |
-| sys | `runit-esp-rework/components/sys/bus/sys_uart_contract` | `SYS_UART_CONTRACT.MD` | the UART contract (0x13): a port is a device made by CREATE with any configuration (`device_esp32s3_uart`: the link, a device's port, a raw port); INFO, BAUD, SEND, RECEIVE, FLUSH, TRANSACT, SUBSCRIBE (each message to the subscriber's own op), SEND_FRAME / RX_HOOK (LOCAL, for `provider_uart`); one reader at a time; the line's framing and TX queue (`sys_uart_codec.h`, shared with `provider_console`); written in the rework project, no port implements it yet |
-| sys | `runit-esp-rework/components/sys/bus/sys_i2c` | `SYS_I2C.MD` | the I2C contract (0x02): a bus is a device (`device_esp32s3_i2c`), a chip on it reaches it through the client in the header; written in the rework project (`runit-esp-rework/REWORK.md`), not yet in this firmware |
-| sys | `sys/sys_event` | `SYS_EVENT.MD` | events per contract, publish, NOTIFY stream, C listeners. The rework's `runit-esp-rework/components/sys/sys_event`: lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task of its own; an events table picks its lane (`SYS_EVENTS_DECLARE(P, LANE)`), the lane travels in the event's flags (bits 4..7), a queued listener hears one lane (`SYS_EVENT_RUN_QUEUED_<LANE>`) |
-| sys | `sys/sys_device` | `SYS_DEVICE.MD`, `SYS_DEVICE_DRIVER.MD` | device registry, create / remove, ops, sweeps, dependencies, error policy, remote devices (key `0x05`); writing a driver |
-| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the remote hook of sys_device, calls over the session, reads from the watches' copies, the board's events |
-| sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/sys_display`, `sys/sys_touch` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_DISPLAY.MD`, `SYS_TOUCH.MD` | the contracts as u16 device ops (IO, POWER_MONITOR / VREG / SUPPLY / USB_PD, HBRIDGE, DISPLAY, TOUCH) |
-| sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter on a DISPLAY and a TOUCH device: its task and lock, draw buffers, LVGL's one pool (lv_init at INSTALL, lv_deinit at RESET), INSTALL / RESET / ROTATION / START / STOP / STATUS (key `0x15`), the display and touch held from INSTALL to RESET; LVGL from the component manager, its configuration in `config/` (one header per subject: draw, memory, system, fonts, widgets); the PC simulator is `lvgl-playground/` |
-| sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, battery, response matrix, VREG guard (key `0x0A`) |
-| sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | records under u32 IDs with classes, record / upload / readback / run (key `0x06`). The rework's `runit-esp-rework/components/sys/sys_actions`: key `MODULE_ID_ACTIONS` `0x2C`, the op table `ACTIONS_OPERATIONS`, records in `nvs` for now |
-| sys | `sys/sys_project` | `SYS_PROJECT.MD` | the stored project: sections, chunks, the start section, commit, load / run, what happens at start (key `0x0C`) |
-| sys | `sys/sys_ota` | `SYS_OTA.MD` | the firmware update: the image into the other slot, rollback until a client confirms it (key `0x12`) |
-| sys | `sys/sys_flasher` | `SYS_FLASHER.MD` | the board on the link programmed through its ROM bootloader (BOOT and EN wires): this board's bootloader, partition table and firmware, nvs and otadata erased, each region's MD5 checked; a job (key `0x14`) |
-| sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the stored record replayed at boot and the JSON the app writes and reads back (key `0x11`). The rework's `runit-esp-rework/components/sys/sys_board`: key `MODULE_ID_BOARD` `0x2D`, the record `SYS_ACTIONS_ID_BOARD` (class `0x04` of `sys_actions`) |
-| sys | `sys/sys_nvs` | `SYS_NVS.MD` | NVS: the partitions' start, the one place that erases them; a JSON file as chunks (open, append, erase, get). Also in `runit-esp-rework/components/sys/sys_nvs` (`MODULE_ID_NVS` 0x16) |
-| devices | `devices/device_<chip>` | `device_<chip>.json`, the header | one driver each (ESP32-S3 GPIO, PCA9685, TCA6424A, TPS55289, INA3221, AP33772S, POWER_MUX, DAC53202, ADS7128, SERVO, DRV8962, DC_MOTOR): the descriptor and the header comments are its doc; how to write one is `SYS_DEVICE_DRIVER.MD` (reference driver `device_pca9685`) |
-| vm | `vm/vm_core` | `VM_CORE.MD` | the program runtime: model, store, loader, supervisor, telemetry, retained values (key `0x0B`) |
-| vm | `vm/vm_blocks` | `VM_BLOCKS.MD`, `<block>/<name>.md` | the block palette, device blocks, adding a block; one user guide per block |
-| app | `app/runit` | `RUNIT.MD` | boot steps, safe state, error policy wiring, onboard actions, board config and stream routing |
-| sys | `runit-esp-rework/components/sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as two streams of the data matrix: the notify events out (`0x06`), the events of other boards in (`0x07`, published without NOTIFY); a component apart from `sys_event` |
-| sys | `runit-esp-rework/components/sys/data_matrix` | `DATA_MATRIX.MD` | the rework's data matrix (`MODULE_ID_DATA_MATRIX` `0x30`): the role of a provider (raw, session, command port) and the routes between ends (provider, tagged data of a session, stream, callback) in one table; the streams' sends, a module's streams in its own table (`DATA_MATRIX_STREAMS_DECLARE`); it replaces the streams, the command binding of a provider and the session's attach |
-| app | `runit-esp-rework/components/app/runit` | `RUNIT.MD` | the rework's composition: `runit_start` (the boot order), the board's data (the data matrix started, the console and BLE providers with their roles and the routes of the streams: tables applied in one pass; the ways to other boards are the board's record's), the error sink, the board's own GPIO; `main` only calls it |
+| core | `core/utils` | `utils.h`, `module_id.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists; one number per module (`MODULE_ID_DECLARE` in the module's `<module>_id.h`) |
+| core | `core/errors` | `ERRORS.MD` | the error chain (an opaque `err_h`: `err_tag`, `err_cause`, `err_data`, `err_find`), tags under the modules' numbers, severity, reporting and the sinks, the error record (`err_record`, `err_record_cmd`; a command's via `cmd_err_record`) |
+| core | `core/cmd` | `CMD.MD` | the handler type (`cmd_f`, `cmd_reply`, `ERR_CMD_*`), the direction (read / write sides, the mirror), the frame size, the op tables (`cmd_table.h`) |
+| core | `core/router` | `ROUTER.MD` | the tree of module routers (`router_table.h`, `ROUTER_MODULE_REGISTER`), root keys = module numbers |
+| core | `core/router_queue` | `ROUTER_QUEUE.MD` | the commands of this board in a queue: `cmd_req_t` (a command and its origin), the work and urgent tasks, answers to the callbacks |
+| core | `core/timer` | `TIMER.MD` | the board's timers (`board_timer`) |
+| sys | `sys/sys_event` | `SYS_EVENT.MD` | events per module, lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task; publish, C listeners |
+| sys | `sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as two streams of the data matrix: the notify events out (`0x06`), the events of other boards in (`0x07`) |
+| sys | `sys/sys_device` and `sys_device_event`, `sys_device_timer`, `sys_device_router`, `sys_device_policy` | `SYS_DEVICE.MD`, `SYS_DEVICE_EVENT.MD`, `SYS_DEVICE_TIMER.MD`, `SYS_DEVICE_ROUTER.MD`, `SYS_DEVICE_POLICY.MD` | the device registry (create / remove, ops, sweeps, dependencies, remote devices; `0x20`), a device that hears events, a device's timers, the registry's commands, the error policy (`0x21`) |
+| sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/bus/sys_i2c`, `sys/bus/sys_uart_contract` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_I2C.MD`, `SYS_UART_CONTRACT.MD` | the contracts as u16 device ops: IO (`0x01`), I2C (`0x02`: a bus is a device), POWER_MONITOR / VREG / USB_PD / SUPPLY (`0x04`, `0x05`, `0x07`, `0x08`), HBRIDGE (`0x09`), UART (`0x13`: a port is a device made by CREATE) |
+| sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, rail faults, the VREG guard as an interceptor of the registry (`0x22`) |
+| sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in, by id, their drivers (`0x0D`) |
+| sys | `sys/data_matrix` | `DATA_MATRIX.MD` | the role of a provider (raw, session, command port) and the routes between ends: where every byte that is not a command goes (`0x30`) |
+| sys | `sys/sys_session` | `SYS_SESSION.MD` | a session is a framed provider with one peer: the hello, the dead-man, broadcast, calls with a wait, PUSH frames (`0x0E`) |
+| sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent to the one who added them; the client's cache (`0x2B`) |
+| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls over the session, reads from the watches, their events and errors (`0x2F`) |
+| sys | `sys/bus/sys_ble` | `SYS_BLE.MD` | the BLE peripheral: NimBLE, the run-time GATT table, the framing both ways (`0x2E`) |
+| sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (`0x28`): ping, stop, restart, clock; the safe state as the registry's sweep, the dead-man |
+| sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history (`0x2A`) |
+| sys | `sys/sys_nvs` | `SYS_NVS.MD` | NVS: the partitions' start, the one place that erases them; a JSON file as chunks (`0x16`) |
+| sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | stored command lists: records under u32 IDs with classes, upload / readback / RUN / RUN_ALL (`0x2C`) |
+| sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the record run at boot, the JSON the app reads back (`0x2D`) |
+| sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter (`0x29`); its DISPLAY and TOUCH contracts are not in the rework yet, so it does not build |
+| devices | `devices/{soc,chips,virtual}/device_<chip>` | `device_<chip>.json`, the header | one driver each: ESP32-S3 GPIO, I2C and UART (soc), PCA9685, TCA6424A, TPS55289 (chips), DC_MOTOR (virtual): the descriptor and the header comments are its doc |
+| providers | `providers/provider_{uart,console,ble}` | `PROVIDER_UART.MD`, `PROVIDER_CONSOLE.MD`, `PROVIDER_BLE.MD` | the provider drivers: a UART device, the console (UART0 + USB-Serial-JTAG), a BLE service |
+| app | `app/runit` | `RUNIT.MD` | the composition: `runit_start` (the boot order), the data matrix's tables, the error sink, the board's profile |
+
+**Not in the rework yet**, still in `runit-esp/components/` (the old firmware: it does not build any more, its parts are the reference for moving them): `core/time` (`TIME.MD`, the board's clock: the rework builds it from there), `sys/sys_display`, `sys/sys_touch`, `sys/sys_lvgl` (the old adapter, which `lvgl-playground` builds), `sys/sys_project`, `sys/sys_ota`, `sys/sys_flasher` (with its host tests), `vm/vm_core`, `vm/vm_blocks` (`VM_CORE.MD`, `VM_BLOCKS.MD`), the devices `device_ina3221`, `device_ap33772s`, `device_power_mux`, `device_dac53202`, `device_ads7128`, `device_servo`, `device_drv8962`, the old `app/runit`, `main/` and `boards/`. The host test runner stays in `runit-esp/test_host/`.
 
 Descriptors (`device_*.json`, `contract_*.json`, `block_*.json`, `errors.json`, `board.json`) live next to the code and follow `templates/*.schema.json`: [templates/AGENTS.md](../../../templates/AGENTS.md). `sh templates/sync.sh` regenerates and validates them into `runit-app/generated/`.
 
 ## Quick build
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
+cd C:\Users\Lukasz\Documents\runIT\_SOFTWARE\runit-esp-rework; .\build.ps1   # .\build.ps1 reconfigure after a Kconfig or a new folder
 ```
 
 After editing any `Kconfig`: run `idf.py reconfigure`. If you changed an option's `default`, run `idf.py refresh-config --policy=kconfig` instead. See [build.md](build.md) §3.

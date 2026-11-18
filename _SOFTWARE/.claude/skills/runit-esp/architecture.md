@@ -1,6 +1,6 @@
 # Firmware architecture
 
-How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `runit-esp/components/`.
+How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `runit-esp-rework/components/` (the parts not moved yet: `runit-esp/components/`, SKILL.md "Component docs").
 
 ## 1. The idea
 
