@@ -1,8 +1,13 @@
-#include "err_internal.h"
+/**
+ * @file err_pool.c
+ * @brief The pool of error nodes (err_internal.h): static blocks, a free list of the returned ones, blocks never
+ * handed out after them, one bit per block that catches a double free. One spinlock critical section, safe from tasks
+ * and ISRs on both cores.
+ */
+
 #include <assert.h>
-
+#include "err_internal.h"
 #include "utils.h"
-
 
 #define BLOCKS     CONFIG_ERRORS_POOL_BLOCKS
 #define BLOCK_SIZE CONFIG_ERRORS_POOL_BLOCK_SIZE
@@ -10,7 +15,7 @@
 _Static_assert(BLOCK_SIZE % 4 == 0, "ERRORS_POOL_BLOCK_SIZE must be a multiple of 4");
 _Static_assert(BLOCK_SIZE > ERR_HDR_LEN, "ERRORS_POOL_BLOCK_SIZE leaves no room for data");
 
-//spinlock for allocation
+// The pool's lock: alloc and free, from a task or an ISR.
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 // A free block holds only the link to the next free block.
@@ -24,7 +29,6 @@ static struct {
   uint32_t next_new;                  // blocks [next_new, BLOCKS) were never handed out
   uint32_t used[(BLOCKS + 31) / 32];  // 1 bit per block, catches double free
 } s_pool;
-
 
 err_h err_pool_alloc(void) {
   uint8_t* blk = NULL;

@@ -1,9 +1,13 @@
+/**
+ * @file err_tags.c
+ * @brief The registry of the modules' tag tables: filled by the ERR_MODULE_DEFINE constructors before app_main, read
+ * by the log, the record and err_sev. Linear lookups: a few dozen modules of a few tags each.
+ */
 
-
-#include "err_internal.h"
 #include <assert.h>
+#include "err_internal.h"
 
-// Filled by the ERR_MODULE_DEFINE constructors before app_main, read-only
+// Filled by the ERR_MODULE_DEFINE constructors before app_main, read-only after
 static struct {
   const err_module_t* modules[CONFIG_ERRORS_MAX_MODULES];
   uint32_t module_count;

@@ -6,6 +6,7 @@
   "deps": [],
   "variants": {
     "info": [],
-    "no_info": ["-DCONFIG_ERRORS_INFO=0"]
+    "no_info": ["-DCONFIG_ERRORS_INFO=0"],
+    "no_assert": ["-DNDEBUG"]
   }
 }

@@ -1,8 +1,12 @@
+/**
+ * @file err_sink.c
+ * @brief Reporting, the end of a chain (err_sink.h, err_report in errors.h): logs it, hands it to the sink the app
+ * set at boot, frees it.
+ */
+
 #include "err_sink.h"
 
-#include "err_internal.h"
-
-/* Reporting: the end of a chain. Logs it, hands it to the sink the app set, frees it. */
+#include "err_log.h"
 
 static err_sink_f s_sink;
 

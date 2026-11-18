@@ -11,8 +11,7 @@
 
 #define TAG __FILE_NAME__
 
-#define WALK_MAX    (CONFIG_ERRORS_POOL_BLOCKS + 1u)  // cycle guard, like err_log / err_record
-#define HANDLED_MAX 16u                            // distinct devices handled per chain
+#define HANDLED_MAX 16u  // distinct devices handled per chain
 
 // A value of `actions[]` in this class is a response of the policy itself, not a record.
 #define RESPONSE_CLASS 0xFFu
@@ -185,7 +184,7 @@ static err_h walk(err_h chain, bool act, bool* needed) {
   uint64_t handled = 0;  // bit i: device i handled already
   uint32_t handled_count = 0;
   bool system_done = false;
-  uint32_t left = WALK_MAX;
+  uint32_t left = ERR_CHAIN_MAX;
   *needed = false;
   for (err_h n = chain; n != NULL && left-- > 0 && (act || !*needed); n = err_cause(n)) {
     if (err_tag(n) == ERR_REMOTE) {

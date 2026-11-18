@@ -13,7 +13,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `err_record.h` / `err_record.c` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` (a chain with what caused it, as bytes) and `err_record_parse` (a record made a chain again); for the modules that send, keep or read records |
 | `err_tags.c` | Module and tag registry (`err__register_module`), lookup (`err_tag_info`, `err_module`) |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
-| `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
+| `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`); a static check that `ERR_HDR_LEN` is the node's header |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
 | `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (0, no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
 | `CMakeLists.txt` | Component registration and source files |
@@ -81,7 +81,7 @@ Rules:
 
 ## Logging
 
-`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. One log level for the whole chain (`err_chain_sev`). `err_log_enable(false)` stops the text of every chain (`err_log`, `err_log_ctx`, so `err_report` too) without touching the sink: `sys_log` sets it from its `trace_errors` option. Task context only. Walks are bounded by `ERRORS_POOL_BLOCKS + 1` (cyclic chain guard).
+`err_log_ctx(chain, context)` prints `context` first (e.g. the failing command), at the chain's level; `err_log(chain)` is the same without it. `err_log(chain)`: one line per node, outermost first: `[i] NAME (module.code) SEV data: xx… @ file:line func()`. `ERR_ESP_ERR` prints `esp_err_to_name`. One log level for the whole chain (`err_chain_sev`). `err_log_enable(false)` stops the text of every chain (`err_log`, `err_log_ctx`, so `err_report` too) without touching the sink: `sys_log` sets it from its `trace_errors` option. Task context only. Walks are bounded by `ERR_CHAIN_MAX` (cyclic chain guard).
 
 ## Reporting (end of a chain)
 
@@ -115,7 +115,7 @@ src 1: err_record_cmd_t (5 B, after the stamp)
 - The chain starts with the route (`ERR_ROUTER_KEY{key}` at the root, `ERR_ROUTER_OP{code}` in a module; NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
 - Command errors end in `err_report_ex(err, ctx_line, &cmd)` (the router's `router_report_cmd`): the log gets a context line before the chain (`cmd src f0 seq 7 flags 00 req 02 00 02 00`) and the sink gets the command, so the errors stream carries the same record as the answer, and a sender finds its own errors there by `from` and `seq`.
 - `src 0` (internal: device task, timer, boot) has no command header.
-- `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`.
+- `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`; no place for the chain, or no bytes where `len` promises some: `ERR_NULL_PTR`.
 
 Example (an ERROR answer), a read of INFO of device 9 that is not there, from the client 0xF0 (SYS_SESSION.MD "Frames"), as the board sent it:
 
@@ -145,7 +145,7 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 
 ## Limits
 
-- `CONFIG_ERRORS_POOL_BLOCKS` (default 32): maximum concurrent live error nodes in the pool.
+- `CONFIG_ERRORS_POOL_BLOCKS` (default 32): maximum concurrent live error nodes in the pool. `ERR_CHAIN_MAX` (`err_macros.h`) = this + 1: the most nodes any walk along a chain visits (the errors component's and a module's that walks with `err_cause`), so a corrupted, cyclic chain never loops forever.
 - `CONFIG_ERRORS_POOL_BLOCK_SIZE` (default 32 B): block size. Node payload is limited to `ERR_DATA_MAX` (20 B with call-site info, 24 B without on the board).
 - `CONFIG_ERRORS_MAX_MODULES` (default 32): maximum number of modules that can register error tables.
 - `CONFIG_ERRORS_LOG_LINE_LEN` (default 256 B): stack buffer size for formatting chain lines in `err_log`.
@@ -153,8 +153,17 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 
 ## Tests
 
-Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and the two variants (with and without call-site info); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size.
+Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and three variants: `info` (call-site info on), `no_info` (`CONFIG_ERRORS_INFO=0`) and `no_assert` (`NDEBUG`: what a misuse does where asserts are off); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size. No test waits: the concurrency test joins its threads, nothing sleeps.
 
-They cover: nodes and payloads (the rest of a reused block is zeroed), reading a node (`err_tag`, `err_cause`, `err_data`, `err_find`, NULL), chain order, root tag and severity, `err_drop` (only the root cause it names, the whole chain freed, NULL); the pool (blocks distinct and reusable, four tasks allocating and freeing at once without a block handed out twice or lost, exhaustion with `ERR_POOL_EMPTY` and `ERR_WRAP` keeping the cause, every chain returning its blocks); the tag registry (lookup, unknown tag or module); `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_CHECK_RANGE` (the tag by the type of `v`, the payload, `v` evaluated once, NaN) / `ERR_KEEP_FIRST` / `ERR_ESP`; the record's bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity), its parse (round trip, command and board headers skipped, every cut-short prefix, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak); a cyclic chain staying bounded; `err_log` (lines, level by severity, off) and `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing).
+They cover:
+- **Nodes:** tag and payload, a payload of exactly `ERR_DATA_MAX`, none (`data` NULL), the rest of a reused block zeroed; reading a node (`err_tag`, `err_cause`, `err_data`, NULL).
+- **Chains:** order, root tag (also of one node), severity of a node and a chain (NULL, an unknown tag), `err_find` (the outermost of two, none, NULL), `err_drop` (only the root cause it names, a one-node chain, the whole chain freed, NULL).
+- **The pool:** blocks distinct, aligned and reusable; exhaustion with the static `ERR_POOL_EMPTY` (always the same node) and `ERR_WRAP` keeping the cause; the static node as a cause, never freed; four threads allocating and freeing at once without a block handed out twice or lost; every test returning every block. With asserts off: a double free, a pointer outside the pool and one inside a block ignored, the pool still handing out every block once; a payload longer than a node cut without touching another block.
+- **The registry:** lookup, an unknown tag or module.
+- **The macros:** `ERR_TRY` / `ERR_CHECK` / `ERR_CHECK_IN_RANGE` / `ERR_CHECK_RANGE` (the tag by the type of `v`, the payload, `v` evaluated once, NaN) / `ERR_KEEP_FIRST` (a success first, a later error freed) / `ERR_ESP` / `ERR_TRY_ESP`.
+- **The record:** its bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity); its parse (round trip, command and board headers skipped, every cut-short prefix, NULL arguments, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak).
+- **Guards:** a cyclic chain stays bounded in every walk.
+- **The log:** lines, an ESP-IDF code by name, the call site (and none without call-site info), level by severity, a context line, nothing for NULL, off.
+- **Reporting:** `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing, NULL).
 
-Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not), the double-free assertion (it aborts).
+Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not); the assertions themselves (they abort: the `no_assert` variant covers what follows them); the registration's asserts (a module ID twice, more modules than `ERRORS_MAX_MODULES`).

@@ -14,7 +14,7 @@ Spec: `ERRORS.MD` (this folder).
   - The node is opaque: `struct err` is in `internal/err_internal.h` only, never in a public header. Outside this folder a node is read with `err_tag` / `err_cause` / `err_data` (`ERR_DATA`) / `err_find`, made with `ERR_NEW` / `ERR_WRAP` only, and never changed. A test that must reach inside (a cyclic chain) includes `err_internal.h`.
   - Nodes are allocated from a static fixed block pool (`err_pool_alloc` / `err_pool_free`), task- and ISR-safe under a spinlock critical section.
   - Double-free detection is enforced by a bitmask; double-freeing asserts.
-  - Never share cause nodes across chains. Cyclical chains are bounded by `ERRORS_POOL_BLOCKS + 1`.
+  - Never share cause nodes across chains. Cyclical chains are bounded: every walk, here and in a module that walks with `err_cause`, takes `ERR_CHAIN_MAX`, never its own copy.
   - Whoever terminates a chain owns it and must free it via `err_free(chain)` or `err_report` (which passes it to the sink and frees it). `err_log` only borrows.
 - Pool exhaustion behavior:
   - `ERR_NEW` returns the static `ERR_POOL_EMPTY` node when the pool is exhausted.
@@ -28,4 +28,4 @@ Spec: `ERRORS.MD` (this folder).
 - Error record:
   - `err_record` (ERRORS.MD "Error record") is wire format: the router's ERROR answer, the errors stream and the kept history. `ERR_RECORD_*`, `err_record_src_e`, `err_record_cmd_t` and the header layout are published or fixed (`enums.json`, the `_Static_assert` on its size); a change needs `sh templates/sync.sh` and the app's decoder (`runit-app/src/backend/protocol/errors.ts`) and `router_link.py` in step. `err_record_parse` reads the same layout back.
   - `errors` has no dependency beyond `utils` and libc: the command is `cmd.h`'s `cmd_req_t`, known here only as `struct cmd_req` (passed on to the sink, never read); a command's record gets its fields from `cmd_err_record` (`cmd.h`) through `err_record_cmd`; nothing here includes a cmd, router, session or transport header. So `errors` raises its own tags (`ERR_RECORD_CUT`), never `ERR_CMD_*`.
-- Host tests: `host/` (ERRORS.MD "Tests", `runit-esp/test_host/HOST_TESTS.MD`). A change to the pool, the chain, the record or the log is run with `python test_host/run.py errors` from `runit-esp/` (both variants); a new behaviour gets its test there first. `host/` is not in `CMakeLists.txt`. The node header is sized by `sizeof(void*)` so the host build works: keep it that way.
+- Host tests: `host/` (ERRORS.MD "Tests", `runit-esp/test_host/HOST_TESTS.MD`). A change to the pool, the chain, the record or the log is run with `python test_host/run.py errors` from `runit-esp/` (all three variants: `info`, `no_info`, `no_assert`); a new behaviour gets its test there first, and no test waits (no sleep, no delay: threads are joined). `host/` is not in `CMakeLists.txt`. The node header is sized by `sizeof(void*)` so the host build works: keep it that way.

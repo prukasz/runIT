@@ -1,7 +1,13 @@
-#include "err_internal.h"
+/**
+ * @file err_record.c
+ * @brief The error record (err_record.h): a chain with what caused it, as bytes, and a record made a chain again.
+ */
+
+#include "err_record.h"
+
 #include <string.h>
 #include "board_time.h"
-#include "err_record.h"
+#include "err_internal.h"
 
 #define RECORD_INTERNAL_HDR (1u + ERR_RECORD_STAMP_BYTES)                     // src, stamp
 #define RECORD_COMMAND_HDR  (RECORD_INTERNAL_HDR + sizeof(err_record_cmd_t))  // ... the command header
@@ -61,7 +67,7 @@ static uint32_t record(const origin_t* cmd, int board, err_h chain, uint8_t* buf
   const uint32_t count_at = pos++;
   uint8_t count = 0;
   bool cut = false;
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;  // cycle guard
+  uint32_t left = ERR_CHAIN_MAX;
   for (err_h e = chain; e != NULL && left-- > 0; e = e->next) {
     const err_tag_info_t* info = err_tag_info(e->tag);
     const uint8_t len = info != NULL ? info->size : 0;
@@ -95,7 +101,7 @@ uint32_t err_record_board(uint8_t board, err_h chain, uint8_t* buf, uint32_t cap
 }
 
 err_h err_record_parse(const uint8_t* data, uint32_t len, err_h* chain) {
-  ERR_CHECK(chain != NULL && (data != NULL || len == 0), ERR_RECORD_CUT, .len = (uint16_t)len);
+  ERR_CHECK(chain != NULL && (data != NULL || len == 0), ERR_NULL_PTR);
   *chain = NULL;
   // The header: the source, the stamp, and a command's header and request.
   uint32_t pos = RECORD_INTERNAL_HDR;

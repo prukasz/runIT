@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+ * @file errors.h
+ * @brief The public API of the error chains (ERRORS.MD): the node (opaque), reading it, the severity of a node and of
+ * a chain, the chain's queries, freeing and reporting. Creating and propagating are the macros of err_macros.h,
+ * included here; the core tags are in errors/core_errors.h, included here too. A module includes this file only.
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,66 +17,68 @@
 #define MUST_USE __attribute__((warn_unused_result))
 #endif
 
-#include "err_macros.h"   // tags, creating and propagating: ERR_TAG, ERR_NEW/WRAP, ERR_TRY, ERR_CHECK*, ...
+#include "err_macros.h"  // tags, creating and propagating: ERR_TAG, ERR_NEW / ERR_WRAP, ERR_TRY, ERR_CHECK*, ...
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* ----------------------------------------------------------------------------
+ * The node
+ * ------------------------------------------------------------------------- */
+
 /**
- * @brief One error in a chain, opaque: its layout is the errors component's own (err_internal.h). A node has a tag
- * (ERR_TAG(module, code), err_tag), the tag's payload (err_data, ERR_DATA) and its cause, the deeper error
- * (err_cause, NULL at the root cause). Only ERR_NEW / ERR_WRAP make one; whoever holds it returns it, frees it
- * (err_free) or reports it (err_report).
+ * @brief One error in a chain, opaque: its layout is the errors component's own (internal/err_internal.h). A node has
+ * a tag (ERR_TAG(module, code), err_tag), the tag's payload (err_data, ERR_DATA) and its cause, the deeper error
+ * (err_cause, NULL at the root cause). NULL is success. Only ERR_NEW / ERR_WRAP make one; whoever holds it returns
+ * it, frees it (err_free) or reports it (err_report).
  */
 typedef struct err* err_h;
 
 /**
- * @brief The node's tag, 0 for NULL.
+ * @brief The node's tag.
+ * @param e  The node, may be NULL.
+ * @return Its tag, 0 for NULL.
  */
 uint32_t err_tag(err_h e);
 
 /**
- * @brief The node's cause (the next, deeper node), NULL at the root cause and for NULL.
+ * @brief The node's cause: the next, deeper node.
+ * @param e  The node, may be NULL.
+ * @return The cause, NULL at the root cause and for NULL.
  */
 err_h err_cause(err_h e);
 
 /**
- * @brief The node's payload, as its tag's map declares it (err_data_<TAG>_t; ERR_DATA gives it typed). NULL for NULL.
+ * @brief The node's payload, as its tag's map declares it (err_data_<TAG>_t; ERR_DATA gives it typed).
+ * @param e  The node, may be NULL.
+ * @return The payload (ERR_DATA_MAX bytes, the rest after the tag's size zeroed), NULL for NULL.
  */
 const void* err_data(err_h e);
 
 /**
- * @brief The first node of the chain with `tag`, from the top, or NULL when no node has it.
+ * @brief Frees a whole chain: the node and all its causes. The static ERR_POOL_EMPTY node is never freed.
+ * @param chain  The chain, may be NULL (ignored).
+ */
+void err_free(err_h chain);
+
+/* ----------------------------------------------------------------------------
+ * The chain
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief The first node of the chain with `tag`, from the outermost one in.
+ * @param chain  The chain, may be NULL.
+ * @param tag    The tag looked for.
+ * @return The node, NULL when no node has it.
  * @usage err_h n = err_find(chain, ERR_DEV_ID); if (n != NULL) { id = ERR_DATA(n, ERR_DEV_ID)->id; }
  */
 err_h err_find(err_h chain, uint32_t tag);
 
 /**
- * @brief Severity: each tag has one, in its module's map. How a device reacts
- * to it is decided by its error policy (SYS_DEVICE.MD).
- */
-//#ref-enum @alias Error Severity
-typedef enum {
-  ERR_SEV_NONE = 0,  //@alias None @description No severity: context only (a route, a request)
-  ERR_SEV_LOW = 1,  //@alias Low @description Noteworthy; nothing needs to stop
-  ERR_SEV_MEDIUM = 2,  //@alias Medium @description Something failed and a feature may not work
-  ERR_SEV_HIGH = 3,  //@alias High @description A significant failure; the board may need attention
-  ERR_SEV_CRITICAL = 4,  //@alias Critical @description The board must be made safe
-} err_sev_e;
-
-/**
- * @brief Severity of one node: its tag's (ERR_SEV_NONE for an unknown tag).
- */
-uint8_t err_sev(err_h e);
-
-/**
- * @brief Severity of a whole chain: the highest of its nodes. NULL gives ERR_SEV_NONE.
- */
-uint8_t err_chain_sev(err_h chain);
-
-/**
- * @brief Tag of the chain's root cause (its deepest node), 0 for NULL.
+ * @brief The tag of the chain's root cause (its deepest node).
+ * @param chain  The chain, may be NULL.
+ * @return The tag, 0 for NULL.
  */
 uint32_t err_root_tag(err_h chain);
 
@@ -85,23 +94,44 @@ uint32_t err_root_tag(err_h chain);
  */
 bool err_drop(err_h* err, uint32_t tag);
 
-#include "core_errors.h"  // the core tags (module 0): errors/, as every module's map
-
 /* ----------------------------------------------------------------------------
- * Nodes
+ * Severity
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Frees a whole chain (the node and all its causes). NULL is ignored.
+ * @brief Severity: each tag has one, in its module's map. How a device reacts to it is decided by its error policy
+ * (SYS_DEVICE.MD).
  */
-void err_free(err_h chain);
+//#ref-enum @alias Error Severity
+typedef enum {
+  ERR_SEV_NONE = 0,      //@alias None @description No severity: context only (a route, a request)
+  ERR_SEV_LOW = 1,       //@alias Low @description Noteworthy; nothing needs to stop
+  ERR_SEV_MEDIUM = 2,    //@alias Medium @description Something failed and a feature may not work
+  ERR_SEV_HIGH = 3,      //@alias High @description A significant failure; the board may need attention
+  ERR_SEV_CRITICAL = 4,  //@alias Critical @description The board must be made safe
+} err_sev_e;
+
+/**
+ * @brief The severity of one node: its tag's.
+ * @param e  The node, may be NULL.
+ * @return An err_sev_e; ERR_SEV_NONE for NULL and for a tag this board does not know.
+ */
+uint8_t err_sev(err_h e);
+
+/**
+ * @brief The severity of a whole chain: the highest of its nodes.
+ * @param chain  The chain, may be NULL.
+ * @return An err_sev_e; ERR_SEV_NONE for NULL.
+ */
+uint8_t err_chain_sev(err_h chain);
 
 /* ----------------------------------------------------------------------------
- * Reporting: the end of a chain nobody returns any more
+ * Reporting: the end of a chain nobody returns any more (more in err_sink.h)
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Ends a chain: logs it, passes it to the sink (err_sink.h), frees it. NULL is ignored. Task context only.
+ * @brief Ends a chain: logs it (err_log), passes it to the sink (err_sink.h), frees it. Task context only.
+ * @param chain  The chain, may be NULL (ignored). Owned: freed here.
  * @usage err_report(sys_i2c_probe(bus, addr));   // nobody to return it to
  */
 void err_report(err_h chain);
@@ -109,3 +139,5 @@ void err_report(err_h chain);
 #ifdef __cplusplus
 }
 #endif
+
+#include "core_errors.h"  // the core tags (module 0): errors/, as every module's map

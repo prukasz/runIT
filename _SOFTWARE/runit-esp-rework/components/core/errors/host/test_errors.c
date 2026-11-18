@@ -643,6 +643,158 @@ static void test_pool_is_safe_across_tasks(void) {
   ASSERT_POOL_FULL();  /* and not a block lost or twice on the free list */
 }
 
+/* ---- nodes: limits and edges ---------------------------------------------------------------------------------- */
+
+static void test_a_payload_of_exactly_a_node_is_kept_whole(void) {
+  uint8_t data[ERR_DATA_MAX];
+  for (uint32_t i = 0; i < ERR_DATA_MAX; i++) data[i] = (uint8_t)(0xA0 + i);
+  err_h e = ERR__NEW(T_PLAIN, data, ERR_DATA_MAX, NULL);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(data, err_data(e), ERR_DATA_MAX);
+  err_h none = ERR__NEW(T_PLAIN, NULL, 0, e);  /* no payload: data may be NULL */
+  TEST_ASSERT_EQUAL_PTR(e, err_cause(none));
+  const uint8_t zeros[ERR_DATA_MAX] = {0};
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(zeros, err_data(none), ERR_DATA_MAX);  /* the whole payload zeroed */
+  err_free(none);
+  ASSERT_POOL_FULL();
+}
+
+static void test_the_queries_on_one_node_and_on_repeats(void) {
+  err_h one = ERR_NEW(T_MED);
+  TEST_ASSERT_EQUAL_HEX32(T_MED, err_root_tag(one));  /* a single node is its own root */
+  TEST_ASSERT_EQUAL_UINT8(ERR_SEV_MEDIUM, err_chain_sev(one));
+  TEST_ASSERT_EQUAL_UINT8(ERR_SEV_NONE, err_sev(NULL));
+  TEST_ASSERT_TRUE(err_drop(&one, T_MED));            /* the whole chain is the cause */
+  TEST_ASSERT_NULL(one);
+  err_h twice = ERR_WRAP(ERR_NEW(T_PAIR, .a = 2), T_PAIR, .a = 1);
+  TEST_ASSERT_EQUAL_PTR(twice, err_find(twice, T_PAIR));  /* the outermost of two */
+  TEST_ASSERT_EQUAL_UINT8(1, ERR_DATA(err_find(twice, T_PAIR), T_PAIR)->a);
+  err_free(twice);
+  ASSERT_POOL_FULL();
+}
+
+static void test_the_pool_empty_node_as_a_cause_is_never_freed(void) {
+  err_h held[CONFIG_ERRORS_POOL_BLOCKS];
+  for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS; i++) held[i] = ERR_NEW(T_PLAIN);
+  err_h empty = ERR_NEW(T_PLAIN);
+  TEST_ASSERT_EQUAL_HEX32(ERR_POOL_EMPTY, err_tag(empty));
+  TEST_ASSERT_EQUAL_PTR(empty, ERR_NEW(T_MED));            /* always the same static node */
+  err_free(held[0]);                                       /* one block back */
+  err_h outer = ERR_WRAP(empty, T_PAIR, .a = 1);           /* a real node over the static one */
+  TEST_ASSERT_EQUAL_HEX32(T_PAIR, err_tag(outer));
+  TEST_ASSERT_EQUAL_PTR(empty, err_cause(outer));
+  TEST_ASSERT_EQUAL_UINT8(ERR_SEV_HIGH, err_chain_sev(outer));  /* T_PAIR over the LOW static node */
+  err_free(outer);                                         /* frees the node, skips the static cause */
+  TEST_ASSERT_EQUAL_HEX32(ERR_POOL_EMPTY, err_tag(empty)); /* still whole */
+  TEST_ASSERT_NULL(err_cause(empty));
+  for (int i = 1; i < CONFIG_ERRORS_POOL_BLOCKS; i++) err_free(held[i]);
+  ASSERT_POOL_FULL();
+}
+
+/* ---- the macros: the rest ------------------------------------------------------------------------------------- */
+
+static err_h esp_step(esp_err_t rc) {
+  ERR_TRY_ESP(rc);
+  return NULL;
+}
+static void test_try_esp_and_keep_first_after_a_success(void) {
+  TEST_ASSERT_NULL(esp_step(ESP_OK));
+  err_h e = esp_step(ESP_ERR_NO_MEM);
+  TEST_ASSERT_ERR_TAG(ERR_ESP_ERR, e);
+  TEST_ASSERT_EQUAL_INT(ESP_ERR_NO_MEM, ERR_DATA(e, ERR_ESP_ERR)->code);
+  err_free(e);
+  err_h acc = NULL;
+  ERR_KEEP_FIRST(acc, NULL);                 /* a step that succeeded keeps nothing */
+  TEST_ASSERT_NULL(acc);
+  ERR_KEEP_FIRST(acc, ERR_NEW(T_MED));       /* the first failure is kept */
+  ERR_KEEP_FIRST(acc, NULL);
+  TEST_ASSERT_ERR_TAG(T_MED, acc);
+  err_free(acc);
+  ASSERT_POOL_FULL();
+}
+
+/* ---- the log: the rest ---------------------------------------------------------------------------------------- */
+
+static void test_log_names_an_esp_code_and_the_call_site(void) {
+  err_h e = ERR_ESP(ESP_ERR_NO_MEM);
+  err_log(e);
+  TEST_ASSERT_EQUAL_INT(1, host_log_count());
+  TEST_ASSERT_NOT_NULL_MESSAGE(strstr(host_log_line(0), "ESP_ERR_NO_MEM (0x101)"), host_log_line(0));
+#if CONFIG_ERRORS_INFO
+  TEST_ASSERT_NOT_NULL_MESSAGE(strstr(host_log_line(0), "@ test_errors.c:"), host_log_line(0));
+  TEST_ASSERT_NOT_NULL(strstr(host_log_line(0), "test_log_names_an_esp_code_and_the_call_site()"));
+#else
+  TEST_ASSERT_NULL_MESSAGE(strstr(host_log_line(0), " @ "), host_log_line(0));  /* no call site at all */
+#endif
+  err_free(e);
+}
+
+static void test_log_ctx_prints_nothing_for_no_chain(void) {
+  err_log_ctx(NULL, "never printed");
+  TEST_ASSERT_EQUAL_INT(0, host_log_count());
+  err_h e = ERR_NEW(T_PLAIN);
+  err_log_ctx(e, NULL);  /* NULL context: err_log */
+  TEST_ASSERT_EQUAL_INT(1, host_log_count());
+  err_free(e);
+}
+
+/* ---- the record: bad arguments -------------------------------------------------------------------------------- */
+
+static void test_record_parse_refuses_null(void) {
+  uint8_t rec[16] = {0};
+  err_h chain = (err_h)0x1;
+  err_h rc = err_record_parse(rec, sizeof(rec), NULL);  /* nowhere to put the chain */
+  TEST_ASSERT_ERR_TAG(ERR_NULL_PTR, rc);
+  err_free(rc);
+  rc = err_record_parse(NULL, 4, &chain);                /* bytes promised, none given */
+  TEST_ASSERT_ERR_TAG(ERR_NULL_PTR, rc);
+  err_free(rc);
+  ASSERT_POOL_FULL();
+}
+
+/* ---- with asserts off (the variant no_assert): a misuse is ignored and nothing breaks ------------------------- */
+
+#ifdef NDEBUG
+static void test_double_free_and_a_foreign_pointer_leave_the_pool_whole(void) {
+  err_h a = err_pool_alloc();
+  err_pool_free(a);
+  err_pool_free(a);                          /* a second time: ignored, not on the free list twice */
+  uint32_t local[16];
+  err_pool_free((err_h)(void*)local);        /* not a pool block */
+  err_h b = err_pool_alloc();
+  err_pool_free((err_h)(void*)((uint8_t*)(void*)b + 4));  /* inside a block, not its start */
+  err_pool_free(b);
+  /* Every block once and none twice: the whole pool hands out distinct blocks, then runs dry. */
+  err_h all[CONFIG_ERRORS_POOL_BLOCKS];
+  for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS; i++) {
+    all[i] = err_pool_alloc();
+    TEST_ASSERT_NOT_NULL(all[i]);
+    for (int j = 0; j < i; j++) TEST_ASSERT_NOT_EQUAL(all[j], all[i]);
+  }
+  TEST_ASSERT_NULL(err_pool_alloc());
+  for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS; i++) err_pool_free(all[i]);
+}
+
+static void test_a_payload_longer_than_a_node_is_cut(void) {
+  /* Every other block is held with a known payload: a write past the node would land in one of them. */
+  err_h held[CONFIG_ERRORS_POOL_BLOCKS - 1];
+  for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS - 1; i++) held[i] = ERR_NEW(T_PAIR, .a = 0x55, .b = 0x5555);
+  uint8_t data[ERR_DATA_MAX + 8];
+  for (uint32_t i = 0; i < sizeof(data); i++) data[i] = (uint8_t)i;
+  err_h e = ERR__NEW(T_PLAIN, data, sizeof(data), NULL);  /* the last block */
+  TEST_ASSERT_EQUAL_HEX32(T_PLAIN, err_tag(e));
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(data, err_data(e), ERR_DATA_MAX);
+  for (int i = 0; i < CONFIG_ERRORS_POOL_BLOCKS - 1; i++) {
+    TEST_ASSERT_EQUAL_HEX32(T_PAIR, err_tag(held[i]));
+    TEST_ASSERT_NULL(err_cause(held[i]));
+    TEST_ASSERT_EQUAL_UINT8(0x55, ERR_DATA(held[i], T_PAIR)->a);
+    TEST_ASSERT_EQUAL_HEX16(0x5555, ERR_DATA(held[i], T_PAIR)->b);
+    err_free(held[i]);
+  }
+  err_free(e);
+  ASSERT_POOL_FULL();
+}
+#endif
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_new_has_tag_and_data);
@@ -676,5 +828,16 @@ int main(void) {
   RUN_TEST(test_check_in_range_is_inclusive);
   RUN_TEST(test_check_range_picks_the_tag_by_type);
   RUN_TEST(test_pool_is_safe_across_tasks);
+  RUN_TEST(test_a_payload_of_exactly_a_node_is_kept_whole);
+  RUN_TEST(test_the_queries_on_one_node_and_on_repeats);
+  RUN_TEST(test_the_pool_empty_node_as_a_cause_is_never_freed);
+  RUN_TEST(test_try_esp_and_keep_first_after_a_success);
+  RUN_TEST(test_log_names_an_esp_code_and_the_call_site);
+  RUN_TEST(test_log_ctx_prints_nothing_for_no_chain);
+  RUN_TEST(test_record_parse_refuses_null);
+#ifdef NDEBUG
+  RUN_TEST(test_double_free_and_a_foreign_pointer_leave_the_pool_whole);
+  RUN_TEST(test_a_payload_longer_than_a_node_is_cut);
+#endif
   return UNITY_END();
 }

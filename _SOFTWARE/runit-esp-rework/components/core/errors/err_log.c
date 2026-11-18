@@ -1,16 +1,24 @@
 
 
-#include "err_internal.h"
+/**
+ * @file err_log.c
+ * @brief A chain as log lines (err_log.h): one line per node, formatted into a stack buffer of
+ * CONFIG_ERRORS_LOG_LINE_LEN bytes, at the chain's level.
+ */
+
+#include "err_log.h"
+
 #include <stdarg.h>
 #include <stdio.h>
+#include "err_internal.h"
 #include "esp_log.h"
 
-#define TAG __FILE_NAME__
-
+#define TAG          __FILE_NAME__
 #define LOG_LINE_LEN CONFIG_ERRORS_LOG_LINE_LEN
 
 static volatile bool s_enabled = true;
 
+// The names of err_sev_e, by value.
 static const char* const k_sev_names[] = {"NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"};
 
 // Appends to line at *pos, never past LOG_LINE_LEN; output is cut when it is full.
@@ -27,10 +35,12 @@ static void append(char* line, size_t* pos, const char* fmt, ...) {
   }
 }
 
+// The name of a severity, "?" past the known ones.
 static const char* sev_name(uint8_t sev) {
   return sev < sizeof(k_sev_names) / sizeof(k_sev_names[0]) ? k_sev_names[sev] : "?";
 }
 
+// One node as one line: [index] NAME (MODULE.code) SEV, the payload, the call site.
 static void format_node(char* line, uint32_t index, err_h e) {
   size_t pos = 0;
   const err_tag_info_t* info = err_tag_info(e->tag);
@@ -81,7 +91,7 @@ void err_log_ctx(err_h chain, const char* context) {
 
   char line[LOG_LINE_LEN];
   uint32_t index = 0;
-  uint32_t left = CONFIG_ERRORS_POOL_BLOCKS + 1;
+  uint32_t left = ERR_CHAIN_MAX;
   err_h e = chain;
   for (; e != NULL && left > 0; e = e->next, left--) {
     format_node(line, index++, e);

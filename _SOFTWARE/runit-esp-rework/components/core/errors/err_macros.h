@@ -62,8 +62,11 @@
  * Node size
  * ------------------------------------------------------------------------- */
 
-// Node header: [info*] next* tag, no padding (checked in errors.h). On the board a pointer is 4 bytes (12 / 8 here);
-// a 64-bit host build of the tests (host/) has 8-byte pointers.
+/**
+ * @brief The node's header: [info*] next* tag, no padding (internal/err_internal.h checks it against the node). On
+ * the board a pointer is 4 bytes (12 B with call-site info, 8 B without); a 64-bit host build of the tests (host/)
+ * has 8-byte pointers.
+ */
 #if CONFIG_ERRORS_INFO
 #define ERR_HDR_LEN (2u * sizeof(void*) + 4u)
 #else
@@ -74,6 +77,14 @@
  * @brief Largest payload (`data`) that fits in one node (one pool block).
  */
 #define ERR_DATA_MAX (CONFIG_ERRORS_POOL_BLOCK_SIZE - ERR_HDR_LEN)
+
+/**
+ * @brief The most nodes a walk along a chain visits. A well-formed chain is never longer than the pool; the limit only
+ * stops a corrupted (cyclic) chain from looping forever. Every walk takes it: the errors component's own and a
+ * module's that goes along a chain with err_cause.
+ * @usage for (err_h n = chain; n != NULL && left-- > 0; n = err_cause(n))   // uint32_t left = ERR_CHAIN_MAX;
+ */
+#define ERR_CHAIN_MAX (CONFIG_ERRORS_POOL_BLOCKS + 1u)
 
 /* ----------------------------------------------------------------------------
  * Registration
@@ -95,7 +106,12 @@ typedef struct {
   uint16_t count;
 } err_module_t;
 
-/** @brief Adds a module's table to the registry. Called by ERR_MODULE_DEFINE only. */
+/**
+ * @brief Adds a module's table to the registry. Called by ERR_MODULE_DEFINE only, before app_main. Asserts on a module
+ * ID registered twice, a tag outside its module and more modules than CONFIG_ERRORS_MAX_MODULES (the extra one is not
+ * registered where asserts are off).
+ * @param module  The module's table (static).
+ */
 void err__register_module(const err_module_t* module);
 
 // Parameter names end with _ so they never replace the .tag / .sev designators.
@@ -147,8 +163,9 @@ void err__register_module(const err_module_t* module);
 #if CONFIG_ERRORS_INFO
 /**
  * @brief Where a node was made: ERR__NEW builds one per call site (static, in flash) and the node only points to it;
- * err_log prints it. With CONFIG_ERRORS_INFO off there is no err_info_t and no `info` in a node. Here, not in errors.h, because only the macros use it: it is
- * complete where ERR_NEW is called, never read outside the errors component.
+ * err_log prints it. With CONFIG_ERRORS_INFO off there is no err_info_t and no `info` in a node. Here, not in
+ * errors.h, because only the macros use it: it is complete where ERR_NEW is called, never read outside the errors
+ * component.
  */
 typedef struct err_info {
   const char* file;  // __FILE_NAME__
@@ -163,8 +180,9 @@ struct err;
  * @param info  Call-site info (static, see ERR__NEW).
  * @param tag   ERR_TAG(module, code).
  * @param data  Payload, copied into the node. May be NULL when len == 0.
- * @param len   Payload length, at most ERR_DATA_MAX (longer is cut).
+ * @param len   Payload length, at most ERR_DATA_MAX (longer asserts, and is cut where asserts are off).
  * @param cause Deeper error; ownership passes to the new node. NULL for none.
+ * @return The node; with the pool empty `cause`, or the static ERR_POOL_EMPTY node when there is no cause. Never NULL.
  */
 #if CONFIG_ERRORS_INFO
 __attribute__((warn_unused_result)) struct err* err__new(const struct err_info* info, uint32_t tag, const void* data,
