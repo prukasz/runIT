@@ -17,8 +17,6 @@ typedef struct sys_data_provider sys_data_provider_t;
 struct sys_data_provider {
   MUST_USE err_h (*send)(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags);
   void* driver;              /**< Instance context allocated from ctx_size (or set by driver) */
-  sys_data_provider_rx_f rx; /**< Owner callback (sys_data_provider_open()) */
-  void* ctx;                 /**< Context passed to `rx` */
   uint8_t id;                /**< Provider ID (0..0xFE) */
   uint8_t type;              /**< sys_data_provider_type_e */
   uint8_t state;             /**< SYS_DATA_PROVIDER_STATE_* */
@@ -60,11 +58,32 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
     sys_data_provider_type_register(&U__CONCAT(sys_data_provider__type_, __LINE__));                       \
   }
 
+/**
+ * @brief Whether a send with CMD_SEND_SPARE is refused: it would take the queue past half.
+ * @param flags  The send's CMD_SEND_*.
+ * @param used   Bytes in the queue now.
+ * @param need   Bytes the send takes.
+ * @param cap    The queue's size.
+ * @return true: refuse it (ERR_PROV_BUSY).
+ */
 static inline bool sys_data_provider_spare_refused(uint8_t flags, uint32_t used, uint32_t need, uint32_t cap) {
   return (flags & CMD_SEND_SPARE) != 0 && used + need > cap / 2u;
 }
 
+/**
+ * @brief The driver tells that its line delivers frames now, or no more (SYS_DATA_PROVIDER_STATE_UP).
+ * @param p   The provider.
+ * @param up  true: up.
+ */
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up);
+
+/**
+ * @brief The driver hands what came in on its line: out of the provider's port, to the ports linked from it
+ * (data_stream_send; nothing while the port is not registered). From the driver's task, never from an ISR.
+ * @param p     The provider.
+ * @param data  The bytes, borrowed for the call.
+ * @param len   Bytes in data.
+ */
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len);
 
 #ifdef __cplusplus

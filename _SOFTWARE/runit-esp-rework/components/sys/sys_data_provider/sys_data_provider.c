@@ -261,7 +261,7 @@ static err_h remove_locked(uint8_t id) {
   prov_slot_t* s = find_slot_locked(id);
   const bool found = s != NULL;
   const bool system = found && (s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) != 0;
-  const bool in_use = found && (((s->p.state & SYS_DATA_PROVIDER_STATE_OPEN) != 0) || s->p.busy > 0);
+  const bool in_use = found && s->p.busy > 0;
   if (found && !system && !in_use) {
     type = s->type;
     instance = s->p.driver;
@@ -397,38 +397,6 @@ err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args, uint32_t
  * Data plane
  * ------------------------------------------------------------------------- */
 
-err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx) {
-  portENTER_CRITICAL(&s_lock);
-  prov_slot_t* s = find_slot_locked(id);
-  sys_data_provider_t* p = s != NULL ? &s->p : NULL;
-  const bool taken = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_OPEN) != 0;
-  if (p != NULL && !taken) {
-    p->rx = rx;
-    p->ctx = ctx;
-    p->state |= SYS_DATA_PROVIDER_STATE_OPEN;
-  }
-  portEXIT_CRITICAL(&s_lock);
-
-  ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, .provider = id);
-  ERR_CHECK(!taken, ERR_PROV_IN_USE, .provider = id);
-  return NULL;
-}
-
-err_h sys_data_provider_close(uint8_t id) {
-  portENTER_CRITICAL(&s_lock);
-  prov_slot_t* s = find_slot_locked(id);
-  sys_data_provider_t* p = s != NULL ? &s->p : NULL;
-  if (p != NULL) {
-    p->rx = NULL;
-    p->ctx = NULL;
-    p->state &= (uint8_t)~SYS_DATA_PROVIDER_STATE_OPEN;
-  }
-  portEXIT_CRITICAL(&s_lock);
-
-  ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, .provider = id);
-  return NULL;
-}
-
 err_h sys_data_provider_send(uint8_t id, cmd_in_t frame, uint8_t flags) {
   ERR_CHECK(frame.len > 0 && frame.data != NULL, ERR_CMD_BAD_ARG);
   ERR_CHECK(frame.len <= CMD_FRAME_MAX, ERR_PROV_TOO_LONG, .provider = id,
@@ -470,39 +438,13 @@ void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   if (p == NULL) {
     return;
   }
-  sys_data_provider_rx_f rx = NULL;
-  void* ctx = NULL;
-  uint8_t id = 0;
-
   portENTER_CRITICAL(&s_lock);
-  const bool changed = ((p->state & SYS_DATA_PROVIDER_STATE_UP) != 0) != up;
-  if (changed) {
-    p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP)
-                  : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
-    rx = p->rx;
-    ctx = p->ctx;
-    id = p->id;
-  }
+  p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
   portEXIT_CRITICAL(&s_lock);
-
-  if (rx != NULL) {
-    rx(ctx, id, NULL, up ? 1u : 0u);
-  }
 }
 
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len) {
-  if (p == NULL || data == NULL) {
-    return;
-  }
-  portENTER_CRITICAL(&s_lock);
-  const sys_data_provider_rx_f rx = p->rx;
-  void* const ctx = p->ctx;
-  const uint8_t id = p->id;
-  portEXIT_CRITICAL(&s_lock);
-
-  if (rx != NULL) {
-    rx(ctx, id, data, len);
-  } else {
-    data_stream_send(&p->port, data, len);  // no owner: to the ports linked from it (nothing while unregistered)
+  if (p != NULL && data != NULL) {
+    data_stream_send(&p->port, data, len);  // to the ports linked from it; nothing while it is not registered
   }
 }

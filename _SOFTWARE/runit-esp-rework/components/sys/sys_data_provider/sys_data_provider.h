@@ -28,10 +28,9 @@ typedef enum {
   SYS_DATA_PROVIDER_TYPE_CONSOLE = 4,  //@alias Console @description Board UART/USB-JTAG console
 } sys_data_provider_type_e;
 
-/* Provider state bits (filled by the driver inside create() and sys_data_provider_set_up(); OPEN is the registry's). */
+/* Provider state bits (filled by the driver inside create() and sys_data_provider_set_up()). */
 //#ref-defines prov_state @alias Provider state @prefix SYS_DATA_PROVIDER_STATE_
 #define SYS_DATA_PROVIDER_STATE_SYSTEM (1u << 0)  //@alias System @description The board's own: not removed
-#define SYS_DATA_PROVIDER_STATE_OPEN   (1u << 1)  //@alias Open @description Its rx hook has an owner
 #define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 3)  //@alias Wired @description Connection realised by cable - low latency
 #define SYS_DATA_PROVIDER_STATE_UP     (1u << 4)  //@alias Up @description It delivers frames now
 #define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 5)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw
@@ -96,12 +95,11 @@ MUST_USE err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args,
  * Data plane
  * ------------------------------------------------------------------------- */
 
-typedef void (*sys_data_provider_rx_f)(void* ctx, uint8_t id, const uint8_t* data, uint32_t len);
-
-MUST_USE err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx);
+/* A provider is a stream port (data_stream_port.h): what comes in on its line goes out of its port, what its port
+ * takes is sent on its line. SYS_DATA_PROVIDER.MD "Stream port". */
 
 /**
- * @brief What is told of a provider's stream port (data_stream_port.h): the port embedded in the provider, its name
+ * @brief What is told of a provider's stream port: the port embedded in the provider, named
  * DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), its input sys_data_provider_send (NOWAIT).
  * @param port  The provider's port; lives as long as the provider.
  */
@@ -110,14 +108,27 @@ typedef void (*sys_data_provider_port_hook_f)(data_stream_port_t* port);
 /**
  * @brief Who hears of the providers' stream ports: the switch (data_stream_init) makes them its ports. `added` is
  * called at once for every provider already made, then for each one CREATE makes; `removed` for each one REMOVE takes,
- * before its driver is removed. While no hook is set, a provider's port is never registered, so its bytes in go only to
- * the owner of its rx hook (open). Boot, once.
+ * before its driver is removed. Boot, once.
  * @param added    Called with a new provider's port, may be NULL.
  * @param removed  Called with a provider's port before it goes, may be NULL.
  */
 void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_data_provider_port_hook_f removed);
-MUST_USE err_h sys_data_provider_close(uint8_t id);
+
+/**
+ * @brief Sends a frame on a provider's line (its port's input calls it, NOWAIT).
+ * @param id     The provider.
+ * @param frame  The bytes, 1..CMD_FRAME_MAX.
+ * @param flags  CMD_SEND_*.
+ * @return NULL; ERR_PROV_NOT_FOUND, ERR_PROV_DOWN, ERR_PROV_TOO_LONG, ERR_PROV_BUSY (the queue is full), ERR_PROV_SEND
+ *         over the driver's error
+ */
 MUST_USE err_h sys_data_provider_send(uint8_t id, cmd_in_t frame, uint8_t flags);
+
+/**
+ * @brief A provider's state.
+ * @param id  The provider.
+ * @return Its SYS_DATA_PROVIDER_STATE_* bits, 0 when there is no such provider.
+ */
 uint8_t sys_data_provider_state(uint8_t id);
 
 #ifdef __cplusplus

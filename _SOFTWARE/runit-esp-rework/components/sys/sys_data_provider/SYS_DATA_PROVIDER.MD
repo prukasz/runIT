@@ -1,6 +1,6 @@
 # sys_data_provider — typed provider registry and router
 
-Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, board console — under 1-byte `id` (`0..0xFE`; `SYS_DATA_PROVIDER_ID_NONE = 0xFF` for `LIST`), with one data-plane owner of the RX hook (`open`/`close`/`send`) and a minimal centralized control router (`sys_data_provider_call` / `sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x0D`).
+Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, board console — under 1-byte `id` (`0..0xFE`; `SYS_DATA_PROVIDER_ID_NONE = 0xFF` for `LIST`), each one a stream port (its data plane, "Stream port") and a minimal centralized control router (`sys_data_provider_call` / `sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x0D`).
 
 ## Driver model
 
@@ -15,7 +15,7 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 - Wire header `sys_data_provider_router_hdr_t` (4 B packed LE): `[dir u8][id u8][op u16][args...]`, mirroring `sys_device_router`.
 - Contract `CONTRACT_PROVIDER` (`0x0Dxx`):
   - `0x0D00` (`OP_CREATE`, W): `[type u8][flags u8][cfg]` (`SYS_DATA_PROVIDER_CREATE_SYSTEM` sets `STATE_SYSTEM`)
-  - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM` / `ERR_PROV_IN_USE` if open or sending, then calls `type->remove(p, ctx)` and frees `ctx` when `ctx_size > 0`
+  - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM` / `ERR_PROV_IN_USE` (a send in flight), tells the switch its port goes (`removed`: its links go), then calls `type->remove(p, ctx)` and frees `ctx` when `ctx_size > 0`
   - `0x0D02` (`OP_LIST`, R on `ID_NONE` `0xFF`): returns `[u8 count][sys_data_provider_entry_t...]` (`provider u8, type u8, state u8`, 3 B each)
   - `0x0D03` (`OP_SEND`, W, `TAIL`): sends raw payload bytes directly
   - `0x0D04` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
@@ -24,12 +24,8 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 
 ## Headers
 
-`sys_data_provider.h` (the types, the state bits, the contract's ops and rows, the control calls, `sys_data_provider_create_system` (CREATE of the board's own provider: it builds the frame), `open` / `close` / `send` / `state`), `driver/sys_data_provider_driver.h` (for a driver only), `router/sys_data_provider_router.h`, `errors/sys_data_provider_errors.h`; `internal/` is the sources' own.
-
-## Who owns the rx hook
-
-A provider carries bytes and knows nothing of what they are. The one owner of its rx hook is whoever the data matrix's role (`data_matrix`, `DATA_MATRIX.MD`) made it: a session (`sys_session`), a raw port (its bytes go along the routes) or a command port (each message in is one command for the router). `open` refuses a second owner with `ERR_PROV_IN_USE`, and a provider with an owner cannot be removed: clear its role first.
+`sys_data_provider.h` (the types, the state bits, the contract's ops and rows, the control calls, `sys_data_provider_create_system` (CREATE of the board's own provider: it builds the frame), `set_port_hooks` / `send` / `state`), `driver/sys_data_provider_driver.h` (for a driver only), `router/sys_data_provider_router.h`, `errors/sys_data_provider_errors.h`; `internal/` is the sources' own.
 
 ## Stream port
 
-Every provider is also a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD "data_stream"): `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`, its input `sys_data_provider_send(id, ..., CMD_SEND_NOWAIT)` (what the line does not take is lost). `sys_data_provider_set_port_hooks(added, removed)` (the switch's `data_stream_init`, boot) is told of every provider made (`added` at once for those already made, then at each CREATE) and of every one removed (`removed` before its driver goes). A provider with no rx owner (`open`) sends what comes in on its line to its port: nothing while no hook registered it. The registry never names the switch.
+A provider carries bytes and knows nothing of what they are. It is a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD "data_stream"), and nothing else on its data plane: `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`, its input `sys_data_provider_send(id, ..., CMD_SEND_NOWAIT)` (what the line does not take is lost). `sys_data_provider_set_port_hooks(added, removed)` (the switch's `data_stream_init`, boot) is told of every provider made (`added` at once for those already made, then at each CREATE) and of every one removed (`removed` before its driver goes). What comes in on its line (`sys_data_provider_deliver`, from the driver's task) goes out of its port to the ports linked from it: nothing while no hook registered it. `sys_data_provider_set_up` only sets `SYS_DATA_PROVIDER_STATE_UP`. The registry never names the switch.

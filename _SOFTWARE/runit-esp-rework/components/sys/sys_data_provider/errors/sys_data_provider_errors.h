@@ -8,7 +8,7 @@
   X(M, ERR_PROV_NOT_FOUND,    1,  ERR_SEV_MEDIUM,   { uint8_t provider; })                                                       \
   X(M, ERR_PROV_EXISTS,       2,  ERR_SEV_MEDIUM,   { uint8_t provider; }) /* create: id taken */                                \
   X(M, ERR_PROV_FULL,         3,  ERR_SEV_MEDIUM,   {}) /* every CONFIG_SYS_DATA_PROVIDER_MAX slot taken */                      \
-  X(M, ERR_PROV_IN_USE,       4,  ERR_SEV_LOW,      { uint8_t provider; }) /* open / remove: rx hook taken or send in flight */  \
+  X(M, ERR_PROV_IN_USE,       4,  ERR_SEV_LOW,      { uint8_t provider; }) /* remove: a send in flight */                        \
   X(M, ERR_PROV_SYSTEM,       5,  ERR_SEV_LOW,      { uint8_t provider; }) /* remove: the board's own */                         \
   X(M, ERR_PROV_DOWN,         6,  ERR_SEV_MEDIUM,   { uint8_t provider; }) /* send: link down */                                 \
   X(M, ERR_PROV_TOO_LONG,     7,  ERR_SEV_MEDIUM,   { uint8_t provider; uint16_t len; uint16_t max; }) /* send: never cut */     \

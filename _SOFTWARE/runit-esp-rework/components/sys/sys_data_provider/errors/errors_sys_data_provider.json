@@ -16,7 +16,7 @@
     },
     "ERR_PROV_IN_USE": {
       "message": "Data provider {provider} is in use",
-      "hint": "Wait until active transfers finish or detach the session before closing or removing the provider."
+      "hint": "Wait until the transfer in progress finishes, then remove the provider again."
     },
     "ERR_PROV_SYSTEM": {
       "message": "Cannot remove system data provider {provider}",
