@@ -50,4 +50,5 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 - Not in the build: the ESP build and the host tests wait for the modules that used the matrix's streams, roles and callbacks to become ports: `sys_session` (its channels, a send to one session), `sys_log` (`LOGS`, the loop guard of a log line made in a delivery), the errors' stream (`ERRORS`, `ERRORS_IN`), `sys_event_stream`, `sys_watch`, `sys_remote`, `app/runit` (links instead of roles and routes).
 - A self-registration macro for a module's port.
+- A send in flight may still call the `pass` of a port unregistered meanwhile (its targets are copied under the lock, called after it): a provider removed in that moment (`REMOVE` frees its place) gets a stale call. Closing it needs a count of the sends in flight per port, which `unregister` waits for.
 - Host tests of the switch.
