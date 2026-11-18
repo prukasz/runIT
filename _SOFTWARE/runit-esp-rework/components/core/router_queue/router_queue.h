@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cmd_types.h"
 #include "errors.h"
 #include "router.h"
 #include "router_queue_errors.h"
@@ -33,29 +34,7 @@ typedef enum {
 #define ROUTER_SRC_SELF 0xFEu  // cmd_req_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
 #define ROUTER_SRC_NONE 0xFDu  // cmd_req_t.src of a command with no peer (a provider's command binding): SYS_SESSION_ID_NONE
 
-/**
- * @brief A command as it came in: its request [key][dir][code][args] and its origin. Whoever submits it to the router
- * fills it (the session from a frame's header, a watch, the board's own code); an error the command raises names it.
- * err_sink.h knows it only as `struct cmd_req` and passes it on to its sink without reading it.
- */
-typedef struct cmd_req {
-  const uint8_t* req;  // may be NULL when req_len is 0
-  uint32_t req_len;
-  uint16_t seq;        // the sender's counter, in every answer
-  uint8_t src;         // who sent it: a board or client id; ROUTER_SRC_SELF (0xFE) for the board's own commands
-  uint8_t flags;       // ROUTER_FLAG_*
-} cmd_req_t;
-
-/**
- * @brief The error record of a chain (ERRORS.MD "Error record"): of the command `cmd` (err_record_cmd), or an
- * internal one when `cmd` is NULL (err_record). The bytes of an ERROR answer and of the errors stream.
- * @param[in]  cmd   The command, or NULL for an internal error
- * @param[in]  chain The error chain
- * @param[out] buf   Buffer for the record
- * @param[in]  cap   Size of buf
- * @return Bytes written (0 only when cap is too small for the header).
- */
-uint32_t cmd_err_record(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
+/* A command: cmd_req_t (cmd_types.h, in utils: the errors component names it too). */
 
 /**
  * @brief Binds every module router queued via ROUTER_MODULE_REGISTER (router_root_init), then starts the urgent

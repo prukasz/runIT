@@ -11,7 +11,7 @@ Component `components/core/cmd/`. Holds the transport- and routing-agnostic comm
 
 | File | Role |
 |---|---|
-| `cmd.h` | Frame limits, shared `CMD_SEND_*` TX flags, `cmd_in_t`, `cmd_out_t`, `cmd_f`, `cmd_dir_e`, `static inline` `cmd_reply` / `cmd_append` |
+| `cmd.h` | Frame limits, shared `CMD_SEND_*` TX flags, `cmd_f` (over `cmd_in_t` / `cmd_out_t`, `cmd_types.h` in `utils`), `cmd_dir_e`, `static inline` `cmd_reply` / `cmd_append` |
 | `cmd_table.h` | Op-table declarations (`CMD_TABLE_DECLARE`) and handler wrappers (`CMD_HANDLER`, `CMD_HANDLER_TAIL`, `CMD_REPLY`) |
 | `errors/cmd_errors.h`, `errors/errors_cmd.json` | `ERR_CMD_MAP` (`MODULE_ID_CMD = 0x27`) and user messages |
 | `cmd.c` | Registers `ERR_CMD_MAP` under `MODULE_ID_CMD` (`0x27`, `ERR_MODULE_DEFINE`), linked `WHOLE_ARCHIVE` |

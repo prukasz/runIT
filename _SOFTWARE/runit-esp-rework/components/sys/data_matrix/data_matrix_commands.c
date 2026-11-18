@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "data_matrix_internal.h"
+#include "err_record.h"
 #include "router_queue.h"
 #include "sys_data_provider.h"
 #include "utils.h"
@@ -45,7 +46,7 @@ void data_matrix_commands_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_
   err_h err = router_submit(&cmd, on_answer, (void*)(uintptr_t)id);
   if (err != NULL) {
     uint8_t record[ERROR_MAX];
-    err_free(send_answer(id, ROUTER_STATUS_ERROR, record, cmd_err_record(&cmd, err, record, sizeof(record))));
+    err_free(send_answer(id, ROUTER_STATUS_ERROR, record, err_record_cmd(&cmd, err, record, sizeof(record))));
     router_report_cmd(&cmd, err);  // as the session does with a command the router refused
   }
 }

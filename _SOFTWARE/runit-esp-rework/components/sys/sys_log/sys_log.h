@@ -63,7 +63,7 @@ void sys_log_get(sys_log_cfg_t* out);
 #define SYS_LOG_RECORD_MAX 192u
 
 /**
- * @brief An error record (cmd_err_record / err_record): kept in the history read by ERRORS (the latest
+ * @brief An error record (err_record_cmd / err_record): kept in the history read by ERRORS (the latest
  * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped) and, with send_errors on, sent on LOG_STREAM_ERRORS. Any task; never
  * reports (the error sink calls it for every reported chain).
  * @param[in] record The record
@@ -72,7 +72,7 @@ void sys_log_get(sys_log_cfg_t* out);
 void sys_log_error(const uint8_t* record, uint32_t len);
 
 /**
- * @brief A reported error chain as a record (cmd_err_record, `cmd` the command it came from, or NULL): sys_log_error
+ * @brief A reported error chain as a record (err_record_cmd, `cmd` the command it came from, or NULL): sys_log_error
  * of it. The error sink's call. Any task; never reports.
  * @param[in] chain The chain
  * @param[in] cmd   The command it came from, or NULL

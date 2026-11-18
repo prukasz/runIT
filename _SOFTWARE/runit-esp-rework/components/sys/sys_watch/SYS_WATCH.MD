@@ -38,7 +38,7 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 - No `owner` byte (the PUSH frame's `dst` is its owner).
 - No per-watch sequence number (the `seq` of a PUSH is `sys_session`'s count per `(peer, class)`).
 - `status == ROUTER_STATUS_OK` (`0`): the read's answer.
-- `status == ROUTER_STATUS_ERROR` (`1`): the error record (`cmd_err_record`).
+- `status == ROUTER_STATUS_ERROR` (`1`): the error record (`err_record_cmd`).
 
 ## Cached reads (`sys_watch_read` / `sys_watch_stale`)
 

@@ -221,7 +221,7 @@ static err_h done_cb(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
   return s_done_fails ? ERR_NEW(ERR_CMD_BAD_ARG) : NULL;
 }
 
-static void sink_cb(err_h chain, const struct cmd_req* cmd) {
+static void sink_cb(err_h chain, const cmd_req_t* cmd) {
   pthread_mutex_lock(&s_lock);
   srec_t* r = &s_s[s_sn++ % MAX_REC];
   r->depth = 0;

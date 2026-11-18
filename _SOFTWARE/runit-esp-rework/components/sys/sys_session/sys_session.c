@@ -4,6 +4,7 @@
 
 #include "board_time.h"
 #include "board_timer.h"
+#include "err_record.h"
 #include "sdkconfig.h"
 #include "sys_event.h"
 #include "sys_session_events.h"
@@ -313,7 +314,7 @@ static void reject(const cmd_req_t* cmd, err_h err) {
     return;
   }
   uint8_t record[REJECT_BYTES];
-  const uint32_t len = cmd_err_record(cmd, err, record, sizeof(record));
+  const uint32_t len = err_record_cmd(cmd, err, record, sizeof(record));
   err_free(answer(cmd, ROUTER_STATUS_ERROR, record, len, CMD_SEND_NOWAIT));
 }
 

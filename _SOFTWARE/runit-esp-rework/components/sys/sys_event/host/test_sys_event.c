@@ -97,7 +97,7 @@ static uint32_t s_sink_dropped;
 static uint16_t s_sink_source;
 static uint16_t s_sink_channel;
 
-static void sink(err_h chain, const struct cmd_req* cmd) {
+static void sink(err_h chain, const cmd_req_t* cmd) {
   (void)cmd;
   pthread_mutex_lock(&s_sink_lock);
   s_sink_n++;

@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "cmd_types.h"
 #include "errors.h"
 #include "cmd_errors.h"
 
@@ -32,20 +33,7 @@ extern "C" {
 #define CMD_SEND_SPARE  (1u << 1)  //@alias Keep spare @description Keep half of the queue free for replies and control frames
 #define CMD_SEND_NOWAIT (1u << 2)  //@alias No wait @description Fail immediately when TX queue is full instead of waiting
 
-/** @brief A handler's input: the payload only (an op's args). The router strips [dir][code], the device registry the
- * op; a module router (a root entry) gets its whole command, its key first. */
-typedef struct {
-  const uint8_t* data;
-  uint32_t len;
-} cmd_in_t;
-
-/** @brief A handler's answer buffer. */
-typedef struct {
-  uint8_t* data;
-  uint32_t cap;  /**< What the answer may hold: what cmd_reply() fills at most; longer data is paged by its command
-                      (ROUTER.MD "The handler") */
-  uint32_t len;  /**< Written by the handler; 0 = empty answer */
-} cmd_out_t;
+/* A handler's input and answer, cmd_in_t and cmd_out_t: cmd_types.h (utils). */
 
 /**
  * @brief A command handler, the same for the router's modules and the devices' ops.

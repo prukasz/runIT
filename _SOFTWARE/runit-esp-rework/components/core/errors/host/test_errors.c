@@ -172,15 +172,40 @@ static void test_record_cmd_cuts_request(void) {
   for (int i = 0; i < 100; i++) req[i] = (uint8_t)i;
   err_h e = ERR_NEW(T_PLAIN);
   uint8_t buf[200];
-  uint32_t n = err_record_cmd(0x11, 0x2233, 0x05, req, sizeof(req), e, buf, sizeof(buf));
+  const cmd_req_t cmd = {.src = 0x11, .seq = 0x2233, .flags = 0x05, .req = req, .req_len = sizeof(req)};
+  uint32_t n = err_record_cmd(&cmd, e, buf, sizeof(buf));
   TEST_ASSERT_EQUAL_HEX8(ERR_RECORD_SRC_COMMAND, buf[0]);
   const uint8_t hdr[] = {0x11, 0x33, 0x22, 0x05};  /* from, seq LE, flags */
   TEST_ASSERT_EQUAL_HEX8_ARRAY(hdr, buf + 9, sizeof(hdr));
   TEST_ASSERT_EQUAL_HEX8(CONFIG_ERRORS_RECORD_REQ_MAX | ERR_RECORD_REQ_CUT, buf[13]);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(req, buf + 14, CONFIG_ERRORS_RECORD_REQ_MAX);
   TEST_ASSERT_EQUAL_UINT32(14 + CONFIG_ERRORS_RECORD_REQ_MAX + 1 + 5, n);
-  n = err_record_cmd(1, 1, 0, req, 4, e, buf, sizeof(buf));  /* short request: whole, no cut bit */
+  const cmd_req_t short_cmd = {.src = 1, .seq = 1, .req = req, .req_len = 4};
+  n = err_record_cmd(&short_cmd, e, buf, sizeof(buf));  /* short request: whole, no cut bit */
   TEST_ASSERT_EQUAL_HEX8(4, buf[13]);
+  err_free(e);
+}
+
+static void test_record_cmd_of_no_command_is_an_internal_record(void) {
+  host_time_set(0x1122334455667788ull);
+  err_h e = ERR_NEW(T_PAIR, .a = 1, .b = 2);
+  uint8_t a[64], b[64];
+  uint32_t na = err_record_cmd(NULL, e, a, sizeof(a));
+  uint32_t nb = err_record(e, b, sizeof(b));
+  TEST_ASSERT_EQUAL_UINT32(nb, na);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(b, a, nb);
+  TEST_ASSERT_EQUAL_HEX8(ERR_RECORD_SRC_INTERNAL, a[0]);
+  err_free(e);
+}
+
+static void test_record_cmd_without_a_request(void) {
+  const cmd_req_t cmd = {.req = NULL, .req_len = 0, .seq = 1, .src = 0xFE};
+  err_h e = ERR_NEW(T_PLAIN);
+  uint8_t buf[64];
+  uint32_t n = err_record_cmd(&cmd, e, buf, sizeof(buf));
+  TEST_ASSERT_EQUAL_UINT32(1 + ERR_RECORD_STAMP_BYTES + sizeof(err_record_cmd_t) + 1 + 5, n);
+  TEST_ASSERT_EQUAL_HEX8(0xFE, buf[1 + ERR_RECORD_STAMP_BYTES]);  /* from */
+  TEST_ASSERT_EQUAL_HEX8(0, buf[1 + ERR_RECORD_STAMP_BYTES + 4]);   /* request length 0 */
   err_free(e);
 }
 
@@ -251,7 +276,7 @@ static void test_log_lines(void) {
 
 static int s_sink_calls;
 static uint32_t s_sink_tag;
-static void sink(err_h chain, const struct cmd_req* cmd) {
+static void sink(err_h chain, const cmd_req_t* cmd) {
   (void)cmd;
   s_sink_calls++;
   s_sink_tag = chain->tag;
@@ -365,11 +390,13 @@ static void test_record_cmd_request_cut_further_by_capacity(void) {
   err_h e = ERR_NEW(T_PLAIN);
   uint8_t buf[64];
   const uint32_t cap = 14 + 10 + 1;  /* the header, 10 bytes of request room, the chain count */
-  uint32_t n = err_record_cmd(1, 1, 0, req, sizeof(req), e, buf, cap);
+  const cmd_req_t cmd = {.src = 1, .seq = 1, .req = req, .req_len = sizeof(req)};
+  uint32_t n = err_record_cmd(&cmd, e, buf, cap);
   TEST_ASSERT_EQUAL_UINT32(cap, n);                          /* never past cap */
   TEST_ASSERT_EQUAL_HEX8(10 | ERR_RECORD_REQ_CUT, buf[13]);  /* request cut, and marked */
   TEST_ASSERT_EQUAL_HEX8(0x80, buf[24]);                     /* no node fits: 0 nodes, cut flag */
-  TEST_ASSERT_EQUAL_UINT32(0, err_record_cmd(1, 1, 0, req, 4, e, buf, 14));  /* no room for the count */
+  const cmd_req_t short_cmd = {.src = 1, .seq = 1, .req = req, .req_len = 4};
+  TEST_ASSERT_EQUAL_UINT32(0, err_record_cmd(&short_cmd, e, buf, 14));  /* no room for the count */
   err_free(e);
 }
 
@@ -377,7 +404,8 @@ static void test_record_parse_skips_command_header_and_request(void) {
   uint8_t req[5] = {1, 2, 3, 4, 5};
   err_h e = ERR_NEW(T_PAIR, .a = 9, .b = 10);
   uint8_t buf[64];
-  uint32_t n = err_record_cmd(0x20, 7, 1, req, sizeof(req), e, buf, sizeof(buf));
+  const cmd_req_t cmd = {.src = 0x20, .seq = 7, .flags = 1, .req = req, .req_len = sizeof(req)};
+  uint32_t n = err_record_cmd(&cmd, e, buf, sizeof(buf));
   err_h back = NULL;
   TEST_ASSERT_NULL(err_record_parse(buf, n, &back));
   TEST_ASSERT_ERR_TAG(T_PAIR, back);
@@ -474,13 +502,13 @@ static void test_log_level_follows_chain_severity(void) {
 
 /* ---- reporting ------------------------------------------------------------------------------------------------ */
 
-static const struct cmd_req* s_sink_cmd;
-static void sink_cmd(err_h chain, const struct cmd_req* cmd) {
+static const cmd_req_t* s_sink_cmd;
+static void sink_cmd(err_h chain, const cmd_req_t* cmd) {
   (void)chain;
   s_sink_cmd = cmd;
 }
 static void test_report_ex_logs_context_first_and_passes_the_command(void) {
-  const struct cmd_req* cmd = (const struct cmd_req*)0x1234;  /* never read by errors */
+  const cmd_req_t* cmd = (const cmd_req_t*)0x1234;  /* never read by errors */
   s_sink_cmd = NULL;
   err_set_sink(sink_cmd);
   err_report_ex(ERR_NEW(T_PAIR, .a = 1, .b = 2), "while running X", cmd);
@@ -807,6 +835,8 @@ int main(void) {
   RUN_TEST(test_record_internal_bytes);
   RUN_TEST(test_record_cut_by_capacity);
   RUN_TEST(test_record_cmd_cuts_request);
+  RUN_TEST(test_record_cmd_of_no_command_is_an_internal_record);
+  RUN_TEST(test_record_cmd_without_a_request);
   RUN_TEST(test_record_board);
   RUN_TEST(test_record_round_trip);
   RUN_TEST(test_record_parse_cut_short);

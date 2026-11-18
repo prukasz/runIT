@@ -34,13 +34,6 @@ static struct {
 
 static __thread const cmd_req_t* s_route;  // per router task: the command it is routing, NULL between commands
 
-uint32_t cmd_err_record(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap) {
-  if (cmd == NULL) {
-    return err_record(chain, buf, cap);
-  }
-  return err_record_cmd(cmd->src, cmd->seq, cmd->flags, cmd->req, cmd->req_len, chain, buf, cap);
-}
-
 /* ----------------------------------------------------------------------------
  * Reporting
  * ------------------------------------------------------------------------- */
@@ -144,7 +137,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
   err_h err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
   s_route = NULL;
   if (item.done != NULL && !(item.flags & ROUTER_FLAG_NOREPLY)) {
-    uint32_t len = err != NULL ? cmd_err_record(&cmd, err, out.data, out.cap) : out.len;
+    uint32_t len = err != NULL ? err_record_cmd(&cmd, err, out.data, out.cap) : out.len;
     uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
     err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
     if (lost != NULL) {

@@ -139,46 +139,6 @@ static void test_a_full_urgent_queue_refuses_and_says_urgent(void) {
   err_free(refused);
 }
 
-/* ---- cmd_err_record ------------------------------------------------------------------------------------------- */
-
-static void test_err_record_of_no_command_is_an_internal_record(void) {
-  host_time_set(0x1122334455667788ull);
-  err_h e = ERR_NEW(ERR_CMD_BAD_ARG);
-  uint8_t a[64], b[64];
-  uint32_t na = cmd_err_record(NULL, e, a, sizeof(a));
-  uint32_t nb = err_record(e, b, sizeof(b));
-  TEST_ASSERT_EQUAL_UINT32(nb, na);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(b, a, nb);
-  TEST_ASSERT_EQUAL_HEX8(ERR_RECORD_SRC_INTERNAL, a[0]);
-  err_free(e);
-}
-
-static void test_err_record_of_a_command_carries_its_origin_and_request(void) {
-  const uint8_t req[] = {0x0B, CMD_DIR_WRITE, 0x03, 0x00, 0x42};
-  const cmd_req_t cmd = {.req = req, .req_len = sizeof(req), .seq = 0xBEEF, .src = 0x07, .flags = 0x03};
-  err_h e = ERR_NEW(ERR_CMD_BAD_LEN, .got = 2, .need = 1);
-  uint8_t buf[64];
-  uint32_t n = cmd_err_record(&cmd, e, buf, sizeof(buf));
-  TEST_ASSERT_EQUAL_HEX8(ERR_RECORD_SRC_COMMAND, buf[0]);
-  const uint8_t origin[] = {0x07, 0xEF, 0xBE, 0x03, sizeof(req)};  /* from, seq LE, flags, request length */
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(origin, buf + 1 + ERR_RECORD_STAMP_BYTES, sizeof(origin));
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(req, buf + 1 + ERR_RECORD_STAMP_BYTES + sizeof(origin), sizeof(req));
-  uint8_t direct[64];
-  TEST_ASSERT_EQUAL_UINT32(err_record_cmd(0x07, 0xBEEF, 0x03, req, sizeof(req), e, direct, sizeof(direct)), n);
-  TEST_ASSERT_EQUAL_HEX8_ARRAY(direct, buf, n);
-  err_free(e);
-}
-
-static void test_err_record_of_a_command_without_a_request(void) {
-  const cmd_req_t cmd = {.req = NULL, .req_len = 0, .seq = 1, .src = 0xFE, .flags = 0};
-  err_h e = ERR_NEW(ERR_CMD_BAD_ARG);
-  uint8_t buf[64];
-  uint32_t n = cmd_err_record(&cmd, e, buf, sizeof(buf));
-  TEST_ASSERT_TRUE(n > 0);
-  TEST_ASSERT_EQUAL_HEX8(0, buf[1 + ERR_RECORD_STAMP_BYTES + 4]);  /* request length 0 */
-  err_free(e);
-}
-
 /* ---- router_report_cmd ---------------------------------------------------------------------------------------- */
 
 static void test_report_cmd_logs_the_command_with_the_error(void) {
@@ -203,9 +163,6 @@ static void test_report_cmd_shows_only_the_start_of_a_long_request(void) {
 
 int main(void) {
   UNITY_BEGIN();
-  RUN_TEST(test_err_record_of_no_command_is_an_internal_record);
-  RUN_TEST(test_err_record_of_a_command_carries_its_origin_and_request);
-  RUN_TEST(test_err_record_of_a_command_without_a_request);
   RUN_TEST(test_report_cmd_logs_the_command_with_the_error);
   RUN_TEST(test_report_cmd_shows_only_the_start_of_a_long_request);
   RUN_TEST(test_submit_needs_a_command_with_a_request);

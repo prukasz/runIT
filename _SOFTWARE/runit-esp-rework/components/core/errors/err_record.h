@@ -7,6 +7,7 @@
  */
 
 #include <stdint.h>
+#include "cmd_types.h"
 #include "errors.h"
 
 #ifdef __cplusplus
@@ -26,7 +27,7 @@ typedef enum {
 
 /** @brief An error record's command header (after the stamp): who sent the command, and which one. */
 typedef struct __attribute__((packed)) {
-  uint8_t from;     /**< cmd_req_t.src: a board or client id; 0xFE for the board itself */
+  uint8_t from;     /**< cmd_req_t.src: a board or client id; ROUTER_SRC_SELF (0xFE) for the board itself */
   uint16_t seq;     /**< cmd_req_t.seq: the sender's counter */
   uint8_t flags;    /**< ROUTER_FLAG_* */
   uint8_t req_len;  /**< Bits 0-6: request bytes that follow, bit 7: cut (ERR_RECORD_REQ_CUT) */
@@ -45,14 +46,15 @@ uint32_t err_record(err_h chain, uint8_t* buf, uint32_t cap);
 
 /**
  * @brief err_record for a chain raised by a command: [ERR_RECORD_SRC_COMMAND][stamp][err_record_cmd_t][request], then
- * the chain. The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and further when `cap` is small. Called by
- * cmd_err_record() (router_queue.h), which takes the fields from the command.
- * @param from, seq, flags  The command's src, seq and flags.
- * @param req, req_len      Its request (req may be NULL when req_len is 0).
+ * the chain. The request is cut to CONFIG_ERRORS_RECORD_REQ_MAX and further when `cap` is small. The bytes of an
+ * ERROR answer and of the errors stream.
+ * @param cmd    The command (cmd_types.h), or NULL: then the record of an internal error (err_record).
+ * @param chain  The chain, outermost node first. Borrowed: not freed.
+ * @param buf    The record's buffer.
+ * @param cap    Bytes in buf.
  * @return Bytes written (0 only when cap is too small for the header).
  */
-uint32_t err_record_cmd(uint8_t from, uint16_t seq, uint8_t flags, const uint8_t* req, uint32_t req_len, err_h chain,
-                        uint8_t* buf, uint32_t cap);
+uint32_t err_record_cmd(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
 
 /**
  * @brief err_record for an error about another board as a whole: [ERR_RECORD_SRC_BOARD][stamp][board u8], then the chain.

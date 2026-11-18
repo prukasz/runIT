@@ -86,7 +86,7 @@ Rules:
 
 ## Reporting (end of a chain)
 
-- `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. `errors` knows the command only as `struct cmd_req` (`cmd_req_t`, CMD.MD): it passes it on and never reads it.
+- `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. The command is `cmd_req_t` (`cmd_types.h` in `utils`, below `errors`): the sink gets it as it is, the record takes its origin and request.
 - `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) on the errors stream (`LOG_STREAM_ERRORS`, DATA_MATRIX.MD) and in the history (SYS_LOG.MD).
 - `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
 - The sink must not report errors itself (loop); code on the reporting path (stream task, log capture) uses `err_log` / `err_free` instead.
@@ -94,9 +94,9 @@ Rules:
 
 ## Error record
 
-`cmd_err_record(cmd, chain, buf, cap)` (`router_queue.h`): a chain with the command it belongs to (`cmd_req_t`, NULL for an internal error). It takes the command's fields and calls `err_record_cmd(from, seq, flags, req, req_len, chain, buf, cap)` (`err_record.c`); an internal record is `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
+`err_record_cmd(cmd, chain, buf, cap)` (`err_record.h`): a chain with the command it belongs to (`cmd_req_t`, `cmd_types.h` in `utils`; NULL gives the internal record). An internal record is also `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
 
-`cmd_req_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
+`cmd_req_t` (`cmd_types.h`) is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
 
 ```
 [src u8]                                    0 internal (no request), 1 command, 2 board (about another board as a whole)

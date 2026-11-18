@@ -63,7 +63,7 @@ static void finish_call(const call_t* c, uint8_t status, err_h err, const uint8_
   uint8_t record[RECORD_BYTES];
   if (status == ROUTER_STATUS_ERROR) {
     data = record;
-    len = cmd_err_record(&cmd, err, record, sizeof(record));
+    len = err_record_cmd(&cmd, err, record, sizeof(record));
   }
   if (c->cb != NULL) {
     err_report(c->cb(c->ctx, &cmd, status, data, len));

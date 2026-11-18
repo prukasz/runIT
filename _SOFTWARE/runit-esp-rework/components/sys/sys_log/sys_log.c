@@ -1,6 +1,7 @@
 #include "sys_log.h"
 
 #include "err_log.h"
+#include "err_record.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_log_router.h"
@@ -130,7 +131,7 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
 
 void sys_log_report(err_h chain, const cmd_req_t* cmd) {
   uint8_t record[SYS_LOG_RECORD_MAX];
-  sys_log_error(record, cmd_err_record(cmd, chain, record, sizeof(record)));
+  sys_log_error(record, err_record_cmd(cmd, chain, record, sizeof(record)));
 }
 
 uint32_t sys_log_error_get(uint32_t index, uint8_t* out, uint32_t* total) {
