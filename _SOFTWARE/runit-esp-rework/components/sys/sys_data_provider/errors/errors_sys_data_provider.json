@@ -51,9 +51,6 @@
     "ERR_PROV_UNKNOWN_OP": {
       "message": "Provider does not support operation {op}"
     },
-    "ERR_PROV_LOCAL_OP": {
-      "message": "Provider operation {op} is local to firmware only"
-    },
     "ERR_PROV_NO_MEM": {
       "message": "Out of memory creating provider {provider} ({size} bytes needed)",
       "hint": "Free memory by removing unused providers or devices."

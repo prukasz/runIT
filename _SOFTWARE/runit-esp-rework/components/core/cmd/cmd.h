@@ -27,11 +27,7 @@ extern "C" {
 // What a frame carries after its header: a request's command, an answer's data, a PUSH frame's [stream id or channel][payload].
 #define CMD_DATA_MAX (CMD_FRAME_MAX - CMD_HEAD)
 
-/* Shared TX queue flags for transport contracts (CONTRACT_UART), sys_data_provider, and drivers (0 = normal TX queue). */
-//#ref-defines cmd_send_flag @alias Send flags @prefix CMD_SEND_
-#define CMD_SEND_URGENT (1u << 0)  //@alias Urgent @description Priority queue, sent before normal frames (matches ROUTER_FLAG_URGENT)
-#define CMD_SEND_SPARE  (1u << 1)  //@alias Keep spare @description Keep half of the queue free for replies and control frames
-#define CMD_SEND_NOWAIT (1u << 2)  //@alias No wait @description Fail immediately when TX queue is full instead of waiting
+/* The send flags (CMD_SEND_*): cmd_types.h (utils), with the stream ports that carry them. */
 
 /* A handler's input and answer, cmd_in_t and cmd_out_t: cmd_types.h (utils). */
 

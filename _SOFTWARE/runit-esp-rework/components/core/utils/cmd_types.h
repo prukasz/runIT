@@ -15,6 +15,13 @@
 extern "C" {
 #endif
 
+/* How a frame or a packet is sent (0: the normal queue, waiting for room): a stream port's packet carries them
+   (data_stream_port.h), a provider's line and a UART's queue honour them. */
+//#ref-defines cmd_send_flag @alias Send flags @prefix CMD_SEND_
+#define CMD_SEND_URGENT (1u << 0)  //@alias Urgent @description Priority queue, sent before normal frames (matches ROUTER_FLAG_URGENT)
+#define CMD_SEND_SPARE  (1u << 1)  //@alias Keep spare @description Keep half of the queue free for replies and control frames
+#define CMD_SEND_NOWAIT (1u << 2)  //@alias No wait @description Fail immediately when TX queue is full instead of waiting
+
 /**
  * @brief A command as it came in: its request [key][dir][code][args] and its origin. Whoever submits it to the router
  * fills it (the session from a frame's header, a watch, the board's own code); an error the command raises names it

@@ -5,7 +5,7 @@
 #include "sys_data_provider.h"
 #include "sys_data_provider_internal.h"
 
-// Forwards a command under root key MODULE_ID_PROVIDER (0x0D) to the typed provider registry, blocking LOCAL ops.
+// Forwards a command under root key MODULE_ID_PROVIDER (0x0D) to the provider registry.
 err_h sys_data_provider_router(CMD_F_PARAMS) {
   (void)ctx;
   const uint32_t got = in.len > 0 ? in.len - 1u : 0u;  // after the key

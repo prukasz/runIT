@@ -71,26 +71,6 @@
       }
     },
     {
-      "id": "SEND",
-      "op": 3,
-      "symbol": "CONTRACT_PROVIDER_OP_SEND",
-      "label": "Send on a provider",
-      "description": "Sends one frame on a provider. Do not use it on a provider a session runs on: the bytes land between its frames.",
-      "write": {
-        "args": {
-          "fields": [
-            {
-              "id": "data",
-              "label": "Data",
-              "type": "string",
-              "raw_type": "bytes",
-              "description": "The frame bytes (runs to the end of the command)"
-            }
-          ]
-        }
-      }
-    },
-    {
       "id": "INFO",
       "op": 4,
       "symbol": "CONTRACT_PROVIDER_OP_INFO",

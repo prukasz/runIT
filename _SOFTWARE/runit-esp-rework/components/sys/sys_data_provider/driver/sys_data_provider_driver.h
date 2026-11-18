@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sys_data_provider.h"
+#include "utils.h"
 
 /**
  * @file sys_data_provider_driver.h
@@ -14,21 +15,23 @@ extern "C" {
 
 typedef struct sys_data_provider sys_data_provider_t;
 
+/** @brief One provider: the driver's TX hook and instance, the registry's id, state and stream port. */
 struct sys_data_provider {
+  /** @brief The driver's TX: queues `frame` on its line by `flags` (CMD_SEND_*); set by create(). */
   MUST_USE err_h (*send)(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags);
   void* driver;              /**< Instance context allocated from ctx_size (or set by driver) */
   uint8_t id;                /**< Provider ID (0..0xFE) */
   uint8_t type;              /**< sys_data_provider_type_e */
   uint8_t state;             /**< SYS_DATA_PROVIDER_STATE_* */
-  uint8_t busy;              /**< Active sys_data_provider_send() calls in progress */
+  uint8_t busy;              /**< Sends on the line in progress (the port's input): REMOVE waits for none */
   data_stream_port_t port;   /**< The provider as a stream port (sys_data_provider_set_port_hooks); the registry's */
 };
 
+/** @brief One own op of a driver type: its code and its sides (a side NULL: not given). */
 typedef struct {
-  uint16_t op;
-  cmd_f read;
-  cmd_f write;
-  uint8_t flags;  /**< SYS_DATA_PROVIDER_OP_* */
+  uint16_t op;   /**< SYS_DATA_PROVIDER_OWN_OP(n) */
+  cmd_f read;    /**< The read side, NULL: none */
+  cmd_f write;   /**< The write side, NULL: none */
 } sys_data_provider_op_t;
 
 typedef struct {

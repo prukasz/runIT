@@ -9,7 +9,7 @@
  * hands every packet over unchanged: no role, no session, no tag, no format, no queue, no task.
  *
  *   module A                         switch                          module B
- *   data_stream_send(&A.port, ...)  -> for each link A -> B:  ------> B.port.pass(&B.port, A, data, len)
+ *   data_stream_send(&A.port, ...)  -> for each link A -> B:  ------> B.port.pass(&B.port, A, flags, data, len)
  *
  * Synchronous: a send calls the inputs of the linked ports at once, on the sender's task; every port keeps the
  * contract in data_stream_port.h. Since no pass sends on its own port, a send never runs inside a send: links A -> B

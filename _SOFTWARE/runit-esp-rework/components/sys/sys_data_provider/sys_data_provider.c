@@ -140,7 +140,6 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
     uint8_t sides;
   } k_pub_ops[] = {
       {CONTRACT_PROVIDER_OP_REMOVE,          0x02u},
-      {CONTRACT_PROVIDER_OP_SEND,            0x02u},
       {CONTRACT_PROVIDER_OP_INFO,            0x01u},
       {CONTRACT_PROVIDER_OP_OPS,             0x01u},
   };
@@ -162,9 +161,6 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   }
   for (uint16_t i = 0; type != NULL && i < type->op_count; i++) {
     const sys_data_provider_op_t* row = &type->ops[i];
-    if ((row->flags & SYS_DATA_PROVIDER_OP_LOCAL) != 0u) {
-      continue;
-    }
     const uint8_t sides = (row->read != NULL ? 0x01u : 0u) | (row->write != NULL ? 0x02u : 0u);
     ERR_TRY(cmd_append(out, &row->op, sizeof(row->op)));
     ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
@@ -176,11 +172,16 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
  * The provider as a stream port (data_stream_port.h)
  * ------------------------------------------------------------------------- */
 
-// A packet for the provider from the switch: sent on its line, never waited for (pass never blocks).
-static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, const uint8_t* data, uint32_t len) {
+static err_h send_frame(uint8_t id, cmd_in_t frame, uint8_t flags);
+
+// A packet for the provider from the switch: sent on its line with the sender's flags, never waited for (pass never
+// blocks). The provider's id comes from the port's name, which REMOVE keeps: a send still in flight then finds no
+// provider (ERR_PROV_NOT_FOUND) and is dropped.
+static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
+                      uint32_t len) {
   (void)from;
-  const sys_data_provider_t* p = DATA_STREAM_OWNER(self, sys_data_provider_t, port);
-  err_free(sys_data_provider_send(p->id, (cmd_in_t){.data = data, .len = len}, CMD_SEND_NOWAIT));  // not taken: lost
+  const cmd_in_t frame = {.data = data, .len = len};
+  err_free(send_frame((uint8_t)self->id, frame, (uint8_t)(flags | CMD_SEND_NOWAIT)));  // not taken: lost
 }
 
 void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_data_provider_port_hook_f removed) {
@@ -284,11 +285,12 @@ static err_h remove_locked(uint8_t id) {
 
   portENTER_CRITICAL(&s_lock);
   memset(slot, 0, sizeof(*slot));
+  slot->p.port.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id);  // kept: a pass still in flight finds no provider
   portEXIT_CRITICAL(&s_lock);
   return err;
 }
 
-static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, bool routed) {
+static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
   U_MUTEX_GUARD(s_prov_ctrl_lock);
 
   const sys_data_provider_type_t* type = NULL;
@@ -306,14 +308,13 @@ static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
 
   const sys_data_provider_op_t* row = find_op_row(type->ops, type->op_count, op);
   ERR_CHECK(row != NULL, ERR_PROV_UNKNOWN_OP, .op = op);
-  ERR_CHECK(!(routed && (row->flags & SYS_DATA_PROVIDER_OP_LOCAL) != 0u), ERR_PROV_LOCAL_OP, .op = op);
 
   const cmd_f fn = dir == CMD_DIR_READ ? row->read : row->write;
   ERR_CHECK(fn != NULL, ERR_PROV_UNKNOWN_OP, .op = op);
   return fn(instance, in, out);
 }
 
-static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, bool routed) {
+static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
   cmd_out_t none = {0};
   cmd_out_t* answer = out != NULL ? out : &none;
   ERR_CHECK(dir == CMD_DIR_READ || dir == CMD_DIR_WRITE, ERR_CMD_DIRECTION, .dir = dir);
@@ -328,7 +329,7 @@ static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cm
   ERR_CHECK(id != SYS_DATA_PROVIDER_ID_NONE, ERR_PROV_BAD_ID, .provider = id);
 
   if ((op >> 8) != MODULE_ID_PROVIDER) {
-    return call_own_op(id, dir, op, in, answer, routed);
+    return call_own_op(id, dir, op, in, answer);
   }
 
   const bool is_read = dir == CMD_DIR_READ;
@@ -341,9 +342,6 @@ static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cm
     U_MUTEX_GUARD(s_prov_ctrl_lock);
     return create_locked(id, in.data[0], in.data[1], in.data + SYS_DATA_PROVIDER_CREATE_HDR,
                          in.len - SYS_DATA_PROVIDER_CREATE_HDR);
-  }
-  if (op == CONTRACT_PROVIDER_OP_SEND) {
-    return sys_data_provider_send(id, in, 0);
   }
 
   ERR_TRY(require_empty(in));
@@ -361,16 +359,8 @@ static err_h call_dispatch(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cm
   }
 }
 
-err_h sys_data_provider_call(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
-  return call_dispatch(id, dir, op, in, out, false);
-}
-
 err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
-  return call_dispatch(id, dir, op, in, out, true);
-}
-
-err_h sys_data_provider_write(uint8_t id, uint16_t op, const void* args, uint32_t args_len) {
-  return sys_data_provider_call(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL);
+  return call_dispatch(id, dir, op, in, out);
 }
 
 err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
@@ -382,22 +372,16 @@ err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* c
   if (cfg_len > 0u) {
     memcpy(frame + SYS_DATA_PROVIDER_CREATE_HDR, cfg, cfg_len);
   }
-  return sys_data_provider_write(id, CONTRACT_PROVIDER_OP_CREATE, frame, SYS_DATA_PROVIDER_CREATE_HDR + cfg_len);
-}
-
-err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args, uint32_t args_len, void* out,
-                             uint32_t out_size) {
-  cmd_out_t answer = {.data = out, .cap = out_size, .len = 0};
-  ERR_TRY(sys_data_provider_call(id, CMD_DIR_READ, op, (cmd_in_t){.data = args, .len = args_len}, &answer));
-  ERR_CHECK(answer.len == out_size, ERR_CMD_BAD_LEN, .got = (uint16_t)answer.len, .need = (uint16_t)out_size);
-  return NULL;
+  const cmd_in_t in = {.data = frame, .len = SYS_DATA_PROVIDER_CREATE_HDR + cfg_len};
+  return call_dispatch(id, CMD_DIR_WRITE, CONTRACT_PROVIDER_OP_CREATE, in, NULL);
 }
 
 /* ----------------------------------------------------------------------------
  * Data plane
  * ------------------------------------------------------------------------- */
 
-err_h sys_data_provider_send(uint8_t id, cmd_in_t frame, uint8_t flags) {
+// A frame on a provider's line: the input of its port.
+static err_h send_frame(uint8_t id, cmd_in_t frame, uint8_t flags) {
   ERR_CHECK(frame.len > 0 && frame.data != NULL, ERR_CMD_BAD_ARG);
   ERR_CHECK(frame.len <= CMD_FRAME_MAX, ERR_PROV_TOO_LONG, .provider = id,
             .len = frame.len > UINT16_MAX ? UINT16_MAX : (uint16_t)frame.len, .max = CMD_FRAME_MAX);
@@ -426,14 +410,6 @@ err_h sys_data_provider_send(uint8_t id, cmd_in_t frame, uint8_t flags) {
   return ERR_WRAP(err, ERR_PROV_SEND, .provider = id);
 }
 
-uint8_t sys_data_provider_state(uint8_t id) {
-  portENTER_CRITICAL(&s_lock);
-  const prov_slot_t* s = find_slot_locked(id);
-  const uint8_t state = s != NULL ? s->p.state : 0u;
-  portEXIT_CRITICAL(&s_lock);
-  return state;
-}
-
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   if (p == NULL) {
     return;
@@ -445,6 +421,6 @@ void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
 
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len) {
   if (p != NULL && data != NULL) {
-    data_stream_send(&p->port, data, len);  // to the ports linked from it; nothing while it is not registered
+    data_stream_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
   }
 }

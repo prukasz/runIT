@@ -40,7 +40,7 @@ static uint8_t find(data_stream_port_id_t id) {
 }
 
 // The output every registered port gets (data_stream_send calls it).
-static void out(data_stream_port_t* self, const uint8_t* data, uint32_t len) {
+static void out(data_stream_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
   data_stream_port_t* to[CONFIG_DATA_STREAM_TARGETS];
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
@@ -52,7 +52,7 @@ static void out(data_stream_port_t* self, const uint8_t* data, uint32_t len) {
   }
   portEXIT_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < n; i++) {
-    to[i]->pass(to[i], self->id, data, len);
+    to[i]->pass(to[i], self->id, flags, data, len);
   }
 }
 

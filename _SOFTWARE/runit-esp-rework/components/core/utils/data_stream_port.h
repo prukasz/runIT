@@ -11,11 +11,15 @@
  * (DATA_STREAM_OWNER). The owner sends with data_stream_send(&port, ...), which calls `out`: no link to the switch.
  *
  *   typedef struct { data_stream_port_t port; ... } my_t;
- *   static void my_pass(data_stream_port_t* self, data_stream_port_id_t from, const uint8_t* data, uint32_t len) {
+ *   static void my_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
+ *                       uint32_t len) {
  *     my_t* me = DATA_STREAM_OWNER(self, my_t, port);   // ...
  *   }
  *   static my_t s_me = {.port = {.id = DATA_STREAM_PORT(DATA_STREAM_PORT_MODULE, 0x04), .pass = my_pass}};
- *   data_stream_send(&s_me.port, rec, len);
+ *   data_stream_send(&s_me.port, CMD_SEND_URGENT, rec, len);
+ *
+ * A packet carries its flags (CMD_SEND_*, cmd_types.h): the sender sets them, the switch hands them on unchanged
+ * with the bytes, the taker honours what it can (a provider queues by them).
  *
  * The contract of a port: `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is
  * valid for the call only); it runs on the sender's task. data_stream_send only from a task, never from an ISR; a
@@ -25,6 +29,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "cmd_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,20 +58,22 @@ typedef struct data_stream_port data_stream_port_t;
 /**
  * @brief A port's input: bytes for its owner. On the sender's task: short, never blocks, copies what it keeps.
  * @param self  The port (DATA_STREAM_OWNER gives its owner).
- * @param from  The port the packet came out of.
- * @param data  The packet, valid for the call only.
- * @param len   Bytes in data.
+ * @param from   The port the packet came out of.
+ * @param flags  The sender's CMD_SEND_*.
+ * @param data   The packet, valid for the call only.
+ * @param len    Bytes in data.
  */
-typedef void (*data_stream_pass_f)(data_stream_port_t* self, data_stream_port_id_t from, const uint8_t* data,
-                                   uint32_t len);
+typedef void (*data_stream_pass_f)(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags,
+                                   const uint8_t* data, uint32_t len);
 
 /**
  * @brief A port's output, the switch's: hands the packet unchanged to every port linked from `self`.
- * @param self  The sending port.
- * @param data  The packet, borrowed for the call.
- * @param len   Bytes in data.
+ * @param self   The sending port.
+ * @param flags  CMD_SEND_*, handed on unchanged.
+ * @param data   The packet, borrowed for the call.
+ * @param len    Bytes in data.
  */
-typedef void (*data_stream_out_f)(data_stream_port_t* self, const uint8_t* data, uint32_t len);
+typedef void (*data_stream_out_f)(data_stream_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len);
 
 /** @brief One port, embedded in its owner's struct. */
 struct data_stream_port {
@@ -79,14 +86,15 @@ struct data_stream_port {
 /**
  * @brief Sends a packet out of a port: to every port linked from it, unchanged, at once. Nothing when the port is not
  * registered or has no link. From a task only.
- * @param port  The owner's port.
- * @param data  The packet, borrowed for the call.
- * @param len   Bytes in data.
+ * @param port   The owner's port.
+ * @param flags  CMD_SEND_*: how the takers send it on.
+ * @param data   The packet, borrowed for the call.
+ * @param len    Bytes in data.
  */
-static inline void data_stream_send(data_stream_port_t* port, const uint8_t* data, uint32_t len) {
+static inline void data_stream_send(data_stream_port_t* port, uint8_t flags, const uint8_t* data, uint32_t len) {
   const data_stream_out_f out = port->out;
   if (out != NULL) {
-    out(port, data, len);
+    out(port, flags, data, len);
   }
 }
 
