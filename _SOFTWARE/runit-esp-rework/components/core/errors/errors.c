@@ -78,44 +78,6 @@ void err_free(err_h chain) {
   }
 }
 
-static err_sink_f s_sink;
-
-void err_set_sink(err_sink_f fn) {
-  s_sink = fn;
-}
-
-void err_report_ex(err_h chain, const char* log_ctx, const struct cmd_req* cmd) {
-  if (chain == NULL) {
-    return;
-  }
-  err_log_ctx(chain, log_ctx);
-  if (s_sink != NULL) {
-    s_sink(chain, cmd);
-  }
-  err_free(chain);
-}
-
-static err_board_sink_f s_board_sink;
-
-void err_set_board_sink(err_board_sink_f fn) {
-  s_board_sink = fn;
-}
-
-void err_report_board(err_h chain, uint8_t board) {
-  if (chain == NULL) {
-    return;
-  }
-  err_log_ctx(chain, "board");
-  if (s_board_sink != NULL) {
-    s_board_sink(chain, board);
-  }
-  err_free(chain);
-}
-
-void err_report(err_h chain) {
-  err_report_ex(chain, NULL, NULL);
-}
-
 uint8_t err_sev(err_h e) {
   const err_tag_info_t* info = e != NULL ? err_tag_info(e->tag) : NULL;
   return info != NULL ? info->sev : ERR_SEV_NONE;

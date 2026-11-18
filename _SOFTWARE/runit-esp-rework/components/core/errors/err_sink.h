@@ -2,7 +2,7 @@
 
 /**
  * @file err_sink.h
- * @brief Where reported chains go besides the log (errors.c): the sinks the app sets at boot, and the reports that
+ * @brief Where reported chains go besides the log (err_sink.c): the sinks the app sets at boot, and the reports that
  * carry more than err_report - a command's chain, a chain about another board.
  */
 

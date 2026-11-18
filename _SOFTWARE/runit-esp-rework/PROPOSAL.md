@@ -211,15 +211,15 @@ niczyją zależnością (istnieje sam, napięcie ustawia użytkownik).
 - **Typ innego sterownika w sterowniku.** Wdrożone: `device_esp32s3_i2c.c` nie zna typu GPIO i niczego nie sprawdza.
   Konwencja: nóżka = pin, indeks pinu jest numerem GPIO (pin 46 to GPIO 46). To, że SDA / SCL są pinami samego
   ESP32-S3, a nie ekspandera, jest konfiguracją płytki. `ERR_I2C_BAD_PIN` zniknął (nic go nie zgłasza).
-- **Jeden numer modułu.** Wdrożone: moduł ma jeden numer (`MODULE_ID_DECLARE(NAME, 0x22)` w jego `<moduł>_id.h`,
-  `MODULE_ID_DEFINE` w jednym źródle; `core/utils/module_id.h`), który jest zarazem kluczem routera
-  (`ROUTER_MODULE_REGISTER(NAME, fn)`), modułem błędów (`#define ERR_MOD_X MODULE_ID_NAME`), modułem eventów
+- **Jeden numer modułu.** Wdrożone: moduł ma jeden numer (`MODULE_ID_DECLARE(NAME, 0x22)` w jego `<moduł>_id.h`;
+  `core/utils/module_id.h`), który jest zarazem kluczem routera
+  (`ROUTER_MODULE_REGISTER(NAME, fn)`), modułem błędów (`ERR_TAGS_DECLARE(MODULE_ID_NAME, MAP)`), modułem eventów
   (`EVT_TAG(MODULE_ID_NAME, code)`) i, dla kontraktu, jego ID (`SYS_DEVICE_CONTRACT_DECLARE`). Dwa moduły z jednym
-  numerem nie linkują się (`module_id__0x01`). Żaden plik nie musi includować wszystkich modułów. Przydział:
+  numerem nie kompilują się tam, gdzie spotkają się ich nagłówki (`MODULE_ID__0x01`). Żaden plik nie musi includować wszystkich modułów. Przydział:
   `0x01..0x1F` kontrakty (`0x01` IO, `0x02` I2C, `0x03` EVENT, `0x04` PMON, `0x05` VREG, `0x07` PD, `0x08` SUPPLY,
   `0x09` HBRIDGE), `0x20..0xFE` pozostałe moduły (`0x20` rejestr, `0x21` polityka, `0x22` menedżer zasilania, `0x23`
   router, `0x24` cmd, `0x25` eventy, `0x26` kontrakty zasilania), `0xFF` własne opy urządzenia. Numery eventów
-  urządzeń: `0x8000 | typ`. `router_ids.h` oraz `err_modules.h` zniknęły (`ERR_MOD_CORE` to `0u` w `errors.h`, reszta bierze numer z `MODULE_ID_*`).
+  urządzeń: `0x8000 | typ`. `router_ids.h` oraz `err_modules.h` zniknęły (`MODULE_ID_CORE` to `0` w `core/errors/errors/core_errors.h`, reszta bierze numer z `MODULE_ID_*`).
 - **Payloady zmiennej długości.** Wdrożone: flaga `SYS_DEVICE_OP_TAIL` w wierszu tabeli i jeden handler,
   `CMD_HANDLER_TAIL` w `cmd_table.h` (`OP_WRITE_TAIL(P, OP_NAME)` dla sterownika): ciało dostaje `args` (głowa, w miejscu),
   `tail`, `tail_len`. Tabela rozstrzyga: `OP_WRITE` na opie z `TAIL` i `OP_WRITE_TAIL` na opie bez niej nie kompilują

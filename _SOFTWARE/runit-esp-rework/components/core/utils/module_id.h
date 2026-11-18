@@ -11,7 +11,7 @@
  * MODULE_ID__0x20 declared twice), fail templates/sync.sh (generate_enums.py: the module_id group is unique) and fail at
  * start where both register (the error registry, the router's root table). The number is wire format (a router key,
  * the high half of an error tag and of an event tag): never renumber it.
- *   0x00           no module (the core errors: MODULE_ID_CORE, errors.h)
+ *   0x00           no module (the core errors: MODULE_ID_CORE, errors/core_errors.h)
  *   0x01..0x1F     device contracts (IO, I2C, EVENT, PMON, VREG, PD, SUPPLY, HBRIDGE, ...)
  *   0x20..0xFE     the other modules
  *   0xFF           a device's own ops (SYS_DEVICE_CONTRACT_OWN): never a module

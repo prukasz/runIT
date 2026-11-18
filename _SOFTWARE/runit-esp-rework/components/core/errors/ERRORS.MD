@@ -6,20 +6,16 @@ Component `components/core/errors/`. The foundational error handling and propaga
 
 | File | Role |
 |---|---|
-| `errors.h` | The public API only: types (`err_h`: an opaque node, `err_sev_e`), the calls (creating, reading a node: `err_tag` / `err_cause` / `err_data` / `err_find`, freeing and reporting a chain: `err_report`), `MODULE_ID_CORE` (0) and core tags |
-| `err_sink.h` | The sinks (`err_set_sink`, `err_set_board_sink`, set by the app at boot) and the reports that carry more than `err_report`: `err_report_ex` (a command's chain, `struct cmd_req`) and `err_report_board` (in `errors.c`) |
-| `err_log.h` | `err_log` (a chain as log text, for a sink that prints a chain it must not report) and `err_log_enable` (in `err_log.c`) |
-| `err_record.h` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` and `err_record_parse` (in `err_wire.c`); for the modules that send, keep or read records |
-
+| `errors.h` / `errors.c` | The public API: types (`err_h`: an opaque node, `err_sev_e`), creating and reading a node (`err__new`, `err_tag` / `err_cause` / `err_data` / `err_find`), the severity and root of a chain (`err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`), `err_free`, `err_report` (in `err_sink.c`); includes the core tags (`errors/core_errors.h`), which `errors.c` registers |
 | `err_macros.h` | Every macro: the tags (`ERR_TAG`, `ERR_TAGS_DECLARE`), the node size (`ERR_HDR_LEN` / `ERR_DATA_MAX`), the registration of a module's map (`ERR_MODULE_DEFINE`), constructors (`ERR_NEW` / `ERR_WRAP` / `ERR_DATA`) and propagation (`ERR_TRY`, `ERR_CHECK*`, `ERR_KEEP_FIRST`, `ERR_ESP`); and what only they use, never called directly: `err_info_t` (where a node was made, built at the call site), `err_tag_info_t`, `err_module_t`, `err__register_module`, `err__new`. Included by `errors.h` |
-| `errors.c` | `err__new`, `err_free`, `err_tag`, `err_cause`, `err_data`, `err_find`, `err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`, core module registration |
-| `err_internal.h` | Shared by the component's own files only: the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
+| `err_sink.h` / `err_sink.c` | The sinks (`err_set_sink`, `err_set_board_sink`, set by the app at boot) and the reports: `err_report`, `err_report_ex` (a command's chain, `struct cmd_req`) and `err_report_board` |
+| `err_log.h` / `err_log.c` | `err_log` (a chain as log text, for a sink that prints a chain it must not report), `err_log_ctx`, `err_log_enable`: chain formatting to `ESP_LOG` |
+| `err_record.h` / `err_record.c` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` (a chain with what caused it, as bytes) and `err_record_parse` (a record made a chain again); for the modules that send, keep or read records |
+| `err_tags.c` | Module and tag registry (`err__register_module`), lookup (`err_tag_info`, `err_module`) |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
-| `err_tags.c` | Module and tag registry, lookup |
-| `err_log.c` | `err_log`, `err_log_ctx`, `err_log_enable` — chain formatting to `ESP_LOG` |
-| `err_wire.c` | `err_record`: the error record, a chain with its command, as bytes; `err_record_parse`: a record made a chain again |
+| `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
-| `errors_core.json` | The user messages of this module's tags (and their hints: what to do) (each module has its `errors_<module>.json` in the `errors/` folder of its component, next to its map `<component>_errors.h`) |
+| `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (0, no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
 | `CMakeLists.txt` | Component registration and source files |
 | `Kconfig` | Configuration for call-site info, pool size, line buffer length, module limits |
 | `host/` | Host tests: `test_errors.c`, `host_test.json`, `errors_host_config.h` (see Tests); not part of the firmware build |
@@ -97,7 +93,7 @@ Rules:
 
 ## Error record
 
-`cmd_err_record(cmd, chain, buf, cap)` (`router_queue.h`): a chain with the command it belongs to (`cmd_req_t`, NULL for an internal error). It takes the command's fields and calls `err_record_cmd(from, seq, flags, req, req_len, chain, buf, cap)` (`err_wire.c`); an internal record is `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
+`cmd_err_record(cmd, chain, buf, cap)` (`router_queue.h`): a chain with the command it belongs to (`cmd_req_t`, NULL for an internal error). It takes the command's fields and calls `err_record_cmd(from, seq, flags, req, req_len, chain, buf, cap)` (`err_record.c`); an internal record is `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
 
 `cmd_req_t` is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`: a client id the session gave, or 0xFE for the board itself, `ROUTER_SRC_SELF`). No board id: the frame that carries a record names its board.
 

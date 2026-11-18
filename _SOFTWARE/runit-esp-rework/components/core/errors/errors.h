@@ -85,22 +85,7 @@ uint32_t err_root_tag(err_h chain);
  */
 bool err_drop(err_h* err, uint32_t tag);
 
-/* ----------------------------------------------------------------------------
- * Core tags (module 0)
- * ------------------------------------------------------------------------- */
-
-/** @brief The module of the core errors: 0, no module (module_id.h). */
-enum { MODULE_ID_CORE = 0 };
-
-#define ERR_CORE_MAP(X, M)                                                                                              \
-  X(M, ERR_POOL_EMPTY, 1, ERR_SEV_LOW,    {}) /* no block for a new error */                                            \
-  X(M, ERR_ESP_ERR,    2, ERR_SEV_HIGH,   { esp_err_t code; }) /* ESP-IDF call failed */                                \
-  X(M, ERR_RECORD_CUT, 3, ERR_SEV_MEDIUM, { uint16_t len; }) /* err_record_parse: cut short */                          \
-  X(M, ERR_NULL_PTR,   4, ERR_SEV_HIGH,   {}) /* a C function got a NULL pointer: its caller's bug */                   \
-  X(M, ERR_RANGE,      5, ERR_SEV_HIGH,   { int32_t value; int32_t min; int32_t max; }) /* ERR_CHECK_RANGE */           \
-  X(M, ERR_RANGE_F,    6, ERR_SEV_HIGH,   { float value; float min; float max; }) /* ERR_CHECK_RANGE, float v */
-
-ERR_TAGS_DECLARE(MODULE_ID_CORE, ERR_CORE_MAP)
+#include "core_errors.h"  // the core tags (module 0): errors/, as every module's map
 
 /* ----------------------------------------------------------------------------
  * Nodes
