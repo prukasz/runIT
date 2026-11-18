@@ -11,12 +11,13 @@
  * A -> input of B", and hands every packet over unchanged: no role, no session, no tag, no format, no queue, no task.
  *
  *   module A                      switch                         module B
- *   attach(out, link) <---------  (A is a link's source)
+ *   attach(out, link) <---------  (A registered)
  *   out(link, data, len) ------>  for each link A -> B:  ------> B.pass(ctx, A, data, len)
  *
  * Synchronous: `out` calls the inputs of the linked ports at once, on the sender's task. So every port keeps the
  * contract below; what must wait or be kept is its own business (a provider queues for its line, a module copies into
- * a queue of its own). A link that would close a cycle is refused when it is made, so a packet never comes back.
+ * a queue of its own). Since no pass sends on its own output, out never runs inside out: links A -> B and B -> A are
+ * safe, and the switch checks no cycle.
  *
  * The contract of a port:
  *  - `pass` is short, never blocks, never sends on its own output (a loop the switch cannot see), copies what it
@@ -73,8 +74,8 @@ typedef struct {
    */
   void (*pass)(void* ctx, data_stream_port_id_t from, const uint8_t* data, uint32_t len);
   /**
-   * @brief The port's output (NULL: the port sends nothing). Called when the port becomes the source of its first link
-   * (out set) and when its last link goes (out NULL): a provider opens its line then, and gives it back.
+   * @brief The port's output (NULL: the port sends nothing). Called when the port is registered (out set) and when it
+   * is unregistered (out NULL).
    * @param ctx   The port's ctx.
    * @param out   The function to send with, NULL: nothing is linked from the port any more.
    * @param link  The first argument of every out call.
@@ -91,7 +92,7 @@ typedef struct {
 MUST_USE err_h data_stream_register(const data_stream_port_t* port);
 
 /**
- * @brief Unregisters a port: its links go first (a source's attach gets NULL). A provider's when it is removed.
+ * @brief Unregisters a port: its links go with it, its attach gets NULL. A provider's when it is removed.
  * @param id  The port's name.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (no such port)
  */
@@ -100,25 +101,17 @@ MUST_USE err_h data_stream_unregister(data_stream_port_id_t id);
 /**
  * @brief Links the output of `from` to the input of `to`. The same link again changes nothing.
  * @param link  The link.
- * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, `from` with no output, `to` with no input, a link that would
- *         close a cycle, a port to itself), ERR_DATA_MATRIX_FULL (CONFIG_DATA_STREAM_LINKS taken)
+ * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, `from` with no output, `to` with no input, a port to itself),
+ *         ERR_DATA_MATRIX_FULL (CONFIG_DATA_STREAM_LINKS taken)
  */
 MUST_USE err_h data_stream_connect(const data_stream_link_t* link);
 
 /**
- * @brief Removes a link; not there: nothing changes. The last link of a source detaches it (attach with NULL).
+ * @brief Removes a link; not there: nothing changes.
  * @param link  The link.
  * @return NULL
  */
 MUST_USE err_h data_stream_disconnect(const data_stream_link_t* link);
-
-/**
- * @brief The links, in the order they were made.
- * @param out  Where the links go, may be NULL when max is 0.
- * @param max  Room in out, in links.
- * @return How many links there are (may be more than max: only max are written).
- */
-uint32_t data_stream_links(data_stream_link_t* out, uint32_t max);
 
 #ifdef __cplusplus
 }
