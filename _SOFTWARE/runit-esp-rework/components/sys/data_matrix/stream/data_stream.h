@@ -105,7 +105,7 @@ MUST_USE err_h data_stream_unregister(data_stream_port_id_t id);
  * @brief Links the output of `from` to the input of `to`. The same link again changes nothing.
  * @param link  The link.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, a port to itself, `from` with no output, `to` with no input),
- *         ERR_DATA_MATRIX_FULL (CONFIG_DATA_STREAM_LINKS taken)
+ *         ERR_DATA_MATRIX_FULL (`from` already goes to CONFIG_DATA_STREAM_TARGETS ports)
  */
 MUST_USE err_h data_stream_connect(const data_stream_link_t* link);
 
