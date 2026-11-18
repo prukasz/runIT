@@ -34,7 +34,7 @@ A pin field (`type: pin`) says the mode its pin must have in `requires` (`output
 | `generate_limits.py` | `runit-app/generated/common/limits.json` | `limits.schema.json` |
 | `generate_errors.py` | `runit-esp-rework/components/core/errors/errors.json` | `errors.schema.json`; its input `errors_<module>.json`: `error-texts.schema.json` |
 
-Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand. Re-run them after changing a marked enum, `MODULE_ID_DECLARE`, or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
+Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand and are not in git (`.gitignore`): `runit-app/generated/` and `errors.json`; after a clone, `sh templates/sync.sh` makes them. Re-run them after changing a marked enum, `MODULE_ID_DECLARE`, or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
 
 `generate_errors.py` reads `MODULE_ID_DECLARE` (`core/utils/module_id.h`), `#define ERR_MOD_*`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `runit-esp-rework/components/`.
 

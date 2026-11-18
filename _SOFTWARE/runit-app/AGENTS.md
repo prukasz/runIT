@@ -4,7 +4,7 @@ The runIT app, written from scratch. So far: the VM engine in `src/engine/` (rea
 
 ## Rules
 
-- **Facts come from the firmware.** The C in `runit-esp/components/vm/` is the truth; `generated/` (in this folder; the bundle `templates/generate_bundle.py` copies from `runit-esp/components/`) is what the app reads. Never a number or layout you cannot point to in C or in a descriptor: put the source in a comment, and a test that reads the C where it can.
+- **Facts come from the firmware.** The C in `runit-esp/components/vm/` is the truth; `generated/` (in this folder; the bundle `templates/generate_bundle.py` copies from `runit-esp/components/`) is what the app reads; it is not in git: `sh templates/sync.sh` makes it (after a clone, before `npm run dev`). Never a number or layout you cannot point to in C or in a descriptor: put the source in a comment, and a test that reads the C where it can.
 - **The backend has no UI** and takes every number of the link from `generated/common/` and every command from the descriptors in `generated/services`, `generated/contracts` and `generated/devices` (`src/backend/definitions.ts` is the only file that reads `generated/`). No service, contract, command or field is named in its code: a new descriptor works with nothing to edit. The engine does not depend on it.
 - **The engine has no UI, no DOM, no connection.** It is data in, data out, with its dependencies pointing down `wire` → `catalog` → `model` → `graph` → `expression` → `compiler`. The only file that reads `generated/` is `src/engine/generated/index.ts`.
 - **A mistake in a project is a diagnostic, not an exception.**
