@@ -29,3 +29,7 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 ## Who owns the rx hook
 
 A provider carries bytes and knows nothing of what they are. The one owner of its rx hook is whoever the data matrix's role (`data_matrix`, `DATA_MATRIX.MD`) made it: a session (`sys_session`), a raw port (its bytes go along the routes) or a command port (each message in is one command for the router). `open` refuses a second owner with `ERR_PROV_IN_USE`, and a provider with an owner cannot be removed: clear its role first.
+
+## Stream port
+
+Every provider is also a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD "data_stream"): `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`, its input `sys_data_provider_send(id, ..., CMD_SEND_NOWAIT)` (what the line does not take is lost). `sys_data_provider_set_port_hooks(added, removed)` (the switch's `data_stream_init`, boot) is told of every provider made (`added` at once for those already made, then at each CREATE) and of every one removed (`removed` before its driver goes). A provider with no rx owner (`open`) sends what comes in on its line to its port: nothing while no hook registered it. The registry never names the switch.

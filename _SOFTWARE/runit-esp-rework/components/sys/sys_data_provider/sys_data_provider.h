@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "cmd.h"
+#include "data_stream_port.h"
 #include "errors.h"
 #include "module_id.h"
 #include "sys_data_provider_errors.h"
@@ -98,6 +99,23 @@ MUST_USE err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args,
 typedef void (*sys_data_provider_rx_f)(void* ctx, uint8_t id, const uint8_t* data, uint32_t len);
 
 MUST_USE err_h sys_data_provider_open(uint8_t id, sys_data_provider_rx_f rx, void* ctx);
+
+/**
+ * @brief What is told of a provider's stream port (data_stream_port.h): the port embedded in the provider, its name
+ * DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), its input sys_data_provider_send (NOWAIT).
+ * @param port  The provider's port; lives as long as the provider.
+ */
+typedef void (*sys_data_provider_port_hook_f)(data_stream_port_t* port);
+
+/**
+ * @brief Who hears of the providers' stream ports: the switch (data_stream_init) makes them its ports. `added` is
+ * called at once for every provider already made, then for each one CREATE makes; `removed` for each one REMOVE takes,
+ * before its driver is removed. While no hook is set, a provider's port is never registered, so its bytes in go only to
+ * the owner of its rx hook (open). Boot, once.
+ * @param added    Called with a new provider's port, may be NULL.
+ * @param removed  Called with a provider's port before it goes, may be NULL.
+ */
+void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_data_provider_port_hook_f removed);
 MUST_USE err_h sys_data_provider_close(uint8_t id);
 MUST_USE err_h sys_data_provider_send(uint8_t id, cmd_in_t frame, uint8_t flags);
 uint8_t sys_data_provider_state(uint8_t id);

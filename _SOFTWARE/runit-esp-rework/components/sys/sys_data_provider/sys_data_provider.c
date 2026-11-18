@@ -27,6 +27,8 @@ static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
 U_MUTEX_DEFINE(s_prov_ctrl_lock);  // Serializes CREATE / REMOVE / driver own ops
+static sys_data_provider_port_hook_f s_port_added;    // the switch's: a provider's port made
+static sys_data_provider_port_hook_f s_port_removed;  // the switch's: a provider's port about to go
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // Short critical section for slot reads & data plane
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
@@ -170,6 +172,28 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   return NULL;
 }
 
+/* ----------------------------------------------------------------------------
+ * The provider as a stream port (data_stream_port.h)
+ * ------------------------------------------------------------------------- */
+
+// A packet for the provider from the switch: sent on its line, never waited for (pass never blocks).
+static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, const uint8_t* data, uint32_t len) {
+  (void)from;
+  const sys_data_provider_t* p = DATA_STREAM_OWNER(self, sys_data_provider_t, port);
+  err_free(sys_data_provider_send(p->id, (cmd_in_t){.data = data, .len = len}, CMD_SEND_NOWAIT));  // not taken: lost
+}
+
+void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_data_provider_port_hook_f removed) {
+  U_MUTEX_GUARD(s_prov_ctrl_lock);
+  s_port_added = added;
+  s_port_removed = removed;
+  for (uint32_t i = 0; added != NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    if (s_slots[i].used) {
+      added(&s_slots[i].p.port);
+    }
+  }
+}
+
 static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const void* cfg, uint32_t cfg_len) {
   ERR_CHECK((flags & ~SYS_DATA_PROVIDER_CREATE_SYSTEM) == 0, ERR_CMD_BAD_ARG);
 
@@ -195,6 +219,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
       .id = id,
       .type = type->type,
       .state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u,
+      .port = {.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), .pass = port_pass},
   };
 
   err_h err = type->create(&slot->p, instance, cfg);
@@ -221,6 +246,9 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   slot->type = type;
   slot->used = true;
   portEXIT_CRITICAL(&s_lock);
+  if (s_port_added != NULL) {
+    s_port_added(&slot->p.port);
+  }
   return NULL;
 }
 
@@ -246,6 +274,9 @@ static err_h remove_locked(uint8_t id) {
   ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
   ERR_CHECK(!in_use, ERR_PROV_IN_USE, .provider = id);
 
+  if (s_port_removed != NULL) {
+    s_port_removed(&slot->p.port);  // its links go before its driver does
+  }
   err_h err = type->remove(&slot->p, instance);
   if (type->ctx_size > 0) {
     free(instance);
@@ -471,5 +502,7 @@ void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint
 
   if (rx != NULL) {
     rx(ctx, id, data, len);
+  } else {
+    data_stream_send(&p->port, data, len);  // no owner: to the ports linked from it (nothing while unregistered)
   }
 }

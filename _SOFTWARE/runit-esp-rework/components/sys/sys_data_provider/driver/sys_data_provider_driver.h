@@ -23,6 +23,7 @@ struct sys_data_provider {
   uint8_t type;              /**< sys_data_provider_type_e */
   uint8_t state;             /**< SYS_DATA_PROVIDER_STATE_* */
   uint8_t busy;              /**< Active sys_data_provider_send() calls in progress */
+  data_stream_port_t port;   /**< The provider as a stream port (sys_data_provider_set_port_hooks); the registry's */
 };
 
 typedef struct {
