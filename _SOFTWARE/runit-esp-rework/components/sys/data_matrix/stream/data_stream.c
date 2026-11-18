@@ -109,7 +109,7 @@ err_h data_stream_connect(const data_stream_link_t* link) {
   portENTER_CRITICAL(&s_lock);
   const data_stream_port_t* from = find(link->from);
   const data_stream_port_t* to = find(link->to);
-  ok = from != NULL && to != NULL && from->attach != NULL && to->pass != NULL;
+  ok = from != NULL && to != NULL && from != to && from->attach != NULL && to->pass != NULL;
   bool there = false;
   for (uint32_t i = 0; ok && i < s_ds.link_count; i++) {
     there |= s_ds.links[i].from == link->from && s_ds.links[i].to == link->to;
