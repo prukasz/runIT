@@ -148,3 +148,17 @@ err_h data_stream_disconnect(const data_stream_link_t* link) {
   portEXIT_CRITICAL(&s_lock);
   return NULL;
 }
+
+uint32_t data_stream_links(data_stream_link_t* out_links, uint32_t max) {
+  uint32_t n = 0;
+  portENTER_CRITICAL(&s_lock);
+  for (uint8_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {
+    for (uint8_t k = 0; s_slots[i].port != NULL && k < s_slots[i].count; k++, n++) {
+      if (n < max) {
+        out_links[n] = (data_stream_link_t){.from = s_slots[i].port->id, .to = s_slots[s_slots[i].to[k]].port->id};
+      }
+    }
+  }
+  portEXIT_CRITICAL(&s_lock);
+  return n;
+}

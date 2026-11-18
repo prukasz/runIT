@@ -118,6 +118,14 @@ MUST_USE err_h data_stream_connect(const data_stream_link_t* link);
  */
 MUST_USE err_h data_stream_disconnect(const data_stream_link_t* link);
 
+/**
+ * @brief The links, port by port: each output's targets.
+ * @param out  Where the links go, may be NULL when max is 0.
+ * @param max  Room in out, in links.
+ * @return How many links there are; only the first `max` are written.
+ */
+uint32_t data_stream_links(data_stream_link_t* out, uint32_t max);
+
 #ifdef __cplusplus
 }
 #endif
