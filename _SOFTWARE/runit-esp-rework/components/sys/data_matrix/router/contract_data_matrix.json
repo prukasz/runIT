@@ -6,255 +6,69 @@
   "id": "DATA_MATRIX",
   "router_key": 48,
   "alias": "Data matrix",
-  "description": "Where the data that are not commands go: a role per provider (raw, session, command port) and routes from one end to another (a provider's bytes, a tagged frame of a session, a stream, the board's code).",
+  "description": "The switch of the stream ports: the output of one port (a module's stream, a provider) goes to the inputs of the ports linked from it, unchanged.",
   "category": "system",
   "record": "SYS_ACTIONS_ID_DATA_MATRIX",
   "commands": [
     {
-      "id": "ROLE",
+      "id": "CONNECT",
       "op": 1,
-      "symbol": "DATA_MATRIX_OP_ROLE",
-      "label": "Give a provider a role",
-      "description": "A provider carries raw bytes, a session or the commands of a command port; with no role it is not attached. The same again changes nothing; another role needs CLEAR_ROLE first.",
+      "symbol": "DATA_STREAM_OP_CONNECT",
+      "label": "Connect two ports",
+      "description": "The output of the first port goes to the input of the second. The same again changes nothing; one output goes to at most CONFIG_DATA_STREAM_TARGETS ports.",
       "write": {
         "args": {
-          "struct": "data_matrix_role_args_t",
+          "struct": "data_stream_link_t",
           "fields": [
             {
-              "id": "provider",
-              "label": "Provider",
+              "id": "from",
+              "label": "From",
               "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
+              "raw_type": "u16",
+              "size": 2,
               "offset": 0,
-              "description": "The local provider's id"
+              "description": "The sending port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             },
             {
-              "id": "role",
-              "label": "Role",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "data_matrix_role_e: Raw, Session or Commands"
-            },
-            {
-              "id": "deadman_ms",
-              "label": "Dead-man (ms)",
+              "id": "to",
+              "label": "To",
               "type": "integer",
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "Session only: 0 none, else the silence that ends the session; 0 for the other roles"
-            },
-            {
-              "id": "flags",
-              "label": "Flags",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "Session only: SYS_SESSION_SAFETY, the end of the session enters the safe state; 0 for the other roles"
+              "description": "The taking port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             }
           ]
         }
       }
     },
     {
-      "id": "CLEAR_ROLE",
+      "id": "DISCONNECT",
       "op": 2,
-      "symbol": "DATA_MATRIX_OP_CLEAR_ROLE",
-      "label": "Take a provider's role away",
-      "description": "Removes the provider's routes and its role; a session on it ends. The provider is not attached again.",
+      "symbol": "DATA_STREAM_OP_DISCONNECT",
+      "label": "Disconnect two ports",
+      "description": "Removes that connection; not there: nothing changes.",
       "write": {
         "args": {
-          "struct": "data_matrix_provider_args_t",
+          "struct": "data_stream_link_t",
           "fields": [
             {
-              "id": "provider",
-              "label": "Provider",
+              "id": "from",
+              "label": "From",
               "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
+              "raw_type": "u16",
+              "size": 2,
               "offset": 0,
-              "description": "The provider"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "ROUTE",
-      "op": 3,
-      "symbol": "DATA_MATRIX_OP_ROUTE",
-      "label": "Add a route",
-      "description": "What comes out of the first end goes into the second. The same again changes nothing. A provider's end needs its role (Raw for the provider's bytes, Session for tagged data).",
-      "write": {
-        "args": {
-          "struct": "data_matrix_route_t",
-          "fields": [
-            {
-              "id": "from_kind",
-              "label": "From kind",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "data_matrix_end_kind_e: Provider, Tagged, Stream or Callback"
+              "description": "The sending port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             },
             {
-              "id": "from_a",
-              "label": "From a",
+              "id": "to",
+              "label": "To",
               "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "Provider, or stream, or callback"
-            },
-            {
-              "id": "from_b",
-              "label": "From b",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
+              "raw_type": "u16",
+              "size": 2,
               "offset": 2,
-              "description": "The tag of a Tagged end; else 0"
-            },
-            {
-              "id": "to_kind",
-              "label": "To kind",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 3,
-              "description": "data_matrix_end_kind_e: Provider, Tagged, Stream or Callback"
-            },
-            {
-              "id": "to_a",
-              "label": "To a",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "Provider, or stream, or callback"
-            },
-            {
-              "id": "to_b",
-              "label": "To b",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 5,
-              "description": "The tag of a Tagged end; else 0"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "UNROUTE",
-      "op": 4,
-      "symbol": "DATA_MATRIX_OP_UNROUTE",
-      "label": "Remove a route",
-      "description": "Removes one route; one that is not there changes nothing.",
-      "write": {
-        "args": {
-          "struct": "data_matrix_route_t",
-          "fields": [
-            {
-              "id": "from_kind",
-              "label": "From kind",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "data_matrix_end_kind_e: Provider, Tagged, Stream or Callback"
-            },
-            {
-              "id": "from_a",
-              "label": "From a",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "Provider, or stream, or callback"
-            },
-            {
-              "id": "from_b",
-              "label": "From b",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 2,
-              "description": "The tag of a Tagged end; else 0"
-            },
-            {
-              "id": "to_kind",
-              "label": "To kind",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 3,
-              "description": "data_matrix_end_kind_e: Provider, Tagged, Stream or Callback"
-            },
-            {
-              "id": "to_a",
-              "label": "To a",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "Provider, or stream, or callback"
-            },
-            {
-              "id": "to_b",
-              "label": "To b",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 5,
-              "description": "The tag of a Tagged end; else 0"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "CLEAR",
-      "op": 5,
-      "symbol": "DATA_MATRIX_OP_CLEAR",
-      "label": "Remove the routes of an end",
-      "description": "Removes every route that has the end, on either side.",
-      "write": {
-        "args": {
-          "struct": "data_matrix_end_t",
-          "fields": [
-            {
-              "id": "kind",
-              "label": "End kind",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "data_matrix_end_kind_e: Provider, Tagged, Stream or Callback"
-            },
-            {
-              "id": "a",
-              "label": "End a",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "Provider, or stream, or callback"
-            },
-            {
-              "id": "b",
-              "label": "End b",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 2,
-              "description": "The tag of a Tagged end; else 0"
+              "description": "The taking port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             }
           ]
         }
@@ -262,15 +76,15 @@
     },
     {
       "id": "LIST",
-      "op": 6,
-      "symbol": "DATA_MATRIX_OP_LIST",
-      "label": "List the roles and the routes",
-      "description": "Every role, then every route.",
+      "op": 3,
+      "symbol": "DATA_STREAM_OP_LIST",
+      "label": "List the connections",
+      "description": "Every connection, port by port.",
       "read": {
         "returns": {
           "type": "u8",
-          "label": "Number of roles",
-          "description": "Then that many roles (provider, role, dead-man u16, flags), then u8 routes and that many routes (from end, to end; an end is kind, a, b)."
+          "label": "Number of connections",
+          "description": "Then that many connections (from u16, to u16)."
         }
       }
     }

@@ -38,7 +38,7 @@ The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with 
 | sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/bus/sys_i2c`, `sys/bus/sys_uart_contract` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_I2C.MD`, `SYS_UART_CONTRACT.MD` | the contracts as u16 device ops: IO (`0x01`), I2C (`0x02`: a bus is a device), POWER_MONITOR / VREG / USB_PD / SUPPLY (`0x04`, `0x05`, `0x07`, `0x08`), HBRIDGE (`0x09`), UART (`0x13`: a port is a device made by CREATE) |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, rail faults, the VREG guard as an interceptor of the registry (`0x22`) |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in, by id, their drivers (`0x0D`) |
-| sys | `sys/data_matrix` | `DATA_MATRIX.MD` | the role of a provider (raw, session, command port) and the routes between ends: where every byte that is not a command goes (`0x30`) |
+| sys | `sys/data_matrix` | `DATA_MATRIX.MD` | the switch of the stream ports (`0x30`): a port's output to the inputs of the ports linked from it, unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | a session is a framed provider with one peer: the hello, the dead-man, broadcast, calls with a wait, PUSH frames (`0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent to the one who added them; the client's cache (`0x2B`) |
 | sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls over the session, reads from the watches, their events and errors (`0x2F`) |

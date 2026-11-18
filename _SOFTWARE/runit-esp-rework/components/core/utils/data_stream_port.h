@@ -3,7 +3,7 @@
 /**
  * @file data_stream_port.h
  * @brief A stream port: the interface between whatever sends or takes bytes that are not commands (a module's stream,
- * a provider) and the switch that links them (data_matrix/stream/data_stream.h, DATA_MATRIX.MD "data_stream"). Plain
+ * a provider) and the switch that links them (data_matrix/data_stream.h, DATA_MATRIX.MD). Plain
  * types and one inline call, no dependency, so the lowest layer can take it: a provider includes this, never the switch.
  *
  * The owner EMBEDS the port in its own struct and fills `id` and `pass`; the switch fills `out` when it registers the

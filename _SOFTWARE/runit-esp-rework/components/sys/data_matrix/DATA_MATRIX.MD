@@ -1,83 +1,53 @@
 # data_matrix
 
-Component `components/sys/data_matrix/`. **Where the data that are not commands go**, set from one place: a **role** per provider (what it carries) and **routes** from one **end** to another. The logs to a BLE characteristic, a bridge between two providers, a watch's entries to the session that asked for them, a board's errors to the app are routes of one table, written in one format, listed by one command and replayed at boot. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
+Component `components/sys/data_matrix/`. **The switch of the stream ports**: the output of one port goes to the inputs of the ports linked from it, unchanged. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
 
-The module is a table and the delivery along it. It knows no protocol: the session's hello, calls and requests stay in `sys_session`, the commands in the router. It keeps no state of its own beyond the tables, and no counters.
+## Files
 
-## Roles
-
-A provider has at most one role, given by `ROLE` and kept until `CLEAR_ROLE`. A provider with **no role is not attached**: what comes in on it is dropped, and no route may have it.
-
-| Role | The provider |
+| File | Role |
 |---|---|
-| `RAW` | carries bytes as they are, no frame and no tag; its rx hook is the matrix's, what comes in goes along the routes from `P(provider)` |
-| `SESSION` | has a session on it (`sys_session_attach`): REQUEST, ANSWER and CONTROL are the session's, a PUSH `[tag][data]` is data of the matrix (`T`). Parameters: the session's dead-man time and `SYS_SESSION_SAFETY` (`SYS_SESSION.MD`) |
-| `COMMANDS` | is a command port: each message in is one command `[key][dir][code \| id + op][args]` for the router with `src` `ROUTER_SRC_NONE`, its answer goes back on the provider as `[status][data]`, NOWAIT |
+| `data_stream.h` / `data_stream.c` | The switch: `data_stream_register` / `_unregister`, `data_stream_connect` / `_disconnect`, `data_stream_links`, `data_stream_init`; the module's error tags registered |
+| `router/data_stream_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
+| `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
+| `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
 
-`ROLE` again with the same arguments does nothing (a stored record runs at every start); with another role it is `ERR_DATA_MATRIX_ROLE`, `CLEAR_ROLE` first. `CLEAR_ROLE` removes the provider's routes with it, ends its session and gives its rx hook back. A provider that has a role cannot be removed (`ERR_PROV_IN_USE`).
+## Ports
 
-## Ends and routes
+A **port** (`core/utils/data_stream_port.h`, below every layer) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_stream_port_t` in its own struct and fills:
 
-| End | As a source | As a target |
-|---|---|---|
-| `P(provider)` | the raw bytes of a `RAW` provider | the same bytes sent |
-| `T(provider, tag)` | the PUSH with that tag on a `SESSION` provider (`provider` may be `DATA_MATRIX_ANY`: that tag from every session) | a PUSH `[tag][data]` on a `SESSION` provider, the data as they are on a `RAW` one (the tag is not sent) |
-| `S(stream)` | what the board's code sent with `data_matrix_send(stream, ...)` | the data enter the stream |
-| `C(callback)` | never | `data_matrix_listen(fn, ctx, &end)`: the board's code, `fn(ctx, from, data, len)` |
+- its name, a `u16`: `DATA_STREAM_PORT(kind, id)`, the kind (`DATA_STREAM_PORT_MODULE` 0 or `DATA_STREAM_PORT_PROVIDER` 1) in the high byte;
+- `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_STREAM_OWNER`).
 
-A route `{from, to}` (6 bytes) is allowed for `from` P or T to any `to`, and for `from` S to P, T or C (a stream does not feed a stream). A provider's end needs its role when the route is made (`ERR_DATA_MATRIX_PAIR` otherwise). Several routes may leave one end and several may arrive at one: the data are copied to each, NOWAIT, never blocked on; what a target does not take (a busy or down provider, a session not open) is lost without a word, as the streams' always were. `from` in the callback is the end the data came out of, so a consumer that answers (a watch's cache: the board of the session) knows where they came from.
+The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_stream_send(&port, data, len)`, an inline call of `out`: a module never links to the switch.
 
-## Streams and the module's tags
+**The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
-A stream is an id (`1..DATA_MATRIX_STREAM_LAST`, `0x7F`) with no object behind it: `data_matrix_send(id, data, len)` queues the data (never blocks, any task, copied), the matrix's task delivers them to every route from `S(id)`. A stream with no route drops them. A module's channel on a session (the watch's entries, a remote device's frames) is a tag from `0x80`, `SYS_SESSION_CHANNEL(MODULE_ID_x)`, and uses the same ends: the module listens with `data_matrix_listen` and routes `T(DATA_MATRIX_ANY, channel)` to its callback, and answers a given session with `data_matrix_send_to(T(provider, channel), ...)`.
+**Providers are ports by themselves:** `data_stream_init` (boot) sets the providers' port hooks, so every provider made is registered (and every one already made) and every one removed is unregistered, its links with it.
 
-### Streams of a module
+## Links
 
-A module that sends on streams declares them in a table of its own, like its events and errors, in its header:
+A **link** `{from, to}` (`data_stream_link_t`, 4 bytes: two names, `u16` LE) sends the output of `from` to the input of `to`. `data_stream_connect` refuses an unknown port, a port to itself and `to` with no input (`ERR_DATA_MATRIX_BAD_ARG`), and a target past `CONFIG_DATA_STREAM_TARGETS` of one output (`ERR_DATA_MATRIX_FULL`); the same link again changes nothing. `data_stream_disconnect`: not there, nothing changes. `data_stream_unregister` takes the port's links with it.
 
-```c
-#define LOG_STREAMS(X, P)                                       \
-  X(P, LOGS,   0x03, 0,                  "the log lines, text")  \
-  X(P, ERRORS, 0x04, DATA_MATRIX_URGENT, "the error records")
-DATA_MATRIX_STREAMS_DECLARE(LOG)   // LOG_STREAM_LOGS = 0x03, LOG_STREAM_ERRORS = 0x04, LOG_STREAMS_COUNT
-```
+**Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. Since no `pass` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
 
-One `.c` has `DATA_MATRIX_STREAMS_DEFINE(LOG)` (the table `LOG_streams`, and a symbol per id, so two modules with one id do not link; the id is written with two hex digits), and the module's init gives the matrix its flags: `data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT)`. `DATA_MATRIX_URGENT`: the stream's frames go to the front of every provider's queue. The table is published to the app by `//#ref-streams` above it (`templates/generate_enums.py`: `LOG_STREAM_*`, `EVENT_STREAM_*` in `enums.json`). The ids in use: `LOGS` `0x03`, `ERRORS` `0x04` (`sys_log.h`), `NOTIFY` `0x06` and `REMOTE` `0x07` (`sys_event_stream.h`).
+Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: a `pass` never runs under the lock. The table changes from one task (boot, the commands).
 
-## data_stream: the next matrix (`stream/`, not in the build)
+## Commands (`router/data_stream_router.h`, `contract_data_matrix.json`)
 
-`stream/data_stream.h` / `.c` and `stream/data_stream_router.h` / `.c` are written beside the matrix above and not built (`CMakeLists.txt` does not list them): the matrix it will become, a switch and nothing else.
+| Op | Code | Args | Meaning |
+|---|---|---|---|
+| `CONNECT` (W) | `0x01` | `data_stream_link_t` | links the output of `from` to the input of `to` |
+| `DISCONNECT` (W) | `0x02` | `data_stream_link_t` | removes that link |
+| `LIST` (R) | `0x03` | | `u8` links, then a `data_stream_link_t` each, port by port; `ERR_CMD_OUT_FULL` when they do not fit the frame |
 
-- A **port** (`core/utils/data_stream_port.h`, below every layer) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider. Its owner **embeds** a `data_stream_port_t` in its own struct and fills its name (a `u16`: `DATA_STREAM_PORT(kind, id)`, the kind `DATA_STREAM_PORT_MODULE` or `_PROVIDER` in the high byte) and `pass` (its input, NULL: it takes nothing); in `pass` it gets its struct back from `self` (`DATA_STREAM_OWNER`). The switch fills `out` when it registers the port, the owner sends with `data_stream_send(&port, data, len)`: an inline call of `out`, so a module never links to the switch.
-- A **link** `{from, to}` (4 bytes) sends the output of one port to the input of another. `data_stream_connect` refuses an unknown port, a port to itself and `to` with no input, and a fifth target of one output (`ERR_DATA_MATRIX_FULL`); `data_stream_disconnect`; `data_stream_links`. `data_stream_register` / `_unregister` (its links go with it, its `out` is cleared). Since no `pass` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
-- **Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. No role, no session, no tag, no format, no queue, no task. The contract of a port (`data_stream_port.h`): `pass` is short, never blocks, never sends on its own port, copies what it keeps; a send only from a task, and no more once the port is unregistered; a packet with no link is dropped; the order of an output's targets is no promise.
-- Each port keeps its own targets: at most `CONFIG_DATA_STREAM_TARGETS` (4) ports its output goes to, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls the targets after it; the table changes from one task (boot, the commands). `CONFIG_DATA_STREAM_PORTS` 32, so the table is 32 x 12 B = 384 B on the board, and a send takes 16 B of the sender's stack; defaults in the source until it joins the build.
-- **Providers are ports by themselves:** each one embeds its port (`sys_data_provider_t.port`, SYS_DATA_PROVIDER.MD "Stream port"); `data_stream_init` sets the providers' port hooks, so every provider made is registered and every one removed is unregistered, its links with it. A provider with no rx owner (`open`) sends what comes in on its line to its port.
-- Errors: `ERR_DATA_MATRIX_BAD_ARG`, `ERR_DATA_MATRIX_FULL` of the map above.
-- Commands (`stream/data_stream_router.h`, root key `MODULE_ID_DATA_MATRIX` `0x30`, which the switch takes over from the matrix): `CONNECT` `0x01` (W, `data_stream_link_t`), `DISCONNECT` `0x02` (W, `data_stream_link_t`) and `LIST` `0x03` (R, answer `u8` links then a `data_stream_link_t` each, port by port: `data_stream_links`; `ERR_CMD_OUT_FULL` when they do not fit the frame), each one call of the switch. Its descriptor (`contract_*.json`) comes when it joins the build: until then `0x30` is the matrix's above.
-
-What the matrix above does besides switching moves out to the modules that have the logic when the switch replaces it: a session's tagged channels to `sys_session`, the command port to a module beside the router's queue; roles, `S` and `C` ends go.
-
-## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
-
-| Op | Args | Meaning |
-|---|---|---|
-| `ROLE` (W) | `data_matrix_role_args_t` {provider, role, dead-man u16, flags} | gives the role |
-| `CLEAR_ROLE` (W) | {provider} | takes it away, with the provider's routes |
-| `ROUTE` / `UNROUTE` (W) | `data_matrix_route_t` | adds / removes a route; the same again changes nothing |
-| `CLEAR` (W) | `data_matrix_end_t` | removes every route that has the end, on either side |
-| `LIST` (R) | | `u8` roles, each `data_matrix_role_args_t`, `u8` routes, each `data_matrix_route_t` |
-
-They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`): `ROLE` first, then the `ROUTE`s, replayed at every start.
-
-## The board's code
-
-`data_matrix_init()` (boot, after `sys_session_init`) starts the task and takes the sessions' PUSH frames (`sys_session_set_push`). `data_matrix_send`, `data_matrix_send_to` (to one end with no route, any task), `data_matrix_listen`, `data_matrix_streams`, `data_matrix_is_task` (a log line made inside a delivery is not sent again). The callback runs on the task that delivers: the provider's rx task for `P` and `T`, the matrix's task for `S`; it copies what it keeps and never blocks.
+They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed at every start: the board's record makes the providers before it links them.
 
 ## Config (`Kconfig`)
 
-`DATA_MATRIX_ROLES` 8, `DATA_MATRIX_ROUTES` 24 (a delivery copies the matching routes' targets, 3 bytes each, onto its stack), `DATA_MATRIX_CALLBACKS` 6, `DATA_MATRIX_QUEUE_SIZE` 4608 (the stream sends and what a route puts in a stream; a full queue drops), `DATA_MATRIX_TASK_PRIO` 4 (below the router's: streams wait, commands don't), `DATA_MATRIX_TASK_STACK` 4096.
+`DATA_STREAM_PORTS` 32 (one place is 12 B on the board: 384 B), `DATA_STREAM_TARGETS` 4 (a send takes a pointer each of the sender's stack: 16 B).
 
-## Tests
+## Open
 
-`host/test_data_matrix.c`: `python test_host/run.py data_matrix` (from `runit-esp/`), with the real providers' registry, the router, the sessions and the matrix's task on fake providers: roles, the allowed pairs and the table's limits, a stream to every route (urgent first), a bridge, a provider into a stream and a callback, a tagged PUSH to its routes only and from any session, the tag on a session and bare on a raw provider, a command port (its answer on the provider) and the remote commands.
+- Not in the build: the ESP build and the host tests wait for the modules that used the matrix's streams, roles and callbacks to become ports: `sys_session` (its channels, a send to one session), `sys_log` (`LOGS`, the loop guard of a log line made in a delivery), the errors' stream (`ERRORS`, `ERRORS_IN`), `sys_event_stream`, `sys_watch`, `sys_remote`, `app/runit` (links instead of roles and routes).
+- A self-registration macro for a module's port.
+- Host tests of the switch.

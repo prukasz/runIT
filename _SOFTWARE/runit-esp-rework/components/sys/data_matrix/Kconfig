@@ -1,52 +1,19 @@
 menu "data_matrix"
 
-    config DATA_MATRIX_ROLES
-        int "Roles"
-        default 8
-        range 2 32
+    config DATA_STREAM_PORTS
+        int "Stream ports"
+        default 32
+        range 2 254
         help
-          Providers with a role: the ones with a session, a raw port or a
-          command port.
+          The ports the switch can hold: the modules' streams and the
+          providers. One place is 12 bytes on the board.
 
-    config DATA_MATRIX_ROUTES
-        int "Routes"
-        default 24
-        range 4 128
-        help
-          Routes of every kind. A delivery copies the routes it takes onto
-          its task's stack (3 bytes each).
-
-    config DATA_MATRIX_CALLBACKS
-        int "Callbacks"
-        default 6
+    config DATA_STREAM_TARGETS
+        int "Targets of one port"
+        default 4
         range 1 16
         help
-          Callback ends of the board's code (the watches, the remote devices,
-          a module that takes a stream).
-
-    config DATA_MATRIX_QUEUE_SIZE
-        int "Queue (bytes)"
-        default 4608
-        range 1024 32768
-        help
-          Ring buffer of the messages waiting for the matrix's task: sends on
-          streams, and what a route puts into a stream. Each takes its length
-          + ~12 bytes, and the one being delivered keeps its room until every
-          target has it. A full queue drops it. Multiple of 4.
-
-    config DATA_MATRIX_TASK_PRIO
-        int "Task priority"
-        default 4
-        range 1 24
-        help
-          Below the router tasks: streams wait, commands don't.
-
-    config DATA_MATRIX_TASK_STACK
-        int "Task stack (bytes)"
-        default 4096
-        range 2048 32768
-        help
-          Delivering a queued message to its targets, and the callbacks it
-          calls.
+          The ports one port's output can go to. A send copies them onto the
+          sender's stack (a pointer each).
 
 endmenu

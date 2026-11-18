@@ -1,7 +1,6 @@
 /**
  * @file data_stream_router.c
- * @brief The switch's commands (data_stream_router.h): CONNECT, DISCONNECT and LIST, each one call of the switch. NOT
- * IN THE BUILD yet.
+ * @brief The data matrix's commands (data_stream_router.h): CONNECT, DISCONNECT and LIST, each one call of the switch.
  */
 
 #include "data_stream_router.h"

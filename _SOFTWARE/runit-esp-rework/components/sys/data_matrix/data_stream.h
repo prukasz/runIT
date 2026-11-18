@@ -2,8 +2,7 @@
 
 /**
  * @file data_stream.h
- * @brief The switch that links stream ports (DATA_MATRIX.MD "data_stream"). NOT IN THE BUILD yet: the next data
- * matrix, written beside the current one.
+ * @brief The data matrix: the switch that links stream ports (DATA_MATRIX.MD).
  *
  * A port (core/utils/data_stream_port.h) is anything that sends or takes bytes that are not commands: a module's
  * stream, a provider. The switch keeps only the registered ports and, per port, the ports its output goes to, and

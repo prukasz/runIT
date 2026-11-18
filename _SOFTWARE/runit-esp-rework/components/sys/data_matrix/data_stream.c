@@ -1,8 +1,7 @@
 /**
  * @file data_stream.c
  * @brief The switch of the stream ports (data_stream.h): the registered ports, each with the ports its output goes
- * to, and the `out` every registered port gets, which hands a packet unchanged to their inputs. NOT IN THE BUILD yet
- * (DATA_MATRIX.MD "data_stream").
+ * to, and the `out` every registered port gets, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
  *
  * A port's targets are its own (at most CONFIG_DATA_STREAM_TARGETS, as places in the table), so out() only copies
  * them under the spinlock, a few bytes, and calls them after it: a port's pass never runs under the lock.
@@ -12,14 +11,10 @@
 
 #include "data_matrix_errors.h"
 #include "freertos/FreeRTOS.h"
+#include "sdkconfig.h"
 #include "sys_data_provider.h"
 
-#ifndef CONFIG_DATA_STREAM_PORTS
-#define CONFIG_DATA_STREAM_PORTS 32
-#endif
-#ifndef CONFIG_DATA_STREAM_TARGETS
-#define CONFIG_DATA_STREAM_TARGETS 4
-#endif
+ERR_MODULE_DEFINE(MODULE_ID_DATA_MATRIX, ERR_DATA_MATRIX_MAP)
 
 _Static_assert(CONFIG_DATA_STREAM_PORTS < 0xFF, "a port's place is a u8, 0xFF is none");
 

@@ -1,10 +1,9 @@
-# The data matrix: roles of the providers and the routes of the data that are not commands (DATA_MATRIX.MD).
+# The data matrix: the switch that links stream ports and hands their packets on unchanged (DATA_MATRIX.MD).
 # WHOLE_ARCHIVE: the router registers itself (ROUTER_MODULE_REGISTER) from a source nothing else references.
 idf_component_register(
-    SRCS "data_matrix.c" "data_matrix_commands.c" "router/data_matrix_router.c"
+    SRCS "data_stream.c" "router/data_stream_router.c"
     INCLUDE_DIRS "." "errors" "router"
-    PRIV_INCLUDE_DIRS "internal"
-    REQUIRES cmd errors router
-    PRIV_REQUIRES router_queue sys_data_provider sys_session utils freertos
+    REQUIRES cmd errors router utils
+    PRIV_REQUIRES sys_data_provider freertos
     WHOLE_ARCHIVE
 )

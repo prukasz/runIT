@@ -2,9 +2,9 @@
 
 /**
  * @file data_stream_router.h
- * @brief The switch's commands (DATA_MATRIX.MD "data_stream"): the app links, unlinks and lists stream ports. Root key
- * MODULE_ID_DATA_MATRIX (0x30), which the switch takes over from the matrix. NOT IN THE BUILD yet. Packed,
- * little-endian; never renumber. The router registers itself (ROUTER_MODULE_REGISTER): no other component names it.
+ * @brief The data matrix's commands (DATA_MATRIX.MD "Commands"): the app links, unlinks and lists stream ports. Root
+ * key MODULE_ID_DATA_MATRIX (0x30); router/contract_data_matrix.json names them. Packed, little-endian; never renumber.
+ * The router registers itself (ROUTER_MODULE_REGISTER): no other component names it.
  */
 
 #include "data_matrix_id.h"
