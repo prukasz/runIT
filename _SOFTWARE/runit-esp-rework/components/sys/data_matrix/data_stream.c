@@ -12,7 +12,6 @@
 #include "data_matrix_errors.h"
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
-#include "sys_data_provider.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_DATA_MATRIX, ERR_DATA_MATRIX_MAP)
 
@@ -154,17 +153,4 @@ uint32_t data_stream_links(data_stream_link_t* out_links, uint32_t max) {
   }
   portEXIT_CRITICAL(&s_lock);
   return n;
-}
-
-// The providers' ports: made and removed with them (sys_data_provider_set_port_hooks).
-static void provider_added(data_stream_port_t* port) {
-  err_report(data_stream_register(port));
-}
-
-static void provider_removed(data_stream_port_t* port) {
-  err_report(data_stream_unregister(port));
-}
-
-void data_stream_init(void) {
-  sys_data_provider_set_port_hooks(provider_added, provider_removed);
 }

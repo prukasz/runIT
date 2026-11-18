@@ -6,7 +6,7 @@ Component `components/sys/data_matrix/`. **The switch of the stream ports**: the
 
 | File | Role |
 |---|---|
-| `data_stream.h` / `data_stream.c` | The switch: `data_stream_register` / `_unregister`, `data_stream_connect` / `_disconnect`, `data_stream_links`, `data_stream_init`; the module's error tags registered |
+| `data_stream.h` / `data_stream.c` | The switch: `data_stream_register` / `_unregister`, `data_stream_connect` / `_disconnect`, `data_stream_links`; the module's error tags registered |
 | `router/data_stream_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
 | `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
@@ -22,7 +22,7 @@ The switch fills `out` and `place` when it registers the port and clears them wh
 
 **The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
-**Providers are ports by themselves:** `data_stream_init` (boot) sets the providers' port hooks, so every provider made is registered (and every one already made) and every one removed is unregistered, its links with it.
+**Providers are ports by themselves:** the app hands the switch's `data_stream_register` / `data_stream_unregister` to the providers' registry (`sys_data_provider_set_port_hooks`, `app/runit`), so every provider made is registered (and every one already made) and every one removed is unregistered, its links with it. The switch and the providers never name each other.
 
 ## Links
 

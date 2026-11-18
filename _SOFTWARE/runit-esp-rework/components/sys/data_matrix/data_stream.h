@@ -33,7 +33,8 @@ typedef struct __attribute__((packed)) {
 _Static_assert(sizeof(data_stream_link_t) == 4, "data_stream wire size");
 
 /**
- * @brief Registers a port: sets its `out` and its place. A module's at boot; a provider's when it is made.
+ * @brief Registers a port: sets its `out` and its place. A module's at boot; a provider's when it is made (the app
+ * hands this to sys_data_provider_set_port_hooks: its shape is sys_data_provider_port_hook_f).
  * @param port  The port, the owner's (kept by pointer), its id and pass filled.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (NULL, a name already registered), ERR_DATA_MATRIX_FULL
  *         (CONFIG_DATA_STREAM_PORTS taken)
@@ -69,12 +70,6 @@ MUST_USE err_h data_stream_disconnect(const data_stream_link_t* link);
  * @return How many links there are; only the first `max` are written.
  */
 uint32_t data_stream_links(data_stream_link_t* out, uint32_t max);
-
-/**
- * @brief Makes the providers ports of the switch: every provider made from now on, and every one already made, is
- * registered; a removed one is unregistered (sys_data_provider_set_port_hooks). Boot, once.
- */
-void data_stream_init(void);
 
 #ifdef __cplusplus
 }

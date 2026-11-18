@@ -100,15 +100,18 @@ MUST_USE err_h sys_data_provider_read(uint8_t id, uint16_t op, const void* args,
 
 /**
  * @brief What is told of a provider's stream port: the port embedded in the provider, named
- * DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), its input sys_data_provider_send (NOWAIT).
+ * DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), its input sys_data_provider_send (NOWAIT). The switch's
+ * data_stream_register / data_stream_unregister have this shape: the app hands them over, so neither names the other.
  * @param port  The provider's port; lives as long as the provider.
+ * @return NULL; an error is reported by the registry
  */
-typedef void (*sys_data_provider_port_hook_f)(data_stream_port_t* port);
+typedef err_h (*sys_data_provider_port_hook_f)(data_stream_port_t* port);
 
 /**
- * @brief Who hears of the providers' stream ports: the switch (data_stream_init) makes them its ports. `added` is
- * called at once for every provider already made, then for each one CREATE makes; `removed` for each one REMOVE takes,
- * before its driver is removed. Boot, once.
+ * @brief Who hears of the providers' stream ports: the app sets the switch's register and unregister
+ * (`sys_data_provider_set_port_hooks(data_stream_register, data_stream_unregister)`). `added` is called at once for
+ * every provider already made, then for each one CREATE makes; `removed` for each one REMOVE takes, before its driver
+ * is removed. Boot, once.
  * @param added    Called with a new provider's port, may be NULL.
  * @param removed  Called with a provider's port before it goes, may be NULL.
  */

@@ -27,8 +27,8 @@ static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
 U_MUTEX_DEFINE(s_prov_ctrl_lock);  // Serializes CREATE / REMOVE / driver own ops
-static sys_data_provider_port_hook_f s_port_added;    // the switch's: a provider's port made
-static sys_data_provider_port_hook_f s_port_removed;  // the switch's: a provider's port about to go
+static sys_data_provider_port_hook_f s_port_added;    // set by the app: a provider's port made
+static sys_data_provider_port_hook_f s_port_removed;  // set by the app: a provider's port about to go
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // Short critical section for slot reads & data plane
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
@@ -189,7 +189,7 @@ void sys_data_provider_set_port_hooks(sys_data_provider_port_hook_f added, sys_d
   s_port_removed = removed;
   for (uint32_t i = 0; added != NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     if (s_slots[i].used) {
-      added(&s_slots[i].p.port);
+      err_report(added(&s_slots[i].p.port));
     }
   }
 }
@@ -247,7 +247,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   slot->used = true;
   portEXIT_CRITICAL(&s_lock);
   if (s_port_added != NULL) {
-    s_port_added(&slot->p.port);
+    err_report(s_port_added(&slot->p.port));
   }
   return NULL;
 }
@@ -275,7 +275,7 @@ static err_h remove_locked(uint8_t id) {
   ERR_CHECK(!in_use, ERR_PROV_IN_USE, .provider = id);
 
   if (s_port_removed != NULL) {
-    s_port_removed(&slot->p.port);  // its links go before its driver does
+    err_report(s_port_removed(&slot->p.port));  // its links go before its driver does
   }
   err_h err = type->remove(&slot->p, instance);
   if (type->ctx_size > 0) {

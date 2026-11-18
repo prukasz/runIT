@@ -4,6 +4,6 @@ idf_component_register(
     SRCS "data_stream.c" "router/data_stream_router.c"
     INCLUDE_DIRS "." "errors" "router"
     REQUIRES cmd errors router utils
-    PRIV_REQUIRES sys_data_provider freertos
+    PRIV_REQUIRES freertos
     WHOLE_ARCHIVE
 )
