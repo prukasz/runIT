@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_POWER_MANAGER",
+  "module": "MODULE_ID_PWRM",
   "errors": {
     "ERR_PWRM_NOT_READY": {
       "message": "The power manager is not ready"

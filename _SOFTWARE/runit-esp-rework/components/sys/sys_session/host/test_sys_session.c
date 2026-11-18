@@ -8,6 +8,7 @@
 
 #include "cmd.h"
 #include "cmd_table.h"
+#include "err_record.h"
 #include "host_assert.h"
 #include "host_mocks.h"
 #include "router_queue.h"

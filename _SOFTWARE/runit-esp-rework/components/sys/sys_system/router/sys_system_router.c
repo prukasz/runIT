@@ -76,5 +76,4 @@ static const router_op_t k_ops[] = {
 
 ROUTER_MODULE(sys_system_router, k_ops)
 
-MODULE_ID_DEFINE(SYS, 0x28)
-ROUTER_MODULE_REGISTER(SYS, sys_system_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_SYS, sys_system_router)

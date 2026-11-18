@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "sys_hbridge_id.h"
 #include "sys_device.h"
 #include "sys_event.h"
 
@@ -58,8 +59,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_COAST,   0x02, cmd_none_t,             hbridge_channel_args_t, 0) \
   X(P, OP_CURRENT, 0x03, hbridge_channel_args_t, int32_t,                0)
 
-MODULE_ID_DECLARE(HBRIDGE, 0x09)  //@alias H-bridge contract @description H-bridge motor driver contract and module ID
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_HBRIDGE, HBRIDGE, 0x09)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_HBRIDGE, MODULE_ID_HBRIDGE)
 
 /* Events of the contract: a channel fault, published by the driver; source = the device, channel = the channel, the
  * payload its current at the time. A fault is something the user must see: NOTIFY. */
@@ -68,7 +68,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_HBRIDGE, HBRIDGE, 0x09)
   X(P, THERMAL_OR_UVLO, 0x02, SYS_EVENT_NOTIFY, { int32_t mA; }) \
   X(P, EXTERNAL,        0x03, SYS_EVENT_NOTIFY, { int32_t mA; })
 
-SYS_EVENTS_DECLARE(HBRIDGE, DEVICE)
+SYS_EVENTS_DECLARE(HBRIDGE, MODULE_ID_HBRIDGE, DEVICE)
 
 #ifdef __cplusplus
 }

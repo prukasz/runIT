@@ -98,12 +98,12 @@
         },
         "name": {
           "type": "string",
-          "description": "Czytelna nazwa modułu (np. 'sys_device', 'sys_io', 'router')."
+          "description": "Czytelna nazwa modułu: jego MODULE_ID_ bez przedrostka (np. 'SYS_DEVICE', 'IO', 'ROUTER')."
         },
         "symbol": {
           "type": "string",
-          "pattern": "^ERR_MOD_[A-Z0-9_]+$",
-          "description": "Symbol stałej C modułu w firmware (np. 'ERR_MOD_SYS_DEVICE')."
+          "pattern": "^MODULE_ID_[A-Z0-9_]+$",
+          "description": "Numer modułu w firmware, MODULE_ID_<NAME> (np. 'MODULE_ID_SYS_DEVICE'; MODULE_ID_CORE = 0)."
         },
         "source_file": {
           "type": "string",

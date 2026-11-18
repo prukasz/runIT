@@ -8,8 +8,7 @@
 #include "nvs_flash.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_NVS, "sys_nvs", ERR_SYS_NVS_MAP)
-MODULE_ID_DEFINE(NVS, 0x16)
+ERR_MODULE_DEFINE(MODULE_ID_NVS, ERR_SYS_NVS_MAP)
 
 #define TAG __FILE_NAME__
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_DATA_PROVIDER",
+  "module": "MODULE_ID_PROVIDER",
   "errors": {
     "ERR_PROV_NOT_FOUND": {
       "message": "Data provider {provider} was not found",

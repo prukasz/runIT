@@ -6,11 +6,11 @@ Component `runit-esp-rework/components/sys/bus/sys_ble/`. NimBLE as a peripheral
 |---|---|
 | `sys_ble.h` | `sys_ble_start`, the table's calls, `sys_ble_hook`, `sys_ble_send`; the service and characteristic flags and the fragment header bits |
 | `internal/sys_ble_internal.h` | The nodes, the lock, what the sources share (the table's calls for the router) |
-| `sys_ble.c` | The table (staged), the sync to NimBLE, the hooks, TX (the BLE task), RX and the framing, the connection; `MODULE_ID_DEFINE(BLE, 0x2E)` |
+| `sys_ble.c` | The table (staged), the sync to NimBLE, the hooks, TX (the BLE task), RX and the framing, the connection |
 | `sys_ble_stack.c` | NimBLE: init, advertising, GAP events, GATT access, the table's definitions, notify |
 | `router/sys_ble_router.h` / `.c` | The remote interface (root key `MODULE_ID_BLE` 0x2E): the frames and flags, then `BLE_OPERATIONS`; registers itself |
 | `router/contract_ble.json` | The router's descriptor |
-| `errors/` | `MODULE_ID_DECLARE(BLE, 0x2E)` (`ERR_MOD_SYS_BLE`), `ERR_SYS_BLE_MAP`, `errors_sys_ble.json` |
+| `sys_ble_id.h`, `errors/` | `MODULE_ID_DECLARE(MODULE_ID_BLE, 0x2E)` (`sys_ble_id.h`), `ERR_SYS_BLE_MAP`, `errors_sys_ble.json` |
 | `Kconfig` | The name, the BLE task, the apply delay |
 
 ## Boot
@@ -77,7 +77,7 @@ A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_
 
 Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then the role `RAW` on that provider and a route from the stream to it (DATA_MATRIX.MD).
 
-## Errors (`ERR_MOD_SYS_BLE` = `MODULE_ID_BLE` 0x2E)
+## Errors (`MODULE_ID_BLE` 0x2E)
 
 | Error | Severity | Fields |
 |---|---|---|

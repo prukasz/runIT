@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_CMD",
+  "module": "MODULE_ID_CMD",
   "errors": {
     "ERR_CMD_BAD_LEN": {
       "message": "The command carries {got} bytes; it needs {need}"

@@ -3,7 +3,7 @@
 Spec: `ERRORS.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- A module's ID (`ERR_MOD_*`) is its number (`MODULE_ID_DECLARE` in its errors header, `#define ERR_MOD_X MODULE_ID_X`; `module_id.h`). They must be unique firmware-wide and never renumbered. `ERR_MOD_CORE` is 0.
+- A module's errors are under its number, `MODULE_ID_<NAME>` (`MODULE_ID_DECLARE` in the module's `<module>_id.h`, which its errors header includes: `errors.h` does not); the map passes it as `M` and `ERR_TAGS_DECLARE(MODULE_ID_X, MAP)` / `ERR_MODULE_DEFINE(MODULE_ID_X, MAP)` take it, never an alias. Numbers are unique firmware-wide and never renumbered. `MODULE_ID_CORE` is 0.
 - Error tags: `ERR_TAG(module, code)` packs module (bits 16..31) and code (bits 0..15). Tag 0 represents success / no error. Error codes are wire format; do not renumber them.
 - Tag maps and registration:
   - Each module declares its tags via `ERR_TAGS_DECLARE(MAP)` in its header.

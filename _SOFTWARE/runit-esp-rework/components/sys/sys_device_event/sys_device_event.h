@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sys_device_event_id.h"
 #include "sys_device.h"
 #include "sys_event.h"
 
@@ -19,8 +20,7 @@ extern "C" {
 #define CONTRACT_EVENT_OPERATIONS(X, P) \
   X(P, OP_ON_EVENT, 0x00, cmd_none_t, sys_event_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL)
 
-MODULE_ID_DECLARE(EVENT, 0x03)  //@alias Device event contract @description Hardware event stream contract and module ID
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, EVENT, 0x03)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, MODULE_ID_EVENT)
 
 /**
  * @brief Handler for a device op that receives an event (OP_DECLARE_WRITE_TAIL with args = sys_event_t and tail = event->len

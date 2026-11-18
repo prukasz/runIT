@@ -158,7 +158,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_LOCK,         0x0C, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
   X(P, OP_UNLOCK,       0x0D, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
 
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, MODULE_ID_IO)
 
 /* Events of the IO contract, published by a device for a pin armed with INTR: source = the device, channel = the pin.
  * Flags 0: an edge is code flow (an alert pin, the VM), not something to show by itself. */
@@ -168,7 +168,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01)
   X(P, ADC_OUTSIDE, 0x03, 0, { int32_t mV; }) \
   X(P, ADC_INSIDE,  0x04, 0, { int32_t mV; })
 
-SYS_EVENTS_DECLARE(IO, DEVICE)
+SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)
 
 /* ----------------------------------------------------------------------------
  * A pin reference

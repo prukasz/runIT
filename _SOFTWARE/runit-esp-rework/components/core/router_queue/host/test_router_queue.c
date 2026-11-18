@@ -4,6 +4,7 @@
  * test_router_tasks.c.
  * Run: python test_host/run.py router_queue   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <string.h>
+#include "err_record.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "router_queue.h"

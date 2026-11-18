@@ -4,16 +4,16 @@
 #include <string.h>
 #include "err_internal.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_CORE, "core", ERR_CORE_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_CORE, ERR_CORE_MAP)
 
-// Returned by err_new when the pool is empty and there is no cause to fall
+// Returned by err__new when the pool is empty and there is no cause to fall
 // back on. Never freed; static, so its `next` and `info` are NULL.
 static err_t s_pool_empty = {.tag = ERR_POOL_EMPTY};
 
 #if CONFIG_ERRORS_INFO
-err_h err_new(const err_info_t* info, uint32_t tag, const void* data, uint32_t len, err_h cause)
+err_h err__new(const err_info_t* info, uint32_t tag, const void* data, uint32_t len, err_h cause)
 #else
-err_h err_new(uint32_t tag, const void* data, uint32_t len, err_h cause)
+err_h err__new(uint32_t tag, const void* data, uint32_t len, err_h cause)
 #endif
 {
   assert(data != NULL || len == 0);

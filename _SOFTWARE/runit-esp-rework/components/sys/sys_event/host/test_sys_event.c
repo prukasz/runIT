@@ -4,6 +4,8 @@
  * Run: python test_host/run.py sys_event   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
+#include "err_sink.h"
+#include "module_id.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "host_mocks.h"
@@ -11,17 +13,17 @@
 #include "sys_event.h"
 
 /* A module of the tests' own, with a table in the format every module uses. */
-MODULE_ID_DECLARE(TESTEV, 0x3A)
+MODULE_ID_DECLARE(MODULE_ID_TESTEV, 0x3A)
 #define TESTEV_EVENTS(X, P)                              \
   X(P, PING, 0x01, 0,                {})                 \
   X(P, ODD,  0x02, SYS_EVENT_NOTIFY, { uint8_t b[3]; })  \
   X(P, WORD, 0x03, 0,                { uint32_t v; })
-SYS_EVENTS_DECLARE(TESTEV, SYS)
+SYS_EVENTS_DECLARE(TESTEV, MODULE_ID_TESTEV, SYS)
 
 /* A second one, in the other lane. */
-MODULE_ID_DECLARE(TESTDEV, 0x3C)
+MODULE_ID_DECLARE(MODULE_ID_TESTDEV, 0x3C)
 #define TESTDEV_EVENTS(X, P) X(P, BEEP, 0x01, 0, { uint32_t v; })
-SYS_EVENTS_DECLARE(TESTDEV, DEVICE)
+SYS_EVENTS_DECLARE(TESTDEV, MODULE_ID_TESTDEV, DEVICE)
 
 #define WAIT_MS 1000  // the longest a test waits for a lane's task
 

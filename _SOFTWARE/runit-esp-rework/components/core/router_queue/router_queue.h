@@ -36,7 +36,7 @@ typedef enum {
 /**
  * @brief A command as it came in: its request [key][dir][code][args] and its origin. Whoever submits it to the router
  * fills it (the session from a frame's header, a watch, the board's own code); an error the command raises names it.
- * errors.h knows it only as `struct cmd_req` and passes it on to its sink without reading it.
+ * err_sink.h knows it only as `struct cmd_req` and passes it on to its sink without reading it.
  */
 typedef struct cmd_req {
   const uint8_t* req;  // may be NULL when req_len is 0

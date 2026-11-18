@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_WATCH",
+  "module": "MODULE_ID_WATCH",
   "errors": {
     "ERR_WATCH_NOT_FOUND": {
       "message": "Watch {id} not found",

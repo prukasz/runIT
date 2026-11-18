@@ -1,6 +1,6 @@
 """Publishes the error catalog of the firmware as one JSON: runit-esp-rework/components/core/errors/errors.json.
 
-Reads MODULE_ID_DECLARE / ERR_MOD_* defines and the ERR_MODULE_DEFINE and ERR_*_MAP macros from the headers
+Reads MODULE_ID_DECLARE, the ERR_MODULE_DEFINE(MODULE_ID_<NAME>, MAP) and the ERR_*_MAP(X, M) macros from the headers
 and sources under runit-esp-rework/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
 its map (templates/error-texts.schema.json): a message template per error and what a field refers to where the field's
 name does not say it. Enum groups named there are read from runit-app/generated/common/enums.json (generate_enums.py runs first).
@@ -70,29 +70,28 @@ ID_KIND_INFO = {
 # `/* @id kind */` notes override them
 ID_KINDS = {"pin": "pin", "source_pin": "pin", "bus": "i2c_bus", "provider": "transport", "stream": "stream", "contract": "contract", "tag": "error_tag", "root_tag": "error_tag"}
 MODULE_ID_KINDS = {
-    "ERR_MOD_SYS_I2C": {"addr": "i2c_address"},
-    "ERR_MOD_SYS_UART": {"port": "device", "owner": "device"},
-    "ERR_MOD_SYS_DEVICE": {"id": "device", "user": "device", "owner": "device", "dep": "device", "type": "device_type", "op": "device_op"},
-    "ERR_MOD_SYS_IO": {"id": "device"},
-    "ERR_MOD_SYS_POWER": {"id": "device", "channel": "channel"},
-    "ERR_MOD_SYS_DISPLAY": {"id": "device"},
-    "ERR_MOD_SYS_TOUCH": {"id": "device"},
-    "ERR_MOD_SYS_LVGL": {"id": "device"},
-    "ERR_MOD_SYS_POWER_MANAGER": {"id": "device", "source": "device", "channel": "channel"},
-    "ERR_MOD_SYS_EVENT": {"source": "device", "device": "device", "channel": "channel"},
-    "ERR_MOD_ROUTER": {"key": "router_key", "link": "link"},
-    "ERR_MOD_SYS_ACTIONS": {"id": "action"},
-    "ERR_MOD_SYS_PROJECT": {"id": "project_section"},
-    "ERR_MOD_SYS_BLE": {"uuid": "ble_uuid"},
-    "ERR_MOD_VM": {"obj_id": "vm_object", "parent_id": "vm_object", "acc_id": "vm_accessor", "block_idx": "vm_block", "blk_id": "vm_block", "packet": "vm_op", "device_id": "device"},
+    "MODULE_ID_I2C": {"addr": "i2c_address"},
+    "MODULE_ID_UART": {"port": "device", "owner": "device"},
+    "MODULE_ID_SYS_DEVICE": {"id": "device", "user": "device", "owner": "device", "dep": "device", "type": "device_type", "op": "device_op"},
+    "MODULE_ID_IO": {"id": "device"},
+    "MODULE_ID_SYS_POWER": {"id": "device", "channel": "channel"},
+    "MODULE_ID_DISPLAY": {"id": "device"},
+    "MODULE_ID_TOUCH": {"id": "device"},
+    "MODULE_ID_LVGL": {"id": "device"},
+    "MODULE_ID_PWRM": {"id": "device", "source": "device", "channel": "channel"},
+    "MODULE_ID_SYS_EVENT": {"source": "device", "device": "device", "channel": "channel"},
+    "MODULE_ID_ROUTER": {"key": "router_key", "link": "link"},
+    "MODULE_ID_ACTIONS": {"id": "action"},
+    "MODULE_ID_PROJECT": {"id": "project_section"},
+    "MODULE_ID_BLE": {"uuid": "ble_uuid"},
+    "MODULE_ID_VM": {"obj_id": "vm_object", "parent_id": "vm_object", "acc_id": "vm_accessor", "block_idx": "vm_block", "blk_id": "vm_block", "packet": "vm_op", "device_id": "device"},
 }
 UNITS = {"_Hz": "Hz", "_mV": "mV", "_mA": "mA", "_ms": "ms", "_us": "us"}  # field name suffix -> unit
 
-MODULE_DECLARE_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(\w+)\s*,\s*(0x[0-9a-fA-F]+|\d+)u?\s*\)", re.MULTILINE)
-MOD_DEFINE_RE = re.compile(r"^#define\s+(ERR_MOD_\w+)\s+(\w+)\b", re.MULTILINE)
-MODULE_DEFINE_RE = re.compile(r'^ERR_MODULE_DEFINE\(\s*(ERR_MOD_\w+)\s*,\s*"([^"]*)"\s*,\s*(\w+)\s*\)', re.MULTILINE)
-MAP_RE = re.compile(r"^#define\s+(\w+_MAP)\(X\)((?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
-TAG_CALL_RE = re.compile(r"ERR_TAG\(\s*(ERR_MOD_\w+)\s*,\s*(\d+)\s*\)")
+MODULE_DECLARE_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(MODULE_ID_\w+)\s*,\s*(0x[0-9a-fA-F]+|\d+)u?\s*\)", re.MULTILINE)
+MODULE_DEFINE_RE = re.compile(r"^ERR_MODULE_DEFINE\(\s*(MODULE_ID_\w+)\s*,\s*(\w+)\s*\)", re.MULTILINE)
+MAP_RE = re.compile(r"^#define\s+(\w+_MAP)\(X,\s*M\)((?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
+CORE_IDS = {"MODULE_ID_CORE": 0}  # errors.h: the core errors are no module
 FIELD_RE = re.compile(r"(?P<type>[\w ]+?)\s+(?P<name>\w+)(?:\[(?P<count>\d+)\])?")
 NOTE_RE = re.compile(r"/\*\s*@([a-z-]+)\s+([\w-]+)\s*\*/")
 
@@ -178,7 +177,7 @@ def parse_fields(body, context, module, tag):
 
 
 def parse_map(body, symbol, module_id, map_name):
-    """The tags of one ERR_*_MAP: `X(NAME, ERR_TAG(module, code), severity, { payload })` with an optional `/* description */`."""
+    """The tags of one ERR_*_MAP: `X(M, NAME, code, severity, { payload })` with an optional `/* description */`."""
     tags, seen, position = [], {}, 0
     while True:
         found = re.search(r"\bX\(", body[position:])
@@ -187,23 +186,19 @@ def parse_map(body, symbol, module_id, map_name):
         call, position = balanced(body, position + found.start() + 1)
         tail = re.match(r"\s*/\*(?!@)(.*?)\*/", body[position:], flags=re.DOTALL)
         parts = split_top(call)
-        if len(parts) < 4:
-            fail(f"{map_name}: entry has {len(parts)} arguments, expected 4")
-        name, tag_id, severity = parts[:3]
-
-        tag = TAG_CALL_RE.fullmatch(tag_id)
-        if not tag:
-            fail(f"{name}: ID '{tag_id}' is not ERR_TAG(module, code)")
-        if tag[1] != symbol:
-            fail(f"{name}: belongs to {tag[1]} but sits in map of {symbol}")
+        if len(parts) < 5 or parts[0] != "M":
+            fail(f"{map_name}: entry is not X(M, NAME, code, severity, {{ payload }})")
+        name, code_text, severity = parts[1:4]
+        if not re.fullmatch(r"\d+", code_text) or not 1 <= int(code_text) <= 0xFFFF:
+            fail(f"{name}: code '{code_text}' is not a number 1..65535")
         if severity not in SEVERITIES:
             fail(f"{name}: unknown severity {severity}")
-        code = int(tag[2])
+        code = int(code_text)
         if code in seen:
             fail(f"{name}: code {code} already used by {seen[code]}")
         seen[code] = name
 
-        fields, size = parse_fields(", ".join(parts[3:]), name, symbol, name)
+        fields, size = parse_fields(", ".join(parts[4:]), name, symbol, name)
         entry = {"code": code, "tag": (module_id << 16) | code, "name": name, "severity": SEVERITIES[severity], "size": size, "fields": fields}
         if tail and tail[1].strip():
             entry["description"] = " ".join(tail[1].split())
@@ -299,44 +294,44 @@ def apply_texts(module, tags, path):
             tag["hint"] = hint
 
 
+def texts_file(symbol, folder):
+    """The errors_<module>.json next to a map whose `module` is the map's module."""
+    found = [p for p in sorted(folder.glob("errors_*.json")) if json.loads(read(p)).get("module") == symbol]
+    if len(found) != 1:
+        fail(f"{symbol}: {len(found)} errors_*.json in {rel(folder)} name it as their module, expected 1")
+    return found[0]
+
+
 def scan():
-    module_ids, raw_defs, names, maps, map_file = {}, {}, {}, {}, {}
+    ids, names, maps, map_file = dict(CORE_IDS), {}, {}, {}
     for path in sources(".h", ".c"):
         text = read(path)
         for m in MODULE_DECLARE_RE.finditer(text):
-            module_ids[f"MODULE_ID_{m[1]}"] = int(m[2], 0)
-        for m in MOD_DEFINE_RE.finditer(text):
-            raw_defs[m[1]] = m[2]
+            ids[m[1]] = int(m[2], 0)
         for m in MODULE_DEFINE_RE.finditer(text):
             if m[1] in names:
                 fail(f"{rel(path)}: duplicate ERR_MODULE_DEFINE for {m[1]}")
-            names[m[1]] = (m[2], m[3])
+            names[m[1]] = m[2]
         for m in MAP_RE.finditer(text):
             maps[m[1]] = m[2].replace("\\\n", " ")
             map_file[m[1]] = path
 
-    ids = {}
-    for sym, val in raw_defs.items():
-        if re.fullmatch(r"(?:0x[0-9a-fA-F]+|\d+)[uUlL]*", val):
-            ids[sym] = int(val.rstrip("uUlL"), 0)
-        elif val in module_ids:
-            ids[sym] = module_ids[val]
-
     modules = []
-    for symbol, (name, map_name) in sorted(names.items(), key=lambda item: ids.get(item[0], 1 << 16)):
+    for symbol, map_name in sorted(names.items(), key=lambda item: ids.get(item[0], 1 << 16)):
         if symbol not in ids:
-            fail(f"{symbol} has no numeric #define or MODULE_ID_DECLARE value")
+            fail(f"{symbol} has no MODULE_ID_DECLARE")
         if map_name not in maps:
             fail(f"{symbol}: map {map_name} not found in headers")
+        texts = texts_file(symbol, map_file[map_name].parent)
         module = {
             "id": ids[symbol],
-            "name": name,
+            "name": symbol[len("MODULE_ID_"):],
             "symbol": symbol,
             "source_file": rel(map_file[map_name]),
-            "texts_file": rel(map_file[map_name].parent / f"errors_{name}.json"),
+            "texts_file": rel(texts),
             "tags": parse_map(maps[map_name], symbol, ids[symbol], map_name),
         }
-        apply_texts(module, module["tags"], map_file[map_name].parent / f"errors_{name}.json")
+        apply_texts(module, module["tags"], texts)
         modules.append(module)
     known = {m["texts_file"] for m in modules}
     for path in sources(".json"):

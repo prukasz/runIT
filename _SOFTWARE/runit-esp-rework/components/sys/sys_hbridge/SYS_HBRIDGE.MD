@@ -1,13 +1,12 @@
 # sys_hbridge — the HBRIDGE contract
 
-Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`CONTRACT_HBRIDGE_CONTRACT` = `0x09`, the contract's own ID) that mean the same on every motor driver. A driver implements the ops it supports; chip specifics (current limits, fault latching) are that driver's own `0xFFxx` ops.
+Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`MODULE_ID_HBRIDGE` = `0x09`, the contract's own ID) that mean the same on every motor driver. A driver implements the ops it supports; chip specifics (current limits, fault latching) are that driver's own `0xFFxx` ops.
 
 | File | Contents |
 |---|---|
 | `sys_hbridge.h` | The contract table `CONTRACT_HBRIDGE_OPERATIONS` (prefix `CONTRACT_HBRIDGE`), arg structs (`hbridge_channel_args_t`, `hbridge_drive_args_t`), `SYS_HBRIDGE_DRIVE_MAX`, fault reasons, and `HBRIDGE_EVENTS` |
-| `sys_hbridge.c` | Claims contract `0x09` (`SYS_DEVICE_CONTRACT_DEFINE(HBRIDGE, 0x09)`), linked `WHOLE_ARCHIVE` |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
-| `CMakeLists.txt` | Requires `cmd`, `sys_device`, `sys_event`; linked `WHOLE_ARCHIVE` |
+| `CMakeLists.txt` | Header only; requires `sys_device`, `sys_event` |
 | `AGENTS.md` | Rules for changing this folder |
 
 A channel is a full bridge (a motor, both directions) or a half bridge (a solenoid, one direction), as the driver is configured.

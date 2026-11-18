@@ -39,4 +39,4 @@ static const router_op_t k_ops[] = {
 
 ROUTER_MODULE(sys_power_manager_router, k_ops)
 
-ROUTER_MODULE_REGISTER(PWRM, sys_power_manager_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_PWRM, sys_power_manager_router)

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_LOG",
+  "module": "MODULE_ID_LOG",
   "errors": {
     "ERR_LOG_BAD_LEVEL": {
       "message": "Log level {level} is above the highest the board has ({max})",

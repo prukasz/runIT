@@ -7,11 +7,11 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 | File | Role |
 |---|---|
 | `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
-| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `MODULE_ID_DEFINE(WATCH, 0x2B)`, `ERR_MODULE_DEFINE` |
+| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
-| `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(WATCH, 0x2B)` (`ERR_MOD_SYS_WATCH`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
-| `router/sys_watch_router.h` / `.c` | `WATCH_OPERATIONS` (`OP_ADD`, `OP_REMOVE`, `OP_LIST`), `ROUTER_MODULE_REGISTER(WATCH, sys_watch_router)`, `contract_watch.json` |
+| `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x2B)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
+| `router/sys_watch_router.h` / `.c` | `WATCH_OPERATIONS` (`OP_ADD`, `OP_REMOVE`, `OP_LIST`), `ROUTER_MODULE_REGISTER(MODULE_ID_WATCH, sys_watch_router)`, `contract_watch.json` |
 | `host/` | Unity host tests (`test_sys_watch.c`) on fake links + real `sys_session`, `sys_event`, `router_queue`, `timer` |
 
 ## The watches of this board
@@ -60,7 +60,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 | `0x02` `WATCH_OP_REMOVE` | W | `sys_watch_ref_t` (`u8 id`) | – |
 | `0x03` `WATCH_OP_LIST` | R | – | `u8 count` + `count * sys_watch_info_t` (8 B each) |
 
-## Errors (`ERR_MOD_SYS_WATCH` = `0x2B` / `43`)
+## Errors (`MODULE_ID_WATCH` = `0x2B` / `43`)
 
 | Tag | Code | Severity | Data | When |
 |---|---|---|---|---|

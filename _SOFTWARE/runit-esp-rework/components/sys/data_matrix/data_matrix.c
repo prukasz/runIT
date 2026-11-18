@@ -9,8 +9,7 @@
 #include "sys_session.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_DATA_MATRIX, "data_matrix", ERR_DATA_MATRIX_MAP)
-MODULE_ID_DEFINE(DATA_MATRIX, 0x30)
+ERR_MODULE_DEFINE(MODULE_ID_DATA_MATRIX, ERR_DATA_MATRIX_MAP)
 
 #define STREAM_BYTE 1u  // a queued message is [stream][payload]
 #define PAYLOAD_MAX (CMD_DATA_MAX - 1u)

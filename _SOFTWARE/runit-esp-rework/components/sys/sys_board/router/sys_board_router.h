@@ -2,15 +2,13 @@
 
 #include <stdint.h>
 
+#include "sys_board_id.h"
 #include "router_table.h"
 #include "sys_nvs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* The module's one number: the root key of its commands. */
-MODULE_ID_DECLARE(BOARD, 0x2D)  //@alias Board profile @description Board manifest and identity service module ID
 
 /* Ops under the root key MODULE_ID_BOARD = 0x2D (SYS_BOARD.MD "Remote"), packed, little-endian; contract_board.json
  * names them. Never renumber. The router registers itself (ROUTER_MODULE_REGISTER). */

@@ -23,7 +23,7 @@ _Static_assert(sizeof(sys_data_provider_router_hdr_t) == 4, "provider frame head
 
 /**
  * @brief Router of root key MODULE_ID_PROVIDER (0x0D): remote interface of the provider registry.
- * Self-registers via ROUTER_MODULE_REGISTER(PROVIDER, sys_data_provider_router).
+ * Self-registers via ROUTER_MODULE_REGISTER(MODULE_ID_PROVIDER, sys_data_provider_router).
  */
 ROUTER_MODULE_DECLARE(sys_data_provider_router);
 

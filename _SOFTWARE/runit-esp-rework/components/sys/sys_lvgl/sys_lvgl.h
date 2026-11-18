@@ -39,7 +39,7 @@ typedef enum sys_lvgl_state_e {
   X(P, STATE,    0x02, SYS_EVENT_NOTIFY, { uint8_t state; })    \
   X(P, ROTATION, 0x03, SYS_EVENT_NOTIFY, { uint8_t rotation; })
 
-SYS_EVENTS_DECLARE(LVGL, SYS)
+SYS_EVENTS_DECLARE(LVGL, MODULE_ID_LVGL, SYS)
 
 #define SYS_LVGL_HEAP_MIN    32768u    // the smallest pool INSTALL takes (B): lv_conf.h's LV_MEM_SIZE
 #define SYS_LVGL_HEAP_MAX    4194304u  // the largest: LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE

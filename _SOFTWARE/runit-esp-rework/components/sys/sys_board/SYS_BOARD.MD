@@ -4,7 +4,7 @@ Component `runit-esp-rework/components/sys/sys_board/`. What the board is, kept 
 
 | File | Role |
 |---|---|
-| `sys_board.h` / `.c` | `sys_board_init` (the JSON file), `sys_board_boot` (the record's RUN_ALL); `MODULE_ID_DEFINE(BOARD, 0x2D)` |
+| `sys_board.h` / `.c` | `sys_board_init` (the JSON file), `sys_board_boot` (the record's RUN_ALL) |
 | `internal/sys_board_internal.h` | `sys_board_json`, for the router only |
 | `router/sys_board_router.h` / `.c` | The remote interface (root key `MODULE_ID_BOARD` 0x2D): the frames, then `BOARD_OPERATIONS`; registers itself |
 | `router/contract_board.json` | The router's descriptor |

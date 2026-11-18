@@ -2,14 +2,13 @@
 
 #include <stdint.h>
 
+#include "sys_device_policy_id.h"
 #include "router_table.h"
 #include "sys_device_policy.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-MODULE_ID_DECLARE(POLICY, 0x21)  //@alias Device fault policy @description Device fault response policy module ID
 
 /* Ops under the root key MODULE_ID_POLICY (packed, little-endian). Never renumber. The router registers itself
  * (ROUTER_MODULE_REGISTER): no component names it. */

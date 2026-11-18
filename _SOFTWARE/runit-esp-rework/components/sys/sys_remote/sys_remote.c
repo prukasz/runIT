@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "data_matrix.h"
+#include "err_record.h"
+#include "err_sink.h"
 #include "freertos/ringbuf.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -18,8 +20,7 @@
 #include "sys_watch.h"
 #include "utils.h"
 
-MODULE_ID_DEFINE(REMOTE, 0x2F)
-ERR_MODULE_DEFINE(ERR_MOD_SYS_REMOTE, "sys_remote", ERR_SYS_REMOTE_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_REMOTE, ERR_SYS_REMOTE_MAP)
 
 #define ARGS_MAX   64u                                      // the args of a call to a remote device
 #define ANSWER_MAX 16u                                      // a write's answer has no data; a little room anyway

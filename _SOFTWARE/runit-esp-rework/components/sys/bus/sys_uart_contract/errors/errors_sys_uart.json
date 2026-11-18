@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_UART",
+  "module": "MODULE_ID_UART",
   "errors": {
     "ERR_UART_BAD_ARG": {
       "message": "A UART request is not valid"

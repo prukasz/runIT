@@ -11,8 +11,7 @@
 #include "sys_data_provider_internal.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_DATA_PROVIDER, "sys_data_provider", ERR_SYS_DATA_PROVIDER_MAP)
-MODULE_ID_DEFINE(PROVIDER, 0x0D)
+ERR_MODULE_DEFINE(MODULE_ID_PROVIDER, ERR_SYS_DATA_PROVIDER_MAP)
 
 /* ----------------------------------------------------------------------------
  * Registry state: registered driver types and provider slots

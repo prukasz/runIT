@@ -1,5 +1,6 @@
 #include "sys_device_policy.h"
 
+#include "err_record.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_device.h"

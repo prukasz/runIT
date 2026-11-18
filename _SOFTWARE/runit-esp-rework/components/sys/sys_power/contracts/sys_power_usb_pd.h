@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sys_power_usb_pd_id.h"
 #include "sys_power.h"
 
 #ifdef __cplusplus
@@ -57,8 +58,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_OPTIONS,  0x01, cmd_none_t, sys_power_usb_pd_option_t, 0) \
   X(P, OP_LIMITS,   0x02, cmd_none_t, sys_power_usb_pd_limits_t, 0)
 
-MODULE_ID_DECLARE(PD, 0x07)  //@alias USB PD contract @description USB Power Delivery sink contract and module ID
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PD, PD, 0x07)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PD, MODULE_ID_PD)
 
 /**
  * @brief Reads what the charger offers (op OPTIONS): an answer of any number of options, so not SYS_DEVICE_GET.

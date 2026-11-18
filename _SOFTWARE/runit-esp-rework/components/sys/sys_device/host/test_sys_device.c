@@ -5,6 +5,7 @@
  * Run: python test_host/run.py sys_device   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
+#include "module_id.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "host_mocks.h"
@@ -19,9 +20,9 @@
 
 /* ---- a contract of the tests' own (an interceptor needs one) -------------------------------------------------- */
 
-MODULE_ID_DECLARE(TESTC, 0x1E)
+MODULE_ID_DECLARE(MODULE_ID_TESTC, 0x1E)
 #define CONTRACT_TESTC_OPERATIONS(X, P) X(P, OP_LEVEL, 0x00, cmd_none_t, uint8_t, 0)
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_TESTC, TESTC, 0x1E)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_TESTC, MODULE_ID_TESTC)
 
 /* ---- the PROBE driver: what each op and hook did is kept for the tests ---------------------------------------- */
 
@@ -892,8 +893,8 @@ static void level_done(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t passed, er
 }
 
 static void test_an_interceptor_changes_or_refuses_a_call_and_hears_how_each_ended(void) {
-  TEST_ASSERT_NULL(sys_device_set_interceptor(CONTRACT_TESTC_CONTRACT, clamp_level, level_done));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_set_interceptor(CONTRACT_TESTC_CONTRACT, clamp_level, NULL));  // one each
+  TEST_ASSERT_NULL(sys_device_set_interceptor(MODULE_ID_TESTC, clamp_level, level_done));
+  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_set_interceptor(MODULE_ID_TESTC, clamp_level, NULL));  // one each
   make(30, NONE);
   s_done_n = 0;
   TEST_ASSERT_NULL(SYS_DEVICE_SET(30, CONTRACT_TESTC, OP_LEVEL, 50));

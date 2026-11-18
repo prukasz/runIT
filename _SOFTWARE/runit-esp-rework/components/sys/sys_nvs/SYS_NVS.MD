@@ -5,7 +5,7 @@ Component `components/sys/sys_nvs/`. Makes the NVS partitions ready, and keeps a
 | File | Role |
 |---|---|
 | `sys_nvs.h` / `sys_nvs.c` | `sys_nvs_init`, `sys_nvs_json_*` |
-| `errors/` | The error tags (`ERR_MOD_SYS_NVS` = `MODULE_ID_NVS` 0x16, declared in `sys_nvs_errors.h`, defined with the tags in `sys_nvs.c`), `errors_sys_nvs.json` the messages |
+| `errors/` | The error tags (`MODULE_ID_NVS` 0x16, declared in `sys_nvs_errors.h`, defined with the tags in `sys_nvs.c`), `errors_sys_nvs.json` the messages |
 
 ## Partitions
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_SESSION",
+  "module": "MODULE_ID_SESSION",
   "errors": {
     "ERR_SESSION_ID_TAKEN": {
       "message": "Two boards have the id {board}",

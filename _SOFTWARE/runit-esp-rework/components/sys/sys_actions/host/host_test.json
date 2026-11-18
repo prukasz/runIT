@@ -13,6 +13,7 @@
     "host",
     "../sys_device",
     "../sys_device/errors",
+    "../sys_system",
     "../sys_system/router"
   ],
   "config": "host/sys_actions_host_config.h",

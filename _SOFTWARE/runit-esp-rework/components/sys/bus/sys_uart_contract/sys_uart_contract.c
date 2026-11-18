@@ -1,7 +1,6 @@
 #include "sys_uart_contract.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_UART, "sys_uart", ERR_SYS_UART_MAP)
-SYS_DEVICE_CONTRACT_DEFINE(UART, 0x13)
+ERR_MODULE_DEFINE(MODULE_ID_UART, ERR_SYS_UART_MAP)
 
 /* ----------------------------------------------------------------------------
  * A driver on a port

@@ -8,7 +8,7 @@ LVGL on one display (contract DISPLAY, SYS_DISPLAY.MD) and an optional touch (co
 | `sys_lvgl.c` | The task, INSTALL / RESET, FLUSH and its end, the touch read, the error module |
 | `config/` | LVGL's configuration, the same on the board and in the PC simulator ("LVGL configuration"): `lv_conf.h` (drawing, memory, system, fonts), `lv_conf_widgets.h` (the widgets), `sys_lvgl_hooks.h` (LVGL's pool hook and assert handler) |
 | `router/sys_lvgl_router.{h,c}`, `router/contract_lvgl.json` | The commands under `MODULE_ID_LVGL` (0x29, `LVGL_OPERATIONS`) and the descriptor of the commands and the events |
-| `errors/sys_lvgl_errors.h`, `errors/errors_sys_lvgl.json` | `ERR_MOD_SYS_LVGL` (= `MODULE_ID_LVGL`), its tags and messages |
+| `errors/sys_lvgl_errors.h`, `errors/errors_sys_lvgl.json` | `MODULE_ID_LVGL`, its tags and messages |
 | `idf_component.yml` | LVGL 9.3.0 from the component manager (`managed_components/`, not committed) |
 | `Kconfig`, `CMakeLists.txt` | Settings; the component, LVGL pointed at `config/lv_conf.h` |
 
@@ -124,7 +124,7 @@ Every widget, style, layer, text and cache of LVGL is in **one pool**, managed b
 
 A widget, a font or a layout that is off does not exist on the board: the screen layer offers only what is on. LVGL's own examples and demos are not built (`CONFIG_LV_BUILD_EXAMPLES`, `CONFIG_LV_BUILD_DEMOS` off in `sdkconfig`): they use widgets that are off.
 
-## Errors (`ERR_MOD_SYS_LVGL`)
+## Errors (`MODULE_ID_LVGL`)
 
 | Tag | Meaning |
 |---|---|

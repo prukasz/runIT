@@ -10,6 +10,7 @@
 #include "esp_rom_crc.h"
 #include "host_assert.h"
 #include "host_mocks.h"
+#include "module_id.h"
 #include "nvs.h"
 #include "router_queue.h"
 #include "sys_actions.h"
@@ -68,8 +69,8 @@ static void latch_clear(latch_t* l) {
 
 /* ---- REC: the module the frames of a record land in ----------------------------------------------------------- */
 
-MODULE_ID_DECLARE(REC, 0x37)
-MODULE_ID_DECLARE(PROBE, 0x38)
+MODULE_ID_DECLARE(MODULE_ID_REC, 0x37)
+MODULE_ID_DECLARE(MODULE_ID_PROBE, 0x38)
 
 #define REC_FAIL 0xEE  /* a frame whose first byte is this fails */
 #define REC_MAX  16
@@ -98,7 +99,7 @@ static err_h h_rec(CMD_F_PARAMS) {  /* in: [key][dir][payload] */
   latch_post(&s_rec_in);
   return (in.len > 2 && in.data[2] == REC_FAIL) ? ERR_NEW(ERR_CMD_BAD_ARG) : NULL;
 }
-ROUTER_MODULE_REGISTER(REC, h_rec)
+ROUTER_MODULE_REGISTER(MODULE_ID_REC, h_rec)
 
 /* PROBE: runs sys_actions_run on a router task and keeps the chain it answered. in: [key][dir][u32 id][keep] */
 typedef struct {
@@ -134,7 +135,7 @@ static err_h h_probe(CMD_F_PARAMS) {
   latch_post(&s_probe_done);
   return NULL;
 }
-ROUTER_MODULE_REGISTER(PROBE, h_probe)
+ROUTER_MODULE_REGISTER(MODULE_ID_PROBE, h_probe)
 
 /* ---- answers -------------------------------------------------------------------------------------------------- */
 

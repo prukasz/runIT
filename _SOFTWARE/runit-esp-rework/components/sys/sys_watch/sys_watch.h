@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "cmd.h"
+#include "module_id.h"
 #include "sys_session.h"
 #include "sys_watch_errors.h"
 

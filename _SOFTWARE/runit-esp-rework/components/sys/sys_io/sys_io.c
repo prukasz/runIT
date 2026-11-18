@@ -1,8 +1,6 @@
 #include "sys_io.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_IO, "sys_io", ERR_SYS_IO_MAP)
-
-SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01)
+ERR_MODULE_DEFINE(MODULE_ID_IO, ERR_SYS_IO_MAP)
 
 // A device without the op (the pins have a fixed function) is fine; any other failure is returned.
 err_h sys_io_prepare(sys_io_pin_t p, sys_io_mode_e mode) {

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_EVENT",
+  "module": "MODULE_ID_SYS_EVENT",
   "errors": {
     "ERR_EVENT_QUEUE_FULL": {
       "message": "Too many events: {dropped} from {source} were dropped",

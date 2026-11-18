@@ -14,4 +14,4 @@ static const router_op_t k_ops[] = {
 };
 
 ROUTER_MODULE(sys_ble_router, k_ops)
-ROUTER_MODULE_REGISTER(BLE, sys_ble_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_BLE, sys_ble_router)

@@ -10,8 +10,10 @@
 #include "board_time.h"
 #include "cmd.h"
 #include "cmd_table.h"
+#include "err_record.h"
 #include "host_assert.h"
 #include "host_mocks.h"
+#include "module_id.h"
 #include "router.h"
 #include "router_queue.h"
 #include "router_table.h"
@@ -58,12 +60,10 @@ uint32_t sys_session_board_build_id(void) {
 
 /* ---- dummy target module (key 0x3F): read returns u32 s_val or an error; write sets s_val ---------------------- */
 
-MODULE_ID_DECLARE(TESTW, 0x3F)
-#define ERR_MOD_TESTW MODULE_ID_TESTW
-#define ERR_TESTW_MAP(X) X(ERR_TESTW_FAIL, ERR_TAG(ERR_MOD_TESTW, 1), ERR_SEV_MEDIUM, { uint8_t code; })
-ERR_TAGS_DECLARE(ERR_TESTW_MAP)
-MODULE_ID_DEFINE(TESTW, 0x3F)
-ERR_MODULE_DEFINE(ERR_MOD_TESTW, "testw", ERR_TESTW_MAP)
+MODULE_ID_DECLARE(MODULE_ID_TESTW, 0x3F)
+#define ERR_TESTW_MAP(X, M) X(M, ERR_TESTW_FAIL, 1, ERR_SEV_MEDIUM, { uint8_t code; })
+ERR_TAGS_DECLARE(MODULE_ID_TESTW, ERR_TESTW_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_TESTW, ERR_TESTW_MAP)
 
 typedef struct __attribute__((packed)) {
   uint16_t target;
@@ -111,7 +111,7 @@ static const router_op_t k_testw_ops[] = {
 };
 
 ROUTER_MODULE(testw_router, k_testw_ops)
-ROUTER_MODULE_REGISTER(TESTW, testw_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_TESTW, testw_router)
 
 /* ---- fake link providers ------------------------------------------------------------------------------------- */
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_ROUTER_QUEUE",
+  "module": "MODULE_ID_ROUTER_QUEUE",
   "errors": {
     "ERR_ROUTER_QUEUE_FULL": {
       "message": "The board is busy: a command from {src} was dropped",

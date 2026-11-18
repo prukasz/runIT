@@ -28,5 +28,5 @@ err_h sys_device_router(CMD_F_PARAMS) {
   return sys_device_call_routed(h.id, h.dir, h.op, args, out);
 }
 
-ROUTER_MODULE_REGISTER(SYS_DEVICE, sys_device_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_SYS_DEVICE, sys_device_router)
   

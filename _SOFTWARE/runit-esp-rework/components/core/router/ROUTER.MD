@@ -10,7 +10,7 @@ sys_device     (op tables per device type: [id][op][args])  ──────�
 
 The device registry and the queue do **not depend on each other**:
 - A device driver or a contract compiles **without `router` or `router_queue`**.
-- An error for a bad payload in a device op is `ERR_CMD_BAD_LEN` (`ERR_MOD_CMD` = `0x27`), not a router or queue error.
+- An error for a bad payload in a device op is `ERR_CMD_BAD_LEN` (`MODULE_ID_CMD` = `0x27`), not a router or queue error.
 - Code that handles commands can be built and tested independently of routing and transport layers.
 
 Each `sys_*` module with a remote interface has its own `*_router.c` and depends on `router` **privately** (`PRIV_REQUIRES router`); its public header carries no router headers.
@@ -21,8 +21,8 @@ Each `sys_*` module with a remote interface has its own `*_router.c` and depends
 |---|---|
 | `router.h` | Module routing and root dispatch (`router_op_t`, `router_call`, `router_call_op`, `ROUTER_MODULE_DECLARE`, `ROUTER_MODULE`, `router_entry_t`, `router_register`, `ROUTER_MODULE_REGISTER`, `router_root_init`, `router_route`); includes `cmd.h` (`components/core/cmd/`) |
 | `router_table.h` | A module's router written from its op table, the one way to write a module's commands: `ROUTER_READ` / `ROUTER_WRITE` / `ROUTER_WRITE_TAIL`, `ROUTER_GETTER` / `ROUTER_SETTER`, `ROUTER_ENTRY*` |
-| `errors/router_errors.h`, `errors/errors_router.json` | `ERR_ROUTER_MAP` (`ERR_MOD_ROUTER`, the route) and the messages |
-| `router.c` | `ERR_MOD_ROUTER` + `MODULE_ID_DEFINE`, the root table (`root_register`), `router_route`, `router_call` / `router_call_op`, `router_register`, `router_root_init` |
+| `errors/router_errors.h`, `errors/errors_router.json` | `ERR_ROUTER_MAP` (`MODULE_ID_ROUTER`, the route) and the messages |
+| `router.c` | the root table (`root_register`), `router_route`, `router_call` / `router_call_op`, `router_register`, `router_root_init` |
 | `Kconfig` | The size of the root table |
 | `host/` | Host tests (`test_router.c`, `host_test.json`; see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
@@ -78,7 +78,7 @@ Every request names the side of its command it runs: the `cmd_dir_e` byte right 
   - `ROUTER_WRITE_TAIL(P, OP_NAME) { … }`: a write whose payload is its value (the head, packed) and then bytes of any number (a name, data); the body sees `args` (the head, in place), `tail` and `tail_len`, and checks what the tail must be.
   - The rows: `ROUTER_ENTRY(P, OP_NAME)` (both sides), `ROUTER_ENTRY_R`, `ROUTER_ENTRY_W`, in a `router_op_t k_ops[]`; `ROUTER_MODULE(fn, k_ops)` writes the module's `cmd_f` over it (`router_call_op`; prefix `static` for a file-local one), `ROUTER_MODULE_DECLARE(fn);` declares it in the module's `*_router.h`.
   - The length check (`ERR_CMD_BAD_LEN{got, need}`, the payload's bytes) is done before the body runs. A frame of no fixed shape (the power manager's MATRIX: rows, as many as the board has) is a hand-written `cmd_f` named `P_w_<OP_NAME>` / `P_r_<OP_NAME>`, so its row is still `ROUTER_ENTRY*`. Remote-only policy belongs in the body, not in the native API.
-- Root: modules register exclusively via `ROUTER_MODULE_REGISTER(NAME, fn)` (the key is the module's number, `MODULE_ID_<NAME>`, `module_id.h`) in their `.c`: a constructor queues the pair (`router_register`, no check and no error made before `app_main`), and `router_root_init` (called by `router_init`) binds them into the root table and returns `ERR_ROUTER_KEY_TAKEN` / `ERR_ROUTER_TABLE_FULL` / `ERR_CMD_BAD_ARG`. Two modules cannot have one number (`module_id.h`); nothing references such a module, so its component is linked `WHOLE_ARCHIVE`. A module's router header is also the list of its ops: the frames, then the op table; the module's own header only forward-declares a frame its API needs.
+- Root: modules register exclusively via `ROUTER_MODULE_REGISTER(MODULE_ID_<NAME>, fn)` (the key is the module's number, `MODULE_ID_<NAME>`, `module_id.h`) in their `.c`: a constructor queues the pair (`router_register`, no check and no error made before `app_main`), and `router_root_init` (called by `router_init`) binds them into the root table and returns `ERR_ROUTER_KEY_TAKEN` / `ERR_ROUTER_TABLE_FULL` / `ERR_CMD_BAD_ARG`. Two modules cannot have one number (`module_id.h`); nothing references such a module, so its component is linked `WHOLE_ARCHIVE`. A module's router header is also the list of its ops: the frames, then the op table; the module's own header only forward-declares a frame its API needs.
 - `out->cap` is `CMD_DATA_MAX` for every command; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big). A command answers once: data longer than that is paged by the command (ROUTER.MD "The handler").
 - `router_route(in, out)` is also the entry point for replaying stored frames (actions, project), on the calling task.
 - **Concurrency**: urgent and normal commands run concurrently on two tasks, so module routers must be thread-safe.
@@ -87,7 +87,7 @@ Every request names the side of its command it runs: the `cmd_dir_e` byte right 
 
 A root key is the number of the module that owns the router (`MODULE_ID_<NAME>`, `core/utils/module_id.h`): the same number is the module's error module and the module of its events. There is no list of keys; a module's doc names its key and its commands (SYS_DEVICE.MD, SYS_POWER_MANAGER.MD "Remote"). `ROUTER_MODULE_REGISTER` binds the key to the router; `0` is invalid.
 
-## Errors (`ERR_MOD_ROUTER`, `MODULE_ID_ROUTER` = 0x23)
+## Errors (`MODULE_ID_ROUTER` = 0x23)
 
 A tag about a command carries its `src`.
 
@@ -101,8 +101,8 @@ A tag about a command carries its `src`.
 | `ERR_ROUTER_KEY_TAKEN` | HIGH | `u8 key` | Root key already registered |
 | `ERR_ROUTER_TABLE_FULL` | HIGH | `u8 key` | Root table capacity (`CONFIG_ROUTER_MAX_KEYS`) reached |
 
-The handler's errors (`ERR_CMD_BAD_LEN`, `ERR_CMD_OUT_FULL`, `ERR_CMD_BAD_ARG`, `ERR_CMD_DIRECTION`) are `ERR_MOD_CMD` (`MODULE_ID_CMD` = `0x27`, `components/core/cmd/CMD.MD`).
-The queue's errors (`ERR_ROUTER_QUEUE_FULL`, `_FRAME_LEN`, `_BUSY`) are `ERR_MOD_ROUTER_QUEUE` (ROUTER_QUEUE.MD).
+The handler's errors (`ERR_CMD_BAD_LEN`, `ERR_CMD_OUT_FULL`, `ERR_CMD_BAD_ARG`, `ERR_CMD_DIRECTION`) are `MODULE_ID_CMD` (`0x27`, `components/core/cmd/CMD.MD`).
+The queue's errors (`ERR_ROUTER_QUEUE_FULL`, `_FRAME_LEN`, `_BUSY`) are `MODULE_ID_ROUTER_QUEUE` (ROUTER_QUEUE.MD).
 
 ## Limits
 

@@ -13,7 +13,6 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 set(RUNIT_SHARED "${CMAKE_CURRENT_LIST_DIR}/../runit-esp/components")
 
 list(APPEND EXTRA_COMPONENT_DIRS
-    "${RUNIT_SHARED}/core/utils"
     "${RUNIT_SHARED}/core/time"
 )
 list(APPEND EXTRA_COMPONENT_DIRS "components/core")

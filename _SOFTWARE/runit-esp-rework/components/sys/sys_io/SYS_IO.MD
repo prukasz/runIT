@@ -5,7 +5,7 @@ Not a module with state: a set of device ops (contract `IO` = `0x01`, its module
 | File | Contents |
 |---|---|
 | `sys_io.h` | The caller's side: the table `CONTRACT_IO_OPERATIONS`, the frames, `sys_io_mode_e` and `sys_io_intr_mode_e` (machine-read `//#ref-enum` annotations), the events `IO_EVENTS`, `sys_io_pin_t`, `SYS_IO_WRITE` / `SYS_IO_READ`, the wrappers |
-| `sys_io.c` | The wrappers; claims the contract's ID (`SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01)`) and the error module |
+| `sys_io.c` | The wrappers; the error table (`ERR_MODULE_DEFINE`) |
 | `driver/sys_io_driver.h`, `.c` | The driver side of IO: pin state (`sys_io_pins_t`), checks and lock ops for a device with pins, plus claiming another device's pin (`sys_io_claim_t`, `sys_io_claim_*`) |
 | `errors/sys_io_errors.h`, `errors/errors_sys_io.json` | The module's error tags and their messages |
 | `contract_io.json` | The contract's descriptor (checked against the table by `templates/sync.sh`) |
@@ -105,7 +105,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 ## Events
 
-`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO, DEVICE)`, module `0x01`, the DEVICE lane; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
+`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)`, module `0x01`, the DEVICE lane; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
 
 | Event | Code | Payload |
 |---|---|---|
@@ -116,7 +116,7 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the DEVICE lane's task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_DECLARE_EVENT`).
 
-## Errors (module `0x01`, `ERR_MOD_SYS_IO` = `MODULE_ID_IO`)
+## Errors (module `0x01`, `MODULE_ID_IO`)
 
 What a device with pins reports besides the registry's `ERR_DEV_BAD_PIN`, `ERR_DEV_PIN_LOCKED`, `ERR_DEV_PIN_NOT_OWNED`, `ERR_DEV_RANGE`, `ERR_DEV_SUSPENDED`:
 

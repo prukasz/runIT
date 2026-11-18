@@ -2,6 +2,7 @@
  * (router_table.h). The real router and cmd and errors; the queue and the tasks are in test_router_queue.c / test_router_tasks.c.
  * Run: python test_host/run.py router   (runit-esp/test_host/HOST_TESTS.MD) */
 #include <string.h>
+#include "module_id.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "router_table.h"
@@ -106,12 +107,12 @@ static const router_op_t k_ops[] = {
 };
 static ROUTER_MODULE(mod_router, k_ops)
 
-MODULE_ID_DECLARE(TEST_MOD,  0x21)
-MODULE_ID_DECLARE(TEST_ROOT, 0x22)
+MODULE_ID_DECLARE(MODULE_ID_TEST_MOD,  0x21)
+MODULE_ID_DECLARE(MODULE_ID_TEST_ROOT, 0x22)
 #define KEY_MOD  MODULE_ID_TEST_MOD
 #define KEY_ROOT MODULE_ID_TEST_ROOT  /* a plain handler registered at the root */
 
-ROUTER_MODULE_REGISTER(TEST_MOD, mod_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_TEST_MOD, mod_router)
 
 static err_h root_handler(CMD_F_PARAMS) {
   g.calls++;
@@ -121,7 +122,7 @@ static err_h root_handler(CMD_F_PARAMS) {
   return cmd_reply(out, in.data, in.len);
 }
 
-ROUTER_MODULE_REGISTER(TEST_ROOT, root_handler)
+ROUTER_MODULE_REGISTER(MODULE_ID_TEST_ROOT, root_handler)
 
 static int s_registered;  /* keys of the root table so far (it cannot be emptied) */
 

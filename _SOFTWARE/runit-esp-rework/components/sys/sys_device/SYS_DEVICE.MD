@@ -30,17 +30,17 @@ Inside `sys_device/`:
 
 - A device ID is 0..`SYS_DEVICE_COUNT`-1 (64); `SYS_DEVICE_ID_NONE` (`0xFF`) is never a device.
 - An op is `[contract u8][op u8]`, `SYS_DEVICE_OP(contract, n)`, with a read side, a write side or both. The read takes the key and answers what the write takes.
-- A contract is one table `P_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` (`cmd_table.h`). `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, P, 0x01)` in the contract's header gives `CONTRACT_P_CONTRACT`, `CONTRACT_P_<OP_NAME>`, `CONTRACT_P_FLAGS_<OP_NAME>`, `CONTRACT_P_key_<OP_NAME>_t`, `CONTRACT_P_value_<OP_NAME>_t`.
+- A contract is one table `P_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` (`cmd_table.h`). `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, MODULE_ID_P)` in the contract's header, after it includes the contract's `<contract>_id.h` (its `MODULE_ID_DECLARE`), gives `CONTRACT_P_<OP_NAME>`, `CONTRACT_P_FLAGS_<OP_NAME>`, `CONTRACT_P_key_<OP_NAME>_t`, `CONTRACT_P_value_<OP_NAME>_t`.
 
 **Contract IDs** are the numbers of their modules (`module_id.h`): there is no list of them and no file includes them all. The same number is the root key of the module's commands, the module of its errors and of its events.
 
 | ID | Owner |
 |---|---|
 | `0x20` | The registry (`MODULE_ID_SYS_DEVICE`): the device's lifecycle ops |
-| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(P, 0x01)` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, P, 0x01)` in its header, claimed in one source of its component with `SYS_DEVICE_CONTRACT_DEFINE(P, 0x01)` |
+| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(MODULE_ID_P, 0x01)` in its `<contract>_id.h` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, MODULE_ID_P)` in its header |
 | `0xFF` | A device's own ops, a table in its driver (`SYS_DEVICE_OWN_DECLARE`); no contract takes it |
 
-The ID is spelled as two hex digits, the same in the declare and the define. Two contracts with one ID fail to link (the symbol `module_id__0x01` defined twice) and already fail to compile where both headers meet. A header-only contract has a source that only claims its ID, linked whole. The ID is wire format and the module of the contract's events.
+The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<contract>_id.h`; everything else names it `MODULE_ID_P`. Two contracts with one ID fail to compile where both headers meet, and fail `templates/sync.sh` (`module_id.h`). A contract may be its header only. The ID is wire format and the module of the contract's events.
 
 **Op flags** (the last column of a contract's table, so no driver can leave them out):
 
@@ -221,7 +221,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 - **Own ops** (`0xFFxx`) are a table like a contract's, in the driver's source: `OWN_NAME_OPERATIONS(X, P)` of rows `X(P, OP_NAME, n, key_t, value_t, flags)` and `SYS_DEVICE_OWN_DECLARE(OWN_NAME)`. They get the same handlers, rows and answers (`OP_DECLARE_READ(OWN_DC_MOTOR, OP_SPEED)`, `OP_ENTRY(OWN_DC_MOTOR, OP_SPEED)`, `CMD_REPLY(OWN_DC_MOTOR, OP_SPEED, ...)`), and their flags come from the table: a timer's op is LOCAL there.
 - **A payload with a tail** (an op marked `SYS_DEVICE_OP_TAIL`: a head of a fixed size, then bytes): `OP_DECLARE_WRITE_TAIL(P, OP_NAME)`, whose body sees `args` (the head, in place), `tail` and `tail_len`. The table decides: `OP_DECLARE_WRITE` of such an op, and `OP_DECLARE_WRITE_TAIL` of any other, fail to compile. `OP_DECLARE_ON_EVENT` is `OP_DECLARE_EVENT(CONTRACT_EVENT, OP_ON_EVENT)` with the event's length checked. An answer of any length is built with `cmd_append` in an `OP_DECLARE_READ`.
 - **Another device's type** is never asked for: a driver asks whether the device has the op it needs (`sys_device_require_op`). Which device a pin is on is the board's configuration: the ESP32-S3's I2C controller takes a pin's index as its GPIO.
-- **Events**: a contract's are in its header (`SYS_EVENTS_DECLARE(P, DEVICE)`), the type's own in the driver: a table `P_EVENTS(X, P)` of rows `X(P, NAME, code, flags, { payload })` and `SYS_DEVICE_OWN_EVENTS(P)`, whose module is `SYS_EVENT_MODULE_TYPE(P_TYPE)` and lane `DEVICE` (`SYS_EVENT.MD`). Published with `SYS_EVENT_PUBLISH` or `_DEFER`, by what the publishing task can bear.
+- **Events**: a contract's are in its header (`SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, DEVICE)`), the type's own in the driver: a table `P_EVENTS(X, P)` of rows `X(P, NAME, code, flags, { payload })` and `SYS_DEVICE_OWN_EVENTS(P)`, whose module is `SYS_EVENT_MODULE_TYPE(P_TYPE)` and lane `DEVICE` (`SYS_EVENT.MD`). Published with `SYS_EVENT_PUBLISH` or `_DEFER`, by what the publishing task can bear.
 - **A timer**: `sys_device_timer_init(id, &c->timer, OP)` in `create()`: its expiry is a step of the device (`sys_device_step`, "A step"), under its lock, skipped while the device is busy, suspended or gone. `OP` is the driver's own and LOCAL. A step's handler that needs the time since the last one reads the clock (`board_time_uptime_ms`): steps are skipped, and a driver may run the same step from its other ops.
 - **Hardware**: only a driver of the SoC's own peripherals includes ESP-IDF drivers; a chip's driver reaches the hardware through contracts.
 
@@ -261,7 +261,7 @@ Host tests in `host/` (`python test_host/run.py sys_device` from `runit-esp/`, `
 
 Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep's RESET skipping a type without one, the device timer (`sys_device_timer`, the step itself is), priorities and stack sizes.
 
-## Errors (`ERR_MOD_SYS_DEVICE` = 0x20, `MODULE_ID_SYS_DEVICE`)
+## Errors (`MODULE_ID_SYS_DEVICE` = 0x20, `MODULE_ID_SYS_DEVICE`)
 
 | Tag | Severity | When |
 |---|---|---|

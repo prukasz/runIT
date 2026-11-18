@@ -9,7 +9,7 @@ static struct {
   uint32_t module_count;
 } s_tags;
 
-void err_register_module(const err_module_t* module) {
+void err__register_module(const err_module_t* module) {
   assert(module != NULL);
   assert(err_module(module->id) == NULL && "error module ID registered twice");
   for (uint16_t i = 0; i < module->count; i++) {

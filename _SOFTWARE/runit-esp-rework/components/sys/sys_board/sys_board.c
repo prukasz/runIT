@@ -9,8 +9,6 @@
 #include "sys_board_internal.h"
 #include "sys_board_router.h"
 
-MODULE_ID_DEFINE(BOARD, 0x2D)
-
 #define JSON_NAMESPACE "board"
 
 static sys_nvs_json_t s_json;

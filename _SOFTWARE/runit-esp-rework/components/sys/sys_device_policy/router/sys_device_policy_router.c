@@ -19,5 +19,4 @@ static const router_op_t k_ops[] = {
 
 ROUTER_MODULE(sys_device_policy_router, k_ops)
 
-MODULE_ID_DEFINE(POLICY, 0x21)
-ROUTER_MODULE_REGISTER(POLICY, sys_device_policy_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_POLICY, sys_device_policy_router)

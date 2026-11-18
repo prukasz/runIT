@@ -7,10 +7,10 @@ Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` p
 | File | Role |
 |---|---|
 | `sys_log.h` | API: `sys_log_init`, `sys_log_set`, `sys_log_get`, `sys_log_report`, `sys_log_error`, `sys_log_error_get` |
-| `sys_log.c` | `esp_log_set_vprintf` hook, ANSI strip + CR/LF trim, error history ring buffer, `ERR_MODULE_DEFINE`, `MODULE_ID_DEFINE(LOG, 0x2A)` |
-| `router/sys_log_router.h` / `.c` | Remote interface (`MODULE_ID_LOG` `0x2A`, `LOG_OPERATIONS`), self-registers via `ROUTER_MODULE_REGISTER(LOG, sys_log_router)` |
+| `sys_log.c` | `esp_log_set_vprintf` hook, ANSI strip + CR/LF trim, error history ring buffer, `ERR_MODULE_DEFINE` |
+| `router/sys_log_router.h` / `.c` | Remote interface (`MODULE_ID_LOG` `0x2A`, `LOG_OPERATIONS`), self-registers via `ROUTER_MODULE_REGISTER(MODULE_ID_LOG, sys_log_router)` |
 | `router/contract_log.json` | Router contract descriptor (`router_key`: 42) |
-| `errors/` | `MODULE_ID_DECLARE(LOG, 0x2A)` (`ERR_MOD_SYS_LOG`), `ERR_LOG_BAD_LEVEL{level, max}`, `errors_log.json` |
+| `sys_log_id.h`, `errors/` | `MODULE_ID_DECLARE(MODULE_ID_LOG, 0x2A)` (`sys_log_id.h`), `ERR_LOG_BAD_LEVEL{level, max}`, `errors_log.json` |
 | `Kconfig` | `SYS_LOG_LINE_MAX` (default 160) and `SYS_LOG_ERRORS_KEPT` (default 16) |
 
 ## Behaviour

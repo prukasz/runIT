@@ -160,7 +160,7 @@ Requests are `[0x22][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x05` RAIL | W | `sys_power_rail_t`, 9 B: `u16 vreg, u16 monitor_device, u8 monitor_channel, u32 min_mA`. A rail stays until the board restarts |
 | `0x09` MATRIX | RW | `sys_power_response_row_t[]`, no header: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind. The read answers `1 + rails` rows; the write takes up to that many (a length that is not whole rows, or more rows: `ERR_CMD_BAD_LEN`; a target that is neither the board nor a rail: `ERR_PWRM_NOT_RAIL`; nothing changes) |
 
-## Errors (`ERR_MOD_SYS_POWER_MANAGER` = `MODULE_ID_PWRM` = 0x22)
+## Errors (`MODULE_ID_PWRM` = 0x22)
 
 | Error | Severity | Fields | Meaning |
 |---|---|---|---|

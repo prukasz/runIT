@@ -89,10 +89,10 @@ void router_register(uint8_t key, cmd_f fn);
   }
 
 /**
- * @brief Registers the module router `fn` under the number of module NAME (MODULE_ID_<NAME>) by itself.
- * @usage ROUTER_MODULE_REGISTER(SYS_DEVICE, sys_device_router)
+ * @brief Registers the module router `fn` under the module's number `id` (its MODULE_ID_<NAME>) by itself.
+ * @usage ROUTER_MODULE_REGISTER(MODULE_ID_SYS_DEVICE, sys_device_router)
  */
-#define ROUTER_MODULE_REGISTER(name, fn) ROUTER__REGISTER(name, MODULE_ID_##name, fn)
+#define ROUTER_MODULE_REGISTER(id, fn) ROUTER__REGISTER(id, id, fn)
 
 /**
  * @brief Binds every module router queued via ROUTER_MODULE_REGISTER / router_register() into the root table. Boot,

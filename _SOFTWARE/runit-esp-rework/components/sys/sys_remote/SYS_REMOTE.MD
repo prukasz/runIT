@@ -19,7 +19,7 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 | `config/sys_remote_config.h` | The kinds of a frame (published to the app) |
 | `router/sys_remote_router.h` / `.c` | The remote interface: SUBSCRIBE, UNSUBSCRIBE (`MODULE_ID_REMOTE` 0x2F). The header has the op table (`REMOTE_OPERATIONS`) and the frame (`sys_remote_device_ref_t`); the router registers itself |
 | `router/contract_remote.json` | The router's descriptor |
-| `errors/` | `ERR_SYS_REMOTE_MAP` (`ERR_MOD_SYS_REMOTE` = `MODULE_ID_REMOTE` 0x2F), the messages |
+| `errors/` | `ERR_SYS_REMOTE_MAP` (`MODULE_ID_REMOTE` 0x2F), the messages |
 | `Kconfig` | The subscriptions, the queue, the task |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -67,7 +67,7 @@ The ops and the frame are in `sys_remote_router.h`; `contract_remote.json` names
 | `0x01` | SUBSCRIBE | write | `sys_remote_device_ref_t` `{u8 id}`, a device of this board; the subscriber: the command's `src` |
 | `0x02` | UNSUBSCRIBE | write | `sys_remote_device_ref_t`, of the command's `src` |
 
-## Errors (`ERR_MOD_SYS_REMOTE` = `MODULE_ID_REMOTE` 0x2F)
+## Errors (`MODULE_ID_REMOTE` 0x2F)
 
 `ERR_REMOTE_NOT_WIRED{board}`, `_SUBS_FULL{id, max}`.
 

@@ -11,8 +11,8 @@ The store holds the kinds of record told apart by the class in the ID: the user'
 | File | Role |
 |---|---|
 | `sys_actions.h` | API, ID classes, system IDs, onboard actions |
-| `sys_actions.c` | The NVS store, run, writing a record, the onboard actions; `ERR_MODULE_DEFINE`, `MODULE_ID_DEFINE(ACTIONS, 0x2C)` |
-| `errors/sys_actions_errors.h` | `MODULE_ID_DECLARE(ACTIONS, 0x2C)` (`ERR_MOD_SYS_ACTIONS`), `ERR_SYS_ACTIONS_MAP`; `errors_sys_actions.json` the messages |
+| `sys_actions.c` | The NVS store, run, writing a record, the onboard actions; `ERR_MODULE_DEFINE` |
+| `sys_actions_id.h`, `errors/sys_actions_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_ACTIONS, 0x2C)` (`sys_actions_id.h`), `ERR_SYS_ACTIONS_MAP`; `errors_sys_actions.json` the messages |
 | `router/sys_actions_router.h` / `.c` | The remote interface (root key `MODULE_ID_ACTIONS` 0x2C): the frames, then `ACTIONS_OPERATIONS`; registers itself |
 | `router/contract_actions.json` | The router's descriptor |
 | `Kconfig` | Partition, largest record, nesting depth |
@@ -101,7 +101,7 @@ All IDs are u32 LE. `info` = `sys_actions_info_t` `{u16 bytes, u16 count, u32 cr
 
 0x02, 0x03 and 0x0C are unused: never assign them. READ is the mirror of the WRITEs: a client reads from 0 up to INFO's `bytes`, checks the image against INFO's `crc32` and splits it into its frames.
 
-## Errors (`ERR_MOD_SYS_ACTIONS` = `MODULE_ID_ACTIONS` 0x2C)
+## Errors (`MODULE_ID_ACTIONS` 0x2C)
 
 `ERR_ACTION_NOT_FOUND {id}`, `_BAD_ID`, `_BUSY`, `_NO_DRAFT`, `_TOO_BIG {len, max}`, `_OFFSET {got, want}`, `_INCOMPLETE {got, want}`, `_CRC {got, want}` (got = the client's), `_BAD_FRAME {offset}`, `_EMPTY`, `_DEPTH {depth}`, `_WRONG_TASK`, `_NO_MEM {size}`, `_STEP {id, step}` (context), `_BAD_ARG`. NVS failures come as `ERR_ESP_ERR {code}`.
 

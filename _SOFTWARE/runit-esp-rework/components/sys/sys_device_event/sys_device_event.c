@@ -4,8 +4,6 @@
 
 #include "sys_device_driver.h"
 
-SYS_DEVICE_CONTRACT_DEFINE(EVENT, 0x03)
-
 /* The listener's ctx packs sys_device_target_t ([op u16][gen u8][id u8]): no pointer to a device that can go away,
  * and a late delivery never hits a new device created under the same ID. */
 

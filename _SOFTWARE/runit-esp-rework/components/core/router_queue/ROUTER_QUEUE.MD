@@ -18,7 +18,7 @@ Component `components/core/router_queue/`. It runs the commands of this board: i
 | File | Role |
 |---|---|
 | `router_queue.h` | A command (`cmd_req_t`) and its error record (`cmd_err_record`), the flags and statuses, `ROUTER_SRC_SELF`, `ROUTER_SRC_NONE`, `router_init`, submit, inject, report, origin, is-task, urgent work. The routing, the handler and the op tables are `router.h` (ROUTER.MD) |
-| `errors/router_queue_errors.h`, `errors/errors_router_queue.json` | `ERR_ROUTER_QUEUE_MAP` (`ERR_MOD_ROUTER_QUEUE`) and the messages |
+| `errors/router_queue_errors.h`, `errors/errors_router_queue.json` | `ERR_ROUTER_QUEUE_MAP` (`MODULE_ID_ROUTER_QUEUE`) and the messages |
 | `router_queue.c` | `router_submit`, `router_inject`, the urgent and work tasks, the answers to the callbacks, `router_report_cmd`, origin, `router_run_urgent`, `router_init` |
 | `Kconfig` | Queues, task prio and stack |
 | `host/` | Host tests (`test_router_queue.c`, `test_router_tasks.c`, `host_test.json`, `router_host_config.h`; see Tests); not part of the firmware build |
@@ -58,7 +58,7 @@ A command is a `cmd_req_t` (`router_queue.h`; an error record names it): the req
 - **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
 - **Urgent work** `router_run_urgent(fn)`: runs `fn` once on the urgent task, soon (any task or a timer callback, not an ISR); called again before it ran, it still runs once; another `fn` waiting → `ERR_ROUTER_BUSY`. For work that must not wait behind a command and may block: the safe state of `sys_system` (SYS_SYSTEM.MD). Whether a peer is alive is the session's (SYS_SESSION.MD "Gone peers").
 
-## Errors (`ERR_MOD_ROUTER_QUEUE`, `MODULE_ID_ROUTER_QUEUE` = 0x24)
+## Errors (`MODULE_ID_ROUTER_QUEUE` = 0x24)
 
 A tag about a command carries its `src`.
 

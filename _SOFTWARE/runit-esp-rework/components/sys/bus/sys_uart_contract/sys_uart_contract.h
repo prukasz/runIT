@@ -131,14 +131,14 @@ typedef struct {
     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL | SYS_DEVICE_OP_NOLOCK)                                          \
   X(P, OP_RX_HOOK,    0x08, cmd_none_t,         sys_uart_rx_hook_t,    SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
 
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_UART, UART, 0x13)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_UART, MODULE_ID_UART)
 
 /* Events of the UART contract (source = port device ID, channel = 0): OVERFLOW on each overflow of the line's RX FIFO
  * or driver buffer (`dropped` 1: one overflow, bytes lost). A FRAMED candidate failing its CRC is no event. */
 #define UART_EVENTS(X, P) \
   X(P, OVERFLOW, 0x01, SYS_EVENT_NOTIFY, { uint16_t dropped; })
 
-SYS_EVENTS_DECLARE(UART, DEVICE)
+SYS_EVENTS_DECLARE(UART, MODULE_ID_UART, DEVICE)
 
 /* ----------------------------------------------------------------------------
  * The client: a driver subscribing to a port

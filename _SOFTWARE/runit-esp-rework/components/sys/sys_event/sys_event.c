@@ -5,8 +5,7 @@
 #include "board_time.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_EVENT, "event", ERR_SYS_EVENT_MAP)
-MODULE_ID_DEFINE(SYS_EVENT, 0x25)
+ERR_MODULE_DEFINE(MODULE_ID_SYS_EVENT, ERR_SYS_EVENT_MAP)
 
 _Static_assert(CONFIG_SYS_EVENT_MAX_SUBS <= 255, "a subscription handle keeps the slot in a u8");
 

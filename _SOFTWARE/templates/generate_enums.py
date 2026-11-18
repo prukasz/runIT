@@ -41,7 +41,7 @@ DEFINES_RE = re.compile(r"^//#ref-defines(?P<rest>[^\n]*)\n(?P<body>(?:[ \t]*#de
 DEFINE_LINE_RE = re.compile(r"^\s*#define\s+(?P<name>\w+)\s+(?P<value>.+?)\s*(?://\s*(?P<comment>.*))?$")
 MEMBER_RE = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*(?:=\s*(?P<value>[^,/]+?))?\s*,?\s*(?://\s*(?P<comment>.*))?$")
 DEFINE_RE = re.compile(r"^#define[ \t]+(\w+)(\([^)]*\))?[ \t]+(.+?)[ \t]*(?://.*|/\*.*)?$", re.MULTILINE)
-MODULE_ID_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(?P<name>\w+)\s*,\s*(?P<value>0x[0-9a-fA-F]+|\d+)u?\s*\)\s*(?://\s*(?P<comment>.*))?$", re.MULTILINE)
+MODULE_ID_RE = re.compile(r"^\s*MODULE_ID_DECLARE\(\s*(?P<name>MODULE_ID_\w+)\s*,\s*(?P<value>0x[0-9a-fA-F]+|\d+)u?\s*\)\s*(?://\s*(?P<comment>.*))?$", re.MULTILINE)
 STREAMS_RE = re.compile(r"^//#ref-streams(?P<rest>[^\n]*)\n(?P<body>[ \t]*#define[ \t]+\w+\(X, P\)(?:[^\n]*\\\n)*[^\n]*)", re.MULTILINE)
 STREAM_ROW_RE = re.compile(r'X\(P,\s*(?P<name>\w+)\s*,\s*(?P<id>0x[0-9a-fA-F]+|\d+)\s*,\s*[^,]+,\s*"(?P<text>[^"]+)"\s*\)')
 TAG_RE = re.compile(r"(?:^|(?<=\s))@([a-z][a-z0-9-]*)(?=\s|$)")
@@ -245,7 +245,7 @@ def scan():
         text = read(src)
         if src.suffix == ".h":
             for m in MODULE_ID_RE.finditer(text):
-                module_items.append((int(m.group("value"), 0), f"MODULE_ID_{m.group('name')}", m.group("value"), m.group("comment"), rel(src)))
+                module_items.append((int(m.group("value"), 0), m.group("name"), m.group("value"), m.group("comment"), rel(src)))
         if "//#ref-" not in text:
             continue
         found = 0

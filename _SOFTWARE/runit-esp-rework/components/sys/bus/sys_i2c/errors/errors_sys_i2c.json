@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_I2C",
+  "module": "MODULE_ID_I2C",
   "errors": {
     "ERR_I2C_BAD_ARG": {
       "message": "An I2C request is not valid"

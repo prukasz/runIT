@@ -3,6 +3,7 @@
 #include "board_time.h"
 #include "board_timer.h"
 #include "data_matrix.h"
+#include "err_record.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_session.h"

@@ -5,13 +5,13 @@ Component `components/sys/sys_power/`. Not a module with state: four device cont
 | File | Contents |
 |---|---|
 | `sys_power.h` | `sys_power_mW()` (`int64_t` product / 1000) and includes the error map |
-| `errors/sys_power_errors.h`, `errors/errors_sys_power.json` | `ERR_SYS_POWER_MAP` (`ERR_MOD_SYS_POWER` = `0x26`) and user messages |
+| `errors/sys_power_errors.h`, `errors/errors_sys_power.json` | `ERR_SYS_POWER_MAP` (`MODULE_ID_SYS_POWER` = `0x26`) and user messages |
 | `contracts/sys_power_monitor.h` | `CONTRACT_PMON` (`0x04`): `CONTRACT_PMON_OPERATIONS`, `PMON_EVENTS`, `sys_power_alert_e` (`//#ref-enum`) |
 | `contracts/sys_power_vreg.h` | `CONTRACT_VREG` (`0x05`): `CONTRACT_VREG_OPERATIONS`, `VREG_EVENTS` |
 | `contracts/sys_power_usb_pd.h` | `CONTRACT_PD` (`0x07`): `CONTRACT_PD_OPERATIONS`, option/limits structs, `sys_power_usb_pd_list_options()` |
 | `contracts/sys_power_supply.h` | `CONTRACT_SUPPLY` (`0x08`): `CONTRACT_SUPPLY_OPERATIONS`, `sys_power_supply_source_e` (`//#ref-enum`) |
 | `contracts/contract_power_*.json` | The descriptors of the four contracts (`templates/`) |
-| `sys_power.c` | Claims contract IDs (`SYS_DEVICE_CONTRACT_DEFINE`), registers `ERR_MOD_SYS_POWER` (`ERR_MODULE_DEFINE`), and implements `sys_power_usb_pd_list_options()`. `WHOLE_ARCHIVE`: devices raise `ERR_POWER_*` without calling functions here |
+| `sys_power.c` | Registers the errors of `MODULE_ID_SYS_POWER` (`ERR_MODULE_DEFINE`) and implements `sys_power_usb_pd_list_options()`. `WHOLE_ARCHIVE`: devices raise `ERR_POWER_*` without calling functions here |
 | `CMakeLists.txt` | Requires `errors`, `cmd`, `sys_device`, `sys_event`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -104,7 +104,7 @@ A two-input power mux switched into one load. Prefix `CONTRACT_SUPPLY` (`CONTRAC
 
 The power manager is its own component: [`SYS_POWER_MANAGER.MD`](../sys_power_manager/SYS_POWER_MANAGER.MD).
 
-## Errors (`ERR_MOD_SYS_POWER` = `0x26`, `MODULE_ID_SYS_POWER`, `errors/sys_power_errors.h`)
+## Errors (`MODULE_ID_SYS_POWER` = `0x26`, `MODULE_ID_SYS_POWER`, `errors/sys_power_errors.h`)
 
 Besides shared `ERR_DEV_*` (`RANGE`, `SUSPENDED`, `BAD_PIN`):
 - `ERR_POWER_BAD_CHANNEL {id, channel}`

@@ -211,7 +211,7 @@ niczyją zależnością (istnieje sam, napięcie ustawia użytkownik).
 - **Typ innego sterownika w sterowniku.** Wdrożone: `device_esp32s3_i2c.c` nie zna typu GPIO i niczego nie sprawdza.
   Konwencja: nóżka = pin, indeks pinu jest numerem GPIO (pin 46 to GPIO 46). To, że SDA / SCL są pinami samego
   ESP32-S3, a nie ekspandera, jest konfiguracją płytki. `ERR_I2C_BAD_PIN` zniknął (nic go nie zgłasza).
-- **Jeden numer modułu.** Wdrożone: moduł ma jeden numer (`MODULE_ID_DECLARE(NAME, 0x22)` w jego nagłówku,
+- **Jeden numer modułu.** Wdrożone: moduł ma jeden numer (`MODULE_ID_DECLARE(NAME, 0x22)` w jego `<moduł>_id.h`,
   `MODULE_ID_DEFINE` w jednym źródle; `core/utils/module_id.h`), który jest zarazem kluczem routera
   (`ROUTER_MODULE_REGISTER(NAME, fn)`), modułem błędów (`#define ERR_MOD_X MODULE_ID_NAME`), modułem eventów
   (`EVT_TAG(MODULE_ID_NAME, code)`) i, dla kontraktu, jego ID (`SYS_DEVICE_CONTRACT_DECLARE`). Dwa moduły z jednym

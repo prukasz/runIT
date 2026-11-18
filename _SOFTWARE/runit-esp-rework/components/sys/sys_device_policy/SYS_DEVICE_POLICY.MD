@@ -8,8 +8,9 @@ Folder `components/sys/sys_device_policy/`. Decides how the board reacts to erro
 |---|---|
 | `sys_device_policy.h` | Importance levels, `sys_device_error_policy_t`, built-in responses, fault stages, callback types, API (`init`, `set_vm_stop`, `set_action_runner`, `handle`, `get`, `set`) |
 | `sys_device_policy.c` | Slot policy table, `CREATED`/`REMOVED` inline listener, queue ring buffer, dedicated policy task |
-| `router/sys_device_policy_router.h` | `MODULE_ID_DECLARE(POLICY, 0x21)`, `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
-| `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(POLICY, sys_device_policy_router)` |
+| `sys_device_policy_id.h` | `MODULE_ID_DECLARE(MODULE_ID_POLICY, 0x21)` |
+| `router/sys_device_policy_router.h` | `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
+| `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(MODULE_ID_POLICY, sys_device_policy_router)` |
 | `Kconfig` | Queue size, max serialized record size, task priority and stack size |
 | `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `sys_session` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
@@ -54,7 +55,7 @@ typedef struct __attribute__((packed)) {
 
 ## Router (`router/sys_device_policy_router.h`, key `0x21`)
 
-`MODULE_ID_DECLARE(POLICY, 0x21)` registers `sys_device_policy_router` under root key `0x21` (`[0x21][dir][0x01][args]`).
+`MODULE_ID_POLICY` (`0x21`, `sys_device_policy_id.h`) registers `sys_device_policy_router` under root key `0x21` (`[0x21][dir][0x01][args]`).
 
 | Op | Dir | Args | Answer | Notes |
 |---|---|---|---|---|

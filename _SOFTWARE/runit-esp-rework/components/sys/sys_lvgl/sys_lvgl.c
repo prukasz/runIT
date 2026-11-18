@@ -14,7 +14,7 @@
 #include "esp_heap_caps.h"
 #endif
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_LVGL, "sys_lvgl", ERR_SYS_LVGL_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_LVGL, ERR_SYS_LVGL_MAP)
 
 static const char* TAG = "sys_lvgl";
 

@@ -25,8 +25,8 @@ describe('the numbers come from the firmware', () => {
 
   it('the root keys are the module numbers the routers declare', () => {
     const declared = (path: string, name: string) => Number(new RegExp(String.raw`MODULE_ID_DECLARE\(${name},\s*(0x[0-9A-Fa-f]+)\)`).exec(source(path))?.[1])
-    expect(defs.keys.sys).toBe(declared('components/sys/sys_system/router/sys_system_router.h', 'SYS'))
-    expect(defs.keys.watch).toBe(declared('components/sys/sys_watch/errors/sys_watch_errors.h', 'WATCH'))
+    expect(defs.keys.sys).toBe(declared('components/sys/sys_system/sys_system_id.h', 'MODULE_ID_SYS'))
+    expect(defs.keys.watch).toBe(declared('components/sys/sys_watch/sys_watch_id.h', 'MODULE_ID_WATCH'))
     expect(defs.keys.session).toBe(0x0e)
   })
 

@@ -2,28 +2,65 @@
 
 /**
  * @file err_macros.h
- * @brief Every macro of the errors component: tag helpers, node size, tag
- * registry (X-macros), constructors and propagation. Included by errors.h at
- * its top - include errors.h, not this file. The macros only use the types and
- * functions of errors.h when they expand, so the order is free.
+ * @brief Every macro of the errors component: the tags (ERR_TAG, ERR_TAGS_DECLARE, every map's), the node size, the
+ * registration of a module's map (ERR_MODULE_DEFINE), constructors (ERR_NEW, ERR_WRAP, ERR_DATA) and propagation
+ * (ERR_TRY, ERR_CHECK*, ERR_KEEP_FIRST, ERR_ESP), and the types and functions only the macros use (err__*: never
+ * called directly). Included by errors.h at its top - include errors.h, not this file. The macros only use the types
+ * and functions of errors.h when they expand, so the order is free.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 #include "sdkconfig.h"
+
 /* ----------------------------------------------------------------------------
- * Tags and node size
+ * Tags
+ *
+ * Each module lists its tags once, in its own header, as an X-macro map under its number (MODULE_ID_DECLARE,
+ * module_id.h, in the module's <module>_id.h, which this header includes):
+ *
+ *   MODULE_ID_DECLARE(MODULE_ID_I2C, 0x02)
+ *   #define ERR_I2C_MAP(X, M)                                                  \
+ *     X(M, ERR_I2C_NACK,    1, ERR_SEV_HIGH,   { uint8_t addr; uint8_t reg; }) \
+ *     X(M, ERR_I2C_TIMEOUT, 2, ERR_SEV_MEDIUM, { uint8_t addr; })
+ *   ERR_TAGS_DECLARE(MODULE_ID_I2C, ERR_I2C_MAP)
+ *
+ * X(M, tag, code, severity, { payload fields }): M is the module the macros pass in (every row starts with it, as a
+ * command table's rows with P), the code 1..0xFFFF within the module; the payload is the last argument, so field lists
+ * may contain commas. The severity is the tag's wherever it is raised (err_sev). ERR_TAGS_DECLARE makes the tag enum
+ * (tag = ERR_TAG(module, code)) and the packed err_data_<TAG>_t types. Then, in the module's main .c file:
+ *
+ *   ERR_MODULE_DEFINE(MODULE_ID_I2C, ERR_I2C_MAP)
+ *
+ * which builds the module's tag table (name, size, severity per tag) and registers it before app_main; the module's
+ * name in the log is its MODULE_ID_ name without the prefix. The errors component never includes module headers - it
+ * only looks tags up in registered tables. Put ERR_MODULE_DEFINE in a .c file the firmware uses anyway: an object
+ * file nothing references is dropped by the linker, and its registration with it. Tag 0 means "no tag".
  * ------------------------------------------------------------------------- */
 
 /**
  * @brief Error tag: high 16 bits = code module, low 16 bits = error code within
  * that module. Compared and switched on as a whole; split only when the module
  * itself is needed (logging, dispatch).
- * @usage enum { ERR_I2C_NACK = ERR_TAG(ERR_MOD_I2C, 2) };
+ * @usage ERR_TAG(MODULE_ID_I2C, 2)  // what ERR_TAGS_DECLARE gives ERR_I2C_TIMEOUT
  */
 #define ERR_TAG(module, code) (((uint32_t)(module) << 16) | (uint16_t)(code))
-#define ERR_MODULE(tag) ((tag) >> 16)
-#define ERR_CODE(tag) ((uint16_t)(tag))
+
+// Parameter names end with _ so they never replace the .tag / .sev designators.
+#define ERR__X_ENUM(mod_, tag_, code_, sev_, ...) tag_ = ERR_TAG(mod_, code_),
+#define ERR__X_TYPE(mod_, tag_, code_, sev_, ...) typedef struct __attribute__((packed)) __VA_ARGS__ err_data_##tag_##_t;
+
+/**
+ * @brief Declares the tags (enum) and payload types of module `mod` (its MODULE_ID_<NAME>), map MAP(X, M). Use in its
+ * header, after it includes the module's <module>_id.h.
+ */
+#define ERR_TAGS_DECLARE(mod, MAP) \
+  enum { MAP(ERR__X_ENUM, mod) };  \
+  MAP(ERR__X_TYPE, mod)
+
+/* ----------------------------------------------------------------------------
+ * Node size
+ * ------------------------------------------------------------------------- */
 
 // Node header: [info*] next* tag, no padding (checked in errors.h). On the board a pointer is 4 bytes (12 / 8 here);
 // a 64-bit host build of the tests (host/) has 8-byte pointers.
@@ -39,69 +76,60 @@
 #define ERR_DATA_MAX (CONFIG_ERRORS_POOL_BLOCK_SIZE - ERR_HDR_LEN)
 
 /* ----------------------------------------------------------------------------
- * Tag registry
- *
- * Each module lists its tags once, in its own header, as an X-macro map:
- *
- *   #define ERR_I2C_MAP(X)                                                        \
- *     X(ERR_I2C_NACK,    ERR_TAG(ERR_MOD_I2C, 1), ERR_SEV_HIGH,   { uint8_t addr; uint8_t reg; }) \
- *     X(ERR_I2C_TIMEOUT, ERR_TAG(ERR_MOD_I2C, 2), ERR_SEV_MEDIUM, { uint8_t addr; })
- *   ERR_TAGS_DECLARE(ERR_I2C_MAP)
- *
- * X(tag, id, severity, { payload fields }) - the payload is the last argument,
- * so field lists may contain commas. The severity is the tag's wherever it is
- * raised (err_sev). ERR_TAGS_DECLARE makes the tag enum and the packed
- * err_data_<TAG>_t types. Then, in the module's main .c file:
- *
- *   ERR_MODULE_DEFINE(ERR_MOD_I2C, "i2c", ERR_I2C_MAP)
- *
- * which builds the module's tag table (name, size, severity per tag) and
- * registers it before app_main. The errors component never includes module
- * headers - it only looks tags up in registered tables. Put ERR_MODULE_DEFINE
- * in a .c file the firmware uses anyway: an object file nothing references is
- * dropped by the linker, and its registration with it.
- *
- * Module IDs (ERR_MOD_*) must be unique across the firmware (declared via
- * MODULE_ID_DECLARE; ERR_MOD_CORE is 0). Tag 0 means "no tag".
+ * Registration
  * ------------------------------------------------------------------------- */
 
+/** @brief One tag of a module's table (ERR_MODULE_DEFINE); looked up by err_tag_info (err_internal.h). */
+typedef struct {
+  uint32_t tag;
+  const char* name;  // tag name as written in the map, e.g. "ERR_I2C_NACK"
+  uint8_t size;      // sizeof(err_data_<TAG>_t)
+  uint8_t sev;       // err_sev_e
+} err_tag_info_t;
+
+/** @brief A module's tag table (ERR_MODULE_DEFINE). */
+typedef struct {
+  uint16_t id;
+  const char* name;
+  const err_tag_info_t* tags;
+  uint16_t count;
+} err_module_t;
+
+/** @brief Adds a module's table to the registry. Called by ERR_MODULE_DEFINE only. */
+void err__register_module(const err_module_t* module);
+
 // Parameter names end with _ so they never replace the .tag / .sev designators.
-#define ERR__X_ENUM(tag_, id_, sev_, ...) tag_ = id_,
-#define ERR__X_TYPE(tag_, id_, sev_, ...) typedef struct __attribute__((packed)) __VA_ARGS__ err_data_##tag_##_t;
-#define ERR__X_CHECK(tag_, id_, sev_, ...) \
+#define ERR__X_CHECK(mod_, tag_, code_, sev_, ...)                                                       \
+  _Static_assert((code_) >= 1 && (code_) <= 0xFFFF, #tag_ ": the code is not 1..0xFFFF");                \
   _Static_assert(sizeof(err_data_##tag_##_t) <= ERR_DATA_MAX, #tag_ " data does not fit an error node");
-#define ERR__X_CASE(tag_, id_, sev_, ...) case id_:
-#define ERR__X_INFO(tag_, id_, sev_, ...) \
-  {.tag = id_, .name = #tag_, .size = sizeof(err_data_##tag_##_t), .sev = sev_},
+#define ERR__X_CASE(mod_, tag_, code_, sev_, ...) case tag_:
+#define ERR__X_INFO(mod_, tag_, code_, sev_, ...) \
+  {.tag = tag_, .name = #tag_, .size = sizeof(err_data_##tag_##_t), .sev = sev_},
 
 /**
- * @brief Declares a module's tags (enum) and payload types. Use in its header.
+ * @brief Defines and registers the tag table of module `mod` (its MODULE_ID_<NAME>), map MAP. Use once, in a .c file.
+ * Fails to compile on a code out of 1..0xFFFF, a payload that does not fit a node, or two tags with one code
+ * (duplicate case). At registration asserts that the module ID is not taken. The module's name (the log) is `mod`
+ * without its MODULE_ID_ prefix.
  */
-#define ERR_TAGS_DECLARE(MAP) \
-  enum { MAP(ERR__X_ENUM) };  \
-  MAP(ERR__X_TYPE)
-
-/**
- * @brief Defines and registers a module's tag table. Use once, in a .c file.
- * Fails to compile on a payload that does not fit a node, or two tags with the
- * same ID (duplicate case). At registration asserts that every tag belongs to
- * `mod_id` and that the module ID is not taken.
- */
-#define ERR_MODULE_DEFINE(mod_id, mod_name, MAP)                                                          \
-  MAP(ERR__X_CHECK)                                                                                     \
-  __attribute__((unused)) static void _err_dup_check_##mod_id(uint32_t t) {                             \
+#define ERR_MODULE_DEFINE(mod, MAP)                                                                       \
+  _Static_assert(sizeof(#mod) > sizeof("MODULE_ID_"), #mod ": not a MODULE_ID_<NAME>");                 \
+  MAP(ERR__X_CHECK, mod)                                                                                \
+  __attribute__((unused)) static void _err_dup_check_##mod(uint32_t t) {                                \
     switch (t) {                                                                                        \
-      MAP(ERR__X_CASE)                                                                                  \
+      MAP(ERR__X_CASE, mod)                                                                             \
       default:                                                                                          \
         break;                                                                                          \
     }                                                                                                   \
   }                                                                                                     \
-  static const err_tag_info_t _err_tags_##mod_id[] = {MAP(ERR__X_INFO)};                                \
-  static const err_module_t _err_module_##mod_id = {                                                    \
-      .id = mod_id, .name = mod_name, .tags = _err_tags_##mod_id,                                         \
-      .count = sizeof(_err_tags_##mod_id) / sizeof((_err_tags_##mod_id)[0])};                                                            \
-  __attribute__((constructor)) static void _err_register_##mod_id(void) {                               \
-    err_register_module(&_err_module_##mod_id);                                                         \
+  static const err_tag_info_t _err_tags_##mod[] = {MAP(ERR__X_INFO, mod)};                              \
+  static const err_module_t _err_module_##mod = {                                                       \
+      .id = (mod),                                                                                      \
+      .name = #mod + sizeof("MODULE_ID_") - 1u,                                                         \
+      .tags = _err_tags_##mod,                                                                          \
+      .count = sizeof(_err_tags_##mod) / sizeof((_err_tags_##mod)[0])};                                 \
+  __attribute__((constructor)) static void _err_register_##mod(void) {                                  \
+    err__register_module(&_err_module_##mod);                                                           \
   }
 
 /* ----------------------------------------------------------------------------
@@ -132,7 +160,24 @@
 #define ERR__INFO_LINE
 #endif
 
-// err_new() itself is declared in errors.h; its signature depends on CONFIG_ERRORS_INFO.
+struct err;
+struct err_info;
+/**
+ * @brief Creates a node. Called by ERR_NEW / ERR_WRAP (ERR__NEW) and the record parser only.
+ * @param info  Call-site info (static, see ERR__NEW).
+ * @param tag   ERR_TAG(module, code).
+ * @param data  Payload, copied into the node. May be NULL when len == 0.
+ * @param len   Payload length, at most ERR_DATA_MAX (longer is cut).
+ * @param cause Deeper error; ownership passes to the new node. NULL for none.
+ */
+#if CONFIG_ERRORS_INFO
+__attribute__((warn_unused_result)) struct err* err__new(const struct err_info* info, uint32_t tag, const void* data,
+                                                         uint32_t len, struct err* cause);
+#else
+__attribute__((warn_unused_result)) struct err* err__new(uint32_t tag, const void* data, uint32_t len,
+                                                         struct err* cause);
+#endif
+
 // Storage class in a compound literal is C2y: gcc accepts it in gnu23, clang (clangd) does not.
 #ifdef __clang__
 #define ERR__INFO_STORAGE
@@ -141,9 +186,9 @@
 #endif
 #if CONFIG_ERRORS_INFO
 #define ERR__NEW(tag, data, len, cause) \
-  err_new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, tag, data, len, cause)
+  err__new(&(ERR__INFO_STORAGE const err_info_t){ERR__INFO_FILE ERR__INFO_FUNC ERR__INFO_LINE}, tag, data, len, cause)
 #else
-#define ERR__NEW(tag, data, len, cause) err_new((tag), (data), (len), (cause))
+#define ERR__NEW(tag, data, len, cause) err__new((tag), (data), (len), (cause))
 #endif
 
 /**

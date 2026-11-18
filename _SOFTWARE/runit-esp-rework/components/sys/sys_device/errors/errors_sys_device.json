@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_DEVICE",
+  "module": "MODULE_ID_SYS_DEVICE",
   "errors": {
     "ERR_DEV_BAD_ARG": {
       "message": "A device request is not valid"

@@ -17,9 +17,7 @@
 #include "sys_power_vreg.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_POWER_MANAGER, "power_manager", ERR_SYS_POWER_MANAGER_MAP)
-
-MODULE_ID_DEFINE(PWRM, 0x22)
+ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)
 
 #define LIPO_FULL_CELL_MV 4200
 #define BOARD_TARGET      (-1)  // a response for every rail
@@ -862,14 +860,14 @@ err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
   memcpy(s_pm.responses[0], board->responses, SYS_POWER_KIND_COUNT);  // a rail takes these when it is added
   s_pm.board = board;  // last: the API answers ERR_PWRM_NOT_READY until here
 
-  ERR_TRY(sys_device_set_interceptor(CONTRACT_VREG_CONTRACT, vreg_take, vreg_settle));
+  ERR_TRY(sys_device_set_interceptor(MODULE_ID_VREG, vreg_take, vreg_settle));
   // Every event of the two contracts, queued (the event task): filtered in on_event.
   uint16_t handle;
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_VREG_CONTRACT, SYS_EVENT_ANY_CODE),
+  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(MODULE_ID_VREG, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
                               on_event, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(CONTRACT_PMON_CONTRACT, SYS_EVENT_ANY_CODE),
+  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(MODULE_ID_PMON, SYS_EVENT_ANY_CODE),
                                                 .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
                               on_event, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));

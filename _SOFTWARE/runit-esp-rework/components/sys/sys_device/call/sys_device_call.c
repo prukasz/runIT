@@ -295,7 +295,7 @@ err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op) {
 
 err_h sys_device_deliver(uint8_t id, uint8_t gen, uint16_t op, const void* args, uint32_t args_len) {
   ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
-  ERR_CHECK(gen != 0 && (op >> 8) != SYS_DEVICE_CONTRACT_DEVICE, ERR_DEV_BAD_ARG);
+  ERR_CHECK(gen != 0 && (op >> 8) != MODULE_ID_SYS_DEVICE, ERR_DEV_BAD_ARG);
   const how_t how = {.gen = gen};
   return call_dispatch(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL, &how);
 }

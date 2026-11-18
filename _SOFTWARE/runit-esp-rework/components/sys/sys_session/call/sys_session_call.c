@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "board_time.h"
+#include "err_record.h"
 #include "sdkconfig.h"
 #include "sys_session.h"
 #include "sys_session_internal.h"

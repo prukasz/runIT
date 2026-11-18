@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_CORE",
+  "module": "MODULE_ID_CORE",
   "errors": {
     "ERR_POOL_EMPTY": {
       "message": "The board ran out of room to record error details"

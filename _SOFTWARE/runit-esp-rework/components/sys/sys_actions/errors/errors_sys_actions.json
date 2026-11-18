@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_ACTIONS",
+  "module": "MODULE_ID_ACTIONS",
   "errors": {
     "ERR_ACTION_NOT_FOUND": {
       "message": "{id} does not exist",

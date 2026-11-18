@@ -17,4 +17,4 @@ err_h sys_data_provider_router(CMD_F_PARAMS) {
   return sys_data_provider_call_routed(h.id, h.dir, h.op, args, out);
 }
 
-ROUTER_MODULE_REGISTER(PROVIDER, sys_data_provider_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_PROVIDER, sys_data_provider_router)

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_DATA_MATRIX",
+  "module": "MODULE_ID_DATA_MATRIX",
   "errors": {
     "ERR_DATA_MATRIX_FULL": {
       "message": "The data matrix has no room for another role, route or callback",

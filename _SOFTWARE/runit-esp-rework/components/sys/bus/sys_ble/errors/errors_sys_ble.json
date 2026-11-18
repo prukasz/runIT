@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_BLE",
+  "module": "MODULE_ID_BLE",
   "errors": {
     "ERR_BLE_STACK": {
       "message": "Bluetooth failed (code {rc})"

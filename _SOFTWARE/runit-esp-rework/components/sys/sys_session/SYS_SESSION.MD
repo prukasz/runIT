@@ -21,7 +21,7 @@ Component `runit-esp-rework/components/sys/sys_session/`. A **session** is a fra
 | `board/sys_session_board.c` | The board's identity, ESP-IDF's part: the id in NVS, a random id per boot, the firmware's build |
 | `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION` 0x0E): the frames, then `SESSION_OPERATIONS`; registers itself |
 | `router/contract_session.json` | The router's descriptor |
-| `errors/` | `MODULE_ID_SESSION` (0x0E, also `ERR_MOD_SYS_SESSION`), `ERR_SYS_SESSION_MAP`, the messages |
+| `errors/` | `MODULE_ID_SESSION` (0x0E, also `MODULE_ID_SESSION`), `ERR_SYS_SESSION_MAP`, the messages |
 | `host/` | Host tests on two fake providers (Tests) |
 
 ## Peers and ids
@@ -130,7 +130,7 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 | `0x01` | ID | read / write | `sys_session_id_args_t` `{u8 board_id}`; the write is kept in NVS and used from the next start |
 | `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: `u8 provider`, `u8 open`, `u8 peer_id` (`NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none) |
 
-## Errors (`ERR_MOD_SYS_SESSION` = `MODULE_ID_SESSION` 0x0E)
+## Errors (`MODULE_ID_SESSION` 0x0E)
 
 `ERR_SESSION_ID_TAKEN{board}`, `_NO_ROUTE{dst}`, `_TIMEOUT{dst, seq}`, `_PEER_DOWN{board}`, `_FULL`, `_CALLS_FULL`, `ERR_REMOTE{board, seq}` (context: the chain under it is that board's), `_WOULD_BLOCK`, `_NOT_FRAMED`. The provider's own `ERR_PROV_*` pass as they are.
 

@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_IO",
+  "module": "MODULE_ID_IO",
   "errors": {
     "ERR_IO_PIN_IN_USE": {
       "message": "{pin} of {id} is already set up as {mode}",

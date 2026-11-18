@@ -1,7 +1,5 @@
 #include "sys_lvgl_router.h"
 
-MODULE_ID_DEFINE(LVGL, 0x29)
-
 ROUTER_GETTER(LVGL, OP_INSTALL, sys_lvgl_get_install)
 ROUTER_SETTER(LVGL, OP_INSTALL, sys_lvgl_install)
 
@@ -35,4 +33,4 @@ static const router_op_t k_ops[] = {
 };
 
 ROUTER_MODULE(sys_lvgl_router, k_ops)
-ROUTER_MODULE_REGISTER(LVGL, sys_lvgl_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_LVGL, sys_lvgl_router)

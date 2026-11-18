@@ -10,8 +10,7 @@
 #include "sys_session_internal.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_SESSION, "sys_session", ERR_SYS_SESSION_MAP)
-MODULE_ID_DEFINE(SESSION, 0x0E)
+ERR_MODULE_DEFINE(MODULE_ID_SESSION, ERR_SYS_SESSION_MAP)
 
 #define HDR            SYS_SESSION_HDR_BYTES
 #define FRAME(kind)    SYS_SESSION_FRAME(kind)

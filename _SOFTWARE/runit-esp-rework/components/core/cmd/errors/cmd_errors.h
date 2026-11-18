@@ -1,18 +1,16 @@
 #pragma once
 
 #include "errors.h"
-
-MODULE_ID_DECLARE(CMD, 0x27)  //@alias Command frames @description Core command framing module ID
-#define ERR_MOD_CMD MODULE_ID_CMD
+#include "cmd_id.h"
 
 /* ----------------------------------------------------------------------------
- * Errors (module ERR_MOD_CMD): shared handler errors (payload, answer, args, direction).
+ * Errors (module MODULE_ID_CMD): shared handler errors (payload, answer, args, direction).
  * ------------------------------------------------------------------------- */
 
-#define ERR_CMD_MAP(X)                                                                                                  \
-  X(ERR_CMD_BAD_LEN,   ERR_TAG(ERR_MOD_CMD, 1), ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */       \
-  X(ERR_CMD_OUT_FULL,  ERR_TAG(ERR_MOD_CMD, 2), ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */ \
-  X(ERR_CMD_BAD_ARG,   ERR_TAG(ERR_MOD_CMD, 3), ERR_SEV_HIGH, {}) /* invalid argument value */                          \
-  X(ERR_CMD_DIRECTION, ERR_TAG(ERR_MOD_CMD, 4), ERR_SEV_HIGH, { uint8_t dir; }) /* the command has no such side, or dir is neither read nor write */
+#define ERR_CMD_MAP(X, M)                                                                                               \
+  X(M, ERR_CMD_BAD_LEN,   1, ERR_SEV_HIGH, { uint16_t got; uint16_t need; }) /* payload size */                         \
+  X(M, ERR_CMD_OUT_FULL,  2, ERR_SEV_HIGH, { uint16_t need; uint16_t cap; }) /* answer does not fit the link */         \
+  X(M, ERR_CMD_BAD_ARG,   3, ERR_SEV_HIGH, {}) /* invalid argument value */                                             \
+  X(M, ERR_CMD_DIRECTION, 4, ERR_SEV_HIGH, { uint8_t dir; }) /* the command has no such side, or dir is neither read nor write */
 
-ERR_TAGS_DECLARE(ERR_CMD_MAP)
+ERR_TAGS_DECLARE(MODULE_ID_CMD, ERR_CMD_MAP)

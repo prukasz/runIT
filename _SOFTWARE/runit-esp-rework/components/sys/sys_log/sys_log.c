@@ -1,11 +1,11 @@
 #include "sys_log.h"
 
+#include "err_log.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_log_router.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_LOG, "log", ERR_SYS_LOG_MAP)
-MODULE_ID_DEFINE(LOG, 0x2A)
+ERR_MODULE_DEFINE(MODULE_ID_LOG, ERR_SYS_LOG_MAP)
 DATA_MATRIX_STREAMS_DEFINE(LOG)
 
 #define ANSI_ESC  '\x1b'

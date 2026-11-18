@@ -1,8 +1,9 @@
 #include "router_queue.h"
+#include "err_record.h"
+#include "err_sink.h"
 #include "sdkconfig.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_ROUTER_QUEUE, "router_queue", ERR_ROUTER_QUEUE_MAP)
-MODULE_ID_DEFINE(ROUTER_QUEUE, 0x24)
+ERR_MODULE_DEFINE(MODULE_ID_ROUTER_QUEUE, ERR_ROUTER_QUEUE_MAP)
 
 #define REQ_MIN_BYTES 2u  // a root key and the direction
 

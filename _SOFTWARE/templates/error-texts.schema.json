@@ -14,7 +14,7 @@
     },
     "module": {
       "type": "string",
-      "pattern": "^ERR_MOD_[A-Z0-9_]+$",
+      "pattern": "^MODULE_ID_[A-Z0-9_]+$",
       "description": "Symbol modułu, którego mapę opisuje plik."
     },
     "errors": {

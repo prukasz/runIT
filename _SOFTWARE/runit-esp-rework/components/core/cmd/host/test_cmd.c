@@ -108,7 +108,7 @@ static void test_append_past_the_cap_is_refused_and_keeps_the_answer(void) {
 /* ---- the module's errors are on the wire: tags and sizes do not change ------------------------------------------ */
 
 static void test_error_tags_are_registered_with_their_wire_sizes(void) {
-  TEST_ASSERT_EQUAL_STRING("cmd", err_module(ERR_MOD_CMD)->name);
+  TEST_ASSERT_EQUAL_STRING("CMD", err_module(MODULE_ID_CMD)->name);
   TEST_ASSERT_EQUAL_HEX32(0x00270001, ERR_CMD_BAD_LEN);
   TEST_ASSERT_EQUAL_HEX32(0x00270002, ERR_CMD_OUT_FULL);
   TEST_ASSERT_EQUAL_HEX32(0x00270003, ERR_CMD_BAD_ARG);

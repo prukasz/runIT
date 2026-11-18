@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sys_power_monitor_id.h"
 #include "sys_power.h"
 
 #ifdef __cplusplus
@@ -50,8 +51,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_ALERT,   0x02, cmd_none_t,          pmon_alert_args_t, 0) \
   X(P, OP_POWER,   0x03, pmon_channel_args_t, int32_t,           0)
 
-MODULE_ID_DECLARE(PMON, 0x04)  //@alias Power monitor contract @description Voltage, current, and power monitoring contract and module ID
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PMON, PMON, 0x04)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PMON, MODULE_ID_PMON)
 
 /* Events of the contract, published by a device for an armed alert: source = the device, channel = the measured
  * channel, the payload the current that crossed it. Both matter to the user: NOTIFY. */
@@ -59,7 +59,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PMON, PMON, 0x04)
   X(P, OCP_WARNING,  0x01, SYS_EVENT_NOTIFY, { int32_t mA; }) \
   X(P, OCP_CRITICAL, 0x02, SYS_EVENT_NOTIFY, { int32_t mA; })
 
-SYS_EVENTS_DECLARE(PMON, DEVICE)
+SYS_EVENTS_DECLARE(PMON, MODULE_ID_PMON, DEVICE)
 
 #ifdef __cplusplus
 }

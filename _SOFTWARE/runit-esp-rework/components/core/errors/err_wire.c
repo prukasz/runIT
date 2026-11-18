@@ -1,6 +1,7 @@
 #include "err_internal.h"
 #include <string.h>
 #include "board_time.h"
+#include "err_record.h"
 
 #define RECORD_INTERNAL_HDR (1u + ERR_RECORD_STAMP_BYTES)                     // src, stamp
 #define RECORD_COMMAND_HDR  (RECORD_INTERNAL_HDR + sizeof(err_record_cmd_t))  // ... the command header
@@ -122,9 +123,9 @@ err_h err_record_parse(const uint8_t* data, uint32_t len, err_h* chain) {
     memcpy(&tag, data + at[i], sizeof(tag));  // little-endian target
     const uint32_t size = data[at[i] + NODE_HDR - 1] < ERR_DATA_MAX ? data[at[i] + NODE_HDR - 1] : ERR_DATA_MAX;
 #if CONFIG_ERRORS_INFO
-    err_h e = err_new(NULL, tag, data + at[i] + NODE_HDR, size, *chain);
+    err_h e = err__new(NULL, tag, data + at[i] + NODE_HDR, size, *chain);
 #else
-    err_h e = err_new(tag, data + at[i] + NODE_HDR, size, *chain);
+    err_h e = err__new(tag, data + at[i] + NODE_HDR, size, *chain);
 #endif
     if (e == *chain || e->tag != tag) {
       break;  // the pool is short: the outer nodes are left out

@@ -158,11 +158,11 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
   P##_EVENTS(SYS_EVENT__TYPE, P)
 
 /**
- * @brief The events of module P, table P_EVENTS(X, P), under the module's number MODULE_ID_<P> (a contract's events:
- * its ID), in the lane LANE (a row of SYS_EVENT_LANES). After the module's MODULE_ID_DECLARE.
- * @usage SYS_EVENTS_DECLARE(PWRM, SYS)  // PWRM_EV_BATTERY_LOW = EVT_TAG(MODULE_ID_PWRM, 0x02), ...
+ * @brief The events of table P_EVENTS(X, P) under the module's number `id` (its MODULE_ID_<NAME>; a contract's
+ * events: its ID), in the lane LANE (a row of SYS_EVENT_LANES). After the module's <module>_id.h.
+ * @usage SYS_EVENTS_DECLARE(PWRM, MODULE_ID_PWRM, SYS)  // PWRM_EV_BATTERY_LOW = EVT_TAG(MODULE_ID_PWRM, 0x02), ...
  */
-#define SYS_EVENTS_DECLARE(P, LANE) SYS_EVENT__TABLE(P, MODULE_ID_##P, LANE)
+#define SYS_EVENTS_DECLARE(P, id, LANE) SYS_EVENT__TABLE(P, id, LANE)
 
 
 

@@ -2,9 +2,7 @@
 
 #include "sys_device_driver.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_I2C, "sys_i2c", ERR_SYS_I2C_MAP)
-
-SYS_DEVICE_CONTRACT_DEFINE(I2C, 0x02)
+ERR_MODULE_DEFINE(MODULE_ID_I2C, ERR_SYS_I2C_MAP)
 
 /* The client: every call is an op of the chip's bus. Nothing here knows how a bus is made. */
 

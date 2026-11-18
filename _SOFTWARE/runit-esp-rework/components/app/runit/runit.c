@@ -2,6 +2,8 @@
 
 #include <esp_log.h>
 #include "board_time.h"
+#include "err_log.h"
+#include "err_sink.h"
 #include "errors.h"
 #include "router_queue.h"
 #include "runit_connectivity.h"

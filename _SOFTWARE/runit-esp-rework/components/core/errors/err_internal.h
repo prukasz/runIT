@@ -1,5 +1,7 @@
 #pragma once
 
+#include "err_log.h"
+#include "err_sink.h"
 #include "errors.h"
 #include "sdkconfig.h"
 
@@ -8,6 +10,10 @@ extern "C" {
 #endif
 
 /* Shared between the errors component's own files only. */
+
+/** @brief The module and the code of a tag (ERR_TAG). */
+#define ERR_MODULE(tag) ((tag) >> 16)
+#define ERR_CODE(tag) ((uint16_t)(tag))
 
 /** @brief The info of a tag from the registered tables, or NULL for an unknown tag. */
 const err_tag_info_t* err_tag_info(uint32_t tag);

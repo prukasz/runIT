@@ -11,8 +11,7 @@
 #include "sys_watch_internal.h"
 #include "utils.h"
 
-MODULE_ID_DEFINE(WATCH, 0x2B)
-ERR_MODULE_DEFINE(ERR_MOD_SYS_WATCH, "sys_watch", ERR_SYS_WATCH_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_WATCH, ERR_SYS_WATCH_MAP)
 
 #define ENTRY_HEAD 2u  // [id][status], then the read's answer: the payload of the channel SYS_WATCH_CHANNEL
 

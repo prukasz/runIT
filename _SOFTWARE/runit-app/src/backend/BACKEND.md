@@ -143,7 +143,7 @@ log.onChange((entries) => …)
 
 | Fact | Source | Held against it by |
 |---|---|---|
-| Root keys, the session's ids, frame byte, kinds, control ops, channels, the streams | `enums.json` (`module_id`, `session_*`, `sys_session_*`, `log_stream`, `event_stream`) | `protocol.test.ts` reads the routers' `MODULE_ID_DECLARE` |
+| Root keys, the session's ids, frame byte, kinds, control ops, channels, the streams | `enums.json` (`module_id`, `session_*`, `sys_session_*`, `log_stream`, `event_stream`) | `protocol.test.ts` reads the modules' `<module>_id.h` (`MODULE_ID_DECLARE`) |
 | GATT UUIDs, fragment bits | `enums.json` (`ble_runit_uuid`, marked in `runit_ids.h`; `ble_frag`, in `sys_ble.h`) | `protocol.test.ts` reads both headers; the framing tests use the examples of SYS_BLE.MD |
 | Frame limit and header | `enums.json` (`cmd_frame`: `CMD_FRAME_MAX`, `CMD_HEAD`) | `protocol.test.ts` reads `cmd.h` |
 | Error record | `ERRORS.MD`, `errors.json` | `protocol.test.ts` decodes a record built from errors.json |

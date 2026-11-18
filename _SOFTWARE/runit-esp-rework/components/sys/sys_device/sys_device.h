@@ -21,7 +21,7 @@ extern "C" {
  * side or both (cmd_dir_e): the read takes the key (a pin, a channel; nothing) and answers what the write takes
  * (ROUTER.MD).
  * A contract is ONE table P_OPERATIONS of X(P, OP_NAME, n, key_t, value_t, flags); SYS_DEVICE_CONTRACT_DECLARE(P,
- * mod, contract ID) gives P_CONTRACT, P_<OP_NAME>, P_FLAGS_<OP_NAME>, P_key_<OP_NAME>_t, P_value_<OP_NAME>_t. A
+ * MODULE_ID_<NAME>) gives P_<OP_NAME>, P_FLAGS_<OP_NAME>, P_key_<OP_NAME>_t, P_value_<OP_NAME>_t. A
  * device's own ops are a table of the same format, in its driver: SYS_DEVICE_OWN_DECLARE(P) (sys_device_driver.h).
  */
 
@@ -33,15 +33,13 @@ extern "C" {
 
 #define SYS_DEVICE_OP(contract, n) ((uint16_t)(((contract) << 8) | (n)))
 
-/* Contract IDs. A contract's ID is its module's number (MODULE_ID_DECLARE, module_id.h): the same as the root key of
- * its commands, the module of its errors and of its events. The registry's own is MODULE_ID_SYS_DEVICE (the device's
- * lifecycle ops); 0xFF is a device's own ops, which no contract takes. Every other contract gives its number in its own
- * header, MODULE_ID_DECLARE(IO, 0x01) and SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, IO, 0x01), and claims it in one source of its
- * component, SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01): two hex digits and nothing after them, the same everywhere. No list
- * of contracts exists and no file includes them all: two modules with one number fail to link (the global symbol
- * module_id__0x01 defined twice), and fail to compile already where both headers meet (MODULE_ID__0x01 declared
- * twice). The ID is wire format (an op is [contract u8][op u8]): never renumber it. */
-#define SYS_DEVICE_CONTRACT_DEVICE MODULE_ID_SYS_DEVICE
+/* Contract IDs. A contract's ID is its module's number, MODULE_ID_<NAME> (MODULE_ID_DECLARE, module_id.h): the same
+ * as the root key of its commands, the module of its errors and of its events. The registry's own is
+ * MODULE_ID_SYS_DEVICE (the device's lifecycle ops); 0xFF is a device's own ops, which no contract takes. Every other
+ * contract gives its number in its own <contract>_id.h, MODULE_ID_DECLARE(MODULE_ID_IO, 0x01), and its table, after the header includes it,
+ * SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, MODULE_ID_IO). No list of contracts exists and no file includes them all
+ * (module_id.h: how two with one number are caught). The ID is wire format (an op is [contract u8][op u8]): never
+ * renumber it. */
 
 //#ref-defines device_contract_own @alias Device own ops @prefix SYS_DEVICE_CONTRACT_
 #define SYS_DEVICE_CONTRACT_OWN    0xFFu  //@alias Device own ops @description Op prefix reserved for a device driver's own commands (not a shared contract)
@@ -71,26 +69,17 @@ enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
 #define SYS_DEVICE_OP_TAIL   (1u << 3)
 
 /* A contract is a table of ops in the format of every set of commands (cmd_table.h: P_OPERATIONS(X, P) of rows
- * X(P, OP_NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, mod,
- * contract ID) gives what the table gives everywhere, the types P_key_<OP_NAME>_t and P_value_<OP_NAME>_t, and what a contract adds:
- * P_CONTRACT (the ID), P_<OP_NAME> = SYS_DEVICE_OP(ID, n) and P_FLAGS_<OP_NAME> (SYS_DEVICE_OP_*). */
-#define SYS_DEVICE__ID(P, name, n, key_t, value_t, flags) P##_##name = SYS_DEVICE_OP(P##_CONTRACT, n),
+ * X(P, OP_NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, id)
+ * gives what the table gives everywhere, the types P_key_<OP_NAME>_t and P_value_<OP_NAME>_t, and what a contract
+ * adds: P_<OP_NAME> = SYS_DEVICE_OP(id, n) and P_FLAGS_<OP_NAME> (SYS_DEVICE_OP_*). `id` is the contract's
+ * MODULE_ID_<NAME>; P__ID (the anchor the rows reach it by) is the table's own, never used outside it. */
+#define SYS_DEVICE__ID(P, name, n, key_t, value_t, flags) P##_##name = SYS_DEVICE_OP(P##__ID, n),
 #define SYS_DEVICE__FLAGS(P, name, n, key_t, value_t, flags) P##_FLAGS_##name = (flags),
-#define SYS_DEVICE__TABLE(P, contract)                                   \
-  enum { P##_CONTRACT = (contract), P##_OPERATIONS(SYS_DEVICE__ID, P) }; \
-  enum { P##_OPERATIONS(SYS_DEVICE__FLAGS, P) };                         \
+#define SYS_DEVICE__TABLE(P, id)                                   \
+  enum { P##__ID = (id), P##_OPERATIONS(SYS_DEVICE__ID, P) };      \
+  enum { P##_OPERATIONS(SYS_DEVICE__FLAGS, P) };                   \
   P##_OPERATIONS(CMD__TABLE_TYPES, P)
-#define SYS_DEVICE_CONTRACT_DECLARE(P, mod, contract)                                                         \
-  _Static_assert(MODULE_ID_##mod == (contract), #mod ": the ID differs from its MODULE_ID_DECLARE");        \
-  SYS_DEVICE__TABLE(P, contract)
-
-/**
- * @brief Claims the ID of the contract with prefix P for the whole firmware: once, in one source of the contract's
- * component (a header-only contract gets a source for it, linked whole). `contract` is the ID as its
- * SYS_DEVICE_CONTRACT_DECLARE spells it.
- * @usage SYS_DEVICE_CONTRACT_DEFINE(IO, 0x01)  // sys_io.c
- */
-#define SYS_DEVICE_CONTRACT_DEFINE(P, contract) MODULE_ID_DEFINE(P, contract)
+#define SYS_DEVICE_CONTRACT_DECLARE(P, id) SYS_DEVICE__TABLE(P, id)
 
 /** @brief INFO answer. */
 typedef struct __attribute__((packed)) {
@@ -119,10 +108,10 @@ typedef struct __attribute__((packed)) {
 #define SYS_DEVICE_CREATE_SYSTEM 0x01u
 
 enum {
-  CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x00),  // [type u16][flags u8][create struct]
-  CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(SYS_DEVICE_CONTRACT_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
+  CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x00),  // [type u16][flags u8][create struct]
+  CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
 };
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, SYS_DEVICE, 0x20)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, MODULE_ID_SYS_DEVICE)
 
 /* A remote device's flags (sys_device_remote_t.flags): how its calls go (SYS_REMOTE.MD "A call"). Exactly one. */
 //#ref-defines device_remote_flag @alias Remote device flags @prefix SYS_DEVICE_REMOTE_

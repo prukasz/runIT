@@ -29,4 +29,4 @@ static const router_op_t k_ops[] = {
 };
 
 ROUTER_MODULE(sys_watch_router, k_ops)
-ROUTER_MODULE_REGISTER(WATCH, sys_watch_router)
+ROUTER_MODULE_REGISTER(MODULE_ID_WATCH, sys_watch_router)

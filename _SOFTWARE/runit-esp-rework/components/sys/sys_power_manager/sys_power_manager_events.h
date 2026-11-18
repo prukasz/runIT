@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 /*
- * Events of the power manager itself: module MODULE_ID_PWRM (0x22, declared in sys_power_manager_errors.h and claimed
- * in sys_power_manager.c), source SYS_DEVICE_ID_NONE, channel 0. The device events it
+ * Events of the power manager itself: module MODULE_ID_PWRM (0x22, declared in sys_power_manager_errors.h), source
+ * SYS_DEVICE_ID_NONE, channel 0. The device events it
  * answers (VREG, PMON) are the devices' own. All matter to the user: NOTIFY.
  *   SOURCE_CHANGED   - the board's power source changed (sys_power_source_e)
  *   BATTERY_LOW      - the battery fell to its low threshold
@@ -29,7 +29,7 @@ extern "C" {
   X(P, INPUT_OVP,        0x05, SYS_EVENT_NOTIFY, { int32_t mV; })       \
   X(P, PD_FIXED,         0x06, SYS_EVENT_NOTIFY, { int32_t mV; })
 
-SYS_EVENTS_DECLARE(PWRM, SYS)
+SYS_EVENTS_DECLARE(PWRM, MODULE_ID_PWRM, SYS)
 
 #ifdef __cplusplus
 }

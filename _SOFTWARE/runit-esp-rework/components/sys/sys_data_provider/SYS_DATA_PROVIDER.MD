@@ -20,7 +20,7 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
   - `0x0D03` (`OP_SEND`, W, `TAIL`): sends raw payload bytes directly
   - `0x0D04` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
   - `0x0D05` (`OP_OPS`, R): returns `[op u16][sides u8]` rows for registry ops and non-`LOCAL` driver ops
-- `router/contract_provider.json` describes the wire commands (`router_key` and `contract_id` both 13: a descriptor with the two is addressed with the id and the 16-bit op, as the app reads it, templates/AGENTS.md); `errors/` owns `ERR_MOD_SYS_DATA_PROVIDER` (`MODULE_ID_PROVIDER`, tags `1..9`, `11..15`).
+- `router/contract_provider.json` describes the wire commands (`router_key` and `contract_id` both 13: a descriptor with the two is addressed with the id and the 16-bit op, as the app reads it, templates/AGENTS.md); `errors/` owns `MODULE_ID_PROVIDER` (`MODULE_ID_PROVIDER`, tags `1..9`, `11..15`).
 
 ## Headers
 

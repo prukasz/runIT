@@ -3,6 +3,9 @@
 #include <math.h>
 #include <pthread.h>
 #include <string.h>
+#include "err_log.h"
+#include "err_record.h"
+#include "err_sink.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "errors.h"
@@ -10,14 +13,14 @@
 #include "host_mocks.h"
 
 /* A module of the test's own (900 is outside the firmware's 0x01..0xFE range). */
-#define T_MOD 900u
-#define T_MAP(X)                                                         \
-  X(T_PLAIN, ERR_TAG(T_MOD, 1), ERR_SEV_LOW, {})                         \
-  X(T_PAIR,  ERR_TAG(T_MOD, 2), ERR_SEV_HIGH, { uint8_t a; uint16_t b; }) \
-  X(T_CRIT,  ERR_TAG(T_MOD, 3), ERR_SEV_CRITICAL, { uint8_t x; }) \
-  X(T_MED,   ERR_TAG(T_MOD, 4), ERR_SEV_MEDIUM, {})
-ERR_TAGS_DECLARE(T_MAP)
-ERR_MODULE_DEFINE(T_MOD, "test", T_MAP)
+enum { MODULE_ID_TEST = 900 };
+#define T_MAP(X, M)                                                                                                     \
+  X(M, T_PLAIN, 1, ERR_SEV_LOW,      {})                                                                                \
+  X(M, T_PAIR,  2, ERR_SEV_HIGH,     { uint8_t a; uint16_t b; })                                                        \
+  X(M, T_CRIT,  3, ERR_SEV_CRITICAL, { uint8_t x; })                                                                    \
+  X(M, T_MED,   4, ERR_SEV_MEDIUM,   {})
+ERR_TAGS_DECLARE(MODULE_ID_TEST, T_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_TEST, T_MAP)
 
 void setUp(void) {
   host_log_clear();
@@ -212,7 +215,7 @@ static void test_log_lines(void) {
   err_log(e);
   TEST_ASSERT_EQUAL_INT(2, host_log_count());
   TEST_ASSERT_NOT_NULL(strstr(host_log_line(0), "T_PAIR"));
-  TEST_ASSERT_NOT_NULL(strstr(host_log_line(0), "test.2"));
+  TEST_ASSERT_NOT_NULL(strstr(host_log_line(0), "TEST.2"));
   TEST_ASSERT_NOT_NULL_MESSAGE(strstr(host_log_line(0), "data: 0a"), host_log_line(0));
   TEST_ASSERT_NOT_NULL(strstr(host_log_line(1), "T_PLAIN"));
   TEST_ASSERT_EQUAL_INT(ESP_LOG_ERROR, host_log_level(0));  /* the chain's level: its highest sev */
@@ -292,13 +295,13 @@ static void test_registry_lookup(void) {
   TEST_ASSERT_EQUAL_STRING("T_PAIR", pair->name);
   TEST_ASSERT_EQUAL_UINT8(3, pair->size);  /* packed: 1 + 2, no padding */
   TEST_ASSERT_EQUAL_UINT8(ERR_SEV_HIGH, pair->sev);
-  TEST_ASSERT_EQUAL_STRING("test", err_module(T_MOD)->name);
-  TEST_ASSERT_EQUAL_STRING("core", err_module(ERR_MOD_CORE)->name);
+  TEST_ASSERT_EQUAL_STRING("TEST", err_module(MODULE_ID_TEST)->name);
+  TEST_ASSERT_EQUAL_STRING("CORE", err_module(MODULE_ID_CORE)->name);
   TEST_ASSERT_EQUAL_UINT8(sizeof(esp_err_t), err_tag_info(ERR_ESP_ERR)->size);
-  TEST_ASSERT_NULL(err_tag_info(ERR_TAG(T_MOD, 99)));  /* known module, unknown code */
+  TEST_ASSERT_NULL(err_tag_info(ERR_TAG(MODULE_ID_TEST, 99)));  /* known module, unknown code */
   TEST_ASSERT_NULL(err_tag_info(ERR_TAG(901, 1)));     /* unknown module */
   TEST_ASSERT_NULL(err_module(901));
-  TEST_ASSERT_EQUAL_UINT32(T_MOD, ERR_MODULE(T_PAIR));
+  TEST_ASSERT_EQUAL_UINT32(MODULE_ID_TEST, ERR_MODULE(T_PAIR));
   TEST_ASSERT_EQUAL_UINT16(2, ERR_CODE(T_PAIR));
 }
 

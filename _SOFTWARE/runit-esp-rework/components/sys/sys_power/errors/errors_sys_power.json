@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_POWER",
+  "module": "MODULE_ID_SYS_POWER",
   "errors": {
     "ERR_POWER_BAD_CHANNEL": {
       "message": "{id} has no {channel}",

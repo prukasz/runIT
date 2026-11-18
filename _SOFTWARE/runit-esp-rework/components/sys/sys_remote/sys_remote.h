@@ -2,6 +2,7 @@
 
 #include "cmd.h"
 #include "errors.h"
+#include "module_id.h"
 #include "router_queue.h"
 #include "sys_session.h"
 #include "sys_remote_config.h"

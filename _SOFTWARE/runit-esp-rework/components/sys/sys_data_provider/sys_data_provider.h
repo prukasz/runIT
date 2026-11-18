@@ -5,6 +5,7 @@
 
 #include "cmd.h"
 #include "errors.h"
+#include "module_id.h"
 #include "sys_data_provider_errors.h"
 #include "utils.h"
 

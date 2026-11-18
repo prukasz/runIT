@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_ROUTER",
+  "module": "MODULE_ID_ROUTER",
   "errors": {
     "ERR_ROUTER_KEY": {
       "message": "In {key}"

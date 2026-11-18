@@ -7,10 +7,9 @@
 #include "sys_device_slots_internal.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_DEVICE, "sys_device", ERR_SYS_DEVICE_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_SYS_DEVICE, ERR_SYS_DEVICE_MAP)
 
 /* The registry's two contract IDs: the device (its lifecycle ops) and a device's own ops, which no contract takes. */
-SYS_DEVICE_CONTRACT_DEFINE(SYS_DEVICE, 0x20)
 __attribute__((used)) const uint8_t sys_device__contract_0xFF = 0;
 
 /* ----------------------------------------------------------------------------

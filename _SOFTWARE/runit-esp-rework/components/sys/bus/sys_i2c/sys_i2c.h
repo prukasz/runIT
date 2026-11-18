@@ -113,7 +113,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_RECOVER, 0x05, cmd_none_t,      cmd_none_t,        0)                                                \
   X(P, OP_RAW,     0x06, i2c_raw_key_t,   i2c_raw_t,         SYS_DEVICE_OP_TAIL)
 
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_I2C, I2C, 0x02)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_I2C, MODULE_ID_I2C)
 
 /* ----------------------------------------------------------------------------
  * The client: a chip on a bus

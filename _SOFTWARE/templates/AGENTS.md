@@ -36,14 +36,14 @@ A pin field (`type: pin`) says the mode its pin must have in `requires` (`output
 
 Generators are named `generate_<what>.py`, take `--check` and share their helpers in `_common.py`. Generated files are not edited by hand and are not in git (`.gitignore`): `runit-app/generated/` and `errors.json`; after a clone, `sh templates/sync.sh` makes them. Re-run them after changing a marked enum, `MODULE_ID_DECLARE`, or define group (`generate_enums.py`), a `#@limit` Kconfig option or its value in `sdkconfig` (`generate_limits.py`) or an `ERR_MODULE_DEFINE` / `ERR_*_MAP` (`generate_errors.py`), or just run the synchronization below.
 
-`generate_errors.py` reads `MODULE_ID_DECLARE` (`core/utils/module_id.h`), `#define ERR_MOD_*`, and the `ERR_MODULE_DEFINE` and `ERR_*_MAP` macros from the headers under `runit-esp-rework/components/`.
+`generate_errors.py` reads `MODULE_ID_DECLARE` (`core/utils/module_id.h`), the `ERR_MODULE_DEFINE(MODULE_ID_X, MAP)` and the `ERR_*_MAP(X, M)` macros from the headers under `runit-esp-rework/components/`; a module's texts are the `errors_*.json` next to its map whose `module` is its `MODULE_ID_X`, and its name is that without the prefix.
 
 ### Errors: what a user reads, what an error is about
 
 Each error module has `errors_<module name>.json` next to the header of its map, in the `errors/` folder of its component (`runit-esp-rework/components/sys/bus/sys_i2c/errors/errors_sys_i2c.json`, schema `error-texts.schema.json`), written by hand:
 
 ```json
-{ "module": "ERR_MOD_SYS_IO", "errors": {
+{ "module": "MODULE_ID_IO", "errors": {
   "ERR_IO_PIN_IN_USE": { "message": "{pin} of {id} is already set up as {mode}", "fields": { "mode": { "enum_ref": "sys_io_mode_e" } } } } }
 ```
 
@@ -91,7 +91,7 @@ typedef enum {
 - `//#ref-streams <group> @alias <title> @prefix <P_>` goes directly above a module's `#define NAME_STREAMS(X, P)` table of the data matrix (`X(P, NAME, id, flags, "text")`): each row is a member `<prefix>NAME` with the id as its value and the text as its alias (the group is published as `defines`).
 - `@alias` is required on the marker and on every member. It is the name a user sees. Nothing is derived from a C identifier or from a plain comment, and text outside a tag is an error.
 - `@description` is optional. `@wire-size <bytes>` and `@mem-size <bytes>` pass through as `wire_size` / `mem_size`. `@duplicates` on `//#ref-defines` allows distinct constants to share a numeric value (for example `SYS_IO_PIN_NONE_DEVICE` and `SYS_IO_PIN_NONE_INDEX`).
-- `MODULE_ID_DECLARE(NAME, value)` (`core/utils/module_id.h`) lines with `//@alias ...` are scanned automatically and published as the `module_id` defines group (`prefix: "MODULE_ID_"`).
+- `MODULE_ID_DECLARE(MODULE_ID_<NAME>, value)` (`core/utils/module_id.h`; written in each module's `<module>_id.h`) lines with `//@alias ...` are scanned automatically and published as the `module_id` defines group (`prefix: "MODULE_ID_"`).
 - A value is a literal, an expression of earlier members, a `#define`, or a `CONFIG_*` option read from `sdkconfig`. `*_CNT` and `*_COUNT` sentinels are left out.
 - A member name belongs to exactly one published group; `symbols` maps it back to that group.
 

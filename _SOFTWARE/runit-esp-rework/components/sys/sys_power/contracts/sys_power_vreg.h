@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sys_power_vreg_id.h"
 #include "sys_power.h"
 
 #ifdef __cplusplus
@@ -42,8 +43,7 @@ typedef struct __attribute__((packed)) {
   X(P, OP_VOLTAGE, 0x01, cmd_none_t, vreg_voltage_args_t, 0) \
   X(P, OP_CURRENT, 0x02, cmd_none_t, vreg_current_args_t, 0)
 
-MODULE_ID_DECLARE(VREG, 0x05)  //@alias Voltage regulator contract @description Programmable voltage regulator contract and module ID
-SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, VREG, 0x05)
+SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, MODULE_ID_VREG)
 
 /* Events of the contract: source = the device, channel 0. The faults matter to the user (NOTIFY), with the output's
  * setting at the time; READY is code flow (a program waiting for its rail after ENABLE / a higher VOLTAGE, which
@@ -54,7 +54,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, VREG, 0x05)
   X(P, SCP,   0x03, SYS_EVENT_NOTIFY, {})              \
   X(P, READY, 0x04, 0,                { int32_t mV; })
 
-SYS_EVENTS_DECLARE(VREG, DEVICE)
+SYS_EVENTS_DECLARE(VREG, MODULE_ID_VREG, DEVICE)
 
 #ifdef __cplusplus
 }

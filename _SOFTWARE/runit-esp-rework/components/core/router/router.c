@@ -1,7 +1,6 @@
 #include "router.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_ROUTER, "router", ERR_ROUTER_MAP)
-MODULE_ID_DEFINE(ROUTER, 0x23)
+ERR_MODULE_DEFINE(MODULE_ID_ROUTER, ERR_ROUTER_MAP)
 
 // Filled at boot (router_register), read-only after router_init.
 static struct {

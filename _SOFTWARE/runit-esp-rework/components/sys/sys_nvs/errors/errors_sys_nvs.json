@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_SYS_NVS",
+  "module": "MODULE_ID_NVS",
   "errors": {
     "ERR_NVS_BAD_ARG": {
       "message": "The chunk has no data or the file is full"

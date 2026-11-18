@@ -7,7 +7,7 @@ Component `components/sys/sys_event/`. One publisher, any number of listeners: a
 | File | Role |
 |---|---|
 | `sys_event.h` | The event (`sys_event_key_t`, `sys_event_t`), tags and flags, the events tables (`SYS_EVENTS_DECLARE`), the C API |
-| `sys_event_modules.h` | Who owns which module of a tag; how a module that is not a device gives and claims its ID |
+| `sys_event_modules.h` | Who owns which module of a tag; how a module that is not a device gives its ID |
 | `sys_event.c` | The subscription table, publish, hold and release, the lanes' rings and tasks |
 | `errors/sys_event_errors.h` | `ERR_SYS_EVENT_MAP`, the module's error tags (included by `sys_event.h`) |
 | `errors/errors_event.json` | The error messages |
@@ -43,7 +43,7 @@ A tag is `[module u16][code u16]`, `EVT_TAG(module, code)`. The code is 1..`0xFF
 
 | Module | Owner | Where it is assigned |
 |---|---|---|
-| `0x0001`..`0x00FE` | A module, a device contract included: its number (`MODULE_ID_<NAME>`, `module_id.h`), the same as its router key and the module of its errors | `MODULE_ID_DECLARE(NAME, 0x22)` in the module's header |
+| `0x0001`..`0x00FE` | A module, a device contract included: its number (`MODULE_ID_<NAME>`, `module_id.h`), the same as its router key and the module of its errors | `MODULE_ID_DECLARE(MODULE_ID_NAME, 0x22)` in the module's `<module>_id.h` |
 | `0x8000`..`0xFFFE` | A device type's own events | `SYS_EVENT_MODULE_TYPE(NAME_TYPE)`, in the driver's `.c`: the ID its `SYS_DEVICE_TYPE_DECLARE` gives |
 | `0xFFFF` | The filters (`SYS_EVENT_ANY_TAG`, `SYS_EVENT_ANY_NOTIFY`) | Never a module |
 
@@ -55,14 +55,14 @@ A module lists its events once, in the format of every table (`cmd_table.h`): `P
 
 | Macro | Module | Lane | For |
 |---|---|---|---|
-| `SYS_EVENTS_DECLARE(P, LANE)` | `MODULE_ID_<P>`, after its `MODULE_ID_DECLARE` | `LANE` | A module's events, a contract's included (its ID is its module's number) |
+| `SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, LANE)` | `MODULE_ID_<P>`, after its `<module>_id.h` | `LANE` | A module's events, a contract's included (its ID is its module's number) |
 | `SYS_DEVICE_OWN_EVENTS(P)` (`sys_device_driver.h`) | `SYS_EVENT_MODULE_TYPE(P_TYPE)`, after `SYS_DEVICE_TYPE_DECLARE(P, ...)` | `DEVICE` | A device type's own events, in its driver |
 
 ```c
 #define IO_EVENTS(X, P)                       \
   X(P, RISING,     0x01, 0, {})               \
   X(P, ADC_INSIDE, 0x04, 0, { int32_t mV; })
-SYS_EVENTS_DECLARE(IO, DEVICE)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, ...
+SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, ...
 ```
 
 - Both give the tag `P_EV_<NAME>`, its flags `P_EV_<NAME>_FLAGS` (the row's and the lane), the packed payload type `evt_data_P_EV_<NAME>_t`, the module `P_EV_MODULE` and the lane `P_EV_LANE`, and check at compile time the payload's size, the code's range (1..`0xFFFE`), the module's range (`0x0001`..`0xFFFE`) and that a row's flag is NOTIFY only.
@@ -158,7 +158,7 @@ The deferred events and the queued listeners go through **lanes**: each lane is 
 | `SYS` | The system's: `SESSION`, `PWRM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
 | `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_remote` |
 
-- **The lane is the table's** (`SYS_EVENTS_DECLARE(P, LANE)`), so all the events of one module go one way and keep their order. Between lanes there is no order: whichever task gets there first delivers first; `t_ms` says when each happened.
+- **The lane is the table's** (`SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, LANE)`), so all the events of one module go one way and keep their order. Between lanes there is no order: whichever task gets there first delivers first; `t_ms` says when each happened.
 - **It travels in the event**: bits 4..7 of `flags` (`SYS_EVENT_FLAG_LANE`, `SYS_EVENT_LANE_OF`). An event passed on (another board's: `sys_remote`, `sys_event_stream`) keeps the lane its board gave it.
 - **One task per lane**: `sys_event_init()` (boot) starts them all. A task takes one item from its ring, copies it (so the room is free again before a slow listener runs), turns an ISR's uptime into the clock's time, reports its lane's ISR drops not reported yet, then runs the inline listeners of a deferred event and the queued listeners of its lane.
 - In one lane a slow listener still holds up the events behind it.
@@ -177,7 +177,7 @@ Host tests in `host/` (`python test_host/run.py sys_event` from `runit-esp/`, `H
 
 Not covered on the host: priorities, the lanes' stacks, an interrupt's timing.
 
-## Errors (`ERR_MOD_SYS_EVENT` = 0x25, `MODULE_ID_SYS_EVENT`)
+## Errors (`MODULE_ID_SYS_EVENT` = 0x25, `MODULE_ID_SYS_EVENT`)
 
 | Tag | Severity | Fields | When |
 |---|---|---|---|

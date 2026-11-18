@@ -6,8 +6,7 @@
 #include "sys_ble_internal.h"
 #include "utils.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_BLE, "sys_ble", ERR_SYS_BLE_MAP)
-MODULE_ID_DEFINE(BLE, 0x2E)
+ERR_MODULE_DEFINE(MODULE_ID_BLE, ERR_SYS_BLE_MAP)
 
 #define ATT_HDR        3u   // a notification's opcode and handle
 #define SEND_POLL_MS   2u   // sys_ble_send: poll interval while the TX buffer is full

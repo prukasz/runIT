@@ -17,8 +17,7 @@
 #define KEY_LEN   10u  // "a" + 8 hex digits + NUL
 #define LEN_BYTES 2u   // [u16 len] in front of every frame
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_ACTIONS, "sys_actions", ERR_SYS_ACTIONS_MAP)
-MODULE_ID_DEFINE(ACTIONS, 0x2C)
+ERR_MODULE_DEFINE(MODULE_ID_ACTIONS, ERR_SYS_ACTIONS_MAP)
 
 /* The one record being written, on the heap while it is; NULL `image`: none. */
 typedef struct {
