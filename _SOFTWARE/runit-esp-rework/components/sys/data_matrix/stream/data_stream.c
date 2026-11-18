@@ -9,7 +9,6 @@
 
 #include "data_stream.h"
 
-#include <string.h>
 #include "data_matrix_errors.h"
 #include "freertos/FreeRTOS.h"
 
@@ -139,15 +138,11 @@ err_h data_stream_disconnect(const data_stream_link_t* link) {
   ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   const uint8_t from = find(link->from);
-  const uint8_t to = find(link->to);
-  if (from != NO_PORT && to != NO_PORT) {
-    slot_t* s = &s_slots[from];
-    for (uint8_t k = 0; k < s->count; k++) {
-      if (s->to[k] == to) {
-        memmove(&s->to[k], &s->to[k + 1], (size_t)(s->count - k - 1));
-        s->count--;
-        break;
-      }
+  slot_t* s = from != NO_PORT ? &s_slots[from] : NULL;
+  for (uint8_t k = 0; s != NULL && k < s->count; k++) {
+    if (s_slots[s->to[k]].port->id == link->to) {
+      s->to[k] = s->to[--s->count];  // the order of the targets is no promise
+      break;
     }
   }
   portEXIT_CRITICAL(&s_lock);

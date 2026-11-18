@@ -23,7 +23,9 @@
  *  - `pass` is short, never blocks, never sends on its own output (a loop the switch cannot see), copies what it
  *    keeps: `data` is valid for the call only. It runs on the sender's task.
  *  - `out` is called from a task, never from an ISR. A packet with no link is dropped without a word.
- *  - The port struct is the owner's and lives as long as it is registered.
+ *  - The port struct is the owner's and lives as long as it is registered. The owner stops calling `out` before it
+ *    unregisters the port: its place in the switch may go to another port after it.
+ *  - The order in which the targets of one output get a packet is no promise.
  */
 
 #include <stdint.h>
