@@ -19,9 +19,8 @@ runit-app/release/
 
 sdkconfig.old
 
-# graphify: keep only graph.json in git
-graphify-out/*
-!graphify-out/graph.json
+# graphify: the code graph is local (tools/graphify_pp.py)
+graphify-out/
 
 # Working notes, not uploaded
 /displays.md
