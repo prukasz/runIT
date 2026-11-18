@@ -160,8 +160,27 @@ void err__register_module(const err_module_t* module);
 #define ERR__INFO_LINE
 #endif
 
+#if CONFIG_ERRORS_INFO
+/**
+ * @brief Where a node was made: ERR__NEW builds one per call site (static, in flash) and the node only points to it;
+ * err_log prints it. Only the fields enabled in Kconfig (CONFIG_ERRORS_INFO_FILE/FUNC/LINE) exist; with all three
+ * off there is no err_info_t and no `info` in a node. Here, not in errors.h, because only the macros use it: it is
+ * complete where ERR_NEW is called, never read outside the errors component.
+ */
+typedef struct err_info {
+#if CONFIG_ERRORS_INFO_FILE
+  const char* file;  // __FILE_NAME__
+#endif
+#if CONFIG_ERRORS_INFO_FUNC
+  const char* func;  // __func__
+#endif
+#if CONFIG_ERRORS_INFO_LINE
+  uint32_t line;  // __LINE__
+#endif
+} err_info_t;
+#endif
+
 struct err;
-struct err_info;
 /**
  * @brief Creates a node. Called by ERR_NEW / ERR_WRAP (ERR__NEW) and the record parser only.
  * @param info  Call-site info (static, see ERR__NEW).

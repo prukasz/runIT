@@ -6,12 +6,12 @@ Component `components/core/errors/`. The foundational error handling and propaga
 
 | File | Role |
 |---|---|
-| `errors.h` | The public API only: types (`err_h`: an opaque node, `err_info_t`: where a node was made, `err_sev_e`), the calls (creating, reading a node: `err_tag` / `err_cause` / `err_data` / `err_find`, freeing and reporting a chain: `err_report`), `MODULE_ID_CORE` (0) and core tags |
+| `errors.h` | The public API only: types (`err_h`: an opaque node, `err_sev_e`), the calls (creating, reading a node: `err_tag` / `err_cause` / `err_data` / `err_find`, freeing and reporting a chain: `err_report`), `MODULE_ID_CORE` (0) and core tags |
 | `err_sink.h` | The sinks (`err_set_sink`, `err_set_board_sink`, set by the app at boot) and the reports that carry more than `err_report`: `err_report_ex` (a command's chain, `struct cmd_req`) and `err_report_board` (in `errors.c`) |
 | `err_log.h` | `err_log` (a chain as log text, for a sink that prints a chain it must not report) and `err_log_enable` (in `err_log.c`) |
 | `err_record.h` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` and `err_record_parse` (in `err_wire.c`); for the modules that send, keep or read records |
 
-| `err_macros.h` | Every macro: the tags (`ERR_TAG`, `ERR_TAGS_DECLARE`), the node size (`ERR_HDR_LEN` / `ERR_DATA_MAX`), the registration of a module's map (`ERR_MODULE_DEFINE`), constructors (`ERR_NEW` / `ERR_WRAP` / `ERR_DATA`) and propagation (`ERR_TRY`, `ERR_CHECK*`, `ERR_KEEP_FIRST`, `ERR_ESP`); and what only they use, never called directly: `err_tag_info_t`, `err_module_t`, `err__register_module`, `err__new`. Included by `errors.h` |
+| `err_macros.h` | Every macro: the tags (`ERR_TAG`, `ERR_TAGS_DECLARE`), the node size (`ERR_HDR_LEN` / `ERR_DATA_MAX`), the registration of a module's map (`ERR_MODULE_DEFINE`), constructors (`ERR_NEW` / `ERR_WRAP` / `ERR_DATA`) and propagation (`ERR_TRY`, `ERR_CHECK*`, `ERR_KEEP_FIRST`, `ERR_ESP`); and what only they use, never called directly: `err_info_t` (where a node was made, built at the call site), `err_tag_info_t`, `err_module_t`, `err__register_module`, `err__new`. Included by `errors.h` |
 | `errors.c` | `err__new`, `err_free`, `err_tag`, `err_cause`, `err_data`, `err_find`, `err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`, core module registration |
 | `err_internal.h` | Shared by the component's own files only: the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`), `err_log_ctx` |
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |

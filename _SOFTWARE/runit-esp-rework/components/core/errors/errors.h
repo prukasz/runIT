@@ -16,25 +16,6 @@
 extern "C" {
 #endif
 
-#if CONFIG_ERRORS_INFO
-/**
- * @brief Error diagnostics - the node only points to it. Only the fields enabled in
- * Kconfig (CONFIG_ERRORS_INFO_FILE/FUNC/LINE) exist. With all three off there
- * is no err_info_t and no `info` field in a node. Public: ERR_NEW builds one where it is called.
- */
-typedef struct err_info {
-#if CONFIG_ERRORS_INFO_FILE
-  const char* file;  // __FILE_NAME__
-#endif
-#if CONFIG_ERRORS_INFO_FUNC
-  const char* func;  // __func__
-#endif
-#if CONFIG_ERRORS_INFO_LINE
-  uint32_t line;  // __LINE__
-#endif
-} err_info_t;
-#endif
-
 /**
  * @brief One error in a chain, opaque: its layout is the errors component's own (err_internal.h). A node has a tag
  * (ERR_TAG(module, code), err_tag), the tag's payload (err_data, ERR_DATA) and its cause, the deeper error
