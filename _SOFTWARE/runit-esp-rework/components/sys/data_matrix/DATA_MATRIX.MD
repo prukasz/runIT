@@ -2,6 +2,8 @@
 
 Component `components/sys/data_matrix/`. **The switch of the stream ports**: the output of one port goes to the inputs of the ports linked from it, unchanged. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
 
+**A minimal, synchronous implementation, by design.** The switch is a table of ports and their links and one call that hands a packet on, on the sender's task. It never waits, never queues, keeps no state of a port's owner and does no lifetime tracking: no reference counts, no waiting for sends in flight at an unregister. Everything else is the owner's: what a port does with a packet, its locking, and keeping the port's memory valid (the contract of a port, below).
+
 ## Files
 
 | File | Role |
@@ -20,7 +22,7 @@ A **port** (`core/utils/data_stream_port.h`, below every layer) is anything that
 
 The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_stream_send(&port, flags, data, len)`, an inline call of `out`: a module never links to the switch.
 
-**The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
+**The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `pass` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `pass` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
 **Providers are ports by themselves:** a provider's CREATE registers its port, its REMOVE unregisters it first (SYS_DATA_PROVIDER.MD "Stream port"). The switch never names a provider; the providers call the switch.
 
@@ -50,5 +52,4 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 - Not in the build: the ESP build and the host tests wait for the modules that used the matrix's streams, roles and callbacks to become ports: `sys_session` (its channels, a send to one session), `sys_log` (`LOGS`, the loop guard of a log line made in a delivery), the errors' stream (`ERRORS`, `ERRORS_IN`), `sys_event_stream`, `sys_watch`, `sys_remote`, `app/runit` (links instead of roles and routes).
 - A self-registration macro for a module's port.
-- A send in flight may still call the `pass` of a port unregistered meanwhile (its targets are copied under the lock, called after it). A provider survives it (its port keeps its name, the call finds no provider); a module's port must stay valid as long as it may be sent to.
 - Host tests of the switch.

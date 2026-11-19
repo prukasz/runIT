@@ -7,6 +7,14 @@ menu "Providers (sys_data_provider)"
         help
             Fixed table of provider slots; static and CREATEd providers share it.
 
+    config SYS_DATA_PROVIDER_SIZE
+        int "Largest driver struct of a provider, in bytes"
+        default 64
+        range 16 1024
+        help
+            Every provider slot holds its driver's struct (sys_data_provider_t first), never freed:
+            SYS_DATA_PROVIDER_MAX slots of this size. A larger driver struct fails to build.
+
     config SYS_DATA_PROVIDER_TYPES
         int "Maximum provider driver types"
         default 8

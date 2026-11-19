@@ -23,8 +23,10 @@
  *
  * The contract of a port: `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is
  * valid for the call only); it runs on the sender's task. data_stream_send only from a task, never from an ISR; a
- * packet with no link is dropped. The port lives as long as it is registered; its owner stops sending before the port
- * is unregistered. The order in which the targets of one port get a packet is no promise.
+ * packet with no link is dropped. The switch is minimal and synchronous: it does not wait for sends in flight, so the
+ * port's memory and its `pass` stay valid after it is unregistered (a send that copied its targets before may still
+ * call it): an owner never frees a registered port. Its owner stops sending before the port is unregistered. The order
+ * in which the targets of one port get a packet is no promise.
  */
 
 #include <stddef.h>

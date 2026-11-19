@@ -5,7 +5,7 @@ Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leav
 ## Driver model
 
 The registry keeps the providers' lifecycle and nothing of their logic. Every provider is created via `CREATE` from a driver registered under `sys_data_provider_type_e` (`u8`: `UART = 1`, `BLE = 2`, `MQTT = 3`, `CONSOLE = 4`) using `SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, pass_fn, ops_ptr, ops_cnt)`:
-- `prov_t` is the driver's own struct; its first field is the base `sys_data_provider_t base`: the port (`port`) and the state bits (`state`), nothing else (the id is the port's low byte, the type is the registry's). The registry allocates it zeroed (`size`), names its port, sets its state (`STATE_SYSTEM`) and frees it after `remove`.
+- `prov_t` is the driver's own struct; its first field is the base `sys_data_provider_t base`: the port (`port`) and the state bits (`state`), nothing else (the id is the port's low byte, the type is the registry's). It lives in the registry's slot (`CONFIG_SYS_DATA_PROVIDER_SIZE` bytes, 64 by default; a larger struct fails to build), never freed: the registry zeroes it at CREATE (all but the port's input), names its port and sets its state (`STATE_SYSTEM`).
 - `create(sys_data_provider_t* p, const void* cfg)` makes the instance (its line) and sets capability flags on `p->state` (`WIRED`, `FRAMED`, initial `UP`), using `sys_data_provider_deliver()` / `sys_data_provider_set_up()` for RX.
 - `remove(sys_data_provider_t* p)` tears down the driver's hooks when `CONTRACT_PROVIDER_OP_REMOVE` runs.
 - `pass` is the port's input (`data_stream_pass_f`): the packet onto the line (in it the driver gets its struct with `SYS_DATA_PROVIDER_OF(self, prov_t)`).
@@ -17,7 +17,7 @@ The registry keeps the providers' lifecycle and nothing of their logic. Every pr
 - Wire header `sys_data_provider_router_hdr_t` (4 B packed LE): `[dir u8][id u8][op u16][args...]`, mirroring `sys_device_router`.
 - Contract `CONTRACT_PROVIDER` (`0x0Dxx`):
   - `0x0D00` (`OP_CREATE`, W): `[type u8][flags u8][cfg]` (`SYS_DATA_PROVIDER_CREATE_SYSTEM` sets `STATE_SYSTEM`)
-  - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM`, unregisters its port from the data matrix first (`data_stream_unregister`: its links go), then waits for the call into its driver in flight, calls `type->remove(p)` and frees the driver's struct
+  - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM`, unregisters its port from the data matrix first (`data_stream_unregister`: its links go), then waits for the call into its driver in flight and calls `type->remove(p)`; the slot is free again
   - `0x0D02` (`OP_LIST`, R on `ID_NONE` `0xFF`): returns `[u8 count][sys_data_provider_entry_t...]` (`provider u8, type u8, state u8`, 3 B each)
   - `0x0D04` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
   - `0x0D05` (`OP_OPS`, R): returns `[op u16][sides u8]` rows for registry ops and the driver's own ops
@@ -29,7 +29,7 @@ The registry keeps the providers' lifecycle and nothing of their logic. Every pr
 
 ## Stream port
 
-A provider carries bytes and knows nothing of what they are. It is a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD), and nothing else on its data plane: `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`. CREATE registers it in the data matrix (`data_stream_register`; no room there: the provider is not made, its driver removed again), REMOVE unregisters it first (its links go before its driver does). Its input is the registry's: it hands the packet, as it is and with its flags, to the type's `pass` under the provider's mutex (one call into the driver at a time); the registry never looks into a packet. The driver puts it onto the line (`CMD_SEND_NOWAIT`: no room, dropped at once; without it the driver waits for room up to its limit, `CONFIG_PROVIDER_*_SEND_WAIT_MS`, on the sender's task; what the line does not take is lost, no error). A packet that waited for the mutex while the provider was removed is dropped. The data matrix knows nothing of a provider's state: a removed provider is simply out of it. What comes in on the line (`sys_data_provider_deliver`, from the driver's task) goes out of its port to the ports linked from it, with no flags. `sys_data_provider_set_up` only sets `SYS_DATA_PROVIDER_STATE_UP`.
+A provider carries bytes and knows nothing of what they are. It is a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD), and nothing else on its data plane: `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`. CREATE registers it in the data matrix (`data_stream_register`; no room there: the provider is not made, its driver removed again), REMOVE unregisters it first (its links go before its driver does). Its input is the registry's: it hands the packet, as it is and with its flags, to the type's `pass` under the provider's mutex (one call into the driver at a time); the registry never looks into a packet. The driver puts it onto the line (`CMD_SEND_NOWAIT`: no room, dropped at once; without it the driver waits for room up to its limit, `CONFIG_PROVIDER_*_SEND_WAIT_MS`, on the sender's task; what the line does not take is lost, no error). A packet that waited for the mutex while the provider was removed is dropped. The data matrix does not wait for its sends in flight (DATA_MATRIX.MD): one whose targets were copied before REMOVE still calls the port, which is why the driver's struct lives in the registry's slot and is never freed; the port's input stays the registry's and drops the packet. A slot CREATEd again in the meantime takes it as its own. The data matrix knows nothing of a provider's state: a removed provider is simply out of it. What comes in on the line (`sys_data_provider_deliver`, from the driver's task) goes out of its port to the ports linked from it, with no flags. `sys_data_provider_set_up` only sets `SYS_DATA_PROVIDER_STATE_UP`.
 
 ## Events
 
@@ -46,5 +46,4 @@ Defined only: the registry does not publish them yet (CREATE, REMOVE and `sys_da
 
 ## Open
 
-- A send in flight in the data matrix (its targets copied before REMOVE unregistered the port) reads the port's `pass` after the driver's struct is freed (DATA_MATRIX.MD "Open"): the data matrix must let an unregister wait for its sends in flight.
 - `host/test_sys_data_provider.c` tests an older interface (`send`, `open`, `spare_refused`); it is rewritten with the drivers.

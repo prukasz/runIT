@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "cmd.h"
@@ -18,9 +17,14 @@ ERR_MODULE_DEFINE(MODULE_ID_PROVIDER, ERR_SYS_DATA_PROVIDER_MAP)
  * Registry state: registered driver types and provider slots
  * ------------------------------------------------------------------------- */
 
+// A provider's place. The driver's struct lives in it and is never freed: a send in flight in the data matrix (its
+// targets copied before REMOVE) still finds the port and its pass, the registry's, which drops it.
 typedef struct {
-  sys_data_provider_t* p;                // The driver's struct; NULL: a free slot
-  const sys_data_provider_type_t* type;
+  union {
+    sys_data_provider_t p;  // The driver's struct, its base first
+    _Alignas(max_align_t) uint8_t mem[CONFIG_SYS_DATA_PROVIDER_SIZE];
+  };
+  const sys_data_provider_type_t* type;  // NULL: a free slot
   SemaphoreHandle_t line;                // One call into the driver at a time: its pass, its own ops, its remove
   StaticSemaphore_t line_buf;
 } prov_slot_t;
@@ -37,7 +41,7 @@ static prov_slot_t* find_slot_locked(uint8_t id) {
     return NULL;
   }
   for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i].p != NULL && (uint8_t)s_slots[i].p->port.id == id) {
+    if (s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id) {
       return &s_slots[i];
     }
   }
@@ -46,7 +50,7 @@ static prov_slot_t* find_slot_locked(uint8_t id) {
 
 static int find_free_slot_locked(void) {
   for (int i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i].p == NULL) {
+    if (s_slots[i].type == NULL) {
       return i;
     }
   }
@@ -78,7 +82,6 @@ static const sys_data_provider_op_t* find_op_row(const sys_data_provider_op_t* o
 void sys_data_provider_type_register(const sys_data_provider_type_t* type) {
   assert(type != NULL && type->type >= SYS_DATA_PROVIDER_TYPE_UART);
   assert(type->create != NULL && type->remove != NULL && type->pass != NULL);
-  assert(type->size >= sizeof(sys_data_provider_t));
   assert(type->op_count == 0 || type->ops != NULL);
   for (uint16_t i = 0; i < type->op_count; i++) {
     const sys_data_provider_op_t* row = &type->ops[i];
@@ -107,11 +110,11 @@ static err_h list_providers(cmd_out_t* out) {
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     const prov_slot_t* s = &s_slots[i];
-    if (s->p != NULL) {
+    if (s->type != NULL) {
       rows[n++] = (sys_data_provider_entry_t){
-          .provider = (uint8_t)s->p->port.id,
+          .provider = (uint8_t)s->p.port.id,
           .type = s->type->type,
-          .state = s->p->state,
+          .state = s->p.state,
       };
     }
   }
@@ -128,7 +131,7 @@ static err_h info_reply(uint8_t id, cmd_out_t* out) {
   if (s != NULL) {
     found = true;
     info.type = s->type->type;
-    info.state = s->p->state;
+    info.state = s->p.state;
   }
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(found, ERR_PROV_NOT_FOUND, .provider = id);
@@ -169,21 +172,15 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   return NULL;
 }
 
-// The input of every provider's port: the packet to its type's pass as it is, one call into the driver at a time.
+// The input of every provider's port: the packet to its type's pass as it is, one call into the driver at a time; a
+// packet for a removed provider is dropped.
 static void line_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
                       uint32_t len) {
-  const sys_data_provider_t* p = DATA_STREAM_OWNER(self, sys_data_provider_t, port);
-  prov_slot_t* s = NULL;
-  portENTER_CRITICAL(&s_lock);
-  for (uint32_t i = 0; s == NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    s = s_slots[i].p == p ? &s_slots[i] : NULL;
-  }
-  portEXIT_CRITICAL(&s_lock);
-  if (s != NULL) {
-    U_MUTEX_GUARD(s->line);
-    if (s->p == p) {  // not removed while it waited
-      s->type->pass(self, from, flags, data, len);
-    }
+  prov_slot_t* s = DATA_STREAM_OWNER(self, prov_slot_t, p.port);
+  U_MUTEX_GUARD(s->line);
+  const sys_data_provider_type_t* type = s->type;
+  if (type != NULL) {
+    type->pass(self, from, flags, data, len);
   }
 }
 
@@ -202,33 +199,28 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   ERR_CHECK(!exists, ERR_PROV_EXISTS, .provider = id);
   ERR_CHECK(idx >= 0, ERR_PROV_FULL);
 
-  sys_data_provider_t* p = calloc(1, type->size);
-  ERR_CHECK(p != NULL, ERR_PROV_NO_MEM, .provider = id, .size = type->size);
-  p->port = (data_stream_port_t){.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), .pass = line_pass};
-  p->state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
-
-  err_h err = type->create(p, cfg);
-  if (err != NULL) {
-    free(p);
-    return err;
-  }
-
   prov_slot_t* slot = &s_slots[idx];
   if (slot->line == NULL) {
     slot->line = xSemaphoreCreateMutexStatic(&slot->line_buf);
   }
+  sys_data_provider_t* p = &slot->p;
+  // The port's pass is never cleared (a send in flight may still read it): zeroed is only what follows the port.
+  memset(slot->mem + sizeof(p->port), 0, sizeof(slot->mem) - sizeof(p->port));
+  p->port.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id);
+  p->port.pass = line_pass;
+  p->state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
+
+  ERR_TRY(type->create(p, cfg));
   portENTER_CRITICAL(&s_lock);
   slot->type = type;
-  slot->p = p;
   portEXIT_CRITICAL(&s_lock);
 
-  err = data_stream_register(&p->port);  // no room in the data matrix: it can't be linked, it is not made
+  err_h err = data_stream_register(&p->port);  // no room in the data matrix: it can't be linked, it is not made
   if (err != NULL) {
     portENTER_CRITICAL(&s_lock);
-    slot->p = NULL;
+    slot->type = NULL;
     portEXIT_CRITICAL(&s_lock);
     err_free(type->remove(p));
-    free(p);
   }
   return err;
 }
@@ -236,24 +228,19 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
 static err_h remove_locked(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   prov_slot_t* s = find_slot_locked(id);
-  sys_data_provider_t* p = s != NULL ? s->p : NULL;
-  const bool system = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_SYSTEM) != 0;
+  const bool system = s != NULL && (s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) != 0;
   portEXIT_CRITICAL(&s_lock);
 
-  ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, .provider = id);
+  ERR_CHECK(s != NULL, ERR_PROV_NOT_FOUND, .provider = id);
   ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
 
-  err_report(data_stream_unregister(&p->port));  // out of the data matrix first: its links go before its driver
-  err_h err = NULL;
-  {
-    U_MUTEX_GUARD(s->line);  // after the call into the driver in flight
-    portENTER_CRITICAL(&s_lock);
-    s->p = NULL;
-    portEXIT_CRITICAL(&s_lock);
-    err = s->type->remove(p);
-  }
-  free(p);
-  return err;
+  err_report(data_stream_unregister(&s->p.port));  // out of the data matrix first: its links go before its driver
+  U_MUTEX_GUARD(s->line);                          // after the call into the driver in flight
+  const sys_data_provider_type_t* type = s->type;
+  portENTER_CRITICAL(&s_lock);
+  s->type = NULL;
+  portEXIT_CRITICAL(&s_lock);
+  return type->remove(&s->p);
 }
 
 static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
@@ -270,7 +257,7 @@ static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
   const cmd_f fn = dir == CMD_DIR_READ ? row->read : row->write;
   ERR_CHECK(fn != NULL, ERR_PROV_UNKNOWN_OP, .op = op);
   U_MUTEX_GUARD(s->line);
-  return fn(s->p, in, out);
+  return fn(&s->p, in, out);
 }
 
 err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {

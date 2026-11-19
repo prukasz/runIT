@@ -3,15 +3,17 @@
 #include <stdbool.h>
 
 #include "data_stream_port.h"
+#include "sdkconfig.h"
 #include "sys_data_provider.h"
 #include "utils.h"
 
 /**
  * @file sys_data_provider_driver.h
  * @brief Driver interface for sys_data_provider (a driver only). A driver's own struct starts with the base,
- * sys_data_provider_t (its field `base`): a stream port and the state bits, nothing else. The registry allocates the
- * struct, names the port and registers it in the data matrix after create(), unregisters it first at REMOVE and frees
- * the struct after remove(). The registry never looks into a packet: the port's input hands it to the type's `pass` as
+ * sys_data_provider_t (its field `base`): a stream port and the state bits, nothing else. The struct lives in the
+ * registry's slot (at most CONFIG_SYS_DATA_PROVIDER_SIZE bytes, never freed: a send in flight still finds its port):
+ * the registry zeroes it, names the port and registers it in the data matrix after create(), unregisters it first at
+ * REMOVE. The registry never looks into a packet: the port's input hands it to the type's `pass` as
  * it is. Calls into a driver (its pass, its own ops, its remove) come one at a time, so a driver keeps no lock of its
  * own for them. What comes in on the line goes out with sys_data_provider_deliver, the line's state with
  * sys_data_provider_set_up. A driver type registers itself with SYS_DATA_PROVIDER_TYPE_DEFINE.
@@ -42,11 +44,10 @@ typedef struct {
   cmd_f write;   /**< The write side, NULL: none */
 } sys_data_provider_op_t;
 
-/** @brief A driver type: its cfg and struct sizes, its create, remove and line input, its own ops. */
+/** @brief A driver type: its cfg size, its create, remove and line input, its own ops. */
 typedef struct {
   uint8_t type;      /**< sys_data_provider_type_e */
   uint16_t cfg_size; /**< sizeof its CREATE cfg (packed) */
-  uint16_t size;     /**< sizeof its struct (sys_data_provider_t first), allocated zeroed and freed by the registry */
   /** @brief Makes the instance: its line, p->state (WIRED, FRAMED, UP); an error and nothing is made. */
   err_h (*create)(sys_data_provider_t* p, const void* cfg);
   /** @brief Takes the instance down (its hooks on the line); the port is out of the data matrix already. */
@@ -72,10 +73,10 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
 #define SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, pass_fn, ops_ptr, ops_cnt) \
   _Static_assert(_Alignof(cfg_t) == 1, #cfg_t ": create cfg must be packed");                                   \
   _Static_assert(offsetof(prov_t, base) == 0, #prov_t ": sys_data_provider_t base must be its first field");    \
+  _Static_assert(sizeof(prov_t) <= CONFIG_SYS_DATA_PROVIDER_SIZE, #prov_t ": over SYS_DATA_PROVIDER_SIZE");     \
   static const sys_data_provider_type_t U__CONCAT(sys_data_provider__type_, __LINE__) = {                       \
       .type     = (prov_type),                                                                                  \
       .cfg_size = sizeof(cfg_t),                                                                                \
-      .size     = sizeof(prov_t),                                                                               \
       .create   = (create_fn),                                                                                  \
       .remove   = (remove_fn),                                                                                  \
       .pass     = (pass_fn),                                                                                    \
