@@ -8,8 +8,9 @@ Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leav
 |---|---|
 | `sys_data_provider.h` | Public: the driver types (`sys_data_provider_type_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `sys_data_provider_create_system` |
 | `driver/sys_data_provider_driver.h` | For a driver only: the base `sys_data_provider_t`, the type (`SYS_DATA_PROVIDER_TYPE_DEFINE`), the own ops (`SYS_DATA_PROVIDER_OWN_OP`), `sys_data_provider_set_up`, the driver's side of the contract |
-| `sys_data_provider.c` | The registry: the types, the slots, CREATE / REMOVE, the port's input, the router and its wire format (op codes, the CREATE header, the LIST row) |
-| `router/sys_data_provider_router.h`, `router/contract_provider.json` | The router's frame header, its commands |
+| `sys_data_provider.c` | The registry: the types, the slots, the locks, CREATE / REMOVE, the port's input, the own ops' call; no wire format |
+| `internal/sys_data_provider_internal.h` | The seam between the registry and its router: create, remove, list, the type of a provider, an own op |
+| `router/sys_data_provider_router.c` / `.h`, `router/contract_provider.json` | The router: the wire format (op codes, the CREATE header, the LIST row, the frame header), its commands |
 | `errors/` | `ERR_SYS_DATA_PROVIDER_MAP` (`MODULE_ID_PROVIDER`, tags `1..5`, `11..13`, `15`), its messages |
 | `events/sys_data_provider_events.h` | The providers' events (defined, not published yet) |
 
