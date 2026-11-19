@@ -1,21 +1,37 @@
+/**
+ * @file sys_data_provider.c
+ * @brief The provider registry (SYS_DATA_PROVIDER.MD): the driver types, the providers' slots, their lifecycle (CREATE,
+ * REMOVE, the port in the data matrix), one call into a driver at a time, and the router of MODULE_ID_PROVIDER.
+ */
+
 #include "sys_data_provider.h"
 
 #include <assert.h>
-#include <stddef.h>
 #include <string.h>
 
-#include "cmd.h"
 #include "data_matrix.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
-#include "sys_data_provider_internal.h"
+#include "sys_data_provider_router.h"
 #include "utils.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_PROVIDER, ERR_SYS_DATA_PROVIDER_MAP)
 
-/* ----------------------------------------------------------------------------
- * Registry state: registered driver types and provider slots
- * ------------------------------------------------------------------------- */
+// The router's wire format (contract_provider.json). Op codes: MODULE_ID_PROVIDER in the high byte; never renumber.
+#define CONTRACT_PROVIDER_OP_CREATE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x00u))  // W [type u8][flags u8][cfg]
+#define CONTRACT_PROVIDER_OP_REMOVE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x01u))  // W
+#define CONTRACT_PROVIDER_OP_LIST   ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x02u))  // R [u8 count][entry_t...]
+#define CONTRACT_PROVIDER_OP_OPS    ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x05u))  // R [op u16][sides u8]...
+#define CREATE_HDR                  2u     // [type u8][flags u8] before the cfg
+#define CREATE_SYSTEM               0x01u  // CREATE flag: the board's own, not removed
+#define ID_NONE                     0xFFu  // Never a provider
+
+// One row of LIST (3 B).
+typedef struct __attribute__((packed)) {
+  uint8_t provider;  // Provider ID
+  uint8_t type;      // sys_data_provider_type_e
+  uint8_t state;     // SYS_DATA_PROVIDER_STATE_*
+} entry_t;
 
 // A provider's place. The driver's struct lives in it and is never freed: a send in flight in the data matrix (its
 // targets copied before REMOVE) still finds the port and its `in`, the registry's, which drops it.
@@ -32,128 +48,31 @@ typedef struct {
 static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
-U_MUTEX_DEFINE(s_prov_ctrl_lock);  // Serializes CREATE / REMOVE / driver own ops
-static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // Short critical section for slot reads and the state
+U_MUTEX_DEFINE(s_ctrl);                                     // CREATE, REMOVE and the own ops, one at a time
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type and state, read on another core
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
-static prov_slot_t* find_slot_locked(uint8_t id) {
-  if (id == SYS_DATA_PROVIDER_ID_NONE) {
-    return NULL;
+// The slot of provider `id`, NULL when there is none.
+static prov_slot_t* find(uint8_t id) {
+  prov_slot_t* s = NULL;
+  portENTER_CRITICAL(&s_lock);
+  for (uint32_t i = 0; s == NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    s = s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id ? &s_slots[i] : NULL;
   }
-  for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id) {
-      return &s_slots[i];
-    }
-  }
-  return NULL;
+  portEXIT_CRITICAL(&s_lock);
+  return s;
 }
-
-static int find_free_slot_locked(void) {
-  for (int i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    if (s_slots[i].type == NULL) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-static const sys_data_provider_type_t* type_find(uint8_t type_id) {
-  for (uint32_t i = 0; i < s_type_count; i++) {
-    if (s_types[i]->type == type_id) {
-      return s_types[i];
-    }
-  }
-  return NULL;
-}
-
-static const sys_data_provider_op_t* find_op_row(const sys_data_provider_op_t* ops, uint32_t count, uint16_t op) {
-  for (uint32_t i = 0; i < count; i++) {
-    if (ops[i].op == op) {
-      return &ops[i];
-    }
-  }
-  return NULL;
-}
-
-/* ----------------------------------------------------------------------------
- * Type registration (SYS_DATA_PROVIDER_TYPE_DEFINE)
- * ------------------------------------------------------------------------- */
 
 void sys_data_provider_type_register(const sys_data_provider_type_t* type) {
-  assert(type != NULL && type->type >= SYS_DATA_PROVIDER_TYPE_UART);
-  assert(type->create != NULL && type->remove != NULL && type->in != NULL);
+  assert(type != NULL && type->create != NULL && type->remove != NULL && type->in != NULL);
   assert(type->op_count == 0 || type->ops != NULL);
   for (uint16_t i = 0; i < type->op_count; i++) {
-    const sys_data_provider_op_t* row = &type->ops[i];
-    assert((row->op >> 8) == 0xFFu && "driver ops must use SYS_DATA_PROVIDER_OWN_OP");
-    assert(row->read != NULL || row->write != NULL);
+    assert((type->ops[i].op >> 8) == 0xFFu && "driver ops must use SYS_DATA_PROVIDER_OWN_OP");
   }
-  assert(type_find(type->type) == NULL && "provider type registered twice");
   assert(s_type_count < CONFIG_SYS_DATA_PROVIDER_TYPES && "more provider types than SYS_DATA_PROVIDER_TYPES");
   if (s_type_count < CONFIG_SYS_DATA_PROVIDER_TYPES) {
     s_types[s_type_count++] = type;
   }
-}
-
-/* ----------------------------------------------------------------------------
- * Control-plane handlers and centralized dispatch (CONTRACT_PROVIDER + 0xFFxx own ops)
- * ------------------------------------------------------------------------- */
-
-static err_h require_empty(cmd_in_t in) {
-  ERR_CHECK(in.len == 0, ERR_CMD_BAD_LEN, .got = (uint16_t)in.len, .need = 0);
-  return NULL;
-}
-
-static err_h list_providers(cmd_out_t* out) {
-  sys_data_provider_entry_t rows[CONFIG_SYS_DATA_PROVIDER_MAX];
-  uint8_t n = 0;
-  portENTER_CRITICAL(&s_lock);
-  for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
-    const prov_slot_t* s = &s_slots[i];
-    if (s->type != NULL) {
-      rows[n++] = (sys_data_provider_entry_t){
-          .provider = (uint8_t)s->p.port.id,
-          .type = s->type->type,
-          .state = s->p.state,
-      };
-    }
-  }
-  portEXIT_CRITICAL(&s_lock);
-  ERR_TRY(cmd_append(out, &n, sizeof(n)));
-  return n > 0 ? cmd_append(out, rows, (uint32_t)n * sizeof(rows[0])) : NULL;
-}
-
-static err_h ops_reply(uint8_t id, cmd_out_t* out) {
-  static const struct {
-    uint16_t op;
-    uint8_t sides;
-  } k_pub_ops[] = {
-      {CONTRACT_PROVIDER_OP_REMOVE,          0x02u},
-      {CONTRACT_PROVIDER_OP_OPS,             0x01u},
-  };
-
-  const sys_data_provider_type_t* type = NULL;
-  bool found = false;
-  portENTER_CRITICAL(&s_lock);
-  const prov_slot_t* s = find_slot_locked(id);
-  if (s != NULL) {
-    found = true;
-    type = s->type;
-  }
-  portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(found, ERR_PROV_NOT_FOUND, .provider = id);
-
-  for (uint32_t i = 0; i < ARRAY_LEN(k_pub_ops); i++) {
-    ERR_TRY(cmd_append(out, &k_pub_ops[i].op, sizeof(k_pub_ops[i].op)));
-    ERR_TRY(cmd_append(out, &k_pub_ops[i].sides, sizeof(k_pub_ops[i].sides)));
-  }
-  for (uint16_t i = 0; type != NULL && i < type->op_count; i++) {
-    const sys_data_provider_op_t* row = &type->ops[i];
-    const uint8_t sides = (row->read != NULL ? 0x01u : 0u) | (row->write != NULL ? 0x02u : 0u);
-    ERR_TRY(cmd_append(out, &row->op, sizeof(row->op)));
-    ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
-  }
-  return NULL;
 }
 
 // The input of every provider's port: the packet to its type's `in` as it is, one call into the driver at a time; a
@@ -168,37 +87,37 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
   }
 }
 
+// CREATE under s_ctrl: the slot, the driver's create, the port in the data matrix.
 static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const void* cfg, uint32_t cfg_len) {
-  ERR_CHECK((flags & ~SYS_DATA_PROVIDER_CREATE_SYSTEM) == 0, ERR_CMD_BAD_ARG);
-
-  const sys_data_provider_type_t* type = type_find(type_id);
+  ERR_CHECK(id != ID_NONE, ERR_PROV_BAD_ID, .provider = id);
+  const sys_data_provider_type_t* type = NULL;
+  for (uint32_t i = 0; type == NULL && i < s_type_count; i++) {
+    type = s_types[i]->type == type_id ? s_types[i] : NULL;
+  }
   ERR_CHECK(type != NULL, ERR_PROV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(cfg_len == type->cfg_size, ERR_CMD_BAD_LEN, .got = (uint16_t)cfg_len, .need = type->cfg_size);
+  ERR_CHECK(find(id) == NULL, ERR_PROV_EXISTS, .provider = id);
 
-  portENTER_CRITICAL(&s_lock);
-  const bool exists = find_slot_locked(id) != NULL;
-  const int idx = exists ? -1 : find_free_slot_locked();
-  portEXIT_CRITICAL(&s_lock);
-
-  ERR_CHECK(!exists, ERR_PROV_EXISTS, .provider = id);
-  ERR_CHECK(idx >= 0, ERR_PROV_FULL);
-
-  prov_slot_t* slot = &s_slots[idx];
+  prov_slot_t* slot = NULL;
+  for (uint32_t i = 0; slot == NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    slot = s_slots[i].type == NULL ? &s_slots[i] : NULL;  // a slot's type changes under s_ctrl only
+  }
+  ERR_CHECK(slot != NULL, ERR_PROV_FULL);
   if (slot->line == NULL) {
     slot->line = xSemaphoreCreateMutexStatic(&slot->line_buf);
   }
+
   sys_data_provider_t* p = &slot->p;
   // The port's `in` is never cleared (a send in flight may still read it): zeroed is only what follows the port.
   memset(slot->mem + sizeof(p->port), 0, sizeof(slot->mem) - sizeof(p->port));
   p->port.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, id);
   p->port.in = line_in;
-  p->state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
-
+  p->state = (flags & CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
   ERR_TRY(type->create(p, cfg));
+
   portENTER_CRITICAL(&s_lock);
   slot->type = type;
   portEXIT_CRITICAL(&s_lock);
-
   err_h err = data_matrix_register(&p->port);  // no room in the data matrix: it can't be linked, it is not made
   if (err != NULL) {
     portENTER_CRITICAL(&s_lock);
@@ -209,17 +128,14 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   return err;
 }
 
+// REMOVE under s_ctrl: the port out of the data matrix first, then the driver, after the call into it in flight.
 static err_h remove_locked(uint8_t id) {
-  portENTER_CRITICAL(&s_lock);
-  prov_slot_t* s = find_slot_locked(id);
-  const bool system = s != NULL && (s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) != 0;
-  portEXIT_CRITICAL(&s_lock);
-
+  prov_slot_t* s = find(id);
   ERR_CHECK(s != NULL, ERR_PROV_NOT_FOUND, .provider = id);
-  ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
+  ERR_CHECK((s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) == 0, ERR_PROV_SYSTEM, .provider = id);
 
-  err_report(data_matrix_unregister(&s->p.port));  // out of the data matrix first: its links go before its driver
-  U_MUTEX_GUARD(s->line);                          // after the call into the driver in flight
+  err_report(data_matrix_unregister(&s->p.port));
+  U_MUTEX_GUARD(s->line);
   const sys_data_provider_type_t* type = s->type;
   portENTER_CRITICAL(&s_lock);
   s->type = NULL;
@@ -228,82 +144,97 @@ static err_h remove_locked(uint8_t id) {
   return NULL;
 }
 
-static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
-  U_MUTEX_GUARD(s_prov_ctrl_lock);  // no CREATE / REMOVE meanwhile: the slot stays as it is
-
+// LIST: [u8 count][entry_t...].
+static err_h list(cmd_out_t* out) {
+  entry_t rows[CONFIG_SYS_DATA_PROVIDER_MAX];
+  uint8_t n = 0;
   portENTER_CRITICAL(&s_lock);
-  prov_slot_t* s = find_slot_locked(id);
+  for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    const prov_slot_t* s = &s_slots[i];
+    if (s->type != NULL) {
+      rows[n++] = (entry_t){
+          .provider = (uint8_t)s->p.port.id,
+          .type = s->type->type,
+          .state = s->p.state,
+      };
+    }
+  }
   portEXIT_CRITICAL(&s_lock);
+  ERR_TRY(cmd_append(out, &n, sizeof(n)));
+  return cmd_append(out, rows, (uint32_t)n * sizeof(rows[0]));
+}
+
+// OPS: [op u16][sides u8] rows, the contract's of a provider and its driver's own.
+static err_h ops(uint8_t id, cmd_out_t* out) {
+  static const struct __attribute__((packed)) {
+    uint16_t op;
+    uint8_t sides;
+  } k_ops[] = {{CONTRACT_PROVIDER_OP_REMOVE, 0x02u}, {CONTRACT_PROVIDER_OP_OPS, 0x01u}};
+  const prov_slot_t* s = find(id);
   ERR_CHECK(s != NULL, ERR_PROV_NOT_FOUND, .provider = id);
+  ERR_TRY(cmd_append(out, k_ops, sizeof(k_ops)));
+  for (uint16_t i = 0; i < s->type->op_count; i++) {
+    const sys_data_provider_op_t* row = &s->type->ops[i];
+    const uint8_t sides = (row->read != NULL ? 0x01u : 0u) | (row->write != NULL ? 0x02u : 0u);
+    ERR_TRY(cmd_append(out, &row->op, sizeof(row->op)));
+    ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
+  }
+  return NULL;
+}
 
-  const sys_data_provider_op_t* row = find_op_row(s->type->ops, s->type->op_count, op);
-  ERR_CHECK(row != NULL, ERR_PROV_UNKNOWN_OP, .op = op);
-
-  const cmd_f fn = dir == CMD_DIR_READ ? row->read : row->write;
+// A driver's own op, under s_ctrl (the slot stays) and the provider's line mutex.
+static err_h own_op_locked(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
+  prov_slot_t* s = find(id);
+  ERR_CHECK(s != NULL, ERR_PROV_NOT_FOUND, .provider = id);
+  cmd_f fn = NULL;
+  for (uint16_t i = 0; fn == NULL && i < s->type->op_count; i++) {
+    const sys_data_provider_op_t* row = &s->type->ops[i];
+    fn = row->op != op ? NULL : dir == CMD_DIR_READ ? row->read : dir == CMD_DIR_WRITE ? row->write : NULL;
+  }
   ERR_CHECK(fn != NULL, ERR_PROV_UNKNOWN_OP, .op = op);
   U_MUTEX_GUARD(s->line);
   return fn(&s->p, in, out);
 }
 
-err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
-  cmd_out_t none = {0};
-  cmd_out_t* answer = out != NULL ? out : &none;
-  ERR_CHECK(dir == CMD_DIR_READ || dir == CMD_DIR_WRITE, ERR_CMD_DIRECTION, .dir = dir);
+err_h sys_data_provider_router(CMD_F_PARAMS) {
+  (void)ctx;
+  sys_data_provider_router_hdr_t h;
+  const uint32_t got = in.len > 0 ? in.len - 1u : 0u;  // after the key
+  ERR_CHECK(got >= sizeof(h), ERR_CMD_BAD_LEN, .got = (uint16_t)got, .need = sizeof(h));
+  memcpy(&h, in.data + 1u, sizeof(h));  // little-endian target
+  const cmd_in_t args = {.data = in.data + 1u + sizeof(h), .len = got - sizeof(h)};
+  const bool read = h.dir == CMD_DIR_READ;
+  const bool write = h.dir == CMD_DIR_WRITE;
 
-  if (op == CONTRACT_PROVIDER_OP_LIST) {
-    ERR_CHECK(id == SYS_DATA_PROVIDER_ID_NONE, ERR_PROV_BAD_ID, .provider = id);
-    ERR_CHECK(dir == CMD_DIR_READ, ERR_PROV_UNKNOWN_OP, .op = op);
-    ERR_TRY(require_empty(in));
-    return list_providers(answer);
+  if (h.op == CONTRACT_PROVIDER_OP_CREATE && write) {
+    ERR_CHECK(args.len >= CREATE_HDR, ERR_CMD_BAD_LEN, .got = (uint16_t)args.len, .need = CREATE_HDR);
+    U_MUTEX_GUARD(s_ctrl);
+    return create_locked(h.id, args.data[0], args.data[1], args.data + CREATE_HDR, args.len - CREATE_HDR);
   }
-
-  ERR_CHECK(id != SYS_DATA_PROVIDER_ID_NONE, ERR_PROV_BAD_ID, .provider = id);
-
-  if ((op >> 8) != MODULE_ID_PROVIDER) {
-    return call_own_op(id, dir, op, in, answer);
+  if (h.op == CONTRACT_PROVIDER_OP_REMOVE && write) {
+    U_MUTEX_GUARD(s_ctrl);
+    return remove_locked(h.id);
   }
-
-  const bool is_read = dir == CMD_DIR_READ;
-  const bool expect_read = op == CONTRACT_PROVIDER_OP_OPS;
-  ERR_CHECK(is_read == expect_read, ERR_PROV_UNKNOWN_OP, .op = op);
-
-  if (op == CONTRACT_PROVIDER_OP_CREATE) {
-    ERR_CHECK(in.len >= SYS_DATA_PROVIDER_CREATE_HDR, ERR_CMD_BAD_LEN, .got = (uint16_t)in.len,
-              .need = SYS_DATA_PROVIDER_CREATE_HDR);
-    U_MUTEX_GUARD(s_prov_ctrl_lock);
-    return create_locked(id, in.data[0], in.data[1], in.data + SYS_DATA_PROVIDER_CREATE_HDR,
-                         in.len - SYS_DATA_PROVIDER_CREATE_HDR);
+  if (h.op == CONTRACT_PROVIDER_OP_LIST && read) {
+    return list(out);
   }
-
-  ERR_TRY(require_empty(in));
-  switch (op) {
-    case CONTRACT_PROVIDER_OP_REMOVE: {
-      U_MUTEX_GUARD(s_prov_ctrl_lock);
-      return remove_locked(id);
-    }
-    case CONTRACT_PROVIDER_OP_OPS:
-      return ops_reply(id, answer);
-    default:
-      return ERR_NEW(ERR_PROV_UNKNOWN_OP, .op = op);
+  if (h.op == CONTRACT_PROVIDER_OP_OPS && read) {
+    return ops(h.id, out);
   }
+  ERR_CHECK((h.op >> 8) == 0xFFu, ERR_PROV_UNKNOWN_OP, .op = h.op);
+  U_MUTEX_GUARD(s_ctrl);
+  return own_op_locked(h.id, h.dir, h.op, args, out);
 }
+
+ROUTER_MODULE_REGISTER(MODULE_ID_PROVIDER, sys_data_provider_router)
 
 err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
-  ERR_CHECK(id != SYS_DATA_PROVIDER_ID_NONE, ERR_PROV_BAD_ID, .provider = id);
-  U_MUTEX_GUARD(s_prov_ctrl_lock);
-  return create_locked(id, type_id, SYS_DATA_PROVIDER_CREATE_SYSTEM, cfg, cfg_len);
+  U_MUTEX_GUARD(s_ctrl);
+  return create_locked(id, type_id, CREATE_SYSTEM, cfg, cfg_len);
 }
-
-/* ----------------------------------------------------------------------------
- * The driver's side of the data plane
- * ------------------------------------------------------------------------- */
 
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   portENTER_CRITICAL(&s_lock);
   p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
   portEXIT_CRITICAL(&s_lock);
-}
-
-void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len) {
-  data_matrix_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
 }

@@ -1,7 +1,6 @@
 {
   "sources": [
-    "sys_data_provider.c",
-    "router/sys_data_provider_router.c"
+    "sys_data_provider.c"
   ],
   "tests": [
     "host/test_sys_data_provider.c"
@@ -9,7 +8,6 @@
   "includes": [
     "driver",
     "errors",
-    "internal",
     "router"
   ],
   "config": "host/sys_data_provider_host_config.h",

@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 
+#include "cmd.h"
 #include "data_matrix.h"
 #include "sdkconfig.h"
 #include "sys_data_provider.h"
@@ -15,15 +16,16 @@
  * the registry zeroes it, names the port and registers it in the data matrix after create(), unregisters it first at
  * REMOVE. The registry never looks into a packet: the port's input hands it to the type's `in` as
  * it is. Calls into a driver (its `in`, its own ops, its remove) come one at a time, so a driver keeps no lock of its
- * own for them. What comes in on the line goes out with sys_data_provider_deliver, the line's state with
- * sys_data_provider_set_up. A driver type registers itself with SYS_DATA_PROVIDER_TYPE_DEFINE.
+ * own for them. What comes in on the line the driver sends out of its port itself (data_matrix_send(&p->port, ...),
+ * from its task, never from an ISR), the line's state with sys_data_provider_set_up. A driver type registers itself
+ * with SYS_DATA_PROVIDER_TYPE_DEFINE.
  *
  * The driver's side of the contract:
  * - `in` and the own ops never CREATE or REMOVE a provider (they run under the registry's locks: it would deadlock).
  * - `in` waits for room on its line a bounded time only (its CONFIG_PROVIDER_*_SEND_WAIT_MS): REMOVE and the own ops
  *   of the provider wait for it.
- * - deliver and set_up come from the driver's RX side, at the same time as `in`: what RX and TX share, the driver
- *   guards itself.
+ * - Its RX side (data_matrix_send on its port, set_up) runs at the same time as `in`: what RX and TX share, the
+ *   driver guards itself.
  * - When remove returns, no RX callback of the driver runs any more (it unhooks them synchronously). What the driver
  *   allocated in create it frees in remove; its struct is the registry's.
  * - A packet that was on its way when the provider was removed may reach a provider CREATEd again in the same slot
@@ -47,6 +49,9 @@ struct sys_data_provider {
  * @usage my_t* me = SYS_DATA_PROVIDER_OF(self, my_t);
  */
 #define SYS_DATA_PROVIDER_OF(self, type) DATA_MATRIX_OWNER(self, type, base.port)
+
+/** @brief A driver's own op code (its type's ops table): 0xFF in the high byte. */
+#define SYS_DATA_PROVIDER_OWN_OP(n) ((uint16_t)(0xFF00u | (n)))
 
 /** @brief One own op of a driver type: its code and its sides (a side NULL: not given); `ctx` is the provider. */
 typedef struct {
@@ -99,20 +104,12 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
   }
 
 /**
- * @brief The driver tells that its line delivers frames now, or no more (SYS_DATA_PROVIDER_STATE_UP).
+ * @brief The driver tells that its line delivers frames now, or no more (SYS_DATA_PROVIDER_STATE_UP). From a task,
+ * never from an ISR.
  * @param p   The provider.
  * @param up  true: up.
  */
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up);
-
-/**
- * @brief The driver hands what came in on its line: out of the provider's port, to the ports linked from it
- * (data_matrix_send; nothing while the port is not registered). From the driver's task, never from an ISR.
- * @param p     The provider.
- * @param data  The bytes, borrowed for the call.
- * @param len   Bytes in data.
- */
-void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len);
 
 #ifdef __cplusplus
 }
