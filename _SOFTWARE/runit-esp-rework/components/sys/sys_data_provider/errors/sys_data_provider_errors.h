@@ -10,7 +10,6 @@
   X(M, ERR_PROV_FULL,         3,  ERR_SEV_MEDIUM,   {}) /* every CONFIG_SYS_DATA_PROVIDER_MAX slot taken */                      \
   X(M, ERR_PROV_IN_USE,       4,  ERR_SEV_LOW,      { uint8_t provider; }) /* create: a provider only one of may exist */        \
   X(M, ERR_PROV_SYSTEM,       5,  ERR_SEV_LOW,      { uint8_t provider; }) /* remove: the board's own */                         \
-  X(M, ERR_PROV_BAD_ID,       11, ERR_SEV_HIGH,     { uint8_t provider; }) /* ID_NONE for instance op, or vice versa for LIST */ \
   X(M, ERR_PROV_TYPE_UNKNOWN, 12, ERR_SEV_HIGH,     { uint8_t type; }) /* CREATE with unknown type */                            \
   X(M, ERR_PROV_UNKNOWN_OP,   13, ERR_SEV_HIGH,     { uint16_t op; }) /* op not in contract / type table, or missing side */     \
   X(M, ERR_PROV_NO_MEM,       15, ERR_SEV_CRITICAL, { uint8_t provider; uint16_t size; }) /* a driver out of memory */

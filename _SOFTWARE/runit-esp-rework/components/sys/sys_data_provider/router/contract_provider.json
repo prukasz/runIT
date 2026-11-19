@@ -7,7 +7,7 @@
   "router_key": 13,
   "contract_id": 13,
   "alias": "Providers",
-  "description": "Typed provider registry (sys_device_router-style wire header [0x0D][dir u8][id u8][op u16][args], where op = 0x0D00 | n or driver own op 0xFFxx).",
+  "description": "Typed provider registry (sys_device_router-style wire header [0x0D][dir u8][id u8][op u16][args], where op = 0x0D00 | n or a driver's own op 0xFFxx, described by its type).",
   "category": "system",
   "commands": [
     {
@@ -67,20 +67,6 @@
           "type": "u8",
           "label": "Number of providers",
           "description": "Followed by sys_data_provider_entry_t rows (3 B each: provider u8, type u8, state u8)."
-        }
-      }
-    },
-    {
-      "id": "OPS",
-      "op": 5,
-      "symbol": "CONTRACT_PROVIDER_OP_OPS",
-      "label": "Supported ops",
-      "description": "Returns [op u16][sides u8] rows (bit 0 = read, bit 1 = write) for registry ops and the driver's own ops.",
-      "read": {
-        "returns": {
-          "type": "bytes",
-          "label": "Op rows",
-          "description": "Repeated 3-byte [op u16][sides u8] tuples"
         }
       }
     }

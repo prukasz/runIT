@@ -35,7 +35,7 @@ typedef enum {
 
 /**
  * @brief CREATE of the board's own provider (SYS_DATA_PROVIDER_STATE_SYSTEM: it can't be removed). Boot code.
- * @param[in] id      The provider ID (0..0xFE)
+ * @param[in] id      The provider ID
  * @param[in] type_id sys_data_provider_type_e
  * @param[in] cfg     The driver's cfg (NULL with `cfg_len` 0 when it has none)
  * @param[in] cfg_len Its size, the type's cfg size

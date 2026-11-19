@@ -37,6 +37,12 @@ U_MUTEX_DEFINE(s_ctrl);                                     // CREATE, REMOVE an
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type and state, read on another core
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
+__attribute__((constructor)) static void slots_init(void) {
+  for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    s_slots[i].line = xSemaphoreCreateMutexStatic(&s_slots[i].line_buf);
+  }
+}
+
 // The slot of provider `id`, NULL when there is none.
 static prov_slot_t* find(uint8_t id) {
   prov_slot_t* s = NULL;
@@ -74,7 +80,6 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
 
 err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const void* cfg, uint32_t cfg_len) {
   U_MUTEX_GUARD(s_ctrl);
-  ERR_CHECK(id != 0xFFu, ERR_PROV_BAD_ID, .provider = id);  // 0xFF is never a provider
   const sys_data_provider_type_t* type = NULL;
   for (uint32_t i = 0; type == NULL && i < s_type_count; i++) {
     type = s_types[i]->type == type_id ? s_types[i] : NULL;
@@ -88,9 +93,6 @@ err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const v
     slot = s_slots[i].type == NULL ? &s_slots[i] : NULL;  // a slot's type changes under s_ctrl only
   }
   ERR_CHECK(slot != NULL, ERR_PROV_FULL);
-  if (slot->line == NULL) {
-    slot->line = xSemaphoreCreateMutexStatic(&slot->line_buf);
-  }
 
   sys_data_provider_t* p = &slot->p;
   // The port's `in` is never cleared (a send in flight may still read it): zeroed is only what follows the port.
@@ -140,11 +142,6 @@ uint32_t sys_data_provider_list(sys_data_provider_row_t* rows) {
   }
   portEXIT_CRITICAL(&s_lock);
   return n;
-}
-
-const sys_data_provider_type_t* sys_data_provider_type_of(uint8_t id) {
-  const prov_slot_t* s = find(id);
-  return s != NULL ? s->type : NULL;
 }
 
 err_h sys_data_provider_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {

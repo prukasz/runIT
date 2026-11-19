@@ -26,12 +26,12 @@ typedef struct {
 
 /**
  * @brief Makes provider `id`: its slot, the driver's create, its port in the data matrix.
- * @param id       The provider ID (0..0xFE).
+ * @param id       The provider ID.
  * @param type_id  sys_data_provider_type_e.
  * @param system   true: the board's own (SYS_DATA_PROVIDER_STATE_SYSTEM), not removed.
  * @param cfg      The driver's cfg.
  * @param cfg_len  Its size, the type's cfg size.
- * @return NULL; ERR_PROV_BAD_ID, ERR_PROV_TYPE_UNKNOWN, ERR_CMD_BAD_LEN, ERR_PROV_EXISTS, ERR_PROV_FULL, the
+ * @return NULL; ERR_PROV_TYPE_UNKNOWN, ERR_CMD_BAD_LEN, ERR_PROV_EXISTS, ERR_PROV_FULL, the
  *         driver's create error, the data matrix's
  */
 MUST_USE err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const void* cfg, uint32_t cfg_len);
@@ -49,13 +49,6 @@ MUST_USE err_h sys_data_provider_remove(uint8_t id);
  * @return How many rows are written.
  */
 uint32_t sys_data_provider_list(sys_data_provider_row_t* rows);
-
-/**
- * @brief The driver type of provider `id` (static: valid after the provider is gone).
- * @param id  The provider ID.
- * @return The type; NULL when there is no such provider.
- */
-const sys_data_provider_type_t* sys_data_provider_type_of(uint8_t id);
 
 /**
  * @brief Runs a driver's own op on provider `id`, one call into the driver at a time.

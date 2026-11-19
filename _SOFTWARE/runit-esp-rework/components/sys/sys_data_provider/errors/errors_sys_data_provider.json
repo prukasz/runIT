@@ -22,9 +22,6 @@
       "message": "Cannot remove system data provider {provider}",
       "hint": "Built-in board providers cannot be removed."
     },
-    "ERR_PROV_BAD_ID": {
-      "message": "Invalid data provider ID {provider}"
-    },
     "ERR_PROV_TYPE_UNKNOWN": {
       "message": "Unknown data provider type ({type})",
       "fields": {

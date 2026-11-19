@@ -10,7 +10,7 @@ extern "C" {
 
 /**
  * @brief Frame under root key MODULE_ID_PROVIDER (0x0D): [dir u8][id u8][op u16][args...], packed, little-endian.
- * `dir` is CMD_DIR_READ or CMD_DIR_WRITE. `id` is a provider ID (0..0xFE); LIST takes any.
+ * `dir` is CMD_DIR_READ or CMD_DIR_WRITE. `id` is a provider ID; LIST takes any.
  * `op` is the contract's (0x0Dxx, contract_provider.json) or a driver type's own (SYS_DATA_PROVIDER_OWN_OP, 0xFFxx).
  */
 typedef struct __attribute__((packed)) {

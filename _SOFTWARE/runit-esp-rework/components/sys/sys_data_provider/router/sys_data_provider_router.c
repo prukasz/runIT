@@ -15,7 +15,6 @@
 #define CONTRACT_PROVIDER_OP_CREATE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x00u))  // W [type u8][flags u8][cfg]
 #define CONTRACT_PROVIDER_OP_REMOVE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x01u))  // W
 #define CONTRACT_PROVIDER_OP_LIST   ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x02u))  // R [u8 count][row...]
-#define CONTRACT_PROVIDER_OP_OPS    ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x05u))  // R [op u16][sides u8]...
 #define CREATE_HDR                  2u     // [type u8][flags u8] before the cfg
 #define CREATE_SYSTEM               0x01u  // CREATE flag: the board's own, not removed
 
@@ -28,24 +27,6 @@ static err_h list(cmd_out_t* out) {
   const uint8_t n = (uint8_t)sys_data_provider_list(rows);
   ERR_TRY(cmd_append(out, &n, sizeof(n)));
   return cmd_append(out, rows, (uint32_t)n * sizeof(rows[0]));
-}
-
-// OPS: [op u16][sides u8] rows, the contract's of a provider and its driver's own.
-static err_h ops(uint8_t id, cmd_out_t* out) {
-  static const struct __attribute__((packed)) {
-    uint16_t op;
-    uint8_t sides;
-  } k_ops[] = {{CONTRACT_PROVIDER_OP_REMOVE, 0x02u}, {CONTRACT_PROVIDER_OP_OPS, 0x01u}};
-  const sys_data_provider_type_t* type = sys_data_provider_type_of(id);
-  ERR_CHECK(type != NULL, ERR_PROV_NOT_FOUND, .provider = id);
-  ERR_TRY(cmd_append(out, k_ops, sizeof(k_ops)));
-  for (uint16_t i = 0; i < type->op_count; i++) {
-    const sys_data_provider_op_t* row = &type->ops[i];
-    const uint8_t sides = (row->read != NULL ? 0x01u : 0u) | (row->write != NULL ? 0x02u : 0u);
-    ERR_TRY(cmd_append(out, &row->op, sizeof(row->op)));
-    ERR_TRY(cmd_append(out, &sides, sizeof(sides)));
-  }
-  return NULL;
 }
 
 err_h sys_data_provider_router(CMD_F_PARAMS) {
@@ -68,9 +49,6 @@ err_h sys_data_provider_router(CMD_F_PARAMS) {
   }
   if (h.op == CONTRACT_PROVIDER_OP_LIST && read) {
     return list(out);
-  }
-  if (h.op == CONTRACT_PROVIDER_OP_OPS && read) {
-    return ops(h.id, out);
   }
   ERR_CHECK((h.op >> 8) == 0xFFu, ERR_PROV_UNKNOWN_OP, .op = h.op);
   return sys_data_provider_own_op(h.id, h.dir, h.op, args, out);
