@@ -20,15 +20,17 @@ typedef struct __attribute__((packed)) {
 
 typedef struct {
   sys_data_provider_t base;
-  uint8_t device;
+  uint8_t device;  // SYS_DEVICE_ID_NONE once the UART is removed
   uint8_t flags;
 } provider_uart_t;
 
 // The UART's reader, on its RX task under the UART's lock: a message out of the port with the cfg's flags (without
-// CMD_SEND_NOWAIT a taker may wait for room, and the UART's RX with it); NULL once, when the UART is removed.
+// CMD_SEND_NOWAIT a taker may wait for room, and the UART's RX with it); NULL once, when the UART is removed: the
+// provider forgets its number, so it never sends to a device made again under it.
 static void on_rx(void* ctx, const uint8_t* data, uint32_t len) {
   provider_uart_t* me = ctx;
   if (data == NULL) {
+    me->device = SYS_DEVICE_ID_NONE;
     sys_data_provider_set_up(&me->base, false);
     return;
   }
