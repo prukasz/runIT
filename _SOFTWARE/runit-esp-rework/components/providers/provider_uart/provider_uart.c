@@ -1,5 +1,8 @@
-#include <stdbool.h>
-#include <stdint.h>
+/**
+ * @file provider_uart.c
+ * @brief The UART provider (PROVIDER_UART.MD): any CONTRACT_UART device as a provider. What the port takes goes onto
+ * the UART (OP_SEND_FRAME), what the UART hears goes out of the port (OP_RX_HOOK).
+ */
 
 #include "errors.h"
 #include "sdkconfig.h"
@@ -7,54 +10,53 @@
 #include "sys_device.h"
 #include "sys_uart_contract.h"
 
+_Static_assert(CONFIG_PROVIDER_UART_SEND_WAIT_MS <= SYS_UART_WAIT_MAX_MS, "PROVIDER_UART_SEND_WAIT_MS over the UART's");
+
+/** @brief CREATE cfg: the UART device. */
 typedef struct __attribute__((packed)) {
-  uint8_t device; /**< CONTRACT_UART device ID */
+  uint8_t device;  /**< A CONTRACT_UART device ID */
 } provider_uart_cfg_t;
 
 typedef struct {
-  uint8_t dev_id;
+  sys_data_provider_t base;
+  uint8_t device;
 } provider_uart_t;
 
-static void on_uart_rx(void* ctx, const uint8_t* data, uint32_t len) {
+// The UART's reader, on its RX task: a message out of the port; NULL once, when the UART is removed.
+static void on_rx(void* ctx, const uint8_t* data, uint32_t len) {
+  sys_data_provider_t* p = ctx;
   if (data == NULL) {
-    sys_data_provider_set_up(ctx, len != 0u);
+    sys_data_provider_set_up(p, false);
     return;
   }
-  sys_data_provider_deliver(ctx, data, len);
+  data_matrix_send(&p->port, 0, data, len);
 }
 
-// The port's input: the packet onto the UART's queue with its flags (NOWAIT: no room, dropped at once; else the wait
-// below on the sender's task). What the UART does not take is lost.
-static void provider_uart_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags,
-                               const uint8_t* data, uint32_t len) {
+// The port's input: the packet onto the UART's queue with its flags (NOWAIT: no room, dropped at once; else it waits
+// for room up to CONFIG_PROVIDER_UART_SEND_WAIT_MS). What the UART does not take is lost.
+static void uart_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                    uint32_t len) {
   (void)from;
-  const provider_uart_t* ctx = SYS_DATA_PROVIDER_OF(self)->driver;
-  const uint16_t wait_ms =
-      CONFIG_PROVIDER_UART_SEND_WAIT_MS > SYS_UART_WAIT_MAX_MS ? SYS_UART_WAIT_MAX_MS : CONFIG_PROVIDER_UART_SEND_WAIT_MS;
-  err_free(SYS_DEVICE_SET(ctx->dev_id, CONTRACT_UART, OP_SEND_FRAME, .frame = {.data = data, .len = len},
-                          .wait_ms = wait_ms, .flags = flags));
+  const provider_uart_t* me = SYS_DATA_PROVIDER_OF(self, provider_uart_t);
+  err_free(SYS_DEVICE_SET(me->device, CONTRACT_UART, OP_SEND_FRAME, .frame = {.data = data, .len = len},
+                          .wait_ms = CONFIG_PROVIDER_UART_SEND_WAIT_MS, .flags = flags));
 }
 
-static err_h provider_uart_create(sys_data_provider_t* p, void* ctx_in, const void* cfg_in) {
-  provider_uart_t* ctx = ctx_in;
+static err_h uart_create(sys_data_provider_t* p, const void* cfg_in) {
   const provider_uart_cfg_t* cfg = cfg_in;
   sys_uart_info_t info;
   ERR_TRY(SYS_DEVICE_GET(cfg->device, CONTRACT_UART, OP_INFO, &info));
-
-  const bool framed = info.mode == SYS_UART_MODE_FRAMED;
-  p->port.pass = provider_uart_pass;
-  // A port is up as long as it exists: its hook hears only that it is removed.
+  ((provider_uart_t*)p)->device = cfg->device;
+  // A UART is up as long as it exists.
   p->state |= (uint8_t)(SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_UP |
-                        (framed ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u));
-  ctx->dev_id = cfg->device;
-
-  return SYS_DEVICE_SET(cfg->device, CONTRACT_UART, OP_RX_HOOK, .cb = on_uart_rx, .ctx = p);
+                        (info.mode == SYS_UART_MODE_FRAMED ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u));
+  return SYS_DEVICE_SET(cfg->device, CONTRACT_UART, OP_RX_HOOK, .cb = on_rx, .ctx = p);
 }
 
-static err_h provider_uart_remove(sys_data_provider_t* p, void* ctx_in) {
-  const provider_uart_t* ctx = ctx_in;
-  return SYS_DEVICE_SET(ctx->dev_id, CONTRACT_UART, OP_RX_HOOK, .cb = NULL, .ctx = p);
+static void uart_remove(sys_data_provider_t* p) {
+  // A UART removed before: its hook is gone with it.
+  err_free(SYS_DEVICE_SET(((provider_uart_t*)p)->device, CONTRACT_UART, OP_RX_HOOK, .cb = NULL, .ctx = p));
 }
 
-SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, provider_uart_cfg_t, provider_uart_t, provider_uart_create,
-                              provider_uart_remove, NULL, 0)
+SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, provider_uart_cfg_t, provider_uart_t, uart_create,
+                              uart_remove, uart_in, NULL, 0)
