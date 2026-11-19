@@ -1,6 +1,6 @@
 # AGENTS — sys_watch
 
-- Wire formats are fixed: `MODULE_ID_WATCH` (`0x2B`), the entry `[hdr PUSH, MODULE_ID_WATCH][id][status][data]` out of the port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`; no `owner` byte), `sys_watch_head_t` (6 B), `sys_watch_info_t` (8 B), `WATCH_OPERATIONS`, and `ERR_SYS_WATCH_MAP`. Keep `contract_watch.json` and `errors_sys_watch.json` matching.
+- Wire formats are fixed: `MODULE_ID_WATCH` (`0x2B`), the entry `[hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]` out of the port `WATCH` to its links (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`; a taker keeps its own by `owner`), `sys_watch_head_t` (6 B), `sys_watch_info_t` (8 B), `WATCH_OPERATIONS`, and `ERR_SYS_WATCH_MAP`. Keep `contract_watch.json` and `errors_sys_watch.json` matching.
 - Three headers: `sys_watch.h` (wire format, init, the cached reads), `router/sys_watch_router.h`, `errors/sys_watch_errors.h`; `internal/sys_watch_internal.h` is the sources' own. A watch is added, removed and listed by commands: `sys_watch_add` / `_remove` / `_list` are the router's, not public.
 - `sys_watch_mutex` (the watches) may be held over `data_matrix_send_to` (NOWAIT) and `router_inject`: neither blocks nor calls back here. Never over `sys_event_*` or `err_report`. `sys_watch_client_mutex` (the cached reads) is for copies only: never held over a send.
 - Both timers run from init, with no start and stop by a count. One way to start a read: the tick, every `period`. A watch hears no event: its only listener is the session's `GONE`.

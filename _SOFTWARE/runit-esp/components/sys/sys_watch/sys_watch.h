@@ -20,8 +20,8 @@ extern "C" {
 
 /* ----------------------------------------------------------------------------
  * Wire format (never renumber): the ADD head, the LIST row, the triggers. Entries go out of the module's port WATCH
- * (DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)) as [hdr PUSH, MODULE_ID_WATCH][id u8][status u8][data], to the watch's
- * owner's session.
+ * (DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)) as [hdr PUSH, MODULE_ID_WATCH][owner u8][id u8][status u8][data], to
+ * every port linked from it: whoever takes them keeps its own by `owner`.
  * ------------------------------------------------------------------------- */
 
 

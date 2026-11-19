@@ -13,7 +13,7 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_WATCH, ERR_SYS_WATCH_MAP)
 
-#define ENTRY_HEAD 2u  // [id][status], then the read's answer: after the header of a WATCH packet
+#define ENTRY_HEAD 3u  // [owner][id][status], then the read's answer: after the header of a WATCH packet
 
 /* What the last entry sent was (watch_t.last). */
 #define LAST_NONE  0u  // nothing yet
@@ -56,20 +56,17 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 }
 
 /* ----------------------------------------------------------------------------
- * A read's answer (the router's task): the entry to the owner, [hdr PUSH, MODULE_ID_WATCH][id][status][data]
+ * A read's answer (the router's task): the entry, [hdr PUSH, MODULE_ID_WATCH][owner][id][status][data], out of WATCH
  * ------------------------------------------------------------------------- */
 
-// The entry out of WATCH to the owner's session (its sub-port MODULE_ID_WATCH), NOWAIT.
-static err_h push_entry(uint8_t owner, const uint8_t* entry, uint32_t len) {
-  data_matrix_port_id_t to = 0;
-  ERR_TRY(sys_session_port(owner, MODULE_ID_WATCH, &to));
+// The entry out of WATCH to every port linked from it (a session's sub-port, the raw telemetry), NOWAIT: whoever takes
+// it keeps its own by `owner`.
+static void push_entry(const uint8_t* entry, uint32_t len) {
   uint8_t packet[CMD_HEAD + len];
   const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
   memcpy(packet, &hdr, CMD_HEAD);
   memcpy(packet + CMD_HEAD, entry, len);
-  ERR_CHECK(data_matrix_send_to(&sys_watch_port, to, CMD_SEND_NOWAIT, packet, sizeof(packet)), ERR_SESSION_NO_ROUTE,
-            .dst = owner);
-  return NULL;
+  data_matrix_send(&sys_watch_port, CMD_SEND_NOWAIT, packet, sizeof(packet));
 }
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
@@ -89,16 +86,14 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     const bool send = ok ? (!on_change || changed || silent) : w->last != LAST_ERROR;
     if (send) {
       uint8_t entry[ENTRY_HEAD + len];
-      entry[0] = w->head.id;
-      entry[1] = status;
+      entry[0] = w->owner;
+      entry[1] = w->head.id;
+      entry[2] = status;
       memcpy(entry + ENTRY_HEAD, data, len);
-      err_h err = push_entry(w->owner, entry, sizeof(entry));
-      if (err == NULL) {  // one that did not go is sent by the next read
-        w->last = ok ? LAST_OK : LAST_ERROR;
-        w->crc = crc;
-        w->since_sent = 0;
-      }
-      err_free(err);
+      push_entry(entry, sizeof(entry));
+      w->last = ok ? LAST_OK : LAST_ERROR;
+      w->crc = crc;
+      w->since_sent = 0;
     }
   }
   xSemaphoreGive(sys_watch_mutex);

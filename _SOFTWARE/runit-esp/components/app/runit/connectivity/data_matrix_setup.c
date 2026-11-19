@@ -13,7 +13,6 @@
 #include "sys_event_stream.h"
 #include "sys_log.h"
 #include "sys_log_id.h"
-#include "sys_remote_id.h"
 #include "sys_session.h"
 #include "sys_watch_id.h"
 #include "utils.h"
@@ -25,6 +24,8 @@ static const provider_ble_cfg_t k_ble = {
     .rx_flags = CMD_SEND_NOWAIT, .name = "runit"};
 static const provider_ble_cfg_t k_ble_logs = {
     .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_LOGS, .name = "logs"};
+static const provider_ble_cfg_t k_ble_telemetry = {
+    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TELEMETRY, .name = "telemetry"};
 
 // A provider of the board's own: its id, its type and the driver's CREATE config.
 typedef struct {
@@ -38,26 +39,66 @@ static const provider_row_t k_providers[] = {
     {RUNIT_PROVIDER_CONSOLE, SYS_DATA_PROVIDER_TYPE_CONSOLE, &k_console, sizeof(k_console)},
     {RUNIT_PROVIDER_BLE, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble, sizeof(k_ble)},
     {RUNIT_PROVIDER_BLE_LOGS, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_logs, sizeof(k_ble_logs)},
+    {RUNIT_PROVIDER_BLE_TELEMETRY, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_telemetry, sizeof(k_ble_telemetry)},
 };
 
-// The sessions of the board's own: the console's and the runIT BLE pair's, with the dead-man's default (a safety one
-// when there is a time).
-static const uint8_t k_sessions[] = {RUNIT_PROVIDER_CONSOLE, RUNIT_PROVIDER_BLE};
+// A sub-port of a session and its links: IN, the sub-port to its module's port (what the peer sends: commands, other
+// boards' records and events, entries); OUT, the module's port to the sub-port (what the peer hears).
+#define IN  1u
+#define OUT 2u
+
+typedef struct {
+  uint8_t module;
+  uint8_t ways;
+} sub_row_t;
+
+// The runIT BLE pair (the app): its commands, the errors and the events; logs and telemetry have their own
+// characteristics, raw.
+static const sub_row_t k_ble_subs[] = {
+    {MODULE_ID_ROUTER, IN}, {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT}};
+
+// The console (the app or a board): everything, the logs and the watches' entries too.
+static const sub_row_t k_console_subs[] = {
+    {MODULE_ID_ROUTER, IN},         {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT},
+    {MODULE_ID_WATCH, IN | OUT},    {MODULE_ID_LOG, OUT}};
+
+// A session of the board's own, with the dead-man's default (a safety one when there is a time).
+typedef struct {
+  uint8_t provider;
+  const sub_row_t* subs;
+  uint8_t count;
+} session_row_t;
+
+static const session_row_t k_sessions[] = {
+    {RUNIT_PROVIDER_CONSOLE, k_console_subs, ARRAY_LEN(k_console_subs)},
+    {RUNIT_PROVIDER_BLE, k_ble_subs, ARRAY_LEN(k_ble_subs)},
+};
 #define SESSION_FLAGS (CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS > 0 ? SYS_SESSION_SAFETY : 0u)
-
-// What a session shows: its commands and the modules a peer talks to. Each sub-port is linked to its module's port
-// (what the peer sends: commands, other boards' records and events, entries, remote frames).
-static const uint8_t k_modules[] = {MODULE_ID_ROUTER, MODULE_ID_ERRORS, MODULE_ID_SYS_EVENT, MODULE_ID_WATCH,
-                                    MODULE_ID_REMOTE};
-
-// The streams every session hears: linked from their module's port to the session's sub-port. The watches' entries and
-// the remote frames go to one session by name, with no link.
-static const uint8_t k_streams[] = {MODULE_ID_ERRORS, MODULE_ID_SYS_EVENT};
 
 #define MODULE_PORT(module) DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, (module))
 
 static err_h connect(data_matrix_port_id_t from, data_matrix_port_id_t to) {
   return data_matrix_connect(&(data_matrix_link_t){.from = from, .to = to});
+}
+
+// A session of the board's own: attached with its sub-ports, each linked its ways.
+static err_h attach(const session_row_t* row) {
+  uint8_t modules[CONFIG_SYS_SESSION_PORTS];
+  for (uint32_t m = 0; m < row->count; m++) {
+    modules[m] = row->subs[m].module;
+  }
+  ERR_TRY(sys_session_attach(row->provider, CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS, SESSION_FLAGS, modules, row->count));
+  for (uint32_t m = 0; m < row->count; m++) {
+    const data_matrix_port_id_t sub = SYS_SESSION_PORT(row->provider, row->subs[m].module);
+    const data_matrix_port_id_t module = MODULE_PORT(row->subs[m].module);
+    if (row->subs[m].ways & IN) {
+      ERR_TRY(connect(sub, module));
+    }
+    if (row->subs[m].ways & OUT) {
+      ERR_TRY(connect(module, sub));
+    }
+  }
+  return NULL;
 }
 
 // The board's data (RUNIT.MD "The board's data"): the ports of sys_log and the events, the providers, the sessions and
@@ -72,18 +113,12 @@ err_h runit_data_matrix_setup(void) {
                                             k_providers[i].cfg_len));
   }
   for (uint32_t i = 0; i < ARRAY_LEN(k_sessions); i++) {
-    const uint8_t p = k_sessions[i];
-    ERR_TRY(
-        sys_session_attach(p, CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS, SESSION_FLAGS, k_modules, ARRAY_LEN(k_modules)));
-    for (uint32_t m = 0; m < ARRAY_LEN(k_modules); m++) {
-      ERR_TRY(connect(SYS_SESSION_PORT(p, k_modules[m]), MODULE_PORT(k_modules[m])));
-    }
-    for (uint32_t m = 0; m < ARRAY_LEN(k_streams); m++) {
-      ERR_TRY(connect(MODULE_PORT(k_streams[m]), SYS_SESSION_PORT(p, k_streams[m])));
-    }
+    ERR_TRY(attach(&k_sessions[i]));
   }
-  // The log lines as text to whoever is connected to the BLE logs, with no session.
+  // The raw characteristics, with no session: the log lines as text, the watches' entries as they are.
   ERR_TRY(connect(MODULE_PORT(MODULE_ID_LOG), DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, RUNIT_PROVIDER_BLE_LOGS)));
+  ERR_TRY(connect(MODULE_PORT(MODULE_ID_WATCH),
+                  DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, RUNIT_PROVIDER_BLE_TELEMETRY)));
   // The board's own service: nothing is added or removed after its characteristics.
   ERR_TRY(sys_ble_service_lock(RUNIT_BLE_SERVICE));
   return sys_ble_start(RUNIT_BLE_SERVICE);

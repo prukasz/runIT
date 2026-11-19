@@ -15,7 +15,7 @@
 #include "utils.h"
 
 #define IDLE_TICK_MS  100u
-#define ENTRY_HEAD    2u    // [id][status], then the answer: after the header of a WATCH packet
+#define ENTRY_HEAD    3u    // [owner][id][status], then the answer: after the header of a WATCH packet
 #define ENTRY_MAX     128u  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
 #define PERIOD_MS     ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
 #define PERIOD_TICKS  ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
@@ -100,7 +100,8 @@ static void send_add(uint8_t slot, uint8_t gen, uint8_t board, cmd_in_t read) {
  * Entries in (the driver's RX task), peers gone, reads not read any more
  * ------------------------------------------------------------------------- */
 
-// An entry from a board, [hdr PUSH, MODULE_ID_WATCH][id][status][data]: the board is its src.
+// An entry from a board, [hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]: this board's (`owner`) only; the
+// board is its src.
 static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* packet,
                      uint32_t size) {
   (void)self;
@@ -114,11 +115,11 @@ static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
   const uint8_t src = hdr.src;
   const uint8_t* data = packet + CMD_HEAD;
   const uint32_t len = size - CMD_HEAD;
-  if (data[0] == 0u || data[0] > CONFIG_SYS_WATCH_CLIENT_MAX) {
-    return;
+  if (data[0] != board_id() || data[1] == 0u || data[1] > CONFIG_SYS_WATCH_CLIENT_MAX) {
+    return;  // another's entry, or no watch of this board
   }
-  slot_t* s = &s_cl.slots[data[0] - 1u];
-  const uint8_t status = data[1];
+  slot_t* s = &s_cl.slots[data[1] - 1u];
+  const uint8_t status = data[2];
   const uint32_t n = len - ENTRY_HEAD;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   if (s->state == SLOT_ACTIVE && s->board == src) {  // B3: only after ADD's OK

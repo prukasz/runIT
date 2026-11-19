@@ -25,8 +25,8 @@ MUST_USE err_h sys_watch_remove(uint8_t owner, uint8_t id);
 /** @brief Copies every watch out as LIST sends it; returns how many. */
 uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]);
 
-/** @brief WATCH, DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH): the entries out (sys_watch.c, to an owner's session by
- * name), and in from the boards (sys_watch_client.c). */
+/** @brief WATCH, DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH): the entries out to its links (sys_watch.c), and in from
+ * the boards (sys_watch_client.c). */
 extern data_matrix_port_t sys_watch_port;
 
 /** @brief Starts the cached reads: WATCH, their idle timer and session listeners. Called by sys_watch_init(). */

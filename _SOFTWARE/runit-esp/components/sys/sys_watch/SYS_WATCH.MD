@@ -1,13 +1,13 @@
 # sys_watch
 
-Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers are sent to the peer that added it (`owner`) as PUSH packets out of the module's port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`, 0x2B). The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
+Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers go out of the module's port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`, 0x2B) as PUSH packets with the peer that added it (`owner`), to every port linked from `WATCH`: a session's sub-port, the raw BLE telemetry. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
 
 ## Files
 
 | File | Role |
 |---|---|
 | `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
-| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][id][status][data]` out of `WATCH` to the owner's session), `ERR_MODULE_DEFINE` |
+| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]` out of `WATCH` to its links), `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
 | `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x2B)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
@@ -33,9 +33,9 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 
 ### The entry (a PUSH packet of `WATCH`)
 
-`[hdr PUSH, MODULE_ID_WATCH][id u8][status u8][data ...]`, sent with `data_matrix_send_to(&WATCH, the owner's session's sub-port MODULE_ID_WATCH, ...)` (`sys_session_port`, by name, no link; no open session: `ERR_SESSION_NO_ROUTE`); the client takes the entries on `WATCH`'s input, from the sessions' sub-ports linked to it, and the board is the packet's `src`.
+`[hdr PUSH, MODULE_ID_WATCH][owner u8][id u8][status u8][data ...]`, sent with `data_matrix_send(&WATCH, NOWAIT, ...)` to every port linked from it (the board's own: the console's session sub-port and the raw BLE telemetry, RUNIT.MD; a slave's session by its record); a line that does not take it loses it, the next entry comes with the next read. The client takes the entries on `WATCH`'s input (from the sessions' sub-ports linked to it), its own by `owner`, and the board is the packet's `src`.
 
-- No `owner` byte (it goes to its owner's session).
+- `owner`: the peer that added the watch. An entry goes to every port linked from `WATCH`, so whoever takes it keeps its own by `owner` (this board's client: `owner == board_id()`; the app: its client id).
 - No per-watch sequence number (the `seq` of a PUSH is `sys_session`'s count per `(peer, class)`).
 - `status == ROUTER_STATUS_OK` (`0`): the read's answer.
 - `status == ROUTER_STATUS_ERROR` (`1`): the error record (`err_record_cmd`).
