@@ -84,7 +84,7 @@ Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`
 
   | Thing | Pattern | Example |
   |---|---|---|
-  | Core / system module API | `<module>[_<object>]_<action>` | `router_submit`, `sys_io_set_mode`, `sys_device_call` |
+  | Core / system module API | `<module>[_<object>]_<action>` | `router_inject`, `sys_io_set_mode`, `sys_device_call` |
   | Router op numbers | `<MODULE>_OP_<NAME>` / `VM_OP_<NAME>` | `VM_OP_DATA`, `SYS_SYSTEM_OP_RESTART` |
   | VM API | `vm_<part>_<action>` | `vm_exec_stop`, `vm_loader_add_accessor` |
   | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_PROTECTION` |

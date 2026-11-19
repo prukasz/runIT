@@ -260,7 +260,9 @@ static err_h on_ignore(void* ctx, const cmd_req_t* cmd, uint8_t status, const ui
 static void send_subscription(uint8_t board, uint8_t remote_id, uint8_t op) {
   const uint8_t req[] = {MODULE_ID_REMOTE, CMD_DIR_WRITE, op, remote_id};
   const router_done_f done = op == REMOTE_OP_SUBSCRIBE ? on_subscribed : on_ignore;
-  err_free(sys_session_call(board, (cmd_in_t){req, sizeof(req)}, 0, 0, done, (void*)(uintptr_t)board));
+  data_matrix_port_id_t port = 0;
+  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
+  err_free(err != NULL ? err : router_request(port, (cmd_in_t){req, sizeof(req)}, 0, 0, done, (void*)(uintptr_t)board));
 }
 
 /* A frame come in, on the task: the event is published and the error reported as the remote device's local id, so
@@ -400,12 +402,16 @@ static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cm
   const uint8_t board = where->board;
   const bool read = dir == CMD_DIR_READ;
   out->len = 0;
+  data_matrix_port_id_t port = 0;
   if ((where->flags & SYS_DEVICE_REMOTE_WIRED) && wired_now(board)) {
     // Every call waits for its answer: a read's value is of this pass, a write's error comes at once.
     uint8_t answer[ANSWER_MAX];
     uint32_t answer_len = 0;
-    err_h err = read ? sys_session_call_wait(board, req, 0, 0, out->data, out->cap, &out->len)
-                     : sys_session_call_wait(board, req, 0, 0, answer, sizeof(answer), &answer_len);
+    err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
+    if (err == NULL) {
+      err = read ? router_request_wait(port, req, 0, 0, out->data, out->cap, &out->len)
+                 : router_request_wait(port, req, 0, 0, answer, sizeof(answer), &answer_len);
+    }
     if (err == NULL && !read) {
       sys_watch_stale(board, req, DEV_TARGET);
     }
@@ -414,7 +420,11 @@ static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cm
   if (read) {
     return down(sys_watch_read(board, req, out->data, out->cap, &out->len), board, where->remote_id);
   }
-  return down(sys_session_call(board, req, 0, 0, on_write_done, (void*)(uintptr_t)board), board, where->remote_id);
+  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
+  if (err == NULL) {
+    err = router_request(port, req, 0, 0, on_write_done, (void*)(uintptr_t)board);
+  }
+  return down(err, board, where->remote_id);
 }
 
 /* ----------------------------------------------------------------------------

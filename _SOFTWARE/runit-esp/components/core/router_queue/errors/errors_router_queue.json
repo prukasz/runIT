@@ -28,10 +28,6 @@
     },
     "ERR_REMOTE": {
       "message": "On board {board}"
-    },
-    "ERR_ROUTER_WOULD_BLOCK": {
-      "message": "A wait for an answer was asked where nothing may wait",
-      "hint": "A firmware fault: report it."
     }
   }
 }

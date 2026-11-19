@@ -33,8 +33,8 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 | Call | `WIRED` (a neighbour on a wired link) | `WIRELESS` |
 |---|---|---|
-| read | `sys_session_call_wait`, every read: the answer in this pass, never a copy | `sys_watch_read(board, req, ...)`: the first read makes an ON_CHANGE watch of it by itself; every read then takes its latest value; before the first entry `ERR_WATCH_NO_VALUE`, a copy too old `ERR_WATCH_STALE` (the VM takes both as "later") (SYS_WATCH.MD "Cached reads") |
-| write | `sys_session_call_wait`: its error at once | `sys_session_call`, not waited for: its answer comes on the RX task, an ERROR reported as the device's (`ERR_DEV_ID` over `ERR_REMOTE` over that board's chain) |
+| read | `router_request_wait`, every read: the answer in this pass, never a copy | `sys_watch_read(board, req, ...)`: the first read makes an ON_CHANGE watch of it by itself; every read then takes its latest value; before the first entry `ERR_WATCH_NO_VALUE`, a copy too old `ERR_WATCH_STALE` (the VM takes both as "later") (SYS_WATCH.MD "Cached reads") |
+| write | `router_request_wait`: its error at once | `router_request`, not waited for: its answer comes on the RX task, an ERROR reported as the device's (`ERR_DEV_ID` over `ERR_REMOTE` over that board's chain) |
 
 - After an OK write, in both ways, `sys_watch_stale(board, req, 1)` marks the copies of that device old and reads each again at once: a read after a write does not take a value from before it.
 - `WIRED` with the way not wired now (`sys_session_wired`): the call goes the other way, and that is reported once per board until the way is wired again, `ERR_REMOTE_NOT_WIRED{board}` by `err_report_board`: the program's timing has changed.
@@ -83,7 +83,7 @@ The ops and the frame are in `sys_remote_router.h`; `contract_remote.json` names
 
 - **sys_device**: the remote record, the hook, `sys_device_find_remote`, `sys_device_remote_of`, the `CREATED` event (SYS_DEVICE.MD).
 - **sys_device_policy**: its walk of a chain ends at `ERR_REMOTE`.
-- **sys_session**: calls, the wait, `sys_session_wired`, `sys_session_route` and `sys_session_peer` (the peer and its provider), the gone and reached events (SYS_SESSION.MD); **data_matrix**: the channel `SYS_REMOTE_CHANNEL` in and out (DATA_MATRIX.MD).
+- **router_queue**: the calls and the wait (`router_request`, ROUTER_QUEUE.MD "Calls"); **sys_session**: `sys_session_port` (the port of a board's commands), `sys_session_wired`, `sys_session_peer`, the gone and reached events (SYS_SESSION.MD); **data_matrix**: the channel `SYS_REMOTE_CHANNEL` in and out (DATA_MATRIX.MD).
 - **sys_watch**: `sys_watch_read`, `sys_watch_stale` (SYS_WATCH.MD "Cached reads").
 - **sys_event**: `sys_event_subscribe`, `sys_event_publish`.
 - **errors**: `err_record`, `err_record_parse`, `err_report_board`.

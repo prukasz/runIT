@@ -79,7 +79,7 @@ On the driver's RX task: the session is open (else NO_SESSION); then the command
 
 ## The board's own calls
 
-`sys_session_call(dst, req, flags, timeout_ms, cb, ctx)` and `sys_session_call_wait` are the router's calls (ROUTER_QUEUE.MD "Calls") to a board by its id: this board (its id or `CMD_SRC_SELF`) is `ROUTER_PORT`, another the command sub-port of the open session with it (`ERR_SESSION_NO_ROUTE` when there is none). The slots, the timeouts, the wait and their errors are the router's.
+The board's calls are the router's (`router_request`, `_wait`, ROUTER_QUEUE.MD "Calls"). `sys_session_port(peer, module, &port)` gives the port to call: the sub-port of `module` of the open session with `peer` (`MODULE_ID_ROUTER`: its commands; `ERR_SESSION_NO_ROUTE` when no session is open with it). The slots, the timeouts, the wait and their errors are the router's.
 
 `sys_session_wired(board)` says whether a call to a peer leaves on a wired provider now (its session's provider is `STATE_WIRED`): a remote device with `WIRED` waits for its answers only then (`sys_remote`).
 
@@ -128,5 +128,5 @@ On a board: `python runit-esp/tools/session_client.py <COM port>` opens a sessio
 ## Open
 
 - Two boards on a UART are not run on hardware yet.
-- The code is behind the router and its header: `sys_session.c` still calls the removed `call/` (its answers, its tick, the end of a session) and has no `sys_session_call` / `_wait` over `router_request`; it still writes the old frame (the header's `frame` field, the hello's `id`) and takes a session as open by its peer's id not being `CMD_SRC_NONE`, which a board with no id is; both go with the session's rewrite as ports (below).
+- The code is behind the router and its header: `sys_session.c` still calls the removed `call/` (its answers, its tick, the end of a session) and the router's former `router_submit`, keeps `sys_session_route` and has no `sys_session_port`; it still writes the old frame (the header's `frame` field, the hello's `id`) and takes a session as open by its peer's id not being `CMD_SRC_NONE`, which a board with no id is; both go with the session's rewrite as ports (below).
 - The session as ports of the data matrix (its port linked with its provider, a command sub-port to the router, a sub-port per stream module, `ATTACH` / `DETACH` as its commands, the calls moved to the router, the 5-byte header `[type][src][key][seq]` with board ids from `0x01`): DATA_MATRIX.MD "The design to build".

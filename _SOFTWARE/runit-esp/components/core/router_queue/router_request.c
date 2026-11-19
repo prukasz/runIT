@@ -1,7 +1,7 @@
 /**
  * @file router_request.c
- * @brief This board's calls (router_queue.h, ROUTER_QUEUE.MD "Calls"): a command to this board (router_inject) or out
- * of the router's port to a port linked from it, its answer to a callback, its timeout, the wait.
+ * @brief This board's calls (router_queue.h, ROUTER_QUEUE.MD "Calls"): a command out of the router's port to a port
+ * linked from it, its answer to a callback, its timeout, the wait.
  */
 
 #include <string.h>
@@ -161,9 +161,6 @@ static err_h call_out(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uin
 
 err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
                      void* ctx) {
-  if (to == ROUTER_PORT) {
-    return router_inject(req, flags, cb, ctx);
-  }
   uint16_t seq = 0;
   return call_out(to, req, flags, timeout_or_default(timeout_ms), cb, ctx, &seq);
 }
@@ -217,21 +214,16 @@ static bool wait_flag(const waiter_t* w, TickType_t limit) {
 
 err_h router_request_wait(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, void* buf,
                           uint32_t cap, uint32_t* len) {
+  /* The timer ends the call in its time; a waiter on a task that timer or the answer needs (the board timers' task, the
+   * RX task of the link) ends it itself, a margin later. */
   waiter_t w = {.task = xTaskGetCurrentTaskHandle(), .buf = buf, .cap = cap, .len = len};
-  if (to == ROUTER_PORT) {
-    ERR_CHECK(!router_is_task(), ERR_ROUTER_WOULD_BLOCK);  // the router would wait for itself
-    ERR_TRY(router_inject(req, flags, wait_done, &w));
-  } else {
-    /* The timer ends the call in its time; a waiter on a task that timer or the answer needs (the board timers' task,
-     * the RX task of the link) ends it itself, a margin later. */
-    const uint32_t ms = timeout_or_default(timeout_ms);
-    uint16_t seq = 0;
-    call_t call;
-    ERR_TRY(call_out(to, req, flags, ms, wait_done, &w, &seq));
-    if (!wait_flag(&w, MSEC(ms + WAIT_MARGIN_MS)) && take_call(BY_SEQ, to, seq, &call)) {
-      return ERR_NEW(ERR_ROUTER_CALL_TIMEOUT, .port = to, .seq = seq);  // taken out here: no callback touches `w`
-    }
+  const uint32_t ms = timeout_or_default(timeout_ms);
+  uint16_t seq = 0;
+  call_t call;
+  ERR_TRY(call_out(to, req, flags, ms, wait_done, &w, &seq));
+  if (!wait_flag(&w, MSEC(ms + WAIT_MARGIN_MS)) && take_call(BY_SEQ, to, seq, &call)) {
+    return ERR_NEW(ERR_ROUTER_CALL_TIMEOUT, .port = to, .seq = seq);  // taken out here: no callback touches `w`
   }
-  (void)wait_flag(&w, portMAX_DELAY);  // the router always answers; a call's end under way on another task says done
+  (void)wait_flag(&w, portMAX_DELAY);  // a call's end under way on another task says done
   return w.err;
 }

@@ -47,7 +47,9 @@ data_matrix_port_t router_port = {.id = ROUTER_PORT, .in = port_in};
  * Reporting
  * ------------------------------------------------------------------------- */
 
-void router_report_cmd(const cmd_req_t* cmd, err_h err) {
+// Ends a command's chain: logged with the command ("cmd src f0 seq 7 flags 00 req 02 02 00") and handed to the error
+// sink with it (its record on the errors stream).
+static void report_cmd(const cmd_req_t* cmd, err_h err) {
   char ctx[48 + 3 * CONFIG_ERRORS_RECORD_REQ_MAX + 4];
   int pos = snprintf(ctx, sizeof(ctx), "cmd src %02x seq %u flags %02x req", cmd->src, cmd->seq, cmd->flags);
   uint32_t shown = cmd->req_len < CONFIG_ERRORS_RECORD_REQ_MAX ? cmd->req_len : CONFIG_ERRORS_RECORD_REQ_MAX;
@@ -61,7 +63,7 @@ void router_report_cmd(const cmd_req_t* cmd, err_h err) {
 }
 
 /* ----------------------------------------------------------------------------
- * Queue: router_submit and router_inject
+ * Queue: router_inject
  * ------------------------------------------------------------------------- */
 
 // Wakes the urgent task: a command in its ring, or a fn to run. Not started yet: it takes both when it starts.
@@ -94,22 +96,16 @@ static err_h enqueue(const item_t* item, const uint8_t* key, const uint8_t* req,
   return NULL;
 }
 
-err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx) {
-  ERR_CHECK(cmd != NULL && cmd->req != NULL, ERR_CMD_BAD_ARG);
-  const item_t item = {.done = done, .ctx = ctx, .seq = cmd->seq, .src = cmd->src, .flags = cmd->flags};
-  return enqueue(&item, NULL, cmd->req, cmd->req_len);
-}
-
 err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) {
-  ERR_CHECK(req.data != NULL && req.len > 0, ERR_CMD_BAD_ARG);
-  const cmd_req_t cmd = {
-      .req = req.data,
-      .req_len = req.len,
+  ERR_CHECK(req.data != NULL, ERR_CMD_BAD_ARG);
+  const item_t item = {
+      .done = done,
+      .ctx = ctx,
       .seq = __atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
       .src = CMD_SRC_SELF,
       .flags = flags,
   };
-  return router_submit(&cmd, done, ctx);
+  return enqueue(&item, NULL, req.data, req.len);
 }
 
 /* ----------------------------------------------------------------------------
@@ -142,7 +138,7 @@ static void reject(data_matrix_port_id_t to, const cmd_hdr_t* hdr, const uint8_t
     answer_head(frame, hdr->key, hdr->seq, ROUTER_STATUS_ERROR, flags);
     (void)data_matrix_send_to(&router_port, to, CMD_SEND_NOWAIT | (flags & CMD_SEND_URGENT), frame, CMD_HEAD + rec);
   }
-  router_report_cmd(&cmd, err);
+  report_cmd(&cmd, err);
 }
 
 // A frame for the router: a REQUEST is queued, an ANSWER ends this board's call; anything else is not the router's.
@@ -216,7 +212,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
     if (item.done != NULL) {
       err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
       if (lost != NULL) {
-        router_report_cmd(&cmd, lost);
+        report_cmd(&cmd, lost);
       }
     } else {  // waits for room on the way back, at most the provider's bound; what is not taken is lost
       answer_head(buf, cmd.req[0], cmd.seq, status, item.flags);
@@ -224,7 +220,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
     }
   }
   if (err != NULL) {
-    router_report_cmd(&cmd, err);
+    report_cmd(&cmd, err);
   }
 }
 

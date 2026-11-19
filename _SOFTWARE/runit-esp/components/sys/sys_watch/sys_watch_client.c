@@ -87,7 +87,12 @@ static void send_add(uint8_t slot, uint8_t gen, uint8_t board, cmd_in_t read) {
   memcpy(req + 3u, &head, sizeof(head));
   memcpy(req + 3u + sizeof(head), read.data, read.len);
   void* ctx = (void*)((uintptr_t)slot | ((uintptr_t)gen << 8));
-  err_free(sys_session_call(board, (cmd_in_t){req, 3u + sizeof(head) + read.len}, 0, 0, on_added, ctx));
+  data_matrix_port_id_t port = 0;
+  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
+  if (err == NULL) {
+    err = router_request(port, (cmd_in_t){req, 3u + sizeof(head) + read.len}, 0, 0, on_added, ctx);
+  }
+  err_free(err);
 }
 
 /* ----------------------------------------------------------------------------
@@ -149,7 +154,9 @@ static void on_idle_tick(void* arg) {
     xSemaphoreGive(sys_watch_client_mutex);
     if (idle) {
       const uint8_t req[] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_REMOVE, (uint8_t)(s - s_cl.slots + 1)};
-      err_free(sys_session_call(board, (cmd_in_t){req, sizeof(req)}, 0, 0, NULL, NULL));
+      data_matrix_port_id_t port = 0;
+      err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
+      err_free(err != NULL ? err : router_request(port, (cmd_in_t){req, sizeof(req)}, 0, 0, NULL, NULL));
     }
   }
 }

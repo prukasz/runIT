@@ -15,7 +15,7 @@ extern "C" {
 
 /* The commands of this board with their origin and their answers: the queue and the two tasks that run them (the work
  * task and the urgent one), the router's port in the data matrix, and this board's calls. A command comes from the
- * port (a frame, answered to the port it came from) or from C (router_submit, router_inject: answered to a callback,
+ * port (a frame, answered to the port it came from) or from this board's C (router_inject: answered to a callback,
  * router_done_f). The routing itself, the handler type and the op tables are router.h's. ROUTER_QUEUE.MD. */
 
 /* ----------------------------------------------------------------------------
@@ -74,19 +74,9 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t
                                         uint32_t len);
 
 /**
- * @brief Queues one command: `cmd` and its request are copied, so both may go after the call. Never blocks; any task
- * but an ISR, a provider driver's RX task too.
- * @param[in] cmd  The origin (src, seq, flags) and the request ([key][dir][...], 2..CMD_DATA_MAX bytes).
- * @param[in] done Where its answer goes; NULL: nowhere (a failure is reported only).
- * @param[in] ctx  Given to `done`.
- * @return NULL when queued; ERR_ROUTER_FRAME_LEN, ERR_ROUTER_QUEUE_FULL: not queued, the caller answers it.
- */
-MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx);
-
-/**
- * @brief Queues a command of the board itself: router_submit with src CMD_SRC_SELF and seq from the router's own
- * counter (the actions, the project's start, a call of the board to itself).
- * @param[in] req   [key][dir][...].
+ * @brief Queues a command of the board itself, copied (`req` may go after the call), with src CMD_SRC_SELF and seq from
+ * the router's own counter (the actions, the project's start, a watch's read). Never blocks; any task but an ISR.
+ * @param[in] req   [key][dir][...], 2..CMD_DATA_MAX + 1 bytes.
  * @param[in] flags ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.
  * @param[in] done  Where its answer goes; NULL: nowhere.
  * @param[in] ctx   Given to `done`.
@@ -94,46 +84,34 @@ MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx
  */
 MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx);
 
-/**
- * @brief Ends a command's chain: logged with the command ("cmd src f0 seq 7 flags 00 req 02 02 00") and handed to the
- * error sink with it (its record on the errors stream). For a command the router refused, by whoever answers it.
- * @param[in] cmd The command
- * @param[in] err The chain that ended it
- */
-void router_report_cmd(const cmd_req_t* cmd, err_h err);
-
 /* ----------------------------------------------------------------------------
  * This board's calls: a command run on this board or out of the router's port, its answer to a callback
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Runs a command and calls `cb` with its answer, as for a command the router ran: one way to run a command with
- * its answer, here or on the other end of a link. Never blocks, any task (a device op too).
- *  - `to` ROUTER_PORT, this board: router_inject(); the answer on the router task, no timeout.
- *  - Else a port linked from the router's (a session's command sub-port): a call slot keeps it under a new seq and the
- *    request goes out (NOWAIT) until its answer, on the task that brings it, ends the call. An ERROR's record has
- *    ERR_REMOTE{board, seq} before that board's chain. No answer in the timeout: ERROR with this board's record of
+ * @brief Runs a command at the other end of a link and calls `cb` with its answer, as for a command the router ran.
+ * Never blocks, any task (a device op too). A call slot keeps it under a new seq and the request goes out of the
+ * router's port to `to` (NOWAIT) until its answer, on the task that brings it, ends the call. An ERROR's record has
+ * ERR_REMOTE{board, seq} before that board's chain. No answer in the timeout: ERROR with this board's record of
  *    ERR_ROUTER_CALL_TIMEOUT; router_request_fail_to(to): of ERR_ROUTER_CALL_DOWN (on the board timers' task, or the
  *    caller's of router_request_fail_to).
  * Every call out is answered. `cb`'s cmd is the call: its request (the first CONFIG_ERRORS_RECORD_REQ_MAX bytes), its
  * seq, src CMD_SRC_SELF.
- * @param[in] to         ROUTER_PORT, or the port the request goes to.
+ * @param[in] to         A port linked from the router's (a session's command sub-port, sys_session_port).
  * @param[in] req        The command: [key][dir][code | id + op][args], 2..CMD_DATA_MAX + 1 bytes (the key goes into
  *                       the header).
  * @param[in] flags      ROUTER_FLAG_URGENT, or 0.
  * @param[in] timeout_ms Without an answer this long: ERR_ROUTER_CALL_TIMEOUT; 0: CONFIG_ROUTER_CALL_TIMEOUT_MS.
  * @param[in] cb         The answer; NULL: nobody wants it.
  * @param[in] ctx        Given to `cb`.
- * @return NULL when sent; ERR_CMD_BAD_ARG, ERR_ROUTER_CALLS_FULL, ERR_ROUTER_NO_LINK, or (to this board) what
- *         router_inject returns.
+ * @return NULL when sent; ERR_CMD_BAD_ARG, ERR_ROUTER_CALLS_FULL, ERR_ROUTER_NO_LINK.
  */
 MUST_USE err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms,
                               router_done_f cb, void* ctx);
 
 /**
  * @brief router_request, waited for: the caller's task sleeps until the call ends, at most its timeout and a margin of
- * its own, so a wait never hangs, also on a task the answer or the timer would need. Not to this board on a router
- * task.
+ * its own, so a wait never hangs, also on a task the answer or the timer would need.
  * @param[in]  to         As router_request.
  * @param[in]  req        As router_request.
  * @param[in]  flags      As router_request.
@@ -142,8 +120,7 @@ MUST_USE err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t fl
  * @param[in]  cap        Bytes `buf` holds.
  * @param[out] len        The answer's bytes.
  * @return NULL with the answer; its error: ERR_REMOTE{board, seq} over that board's chain, ERR_ROUTER_CALL_TIMEOUT /
- *         _CALL_DOWN, ERR_CMD_BAD_LEN (longer than `cap`), ERR_ROUTER_WOULD_BLOCK (to this board on a router task), or
- *         what router_request returns.
+ *         _CALL_DOWN, ERR_CMD_BAD_LEN (longer than `cap`), or what router_request returns.
  */
 MUST_USE err_h router_request_wait(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms,
                                    void* buf, uint32_t cap, uint32_t* len);

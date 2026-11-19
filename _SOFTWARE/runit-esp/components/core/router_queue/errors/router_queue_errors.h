@@ -16,7 +16,6 @@
   X(M, ERR_ROUTER_NO_LINK,      5, ERR_SEV_MEDIUM, { uint16_t port; }) /* a call to a port not linked from the router's */            \
   X(M, ERR_ROUTER_CALL_TIMEOUT, 6, ERR_SEV_MEDIUM, { uint16_t port; uint16_t seq; }) /* a call without an answer */                    \
   X(M, ERR_ROUTER_CALL_DOWN,    7, ERR_SEV_MEDIUM, { uint16_t port; }) /* the link the call went out on ended */                       \
-  X(M, ERR_REMOTE,              8, ERR_SEV_NONE,   { uint8_t board; uint16_t seq; }) /* context: the chain below is that board's */    \
-  X(M, ERR_ROUTER_WOULD_BLOCK,  9, ERR_SEV_HIGH,   {}) /* call_wait to this board on a router task: it would wait for itself */
+  X(M, ERR_REMOTE,              8, ERR_SEV_NONE,   { uint8_t board; uint16_t seq; }) /* context: the chain below is that board's */
 
 ERR_TAGS_DECLARE(MODULE_ID_ROUTER_QUEUE, ERR_ROUTER_QUEUE_MAP)

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "cmd.h"
+#include "data_matrix.h"
 #include "errors.h"
 #include "router_queue.h"
 #include "sys_data_provider.h"
@@ -17,7 +18,7 @@
  * to the peer on the provider it came on, and nowhere else. It has no task and no queue of its own: the driver's RX
  * task and the board timers' task. Code knows a peer by its id, from its hello: a board id or a client id.
  * @usage ERR_TRY(sys_session_attach(provider, 0));
- *        ERR_TRY(sys_session_call(1, req, 0, 0, on_answer, ctx));
+ *        ERR_TRY(sys_session_port(1, MODULE_ID_ROUTER, &port));
  */
 
 #ifdef __cplusplus
@@ -100,12 +101,14 @@ MUST_USE err_h sys_session_init(void);
 uint8_t sys_session_get_board_id(void);
 
 /**
- * @brief The provider of the open session with `peer`.
- * @param[in]  peer     A peer's id
- * @param[out] provider The provider
- * @return false when no open session has that peer
+ * @brief A port of the open session with `peer`: its sub-port of `module` (MODULE_ID_ROUTER: its commands, where this
+ * board's calls to `peer` go with router_request; a stream's module).
+ * @param[in]  peer   A peer's id
+ * @param[in]  module A module's number
+ * @param[out] port   The port
+ * @return NULL; ERR_SESSION_NO_ROUTE{dst} when no open session has that peer
  */
-bool sys_session_route(uint8_t peer, uint8_t* provider);
+MUST_USE err_h sys_session_port(uint8_t peer, uint8_t module, data_matrix_port_id_t* port);
 
 /** @brief The peer of the open session on `provider`; CMD_SRC_NONE when it has none or it is not open. */
 uint8_t sys_session_peer(uint8_t provider);
@@ -159,35 +162,6 @@ uint32_t sys_session_deadman_get(uint8_t peer);
 /* ----------------------------------------------------------------------------
  * Calls
  * ------------------------------------------------------------------------- */
-
-/**
- * @brief router_request to a board by its id: this board (its id or CMD_SRC_SELF) is ROUTER_PORT, another the command
- * sub-port of the open session with it (router_queue.h, ROUTER_QUEUE.MD "Calls").
- * @param[in] dst        A peer's id, this board's included.
- * @param[in] req        As router_request: [key][dir][code | id + op][args].
- * @param[in] flags      ROUTER_FLAG_URGENT, or 0.
- * @param[in] timeout_ms As router_request.
- * @param[in] cb         As router_request.
- * @param[in] ctx        Given to `cb`.
- * @return NULL when sent; ERR_SESSION_NO_ROUTE (no open session with `dst`), or what router_request returns.
- */
-MUST_USE err_h sys_session_call(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
-                                void* ctx);
-
-/**
- * @brief router_request_wait to a board by its id, as sys_session_call. For configuration (the flasher, a board's setup)
- * and for a remote device.
- * @param[in]  dst        A peer's id, this board's included.
- * @param[in]  req        As router_request.
- * @param[in]  flags      ROUTER_FLAG_URGENT, or 0.
- * @param[in]  timeout_ms As router_request.
- * @param[out] buf        The answer.
- * @param[in]  cap        Bytes `buf` holds.
- * @param[out] len        The answer's bytes.
- * @return NULL with the answer; ERR_SESSION_NO_ROUTE, or what router_request_wait returns.
- */
-MUST_USE err_h sys_session_call_wait(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, void* buf,
-                                     uint32_t cap, uint32_t* len);
 
 /**
  * @brief Sends a command on every open session (STOP, the time), never answered. The board that makes it does not run
