@@ -1,17 +1,14 @@
 #include "runit_connectivity.h"
 
-#include "data_matrix.h"
 #include "errors_id.h"
 #include "provider_ble.h"
 #include "provider_console.h"
-#include "router_queue.h"
+#include "router_id.h"
 #include "runit_ids.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_data_provider.h"
 #include "sys_event_id.h"
-#include "sys_event_stream.h"
-#include "sys_log.h"
 #include "sys_log_id.h"
 #include "sys_session.h"
 #include "sys_watch_id.h"
@@ -101,12 +98,9 @@ static err_h attach(const session_row_t* row) {
   return NULL;
 }
 
-// The board's data (RUNIT.MD "The board's data"): the ports of sys_log and the events, the providers, the sessions and
-// their links, then BLE, once its characteristics are in the table. The router's, the watches' and the remote devices'
-// ports are registered by their modules before.
+// The board's data (RUNIT.MD "The board's data"): the providers, the sessions and their links, then BLE, once its
+// characteristics are in the table. The modules' ports are registered by their modules before (runit.c).
 err_h runit_data_matrix_setup(void) {
-  ERR_TRY(sys_log_init());
-  ERR_TRY(sys_event_stream_init());
   ERR_TRY(sys_ble_service_create(RUNIT_BLE_SERVICE, true));  // the providers' characteristics join it
   for (uint32_t i = 0; i < ARRAY_LEN(k_providers); i++) {
     ERR_TRY(sys_data_provider_create_system(k_providers[i].id, k_providers[i].type, k_providers[i].cfg,

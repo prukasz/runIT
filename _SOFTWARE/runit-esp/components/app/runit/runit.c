@@ -15,6 +15,7 @@
 #include "sys_device.h"
 #include "sys_device_policy.h"
 #include "sys_event.h"
+#include "sys_event_stream.h"
 #include "sys_log.h"
 #include "sys_remote.h"
 #include "sys_session.h"
@@ -45,8 +46,11 @@ void runit_start(void) {
   err_report(sys_event_init());
   err_report(sys_device_policy_init());
   err_report(sys_session_init());
-  err_report(sys_watch_init());   // its port before the links to it
-  err_report(sys_remote_init());  // its port before the links to it
+  // The modules' ports before the links to them.
+  err_report(sys_log_init());
+  err_report(sys_event_stream_init());
+  err_report(sys_watch_init());
+  err_report(sys_remote_init());
   err_report(runit_data_matrix_setup());
   err_set_sink(error_sink);
   err_report(sys_system_init());
