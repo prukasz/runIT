@@ -26,7 +26,7 @@
 #include "unity.h"
 
 #define FRAME SYS_SESSION_FRAME
-#define FRAME_KIND SYS_SESSION_FRAME_KIND_OF
+#define FRAME_KIND CMD_KIND_OF
 
 #define ASSERT_ERR(call, tag)       \
   do {                              \
@@ -223,7 +223,7 @@ static bool next_kind(fake_t* f, uint8_t want_kind, sent_t* out, int ms) {
     if (!next_sent(f, &m, (int)(end - now))) {
       return false;
     }
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)m.data;
+    const cmd_hdr_t* h = (const cmd_hdr_t*)m.data;
     if (FRAME_KIND(h->frame) == want_kind) {
       *out = m;
       return true;
@@ -236,7 +236,7 @@ static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t
   (void)dst;
   (void)src;
   uint8_t buf[CMD_FRAME_MAX];
-  const sys_session_hdr_t hdr = {.frame = frame, .seq = seq};
+  const cmd_hdr_t hdr = {.frame = frame, .seq = seq};
   memcpy(buf, &hdr, sizeof(hdr));
   if (body_len > 0u) {
     memcpy(buf + sizeof(hdr), body, body_len);
@@ -250,18 +250,18 @@ static void send_hello(fake_t* f, uint8_t from, uint32_t boot, uint16_t timeout)
   uint8_t body[1 + sizeof(h)];
   body[0] = SYS_SESSION_HELLO;
   memcpy(body + 1, &h, sizeof(h));
-  deliver(f, FRAME(SYS_SESSION_CONTROL), BOARD, from, 0, body, sizeof(body));
+  deliver(f, FRAME(CMD_CONTROL), BOARD, from, 0, body, sizeof(body));
 }
 
 static uint16_t s_seq = 100u;
 
 static sent_t call_over(fake_t* f, uint8_t dst, uint8_t src, const void* req, uint32_t len) {
   const uint16_t seq = ++s_seq;
-  deliver(f, FRAME(SYS_SESSION_REQUEST), dst, src, seq, req, len);
+  deliver(f, FRAME(CMD_REQUEST), dst, src, seq, req, len);
   sent_t m;
   while (true) {
-    TEST_ASSERT_TRUE(next_kind(f, SYS_SESSION_ANSWER, &m, WAIT_MS));
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)m.data;
+    TEST_ASSERT_TRUE(next_kind(f, CMD_ANSWER, &m, WAIT_MS));
+    const cmd_hdr_t* h = (const cmd_hdr_t*)m.data;
     if (h->seq == seq) {
       return m;
     }
@@ -276,11 +276,11 @@ static bool next_watch_push(fake_t* f, uint8_t* id, uint8_t* status, uint8_t* pa
       return false;
     }
     sent_t m;
-    if (!next_kind(f, SYS_SESSION_PUSH, &m, (int)(end - now))) {
+    if (!next_kind(f, CMD_PUSH, &m, (int)(end - now))) {
       return false;
     }
-    const uint8_t* b = m.data + sizeof(sys_session_hdr_t);
-    const uint32_t blen = m.len - sizeof(sys_session_hdr_t);
+    const uint8_t* b = m.data + sizeof(cmd_hdr_t);
+    const uint32_t blen = m.len - sizeof(cmd_hdr_t);
     if (blen >= 3u && b[0] == SYS_WATCH_CHANNEL) {
       *id = b[1];
       *status = b[2];
@@ -305,8 +305,8 @@ static void open_sessions(void) {
   send_hello(&s_up, CLIENT, 0xAAAA0001u, 1500u);
   send_hello(&s_down, SLAVE, 0xBBBB0002u, 1500u);
   sent_t m;
-  TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_CONTROL, &m, WAIT_MS));
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_up, CMD_CONTROL, &m, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_CONTROL, &m, WAIT_MS));
   fake_clear(&s_up);
   fake_clear(&s_down);
 }
@@ -353,8 +353,8 @@ void test_server_add_validation_and_list(void) {
   h.trigger = 9;
   ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_WATCH_BAD_ARG);
   h.trigger = SYS_WATCH_PERIODIC;
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, SYS_SESSION_ID_SELF), ERR_WATCH_BAD_ARG);
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, SYS_SESSION_ID_BROADCAST), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_SELF), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_ALL), ERR_WATCH_BAD_ARG);
 
   const uint8_t too_long[SYS_WATCH_READ_MAX + 1u] = {MODULE_ID_TESTW, CMD_DIR_READ};
   ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){too_long, sizeof(too_long)}, CLIENT), ERR_WATCH_BAD_ARG);
@@ -395,8 +395,8 @@ void test_server_periodic_and_router_no_owner(void) {
   memcpy(req + 3 + sizeof(head), k_val_read, sizeof(k_val_read));
 
   const sent_t ans = call_over(&s_up, BOARD, CLIENT, req, sizeof(req));
-  const sys_session_hdr_t* ah = (const sys_session_hdr_t*)ans.data;
-  TEST_ASSERT_EQUAL_UINT8(0u, ah->frame & SYS_SESSION_FRAME_STATUS);
+  const cmd_hdr_t* ah = (const cmd_hdr_t*)ans.data;
+  TEST_ASSERT_EQUAL_UINT8(0u, ah->frame & CMD_TYPE_STATUS);
 
   uint8_t id = 0;
   uint8_t status = 0;
@@ -413,8 +413,8 @@ void test_server_periodic_and_router_no_owner(void) {
   // LIST via router
   const uint8_t list_req[] = {MODULE_ID_WATCH, CMD_DIR_READ, WATCH_OP_LIST};
   const sent_t lans = call_over(&s_up, BOARD, CLIENT, list_req, sizeof(list_req));
-  const sys_session_hdr_t* lh = (const sys_session_hdr_t*)lans.data;
-  TEST_ASSERT_EQUAL_UINT8(0u, lh->frame & SYS_SESSION_FRAME_STATUS);
+  const cmd_hdr_t* lh = (const cmd_hdr_t*)lans.data;
+  TEST_ASSERT_EQUAL_UINT8(0u, lh->frame & CMD_TYPE_STATUS);
   const uint8_t* lbody = lans.data + sizeof(*lh);
   TEST_ASSERT_EQUAL_UINT32(1u + sizeof(sys_watch_info_t), lans.len - sizeof(*lh));
   TEST_ASSERT_EQUAL_UINT8(1, lbody[0]);
@@ -422,8 +422,8 @@ void test_server_periodic_and_router_no_owner(void) {
   // REMOVE via router
   const uint8_t rem_req[] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_REMOVE, 7};
   const sent_t rans = call_over(&s_up, BOARD, CLIENT, rem_req, sizeof(rem_req));
-  const sys_session_hdr_t* rh = (const sys_session_hdr_t*)rans.data;
-  TEST_ASSERT_EQUAL_UINT8(0u, rh->frame & SYS_SESSION_FRAME_STATUS);
+  const cmd_hdr_t* rh = (const cmd_hdr_t*)rans.data;
+  TEST_ASSERT_EQUAL_UINT8(0u, rh->frame & CMD_TYPE_STATUS);
 }
 
 void test_server_on_change_silence_and_error_recovery(void) {
@@ -490,15 +490,15 @@ void test_server_a_gone_peer_takes_its_watches(void) {
   TEST_ASSERT_NULL(attach(DOWN_ID));
   send_hello(&s_down, SLAVE, 0xBBBB0003u, 1500u);
   sent_t m;
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_CONTROL, &m, WAIT_MS));
   fake_clear(&s_down);
 }
 
 /* Helper to expect WATCH ADD frame from client on s_down and extract its id + req */
 static uint16_t expect_client_add(uint8_t* watch_id) {
   sent_t m;
-  while (next_kind(&s_down, SYS_SESSION_REQUEST, &m, WAIT_MS)) {
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)m.data;
+  while (next_kind(&s_down, CMD_REQUEST, &m, WAIT_MS)) {
+    const cmd_hdr_t* h = (const cmd_hdr_t*)m.data;
     const uint8_t* b = m.data + sizeof(*h);
     const uint32_t blen = m.len - sizeof(*h);
     if (blen >= 3u + sizeof(sys_watch_head_t) && b[0] == MODULE_ID_WATCH && b[1] == CMD_DIR_WRITE &&
@@ -523,14 +523,14 @@ static void inject_slave_push(uint8_t watch_id, uint8_t status, const void* payl
   if (plen > 0u) {
     memcpy(body + 3u, payload, plen);
   }
-  deliver(&s_down, FRAME(SYS_SESSION_PUSH), BOARD, SLAVE, 1u, body, 3u + plen);
+  deliver(&s_down, FRAME(CMD_PUSH), BOARD, SLAVE, 1u, body, 3u + plen);
 }
 
 void test_client_b3_gate_error_and_size_limits(void) {
   uint32_t out = 0, out_len = 0;
 
   // Arg checks
-  ASSERT_ERR(sys_watch_read(SYS_SESSION_ID_SELF, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
+  ASSERT_ERR(sys_watch_read(CMD_SRC_SELF, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
              ERR_WATCH_BAD_ARG);
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){k_val_write, sizeof(k_val_write)}, &out, sizeof(out), &out_len),
              ERR_WATCH_NOT_READ);
@@ -549,7 +549,7 @@ void test_client_b3_gate_error_and_size_limits(void) {
              ERR_WATCH_NO_VALUE);
 
   // Now deliver ADD OK answer -> transitions to ACTIVE (still no copy until next entry)
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, add_seq, NULL, 0);
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, add_seq, NULL, 0);
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
              ERR_WATCH_NO_VALUE);
 
@@ -588,11 +588,11 @@ void test_client_b3_gate_error_and_size_limits(void) {
   // Wait out idle cleanup before next test (board_timer frees client slot after IDLE_MS = 600 ms)
   sent_t m;
   bool got_rem = false;
-  while (next_kind(&s_down, SYS_SESSION_REQUEST, &m, 1000)) {
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)m.data;
+  while (next_kind(&s_down, CMD_REQUEST, &m, 1000)) {
+    const cmd_hdr_t* h = (const cmd_hdr_t*)m.data;
     const uint8_t* b = m.data + sizeof(*h);
     if (b[0] == MODULE_ID_WATCH && b[1] == CMD_DIR_WRITE && b[2] == WATCH_OP_REMOVE && b[3] == wid) {
-      deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, h->seq, NULL, 0);
+      deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, h->seq, NULL, 0);
       got_rem = true;
       break;
     }
@@ -608,7 +608,7 @@ void test_client_stale_adds_the_watch_again(void) {
              ERR_WATCH_NO_VALUE);
   uint8_t wid = 0;
   const uint16_t add_seq = expect_client_add(&wid);
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, add_seq, NULL, 0);
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, add_seq, NULL, 0);
   const uint32_t v1 = 0x11111111u;
   inject_slave_push(wid, ROUTER_STATUS_OK, &v1, sizeof(v1));
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len));
@@ -628,7 +628,7 @@ void test_client_stale_adds_the_watch_again(void) {
              ERR_WATCH_NO_VALUE);
 
   // ADD's OK, then the watch's first entry: the value after the write
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, add_seq2, NULL, 0);
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, add_seq2, NULL, 0);
   const uint32_t post_write = 0x33333333u;
   inject_slave_push(wid, ROUTER_STATUS_OK, &post_write, sizeof(post_write));
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len));
@@ -647,7 +647,7 @@ void test_client_staleness_gone_and_idle_remove(void) {
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len), ERR_WATCH_NO_VALUE);
   uint8_t wid = 0;
   const uint16_t seq1 = expect_client_add(&wid);
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, seq1, NULL, 0);
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, seq1, NULL, 0);
 
   const uint32_t v = 0xCAFEBABEu;
   inject_slave_push(wid, ROUTER_STATUS_OK, &v, sizeof(v));
@@ -670,25 +670,25 @@ void test_client_staleness_gone_and_idle_remove(void) {
   TEST_ASSERT_NULL(attach(DOWN_ID));
   send_hello(&s_down, SLAVE, 0xBBBB0009u, 1500u);
   sent_t m;
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_CONTROL, &m, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_CONTROL, &m, WAIT_MS));
   fake_clear(&s_down);
 
   vTaskDelay(MSEC(30));
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len), ERR_WATCH_NO_VALUE);
   uint8_t wid2 = 0;
   const uint16_t seq2 = expect_client_add(&wid2);
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, seq2, NULL, 0);
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, seq2, NULL, 0);
   inject_slave_push(wid2, ROUTER_STATUS_OK, &v, sizeof(v));
   TEST_ASSERT_NULL(sys_watch_read(SLAVE, (cmd_in_t){req2, sizeof(req2)}, &out, sizeof(out), &out_len));
 
   // Idle removal: wait past IDLE_MS (600 ms) for board_timer to send WATCH OP_REMOVE
   fake_clear(&s_down);
   bool got_remove = false;
-  while (next_kind(&s_down, SYS_SESSION_REQUEST, &m, 1000)) {
-    const sys_session_hdr_t* h = (const sys_session_hdr_t*)m.data;
+  while (next_kind(&s_down, CMD_REQUEST, &m, 1000)) {
+    const cmd_hdr_t* h = (const cmd_hdr_t*)m.data;
     const uint8_t* b = m.data + sizeof(*h);
     if (b[0] == MODULE_ID_WATCH && b[1] == CMD_DIR_WRITE && b[2] == WATCH_OP_REMOVE && b[3] == wid2) {
-      deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, h->seq, NULL, 0);
+      deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, h->seq, NULL, 0);
       got_remove = true;
       break;
     }

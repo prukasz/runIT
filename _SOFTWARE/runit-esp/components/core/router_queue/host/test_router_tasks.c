@@ -478,10 +478,10 @@ static void test_inject_is_the_boards_own_command_with_a_counting_seq(void) {
   TEST_ASSERT_NULL(router_inject((cmd_in_t){req, sizeof(req)}, 0, done_cb, NULL));
   WAIT(s_done);
   WAIT(s_done);
-  TEST_ASSERT_EQUAL_UINT8(ROUTER_SRC_SELF, s_d[0].src);
-  TEST_ASSERT_EQUAL_UINT8(ROUTER_SRC_SELF, s_d[1].src);
+  TEST_ASSERT_EQUAL_UINT8(CMD_SRC_SELF, s_d[0].src);
+  TEST_ASSERT_EQUAL_UINT8(CMD_SRC_SELF, s_d[1].src);
   TEST_ASSERT_EQUAL_HEX16((uint16_t)(s_d[0].seq + 1), s_d[1].seq);  /* the router's own counter */
-  TEST_ASSERT_EQUAL_UINT8(ROUTER_SRC_SELF, s_h[0].src);
+  TEST_ASSERT_EQUAL_UINT8(CMD_SRC_SELF, s_h[0].src);
 }
 
 static void test_inject_urgent_and_noreply_flags_are_honoured(void) {

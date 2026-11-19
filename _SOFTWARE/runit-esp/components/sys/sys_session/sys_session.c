@@ -13,18 +13,13 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_SESSION, ERR_SYS_SESSION_MAP)
 
-#define HDR            SYS_SESSION_HDR_BYTES
-#define FRAME(kind)    SYS_SESSION_FRAME(kind)
-#define FRAME_KIND(f)  SYS_SESSION_FRAME_KIND_OF(f)
+#define HDR            CMD_HEAD
+#define FRAME(kind)    CMD_TYPE(kind)
+#define FRAME_KIND(f)  CMD_KIND_OF(f)
 #define TICK_MS        10u    // the timer: pings, session timeouts, call timeouts
 #define HELLO_RETRY_MS 1000u  // a session not open says hello again this often
 #define REJECT_BYTES   64u    // an error record answered on the RX task (its stack)
 
-_Static_assert((ROUTER_FLAG_URGENT | ROUTER_FLAG_NOREPLY) == SYS_SESSION_FRAME_FLAGS, "the frame byte's flags");
-_Static_assert(ROUTER_FLAG_URGENT == CMD_SEND_URGENT, "ROUTER_FLAG_URGENT must match CMD_SEND_URGENT");
-_Static_assert(ROUTER_STATUS_ERROR == 1, "the frame byte's status bit");
-_Static_assert(ROUTER_SRC_SELF == SYS_SESSION_ID_SELF, "the board's own commands");
-_Static_assert(ROUTER_SRC_NONE == SYS_SESSION_ID_NONE, "a command with no peer");
 _Static_assert(SYS_SESSION_DEADMAN_MAX_MS + TICK_MS <= UINT16_MAX, "a session's silence and ping in 16 bits");
 
 typedef struct {
@@ -32,7 +27,7 @@ typedef struct {
   bool safety;               // its end is a safety event (sys_system's safe state)
   uint8_t provider;
   uint16_t deadman_ms;       // the silence that ends it, 0: never; a third of it the keepalive
-  sys_session_hello_t peer;  // its hello; id SYS_SESSION_ID_NONE until the session is open
+  sys_session_hello_t peer;  // its hello; id CMD_SRC_NONE until the session is open
   uint16_t silent_ms;        // since its last frame
   uint16_t ping_ms;          // since this board's last ping (not open: its last hello)
   uint16_t push_seq[2];      // the next PUSH seq to its peer: [normal, urgent]
@@ -54,7 +49,7 @@ static struct {
  * ------------------------------------------------------------------------- */
 
 static bool is_open(const session_t* s) {
-  return s->used && s->peer.id != SYS_SESSION_ID_NONE;
+  return s->used && s->peer.id != CMD_SRC_NONE;
 }
 
 static session_t* open_with(uint8_t peer) {
@@ -92,7 +87,7 @@ bool sys_session_route(uint8_t peer, uint8_t* provider) {
 uint8_t sys_session_peer(uint8_t provider) {
   portENTER_CRITICAL(&s_lock);
   const session_t* s = open_on(provider);
-  const uint8_t peer = s != NULL ? s->peer.id : SYS_SESSION_ID_NONE;
+  const uint8_t peer = s != NULL ? s->peer.id : CMD_SRC_NONE;
   portEXIT_CRITICAL(&s_lock);
   return peer;
 }
@@ -131,12 +126,12 @@ uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
 
 // NOWAIT, URGENT by the frame byte, SPARE for a PUSH: telemetry never takes the room an answer needs.
 static uint8_t send_flags(uint8_t frame) {
-  const uint8_t spare = FRAME_KIND(frame) == SYS_SESSION_PUSH ? CMD_SEND_SPARE : 0u;
+  const uint8_t spare = FRAME_KIND(frame) == CMD_PUSH ? CMD_SEND_SPARE : 0u;
   return (uint8_t)(CMD_SEND_NOWAIT | (frame & CMD_SEND_URGENT) | spare);
 }
 
 // [hdr][head][body] as one frame on `provider`; `head` is a control frame's op, else empty.
-static err_h send(uint8_t provider, const sys_session_hdr_t* hdr, cmd_in_t head, cmd_in_t body, uint8_t flags) {
+static err_h send(uint8_t provider, const cmd_hdr_t* hdr, cmd_in_t head, cmd_in_t body, uint8_t flags) {
   ERR_CHECK(head.len + body.len <= CMD_DATA_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)(head.len + body.len),
             .need = CMD_DATA_MAX);
   uint8_t frame[HDR + head.len + body.len];
@@ -151,8 +146,8 @@ static err_h send(uint8_t provider, const sys_session_hdr_t* hdr, cmd_in_t head,
 }
 
 err_h sys_session_send_request(uint8_t provider, uint16_t seq, cmd_in_t req, uint8_t flags) {
-  const sys_session_hdr_t hdr = {
-      .frame = (uint8_t)(FRAME(SYS_SESSION_REQUEST) | (flags & ROUTER_FLAG_URGENT)),
+  const cmd_hdr_t hdr = {
+      .frame = (uint8_t)(FRAME(CMD_REQUEST) | (flags & ROUTER_FLAG_URGENT)),
       .seq = seq,
   };
   return send(provider, &hdr, (cmd_in_t){0}, req, send_flags(hdr.frame));
@@ -160,7 +155,7 @@ err_h sys_session_send_request(uint8_t provider, uint16_t seq, cmd_in_t req, uin
 
 // A control frame; one a full queue refuses is lost: the hello is said again, a ping follows.
 static void send_control(uint8_t provider, uint8_t op, const void* data, uint32_t len) {
-  const sys_session_hdr_t hdr = {.frame = FRAME(SYS_SESSION_CONTROL)};
+  const cmd_hdr_t hdr = {.frame = FRAME(CMD_CONTROL)};
   err_free(send(provider, &hdr, (cmd_in_t){&op, sizeof(op)}, (cmd_in_t){data, len}, CMD_SEND_NOWAIT));
 }
 
@@ -177,8 +172,8 @@ static void send_hello(const session_t* s) {
 
 err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
   ERR_CHECK(req.data != NULL && req.len <= CMD_DATA_MAX, ERR_CMD_BAD_ARG);
-  const sys_session_hdr_t hdr = {
-      .frame = (uint8_t)(FRAME(SYS_SESSION_REQUEST) | ROUTER_FLAG_NOREPLY | (flags & ROUTER_FLAG_URGENT)),
+  const cmd_hdr_t hdr = {
+      .frame = (uint8_t)(FRAME(CMD_REQUEST) | ROUTER_FLAG_NOREPLY | (flags & ROUTER_FLAG_URGENT)),
   };
   uint8_t frame[HDR + req.len];
   memcpy(frame, &hdr, HDR);
@@ -211,7 +206,7 @@ err_h sys_session_push(uint8_t provider, cmd_in_t data, uint8_t flags) {
   }
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(s != NULL, ERR_SESSION_NOT_OPEN, .provider = provider);
-  const sys_session_hdr_t hdr = {.frame = (uint8_t)(FRAME(SYS_SESSION_PUSH) | urgent), .seq = seq};
+  const cmd_hdr_t hdr = {.frame = (uint8_t)(FRAME(CMD_PUSH) | urgent), .seq = seq};
   return send(provider, &hdr, (cmd_in_t){0}, data, send_flags(hdr.frame));
 }
 
@@ -229,7 +224,7 @@ static void end_session(session_t* s) {
   const uint8_t peer = s->peer.id;
   const uint8_t safety = s->safety ? 1u : 0u;
   const uint8_t provider = s->provider;
-  s->peer.id = SYS_SESSION_ID_NONE;
+  s->peer.id = CMD_SRC_NONE;
   s->silent_ms = 0;
   portEXIT_CRITICAL(&s_lock);
   if (!was_open) {
@@ -251,8 +246,8 @@ static void on_hello(session_t* s, const uint8_t* body, uint32_t len) {
     return;
   }
   memcpy(&hello, body, sizeof(hello));
-  const bool board = hello.id <= SYS_SESSION_ID_LAST;
-  const bool client = hello.id >= SYS_SESSION_ID_CLIENT_FIRST && hello.id <= SYS_SESSION_ID_CLIENT_LAST;
+  const bool board = hello.id <= CMD_SRC_BOARD_LAST;
+  const bool client = hello.id >= CMD_SRC_CLIENT_FIRST && hello.id <= CMD_SRC_CLIENT_LAST;
 
   portENTER_CRITICAL(&s_lock);
   const session_t* same = open_with(hello.id);
@@ -294,8 +289,8 @@ static void on_hello(session_t* s, const uint8_t* body, uint32_t len) {
 static err_h answer(const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len, uint8_t nowait) {
   uint8_t provider = 0;
   ERR_CHECK(sys_session_route(cmd->src, &provider), ERR_SESSION_NO_ROUTE, .dst = cmd->src);
-  const sys_session_hdr_t hdr = {
-      .frame = (uint8_t)(FRAME(SYS_SESSION_ANSWER) | (status == ROUTER_STATUS_ERROR ? SYS_SESSION_FRAME_STATUS : 0) |
+  const cmd_hdr_t hdr = {
+      .frame = (uint8_t)(FRAME(CMD_ANSWER) | (status == ROUTER_STATUS_ERROR ? CMD_TYPE_STATUS : 0) |
                          (cmd->flags & ROUTER_FLAG_URGENT)),
       .seq = cmd->seq,
   };
@@ -322,9 +317,9 @@ static void reject(const cmd_req_t* cmd, err_h err) {
  * What comes in (the driver's RX task)
  * ------------------------------------------------------------------------- */
 
-static void to_router(uint8_t src, const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
+static void to_router(uint8_t src, const cmd_hdr_t* hdr, const uint8_t* body, uint32_t len) {
   cmd_req_t cmd = {.req = body, .req_len = len, .seq = hdr->seq, .src = src,
-                   .flags = (uint8_t)(hdr->frame & SYS_SESSION_FRAME_FLAGS)};
+                   .flags = (uint8_t)(hdr->frame & CMD_TYPE_FLAGS)};
   err_h err = router_submit(&cmd, on_answer, NULL);
   if (err != NULL) {
     reject(&cmd, err);
@@ -346,12 +341,12 @@ static void on_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_t len) {
   if (len < HDR) {
     return;
   }
-  sys_session_hdr_t hdr;
+  cmd_hdr_t hdr;
   memcpy(&hdr, data, HDR);
   const uint8_t kind = FRAME_KIND(hdr.frame);
   const uint8_t* body = data + HDR;
   const uint32_t body_len = len - HDR;
-  const uint8_t op = (kind == SYS_SESSION_CONTROL && body_len > 0) ? body[0] : 0;
+  const uint8_t op = (kind == CMD_CONTROL && body_len > 0) ? body[0] : 0;
   if (op == SYS_SESSION_HELLO) {
     on_hello(s, body + 1, body_len - 1);
     return;
@@ -378,11 +373,11 @@ static void on_rx(void* ctx, uint8_t id, const uint8_t* data, uint32_t len) {
     start_over(s);
     return;
   }
-  if (kind == SYS_SESSION_REQUEST) {
+  if (kind == CMD_REQUEST) {
     to_router(src, &hdr, body, body_len);
-  } else if (kind == SYS_SESSION_ANSWER) {
+  } else if (kind == CMD_ANSWER) {
     sys_session_call_answer(&hdr, body, body_len);
-  } else if (kind == SYS_SESSION_PUSH) {
+  } else if (kind == CMD_PUSH) {
     if (s_state.push != NULL) {
       s_state.push(s->provider, body, body_len);
     }
@@ -436,7 +431,7 @@ err_h sys_session_init(void) {
       .build_id = sys_session_board_build_id(),
   };
   FOR_EACH_SESSION(s) {
-    s->peer.id = SYS_SESSION_ID_NONE;
+    s->peer.id = CMD_SRC_NONE;
   }
   board_timer_init(&s_state.timer, on_tick, NULL);
   board_timer_start(&s_state.timer, TICK_MS);
@@ -466,7 +461,7 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags) {
                       .safety = safety,
                       .provider = provider,
                       .deadman_ms = (uint16_t)deadman_ms,
-                      .peer = {.id = SYS_SESSION_ID_NONE}};
+                      .peer = {.id = CMD_SRC_NONE}};
   }
   portEXIT_CRITICAL(&s_lock);
   if (same) {

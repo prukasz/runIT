@@ -88,7 +88,7 @@ err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) 
       .req = req.data,
       .req_len = req.len,
       .seq = __atomic_fetch_add(&s_dispatch.inject_seq, 1, __ATOMIC_RELAXED),
-      .src = ROUTER_SRC_SELF,
+      .src = CMD_SRC_SELF,
       .flags = flags,
   };
   return router_submit(&cmd, done, ctx);

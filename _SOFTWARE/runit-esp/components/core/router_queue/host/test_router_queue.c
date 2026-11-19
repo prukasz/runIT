@@ -70,7 +70,7 @@ static void test_inject_goes_through_submit_and_its_limits(void) {
   const uint8_t one[] = {1};
   err_h e = router_inject((cmd_in_t){one, 1}, 0, NULL, NULL);  /* a self command too short: [key][dir] */
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_FRAME_LEN, e);
-  TEST_ASSERT_EQUAL_UINT8(ROUTER_SRC_SELF, ERR_DATA(e, ERR_ROUTER_FRAME_LEN)->src);
+  TEST_ASSERT_EQUAL_UINT8(CMD_SRC_SELF, ERR_DATA(e, ERR_ROUTER_FRAME_LEN)->src);
   err_free(e);
   const uint8_t ok[] = {1, 0};
   TEST_ASSERT_NULL(router_inject((cmd_in_t){ok, 2}, ROUTER_FLAG_NOREPLY, NULL, NULL));

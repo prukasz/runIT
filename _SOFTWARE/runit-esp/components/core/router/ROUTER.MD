@@ -44,7 +44,7 @@ A command has one answer, at most `cap`. Data longer than that is paged by the c
 
 ## Frame size
 
-`CMD_FRAME_MAX` (512) is the largest whole frame on every provider, and `CMD_HEAD` (3) the size of a frame's header before its data: the session's header (SYS_SESSION.MD "Frames"). They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
+`CMD_FRAME_MAX` (512) is the largest whole frame on every provider, and `CMD_HEAD` (5) the size of a frame's header before its data: `cmd_hdr_t` (CMD.MD "The header"). They are published to the app (group `cmd_frame` in `runit-app/generated/common/enums.json`): the same number on the board and the client, so nothing is sized per link.
 
 ```
 CMD_FRAME_MAX
@@ -52,10 +52,10 @@ CMD_FRAME_MAX
  │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, device_esp32s3_uart / provider_console)
  ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
  │    the answer buffer of a replay
- └─ a stream's frame to a subscriber [stream id][payload]: a payload ≤ CMD_DATA_MAX − 1
+ └─ a PUSH's data (its stream is the header's key): ≤ CMD_DATA_MAX
 ```
 
-Every frame has the session's header, exactly `CMD_HEAD` bytes (`[frame byte][seq u16]`). So a request (`[key][dir]…`) and an answer's data are at most `CMD_DATA_MAX`, and whoever frames an answer prepends its header into one flat frame for the provider's stream port (SYS_DATA_PROVIDER.MD "Stream port"). A raw provider's link carries less, and its driver refuses what does not fit (SYS_DATA_PROVIDER.MD "Frame size"). No size other than these is known above a driver.
+Every frame has the header, exactly `CMD_HEAD` bytes (`[type][src][key][seq u16]`, cmd.h). So a request's body (`[dir][code | id + op][args]`, its key in the header) and an answer's data are at most `CMD_DATA_MAX`, and whoever frames an answer prepends its header into one flat frame for the provider's stream port (SYS_DATA_PROVIDER.MD "Stream port"). A raw provider's link carries less, and its driver refuses what does not fit (SYS_DATA_PROVIDER.MD "Frame size"). No size other than these is known above a driver.
 
 ## Long work
 

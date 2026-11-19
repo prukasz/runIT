@@ -119,7 +119,7 @@ static void on_gone(uint8_t peer, uint8_t safety) {
   (void)safety;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   FOR_EACH_SLOT(s) {
-    if (s->state != SLOT_FREE && (peer == SYS_SESSION_ID_BROADCAST || s->board == peer)) {
+    if (s->state != SLOT_FREE && (peer == CMD_SRC_ALL || s->board == peer)) {
       s->state = SLOT_ADDING;
       s->gen++;
       s->add_ms = now_ms() - PERIOD_MS;
@@ -159,8 +159,8 @@ static void on_idle_tick(void* arg) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint32_t* len) {
-  ERR_CHECK(board <= SYS_SESSION_ID_LAST && board != sys_session_get_board_id() && read.len >= 2u &&
-                read.len <= SYS_WATCH_READ_MAX,
+  ERR_CHECK(board >= CMD_SRC_BOARD_FIRST && board <= CMD_SRC_BOARD_LAST && board != sys_session_get_board_id() &&
+                read.len >= 2u && read.len <= SYS_WATCH_READ_MAX,
             ERR_WATCH_BAD_ARG, .id = 0);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = 0);
 

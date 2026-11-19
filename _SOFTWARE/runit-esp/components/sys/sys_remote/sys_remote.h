@@ -39,7 +39,7 @@ MUST_USE err_h sys_remote_init(void);
  * Again for the same peer and device: one subscription. Until UNSUBSCRIBE or the peer is gone.
  * @param[in] id   The device (whether it exists is not checked: an id with no device sends nothing).
  * @param[in] peer The peer (SUBSCRIBE: the command's src).
- * @return NULL when subscribed; ERR_CMD_BAD_ARG (SYS_SESSION_ID_SELF, NONE or BROADCAST), ERR_REMOTE_SUBS_FULL, or
+ * @return NULL when subscribed; ERR_CMD_BAD_ARG (CMD_SRC_SELF, NONE or BROADCAST), ERR_REMOTE_SUBS_FULL, or
  * the event subscription's error.
  */
 MUST_USE err_h sys_remote_subscribe(uint8_t id, uint8_t peer);

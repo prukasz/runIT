@@ -46,7 +46,7 @@ typedef struct {
 
 static struct {
   sub_t subs[CONFIG_SYS_REMOTE_SUBSCRIPTIONS];
-  uint32_t not_wired[(SYS_SESSION_ID_LAST + 32u) / 32u];  // a board's ERR_REMOTE_NOT_WIRED went out: once until wired
+  uint32_t not_wired[(CMD_SRC_BOARD_LAST + 32u) / 32u];  // a board's ERR_REMOTE_NOT_WIRED went out: once until wired
 } s_rem;
 
 U_MUTEX_DEFINE(sys_remote_lock);  // the table: short copies only, never held while calling out
@@ -133,7 +133,7 @@ static void drop_listener(int handle) {
 }
 
 err_h sys_remote_subscribe(uint8_t id, uint8_t peer) {
-  ERR_CHECK(peer != SYS_SESSION_ID_SELF && peer != SYS_SESSION_ID_NONE && peer != SYS_SESSION_ID_BROADCAST,
+  ERR_CHECK(peer != CMD_SRC_SELF && peer != CMD_SRC_NONE && peer != CMD_SRC_ALL,
             ERR_CMD_BAD_ARG);
   int at = -1;
   bool known = false;
@@ -220,7 +220,7 @@ static void send_out(const uint8_t* frame, uint32_t len) {
 static void on_frame(void* ctx, const data_matrix_end_t* from, const uint8_t* data, uint32_t len) {
   (void)ctx;
   const uint8_t src = sys_session_peer(from->a);  // the board whose session it came on
-  if (len < FRAME_HEAD || src == SYS_SESSION_ID_NONE) {
+  if (len < FRAME_HEAD || src == CMD_SRC_NONE) {
     return;
   }
   void* slot = NULL;
@@ -307,7 +307,7 @@ static err_h on_created(const sys_event_t* event, void* ctx) {
 // A peer gone: its subscriptions here end.
 static void on_gone(uint8_t peer, uint8_t safety) {
   (void)safety;
-  const bool all = peer == SYS_SESSION_ID_BROADCAST;
+  const bool all = peer == CMD_SRC_ALL;
   for (uint32_t i = 0; i < CONFIG_SYS_REMOTE_SUBSCRIPTIONS; i++) {
     xSemaphoreTake(sys_remote_lock, portMAX_DELAY);
     const bool hit = s_rem.subs[i].used && (s_rem.subs[i].peer == peer || all);

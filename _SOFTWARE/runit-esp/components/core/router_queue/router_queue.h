@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cmd.h"
 #include "cmd_types.h"
 #include "errors.h"
 #include "router.h"
@@ -18,21 +19,22 @@ extern "C" {
  * A command's flags and an answer's status
  * ------------------------------------------------------------------------- */
 
-/* A command's flags (cmd_req_t.flags): the one definition of them. The session's frame byte carries them at these
-   bits (SYS_SESSION.MD "Frames"). */
+/* A command's flags (cmd_req_t.flags): the one definition of them. The header's type byte carries them at these bits
+   (cmd.h, CMD_TYPE_FLAGS). */
 //#ref-defines router_flag @alias Request Flags @prefix ROUTER_FLAG_
 #define ROUTER_FLAG_URGENT  (1u << 0)  //@alias Urgent @description Runs on the urgent task, next to normal commands
 #define ROUTER_FLAG_NOREPLY (1u << 1)  //@alias No reply @description No answer; a failure goes to the errors stream
 
-/** @brief What an answer is: the session carries it in its frame byte. */
+/** @brief What an answer is: the header's type byte carries it (cmd.h, CMD_TYPE_STATUS). */
 //#ref-enum @alias Response Status
 typedef enum {
   ROUTER_STATUS_OK = 0,     //@alias OK @description The command succeeded; the answer's data follows
   ROUTER_STATUS_ERROR = 1,  //@alias Error @description The command failed; the answer's data is the error record
 } router_status_e;
 
-#define ROUTER_SRC_SELF 0xFEu  // cmd_req_t.src of the board's own commands (router_inject): SYS_SESSION_ID_SELF
-#define ROUTER_SRC_NONE 0xFDu  // cmd_req_t.src of a command with no peer (a provider's command binding): SYS_SESSION_ID_NONE
+_Static_assert((ROUTER_FLAG_URGENT | ROUTER_FLAG_NOREPLY) == CMD_TYPE_FLAGS, "the type byte's flags");
+_Static_assert(ROUTER_FLAG_URGENT == CMD_SEND_URGENT, "ROUTER_FLAG_URGENT must match CMD_SEND_URGENT");
+_Static_assert(ROUTER_STATUS_ERROR << 2 == CMD_TYPE_STATUS, "the type byte's status bit");
 
 /* A command: cmd_req_t (cmd_types.h, in utils: the errors component names it too). */
 
@@ -74,7 +76,7 @@ typedef MUST_USE err_h (*router_done_f)(void* ctx, const cmd_req_t* cmd, uint8_t
 MUST_USE err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx);
 
 /**
- * @brief Queues a command of the board itself: router_submit with src ROUTER_SRC_SELF and seq from the router's own
+ * @brief Queues a command of the board itself: router_submit with src CMD_SRC_SELF and seq from the router's own
  * counter (the actions, the project's start, a call of the board to itself).
  * @param[in] req   [key][dir][...].
  * @param[in] flags ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY.

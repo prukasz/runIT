@@ -25,37 +25,10 @@ extern "C" {
 #endif
 
 /* ----------------------------------------------------------------------------
- * Wire format, the one place it is assigned (never renumber): the ids, the frame byte and kinds, the channels, the
- * control ops (published to the app by templates/generate_enums.py), then the frames.
+ * Wire format, the one place it is assigned (never renumber): the channels, the control ops (published to the app by
+ * templates/generate_enums.py), then HELLO's body. The header of every frame, its type byte, kinds and sources are
+ * cmd.h's (cmd_hdr_t, CMD_TYPE_*, cmd_kind_e, CMD_SRC_*).
  * ------------------------------------------------------------------------- */
-
-/* Ids: every peer says its own in its hello and no two open sessions have the same. A board's is its place in the
-   project (a command sets it, NVS keeps it); a client (the app, a test host) picks its own in the clients' range. */
-//#ref-defines session_id @alias Peer ids @prefix SYS_SESSION_ID_
-#define SYS_SESSION_ID_DEFAULT      0x00u  //@alias Default @description A board's id until one is set
-#define SYS_SESSION_ID_LAST         0xEFu  //@alias Last board @description Boards are 0x00..0xEF
-#define SYS_SESSION_ID_CLIENT_FIRST 0xF0u  //@alias First client @description Clients (the app, a test host) are 0xF0..0xFC; each picks its own
-#define SYS_SESSION_ID_CLIENT_LAST  0xFCu  //@alias Last client @description The last client id
-#define SYS_SESSION_ID_NONE         0xFDu  //@alias None @description A peer before its hello: no id yet
-#define SYS_SESSION_ID_SELF         0xFEu  //@alias This board @description A command's src when the board runs its own (ROUTER_SRC_SELF); never on the wire
-#define SYS_SESSION_ID_BROADCAST    0xFFu  //@alias Every peer @description A listener's mark for every peer; on no frame
-
-/* The first byte of every frame: bits 0-1 the router's own flags (ROUTER_FLAG_URGENT on a request, its answer and a
-   PUSH; _NOREPLY on a request), so a command's flags are this byte & SYS_SESSION_FRAME_FLAGS; bit 2 an answer's status
-   (router_status_e); bits 3-5 zero; bits 6-7 the kind. */
-//#ref-defines session_frame @alias Frame byte @prefix SYS_SESSION_FRAME_
-#define SYS_SESSION_FRAME_FLAGS     (3u << 0)  //@alias Flags @description Bits 0-1: ROUTER_FLAG_URGENT, ROUTER_FLAG_NOREPLY
-#define SYS_SESSION_FRAME_STATUS    (1u << 2)  //@alias Status @description Bit 2: an answer's router_status_e (OK, ERROR)
-#define SYS_SESSION_FRAME_KIND      (3u << 6)  //@alias Kind @description Bits 6-7: sys_session_kind_e
-
-/** @brief What a frame carries: (kind << 6) in its first byte. */
-//#ref-enum @alias Frame kind
-typedef enum {
-  SYS_SESSION_REQUEST = 0,  //@alias Request @description A command for the peer; its answer comes back with the same seq
-  SYS_SESSION_ANSWER = 1,   //@alias Answer @description The answer to the request seq: its status in the frame byte, then data
-  SYS_SESSION_PUSH = 2,     //@alias Push @description [stream id | channel][payload], never answered: a stream's message, a channel's frame
-  SYS_SESSION_CONTROL = 3,  //@alias Control @description The session's own: hello, ping, no session
-} sys_session_kind_e;
 
 /* The first byte of a PUSH frame's body: below SYS_SESSION_CHANNEL_FIRST a stream's id; from it a **channel**, which is
    a module's: its module number with bit 7 set, SYS_SESSION_CHANNEL(MODULE_ID_WATCH). So no list of channels is kept
@@ -75,35 +48,21 @@ typedef enum {
   SYS_SESSION_NO_SESSION = 3,  //@alias No session @description A frame on a session that is not open here: send your hello again
 } sys_session_control_e;
 
-/* A session's frames (SYS_SESSION.MD "Frames"), packed, little-endian: one 3-byte header on every frame. The provider's
- * driver takes one flat frame (`cmd_in_t`): this board's own are joined from header and body at the send.
+/* A session's frames (SYS_SESSION.MD "Frames"), after the header cmd_hdr_t (cmd.h):
  *
- *   request  [hdr REQUEST, flags ][key][dir][code | id + op][args]
- *   answer   [hdr ANSWER, status ][data]                 data: the answer, or the error record (ERROR)
- *   push     [hdr PUSH, flags    ][channel or stream id][payload]
- *   control  [hdr CONTROL        ][op][data]             HELLO: sys_session_hello_t
+ *   request  [hdr REQUEST, flags, src, key, seq ][dir][code | id + op][args]
+ *   answer   [hdr ANSWER, status, src, key, seq ][data]        data: the answer, or the error record (ERROR)
+ *   push     [hdr PUSH, flags, src, key, seq    ][data]        key: the stream's module
+ *   control  [hdr CONTROL, src, MODULE_ID_SESSION][op][data]  HELLO: sys_session_hello_t
  */
 
-#define SYS_SESSION_HDR_BYTES        ((uint32_t)sizeof(sys_session_hdr_t))
-#define SYS_SESSION_FRAME(kind)      ((uint8_t)((kind) << 6))
-#define SYS_SESSION_FRAME_KIND_OF(f) ((uint8_t)(((f) & SYS_SESSION_FRAME_KIND) >> 6))
-
-/** @brief The header of every frame: CMD_HEAD bytes. */
+/** @brief HELLO's body: who a board (or client) is, both ways when a session opens; its id is the header's src. */
 typedef struct __attribute__((packed)) {
-  uint8_t frame;  /**< Bits 0-1: ROUTER_FLAG_*; bit 2: an answer's status; bits 6-7: kind */
-  uint16_t seq;   /**< Request: the sender's counter; answer: echoed; push: the sender's count of its class; else 0 */
-} sys_session_hdr_t;
-
-_Static_assert(sizeof(sys_session_hdr_t) == CMD_HEAD, "the header is CMD_HEAD");
-
-/** @brief HELLO's body: who a board (or client) is; both ways when a session opens. */
-typedef struct __attribute__((packed)) {
-  uint8_t id;        /**< Its own: a board's place, or a client's pick */
   uint32_t boot_id;  /**< Random per boot: a new one ends the session first (the peer restarted) */
   uint32_t build_id; /**< The firmware's build: the first 4 bytes of its ELF's SHA-256; 0 from a client */
 } sys_session_hello_t;
 
-_Static_assert(sizeof(sys_session_hello_t) == 9, "hello");
+_Static_assert(sizeof(sys_session_hello_t) == 8, "hello");
 
 /* ----------------------------------------------------------------------------
  * Constants and the listener type
@@ -130,7 +89,7 @@ typedef void (*sys_session_push_f)(uint8_t provider, const uint8_t* data, uint32
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Starts the session layer: this board's id (NVS, set by the app with ID; SYS_SESSION_ID_DEFAULT on a new
+ * @brief Starts the session layer: this board's id (NVS, set by the app with ID; CMD_SRC_NONE on a new
  * board), its boot id and its timer (pings, session and call timeouts, on the board timers' task). Boot, after the NVS
  * partitions and router_init(), before any attach.
  * @return NULL when started.
@@ -148,7 +107,7 @@ uint8_t sys_session_get_board_id(void);
  */
 bool sys_session_route(uint8_t peer, uint8_t* provider);
 
-/** @brief The peer of the open session on `provider`; SYS_SESSION_ID_NONE when it has none or it is not open. */
+/** @brief The peer of the open session on `provider`; CMD_SRC_NONE when it has none or it is not open. */
 uint8_t sys_session_peer(uint8_t provider);
 
 /**
@@ -204,7 +163,7 @@ uint32_t sys_session_deadman_get(uint8_t peer);
 /**
  * @brief Runs a command on a board, this one too, and calls `cb` with its answer as the router does for a command it
  * ran: one way to run a command with its answer, here or there. Never blocks, any task (a device op too).
- *  - To this board (its id or SYS_SESSION_ID_SELF): router_inject(); the answer on the router task, no timeout.
+ *  - To this board (its id or CMD_SRC_SELF): router_inject(); the answer on the router task, no timeout.
  *  - To another: the request goes out on the open session whose peer is `dst` (NOWAIT) and a call slot keeps it until
  *    the answer, on the RX task it came on, which ends the call. An ERROR's record has ERR_REMOTE{board, seq} before
  *    that board's chain. No answer in the timeout: ERROR with this board's record of ERR_SESSION_TIMEOUT; the session

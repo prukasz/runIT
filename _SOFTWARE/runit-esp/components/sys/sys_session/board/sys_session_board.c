@@ -16,7 +16,7 @@ uint8_t sys_session_board_load_id(void) {
   uint8_t id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
   nvs_handle_t nvs;
   if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs) == ESP_OK) {
-    if (nvs_get_u8(nvs, NVS_KEY_ID, &id) != ESP_OK || id > SYS_SESSION_ID_LAST) {
+    if (nvs_get_u8(nvs, NVS_KEY_ID, &id) != ESP_OK || id > CMD_SRC_BOARD_LAST) {
       id = CONFIG_SYS_SESSION_BOARD_ID_DEFAULT;
     }
     nvs_close(nvs);

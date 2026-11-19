@@ -5,8 +5,8 @@
  * @brief The types of a command that every layer names: a command as it came in (cmd_req_t: the errors component's
  * record and sink, the router's queue, the session) and a handler's input and answer (cmd_in_t, cmd_out_t: the
  * routers, the device registry, every driver and contract). Plain fields, no dependency, so the lowest layer can take
- * them. What works on them is cmd.h's (the frame size, the handler type cmd_f, cmd_reply); a command's flags and the
- * values of `src` are the router queue's (router_queue.h: ROUTER_FLAG_*, ROUTER_SRC_*).
+ * them. What works on them is cmd.h's (the frame size, the header, the values of `src` CMD_SRC_*, the handler type
+ * cmd_f, cmd_reply); a command's flags are the router queue's (router_queue.h: ROUTER_FLAG_*).
  */
 
 #include <stdint.h>
@@ -31,7 +31,8 @@ typedef struct cmd_req {
   const uint8_t* req;  /**< The request, may be NULL when req_len is 0 */
   uint32_t req_len;    /**< Bytes in req */
   uint16_t seq;        /**< The sender's counter, in every answer */
-  uint8_t src;         /**< Who sent it: a board or client id; ROUTER_SRC_SELF (0xFE) for the board's own commands */
+  uint8_t src;         /**< Who sent it (cmd.h CMD_SRC_*): a board or client id; CMD_SRC_SELF for the board's own
+                            commands, CMD_SRC_NONE when nobody said */
   uint8_t flags;       /**< ROUTER_FLAG_* */
 } cmd_req_t;
 

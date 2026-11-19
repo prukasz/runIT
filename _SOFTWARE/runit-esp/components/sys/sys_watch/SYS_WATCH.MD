@@ -29,7 +29,7 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 - The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry the session refuses (no route, a busy provider) is not counted as sent: the next read sends it.
 - An ERROR answer is sent once: the next errors are not sent until an OK entry goes.
 - An answer too long for one entry (`3 + len > CMD_DATA_MAX`) is reported once (`ERR_CMD_OUT_FULL` with the read) and the watch reads no more.
-- A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `SYS_SESSION_ID_BROADCAST`).
+- A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `CMD_SRC_ALL`).
 
 ### The entry (PUSH channel `SYS_WATCH_CHANNEL`)
 

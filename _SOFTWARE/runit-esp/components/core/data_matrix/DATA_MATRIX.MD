@@ -77,10 +77,11 @@ Everything a provider carries goes through the matrix, the commands too, and wha
 | `PUSH` | the kind, `URGENT` | the board that made it | the module (its stream) | its class's count on this link | the data |
 | `CONTROL` | the kind | the sender | `MODULE_ID_SESSION` | 0 | `[op][data]` |
 
-- **`src` 0 is none.** Board ids are `0x01..0xEF` (a board with no id given has 0 and its frames go without one), clients `0xF0..0xFC`; `SYS_SESSION_ID_NONE` and the hello's `id` are gone (the sender is `src`; the hello keeps `boot_id`, `build_id`). A hello with `src` 0 still opens a session, so the app can give a new board its id.
+- **`src` 0 is none.** Board ids are `0x01..0xEF` (a board with no id given has 0 and its frames go without one), clients `0xF0..0xFC` (`CMD_SRC_*`); the hello has no `id` (the sender is `src`; it keeps `boot_id`, `build_id`). A hello with `src` 0 still opens a session, so the app can give a new board its id.
 - **Who sets `src`:** the session that puts a frame on the line, its board's id, and only when `src` is 0. Nothing else touches it, so a slave's error keeps the slave's id through every board on its way to the app.
 - `src` and `key` go end to end; `seq` is per link: a session gives a PUSH its class's count, the router a call the `seq` of its slot.
 - `CMD_HEAD` is 5: `key` moves from the body into the header, `src` is the one new byte.
+- Done in `core/cmd` (CMD.MD "The header": `cmd_hdr_t`, `CMD_TYPE_*`, `cmd_kind_e`, `CMD_SRC_*`) and `MODULE_ID_ERRORS` (`core/errors/errors_id.h`); the router and the session do not write it yet.
 
 **The ports.** A module's (the router, `ERRORS`, the events, `LOGS`, the watches, the remote devices), a provider's, a session's. A module has at most one stream port, named by its module number: the port's name, the PUSH's `key` and the router's key are the same number. `ERRORS` is `core/errors`'s, `MODULE_ID_ERRORS` `0x31` (the errors' stream leaves `sys_log`, whose port is the logs, `0x2A`); the events `0x25`, the watches `0x2B`, the remote devices `0x2F`.
 
@@ -110,4 +111,4 @@ The channel range (`0x80`, `SYS_SESSION_CHANNEL`) is gone: the watches and the r
 - `DATA_MATRIX_PORTS` counted again: each session is its port, its command sub-port and one per stream module (a Kconfig limit of them per session).
 - The session's end fails the router's calls through it (`router_call_fail_to(port)`, called by the session), the call's wait and `ERR_SESSION_WOULD_BLOCK` / `_TIMEOUT` / `_PEER_DOWN` move with the slots; `sys_data_provider_state` public (`FRAMED` at `ATTACH`, `WIRED` for `sys_session_wired`).
 
-**The order of work:** the header (`core/cmd`, `CMD_HEAD` 5, the ids), `MODULE_ID_ERRORS`, the router's port and its calls, `sys_session` (the session port, the sub-ports, `ATTACH` / `DETACH`, the providers' events instead of their open / send), the stream ports (`sys_log`, `sys_event_stream`), `sys_watch` and `sys_remote` on tags, `app/runit` (`ATTACH` and `CONNECT` frames instead of roles and routes), `contract_session.json`, `session_client.py` and the app's session code.
+**The order of work:** the router's port and its calls (the request's key from the header), `sys_session` (the session port, the sub-ports, `ATTACH` / `DETACH`, the providers' events instead of their open / send), the stream ports (`sys_log`, `sys_event_stream`), `sys_watch` and `sys_remote` on tags, `app/runit` (`ATTACH` and `CONNECT` frames instead of roles and routes), `contract_session.json`, `session_client.py` and the app's session code.

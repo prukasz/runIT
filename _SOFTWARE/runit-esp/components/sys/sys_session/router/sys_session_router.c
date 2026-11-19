@@ -8,7 +8,7 @@ ROUTER_READ(SESSION, OP_ID) {
 }
 
 ROUTER_WRITE(SESSION, OP_ID) {
-  ERR_CHECK_IN_RANGE(args->board_id, 0, SYS_SESSION_ID_LAST, ERR_CMD_BAD_ARG);
+  ERR_CHECK_IN_RANGE(args->board_id, 0, CMD_SRC_BOARD_LAST, ERR_CMD_BAD_ARG);
   return sys_session_board_save_id(args->board_id);
 }
 

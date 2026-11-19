@@ -71,12 +71,12 @@ static void finish_call(const call_t* c, uint8_t status, err_h err, const uint8_
   err_free(err);
 }
 
-void sys_session_call_answer(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len) {
+void sys_session_call_answer(const cmd_hdr_t* hdr, const uint8_t* body, uint32_t len) {
   call_t call;
   if (!take_call(BY_SEQ, hdr->seq, &call)) {
     return;  // late: the call ended already
   }
-  if (!(hdr->frame & SYS_SESSION_FRAME_STATUS)) {
+  if (!(hdr->frame & CMD_TYPE_STATUS)) {
     finish_call(&call, ROUTER_STATUS_OK, NULL, body, len);
     return;
   }
@@ -105,7 +105,7 @@ void sys_session_call_expire(uint32_t now_ms) {
  * ------------------------------------------------------------------------- */
 
 static bool is_here(uint8_t dst) {
-  return dst == sys_session_get_board_id() || dst == SYS_SESSION_ID_SELF;
+  return dst == sys_session_get_board_id() || dst == CMD_SRC_SELF;
 }
 
 static uint32_t timeout_or_default(uint32_t timeout_ms) {

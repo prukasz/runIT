@@ -84,8 +84,8 @@ typedef enum {
   SYS_IO_MODE_COUNT,    // sentinel: left out
 } sys_io_mode_e;
 
-//#ref-defines session_id @alias Peer ids @prefix SYS_SESSION_ID_
-#define SYS_SESSION_ID_DEFAULT 0x00u  //@alias Default @description A board's id until one is set
+//#ref-defines cmd_src @alias Frame source @prefix CMD_SRC_
+#define CMD_SRC_NONE 0x00u  //@alias None @description No id: a board none was given to, a frame not yet on a line
 ```
 
 - `//#ref-streams <group> @alias <title> @prefix <P_>` goes directly above a module's `#define NAME_STREAMS(X, P)` table of the data matrix (`X(P, NAME, id, flags, "text")`): each row is a member `<prefix>NAME` with the id as its value and the text as its alias (the group is published as `defines`).

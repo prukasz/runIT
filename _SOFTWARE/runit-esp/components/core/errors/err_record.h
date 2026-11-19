@@ -27,7 +27,7 @@ typedef enum {
 
 /** @brief An error record's command header (after the stamp): who sent the command, and which one. */
 typedef struct __attribute__((packed)) {
-  uint8_t from;     /**< cmd_req_t.src: a board or client id; ROUTER_SRC_SELF (0xFE) for the board itself */
+  uint8_t from;     /**< cmd_req_t.src: a board or client id; CMD_SRC_SELF for the board itself */
   uint16_t seq;     /**< cmd_req_t.seq: the sender's counter */
   uint8_t flags;    /**< ROUTER_FLAG_* */
   uint8_t req_len;  /**< Bits 0-6: request bytes that follow, bit 7: cut (ERR_RECORD_REQ_CUT) */

@@ -20,7 +20,7 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
   uint8_t provider;     /**< The provider it runs over */
   uint8_t open;         /**< 1 = both hellos passed */
-  uint8_t peer_id;      /**< Its id, from its hello; SYS_SESSION_ID_NONE before it */
+  uint8_t peer_id;      /**< Its id, from its hello; CMD_SRC_NONE before it */
   uint8_t safety;       /**< 1: its end is a safety event */
   uint32_t build_id;    /**< Its firmware's build, from its hello; 0 from a client */
   uint16_t deadman_ms;  /**< This board's dead-man's time of it: the silence that ends it; 0: none */

@@ -18,9 +18,9 @@
 #include "sys_session_events.h"
 #include "sys_session_internal.h"
 
-#define HDR SYS_SESSION_HDR_BYTES
+#define HDR CMD_HEAD
 #define FRAME SYS_SESSION_FRAME
-#define FRAME_KIND SYS_SESSION_FRAME_KIND_OF
+#define FRAME_KIND CMD_KIND_OF
 #include "unity.h"
 
 #define BOARD    5u     // CONFIG_SYS_SESSION_BOARD_ID_DEFAULT: this board
@@ -148,8 +148,8 @@ static bool next_sent(fake_t* f, sent_t* out, int ms) {
   return ok;
 }
 
-static sys_session_hdr_t hdr_of(const sent_t* s) {
-  sys_session_hdr_t h;
+static cmd_hdr_t hdr_of(const sent_t* s) {
+  cmd_hdr_t h;
   memcpy(&h, s->data, sizeof(h));
   return h;
 }
@@ -158,7 +158,7 @@ static sys_session_hdr_t hdr_of(const sent_t* s) {
 static bool next_control(fake_t* f, uint8_t op, sent_t* out, int ms) {
   sent_t s;
   while (next_sent(f, &s, ms)) {
-    if (FRAME_KIND(hdr_of(&s).frame) == SYS_SESSION_CONTROL && s.len > HDR && s.data[HDR] == op) {
+    if (FRAME_KIND(hdr_of(&s).frame) == CMD_CONTROL && s.len > HDR && s.data[HDR] == op) {
       *out = s;
       return true;
     }
@@ -184,7 +184,7 @@ static void deliver(fake_t* f, uint8_t frame, uint8_t dst, uint8_t src, uint16_t
   (void)dst;
   (void)src;
   uint8_t buf[CMD_FRAME_MAX];
-  const sys_session_hdr_t h = {.frame = frame, .seq = seq};
+  const cmd_hdr_t h = {.frame = frame, .seq = seq};
   memcpy(buf, &h, HDR);
   memcpy(buf + HDR, body, len);
   sys_data_provider_deliver(f->p, buf, HDR + len);
@@ -194,13 +194,13 @@ static void deliver_hello(fake_t* f, uint8_t src, uint32_t boot_id) {
   uint8_t body[1 + sizeof(sys_session_hello_t)] = {SYS_SESSION_HELLO};
   const sys_session_hello_t hello = {.id = src, .boot_id = boot_id, .build_id = 0};
   memcpy(body + 1, &hello, sizeof(hello));
-  deliver(f, FRAME(SYS_SESSION_CONTROL), BOARD, src, 0, body, sizeof(body));
+  deliver(f, FRAME(CMD_CONTROL), BOARD, src, 0, body, sizeof(body));
 }
 
 static void deliver_control(fake_t* f, uint8_t src, uint8_t op, const void* data, uint32_t len) {
   uint8_t body[16] = {op};
   memcpy(body + 1, data, len);
-  deliver(f, FRAME(SYS_SESSION_CONTROL), BOARD, src, 0, body, 1 + len);
+  deliver(f, FRAME(CMD_CONTROL), BOARD, src, 0, body, 1 + len);
 }
 
 static const uint8_t k_peers_req[] = {MODULE_ID_SESSION, CMD_DIR_READ, SESSION_OP_PEERS};
@@ -358,12 +358,12 @@ static void test_attach_says_hello_and_the_clients_hello_opens_the_session(void)
 
 static void test_a_request_over_the_session_is_answered_to_its_source(void) {
   open_client();
-  deliver(&s_up, FRAME(SYS_SESSION_REQUEST), BOARD, CLIENT, 7, k_peers_req, sizeof(k_peers_req));
+  deliver(&s_up, FRAME(CMD_REQUEST), BOARD, CLIENT, 7, k_peers_req, sizeof(k_peers_req));
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_ANSWER, &s, WAIT_MS));
-  const sys_session_hdr_t h = hdr_of(&s);
+  TEST_ASSERT_TRUE(next_kind(&s_up, CMD_ANSWER, &s, WAIT_MS));
+  const cmd_hdr_t h = hdr_of(&s);
   TEST_ASSERT_EQUAL_UINT16(7, h.seq);
-  TEST_ASSERT_EQUAL_HEX8(0, h.frame & SYS_SESSION_FRAME_STATUS);  // OK
+  TEST_ASSERT_EQUAL_HEX8(0, h.frame & CMD_TYPE_STATUS);  // OK
   TEST_ASSERT_EQUAL_UINT8(1, s.data[HDR]);                       // one session: the client's
   TEST_ASSERT_EQUAL_UINT32(HDR + 1 + sizeof(sys_session_info_t), s.len);
   TEST_ASSERT_EQUAL_HEX8(0, s.flags & CMD_SEND_SPARE);  // an answer never takes only spare room
@@ -373,9 +373,9 @@ static void test_a_frame_on_a_session_not_open_here_starts_over(void) {
   TEST_ASSERT_NULL(sys_session_attach(UP_ID, 0, 0));
   sent_t s;
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));  // the board's, on attach
-  deliver(&s_up, FRAME(SYS_SESSION_REQUEST), BOARD, CLIENT, 1, k_peers_req, sizeof(k_peers_req));
+  deliver(&s_up, FRAME(CMD_REQUEST), BOARD, CLIENT, 1, k_peers_req, sizeof(k_peers_req));
   TEST_ASSERT_TRUE(next_sent(&s_up, &s, WAIT_MS));
-  TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_CONTROL, FRAME_KIND(hdr_of(&s).frame));
+  TEST_ASSERT_EQUAL_UINT8(CMD_CONTROL, FRAME_KIND(hdr_of(&s).frame));
   TEST_ASSERT_EQUAL_UINT8(SYS_SESSION_NO_SESSION, s.data[HDR]);
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_HELLO, &s, WAIT_MS));
 }
@@ -464,9 +464,9 @@ static void test_a_broadcast_goes_on_every_open_session(void) {
   fake_clear(&s_down);
   TEST_ASSERT_NULL(sys_session_broadcast((cmd_in_t){k_peers_req, sizeof(k_peers_req)}, 0));
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_up, CMD_REQUEST, &s, WAIT_MS));
   TEST_ASSERT_TRUE((hdr_of(&s).frame & ROUTER_FLAG_NOREPLY) != 0);
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_REQUEST, &s, WAIT_MS));
   TEST_ASSERT_TRUE((hdr_of(&s).frame & ROUTER_FLAG_NOREPLY) != 0);
 }
 
@@ -511,7 +511,7 @@ static void test_the_deadman_is_the_sessions_own(void) {
 static const uint8_t k_msg[] = {0x10, 0xAB};
 
 static void test_a_push_needs_an_open_session(void) {
-  TEST_ASSERT_EQUAL_HEX8(SYS_SESSION_ID_NONE, sys_session_peer(UP_ID));
+  TEST_ASSERT_EQUAL_HEX8(CMD_SRC_NONE, sys_session_peer(UP_ID));
   err_h e = sys_session_push(UP_ID, (cmd_in_t){k_msg, sizeof(k_msg)}, 0);
   TEST_ASSERT_ERR_TAG(ERR_SESSION_NOT_OPEN, e);
   err_free(e);
@@ -526,15 +526,15 @@ static void test_a_push_takes_only_spare_room(void) {
   open_client();
   TEST_ASSERT_NULL(sys_session_push(UP_ID, (cmd_in_t){k_msg, sizeof(k_msg)}, 0));
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_up, SYS_SESSION_PUSH, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_up, CMD_PUSH, &s, WAIT_MS));
   TEST_ASSERT_EQUAL_HEX8(CMD_SEND_SPARE | CMD_SEND_NOWAIT, s.flags);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(k_msg, s.data + HDR, sizeof(k_msg));
 }
 
 // The header of the next PUSH the board sent on `f`.
-static sys_session_hdr_t next_push(fake_t* f) {
+static cmd_hdr_t next_push(fake_t* f) {
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(f, SYS_SESSION_PUSH, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(f, CMD_PUSH, &s, WAIT_MS));
   return hdr_of(&s);
 }
 
@@ -550,14 +550,14 @@ static void test_push_seq_counts_per_session_and_class(void) {
   const uint16_t want[] = {0, 1, 0};  // normal, normal, urgent (its own counter)
   uint16_t first[2] = {0, 0};  // the counters run on from the tests before: the first seen of each class
   for (uint32_t i = 0; i < ARRAY_LEN(want); i++) {
-    const sys_session_hdr_t h = next_push(&s_up);
+    const cmd_hdr_t h = next_push(&s_up);
     const uint32_t urgent = h.frame & ROUTER_FLAG_URGENT;
     if (want[i] == 0) {
       first[urgent] = h.seq;
     }
     TEST_ASSERT_EQUAL_UINT16((uint16_t)(first[urgent] + want[i]), h.seq);
   }
-  const sys_session_hdr_t h = next_push(&s_down);
+  const cmd_hdr_t h = next_push(&s_down);
   TEST_ASSERT_EQUAL_UINT16(0, h.seq);  // another session: a counter of its own, its first frame
 }
 
@@ -577,7 +577,7 @@ static void test_a_push_goes_to_the_taker_with_its_provider(void) {
   open_client();
   open_slave();
   const int before = s_push.calls;  // the listener runs on this thread, as on an RX task
-  deliver(&s_up, FRAME(SYS_SESSION_PUSH), BOARD, CLIENT, 0, k_msg, sizeof(k_msg));
+  deliver(&s_up, FRAME(CMD_PUSH), BOARD, CLIENT, 0, k_msg, sizeof(k_msg));
   TEST_ASSERT_EQUAL_INT(before + 1, s_push.calls);
   TEST_ASSERT_EQUAL_HEX8(UP_ID, s_push.provider);
   TEST_ASSERT_EQUAL_HEX8(k_msg[0], s_push.first);
@@ -611,7 +611,7 @@ static void test_a_waited_call_ends_with_its_answer_not_with_another_wake(void) 
   pthread_t t;
   pthread_create(&t, NULL, waiter, &w);
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_REQUEST, &s, WAIT_MS));
   const uint16_t seq = hdr_of(&s).seq;
   for (int i = 0; i < 5; i++) {
     xTaskNotifyGive(w.task);  // an urgent command's, a timer's: not the call's end
@@ -619,7 +619,7 @@ static void test_a_waited_call_ends_with_its_answer_not_with_another_wake(void) 
   }
   TEST_ASSERT_FALSE(w.done);
   const uint8_t answer[] = {0xAA, 0xBB, 0xCC};
-  deliver(&s_down, FRAME(SYS_SESSION_ANSWER), BOARD, SLAVE, seq, answer, sizeof(answer));
+  deliver(&s_down, FRAME(CMD_ANSWER), BOARD, SLAVE, seq, answer, sizeof(answer));
   pthread_join(t, NULL);
   TEST_ASSERT_NULL(w.err);
   TEST_ASSERT_EQUAL_UINT32(sizeof(answer), w.len);
@@ -646,12 +646,12 @@ static void test_an_error_answer_comes_back_under_err_remote(void) {
   pthread_t t;
   pthread_create(&t, NULL, waiter, &w);
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_REQUEST, &s, WAIT_MS));
   uint8_t record[64];
   err_h cause = ERR_NEW(ERR_CMD_BAD_ARG);
   const uint32_t n = err_record(cause, record, sizeof(record));
   err_free(cause);
-  deliver(&s_down, (uint8_t)(FRAME(SYS_SESSION_ANSWER) | SYS_SESSION_FRAME_STATUS), BOARD, SLAVE, hdr_of(&s).seq,
+  deliver(&s_down, (uint8_t)(FRAME(CMD_ANSWER) | CMD_TYPE_STATUS), BOARD, SLAVE, hdr_of(&s).seq,
           record, n);
   pthread_join(t, NULL);
   TEST_ASSERT_NOT_NULL(w.err);
@@ -669,7 +669,7 @@ static void test_a_call_through_a_session_that_ends_fails_peer_down(void) {
   pthread_t t;
   pthread_create(&t, NULL, waiter, &w);
   sent_t s;
-  TEST_ASSERT_TRUE(next_kind(&s_down, SYS_SESSION_REQUEST, &s, WAIT_MS));
+  TEST_ASSERT_TRUE(next_kind(&s_down, CMD_REQUEST, &s, WAIT_MS));
   TEST_ASSERT_NULL(sys_session_detach(DOWN_ID));
   pthread_join(t, NULL);
   TEST_ASSERT_NOT_NULL(w.err);
@@ -690,7 +690,7 @@ static void test_a_refused_hello_does_not_keep_the_session_alive(void) {
   TEST_ASSERT_EQUAL_INT(0, seen(&s_seen.gone));
 
   // A hello with an id of the wrong kind is refused: it is not its peer's sign of life.
-  deliver_hello(&s_up, SYS_SESSION_ID_SELF, 0xBADu);
+  deliver_hello(&s_up, CMD_SRC_SELF, 0xBADu);
   TEST_ASSERT_TRUE(next_control(&s_up, SYS_SESSION_PING, &s, WAIT_MS));  // ~tick 30
   sleep_ms(80);                                                          // past tick 31, well before reset tick 51
   TEST_ASSERT_EQUAL_INT(1, seen(&s_seen.gone));

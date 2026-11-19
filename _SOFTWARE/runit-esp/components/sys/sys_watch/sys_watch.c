@@ -133,7 +133,7 @@ static void on_tick(void* arg) {
 
 err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) {
   ERR_CHECK(head->id != 0 && head->period != 0 && head->trigger <= SYS_WATCH_ON_CHANGE && read.len >= 2u &&
-                read.len <= SYS_WATCH_READ_MAX && owner <= SYS_SESSION_ID_CLIENT_LAST,
+                read.len <= SYS_WATCH_READ_MAX && owner != CMD_SRC_NONE && owner <= CMD_SRC_CLIENT_LAST,
             ERR_WATCH_BAD_ARG, .id = head->id);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = head->id);
 
@@ -163,12 +163,12 @@ err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) 
   return NULL;
 }
 
-// Removes the watches of `owner` (SYS_SESSION_ID_BROADCAST: of everyone) with `id` (0: every id); how many.
+// Removes the watches of `owner` (CMD_SRC_ALL: of everyone) with `id` (0: every id); how many.
 static uint32_t remove_watches(uint8_t owner, uint8_t id) {
   uint32_t removed = 0;
   xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
   for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++) {
-    const bool theirs = owner == SYS_SESSION_ID_BROADCAST || w->owner == owner;
+    const bool theirs = owner == CMD_SRC_ALL || w->owner == owner;
     if (USED(w) && theirs && (id == 0 || w->head.id == id)) {
       w->head.id = 0;  // free
       w->gen++;
@@ -180,7 +180,7 @@ static uint32_t remove_watches(uint8_t owner, uint8_t id) {
 }
 
 err_h sys_watch_remove(uint8_t owner, uint8_t id) {
-  ERR_CHECK(id != 0 && owner != SYS_SESSION_ID_BROADCAST && remove_watches(owner, id) > 0, ERR_WATCH_NOT_FOUND,
+  ERR_CHECK(id != 0 && owner != CMD_SRC_ALL && remove_watches(owner, id) > 0, ERR_WATCH_NOT_FOUND,
             .id = id);
   return NULL;
 }

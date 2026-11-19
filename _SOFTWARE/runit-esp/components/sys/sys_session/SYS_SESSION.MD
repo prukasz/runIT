@@ -14,7 +14,7 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is a framed pro
 | File | Role |
 |---|---|
 | `sys_session_events.h` | The module's events: `SESSION_EV_REACHED`, `SESSION_EV_GONE`, and the filters of them |
-| `sys_session.h` | The wire format (the ids, the frame byte, the kinds, the channels, the control ops, published to the app; the header `sys_session_hdr_t`, HELLO's body `sys_session_hello_t`), then the use: start and this board; attach, detach, the dead-man; calls (call, call and wait, broadcast); push and its taker |
+| `sys_session.h` | The session's wire format (the channels, the control ops, published to the app; HELLO's body `sys_session_hello_t`; the header, its type byte, kinds and ids are cmd.h's), then the use: start and this board; attach, detach, the dead-man; calls (call, call and wait, broadcast); push and its taker |
 | `sys_session.c` | Everything except calls, board id NVS, and router handlers: the sessions, the one send (`send`: header + body as one flat frame), the control frames, the hello, answers, RX dispatch, broadcast, push, the 10 ms tick, attach, detach and the dead-man |
 | `internal/sys_session_internal.h` | For `sys_session.c`, `call/`, `board/`, and `router/` only: `sys_session_route`, `sys_session_send_request`, `sys_session_list`, and the calls' and the board's hooks |
 | `call/sys_session_call.c` | The board's calls to other boards: their slots, answers, timeouts, the wait |
@@ -26,17 +26,17 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is a framed pro
 
 ## Peers and ids
 
-A **board id** (0x00..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another takes the same id and the project runs on (its new `boot_id` ends the old session). `SYS_SESSION_ID_DEFAULT` (0x00) is **no id given yet**: a new board has it, and so does a board flashed by another (SYS_FLASHER.MD), so a board that takes slaves has another one.
+The ids are the header's sources (`CMD_SRC_*`, CMD.MD "The header"). A **board id** (0x01..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another takes the same id and the project runs on (its new `boot_id` ends the old session). `CMD_SRC_NONE` (0x00) is **no id given yet**: a new board has it, and so does a board flashed by another (SYS_FLASHER.MD), so a board that takes slaves has another one.
 
-A **client** (the app, a test host) is no board: its id is its pick in 0xF0..0xFC. Every peer says its own id in its hello, and no two open sessions have the same (`ERR_SESSION_ID_TAKEN`); an id nobody may say (`SYS_SESSION_ID_NONE`, `_SELF`, `_BROADCAST`) or this board's own is refused too. `SYS_SESSION_ID_SELF` (0xFE) is the board itself as the source of its own commands (`ROUTER_SRC_SELF`): in error records, never in a frame.
+A **client** (the app, a test host) is no board: its id is its pick in 0xF0..0xFC. Every peer says its own id as the `src` of its hello, and no two open sessions have the same (`ERR_SESSION_ID_TAKEN`); an id nobody may say (`CMD_SRC_SELF`, `_ALL`) or this board's own is refused too. `CMD_SRC_SELF` (0xFE) is the board itself as the source of its own commands: in error records, never in a frame.
 
 The board knows its peers only by the sessions it has, as many as it has providers attached: a session has the same rules whoever is on it (the app on BLE, a board on UART). Every board runs the same firmware and `app/runit` attaches the same two sessions, the console and the runIT BLE pair; a session with a board on a UART is the board's record's `ROLE` of that provider (DATA_MATRIX.MD). A frame a board gets from a session is that peer's: the command's `src` is its id.
 
 ## Frames
 
-One header on every frame (`sys_session_hdr_t`, 3 B = `CMD_HEAD`): the frame byte and `seq u16`. Every frame leaves `sys_data_provider_send` as one flat `cmd_in_t` frame (SYS_DATA_PROVIDER.MD "Use"), joined from the header and the body at the send.
+One header on every frame (`cmd_hdr_t`, 5 B = `CMD_HEAD`, CMD.MD "The header"): the type byte, `src`, `key`, `seq u16`. Every frame leaves `sys_data_provider_send` as one flat `cmd_in_t` frame (SYS_DATA_PROVIDER.MD "Use"), joined from the header and the body at the send.
 
-| Frame byte | Meaning |
+| Type byte | Meaning |
 |---|---|
 | bits 0-1 | the router's own flags: `ROUTER_FLAG_URGENT` on a request, on its answer and on a push; `_NOREPLY` on a request |
 | bit 2 | an answer's status: `router_status_e` (OK, ERROR) |
@@ -45,7 +45,7 @@ One header on every frame (`sys_session_hdr_t`, 3 B = `CMD_HEAD`): the frame byt
 
 | Kind | After the header | `seq` |
 |---|---|---|
-| `REQUEST` | `[key][dir][code \| id + op][args]` | the sender's counter |
+| `REQUEST` | `[dir][code \| id + op][args]`, its router key the header's `key` | the sender's counter |
 | `ANSWER` | the data; ERROR's is the error record | the request's |
 | `PUSH` | `[tag][data]`: a **tag** is a stream's id (below `0x80`) or, from `0x80`, a **channel**:  a module's number with bit 7 set (`SYS_SESSION_CHANNEL(MODULE_ID_x)`: watches `SYS_WATCH_CHANNEL`, remote devices `SYS_REMOTE_CHANNEL`); what the tag means is the data matrix's (DATA_MATRIX.MD) | the session's count of its PUSH frames of that class: a gap is frames lost |
 | `CONTROL` | `op`, then its data: HELLO (`sys_session_hello_t`), PING, NO_SESSION | 0 |
@@ -55,7 +55,7 @@ What follows the header is at most `CMD_DATA_MAX`. The send flags follow the fra
 ## A session's life
 
 1. `sys_session_attach(provider, deadman_ms, flags)`: the session opens the provider (a framed one only, else `ERR_SESSION_NOT_FRAMED`) and stays on it until `sys_session_detach`, whoever is on it or not. A provider has one owner of its rx hook: the data matrix's `ROLE` `SESSION` calls attach, `CLEAR_ROLE` detach. `deadman_ms` 0: no dead-man; else its time, 150..60000 ms, and `flags` `SYS_SESSION_SAFETY` (below). The same again on that provider is done, so a stored record that attaches runs at every start without an error; another time or flag on an attached provider is `ERR_CMD_BAD_ARG`.
-2. When the provider is up (at attach, or its rx with `data` NULL, `len` 1), the board sends HELLO: its id, `boot_id` (random per boot), `build_id` (the first 4 bytes of its firmware's ELF SHA-256: whether a board runs the same build), nothing else. A client sends its hello with its own id and `build_id` 0.
+2. When the provider is up (at attach, or its rx with `data` NULL, `len` 1), the board sends HELLO: its id as the header's `src`, `boot_id` (random per boot), `build_id` (the first 4 bytes of its firmware's ELF SHA-256: whether a board runs the same build), nothing else. A client sends its hello with its own id as `src` and `build_id` 0.
 3. The session **opens** when the peer's hello has come (an id it may say, that no other open session has). A client is answered every hello (it may have missed ours: a BLE client not subscribed yet); a board its first only, so two boards do not answer each other for ever. `SESSION_EV_REACHED` is published. A refused hello (`ERR_SESSION_ID_TAKEN`) changes nothing and is no sign of life.
 4. Until then only HELLO and NO_SESSION pass. Anything else on a session not open here is answered `NO_SESSION` with the hello, so a peer that missed a restart (UART has no disconnect) or this board's timeout starts over at once. NO_SESSION from the peer ends this side too, and this board says hello. Every other frame of the peer is its sign of life.
 5. A hello on an open session is its sign of life; a new `boot_id` or id ends it first: the peer restarted, so what it had here is gone.
@@ -82,7 +82,7 @@ On the driver's RX task: the session is open (else NO_SESSION); then the command
 
 `sys_session_call(dst, req, flags, timeout_ms, cb, ctx)` runs a command and gives its answer to `cb`, a `router_done_f` (read-only data): one way to run a command with its answer, here or on the peer with id `dst`.
 
-- **To this board** (its id or `SYS_SESSION_ID_SELF`): `router_inject`: no slot, no timeout, the answer on the router task.
+- **To this board** (its id or `CMD_SRC_SELF`): `router_inject`: no slot, no timeout, the answer on the router task.
 - **To a peer**: the open session whose peer is `dst` is taken (`ERR_SESSION_NO_ROUTE` when there is none), a call slot (`CONFIG_SYS_SESSION_CALLS`) keeps the call under a new `seq`, and the request goes out (`NOWAIT`, so a busy provider is `ERR_PROV_BUSY` at once). A call ends once: whoever ends it (the answer with its `seq`, the tick, the session ending, a waiter that gave up) takes it out of its slot under the calls' lock first, and only then is the callback called; a late answer finds no call and is dropped.
 
 | Answer | `cb` gets |
@@ -128,7 +128,7 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
 | `0x01` | ID | read / write | `sys_session_id_args_t` `{u8 board_id}`; the write is kept in NVS and used from the next start |
-| `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: `u8 provider`, `u8 open`, `u8 peer_id` (`NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none) |
+| `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: `u8 provider`, `u8 open`, `u8 peer_id` (`CMD_SRC_NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none) |
 
 ## Errors (`MODULE_ID_SESSION` 0x0E)
 
@@ -152,4 +152,5 @@ On a board: `python runit-esp/tools/session_client.py <COM port>` opens a sessio
 ## Open
 
 - Two boards on a UART are not run on hardware yet.
+- The code is behind its header: `sys_session.c` still writes the old frame (the header's `frame` field, the hello's `id`) and takes a session as open by its peer's id not being `CMD_SRC_NONE`, which a board with no id is; both go with the session's rewrite as ports (below).
 - The session as ports of the data matrix (its port linked with its provider, a command sub-port to the router, a sub-port per stream module, `ATTACH` / `DETACH` as its commands, the calls moved to the router, the 5-byte header `[type][src][key][seq]` with board ids from `0x01`): DATA_MATRIX.MD "The design to build".

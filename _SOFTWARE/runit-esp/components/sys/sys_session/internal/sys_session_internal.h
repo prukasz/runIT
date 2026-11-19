@@ -22,7 +22,7 @@ MUST_USE err_h sys_session_send_request(uint8_t provider, uint16_t seq, cmd_in_t
 uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]);
 
 /* The calls (call/): an answer for this board, the session on `provider` ended, the timer's tick. */
-void sys_session_call_answer(const sys_session_hdr_t* hdr, const uint8_t* body, uint32_t len);
+void sys_session_call_answer(const cmd_hdr_t* hdr, const uint8_t* body, uint32_t len);
 void sys_session_call_fail_via(uint8_t provider);
 void sys_session_call_expire(uint32_t now_ms);
 
