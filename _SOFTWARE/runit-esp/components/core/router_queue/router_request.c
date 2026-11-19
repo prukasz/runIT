@@ -1,7 +1,7 @@
 /**
  * @file router_request.c
- * @brief This board's calls (router_queue.h, ROUTER_QUEUE.MD "Calls"): a command out of the router's port to a port
- * linked from it, its answer to a callback, its timeout, the wait.
+ * @brief This board's calls (router_queue.h, ROUTER_QUEUE.MD "Calls"): a command out of the router's port to the port
+ * its caller names, its answer to a callback, its timeout, the wait.
  */
 
 #include <string.h>
@@ -156,7 +156,7 @@ static err_h call_out(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uin
       !take_call(BY_SEQ, to, call.seq, &call)) {
     return NULL;  // sent, or its link ended meanwhile: the callback has the end
   }
-  return ERR_NEW(ERR_ROUTER_NO_LINK, .port = to);
+  return ERR_NEW(ERR_ROUTER_NO_PORT, .port = to);
 }
 
 err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,

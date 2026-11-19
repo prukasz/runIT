@@ -1,7 +1,8 @@
 /**
  * @file data_matrix.c
  * @brief The switch of the ports (data_matrix.h): the registered ports, each with the ports its output goes to, and
- * the sends, which hand a packet unchanged to their inputs: all of them, one, or all but one (DATA_MATRIX.MD).
+ * the sends, which hand a packet unchanged to their inputs (all of them, or all but one) or to one port by its name
+ * (DATA_MATRIX.MD).
  *
  * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so a send only copies
  * them under the spinlock, a few bytes, and calls them after it: a port's `in` never runs under the lock.
@@ -63,15 +64,15 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
 
 bool data_matrix_send_to(data_matrix_port_t* self, data_matrix_port_id_t target, uint8_t flags, const uint8_t* data,
                          uint32_t len) {
-  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
-  const uint32_t n = targets(self, to);
-  for (uint32_t i = 0; i < n; i++) {
-    if (to[i]->id == target) {
-      to[i]->in(to[i], self->id, flags, data, len);
-      return true;
-    }
+  portENTER_CRITICAL(&s_lock);
+  const uint8_t at = find(target);
+  data_matrix_port_t* to = at != NO_PORT ? s_slots[at].port : NULL;
+  portEXIT_CRITICAL(&s_lock);
+  if (to == NULL || to->in == NULL) {
+    return false;
   }
-  return false;
+  to->in(to, self->id, flags, data, len);
+  return true;
 }
 
 void data_matrix_send_except(data_matrix_port_t* self, data_matrix_port_id_t except, uint8_t flags,

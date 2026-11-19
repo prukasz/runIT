@@ -43,7 +43,7 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 ## Commands and answers
 
 - `router_inject(req, flags, done, ctx)` runs a command of the board itself: it copies the request, its callback and `ctx` into the ring of its flags (src `CMD_SRC_SELF`, seq from the router's counter) and returns; it never blocks. A command it can't queue (a request shorter than 2 B or longer than `CMD_DATA_MAX` + 1: `ERR_ROUTER_FRAME_LEN`; ring full: `ERR_ROUTER_QUEUE_FULL`) is not: the call returns why. The actions (`sys_actions_request`), the project's start and a watch's read inject.
-- **From the port**: a REQUEST frame is queued as a command (`src`, `seq` and the flags of its header; its request is the header's `key` and the body) with the port it came from (`from`); its answer leaves the router's port to that port (`data_matrix_send_to`) as `[hdr ANSWER: status, URGENT, src 0, the request's key and seq][data]`, waiting for room at most the provider's bound; what is not taken is lost. A frame the queue refuses is answered ERROR at once (`NOWAIT`, not a NOREPLY one) on the sender's task, its record at most 64 B, and reported. An ANSWER frame ends this board's call (Calls); another kind is dropped.
+- **From the port**: a REQUEST frame is queued as a command (`src`, `seq` and the flags of its header; its request is the header's `key` and the body) with the port it came from (`from`); its answer leaves the router's port to that port by its name (`data_matrix_send_to`, no link back needed) as `[hdr ANSWER: status, URGENT, src 0, the request's key and seq][data]`, waiting for room at most the provider's bound; what is not taken is lost. A frame the queue refuses is answered ERROR at once (`NOWAIT`, not a NOREPLY one) on the sender's task, its record at most 64 B, and reported. An ANSWER frame ends this board's call (Calls); another kind is dropped.
 - The router keeps nothing of who sent a command: the port it came from, or the callback and its `ctx`, do. So there is no registry of links and no state per peer: whatever is linked with the port may send commands, and the answer goes back to it.
 - **The answer**: each task runs a command and then its `done(ctx, cmd, status, data, len)` on the same task:
 
@@ -59,7 +59,7 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 
 `router_request(to, req, flags, timeout_ms, cb, ctx)` runs a command and gives its answer to `cb`, a `router_done_f` (read-only data): one way to run a command with its answer, at the other end of a link. A command of this board is `router_inject`. `req` is `[key][dir][code | id + op][args]`: its key goes into the header.
 
-- `to` is a port linked from the router's: a session's command sub-port (`sys_session_port`). A call slot (`CONFIG_ROUTER_CALLS`) keeps it under a new `seq` and `[hdr REQUEST, src 0, key, seq][the rest]` goes out to `to` (`NOWAIT`); not linked: `ERR_ROUTER_NO_LINK`. A call ends once: whoever ends it (its answer, the timer, `router_request_fail_to`, a waiter that gave up) takes it out of its slot under the calls' lock first, and only then is the callback called; a late answer finds no call and is dropped. An answer is the call's when its `seq` and the port it came from are.
+- `to` is the port the request goes to, by its name (`data_matrix_send_to`, no link): a session's command sub-port (`sys_session_port`). A call slot (`CONFIG_ROUTER_CALLS`) keeps it under a new `seq` and `[hdr REQUEST, src 0, key, seq][the rest]` goes out to `to` (`NOWAIT`); not linked: `ERR_ROUTER_NO_PORT`. A call ends once: whoever ends it (its answer, the timer, `router_request_fail_to`, a waiter that gave up) takes it out of its slot under the calls' lock first, and only then is the callback called; a late answer finds no call and is dropped. An answer is the call's when its `seq` and the port it came from are.
 
 | Answer | `cb` gets |
 |---|---|
@@ -93,7 +93,7 @@ A tag about a command carries its `src`.
 | `ERR_ROUTER_FRAME_LEN` | MEDIUM | `u8 src, u16 len, u16 max` | A request shorter than 2 B (key, dir) or longer than `CMD_DATA_MAX` + 1 (a frame's body and its key) |
 | `ERR_ROUTER_BUSY` | MEDIUM | – | `router_run_urgent`: another `fn` waits to run |
 | `ERR_ROUTER_CALLS_FULL` | MEDIUM | – | Every `CONFIG_ROUTER_CALLS` slot in use |
-| `ERR_ROUTER_NO_LINK` | MEDIUM | `u16 port` | A call to a port not linked from the router's |
+| `ERR_ROUTER_NO_PORT` | MEDIUM | `u16 port` | A call to a port that is not registered |
 | `ERR_ROUTER_CALL_TIMEOUT` | MEDIUM | `u16 port, u16 seq` | A call without an answer in its time |
 | `ERR_ROUTER_CALL_DOWN` | MEDIUM | `u16 port` | The link the call went out on ended (`router_request_fail_to`) |
 | `ERR_REMOTE` | NONE | `u8 board, u16 seq` | Context: the chain under it is that board's |

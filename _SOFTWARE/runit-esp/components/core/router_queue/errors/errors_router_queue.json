@@ -15,9 +15,9 @@
     "ERR_ROUTER_CALLS_FULL": {
       "message": "Too many requests to other boards at once"
     },
-    "ERR_ROUTER_NO_LINK": {
+    "ERR_ROUTER_NO_PORT": {
       "message": "Connection {port} cannot be reached from here",
-      "hint": "Link the router with it in the data matrix."
+      "hint": "Attach its session first."
     },
     "ERR_ROUTER_CALL_TIMEOUT": {
       "message": "Connection {port} did not answer",

@@ -21,9 +21,10 @@
  *   static my_t s_me = {.port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x2A), .in = my_in}};
  *   data_matrix_send(&s_me.port, CMD_SEND_URGENT, rec, len);
  *
- * data_matrix_send hands a packet to every port linked from the sender; data_matrix_send_to to one of them (an answer
- * to `from`, a call to one session), data_matrix_send_except to all but one (what a port passes on, never back to
- * `from`). A link is the permission: a port is reached only over a link.
+ * data_matrix_send hands a packet to every port linked from the sender, data_matrix_send_except to all but one (what a
+ * port passes on, never back to `from`): where a port's output goes is its links. data_matrix_send_to hands it to one
+ * registered port by its name, with no link: an answer to the `from` a packet came with, a call to the port its
+ * caller names.
  *
  * A packet carries its flags (CMD_SEND_*, cmd_types.h): the sender sets them, the switch hands them on unchanged
  * with the bytes, the taker honours what it can (a provider queues by them).
@@ -143,13 +144,14 @@ MUST_USE err_h data_matrix_disconnect(const data_matrix_link_t* link);
 void data_matrix_send(data_matrix_port_t* port, uint8_t flags, const uint8_t* data, uint32_t len);
 
 /**
- * @brief Sends a packet out of a port to one port linked from it: an answer to `from`, a call to one session.
+ * @brief Sends a packet out of a port to one registered port by its name, with no link: an answer to `from`, a call
+ * to the port its caller names.
  * @param port   The owner's port.
  * @param to     The target's name.
  * @param flags  CMD_SEND_*.
  * @param data   The packet, borrowed for the call.
  * @param len    Bytes in data.
- * @return true when `to` is linked from `port` and took it; false: no such link (or `port` not registered).
+ * @return true when `to` is registered and took it; false: no such port, or it takes nothing.
  */
 bool data_matrix_send_to(data_matrix_port_t* port, data_matrix_port_id_t to, uint8_t flags, const uint8_t* data,
                          uint32_t len);

@@ -25,10 +25,10 @@ The switch keeps the port's `place` while it is registered. The owner sends out 
 | Call | To |
 |---|---|
 | `data_matrix_send(&port, flags, data, len)` | every port linked from it |
-| `data_matrix_send_to(&port, to, flags, data, len)` | the one port `to`, when it is linked from it (`false`: no such link): an answer to `from`, a call to one session |
+| `data_matrix_send_to(&port, to, flags, data, len)` | the one registered port `to`, by its name, with no link (`false`: no such port): an answer to `from`, a call to the port its caller names |
 | `data_matrix_send_except(&port, except, flags, data, len)` | every port linked from it but `except`: what a port passes on, never back to the `from` it came from |
 
-A link is the permission: no call reaches a port that is not linked from the sender. A taker gets the sender's name (`from`), its address to answer.
+Where a port's output goes is its links; a taker gets the sender's name (`from`), its address to answer: an answer goes back to it with `send_to`, no link needed. So a session's command sub-port needs one link, to the router: the router's answers and calls reach it by its name.
 
 **The contract of a port:** `in` is short, never blocks, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. The one wait is a provider's: its `in` waits for room on its line, at most its driver's bound, when the sender did not say `CMD_SEND_NOWAIT` (SYS_DATA_PROVIDER.MD "Stream port"); a sender on a task that must not wait says it. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `in` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `in` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
@@ -66,7 +66,7 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 ### The design to build: every byte of a provider through the matrix
 
-Everything a provider carries goes through the matrix, the commands too, and what is connected is connected by links only. Nothing in it routes: a port that answers or calls names its target, and the link is the permission.
+Everything a provider carries goes through the matrix, the commands too, and what is connected is connected by links only. Nothing in it routes: a port that answers or calls names its target (`send_to`), links say where a port's output goes.
 
 **One header on every frame and every packet**, 5 B: `[type u8][src u8][key u8][seq u16]`. A packet in the matrix is the frame of the line as it is: a session translates nothing.
 
@@ -97,7 +97,7 @@ The channel range (`0x80`, `SYS_SESSION_CHANNEL`) is gone: the watches and the r
 
 **The router has one port**, `ROUTER` (`MODULE_ID_ROUTER`), for the sessions' command sub-ports and for providers without a session (an MQTT topic of commands) alike: a raw provider carries the header like any bytes, the client on its other end writes it (`src` 0 and `seq` 0 when it does not need them). Commands through a raw provider are full access on purpose: no dead-man and no safety flag stand behind them.
 
-`n` connections are `n` links into the one port, not `n` ports: an answer goes back with `data_matrix_send_to(port, from, ...)` to whoever asked. The router is the hub of commands both ways: this board's calls to a peer leave from `ROUTER` too. The caller (`sys_remote`, the watches' client) finds the command sub-port of `dst`'s session (`sys_session_port`) and gives it to the router, which keeps the call's slot by `(from, seq)`, its timeout and its wait (`router_request`, ROUTER_QUEUE.MD "Calls": done). A broadcast (STOP, the time) is the session's: a REQUEST with `NOREPLY` out of every open session's port. C code of this board runs its commands with `router_inject`.
+`n` connections are `n` links into the one port, not `n` ports: an answer goes back with `data_matrix_send_to(port, from, ...)` to whoever asked, no link back needed. The router is the hub of commands both ways: this board's calls to a peer leave from `ROUTER` too. The caller (`sys_remote`, the watches' client) finds the command sub-port of `dst`'s session (`sys_session_port`) and gives it to the router, which keeps the call's slot by `(from, seq)`, its timeout and its wait (`router_request`, ROUTER_QUEUE.MD "Calls": done). A broadcast (STOP, the time) is the session's: a REQUEST with `NOREPLY` out of every open session's port. C code of this board runs its commands with `router_inject`.
 
 **Streams: one port per stream, both ways.** `ERRORS` sends this board's records and takes the records of other boards; the events the same (`ERRORS` / `ERRORS_IN` and `EVENT_NOTIFY` / `EVENT_REMOTE` become one port each). What a stream port takes it passes on with `data_matrix_send_except(port, from, ...)`: never back to the board it came from, so a slave's errors reach the app's session and never return to the slave. Three boards linked in a ring are not guarded: boards make a tree. What a module does on its own board with what it takes (the log's history, the policy, publishing an event) is decided when the module moves to ports, not here.
 

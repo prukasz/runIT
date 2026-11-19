@@ -97,14 +97,14 @@ MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, vo
  *    caller's of router_request_fail_to).
  * Every call out is answered. `cb`'s cmd is the call: its request (the first CONFIG_ERRORS_RECORD_REQ_MAX bytes), its
  * seq, src CMD_SRC_SELF.
- * @param[in] to         A port linked from the router's (a session's command sub-port, sys_session_port).
+ * @param[in] to         The port the request goes to (a session's command sub-port, sys_session_port).
  * @param[in] req        The command: [key][dir][code | id + op][args], 2..CMD_DATA_MAX + 1 bytes (the key goes into
  *                       the header).
  * @param[in] flags      ROUTER_FLAG_URGENT, or 0.
  * @param[in] timeout_ms Without an answer this long: ERR_ROUTER_CALL_TIMEOUT; 0: CONFIG_ROUTER_CALL_TIMEOUT_MS.
  * @param[in] cb         The answer; NULL: nobody wants it.
  * @param[in] ctx        Given to `cb`.
- * @return NULL when sent; ERR_CMD_BAD_ARG, ERR_ROUTER_CALLS_FULL, ERR_ROUTER_NO_LINK.
+ * @return NULL when sent; ERR_CMD_BAD_ARG, ERR_ROUTER_CALLS_FULL, ERR_ROUTER_NO_PORT.
  */
 MUST_USE err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms,
                               router_done_f cb, void* ctx);
