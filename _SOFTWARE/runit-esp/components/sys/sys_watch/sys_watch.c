@@ -13,7 +13,7 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_WATCH, ERR_SYS_WATCH_MAP)
 
-#define ENTRY_HEAD 2u  // [id][status], then the read's answer: the payload of the channel SYS_WATCH_CHANNEL
+#define ENTRY_HEAD 2u  // [id][status], then the read's answer: after the header of a WATCH packet
 
 /* What the last entry sent was (watch_t.last). */
 #define LAST_NONE  0u  // nothing yet
@@ -56,15 +56,20 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 }
 
 /* ----------------------------------------------------------------------------
- * A read's answer (the router's task): the entry to the owner, [id][status][data] on SYS_WATCH_CHANNEL
+ * A read's answer (the router's task): the entry to the owner, [hdr PUSH, MODULE_ID_WATCH][id][status][data]
  * ------------------------------------------------------------------------- */
 
-// The entry on the channel, to the owner's session.
+// The entry out of WATCH to the owner's session (its sub-port MODULE_ID_WATCH), NOWAIT.
 static err_h push_entry(uint8_t owner, const uint8_t* entry, uint32_t len) {
-  uint8_t provider = 0;
-  ERR_CHECK(sys_session_route(owner, &provider), ERR_SESSION_NO_ROUTE, .dst = owner);
-  const data_matrix_end_t to = DATA_MATRIX_END_TAGGED(provider, SYS_WATCH_CHANNEL);
-  return data_matrix_send_to(&to, entry, len, 0);
+  data_matrix_port_id_t to = 0;
+  ERR_TRY(sys_session_port(owner, MODULE_ID_WATCH, &to));
+  uint8_t packet[CMD_HEAD + len];
+  const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
+  memcpy(packet, &hdr, CMD_HEAD);
+  memcpy(packet + CMD_HEAD, entry, len);
+  ERR_CHECK(data_matrix_send_to(&sys_watch_port, to, CMD_SEND_NOWAIT, packet, sizeof(packet)), ERR_SESSION_NO_ROUTE,
+            .dst = owner);
+  return NULL;
 }
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {

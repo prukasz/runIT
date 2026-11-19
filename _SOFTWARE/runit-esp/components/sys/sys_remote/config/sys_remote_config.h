@@ -5,7 +5,7 @@
  * @brief What a remote device's frame carries, the one place it is assigned (wire format: never renumber). Included by
  * sys_remote.h; published to the app by templates/generate_enums.py.
  *
- *   A frame of the channel SYS_REMOTE_CHANNEL (the data matrix's tag)   [id u8][kind u8][data]   to each subscriber of device `id`
+ *   A frame out of the port REMOTE (after its header)               [id u8][kind u8][data]   to each subscriber of device `id`
  *     data  EVENT: sys_event_t with its payload (its source the device's id on its own board); ERROR: an error record
  */
 

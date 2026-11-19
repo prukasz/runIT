@@ -6,7 +6,7 @@
   "id": "WATCH",
   "router_key": 43,
   "alias": "Watches",
-  "description": "Reads this board runs every period and pushes (all of them, or the ones whose answer changed) as entries [channel][id][status][data] on the watches' channel to the caller that added them.",
+  "description": "Reads this board runs every period and pushes (all of them, or the ones whose answer changed) as entries [id][status][data] out of the port WATCH to the session of the caller that added them.",
   "category": "system",
   "commands": [
     {

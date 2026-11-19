@@ -2,43 +2,53 @@
 
 #include <string.h>
 
+#include "cmd.h"
 #include "sys_event.h"
 
-DATA_MATRIX_STREAMS_DEFINE(EVENT)
+static void events_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                      uint32_t len);
 
-// The events that matter to the user, out as they are: the stream is told nothing of the event's module.
+static data_matrix_port_t s_events = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_SYS_EVENT),
+                                      .in = events_in};
+
+// The events that matter to the user, out as they are, [hdr PUSH urgent, MODULE_ID_SYS_EVENT][sys_event_t]: the port
+// is told nothing of the event's module. NOWAIT: an event never waits for a line.
 static err_h on_notify_event(const sys_event_t* event, void* ctx) {
   (void)ctx;
-  if (event != NULL && (event->flags & SYS_EVENT_NOTIFY) != 0u) {
-    err_free(data_matrix_send(EVENT_STREAM_NOTIFY, event, (uint32_t)(sizeof(*event) + event->len)));
+  const uint32_t len = (uint32_t)(sizeof(*event) + event->len);
+  if ((event->flags & SYS_EVENT_NOTIFY) == 0u || len > CMD_DATA_MAX) {
+    return NULL;
   }
+  uint8_t packet[CMD_HEAD + len];
+  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | CMD_SEND_URGENT), .key = MODULE_ID_SYS_EVENT};
+  memcpy(packet, &hdr, CMD_HEAD);
+  memcpy(packet + CMD_HEAD, event, len);
+  data_matrix_send(&s_events, CMD_SEND_NOWAIT | CMD_SEND_URGENT, packet, sizeof(packet));
   return NULL;
 }
 
-// A sys_event_t from another board: published here, without NOTIFY (what it sent out was that board's to tell: sent on
-// again, two boards would pass it between them for ever). Its source and channel are that board's own numbers.
-static void on_event_in(void* ctx, const data_matrix_end_t* from, const uint8_t* data, uint32_t len) {
-  (void)ctx;
-  (void)from;
+// A sys_event_t from another board: passed on to every port linked from EVENTS but the one it came from, and
+// published here without NOTIFY (what it sent out was that board's to tell). Its source and channel are that board's
+// own numbers.
+static void events_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                      uint32_t len) {
   sys_event_t event;
-  if (len < sizeof(event)) {
+  if (len < CMD_HEAD + sizeof(event)) {
     return;
   }
-  memcpy(&event, data, sizeof(event));
-  if (len != sizeof(event) + event.len) {
+  memcpy(&event, data + CMD_HEAD, sizeof(event));
+  if (len != CMD_HEAD + sizeof(event) + event.len) {
     return;
   }
+  data_matrix_send_except(self, from, flags, data, len);
   err_free(sys_event_publish(event.key, (uint16_t)((event.flags & ~SYS_EVENT_NOTIFY) | SYS_EVENT_DEFER),
-                             data + sizeof(event), event.len));
+                             data + CMD_HEAD + sizeof(event), event.len));
 }
 
 err_h sys_event_stream_init(void) {
-  ERR_TRY(data_matrix_streams(EVENT_streams, EVENT_STREAMS_COUNT));
+  ERR_TRY(data_matrix_register(&s_events));
   uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(
+  return sys_event_subscribe(
       (sys_event_key_t){.tag = SYS_EVENT_ANY_NOTIFY, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL},
-      on_notify_event, NULL, SYS_EVENT_RUN_FIRST, &handle));
-  data_matrix_end_t sink;
-  ERR_TRY(data_matrix_listen(on_event_in, NULL, &sink));
-  return data_matrix_route(&(data_matrix_route_t){DATA_MATRIX_END_STREAM(EVENT_STREAM_REMOTE), sink});
+      on_notify_event, NULL, SYS_EVENT_RUN_FIRST, &handle);
 }

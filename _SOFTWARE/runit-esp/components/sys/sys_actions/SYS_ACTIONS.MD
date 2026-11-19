@@ -41,7 +41,7 @@ System IDs (class `0x01`):
 | `0x01000006` `SYS_ACTIONS_ID_BLE` | Bluetooth: the BLE providers (characteristics) the app adds | the app |
 | `0x01000007` `SYS_ACTIONS_ID_DATA_MATRIX` | provider roles and routes of the data | data_matrix |
 | `0x01000008` `SYS_ACTIONS_ID_POWER_PD` | power PD (the USB-PD request) | power |
-| `0x01000009` `SYS_ACTIONS_ID_LINKS` | the links to other boards: CONNECT and the data matrix ROLE per board | the app's Boards page |
+| `0x01000009` `SYS_ACTIONS_ID_LINKS` | the links to other boards: BLE CONNECT, the session's ATTACH and the data matrix's CONNECTs per board | the app's Boards page |
 
 Class `0xFF` holds no records: an error policy's actions use it for the policy's own responses (`sys_device_policy.h`). Any client may write any other class and RUN any class.
 

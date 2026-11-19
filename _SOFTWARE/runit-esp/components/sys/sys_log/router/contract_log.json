@@ -54,7 +54,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 3,
-              "description": "1 = send error records on LOG_STREAM_ERRORS (still kept in history), 0 = disabled"
+              "description": "1 = send error records out of the port ERRORS (still kept in history), 0 = disabled"
             },
             {
               "id": "send_logs",
@@ -63,7 +63,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 4,
-              "description": "1 = send cleaned ESP_LOG lines on LOG_STREAM_LOGS, 0 = disabled"
+              "description": "1 = send cleaned ESP_LOG lines out of the port LOGS, 0 = disabled"
             }
           ]
         }

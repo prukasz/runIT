@@ -1,18 +1,18 @@
 # sys_event_stream
 
-Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as a stream of the data matrix (DATA_MATRIX.MD), **both ways**. It is a component of its own because `sys_session` needs `sys_event` and the matrix needs `sys_session`: `sys_event` can't know the matrix.
+Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as one port of the data matrix (DATA_MATRIX.MD), **both ways**: `EVENTS`, `DATA_MATRIX_PORT(MODULE, MODULE_ID_SYS_EVENT)` (0x25), each packet `[hdr PUSH, MODULE_ID_SYS_EVENT][sys_event_t][payload]`. A component of its own: `sys_event` knows no port.
 
-| Stream | Id | Direction | What |
-|---|---|---|---|
-| `EVENT_STREAM_NOTIFY` | `0x06`, urgent | out | every event with `SYS_EVENT_NOTIFY` in its flags (set in the events table: the ones that matter to the user), as the `sys_event_t` it is |
-| `EVENT_STREAM_REMOTE` | `0x07` | in | a `sys_event_t` from another board: published here (`sys_event_publish`, deferred) without `SYS_EVENT_NOTIFY`, so two boards that route both ways do not pass it between them for ever. A frame whose length is not `sizeof(sys_event_t) + len` is dropped. |
+| Way | What |
+|---|---|
+| out | every event with `SYS_EVENT_NOTIFY` in its flags (set in the events table: the ones that matter to the user), as the `sys_event_t` it is, urgent, `NOWAIT` |
+| in | a `sys_event_t` from another board: passed on to every port linked from `EVENTS` but the one it came from (`data_matrix_send_except`), and published here (`sys_event_publish`, deferred) without `SYS_EVENT_NOTIFY`, so it does not go out again as this board's. A packet whose length is not `header + sizeof(sys_event_t) + len` is dropped. |
 
-`sys_event_stream_init()` (boot, after `sys_event_init` and `data_matrix_init`): gives the matrix the streams' flags, subscribes the listener of the notify events (`SYS_EVENT_RUN_FIRST`, the filter `SYS_EVENT_ANY_NOTIFY`: an action that stops the board can't hide its cause) and makes the sink, a callback end routed from `S(EVENT_STREAM_REMOTE)`.
+`sys_event_stream_init()` (boot, after `sys_event_init`): registers `EVENTS` and subscribes the listener of the notify events (`SYS_EVENT_RUN_FIRST`, the filter `SYS_EVENT_ANY_NOTIFY`: an action that stops the board can't hide its cause).
 
-Where they go and come from are the matrix's routes, none made here: `S(NOTIFY) → T(app's session, 0x06)` is the app's events (`app/runit`), and a slave's events reach this board with `T(uart to the slave, 0x06) → S(REMOTE)`; the same route may also go `→ T(app's session, 0x06)` to forward them.
+Where they go and come from is the links (`app/runit`): `EVENTS → S(app's session, MODULE_ID_SYS_EVENT)` is the app's events, and `S(a slave's session, MODULE_ID_SYS_EVENT) → EVENTS` takes a slave's, which `EVENTS` passes on to the app's session.
 
-An event that comes in has the **sender's** source and channel (its device ids): a board that has devices of another board as its own remote devices gets them mapped by `sys_remote` (`SYS_REMOTE.MD`), not by this stream.
+An event that comes in has the **sender's** source and channel (its device ids), and the board that made it is the packet's `src`: a board that has devices of another board as its own remote devices gets them mapped by `sys_remote` (`SYS_REMOTE.MD`), not by this port.
 
-## Tests
+## Open
 
-`host/test_sys_event_stream.c`: `python test_host/run.py sys_event_stream` (from `runit-esp-archive/`): a notify event out, one without NOTIFY not out, an event in published without NOTIFY, a torn frame dropped.
+- `host/test_sys_event_stream.c` tests the former streams: rewritten on the port when the host runner is back.

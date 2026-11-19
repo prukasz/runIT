@@ -36,17 +36,17 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | core | `core/board_id` | `BOARD_ID.MD` | the board's identity: its id in the store (the header's `src`, from the next start once saved), its boot id, its build; this chip's part in `esp/` |
 | core | `core/data_matrix` | `DATA_MATRIX.MD` | the port (`data_matrix_port_t`: a module's, a provider's, a session's) and the switch of the ports (`0x30`): a port's output to the inputs of the ports linked from it (`data_matrix_send`, to one `_send_to`, to all but one `_send_except`), unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per module, lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task; publish, C listeners |
-| sys | `sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as two streams of the data matrix: the notify events out (`0x06`), the events of other boards in (`0x07`) |
+| sys | `sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as one port of the data matrix, `EVENTS` (`0x25`): the notify events out, other boards' in (published without NOTIFY, passed on) |
 | sys | `sys/sys_device` and `sys_device_event`, `sys_device_timer`, `sys_device_router`, `sys_device_policy` | `SYS_DEVICE.MD`, `SYS_DEVICE_EVENT.MD`, `SYS_DEVICE_TIMER.MD`, `SYS_DEVICE_ROUTER.MD`, `SYS_DEVICE_POLICY.MD` | the device registry (create / remove, ops, sweeps, dependencies, remote devices; `0x20`), a device that hears events, a device's timers, the registry's commands, the error policy (`0x21`) |
 | sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/bus/sys_i2c`, `sys/bus/sys_uart_contract` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_I2C.MD`, `SYS_UART_CONTRACT.MD` | the contracts as u16 device ops: IO (`0x01`), I2C (`0x02`: a bus is a device), POWER_MONITOR / VREG / USB_PD / SUPPLY (`0x04`, `0x05`, `0x07`, `0x08`), HBRIDGE (`0x09`), UART (`0x13`: a port is a device made by CREATE) |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, rail faults, the VREG guard as an interceptor of the registry (`0x22`) |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in, by id, each a port of the data matrix; their lifecycle, one call into a driver at a time, their events (`0x0D`) |
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | a session is a framed provider with one peer: the hello, the dead-man, broadcast, calls with a wait, PUSH frames (`0x0E`) |
-| sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent to the one who added them; the client's cache (`0x2B`) |
-| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls over the session, reads from the watches, their events and errors (`0x2F`) |
+| sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent out of the port `WATCH` to the session of the one who added them; the client's cache (`0x2B`) |
+| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls through the router to a board's session, reads from the watches, their events and errors through the port `REMOTE` (`0x2F`) |
 | sys | `sys/bus/sys_ble` | `SYS_BLE.MD` | the BLE peripheral: NimBLE, the run-time GATT table, the framing both ways (`0x2E`) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (`0x28`): ping, stop, restart, clock; the safe state as the registry's sweep, the dead-man |
-| sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history (`0x2A`) |
+| sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history; the ports `LOGS` (`0x2A`) and `ERRORS` (`0x31`: this board's records out, other boards' in and passed on) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | stored command lists: records under u32 IDs with classes, upload / readback / RUN / RUN_ALL (`0x2C`) |
 | sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the record run at boot, the JSON the app reads back (`0x2D`) |
 | sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter (`0x29`); its DISPLAY and TOUCH contracts are not in the rework yet, so it does not build |

@@ -19,12 +19,11 @@ extern "C" {
  */
 
 /* ----------------------------------------------------------------------------
- * Wire format (never renumber): the ADD head, the LIST row, the triggers. Entries travel on the module's channel
- * SYS_WATCH_CHANNEL (the data matrix's tag) as [id u8][status u8][data], to the watch's owner.
+ * Wire format (never renumber): the ADD head, the LIST row, the triggers. Entries go out of the module's port WATCH
+ * (DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)) as [hdr PUSH, MODULE_ID_WATCH][id u8][status u8][data], to the watch's
+ * owner's session.
  * ------------------------------------------------------------------------- */
 
-#define SYS_WATCH_CHANNEL SYS_SESSION_CHANNEL(MODULE_ID_WATCH)
-_Static_assert(MODULE_ID_WATCH < SYS_SESSION_CHANNEL_FIRST, "a module with a channel has a number under 0x80");
 
 #define SYS_WATCH_TICK_MS  10u  /**< Unit of period and max_silence, and server timer step (ms). */
 #define SYS_WATCH_COPY_MAX 32u  /**< Largest OK read answer cached by the client (bytes). */

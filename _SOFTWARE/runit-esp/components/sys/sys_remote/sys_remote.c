@@ -26,7 +26,7 @@ ERR_MODULE_DEFINE(MODULE_ID_REMOTE, ERR_SYS_REMOTE_MAP)
 #define ANSWER_MAX 16u                                      // a write's answer has no data; a little room anyway
 #define REQ_HEAD   (1u + sizeof(sys_device_router_hdr_t))   // a device command: [key][dir][id][op u16], then the args
 #define DEV_TARGET 1u                                       // the bytes after the dir byte that name the device: its id
-#define FRAME_HEAD 2u                                       // a frame of the channel: [id][kind], then the data
+#define FRAME_HEAD 2u                                       // a frame: [id][kind], then the data (after its header)
 #define OUT_HEAD   1u                                       // a frame to send, queued: [OUT], then the frame
 #define IN_HEAD    2u                                       // a frame come in, queued: [IN][board], then the frame
 #define ERROR_MAX  160u                                     // an error record of a device, on the reporter's stack
@@ -67,7 +67,7 @@ static bool has_subscriber(uint8_t id) {
   return any;
 }
 
-/* Queues a frame [id][kind][data] of the channel SYS_REMOTE_CHANNEL for the subscribers of device `id`. Only queues: a reporter may be a
+/* Queues a frame [id][kind][data] for the subscribers of device `id`, out of REMOTE. Only queues: a reporter may be a
    timer's task, and the frame goes out from the task. A frame the queue can't take is lost. */
 static void queue_out(uint8_t id, uint8_t kind, const void* data, uint32_t len) {
   void* slot = NULL;
@@ -190,7 +190,14 @@ void sys_remote_unsubscribe(uint8_t id, uint8_t peer) {
   drop_listener(handle);
 }
 
-// A frame for the subscribers of its device, on the task: each gets it, NOWAIT.
+static void frame_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* packet,
+                     uint32_t size);
+
+// REMOTE, DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE): frames out to a subscriber's session by name, in from the boards.
+static data_matrix_port_t s_port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_REMOTE), .in = frame_in};
+
+// A frame for the subscribers of its device, on the task: [hdr PUSH, MODULE_ID_REMOTE][frame] to each one's session
+// (its sub-port MODULE_ID_REMOTE), NOWAIT.
 static void send_out(const uint8_t* frame, uint32_t len) {
   const uint8_t id = frame[0];
   uint8_t to[CONFIG_SYS_REMOTE_SUBSCRIPTIONS];
@@ -202,13 +209,18 @@ static void send_out(const uint8_t* frame, uint32_t len) {
     }
   }
   xSemaphoreGive(sys_remote_lock);
-  const uint8_t flags = frame[1] == SYS_REMOTE_ERROR ? DATA_MATRIX_URGENT : 0;
+  const uint8_t urgent = frame[1] == SYS_REMOTE_ERROR ? CMD_SEND_URGENT : 0u;
+  uint8_t packet[CMD_HEAD + len];
+  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | urgent), .key = MODULE_ID_REMOTE};
+  memcpy(packet, &hdr, CMD_HEAD);
+  memcpy(packet + CMD_HEAD, frame, len);
   for (uint32_t i = 0; i < n; i++) {
-    uint8_t provider = 0;
-    if (sys_session_route(to[i], &provider)) {
-      const data_matrix_end_t end = DATA_MATRIX_END_TAGGED(provider, SYS_REMOTE_CHANNEL);
-      err_free(data_matrix_send_to(&end, frame, len, flags));  // not taken: a gap in the session's count
+    data_matrix_port_id_t port = 0;
+    err_h err = sys_session_port(to[i], MODULE_ID_REMOTE, &port);
+    if (err == NULL) {
+      (void)data_matrix_send_to(&s_port, port, (uint8_t)(CMD_SEND_NOWAIT | urgent), packet, sizeof(packet));
     }
+    err_free(err);  // not reached now: it subscribes again when it is
   }
 }
 
@@ -216,11 +228,22 @@ static void send_out(const uint8_t* frame, uint32_t len) {
  * This board's remote devices: their boards' frames
  * ------------------------------------------------------------------------- */
 
-// A frame of the remote channel from a board, on the RX task: queued, it is published and reported on the task.
-static void on_frame(void* ctx, const data_matrix_end_t* from, const uint8_t* data, uint32_t len) {
-  (void)ctx;
-  const uint8_t src = sys_session_peer(from->a);  // the board whose session it came on
-  if (len < FRAME_HEAD || src == CMD_SRC_NONE) {
+// A frame from a board, [hdr PUSH, MODULE_ID_REMOTE][id][kind][data], on the RX task: queued, it is published and
+// reported on the task. The board is its src.
+static void frame_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* packet,
+                     uint32_t size) {
+  (void)self;
+  (void)from;
+  (void)flags;
+  cmd_hdr_t hdr;
+  if (size < CMD_HEAD + FRAME_HEAD) {
+    return;
+  }
+  memcpy(&hdr, packet, CMD_HEAD);
+  const uint8_t src = hdr.src;
+  const uint8_t* data = packet + CMD_HEAD;
+  const uint32_t len = size - CMD_HEAD;
+  if (src == CMD_SRC_NONE) {
     return;
   }
   void* slot = NULL;
@@ -452,9 +475,7 @@ err_h sys_remote_init(void) {
   uint16_t session_handle = 0;
   ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &session_handle));
   ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &session_handle));
-  data_matrix_end_t frames;
-  ERR_TRY(data_matrix_listen(on_frame, NULL, &frames));
-  ERR_TRY(data_matrix_route(&(data_matrix_route_t){DATA_MATRIX_END_TAGGED(DATA_MATRIX_ANY, SYS_REMOTE_CHANNEL), frames}));
+  ERR_TRY(data_matrix_register(&s_port));
   uint16_t handle = 0;
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},

@@ -2,12 +2,12 @@
 
 #include "err_log.h"
 #include "err_record.h"
+#include "errors_id.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
 #include "sys_log_router.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_LOG, ERR_SYS_LOG_MAP)
-DATA_MATRIX_STREAMS_DEFINE(LOG)
 
 #define ANSI_ESC  '\x1b'
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
@@ -50,6 +50,36 @@ static size_t clean_line(char* s, size_t len) {
   return out;
 }
 
+/* ----------------------------------------------------------------------------
+ * The ports: the log lines out (LOGS), the error records out and in (ERRORS)
+ * ------------------------------------------------------------------------- */
+
+static __thread bool s_sending;  // this task is sending a line or a record: what it logs or reports meanwhile is dropped
+
+// Another board's record: passed on to every port linked from ERRORS but the one it came from.
+static void errors_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                      uint32_t len) {
+  data_matrix_send_except(self, from, flags, data, len);
+}
+
+static data_matrix_port_t s_logs = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_LOG)};
+static data_matrix_port_t s_errors = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_ERRORS),
+                                      .in = errors_in};
+
+// [hdr PUSH, key][data] out of a port, NOWAIT: a full line drops it (waiting or reporting it would loop).
+static void push(data_matrix_port_t* port, uint8_t urgent, const void* data, uint32_t len) {
+  if (s_sending || len > CMD_DATA_MAX) {
+    return;
+  }
+  uint8_t packet[CMD_HEAD + len];
+  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | urgent), .key = (uint8_t)port->id};
+  memcpy(packet, &hdr, CMD_HEAD);
+  memcpy(packet + CMD_HEAD, data, len);
+  s_sending = true;
+  data_matrix_send(port, (uint8_t)(CMD_SEND_NOWAIT | urgent), packet, sizeof(packet));
+  s_sending = false;
+}
+
 static sys_log_cfg_t read_cfg(void) {
   portENTER_CRITICAL(&s_log_preset.lock);
   const sys_log_cfg_t cfg = s_log_preset.cfg;
@@ -63,16 +93,15 @@ static int log_vprintf(const char* fmt, va_list args) {
   va_copy(copy, args);
   const int ret = (cfg.mirror_serial && s_log.console != NULL) ? s_log.console(fmt, args) : 0;
 
-  // Only from tasks (not the stream task: its own logs would loop), and after the scheduler runs.
-  if (cfg.send_logs && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && !xPortInIsrContext() &&
-      !data_matrix_is_task()) {
+  // Only from tasks, after the scheduler runs, and not a line made while this task sends one (push).
+  if (cfg.send_logs && xTaskGetSchedulerState() == taskSCHEDULER_RUNNING && !xPortInIsrContext() && !s_sending) {
     char line[CONFIG_SYS_LOG_LINE_MAX];
     const int n = vsnprintf(line, sizeof(line), fmt, copy);
     if (n > 0) {
       size_t len = (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1;
       len = clean_line(line, len);
       if (len > 0) {
-        err_free(data_matrix_send(LOG_STREAM_LOGS, line, (uint32_t)len));  // full queue drops silently: reporting loops
+        push(&s_logs, 0, line, (uint32_t)len);
       }
     }
   }
@@ -86,7 +115,8 @@ static void apply(const sys_log_cfg_t* cfg) {
 }
 
 err_h sys_log_init(void) {
-  ERR_TRY(data_matrix_streams(LOG_streams, LOG_STREAMS_COUNT));
+  ERR_TRY(data_matrix_register(&s_logs));
+  ERR_TRY(data_matrix_register(&s_errors));
   if (s_log.console == NULL) {
     s_log.console = esp_log_set_vprintf(log_vprintf);
   }
@@ -125,7 +155,7 @@ void sys_log_error(const uint8_t* record, uint32_t len) {
   const bool send = s_log_preset.cfg.send_errors != 0;
   portEXIT_CRITICAL(&s_log_preset.lock);
   if (send) {
-    err_free(data_matrix_send(LOG_STREAM_ERRORS, record, len));  // full queue drops it: reporting would loop
+    push(&s_errors, CMD_SEND_URGENT, record, len);
   }
 }
 

@@ -1,13 +1,13 @@
 # sys_watch
 
-Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers are sent to the peer that added it (`owner`) as PUSH frames of the data matrix on the channel `SYS_WATCH_CHANNEL`. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
+Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers are sent to the peer that added it (`owner`) as PUSH packets out of the module's port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`, 0x2B). The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
 
 ## Files
 
 | File | Role |
 |---|---|
 | `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
-| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[id][status][data]` on `SYS_WATCH_CHANNEL`), `SYS_WATCH_CHANNEL`, `ERR_MODULE_DEFINE` |
+| `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][id][status][data]` out of `WATCH` to the owner's session), `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
 | `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x2B)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
@@ -31,11 +31,11 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 - An answer too long for one entry (`3 + len > CMD_DATA_MAX`) is reported once (`ERR_CMD_OUT_FULL` with the read) and the watch reads no more.
 - A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `CMD_SRC_ALL`).
 
-### The entry (PUSH channel `SYS_WATCH_CHANNEL`)
+### The entry (a PUSH packet of `WATCH`)
 
-`[id u8][status u8][data ...]` as the payload of the tag `SYS_WATCH_CHANNEL`, sent with `data_matrix_send_to(T(provider of the owner's session, SYS_WATCH_CHANNEL), ...)`; the client takes the entries from its callback end, routed from `T(DATA_MATRIX_ANY, SYS_WATCH_CHANNEL)` (the board is the peer of the session the entry came on).
+`[hdr PUSH, MODULE_ID_WATCH][id u8][status u8][data ...]`, sent with `data_matrix_send_to(&WATCH, the owner's session's sub-port MODULE_ID_WATCH, ...)` (`sys_session_port`, by name, no link; no open session: `ERR_SESSION_NO_ROUTE`); the client takes the entries on `WATCH`'s input, from the sessions' sub-ports linked to it, and the board is the packet's `src`.
 
-- No `owner` byte (the PUSH frame's `dst` is its owner).
+- No `owner` byte (it goes to its owner's session).
 - No per-watch sequence number (the `seq` of a PUSH is `sys_session`'s count per `(peer, class)`).
 - `status == ROUTER_STATUS_OK` (`0`): the read's answer.
 - `status == ROUTER_STATUS_ERROR` (`1`): the error record (`err_record_cmd`).

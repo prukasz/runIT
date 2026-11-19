@@ -8,15 +8,15 @@
 #include "sys_remote_config.h"
 #include "sys_remote_errors.h"
 
-/* The module's PUSH channel: a device's events and errors, to its subscribers ([channel][id u8][kind u8][data]). */
-#define SYS_REMOTE_CHANNEL SYS_SESSION_CHANNEL(MODULE_ID_REMOTE)
-_Static_assert(MODULE_ID_REMOTE < SYS_SESSION_CHANNEL_FIRST, "a module with a channel has a number under 0x80");
+/* The module's port REMOTE (DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)): a device's events and errors to its
+   subscribers' sessions, [hdr PUSH, MODULE_ID_REMOTE][id u8][kind u8][data]; the same from the boards whose devices this
+   board has. */
 
 /**
  * @file sys_remote.h
  * @brief Devices of other boards (SYS_REMOTE.MD): sets sys_device's remote hook, which sends a remote device's calls
  * to its board as that board's device command, and keeps the subscriptions to devices: the other boards' to this
- * board's devices (their events and errors sent in the module's channel SYS_REMOTE_CHANNEL), and this board's
+ * board's devices (their events and errors sent out of the module's port REMOTE), and this board's
  * to its remote devices (what comes is published and reported as the local id's). Nothing depends on it: a board
  * without other boards leaves it out.
  * @usage ERR_TRY(sys_remote_init());   // boot, after the session, the watches and the events
@@ -28,7 +28,7 @@ extern "C" {
 
 /**
  * @brief Sets the remote hook of sys_device, follows the registry's remote devices (a CREATED one subscribes on its
- * board), listens to the session (gone and reached peers, the remote channel) and starts its task. Boot step, after
+ * board), listens to the session (gone and reached peers), registers REMOTE and starts its task. Boot step, after
  * sys_session, sys_watch and sys_event.
  * @return NULL when started; the session's or the event bus's error.
  */

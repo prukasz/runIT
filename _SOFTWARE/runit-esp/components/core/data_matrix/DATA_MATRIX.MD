@@ -60,7 +60,7 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 ## Open
 
-- Not in the build: the ESP build and the host tests wait for the modules that used the matrix's streams, roles and callbacks to become ports, by the design below: `sys_session`, `router_queue`, `sys_log` (`LOGS`, the loop guard of a log line made in a delivery), the errors' stream, `sys_event_stream`, `sys_watch`, `sys_remote`, `app/runit` (links instead of roles and routes).
+- Not built yet since the move to ports: the first ESP build (`build.ps1 reconfigure`: the matrix's Kconfig changed) and the host tests of the switch, the router's port, the session, the stream ports (the host runner is not in the repo).
 - A self-registration macro for a module's port.
 - Host tests of the switch.
 
@@ -111,4 +111,4 @@ The channel range (`0x80`, `SYS_SESSION_CHANNEL`) is gone: the watches and the r
 - `DATA_MATRIX_PORTS` counted again: each session is its port and its sub-ports (`CONFIG_SYS_SESSION_PORTS`, 4).
 - The board's record: the `ATTACH` frames before the `CONNECT` frames that link the sub-ports.
 
-**The order of work:** the stream ports (`sys_log`, `sys_event_stream`), `sys_watch` and `sys_remote` on tags, `app/runit` (`ATTACH` and `CONNECT` frames instead of roles and routes), `contract_session.json`, `session_client.py` and the app's session code.
+**Done:** the switch, the header, the router's port and calls, the session's ports, the stream ports (`LOGS`, `ERRORS`, `EVENTS`), `WATCH`, `REMOTE`, `app/runit` (`ATTACH` and `CONNECT`). **The order of work left:** `templates/sync.sh` (the generated enums, errors and contracts), `session_client.py` and the router scripts, the app's session code (the 5-byte header, the PUSH keys).

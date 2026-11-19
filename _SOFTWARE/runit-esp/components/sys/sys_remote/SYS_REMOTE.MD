@@ -7,7 +7,7 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 ```
  the VM ── device block ──► local id 23 → (board 01, id 7) ─┬─ WIRED:    REQUEST, wait for the ANSWER ───────────────► board 01
                                                             └─ WIRELESS: the watch's copy (a watch of the read) ◄───── board 01
- sys_event (as id 23) ◄── the device's events and errors (PUSH, channel `SYS_REMOTE_CHANNEL`, to its subscribers only)   ◄───────── board 01
+ sys_event (as id 23) ◄── the device's events and errors (PUSH out of `REMOTE`, to its subscribers only)   ◄───────── board 01
 ```
 
 ## Files
@@ -25,7 +25,7 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 
 ## Init
 
-`sys_remote_init()`, a boot step after the session, the watches and the events: sets sys_device's remote hook (`sys_device_set_remote`), subscribes to the registry's `CREATED` event (a remote device made: its subscription), listens to the session (`SESSION_EV_GONE` and `_REACHED`) and to the channel `SYS_REMOTE_CHANNEL` (a callback end of the data matrix, routed from `T(DATA_MATRIX_ANY, SYS_REMOTE_CHANNEL)`) and starts its task.
+`sys_remote_init()`, a boot step after the session, the watches and the events: sets sys_device's remote hook (`sys_device_set_remote`), subscribes to the registry's `CREATED` event (a remote device made: its subscription), listens to the session (`SESSION_EV_GONE` and `_REACHED`), registers its port `REMOTE` (linked from the sessions' sub-ports `MODULE_ID_REMOTE` by `app/runit` or the board's record) and starts its task.
 
 ## A call
 
@@ -50,11 +50,11 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 - **An event**: the first subscription of a device subscribes a function to all its events (`sys_event_subscribe`, `SYS_EVENT_RUN_QUEUED_DEVICE`: all of a device's events are in the DEVICE lane; its source the device; the last one gone drops it). The registry's `CREATED` and `REMOVED` are not sent: on the other board they would reach the policy as the alias's own, and it would forget the alias's settings (the alias sees the device gone as `ERR_DEV_NOT_FOUND` in the answer); `SUSPENDED`, `RESUMED` and `RESET` go.
 - **An error**: the app's error sink calls `sys_remote_on_error(chain, cmd)` for every reported chain: one with no command (`cmd` NULL) whose chain has an `ERR_DEV_ID` in the table is made an error record (`err_record`). `sys_device_write` wraps the drivers' timers' errors in `ERR_DEV_ID` too.
-- Both only queue: a reporter may be a timer's task. The task sends a frame `[id u8][kind][data]` of the channel `SYS_REMOTE_CHANNEL` (`data_matrix_send_to`, `T` on the subscriber's session) to each subscriber of the device, `kind` `SYS_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Push frames and data"), which the receiver does not count.
+- Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`, 0x2F) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Push frames and data"), which the receiver does not count.
 
 **On the alias's board**: the registry's `CREATED` of a remote device (`sys_device_remote_of`) sends SUBSCRIBE to its board (a call, never waited for). A board reached again gets the SUBSCRIBE of each of its remote devices again (a loop over the registry's remote devices). There is no table of aliases: `(board, remote id) → local id` is the registry's (`sys_device_find_remote`).
 
-- A frame of the channel `SYS_REMOTE_CHANNEL` (the matrix's callback, on the RX task) is queued and taken on the task: by its board and id to the local id; the event is published as the local id's (`sys_event_publish` with `SYS_EVENT_DEFER`, so ON_EVENT and this board's listeners see it), the error reported as the local id's (`ERR_DEV_ID` over `ERR_REMOTE{board, 0}` over that board's chain: `err_record_parse`), so its policy answers it, and stops at `ERR_REMOTE` (SYS_DEVICE_POLICY.MD).
+- A frame on `REMOTE`'s input (from a session's sub-port linked to it, on the RX task; the board is its `src`) is queued and taken on the task: by its board and id to the local id; the event is published as the local id's (`sys_event_publish` with `SYS_EVENT_DEFER`, so ON_EVENT and this board's listeners see it), the error reported as the local id's (`ERR_DEV_ID` over `ERR_REMOTE{board, 0}` over that board's chain: `err_record_parse`), so its policy answers it, and stops at `ERR_REMOTE` (SYS_DEVICE_POLICY.MD).
 - A frame for a device no remote device names (it was removed) is answered by UNSUBSCRIBE to its sender: the subscription of a removed alias ends at its first event.
 - SUBSCRIBE answered ERROR (the device's board's table full): reported about the board (`ERR_REMOTE` over that chain, `err_report_board`); sent again when the board is reached again.
 
@@ -83,7 +83,7 @@ The ops and the frame are in `sys_remote_router.h`; `contract_remote.json` names
 
 - **sys_device**: the remote record, the hook, `sys_device_find_remote`, `sys_device_remote_of`, the `CREATED` event (SYS_DEVICE.MD).
 - **sys_device_policy**: its walk of a chain ends at `ERR_REMOTE`.
-- **router_queue**: the calls and the wait (`router_request`, ROUTER_QUEUE.MD "Calls"); **sys_session**: `sys_session_port` (the port of a board's commands), `sys_session_wired`, `sys_session_peer`, the gone and reached events (SYS_SESSION.MD); **data_matrix**: the channel `SYS_REMOTE_CHANNEL` in and out (DATA_MATRIX.MD).
+- **router_queue**: the calls and the wait (`router_request`, ROUTER_QUEUE.MD "Calls"); **sys_session**: `sys_session_port` (the port of a board's commands), `sys_session_wired`, `sys_session_peer`, the gone and reached events (SYS_SESSION.MD); **data_matrix**: its port `REMOTE`, in and out (DATA_MATRIX.MD).
 - **sys_watch**: `sys_watch_read`, `sys_watch_stale` (SYS_WATCH.MD "Cached reads").
 - **sys_event**: `sys_event_subscribe`, `sys_event_publish`.
 - **errors**: `err_record`, `err_record_parse`, `err_report_board`.

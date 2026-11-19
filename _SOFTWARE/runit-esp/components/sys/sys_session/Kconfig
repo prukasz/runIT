@@ -9,7 +9,7 @@ menu "sys_session"
 
     config SYS_SESSION_PORTS
         int "Sub-ports of a session"
-        default 4
+        default 6
         range 1 16
         help
           The modules one session shows in the data matrix (ATTACH's list:
