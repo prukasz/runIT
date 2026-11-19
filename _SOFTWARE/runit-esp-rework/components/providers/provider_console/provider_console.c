@@ -4,10 +4,10 @@
 #include <string.h>
 
 #include "cmd.h"
-#include "cmd_table.h"
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
 #include "errors.h"
+#include "provider_console.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
 #include "sys_uart_codec.h"
@@ -27,6 +27,7 @@
 
 U_TASK_DEFINE(console_rx_task_h, CONFIG_PROVIDER_CONSOLE_RX_TASK_STACK);
 U_TASK_DEFINE(console_tx_task_h, CONFIG_PROVIDER_CONSOLE_TX_TASK_STACK);
+U_MUTEX_DEFINE(s_rx_lock);  // a frame goes out of the provider's port under it: remove takes it to forget the provider
 
 typedef struct {
   uint8_t buf[SYS_UART_WIRE_MAX];
@@ -34,8 +35,14 @@ typedef struct {
   bool overflow;  // longer than any frame: dropped at its 0x00
 } line_rx_t;
 
+/** @brief The provider: in the registry's slot. The console's line is static (s_console), made once. */
 typedef struct {
-  sys_data_provider_t* provider;  // slot-owned handle; set by console_create()
+  sys_data_provider_t base;
+  uint8_t rx_flags;  // CMD_SEND_* of each frame it hears, out of the port
+} provider_console_t;
+
+typedef struct {
+  provider_console_t* provider;  // the provider now, under s_rx_lock; NULL: none
   uart_port_t uart;
   sys_uart_txq_t txq;  // made once: the console is never removed for good
   line_rx_t uart_rx;
@@ -86,11 +93,11 @@ static void tx_task(void* arg) {
 
 // The port's input: the packet into the TX queue with its flags (NOWAIT: no room, dropped at once; else
 // CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS on the sender's task). What the queue does not take is lost.
-static void provider_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
-                          uint32_t len) {
+static void console_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                       uint32_t len) {
+  (void)self;
   (void)from;
-  console_port_t* p = SYS_DATA_PROVIDER_OF(self)->driver;
-  (void)sys_uart_txq_push(&p->txq, (cmd_in_t){.data = data, .len = len}, flags,
+  (void)sys_uart_txq_push(&s_console.txq, (cmd_in_t){.data = data, .len = len}, flags,
                           MSEC(CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS));
 }
 
@@ -98,16 +105,14 @@ static void provider_pass(data_stream_port_t* self, data_stream_port_id_t from, 
  * RX: bytes -> the bytes up to each 0x00 -> COBS, CRC16 -> one frame to the provider's user
  * ------------------------------------------------------------------------- */
 
-/* One candidate: decoded, its CRC checked, delivered whole. Anything else (the ROM's text, a panic, typing, a line
- * hit by noise) fails and is dropped without a word: the host's tool shows those bytes as text. */
+/* One candidate: decoded, its CRC checked, out of the provider's port whole. Anything else (the ROM's text, a panic,
+ * typing, a line hit by noise) fails and is dropped without a word: the host's tool shows those bytes as text. */
 static void rx_candidate(console_port_t* p, uint8_t* buf, uint32_t len) {
-  sys_data_provider_t* prov = p->provider;
-  if (prov == NULL) {
-    return;
-  }
   const uint32_t n = sys_uart_unframe(buf, len);
-  if (n > 0) {
-    sys_data_provider_deliver(prov, buf, n);
+  U_MUTEX_GUARD(s_rx_lock);
+  provider_console_t* prov = p->provider;
+  if (n > 0 && prov != NULL) {
+    data_matrix_send(&prov->base.port, prov->rx_flags, buf, n);
   }
 }
 
@@ -142,10 +147,10 @@ static void rx_task(void* arg) {
  * Provider driver registration (SYS_DATA_PROVIDER_TYPE_CONSOLE)
  * ------------------------------------------------------------------------- */
 
-static err_h console_create(sys_data_provider_t* p, void* ctx, const void* cfg) {
-  (void)ctx;
-  (void)cfg;
-  ERR_CHECK(s_console.provider == NULL, ERR_PROV_IN_USE, .provider = p->id);
+// The console's line is made by the first create and stays: the console is never removed for good.
+static err_h console_create(sys_data_provider_t* p, const void* cfg_in) {
+  const provider_console_cfg_t* cfg = cfg_in;
+  ERR_CHECK(s_console.provider == NULL, ERR_PROV_IN_USE, .provider = (uint8_t)p->port.id);
   if (!uart_is_driver_installed(CONSOLE_PORT)) {
     ERR_TRY_ESP(uart_driver_install(CONSOLE_PORT, CONFIG_PROVIDER_CONSOLE_DRIVER_RX_BUF, UART_TX_BUF, 0, NULL, 0));
     fflush(stdout);
@@ -161,27 +166,30 @@ static err_h console_create(sys_data_provider_t* p, void* ctx, const void* cfg) 
   s_console.uart = CONSOLE_PORT;
   if (console_tx_task_h == NULL) {
     ERR_CHECK(sys_uart_txq_init(&s_console.txq, CONFIG_PROVIDER_CONSOLE_TX_QUEUE, true), ERR_PROV_NO_MEM,
-              .provider = p->id, .size = CONFIG_PROVIDER_CONSOLE_TX_QUEUE);
+              .provider = (uint8_t)p->port.id, .size = CONFIG_PROVIDER_CONSOLE_TX_QUEUE);
     U_TASK_START(console_tx_task_h, tx_task, &s_console, CONFIG_PROVIDER_CONSOLE_TX_TASK_PRIO);
     s_console.txq.task = console_tx_task_h;
   }
-  s_console.provider = p;
-  p->driver = &s_console;
-  p->port.pass = provider_pass;
+  provider_console_t* me = (provider_console_t*)p;
+  me->rx_flags = cfg->rx_flags;
   p->state |= SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP;
+  {
+    U_MUTEX_GUARD(s_rx_lock);
+    s_console.provider = me;
+  }
   if (console_rx_task_h == NULL) {
     U_TASK_START(console_rx_task_h, rx_task, &s_console, CONFIG_PROVIDER_CONSOLE_RX_TASK_PRIO);
   }
   return NULL;
 }
 
-static err_h console_remove(sys_data_provider_t* p, void* ctx) {
-  (void)ctx;
-  if (s_console.provider == p) {
-    s_console.provider = NULL;
-  }
-  return NULL;
+// The provider forgotten after the frame going out now: the RX task never sends out of its port again. The line
+// stays (its drivers, its tasks, its queue), for the next create.
+static void console_remove(sys_data_provider_t* p) {
+  (void)p;
+  U_MUTEX_GUARD(s_rx_lock);
+  s_console.provider = NULL;
 }
 
-SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_CONSOLE, cmd_none_t, cmd_none_t, console_create, console_remove,
-                              NULL, 0)
+SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_CONSOLE, provider_console_cfg_t, provider_console_t,
+                              console_create, console_remove, console_in, NULL, 0)

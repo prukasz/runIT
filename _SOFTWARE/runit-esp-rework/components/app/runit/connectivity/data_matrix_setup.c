@@ -2,6 +2,7 @@
 
 #include "data_matrix.h"
 #include "provider_ble.h"
+#include "provider_console.h"
 #include "runit_ids.h"
 #include "sdkconfig.h"
 #include "sys_ble.h"
@@ -11,6 +12,7 @@
 #include "sys_session.h"
 #include "utils.h"
 
+static const provider_console_cfg_t k_console = {.rx_flags = CMD_SEND_NOWAIT};
 // The characteristics of both providers are in the one runIT service, made below.
 static const provider_ble_cfg_t k_ble = {
     .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TX, .rx = RUNIT_BLE_RX, .flags = PROVIDER_BLE_FRAMED,
@@ -24,7 +26,7 @@ static const provider_ble_cfg_t k_ble_logs = {
 // What the app hears on a session (the errors, the events) is pushed on it.
 #define APP_STREAMS(id)                                                                                  {DATA_MATRIX_END_STREAM(LOG_STREAM_ERRORS), DATA_MATRIX_END_TAGGED((id), LOG_STREAM_ERRORS)},          {DATA_MATRIX_END_STREAM(EVENT_STREAM_NOTIFY), DATA_MATRIX_END_TAGGED((id), EVENT_STREAM_NOTIFY)}
 
-// A provider of the board's own: its id, its type and the driver's CREATE config (none: NULL).
+// A provider of the board's own: its id, its type and the driver's CREATE config.
 typedef struct {
   uint8_t id;
   uint8_t type;
@@ -33,7 +35,7 @@ typedef struct {
 } provider_row_t;
 
 static const provider_row_t k_providers[] = {
-    {RUNIT_PROVIDER_CONSOLE, SYS_DATA_PROVIDER_TYPE_CONSOLE, NULL, 0},
+    {RUNIT_PROVIDER_CONSOLE, SYS_DATA_PROVIDER_TYPE_CONSOLE, &k_console, sizeof(k_console)},
     {RUNIT_PROVIDER_BLE, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble, sizeof(k_ble)},
     {RUNIT_PROVIDER_BLE_LOGS, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_logs, sizeof(k_ble_logs)},
 };

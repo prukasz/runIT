@@ -6,7 +6,7 @@ menu "provider_console"
         range 1 24
         help
           Priority of the task that reads the console UART (and USB-Serial-JTAG)
-          and hands each frame (COBS, CRC16 checked) to the provider's user.
+          and sends each frame (COBS, CRC16 checked) out of the provider's port.
 
     config PROVIDER_CONSOLE_RX_TASK_STACK
         int "RX task stack (bytes)"
@@ -31,10 +31,7 @@ menu "provider_console"
         help
           Frames waiting for the TX task (answers, PUSH frames); each takes
           its length and CRC (2) rounded to 4, + 8 bytes. Urgent frames have a queue of
-          their own, written first. Larger than the stream queue
-          (CONFIG_DATA_MATRIX_QUEUE_SIZE), so a burst of PUSH frames
-          fills that one first and its producer is refused (and resends), not
-          lost here unseen. Multiple of 4.
+          their own, written first. Multiple of 4.
 
     config PROVIDER_CONSOLE_TX_TASK_PRIO
         int "TX task priority"
@@ -54,9 +51,8 @@ menu "provider_console"
         default 1000
         range 10 10000
         help
-          How long a send without NOWAIT (an answer) waits for room in the TX
-          queue, then ERR_PROV_BUSY; a NOWAIT send (a PUSH frame) is
-          ERR_PROV_BUSY at once. Also how long a frame waits for the
-          USB-Serial-JTAG host.
+          How long a packet without CMD_SEND_NOWAIT waits for room in the TX
+          queue; then, or at once with NOWAIT, it is lost. Also how long a
+          frame waits for the USB-Serial-JTAG host.
 
 endmenu
