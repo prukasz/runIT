@@ -1,13 +1,13 @@
 # nvs_store — the board's non-volatile store
 
-Component `components/core/nvs_store/` (in `core`: any module keeps its values here). **The interface is one struct of functions, `nvs_store_t` (`nvs_store.h`), with no type of the implementation in it**: named values (blobs) in namespaces of a partition. The build has one store, the const `nvs_store`, which its implementation defines: this chip's is `esp/` (ESP-IDF's `nvs_flash`), the one place that names it. Another implementation (a RAM one for the host tests) defines `nvs_store` in a sibling folder and the build takes it instead. What is built on the interface (a JSON file of chunks) is `nvs_store.c`.
+Component `components/core/nvs_store/` (in `core`: any module keeps its values here). **The interface is one struct of functions, `nvs_store_t` (`nvs_store.h`), with no type of the implementation in it**: named values (blobs) in namespaces of a partition. The build has one store, the const `nvs_store`, which its implementation defines: this chip's is `esp/` (ESP-IDF's `nvs_flash`), the one place that names it. Another implementation (a RAM one for the host tests) defines `nvs_store` in a sibling folder and the build takes it instead. What is built on the interface (a JSON file of chunks) is `nvs_store_json`, apart from the interface.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `nvs_store.h` | The interface: the store's struct `nvs_store_t` (`init`, `open`, `get`, `set`, `erase`, `keys`), the build's store `nvs_store`, and the JSON file (`nvs_store_json_*`) |
-| `nvs_store.c` | The JSON file, on the interface only; its CRC-32; the module's error tags registered |
+| `nvs_store.h` | The interface, nothing else: the store's struct `nvs_store_t` (`init`, `open`, `get`, `set`, `erase`, `keys`), the namespace `nvs_store_ns_t`, the build's store `nvs_store` |
+| `nvs_store_json.h` / `nvs_store_json.c` | The JSON file (`nvs_store_json_*`), on the interface only; its CRC-32; the module's error tags registered (every implementation raises them) |
 | `esp/nvs_store_esp.c` | `nvs_store` on ESP-IDF's `nvs_flash`: a namespace (`nvs_store_ns_t`) is its handle, "not found" is `ERR_NVS_NOT_FOUND`, any other code `ERR_ESP_ERR` |
 | `errors/` | `ERR_NVS_STORE_MAP` (`MODULE_ID_NVS` 0x16, `nvs_store_id.h`), `errors_nvs_store.json` the messages |
 

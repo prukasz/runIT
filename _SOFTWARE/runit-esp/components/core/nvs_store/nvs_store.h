@@ -2,10 +2,10 @@
 
 /**
  * @file nvs_store.h
- * @brief The board's non-volatile store (NVS_STORE.MD): named values (blobs) in namespaces of a partition. Its
- * interface is one struct of functions (nvs_store_t) with no type of the implementation in it, and the build has one
- * of them, `nvs_store`, which the implementation defines: this chip's is esp/ (ESP-IDF's nvs_flash). What is built on
- * the interface (a JSON file of chunks) is nvs_store.c.
+ * @brief The interface of the board's non-volatile store (NVS_STORE.MD): named values (blobs) in namespaces of a
+ * partition, as one struct of functions (nvs_store_t) with no type of the implementation in it. The build has one of
+ * them, `nvs_store`, which the implementation defines: this chip's is esp/ (ESP-IDF's nvs_flash). What is built on
+ * the interface (a JSON file of chunks) is nvs_store_json.h.
  * @usage nvs_store_ns_t ns;
  *        ERR_TRY(nvs_store.open("nvs", "board_id", &ns));
  *        ERR_TRY(nvs_store.set(ns, "id", &id, sizeof(id)));
@@ -73,67 +73,6 @@ typedef struct {
 
 /** @brief The store of this build: defined by its implementation (esp/nvs_store_esp.c). */
 extern const nvs_store_t nvs_store;
-
-/* ----------------------------------------------------------------------------
- * A JSON file: bytes kept in chunks, one namespace of its own. The content is not parsed (nvs_store.c).
- * ------------------------------------------------------------------------- */
-
-/** @brief What a JSON file holds; the app compares `bytes` and `crc32` with what it sent. */
-typedef struct __attribute__((packed)) {
-  uint32_t bytes;   /**< Length so far */
-  uint32_t crc32;   /**< CRC-32 of all the chunks (zlib / IEEE) */
-  uint16_t chunks;  /**< Chunks stored: 0..chunks-1 can be read */
-} nvs_store_json_info_t;
-
-/** @brief A JSON file: its namespace and what it holds */
-typedef struct {
-  nvs_store_ns_t ns;           /**< The file's namespace */
-  nvs_store_json_info_t info;  /**< Length, CRC and chunks so far */
-} nvs_store_json_t;
-
-/**
- * @brief Opens the file `name` (its namespace) in `partition`, made ready by nvs_store.init. Boot, one call per file.
- * @param[out] file      The file
- * @param[in]  partition The partition's label
- * @param[in]  name      The file's namespace
- * @return NULL; the error of the open
- */
-MUST_USE err_h nvs_store_json_open(nvs_store_json_t* file, const char* partition, const char* name);
-
-/**
- * @brief Adds one chunk at the end. A power cut leaves the file as it was before the chunk or with it whole.
- * @param[in,out] file   The file
- * @param[in]     offset Must be the file's length: a chunk sent twice is refused
- * @param[in]     data   The chunk
- * @param[in]     len    Chunk size in bytes
- * @return ERR_NVS_OFFSET, ERR_NVS_BAD_ARG: no data, or the file has every chunk it can have
- */
-MUST_USE err_h nvs_store_json_append(nvs_store_json_t* file, uint32_t offset, const uint8_t* data, uint32_t len);
-
-/**
- * @brief Empties the file.
- * @param[in,out] file The file
- * @return The error of the erase
- */
-MUST_USE err_h nvs_store_json_erase(nvs_store_json_t* file);
-
-/**
- * @brief Reads chunk `chunk` into `buf`.
- * @param[in]  file  The file
- * @param[in]  chunk Chunk index, 0..chunks-1
- * @param[out] buf   Buffer for the chunk
- * @param[in]  cap   Size of buf
- * @param[out] len   The chunk's bytes
- * @return ERR_NVS_NO_CHUNK: past the last one
- */
-MUST_USE err_h nvs_store_json_get(nvs_store_json_t* file, uint16_t chunk, uint8_t* buf, uint32_t cap, uint32_t* len);
-
-/**
- * @brief The file's length, CRC and chunks.
- * @param[in] file The file
- * @return Length, CRC and chunks
- */
-nvs_store_json_info_t nvs_store_json_info(nvs_store_json_t* file);
 
 #ifdef __cplusplus
 }

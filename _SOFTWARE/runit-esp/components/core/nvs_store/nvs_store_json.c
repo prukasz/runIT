@@ -1,10 +1,10 @@
 /**
- * @file nvs_store.c
- * @brief What is built on the store's interface, with no implementation in it (NVS_STORE.MD "JSON files"): a JSON file
- * of chunks, through the store's struct (`nvs_store`). The store itself is esp/.
+ * @file nvs_store_json.c
+ * @brief A JSON file of chunks (nvs_store_json.h), through the store's interface (`nvs_store`) only; and the module's
+ * error tags registered, which every implementation raises. The store itself is esp/.
  */
 
-#include "nvs_store.h"
+#include "nvs_store_json.h"
 
 #include <stdio.h>
 #include <string.h>
