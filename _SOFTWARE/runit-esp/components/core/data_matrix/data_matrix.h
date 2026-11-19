@@ -31,9 +31,9 @@
  *
  * The contract of a port: `in` is short, never blocks, copies what it keeps (`data` is valid for the call only); it
  * runs on the sender's task. The one wait: a provider's `in` waits for room on its line, at most its driver's bound,
- * when the sender did not say CMD_SEND_NOWAIT. Sends only from a task, never from an ISR; a packet with no link is dropped. The switch
- * does not wait for sends in flight, so the port's memory and its `in` stay valid after it is unregistered (a send
- * that copied its targets before may still call it): an owner never frees a registered port. Its owner stops sending
+ * when the sender did not say CMD_SEND_NOWAIT. Sends only from a task, never from an ISR; a packet with no link is
+ * dropped. The switch does not wait for sends in flight, so the port's memory and its `in` stay valid after it is
+ * unregistered (a send that took it before may still call it): an owner never frees a registered port. Its owner stops sending
  * before the port is unregistered. The order in which the targets of one port get a packet is no promise.
  *
  * A send inside an `in`: a provider's `in` never sends, so every chain ends at a provider. A session's `in` sends on
