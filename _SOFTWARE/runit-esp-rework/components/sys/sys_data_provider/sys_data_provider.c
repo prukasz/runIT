@@ -173,14 +173,15 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
 
 static err_h send_frame(uint8_t id, cmd_in_t frame, uint8_t flags);
 
-// A packet for the provider from the switch: sent on its line with the sender's flags, never waited for (pass never
-// blocks). The provider's id comes from the port's name, which REMOVE keeps: a send still in flight then finds no
+// A packet for the provider from the switch: sent on its line with the sender's flags as they are (CMD_SEND_NOWAIT:
+// dropped at once when the line has no room; without it the driver waits for room, up to its limit, on the sender's
+// task). The provider's id comes from the port's name, which REMOVE keeps: a send still in flight then finds no
 // provider (ERR_PROV_NOT_FOUND) and is dropped.
 static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
                       uint32_t len) {
   (void)from;
   const cmd_in_t frame = {.data = data, .len = len};
-  err_free(send_frame((uint8_t)self->id, frame, (uint8_t)(flags | CMD_SEND_NOWAIT)));  // not taken: lost
+  err_free(send_frame((uint8_t)self->id, frame, flags));  // not taken: lost
 }
 
 static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const void* cfg, uint32_t cfg_len) {
