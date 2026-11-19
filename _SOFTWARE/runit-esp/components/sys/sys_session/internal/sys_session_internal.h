@@ -1,7 +1,7 @@
 #pragma once
 
 /*
-Internal interface between sys_session.c, router/, and board/. Not on the component's public include path.
+Internal interface between sys_session.c and router/. Not on the component's public include path.
 */
 
 #include <stdbool.h>
@@ -17,12 +17,6 @@ extern "C" {
 
 /** @brief Copies every session out as PEERS sends it; returns how many. */
 uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]);
-
-/* The board's identity (board/; the host tests give their own). */
-uint8_t sys_session_board_load_id(void);
-MUST_USE err_h sys_session_board_save_id(uint8_t id);
-uint32_t sys_session_board_boot_id(void);
-uint32_t sys_session_board_build_id(void);
 
 #ifdef __cplusplus
 }

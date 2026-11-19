@@ -11,6 +11,9 @@
     },
     "ERR_NVS_NO_CHUNK": {
       "message": "The file has no chunk {chunk}"
+    },
+    "ERR_NVS_NOT_FOUND": {
+      "message": "No such value is stored"
     }
   }
 }

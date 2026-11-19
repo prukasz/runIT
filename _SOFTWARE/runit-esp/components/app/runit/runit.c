@@ -1,10 +1,12 @@
 #include "runit.h"
 
 #include <esp_log.h>
+#include "board_id.h"
 #include "board_time.h"
 #include "err_log.h"
 #include "err_sink.h"
 #include "errors.h"
+#include "nvs_store.h"
 #include "router_queue.h"
 #include "runit_connectivity.h"
 #include "runit_ids.h"
@@ -14,7 +16,6 @@
 #include "sys_device_policy.h"
 #include "sys_event.h"
 #include "sys_log.h"
-#include "sys_nvs.h"
 #include "sys_remote.h"
 #include "sys_session.h"
 #include "sys_system.h"
@@ -36,7 +37,8 @@ static void error_sink(err_h chain, const cmd_req_t* cmd) {
 
 void runit_start(void) {
   ESP_LOGI(TAG, "runIT rework: up, uptime %llu ms", (unsigned long long)board_time_now_ms());
-  err_report(sys_nvs_init("nvs"));
+  err_report(nvs_store_init("nvs"));
+  err_report(board_id_init());
   err_report(sys_actions_init());
   err_report(sys_board_init());
   err_report(router_init());

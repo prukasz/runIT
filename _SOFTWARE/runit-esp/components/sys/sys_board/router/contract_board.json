@@ -56,7 +56,7 @@
       "description": "The file's length, CRC-32 and number of chunks.",
       "read": {
         "returns": {
-          "struct": "sys_nvs_json_info_t",
+          "struct": "nvs_store_json_info_t",
           "description": "What the file holds",
           "fields": [
             {

@@ -32,6 +32,8 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | core | `core/router` | `ROUTER.MD` | the tree of module routers (`router_table.h`, `ROUTER_MODULE_REGISTER`), root keys = module numbers |
 | core | `core/router_queue` | `ROUTER_QUEUE.MD` | the commands of this board in a queue: `cmd_req_t` (a command and its origin), the work and urgent tasks, answers to the callbacks |
 | core | `core/timer` | `TIMER.MD` | the board's timers (`board_timer`) |
+| core | `core/nvs_store` | `NVS_STORE.MD` | the non-volatile store: one interface (`nvs_store.h`) with no type of the implementation, this chip's in `esp/` (`nvs_flash`); the partitions' start, the one place that erases them; a JSON file as chunks (`0x16`) |
+| core | `core/board_id` | `BOARD_ID.MD` | the board's identity: its id in the store (the header's `src`, from the next start once saved), its boot id, its build; this chip's part in `esp/` |
 | core | `core/data_matrix` | `DATA_MATRIX.MD` | the port (`data_matrix_port_t`: a module's, a provider's, a session's) and the switch of the ports (`0x30`): a port's output to the inputs of the ports linked from it (`data_matrix_send`, to one `_send_to`, to all but one `_send_except`), unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per module, lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task; publish, C listeners |
 | sys | `sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as two streams of the data matrix: the notify events out (`0x06`), the events of other boards in (`0x07`) |
@@ -45,7 +47,6 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | sys | `sys/bus/sys_ble` | `SYS_BLE.MD` | the BLE peripheral: NimBLE, the run-time GATT table, the framing both ways (`0x2E`) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (`0x28`): ping, stop, restart, clock; the safe state as the registry's sweep, the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history (`0x2A`) |
-| sys | `sys/sys_nvs` | `SYS_NVS.MD` | NVS: the partitions' start, the one place that erases them; a JSON file as chunks (`0x16`) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | stored command lists: records under u32 IDs with classes, upload / readback / RUN / RUN_ALL (`0x2C`) |
 | sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the record run at boot, the JSON the app reads back (`0x2D`) |
 | sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter (`0x29`); its DISPLAY and TOUCH contracts are not in the rework yet, so it does not build |

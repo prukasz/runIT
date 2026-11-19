@@ -1,0 +1,12 @@
+menu "board_id"
+
+    config BOARD_ID_DEFAULT
+        int "Board id until the app sets one"
+        default 0
+        range 0 239
+        help
+          The board's id when the store keeps none (the session's ID): 0 is
+          none given. Two boards of one project need different ids: the app
+          sets them with ID.
+
+endmenu

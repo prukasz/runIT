@@ -4,7 +4,7 @@
 
 #include "sys_board_id.h"
 #include "router_table.h"
-#include "sys_nvs.h"
+#include "nvs_store.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +30,7 @@ typedef struct __attribute__((packed)) {
 #define BOARD_OPERATIONS(X, P)                                                   \
   X(P, OP_JSON_APPEND, 0x01, cmd_none_t,            sys_board_append_args_t, 0)  \
   X(P, OP_JSON_ERASE,  0x02, cmd_none_t,            cmd_none_t,              0)  \
-  X(P, OP_JSON_INFO,   0x03, cmd_none_t,            sys_nvs_json_info_t,     0)  \
+  X(P, OP_JSON_INFO,   0x03, cmd_none_t,            nvs_store_json_info_t,     0)  \
   X(P, OP_JSON_READ,   0x04, sys_board_read_args_t, cmd_none_t,              0)
 
 CMD_TABLE_DECLARE(BOARD)

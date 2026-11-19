@@ -3,20 +3,20 @@
 #include "sys_board_internal.h"
 
 ROUTER_WRITE_TAIL(BOARD, OP_JSON_APPEND) {
-  return sys_nvs_json_append(sys_board_json(), args->offset, tail, tail_len);
+  return nvs_store_json_append(sys_board_json(), args->offset, tail, tail_len);
 }
 
 ROUTER_WRITE(BOARD, OP_JSON_ERASE) {
-  return sys_nvs_json_erase(sys_board_json());
+  return nvs_store_json_erase(sys_board_json());
 }
 
 ROUTER_READ(BOARD, OP_JSON_INFO) {
-  const sys_nvs_json_info_t info = sys_nvs_json_info(sys_board_json());
+  const nvs_store_json_info_t info = nvs_store_json_info(sys_board_json());
   return cmd_reply(out, &info, sizeof(info));
 }
 
 ROUTER_READ(BOARD, OP_JSON_READ) {
-  return sys_nvs_json_get(sys_board_json(), args->chunk, out->data, out->cap, &out->len);
+  return nvs_store_json_get(sys_board_json(), args->chunk, out->data, out->cap, &out->len);
 }
 
 static const router_op_t k_ops[] = {

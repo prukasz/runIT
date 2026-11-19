@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "esp_rom_crc.h"
-#include "nvs.h"
+#include "nvs_store.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
 #include "sys_actions_router.h"
@@ -30,7 +30,7 @@ typedef struct {
 U_MUTEX_DEFINE(sys_actions_mutex);  // s_draft: both router tasks
 
 static draft_t s_draft;
-static nvs_handle_t s_nvs;
+static nvs_store_t s_nvs;
 static __thread uint8_t s_depth;  // RUN nesting, per router task
 
 /* ----------------------------------------------------------------------------
@@ -85,23 +85,30 @@ static err_h frames_check(const uint8_t* img, uint32_t len, uint16_t* count) {
 static err_h store(uint32_t id, const uint8_t* image, uint32_t len) {
   char key[KEY_LEN];
   key_of(id, key);
-  ERR_TRY_ESP(nvs_set_blob(s_nvs, key, image, len));
-  return ERR_ESP(nvs_commit(s_nvs));
+  return nvs_store_set(s_nvs, key, image, len);
 }
 
 /* Reads a stored image into a new buffer with `extra` bytes after it (the
  * caller frees it). ERR_ACTION_NOT_FOUND when there is none. */
-static err_h load(uint32_t id, uint32_t extra, uint8_t** out, size_t* len) {
+// The store's "not found" as the record's.
+static err_h not_found_is(err_h err, uint32_t id) {
+  if (err != NULL && err_tag(err) == ERR_NVS_NOT_FOUND) {
+    err_free(err);
+    return ERR_NEW(ERR_ACTION_NOT_FOUND, .id = id);
+  }
+  return err;
+}
+
+static err_h load(uint32_t id, uint32_t extra, uint8_t** out, uint32_t* len) {
   ERR_TRY(check_id(id));
   char key[KEY_LEN];
   key_of(id, key);
-  esp_err_t rc = nvs_get_blob(s_nvs, key, NULL, len);
-  ERR_CHECK(rc != ESP_ERR_NVS_NOT_FOUND, ERR_ACTION_NOT_FOUND, .id = id);
-  ERR_TRY_ESP(rc);
+  *len = 0;
+  ERR_TRY(not_found_is(nvs_store_get(s_nvs, key, NULL, len), id));
   ERR_CHECK(*len > 0, ERR_ACTION_BAD_FRAME, .offset = 0);
   uint8_t* blob = malloc(*len + extra);
   ERR_CHECK(blob != NULL, ERR_ACTION_NO_MEM, .size = (uint32_t)(*len + extra));
-  err_h err = ERR_ESP(nvs_get_blob(s_nvs, key, blob, len));
+  err_h err = nvs_store_get(s_nvs, key, blob, len);
   if (err != NULL) {
     free(blob);
     return err;
@@ -111,7 +118,7 @@ static err_h load(uint32_t id, uint32_t extra, uint8_t** out, size_t* len) {
 }
 
 // load() plus the framing check: the frame count of a usable image. Frees the blob on a failure.
-static err_h load_checked(uint32_t id, uint32_t extra, uint8_t** blob, size_t* len, uint16_t* count) {
+static err_h load_checked(uint32_t id, uint32_t extra, uint8_t** blob, uint32_t* len, uint16_t* count) {
   ERR_TRY(load(id, extra, blob, len));
   err_h err = frames_check(*blob, *len, count);
   if (err != NULL) {
@@ -144,7 +151,7 @@ static const struct {
 };
 
 err_h sys_actions_init(void) {
-  ERR_TRY(ERR_ESP(nvs_open_from_partition(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, NVS_READWRITE, &s_nvs)));
+  ERR_TRY(nvs_store_open(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, &s_nvs));
   for (uint32_t i = 0; i < ARRAY_LEN(k_onboard); i++) {
     ERR_TRY(sys_actions_set(k_onboard[i].id, k_onboard[i].image, k_onboard[i].len));
   }
@@ -187,7 +194,7 @@ err_h sys_actions_run(uint32_t id, bool keep_going) {
   ERR_CHECK(s_depth < CONFIG_SYS_ACTIONS_MAX_DEPTH, ERR_ACTION_DEPTH, .depth = s_depth);
 
   uint8_t* blob;
-  size_t len;
+  uint32_t len;
   uint16_t count;
   ERR_TRY(load_checked(id, CMD_DATA_MAX, &blob, &len, &count));
   s_depth++;
@@ -289,15 +296,19 @@ void sys_actions_abort(void) {
 static bool stored_equal(uint32_t id, const uint8_t* image, size_t size) {
   char key[KEY_LEN];
   key_of(id, key);
-  size_t have = 0;
-  if (nvs_get_blob(s_nvs, key, NULL, &have) != ESP_OK || have != size) {
+  uint32_t have = 0;
+  err_h err = nvs_store_get(s_nvs, key, NULL, &have);
+  if (err != NULL || have != size) {
+    err_free(err);
     return false;
   }
   uint8_t* old = malloc(size);
   if (old == NULL) {
     return false;
   }
-  const bool same = nvs_get_blob(s_nvs, key, old, &have) == ESP_OK && memcmp(old, image, size) == 0;
+  err = nvs_store_get(s_nvs, key, old, &have);
+  const bool same = err == NULL && memcmp(old, image, size) == 0;
+  err_free(err);
   free(old);
   return same;
 }
@@ -314,7 +325,7 @@ err_h sys_actions_set(uint32_t id, const uint8_t* image, uint16_t len) {
 
 err_h sys_actions_copy(uint32_t from, uint32_t to) {
   uint8_t* blob;
-  size_t len;
+  uint32_t len;
   ERR_TRY(load(from, 0, &blob, &len));
   err_h err = sys_actions_set(to, blob, (uint16_t)len);
   free(blob);
@@ -324,7 +335,7 @@ err_h sys_actions_copy(uint32_t from, uint32_t to) {
 err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
   ERR_CHECK(out != NULL, ERR_ACTION_BAD_ARG);
   uint8_t* blob;
-  size_t len;
+  uint32_t len;
   uint16_t count;
   ERR_TRY(load_checked(id, 0, &blob, &len, &count));
   out->bytes = (uint16_t)len;
@@ -337,7 +348,7 @@ err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
 err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len) {
   ERR_CHECK(buf != NULL && len != NULL, ERR_ACTION_BAD_ARG);
   uint8_t* blob;
-  size_t size;
+  uint32_t size;
   ERR_TRY(load(id, 0, &blob, &size));
   err_h err = NULL;
   if (offset > size) {
@@ -353,7 +364,7 @@ err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap,
 err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx) {
   ERR_CHECK(fn != NULL, ERR_ACTION_BAD_ARG);
   uint8_t* blob;
-  size_t len;
+  uint32_t len;
   uint16_t count;
   ERR_TRY(load_checked(id, 0, &blob, &len, &count));
   err_h err = NULL;
@@ -372,10 +383,7 @@ err_h sys_actions_remove(uint32_t id) {
   ERR_TRY(check_id(id));
   char key[KEY_LEN];
   key_of(id, key);
-  esp_err_t rc = nvs_erase_key(s_nvs, key);
-  ERR_CHECK(rc != ESP_ERR_NVS_NOT_FOUND, ERR_ACTION_NOT_FOUND, .id = id);
-  ERR_TRY_ESP(rc);
-  return ERR_ESP(nvs_commit(s_nvs));
+  return not_found_is(nvs_store_erase(s_nvs, key), id);
 }
 
 err_h sys_actions_remove_all(void) {
@@ -416,30 +424,33 @@ static void keep_smallest(uint32_t* ids, uint16_t cap, uint16_t* count, uint32_t
   }
 }
 
+// What sys_actions_list gathers while it walks the keys.
+typedef struct {
+  uint32_t start;
+  uint32_t* ids;
+  uint16_t cap;
+  uint16_t* count;
+  uint16_t all;
+} list_t;
+
+static void on_key(const char* key, void* ctx) {
+  list_t* l = ctx;
+  const uint32_t id = id_of(key);
+  if (id != SYS_ACTIONS_ID_NONE) {
+    l->all++;
+    if (id >= l->start) {
+      keep_smallest(l->ids, l->cap, l->count, id);
+    }
+  }
+}
+
 err_h sys_actions_list(uint32_t start, uint32_t* ids, uint16_t cap, uint16_t* count, uint16_t* total) {
   ERR_CHECK(ids != NULL && count != NULL && cap > 0, ERR_ACTION_BAD_ARG);
   *count = 0;
-  uint16_t all = 0;
-  nvs_iterator_t it = NULL;
-  esp_err_t rc = nvs_entry_find_in_handle(s_nvs, NVS_TYPE_BLOB, &it);
-  while (rc == ESP_OK) {
-    nvs_entry_info_t info;
-    rc = nvs_entry_info(it, &info);
-    if (rc != ESP_OK) {
-      break;
-    }
-    const uint32_t id = id_of(info.key);
-    if (id != SYS_ACTIONS_ID_NONE) {
-      all++;
-      if (id >= start) {
-        keep_smallest(ids, cap, count, id);
-      }
-    }
-    rc = nvs_entry_next(&it);
-  }
-  nvs_release_iterator(it);
+  list_t l = {.start = start, .ids = ids, .cap = cap, .count = count};
+  ERR_TRY(nvs_store_keys(s_nvs, on_key, &l));
   if (total != NULL) {
-    *total = all;
+    *total = l.all;
   }
-  return rc == ESP_ERR_NVS_NOT_FOUND ? NULL : ERR_ESP(rc);
+  return NULL;
 }

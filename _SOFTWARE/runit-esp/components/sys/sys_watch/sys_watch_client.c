@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "board_id.h"
 #include "board_time.h"
 #include "board_timer.h"
 #include "data_matrix.h"
@@ -166,7 +167,7 @@ static void on_idle_tick(void* arg) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint32_t* len) {
-  ERR_CHECK(board >= CMD_SRC_BOARD_FIRST && board <= CMD_SRC_BOARD_LAST && board != sys_session_get_board_id() &&
+  ERR_CHECK(board >= CMD_SRC_BOARD_FIRST && board <= CMD_SRC_BOARD_LAST && board != board_id() &&
                 read.len >= 2u && read.len <= SYS_WATCH_READ_MAX,
             ERR_WATCH_BAD_ARG, .id = 0);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = 0);

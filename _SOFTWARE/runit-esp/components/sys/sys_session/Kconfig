@@ -16,12 +16,4 @@ menu "sys_session"
           the commands, MODULE_ID_ROUTER, and the streams). Each is a port of
           the data matrix (DATA_MATRIX_PORTS).
 
-    config SYS_SESSION_BOARD_ID_DEFAULT
-        int "Board id until the app sets one"
-        default 0
-        range 0 239
-        help
-          The board's id when none is kept in NVS (ID). Two boards of one
-          project need different ids: the app sets them with ID.
-
 endmenu

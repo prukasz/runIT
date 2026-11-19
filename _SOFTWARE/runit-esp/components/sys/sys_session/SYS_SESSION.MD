@@ -15,8 +15,7 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is the peer of 
 | `sys_session.h` | The session's wire format (the control ops, HELLO's body; the header, its kinds and ids are cmd.h's), the ports' name (`SYS_SESSION_PORT`), the use: start and this board; attach, detach, a peer's port, the peer of a port, wired, the dead-man, broadcast |
 | `sys_session.c` | Everything except board id NVS and router handlers: the sessions, their ports' inputs, the control frames, the hello, the providers' events, the 10 ms tick, attach, detach and the dead-man |
 | `sys_session_events.h` | The module's events: `SESSION_EV_REACHED`, `SESSION_EV_GONE`, and the filters of them |
-| `internal/sys_session_internal.h` | For `sys_session.c`, `board/` and `router/` only: `sys_session_list` and the board's hooks |
-| `board/sys_session_board.c` | The board's identity, ESP-IDF's part: the id in NVS, a random id per boot, the firmware's build |
+| `internal/sys_session_internal.h` | For `sys_session.c` and `router/` only: `sys_session_list` |
 | `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION` 0x0E): the frames, then `SESSION_OPERATIONS`; registers itself |
 | `router/contract_session.json` | The router's descriptor |
 | `errors/` | `MODULE_ID_SESSION` (0x0E), `ERR_SYS_SESSION_MAP`, the messages |
@@ -24,7 +23,7 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is the peer of 
 
 ## Peers and ids
 
-The ids are the header's sources (`CMD_SRC_*`, CMD.MD "The header"). A **board id** (0x01..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another takes the same id and the project runs on (its new `boot_id` ends the old session). `CMD_SRC_NONE` (0x00) is **no id given yet**: a new board has it, and so does a board flashed by another; any number of sessions may have such a peer (they are told apart by their provider). A **client** (the app, a test host) picks its id in 0xF0..0xFC.
+The ids are the header's sources (`CMD_SRC_*`, CMD.MD "The header"); this board's own, its boot id and its build are `board_id`'s (BOARD_ID.MD). A **board id** (0x01..0xEF) is a board's place in the project, set by the app (ID, kept in NVS), not its identity: a board swapped for another takes the same id and the project runs on (its new `boot_id` ends the old session). `CMD_SRC_NONE` (0x00) is **no id given yet**: a new board has it, and so does a board flashed by another; any number of sessions may have such a peer (they are told apart by their provider). A **client** (the app, a test host) picks its id in 0xF0..0xFC.
 
 Every peer says its own id as the `src` of its hello, and no two open sessions have the same (`ERR_SESSION_ID_TAKEN`); an id nobody may say (`CMD_SRC_SELF`, `_ALL`) or this board's own is refused too. A board knows its peers only by its sessions: a session has the same rules whoever is on it (the app on BLE, a board on UART).
 
@@ -90,7 +89,7 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
-| `0x01` | ID | read / write | `sys_session_id_args_t` `{u8 board_id}` (0: none, 1..0xEF); the write is kept in NVS and used from the next start |
+| `0x01` | ID | read / write | `sys_session_id_args_t` `{u8 board_id}` (0: none, 1..0xEF): `board_id()`; the write is `board_id_save`, the board's from the next start |
 | `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: `u8 provider`, `u8 open`, `u8 peer_id` (`CMD_SRC_NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none) |
 | `0x03` | ATTACH | write | `sys_session_attach_args_t` `{u8 provider, u8 flags, u16 deadman_ms}`, then a `u8` module per sub-port |
 | `0x04` | DETACH | write | `sys_session_detach_args_t` `{u8 provider}` |
@@ -105,7 +104,6 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 |---|---|---|
 | `CONFIG_SYS_SESSION_MAX` | 4 | sessions: one per provider |
 | `CONFIG_SYS_SESSION_PORTS` | 4 | the sub-ports of a session (each a port of the data matrix) |
-| `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` | 0 | the board's id when NVS keeps none |
 
 ## Tests
 

@@ -30,7 +30,7 @@ The ESP32-S3's GPIO (device `0x00`) is the one device the record does not create
 
 ## The JSON
 
-A file of `sys_nvs` (SYS_NVS.MD), namespace `board` in the partition `CONFIG_SYS_ACTIONS_PARTITION`, opened by `sys_board_init`. The firmware stores it and never reads it.
+A JSON file of `nvs_store` (NVS_STORE.MD), namespace `board` in the partition `CONFIG_SYS_ACTIONS_PARTITION`, opened by `sys_board_init`. The firmware stores it and never reads it.
 
 ## Remote (`sys_board_router`, root key `MODULE_ID_BOARD` 0x2D)
 
@@ -38,10 +38,10 @@ A file of `sys_nvs` (SYS_NVS.MD), namespace `board` in the partition `CONFIG_SYS
 |---|---|---|---|
 | `0x01` JSON_APPEND | W | `sys_board_append_args_t` `{u32 offset}`, data | – (`ERR_NVS_OFFSET` unless the offset is the file's length) |
 | `0x02` JSON_ERASE | W | – | – |
-| `0x03` JSON_INFO | R | – | `sys_nvs_json_info_t` `{u32 bytes, u32 crc32, u16 chunks}` |
+| `0x03` JSON_INFO | R | – | `nvs_store_json_info_t` `{u32 bytes, u32 crc32, u16 chunks}` |
 | `0x04` JSON_READ | R | `sys_board_read_args_t` `{u16 chunk}` | the chunk's bytes (`ERR_NVS_NO_CHUNK` past the last) |
 
-The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare the length and the CRC with what it sent. The module has no errors of its own: its failures are `sys_nvs`'s and `sys_actions`'s.
+The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare the length and the CRC with what it sent. The module has no errors of its own: its failures are `nvs_store`'s and `sys_actions`'s.
 
 ## Open
 

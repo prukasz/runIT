@@ -11,13 +11,13 @@
 
 #define JSON_NAMESPACE "board"
 
-static sys_nvs_json_t s_json;
+static nvs_store_json_t s_json;
 
 err_h sys_board_init(void) {
-  return sys_nvs_json_open(&s_json, CONFIG_SYS_ACTIONS_PARTITION, JSON_NAMESPACE);
+  return nvs_store_json_open(&s_json, CONFIG_SYS_ACTIONS_PARTITION, JSON_NAMESPACE);
 }
 
-sys_nvs_json_t* sys_board_json(void) {
+nvs_store_json_t* sys_board_json(void) {
   return &s_json;
 }
 

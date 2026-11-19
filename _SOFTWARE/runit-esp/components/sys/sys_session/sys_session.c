@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "board_id.h"
 #include "board_timer.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -40,7 +41,6 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 static struct {
   session_t sessions[CONFIG_SYS_SESSION_MAX];
-  uint8_t id;               // this board's
   sys_session_hello_t me;   // this board's hello
   board_timer_t timer;
 } s_state;
@@ -87,10 +87,6 @@ static session_t* of_port(data_matrix_port_id_t port) {
 /* ----------------------------------------------------------------------------
  * Queries
  * ------------------------------------------------------------------------- */
-
-uint8_t sys_session_get_board_id(void) {
-  return s_state.id;
-}
 
 err_h sys_session_port(uint8_t peer, uint8_t module, data_matrix_port_id_t* port) {
   portENTER_CRITICAL(&s_lock);
@@ -149,7 +145,7 @@ uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
 // A control frame; one a full queue refuses is lost: the hello is said again, a ping follows.
 static void send_control(session_t* s, uint8_t op, const void* data, uint32_t len) {
   uint8_t frame[CMD_HEAD + 1u + sizeof(sys_session_hello_t)];
-  const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_CONTROL), .src = s_state.id, .key = MODULE_ID_SESSION};
+  const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_CONTROL), .src = board_id(), .key = MODULE_ID_SESSION};
   memcpy(frame, &hdr, CMD_HEAD);
   frame[CMD_HEAD] = op;
   if (len > 0) {
@@ -166,7 +162,7 @@ err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
   ERR_CHECK(req.data != NULL && req.len >= 2u && req.len <= CMD_DATA_MAX + 1u, ERR_CMD_BAD_ARG);
   const cmd_hdr_t hdr = {
       .type = (uint8_t)(CMD_TYPE(CMD_REQUEST) | ROUTER_FLAG_NOREPLY | (flags & ROUTER_FLAG_URGENT)),
-      .src = s_state.id,
+      .src = board_id(),
       .key = req.data[0],
   };
   uint8_t frame[CMD_HEAD + req.len - 1u];
@@ -219,7 +215,7 @@ static void on_hello(session_t* s, uint8_t src, const uint8_t* body, uint32_t le
 
   portENTER_CRITICAL(&s_lock);
   const session_t* same = src != CMD_SRC_NONE ? open_with(src) : NULL;
-  const bool bad = !(board || client) || (src != CMD_SRC_NONE && src == s_state.id);  // nobody's, or this board's
+  const bool bad = !(board || client) || (src != CMD_SRC_NONE && src == board_id());  // nobody's, or this board's
   const bool twice = same != NULL && same != s;                                      // another open session has it
   const bool restarted = s->open && (s->hello.boot_id != hello.boot_id || s->peer != src);
   portEXIT_CRITICAL(&s_lock);
@@ -317,7 +313,7 @@ static void sub_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t
   if (!open) {
     return;
   }
-  hdr.src = hdr.src != CMD_SRC_NONE ? hdr.src : s_state.id;
+  hdr.src = hdr.src != CMD_SRC_NONE ? hdr.src : board_id();
   memcpy(frame, &hdr, CMD_HEAD);
   // A PUSH never waits and never takes the room an answer or a control frame needs.
   data_matrix_send(&s->line, push ? (uint8_t)(flags | CMD_SEND_NOWAIT | CMD_SEND_SPARE) : flags, frame, len);
@@ -381,8 +377,7 @@ static void on_tick(void* arg) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_session_init(void) {
-  s_state.id = sys_session_board_load_id();
-  s_state.me = (sys_session_hello_t){.boot_id = sys_session_board_boot_id(), .build_id = sys_session_board_build_id()};
+  s_state.me = (sys_session_hello_t){.boot_id = board_boot_id(), .build_id = board_build_id()};
   static const uint32_t k_tags[] = {SYS_DATA_PROVIDER_EV_UP, SYS_DATA_PROVIDER_EV_DOWN, SYS_DATA_PROVIDER_EV_REMOVED};
   for (uint32_t i = 0; i < ARRAY_LEN(k_tags); i++) {
     uint16_t handle = 0;
