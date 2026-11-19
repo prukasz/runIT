@@ -9,7 +9,7 @@ Spec: `SYS_SESSION.MD` (this folder).
 - No routing, no task, no queue: a port's input runs on the sender's task and never blocks (the control frames `NOWAIT`); the tick runs on the board timers' task.
 - The sessions are under the spinlock of `sys_session.c`. Under it: copy what is needed out, never send, publish or call the router.
 - `seq` of a PUSH is the session's count of its PUSH frames in that class (`push_seq[urgent]`): never a `seq` from a module, never a counter per stream. No receive counters here: the gap is the receiver's to read.
-- `src` is set once: by a sub-port's input to this board's id when it is `CMD_SRC_NONE`, never changed when it is set.
+- `src` is set once: by a sub-port's input to this board's id when it is `CMD_SRC_NONE`, never changed when it is set. A REQUEST or an ANSWER from the line is the peer's own: one with another `src` is dropped, never passed on.
 - A session has no kind: no master, slave or client in the code, only an id from its hello and its own dead-man time and safety flag. The id kinds (0x00..0xEF a board, 0x00 none given; 0xF0..0xFC a client) are checked in the hello and nowhere else.
 - Anything but HELLO and NO_SESSION on a session not open here is answered NO_SESSION and the board's hello (`start_over`). It is the protocol's own recovery: nothing is reported.
 - The calls are the router's (`router_request`): the session only gives the port of a peer (`sys_session_port`) and fails the calls through a session that ends (`router_request_fail_to`).

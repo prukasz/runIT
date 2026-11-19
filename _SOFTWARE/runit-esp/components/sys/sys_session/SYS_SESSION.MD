@@ -42,7 +42,7 @@ The same attach again is done (a stored record runs at every start); another tim
 | Frame | Goes |
 |---|---|
 | `CONTROL` | the session's own (A session's life) |
-| `REQUEST`, `ANSWER` | out of the sub-port `MODULE_ID_ROUTER`, unchanged |
+| `REQUEST`, `ANSWER` | out of the sub-port `MODULE_ID_ROUTER`, unchanged; one whose `src` is not the peer's is dropped (a command is its sender's own, so the router's `src` and DEADMAN's session are the peer's) |
 | `PUSH` | out of the sub-port of its `key`, unchanged; none: dropped |
 
 Anything but HELLO and NO_SESSION on a session not open here is answered NO_SESSION and the hello.

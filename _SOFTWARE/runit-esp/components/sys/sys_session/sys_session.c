@@ -79,12 +79,9 @@ static data_matrix_port_t* sub_port(session_t* s, uint8_t module) {
   return NULL;
 }
 
-// The session a port of it belongs to, by the provider in the port's name.
+// The session a port of it belongs to, by the provider in the port's name. Under s_lock.
 static session_t* of_port(data_matrix_port_id_t port) {
-  portENTER_CRITICAL(&s_lock);
-  session_t* s = (port >> 8) & DATA_MATRIX_PORT_SESSION ? on_provider((uint8_t)((port >> 8) & PROVIDER_MAX)) : NULL;
-  portEXIT_CRITICAL(&s_lock);
-  return s;
+  return (port >> 8) & DATA_MATRIX_PORT_SESSION ? on_provider((uint8_t)((port >> 8) & PROVIDER_MAX)) : NULL;
 }
 
 /* ----------------------------------------------------------------------------
@@ -108,9 +105,9 @@ err_h sys_session_port(uint8_t peer, uint8_t module, data_matrix_port_id_t* port
 }
 
 bool sys_session_peer(data_matrix_port_id_t port, uint8_t* peer) {
-  const session_t* s = of_port(port);
   portENTER_CRITICAL(&s_lock);
-  const bool open = s != NULL && s->used && s->open;
+  const session_t* s = of_port(port);
+  const bool open = s != NULL && s->open;
   if (open) {
     *peer = s->peer;
   }
@@ -121,9 +118,9 @@ bool sys_session_peer(data_matrix_port_id_t port, uint8_t* peer) {
 bool sys_session_wired(uint8_t board) {
   portENTER_CRITICAL(&s_lock);
   const session_t* s = open_with(board);
-  const int32_t provider = s != NULL ? s->provider : -1;
+  const uint8_t provider = s != NULL ? s->provider : 0u;
   portEXIT_CRITICAL(&s_lock);
-  return provider >= 0 && (sys_data_provider_state((uint8_t)provider) & SYS_DATA_PROVIDER_STATE_WIRED) != 0;
+  return s != NULL && (sys_data_provider_state(provider) & SYS_DATA_PROVIDER_STATE_WIRED) != 0;
 }
 
 uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
@@ -279,6 +276,7 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
   portENTER_CRITICAL(&s_lock);
   const bool used = s->used;
   const bool open = s->open;
+  const uint8_t peer = s->peer;
   s->silent_ms = open ? 0u : s->silent_ms;  // every frame of the peer is its sign of life
   data_matrix_port_t* port = sub_port(s, kind == CMD_PUSH ? hdr.key : MODULE_ID_ROUTER);
   portEXIT_CRITICAL(&s_lock);
@@ -287,7 +285,11 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
   }
   if (!open) {
     start_over(s);
-  } else if (kind != CMD_CONTROL && port != NULL) {
+    return;
+  }
+  // A command or an answer is the peer's own: one in another's name is dropped (a PUSH may be a board's behind it).
+  const bool theirs = kind == CMD_PUSH || hdr.src == peer;
+  if (kind != CMD_CONTROL && theirs && port != NULL) {
     data_matrix_send(port, flags, data, len);
   }
 }
@@ -297,8 +299,7 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
 static void sub_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
                    uint32_t len) {
   (void)from;
-  session_t* s = of_port(self->id);
-  if (s == NULL || len < CMD_HEAD || len > CMD_FRAME_MAX) {
+  if (len < CMD_HEAD || len > CMD_FRAME_MAX) {
     return;
   }
   uint8_t frame[len];
@@ -307,7 +308,8 @@ static void sub_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t
   memcpy(&hdr, frame, CMD_HEAD);
   const bool push = CMD_KIND_OF(hdr.type) == CMD_PUSH;
   portENTER_CRITICAL(&s_lock);
-  const bool open = s->used && s->open;
+  session_t* s = of_port(self->id);
+  const bool open = s != NULL && s->open;
   if (open && push) {
     hdr.seq = s->push_seq[hdr.type & ROUTER_FLAG_URGENT]++;
   }
@@ -464,7 +466,9 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   }
   if (err != NULL) {
     unregister_ports(at);
+    portENTER_CRITICAL(&s_lock);
     at->used = false;
+    portEXIT_CRITICAL(&s_lock);
     return err;
   }
   if (state & SYS_DATA_PROVIDER_STATE_UP) {
@@ -480,7 +484,9 @@ err_h sys_session_detach(uint8_t provider) {
   if (s != NULL) {
     end_session(s);
     unregister_ports(s);
+    portENTER_CRITICAL(&s_lock);
     s->used = false;
+    portEXIT_CRITICAL(&s_lock);
   }
   return NULL;
 }
