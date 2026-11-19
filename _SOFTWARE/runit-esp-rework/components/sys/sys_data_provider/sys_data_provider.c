@@ -123,28 +123,12 @@ static err_h list_providers(cmd_out_t* out) {
   return n > 0 ? cmd_append(out, rows, (uint32_t)n * sizeof(rows[0])) : NULL;
 }
 
-static err_h info_reply(uint8_t id, cmd_out_t* out) {
-  sys_data_provider_info_t info = {0};
-  bool found = false;
-  portENTER_CRITICAL(&s_lock);
-  const prov_slot_t* s = find_slot_locked(id);
-  if (s != NULL) {
-    found = true;
-    info.type = s->type->type;
-    info.state = s->p.state;
-  }
-  portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(found, ERR_PROV_NOT_FOUND, .provider = id);
-  return cmd_reply(out, &info, sizeof(info));
-}
-
 static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   static const struct {
     uint16_t op;
     uint8_t sides;
   } k_pub_ops[] = {
       {CONTRACT_PROVIDER_OP_REMOVE,          0x02u},
-      {CONTRACT_PROVIDER_OP_INFO,            0x01u},
       {CONTRACT_PROVIDER_OP_OPS,             0x01u},
   };
 
@@ -220,7 +204,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
     portENTER_CRITICAL(&s_lock);
     slot->type = NULL;
     portEXIT_CRITICAL(&s_lock);
-    err_free(type->remove(p));
+    type->remove(p);
   }
   return err;
 }
@@ -240,7 +224,8 @@ static err_h remove_locked(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   s->type = NULL;
   portEXIT_CRITICAL(&s_lock);
-  return type->remove(&s->p);
+  type->remove(&s->p);
+  return NULL;
 }
 
 static err_h call_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
@@ -279,7 +264,7 @@ err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in
   }
 
   const bool is_read = dir == CMD_DIR_READ;
-  const bool expect_read = (op == CONTRACT_PROVIDER_OP_INFO || op == CONTRACT_PROVIDER_OP_OPS);
+  const bool expect_read = op == CONTRACT_PROVIDER_OP_OPS;
   ERR_CHECK(is_read == expect_read, ERR_PROV_UNKNOWN_OP, .op = op);
 
   if (op == CONTRACT_PROVIDER_OP_CREATE) {
@@ -296,8 +281,6 @@ err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in
       U_MUTEX_GUARD(s_prov_ctrl_lock);
       return remove_locked(id);
     }
-    case CONTRACT_PROVIDER_OP_INFO:
-      return info_reply(id, answer);
     case CONTRACT_PROVIDER_OP_OPS:
       return ops_reply(id, answer);
     default:
@@ -306,16 +289,9 @@ err_h sys_data_provider_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in
 }
 
 err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
-  uint8_t frame[SYS_DATA_PROVIDER_CREATE_HDR + SYS_DATA_PROVIDER_CREATE_CFG_MAX];
-  ERR_CHECK(cfg_len <= SYS_DATA_PROVIDER_CREATE_CFG_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)cfg_len,
-            .need = (uint16_t)SYS_DATA_PROVIDER_CREATE_CFG_MAX);
-  frame[0] = type_id;
-  frame[1] = SYS_DATA_PROVIDER_CREATE_SYSTEM;
-  if (cfg_len > 0u) {
-    memcpy(frame + SYS_DATA_PROVIDER_CREATE_HDR, cfg, cfg_len);
-  }
-  const cmd_in_t in = {.data = frame, .len = SYS_DATA_PROVIDER_CREATE_HDR + cfg_len};
-  return sys_data_provider_call_routed(id, CMD_DIR_WRITE, CONTRACT_PROVIDER_OP_CREATE, in, NULL);
+  ERR_CHECK(id != SYS_DATA_PROVIDER_ID_NONE, ERR_PROV_BAD_ID, .provider = id);
+  U_MUTEX_GUARD(s_prov_ctrl_lock);
+  return create_locked(id, type_id, SYS_DATA_PROVIDER_CREATE_SYSTEM, cfg, cfg_len);
 }
 
 /* ----------------------------------------------------------------------------
@@ -323,16 +299,11 @@ err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* c
  * ------------------------------------------------------------------------- */
 
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
-  if (p == NULL) {
-    return;
-  }
   portENTER_CRITICAL(&s_lock);
   p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
   portEXIT_CRITICAL(&s_lock);
 }
 
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len) {
-  if (p != NULL && data != NULL) {
-    data_matrix_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
-  }
+  data_matrix_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
 }

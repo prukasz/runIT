@@ -7,7 +7,7 @@ Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leav
 The registry keeps the providers' lifecycle and nothing of their logic. Every provider is created via `CREATE` from a driver registered under `sys_data_provider_type_e` (`u8`: `UART = 1`, `BLE = 2`, `MQTT = 3`, `CONSOLE = 4`) using `SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, in_fn, ops_ptr, ops_cnt)`:
 - `prov_t` is the driver's own struct; its first field is the base `sys_data_provider_t base`: the port (`port`) and the state bits (`state`), nothing else (the id is the port's low byte, the type is the registry's). It lives in the registry's slot (`CONFIG_SYS_DATA_PROVIDER_SIZE` bytes, 64 by default; a larger struct fails to build), never freed: the registry zeroes it at CREATE (all but the port's input), names its port and sets its state (`STATE_SYSTEM`).
 - `create(sys_data_provider_t* p, const void* cfg)` makes the instance (its line) and sets capability flags on `p->state` (`WIRED`, `FRAMED`, initial `UP`), using `sys_data_provider_deliver()` / `sys_data_provider_set_up()` for RX.
-- `remove(sys_data_provider_t* p)` tears down the driver's hooks when `CONTRACT_PROVIDER_OP_REMOVE` runs.
+- `remove(sys_data_provider_t* p)` tears down the driver's hooks when `CONTRACT_PROVIDER_OP_REMOVE` runs. It can't fail: when it returns, no RX callback of the driver runs any more. What the driver allocated in `create` (queues, buffers, a client) it frees here; its struct is the registry's.
 - `in` is the port's input (`data_matrix_in_f`): the packet onto the line (in it the driver gets its struct with `SYS_DATA_PROVIDER_OF(self, prov_t)`).
 - `ops` is an optional table of `sys_data_provider_op_t` rows (`0xFFxx` via `SYS_DATA_PROVIDER_OWN_OP(n)`, plain `cmd_f` handlers taking the provider as `ctx`); they are reached by the router only.
 - **One call into a driver at a time:** its `in`, its own ops and its `remove` run under the provider's own mutex (the registry's, per slot), so a driver keeps no lock of its own for them. `sys_data_provider_deliver` and `sys_data_provider_set_up` come from the driver and take none.
@@ -19,13 +19,12 @@ The registry keeps the providers' lifecycle and nothing of their logic. Every pr
   - `0x0D00` (`OP_CREATE`, W): `[type u8][flags u8][cfg]` (`SYS_DATA_PROVIDER_CREATE_SYSTEM` sets `STATE_SYSTEM`)
   - `0x0D01` (`OP_REMOVE`, W): fails `ERR_PROV_SYSTEM`, unregisters its port from the data matrix first (`data_matrix_unregister`: its links go), then waits for the call into its driver in flight and calls `type->remove(p)`; the slot is free again
   - `0x0D02` (`OP_LIST`, R on `ID_NONE` `0xFF`): returns `[u8 count][sys_data_provider_entry_t...]` (`provider u8, type u8, state u8`, 3 B each)
-  - `0x0D04` (`OP_INFO`, R): returns `sys_data_provider_info_t` (`type u8, state u8`, 2 B)
   - `0x0D05` (`OP_OPS`, R): returns `[op u16][sides u8]` rows for registry ops and the driver's own ops
 - `router/contract_provider.json` describes the wire commands (`router_key` and `contract_id` both 13: a descriptor with the two is addressed with the id and the 16-bit op, as the app reads it, templates/AGENTS.md); `errors/` owns `MODULE_ID_PROVIDER` (`MODULE_ID_PROVIDER`, tags `1..5`, `11..13`, `15`).
 
 ## Headers
 
-`sys_data_provider.h` (the types, the state bits, the contract's ops and rows, `sys_data_provider_create_system`: CREATE of the board's own provider, it builds the frame), `driver/sys_data_provider_driver.h` (for a driver only), `router/sys_data_provider_router.h`, `errors/sys_data_provider_errors.h`; `internal/` is the sources' own.
+`sys_data_provider.h` (the types, the state bits, the contract's ops and rows, `sys_data_provider_create_system`: CREATE of the board's own provider), `driver/sys_data_provider_driver.h` (for a driver only), `router/sys_data_provider_router.h`, `errors/sys_data_provider_errors.h`; `internal/` is the sources' own.
 
 ## Stream port
 
@@ -43,6 +42,14 @@ A provider carries bytes and knows nothing of what they are. It is a stream port
 | `DOWN` | `0x04` | `NOTIFY` | | its line delivers none any more (`STATE_UP` cleared) |
 
 Defined only: the registry does not publish them yet (CREATE, REMOVE and `sys_data_provider_set_up` will).
+
+## Concurrency
+
+- `in`, the own ops and `remove` of one provider run one at a time (its slot's mutex); CREATE, REMOVE and the own ops of all providers one at a time (the registry's control mutex), always taken before a slot's.
+- `in` and the own ops never CREATE or REMOVE a provider: they hold those locks, it would deadlock.
+- `in` waits for room on its line a bounded time only (`CONFIG_PROVIDER_*_SEND_WAIT_MS`): REMOVE and the provider's own ops wait for it.
+- `sys_data_provider_deliver` and `sys_data_provider_set_up` come from the driver's RX side, at the same time as `in`, and take no lock of the registry (a provider's RX goes on while its TX waits, and two providers linked both ways never wait for each other): what RX and TX share, the driver guards itself.
+- A packet that was on its way when the provider was removed (in the data matrix, or an RX callback in flight) may reach a provider CREATEd again in the same slot meanwhile: it is taken as that provider's. The window is a sender preempted across a REMOVE and a CREATE.
 
 ## Open
 

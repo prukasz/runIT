@@ -71,38 +71,6 @@
       }
     },
     {
-      "id": "INFO",
-      "op": 4,
-      "symbol": "CONTRACT_PROVIDER_OP_INFO",
-      "label": "Provider info",
-      "description": "Returns type (u8) and state (u8) as sys_data_provider_info_t (2 B).",
-      "read": {
-        "returns": {
-          "struct": "sys_data_provider_info_t",
-          "fields": [
-            {
-              "id": "type",
-              "label": "Provider type",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 0,
-              "description": "sys_data_provider_type_e"
-            },
-            {
-              "id": "state",
-              "label": "State",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "SYS_DATA_PROVIDER_STATE_* bitmask"
-            }
-          ]
-        }
-      }
-    },
-    {
       "id": "OPS",
       "op": 5,
       "symbol": "CONTRACT_PROVIDER_OP_OPS",

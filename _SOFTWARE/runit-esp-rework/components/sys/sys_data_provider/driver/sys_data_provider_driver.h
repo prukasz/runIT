@@ -17,6 +17,17 @@
  * it is. Calls into a driver (its `in`, its own ops, its remove) come one at a time, so a driver keeps no lock of its
  * own for them. What comes in on the line goes out with sys_data_provider_deliver, the line's state with
  * sys_data_provider_set_up. A driver type registers itself with SYS_DATA_PROVIDER_TYPE_DEFINE.
+ *
+ * The driver's side of the contract:
+ * - `in` and the own ops never CREATE or REMOVE a provider (they run under the registry's locks: it would deadlock).
+ * - `in` waits for room on its line a bounded time only (its CONFIG_PROVIDER_*_SEND_WAIT_MS): REMOVE and the own ops
+ *   of the provider wait for it.
+ * - deliver and set_up come from the driver's RX side, at the same time as `in`: what RX and TX share, the driver
+ *   guards itself.
+ * - When remove returns, no RX callback of the driver runs any more (it unhooks them synchronously). What the driver
+ *   allocated in create it frees in remove; its struct is the registry's.
+ * - A packet that was on its way when the provider was removed may reach a provider CREATEd again in the same slot
+ *   meanwhile: it is taken as that provider's.
  */
 
 #ifdef __cplusplus
@@ -50,8 +61,8 @@ typedef struct {
   uint16_t cfg_size; /**< sizeof its CREATE cfg (packed) */
   /** @brief Makes the instance: its line, p->state (WIRED, FRAMED, UP); an error and nothing is made. */
   err_h (*create)(sys_data_provider_t* p, const void* cfg);
-  /** @brief Takes the instance down (its hooks on the line); the port is out of the data matrix already. */
-  err_h (*remove)(sys_data_provider_t* p);
+  /** @brief Takes the instance down (its hooks on the line), can't fail; the port is out of the data matrix already. */
+  void (*remove)(sys_data_provider_t* p);
   /** @brief The port's input: the packet onto the line with its flags as they are (data_matrix.h). */
   data_matrix_in_f in;
   const sys_data_provider_op_t* ops;  /**< Its own ops (reached by the router only), NULL: none */
