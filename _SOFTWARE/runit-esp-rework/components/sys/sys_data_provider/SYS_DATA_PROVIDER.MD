@@ -12,7 +12,7 @@ Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leav
 | `internal/sys_data_provider_internal.h` | The seam between the registry and its router: create, remove, list, an own op |
 | `router/sys_data_provider_router.c` / `.h`, `router/contract_provider.json` | The router: the wire format (op codes, the CREATE header, the LIST row, the frame header), its commands |
 | `errors/` | `ERR_SYS_DATA_PROVIDER_MAP` (`MODULE_ID_PROVIDER`, tags `1..5`, `12`, `13`, `15`), its messages |
-| `events/sys_data_provider_events.h` | The providers' events (defined, not published yet) |
+| `events/sys_data_provider_events.h` | The providers' events (CREATED, REMOVED, UP, DOWN) |
 
 ## Driver model
 
@@ -61,7 +61,7 @@ A provider carries bytes and knows nothing of what they are. It is a stream port
 | `UP` | `0x03` | `NOTIFY` | | its line delivers frames now (`STATE_UP` set) |
 | `DOWN` | `0x04` | `NOTIFY` | | its line delivers none any more (`STATE_UP` cleared) |
 
-Defined only: the registry does not publish them yet (CREATE, REMOVE and `sys_data_provider_set_up` will).
+The registry publishes them, deferred (`SYS_EVENT_PUBLISH_DEFER`: CREATE and REMOVE hold its locks, `sys_data_provider_set_up` comes under a driver's), so a listener may CREATE or REMOVE a provider. `UP` and `DOWN` come on a change of `STATE_UP` only; one set while the driver's create runs (a BLE client connected already) comes before `CREATED`, whose `state` has it.
 
 ## Config (`Kconfig`)
 

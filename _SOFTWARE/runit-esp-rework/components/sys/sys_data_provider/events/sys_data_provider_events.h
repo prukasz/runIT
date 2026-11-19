@@ -17,7 +17,8 @@
  *   UP:      its line delivers frames now (SYS_DATA_PROVIDER_STATE_UP set)
  *   DOWN:    its line delivers none any more (SYS_DATA_PROVIDER_STATE_UP cleared)
  *
- * Defined only: the registry does not publish them yet (SYS_DATA_PROVIDER.MD "Events").
+ * The registry publishes them, deferred (SYS_EVENT_PUBLISH_DEFER: they come under its locks or a driver's); UP and
+ * DOWN on a change of STATE_UP only.
  */
 #define SYS_DATA_PROVIDER_EVENTS(X, P)                                      \
   X(P, CREATED, 0x01, 0,                { uint8_t type; uint8_t state; }) \

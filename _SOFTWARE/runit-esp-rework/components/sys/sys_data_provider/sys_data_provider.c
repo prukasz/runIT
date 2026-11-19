@@ -1,7 +1,8 @@
 /**
  * @file sys_data_provider.c
  * @brief The provider registry (SYS_DATA_PROVIDER.MD): the driver types, the providers' slots, their lifecycle (CREATE,
- * REMOVE, the port in the data matrix) and one call into a driver at a time. The wire format is the router's
+ * REMOVE, the port in the data matrix, their events) and one call into a driver at a time. The events are deferred:
+ * they are published under the registry's locks or a driver's. The wire format is the router's
  * (router/sys_data_provider_router.c, over sys_data_provider_internal.h).
  */
 
@@ -13,6 +14,7 @@
 #include "data_matrix.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
+#include "sys_data_provider_events.h"
 #include "sys_data_provider_internal.h"
 #include "utils.h"
 
@@ -111,8 +113,10 @@ err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const v
     slot->type = NULL;
     portEXIT_CRITICAL(&s_lock);
     type->remove(p);
+    return err;
   }
-  return err;
+  err_report(SYS_EVENT_PUBLISH_DEFER(SYS_DATA_PROVIDER_EV_CREATED, id, 0, .type = type->type, .state = p->state));
+  return NULL;
 }
 
 err_h sys_data_provider_remove(uint8_t id) {
@@ -132,6 +136,7 @@ err_h sys_data_provider_remove(uint8_t id) {
   // Outside the line's mutex: the driver's remove may wait for its RX callbacks, and one of them may be sending to
   // this provider's port (its targets copied before the unregister) and wait for that mutex.
   type->remove(&s->p);
+  err_report(SYS_EVENT_PUBLISH_DEFER(SYS_DATA_PROVIDER_EV_REMOVED, id, 0, .type = type->type));
   return NULL;
 }
 
@@ -168,6 +173,12 @@ err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* c
 
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   portENTER_CRITICAL(&s_lock);
+  const bool was = (p->state & SYS_DATA_PROVIDER_STATE_UP) != 0;
   p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
   portEXIT_CRITICAL(&s_lock);
+  if (up != was) {
+    const uint8_t id = (uint8_t)p->port.id;
+    err_report(up ? SYS_EVENT_PUBLISH_DEFER(SYS_DATA_PROVIDER_EV_UP, id, 0)
+                  : SYS_EVENT_PUBLISH_DEFER(SYS_DATA_PROVIDER_EV_DOWN, id, 0));
+  }
 }
