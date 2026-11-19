@@ -37,7 +37,7 @@ static void error_sink(err_h chain, const cmd_req_t* cmd) {
 
 void runit_start(void) {
   ESP_LOGI(TAG, "runIT rework: up, uptime %llu ms", (unsigned long long)board_time_now_ms());
-  err_report(nvs_store_init("nvs"));
+  err_report(nvs_store.init("nvs"));
   err_report(board_id_init());
   err_report(sys_actions_init());
   err_report(sys_board_init());

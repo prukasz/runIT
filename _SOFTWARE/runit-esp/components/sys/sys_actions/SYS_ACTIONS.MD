@@ -49,7 +49,7 @@ Class `0xFF` holds no records: an error policy's actions use it for the policy's
 
 **Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CMD_DATA_MAX` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), of every class; a longer image is `ERR_ACTION_TOO_BIG {len, max}` (BEGIN, `sys_actions_set`). The CRC (`esp_rom_crc32_le(0, …)`, zlib / IEEE) covers the image, which is also what a client sends.
 
-**Storage.** Namespace `actions` in the partition `CONFIG_SYS_ACTIONS_PARTITION` (`nvs`, made ready by `nvs_store_init` in `app/runit`), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one value per record, through `nvs_store` (NVS_STORE.MD). One `nvs_store_set` per store; the store keeps the old value until the new one is complete. The store checks framing only, not content: a frame the router can't take fails at its step.
+**Storage.** Namespace `actions` in the partition `CONFIG_SYS_ACTIONS_PARTITION` (`nvs`, made ready by `nvs_store.init` in `app/runit`), key `a<id>` (the ID as 8 hex digits, e.g. `a02000063`), one value per record, through `nvs_store` (NVS_STORE.MD). One `nvs_store.set` per store; the store keeps the old value until the new one is complete. The store checks framing only, not content: a frame the router can't take fails at its step.
 
 **One draft at a time.** A draft is a record being written: the image on the heap, from BEGIN to COMMIT or ABORT. Another BEGIN → `ERR_ACTION_BUSY`. COMMIT closes the draft even when it fails.
 

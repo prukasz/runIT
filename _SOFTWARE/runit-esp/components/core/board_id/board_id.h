@@ -19,7 +19,7 @@ extern "C" {
 
 /**
  * @brief Reads the board's id from the store (CONFIG_BOARD_ID_DEFAULT when none is kept) and draws the boot id. Boot,
- * after nvs_store_init of the default partition, before anything reads them.
+ * after nvs_store.init of the default partition, before anything reads them.
  * @return NULL; the store's error (the id is the default then)
  */
 MUST_USE err_h board_id_init(void);

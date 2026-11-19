@@ -32,7 +32,7 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | core | `core/router` | `ROUTER.MD` | the tree of module routers (`router_table.h`, `ROUTER_MODULE_REGISTER`), root keys = module numbers |
 | core | `core/router_queue` | `ROUTER_QUEUE.MD` | the commands of this board in a queue: `cmd_req_t` (a command and its origin), the work and urgent tasks, answers to the callbacks |
 | core | `core/timer` | `TIMER.MD` | the board's timers (`board_timer`) |
-| core | `core/nvs_store` | `NVS_STORE.MD` | the non-volatile store: one interface (`nvs_store.h`) with no type of the implementation, this chip's in `esp/` (`nvs_flash`); the partitions' start, the one place that erases them; a JSON file as chunks (`0x16`) |
+| core | `core/nvs_store` | `NVS_STORE.MD` | the non-volatile store: its interface one struct of functions (`nvs_store_t`, the build's `nvs_store`) with no type of the implementation, this chip's in `esp/` (`nvs_flash`); the partitions' start, the one place that erases them; a JSON file as chunks (`0x16`) |
 | core | `core/board_id` | `BOARD_ID.MD` | the board's identity: its id in the store (the header's `src`, from the next start once saved), its boot id, its build; this chip's part in `esp/` |
 | core | `core/data_matrix` | `DATA_MATRIX.MD` | the port (`data_matrix_port_t`: a module's, a provider's, a session's) and the switch of the ports (`0x30`): a port's output to the inputs of the ports linked from it (`data_matrix_send`, to one `_send_to`, to all but one `_send_except`), unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per module, lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task; publish, C listeners |

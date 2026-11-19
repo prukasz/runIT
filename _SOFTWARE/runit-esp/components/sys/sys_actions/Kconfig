@@ -6,7 +6,7 @@ menu "sys_actions"
         help
           NVS data partition whose "actions" namespace holds the stored
           records, one blob (the image) per record, key "a<id>" with the 32-bit
-          ID as 8 hex digits. app/runit makes it ready (nvs_store_init).
+          ID as 8 hex digits. app/runit makes it ready (nvs_store.init).
 
     config SYS_ACTIONS_MAX_BYTES
         int "Largest record (bytes)"
