@@ -28,3 +28,16 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 ## Stream port
 
 A provider carries bytes and knows nothing of what they are. It is a stream port (`core/utils/data_stream_port.h`, DATA_MATRIX.MD), and nothing else on its data plane: `sys_data_provider_t.port`, embedded in it, named `DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)`. CREATE registers it in the data matrix (`data_stream_register`; no room there: the provider is not made, its driver removed again), REMOVE unregisters it first (its links go before its driver does). Its input is the driver's (`p->port.pass`, set by `create()`): the packet onto the line with its flags as they are (`CMD_SEND_NOWAIT`: no room, dropped at once; without it the driver waits for room up to its limit, `CONFIG_PROVIDER_*_SEND_WAIT_MS`, on the sender's task; what the line does not take is lost, no error). The registry is not in the data path. **A provider is removed when nothing sends to it:** REMOVE takes it out of the data matrix first, but a packet already on its way (its targets taken before) still reaches the driver's input, which may then run into a driver being removed; removing a provider something sends to at that moment is the user's error. What comes in on the line (`sys_data_provider_deliver`, from the driver's task) goes out of its port to the ports linked from it, with no flags. `sys_data_provider_set_up` only sets `SYS_DATA_PROVIDER_STATE_UP`.
+
+## Events
+
+`events/sys_data_provider_events.h`: `SYS_DATA_PROVIDER_EVENTS` under `MODULE_ID_PROVIDER` (`0x0D`), lane `SYS`, source the provider's id, channel 0. What is not bytes of a provider goes here, never through the data matrix.
+
+| Event | Code | Flags | Payload | When |
+|---|---|---|---|---|
+| `CREATED` | `0x01` | | `{type u8, state u8}` | CREATE done, its port in the data matrix |
+| `REMOVED` | `0x02` | | `{type u8}` | REMOVE done: port out, driver removed, id free |
+| `UP` | `0x03` | `NOTIFY` | | its line delivers frames now (`STATE_UP` set) |
+| `DOWN` | `0x04` | `NOTIFY` | | its line delivers none any more (`STATE_UP` cleared) |
+
+Defined only: the registry does not publish them yet (CREATE, REMOVE and `sys_data_provider_set_up` will).
