@@ -1,12 +1,13 @@
 /**
  * @file nvs_store_esp.c
- * @brief The store (nvs_store.h) of this chip: ESP-IDF's nvs_flash, as `nvs_store`. The one file that names it.
+ * @brief The store's implementation of this chip (nvs_store_iface.h): ESP-IDF's nvs_flash, as `nvs_store_impl`. The
+ * one file that names it.
  */
 
 #include "esp_log.h"
 #include "nvs.h"
 #include "nvs_flash.h"
-#include "nvs_store.h"
+#include "nvs_store_iface.h"
 
 #define TAG __FILE_NAME__
 
@@ -68,7 +69,7 @@ static err_h flash_keys(nvs_store_ns_t ns, nvs_store_key_f fn, void* ctx) {
   return rc == ESP_ERR_NVS_NOT_FOUND ? NULL : ERR_ESP(rc);
 }
 
-const nvs_store_t nvs_store = {
+const nvs_store_iface_t nvs_store_impl = {
     .init = flash_init,
     .open = flash_open,
     .get = flash_get,

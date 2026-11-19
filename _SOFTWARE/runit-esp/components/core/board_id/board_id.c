@@ -32,10 +32,10 @@ err_h board_id_init(void) {
   s_board.boot_id = board_id_port_random();
   s_board.build_id = board_id_port_build();
   nvs_store_ns_t ns = 0;
-  ERR_TRY(nvs_store.open(PARTITION, NAMESPACE, &ns));
+  ERR_TRY(nvs_store_open(PARTITION, NAMESPACE, &ns));
   uint8_t id = 0;
   uint32_t len = sizeof(id);
-  err_h err = nvs_store.get(ns, KEY_ID, &id, &len);
+  err_h err = nvs_store_get(ns, KEY_ID, &id, &len);
   if (err != NULL && err_tag(err) == ERR_NVS_NOT_FOUND) {
     err_free(err);
     return NULL;  // none kept: the default
@@ -52,8 +52,8 @@ uint8_t board_id(void) {
 err_h board_id_save(uint8_t id) {
   ERR_CHECK(id_ok(id), ERR_CMD_BAD_ARG);
   nvs_store_ns_t ns = 0;
-  ERR_TRY(nvs_store.open(PARTITION, NAMESPACE, &ns));
-  return nvs_store.set(ns, KEY_ID, &id, sizeof(id));
+  ERR_TRY(nvs_store_open(PARTITION, NAMESPACE, &ns));
+  return nvs_store_set(ns, KEY_ID, &id, sizeof(id));
 }
 
 uint32_t board_boot_id(void) {

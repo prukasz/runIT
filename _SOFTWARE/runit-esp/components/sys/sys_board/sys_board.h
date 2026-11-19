@@ -13,7 +13,7 @@ extern "C" {
  */
 
 /**
- * @brief Opens the profile's JSON (namespace "board" in CONFIG_SYS_ACTIONS_PARTITION). Boot, after nvs_store.init.
+ * @brief Opens the profile's JSON (namespace "board" in CONFIG_SYS_ACTIONS_PARTITION). Boot, after nvs_store_init.
  * @return The error of opening the file
  */
 MUST_USE err_h sys_board_init(void);

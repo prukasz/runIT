@@ -1,14 +1,16 @@
 /**
- * @file nvs_store_json.c
- * @brief A JSON file of chunks (nvs_store_json.h), through the store's interface (`nvs_store`) only; and the module's
- * error tags registered, which every implementation raises. The store itself is esp/.
+ * @file nvs_store.c
+ * @brief The store (nvs_store.h) with no implementation in it: each call to the build's implementation through its
+ * interface (nvs_store_impl, nvs_store_iface.h), the JSON file of chunks on those calls, and the module's error tags,
+ * which every implementation raises.
  */
 
-#include "nvs_store_json.h"
+#include "nvs_store.h"
 
 #include <stdio.h>
 #include <string.h>
 
+#include "nvs_store_iface.h"
 #include "utils.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_NVS, ERR_NVS_STORE_MAP)
@@ -17,6 +19,38 @@ ERR_MODULE_DEFINE(MODULE_ID_NVS, ERR_NVS_STORE_MAP)
 #define KEY_LEN  7u  // "c" + a u16 in decimal + NUL
 
 U_MUTEX_DEFINE(nvs_store_mutex);  // the files' info: both router tasks write
+
+/* ----------------------------------------------------------------------------
+ * The store: the build's implementation
+ * ------------------------------------------------------------------------- */
+
+err_h nvs_store_init(const char* partition) {
+  return nvs_store_impl.init(partition);
+}
+
+err_h nvs_store_open(const char* partition, const char* name, nvs_store_ns_t* ns) {
+  return nvs_store_impl.open(partition, name, ns);
+}
+
+err_h nvs_store_get(nvs_store_ns_t ns, const char* key, void* buf, uint32_t* len) {
+  return nvs_store_impl.get(ns, key, buf, len);
+}
+
+err_h nvs_store_set(nvs_store_ns_t ns, const char* key, const void* data, uint32_t len) {
+  return nvs_store_impl.set(ns, key, data, len);
+}
+
+err_h nvs_store_erase(nvs_store_ns_t ns, const char* key) {
+  return nvs_store_impl.erase(ns, key);
+}
+
+err_h nvs_store_keys(nvs_store_ns_t ns, nvs_store_key_f fn, void* ctx) {
+  return nvs_store_impl.keys(ns, fn, ctx);
+}
+
+/* ----------------------------------------------------------------------------
+ * A JSON file
+ * ------------------------------------------------------------------------- */
 
 // CRC-32 (zlib / IEEE, reflected 0xEDB88320) of `len` bytes, going on from `crc`.
 static uint32_t crc32(uint32_t crc, const uint8_t* data, uint32_t len) {
@@ -36,9 +70,9 @@ static void chunk_key(uint16_t chunk, char key[KEY_LEN]) {
 
 err_h nvs_store_json_open(nvs_store_json_t* file, const char* partition, const char* name) {
   memset(file, 0, sizeof(*file));
-  ERR_TRY(nvs_store.open(partition, name, &file->ns));
+  ERR_TRY(nvs_store_open(partition, name, &file->ns));
   uint32_t size = sizeof(file->info);
-  err_h err = nvs_store.get(file->ns, KEY_INFO, &file->info, &size);
+  err_h err = nvs_store_get(file->ns, KEY_INFO, &file->info, &size);
   if (err != NULL && err_tag(err) == ERR_NVS_NOT_FOUND) {
     err_free(err);
     return NULL;  // an empty file
@@ -52,11 +86,11 @@ static err_h append_locked(nvs_store_json_t* file, uint32_t offset, const uint8_
   ERR_CHECK(file->info.chunks < UINT16_MAX, ERR_NVS_BAD_ARG);
   char key[KEY_LEN];
   chunk_key(file->info.chunks, key);
-  ERR_TRY(nvs_store.set(file->ns, key, data, len));
+  ERR_TRY(nvs_store_set(file->ns, key, data, len));
   const nvs_store_json_info_t next = {.bytes = file->info.bytes + len,
                                       .crc32 = crc32(file->info.crc32, data, len),
                                       .chunks = file->info.chunks + 1u};
-  ERR_TRY(nvs_store.set(file->ns, KEY_INFO, &next, sizeof(next)));
+  ERR_TRY(nvs_store_set(file->ns, KEY_INFO, &next, sizeof(next)));
   file->info = next;
   return NULL;
 }
@@ -71,7 +105,7 @@ err_h nvs_store_json_append(nvs_store_json_t* file, uint32_t offset, const uint8
 
 err_h nvs_store_json_erase(nvs_store_json_t* file) {
   (void)xSemaphoreTake(nvs_store_mutex, portMAX_DELAY);
-  err_h err = nvs_store.erase(file->ns, NULL);
+  err_h err = nvs_store_erase(file->ns, NULL);
   if (err == NULL) {
     memset(&file->info, 0, sizeof(file->info));
   }
@@ -84,7 +118,7 @@ static err_h get_locked(nvs_store_json_t* file, uint16_t chunk, uint8_t* buf, ui
   char key[KEY_LEN];
   chunk_key(chunk, key);
   *len = cap;
-  return nvs_store.get(file->ns, key, buf, len);
+  return nvs_store_get(file->ns, key, buf, len);
 }
 
 err_h nvs_store_json_get(nvs_store_json_t* file, uint16_t chunk, uint8_t* buf, uint32_t cap, uint32_t* len) {

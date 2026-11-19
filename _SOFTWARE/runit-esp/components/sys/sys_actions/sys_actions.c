@@ -85,7 +85,7 @@ static err_h frames_check(const uint8_t* img, uint32_t len, uint16_t* count) {
 static err_h store(uint32_t id, const uint8_t* image, uint32_t len) {
   char key[KEY_LEN];
   key_of(id, key);
-  return nvs_store.set(s_nvs, key, image, len);
+  return nvs_store_set(s_nvs, key, image, len);
 }
 
 /* Reads a stored image into a new buffer with `extra` bytes after it (the
@@ -104,11 +104,11 @@ static err_h load(uint32_t id, uint32_t extra, uint8_t** out, uint32_t* len) {
   char key[KEY_LEN];
   key_of(id, key);
   *len = 0;
-  ERR_TRY(not_found_is(nvs_store.get(s_nvs, key, NULL, len), id));
+  ERR_TRY(not_found_is(nvs_store_get(s_nvs, key, NULL, len), id));
   ERR_CHECK(*len > 0, ERR_ACTION_BAD_FRAME, .offset = 0);
   uint8_t* blob = malloc(*len + extra);
   ERR_CHECK(blob != NULL, ERR_ACTION_NO_MEM, .size = (uint32_t)(*len + extra));
-  err_h err = nvs_store.get(s_nvs, key, blob, len);
+  err_h err = nvs_store_get(s_nvs, key, blob, len);
   if (err != NULL) {
     free(blob);
     return err;
@@ -151,7 +151,7 @@ static const struct {
 };
 
 err_h sys_actions_init(void) {
-  ERR_TRY(nvs_store.open(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, &s_nvs));
+  ERR_TRY(nvs_store_open(CONFIG_SYS_ACTIONS_PARTITION, NAMESPACE, &s_nvs));
   for (uint32_t i = 0; i < ARRAY_LEN(k_onboard); i++) {
     ERR_TRY(sys_actions_set(k_onboard[i].id, k_onboard[i].image, k_onboard[i].len));
   }
@@ -297,7 +297,7 @@ static bool stored_equal(uint32_t id, const uint8_t* image, size_t size) {
   char key[KEY_LEN];
   key_of(id, key);
   uint32_t have = 0;
-  err_h err = nvs_store.get(s_nvs, key, NULL, &have);
+  err_h err = nvs_store_get(s_nvs, key, NULL, &have);
   if (err != NULL || have != size) {
     err_free(err);
     return false;
@@ -306,7 +306,7 @@ static bool stored_equal(uint32_t id, const uint8_t* image, size_t size) {
   if (old == NULL) {
     return false;
   }
-  err = nvs_store.get(s_nvs, key, old, &have);
+  err = nvs_store_get(s_nvs, key, old, &have);
   const bool same = err == NULL && memcmp(old, image, size) == 0;
   err_free(err);
   free(old);
@@ -383,7 +383,7 @@ err_h sys_actions_remove(uint32_t id) {
   ERR_TRY(check_id(id));
   char key[KEY_LEN];
   key_of(id, key);
-  return not_found_is(nvs_store.erase(s_nvs, key), id);
+  return not_found_is(nvs_store_erase(s_nvs, key), id);
 }
 
 err_h sys_actions_remove_all(void) {
@@ -448,7 +448,7 @@ err_h sys_actions_list(uint32_t start, uint32_t* ids, uint16_t cap, uint16_t* co
   ERR_CHECK(ids != NULL && count != NULL && cap > 0, ERR_ACTION_BAD_ARG);
   *count = 0;
   list_t l = {.start = start, .ids = ids, .cap = cap, .count = count};
-  ERR_TRY(nvs_store.keys(s_nvs, on_key, &l));
+  ERR_TRY(nvs_store_keys(s_nvs, on_key, &l));
   if (total != NULL) {
     *total = l.all;
   }

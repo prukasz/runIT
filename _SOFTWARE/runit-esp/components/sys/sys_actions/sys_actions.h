@@ -81,8 +81,8 @@ typedef struct __attribute__((packed)) {
 } sys_actions_info_t;
 
 /**
- * @brief Opens the actions namespace (partition CONFIG_SYS_ACTIONS_PARTITION, made ready by nvs_store.init) and writes
- * the onboard actions. Boot, after nvs_store.init.
+ * @brief Opens the actions namespace (partition CONFIG_SYS_ACTIONS_PARTITION, made ready by nvs_store_init) and writes
+ * the onboard actions. Boot, after nvs_store_init.
  * @return The error of opening the namespace or of an onboard action's store
  */
 MUST_USE err_h sys_actions_init(void);

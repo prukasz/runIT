@@ -4,7 +4,7 @@
 
 #include "sys_board_id.h"
 #include "router_table.h"
-#include "nvs_store_json.h"
+#include "nvs_store.h"
 
 #ifdef __cplusplus
 extern "C" {

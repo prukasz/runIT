@@ -17,4 +17,4 @@ Component `components/core/board_id/` (in `core`: the id is the header's `src`, 
 - **The boot id** (`board_boot_id()`): random, drawn once at `board_id_init`: a peer that sees a new one knows the board restarted (the session's hello).
 - **The build** (`board_build_id()`): the first 4 bytes of the firmware's ELF SHA-256: whether two boards run the same build (the session's hello).
 
-`board_id_init` runs at boot after `nvs_store.init("nvs")` and before anything reads them (`app/runit`).
+`board_id_init` runs at boot after `nvs_store_init("nvs")` and before anything reads them (`app/runit`).
