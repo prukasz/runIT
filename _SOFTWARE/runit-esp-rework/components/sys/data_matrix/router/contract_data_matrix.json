@@ -13,12 +13,12 @@
     {
       "id": "CONNECT",
       "op": 1,
-      "symbol": "DATA_STREAM_OP_CONNECT",
+      "symbol": "DATA_MATRIX_OP_CONNECT",
       "label": "Connect two ports",
-      "description": "The output of the first port goes to the input of the second. The same again changes nothing; one output goes to at most CONFIG_DATA_STREAM_TARGETS ports.",
+      "description": "The output of the first port goes to the input of the second. The same again changes nothing; one output goes to at most CONFIG_DATA_MATRIX_TARGETS ports.",
       "write": {
         "args": {
-          "struct": "data_stream_link_t",
+          "struct": "data_matrix_link_t",
           "fields": [
             {
               "id": "from",
@@ -27,7 +27,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0,
-              "description": "The sending port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             },
             {
               "id": "to",
@@ -36,7 +36,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "The taking port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             }
           ]
         }
@@ -45,12 +45,12 @@
     {
       "id": "DISCONNECT",
       "op": 2,
-      "symbol": "DATA_STREAM_OP_DISCONNECT",
+      "symbol": "DATA_MATRIX_OP_DISCONNECT",
       "label": "Disconnect two ports",
       "description": "Removes that connection; not there: nothing changes.",
       "write": {
         "args": {
-          "struct": "data_stream_link_t",
+          "struct": "data_matrix_link_t",
           "fields": [
             {
               "id": "from",
@@ -59,7 +59,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0,
-              "description": "The sending port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             },
             {
               "id": "to",
@@ -68,7 +68,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "The taking port: DATA_STREAM_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
             }
           ]
         }
@@ -77,7 +77,7 @@
     {
       "id": "LIST",
       "op": 3,
-      "symbol": "DATA_STREAM_OP_LIST",
+      "symbol": "DATA_MATRIX_OP_LIST",
       "label": "List the connections",
       "description": "Every connection, port by port.",
       "read": {

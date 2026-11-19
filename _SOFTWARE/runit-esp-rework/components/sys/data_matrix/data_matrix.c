@@ -1,13 +1,13 @@
 /**
- * @file data_stream.c
- * @brief The switch of the stream ports (data_stream.h): the registered ports, each with the ports its output goes
+ * @file data_matrix.c
+ * @brief The switch of the stream ports (data_matrix.h): the registered ports, each with the ports its output goes
  * to, and the `out` every registered port gets, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
  *
- * A port's targets are its own (at most CONFIG_DATA_STREAM_TARGETS, as places in the table), so out() only copies
+ * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so out() only copies
  * them under the spinlock, a few bytes, and calls them after it: a port's pass never runs under the lock.
  */
 
-#include "data_stream.h"
+#include "data_matrix.h"
 
 #include "data_matrix_errors.h"
 #include "freertos/FreeRTOS.h"
@@ -15,23 +15,23 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_DATA_MATRIX, ERR_DATA_MATRIX_MAP)
 
-_Static_assert(CONFIG_DATA_STREAM_PORTS < 0xFF, "a port's place is a u8, 0xFF is none");
+_Static_assert(CONFIG_DATA_MATRIX_PORTS < 0xFF, "a port's place is a u8, 0xFF is none");
 
 #define NO_PORT 0xFFu
 
 // A registered port and where its output goes: the places of its targets.
 typedef struct {
-  data_stream_port_t* port;  // NULL: a free place
-  uint8_t to[CONFIG_DATA_STREAM_TARGETS];
+  data_matrix_port_t* port;  // NULL: a free place
+  uint8_t to[CONFIG_DATA_MATRIX_TARGETS];
   uint8_t count;
 } slot_t;
 
-static slot_t s_slots[CONFIG_DATA_STREAM_PORTS];
+static slot_t s_slots[CONFIG_DATA_MATRIX_PORTS];
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 // The place of the registered port with this name, NO_PORT when there is none. Under the lock.
-static uint8_t find(data_stream_port_id_t id) {
-  for (uint8_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {
+static uint8_t find(data_matrix_port_id_t id) {
+  for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {
     if (s_slots[i].port != NULL && s_slots[i].port->id == id) {
       return i;
     }
@@ -39,9 +39,9 @@ static uint8_t find(data_stream_port_id_t id) {
   return NO_PORT;
 }
 
-// The output every registered port gets (data_stream_send calls it).
-static void out(data_stream_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
-  data_stream_port_t* to[CONFIG_DATA_STREAM_TARGETS];
+// The output every registered port gets (data_matrix_send calls it).
+static void out(data_matrix_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
+  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
   const slot_t* from = &s_slots[self->place];
@@ -56,12 +56,12 @@ static void out(data_stream_port_t* self, uint8_t flags, const uint8_t* data, ui
   }
 }
 
-err_h data_stream_register(data_stream_port_t* port) {
+err_h data_matrix_register(data_matrix_port_t* port) {
   ERR_CHECK(port != NULL, ERR_DATA_MATRIX_BAD_ARG);
   uint8_t at = NO_PORT;
   portENTER_CRITICAL(&s_lock);
   const bool taken = find(port->id) != NO_PORT;
-  for (uint8_t i = 0; !taken && at == NO_PORT && i < CONFIG_DATA_STREAM_PORTS; i++) {
+  for (uint8_t i = 0; !taken && at == NO_PORT && i < CONFIG_DATA_MATRIX_PORTS; i++) {
     if (s_slots[i].port == NULL) {
       s_slots[i] = (slot_t){.port = port};
       port->place = i;
@@ -75,17 +75,17 @@ err_h data_stream_register(data_stream_port_t* port) {
   return NULL;
 }
 
-err_h data_stream_unregister(data_stream_port_t* port) {
+err_h data_matrix_unregister(data_matrix_port_t* port) {
   ERR_CHECK(port != NULL, ERR_DATA_MATRIX_BAD_ARG);
   bool known = false;
   portENTER_CRITICAL(&s_lock);
   const uint8_t at = port->place;
-  known = at < CONFIG_DATA_STREAM_PORTS && s_slots[at].port == port;
+  known = at < CONFIG_DATA_MATRIX_PORTS && s_slots[at].port == port;
   if (known) {
     s_slots[at] = (slot_t){0};
     port->out = NULL;
     port->place = NO_PORT;
-    for (uint8_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {  // the links to it go with it
+    for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {  // the links to it go with it
       slot_t* s = &s_slots[i];
       uint8_t kept = 0;
       for (uint8_t k = 0; k < s->count; k++) {
@@ -101,7 +101,7 @@ err_h data_stream_unregister(data_stream_port_t* port) {
   return NULL;
 }
 
-err_h data_stream_connect(const data_stream_link_t* link) {
+err_h data_matrix_connect(const data_matrix_link_t* link) {
   ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
   bool ok = false;
   bool full = false;
@@ -115,7 +115,7 @@ err_h data_stream_connect(const data_stream_link_t* link) {
     for (uint8_t k = 0; k < s->count; k++) {
       there |= s->to[k] == to;
     }
-    full = !there && s->count == CONFIG_DATA_STREAM_TARGETS;
+    full = !there && s->count == CONFIG_DATA_MATRIX_TARGETS;
     if (!there && !full) {
       s->to[s->count++] = to;
     }
@@ -126,7 +126,7 @@ err_h data_stream_connect(const data_stream_link_t* link) {
   return NULL;
 }
 
-err_h data_stream_disconnect(const data_stream_link_t* link) {
+err_h data_matrix_disconnect(const data_matrix_link_t* link) {
   ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   const uint8_t from = find(link->from);
@@ -141,13 +141,13 @@ err_h data_stream_disconnect(const data_stream_link_t* link) {
   return NULL;
 }
 
-uint32_t data_stream_links(data_stream_link_t* out_links, uint32_t max) {
+uint32_t data_matrix_links(data_matrix_link_t* out_links, uint32_t max) {
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
-  for (uint8_t i = 0; i < CONFIG_DATA_STREAM_PORTS; i++) {
+  for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {
     for (uint8_t k = 0; s_slots[i].port != NULL && k < s_slots[i].count; k++, n++) {
       if (n < max) {
-        out_links[n] = (data_stream_link_t){.from = s_slots[i].port->id, .to = s_slots[s_slots[i].to[k]].port->id};
+        out_links[n] = (data_matrix_link_t){.from = s_slots[i].port->id, .to = s_slots[s_slots[i].to[k]].port->id};
       }
     }
   }

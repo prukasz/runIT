@@ -8,19 +8,19 @@ Component `components/sys/data_matrix/`. **The switch of the stream ports**: the
 
 | File | Role |
 |---|---|
-| `data_stream.h` / `data_stream.c` | The switch: `data_stream_register` / `_unregister`, `data_stream_connect` / `_disconnect`, `data_stream_links`; the module's error tags registered |
-| `router/data_stream_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
+| `data_matrix.h` / `data_matrix.c` | The switch: `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
+| `router/data_matrix_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
 | `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
 
 ## Ports
 
-A **port** (`core/utils/data_stream_port.h`, below every layer) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_stream_port_t` in its own struct and fills:
+A **port** (`core/utils/data_matrix_port_if.h`, below every layer) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
 
-- its name, a `u16`: `DATA_STREAM_PORT(kind, id)`, the kind (`DATA_STREAM_PORT_MODULE` 0 or `DATA_STREAM_PORT_PROVIDER` 1) in the high byte;
-- `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_STREAM_OWNER`).
+- its name, a `u16`: `DATA_MATRIX_PORT(kind, id)`, the kind (`DATA_MATRIX_PORT_MODULE` 0 or `DATA_MATRIX_PORT_PROVIDER` 1) in the high byte;
+- `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_MATRIX_OWNER`).
 
-The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_stream_send(&port, flags, data, len)`, an inline call of `out`: a module never links to the switch.
+The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_matrix_send(&port, flags, data, len)`, an inline call of `out`: a module never links to the switch.
 
 **The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `pass` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `pass` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
@@ -28,25 +28,25 @@ The switch fills `out` and `place` when it registers the port and clears them wh
 
 ## Links
 
-A **link** `{from, to}` (`data_stream_link_t`, 4 bytes: two names, `u16` LE) sends the output of `from` to the input of `to`. `data_stream_connect` refuses an unknown port, a port to itself and `to` with no input (`ERR_DATA_MATRIX_BAD_ARG`), and a target past `CONFIG_DATA_STREAM_TARGETS` of one output (`ERR_DATA_MATRIX_FULL`); the same link again changes nothing. `data_stream_disconnect`: not there, nothing changes. `data_stream_unregister` takes the port's links with it.
+A **link** `{from, to}` (`data_matrix_link_t`, 4 bytes: two names, `u16` LE) sends the output of `from` to the input of `to`. `data_matrix_connect` refuses an unknown port, a port to itself and `to` with no input (`ERR_DATA_MATRIX_BAD_ARG`), and a target past `CONFIG_DATA_MATRIX_TARGETS` of one output (`ERR_DATA_MATRIX_FULL`); the same link again changes nothing. `data_matrix_disconnect`: not there, nothing changes. `data_matrix_unregister` takes the port's links with it.
 
 **Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. Since no `pass` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
 
 Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: a `pass` never runs under the lock. The table changes from one task (boot, the commands).
 
-## Commands (`router/data_stream_router.h`, `contract_data_matrix.json`)
+## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
 
 | Op | Code | Args | Meaning |
 |---|---|---|---|
-| `CONNECT` (W) | `0x01` | `data_stream_link_t` | links the output of `from` to the input of `to` |
-| `DISCONNECT` (W) | `0x02` | `data_stream_link_t` | removes that link |
-| `LIST` (R) | `0x03` | | `u8` links, then a `data_stream_link_t` each, port by port; `ERR_CMD_OUT_FULL` when they do not fit the frame |
+| `CONNECT` (W) | `0x01` | `data_matrix_link_t` | links the output of `from` to the input of `to` |
+| `DISCONNECT` (W) | `0x02` | `data_matrix_link_t` | removes that link |
+| `LIST` (R) | `0x03` | | `u8` links, then a `data_matrix_link_t` each, port by port; `ERR_CMD_OUT_FULL` when they do not fit the frame |
 
 They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed at every start: the board's record makes the providers before it links them.
 
 ## Config (`Kconfig`)
 
-`DATA_STREAM_PORTS` 32 (one place is 12 B on the board: 384 B), `DATA_STREAM_TARGETS` 4 (a send takes a pointer each of the sender's stack: 16 B).
+`DATA_MATRIX_PORTS` 32 (one place is 12 B on the board: 384 B), `DATA_MATRIX_TARGETS` 4 (a send takes a pointer each of the sender's stack: 16 B).
 
 ## Open
 

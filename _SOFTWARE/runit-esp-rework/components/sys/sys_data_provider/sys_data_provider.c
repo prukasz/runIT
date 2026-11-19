@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "cmd.h"
-#include "data_stream.h"
+#include "data_matrix.h"
 #include "sdkconfig.h"
 #include "sys_data_provider_driver.h"
 #include "sys_data_provider_internal.h"
@@ -174,9 +174,9 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
 
 // The input of every provider's port: the packet to its type's pass as it is, one call into the driver at a time; a
 // packet for a removed provider is dropped.
-static void line_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
+static void line_pass(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
                       uint32_t len) {
-  prov_slot_t* s = DATA_STREAM_OWNER(self, prov_slot_t, p.port);
+  prov_slot_t* s = DATA_MATRIX_OWNER(self, prov_slot_t, p.port);
   U_MUTEX_GUARD(s->line);
   const sys_data_provider_type_t* type = s->type;
   if (type != NULL) {
@@ -206,7 +206,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   sys_data_provider_t* p = &slot->p;
   // The port's pass is never cleared (a send in flight may still read it): zeroed is only what follows the port.
   memset(slot->mem + sizeof(p->port), 0, sizeof(slot->mem) - sizeof(p->port));
-  p->port.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id);
+  p->port.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, id);
   p->port.pass = line_pass;
   p->state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
 
@@ -215,7 +215,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
   slot->type = type;
   portEXIT_CRITICAL(&s_lock);
 
-  err_h err = data_stream_register(&p->port);  // no room in the data matrix: it can't be linked, it is not made
+  err_h err = data_matrix_register(&p->port);  // no room in the data matrix: it can't be linked, it is not made
   if (err != NULL) {
     portENTER_CRITICAL(&s_lock);
     slot->type = NULL;
@@ -234,7 +234,7 @@ static err_h remove_locked(uint8_t id) {
   ERR_CHECK(s != NULL, ERR_PROV_NOT_FOUND, .provider = id);
   ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
 
-  err_report(data_stream_unregister(&s->p.port));  // out of the data matrix first: its links go before its driver
+  err_report(data_matrix_unregister(&s->p.port));  // out of the data matrix first: its links go before its driver
   U_MUTEX_GUARD(s->line);                          // after the call into the driver in flight
   const sys_data_provider_type_t* type = s->type;
   portENTER_CRITICAL(&s_lock);
@@ -333,6 +333,6 @@ void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
 
 void sys_data_provider_deliver(sys_data_provider_t* p, const uint8_t* data, uint32_t len) {
   if (p != NULL && data != NULL) {
-    data_stream_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
+    data_matrix_send(&p->port, 0, data, len);  // to the ports linked from it; nothing while it is not registered
   }
 }

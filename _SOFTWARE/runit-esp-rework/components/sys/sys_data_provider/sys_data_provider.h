@@ -6,7 +6,7 @@
  * console), each one a stream port of the data matrix. Its data plane is the port only: what comes in on a line goes
  * out of the provider's port, what the port takes is sent on the line. Its control plane is the router only (root key
  * MODULE_ID_PROVIDER 0x0D: CREATE, REMOVE, LIST, INFO, OPS and a driver's own ops). CREATE registers the provider's
- * port in the data matrix (data_stream_register), REMOVE unregisters it first. In C there is only the boot's CREATE of
+ * port in the data matrix (data_matrix_register), REMOVE unregisters it first. In C there is only the boot's CREATE of
  * the board's own providers.
  */
 

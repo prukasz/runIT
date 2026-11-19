@@ -26,7 +26,7 @@ The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with 
 
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
-| core | `core/utils` | `utils.h`, `module_id.h`, `cmd_types.h`, `data_stream_port.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists; one number per module (`MODULE_ID_DECLARE` in the module's `<module>_id.h`); the command's types every layer names (`cmd_req_t`, `cmd_in_t`, `cmd_out_t`); the stream port a module or a provider embeds (`data_stream_port_t`, `data_stream_send`) |
+| core | `core/utils` | `utils.h`, `module_id.h`, `cmd_types.h`, `data_matrix_port_if.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists; one number per module (`MODULE_ID_DECLARE` in the module's `<module>_id.h`); the command's types every layer names (`cmd_req_t`, `cmd_in_t`, `cmd_out_t`); the stream port a module or a provider embeds (`data_matrix_port_t`, `data_matrix_send`) |
 | core | `core/errors` | `ERRORS.MD` | the error chain (an opaque `err_h`: `err_tag`, `err_cause`, `err_data`, `err_find`), tags under the modules' numbers, severity, reporting and the sinks, the error record (`err_record`; a command's `err_record_cmd`, over `cmd_req_t` from `utils`) |
 | core | `core/cmd` | `CMD.MD` | the handler type (`cmd_f`, `cmd_reply`, `ERR_CMD_*`), the direction (read / write sides, the mirror), the frame size, the op tables (`cmd_table.h`) |
 | core | `core/router` | `ROUTER.MD` | the tree of module routers (`router_table.h`, `ROUTER_MODULE_REGISTER`), root keys = module numbers |

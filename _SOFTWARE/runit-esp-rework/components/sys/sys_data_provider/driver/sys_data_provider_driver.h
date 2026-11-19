@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#include "data_stream_port.h"
+#include "data_matrix_port_if.h"
 #include "sdkconfig.h"
 #include "sys_data_provider.h"
 #include "utils.h"
@@ -27,7 +27,7 @@ typedef struct sys_data_provider sys_data_provider_t;
 
 /** @brief The base of every provider: the first field (`base`) of the driver's own struct. */
 struct sys_data_provider {
-  data_stream_port_t port;  /**< Its only data interface: named, its input set and registered by the registry */
+  data_matrix_port_t port;  /**< Its only data interface: named, its input set and registered by the registry */
   uint8_t state;            /**< SYS_DATA_PROVIDER_STATE_* */
 };
 
@@ -35,7 +35,7 @@ struct sys_data_provider {
  * @brief The driver's struct of a port (in its type's pass).
  * @usage my_t* me = SYS_DATA_PROVIDER_OF(self, my_t);
  */
-#define SYS_DATA_PROVIDER_OF(self, type) DATA_STREAM_OWNER(self, type, base.port)
+#define SYS_DATA_PROVIDER_OF(self, type) DATA_MATRIX_OWNER(self, type, base.port)
 
 /** @brief One own op of a driver type: its code and its sides (a side NULL: not given); `ctx` is the provider. */
 typedef struct {
@@ -52,8 +52,8 @@ typedef struct {
   err_h (*create)(sys_data_provider_t* p, const void* cfg);
   /** @brief Takes the instance down (its hooks on the line); the port is out of the data matrix already. */
   err_h (*remove)(sys_data_provider_t* p);
-  /** @brief The port's input: the packet onto the line with its flags as they are (data_stream_port.h). */
-  data_stream_pass_f pass;
+  /** @brief The port's input: the packet onto the line with its flags as they are (data_matrix_port_if.h). */
+  data_matrix_pass_f pass;
   const sys_data_provider_op_t* ops;  /**< Its own ops (reached by the router only), NULL: none */
   uint16_t op_count;                  /**< Rows in ops */
 } sys_data_provider_type_t;
@@ -96,7 +96,7 @@ void sys_data_provider_set_up(sys_data_provider_t* p, bool up);
 
 /**
  * @brief The driver hands what came in on its line: out of the provider's port, to the ports linked from it
- * (data_stream_send; nothing while the port is not registered). From the driver's task, never from an ISR.
+ * (data_matrix_send; nothing while the port is not registered). From the driver's task, never from an ISR.
  * @param p     The provider.
  * @param data  The bytes, borrowed for the call.
  * @param len   Bytes in data.
