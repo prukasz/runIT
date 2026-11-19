@@ -152,3 +152,4 @@ On a board: `python runit-esp/tools/session_client.py <COM port>` opens a sessio
 ## Open
 
 - Two boards on a UART are not run on hardware yet.
+- The session as ports of the data matrix (its port linked with its provider, a command sub-port to the router, a sub-port per stream module, `ATTACH` / `DETACH` as its commands, the calls moved to the router, the 5-byte header `[type][src][key][seq]` with board ids from `0x01`): DATA_MATRIX.MD "The design to build".

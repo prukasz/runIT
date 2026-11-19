@@ -88,3 +88,7 @@ Script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client 
 - Urgent task preemption over work queue.
 - Frame sizing, queue saturation, and error records; the providers, the sessions and the streams' subscriptions.
 
+
+## Open
+
+- The router as one port of the data matrix (`ROUTER`: the sessions' command sub-ports and providers without a session), answers by `data_matrix_send_to` to `from`, and this board's calls to a peer (their slots, timeouts and wait, out of `sys_session/call`): DATA_MATRIX.MD "The design to build".
