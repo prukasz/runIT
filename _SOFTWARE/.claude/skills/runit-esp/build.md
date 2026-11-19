@@ -6,7 +6,7 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 | Item | Path |
 |---|---|
-| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in `runit-esp-rework/CMakeLists.txt`) |
+| ESP-IDF | `C:\esp\v6.1\esp-idf` (also the default in `runit-esp/CMakeLists.txt`) |
 | Tools | `C:\Espressif\tools` |
 | Python venv | `C:\Espressif\tools\python\v6.1\venv` |
 | Activation script | `C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1` |
@@ -15,10 +15,10 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 ## 2. Commands
 
-Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be the project (`_SOFTWARE\runit-esp-rework`, the firmware project, whose `build.ps1` does all of this: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
+Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be the project (`_SOFTWARE\runit-esp`, the firmware project, whose `build.ps1` does all of this: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp-rework build
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
 ```
 
 | Task | Command (after activation) | Time |
@@ -41,7 +41,7 @@ Rules for running from the agent:
 
 Success looks like `Project build complete`.
 
-**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `ota_0` 0x10000 4 MB, `otadata` 0x410000, `ota_1` 0x420000 4 MB (the firmware slots, [SYS_OTA.MD](../../../runit-esp/components/sys/sys_ota/SYS_OTA.MD)), `project` 0x820000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp/components/sys/sys_project/SYS_PROJECT.MD)), `source` 0x8a0000 1 MB (NVS: the project as the app edits it, gzipped). Retained VM values are in `nvs`.
+**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `ota_0` 0x10000 4 MB, `otadata` 0x410000, `ota_1` 0x420000 4 MB (the firmware slots, [SYS_OTA.MD](../../../runit-esp-archive/components/sys/sys_ota/SYS_OTA.MD)), `project` 0x820000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp-archive/components/sys/sys_project/SYS_PROJECT.MD)), `source` 0x8a0000 1 MB (NVS: the project as the app edits it, gzipped). Retained VM values are in `nvs`.
 
 ## 2a. Flash and monitor
 
@@ -63,7 +63,7 @@ Success looks like `Project build complete`.
 
 ## 3. Kconfig changes → reconfigure
 
-Project Kconfig files: the `Kconfig` of the components under `runit-esp-rework/components/` (and `core/time` in `runit-esp/components/`).
+Project Kconfig files: the `Kconfig` of the components under `runit-esp/components/` (and `core/time` in `runit-esp-archive/components/`).
 
 **Editing a `Kconfig` file does not trigger reconfiguration on `idf.py build`.** So:
 
@@ -90,7 +90,7 @@ Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly a
 
 ## 5. VS Code: the ESP-IDF extension and clangd (per machine)
 
-**The ESP-IDF extension** takes a workspace folder as its project and has no setting for a project in a subfolder. Open `runit.code-workspace` (in `_SOFTWARE`): the repo as the first folder and `runit-esp` as its own folder. Then run `ESP-IDF: Pick a Workspace Folder` once and pick `runit-esp (ESP-IDF)`; build, flash and menuconfig work on it, in `runit-esp/build` like `idf.py -C`. The extension's settings (`idf.currentSetup`, `idf.port`, `idf.flashType`) go to `runit-esp/.vscode/settings.json`, which is gitignored.
+**The ESP-IDF extension** takes a workspace folder as its project and has no setting for a project in a subfolder. Open `runit.code-workspace` (in `_SOFTWARE`): the repo as the first folder, the firmware `runit-esp` as its own folder named `runit-esp (ESP-IDF)`, and the old firmware `runit-esp-archive` as `archive (old runit-esp)`. Then run `ESP-IDF: Pick a Workspace Folder` once and pick `runit-esp (ESP-IDF)`; build, flash and menuconfig work on it, in `runit-esp/build` like `idf.py -C`. The extension's settings (`idf.currentSetup`, `idf.port`, `idf.flashType`) go to `runit-esp/.vscode/settings.json`, which is gitignored.
 
 **clangd** settings are window-wide, so in the workspace only `runit.code-workspace` sets them (a folder's `.vscode/settings.json` is ignored there): `clangd.path` (the EIM's esp-clangd) and `clangd.arguments` with `--query-driver=C:/Espressif/tools/**`. The compile commands come from `runit-esp/.clangd` (`CompilationDatabase: build`). Opening `runit-esp` alone instead, put the same two settings in its `.vscode/settings.json`. Check a file from the shell: `clangd.exe --query-driver="C:/Espressif/tools/**" --check=<file>` in `runit-esp` (`All checks completed, 0 errors`).
 
@@ -100,7 +100,7 @@ Without the driver, clangd parses headers for the host (MSVC) target instead of 
 
 **Open: the Python suites below do not follow the firmware's session and streams yet.** `router_link.py` (and every suite on it, the app's console witness `uart_tap.py` too) sends the old HELLO (the board giving the client its id) and the CONNECTOR commands (READ, MIRROR, FORWARD, `EVENTS_ALL`), so its session does not open on the current firmware and the suites fail; `remote_tests.py` and `forward_tests.py` test connector mirrors and FORWARD, which the streams no longer have (SYS_STREAM.MD). Until they follow, the session, the streams and the watches are tested on a board by the app's suite (`npm run test:hw`: `a-link`, `h-watches`, `i-streams`).
 
-**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp/`; it finds the components of `runit-esp/` and of `runit-esp-rework/` (`runit-esp/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `sys_flasher`, and in the rework `router`, `router_queue` (its tasks run as threads), `timer`, `sys_event`, `sys_device`, `sys_actions`. Run them for a change to a component that has them. The same stand-ins build the **screen simulator** `lvgl-playground/` (its README.md: `sys_lvgl`, `sys_device`, `sys_display`, `sys_touch` with a display driver on a simulated SPI bus and ILI9341, a simulated touch, scenarios of command frames, an SDL2 window): `.
+**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp-archive/`; it finds the components of `runit-esp-archive/` and of `runit-esp/` (`runit-esp-archive/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `sys_flasher`, and in the firmware `router`, `router_queue` (its tasks run as threads), `timer`, `sys_event`, `sys_device`, `sys_actions`. Run them for a change to a component that has them. The same stand-ins build the **screen simulator** `lvgl-playground/` (its README.md: `sys_lvgl`, `sys_device`, `sys_display`, `sys_touch` with a display driver on a simulated SPI bus and ILI9341, a simulated touch, scenarios of command frames, an SDL2 window): `.
 un.ps1 -Headless -Scenario scenarios\walkthrough.txt` after a change to those components or to `test_host/`.
 
 The suites below run on the board (or QEMU):

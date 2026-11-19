@@ -1,6 +1,6 @@
 # Firmware architecture
 
-How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `runit-esp-rework/components/` (the parts not moved yet: `runit-esp/components/`, SKILL.md "Component docs").
+How the components fit together. Each component's own `*.MD` holds its API and wire format; this file only links them. Paths are under `runit-esp/components/` (the parts not moved yet: `runit-esp-archive/components/`, SKILL.md "Component docs").
 
 ## 1. The idea
 
@@ -11,7 +11,7 @@ A plug-and-play board for hobbyists. The board exposes what it has (devices, con
 | Layer | Components | May depend on |
 |---|---|---|
 | core | `utils`, `time`, `errors`, `router`, `router_queue` | ESP-IDF only (and earlier core) |
-| sys | (`sys/bus/`: `sys_uart`; the I2C contract `sys_i2c` is in `runit-esp-rework`) `sys_stream`, `sys_watch`, `sys_remote`, `sys_ble`, `sys_log`, `sys_event`, `sys_device`, `sys_io`, `sys_power`, `sys_hbridge`, `sys_power_manager`, `sys_actions`, `sys_project` | core, earlier sys |
+| sys | (`sys/bus/`: `sys_uart`; the I2C contract `sys_i2c` is in `runit-esp`) `sys_stream`, `sys_watch`, `sys_remote`, `sys_ble`, `sys_log`, `sys_event`, `sys_device`, `sys_io`, `sys_power`, `sys_hbridge`, `sys_power_manager`, `sys_actions`, `sys_project` | core, earlier sys |
 | devices | `devices/device_<chip>` (one driver each), `devices/devices` | core, sys (the contracts they implement, `sys_i2c`, `sys_io` for pins) |
 | vm | `vm_core`, then `vm_blocks` | core, sys; `vm_blocks` also the devices whose own ops it has a block for |
 | app | `app/runit` (boot, wiring, board config), `main` (only `runit_start()`) | everything |
@@ -47,7 +47,7 @@ Rules:
 | Error sink, device policy action runner, VM stop on a critical device error (`vm_stop_on_fault`) | `runit_error_policy.c` (`runit_error_wiring_init`) |
 | Which stream goes to which provider (logs → BLE LOGS); the clients' sessions (UART, BLE pair) | `runit_board_cfg.c` (`runit_board_stream_bindings_init`), `runit.c` (`sessions_init`) |
 | Power layout and limits for the power manager | the board's profile (`SYS_BOARD.MD`, LAYOUT and RAIL of `SYS_POWER_MANAGER.MD`), `board.json` |
-| Onboard devices, their IDs and the I2C buses | the board's profile (`SYS_BOARD.MD`), `board.json`; the wiring as C in `runit-esp/boards/` |
+| Onboard devices, their IDs and the I2C buses | the board's profile (`SYS_BOARD.MD`), `board.json`; the wiring as C in `runit-esp-archive/boards/` |
 | The firmware's own actions (resume / suspend / reset all, hard reset) | `k_onboard` in `sys_actions.c` (`SYS_ACTIONS_ONBOARD_*`) |
 | Safe state: VM stopped (retained values saved), then every device suspended | `runit_enter_safe_state` (`sys_system`: STOP, the dead-man; critical errors) |
 

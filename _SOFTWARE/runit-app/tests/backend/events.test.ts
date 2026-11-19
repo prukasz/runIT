@@ -4,7 +4,7 @@ import { bundledServiceCatalog, decodeEvent, encodeFields, EVENT_LAYOUT } from '
 
 const catalog = bundledServiceCatalog()
 const layout = catalog.contracts.get(EVENT_LAYOUT.contract)!.commands.get(EVENT_LAYOUT.command)!.write!.args!
-const C = (path: string) => readFileSync(new URL(`../../../runit-esp-rework/components/${path}`, import.meta.url), 'utf8')
+const C = (path: string) => readFileSync(new URL(`../../../runit-esp/components/${path}`, import.meta.url), 'utf8')
 
 /** A frame of the events stream as sys_event_stream sends it: the `sys_event_t` as it is. */
 const frame = (fields: Record<string, number | Uint8Array>) => encodeFields(layout, { channel: 0, flags: 0, len: 0, t_ms: 0, data: new Uint8Array(0), ...fields })

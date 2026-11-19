@@ -1,6 +1,6 @@
 /**
  * What the board refuses, as numbers. They are options of the firmware's Kconfig that `templates/generate_limits.py`
- * publishes in generated/common/limits.json (`#@limit` in runit-esp/components/vm/vm_core/Kconfig), and the frame size of
+ * publishes in generated/common/limits.json (`#@limit` in runit-esp-archive/components/vm/vm_core/Kconfig), and the frame size of
  * cmd.h (`CMD_FRAME_MAX`, group `cmd_frame` of generated/common/enums.json). `createEngine` reads those files;
  * `DEFAULT_LIMITS` is the same numbers for code that builds an `Engine` by hand, and a test keeps the two equal. A board built with another configuration publishes its own file, or the app passes `limits`.
  */

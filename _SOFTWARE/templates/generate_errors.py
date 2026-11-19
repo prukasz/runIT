@@ -1,11 +1,11 @@
-"""Publishes the error catalog of the firmware as one JSON: runit-esp-rework/components/core/errors/errors.json.
+"""Publishes the error catalog of the firmware as one JSON: runit-esp/components/core/errors/errors.json.
 
 Reads MODULE_ID_DECLARE, the ERR_MODULE_DEFINE(MODULE_ID_<NAME>, MAP) and the ERR_*_MAP(X, M) macros from the headers
-and sources under runit-esp-rework/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
+and sources under runit-esp/components/. The text a user reads comes from the module's `errors_<module>.json` next to the header of
 its map (templates/error-texts.schema.json): a message template per error and what a field refers to where the field's
 name does not say it. Enum groups named there are read from runit-app/generated/common/enums.json (generate_enums.py runs first).
 
-Output: runit-esp-rework/components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
+Output: runit-esp/components/core/errors/errors.json (generated: do not edit), checked by templates/errors.schema.json
 
 Usage: python templates/generate_errors.py [--check]
 """

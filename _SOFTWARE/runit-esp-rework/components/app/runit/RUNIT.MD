@@ -1,6 +1,6 @@
 # runit — the composition
 
-Component `runit-esp-rework/components/app/runit/`. The last layer: it knows every module and starts them in their order. No module depends on it; `main` calls `runit_start()` and nothing else. Rule of the layers: what two modules of a layer must do for each other, and neither may know the other, is done here.
+Component `runit-esp/components/app/runit/`. The last layer: it knows every module and starts them in their order. No module depends on it; `main` calls `runit_start()` and nothing else. Rule of the layers: what two modules of a layer must do for each other, and neither may know the other, is done here.
 
 ## Files
 

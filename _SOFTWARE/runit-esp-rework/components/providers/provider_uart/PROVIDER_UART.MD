@@ -1,6 +1,6 @@
 # provider_uart — a UART device as a provider
 
-Component `runit-esp-rework/components/providers/provider_uart/`. The provider driver `SYS_DATA_PROVIDER_TYPE_UART` (`1`): any `CONTRACT_UART` device (`sys_uart_contract`) as a provider of `sys_data_provider` (SYS_DATA_PROVIDER.MD). Built with `runit_provider()` (`WHOLE_ARCHIVE`, no public header).
+Component `runit-esp/components/providers/provider_uart/`. The provider driver `SYS_DATA_PROVIDER_TYPE_UART` (`1`): any `CONTRACT_UART` device (`sys_uart_contract`) as a provider of `sys_data_provider` (SYS_DATA_PROVIDER.MD). Built with `runit_provider()` (`WHOLE_ARCHIVE`, no public header).
 
 ## Files
 

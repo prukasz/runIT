@@ -60,7 +60,7 @@ def help_text(lines, start):
 
 
 def scan():
-    """{NAME: limit} of every `#@limit` option under runit-esp-rework/components/."""
+    """{NAME: limit} of every `#@limit` option under runit-esp/components/."""
     values = sdkconfig()
     limits = {}
     for path in kconfigs():
@@ -96,7 +96,7 @@ def scan():
 def main():
     limits = scan()
     if not limits:
-        fail("no `#@limit` marker found under runit-esp-rework/components/")
+        fail("no `#@limit` marker found under runit-esp/components/")
     publish(OUT, {"$schema": "../../../templates/limits.schema.json", "schemaVersion": SCHEMA_VERSION, "kind": "limits", "limits": limits}, "generate_limits.py")
 
 

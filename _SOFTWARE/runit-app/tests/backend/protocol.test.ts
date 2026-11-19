@@ -7,7 +7,7 @@ import { record } from './records'
 
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' ')
 const bytes = (text: string) => Uint8Array.from(text.split(' ').map((b) => Number.parseInt(b, 16)))
-const source = (path: string) => readFileSync(fileURLToPath(new URL(`../../../runit-esp-rework/${path}`, import.meta.url)), 'utf8')
+const source = (path: string) => readFileSync(fileURLToPath(new URL(`../../../runit-esp/${path}`, import.meta.url)), 'utf8')
 
 describe('the numbers come from the firmware', () => {
   it('the runIT UUIDs and the fragment bits equal the headers', () => {

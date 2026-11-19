@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """A client of the rework firmware over its console: a session (SYS_SESSION.MD), commands, their answers.
 
-    python runit-esp-rework/tools/session_client.py COM10                 # the hello, PING and PEERS
-    python runit-esp-rework/tools/session_client.py COM10 28 00 01        # one command by hand: [key][dir][op][args]
-    python runit-esp-rework/tools/session_client.py COM10 --listen 2      # subscribe / run cmd, then print PUSH frames
-    python runit-esp-rework/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
+    python runit-esp/tools/session_client.py COM10                 # the hello, PING and PEERS
+    python runit-esp/tools/session_client.py COM10 28 00 01        # one command by hand: [key][dir][op][args]
+    python runit-esp/tools/session_client.py COM10 --listen 2      # subscribe / run cmd, then print PUSH frames
+    python runit-esp/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
 
 Line: 00 cobs([frame][crc16 LE]) 00, CRC16-CCITT (poly 0x1021, init 0xFFFF) (PROVIDER_CONSOLE.MD "The line" / sys_uart_codec.h).
 Frame: [frame byte][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is 0xF0, the first of the clients'.

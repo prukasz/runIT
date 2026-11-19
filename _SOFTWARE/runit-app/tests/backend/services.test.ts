@@ -10,7 +10,7 @@ import type { FieldValues, Layout } from '@backend'
 import { bundledEnums } from '@backend'
 import { answer, defs, FakeBoard, until } from './fakes'
 
-const root = fileURLToPath(new URL('../../../runit-esp-rework/', import.meta.url))
+const root = fileURLToPath(new URL('../../../runit-esp/', import.meta.url))
 const generatedDir = fileURLToPath(new URL('../../generated', import.meta.url))
 const catalog = bundledServiceCatalog()
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')

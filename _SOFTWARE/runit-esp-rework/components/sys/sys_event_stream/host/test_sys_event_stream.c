@@ -1,5 +1,5 @@
 /* Host tests of sys_event_stream with the real sys_event and data_matrix.
- * Run: python test_host/run.py sys_event_stream   (from runit-esp/) */
+ * Run: python test_host/run.py sys_event_stream   (from runit-esp-archive/) */
 #include <pthread.h>
 #include <string.h>
 #include <time.h>

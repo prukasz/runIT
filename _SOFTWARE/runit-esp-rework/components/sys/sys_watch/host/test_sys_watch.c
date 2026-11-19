@@ -1,6 +1,6 @@
 /* Host tests of sys_watch (sys_watch.c, sys_watch_client.c, router/sys_watch_router.c) with real sys_session,
  * sys_event, router_queue and timer tasks, plus two fake link providers (UP client and DOWN slave).
- * Run: python test_host/run.py sys_watch   (from runit-esp/) */
+ * Run: python test_host/run.py sys_watch   (from runit-esp-archive/) */
 #include <pthread.h>
 #include <stdatomic.h>
 #include <string.h>

@@ -15,4 +15,4 @@ An event that comes in has the **sender's** source and channel (its device ids):
 
 ## Tests
 
-`host/test_sys_event_stream.c`: `python test_host/run.py sys_event_stream` (from `runit-esp/`): a notify event out, one without NOTIFY not out, an event in published without NOTIFY, a torn frame dropped.
+`host/test_sys_event_stream.c`: `python test_host/run.py sys_event_stream` (from `runit-esp-archive/`): a notify event out, one without NOTIFY not out, an event in published without NOTIFY, a torn frame dropped.

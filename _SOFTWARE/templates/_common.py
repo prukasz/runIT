@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parents[1]
-ESP = ROOT / "runit-esp-rework"
+ESP = ROOT / "runit-esp"
 COMPONENTS_DIR = ESP / "components"
 GENERATED = ROOT / "runit-app" / "generated"
 BOARDS_DIR = ROOT / "runit-app" / "boards"  # the app's own descriptors of the boards it knows: board.json (the PCB), board_devkit.json
-OLD_DEVICES = ROOT / "runit-esp" / "components" / "devices"  # the devices not moved to the rework yet
+OLD_DEVICES = ROOT / "runit-esp-archive" / "components" / "devices"  # the devices not moved to the rework yet
 SKIP_DIRS = {"build", ".git", "host"}
 
 
@@ -25,7 +25,7 @@ def rel(path):
 
 @lru_cache(maxsize=None)
 def sources(*suffixes):
-    """Every file under runit-esp-rework/components/ with one of the suffixes (build and host output skipped)."""
+    """Every file under runit-esp/components/ with one of the suffixes (build and host output skipped)."""
     return tuple(sorted(
         p for p in COMPONENTS_DIR.rglob("*")
         if p.suffix in suffixes and not SKIP_DIRS & set(p.relative_to(COMPONENTS_DIR).parts)

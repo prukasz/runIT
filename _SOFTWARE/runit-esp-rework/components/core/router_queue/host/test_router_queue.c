@@ -2,7 +2,7 @@
  * accept and refuse, how the two queues fill, and router_run_urgent's one waiting slot. The tasks are NOT started here
  * (no router_init), so nothing is taken out of the queues: they only fill. What the tasks do with a command is in
  * test_router_tasks.c.
- * Run: python test_host/run.py router_queue   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py router_queue   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <string.h>
 #include "err_record.h"
 #include "unity.h"

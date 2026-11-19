@@ -1,6 +1,6 @@
 # sys_log — logs and error records
 
-Component `runit-esp-rework/components/sys/sys_log/`. Controls what `ESP_LOG*` prints, routes cleaned log lines to `LOG_STREAM_LOGS`, stores the latest error records for history reads, and sends error records to `LOG_STREAM_ERRORS`.
+Component `runit-esp/components/sys/sys_log/`. Controls what `ESP_LOG*` prints, routes cleaned log lines to `LOG_STREAM_LOGS`, stores the latest error records for history reads, and sends error records to `LOG_STREAM_ERRORS`.
 
 ## Files
 

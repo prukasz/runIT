@@ -1,6 +1,6 @@
 # sys_system — system commands, the safe state, the dead-man
 
-Component `runit-esp-rework/components/sys/sys_system/`. The board's system commands (root key `MODULE_ID_SYS` 0x28) and the two things they control: the **safe state** and the **dead-man**. It also sends the root's clock to every board.
+Component `runit-esp/components/sys/sys_system/`. The board's system commands (root key `MODULE_ID_SYS` 0x28) and the two things they control: the **safe state** and the **dead-man**. It also sends the root's clock to every board.
 
 | File | Role |
 |---|---|
@@ -45,7 +45,7 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 
 ## Tests
 
-On a board: `python runit-esp-rework/tools/session_client.py <COM port>` runs PING (`28 00 01`) over a session. STOP, SAFE and SAFE_LEAVE with devices, the dead-man by the session's silence, and the time on a slave are not run yet.
+On a board: `python runit-esp/tools/session_client.py <COM port>` runs PING (`28 00 01`) over a session. STOP, SAFE and SAFE_LEAVE with devices, the dead-man by the session's silence, and the time on a slave are not run yet.
 
 ## Open
 

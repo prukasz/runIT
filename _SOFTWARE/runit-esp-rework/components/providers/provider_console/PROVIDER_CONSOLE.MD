@@ -1,6 +1,6 @@
 # provider_console — board UART + USB-JTAG console provider
 
-Component `runit-esp-rework/components/providers/provider_console/`. Self-registering singleton provider driver (`SYS_DATA_PROVIDER_TYPE_CONSOLE = 4`) exposing the board's **console** (`CONFIG_ESP_CONSOLE_UART_NUM` UART0 on GPIO 43/44 at `CONFIG_ESP_CONSOLE_UART_BAUDRATE`, plus USB-Serial-JTAG when enabled) to `sys_data_provider` via `runit_provider()` (`WHOLE_ARCHIVE`; its one public header, `provider_console.h`, is the CREATE cfg).
+Component `runit-esp/components/providers/provider_console/`. Self-registering singleton provider driver (`SYS_DATA_PROVIDER_TYPE_CONSOLE = 4`) exposing the board's **console** (`CONFIG_ESP_CONSOLE_UART_NUM` UART0 on GPIO 43/44 at `CONFIG_ESP_CONSOLE_UART_BAUDRATE`, plus USB-Serial-JTAG when enabled) to `sys_data_provider` via `runit_provider()` (`WHOLE_ARCHIVE`; its one public header, `provider_console.h`, is the CREATE cfg).
 
 The console is marked `STATE_WIRED | STATE_FRAMED | STATE_UP` (plus `STATE_SYSTEM` when created by `sys_data_provider_create_system` at boot). Hardware UART ports (the way to a slave among them) are `CONTRACT_UART` devices (`device_esp32s3_uart`, type `0x004D`) bridged to `sys_data_provider` by `components/providers/provider_uart/` (`PROVIDER_UART.MD`).
 
@@ -31,4 +31,4 @@ The console is marked `STATE_WIRED | STATE_FRAMED | STATE_UP` (plus `STATE_SYSTE
 
 ## Tests
 
-`python runit-esp-rework/tools/session_client.py <COM port>` opens a session over the console (`app/runit` attaches it) and runs PING and PEERS (`SYS_SESSION.MD` "Tests").
+`python runit-esp/tools/session_client.py <COM port>` opens a session over the console (`app/runit` attaches it) and runs PING and PEERS (`SYS_SESSION.MD` "Tests").

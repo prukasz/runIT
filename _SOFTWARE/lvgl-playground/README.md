@@ -1,6 +1,6 @@
 # Screen simulator (lvgl-playground)
 
-The firmware's screen on the PC, without a board: `sys_lvgl` (the LVGL adapter, `runit-esp/components/sys/sys_lvgl/SYS_LVGL.MD`), `sys_device` with its router, `sys_display`, `sys_touch`, `sys_io`, the router, `cmd` and `errors` are compiled from `runit-esp/components` as they are, on the host stand-ins of `runit-esp/test_host` (FreeRTOS tasks as threads, HOST_TESTS.MD). The display is a real driver on a simulated SPI bus and controller: the glass shows only what the driver sent on the wire. In place of hardware:
+The firmware's screen on the PC, without a board: `sys_lvgl` (the LVGL adapter, `runit-esp/components/sys/sys_lvgl/SYS_LVGL.MD`), `sys_device` with its router, `sys_display`, `sys_touch`, `sys_io`, the router, `cmd` and `errors` are compiled from `runit-esp-archive/components` as they are, on the host stand-ins of `runit-esp-archive/test_host` (FreeRTOS tasks as threads, HOST_TESTS.MD). The display is a real driver on a simulated SPI bus and controller: the glass shows only what the driver sent on the wire. In place of hardware:
 
 | Part | What it is |
 |---|---|

@@ -1,7 +1,7 @@
 /* Host tests of the sessions (sys_session.c, call/, router/) on two fake providers: the one a client's session runs
  * on and the one a board's. The router's tasks and the board timers' task run for real; the
  * test is the peers, delivering their frames as a driver's RX task would and reading what the board sends.
- * Run: python test_host/run.py sys_session   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py sys_session   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include <time.h>

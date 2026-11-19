@@ -85,7 +85,7 @@ A pin another device depends on (PCA9685's OE, a chip's RST, an I2C bus's SDA) i
 
 ### The ESP32-S3's own pins
 
-`device_esp32s3_gpio` (type `0x0040`, one per board, `runit-esp-rework/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
+`device_esp32s3_gpio` (type `0x0040`, one per board, `runit-esp/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
 
 ## A device that uses another device's pin (`driver/sys_io_driver.h`)
 

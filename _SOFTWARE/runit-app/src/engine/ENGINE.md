@@ -1,6 +1,6 @@
 # The VM engine (for agents)
 
-`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`runit-esp/components/vm/`) and `generated/`.
+`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`runit-esp-archive/components/vm/`) and `generated/`.
 
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own
@@ -74,7 +74,7 @@ An empty slot stands for the first entry while the draft is inspected, so what f
 | Fact | Source | Held against it by |
 |---|---|---|
 | Op ids, enum values, flags | `generated/common/enums.json`, `generated/services/contract_vm.json` | `wire/frames.test.ts` (against the firmware's own numbers) |
-| Record layouts, arena rules, load checks | `runit-esp/components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
+| Record layouts, arena rules, load checks | `runit-esp-archive/components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
 | Blocks: pins, fields, offsets, variants | `generated/blocks/block_*.json` | `catalog.test.ts` parses `VM_BLOCK_TYPE_DEFINE` and `vm_block_ids.h`: pin shape and wire ids must equal the C |
 | Device block ops and arguments | `generated/contracts/*.json`, `generated/devices/*.json` | `catalog.test.ts` (every variant resolves; the op code equals `SYS_DEVICE_OP` / the device header's `SYS_DEVICE_OWN_OP`), `palette.test.ts` (every variant compiles) |
 | State sizes | `state_len` of `generated/blocks/block_*.json` | `templates/crosscheck.py` and `catalog.test.ts` compare it with the `.state_len` of each `VM_BLOCK_TYPE_DEFINE` (a `sizeof` pinned by a `_Static_assert`) |

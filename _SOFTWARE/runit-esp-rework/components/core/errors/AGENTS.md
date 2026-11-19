@@ -19,4 +19,4 @@ What the module is and how it is used: `ERRORS.MD` (this folder). This file hold
 
 ## Tests
 
-`python test_host/run.py errors` from `runit-esp/`, all three variants (`info`, `no_info`, `no_assert`). A new behaviour gets its test first; what a misuse does with asserts off goes in the `#ifdef NDEBUG` part. No test waits: no sleep, no delay; threads are joined.
+`python test_host/run.py errors` from `runit-esp-archive/`, all three variants (`info`, `no_info`, `no_assert`). A new behaviour gets its test first; what a misuse does with asserts off goes in the `#ifdef NDEBUG` part. No test waits: no sleep, no delay; threads are joined.

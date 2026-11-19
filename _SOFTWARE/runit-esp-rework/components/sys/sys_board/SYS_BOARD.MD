@@ -1,6 +1,6 @@
 # sys_board — the board's profile
 
-Component `runit-esp-rework/components/sys/sys_board/`. What the board is, kept on the board: the frames that create its buses, ports and devices and set it up, and a JSON the app reads back. The app writes both and checks them; the firmware only runs the frames.
+Component `runit-esp/components/sys/sys_board/`. What the board is, kept on the board: the frames that create its buses, ports and devices and set it up, and a JSON the app reads back. The app writes both and checks them; the firmware only runs the frames.
 
 | File | Role |
 |---|---|

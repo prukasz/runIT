@@ -1,12 +1,12 @@
-"""Copies the descriptors that live next to the code in runit-esp-rework/components/ into runit-app/generated/, where the app reads them.
+"""Copies the descriptors that live next to the code in runit-esp/components/ into runit-app/generated/, where the app reads them.
 
-  runit-app/generated/devices/    device_*.json                          (runit-esp-rework/components/devices/**/device_*/)
-  runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp-rework/components/sys/*/ and others)
+  runit-app/generated/devices/    device_*.json                          (runit-esp/components/devices/**/device_*/)
+  runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp/components/sys/*/ and others)
   runit-app/generated/services/   contract_*.json with scope "system"
-  runit-app/generated/blocks/     block_*.json                           (runit-esp-rework/components/vm/vm_blocks/**/, when present)
+  runit-app/generated/blocks/     block_*.json                           (runit-esp/components/vm/vm_blocks/**/, when present)
   runit-app/generated/common/     errors.json, optional board*.json (enums.json and limits.json are written there directly)
-  runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp-rework/components/devices/**/device_*/manual/)
-  runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp-rework/components/devices/**/device_*/)
+  runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp/components/devices/**/device_*/manual/)
+  runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp/components/devices/**/device_*/)
 
 A copy is the same JSON with its `$schema` pointing at templates/ from the new place. Copies of descriptors that no longer
 exist are deleted from the four folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the

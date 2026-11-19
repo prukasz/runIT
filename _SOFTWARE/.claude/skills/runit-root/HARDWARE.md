@@ -2,9 +2,9 @@
 
 Current hardware revision. Sources of truth, in order:
 
-1. [runit-esp/boards/runit_r1_defs.h](../../../runit-esp/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
-2. [runit-esp/boards/runit_r1_devices.c](../../../runit-esp/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
-3. `runit-esp-rework/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` (a device not moved yet: `runit-esp/components/devices/device_<chip>/`) — per-device create frame and ops (published to `runit-app/generated/devices/`)
+1. [runit-esp-archive/boards/runit_r1_defs.h](../../../runit-esp-archive/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
+2. [runit-esp-archive/boards/runit_r1_devices.c](../../../runit-esp-archive/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
+3. `runit-esp/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` (a device not moved yet: `runit-esp-archive/components/devices/device_<chip>/`) — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
 
@@ -65,7 +65,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ## 3. Onboard device catalog (firmware view)
 
-All onboard chips are created by the board's profile (SYS_BOARD.MD), except the ESP32-S3's own GPIO (device 0), which the firmware creates at every boot (`esp32 gpio` step, RUNIT.MD), its wiring as C in `runit-esp/boards/` (IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
+All onboard chips are created by the board's profile (SYS_BOARD.MD), except the ESP32-S3's own GPIO (device 0), which the firmware creates at every boot (`esp32 gpio` step, RUNIT.MD), its wiring as C in `runit-esp-archive/boards/` (IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
 
 | ID | Chip | Contract | I2C (bus 0) | Board wiring | Role |
 |---|---|---|---|---|---|

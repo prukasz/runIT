@@ -4,7 +4,7 @@ import { openBoard } from './harness'
 import type { Board } from './harness'
 
 /*
- * The services and the device the devkit has (runit-esp-rework/components/app/runit, RUNIT.MD): device 0 is the ESP32-S3's
+ * The services and the device the devkit has (runit-esp/components/app/runit, RUNIT.MD): device 0 is the ESP32-S3's
  * GPIO, the providers are the console and the runIT BLE pair, the sessions and the data matrix are the board's setup.
  */
 

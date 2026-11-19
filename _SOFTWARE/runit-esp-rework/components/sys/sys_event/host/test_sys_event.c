@@ -1,7 +1,7 @@
 /* Host tests of sys_event: the real sys_event.c and errors; only the platform is replaced (tasks are threads, an ISR is
  * a thread that says it is one: host_isr_set). The tests up to the queue's are run without the lanes' tasks; the ones
  * after it start them (sys_event_init) and they stay: a test there waits for what a task delivers.
- * Run: python test_host/run.py sys_event   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py sys_event   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include "err_sink.h"

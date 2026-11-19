@@ -6,11 +6,10 @@ endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# The reworked firmware: a project of its own (its sdkconfig and build/), parallel to runit-esp. components/ holds only
-# the new components, grouped by layer like runit-esp (core -> sys -> devices/{soc,chips,virtual} -> vm); what the
-# rework still shares with the firmware is taken from there by folder, one by one. A component is built when its folder
-# is found here. The step a component joins is in REWORK.md.
-set(RUNIT_SHARED "${CMAKE_CURRENT_LIST_DIR}/../runit-esp/components")
+# The firmware: a project of its own (its sdkconfig and build/). components/ holds the components, grouped by layer
+# (core -> sys -> devices/{soc,chips,virtual} -> vm); what is not moved yet from runit-esp-archive is taken from there
+# by folder, one by one. A component is built when its folder is found here.
+set(RUNIT_SHARED "${CMAKE_CURRENT_LIST_DIR}/../runit-esp-archive/components")
 
 list(APPEND EXTRA_COMPONENT_DIRS
     "${RUNIT_SHARED}/core/time"
@@ -24,4 +23,4 @@ list(APPEND EXTRA_COMPONENT_DIRS "components/devices/virtual")
 list(APPEND EXTRA_COMPONENT_DIRS "components/providers")
 list(APPEND EXTRA_COMPONENT_DIRS "components/app")
 
-project(runIT_rework)
+project(runIT)

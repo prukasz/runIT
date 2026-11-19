@@ -9,7 +9,7 @@ Component `components/core/timer/`. One place that runs code later or every so o
 | `board_timer.h` | `board_timer_t`, the C API |
 | `board_timer.c` | The running list and the timers' task |
 | `Kconfig` | The task's priority and stack |
-| `host/` | Host tests: `python test_host/run.py timer` from `runit-esp/` (HOST_TESTS.MD) |
+| `host/` | Host tests: `python test_host/run.py timer` from `runit-esp-archive/` (HOST_TESTS.MD) |
 
 ## Use
 

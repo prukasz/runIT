@@ -3,7 +3,7 @@
 Spec: `SYS_SESSION.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- The header (`sys_session_hdr_t`, 3 B = `CMD_HEAD`), HELLO's body (both in `sys_session.h`), the frame byte's bits, the kinds, the channels, the control ops, the ids, the router's ops and frames and the error tags (`MODULE_ID_SESSION` 0x0E) are wire format: never renumber or re-layout them without changing, in the same change, `contract_session.json`, `runit-esp-rework/tools/session_client.py` and the app's session code.
+- The header (`sys_session_hdr_t`, 3 B = `CMD_HEAD`), HELLO's body (both in `sys_session.h`), the frame byte's bits, the kinds, the channels, the control ops, the ids, the router's ops and frames and the error tags (`MODULE_ID_SESSION` 0x0E) are wire format: never renumber or re-layout them without changing, in the same change, `contract_session.json`, `runit-esp/tools/session_client.py` and the app's session code.
 - The flags in the frame byte are the router's own (`ROUTER_FLAG_*`): checked at build time in `sys_session.c`.
 - No task, no queue: what comes in is handled on the driver's RX task, which never blocks (sends with `NOWAIT`, `router_submit`); the tick runs on the board timers' task. Only the router's answer callback waits for room in a provider's queue.
 - No routing: a frame goes on the session of the peer it is for (`sys_session_route`: the open session with that id) and on no other, with the send flags of its frame byte (`send_flags`: `NOWAIT`, `URGENT`, `SPARE` for a PUSH); a frame this board makes is joined by `send` (header, a control op, body). A frame for another board is a command of the board in between, never a relay here. No other wrapper around a send.

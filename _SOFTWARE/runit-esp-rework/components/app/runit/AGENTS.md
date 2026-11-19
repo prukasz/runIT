@@ -8,4 +8,4 @@ Read `RUNIT.MD` in this folder before changing anything here.
 - The board's other ways (a UART to a slave, MQTT, more than one of each) are not made here: they are frames of the board's record (`SYS_BOARD.MD`), made and given their role like any provider. Nothing here assumes a link.
 - The system ids (`runit_ids.h`) are the board's: the app skips their `CREATE` (`boardProfile.ts`). Keep the two in step.
 - A new `device_*` or `provider_*` goes in `PRIV_REQUIRES` of `CMakeLists.txt` (their own CMake links them whole).
-- Docs: `RUNIT.MD`, the row of `REWORK.md` and the skill `runit-esp`.
+- Docs: `RUNIT.MD` and the skill `runit-esp`.

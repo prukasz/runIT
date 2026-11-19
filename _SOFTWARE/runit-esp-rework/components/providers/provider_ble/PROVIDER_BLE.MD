@@ -1,6 +1,6 @@
 # provider_ble — BLE characteristics as a provider
 
-Component `runit-esp-rework/components/providers/provider_ble/`. The provider driver `SYS_DATA_PROVIDER_TYPE_BLE` (`2`): one or two characteristics of `sys_ble` (SYS_BLE.MD) as a provider of `sys_data_provider` (SYS_DATA_PROVIDER.MD). Built with `runit_provider()` (`WHOLE_ARCHIVE`); its one public header, `provider_ble.h`, is the CREATE cfg and its flag.
+Component `runit-esp/components/providers/provider_ble/`. The provider driver `SYS_DATA_PROVIDER_TYPE_BLE` (`2`): one or two characteristics of `sys_ble` (SYS_BLE.MD) as a provider of `sys_data_provider` (SYS_DATA_PROVIDER.MD). Built with `runit_provider()` (`WHOLE_ARCHIVE`); its one public header, `provider_ble.h`, is the CREATE cfg and its flag.
 
 ## Files
 

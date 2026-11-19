@@ -2,7 +2,7 @@
  * sys_event and errors; only the platform is replaced (tasks are threads). The devices are of a type of the tests'
  * own, PROBE, written the way a driver is. Every test removes its devices (tearDown sweeps REMOVE); the one with a
  * board device runs last, since a board device can't be removed. The lock timeout is short here (host config).
- * Run: python test_host/run.py sys_device   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py sys_device   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include "module_id.h"

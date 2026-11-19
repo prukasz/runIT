@@ -76,7 +76,7 @@ def sdkconfig():
 
 @lru_cache(maxsize=None)
 def defines():
-    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under runit-esp-rework/components/."""
+    """({NAME: value}, {NAME: (params, body)}) of the object-like and function-like #defines under runit-esp/components/."""
     plain, macros = {}, {}
     for header in sources(".h"):
         for name, params, body in DEFINE_RE.findall(read(header)):
@@ -239,7 +239,7 @@ def parse_streams(m, path):
 
 
 def scan():
-    """({name: group}, {member: group name}) of everything published under runit-esp-rework/components/."""
+    """({name: group}, {member: group name}) of everything published under runit-esp/components/."""
     groups, module_items = {}, []
     for src in sources(".h", ".c"):
         text = read(src)
@@ -266,7 +266,7 @@ def scan():
             "alias": "Module IDs",
             "kind": "defines",
             "prefix": "MODULE_ID_",
-            "source_file": "runit-esp-rework/components/core/utils/module_id.h",
+            "source_file": "runit-esp/components/core/utils/module_id.h",
             "members": build_members([(name, expr, comment) for _, name, expr, comment, _ in module_items], "MODULE_ID_DECLARE"),
         }
     symbols = {}

@@ -1,12 +1,15 @@
 {
-  // _SOFTWARE first (the repo, Claude Code, the app); runit-esp as its own folder so the ESP-IDF extension sees the
-  // project (it takes a workspace folder as the project: "ESP-IDF: Pick a Workspace Folder" -> runit-esp).
+  // _SOFTWARE first (the repo, Claude Code, the app); the firmware (runit-esp) as its own folder so the ESP-IDF
+  // extension sees the project (it takes a workspace folder as the project: "ESP-IDF: Pick a Workspace Folder" ->
+  // runit-esp). The old firmware (runit-esp-archive) is the archive.
   "folders": [
     { "path": ".", "name": "_SOFTWARE" },
-    { "path": "runit-esp", "name": "runit-esp (ESP-IDF)" }
+    { "path": "runit-esp", "name": "runit-esp (ESP-IDF)" },
+    { "path": "runit-esp-archive", "name": "archive (old runit-esp)" }
   ],
   // clangd's settings are window-wide: in a multi-root workspace only these count, not a folder's .vscode/settings.json.
-  // The compile commands are found by runit-esp/.clangd (CompilationDatabase: build); the driver gives the xtensa headers.
+  // The compile commands are found by runit-esp/.clangd (CompilationDatabase: build); the driver gives the
+  // xtensa headers.
   "settings": {
     "clangd.path": "C:\\Espressif\\tools\\esp-clangd\\esp-21.1.3_20260408\\esp-clangd\\bin\\clangd.exe",
     "clangd.arguments": ["--background-index", "--query-driver=C:/Espressif/tools/**"]

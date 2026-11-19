@@ -1,6 +1,6 @@
 /* Host tests of the router's routing: the root table, a module's command table and the handlers written from it
  * (router_table.h). The real router and cmd and errors; the queue and the tasks are in test_router_queue.c / test_router_tasks.c.
- * Run: python test_host/run.py router   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py router   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <string.h>
 #include "module_id.h"
 #include "unity.h"

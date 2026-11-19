@@ -1,5 +1,5 @@
 /* Host tests of the cmd component: inline cmd_reply / cmd_append and cmd error tags.
- * Run: python test_host/run.py cmd   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py cmd   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <string.h>
 #include "unity.h"
 #include "host_assert.h"

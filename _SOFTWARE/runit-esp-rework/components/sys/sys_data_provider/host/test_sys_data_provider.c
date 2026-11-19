@@ -1,6 +1,6 @@
 /* Host tests of the provider registry (sys_data_provider.c) on fake & typed drivers: flat send, limits,
  * flags, spare rule, open/close, CREATE/REMOVE, up/down, delivery, router dispatch, INFO/LIST/OPS, and 0xFFxx own ops.
- * Run: python runit-esp/test_host/run.py sys_data_provider */
+ * Run: python runit-esp-archive/test_host/run.py sys_data_provider */
 #include <string.h>
 
 #include "cmd.h"

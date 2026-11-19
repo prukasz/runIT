@@ -1,7 +1,7 @@
 """Checks the parts of the hardware library (library/parts/<id>/part.json) against part.schema.json and their references.
 
   - the folder is the part's id, and its drawing (part.svg) is there with a viewBox of its size in mm
-  - a device type is a published device descriptor (or a device not moved to the rework yet: its folder is still in runit-esp/); its preset is one of the descriptor's; a config key is a field of it
+  - a device type is a published device descriptor (or a device not moved to the rework yet: its folder is still in runit-esp-archive/); its preset is one of the descriptor's; a config key is a field of it
   - a pin's `config` is a pin-reference field of the part's device; `device_pin` 'self' needs a device
   - a pin's `net`, an H-bridge's `supply`, an element's `in` / `out` and a net's role match the part's nets
   - a board part names a board.json (name and revision)

@@ -2,7 +2,7 @@
  * read back byte for byte, kept across a restart of the module, and replayed: by a RUN command, by RUN_ALL, nested,
  * and injected by the board itself (sys_actions_request). The router's two tasks are real threads; the frames of a
  * record land in a recording module (REC), so what a replay does is what REC saw. NVS is a table in RAM (host_nvs.c).
- * Run: python test_host/run.py sys_actions   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py sys_actions   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include <time.h>

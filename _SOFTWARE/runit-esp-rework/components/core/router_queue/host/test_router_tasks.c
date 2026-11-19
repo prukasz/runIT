@@ -2,7 +2,7 @@
  * FreeRTOS stand-in), the queues are the router's own. A command goes in with router_submit / router_inject and its
  * answer comes back to the done callback; the tests wait on latches, never on guesses, except where "nothing happened
  * yet" is the point (a short settle, to show a command did NOT run).
- * Run: python test_host/run.py router_queue   (runit-esp/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py router_queue   (runit-esp-archive/test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include <time.h>

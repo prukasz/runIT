@@ -1,6 +1,6 @@
 ---
 name: runit-esp
-description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE, streams and VM. Load for any work under runit-esp-rework/ (the firmware) or runit-esp/ (the parts not moved yet), and for building, configuring (Kconfig) or flashing the firmware.
+description: Firmware skill for runIT-ESP32 (ESP-IDF v6.1, FreeRTOS, ESP32-S3) — contracts, devices (class, create frame, operations), sys_* modules, error chain, BLE, streams and VM. Load for any work under runit-esp/ (the firmware) or runit-esp-archive/ (the parts not moved yet), and for building, configuring (Kconfig) or flashing the firmware.
 ---
 
 # runIT-ESP32 — Firmware Skill
@@ -22,7 +22,7 @@ Session context and hardware: `runit-root` skill ([SKILL.md](../runit-root/SKILL
 
 ## Component docs
 
-The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with its `build.ps1`; `REWORK.md` lists what is in the build). Paths below are under `runit-esp-rework/components/`. Each component also holds its `AGENTS.md`.
+The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). Paths below are under `runit-esp/components/`. Each component also holds its `AGENTS.md`.
 
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
@@ -53,14 +53,14 @@ The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with 
 | providers | `providers/provider_{uart,console,ble}` | `PROVIDER_UART.MD`, `PROVIDER_CONSOLE.MD`, `PROVIDER_BLE.MD` | the provider drivers (a struct with the base first, `in`, `remove`, the RX flags in their cfg): a UART device, the console (UART0 + USB-Serial-JTAG), BLE characteristics |
 | app | `app/runit` | `RUNIT.MD` | the composition: `runit_start` (the boot order), the data matrix's tables, the error sink, the board's profile |
 
-**Not in the rework yet**, still in `runit-esp/components/` (the old firmware: it does not build any more, its parts are the reference for moving them): `core/time` (`TIME.MD`, the board's clock: the rework builds it from there), `sys/sys_display`, `sys/sys_touch`, `sys/sys_lvgl` (the old adapter, which `lvgl-playground` builds), `sys/sys_project`, `sys/sys_ota`, `sys/sys_flasher` (with its host tests), `vm/vm_core`, `vm/vm_blocks` (`VM_CORE.MD`, `VM_BLOCKS.MD`), the devices `device_ina3221`, `device_ap33772s`, `device_power_mux`, `device_dac53202`, `device_ads7128`, `device_servo`, `device_drv8962`, the old `app/runit`, `main/` and `boards/`. The host test runner stays in `runit-esp/test_host/`.
+**Not in the rework yet**, still in `runit-esp-archive/components/` (the old firmware: it does not build any more, its parts are the reference for moving them): `core/time` (`TIME.MD`, the board's clock: the rework builds it from there), `sys/sys_display`, `sys/sys_touch`, `sys/sys_lvgl` (the old adapter, which `lvgl-playground` builds), `sys/sys_project`, `sys/sys_ota`, `sys/sys_flasher` (with its host tests), `vm/vm_core`, `vm/vm_blocks` (`VM_CORE.MD`, `VM_BLOCKS.MD`), the devices `device_ina3221`, `device_ap33772s`, `device_power_mux`, `device_dac53202`, `device_ads7128`, `device_servo`, `device_drv8962`, the old `app/runit`, `main/` and `boards/`. The host test runner stays in `runit-esp-archive/test_host/`.
 
 Descriptors (`device_*.json`, `contract_*.json`, `block_*.json`, `errors.json`, `board.json`) live next to the code and follow `templates/*.schema.json`: [templates/AGENTS.md](../../../templates/AGENTS.md). `sh templates/sync.sh` regenerates and validates them into `runit-app/generated/`.
 
 ## Quick build
 
 ```powershell
-cd C:\Users\Lukasz\Documents\runIT\_SOFTWARE\runit-esp-rework; .\build.ps1   # .\build.ps1 reconfigure after a Kconfig or a new folder
+cd C:\Users\Lukasz\Documents\runIT\_SOFTWARE\runit-esp; .\build.ps1   # .\build.ps1 reconfigure after a Kconfig or a new folder
 ```
 
 After editing any `Kconfig`: run `idf.py reconfigure`. If you changed an option's `default`, run `idf.py refresh-config --policy=kconfig` instead. See [build.md](build.md) §3.

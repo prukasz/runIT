@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.28)
 project(runit_screen_sim C)
 
 # The screen simulator (README.md): the firmware's sys_lvgl, sys_device, sys_display, sys_touch, router, cmd and errors,
-# built from runit-esp/components as they are, on the host stand-ins of runit-esp/test_host (FreeRTOS as threads), with
+# built from runit-esp-archive/components as they are, on the host stand-ins of runit-esp-archive/test_host (FreeRTOS as threads), with
 # the display driver (driver/) on a simulated SPI bus and ILI9341 (mock/), a simulated touch and GPIO (sim/).
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_EXTENSIONS ON)  # typeof, statement expressions (the errors' macros)
 
-set(ESP ${CMAKE_CURRENT_SOURCE_DIR}/../runit-esp)
+set(ESP ${CMAKE_CURRENT_SOURCE_DIR}/../runit-esp-archive)
 set(COMP ${ESP}/components)
 set(HOST ${ESP}/test_host)
 
