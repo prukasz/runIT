@@ -16,10 +16,10 @@ The console is marked `STATE_WIRED | STATE_FRAMED | STATE_UP` (plus `STATE_SYSTE
 ## Lifecycle and line format
 
 1. Created once at boot in `app/runit` (`connectivity/runit_ways.c`) by `sys_data_provider_create_system` with `type = SYS_DATA_PROVIDER_TYPE_CONSOLE` (`4`) and a 0-byte cfg — **before** creating `device_esp32s3_gpio` so ESP-IDF reserves the console UART pins before GPIO scans `esp_gpio_is_reserved()`.
-2. `console_create()` installs UART0 (and moves `stdout` to its VFS driver) and USB-Serial-JTAG if enabled, makes its TX queue (`sys_uart_txq_t`, once), starts `tx_task` and `rx_task`, and sets `p->send = provider_send` (`ERR_PROV_IN_USE` on a second create while active).
+2. `console_create()` installs UART0 (and moves `stdout` to its VFS driver) and USB-Serial-JTAG if enabled, makes its TX queue (`sys_uart_txq_t`, once), starts `tx_task` and `rx_task`, and sets `p->port.pass = provider_pass` (`ERR_PROV_IN_USE` on a second create while active).
 3. **The line** is a FRAMED UART's (`SYS_UART_CONTRACT.MD` "The line", `sys_uart_codec.h`): `00 cobs([frame][crc16 LE]) 00`.
    - **RX**: bytes up to each `0x00` form a candidate, `sys_uart_unframe` decodes it and checks its CRC, and the frame goes whole to `sys_data_provider_deliver()`. Boot ROM text, panics, or logs are dropped without a word, so host tools print them as text.
-   - **TX**: `provider_send` pushes the frame into the TX queue (`sys_uart_txq_push`: `CMD_SEND_URGENT` first, `CMD_SEND_SPARE` in half of it); without `CMD_SEND_NOWAIT` it waits up to `CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS`, else `ERR_PROV_BUSY`.
+   - **TX**: the port's input (`provider_pass`) pushes the frame into the TX queue (`sys_uart_txq_push`: `CMD_SEND_URGENT` first, `CMD_SEND_SPARE` in half of it); without `CMD_SEND_NOWAIT` it waits up to `CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS`; a frame the queue does not take is dropped.
    - **Two outputs**: `tx_task` writes to UART0 (skipping frames that do not fit `uart_get_tx_buffer_free_size` so slow UART never stalls USB) and, when connected, to USB-Serial-JTAG in chunks of `USB_JTAG_TX_BUF / 2`.
 
 ## Limits & Open

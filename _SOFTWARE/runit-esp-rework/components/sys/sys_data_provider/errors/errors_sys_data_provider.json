@@ -15,27 +15,12 @@
       "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
     },
     "ERR_PROV_IN_USE": {
-      "message": "Data provider {provider} is in use",
-      "hint": "Wait until the transfer in progress finishes, then remove the provider again."
+      "message": "Data provider {provider} cannot be made twice",
+      "hint": "Remove the one that exists first."
     },
     "ERR_PROV_SYSTEM": {
       "message": "Cannot remove system data provider {provider}",
       "hint": "Built-in board providers cannot be removed."
-    },
-    "ERR_PROV_DOWN": {
-      "message": "Data provider {provider} link is down",
-      "hint": "Check the physical connection or reconnect the peer before sending."
-    },
-    "ERR_PROV_TOO_LONG": {
-      "message": "Frame for provider {provider} is too long ({len} bytes, limit {max})",
-      "hint": "Reduce the payload size so the complete frame fits within the provider limit."
-    },
-    "ERR_PROV_SEND": {
-      "message": "Transmission on provider {provider} failed"
-    },
-    "ERR_PROV_BUSY": {
-      "message": "Data provider {provider} send queue is full",
-      "hint": "Wait briefly or reduce traffic on this provider."
     },
     "ERR_PROV_BAD_ID": {
       "message": "Invalid data provider ID {provider}"

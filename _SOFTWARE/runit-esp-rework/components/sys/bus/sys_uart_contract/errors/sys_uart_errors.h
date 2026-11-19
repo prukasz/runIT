@@ -9,7 +9,7 @@
 /* ----------------------------------------------------------------------------
  * Errors (module MODULE_ID_UART)
  *
- * Port send saturation raises ERR_UART_BUSY; when bridged to sys_data_provider, the adapter maps it to ERR_PROV_BUSY.
+ * Port send saturation raises ERR_UART_BUSY; bridged to sys_data_provider, the frame is dropped.
  * ------------------------------------------------------------------------- */
 
 // codes 2, 5, 6, 8, 9, 10 and 11 are unused: never assign them

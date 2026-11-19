@@ -23,20 +23,16 @@ static void on_uart_rx(void* ctx, const uint8_t* data, uint32_t len) {
   sys_data_provider_deliver(ctx, data, len);
 }
 
-static err_h provider_uart_send(sys_data_provider_t* p, cmd_in_t frame, uint8_t flags) {
-  const provider_uart_t* ctx = p->driver;
+// The port's input: the packet onto the UART's queue with its flags (NOWAIT: no room, dropped at once; else the wait
+// below on the sender's task). What the UART does not take is lost.
+static void provider_uart_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags,
+                               const uint8_t* data, uint32_t len) {
+  (void)from;
+  const provider_uart_t* ctx = SYS_DATA_PROVIDER_OF(self)->driver;
   const uint16_t wait_ms =
       CONFIG_PROVIDER_UART_SEND_WAIT_MS > SYS_UART_WAIT_MAX_MS ? SYS_UART_WAIT_MAX_MS : CONFIG_PROVIDER_UART_SEND_WAIT_MS;
-  err_h err = SYS_DEVICE_SET(ctx->dev_id, CONTRACT_UART, OP_SEND_FRAME, .frame = frame, .wait_ms = wait_ms,
-                             .flags = flags);
-  if (err == NULL) {
-    return NULL;
-  }
-  if (err_root_tag(err) == ERR_UART_BUSY) {
-    err_free(err);
-    return ERR_NEW(ERR_PROV_BUSY, .provider = p->id);
-  }
-  return err;
+  err_free(SYS_DEVICE_SET(ctx->dev_id, CONTRACT_UART, OP_SEND_FRAME, .frame = {.data = data, .len = len},
+                          .wait_ms = wait_ms, .flags = flags));
 }
 
 static err_h provider_uart_create(sys_data_provider_t* p, void* ctx_in, const void* cfg_in) {
@@ -46,7 +42,7 @@ static err_h provider_uart_create(sys_data_provider_t* p, void* ctx_in, const vo
   ERR_TRY(SYS_DEVICE_GET(cfg->device, CONTRACT_UART, OP_INFO, &info));
 
   const bool framed = info.mode == SYS_UART_MODE_FRAMED;
-  p->send = provider_uart_send;
+  p->port.pass = provider_uart_pass;
   // A port is up as long as it exists: its hook hears only that it is removed.
   p->state |= (uint8_t)(SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_UP |
                         (framed ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u));

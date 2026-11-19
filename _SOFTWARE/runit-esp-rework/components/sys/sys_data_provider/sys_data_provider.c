@@ -167,23 +167,6 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   return NULL;
 }
 
-/* ----------------------------------------------------------------------------
- * The provider as a stream port (data_stream_port.h)
- * ------------------------------------------------------------------------- */
-
-static err_h send_frame(uint8_t id, cmd_in_t frame, uint8_t flags);
-
-// A packet for the provider from the switch: sent on its line with the sender's flags as they are (CMD_SEND_NOWAIT:
-// dropped at once when the line has no room; without it the driver waits for room, up to its limit, on the sender's
-// task). The provider's id comes from the port's name, which REMOVE keeps: a send still in flight then finds no
-// provider (ERR_PROV_NOT_FOUND) and is dropped.
-static void port_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
-                      uint32_t len) {
-  (void)from;
-  const cmd_in_t frame = {.data = data, .len = len};
-  err_free(send_frame((uint8_t)self->id, frame, flags));  // not taken: lost
-}
-
 static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const void* cfg, uint32_t cfg_len) {
   ERR_CHECK((flags & ~SYS_DATA_PROVIDER_CREATE_SYSTEM) == 0, ERR_CMD_BAD_ARG);
 
@@ -209,7 +192,7 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
       .id = id,
       .type = type->type,
       .state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u,
-      .port = {.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id), .pass = port_pass},
+      .port = {.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id)},  // its pass: the driver's, set by create()
   };
 
   err_h err = type->create(&slot->p, instance, cfg);
@@ -221,9 +204,9 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
     return err;
   }
 
-  // A driver that set no TX hook breaks its contract; a provider the data matrix has no room for can't be linked:
+  // A driver that set no port input breaks its contract; a provider the data matrix has no room for can't be linked:
   // either way the provider is not made.
-  err = slot->p.send == NULL ? ERR_NEW(ERR_CMD_BAD_ARG) : data_stream_register(&slot->p.port);
+  err = slot->p.port.pass == NULL ? ERR_NEW(ERR_CMD_BAD_ARG) : data_stream_register(&slot->p.port);
   if (err != NULL) {
     err_free(type->remove(&slot->p, slot->p.driver));
     if (type->ctx_size > 0) {
@@ -249,8 +232,7 @@ static err_h remove_locked(uint8_t id) {
   prov_slot_t* s = find_slot_locked(id);
   const bool found = s != NULL;
   const bool system = found && (s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) != 0;
-  const bool in_use = found && s->p.busy > 0;
-  if (found && !system && !in_use) {
+  if (found && !system) {
     type = s->type;
     instance = s->p.driver;
     s->used = false;
@@ -260,7 +242,6 @@ static err_h remove_locked(uint8_t id) {
 
   ERR_CHECK(found, ERR_PROV_NOT_FOUND, .provider = id);
   ERR_CHECK(!system, ERR_PROV_SYSTEM, .provider = id);
-  ERR_CHECK(!in_use, ERR_PROV_IN_USE, .provider = id);
 
   err_report(data_stream_unregister(&slot->p.port));  // out of the data matrix first: its links go before its driver
   err_h err = type->remove(&slot->p, instance);
@@ -270,7 +251,6 @@ static err_h remove_locked(uint8_t id) {
 
   portENTER_CRITICAL(&s_lock);
   memset(slot, 0, sizeof(*slot));
-  slot->p.port.id = DATA_STREAM_PORT(DATA_STREAM_PORT_PROVIDER, id);  // kept: a pass still in flight finds no provider
   portEXIT_CRITICAL(&s_lock);
   return err;
 }
@@ -362,38 +342,8 @@ err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* c
 }
 
 /* ----------------------------------------------------------------------------
- * Data plane
+ * The driver's side of the data plane
  * ------------------------------------------------------------------------- */
-
-// A frame on a provider's line: the input of its port.
-static err_h send_frame(uint8_t id, cmd_in_t frame, uint8_t flags) {
-  ERR_CHECK(frame.len > 0 && frame.data != NULL, ERR_CMD_BAD_ARG);
-  ERR_CHECK(frame.len <= CMD_FRAME_MAX, ERR_PROV_TOO_LONG, .provider = id,
-            .len = frame.len > UINT16_MAX ? UINT16_MAX : (uint16_t)frame.len, .max = CMD_FRAME_MAX);
-
-  portENTER_CRITICAL(&s_lock);
-  prov_slot_t* s = find_slot_locked(id);
-  sys_data_provider_t* p = s != NULL ? &s->p : NULL;
-  const bool up = p != NULL && (p->state & SYS_DATA_PROVIDER_STATE_UP) != 0;
-  if (p != NULL && up) {
-    p->busy++;
-  }
-  portEXIT_CRITICAL(&s_lock);
-
-  ERR_CHECK(p != NULL, ERR_PROV_NOT_FOUND, .provider = id);
-  ERR_CHECK(up, ERR_PROV_DOWN, .provider = id);
-
-  err_h err = p->send(p, frame, flags);
-
-  portENTER_CRITICAL(&s_lock);
-  p->busy--;
-  portEXIT_CRITICAL(&s_lock);
-
-  if (err == NULL || err_root_tag(err) == ERR_PROV_BUSY) {
-    return err;
-  }
-  return ERR_WRAP(err, ERR_PROV_SEND, .provider = id);
-}
 
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   if (p == NULL) {

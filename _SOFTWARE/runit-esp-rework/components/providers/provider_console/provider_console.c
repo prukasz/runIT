@@ -84,11 +84,14 @@ static void tx_task(void* arg) {
   }
 }
 
-static err_h provider_send(sys_data_provider_t* self, cmd_in_t frame, uint8_t flags) {
-  console_port_t* p = self->driver;
-  const bool queued = sys_uart_txq_push(&p->txq, frame, flags, MSEC(CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS));
-  ERR_CHECK(queued, ERR_PROV_BUSY, .provider = self->id);
-  return NULL;
+// The port's input: the packet into the TX queue with its flags (NOWAIT: no room, dropped at once; else
+// CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS on the sender's task). What the queue does not take is lost.
+static void provider_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
+                          uint32_t len) {
+  (void)from;
+  console_port_t* p = SYS_DATA_PROVIDER_OF(self)->driver;
+  (void)sys_uart_txq_push(&p->txq, (cmd_in_t){.data = data, .len = len}, flags,
+                          MSEC(CONFIG_PROVIDER_CONSOLE_SEND_WAIT_MS));
 }
 
 /* ----------------------------------------------------------------------------
@@ -164,7 +167,7 @@ static err_h console_create(sys_data_provider_t* p, void* ctx, const void* cfg) 
   }
   s_console.provider = p;
   p->driver = &s_console;
-  p->send = provider_send;
+  p->port.pass = provider_pass;
   p->state |= SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_FRAMED | SYS_DATA_PROVIDER_STATE_UP;
   if (console_rx_task_h == NULL) {
     U_TASK_START(console_rx_task_h, rx_task, &s_console, CONFIG_PROVIDER_CONSOLE_RX_TASK_PRIO);

@@ -62,7 +62,7 @@ A **message** is a `FRAMED` port's frame, a `RAW` port's bytes up to a pause in 
 
 ## Errors
 
-`MODULE_ID_UART` (0x13): `ERR_UART_BAD_ARG`, `_BUSY{port}` (no room in the TX queue, or `SPARE` past half), `_BAD_BAUD{baud}`, `_INIT{port}`, `_IN_USE{port, owner}`. `provider_uart` turns `ERR_UART_BUSY` into `ERR_PROV_BUSY`. A missing port is the registry's `ERR_DEV_NOT_FOUND`, a port still in use its `ERR_DEV_IN_USE`.
+`MODULE_ID_UART` (0x13): `ERR_UART_BAD_ARG`, `_BUSY{port}` (no room in the TX queue, or `SPARE` past half), `_BAD_BAUD{baud}`, `_INIT{port}`, `_IN_USE{port, owner}`. `provider_uart` drops a frame the port does not take. A missing port is the registry's `ERR_DEV_NOT_FOUND`, a port still in use its `ERR_DEV_IN_USE`.
 
 ## Open
 

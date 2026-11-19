@@ -25,15 +25,14 @@ static void on_ble_rx(void* ctx, const uint8_t* data, uint32_t len) {
   sys_data_provider_deliver(ctx, data, len);
 }
 
-static err_h provider_ble_send(sys_data_provider_t* p, cmd_in_t frame, uint8_t flags) {
-  const provider_ble_t* ctx = p->driver;
+// The port's input: the packet onto the TX characteristic with its flags (NOWAIT: no room, dropped at once; else
+// CONFIG_PROVIDER_BLE_SEND_WAIT_MS on the sender's task). What the characteristic does not take is lost.
+static void provider_ble_pass(data_stream_port_t* self, data_stream_port_id_t from, uint8_t flags, const uint8_t* data,
+                              uint32_t len) {
+  (void)from;
+  const provider_ble_t* ctx = SYS_DATA_PROVIDER_OF(self)->driver;
   const uint32_t wait_ms = (flags & CMD_SEND_NOWAIT) ? 0u : CONFIG_PROVIDER_BLE_SEND_WAIT_MS;
-  err_h err = sys_ble_send(ctx->tx, frame, flags, wait_ms);
-  if (err != NULL && err_root_tag(err) == ERR_BLE_TX_FULL) {
-    err_free(err);
-    return ERR_NEW(ERR_PROV_BUSY, .provider = p->id);
-  }
-  return err;
+  err_free(sys_ble_send(ctx->tx, (cmd_in_t){.data = data, .len = len}, flags, wait_ms));
 }
 
 // What the provider made, taken out again: the hooks, the characteristics, the service it made.
@@ -111,7 +110,7 @@ static err_h provider_ble_create(sys_data_provider_t* p, void* ctx_in, const voi
     return err;
   }
   sys_ble_apply();
-  p->send = provider_ble_send;
+  p->port.pass = provider_ble_pass;
   p->state |= framed != 0u ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u;
   return NULL;
 }
