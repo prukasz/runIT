@@ -14,6 +14,9 @@ ERR_MODULE_DEFINE(MODULE_ID_BLE, ERR_SYS_BLE_MAP)
 
 ble_t g_ble = {.mtu = BLE_ATT_MTU_DFLT};
 U_MUTEX_DEFINE(g_ble_lock);
+// Held while a hook is called, taken before g_ble_lock: a hook let go is never called after (sys_ble_hook waits on
+// it). Not g_ble_lock itself: a hook may send (sys_ble_send takes that).
+U_MUTEX_DEFINE(g_ble_calls);
 U_BINARY_SEM_DEFINE(g_ble_wake);
 U_TASK_DEFINE(ble_task_h, CONFIG_SYS_BLE_TASK_STACK);
 
@@ -94,13 +97,15 @@ static void mark_registered(ble_svc_t* s) {
  * Hooks
  * ------------------------------------------------------------------------- */
 
-/* Tells each hook the link's state it has not heard yet, one at a time and outside the lock: up while a client is
- * connected, down once it leaves or the characteristic goes; a gone characteristic's hook is let go. */
+/* Tells each hook the link's state it has not heard yet, one at a time, outside the lock and under g_ble_calls: up
+ * while a client is connected, down once it leaves or the characteristic goes; a gone characteristic's hook is let
+ * go. */
 static void tell_hooks(void) {
   while (true) {
     sys_ble_rx_f cb = NULL;
     void* ctx = NULL;
     bool up = false;
+    xSemaphoreTake(g_ble_calls, portMAX_DELAY);
     lock();
     ble_svc_t* s;
     LL_FOREACH(g_ble.services, s) {
@@ -116,10 +121,13 @@ static void tell_hooks(void) {
       }
     }
     unlock();
+    if (cb != NULL) {
+      cb(ctx, NULL, up ? 1u : 0u);
+    }
+    xSemaphoreGive(g_ble_calls);
     if (cb == NULL) {
       return;
     }
-    cb(ctx, NULL, up ? 1u : 0u);
   }
 }
 
@@ -136,6 +144,10 @@ err_h sys_ble_hook(uint16_t uuid, sys_ble_rx_f cb, void* ctx, bool* framed) {
     c->up = false;
   }
   unlock();
+  if (cb == NULL) {  // after the call of it in flight
+    xSemaphoreTake(g_ble_calls, portMAX_DELAY);
+    xSemaphoreGive(g_ble_calls);
+  }
   if (cb == NULL && c == NULL) {
     return NULL;  // gone: its hook was let go then
   }
@@ -553,22 +565,21 @@ static uint32_t frag_rx(ble_frag_t* rx, uint16_t uuid, const uint8_t* data, uint
 }
 
 int sys_ble_on_write(ble_char_t* c, const uint8_t* data, uint32_t len) {
+  xSemaphoreTake(g_ble_calls, portMAX_DELAY);
   lock();
   const bool taken = !c->removing && c->cb != NULL;
   const sys_ble_rx_f cb = c->cb;
   void* ctx = c->ctx;
   unlock();
-  if (!taken) {
-    return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
-  }
-  if (c->rx != NULL) {  // the host task only joins frames
+  if (taken && c->rx != NULL) {  // the host task only joins frames
     len = frag_rx(c->rx, c->uuid, data, len);
     data = c->rx->buf;
   }
-  if (len > 0) {
+  if (taken && len > 0) {
     cb(ctx, data, len);
   }
-  return 0;
+  xSemaphoreGive(g_ble_calls);
+  return taken ? 0 : BLE_ATT_ERR_WRITE_NOT_PERMITTED;
 }
 
 void sys_ble_on_connect(uint16_t conn, uint16_t mtu) {

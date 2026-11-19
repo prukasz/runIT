@@ -122,11 +122,15 @@ err_h sys_data_provider_remove(uint8_t id) {
   ERR_CHECK((s->p.state & SYS_DATA_PROVIDER_STATE_SYSTEM) == 0, ERR_PROV_SYSTEM, .provider = id);
 
   err_report(data_matrix_unregister(&s->p.port));  // out of the data matrix first: its links go before its driver
-  U_MUTEX_GUARD(s->line);                          // after the call into the driver in flight
   const sys_data_provider_type_t* type = s->type;
-  portENTER_CRITICAL(&s_lock);
-  s->type = NULL;
-  portEXIT_CRITICAL(&s_lock);
+  {
+    U_MUTEX_GUARD(s->line);  // after the call into the driver in flight; a packet after it finds no type
+    portENTER_CRITICAL(&s_lock);
+    s->type = NULL;
+    portEXIT_CRITICAL(&s_lock);
+  }
+  // Outside the line's mutex: the driver's remove may wait for its RX callbacks, and one of them may be sending to
+  // this provider's port (its targets copied before the unregister) and wait for that mutex.
   type->remove(&s->p);
   return NULL;
 }

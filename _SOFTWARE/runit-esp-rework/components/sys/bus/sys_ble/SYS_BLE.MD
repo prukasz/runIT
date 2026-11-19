@@ -38,7 +38,7 @@ single-packet frame: C0 <frame>
 
 ## Hooks
 
-`sys_ble_hook(uuid, cb, ctx, &framed)` takes a characteristic's hook (one per characteristic, `ERR_BLE_HOOK` if another `ctx` holds it) and tells whether it is framed; `cb` NULL lets it go (a gone characteristic: NULL). On the host task, outside the lock, must not block:
+`sys_ble_hook(uuid, cb, ctx, &framed)` takes a characteristic's hook (one per characteristic, `ERR_BLE_HOOK` if another `ctx` holds it) and tells whether it is framed; `cb` NULL lets it go (a gone characteristic: NULL) and waits for the call of a hook in flight: once let go, a hook is never called again (never from a hook). On the host task (the state also on the task that changed it), outside the lock, one hook call at a time (`g_ble_calls`, taken before the lock; not the lock itself, since a hook may send), must not block:
 
 - `cb(ctx, data, len)`: one write (a whole frame on a framed one). A write with no hook is refused (ATT "write not permitted").
 - `cb(ctx, NULL, 1)`: a client is connected; `cb(ctx, NULL, 0)`: it left, or the characteristic is removed (CHAR_REMOVE, SVC_REMOVE: at once, not at APPLY), and then the hook is let go. A taken hook hears the state at once.

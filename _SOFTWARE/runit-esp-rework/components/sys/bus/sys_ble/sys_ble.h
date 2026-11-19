@@ -39,9 +39,10 @@ extern "C" {
 #define SYS_BLE_FRAG_COUNT_MASK 0x3Fu  //@alias Packet counter mask @description Bits 0-5: the packet counter, modulo 64
 
 /**
- * @brief A characteristic's hook, on the BLE host task; must not block. `data` != NULL: one write of the peer (a whole
- * frame on a framed characteristic), borrowed. `data` == NULL: the link's state, `len` 1 up (a client is connected),
- * 0 down (it left, or the characteristic is removed: the hook is let go).
+ * @brief A characteristic's hook, on the BLE host task (the link's state also on the task that changed it), one hook
+ * call at a time; must not block (the host waits for it). `data` != NULL: one write of the peer (a whole frame on a
+ * framed characteristic), borrowed. `data` == NULL: the link's state, `len` 1 up (a client is connected), 0 down (it
+ * left, or the characteristic is removed: the hook is let go). Once let go, a hook is never called again.
  */
 typedef void (*sys_ble_rx_f)(void* ctx, const uint8_t* data, uint32_t len);
 
@@ -70,7 +71,7 @@ void sys_ble_apply(void);
 
 /**
  * @brief Takes the hook of a characteristic, or lets it go (`cb` NULL; the hook's `ctx` only, a gone characteristic is
- * NULL). A taken hook hears the link's state at once.
+ * NULL; it waits for the call of a hook in flight). A taken hook hears the link's state at once. Never from a hook.
  * @param[in]  uuid   The characteristic
  * @param[in]  cb     The hook, NULL to let it go
  * @param[in]  ctx    Passed to cb

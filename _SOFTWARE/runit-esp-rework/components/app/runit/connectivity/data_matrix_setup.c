@@ -13,7 +13,8 @@
 
 // The characteristics of both providers are in the one runIT service, made below.
 static const provider_ble_cfg_t k_ble = {
-    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TX, .rx = RUNIT_BLE_RX, .flags = PROVIDER_BLE_FRAMED, .name = "runit"};
+    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TX, .rx = RUNIT_BLE_RX, .flags = PROVIDER_BLE_FRAMED,
+    .rx_flags = CMD_SEND_NOWAIT, .name = "runit"};
 static const provider_ble_cfg_t k_ble_logs = {
     .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_LOGS, .name = "logs"};
 

@@ -1,16 +1,21 @@
-# provider_ble — BLE characteristic-to-provider driver
+# provider_ble — BLE characteristics as a provider
 
-Component `runit-esp-rework/components/providers/provider_ble/`. Self-registering provider driver (`SYS_DATA_PROVIDER_TYPE_BLE = 2`) bridging characteristics of `sys_ble` (SYS_BLE.MD) into `sys_data_provider` via `runit_provider()` (`WHOLE_ARCHIVE`; its one public header, `provider_ble.h`, is the CREATE cfg and its flags).
+Component `runit-esp-rework/components/providers/provider_ble/`. The provider driver `SYS_DATA_PROVIDER_TYPE_BLE` (`2`): one or two characteristics of `sys_ble` (SYS_BLE.MD) as a provider of `sys_data_provider` (SYS_DATA_PROVIDER.MD). Built with `runit_provider()` (`WHOLE_ARCHIVE`); its one public header, `provider_ble.h`, is the CREATE cfg and its flag.
+
+## Files
 
 | File | Role |
 |---|---|
-| `provider_ble.c` | Registers `SYS_DATA_PROVIDER_TYPE_BLE`: the hooks, the port's input |
+| `provider_ble.h` | The CREATE cfg `provider_ble_cfg_t` (24 B) and `PROVIDER_BLE_FRAMED` |
+| `provider_ble.c` | The driver: its struct, create, remove, the port's input, the hook; `SYS_DATA_PROVIDER_TYPE_DEFINE` |
 | `Kconfig` | `CONFIG_PROVIDER_BLE_SEND_WAIT_MS` (default `100`), `CONFIG_PROVIDER_BLE_TX_ITEMS` (default `4`) |
 
-## Lifecycle
+## The driver
 
-1. Created by `CONTRACT_PROVIDER_OP_CREATE` (C or the provider router, key `0x0D`) with `type = 2` and the 23-byte cfg `provider_ble_cfg_t {u16 svc, u16 tx, u16 rx, u8 flags, char name[16]}`: the service, the characteristic frames go out on (notify, with a TX buffer of `CONFIG_PROVIDER_BLE_TX_ITEMS` frames) and the one they come in from (written by the client), 0 = none, at least one of them. `flags`: bit 0 FRAMED (both characteristics carry frames: a session's way). `name` (NUL-ended, "" = none) is the user description of the characteristics (descriptor 0x2901): with both `tx` and `rx` the name is followed by ` TX` and ` RX`, with one it is the name. The board's own pair is made by `app/runit` (RUNIT.MD) as a system provider.
-2. Create makes the service when it is new (an existing one is joined, unless it is locked: whoever makes the board's own service locks it after the characteristics, `app/runit` does), the characteristics, and takes their hooks (`sys_ble_hook`, `ctx` = the provider), then applies the table. A failure takes out everything it made. The provider is `FRAMED` with the flag: a session's way; else raw, a stream's. A characteristic belongs to one provider: a UUID in use is `ERR_BLE_UUID_TAKEN`.
-3. A hook's write is one message to the provider's user (`sys_data_provider_deliver`; a whole frame on a framed characteristic). The link's state sets the provider up or down (`sys_data_provider_set_up`): up while a client is connected, down when it leaves or the characteristic is removed, whose hook is then let go. Not `WIRED`.
-4. The port's input (`provider_ble_pass`) is `sys_ble_send(tx, frame, flags, wait)`: `wait` 0 with `CMD_SEND_NOWAIT`, else `CONFIG_PROVIDER_BLE_SEND_WAIT_MS`. What the characteristic does not take (`ERR_BLE_TX_FULL`, a provider with no `tx`) is dropped.
-5. `CONTRACT_PROVIDER_OP_REMOVE` lets go of the hooks, removes the characteristics and the service it made, and applies the table.
+- **CREATE cfg** (24 B): `{u16 svc, u16 tx, u16 rx, u8 flags, u8 rx_flags, char name[16]}`: the service; the characteristic frames go out on (notify, with a TX buffer of `CONFIG_PROVIDER_BLE_TX_ITEMS` frames) and the one they come in from (written by the client), 0 = none, at least one of them; `flags` bit 0 `PROVIDER_BLE_FRAMED` (both characteristics carry frames: a session's way; else raw bytes, a stream's); `rx_flags` the `CMD_SEND_*` of each write as it goes out of the port (`CMD_SEND_NOWAIT`: the takers never wait for room, the BLE host never waits; without it a taker may make the host wait, and the link may drop); `name` (NUL-ended, "" = none) the user description of the characteristics (descriptor 0x2901), followed by ` TX` and ` RX` when it has both. The board's own are made by `app/runit` (RUNIT.MD) as system providers, `NOWAIT`.
+- **Struct** `provider_ble_t`: the base `sys_data_provider_t`, then the service, the two characteristics, the one it holds the hook of, `rx_flags`, and whether it made the service.
+- **create:** makes the service when it is new (an existing one is joined, unless it is locked: whoever makes the board's own service locks it after the characteristics, `app/runit` does), the characteristics (a UUID in use: `ERR_BLE_UUID_TAKEN`; a characteristic belongs to one provider), and takes one hook (`sys_ble_hook`, `ctx` the provider): on `rx`, or on `tx` when it has no `rx` (the link's state only), then applies the table. A failure takes out everything it made. `STATE_FRAMED` with the flag; not `WIRED`.
+- **The hook** (on the BLE host task): a write is one message (a whole frame on a framed characteristic) out of the provider's port (`data_matrix_send`, `rx_flags`); the link's state sets the provider up or down (`sys_data_provider_set_up`): up while a client is connected, down when it leaves or the characteristic is removed.
+- **The port's input:** `sys_ble_send(tx, packet, flags, wait)`, `wait` 0 with `CMD_SEND_NOWAIT`, else `CONFIG_PROVIDER_BLE_SEND_WAIT_MS`. What the characteristic does not take (`ERR_BLE_TX_FULL`, no client, a provider with no `tx`) is lost.
+- **remove:** lets go of the hook (it waits for the hook's call in flight: when remove returns, the hook is never called again), removes the characteristics and the service it made, and applies the table.
+- No own ops, no lock of its own: the registry makes the calls into it one at a time, and its RX side shares nothing with its TX but what create set.
