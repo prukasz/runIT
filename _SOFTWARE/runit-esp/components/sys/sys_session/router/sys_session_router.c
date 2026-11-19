@@ -20,9 +20,20 @@ ROUTER_READ(SESSION, OP_PEERS) {
   return cmd_append(out, list, count * sizeof(list[0]));
 }
 
+// ATTACH: the head, then a u8 module per sub-port.
+ROUTER_WRITE_TAIL(SESSION, OP_ATTACH) {
+  return sys_session_attach(args->provider, args->deadman_ms, args->flags, tail, tail_len);
+}
+
+ROUTER_WRITE(SESSION, OP_DETACH) {
+  return sys_session_detach(args->provider);
+}
+
 static const router_op_t k_ops[] = {
     ROUTER_ENTRY(SESSION, OP_ID),
     ROUTER_ENTRY_R(SESSION, OP_PEERS),
+    ROUTER_ENTRY_W(SESSION, OP_ATTACH),
+    ROUTER_ENTRY_W(SESSION, OP_DETACH),
 };
 
 ROUTER_MODULE(sys_session_router, k_ops)

@@ -167,6 +167,18 @@ err_h sys_data_provider_own_op(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in
   return fn(&s->p, in, out);
 }
 
+uint8_t sys_data_provider_state(uint8_t id) {
+  uint8_t state = 0;
+  portENTER_CRITICAL(&s_lock);
+  for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
+    if (s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id) {
+      state = s_slots[i].p.state;
+    }
+  }
+  portEXIT_CRITICAL(&s_lock);
+  return state;
+}
+
 err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
   return sys_data_provider_create(id, type_id, true, cfg, cfg_len);
 }

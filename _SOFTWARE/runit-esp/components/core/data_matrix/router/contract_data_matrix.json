@@ -6,7 +6,7 @@
   "id": "DATA_MATRIX",
   "router_key": 48,
   "alias": "Data matrix",
-  "description": "The switch of the stream ports: the output of one port (a module's stream, a provider) goes to the inputs of the ports linked from it, unchanged.",
+  "description": "The switch of the ports: the output of one port (a module's, a provider's, a session's) goes to the inputs of the ports linked from it, unchanged.",
   "category": "system",
   "record": "SYS_ACTIONS_ID_DATA_MATRIX",
   "commands": [
@@ -27,7 +27,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0,
-              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider, 0x80 | provider a session's) in the high byte"
             },
             {
               "id": "to",
@@ -36,7 +36,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider, 0x80 | provider a session's) in the high byte"
             }
           ]
         }
@@ -59,7 +59,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 0,
-              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The sending port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider, 0x80 | provider a session's) in the high byte"
             },
             {
               "id": "to",
@@ -68,7 +68,7 @@
               "raw_type": "u16",
               "size": 2,
               "offset": 2,
-              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider) in the high byte"
+              "description": "The taking port: DATA_MATRIX_PORT(kind, id), the kind (0 module, 1 provider, 0x80 | provider a session's) in the high byte"
             }
           ]
         }

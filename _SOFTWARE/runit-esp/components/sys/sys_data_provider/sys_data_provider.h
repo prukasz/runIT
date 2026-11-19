@@ -4,7 +4,8 @@
  * @file sys_data_provider.h
  * @brief The board's providers (SYS_DATA_PROVIDER.MD): the ways bytes leave and enter (a UART, a BLE link, the
  * console), each one a stream port of the data matrix. Its control plane is the router only (root key
- * MODULE_ID_PROVIDER 0x0D, contract_provider.json); in C there is only the boot's CREATE of the board's own providers.
+ * MODULE_ID_PROVIDER 0x0D, contract_provider.json); in C there is only the boot's CREATE of the board's own providers
+ * and a provider's state.
  */
 
 #include <stdint.h>
@@ -32,6 +33,13 @@ typedef enum {
 #define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 3)  //@alias Wired @description Connection realised by cable - low latency
 #define SYS_DATA_PROVIDER_STATE_UP     (1u << 4)  //@alias Up @description It delivers frames now
 #define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 5)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw
+
+/**
+ * @brief A provider's state bits (SYS_DATA_PROVIDER_STATE_*). Any task, no wait.
+ * @param[in] id The provider's id
+ * @return Its state; 0 when there is no such provider
+ */
+uint8_t sys_data_provider_state(uint8_t id);
 
 /**
  * @brief CREATE of the board's own provider (SYS_DATA_PROVIDER_STATE_SYSTEM: it can't be removed). Boot code.

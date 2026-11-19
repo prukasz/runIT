@@ -4,7 +4,7 @@ idf_component_register(
     SRCS "sys_session.c" "board/sys_session_board.c" "router/sys_session_router.c"
     INCLUDE_DIRS "." "errors" "router"
     PRIV_INCLUDE_DIRS "internal"
-    REQUIRES cmd errors utils router router_queue sys_data_provider sys_event
-    PRIV_REQUIRES timer time nvs_flash esp_app_format
+    REQUIRES cmd data_matrix errors utils router router_queue sys_data_provider sys_event
+    PRIV_REQUIRES timer nvs_flash esp_app_format
     WHOLE_ARCHIVE
 )

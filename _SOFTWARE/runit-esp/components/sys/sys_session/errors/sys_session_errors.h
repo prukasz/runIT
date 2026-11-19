@@ -9,7 +9,6 @@
   X(M, ERR_SESSION_ID_TAKEN,    3,  ERR_SEV_HIGH,   { uint8_t board; }) /* hello: two peers with one id, or an id of the wrong kind */ \
   X(M, ERR_SESSION_NO_ROUTE,    4,  ERR_SEV_MEDIUM, { uint8_t dst; }) /* no session leads to dst */                                    \
   X(M, ERR_SESSION_FULL,        11, ERR_SEV_MEDIUM, {}) /* every session slot taken */                                                 \
-  X(M, ERR_SESSION_NOT_FRAMED,  16, ERR_SEV_MEDIUM, {}) /* attach: a raw provider carries no whole frame */                            \
-  X(M, ERR_SESSION_NOT_OPEN,    17, ERR_SEV_LOW,    { uint8_t provider; }) /* push: no open session on the provider */
+  X(M, ERR_SESSION_NOT_FRAMED,  16, ERR_SEV_MEDIUM, {}) /* attach: no provider, or a raw one: no whole frame */
 
 ERR_TAGS_DECLARE(MODULE_ID_SESSION, ERR_SYS_SESSION_MAP)
