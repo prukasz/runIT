@@ -29,7 +29,8 @@
  * with the bytes, the taker honours what it can (a provider queues by them).
  *
  * The contract of a port: `in` is short, never blocks, copies what it keeps (`data` is valid for the call only); it
- * runs on the sender's task. Sends only from a task, never from an ISR; a packet with no link is dropped. The switch
+ * runs on the sender's task. The one wait: a provider's `in` waits for room on its line, at most its driver's bound,
+ * when the sender did not say CMD_SEND_NOWAIT. Sends only from a task, never from an ISR; a packet with no link is dropped. The switch
  * does not wait for sends in flight, so the port's memory and its `in` stay valid after it is unregistered (a send
  * that copied its targets before may still call it): an owner never frees a registered port. Its owner stops sending
  * before the port is unregistered. The order in which the targets of one port get a packet is no promise.
@@ -75,7 +76,8 @@ typedef uint16_t data_matrix_port_id_t;
 typedef struct data_matrix_port data_matrix_port_t;
 
 /**
- * @brief A port's input: bytes for its owner. On the sender's task: short, never blocks, copies what it keeps.
+ * @brief A port's input: bytes for its owner. On the sender's task: short, never blocks (a provider: at most its
+ * bound, without CMD_SEND_NOWAIT), copies what it keeps.
  * @param self   The port (DATA_MATRIX_OWNER gives its owner).
  * @param from   The port the packet came out of.
  * @param flags  The sender's CMD_SEND_*.
