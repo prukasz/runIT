@@ -84,7 +84,7 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
  * @brief Defines a driver type and registers it before app_main (a constructor). `prov_t` starts with
  * `sys_data_provider_t base`.
  * @usage SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, uart_cfg_t, uart_t, uart_create, uart_remove,
- *                                      uart_pass, NULL, 0)
+ *                                      uart_in, NULL, 0)
  */
 #define SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, in_fn, ops_ptr, ops_cnt)   \
   _Static_assert(_Alignof(cfg_t) == 1, #cfg_t ": create cfg must be packed");                                   \

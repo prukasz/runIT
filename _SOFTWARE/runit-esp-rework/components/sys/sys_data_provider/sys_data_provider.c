@@ -26,7 +26,7 @@ typedef struct {
     _Alignas(max_align_t) uint8_t mem[CONFIG_SYS_DATA_PROVIDER_SIZE];
   };
   const sys_data_provider_type_t* type;  // NULL: a free slot
-  SemaphoreHandle_t line;                // One call into the driver at a time: its `in`, its own ops, its remove
+  SemaphoreHandle_t line;                // One call into the driver at a time: its `in`, its own ops; REMOVE ends them
   StaticSemaphore_t line_buf;
 } prov_slot_t;
 
