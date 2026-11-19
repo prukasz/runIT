@@ -47,7 +47,7 @@ A provider carries bytes and knows nothing of what they are. It is a stream port
 - `in`, the own ops and `remove` of one provider run one at a time (its slot's mutex), so a driver keeps no lock of its own for them. CREATE, REMOVE and the own ops of all providers run one at a time (the registry's control mutex), always taken before a slot's.
 - `in` and the own ops never CREATE or REMOVE a provider: they hold those locks, it would deadlock.
 - `in` waits for room on its line a bounded time only (`CONFIG_PROVIDER_*_SEND_WAIT_MS`): REMOVE and the provider's own ops wait for it.
-- The driver's RX side (`data_matrix_send` on its port, `sys_data_provider_set_up`) runs at the same time as `in` and takes no lock of the registry (a provider's RX goes on while its TX waits, and two providers linked both ways never wait for each other): what RX and TX share, the driver guards itself.
+- The driver's RX side (`data_matrix_send` on its port, with the flags its driver gives: `CMD_SEND_NOWAIT` and its RX never waits for a taker, without it a taker may make it wait for room; `sys_data_provider_set_up`) runs at the same time as `in` and takes no lock of the registry (a provider's RX goes on while its TX waits, and two providers linked both ways never wait for each other): what RX and TX share, the driver guards itself.
 - A packet that was on its way when the provider was removed (in the data matrix, or an RX callback in flight) may reach a provider CREATEd again in the same slot meanwhile: it is taken as that provider's. The window is a sender preempted across a REMOVE and a CREATE.
 
 ## Events

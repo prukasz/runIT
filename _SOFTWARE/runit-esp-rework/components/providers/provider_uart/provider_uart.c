@@ -12,24 +12,27 @@
 
 _Static_assert(CONFIG_PROVIDER_UART_SEND_WAIT_MS <= SYS_UART_WAIT_MAX_MS, "PROVIDER_UART_SEND_WAIT_MS over the UART's");
 
-/** @brief CREATE cfg: the UART device. */
+/** @brief CREATE cfg: the UART device and how what it hears goes on. */
 typedef struct __attribute__((packed)) {
   uint8_t device;  /**< A CONTRACT_UART device ID */
+  uint8_t flags;   /**< CMD_SEND_* of each message out of the port (CMD_SEND_NOWAIT: the UART's RX never waits) */
 } provider_uart_cfg_t;
 
 typedef struct {
   sys_data_provider_t base;
   uint8_t device;
+  uint8_t flags;
 } provider_uart_t;
 
-// The UART's reader, on its RX task: a message out of the port; NULL once, when the UART is removed.
+// The UART's reader, on its RX task under the UART's lock: a message out of the port with the cfg's flags (without
+// CMD_SEND_NOWAIT a taker may wait for room, and the UART's RX with it); NULL once, when the UART is removed.
 static void on_rx(void* ctx, const uint8_t* data, uint32_t len) {
-  sys_data_provider_t* p = ctx;
+  provider_uart_t* me = ctx;
   if (data == NULL) {
-    sys_data_provider_set_up(p, false);
+    sys_data_provider_set_up(&me->base, false);
     return;
   }
-  data_matrix_send(&p->port, 0, data, len);
+  data_matrix_send(&me->base.port, me->flags, data, len);
 }
 
 // The port's input: the packet onto the UART's queue with its flags (NOWAIT: no room, dropped at once; else it waits
@@ -46,7 +49,9 @@ static err_h uart_create(sys_data_provider_t* p, const void* cfg_in) {
   const provider_uart_cfg_t* cfg = cfg_in;
   sys_uart_info_t info;
   ERR_TRY(SYS_DEVICE_GET(cfg->device, CONTRACT_UART, OP_INFO, &info));
-  ((provider_uart_t*)p)->device = cfg->device;
+  provider_uart_t* me = (provider_uart_t*)p;
+  me->device = cfg->device;
+  me->flags = cfg->flags;
   // A UART is up as long as it exists.
   p->state |= (uint8_t)(SYS_DATA_PROVIDER_STATE_WIRED | SYS_DATA_PROVIDER_STATE_UP |
                         (info.mode == SYS_UART_MODE_FRAMED ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u));

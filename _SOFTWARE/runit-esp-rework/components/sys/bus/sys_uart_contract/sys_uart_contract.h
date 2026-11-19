@@ -103,7 +103,8 @@ typedef struct {
 } sys_uart_send_frame_t;
 
 /**
- * @brief An RX_HOOK reader, on the port's RX task: copy and return, send only NOWAIT.
+ * @brief An RX_HOOK reader, on the port's RX task under the port's lock: what it waits for, the port's RX waits for
+ * (copy and return; a send NOWAIT never waits). Once RX_HOOK lets go of it, it is never called again.
  * @param data One whole message; NULL once, when the port is removed (`len` 0)
  */
 typedef void (*sys_uart_rx_cb_f)(void* ctx, const uint8_t* data, uint32_t len);

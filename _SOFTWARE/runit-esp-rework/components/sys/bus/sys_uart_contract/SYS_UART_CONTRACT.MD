@@ -26,7 +26,7 @@ A port has **one reader** at a time:
 | Reader | How | Gets each message |
 |---|---|---|
 | a device | `SUBSCRIBE` (`sys_uart_port_subscribe` in its `create()`) | in its own op, `sys_device_deliver` (checked by generation), on the port's RX task |
-| a C consumer (a provider adapter: a way to another board) | `RX_HOOK` `{cb, ctx}` | in `cb(ctx, data, len)`, on the port's RX task; `data` NULL once, when the port is removed |
+| a C consumer (a provider adapter: a way to another board) | `RX_HOOK` `{cb, ctx}` | in `cb(ctx, data, len)`, on the port's RX task under the port's lock (what it waits for, the port's RX waits for; once `RX_HOOK` lets go of it, it is never called again); `data` NULL once, when the port is removed |
 | a `RECEIVE` / `TRANSACT` under way | the call | the next message of the port's queue |
 
 With no reader the messages wait in the port's queue for `RECEIVE`; when it is full, the oldest goes.

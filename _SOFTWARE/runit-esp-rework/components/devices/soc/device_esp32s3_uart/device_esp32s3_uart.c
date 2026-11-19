@@ -21,6 +21,7 @@ SYS_DEVICE_TYPE_DECLARE(ESP32S3_UART, 0x004D)
 #define RX_FLOW_THRESH   100u  // RTS asserted at this fill of the 128 B FIFO
 #define RX_CHUNK         128u
 #define TX_SLICE_WAIT_MS 50u   // a write waits in slices, so a REMOVE never waits on 1200 baud or CTS
+#define RX_POLL_MS       100u  // the RX task looks at `stopping` at least this often: a REMOVE waits for it no longer
 #define PIN_COUNT        4u    // tx, rx, rts, cts
 
 /** @brief CREATE config: 16 B, packed. */
@@ -45,7 +46,7 @@ typedef struct {
   uint32_t init_baud;
   sys_io_claim_t pins[PIN_COUNT];
   sys_device_res_t res;
-  SemaphoreHandle_t lock;  // the reader: claimed and copied under it
+  SemaphoreHandle_t lock;  // the reader: claimed under it, and an RX_HOOK called under it
   sys_uart_rx_cb_f cb;     // the reader: an RX_HOOK, or
   void* cb_ctx;
   uint8_t owner;           // a subscriber (SYS_DEVICE_ID_NONE: none), its generation and op, or
@@ -92,6 +93,7 @@ static void flush_rx(port_t* c) {
  * ------------------------------------------------------------------------- */
 
 // One whole message in c->rx.data. `seq`: the task's count of flushes; one since: the message is from before it.
+// A hook is called under the lock: once RX_HOOK lets go, it is never called again. A subscriber after it.
 static void deliver(port_t* c, uint32_t len, uint32_t* seq) {
   if (len == 0) {
     return;
@@ -99,12 +101,13 @@ static void deliver(port_t* c, uint32_t len, uint32_t* seq) {
   xSemaphoreTake(c->lock, portMAX_DELAY);
   const bool flushed = *seq != c->flush_seq;
   *seq = c->flush_seq;
-  const sys_uart_rx_cb_f cb = c->cb;
-  void* ctx = c->cb_ctx;
-  const uint8_t owner = c->owner;
+  const uint8_t owner = flushed ? SYS_DEVICE_ID_NONE : c->owner;
   const uint8_t gen = c->owner_gen;
   const uint16_t op = c->owner_op;
-  if (!flushed && cb == NULL && owner == SYS_DEVICE_ID_NONE) {  // for RECEIVE: when full, the oldest goes
+  const bool here = !flushed && owner == SYS_DEVICE_ID_NONE;  // not dropped, not a subscriber's
+  if (here && c->cb != NULL) {
+    c->cb(c->cb_ctx, c->rx.data, len);
+  } else if (here) {  // for RECEIVE: when full, the oldest goes
     size_t old_len = 0;
     void* old = NULL;
     while (xRingbufferSend(c->rx_rb, c->rx.data, len, 0) != pdTRUE &&
@@ -113,14 +116,9 @@ static void deliver(port_t* c, uint32_t len, uint32_t* seq) {
     }
   }
   xSemaphoreGive(c->lock);
-  if (flushed) {
-    return;
-  }
   if (owner != SYS_DEVICE_ID_NONE) {
     c->rx.hdr.port = c->id;
     err_report(sys_device_deliver(owner, gen, op, &c->rx, (uint32_t)sizeof(c->rx.hdr) + len));
-  } else if (cb != NULL) {
-    cb(ctx, c->rx.data, len);
   }
 }
 
@@ -156,7 +154,7 @@ static void rx_task(void* arg) {
   uint32_t seq = c->flush_seq;
   uart_event_t ev;
   while (!c->stopping) {
-    if (xQueueReceive(c->events, &ev, portMAX_DELAY) != pdTRUE || c->stopping) {
+    if (xQueueReceive(c->events, &ev, MSEC(RX_POLL_MS)) != pdTRUE) {
       continue;
     }
     if (seq != c->flush_seq) {
@@ -357,7 +355,8 @@ static err_h resume(port_t* c) {
   return NULL;
 }
 
-// Its resource, also after a create() that failed half-way: the tasks end first, then the hook hears the port go.
+// Its resource, also after a create() that failed half-way: the tasks end first (the RX task within RX_POLL_MS),
+// then the hook hears the port go.
 static err_h port_release(void* arg) {
   port_t* c = arg;
   c->stopping = true;
@@ -365,8 +364,6 @@ static err_h port_release(void* arg) {
   if (c->installed) {
     (void)uart_set_hw_flow_ctrl(c->uart, UART_HW_FLOWCTRL_DISABLE, 0);
     (void)uart_disable_rx_intr(c->uart);
-    const uart_event_t stop = {.type = UART_EVENT_MAX};
-    (void)xQueueSendToFront(c->events, &stop, MSEC(100));
   }
   if (c->tx_task != NULL) {
     xTaskNotifyGive(c->tx_task);
