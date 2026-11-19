@@ -1,63 +1,36 @@
 #include "sys_lvgl_router.h"
 
-ROUTER_OP(op_install, sys_lvgl_install_t) {
-  (void)ctx;
-  (void)out;
-  return sys_lvgl_install(args);
-}
+ROUTER_GETTER(LVGL, OP_INSTALL, sys_lvgl_get_install)
+ROUTER_SETTER(LVGL, OP_INSTALL, sys_lvgl_install)
 
-ROUTER_OP_NOARGS(op_get_install) {
-  (void)ctx;
-  sys_lvgl_install_t install;
-  ERR_TRY(sys_lvgl_get_install(&install));
-  return cmd_reply(out, &install, sizeof(install));
-}
-
-ROUTER_OP_NOARGS(op_reset) {
-  (void)ctx;
-  (void)out;
+ROUTER_WRITE(LVGL, OP_RESET) {
   return sys_lvgl_reset();
 }
 
-ROUTER_OP(op_rotation, sys_lvgl_rotation_t) {
-  (void)ctx;
-  (void)out;
+ROUTER_READ(LVGL, OP_ROTATION) {
+  sys_lvgl_rotation_t rotation;
+  ERR_TRY(sys_lvgl_get_rotation(&rotation.rotation));
+  return cmd_reply(out, &rotation, sizeof(rotation));
+}
+
+ROUTER_WRITE(LVGL, OP_ROTATION) {
   return sys_lvgl_set_rotation(args->rotation);
 }
 
-ROUTER_OP_NOARGS(op_get_rotation) {
-  (void)ctx;
-  sys_lvgl_rotation_t r;
-  ERR_TRY(sys_lvgl_get_rotation(&r.rotation));
-  return cmd_reply(out, &r, sizeof(r));
-}
+ROUTER_GETTER(LVGL, OP_STATUS, sys_lvgl_get_status)
 
-ROUTER_OP_NOARGS(op_status) {
-  (void)ctx;
-  sys_lvgl_status_t status;
-  ERR_TRY(sys_lvgl_get_status(&status));
-  return cmd_reply(out, &status, sizeof(status));
-}
-
-ROUTER_OP_NOARGS(op_start) {
-  (void)ctx;
-  (void)out;
+ROUTER_WRITE(LVGL, OP_START) {
   return sys_lvgl_start();
 }
 
-ROUTER_OP_NOARGS(op_stop) {
-  (void)ctx;
-  (void)out;
+ROUTER_WRITE(LVGL, OP_STOP) {
   return sys_lvgl_stop();
 }
 
 static const router_op_t k_ops[] = {
-    ROUTER_RW(SYS_LVGL_OP_INSTALL, op_get_install, op_install),
-    ROUTER_W(SYS_LVGL_OP_RESET, op_reset),
-    ROUTER_RW(SYS_LVGL_OP_ROTATION, op_get_rotation, op_rotation),
-    ROUTER_R(SYS_LVGL_OP_STATUS, op_status),
-    ROUTER_W(SYS_LVGL_OP_START, op_start),
-    ROUTER_W(SYS_LVGL_OP_STOP, op_stop),
+    ROUTER_ENTRY(LVGL, OP_INSTALL), ROUTER_ENTRY(LVGL, OP_RESET), ROUTER_ENTRY(LVGL, OP_ROTATION),
+    ROUTER_ENTRY_R(LVGL, OP_STATUS), ROUTER_ENTRY_W(LVGL, OP_START), ROUTER_ENTRY_W(LVGL, OP_STOP),
 };
 
 ROUTER_MODULE(sys_lvgl_router, k_ops)
+ROUTER_MODULE_REGISTER(MODULE_ID_LVGL, sys_lvgl_router)

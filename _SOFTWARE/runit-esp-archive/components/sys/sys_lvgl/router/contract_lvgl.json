@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "LVGL",
-  "router_key": 41,
+  "router_key": 21,
   "alias": "Screen",
   "description": "LVGL on one display and an optional touch: the draw buffers, the objects' heap, the rotation, drawing on or off. The screen's content is built by the screen commands on top of it.",
   "category": "system",
@@ -12,11 +12,11 @@
     {
       "id": "INSTALL",
       "op": 1,
-      "symbol": "LVGL_OP_INSTALL",
+      "symbol": "SYS_LVGL_OP_INSTALL",
       "label": "Install the screen",
       "description": "Puts LVGL on the display and the touch: the draw buffers sized from the display's geometry, the objects' heap, the refresh rate; then it draws. Refused while installed (RESET first).",
       "read": {
-        "description": "What is installed: 0xFF, heap and refresh 0 when empty.",
+        "description": "What is installed: 0xFFFF, heap and refresh 0 when empty.",
         "returns": {
           "struct": "sys_lvgl_install_t",
           "fields": [
@@ -24,8 +24,8 @@
               "id": "display",
               "label": "Display",
               "type": "device",
-              "raw_type": "u8",
-              "size": 1,
+              "raw_type": "u16",
+              "size": 2,
               "offset": 0,
               "description": "The display device (contract DISPLAY)"
             },
@@ -33,10 +33,10 @@
               "id": "touch",
               "label": "Touch",
               "type": "device",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "The touch device (contract TOUCH), or 0xFF for none"
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "The touch device (contract TOUCH), or 0xFFFF for none"
             },
             {
               "id": "heap_bytes",
@@ -44,7 +44,7 @@
               "type": "integer",
               "raw_type": "u32",
               "size": 4,
-              "offset": 2,
+              "offset": 4,
               "unit": "B",
               "description": "The budget of the screen's objects; 0 = the firmware's default"
             },
@@ -54,7 +54,7 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 6,
+              "offset": 8,
               "unit": "Hz",
               "description": "Frames a second at most, the touch read as often: 1 .. 60; 0 = the firmware's default (24)"
             }
@@ -69,8 +69,8 @@
               "id": "display",
               "label": "Display",
               "type": "device",
-              "raw_type": "u8",
-              "size": 1,
+              "raw_type": "u16",
+              "size": 2,
               "offset": 0,
               "description": "The display device (contract DISPLAY)"
             },
@@ -78,10 +78,10 @@
               "id": "touch",
               "label": "Touch",
               "type": "device",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "The touch device (contract TOUCH), or 0xFF for none"
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "description": "The touch device (contract TOUCH), or 0xFFFF for none"
             },
             {
               "id": "heap_bytes",
@@ -89,7 +89,7 @@
               "type": "integer",
               "raw_type": "u32",
               "size": 4,
-              "offset": 2,
+              "offset": 4,
               "unit": "B",
               "description": "The budget of the screen's objects; 0 = the firmware's default"
             },
@@ -99,7 +99,7 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 6,
+              "offset": 8,
               "unit": "Hz",
               "description": "Frames a second at most, the touch read as often: 1 .. 60; 0 = the firmware's default (24)"
             }
@@ -110,7 +110,7 @@
     {
       "id": "RESET",
       "op": 2,
-      "symbol": "LVGL_OP_RESET",
+      "symbol": "SYS_LVGL_OP_RESET",
       "label": "Reset the screen",
       "description": "Waits for the last window sent, deletes the screen with all its objects, frees the buffers. Nothing to do when empty.",
       "write": {}
@@ -118,7 +118,7 @@
     {
       "id": "ROTATION",
       "op": 3,
-      "symbol": "LVGL_OP_ROTATION",
+      "symbol": "SYS_LVGL_OP_ROTATION",
       "label": "Rotation",
       "description": "Turns the panel and LVGL together and redraws the screen; the touch follows.",
       "read": {
@@ -157,7 +157,7 @@
     {
       "id": "STATUS",
       "op": 4,
-      "symbol": "LVGL_OP_STATUS",
+      "symbol": "SYS_LVGL_OP_STATUS",
       "label": "Status",
       "description": "The state, the size with the rotation, the buffers, the heap and the windows sent.",
       "read": {
@@ -275,7 +275,7 @@
     {
       "id": "START",
       "op": 5,
-      "symbol": "LVGL_OP_START",
+      "symbol": "SYS_LVGL_OP_START",
       "label": "Start drawing",
       "description": "Draws and reads the touch again; the whole screen is redrawn.",
       "write": {}
@@ -283,61 +283,10 @@
     {
       "id": "STOP",
       "op": 6,
-      "symbol": "LVGL_OP_STOP",
+      "symbol": "SYS_LVGL_OP_STOP",
       "label": "Stop drawing",
       "description": "Waits for the last window sent, then neither draws nor reads the touch; the screen and its objects stay.",
       "write": {}
-    }
-  ],
-  "events": [
-    {
-      "id": "RESET",
-      "event": 1,
-      "code": 2686977,
-      "label": "Screen reset",
-      "description": "The screen is about to be reset: its LVGL objects still exist for listeners that drop what they made.",
-      "notify": false,
-      "symbol": "LVGL_EV_RESET"
-    },
-    {
-      "id": "STATE",
-      "event": 2,
-      "code": 2686978,
-      "label": "Screen state",
-      "description": "The screen's state changed.",
-      "notify": true,
-      "symbol": "LVGL_EV_STATE",
-      "payload": [
-        {
-          "id": "state",
-          "label": "State",
-          "type": "enum",
-          "raw_type": "u8",
-          "size": 1,
-          "offset": 0,
-          "enum": "sys_lvgl_state_e"
-        }
-      ]
-    },
-    {
-      "id": "ROTATION",
-      "event": 3,
-      "code": 2686979,
-      "label": "Screen rotated",
-      "description": "The screen was rotated.",
-      "notify": true,
-      "symbol": "LVGL_EV_ROTATION",
-      "payload": [
-        {
-          "id": "rotation",
-          "label": "Rotation",
-          "type": "enum",
-          "raw_type": "u8",
-          "size": 1,
-          "offset": 0,
-          "enum": "sys_display_orientation_e"
-        }
-      ]
     }
   ]
 }

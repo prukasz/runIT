@@ -4,30 +4,35 @@
 #include "esp_log.h"
 #include "lvgl.h"
 #include "sdkconfig.h"
+#include "sys_device_events.h"
 #include "sys_display_contract.h"
-#include "sys_lvgl_assert.h"
-#include "sys_lvgl_pool.h"
+#include "sys_event.h"
+#include "sys_lvgl_hooks.h"
 #include "sys_touch_contract.h"
 #include "utils.h"
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #endif
 
-ERR_MODULE_DEFINE(ERR_MOD_SYS_LVGL, "sys_lvgl", ERR_SYS_LVGL_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_LVGL, ERR_SYS_LVGL_MAP)
 
 static const char* TAG = "sys_lvgl";
 
 /* What the LVGL task takes on its next wake, set from other tasks (s_pending). */
 #define BIT_DISPLAY_STATE (1u << 0)  // the display was suspended, resumed or reset: read INFO, set the rotation again
 #define BIT_INVALIDATE    (1u << 1)  // redraw the whole screen (after a failed FLUSH; never inside the rendering)
+#define BIT_GONE          (1u << 2)  // the display or the touch was REMOVEd: RESET
+
+/* The subscriptions to the registry's events while installed (subscribe_device_events). */
+#define DEVICE_EVENTS 3u
 
 typedef struct {
   bool installed;
   bool lv_up;              // lv_init ran on the pool: from INSTALL to RESET
   bool stopped;            // STOP
   bool paused;             // the display is suspended
-  uint16_t display;
-  uint16_t touch;
+  uint8_t display;
+  uint8_t touch;
   uint32_t heap_bytes;     // INSTALL's: the pool's size
   uint8_t refresh_hz;      // INSTALL's: frames a second at most, the touch read as often
   uint32_t refresh_ms;     // its period
@@ -38,8 +43,7 @@ typedef struct {
   void* buf[2];
   lv_display_t* disp;
   lv_indev_t* indev;
-  bool held_display;       // sys_device_hold of the display (INSTALL to RESET)
-  bool held_touch;         // the same for the touch
+  uint16_t events[DEVICE_EVENTS];  // sys_event handles, INSTALL to RESET; 0 none
   bool in_flight;          // a FLUSH was accepted and its end not taken yet
   uint32_t seq;            // the number of the last FLUSH
   bool flush_failing;      // a FLUSH failed and none was accepted since: reported once
@@ -49,18 +53,17 @@ typedef struct {
   TickType_t health_at;    // the next HEALTH check
   uint32_t flushes;
   uint32_t flush_errors;
-  sys_lvgl_reset_f reset_hook;
 } lvgl_t;
 
-static lvgl_t s;                       // under the LVGL lock (s_lock)
+static lvgl_t s = {.display = SYS_DEVICE_ID_NONE, .touch = SYS_DEVICE_ID_NONE};  // under the LVGL lock (s_lock)
 static void* s_pool;                   // LVGL's one block, INSTALL to RESET
+static uint8_t s_state_pub;            // the state last published (under the LVGL lock); EMPTY at boot
 
 _Static_assert(SYS_LVGL_HEAP_MIN == LV_MEM_SIZE, "SYS_LVGL_HEAP_MIN is lv_conf.h's LV_MEM_SIZE");
 _Static_assert(SYS_LVGL_HEAP_MAX == LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE, "SYS_LVGL_HEAP_MAX is lv_conf.h's");
 static volatile uint32_t s_flight;     // the number of the FLUSH whose done is awaited; 0 none (read by the ISR)
 static bool s_accepted;                // a FLUSH was accepted and its end not taken (atomic): a RESET of the display ends it
 static bool s_display_reset;           // the display was RESET (atomic): its rotation set again before the next FLUSH
-static uint16_t s_display_id = SYS_DEVICE_ID_NONE;  // s.display for sys_lvgl_device_state (atomic)
 static uint32_t s_pending;             // BIT_* (atomic)
 
 U_RECURSIVE_MUTEX_DEFINE(s_lock);  // the LVGL lock: LVGL runs without an OS of its own (LV_OS_NONE)
@@ -149,7 +152,7 @@ static void flush_done(void* ctx) {
   portYIELD_FROM_ISR(woken);
 }
 
-// Waits for the end of the FLUSH in flight (its done, or a RESET of the display: sys_lvgl_device_state), at most the
+// Waits for the end of the FLUSH in flight (its done, or a RESET of the display: on_device_event), at most the
 // limit; past it: FLUSH_TIMEOUT, RESET of the display, a redraw.
 static void wait_flush_end(void) {
   if (!s.in_flight) {
@@ -164,13 +167,13 @@ static void wait_flush_end(void) {
   // A RESET of the display still running (a panel's takes longer than the limit) drops the transfer: INFO waits for it
   // behind the registry lock, and its listener marks it.
   sys_device_info_t info;
-  err_free(sys_device_read(s.display, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info)));
+  err_free(sys_device_read(s.display, CONTRACT_SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info)));
   if (__atomic_load_n(&s_display_reset, __ATOMIC_RELAXED)) {
     return;  // that RESET ended it; the next FLUSH sets the rotation again
   }
   s.flush_errors++;
   err_report(ERR_NEW(ERR_DISPLAY_FLUSH_TIMEOUT, .id = s.display, .timeout_ms = CONFIG_SYS_LVGL_FLUSH_TIMEOUT_MS));
-  err_report(sys_device_write(s.display, SYS_DEVICE_OP_RESET, NULL, 0));
+  err_report(sys_device_write(s.display, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
   set_panel_rotation();  // the rest of this frame draws in it
   post(BIT_INVALIDATE);
 }
@@ -247,6 +250,22 @@ static bool drawing(void) {
   return s.installed && !s.stopped && !s.paused;
 }
 
+static sys_lvgl_state_e state_now(void) {
+  if (!s.installed) {
+    return SYS_LVGL_STATE_EMPTY;
+  }
+  return s.stopped ? SYS_LVGL_STATE_STOPPED : s.paused ? SYS_LVGL_STATE_PAUSED : SYS_LVGL_STATE_RUNNING;
+}
+
+// After a change: STATE once when the state is another than the last published. Deferred: the task an op may wait for.
+static void publish_state(void) {
+  const uint8_t state = (uint8_t)state_now();
+  if (state != s_state_pub) {
+    s_state_pub = state;
+    err_report(SYS_EVENT_PUBLISH_DEFER(LVGL_EV_STATE, 0, 0, .state = state));
+  }
+}
+
 static void invalidate(void) {
   if (s.disp != NULL) {
     lv_obj_invalidate(lv_display_get_screen_active(s.disp));
@@ -262,7 +281,7 @@ static void apply_drawing(void) {
 // The display's state changed: paused while it is suspended; otherwise its rotation again and a redraw.
 static void display_state_changed(void) {
   sys_device_info_t info;
-  err_h err = sys_device_read(s.display, SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info));
+  err_h err = sys_device_read(s.display, CONTRACT_SYS_DEVICE_OP_INFO, NULL, 0, &info, sizeof(info));
   if (err != NULL) {
     err_report(err);
     return;
@@ -274,6 +293,7 @@ static void display_state_changed(void) {
     invalidate();
   }
   apply_drawing();
+  publish_state();
 }
 
 // Every CONFIG_SYS_LVGL_HEALTH_MS while drawing: the display's HEALTH, between two FLUSHes. No answer: reported once,
@@ -307,7 +327,7 @@ static void check_health(void) {
       err_report(ERR_NEW(ERR_DISPLAY_LOST, .id = s.display, .health = h.health, .power_mode = h.power_mode));
     }
     s.display_lost = false;
-    err_report(sys_device_write(s.display, SYS_DEVICE_OP_RESET, NULL, 0));
+    err_report(sys_device_write(s.display, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
     set_panel_rotation();
     invalidate();
   } else if (s.display_lost) {
@@ -318,6 +338,10 @@ static void check_health(void) {
 
 static void take_bits(uint32_t bits) {
   if (!s.installed) {
+    return;
+  }
+  if ((bits & BIT_GONE) != 0u) {
+    (void)sys_lvgl_reset();  // the device is gone: LVGL lets go of it (the lock is recursive)
     return;
   }
   if ((bits & BIT_DISPLAY_STATE) != 0u) {
@@ -351,9 +375,53 @@ static void lvgl_task(void* arg) {
 
 /* ---- INSTALL, RESET ---- */
 
+// The registry's events that came through the subscriptions (subscribe_device_events), published after the device's
+// lock is let go, in the publisher's task: a bit of the LVGL task, nothing more. SUSPENDED pauses drawing, RESUMED and
+// RESET set the rotation again and redraw, a RESET also ends the FLUSH in flight (its done never comes); REMOVED of the
+// display or the touch resets the adapter. (The display's CREATED comes too: no CREATE of an ID in use.)
+static err_h on_device_event(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  const uint32_t tag = event->key.tag;
+  if (tag == SYS_DEVICE_EV_REMOVED) {
+    post(BIT_GONE);
+  } else if (tag == SYS_DEVICE_EV_SUSPENDED || tag == SYS_DEVICE_EV_RESUMED || tag == SYS_DEVICE_EV_RESET) {
+    if (tag == SYS_DEVICE_EV_RESET) {
+      __atomic_store_n(&s_display_reset, true, __ATOMIC_RELAXED);
+      if (__atomic_exchange_n(&s_accepted, false, __ATOMIC_ACQ_REL)) {
+        s_flight = 0;
+        (void)xSemaphoreGive(s_flush_done);
+      }
+    }
+    post(BIT_DISPLAY_STATE);
+  }
+  return NULL;
+}
+
+// The display's events, a sweep's (source SYS_DEVICE_ID_NONE: SUSPEND, RESUME, RESET of every device) and the touch's
+// REMOVED: the registry's filter is by the ID, so nothing else of the board reaches on_device_event.
+static err_h subscribe_device_events(void) {
+  const uint32_t device = EVT_TAG(MODULE_ID_SYS_DEVICE, SYS_EVENT_ANY_CODE);
+  const sys_event_key_t keys[DEVICE_EVENTS] = {
+      {.tag = device, .source = s.display, .channel = SYS_EVENT_ANY_CHANNEL},
+      {.tag = device, .source = SYS_DEVICE_ID_NONE, .channel = SYS_EVENT_ANY_CHANNEL},
+      {.tag = SYS_DEVICE_EV_REMOVED, .source = s.touch, .channel = SYS_EVENT_ANY_CHANNEL},
+  };
+  const uint8_t count = s.touch != SYS_DEVICE_ID_NONE ? DEVICE_EVENTS : DEVICE_EVENTS - 1u;
+  for (uint8_t i = 0; i < count; i++) {
+    ERR_TRY(sys_event_subscribe(keys[i], on_device_event, NULL, SYS_EVENT_RUN_INLINE, &s.events[i]));
+  }
+  return NULL;
+}
+
 // Releases whatever INSTALL built, LVGL itself and its pool; empty afterwards (LVGL lock held).
 static void teardown(void) {
   wait_flush_end();
+  for (uint8_t i = 0; i < DEVICE_EVENTS; i++) {
+    if (s.events[i] != 0u) {
+      // A delivery in flight only posts a bit: while empty, take_bits drops it.
+      err_report(sys_event_unsubscribe(s.events[i]));
+    }
+  }
   if (s.indev != NULL) {
     lv_indev_delete(s.indev);
   }
@@ -372,24 +440,15 @@ static void teardown(void) {
   for (uint8_t i = 0; i < 2; i++) {
     buffer_free(s.buf[i]);
   }
-  if (s.held_display) {
-    sys_device_release(s.display);
-  }
-  if (s.held_touch) {
-    sys_device_release(s.touch);
-  }
-  const sys_lvgl_reset_f hook = s.reset_hook;
   memset(&s, 0, sizeof(s));
-  s.reset_hook = hook;
   s.display = SYS_DEVICE_ID_NONE;
   s.touch = SYS_DEVICE_ID_NONE;
-  __atomic_store_n(&s_display_id, SYS_DEVICE_ID_NONE, __ATOMIC_RELAXED);
   __atomic_store_n(&s_display_reset, false, __ATOMIC_RELAXED);
 }
 
 // One draw buffer: a tenth of the screen in whole rows of its longer side, at least one row, at most the display's
 // largest FLUSH and CONFIG_SYS_LVGL_BUFFER_MAX.
-static err_h buffer_size(uint16_t id, uint16_t w, uint16_t h, uint32_t flush_max, uint32_t* out) {
+static err_h buffer_size(uint8_t id, uint16_t w, uint16_t h, uint32_t flush_max, uint32_t* out) {
   const uint32_t row = (uint32_t)(w > h ? w : h) * s.bpp;
   const uint32_t cap = flush_max < CONFIG_SYS_LVGL_BUFFER_MAX ? flush_max : CONFIG_SYS_LVGL_BUFFER_MAX;
   ERR_CHECK(cap >= row, ERR_LVGL_FLUSH_MAX, .id = id, .flush_max = flush_max, .row = row);
@@ -428,13 +487,6 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
   }
   s.display = in->display;
   s.touch = in->touch;
-  // Kept until RESET: the registry refuses to REMOVE them (ERR_DEV_HELD).
-  ERR_TRY(sys_device_hold(s.display));
-  s.held_display = true;
-  if (s.touch != SYS_DEVICE_ID_NONE) {
-    ERR_TRY(sys_device_hold(s.touch));
-    s.held_touch = true;
-  }
   s.rotation = orientation;
   s.health_at = xTaskGetTickCount() + MSEC(CONFIG_SYS_LVGL_HEALTH_MS);
 
@@ -486,17 +538,16 @@ static err_h install_steps(const sys_lvgl_install_t* in) {
     lv_indev_set_display(s.indev, s.disp);
     lv_timer_set_period(lv_indev_get_read_timer(s.indev), s.refresh_ms);
   }
+  ERR_TRY(subscribe_device_events());
   return NULL;
 }
 
 /* ---- C API ---- */
 
-err_h sys_lvgl_init(void) {
-  s.display = SYS_DEVICE_ID_NONE;
-  s.touch = SYS_DEVICE_ID_NONE;
+// The LVGL task, idle until INSTALL posts to it: static (stack and TCB in U_TASK_DEFINE), so it starts before app_main,
+// like the objects of U_*_DEFINE. LVGL itself runs from INSTALL (lv_init on its pool) to RESET (lv_deinit).
+__attribute__((constructor)) static void lvgl_task_start(void) {
   U_TASK_START(s_lvgl_task, lvgl_task, NULL, CONFIG_SYS_LVGL_TASK_PRIO);
-  ERR_CHECK(s_lvgl_task != NULL, ERR_LVGL_NO_MEMORY, .bytes = CONFIG_SYS_LVGL_TASK_STACK);
-  return NULL;
 }
 
 void sys_lvgl_lock(void) {
@@ -508,25 +559,25 @@ void sys_lvgl_unlock(void) {
 }
 
 err_h sys_lvgl_install(const sys_lvgl_install_t* install) {
-  ERR_CHECK(install != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(install != NULL, ERR_NULL_PTR);
   sys_lvgl_lock();
   err_h err = s.installed ? ERR_NEW(ERR_LVGL_INSTALLED) : install_steps(install);
   if (err != NULL) {
     if (!s.installed) {
       teardown();
-    }
+    } 
   } else {
     s.installed = true;
-    __atomic_store_n(&s_display_id, s.display, __ATOMIC_RELAXED);
     apply_drawing();
     post(0u);
+    publish_state();
   }
   sys_lvgl_unlock();
   return err;
 }
 
 err_h sys_lvgl_get_install(sys_lvgl_install_t* out) {
-  ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   sys_lvgl_lock();
   *out = (sys_lvgl_install_t){.display = s.display,
                               .touch = s.touch,
@@ -540,10 +591,9 @@ err_h sys_lvgl_reset(void) {
   sys_lvgl_lock();
   if (s.installed) {
     wait_flush_end();
-    if (s.reset_hook != NULL) {
-      s.reset_hook();
-    }
+    err_report(SYS_EVENT_PUBLISH(LVGL_EV_RESET, 0, 0));  // inline: the listeners drop what they made in LVGL
     teardown();
+    publish_state();
   }
   sys_lvgl_unlock();
   return NULL;
@@ -557,6 +607,7 @@ err_h sys_lvgl_start(void) {
     apply_drawing();
     invalidate();
     post(0u);
+    publish_state();
   }
   sys_lvgl_unlock();
   ERR_CHECK(installed, ERR_LVGL_NOT_INSTALLED);
@@ -570,6 +621,7 @@ err_h sys_lvgl_stop(void) {
     wait_flush_end();
     s.stopped = true;
     apply_drawing();
+    publish_state();
   }
   sys_lvgl_unlock();
   ERR_CHECK(installed, ERR_LVGL_NOT_INSTALLED);
@@ -591,6 +643,7 @@ err_h sys_lvgl_set_rotation(uint8_t rotation) {
     if (err == NULL) {
       s.rotation = rotation;
       lv_display_set_rotation(s.disp, (lv_display_rotation_t)rotation);
+      err_report(SYS_EVENT_PUBLISH_DEFER(LVGL_EV_ROTATION, 0, 0, .rotation = rotation));
     }
   }
   sys_lvgl_unlock();
@@ -598,7 +651,7 @@ err_h sys_lvgl_set_rotation(uint8_t rotation) {
 }
 
 err_h sys_lvgl_get_rotation(uint8_t* out) {
-  ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   sys_lvgl_lock();
   const bool installed = s.installed;
   *out = s.rotation;
@@ -608,12 +661,9 @@ err_h sys_lvgl_get_rotation(uint8_t* out) {
 }
 
 err_h sys_lvgl_get_status(sys_lvgl_status_t* out) {
-  ERR_CHECK(out != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   sys_lvgl_lock();
-  sys_lvgl_state_e state = SYS_LVGL_STATE_EMPTY;
-  if (s.installed) {
-    state = s.stopped ? SYS_LVGL_STATE_STOPPED : s.paused ? SYS_LVGL_STATE_PAUSED : SYS_LVGL_STATE_RUNNING;
-  }
+  const sys_lvgl_state_e state = state_now();
   lv_mem_monitor_t mon = {0};
   if (s.lv_up) {
     lv_mem_monitor(&mon);
@@ -648,25 +698,4 @@ err_h sys_lvgl_pool_check(uint32_t need) {
   ERR_CHECK(free_bytes >= need && free_bytes - need >= CONFIG_SYS_LVGL_POOL_RESERVE, ERR_LVGL_POOL_FULL,
             .free = free_bytes, .need = need, .reserve = CONFIG_SYS_LVGL_POOL_RESERVE);
   return NULL;
-}
-
-void sys_lvgl_set_reset_hook(sys_lvgl_reset_f fn) {
-  s.reset_hook = fn;
-}
-
-void sys_lvgl_device_state(uint16_t id, sys_device_state_e change) {
-  const uint16_t display = __atomic_load_n(&s_display_id, __ATOMIC_RELAXED);
-  if (display == SYS_DEVICE_ID_NONE || (id != display && id != SYS_DEVICE_ID_NONE)) {
-    return;
-  }
-  // A RESET of the display drops the transfer in flight and its done never comes: the FLUSH awaited ends here. The
-  // panel is in the config's orientation again: the next FLUSH sets the adapter's first.
-  if (change == SYS_DEVICE_STATE_RESET) {
-    __atomic_store_n(&s_display_reset, true, __ATOMIC_RELAXED);
-    if (__atomic_exchange_n(&s_accepted, false, __ATOMIC_ACQ_REL)) {
-      s_flight = 0;
-      (void)xSemaphoreGive(s_flush_done);
-    }
-  }
-  post(BIT_DISPLAY_STATE);
 }

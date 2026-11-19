@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../templates/error-texts.schema.json",
-  "module": "MODULE_ID_LVGL",
+  "module": "ERR_MOD_SYS_LVGL",
   "errors": {
     "ERR_LVGL_INSTALLED": {
       "message": "The screen is already installed",

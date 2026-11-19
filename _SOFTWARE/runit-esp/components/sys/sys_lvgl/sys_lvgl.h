@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "errors.h"
 #include "sys_device.h"
+#include "sys_event.h"
 #include "sys_lvgl_errors.h"
 
 #ifdef __cplusplus
@@ -11,7 +12,7 @@ extern "C" {
 
 /*
  * The LVGL adapter (SYS_LVGL.MD): LVGL, its task and its lock, the draw buffers and LVGL's one pool, on one display
- * (contract DISPLAY) and an optional touch (contract TOUCH). Not a device: its commands are under ROUTER_KEY_LVGL
+ * (contract DISPLAY) and an optional touch (contract TOUCH). Not a device: its commands are under MODULE_ID_LVGL
  * (sys_lvgl_router.h). The screen's content is the upper layers' (sys_screen); they touch lv_* only under
  * sys_lvgl_lock().
  */
@@ -24,6 +25,22 @@ typedef enum sys_lvgl_state_e {
   SYS_LVGL_STATE_PAUSED = 3,   //@alias Paused @description The display is suspended: drawing resumes with it
 } sys_lvgl_state_e;
 
+/**
+ * @brief The events of the adapter (module MODULE_ID_LVGL, lane SYS), source and channel 0: X(P, NAME, code, flags,
+ * { payload }) (sys_event.h). Event codes are wire format: never renumber.
+ *   RESET:    the adapter is about to be reset (RESET, or the display or the touch was REMOVEd): the objects of LVGL
+ *             are still there, the next thing is lv_display_delete. Published inline under the LVGL lock: a listener
+ *             (sys_screen) drops its widgets and timers, calls no one that waits, and takes no other lock.
+ *   STATE:    the adapter's state changed (sys_lvgl_state_e); published deferred, in the lane's task
+ *   ROTATION: ROTATION worked (sys_display_orientation_e); published deferred
+ */
+#define LVGL_EVENTS(X, P)                                       \
+  X(P, RESET,    0x01, 0,                {})                    \
+  X(P, STATE,    0x02, SYS_EVENT_NOTIFY, { uint8_t state; })    \
+  X(P, ROTATION, 0x03, SYS_EVENT_NOTIFY, { uint8_t rotation; })
+
+SYS_EVENTS_DECLARE(LVGL, MODULE_ID_LVGL, SYS)
+
 #define SYS_LVGL_HEAP_MIN    32768u    // the smallest pool INSTALL takes (B): lv_conf.h's LV_MEM_SIZE
 #define SYS_LVGL_HEAP_MAX    4194304u  // the largest: LV_MEM_SIZE + LV_MEM_POOL_EXPAND_SIZE
 #define SYS_LVGL_REFRESH_MIN 1u        // the slowest refresh INSTALL takes (Hz)
@@ -31,10 +48,10 @@ typedef enum sys_lvgl_state_e {
 
 /** @brief INSTALL args and answer */
 typedef struct __attribute__((packed)) {
-  uint16_t display;     /**< Display device (contract DISPLAY) */
-  uint16_t touch;       /**< Touch device (contract TOUCH), or SYS_DEVICE_ID_NONE */
+  uint8_t display;      /**< Display device (contract DISPLAY) */
+  uint8_t touch;        /**< Touch device (contract TOUCH), or SYS_DEVICE_ID_NONE */
   uint32_t heap_bytes;  /**< LVGL's one pool (objects, styles, caches); 0: CONFIG_SYS_LVGL_HEAP_DEFAULT */
-  uint8_t refresh_hz;   /**< Frames a second at most, the touch read as often; 0: SYS_LVGL_REFRESH_HZ (lv_conf_draw.h) */
+  uint8_t refresh_hz;   /**< Frames a second at most, the touch read as often; 0: SYS_LVGL_REFRESH_HZ (lv_conf.h) */
 } sys_lvgl_install_t;
 
 /** @brief ROTATION args and answer */
@@ -58,12 +75,6 @@ typedef struct __attribute__((packed)) {
 } sys_lvgl_status_t;
 
 /**
- * @brief Boot step: the LVGL task, idle. LVGL itself runs from INSTALL (lv_init on its pool) to RESET (lv_deinit).
- * @return The error of the task start
- */
-MUST_USE err_h sys_lvgl_init(void);
-
-/**
  * @brief The LVGL lock (a recursive mutex; LVGL has no OS of its own, LV_OS_NONE): every lv_* call outside the LVGL
  * task is made under it, and only while installed (STATUS). Never under the registry lock (inside a device op or the
  * state listener): the LVGL task holds this one across FLUSH, a deadlock. Held by the LVGL task at most one frame.
@@ -75,7 +86,7 @@ void sys_lvgl_unlock(void);
 
 /**
  * @brief INSTALL: the display and the touch, LVGL on its pool of heap_bytes, the draw buffers; then the adapter runs.
- * The display and the touch are held (sys_device_hold) until RESET: the registry refuses to REMOVE them.
+ * A REMOVE of the display or the touch while installed resets the adapter (the registry's REMOVED event).
  * @param[in] install The display, the touch and the pool size
  * @return ERR_LVGL_INSTALLED when installed (RESET first), ERR_LVGL_NOT_DISPLAY / ERR_LVGL_NOT_TOUCH around the
  * device's error, ERR_LVGL_FORMAT, ERR_LVGL_FLUSH_MAX, ERR_LVGL_NO_MEMORY, ERR_LVGL_HEAP, ERR_LVGL_REFRESH; a failure
@@ -91,9 +102,8 @@ MUST_USE err_h sys_lvgl_install(const sys_lvgl_install_t* install);
 MUST_USE err_h sys_lvgl_get_install(sys_lvgl_install_t* out);
 
 /**
- * @brief RESET: waits for the last FLUSH, calls the reset hook, deletes the touch and the display, stops LVGL
- * (lv_deinit), frees its pool and the buffers and releases the devices. Empty: nothing to do. The project's ERASE runs
- * it first (runit's erase hook).
+ * @brief RESET: waits for the last FLUSH, publishes LVGL_EV_RESET, deletes the touch and the display, stops LVGL
+ * (lv_deinit), frees its pool and the buffers. Empty: nothing to do.
  * @return The error of deleting the devices
  */
 MUST_USE err_h sys_lvgl_reset(void);
@@ -141,25 +151,6 @@ MUST_USE err_h sys_lvgl_get_status(sys_lvgl_status_t* out);
  * @return ERR_LVGL_NOT_INSTALLED when empty, ERR_LVGL_POOL_FULL{free, need, reserve}
  */
 MUST_USE err_h sys_lvgl_pool_check(uint32_t need);
-
-/** @brief Called by RESET under the LVGL lock before the display is deleted: the upper layer drops its widgets. */
-typedef void (*sys_lvgl_reset_f)(void);
-
-/**
- * @brief Sets the reset hook (sys_screen); boot only, one.
- * @param[in] fn The hook
- */
-void sys_lvgl_set_reset_hook(sys_lvgl_reset_f fn);
-
-/**
- * @brief A device's state changed (the registry's state listener, runit_error_policy.c): for the installed display
- * (or SYS_DEVICE_ID_NONE, every device) it sets a bit of the LVGL task: SUSPENDED pauses drawing, RESUMED and RESET set
- * the rotation again and redraw. A RESET also ends the FLUSH in flight (its done never comes). Never waits; takes no
- * lock.
- * @param[in] id     Device id, or SYS_DEVICE_ID_NONE for a sweep
- * @param[in] change SUSPENDED, RESUMED or RESET
- */
-void sys_lvgl_device_state(uint16_t id, sys_device_state_e change);
 
 #ifdef __cplusplus
 }

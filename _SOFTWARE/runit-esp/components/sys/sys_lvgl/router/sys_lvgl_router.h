@@ -1,27 +1,32 @@
 #pragma once
 
-#include "router.h"
+#include "router_table.h"
 #include "sys_lvgl.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Ops under ROUTER_KEY_LVGL (SYS_LVGL.MD "Commands"), each with the frame it uses (packed, little-endian;
- * contract_lvgl.json names them) and its sides. Never renumber. */
+/* The module's one number: the root key of its commands (the module of its errors is the same, sys_lvgl_errors.h). */
 
-#define SYS_LVGL_OP_INSTALL  0x01u  /**< W: sys_lvgl_install_t; R: -> sys_lvgl_install_t */
-#define SYS_LVGL_OP_RESET    0x02u  /**< W: no args */
-#define SYS_LVGL_OP_ROTATION 0x03u  /**< W: sys_lvgl_rotation_t; R: -> sys_lvgl_rotation_t */
-#define SYS_LVGL_OP_STATUS   0x04u  /**< R: -> sys_lvgl_status_t */
-#define SYS_LVGL_OP_START    0x05u  /**< W: no args */
-#define SYS_LVGL_OP_STOP     0x06u  /**< W: no args */
+/* Ops under the root key MODULE_ID_LVGL (SYS_LVGL.MD "Commands"), each with the frame it uses (packed, little-endian;
+ * contract_lvgl.json names them). Never renumber. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /**
- * @brief The LVGL adapter, under ROUTER_KEY_LVGL. Only components/app/runit (and the PC simulator) includes it, to
- * register it.
- * @usage ERR_TRY(router_register(ROUTER_KEY_LVGL, sys_lvgl_router));
+ * @brief The table, once: X(P, OP_NAME, op code, key_t, value_t, flags) (cmd_table.h). Sides: INSTALL RW, RESET W,
+ * ROTATION RW, STATUS R, START W, STOP W.
  */
+#define LVGL_OPERATIONS(X, P)                                 \
+  X(P, OP_INSTALL,  0x01, cmd_none_t, sys_lvgl_install_t,  0) \
+  X(P, OP_RESET,    0x02, cmd_none_t, cmd_none_t,          0) \
+  X(P, OP_ROTATION, 0x03, cmd_none_t, sys_lvgl_rotation_t, 0) \
+  X(P, OP_STATUS,   0x04, cmd_none_t, sys_lvgl_status_t,   0) \
+  X(P, OP_START,    0x05, cmd_none_t, cmd_none_t,          0) \
+  X(P, OP_STOP,     0x06, cmd_none_t, cmd_none_t,          0)
+
+CMD_TABLE_DECLARE(LVGL)
+
+/** @brief Router of MODULE_ID_LVGL: the LVGL adapter's commands. */
 ROUTER_MODULE_DECLARE(sys_lvgl_router);
 
 #ifdef __cplusplus
