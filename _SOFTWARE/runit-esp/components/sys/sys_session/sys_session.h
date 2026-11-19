@@ -161,42 +161,30 @@ uint32_t sys_session_deadman_get(uint8_t peer);
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Runs a command on a board, this one too, and calls `cb` with its answer as the router does for a command it
- * ran: one way to run a command with its answer, here or there. Never blocks, any task (a device op too).
- *  - To this board (its id or CMD_SRC_SELF): router_inject(); the answer on the router task, no timeout.
- *  - To another: the request goes out on the open session whose peer is `dst` (NOWAIT) and a call slot keeps it until
- *    the answer, on the RX task it came on, which ends the call. An ERROR's record has ERR_REMOTE{board, seq} before
- *    that board's chain. No answer in the timeout: ERROR with this board's record of ERR_SESSION_TIMEOUT; the session
- *    it went through ended: of ERR_SESSION_PEER_DOWN (both on the board timers' task or the RX task).
- * Every call to another board is answered. `cb`'s cmd is the call: its request (the first
- * CONFIG_ERRORS_RECORD_REQ_MAX bytes), its seq, src this board.
+ * @brief router_request to a board by its id: this board (its id or CMD_SRC_SELF) is ROUTER_PORT, another the command
+ * sub-port of the open session with it (router_queue.h, ROUTER_QUEUE.MD "Calls").
  * @param[in] dst        A peer's id, this board's included.
- * @param[in] req        The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
+ * @param[in] req        As router_request: [key][dir][code | id + op][args].
  * @param[in] flags      ROUTER_FLAG_URGENT, or 0.
- * @param[in] timeout_ms Without an answer this long: ERR_SESSION_TIMEOUT; 0: CONFIG_SYS_SESSION_CALL_TIMEOUT_MS.
- * @param[in] cb         The answer (router_done_f; its return is reported); NULL: nobody wants it.
+ * @param[in] timeout_ms As router_request.
+ * @param[in] cb         As router_request.
  * @param[in] ctx        Given to `cb`.
- * @return NULL when sent; ERR_SESSION_NO_ROUTE, ERR_SESSION_CALLS_FULL, the provider's ERR_PROV_BUSY / _DOWN, or (to
- *         this board) the router's ERR_ROUTER_QUEUE_FULL / _FRAME_LEN.
+ * @return NULL when sent; ERR_SESSION_NO_ROUTE (no open session with `dst`), or what router_request returns.
  */
 MUST_USE err_h sys_session_call(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
                                 void* ctx);
 
 /**
- * @brief sys_session_call, waited for: the caller's task sleeps until the call ends, at most its timeout and a margin
- * of its own (SYS_SESSION.MD "Waiting for the answer"), so a wait never hangs, also on a task an answer or the timer
- * would need. For configuration (the flasher, a board's setup) and for a remote device. Not to this board on a router
- * task.
+ * @brief router_request_wait to a board by its id, as sys_session_call. For configuration (the flasher, a board's setup)
+ * and for a remote device.
  * @param[in]  dst        A peer's id, this board's included.
- * @param[in]  req        The command: [key][dir][code | id + op][args], at most CMD_DATA_MAX.
+ * @param[in]  req        As router_request.
  * @param[in]  flags      ROUTER_FLAG_URGENT, or 0.
- * @param[in]  timeout_ms As sys_session_call.
+ * @param[in]  timeout_ms As router_request.
  * @param[out] buf        The answer.
  * @param[in]  cap        Bytes `buf` holds.
  * @param[out] len        The answer's bytes.
- * @return NULL with the answer; its error: ERR_REMOTE{board, seq} over that board's chain, or ERR_SESSION_TIMEOUT /
- *         _PEER_DOWN; ERR_CMD_BAD_LEN (longer than `cap`), ERR_SESSION_WOULD_BLOCK (to this board on a router task), or
- *         what sys_session_call returns.
+ * @return NULL with the answer; ERR_SESSION_NO_ROUTE, or what router_request_wait returns.
  */
 MUST_USE err_h sys_session_call_wait(uint8_t dst, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, void* buf,
                                      uint32_t cap, uint32_t* len);

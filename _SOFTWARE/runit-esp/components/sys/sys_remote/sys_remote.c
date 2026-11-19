@@ -347,7 +347,7 @@ static err_h on_reached_event(const sys_event_t* event, void* ctx) {
 
 // Reaching a board failed because it is gone: the device is down. A busy way ("later") and the board's own answer stay.
 static err_h down(err_h err, uint8_t board, uint8_t remote_id) {
-  if (err == NULL || (err_tag(err) != ERR_SESSION_NO_ROUTE && err_tag(err) != ERR_SESSION_PEER_DOWN)) {
+  if (err == NULL || (err_tag(err) != ERR_SESSION_NO_ROUTE && err_tag(err) != ERR_ROUTER_CALL_DOWN)) {
     return err;
   }
   err_free(err);

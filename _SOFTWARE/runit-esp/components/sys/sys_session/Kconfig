@@ -7,27 +7,6 @@ menu "sys_session"
         help
           Sessions: providers with a peer on them, a board or a client.
 
-    #@limit @alias Calls to other boards
-    config SYS_SESSION_CALLS
-        int "Calls in flight"
-        default 16
-        range 1 64
-        help
-          The board's own requests to other boards waiting for an answer
-          (sys_session_call); a call to this board takes none. Every call to
-          another board is answered, so each write of a remote device in
-          flight takes one. A slot is about 52 B.
-
-    #@limit @alias Call timeout @unit ms
-    config SYS_SESSION_CALL_TIMEOUT_MS
-        int "Call timeout (ms)"
-        default 1000
-        range 50 10000
-        help
-          A call without an answer this long ends with ERR_SESSION_TIMEOUT,
-          unless the caller gives its own. Longer than a radio's tail, so a
-          slow answer is not taken for a lost one.
-
     config SYS_SESSION_BOARD_ID_DEFAULT
         int "Board id until the app sets one"
         default 0

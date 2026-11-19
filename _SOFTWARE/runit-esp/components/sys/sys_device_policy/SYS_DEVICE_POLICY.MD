@@ -12,7 +12,7 @@ Folder `components/sys/sys_device_policy/`. Decides how the board reacts to erro
 | `router/sys_device_policy_router.h` | `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
 | `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(MODULE_ID_POLICY, sys_device_policy_router)` |
 | `Kconfig` | Queue size, max serialized record size, task priority and stack size |
-| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `sys_session` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
+| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `router_queue` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Model

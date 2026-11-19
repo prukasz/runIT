@@ -1,25 +1,27 @@
 # router_queue — the commands of this board in a queue (for agents)
 
-Component `components/core/router_queue/`. It runs the commands of this board: it queues them, routes them (`router_route`, ROUTER.MD) on one of its two tasks, and hands every answer to the **callback** its command came with. It knows **commands, not frames**: the session (SYS_SESSION.MD) makes a command out of a frame and a frame out of an answer, so the header and the way back are the session's. The board's own commands come from `router_inject`.
+Component `components/core/router_queue/`. It runs the commands of this board: it queues them, routes them (`router_route`, ROUTER.MD) on one of its two tasks, and hands every answer back. A command comes from the router's **port** in the data matrix (`ROUTER_PORT`, DATA_MATRIX.MD), as a frame with its header (CMD.MD "The header"), and its answer goes back as a frame to the port it came from; or from C (`router_submit`, `router_inject`), and its answer goes to the **callback** it came with. This board's own **calls** (`router_request`) leave from the same port and their answers come back to it.
 
 ```
- who sends                          router                                     module / device
- ─────────                          ──────                                     ───────────────
- session: frame → cmd_req_t ─┐
-          router_submit      ├──►  urgent ring ─► urgent task ─┐
- board:   router_inject ─────┘     work ring ───► work task ────┼─ route ──►  cmd_f: answers now
-                                                                │
- done(ctx, cmd, status, data) ◄──  OK / ERROR  ◄────────────────┘
-   the session frames it to src; a call of the board to itself takes it
+ who sends                                router                                     module / device
+ ─────────                                ──────                                     ───────────────
+ a port: [hdr REQUEST][body] ──► port ─┐
+ C:      router_submit / _inject ──────┼─►  urgent ring ─► urgent task ─┐
+                                       │    work ring ───► work task ────┼─ route ──►  cmd_f: answers now
+                                       │                                 │
+ a port ◄── [hdr ANSWER][data] ────────┴── OK / ERROR ◄─────────────────┘   (or done(ctx, cmd, status, data))
+ router_request ──► port ──► [hdr REQUEST] to a linked port; its [hdr ANSWER] ──► the call's callback
 ```
 
 ## Files
 
 | File | Role |
 |---|---|
-| `router_queue.h` | The flags and statuses (of a command, `cmd_req_t` in `utils/cmd_types.h`; its error record is `err_record_cmd`, `err_record.h`), `router_init`, submit, inject, report, origin, is-task, urgent work. The routing, the handler and the op tables are `router.h` (ROUTER.MD) |
+| `router_queue.h` | The flags and statuses (of a command, `cmd_req_t` in `utils/cmd_types.h`; its error record is `err_record_cmd`, `err_record.h`), `ROUTER_PORT`, `router_init`, submit, inject, the calls (`router_request`, `_wait`, `_fail_to`), report, origin, is-task, urgent work. The routing, the handler and the op tables are `router.h` (ROUTER.MD) |
 | `errors/router_queue_errors.h`, `errors/errors_router_queue.json` | `ERR_ROUTER_QUEUE_MAP` (`MODULE_ID_ROUTER_QUEUE`) and the messages |
-| `router_queue.c` | `router_submit`, `router_inject`, the urgent and work tasks, the answers to the callbacks, `router_report_cmd`, origin, `router_run_urgent`, `router_init` |
+| `router_queue.c` | `router_submit`, `router_inject`, the port (its frames in, the answers out to ports), the urgent and work tasks, the answers to the callbacks, `router_report_cmd`, origin, `router_run_urgent`, `router_init` |
+| `router_request.c` | This board's calls: their slots, the answers that end them, their timer, the wait |
+| `internal/router_queue_internal.h` | Between the two: the port, an answer for a call, the calls' start |
 | `Kconfig` | Queues, task prio and stack |
 | `host/` | Host tests (`test_router_queue.c`, `test_router_tasks.c`, `host_test.json`, `router_host_config.h`; see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
@@ -42,7 +44,8 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 
 - `router_submit(&cmd, done, ctx)` copies the command, its callback and `ctx` into the ring of its flags and returns; it never blocks, so the session calls it on a provider driver's RX task. A command it can't queue (a request shorter than 2 B or longer than `CMD_DATA_MAX`: `ERR_ROUTER_FRAME_LEN`; ring full: `ERR_ROUTER_QUEUE_FULL`) is not: the call returns why, and the caller answers it and reports it (`router_report_cmd`).
 - `router_inject(req, flags, done, ctx)` is the same for the board's own commands: src `CMD_SRC_SELF`, seq from the router's counter. The actions (`sys_actions_request`) and the project's start inject with no `done`; `sys_session_call` to this board injects with its callback.
-- The router keeps nothing of who sent a command: the callback and its `ctx` do. So there is no registry of links and no state per peer.
+- **From the port**: a REQUEST frame is queued as a command (`src`, `seq` and the flags of its header; its request is the header's `key` and the body) with the port it came from (`from`); its answer leaves the router's port to that port (`data_matrix_send_to`) as `[hdr ANSWER: status, URGENT, src 0, the request's key and seq][data]`, waiting for room at most the provider's bound; what is not taken is lost. A frame the queue refuses is answered ERROR at once (`NOWAIT`, not a NOREPLY one) on the sender's task, its record at most 64 B, and reported. An ANSWER frame ends this board's call (Calls); another kind is dropped.
+- The router keeps nothing of who sent a command: the port it came from, or the callback and its `ctx`, do. So there is no registry of links and no state per peer: whatever is linked with the port may send commands, and the answer goes back to it.
 - **The answer**: each task runs a command and then its `done(ctx, cmd, status, data, len)` on the same task:
 
 | Status | When | Data |
@@ -50,8 +53,32 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 | `OK` | the handler returned NULL | the answer (`out->len` bytes, maybe none) |
 | `ERROR` | the handler returned a chain | the error record (`err_record_cmd(cmd, chain)`, ERRORS.MD "Error record") |
 
-- `data` is in the task's own buffer (`CMD_DATA_MAX`), read-only and valid for the call only: a callback that frames it prepends its header into the flat `cmd_in_t` frame sent out of a stream port to the provider (SYS_DATA_PROVIDER.MD "Stream port"). `done` may wait for room on the way back, at most its own bound (the session: its provider's driver).
+- `data` is in the task's own buffer (`CMD_FRAME_MAX`: the answer's header, then `CMD_DATA_MAX` of data), read-only and valid for the call only; an answer to a port gets its header in front in that buffer, no copy.
 - NOREPLY, or `done` NULL: no answer of any status. Every failure is reported with its command (`router_report_cmd`: the log line `cmd src f0 seq 7 flags 00 req …`, and the errors stream), answered or not. A `done` that fails is reported and its answer lost: a reader retries.
+
+## Calls
+
+`router_request(to, req, flags, timeout_ms, cb, ctx)` runs a command and gives its answer to `cb`, a `router_done_f` (read-only data): one way to run a command with its answer, on this board or at the other end of a link. `req` is `[key][dir][code | id + op][args]`: its key goes into the header.
+
+- **To this board** (`to` = `ROUTER_PORT`): `router_inject`: no slot, no timeout, the answer on the router task.
+- **Out of the port** (`to` a port linked from the router's: a session's command sub-port): a call slot (`CONFIG_ROUTER_CALLS`) keeps it under a new `seq` and `[hdr REQUEST, src 0, key, seq][the rest]` goes out to `to` (`NOWAIT`); not linked: `ERR_ROUTER_NO_LINK`. A call ends once: whoever ends it (its answer, the timer, `router_request_fail_to`, a waiter that gave up) takes it out of its slot under the calls' lock first, and only then is the callback called; a late answer finds no call and is dropped. An answer is the call's when its `seq` and the port it came from are.
+
+| Answer | `cb` gets |
+|---|---|
+| OK | the data |
+| ERROR | that board's error record with `ERR_REMOTE{board, seq}` (the answer's `src`) put before its chain, so `err_record_parse` gives this board's chain and the error policy's walk can stop at it |
+| none in its timeout | ERROR: this board's record of `ERR_ROUTER_CALL_TIMEOUT{port, seq}` |
+| `router_request_fail_to(to)` (the session behind `to` ended) | ERROR: this board's record of `ERR_ROUTER_CALL_DOWN{port}` |
+
+`cb`'s command is the call: its request (the first `CONFIG_ERRORS_RECORD_REQ_MAX` bytes), its `seq`, `src` `CMD_SRC_SELF`. **Every call out is answered.** **Timeout**: `timeout_ms`, or `CONFIG_ROUTER_CALL_TIMEOUT_MS` (1 s) for 0, checked by a board timer every 10 ms (its callbacks on the board timers' task). A source retries a request after its timeout only when it is a read; a write without an answer is reported to whoever asked, who reads the state back.
+
+`router_request_wait(to, req, flags, timeout_ms, buf, cap, &len)` is the same call, waited for: the answer in `buf`, or the error as a chain (`ERR_REMOTE` over that board's chain, `ERR_ROUTER_CALL_TIMEOUT`, `_CALL_DOWN`; `ERR_CMD_BAD_LEN` for an answer longer than `cap`).
+
+- The wait ends on a flag the call's callback sets, not on the task's notification: another notification of the waiting task wakes it, finds the flag down and sleeps again, so the wait never ends early and the callback never writes into a frame that is gone.
+- **Its own limit**: the waiter sleeps at most the call's timeout and a margin (50 ms). Past it, it takes the call out of its slot itself and returns `ERR_ROUTER_CALL_TIMEOUT`; if another task is ending it at that moment, it waits for that end. So a wait never hangs, also on a task the answer or the timer would need (the board timers' task; the RX task of the link).
+- A call to this board on a router task is refused (`ERR_ROUTER_WOULD_BLOCK`): the router would wait for itself. A router task may wait for another board: the commands behind it wait that long too.
+
+`sys_session_call` / `_wait` call a board by its id (SYS_SESSION.MD "The board's own calls").
 
 ### Origin, urgent work
 
@@ -65,12 +92,19 @@ A tag about a command carries its `src`.
 | Error | Severity | Context / Fields | Description |
 |---|---|---|---|
 | `ERR_ROUTER_QUEUE_FULL` | MEDIUM | `u8 src, u8 urgent` | Ring full; the command was not queued |
-| `ERR_ROUTER_FRAME_LEN` | MEDIUM | `u8 src, u16 len, u16 max` | A request shorter than 2 B (key, dir) or longer than `CMD_DATA_MAX` |
+| `ERR_ROUTER_FRAME_LEN` | MEDIUM | `u8 src, u16 len, u16 max` | A request shorter than 2 B (key, dir) or longer than `CMD_DATA_MAX` + 1 (a frame's body and its key) |
 | `ERR_ROUTER_BUSY` | MEDIUM | – | `router_run_urgent`: another `fn` waits to run |
+| `ERR_ROUTER_CALLS_FULL` | MEDIUM | – | Every `CONFIG_ROUTER_CALLS` slot in use |
+| `ERR_ROUTER_NO_LINK` | MEDIUM | `u16 port` | A call to a port not linked from the router's |
+| `ERR_ROUTER_CALL_TIMEOUT` | MEDIUM | `u16 port, u16 seq` | A call without an answer in its time |
+| `ERR_ROUTER_CALL_DOWN` | MEDIUM | `u16 port` | The link the call went out on ended (`router_request_fail_to`) |
+| `ERR_REMOTE` | NONE | `u8 board, u16 seq` | Context: the chain under it is that board's |
+| `ERR_ROUTER_WOULD_BLOCK` | HIGH | – | `router_request_wait` to this board on a router task |
 
 ## Limits
 
-- Command rings: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB); each command takes its request, a 12-byte header (callback, `ctx`, origin) and the ring's own header.
+- Command rings: `CONFIG_ROUTER_WORK_QUEUE_SIZE` (default 4 KB) and `CONFIG_ROUTER_URGENT_QUEUE_SIZE` (default 1 KB); each command takes its request, a 16-byte header (callback, `ctx`, origin, the port it came from) and the ring's own header.
+- Calls: `CONFIG_ROUTER_CALLS` (16) slots of about 52 B; `CONFIG_ROUTER_CALL_TIMEOUT_MS` (1000).
 - Concurrency: urgent task (priority 15) and work task (priority 5) run concurrently; module routers must be thread-safe.
 
 ## Tests
@@ -91,4 +125,5 @@ Script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client 
 
 ## Open
 
-- The router as one port of the data matrix (`ROUTER`: the sessions' command sub-ports and providers without a session), answers by `data_matrix_send_to` to `from`, and this board's calls to a peer (their slots, timeouts and wait, out of `sys_session/call`): DATA_MATRIX.MD "The design to build".
+- Host tests of the port (a request and its answer to `from`, a refused one, an ANSWER ending a call) and of the calls (moved from `sys_session`: answered, timed out, `ERR_REMOTE`, `fail_to`, the wait): not written; the host runner is not in the repo now.
+- The tests above name the old `src` and `CMD_DATA_MAX` bound of a request: checked again when the runner is back.

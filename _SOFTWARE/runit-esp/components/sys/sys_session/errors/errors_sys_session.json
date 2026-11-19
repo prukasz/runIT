@@ -9,13 +9,6 @@
     "ERR_SESSION_NO_ROUTE": {
       "message": "Board {dst} cannot be reached from here"
     },
-    "ERR_SESSION_TIMEOUT": {
-      "message": "Board {dst} did not answer",
-      "hint": "A write may still have run: read the value back."
-    },
-    "ERR_SESSION_PEER_DOWN": {
-      "message": "The connection to board {board} was lost"
-    },
     "ERR_SESSION_NOT_FRAMED": {
       "message": "A session needs a link that carries a whole frame; this one is raw",
       "hint": "Give a framed provider the Session role. A raw one is for the Raw or Commands role."
@@ -27,16 +20,6 @@
     "ERR_SESSION_FULL": {
       "message": "No room for another board connection",
       "hint": "Remove one first."
-    },
-    "ERR_SESSION_CALLS_FULL": {
-      "message": "Too many requests to other boards at once"
-    },
-    "ERR_REMOTE": {
-      "message": "On board {board}"
-    },
-    "ERR_SESSION_WOULD_BLOCK": {
-      "message": "A wait for another board's answer was asked where nothing may wait",
-      "hint": "A firmware fault: report it."
     }
   }
 }

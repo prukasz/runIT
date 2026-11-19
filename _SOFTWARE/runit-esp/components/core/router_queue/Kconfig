@@ -6,7 +6,7 @@ menu "router_queue"
         range 1024 32768
         help
           Ring buffer of normal commands waiting for the work task: each takes
-          its request, a 12-byte header (answer callback, its ctx, origin) and
+          its request, a 16-byte header (answer callback, its ctx, origin) and
           the ring's own header. Multiple of 4.
 
     config ROUTER_URGENT_QUEUE_SIZE
@@ -44,5 +44,26 @@ menu "router_queue"
         help
           Runs urgent commands and router_run_urgent (the safe-state
           handler on a dead-man).
+
+    #@limit @alias Calls to other boards
+    config ROUTER_CALLS
+        int "Calls in flight"
+        default 16
+        range 1 64
+        help
+          This board's calls out of the router's port waiting for an answer
+          (router_request); a call to this board takes none. Every call out is
+          answered, so each write of a remote device in flight takes one. A
+          slot is about 52 B.
+
+    #@limit @alias Call timeout @unit ms
+    config ROUTER_CALL_TIMEOUT_MS
+        int "Call timeout (ms)"
+        default 1000
+        range 50 10000
+        help
+          A call without an answer this long ends with
+          ERR_ROUTER_CALL_TIMEOUT, unless the caller gives its own. Longer than
+          a radio's tail, so a slow answer is not taken for a lost one.
 
 endmenu

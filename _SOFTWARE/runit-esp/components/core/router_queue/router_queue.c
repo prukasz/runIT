@@ -1,11 +1,14 @@
 #include "router_queue.h"
 #include "err_record.h"
 #include "err_sink.h"
+#include "router_queue_internal.h"
 #include "sdkconfig.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_ROUTER_QUEUE, ERR_ROUTER_QUEUE_MAP)
 
-#define REQ_MIN_BYTES 2u  // a root key and the direction
+#define REQ_MIN_BYTES 2u                   // a root key and the direction
+#define REQ_MAX_BYTES (CMD_DATA_MAX + 1u)  // a frame's body and the key of its header
+#define REJECT_BYTES  64u                  // an error record answered on the sender's task (its stack)
 
 _Static_assert(CONFIG_ROUTER_WORK_QUEUE_SIZE % 4 == 0, "ROUTER_WORK_QUEUE_SIZE must be a multiple of 4");
 _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SIZE must be a multiple of 4");
@@ -15,24 +18,30 @@ U_RINGBUFFER_DEFINE(router_urgent_rb, CONFIG_ROUTER_URGENT_QUEUE_SIZE, RINGBUF_T
 U_TASK_DEFINE(router_work_task_h, CONFIG_ROUTER_WORK_TASK_STACK);
 U_TASK_DEFINE(router_urgent_task_h, CONFIG_ROUTER_URGENT_TASK_STACK);
 
-// A queued command: this header, then its request.
+// A queued command: this header, then its request [key][dir]... Its answer goes to `done`, else to the port `port`.
 typedef struct {
   router_done_f done;
   void* ctx;
   uint16_t seq;
   uint8_t src;
   uint8_t flags;
+  data_matrix_port_id_t port;  // the port it came from (done NULL); 0: none
 } item_t;
 
 static struct {
   void (*urgent_fn)(void);  // router_run_urgent: the fn waiting to run, NULL when none
   uint16_t inject_seq;      // seq of the board's own commands
-  // One answer buffer per task (the two run at the same time).
-  uint8_t buf_work[CMD_DATA_MAX];
-  uint8_t buf_urgent[CMD_DATA_MAX];
+  // One answer buffer per task (the two run at the same time): the answer's header, then its data.
+  uint8_t buf_work[CMD_FRAME_MAX];
+  uint8_t buf_urgent[CMD_FRAME_MAX];
 } s_dispatch;
 
 static __thread const cmd_req_t* s_route;  // per router task: the command it is routing, NULL between commands
+
+static void port_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                    uint32_t len);
+
+data_matrix_port_t router_port = {.id = ROUTER_PORT, .in = port_in};
 
 /* ----------------------------------------------------------------------------
  * Reporting
@@ -62,24 +71,33 @@ static void wake_urgent(void) {
   }
 }
 
-err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx) {
-  ERR_CHECK(cmd != NULL && cmd->req != NULL, ERR_CMD_BAD_ARG);
-  ERR_CHECK_IN_RANGE(cmd->req_len, REQ_MIN_BYTES, CMD_DATA_MAX, ERR_ROUTER_FRAME_LEN, .src = cmd->src,
-                     .len = (uint16_t)cmd->req_len, .max = CMD_DATA_MAX);
-
-  const bool urgent = (cmd->flags & ROUTER_FLAG_URGENT) != 0;
+// Copies a command into the ring of its flags: its request, after `key` when it came in a frame (key NULL: in req).
+static err_h enqueue(const item_t* item, const uint8_t* key, const uint8_t* req, uint32_t req_len) {
+  const uint32_t head = key != NULL ? 1u : 0u;
+  ERR_CHECK_IN_RANGE(head + req_len, REQ_MIN_BYTES, REQ_MAX_BYTES, ERR_ROUTER_FRAME_LEN, .src = item->src,
+                     .len = (uint16_t)(head + req_len), .max = REQ_MAX_BYTES);
+  const bool urgent = (item->flags & ROUTER_FLAG_URGENT) != 0;
   RingbufHandle_t rb = urgent ? router_urgent_rb : router_work_rb;
   void* slot = NULL;
-  ERR_CHECK(xRingbufferSendAcquire(rb, &slot, sizeof(item_t) + cmd->req_len, 0) == pdTRUE, ERR_ROUTER_QUEUE_FULL,
-            .src = cmd->src, .urgent = urgent);
-  const item_t item = {.done = done, .ctx = ctx, .seq = cmd->seq, .src = cmd->src, .flags = cmd->flags};
-  memcpy(slot, &item, sizeof(item));
-  memcpy((uint8_t*)slot + sizeof(item), cmd->req, cmd->req_len);
+  ERR_CHECK(xRingbufferSendAcquire(rb, &slot, sizeof(*item) + head + req_len, 0) == pdTRUE, ERR_ROUTER_QUEUE_FULL,
+            .src = item->src, .urgent = urgent);
+  uint8_t* at = slot;
+  memcpy(at, item, sizeof(*item));
+  if (key != NULL) {
+    at[sizeof(*item)] = *key;
+  }
+  memcpy(at + sizeof(*item) + head, req, req_len);
   xRingbufferSendComplete(rb, slot);
   if (urgent) {
     wake_urgent();
   }
   return NULL;
+}
+
+err_h router_submit(const cmd_req_t* cmd, router_done_f done, void* ctx) {
+  ERR_CHECK(cmd != NULL && cmd->req != NULL, ERR_CMD_BAD_ARG);
+  const item_t item = {.done = done, .ctx = ctx, .seq = cmd->seq, .src = cmd->src, .flags = cmd->flags};
+  return enqueue(&item, NULL, cmd->req, cmd->req_len);
 }
 
 err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) {
@@ -92,6 +110,61 @@ err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) 
       .flags = flags,
   };
   return router_submit(&cmd, done, ctx);
+}
+
+/* ----------------------------------------------------------------------------
+ * The port: frames in, answers to the port a request came from
+ * ------------------------------------------------------------------------- */
+
+// An answer's header at `at`: the request's key and seq, its status, its URGENT; src for the session to set.
+static void answer_head(uint8_t* at, uint8_t key, uint16_t seq, uint8_t status, uint8_t flags) {
+  const cmd_hdr_t hdr = {
+      .type = (uint8_t)(CMD_TYPE(CMD_ANSWER) | (status == ROUTER_STATUS_ERROR ? CMD_TYPE_STATUS : 0u) |
+                        (flags & ROUTER_FLAG_URGENT)),
+      .src = CMD_SRC_NONE,
+      .key = key,
+      .seq = seq,
+  };
+  memcpy(at, &hdr, CMD_HEAD);
+}
+
+// A request the queue refused: answered ERROR at once (NOWAIT; not a NOREPLY one) and reported. On the sender's task.
+static void reject(data_matrix_port_id_t to, const cmd_hdr_t* hdr, const uint8_t* body, uint32_t len, err_h err) {
+  uint8_t req[CONFIG_ERRORS_RECORD_REQ_MAX];  // [key][body], as much as a record keeps
+  const uint32_t n = len < sizeof(req) - 1u ? len : (uint32_t)sizeof(req) - 1u;
+  req[0] = hdr->key;
+  memcpy(req + 1, body, n);
+  const uint8_t flags = hdr->type & CMD_TYPE_FLAGS;
+  const cmd_req_t cmd = {.req = req, .req_len = n + 1u, .seq = hdr->seq, .src = hdr->src, .flags = flags};
+  if (!(flags & ROUTER_FLAG_NOREPLY)) {
+    uint8_t frame[CMD_HEAD + REJECT_BYTES];
+    const uint32_t rec = err_record_cmd(&cmd, err, frame + CMD_HEAD, REJECT_BYTES);
+    answer_head(frame, hdr->key, hdr->seq, ROUTER_STATUS_ERROR, flags);
+    (void)data_matrix_send_to(&router_port, to, CMD_SEND_NOWAIT | (flags & CMD_SEND_URGENT), frame, CMD_HEAD + rec);
+  }
+  router_report_cmd(&cmd, err);
+}
+
+// A frame for the router: a REQUEST is queued, an ANSWER ends this board's call; anything else is not the router's.
+static void port_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                    uint32_t len) {
+  (void)self;
+  (void)flags;
+  if (len < CMD_HEAD) {
+    return;
+  }
+  cmd_hdr_t hdr;
+  memcpy(&hdr, data, CMD_HEAD);
+  const uint8_t kind = CMD_KIND_OF(hdr.type);
+  if (kind == CMD_ANSWER) {
+    router_request_answer(from, &hdr, data + CMD_HEAD, len - CMD_HEAD);
+  } else if (kind == CMD_REQUEST) {
+    const item_t item = {.seq = hdr.seq, .src = hdr.src, .flags = hdr.type & CMD_TYPE_FLAGS, .port = from};
+    err_h err = enqueue(&item, &hdr.key, data + CMD_HEAD, len - CMD_HEAD);
+    if (err != NULL) {
+      reject(from, &hdr, data + CMD_HEAD, len - CMD_HEAD, err);
+    }
+  }
 }
 
 /* ----------------------------------------------------------------------------
@@ -121,7 +194,8 @@ err_h router_run_urgent(void (*fn)(void)) {
  * Tasks
  * ------------------------------------------------------------------------- */
 
-// Routes one queued command, hands its answer to its done and reports what failed.
+// Routes one queued command, hands its answer to its done or its port and reports what failed. `buf` is CMD_FRAME_MAX:
+// the answer's header, then its data.
 static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
   item_t item;
   memcpy(&item, slot, sizeof(item));
@@ -132,16 +206,21 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
       .src = item.src,
       .flags = item.flags,
   };
-  cmd_out_t out = {.data = buf, .cap = CMD_DATA_MAX};
+  cmd_out_t out = {.data = buf + CMD_HEAD, .cap = CMD_DATA_MAX};
   s_route = &cmd;
   err_h err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
   s_route = NULL;
-  if (item.done != NULL && !(item.flags & ROUTER_FLAG_NOREPLY)) {
+  if ((item.done != NULL || item.port != 0) && !(item.flags & ROUTER_FLAG_NOREPLY)) {
     uint32_t len = err != NULL ? err_record_cmd(&cmd, err, out.data, out.cap) : out.len;
     uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
-    err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
-    if (lost != NULL) {
-      router_report_cmd(&cmd, lost);
+    if (item.done != NULL) {
+      err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
+      if (lost != NULL) {
+        router_report_cmd(&cmd, lost);
+      }
+    } else {  // waits for room on the way back, at most the provider's bound; what is not taken is lost
+      answer_head(buf, cmd.req[0], cmd.seq, status, item.flags);
+      (void)data_matrix_send_to(&router_port, item.port, item.flags & CMD_SEND_URGENT, buf, CMD_HEAD + len);
     }
   }
   if (err != NULL) {
@@ -183,6 +262,8 @@ static void urgent_task(void* arg) {
 
 err_h router_init(void) {
   ERR_TRY(router_root_init());
+  ERR_TRY(data_matrix_register(&router_port));
+  router_request_init();
   if (router_urgent_task_h == NULL) {
     U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
   }

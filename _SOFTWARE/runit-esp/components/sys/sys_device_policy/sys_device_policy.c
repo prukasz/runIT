@@ -6,7 +6,7 @@
 #include "sys_device.h"
 #include "sys_device_driver.h"
 #include "sys_device_events.h"
-#include "sys_session_errors.h"
+#include "router_queue_errors.h"
 #include "utils.h"
 
 #define TAG __FILE_NAME__

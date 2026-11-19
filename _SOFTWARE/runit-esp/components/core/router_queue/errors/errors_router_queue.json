@@ -11,6 +11,27 @@
     },
     "ERR_ROUTER_BUSY": {
       "message": "Urgent work could not start: other urgent work waits to run"
+    },
+    "ERR_ROUTER_CALLS_FULL": {
+      "message": "Too many requests to other boards at once"
+    },
+    "ERR_ROUTER_NO_LINK": {
+      "message": "Connection {port} cannot be reached from here",
+      "hint": "Link the router with it in the data matrix."
+    },
+    "ERR_ROUTER_CALL_TIMEOUT": {
+      "message": "Connection {port} did not answer",
+      "hint": "A write may still have run: read the value back."
+    },
+    "ERR_ROUTER_CALL_DOWN": {
+      "message": "Connection {port} was lost before its answer came"
+    },
+    "ERR_REMOTE": {
+      "message": "On board {board}"
+    },
+    "ERR_ROUTER_WOULD_BLOCK": {
+      "message": "A wait for an answer was asked where nothing may wait",
+      "hint": "A firmware fault: report it."
     }
   }
 }

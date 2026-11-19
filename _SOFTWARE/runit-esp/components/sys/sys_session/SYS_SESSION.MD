@@ -15,9 +15,8 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is a framed pro
 |---|---|
 | `sys_session_events.h` | The module's events: `SESSION_EV_REACHED`, `SESSION_EV_GONE`, and the filters of them |
 | `sys_session.h` | The session's wire format (the channels, the control ops, published to the app; HELLO's body `sys_session_hello_t`; the header, its type byte, kinds and ids are cmd.h's), then the use: start and this board; attach, detach, the dead-man; calls (call, call and wait, broadcast); push and its taker |
-| `sys_session.c` | Everything except calls, board id NVS, and router handlers: the sessions, the one send (`send`: header + body as one flat frame), the control frames, the hello, answers, RX dispatch, broadcast, push, the 10 ms tick, attach, detach and the dead-man |
-| `internal/sys_session_internal.h` | For `sys_session.c`, `call/`, `board/`, and `router/` only: `sys_session_route`, `sys_session_send_request`, `sys_session_list`, and the calls' and the board's hooks |
-| `call/sys_session_call.c` | The board's calls to other boards: their slots, answers, timeouts, the wait |
+| `sys_session.c` | Everything except board id NVS and router handlers: the sessions, the one send (`send`: header + body as one flat frame), the control frames, the hello, answers, RX dispatch, broadcast, push, the 10 ms tick, attach, detach and the dead-man |
+| `internal/sys_session_internal.h` | For `sys_session.c`, `board/`, and `router/` only: `sys_session_route`, `sys_session_send_request`, `sys_session_list`, and the board's hooks |
 | `board/sys_session_board.c` | The board's identity, ESP-IDF's part: the id in NVS, a random id per boot, the firmware's build |
 | `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION` 0x0E): the frames, then `SESSION_OPERATIONS`; registers itself |
 | `router/contract_session.json` | The router's descriptor |
@@ -59,7 +58,7 @@ What follows the header is at most `CMD_DATA_MAX`. The send flags follow the fra
 3. The session **opens** when the peer's hello has come (an id it may say, that no other open session has). A client is answered every hello (it may have missed ours: a BLE client not subscribed yet); a board its first only, so two boards do not answer each other for ever. `SESSION_EV_REACHED` is published. A refused hello (`ERR_SESSION_ID_TAKEN`) changes nothing and is no sign of life.
 4. Until then only HELLO and NO_SESSION pass. Anything else on a session not open here is answered `NO_SESSION` with the hello, so a peer that missed a restart (UART has no disconnect) or this board's timeout starts over at once. NO_SESSION from the peer ends this side too, and this board says hello. Every other frame of the peer is its sign of life.
 5. A hello on an open session is its sign of life; a new `boot_id` or id ends it first: the peer restarted, so what it had here is gone.
-6. **A session ends** when its provider goes down, its peer says a new `boot_id`, NO_SESSION comes, it is detached, or, with the dead-man on, nothing is received for its time: the calls through it fail (`ERR_SESSION_PEER_DOWN`), its peer is gone (Gone peers). The session itself stays on the provider, empty, until the next hello. Without the dead-man silence ends nothing: a peer that disappears with no sign (power, a cable) is noticed by its calls timing out, not by the session.
+6. **A session ends** when its provider goes down, its peer says a new `boot_id`, NO_SESSION comes, it is detached, or, with the dead-man on, nothing is received for its time: the calls through it fail (`router_request_fail_to`: `ERR_ROUTER_CALL_DOWN`), its peer is gone (Gone peers). The session itself stays on the provider, empty, until the next hello. Without the dead-man silence ends nothing: a peer that disappears with no sign (power, a cable) is noticed by its calls timing out, not by the session.
 7. A session not open says hello again every second: the peer on it may have started after this board (flashed, a cable plugged in), and a board answers only the hello it gets.
 
 One board timer (every 10 ms, the board timers' task) does it all: the dead-man's pings and ends, the hellos, the calls' timeouts.
@@ -80,28 +79,7 @@ On the driver's RX task: the session is open (else NO_SESSION); then the command
 
 ## The board's own calls
 
-`sys_session_call(dst, req, flags, timeout_ms, cb, ctx)` runs a command and gives its answer to `cb`, a `router_done_f` (read-only data): one way to run a command with its answer, here or on the peer with id `dst`.
-
-- **To this board** (its id or `CMD_SRC_SELF`): `router_inject`: no slot, no timeout, the answer on the router task.
-- **To a peer**: the open session whose peer is `dst` is taken (`ERR_SESSION_NO_ROUTE` when there is none), a call slot (`CONFIG_SYS_SESSION_CALLS`) keeps the call under a new `seq`, and the request goes out (`NOWAIT`, so a busy provider is `ERR_PROV_BUSY` at once). A call ends once: whoever ends it (the answer with its `seq`, the tick, the session ending, a waiter that gave up) takes it out of its slot under the calls' lock first, and only then is the callback called; a late answer finds no call and is dropped.
-
-| Answer | `cb` gets |
-|---|---|
-| OK | the data |
-| ERROR | that board's error record with `ERR_REMOTE{board, seq}` put before its chain, so `err_record_parse` gives this board's chain and the error policy's walk can stop at it |
-| none in its timeout | ERROR: this board's record of `ERR_SESSION_TIMEOUT{dst, seq}` |
-| the session it went through ends | ERROR: this board's record of `ERR_SESSION_PEER_DOWN{board}` |
-
-**Every call to a peer is answered**: `NOREPLY` goes on a broadcast only. **Timeout**: `timeout_ms`, or `CONFIG_SYS_SESSION_CALL_TIMEOUT_MS` (1 s) for 0: a caller that knows its link is a cable gives a short one. A source retries a request after its timeout only when it is a read; a write without an answer is reported to whoever asked, who reads the state back.
-
-### Waiting for the answer
-
-`sys_session_call_wait(dst, req, flags, timeout_ms, buf, cap, &len)` is the same call, waited for: the answer in `buf`, or the error as a chain (`ERR_REMOTE` over that board's chain, `ERR_SESSION_TIMEOUT`, `_PEER_DOWN`; `ERR_CMD_BAD_LEN` for an answer longer than `cap`).
-
-- The wait ends on a flag the call's callback sets, not on the task's notification: another notification of the waiting task (an urgent command, a timer, the power manager) wakes it, finds the flag down and sleeps again, so the wait never ends early and the callback never writes into a frame that is gone.
-- **Its own limit**: the waiter sleeps at most the call's timeout and a margin (50 ms). Past it, it takes the call out of its slot itself and returns `ERR_SESSION_TIMEOUT`; if another task is ending it at that moment, it waits for that end. So a wait never hangs, also on a task the answer or the tick would need (the board timers' task: a driver's step that calls a remote device; the RX task of the provider): it ends in its time instead.
-- A call to this board on a router task is refused (`ERR_SESSION_WOULD_BLOCK`): the router would wait for itself.
-- A router task may wait for another board: the commands behind it wait that long too. While a wait runs on the board timers' task, every board timer waits with it: a driver's step on a remote device is the exception, not the rule.
+`sys_session_call(dst, req, flags, timeout_ms, cb, ctx)` and `sys_session_call_wait` are the router's calls (ROUTER_QUEUE.MD "Calls") to a board by its id: this board (its id or `CMD_SRC_SELF`) is `ROUTER_PORT`, another the command sub-port of the open session with it (`ERR_SESSION_NO_ROUTE` when there is none). The slots, the timeouts, the wait and their errors are the router's.
 
 `sys_session_wired(board)` says whether a call to a peer leaves on a wired provider now (its session's provider is `STATE_WIRED`): a remote device with `WIRED` waits for its answers only then (`sys_remote`).
 
@@ -132,25 +110,23 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 
 ## Errors (`MODULE_ID_SESSION` 0x0E)
 
-`ERR_SESSION_ID_TAKEN{board}`, `_NO_ROUTE{dst}`, `_TIMEOUT{dst, seq}`, `_PEER_DOWN{board}`, `_FULL`, `_CALLS_FULL`, `ERR_REMOTE{board, seq}` (context: the chain under it is that board's), `_WOULD_BLOCK`, `_NOT_FRAMED`. The provider's own `ERR_PROV_*` pass as they are.
+`ERR_SESSION_ID_TAKEN{board}`, `_NO_ROUTE{dst}`, `_FULL`, `_NOT_FRAMED`, `_NOT_OPEN{provider}`. A call's errors are the router's (ROUTER_QUEUE.MD "Calls"). The provider's own `ERR_PROV_*` pass as they are.
 
 ## Limits
 
 | Option | Default | Meaning |
 |---|---|---|
 | `CONFIG_SYS_SESSION_MAX` | 4 | sessions: one per provider |
-| `CONFIG_SYS_SESSION_CALLS` | 16 | the board's calls to other boards in flight |
-| `CONFIG_SYS_SESSION_CALL_TIMEOUT_MS` | 1000 | a call's timeout when its caller gives none |
 | `CONFIG_SYS_SESSION_BOARD_ID_DEFAULT` | 0 | the board's id when NVS keeps none |
 
 ## Tests
 
-`python test_host/run.py sys_session` (from `runit-esp-archive`): two fake providers, the router's and the board timers' tasks for real, the test as the peers. The dead-man's time and flags checked at attach, the hello and the session opening, a request answered to its source, a frame on a session not open here (NO_SESSION and the hello), a PING on a closed session, a new `boot_id`, the dead-man's silence ending a session and leaving it empty, no silence without it, the provider down, sessions independent and an id in one of them, a call to a peer with no session (`ERR_SESSION_NO_ROUTE`), a broadcast on every open session, the dead-man's own time and keepalive (set, off, its end says safety), a PUSH taking only spare room, its `seq` per session and class, a PUSH taken with its provider and sent on the session of a provider (`ERR_SESSION_NOT_OPEN` without one), the calls and the wait (answered, timed out, an error under `ERR_REMOTE`, the session ending under it), a refused hello that is no sign of life.
+`python test_host/run.py sys_session` (from `runit-esp-archive`): two fake providers, the router's and the board timers' tasks for real, the test as the peers. The dead-man's time and flags checked at attach, the hello and the session opening, a request answered to its source, a frame on a session not open here (NO_SESSION and the hello), a PING on a closed session, a new `boot_id`, the dead-man's silence ending a session and leaving it empty, no silence without it, the provider down, sessions independent and an id in one of them, a call to a peer with no session (`ERR_SESSION_NO_ROUTE`), a broadcast on every open session, the dead-man's own time and keepalive (set, off, its end says safety), a PUSH taking only spare room, its `seq` per session and class, a PUSH taken with its provider and sent on the session of a provider (`ERR_SESSION_NOT_OPEN` without one), a refused hello that is no sign of life.
 
 On a board: `python runit-esp/tools/session_client.py <COM port>` opens a session as a client (0xF0) over the console and runs PING and PEERS; `--silence 4` leaves it silent and checks the board's dead-man ended the session.
 
 ## Open
 
 - Two boards on a UART are not run on hardware yet.
-- The code is behind its header: `sys_session.c` still writes the old frame (the header's `frame` field, the hello's `id`) and takes a session as open by its peer's id not being `CMD_SRC_NONE`, which a board with no id is; both go with the session's rewrite as ports (below).
+- The code is behind the router and its header: `sys_session.c` still calls the removed `call/` (its answers, its tick, the end of a session) and has no `sys_session_call` / `_wait` over `router_request`; it still writes the old frame (the header's `frame` field, the hello's `id`) and takes a session as open by its peer's id not being `CMD_SRC_NONE`, which a board with no id is; both go with the session's rewrite as ports (below).
 - The session as ports of the data matrix (its port linked with its provider, a command sub-port to the router, a sub-port per stream module, `ATTACH` / `DETACH` as its commands, the calls moved to the router, the 5-byte header `[type][src][key][seq]` with board ids from `0x01`): DATA_MATRIX.MD "The design to build".
