@@ -323,6 +323,10 @@ static void sub_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t
  * The providers' events and the timer
  * ------------------------------------------------------------------------- */
 
+static err_h link_provider(const session_t* s);
+
+// A session stays attached whatever its provider does: DOWN and REMOVED end it (a removed provider's links are gone
+// with its port), CREATED links its port with the provider made again, UP hears the hello.
 static err_h on_provider_event(const sys_event_t* event, void* ctx) {
   (void)ctx;
   portENTER_CRITICAL(&s_lock);
@@ -333,12 +337,16 @@ static err_h on_provider_event(const sys_event_t* event, void* ctx) {
   }
   if (event->key.tag == SYS_DATA_PROVIDER_EV_UP) {
     send_hello(s);
-    return NULL;
+  } else if (event->key.tag == SYS_DATA_PROVIDER_EV_CREATED) {
+    const uint8_t state = ((const evt_data_SYS_DATA_PROVIDER_EV_CREATED_t*)event->data)->state;
+    ERR_CHECK(state & SYS_DATA_PROVIDER_STATE_FRAMED, ERR_SESSION_NOT_FRAMED);
+    ERR_TRY(link_provider(s));
+    if (state & SYS_DATA_PROVIDER_STATE_UP) {
+      send_hello(s);
+    }
+  } else {
+    end_session(s);  // DOWN, REMOVED
   }
-  if (event->key.tag == SYS_DATA_PROVIDER_EV_REMOVED) {
-    return sys_session_detach((uint8_t)event->key.source);
-  }
-  end_session(s);  // DOWN
   return NULL;
 }
 
@@ -378,7 +386,8 @@ static void on_tick(void* arg) {
 
 err_h sys_session_init(void) {
   s_state.me = (sys_session_hello_t){.boot_id = board_boot_id(), .build_id = board_build_id()};
-  static const uint32_t k_tags[] = {SYS_DATA_PROVIDER_EV_UP, SYS_DATA_PROVIDER_EV_DOWN, SYS_DATA_PROVIDER_EV_REMOVED};
+  static const uint32_t k_tags[] = {SYS_DATA_PROVIDER_EV_CREATED, SYS_DATA_PROVIDER_EV_REMOVED, SYS_DATA_PROVIDER_EV_UP,
+                                    SYS_DATA_PROVIDER_EV_DOWN};
   for (uint32_t i = 0; i < ARRAY_LEN(k_tags); i++) {
     uint16_t handle = 0;
     const sys_event_key_t filter = {
@@ -402,15 +411,20 @@ static void unregister_ports(session_t* s) {
   }
 }
 
-// Registers a session's ports and links its port with its provider both ways.
-static err_h register_ports(session_t* s) {
+// Links a session's port with its provider both ways.
+static err_h link_provider(const session_t* s) {
   const data_matrix_port_id_t provider = DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, s->provider);
+  ERR_TRY(data_matrix_connect(&(data_matrix_link_t){.from = provider, .to = s->line.id}));
+  return data_matrix_connect(&(data_matrix_link_t){.from = s->line.id, .to = provider});
+}
+
+// Registers a session's ports and links its port with its provider.
+static err_h register_ports(session_t* s) {
   ERR_TRY(data_matrix_register(&s->line));
   for (uint32_t i = 0; i < s->port_count; i++) {
     ERR_TRY(data_matrix_register(&s->ports[i]));
   }
-  ERR_TRY(data_matrix_connect(&(data_matrix_link_t){.from = provider, .to = s->line.id}));
-  return data_matrix_connect(&(data_matrix_link_t){.from = s->line.id, .to = provider});
+  return link_provider(s);
 }
 
 err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, const uint8_t* modules, uint32_t n) {

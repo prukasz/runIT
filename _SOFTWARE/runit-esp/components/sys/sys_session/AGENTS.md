@@ -14,7 +14,7 @@ Spec: `SYS_SESSION.MD` (this folder).
 - Anything but HELLO and NO_SESSION on a session not open here is answered NO_SESSION and the board's hello (`start_over`). It is the protocol's own recovery: nothing is reported.
 - The calls are the router's (`router_request`): the session only gives the port of a peer (`sys_session_port`) and fails the calls through a session that ends (`router_request_fail_to`).
 - A board answers a hello only when it opens a session (a client every hello), so two boards do not answer each other for ever.
-- The provider's state comes from its events (UP: the hello, DOWN: the end, REMOVED: the detach) and `sys_data_provider_state` at the attach; nothing else of the provider is read.
+- A session goes only by DETACH: nothing it notices (a timeout, a provider down or removed) detaches it; it ends and waits. The provider's state comes from its events (UP: the hello; DOWN, REMOVED: the end; CREATED: the links again) and `sys_data_provider_state` at the attach; nothing else of the provider is read.
 - The board's identity (its id, boot id, build) is `board_id`'s (BOARD_ID.MD): the session reads it, never keeps or saves its own. Nothing here includes ESP-IDF headers beyond FreeRTOS.
 - A session tells who is reached and gone by events (`sys_session_events.h`), never by a hook table: a module that needs it subscribes inline. A session is made by ATTACH (the board's record) or `sys_session_attach` at boot: nothing else attaches or detaches one.
 - The dead-man is the session's own time (attach, `sys_session_deadman_set`); a session without it never ends by silence. The safety flag only goes with `SESSION_EV_GONE`: what it does (the safe state) is `sys_system`'s.
