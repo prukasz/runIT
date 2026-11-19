@@ -4,7 +4,7 @@
  * to, and the send, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
  *
  * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so a send only copies
- * them under the spinlock, a few bytes, and calls them after it: a port's pass never runs under the lock.
+ * them under the spinlock, a few bytes, and calls them after it: a port's `in` never runs under the lock.
  */
 
 #include "data_matrix.h"
@@ -51,7 +51,7 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
   }
   portEXIT_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < n; i++) {
-    to[i]->pass(to[i], self->id, flags, data, len);
+    to[i]->in(to[i], self->id, flags, data, len);
   }
 }
 
@@ -105,7 +105,7 @@ err_h data_matrix_connect(const data_matrix_link_t* link) {
   portENTER_CRITICAL(&s_lock);
   const uint8_t from = find(link->from);
   const uint8_t to = find(link->to);
-  ok = from != NO_PORT && to != NO_PORT && from != to && s_slots[to].port->pass != NULL;
+  ok = from != NO_PORT && to != NO_PORT && from != to && s_slots[to].port->in != NULL;
   if (ok) {
     slot_t* s = &s_slots[from];
     bool there = false;

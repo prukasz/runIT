@@ -18,14 +18,14 @@ ERR_MODULE_DEFINE(MODULE_ID_PROVIDER, ERR_SYS_DATA_PROVIDER_MAP)
  * ------------------------------------------------------------------------- */
 
 // A provider's place. The driver's struct lives in it and is never freed: a send in flight in the data matrix (its
-// targets copied before REMOVE) still finds the port and its pass, the registry's, which drops it.
+// targets copied before REMOVE) still finds the port and its `in`, the registry's, which drops it.
 typedef struct {
   union {
     sys_data_provider_t p;  // The driver's struct, its base first
     _Alignas(max_align_t) uint8_t mem[CONFIG_SYS_DATA_PROVIDER_SIZE];
   };
   const sys_data_provider_type_t* type;  // NULL: a free slot
-  SemaphoreHandle_t line;                // One call into the driver at a time: its pass, its own ops, its remove
+  SemaphoreHandle_t line;                // One call into the driver at a time: its `in`, its own ops, its remove
   StaticSemaphore_t line_buf;
 } prov_slot_t;
 
@@ -81,7 +81,7 @@ static const sys_data_provider_op_t* find_op_row(const sys_data_provider_op_t* o
 
 void sys_data_provider_type_register(const sys_data_provider_type_t* type) {
   assert(type != NULL && type->type >= SYS_DATA_PROVIDER_TYPE_UART);
-  assert(type->create != NULL && type->remove != NULL && type->pass != NULL);
+  assert(type->create != NULL && type->remove != NULL && type->in != NULL);
   assert(type->op_count == 0 || type->ops != NULL);
   for (uint16_t i = 0; i < type->op_count; i++) {
     const sys_data_provider_op_t* row = &type->ops[i];
@@ -172,15 +172,15 @@ static err_h ops_reply(uint8_t id, cmd_out_t* out) {
   return NULL;
 }
 
-// The input of every provider's port: the packet to its type's pass as it is, one call into the driver at a time; a
+// The input of every provider's port: the packet to its type's `in` as it is, one call into the driver at a time; a
 // packet for a removed provider is dropped.
-static void line_pass(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
-                      uint32_t len) {
+static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+                    uint32_t len) {
   prov_slot_t* s = DATA_MATRIX_OWNER(self, prov_slot_t, p.port);
   U_MUTEX_GUARD(s->line);
   const sys_data_provider_type_t* type = s->type;
   if (type != NULL) {
-    type->pass(self, from, flags, data, len);
+    type->in(self, from, flags, data, len);
   }
 }
 
@@ -204,10 +204,10 @@ static err_h create_locked(uint8_t id, uint8_t type_id, uint8_t flags, const voi
     slot->line = xSemaphoreCreateMutexStatic(&slot->line_buf);
   }
   sys_data_provider_t* p = &slot->p;
-  // The port's pass is never cleared (a send in flight may still read it): zeroed is only what follows the port.
+  // The port's `in` is never cleared (a send in flight may still read it): zeroed is only what follows the port.
   memset(slot->mem + sizeof(p->port), 0, sizeof(slot->mem) - sizeof(p->port));
   p->port.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, id);
-  p->port.pass = line_pass;
+  p->port.in = line_in;
   p->state = (flags & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0 ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
 
   ERR_TRY(type->create(p, cfg));

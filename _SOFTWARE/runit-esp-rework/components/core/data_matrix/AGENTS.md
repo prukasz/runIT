@@ -5,7 +5,7 @@ What the module is and how it is used: `DATA_MATRIX.MD` (this folder). This file
 ## Never break
 
 - A switch only: it hands packets over unchanged and knows nothing of them. No role, session, tag, format, queue or task here; what needs one belongs to the port that has the logic.
-- Synchronous: a send calls the targets' `pass` on the sender's task, outside the lock; the lock only guards the table.
+- Synchronous: a send calls the targets' `in` on the sender's task, outside the lock; the lock only guards the table.
 - The port's contract is written in `data_matrix.h` and nowhere else.
 - In `core`: the switch depends on `core` only, so a module of any layer can have a port.
 - The switch never names a module or a provider, and depends on none: they register their ports themselves (a provider at its CREATE).

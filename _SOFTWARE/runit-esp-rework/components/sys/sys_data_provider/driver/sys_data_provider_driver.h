@@ -13,8 +13,8 @@
  * sys_data_provider_t (its field `base`): a stream port and the state bits, nothing else. The struct lives in the
  * registry's slot (at most CONFIG_SYS_DATA_PROVIDER_SIZE bytes, never freed: a send in flight still finds its port):
  * the registry zeroes it, names the port and registers it in the data matrix after create(), unregisters it first at
- * REMOVE. The registry never looks into a packet: the port's input hands it to the type's `pass` as
- * it is. Calls into a driver (its pass, its own ops, its remove) come one at a time, so a driver keeps no lock of its
+ * REMOVE. The registry never looks into a packet: the port's input hands it to the type's `in` as
+ * it is. Calls into a driver (its `in`, its own ops, its remove) come one at a time, so a driver keeps no lock of its
  * own for them. What comes in on the line goes out with sys_data_provider_deliver, the line's state with
  * sys_data_provider_set_up. A driver type registers itself with SYS_DATA_PROVIDER_TYPE_DEFINE.
  */
@@ -32,7 +32,7 @@ struct sys_data_provider {
 };
 
 /**
- * @brief The driver's struct of a port (in its type's pass).
+ * @brief The driver's struct of a port (in its type's `in`).
  * @usage my_t* me = SYS_DATA_PROVIDER_OF(self, my_t);
  */
 #define SYS_DATA_PROVIDER_OF(self, type) DATA_MATRIX_OWNER(self, type, base.port)
@@ -53,7 +53,7 @@ typedef struct {
   /** @brief Takes the instance down (its hooks on the line); the port is out of the data matrix already. */
   err_h (*remove)(sys_data_provider_t* p);
   /** @brief The port's input: the packet onto the line with its flags as they are (data_matrix.h). */
-  data_matrix_pass_f pass;
+  data_matrix_in_f in;
   const sys_data_provider_op_t* ops;  /**< Its own ops (reached by the router only), NULL: none */
   uint16_t op_count;                  /**< Rows in ops */
 } sys_data_provider_type_t;
@@ -70,7 +70,7 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
  * @usage SYS_DATA_PROVIDER_TYPE_DEFINE(SYS_DATA_PROVIDER_TYPE_UART, uart_cfg_t, uart_t, uart_create, uart_remove,
  *                                      uart_pass, NULL, 0)
  */
-#define SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, pass_fn, ops_ptr, ops_cnt) \
+#define SYS_DATA_PROVIDER_TYPE_DEFINE(prov_type, cfg_t, prov_t, create_fn, remove_fn, in_fn, ops_ptr, ops_cnt)   \
   _Static_assert(_Alignof(cfg_t) == 1, #cfg_t ": create cfg must be packed");                                   \
   _Static_assert(offsetof(prov_t, base) == 0, #prov_t ": sys_data_provider_t base must be its first field");    \
   _Static_assert(sizeof(prov_t) <= CONFIG_SYS_DATA_PROVIDER_SIZE, #prov_t ": over SYS_DATA_PROVIDER_SIZE");     \
@@ -79,7 +79,7 @@ void sys_data_provider_type_register(const sys_data_provider_type_t* type);
       .cfg_size = sizeof(cfg_t),                                                                                \
       .create   = (create_fn),                                                                                  \
       .remove   = (remove_fn),                                                                                  \
-      .pass     = (pass_fn),                                                                                    \
+      .in       = (in_fn),                                                                                      \
       .ops      = (ops_ptr),                                                                                    \
       .op_count = (ops_cnt),                                                                                    \
   };                                                                                                            \

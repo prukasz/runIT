@@ -7,28 +7,28 @@
  * tag, no format, no queue, no task, no waiting.
  *
  *   module A                         switch                          module B
- *   data_matrix_send(&A.port, ...)  -> for each link A -> B:  ------> B.port.pass(&B.port, A, flags, data, len)
+ *   data_matrix_send(&A.port, ...)  -> for each link A -> B:  ------> B.port.in(&B.port, A, flags, data, len)
  *
  * A port is anything that sends or takes bytes that are not commands: a module's stream, a provider. The owner EMBEDS
- * the port in its own struct and fills `id` and `pass`; the switch keeps its place while it is registered. In `pass`
+ * the port in its own struct and fills `id` and `in`; the switch keeps its place while it is registered. In `in`
  * the owner gets its struct back from `self` (DATA_MATRIX_OWNER).
  *
  *   typedef struct { data_matrix_port_t port; ... } my_t;
- *   static void my_pass(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
- *                       uint32_t len) {
+ *   static void my_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
+ *                     uint32_t len) {
  *     my_t* me = DATA_MATRIX_OWNER(self, my_t, port);   // ...
  *   }
- *   static my_t s_me = {.port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x04), .pass = my_pass}};
+ *   static my_t s_me = {.port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x04), .in = my_in}};
  *   data_matrix_send(&s_me.port, CMD_SEND_URGENT, rec, len);
  *
  * A packet carries its flags (CMD_SEND_*, cmd_types.h): the sender sets them, the switch hands them on unchanged
  * with the bytes, the taker honours what it can (a provider queues by them).
  *
- * The contract of a port: `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is
+ * The contract of a port: `in` is short, never blocks, never sends on its own port, copies what it keeps (`data` is
  * valid for the call only); it runs on the sender's task. data_matrix_send only from a task, never from an ISR; a
- * packet with no link is dropped. The switch does not wait for sends in flight, so the port's memory and its `pass`
+ * packet with no link is dropped. The switch does not wait for sends in flight, so the port's memory and its `in`
  * stay valid after it is unregistered (a send that copied its targets before may still call it): an owner never frees
- * a registered port. Its owner stops sending before the port is unregistered. Since no pass sends on its own port, a
+ * a registered port. Its owner stops sending before the port is unregistered. Since no `in` sends on its own port, a
  * send never runs inside a send: links A -> B and B -> A are safe, and the switch checks no cycle. The order in which
  * the targets of one port get a packet is no promise.
  */
@@ -70,13 +70,13 @@ typedef struct data_matrix_port data_matrix_port_t;
  * @param data   The packet, valid for the call only.
  * @param len    Bytes in data.
  */
-typedef void (*data_matrix_pass_f)(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags,
-                                   const uint8_t* data, uint32_t len);
+typedef void (*data_matrix_in_f)(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags,
+                                 const uint8_t* data, uint32_t len);
 
 /** @brief One port, embedded in its owner's struct. */
 struct data_matrix_port {
   data_matrix_port_id_t id;  /**< The owner's: the port's name, unique among the registered ports */
-  data_matrix_pass_f pass;   /**< The owner's: its input; NULL: the port takes nothing */
+  data_matrix_in_f in;       /**< The owner's: its input; NULL: the port takes nothing */
   uint8_t place;             /**< The switch's: the port's place in its table while it is registered */
 };
 
@@ -90,7 +90,7 @@ _Static_assert(sizeof(data_matrix_link_t) == 4, "data_matrix wire size");
 
 /**
  * @brief Registers a port: keeps it and its place. A module's at boot; a provider's by its CREATE.
- * @param port  The port, the owner's (kept by pointer), its id and pass filled.
+ * @param port  The port, the owner's (kept by pointer), its id and `in` filled.
  * @return NULL; ERR_DATA_MATRIX_BAD_ARG (NULL, a name already registered), ERR_DATA_MATRIX_FULL
  *         (CONFIG_DATA_MATRIX_PORTS taken)
  */

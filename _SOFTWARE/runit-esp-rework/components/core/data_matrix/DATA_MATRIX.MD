@@ -18,11 +18,11 @@ Component `components/core/data_matrix/` (in `core`: it depends on `core` only, 
 A **port** (`data_matrix.h`) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
 
 - its name, a `u16`: `DATA_MATRIX_PORT(kind, id)`, the kind (`DATA_MATRIX_PORT_MODULE` 0 or `DATA_MATRIX_PORT_PROVIDER` 1) in the high byte;
-- `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_MATRIX_OWNER`).
+- `in`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_MATRIX_OWNER`).
 
 The switch keeps the port's `place` while it is registered. The owner sends with `data_matrix_send(&port, flags, data, len)`; a port that is not registered sends nothing.
 
-**The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `pass` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `pass` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
+**The contract of a port:** `in` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `in` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `in` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
 **Providers are ports by themselves:** a provider's CREATE registers its port, its REMOVE unregisters it first (SYS_DATA_PROVIDER.MD "Stream port"). The switch never names a provider; the providers call the switch.
 
@@ -30,9 +30,9 @@ The switch keeps the port's `place` while it is registered. The owner sends with
 
 A **link** `{from, to}` (`data_matrix_link_t`, 4 bytes: two names, `u16` LE) sends the output of `from` to the input of `to`. `data_matrix_connect` refuses an unknown port, a port to itself and `to` with no input (`ERR_DATA_MATRIX_BAD_ARG`), and a target past `CONFIG_DATA_MATRIX_TARGETS` of one output (`ERR_DATA_MATRIX_FULL`); the same link again changes nothing. `data_matrix_disconnect`: not there, nothing changes. `data_matrix_unregister` takes the port's links with it.
 
-**Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. Since no `pass` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
+**Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. Since no `in` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
 
-Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: a `pass` never runs under the lock. The table changes from one task (boot, the commands).
+Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: an `in` never runs under the lock. The table changes from one task (boot, the commands).
 
 ## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
 
