@@ -1,6 +1,6 @@
 # data_matrix: jedno miejsce na wszystkie przepływy danych
 
-Plan modułu, który ustawia w jednym miejscu, dokąd idzie każdy bajt, który nie jest komendą. Kroki 1–5 poniżej są zrobione (`components/sys/data_matrix/`, opis tego, co jest: `DATA_MATRIX.MD`), zostały rekord płytki, aplikacja i polecenie `CALL`. Ten plik opisuje całość pomysłu i to, co zostało.
+Plan modułu, który ustawia w jednym miejscu, dokąd idzie każdy bajt, który nie jest komendą. Kroki 1–5 poniżej są zrobione (`components/core/data_matrix/`, opis tego, co jest: `DATA_MATRIX.MD`), zostały rekord płytki, aplikacja i polecenie `CALL`. Ten plik opisuje całość pomysłu i to, co zostało.
 
 ## 1. Po co
 
