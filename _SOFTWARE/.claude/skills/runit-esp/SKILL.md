@@ -26,19 +26,19 @@ The firmware is the rework, `runit-esp-rework/` (the ESP-IDF project built with 
 
 | Layer | Component | Doc | Covers |
 |---|---|---|---|
-| core | `core/utils` | `utils.h`, `module_id.h`, `cmd_types.h`, `data_matrix_port_if.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists; one number per module (`MODULE_ID_DECLARE` in the module's `<module>_id.h`); the command's types every layer names (`cmd_req_t`, `cmd_in_t`, `cmd_out_t`); the stream port a module or a provider embeds (`data_matrix_port_t`, `data_matrix_send`) |
+| core | `core/utils` | `utils.h`, `module_id.h`, `cmd_types.h` | static RTOS objects (`U_*_DEFINE`), `MUST_USE`, `MSEC`, lists; one number per module (`MODULE_ID_DECLARE` in the module's `<module>_id.h`); the command's types every layer names (`cmd_req_t`, `cmd_in_t`, `cmd_out_t`) |
 | core | `core/errors` | `ERRORS.MD` | the error chain (an opaque `err_h`: `err_tag`, `err_cause`, `err_data`, `err_find`), tags under the modules' numbers, severity, reporting and the sinks, the error record (`err_record`; a command's `err_record_cmd`, over `cmd_req_t` from `utils`) |
 | core | `core/cmd` | `CMD.MD` | the handler type (`cmd_f`, `cmd_reply`, `ERR_CMD_*`), the direction (read / write sides, the mirror), the frame size, the op tables (`cmd_table.h`) |
 | core | `core/router` | `ROUTER.MD` | the tree of module routers (`router_table.h`, `ROUTER_MODULE_REGISTER`), root keys = module numbers |
 | core | `core/router_queue` | `ROUTER_QUEUE.MD` | the commands of this board in a queue: `cmd_req_t` (a command and its origin), the work and urgent tasks, answers to the callbacks |
 | core | `core/timer` | `TIMER.MD` | the board's timers (`board_timer`) |
+| core | `core/data_matrix` | `DATA_MATRIX.MD` | the stream port (`data_matrix_port_t`, `data_matrix_send`) and the switch of the ports (`0x30`): a port's output to the inputs of the ports linked from it, unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_event` | `SYS_EVENT.MD` | events per module, lanes (`SYS_EVENT_LANES`: `SYS`, `DEVICE`), each a ring and a task; publish, C listeners |
 | sys | `sys/sys_event_stream` | `SYS_EVENT_STREAM.MD` | the events as two streams of the data matrix: the notify events out (`0x06`), the events of other boards in (`0x07`) |
 | sys | `sys/sys_device` and `sys_device_event`, `sys_device_timer`, `sys_device_router`, `sys_device_policy` | `SYS_DEVICE.MD`, `SYS_DEVICE_EVENT.MD`, `SYS_DEVICE_TIMER.MD`, `SYS_DEVICE_ROUTER.MD`, `SYS_DEVICE_POLICY.MD` | the device registry (create / remove, ops, sweeps, dependencies, remote devices; `0x20`), a device that hears events, a device's timers, the registry's commands, the error policy (`0x21`) |
 | sys | `sys/sys_io`, `sys/sys_power`, `sys/sys_hbridge`, `sys/bus/sys_i2c`, `sys/bus/sys_uart_contract` | `SYS_IO.MD`, `SYS_POWER.MD`, `SYS_HBRIDGE.MD`, `SYS_I2C.MD`, `SYS_UART_CONTRACT.MD` | the contracts as u16 device ops: IO (`0x01`), I2C (`0x02`: a bus is a device), POWER_MONITOR / VREG / USB_PD / SUPPLY (`0x04`, `0x05`, `0x07`, `0x08`), HBRIDGE (`0x09`), UART (`0x13`: a port is a device made by CREATE) |
 | sys | `sys/sys_power_manager` | `SYS_POWER_MANAGER.MD` | budget, sources, rail faults, the VREG guard as an interceptor of the registry (`0x22`) |
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in, by id, their drivers (`0x0D`) |
-| sys | `sys/data_matrix` | `DATA_MATRIX.MD` | the switch of the stream ports (`0x30`): a port's output to the inputs of the ports linked from it, unchanged, synchronous; `CONNECT` / `DISCONNECT` / `LIST` |
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | a session is a framed provider with one peer: the hello, the dead-man, broadcast, calls with a wait, PUSH frames (`0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent to the one who added them; the client's cache (`0x2B`) |
 | sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls over the session, reads from the watches, their events and errors (`0x2F`) |

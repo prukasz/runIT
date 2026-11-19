@@ -1,9 +1,9 @@
 /**
  * @file data_matrix.c
  * @brief The switch of the stream ports (data_matrix.h): the registered ports, each with the ports its output goes
- * to, and the `out` every registered port gets, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
+ * to, and the send, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
  *
- * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so out() only copies
+ * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so a send only copies
  * them under the spinlock, a few bytes, and calls them after it: a port's pass never runs under the lock.
  */
 
@@ -39,13 +39,12 @@ static uint8_t find(data_matrix_port_id_t id) {
   return NO_PORT;
 }
 
-// The output every registered port gets (data_matrix_send calls it).
-static void out(data_matrix_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
+void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
   data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
-  const slot_t* from = &s_slots[self->place];
-  if (from->port == self) {
+  const slot_t* from = self->place < CONFIG_DATA_MATRIX_PORTS ? &s_slots[self->place] : NULL;
+  if (from != NULL && from->port == self) {  // registered
     for (n = 0; n < from->count; n++) {
       to[n] = s_slots[from->to[n]].port;
     }
@@ -65,7 +64,6 @@ err_h data_matrix_register(data_matrix_port_t* port) {
     if (s_slots[i].port == NULL) {
       s_slots[i] = (slot_t){.port = port};
       port->place = i;
-      port->out = out;
       at = i;
     }
   }
@@ -83,7 +81,6 @@ err_h data_matrix_unregister(data_matrix_port_t* port) {
   known = at < CONFIG_DATA_MATRIX_PORTS && s_slots[at].port == port;
   if (known) {
     s_slots[at] = (slot_t){0};
-    port->out = NULL;
     port->place = NO_PORT;
     for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {  // the links to it go with it
       slot_t* s = &s_slots[i];

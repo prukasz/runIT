@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#include "data_matrix_port_if.h"
+#include "data_matrix.h"
 #include "sdkconfig.h"
 #include "sys_data_provider.h"
 #include "utils.h"
@@ -52,7 +52,7 @@ typedef struct {
   err_h (*create)(sys_data_provider_t* p, const void* cfg);
   /** @brief Takes the instance down (its hooks on the line); the port is out of the data matrix already. */
   err_h (*remove)(sys_data_provider_t* p);
-  /** @brief The port's input: the packet onto the line with its flags as they are (data_matrix_port_if.h). */
+  /** @brief The port's input: the packet onto the line with its flags as they are (data_matrix.h). */
   data_matrix_pass_f pass;
   const sys_data_provider_op_t* ops;  /**< Its own ops (reached by the router only), NULL: none */
   uint16_t op_count;                  /**< Rows in ops */

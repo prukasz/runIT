@@ -5,7 +5,6 @@ idf_component_register(
     SRCS "sys_data_provider.c" "router/sys_data_provider_router.c"
     INCLUDE_DIRS "." "driver" "errors" "events" "router"
     PRIV_INCLUDE_DIRS "internal"
-    REQUIRES errors utils cmd router sys_event
-    PRIV_REQUIRES data_matrix
+    REQUIRES errors utils cmd router sys_event data_matrix
     WHOLE_ARCHIVE
 )

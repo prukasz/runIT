@@ -1,6 +1,6 @@
 # data_matrix
 
-Component `components/sys/data_matrix/`. **The switch of the stream ports**: the output of one port goes to the inputs of the ports linked from it, unchanged. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
+Component `components/core/data_matrix/` (in `core`: it depends on `core` only, and a module of any layer can have a port). **The switch of the stream ports**: the output of one port goes to the inputs of the ports linked from it, unchanged. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
 
 **A minimal, synchronous implementation, by design.** The switch is a table of ports and their links and one call that hands a packet on, on the sender's task. It never waits, never queues, keeps no state of a port's owner and does no lifetime tracking: no reference counts, no waiting for sends in flight at an unregister. Everything else is the owner's: what a port does with a packet, its locking, and keeping the port's memory valid (the contract of a port, below).
 
@@ -8,19 +8,19 @@ Component `components/sys/data_matrix/`. **The switch of the stream ports**: the
 
 | File | Role |
 |---|---|
-| `data_matrix.h` / `data_matrix.c` | The switch: `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
+| `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
 | `router/data_matrix_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
 | `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
 
 ## Ports
 
-A **port** (`core/utils/data_matrix_port_if.h`, below every layer) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
+A **port** (`data_matrix.h`) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
 
 - its name, a `u16`: `DATA_MATRIX_PORT(kind, id)`, the kind (`DATA_MATRIX_PORT_MODULE` 0 or `DATA_MATRIX_PORT_PROVIDER` 1) in the high byte;
 - `pass`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_MATRIX_OWNER`).
 
-The switch fills `out` and `place` when it registers the port and clears them when it unregisters it. The owner sends with `data_matrix_send(&port, flags, data, len)`, an inline call of `out`: a module never links to the switch.
+The switch keeps the port's `place` while it is registered. The owner sends with `data_matrix_send(&port, flags, data, len)`; a port that is not registered sends nothing.
 
 **The contract of a port:** `pass` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `pass` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `pass` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 

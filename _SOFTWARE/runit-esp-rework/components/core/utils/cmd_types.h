@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /* How a frame or a packet is sent (0: the normal queue, waiting for room): a stream port's packet carries them
-   (data_matrix_port_if.h), a provider's line and a UART's queue honour them. */
+   (data_matrix.h), a provider's line and a UART's queue honour them. */
 //#ref-defines cmd_send_flag @alias Send flags @prefix CMD_SEND_
 #define CMD_SEND_URGENT (1u << 0)  //@alias Urgent @description Priority queue, sent before normal frames (matches ROUTER_FLAG_URGENT)
 #define CMD_SEND_SPARE  (1u << 1)  //@alias Keep spare @description Keep half of the queue free for replies and control frames
