@@ -53,7 +53,7 @@
       "op": 1,
       "symbol": "CONTRACT_PROVIDER_OP_REMOVE",
       "label": "Remove a provider",
-      "description": "Removes a provider no one uses (not the board's own, no active RX owner or in-flight send), releasing its resources LIFO.",
+      "description": "Removes a provider (not the board's own): its port out of the data matrix first, then its driver, after the call into it in flight.",
       "write": {}
     },
     {
@@ -107,7 +107,7 @@
       "op": 5,
       "symbol": "CONTRACT_PROVIDER_OP_OPS",
       "label": "Supported ops",
-      "description": "Returns [op u16][sides u8] rows (bit 0 = read, bit 1 = write) for registry ops and non-LOCAL driver own ops.",
+      "description": "Returns [op u16][sides u8] rows (bit 0 = read, bit 1 = write) for registry ops and the driver's own ops.",
       "read": {
         "returns": {
           "type": "bytes",
