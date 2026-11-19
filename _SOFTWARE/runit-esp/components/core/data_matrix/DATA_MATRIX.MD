@@ -1,28 +1,36 @@
 # data_matrix
 
-Component `components/core/data_matrix/` (in `core`: it depends on `core` only, and a module of any layer can have a port). **The switch of the stream ports**: the output of one port goes to the inputs of the ports linked from it, unchanged. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
+Component `components/core/data_matrix/` (in `core`: it depends on `core` only, and a module of any layer can have a port). **The switch of the ports**: the output of one port goes to the inputs of the ports linked from it, unchanged: to all of them, to one, or to all but one. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x30`).
 
-**A minimal, synchronous implementation, by design.** The switch is a table of ports and their links and one call that hands a packet on, on the sender's task. It never waits, never queues, keeps no state of a port's owner and does no lifetime tracking: no reference counts, no waiting for sends in flight at an unregister. Everything else is the owner's: what a port does with a packet, its locking, and keeping the port's memory valid (the contract of a port, below).
+**A minimal, synchronous implementation, by design.** The switch is a table of ports and their links and the calls that hand a packet on, on the sender's task. It never waits, never queues, keeps no state of a port's owner and does no lifetime tracking: no reference counts, no waiting for sends in flight at an unregister. Everything else is the owner's: what a port does with a packet, its locking, and keeping the port's memory valid (the contract of a port, below).
 
 ## Files
 
 | File | Role |
 |---|---|
-| `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
+| `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `_send_to`, `_send_except`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
 | `router/data_matrix_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
 | `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
 
 ## Ports
 
-A **port** (`data_matrix.h`) is anything that sends or takes bytes that are not commands: a module's stream (`ERRORS`, `ERRORS_IN`, `LOGS`, ...), a provider (SYS_DATA_PROVIDER.MD "Stream port"). Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
+A **port** (`data_matrix.h`) is anything a provider's bytes reach, the commands included: a module's (the router, a stream), a provider's (SYS_DATA_PROVIDER.MD "Stream port"), a session's. Its owner **embeds** a `data_matrix_port_t` in its own struct and fills:
 
-- its name, a `u16`: `DATA_MATRIX_PORT(kind, id)`, the kind (`DATA_MATRIX_PORT_MODULE` 0 or `DATA_MATRIX_PORT_PROVIDER` 1) in the high byte;
+- its name, a `u16`: `DATA_MATRIX_PORT(kind, id)`, the kind in the high byte: `DATA_MATRIX_PORT_MODULE` 0 (the id a module's number), `DATA_MATRIX_PORT_PROVIDER` 1 (a provider's id), `DATA_MATRIX_PORT_SESSION | provider` (`0x80 |` a provider's id below `0x80`: a session's ports, the id a module's number or 0 for the session's own);
 - `in`, its input (NULL: it takes nothing); in it the owner gets its struct back from `self` (`DATA_MATRIX_OWNER`).
 
-The switch keeps the port's `place` while it is registered. The owner sends with `data_matrix_send(&port, flags, data, len)`; a port that is not registered sends nothing.
+The switch keeps the port's `place` while it is registered. The owner sends out of its port, and a port that is not registered sends nothing:
 
-**The contract of a port:** `in` is short, never blocks, never sends on its own port, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `in` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `in` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
+| Call | To |
+|---|---|
+| `data_matrix_send(&port, flags, data, len)` | every port linked from it |
+| `data_matrix_send_to(&port, to, flags, data, len)` | the one port `to`, when it is linked from it (`false`: no such link): an answer to `from`, a call to one session |
+| `data_matrix_send_except(&port, except, flags, data, len)` | every port linked from it but `except`: what a port passes on, never back to the `from` it came from |
+
+A link is the permission: no call reaches a port that is not linked from the sender. A taker gets the sender's name (`from`), its address to answer.
+
+**The contract of a port:** `in` is short, never blocks, copies what it keeps (`data` is valid for the call only); it runs on the sender's task. A send only from a task, never from an ISR, and no more once the port is unregistered. **The port's memory and its `in` stay valid after it is unregistered:** a send in flight (its targets copied under the lock before the unregister, called after it) may still call it, so an owner never frees a port it has registered; its `in` drops what comes after its owner is done (a provider's slot is never freed, SYS_DATA_PROVIDER.MD "Stream port"). A packet with no link is dropped without a word. The order in which the targets of one output get a packet is no promise.
 
 **Providers are ports by themselves:** a provider's CREATE registers its port, its REMOVE unregisters it first (SYS_DATA_PROVIDER.MD "Stream port"). The switch never names a provider; the providers call the switch.
 
@@ -30,7 +38,9 @@ The switch keeps the port's `place` while it is registered. The owner sends with
 
 A **link** `{from, to}` (`data_matrix_link_t`, 4 bytes: two names, `u16` LE) sends the output of `from` to the input of `to`. `data_matrix_connect` refuses an unknown port, a port to itself and `to` with no input (`ERR_DATA_MATRIX_BAD_ARG`), and a target past `CONFIG_DATA_MATRIX_TARGETS` of one output (`ERR_DATA_MATRIX_FULL`); the same link again changes nothing. `data_matrix_disconnect`: not there, nothing changes. `data_matrix_unregister` takes the port's links with it.
 
-**Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged. Since no `in` sends on its own port, a send never runs inside a send: links both ways are safe and the switch checks no cycle.
+**Synchronous:** a send calls the inputs of the linked ports at once, on the sender's task, with the packet unchanged.
+
+**A send inside an `in`** ends at a provider: a provider's `in` never sends. A session's `in` sends on at once (what its provider brings out of a sub-port, what comes into a sub-port out to its provider); a module's `in` may pass on what it takes (`data_matrix_send_except(from)`) or send from a callback (the router's call). The modules' ports that send in their `in` are linked with sessions' sub-ports and providers only, never with each other: no chain is a cycle, and the switch checks none. Each session on a chain puts its frame on the sender's stack.
 
 Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: an `in` never runs under the lock. The table changes from one task (boot, the commands).
 
@@ -46,7 +56,7 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 ## Config (`Kconfig`)
 
-`DATA_MATRIX_PORTS` 32 (one place is 12 B on the board: 384 B), `DATA_MATRIX_TARGETS` 4 (a send takes a pointer each of the sender's stack: 16 B).
+`DATA_MATRIX_PORTS` 32 (one place is 16 B on the board: 512 B), `DATA_MATRIX_TARGETS` 8 (the router's and the streams' ports are linked with every session; a send takes a pointer each of the sender's stack: 32 B).
 
 ## Open
 
@@ -94,13 +104,10 @@ The channel range (`0x80`, `SYS_SESSION_CHANNEL`) is gone: the watches and the r
 
 **A tunnel** is two links, `P(a) ⇄ P(b)`: the frames pass whole, so the app opens a session with the board behind. A provider in a tunnel has no session (its output goes to every target), and both ends are framed or both raw.
 
-**What the switch gets:**
+**Still to settle in the work:**
 
-- `data_matrix_send_to(port, to, ...)`: to one target, over a link that exists; `data_matrix_send_except(port, except, ...)`: to every target but one.
-- The contract of `in`, changed: an `in` may send out of its owner's ports (a session, a stream port passing on, a call's callback in the router). A provider's `in` never sends, so every chain ends at a provider and none is a cycle, as long as no two passing-on ports (stream ports) are linked with each other. The deepest chain (provider, session, its sub-port, the router's call callback, another session, its provider) puts a session frame on the sender's stack at each session: counted against the BLE host's and the RX tasks' stacks.
-- `DATA_MATRIX_TARGETS` 8: the router's and the streams' ports are linked with every session.
+- The deepest chain (provider, session, its sub-port, the router's call callback, another session, its provider) puts a session frame on the sender's stack at each session: counted against the BLE host's and the RX tasks' stacks.
 - `DATA_MATRIX_PORTS` counted again: each session is its port, its command sub-port and one per stream module (a Kconfig limit of them per session).
-- Still to settle in the work: the session's end fails the router's calls through it (`router_call_fail_to(port)`, called by the session), the call's wait and `ERR_SESSION_WOULD_BLOCK` / `_TIMEOUT` / `_PEER_DOWN` move with the slots; `sys_data_provider_state` public (`FRAMED` at `ATTACH`, `WIRED` for `sys_session_wired`).
-- A port's definition: anything a provider's bytes reach, the commands included.
+- The session's end fails the router's calls through it (`router_call_fail_to(port)`, called by the session), the call's wait and `ERR_SESSION_WOULD_BLOCK` / `_TIMEOUT` / `_PEER_DOWN` move with the slots; `sys_data_provider_state` public (`FRAMED` at `ATTACH`, `WIRED` for `sys_session_wired`).
 
-**The order of work:** the switch (`send_to`, `send_except`, the contract, the sessions' names, `TARGETS`), the header (`core/cmd`, `CMD_HEAD` 5, the ids), `MODULE_ID_ERRORS`, the router's port and its calls, `sys_session` (the session port, the sub-ports, `ATTACH` / `DETACH`, the providers' events instead of their open / send), the stream ports (`sys_log`, `sys_event_stream`), `sys_watch` and `sys_remote` on tags, `app/runit` (`ATTACH` and `CONNECT` frames instead of roles and routes), `contract_session.json`, `session_client.py` and the app's session code.
+**The order of work:** the header (`core/cmd`, `CMD_HEAD` 5, the ids), `MODULE_ID_ERRORS`, the router's port and its calls, `sys_session` (the session port, the sub-ports, `ATTACH` / `DETACH`, the providers' events instead of their open / send), the stream ports (`sys_log`, `sys_event_stream`), `sys_watch` and `sys_remote` on tags, `app/runit` (`ATTACH` and `CONNECT` frames instead of roles and routes), `contract_session.json`, `session_client.py` and the app's session code.

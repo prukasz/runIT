@@ -1,7 +1,7 @@
 /**
  * @file data_matrix.c
- * @brief The switch of the stream ports (data_matrix.h): the registered ports, each with the ports its output goes
- * to, and the send, which hands a packet unchanged to their inputs (DATA_MATRIX.MD).
+ * @brief The switch of the ports (data_matrix.h): the registered ports, each with the ports its output goes to, and
+ * the sends, which hand a packet unchanged to their inputs: all of them, one, or all but one (DATA_MATRIX.MD).
  *
  * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so a send only copies
  * them under the spinlock, a few bytes, and calls them after it: a port's `in` never runs under the lock.
@@ -39,8 +39,8 @@ static uint8_t find(data_matrix_port_id_t id) {
   return NO_PORT;
 }
 
-void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
-  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
+// The ports `self`'s output goes to, copied under the lock into `to`; 0 when `self` is not registered.
+static uint32_t targets(const data_matrix_port_t* self, data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS]) {
   uint32_t n = 0;
   portENTER_CRITICAL(&s_lock);
   const slot_t* from = self->place < CONFIG_DATA_MATRIX_PORTS ? &s_slots[self->place] : NULL;
@@ -50,8 +50,38 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
     }
   }
   portEXIT_CRITICAL(&s_lock);
+  return n;
+}
+
+void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* data, uint32_t len) {
+  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
+  const uint32_t n = targets(self, to);
   for (uint32_t i = 0; i < n; i++) {
     to[i]->in(to[i], self->id, flags, data, len);
+  }
+}
+
+bool data_matrix_send_to(data_matrix_port_t* self, data_matrix_port_id_t target, uint8_t flags, const uint8_t* data,
+                         uint32_t len) {
+  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
+  const uint32_t n = targets(self, to);
+  for (uint32_t i = 0; i < n; i++) {
+    if (to[i]->id == target) {
+      to[i]->in(to[i], self->id, flags, data, len);
+      return true;
+    }
+  }
+  return false;
+}
+
+void data_matrix_send_except(data_matrix_port_t* self, data_matrix_port_id_t except, uint8_t flags,
+                             const uint8_t* data, uint32_t len) {
+  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
+  const uint32_t n = targets(self, to);
+  for (uint32_t i = 0; i < n; i++) {
+    if (to[i]->id != except) {
+      to[i]->in(to[i], self->id, flags, data, len);
+    }
   }
 }
 

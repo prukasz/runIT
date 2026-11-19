@@ -1,16 +1,16 @@
 menu "data_matrix"
 
     config DATA_MATRIX_PORTS
-        int "Stream ports"
+        int "Ports"
         default 32
         range 2 254
         help
-          The ports the switch can hold: the modules' streams and the
-          providers. One place is 12 bytes on the board.
+          The ports the switch can hold: the modules', the providers' and
+          the sessions'. One place is 12 bytes on the board.
 
     config DATA_MATRIX_TARGETS
         int "Targets of one port"
-        default 4
+        default 8
         range 1 16
         help
           The ports one port's output can go to. A send copies them onto the

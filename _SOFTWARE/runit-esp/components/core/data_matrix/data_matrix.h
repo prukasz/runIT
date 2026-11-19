@@ -2,37 +2,46 @@
 
 /**
  * @file data_matrix.h
- * @brief The data matrix: the switch that links stream ports (DATA_MATRIX.MD). A minimal, synchronous implementation:
- * a table of ports and their links and one call that hands a packet on, on the sender's task; no role, no session, no
+ * @brief The data matrix: the switch that links ports (DATA_MATRIX.MD). A minimal, synchronous implementation: a
+ * table of ports and their links and the calls that hand a packet on, on the sender's task; no role, no session, no
  * tag, no format, no queue, no task, no waiting.
  *
  *   module A                         switch                          module B
  *   data_matrix_send(&A.port, ...)  -> for each link A -> B:  ------> B.port.in(&B.port, A, flags, data, len)
  *
- * A port is anything that sends or takes bytes that are not commands: a module's stream, a provider. The owner EMBEDS
- * the port in its own struct and fills `id` and `in`; the switch keeps its place while it is registered. In `in`
- * the owner gets its struct back from `self` (DATA_MATRIX_OWNER).
+ * A port is anything a provider's bytes reach, the commands included: a module's, a provider's, a session's. The
+ * owner EMBEDS the port in its own struct and fills `id` and `in`; the switch keeps its place while it is registered.
+ * In `in` the owner gets its struct back from `self` (DATA_MATRIX_OWNER).
  *
  *   typedef struct { data_matrix_port_t port; ... } my_t;
  *   static void my_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
  *                     uint32_t len) {
  *     my_t* me = DATA_MATRIX_OWNER(self, my_t, port);   // ...
  *   }
- *   static my_t s_me = {.port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x04), .in = my_in}};
+ *   static my_t s_me = {.port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x2A), .in = my_in}};
  *   data_matrix_send(&s_me.port, CMD_SEND_URGENT, rec, len);
+ *
+ * data_matrix_send hands a packet to every port linked from the sender; data_matrix_send_to to one of them (an answer
+ * to `from`, a call to one session), data_matrix_send_except to all but one (what a port passes on, never back to
+ * `from`). A link is the permission: a port is reached only over a link.
  *
  * A packet carries its flags (CMD_SEND_*, cmd_types.h): the sender sets them, the switch hands them on unchanged
  * with the bytes, the taker honours what it can (a provider queues by them).
  *
- * The contract of a port: `in` is short, never blocks, never sends on its own port, copies what it keeps (`data` is
- * valid for the call only); it runs on the sender's task. data_matrix_send only from a task, never from an ISR; a
- * packet with no link is dropped. The switch does not wait for sends in flight, so the port's memory and its `in`
- * stay valid after it is unregistered (a send that copied its targets before may still call it): an owner never frees
- * a registered port. Its owner stops sending before the port is unregistered. Since no `in` sends on its own port, a
- * send never runs inside a send: links A -> B and B -> A are safe, and the switch checks no cycle. The order in which
- * the targets of one port get a packet is no promise.
+ * The contract of a port: `in` is short, never blocks, copies what it keeps (`data` is valid for the call only); it
+ * runs on the sender's task. Sends only from a task, never from an ISR; a packet with no link is dropped. The switch
+ * does not wait for sends in flight, so the port's memory and its `in` stay valid after it is unregistered (a send
+ * that copied its targets before may still call it): an owner never frees a registered port. Its owner stops sending
+ * before the port is unregistered. The order in which the targets of one port get a packet is no promise.
+ *
+ * A send inside an `in`: a provider's `in` never sends, so every chain ends at a provider. A session's `in` sends on
+ * at once (from its provider out of a sub-port, into a sub-port out to its provider); a module's `in` may pass on
+ * what it takes (data_matrix_send_except(from)) or send from a callback (the router's call). Modules' ports that send
+ * in their `in` are linked with sessions' sub-ports and providers only, never with each other: so no chain is a cycle,
+ * and the switch checks none.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "cmd_types.h"
@@ -42,18 +51,21 @@
 extern "C" {
 #endif
 
-/** @brief What a port belongs to: a module's own (a fixed id, its stream) or a provider (its provider id). */
+/** @brief What a port belongs to: a module (its number), a provider (its id) or a session (its provider's id). */
 typedef enum {
-  DATA_MATRIX_PORT_MODULE = 0,    /**< A module's stream: ERRORS 0x04, ERRORS_IN 0x05, LOGS 0x03, ... */
-  DATA_MATRIX_PORT_PROVIDER = 1,  /**< A provider, by its id (sys_data_provider) */
+  DATA_MATRIX_PORT_MODULE = 0,      /**< A module's, by its module number: the router, the errors, the events, ... */
+  DATA_MATRIX_PORT_PROVIDER = 1,    /**< A provider, by its id (sys_data_provider) */
+  DATA_MATRIX_PORT_SESSION = 0x80,  /**< | the provider's id (below 0x80): a session's ports, by a module's number, 0
+                                         the session's own (sys_session) */
 } data_matrix_port_kind_e;
 
 /** @brief A port's name: its kind in the high byte, its id in the low one (DATA_MATRIX_PORT). Compared as a whole. */
 typedef uint16_t data_matrix_port_id_t;
 
 /**
- * @brief A port's name from its kind (data_matrix_port_kind_e) and its id (the module's stream, the provider's id).
- * @usage DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, 0x04)   // the errors out
+ * @brief A port's name from its kind (data_matrix_port_kind_e) and its id (a module's number, a provider's id).
+ * @usage DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_ROUTER)
+ *        DATA_MATRIX_PORT(DATA_MATRIX_PORT_SESSION | provider, MODULE_ID_ROUTER)   // a session's commands
  */
 #define DATA_MATRIX_PORT(kind, id) ((data_matrix_port_id_t)(((kind) << 8) | (id)))
 
@@ -127,6 +139,30 @@ MUST_USE err_h data_matrix_disconnect(const data_matrix_link_t* link);
  * @param len    Bytes in data.
  */
 void data_matrix_send(data_matrix_port_t* port, uint8_t flags, const uint8_t* data, uint32_t len);
+
+/**
+ * @brief Sends a packet out of a port to one port linked from it: an answer to `from`, a call to one session.
+ * @param port   The owner's port.
+ * @param to     The target's name.
+ * @param flags  CMD_SEND_*.
+ * @param data   The packet, borrowed for the call.
+ * @param len    Bytes in data.
+ * @return true when `to` is linked from `port` and took it; false: no such link (or `port` not registered).
+ */
+bool data_matrix_send_to(data_matrix_port_t* port, data_matrix_port_id_t to, uint8_t flags, const uint8_t* data,
+                         uint32_t len);
+
+/**
+ * @brief Sends a packet out of a port to every port linked from it but one: what a port passes on, never back to the
+ * port it came from.
+ * @param port    The owner's port.
+ * @param except  The port left out (the `from` of what is passed on).
+ * @param flags   CMD_SEND_*.
+ * @param data    The packet, borrowed for the call.
+ * @param len     Bytes in data.
+ */
+void data_matrix_send_except(data_matrix_port_t* port, data_matrix_port_id_t except, uint8_t flags,
+                             const uint8_t* data, uint32_t len);
 
 /**
  * @brief The links, port by port: each output's targets.
