@@ -11,7 +11,7 @@ Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as one p
 
 Where they go and come from is the links (`app/runit`): `EVENTS → S(app's session, MODULE_ID_SYS_EVENT)` is the app's events, and `S(a slave's session, MODULE_ID_SYS_EVENT) → EVENTS` takes a slave's, which `EVENTS` passes on to the app's session.
 
-An event that comes in has the **sender's** source and channel (its device ids), and the board that made it is the packet's `src`: a board that has devices of another board as its own remote devices gets them mapped by `sys_remote` (`SYS_REMOTE.MD`), not by this port.
+An event that comes in has the **sender's** source and channel (its device ids), and the board that made it is the packet's `src`: a board that has devices of another board as its own remote devices gets them mapped by `sys_device_remote` (`SYS_DEVICE_REMOTE.MD`), not by this port.
 
 ## Open
 

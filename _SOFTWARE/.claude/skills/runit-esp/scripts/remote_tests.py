@@ -323,7 +323,7 @@ def test_dummy_errors(link: Link, child: int) -> None:
 
 
 def test_board_errors(link: Link) -> None:
-    """The board as the source of an error: a board the root has no slot to follow (CONFIG_SYS_REMOTE_BOARDS is 4)."""
+    """The board as the source of an error: a board the root has no slot to follow (CONFIG_SYS_DEVICE_REMOTE_BOARDS is 4)."""
     boards = [21, 22, 23, 24, 25]  # boards that do not exist: the twins are only records
     t = link.mark()
     made = []

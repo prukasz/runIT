@@ -156,10 +156,10 @@ The deferred events and the queued listeners go through **lanes**: each lane is 
 | Lane | Events | Task priority | Queued listeners |
 |---|---|---|---|
 | `SYS` | The system's: `SESSION`, `PWRM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
-| `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_remote` |
+| `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_device_remote` |
 
 - **The lane is the table's** (`SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, LANE)`), so all the events of one module go one way and keep their order. Between lanes there is no order: whichever task gets there first delivers first; `t_ms` says when each happened.
-- **It travels in the event**: bits 4..7 of `flags` (`SYS_EVENT_FLAG_LANE`, `SYS_EVENT_LANE_OF`). An event passed on (another board's: `sys_remote`, `sys_event_stream`) keeps the lane its board gave it.
+- **It travels in the event**: bits 4..7 of `flags` (`SYS_EVENT_FLAG_LANE`, `SYS_EVENT_LANE_OF`). An event passed on (another board's: `sys_device_remote`, `sys_event_stream`) keeps the lane its board gave it.
 - **One task per lane**: `sys_event_init()` (boot) starts them all. A task takes one item from its ring, copies it (so the room is free again before a slow listener runs), turns an ISR's uptime into the clock's time, reports its lane's ISR drops not reported yet, then runs the inline listeners of a deferred event and the queued listeners of its lane.
 - In one lane a slow listener still holds up the events behind it.
 - `CONFIG_SYS_EVENT_<LANE>_TASK_STACK` (4096). The SYS lane is above the DEVICE lane, so a flood of device events can't hold the system's back; both are above the router work task (5) and below the urgent task (15).

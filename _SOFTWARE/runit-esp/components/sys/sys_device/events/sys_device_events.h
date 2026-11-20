@@ -12,7 +12,7 @@
  * the whole sweep, not one per device; a REMOVE sweep publishes each device's REMOVED). Channel = 0.
  *
  * NOTIFY: the app learns of a safe state, a fault response or a reset without asking. CREATED and REMOVED only drive
- * code (the error policy starts a new device at its defaults and forgets a removed one; sys_remote follows the
+ * code (the error policy starts a new device at its defaults and forgets a removed one; sys_device_remote follows the
  * remote devices; a module that keeps state on a device follows it).
  *
  *   SUSPENDED: the device went into the safe state

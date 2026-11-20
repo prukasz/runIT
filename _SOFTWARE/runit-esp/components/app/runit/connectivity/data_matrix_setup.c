@@ -8,6 +8,7 @@
 #include "sdkconfig.h"
 #include "sys_ble.h"
 #include "sys_data_provider.h"
+#include "sys_device_remote_id.h"
 #include "sys_event_id.h"
 #include "sys_log_id.h"
 #include "sys_session.h"
@@ -49,15 +50,15 @@ typedef struct {
   uint8_t ways;
 } sub_row_t;
 
-// The runIT BLE pair (the app): its commands, the errors and the events; logs and telemetry have their own
-// characteristics, raw.
+// The runIT BLE pair (the app): its commands, the errors, the events and the remote devices' frames; logs and
+// telemetry have their own characteristics, raw. REMOTE is IN only: its frames out go to the sub-port by name.
 static const sub_row_t k_ble_subs[] = {
-    {MODULE_ID_ROUTER, IN}, {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT}};
+    {MODULE_ID_ROUTER, IN}, {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT}, {MODULE_ID_REMOTE, IN}};
 
-// The console (the app or a board): everything, the logs and the watches' entries too.
+// The console (the app or a board): everything, the logs, the watches' entries and the remote devices' frames too.
 static const sub_row_t k_console_subs[] = {
-    {MODULE_ID_ROUTER, IN},         {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT},
-    {MODULE_ID_WATCH, IN | OUT},    {MODULE_ID_LOG, OUT}};
+    {MODULE_ID_ROUTER, IN},      {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT},
+    {MODULE_ID_WATCH, IN | OUT}, {MODULE_ID_LOG, OUT},         {MODULE_ID_REMOTE, IN}};
 
 // A session of the board's own, with the dead-man's default (a safety one when there is a time).
 typedef struct {

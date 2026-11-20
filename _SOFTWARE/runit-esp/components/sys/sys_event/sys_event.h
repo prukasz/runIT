@@ -237,10 +237,10 @@ MUST_USE err_h sys_event_unsubscribe(uint16_t handle);
 /**
  * @brief Publishes an event, the one way in: stamps t_ms, runs the inline listeners (table order), then queues one
  * copy into its lane for the queued listeners of the lane if one matches. With SYS_EVENT_DEFER all of it runs later in
- * the lane's task: for a task an op may wait for (the ESP32-S3 GPIO's ADC task, sys_remote's link, the screen's task),
+ * the lane's task: for a task an op may wait for (the ESP32-S3 GPIO's ADC task, sys_device_remote's link, the screen's task),
  * where an inline listener could need a lock that op holds. From an ISR it is always deferred (the clock is read there
  * by the lane's task, at the moment of the ISR); a drop there is counted and reported by that task. Use
- * SYS_EVENT_PUBLISH / SYS_EVENT_PUBLISH_DEFER; a module that passes on an event it did not declare (sys_remote) calls
+ * SYS_EVENT_PUBLISH / SYS_EVENT_PUBLISH_DEFER; a module that passes on an event it did not declare (sys_device_remote) calls
  * this with the event's flags, its lane with them.
  * @param[in] key   What, who and where
  * @param[in] flags The event's flags (SYS_EVENT_NOTIFY and the lane, from its table) and how to deliver it

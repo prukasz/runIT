@@ -113,7 +113,7 @@ enum {
 };
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, MODULE_ID_SYS_DEVICE)
 
-/* A remote device's flags (sys_device_remote_t.flags): how its calls go (SYS_REMOTE.MD "A call"). Exactly one. */
+/* A remote device's flags (sys_device_remote_t.flags): how its calls go (SYS_DEVICE_REMOTE.MD "A call"). Exactly one. */
 //#ref-defines device_remote_flag @alias Remote device flags @prefix SYS_DEVICE_REMOTE_
 #define SYS_DEVICE_REMOTE_WIRED    (1u << 0)  //@alias Wired @description A neighbour on a wired link: every call waits for its answer, no copies
 #define SYS_DEVICE_REMOTE_WIRELESS (1u << 1)  //@alias Wireless @description A board over a radio: a write returns once taken, a read gives the latest copy

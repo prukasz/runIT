@@ -1808,7 +1808,7 @@
               "size": 1
             }
           ],
-          "description": "a remote device whose board is gone, or no sys_remote on this board",
+          "description": "a remote device whose board is gone, or no sys_device_remote on this board",
           "message": "Device {id} is on board {board}, which cannot be reached",
           "hint": "Check the cable or the link to that board."
         },
@@ -3538,8 +3538,8 @@
       "id": 47,
       "name": "REMOTE",
       "symbol": "MODULE_ID_REMOTE",
-      "source_file": "runit-esp/components/sys/sys_remote/errors/sys_remote_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_remote/errors/errors_sys_remote.json",
+      "source_file": "runit-esp/components/sys/sys_device_remote/errors/sys_device_remote_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_device_remote/errors/errors_sys_device_remote.json",
       "tags": [
         {
           "code": 1,
@@ -3579,7 +3579,7 @@
               "size": 1
             }
           ],
-          "description": "SUBSCRIBE with every CONFIG_SYS_REMOTE_SUBSCRIPTIONS slot taken",
+          "description": "SUBSCRIBE with every CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS slot taken",
           "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
           "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
         }

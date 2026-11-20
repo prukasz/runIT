@@ -9,7 +9,7 @@ extern "C" {
 /**
  * @brief How the app wires itself into the registry: the call as a command makes it (the device router), the
  * interceptors and the remote hook. Used by the modules that carry commands (sys_device_router), a policy (the power
- * manager) or a remote device (sys_remote); no driver and no block uses them. What happened to a device (created,
+ * manager) or a remote device (sys_device_remote); no driver and no block uses them. What happened to a device (created,
  * removed, suspended, resumed, reset) is not a hook: the registry publishes it as an event (SYS_DEVICE).
  */
 
@@ -85,7 +85,7 @@ MUST_USE err_h sys_device_set_interceptor(uint8_t contract, sys_device_intercept
  * @brief The remote hook: carries one call of a remote device to its board, without any lock of the registry (a
  * caller's own lock may be held). The registry has checked the op against the device's type (in the table, not
  * LOCAL, not a write while suspended); the hook builds the device command for that board (`where->remote_id` in place
- * of the local ID) and runs it as `where->flags` says (WIRED: waits for the answer; WIRELESS: SYS_REMOTE.MD).
+ * of the local ID) and runs it as `where->flags` says (WIRED: waits for the answer; WIRELESS: SYS_DEVICE_REMOTE.MD).
  * @param where Where the device is: a copy, valid during the call
  * @param dir   cmd_dir_e
  * @param op    Op number, SYS_DEVICE_OP(contract, n)
@@ -97,7 +97,7 @@ typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t d
                                      cmd_out_t* out);
 
 /**
- * @brief Sets the remote hook. Boot only, one (sys_remote_init).
+ * @brief Sets the remote hook. Boot only, one (sys_device_remote_init).
  * @param[in] fn The hook; valid for good.
  */
 void sys_device_set_remote(sys_device_remote_f fn);

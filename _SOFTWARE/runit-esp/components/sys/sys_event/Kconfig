@@ -6,7 +6,7 @@ menu "sys_event"
         range 4 255
         help
           Listeners made by C code: inline ones (a device's ON_EVENT) and
-          queued ones (the power manager, sys_remote; a lane's task).
+          queued ones (the power manager, sys_device_remote; a lane's task).
 
     config SYS_EVENT_DATA_MAX
         int "Largest payload (bytes)"
@@ -73,7 +73,7 @@ menu "sys_event"
             range 3072 32768
             help
               Runs the queued listeners of the devices' events (the power
-              manager, sys_remote) and every listener of an ISR
+              manager, sys_device_remote) and every listener of an ISR
               or deferred device event: device ON_EVENT ops (I2C).
 
     endmenu

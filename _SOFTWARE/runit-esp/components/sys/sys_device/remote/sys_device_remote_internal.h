@@ -11,7 +11,7 @@ extern "C" {
 
 /**
  * @brief Private to the registry (sys_device): remote devices, a local ID for a device of another board. The slot
- * keeps its type and, as the instance, where it is (sys_device_remote_t); its calls go to the hook sys_remote sets.
+ * keeps its type and, as the instance, where it is (sys_device_remote_t); its calls go to the hook sys_device_remote sets.
  */
 
 /**
@@ -32,7 +32,7 @@ MUST_USE err_h sys_device_remote_create(uint8_t id, cmd_in_t in);
  * @param[in]  op    Op number
  * @param[in]  in    The op's payload
  * @param[out] out   The answer
- * @return ERR_DEV_REMOTE_DOWN{id, board} without a hook (no sys_remote on this board), else the hook's
+ * @return ERR_DEV_REMOTE_DOWN{id, board} without a hook (no sys_device_remote on this board), else the hook's
  */
 MUST_USE err_h sys_device_remote_send(uint8_t id, const sys_device_remote_t* where, uint8_t dir, uint16_t op,
                                       cmd_in_t in, cmd_out_t* out);

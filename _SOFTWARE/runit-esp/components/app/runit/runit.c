@@ -17,7 +17,7 @@
 #include "sys_event.h"
 #include "sys_event_stream.h"
 #include "sys_log.h"
-#include "sys_remote.h"
+#include "sys_device_remote.h"
 #include "sys_session.h"
 #include "sys_system.h"
 #include "sys_watch.h"
@@ -28,7 +28,7 @@
 static void error_sink(err_h chain, const cmd_req_t* cmd) {
   err_h response = sys_device_policy_handle(chain);
   sys_log_report(chain, cmd);
-  sys_remote_on_error(chain, cmd);
+  sys_device_remote_on_error(chain, cmd);
   if (response != NULL) {
     err_log(response);
     sys_log_report(response, NULL);
@@ -50,7 +50,7 @@ void runit_start(void) {
   err_report(sys_log_init());
   err_report(sys_event_stream_init());
   err_report(sys_watch_init());
-  err_report(sys_remote_init());
+  err_report(sys_device_remote_init());
   err_report(runit_data_matrix_setup());
   err_set_sink(error_sink);
   err_report(sys_system_init());

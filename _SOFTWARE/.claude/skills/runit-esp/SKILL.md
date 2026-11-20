@@ -43,7 +43,7 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | sys | `sys/sys_data_provider` | `SYS_DATA_PROVIDER.MD` | providers: the ways bytes go out and come in, by id, each a port of the data matrix; their lifecycle, one call into a driver at a time, their events (`0x0D`) |
 | sys | `sys/sys_session` | `SYS_SESSION.MD` | a session is a framed provider with one peer: the hello, the dead-man, broadcast, calls with a wait, PUSH frames (`0x0E`) |
 | sys | `sys/sys_watch` | `SYS_WATCH.MD` | watches: reads this board runs by a period or a change, sent out of the port `WATCH` to the session of the one who added them; the client's cache (`0x2B`) |
-| sys | `sys/sys_remote` | `SYS_REMOTE.MD` | devices of other boards: the registry's remote hook, calls through the router to a board's session, reads from the watches, their events and errors through the port `REMOTE` (`0x2F`) |
+| sys | `sys/sys_device_remote` | `SYS_DEVICE_REMOTE.MD` | devices of other boards: the registry's remote hook, calls through the router to a board's session, reads from the watches, their events and errors through the port `REMOTE` (`0x2F`) |
 | sys | `sys/bus/sys_ble` | `SYS_BLE.MD` | the BLE peripheral: NimBLE, the run-time GATT table, the framing both ways (`0x2E`) |
 | sys | `sys/sys_system` | `SYS_SYSTEM.MD` | system commands (`0x28`): ping, stop, restart, clock; the safe state as the registry's sweep, the dead-man |
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history; the ports `LOGS` (`0x2A`) and `ERRORS` (`0x31`: this board's records out, other boards' in and passed on) |

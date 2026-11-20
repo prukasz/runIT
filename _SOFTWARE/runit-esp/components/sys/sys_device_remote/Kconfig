@@ -1,7 +1,7 @@
-menu "sys_remote"
+menu "sys_device_remote"
 
     #@limit @alias Remote subscriptions
-    config SYS_REMOTE_SUBSCRIPTIONS
+    config SYS_DEVICE_REMOTE_SUBSCRIPTIONS
         int "Subscriptions to this board's devices"
         default 16
         range 1 64
@@ -9,7 +9,7 @@ menu "sys_remote"
           Peers subscribed to a device of this board (SUBSCRIBE): each gets the
           device's events and errors. Another board's remote device takes one.
 
-    config SYS_REMOTE_QUEUE_SIZE
+    config SYS_DEVICE_REMOTE_QUEUE_SIZE
         int "Queue (bytes)"
         default 1024
         range 256 8192
@@ -18,12 +18,12 @@ menu "sys_remote"
           board's devices, and in from the boards of the remote devices. A
           multiple of 4.
 
-    config SYS_REMOTE_TASK_PRIO
+    config SYS_DEVICE_REMOTE_TASK_PRIO
         int "Task priority"
         default 4
         range 1 20
 
-    config SYS_REMOTE_TASK_STACK
+    config SYS_DEVICE_REMOTE_TASK_STACK
         int "Task stack (bytes)"
         default 4096
         range 2048 16384
