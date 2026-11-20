@@ -61,12 +61,15 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
-  if (SYS_WATCH_ENTRY_HEAD + len > CMD_DATA_MAX) {
-    return ERR_NEW(ERR_CMD_OUT_FULL, .need = (uint16_t)(SYS_WATCH_ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
-  }
+  const bool too_long = SYS_WATCH_ENTRY_HEAD + len > CMD_DATA_MAX;
+  bool removed = false;
   watch_t* w = &s_watch.watches[(uintptr_t)ctx & 0xFFu];
   xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
-  if (USED(w) && w->gen == (uint8_t)((uintptr_t)ctx >> 8)) {
+  if (USED(w) && w->gen == (uint8_t)((uintptr_t)ctx >> 8) && too_long) {
+    w->head.id = 0;  // an answer no entry can carry: the watch removes itself
+    w->gen++;
+    removed = true;
+  } else if (USED(w) && w->gen == (uint8_t)((uintptr_t)ctx >> 8)) {
     w->busy = false;
     const bool ok = status == ROUTER_STATUS_OK;
     const bool on_change = w->head.trigger == SYS_WATCH_ON_CHANGE;
@@ -89,6 +92,7 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     }
   }
   xSemaphoreGive(sys_watch_mutex);
+  ERR_CHECK(!removed, ERR_CMD_OUT_FULL, .need = (uint16_t)(SYS_WATCH_ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
   return NULL;
 }
 

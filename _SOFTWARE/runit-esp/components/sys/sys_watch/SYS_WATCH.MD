@@ -16,7 +16,7 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 
 ## The watches of this board
 
-A watch is added, removed and listed by commands only (Remote); its owner is the command's source.
+A watch is added, removed and listed by commands (Remote); its owner is the command's source. It goes when its owner removes it (REMOVE), replaces it (ADD of its id), or its owner's session ends (`SESSION_EV_GONE`), and by itself only when an answer is too long for an entry. A watch of an owner with no session (a raw provider: MQTT) stays until REMOVE.
 
 ### Adding & triggers (`sys_watch_head_t`, 6 B)
 
@@ -28,7 +28,7 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
 - One `board_timer` runs every `SYS_WATCH_TICK_MS` (`10 ms`) from `sys_watch_init`. It starts the reads that are due with `router_inject`; one the router's queue refuses is tried again at the next tick.
 - The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry a line does not take (a busy provider) is lost and counted as sent: `PERIODIC` sends the next read, `ON_CHANGE` the next change or, after `max_silence`, the value again.
 - An ERROR answer is sent once: the next errors are not sent until an OK entry goes.
-- An answer too long for one entry (`3 + len > CMD_DATA_MAX`) is reported once (`ERR_CMD_OUT_FULL` with the read) and the watch reads no more.
+- An answer too long for one entry (`3 + len > CMD_DATA_MAX`) removes the watch and is reported once (`ERR_CMD_OUT_FULL` with the read).
 - A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `CMD_SRC_ALL`).
 
 ### The entry (a PUSH packet of `WATCH`)
