@@ -19,7 +19,7 @@ Component `components/core/router_queue/`. It runs the commands of this board: i
 |---|---|
 | `router_queue.h` | The flags and statuses (of a command, `cmd_req_t` in `utils/cmd_types.h`; its error record is `err_record_cmd`, `err_record.h`), `ROUTER_PORT`, `router_init`, submit, inject, the calls (`router_request`, `_wait`, `_fail_to`), report, origin, is-task, urgent work. The routing, the handler and the op tables are `router.h` (ROUTER.MD) |
 | `errors/router_queue_errors.h`, `errors/errors_router_queue.json` | `ERR_ROUTER_QUEUE_MAP` (`MODULE_ID_ROUTER_QUEUE`) and the messages |
-| `router_queue.c` | `router_inject`, the port (its frames in, the answers out to ports), the urgent and work tasks, the answers to the callbacks, the report of a failed command, origin, `router_run_urgent`, `router_init` |
+| `router_queue.c` | `router_inject`, the port (its frames in, the answers out to ports), the urgent and work tasks (started by a constructor, before `app_main`), the answers to the callbacks, the report of a failed command, origin, `router_run_urgent`, `router_init` |
 | `router_request.c` | This board's calls: their slots, the answers that end them, their timer, the wait |
 | `internal/router_queue_internal.h` | Between the two: the port, an answer for a call, the calls' start |
 | `Kconfig` | Queues, task prio and stack |
@@ -107,7 +107,7 @@ A tag about a command carries its `src`.
 ## Tests
 
 **Host tests** in `host/` (`python test_host/run.py router_queue` from the firmware project, `HOST_TESTS.MD`): the real queue with the real `router` and `errors` on the PC, the two router tasks as threads (the FreeRTOS stand-in: tasks are threads, the queues keep the ring buffer's byte accounting). Two executables:
-- `test_router_queue.c`, no task started: `router_report_cmd` (the log line with the command, a long request cut after 32 bytes), what `router_submit` / `router_inject` refuse (NULL, a request outside 2..`CMD_DATA_MAX`) and accept, `router_run_urgent`'s one waiting slot, the work and the urgent queue each filling to `ERR_ROUTER_QUEUE_FULL` independently.
+- `test_router_queue.c`, both tasks held (each in the `done` of its first command, which never returns), so the queues only fill: `router_report_cmd` (the log line with the command, a long request cut after 32 bytes), what `router_submit` / `router_inject` refuse (NULL, a request outside 2..`CMD_DATA_MAX`) and accept, `router_run_urgent`'s one waiting slot, the work and the urgent queue each filling to `ERR_ROUTER_QUEUE_FULL` independently.
 - `test_router_tasks.c`, the tasks running: a command's answer to its `done` with the submitter's ctx, in order; a failure answered as the error record (origin, request, the chain) and reported to the sink with its command; `NOREPLY` (no answer, a failure still reported); an answer of exactly `CMD_DATA_MAX` and one byte more; a `done` that fails reported; no `done`; an urgent command running while the work task is blocked, and a normal one waiting behind it; `router_submit` copying the command and its request; `router_inject` (src `CMD_SRC_SELF`, a counting seq, the flags); a command run inside a handler seeing the outer origin; `router_run_urgent` running a fn once on the urgent task, and waking an idle one; a router that registered itself (`ROUTER_MODULE_REGISTER`) bound by `router_init` and answering.
 
 Not covered on the host: priorities (the urgent task is above the work task only on the board), the stack sizes, the scheduler's timing.

@@ -66,11 +66,9 @@ static void report_cmd(const cmd_req_t* cmd, err_h err) {
  * Queue: router_inject
  * ------------------------------------------------------------------------- */
 
-// Wakes the urgent task: a command in its ring, or a fn to run. Not started yet: it takes both when it starts.
+// Wakes the urgent task: a command in its ring, or a fn to run.
 static void wake_urgent(void) {
-  if (router_urgent_task_h != NULL) {
-    xTaskNotifyGive(router_urgent_task_h);
-  }
+  xTaskNotifyGive(router_urgent_task_h);
 }
 
 // Copies a command into the ring of its flags: its request, after `key` when it came in a frame (key NULL: in req).
@@ -256,15 +254,15 @@ static void urgent_task(void* arg) {
   }
 }
 
+// The router tasks: static (stack and TCB in U_TASK_DEFINE), so they start before app_main, after the rings above.
+__attribute__((constructor)) static void tasks_start(void) {
+  U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
+  U_TASK_START(router_work_task_h, work_task, NULL, CONFIG_ROUTER_WORK_TASK_PRIO);
+}
+
 err_h router_init(void) {
   ERR_TRY(router_root_init());
   ERR_TRY(data_matrix_register(&router_port));
   router_request_init();
-  if (router_urgent_task_h == NULL) {
-    U_TASK_START(router_urgent_task_h, urgent_task, NULL, CONFIG_ROUTER_URGENT_TASK_PRIO);
-  }
-  if (router_work_task_h == NULL) {
-    U_TASK_START(router_work_task_h, work_task, NULL, CONFIG_ROUTER_WORK_TASK_PRIO);
-  }
   return NULL;
 }

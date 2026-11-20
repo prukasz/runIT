@@ -1,14 +1,47 @@
 /* Host tests of the router's queue: a command's error record and its report, what router_submit / router_inject
- * accept and refuse, how the two queues fill, and router_run_urgent's one waiting slot. The tasks are NOT started here
- * (no router_init), so nothing is taken out of the queues: they only fill. What the tasks do with a command is in
- * test_router_tasks.c.
+ * accept and refuse, how the two queues fill, and router_run_urgent's one waiting slot. The tasks start by themselves
+ * (a constructor); main holds each in the done of its first command before the tests, so nothing more is taken out of
+ * the queues: they only fill. What the tasks do with a command is in test_router_tasks.c.
  * Run: python test_host/run.py router_queue   (runit-esp-archive/test_host/HOST_TESTS.MD) */
+#include <pthread.h>
 #include <string.h>
 #include "err_record.h"
 #include "unity.h"
 #include "host_assert.h"
 #include "router_queue.h"
 #include "host_mocks.h"
+
+/* ---- the two tasks, held -------------------------------------------------------------------------------------- */
+
+static pthread_mutex_t s_hold_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_hold_cond = PTHREAD_COND_INITIALIZER;
+static int s_held;
+
+/* A done that never returns: the task that calls it is held for the rest of the run. */
+static err_h hold_done(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
+  (void)ctx, (void)cmd, (void)status, (void)data, (void)len;
+  pthread_mutex_lock(&s_hold_lock);
+  s_held++;
+  pthread_cond_broadcast(&s_hold_cond);
+  while (true) {
+    pthread_cond_wait(&s_hold_cond, &s_hold_lock);
+  }
+  return NULL;
+}
+
+/* One command to each queue with hold_done, then waits until both tasks are in it. */
+static void hold_the_tasks(void) {
+  const uint8_t req[] = {1, 0};
+  const cmd_req_t work = {.req = req, .req_len = sizeof(req), .seq = 1, .src = 0x07, .flags = 0};
+  const cmd_req_t urgent = {.req = req, .req_len = sizeof(req), .seq = 2, .src = 0x07, .flags = ROUTER_FLAG_URGENT};
+  TEST_ASSERT_NULL(router_submit(&work, hold_done, NULL));
+  TEST_ASSERT_NULL(router_submit(&urgent, hold_done, NULL));
+  pthread_mutex_lock(&s_hold_lock);
+  while (s_held < 2) {
+    pthread_cond_wait(&s_hold_cond, &s_hold_lock);
+  }
+  pthread_mutex_unlock(&s_hold_lock);
+}
 
 void setUp(void) {
   host_log_clear();
@@ -162,6 +195,7 @@ static void test_report_cmd_shows_only_the_start_of_a_long_request(void) {
 }
 
 int main(void) {
+  hold_the_tasks();
   UNITY_BEGIN();
   RUN_TEST(test_report_cmd_logs_the_command_with_the_error);
   RUN_TEST(test_report_cmd_shows_only_the_start_of_a_long_request);

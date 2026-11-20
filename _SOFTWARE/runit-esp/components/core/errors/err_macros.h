@@ -141,7 +141,7 @@ void err__register_module(const err_module_t* module);
   static const err_tag_info_t _err_tags_##mod[] = {MAP(ERR__X_INFO, mod)};                              \
   static const err_module_t _err_module_##mod = {                                                       \
       .id = (mod),                                                                                      \
-      .name = #mod + sizeof("MODULE_ID_") - 1u,                                                         \
+      .name = &(#mod)[sizeof("MODULE_ID_") - 1u],                                                       \
       .tags = _err_tags_##mod,                                                                          \
       .count = sizeof(_err_tags_##mod) / sizeof((_err_tags_##mod)[0])};                                 \
   __attribute__((constructor)) static void _err_register_##mod(void) {                                  \

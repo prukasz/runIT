@@ -23,4 +23,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "components/devices/virtual")
 list(APPEND EXTRA_COMPONENT_DIRS "components/providers")
 list(APPEND EXTRA_COMPONENT_DIRS "components/app")
 
+# sys_lvgl needs the DISPLAY and TOUCH contracts (sys_display, sys_touch), not in the rework yet.
+set(EXCLUDE_COMPONENTS sys_lvgl)
+
 project(runIT)

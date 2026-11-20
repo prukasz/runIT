@@ -49,7 +49,7 @@ The firmware is `runit-esp/` (the ESP-IDF project built with its `build.ps1`). P
 | sys | `sys/sys_log` | `SYS_LOG.MD` | ESP_LOG hook, the error record history; the ports `LOGS` (`0x2A`) and `ERRORS` (`0x31`: this board's records out, other boards' in and passed on) |
 | sys | `sys/sys_actions` | `SYS_ACTIONS.MD` | stored command lists: records under u32 IDs with classes, upload / readback / RUN / RUN_ALL (`0x2C`) |
 | sys | `sys/sys_board` | `SYS_BOARD.MD` | the board's profile: the record run at boot, the JSON the app reads back (`0x2D`) |
-| sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter (`0x29`); its DISPLAY and TOUCH contracts are not in the rework yet, so it does not build |
+| sys | `sys/sys_lvgl` | `SYS_LVGL.MD` | the LVGL adapter (`0x29`); its DISPLAY and TOUCH contracts are not in the rework yet, so the project leaves it out (`EXCLUDE_COMPONENTS` in `runit-esp/CMakeLists.txt`) |
 | devices | `devices/{soc,chips,virtual}/device_<chip>` | `device_<chip>.json`, the header | one driver each: ESP32-S3 GPIO, I2C and UART (soc), PCA9685, TCA6424A, TPS55289 (chips), DC_MOTOR (virtual): the descriptor and the header comments are its doc |
 | providers | `providers/provider_{uart,console,ble}` | `PROVIDER_UART.MD`, `PROVIDER_CONSOLE.MD`, `PROVIDER_BLE.MD` | the provider drivers (a struct with the base first, `in`, `remove`, the RX flags in their cfg): a UART device, the console (UART0 + USB-Serial-JTAG), BLE characteristics |
 | app | `app/runit` | `RUNIT.MD` | the composition: `runit_start` (the boot order), the data matrix's tables, the error sink, the board's profile |
