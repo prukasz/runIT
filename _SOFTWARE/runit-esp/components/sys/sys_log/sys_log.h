@@ -1,9 +1,7 @@
 #pragma once
 
 #include "cmd.h"
-#include "data_matrix.h"
 #include "errors.h"
-#include "router_queue.h"
 #include "sys_log_errors.h"
 #include "utils.h"
 
@@ -12,17 +10,14 @@ extern "C" {
 #endif
 
 /**
- * @brief Log output control (SYS_LOG.MD): what ESP_LOG prints, where, and whether a reported error chain is also
- * printed. Five options, applied at boot from the defaults and changed with CONFIG.
+ * @brief Log output control (SYS_LOG.MD): what ESP_LOG prints, whether also to the console, and whether a reported
+ * error chain is also printed. Three options, applied at boot from the defaults and changed with CONFIG.
  *   level          how much is printed: 0 blocks every ESP_LOG line, up to CONFIG_LOG_MAXIMUM_LEVEL;
- *   mirror_serial  1: lines also go to the console (UART / USB-Serial-JTAG),
- *                  0: not to the console (a line still goes out of LOGS when send_logs is 1);
+ *   mirror_serial  1: lines also go to the console (UART / USB-Serial-JTAG), around the data matrix,
+ *                  0: not to the console (a line still goes out of LOGS);
  *   trace_errors   1: a reported error chain is also printed as log lines,
- *                  0: only its error record is sent (ERRORS);
- *   send_errors    1: a reported error chain is sent as a record out of ERRORS,
- *                  0: nothing is sent (the chain may still be printed, see trace_errors);
- *   send_logs      1: every log line is also sent as text out of LOGS,
- *                  0: log lines stay off the stream.
+ *                  0: not printed (its record is still kept and sent out of ERRORS).
+ * Whether lines and records leave the board is their ports' links: a line is not even formatted while LOGS has none.
  * The session's binary frames on the console and the error records don't go through ESP_LOG, so no setting here can
  * silence them.
  */
@@ -33,27 +28,27 @@ extern "C" {
              passed on to every port linked from it but the one they came from.
    Where they go is their links. */
 
-/** @brief The five options: the frame of CONFIG, defined in sys_log_router.h. */
+/** @brief The three options: the frame of CONFIG, defined in sys_log_router.h. */
 typedef struct sys_log_cfg sys_log_cfg_t;
 
 /**
  * @brief Registers the module's ports (LOGS, ERRORS) and takes over ESP_LOG: every line goes to the console (if
- * mirror_serial) and, without ANSI colours and the line end, cut to CONFIG_SYS_LOG_LINE_MAX, out of LOGS; then applies
- * the defaults (INFO, mirror off, trace on, send errors on, send logs on).
- * @return The error of the hook or of the defaults
+ * mirror_serial) and, without ANSI colours and the line end, cut to one frame (CMD_DATA_MAX), out of LOGS; then
+ * applies the defaults (INFO, mirror off, trace on).
+ * @return ERR_DATA_MATRIX_BAD_ARG / _FULL of a port's registration
  */
 MUST_USE err_h sys_log_init(void);
 
 /**
  * @brief Applies the options at once (not stored: the app saves the CONFIG write frame as a record).
- * @param[in] cfg The five options
+ * @param[in] cfg The three options
  * @return ERR_LOG_BAD_LEVEL{level, max}, ERR_CMD_BAD_ARG for a flag other than 0 / 1 (nothing changes)
  */
 MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);
 
 /**
  * @brief The options in force.
- * @param[out] out The five options
+ * @param[out] out The three options
  */
 void sys_log_get(sys_log_cfg_t* out);
 
@@ -61,17 +56,9 @@ void sys_log_get(sys_log_cfg_t* out);
 #define SYS_LOG_RECORD_MAX 192u
 
 /**
- * @brief An error record (err_record_cmd / err_record): kept in the history read by ERRORS (the latest
- * CONFIG_SYS_LOG_ERRORS_KEPT, the oldest dropped) and, with send_errors on, sent out of ERRORS. Any task; never
- * reports (the error sink calls it for every reported chain).
- * @param[in] record The record
- * @param[in] len    Its size in bytes
- */
-void sys_log_error(const uint8_t* record, uint32_t len);
-
-/**
- * @brief A reported error chain as a record (err_record_cmd, `cmd` the command it came from, or NULL): sys_log_error
- * of it. The error sink's call. Any task; never reports.
+ * @brief A reported error chain as a record (err_record_cmd, `cmd` the command it came from, or NULL, cut to
+ * SYS_LOG_RECORD_MAX): kept in the history read by OP_ERRORS (the latest CONFIG_SYS_LOG_ERRORS_KEPT, the oldest
+ * dropped) and sent out of ERRORS. The error sink's call. Any task; never reports.
  * @param[in] chain The chain
  * @param[in] cmd   The command it came from, or NULL
  */

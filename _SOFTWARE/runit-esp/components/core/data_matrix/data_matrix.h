@@ -169,6 +169,13 @@ void data_matrix_send_except(data_matrix_port_t* port, data_matrix_port_id_t exc
                              const uint8_t* data, uint32_t len);
 
 /**
+ * @brief Whether a port has a link out: a sender skips building what nobody would get.
+ * @param port  The owner's port.
+ * @return true when it is registered and linked to at least one port.
+ */
+bool data_matrix_linked(const data_matrix_port_t* port);
+
+/**
  * @brief The links, port by port: each output's targets.
  * @param out  Where the links go, may be NULL when max is 0.
  * @param max  Room in out, in links.

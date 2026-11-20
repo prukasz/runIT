@@ -8,7 +8,7 @@ Component `components/core/data_matrix/` (in `core`: it depends on `core` only, 
 
 | File | Role |
 |---|---|
-| `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `_send_to`, `_send_except`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_links`; the module's error tags registered |
+| `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `_send_to`, `_send_except`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_linked`, `data_matrix_links`; the module's error tags registered |
 | `router/data_matrix_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
 | `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x30), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
@@ -27,6 +27,8 @@ The switch keeps the port's `place` while it is registered. The owner sends out 
 | `data_matrix_send(&port, flags, data, len)` | every port linked from it |
 | `data_matrix_send_to(&port, to, flags, data, len)` | the one registered port `to`, by its name, with no link (`false`: no such port): an answer to `from`, a call to the port its caller names |
 | `data_matrix_send_except(&port, except, flags, data, len)` | every port linked from it but `except`: what a port passes on, never back to the `from` it came from |
+
+`data_matrix_linked(&port)` tells whether a port has a link out, so a sender skips building a packet nobody would get (the log lines).
 
 Where a port's output goes is its links; a taker gets the sender's name (`from`), its address to answer: an answer goes back to it with `send_to`, no link needed. So a session's command sub-port needs one link, to the router: the router's answers and calls reach it by its name.
 

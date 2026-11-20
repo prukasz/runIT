@@ -48,7 +48,7 @@ SIDE_R, SIDE_W = 0x01, 0x02  # OPS: the sides of an op
 SYS_STOP, SYS_RESTART, SYS_SAFE, SYS_SAFE_LEAVE = 0x02, 0x03, 0x09, 0x0A
 SAFE_STOP = 1  # sys_safe_reason_e
 KEY_LOG, LOG_CONFIG = 0x08, 0x01  # RW
-LOG_DEFAULT = (3, 0, 1, 1, 1)  # (level, mirror_serial, trace_errors, send_errors, send_logs)
+LOG_DEFAULT = (3, 0, 1)  # (level, mirror_serial, trace_errors)
 KEY_POWER_MGR, PW_CONFIG, PW_STATUS = 0x0A, 0x01, 0x07  # CONFIG RW, STATUS R
 
 # ---- the board (runit-esp/components/app/runit/board.json) ----
@@ -195,7 +195,7 @@ def pm(link: Link, op: int, payload: bytes = b"", dir: int | None = None) -> Res
 
 def log_get(link: Link) -> tuple | None:
     r = link.request(bytes([KEY_LOG, LOG_CONFIG]), dir=READ)
-    return tuple(r.data) if r is not None and r.ok and len(r.data) == 5 else None
+    return tuple(r.data) if r is not None and r.ok and len(r.data) == 3 else None
 
 
 def log_set(link: Link, *cfg: int) -> Response | None:
@@ -205,7 +205,7 @@ def log_set(link: Link, *cfg: int) -> Response | None:
 def safe_reason(link: Link) -> int | None:
     """SYS SAFE: {reason u8, for_ms u32}; 0 = not in the safe state."""
     r = link.request(bytes([KEY_SYS, SYS_SAFE]))
-    return r.data[0] if r is not None and r.ok and len(r.data) == 5 else None
+    return r.data[0] if r is not None and r.ok and len(r.data) == 3 else None
 
 
 # ---------------------------------------------------------------------------

@@ -1,13 +1,5 @@
 menu "sys_log"
 
-    config SYS_LOG_LINE_MAX
-        int "Max log line (bytes)"
-        default 160
-        range 64 512
-        help
-          Longest cleaned ESP_LOG line queued to LOG_STREAM_LOGS; longer lines
-          are truncated before sending.
-
     config SYS_LOG_ERRORS_KEPT
         int "Error history capacity"
         default 16

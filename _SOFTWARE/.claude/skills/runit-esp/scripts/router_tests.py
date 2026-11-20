@@ -224,7 +224,7 @@ def test_deadman(link: Link) -> None:
 
 def safe_reason(link: Link) -> int | None:
     r = link.request(bytes([KEY_SYS, SYS_SAFE]))
-    return r.data[0] if r is not None and r.ok and len(r.data) == 5 else None
+    return r.data[0] if r is not None and r.ok and len(r.data) == 3 else None
 
 
 def test_stop(link: Link) -> None:
@@ -1248,7 +1248,7 @@ def test_actions_after_restart(link: Link) -> None:
 
 KEY_LOG = 0x08
 LOG_CONFIG = 0x01  # read + write: the write sets the options, the read answers them
-LOG_DEFAULT = (3, 0, 1, 1, 1)  # (level, mirror, trace, send_errors, send_logs)
+LOG_DEFAULT = (3, 0, 1)  # (level, mirror, trace)
 # level INFO, mirror to the console, print error chains
 
 
@@ -1262,11 +1262,11 @@ LOG_DEFAULT_FRAME = log_frame(*LOG_DEFAULT)
 
 def log_get(link: Link) -> tuple | None:
     r = link.request(bytes([KEY_LOG, LOG_CONFIG]), dir=READ)
-    return tuple(r.data) if r is not None and r.ok and len(r.data) == 5 else None
+    return tuple(r.data) if r is not None and r.ok and len(r.data) == 3 else None
 
 
-def log_set(link: Link, level: int, mirror: int, trace: int, errors: int = 1, logs: int = 1) -> Response | None:
-    return link.request(bytes([KEY_LOG, LOG_CONFIG]), payload=bytes([level, mirror, trace, errors, logs]), dir=WRITE)
+def log_set(link: Link, level: int, mirror: int, trace: int) -> Response | None:
+    return link.request(bytes([KEY_LOG, LOG_CONFIG]), payload=bytes([level, mirror, trace]), dir=WRITE)
 
 
 def provoke_error(link: Link) -> tuple[float, list[str], list]:
@@ -1325,19 +1325,12 @@ def test_log(link: Link) -> None:
     check("level 0 blocks every log line, the record is still sent", not lines and recorded(recs),
           f"{len(lines)} line(s), record {recorded(recs)}")
 
-    log_set(link, 3, 1, 1, 0, 1)
-    _, lines, recs = provoke_error(link)
-    check("send_errors off: no record on the errors stream, the chain is still printed",
-          not recorded(recs) and printed(lines), f"printed {printed(lines)}, record {recorded(recs)}")
-    r = link.request(bytes([0x7E]))
-    check("send_errors off: the command still gets its error response", r is not None and not r.ok, str(r))
-
     log_set(link, 3, 1, 1)
     _, lines, _ = provoke_error(link)
     check("back to defaults: the chain is printed again", printed(lines), str(lines))
 
     # Not stored by the module: a live write is gone after a restart (the app keeps it as a record, tested below).
-    log_set(link, 2, 0, 0, 0, 0)
+    log_set(link, 2, 0, 0)
     opens = link.opens
     link.request(bytes([KEY_SYS, SYS_RESTART]))
     up = wait_restart(link, opens) and ping(link) is not None

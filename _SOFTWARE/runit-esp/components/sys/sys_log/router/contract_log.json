@@ -6,7 +6,7 @@
   "id": "LOG",
   "router_key": 42,
   "alias": "Logs and errors",
-  "description": "What ESP_LOG prints, where lines go, whether reported error chains are traced and sent, and the board's ring buffer of latest error records.",
+  "description": "What ESP_LOG prints, whether also to the console, whether reported error chains are traced, and the board's ring buffer of latest error records.",
   "category": "system",
   "record": "SYS_ACTIONS_ID_LOG",
   "commands": [
@@ -15,7 +15,7 @@
       "op": 1,
       "symbol": "LOG_OP_CONFIG",
       "label": "Log and error output options",
-      "description": "Read or update the five log and error output options: level, serial console mirror, error log tracing, error stream sending, and log stream sending.",
+      "description": "Read or update the three log output options: level, serial console mirror and error log tracing.",
       "read": {
         "returns": {
           "struct": "sys_log_cfg_t",
@@ -36,7 +36,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "1 = also print ESP_LOG lines to the console UART / USB-Serial-JTAG, 0 = stream only"
+              "description": "1 = also print ESP_LOG lines to the console UART / USB-Serial-JTAG, 0 = the LOGS port only"
             },
             {
               "id": "trace_errors",
@@ -45,25 +45,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "1 = print reported error chains as log lines, 0 = error record only"
-            },
-            {
-              "id": "send_errors",
-              "label": "Send errors on stream",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 3,
-              "description": "1 = send error records out of the port ERRORS (still kept in history), 0 = disabled"
-            },
-            {
-              "id": "send_logs",
-              "label": "Send logs on stream",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
-              "description": "1 = send cleaned ESP_LOG lines out of the port LOGS, 0 = disabled"
+              "description": "1 = print reported error chains as log lines, 0 = the error record only"
             }
           ]
         }
@@ -97,24 +79,6 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "0 or 1"
-            },
-            {
-              "id": "send_errors",
-              "label": "Send errors on stream",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 3,
-              "description": "0 or 1"
-            },
-            {
-              "id": "send_logs",
-              "label": "Send logs on stream",
-              "type": "integer",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 4,
               "description": "0 or 1"
             }
           ]

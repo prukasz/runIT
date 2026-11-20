@@ -3,7 +3,7 @@
 idf_component_register(
     SRCS "sys_log.c" "router/sys_log_router.c"
     INCLUDE_DIRS "." "errors" "router"
-    REQUIRES cmd errors router router_queue utils data_matrix
-    PRIV_REQUIRES freertos log
+    REQUIRES cmd errors router utils
+    PRIV_REQUIRES data_matrix freertos log
     WHOLE_ARCHIVE
 )

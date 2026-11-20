@@ -15,8 +15,6 @@ typedef struct __attribute__((packed)) sys_log_cfg {
   uint8_t level;          /**< Log level (0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose) */
   uint8_t mirror_serial;  /**< 1 = mirror to console UART, 0 = disabled */
   uint8_t trace_errors;   /**< 1 = print error chains as log lines, 0 = disabled */
-  uint8_t send_errors;    /**< 1 = send error records on errors stream, 0 = disabled */
-  uint8_t send_logs;      /**< 1 = send log lines on logs stream, 0 = disabled */
 } sys_log_cfg_t;
 
 /** @brief ERRORS args */

@@ -62,6 +62,11 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
   }
 }
 
+bool data_matrix_linked(const data_matrix_port_t* self) {
+  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
+  return targets(self, to) > 0;
+}
+
 bool data_matrix_send_to(data_matrix_port_t* self, data_matrix_port_id_t target, uint8_t flags, const uint8_t* data,
                          uint32_t len) {
   portENTER_CRITICAL(&s_lock);
