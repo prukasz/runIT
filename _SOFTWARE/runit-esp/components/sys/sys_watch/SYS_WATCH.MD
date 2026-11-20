@@ -47,7 +47,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 1. **States:** `FREE -> ADDING -> ACTIVE -> FREE`, and `ACTIVE -> ADDING` when the watch has to be added again.
 2. **The first read** `sys_watch_read(board, read, buf, cap, &len)` takes a `FREE` slot, sends `WATCH ADD` (`id = slot + 1`, `SYS_WATCH_ON_CHANGE`, period `CONFIG_SYS_WATCH_READ_PERIOD_MS`, `max_silence` twice that) and returns `ERR_WATCH_NO_VALUE`. While the slot is `ADDING`, a read sends ADD again when the last one went a period ago (it was refused, did not go, or its answer is late: ADD of an id that exists only replaces the watch).
 3. **B3:** an entry `[id][status][data]` from `board` with `id == slot + 1` is taken only while the slot is `ACTIVE`, that is after ADD's OK: what came before it may be of the watch that had the id before.
-4. **A read of an `ACTIVE` slot** returns the entry kept: its bytes, or its error as a chain under `ERR_REMOTE{board, 0}`. No entry yet: `ERR_WATCH_NO_VALUE`; one older than `3 * CONFIG_SYS_WATCH_READ_PERIOD_MS`: `ERR_WATCH_STALE`. An answer longer than `SYS_WATCH_COPY_MAX` (`32 B`) is not kept.
+4. **A read of an `ACTIVE` slot** returns the entry kept: its bytes, or its error as a chain under `ERR_REMOTE{board, 0}`. No entry yet: `ERR_WATCH_NO_VALUE`; one older than `3 * CONFIG_SYS_WATCH_READ_PERIOD_MS`: `ERR_WATCH_STALE`. An answer longer than `SYS_WATCH_COPY_MAX` (`32 B`) is not kept; an error record is kept whole (`ERR_RECORD_MAX`, err_record.h).
 5. **After a write (`sys_watch_stale`):** the slots on `board` whose command has the write's router key and `target_len` bytes after `dir` go back to `ADDING` and send ADD again. ADD's OK comes after the write's answer, so every entry taken from then on was read after the write, and a watch just added sends its first read at once.
 6. **A peer gone** (`SESSION_EV_GONE`): its slots go back to `ADDING`; the next read adds the watch again.
 7. **Idle:** a slot not read for `CONFIG_SYS_WATCH_IDLE_MS` is freed and its watch removed with `WATCH REMOVE` (a 100 ms `board_timer`).
@@ -75,7 +75,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 
 | Option | Default | Meaning |
 |---|---|---|
-| `CONFIG_SYS_WATCH_MAX` | 24 | watches on this board, of every owner |
+| `CONFIG_SYS_WATCH_MAX` | 24 | watches on this board, of every owner (at most 63: LIST in one frame) |
 | `CONFIG_SYS_WATCH_CLIENT_MAX` | 24 | cached reads of other boards |
 | `CONFIG_SYS_WATCH_READ_PERIOD_MS` | 100 | a cached read's watch period; ADD is sent again and an entry is stale by it |
 | `CONFIG_SYS_WATCH_IDLE_MS` | 3000 | a cached read not read this long is removed |

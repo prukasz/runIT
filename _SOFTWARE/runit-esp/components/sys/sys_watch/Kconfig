@@ -4,9 +4,10 @@ menu "sys_watch"
     config SYS_WATCH_MAX
         int "Maximum watches on this board"
         default 24
-        range 1 64
+        range 1 63
         help
-          Reads that peers added on this board (ADD), of every owner.
+          Reads that peers added on this board (ADD), of every owner. At
+          most 63: LIST answers them all in one frame (1 + 8 B each).
 
     #@limit @alias Client watches
     config SYS_WATCH_CLIENT_MAX

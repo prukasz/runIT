@@ -15,13 +15,13 @@
 #include "utils.h"
 
 #define IDLE_TICK_MS  100u
-#define ENTRY_HEAD    3u    // [owner][id][status], then the answer: after the header of a WATCH packet
-#define ENTRY_MAX     128u  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
+#define ENTRY_MAX     ERR_RECORD_MAX  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
 #define PERIOD_MS     ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
 #define PERIOD_TICKS  ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
 #define MAX_AGE_MS    (3u * PERIOD_MS)
 
 _Static_assert(2u * PERIOD_TICKS <= UINT16_MAX, "CONFIG_SYS_WATCH_READ_PERIOD_MS in a watch's ticks");
+_Static_assert(SYS_WATCH_COPY_MAX <= ENTRY_MAX && ENTRY_MAX <= UINT8_MAX, "an entry kept in a slot");
 
 typedef enum {
   SLOT_FREE = 0,
@@ -108,7 +108,7 @@ static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
   (void)from;
   (void)flags;
   cmd_hdr_t hdr;
-  if (size < CMD_HEAD + ENTRY_HEAD) {
+  if (size < CMD_HEAD + SYS_WATCH_ENTRY_HEAD) {
     return;
   }
   memcpy(&hdr, packet, CMD_HEAD);
@@ -120,14 +120,14 @@ static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
   }
   slot_t* s = &s_cl.slots[data[1] - 1u];
   const uint8_t status = data[2];
-  const uint32_t n = len - ENTRY_HEAD;
+  const uint32_t n = len - SYS_WATCH_ENTRY_HEAD;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   if (s->state == SLOT_ACTIVE && s->board == src) {  // B3: only after ADD's OK
     s->have = status != ROUTER_STATUS_OK || n <= SYS_WATCH_COPY_MAX;  // a longer answer is not kept
     s->status = status;
     s->len = (uint8_t)(n < ENTRY_MAX ? n : ENTRY_MAX);
     s->entry_ms = now_ms();
-    memcpy(s->data, data + ENTRY_HEAD, s->len);
+    memcpy(s->data, data + SYS_WATCH_ENTRY_HEAD, s->len);
   }
   xSemaphoreGive(sys_watch_client_mutex);
 }

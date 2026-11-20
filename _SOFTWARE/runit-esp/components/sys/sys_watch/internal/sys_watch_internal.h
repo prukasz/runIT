@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+/** @brief An entry's head after the packet's header: [owner][id][status], then the read's answer or error record. */
+#define SYS_WATCH_ENTRY_HEAD 3u
+
 /**
  * @brief Adds the watch `(owner, head->id)`, or replaces it: what the one before had under way is dropped.
  * @param[in] head  id 1..255, a trigger, period >= 1.

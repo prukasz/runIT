@@ -3,6 +3,8 @@
 #include "router_queue.h"
 #include "sys_watch_internal.h"
 
+_Static_assert(1u + CONFIG_SYS_WATCH_MAX * sizeof(sys_watch_info_t) <= CMD_DATA_MAX, "LIST must fit one answer");
+
 ROUTER_WRITE_TAIL(WATCH, OP_ADD) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL, ERR_WATCH_BAD_ARG, .id = args->id);

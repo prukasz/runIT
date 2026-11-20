@@ -13,8 +13,6 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_WATCH, ERR_SYS_WATCH_MAP)
 
-#define ENTRY_HEAD 3u  // [owner][id][status], then the read's answer: after the header of a WATCH packet
-
 /* What the last entry sent was (watch_t.last). */
 #define LAST_NONE  0u  // nothing yet
 #define LAST_OK    1u  // an OK answer, `crc` its CRC (ON_CHANGE)
@@ -63,8 +61,8 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
-  if (ENTRY_HEAD + len > CMD_DATA_MAX) {
-    return ERR_NEW(ERR_CMD_OUT_FULL, .need = (uint16_t)(ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
+  if (SYS_WATCH_ENTRY_HEAD + len > CMD_DATA_MAX) {
+    return ERR_NEW(ERR_CMD_OUT_FULL, .need = (uint16_t)(SYS_WATCH_ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
   }
   watch_t* w = &s_watch.watches[(uintptr_t)ctx & 0xFFu];
   xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
@@ -77,13 +75,13 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     const bool changed = w->last != LAST_OK || crc != w->crc;
     const bool send = ok ? (!on_change || changed || silent) : w->last != LAST_ERROR;
     if (send) {
-      uint8_t packet[CMD_HEAD + ENTRY_HEAD + len];  // one frame: the header, the entry's head, the answer
+      uint8_t packet[CMD_HEAD + SYS_WATCH_ENTRY_HEAD + len];  // one frame: the header, the entry's head, the answer
       const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
       memcpy(packet, &hdr, CMD_HEAD);
       packet[CMD_HEAD] = w->owner;
       packet[CMD_HEAD + 1u] = w->head.id;
       packet[CMD_HEAD + 2u] = status;
-      memcpy(packet + CMD_HEAD + ENTRY_HEAD, data, len);
+      memcpy(packet + CMD_HEAD + SYS_WATCH_ENTRY_HEAD, data, len);
       data_matrix_send(&sys_watch_port, CMD_SEND_NOWAIT, packet, sizeof(packet));
       w->last = ok ? LAST_OK : LAST_ERROR;
       w->crc = crc;
