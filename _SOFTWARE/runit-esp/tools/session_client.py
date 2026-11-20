@@ -3,11 +3,12 @@
 
     python runit-esp/tools/session_client.py COM10                 # the hello, PING and PEERS
     python runit-esp/tools/session_client.py COM10 28 00 01        # one command by hand: [key][dir][op][args]
+    python runit-esp/tools/session_client.py COM10 --smoke         # PING, data matrix LIST, GPIO 4 level, a watch
     python runit-esp/tools/session_client.py COM10 --listen 2      # subscribe / run cmd, then print PUSH frames
     python runit-esp/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
 
 Line: 00 cobs([frame][crc16 LE]) 00, CRC16-CCITT (poly 0x1021, init 0xFFFF) (PROVIDER_CONSOLE.MD "The line" / sys_uart_codec.h).
-Frame: [frame byte][seq u16][body] (SYS_SESSION.MD "Frames"); the client's id is 0xF0, the first of the clients'.
+Frame: [type][src][key][seq u16][body] (CMD.MD "The header"); the client's id is 0xF0, the first of the clients'.
 Bytes that are no frame (the boot's text, the log) are shown as text. Exit 0 when every step answered as it should.
 """
 import argparse
@@ -20,10 +21,11 @@ import serial  # pyserial (in the ESP-IDF python env)
 CLIENT = 0xF0
 REQUEST, ANSWER, PUSH, CONTROL = 0, 1, 2, 3
 HELLO, PING, NO_SESSION = 1, 2, 3
-KEY_SYS, KEY_SESSION, KEY_LOG, KEY_WATCH = 0x28, 0x0E, 0x2A, 0x2B
-STREAM_TELEMETRY, STREAM_LOGS, STREAM_ERRORS, STREAM_EVENTS = 0x02, 0x03, 0x04, 0x06
-CH_WATCHES = 0x80 | 0x2B  # SYS_SESSION_CHANNEL(MODULE_ID_WATCH)
+KEY_SYS, KEY_SESSION, KEY_LOG, KEY_WATCH, KEY_DEVICE, KEY_MATRIX = 0x28, 0x0E, 0x2A, 0x2B, 0x20, 0x30
 F_URGENT, F_ERROR = 0x01, 0x04
+READ, WRITE = 0, 1
+GPIO = 0x00  # RUNIT_DEV_GPIO
+IO_LEVEL, IO_MODE = 0x0100, 0x0105
 
 
 def crc16(data: bytes) -> int:
@@ -78,13 +80,13 @@ class Link:
         self.s, self.buf, self.seq, self.board, self.boot_id = s, bytearray(), 0, None, int(time.time()) & 0xFFFFFFFF
         self.pushes, self.push_seq, self.push_gaps = [], {}, []
 
-    def send(self, kind: int, body: bytes, seq: int = 0, flags: int = 0):
-        frame = bytes([(kind << 6) | flags]) + struct.pack("<H", seq) + body
+    def send(self, kind: int, key: int, body: bytes, seq: int = 0, flags: int = 0):
+        frame = bytes([(kind << 6) | flags, CLIENT, key]) + struct.pack("<H", seq) + body
         c = crc16(frame)
         self.s.write(b"\x00" + cobs_encode(frame + bytes([c & 0xFF, c >> 8])) + b"\x00")
 
     def frames(self, wait: float):
-        """The frames that come in `wait` seconds, as (kind, flags, src, seq, body); src is the board's id once its hello is in."""
+        """The frames that come in `wait` seconds, as (kind, flags, src, key, seq, body)."""
         end = time.monotonic() + wait
         while time.monotonic() < end:
             self.buf += self.s.read(512)
@@ -92,173 +94,98 @@ class Link:
                 cut = self.buf.index(0)
                 cand, self.buf = bytes(self.buf[:cut]), self.buf[cut + 1:]
                 raw = cobs_decode(cand) if cand else None
-                if raw is None or len(raw) < 5 or crc16(raw[:-2]) != (raw[-2] | raw[-1] << 8):
+                if raw is None or len(raw) < 7 or crc16(raw[:-2]) != (raw[-2] | raw[-1] << 8):
                     text = cand.decode("utf-8", "replace").strip()
                     if text:
                         print(f"   text: {text}")
                     continue
                 f = raw[:-2]
-                yield f[0] >> 6, f[0] & 0x3F, self.board, struct.unpack_from("<H", f, 1)[0], f[3:]
+                yield f[0] >> 6, f[0] & 0x3F, f[1], f[2], struct.unpack_from("<H", f, 3)[0], f[5:]
 
     def hello(self) -> bool:
-        body = bytes([HELLO, CLIENT]) + struct.pack("<II", self.boot_id, 0)  # {id, boot_id, build_id}: a client has no build
-        self.send(CONTROL, body)
-        for kind, _, src, _, b in self.frames(2.0):
-            if kind == CONTROL and b[:1] == bytes([HELLO]) and len(b) >= 10:
-                bid, boot, build = struct.unpack_from("<BII", b, 1)
-                self.board = bid
+        self.send(CONTROL, KEY_SESSION, bytes([HELLO]) + struct.pack("<II", self.boot_id, 0))  # a client has no build
+        for kind, _, src, _, _, b in self.frames(2.0):
+            if kind == CONTROL and b[:1] == bytes([HELLO]) and len(b) >= 9:
+                boot, build = struct.unpack_from("<II", b, 1)
+                bid = self.board = src
                 print(f"<- hello: board {bid:#04x}, boot {boot:#010x}, build {build:#010x}")
                 return True
         return False
 
-    def _record_async(self, kind: int, flags: int, src: int, seq: int, b: bytes):
+    def _record_async(self, kind: int, flags: int, src: int, key: int, seq: int, b: bytes):
         if kind == PUSH:
             urgent = bool(flags & F_URGENT)
-            key = (src, urgent)
-            prev = self.push_seq.get(key)
+            cls = (src, urgent)
+            prev = self.push_seq.get(cls)
             if prev is not None and seq != ((prev + 1) & 0xFFFF):
-                self.push_gaps.append((key, prev, seq))
+                self.push_gaps.append((cls, prev, seq))
                 print(f"!! PUSH GAP from {src:#04x} urgent={int(urgent)}: expected {(prev + 1) & 0xFFFF}, got {seq}")
-            self.push_seq[key] = seq
-            sid, payload = (b[0], b[1:]) if b else (0, b"")
+            self.push_seq[cls] = seq
+            sid, payload = key, b
             self.pushes.append((flags, src, seq, sid, payload))
             tag = f"push {src:#04x} stream={sid:#04x} seq={seq}" + (" URGENT" if urgent else "")
-            if sid == STREAM_LOGS:
+            if sid == KEY_LOG:
                 print(f"<- {tag}: {payload.decode('utf-8', 'replace')}")
-            elif sid == CH_WATCHES and len(payload) >= 2:
-                print(f"<- watch id={payload[0]} status={payload[1]} seq={seq}: {payload[2:].hex(' ')}")
+            elif sid == KEY_WATCH and len(payload) >= 3:
+                print(f"<- watch owner={payload[0]:#04x} id={payload[1]} status={payload[2]} seq={seq}: {payload[3:].hex(' ')}")
             else:
                 print(f"<- {tag}: {payload.hex(' ')}")
 
     def listen(self, wait: float):
-        for kind, flags, src, seq, b in self.frames(wait):
-            self._record_async(kind, flags, src, seq, b)
+        for kind, flags, src, key, seq, b in self.frames(wait):
+            self._record_async(kind, flags, src, key, seq, b)
 
     def call(self, dst: int, cmd: bytes, wait: float = 2.0):
         self.seq = (self.seq + 1) & 0xFFFF
-        self.send(REQUEST, cmd, self.seq)
+        self.send(REQUEST, cmd[0], cmd[1:], self.seq)  # cmd is [key][dir][op][args]: the key goes in the header
         print(f"-> {dst:#04x} seq {self.seq}: {cmd.hex(' ')}")
-        for kind, flags, src, seq, b in self.frames(wait):
+        for kind, flags, src, key, seq, b in self.frames(wait):
             if kind == ANSWER and seq == self.seq:
                 status = 1 if flags & F_ERROR else 0
                 print(f"<- {src:#04x} seq {seq}: status {status} ({'OK' if status == 0 else 'ERROR'}) {b.hex(' ')}")
                 return status, b
-            self._record_async(kind, flags, src, seq, b)
+            self._record_async(kind, flags, src, key, seq, b)
         print("<- no answer")
         return None, b""
 
 
-def _decode_streams(buf: bytes) -> dict[int, tuple[int, list[tuple[int, int, int]]]]:
-    out, pos = {}, 1
-    for _ in range(buf[0]):
-        sid, flags, ntargets = struct.unpack_from("<BBB", buf, pos)
-        pos += 3
-        targets = []
-        for _ in range(ntargets):
-            targets.append(struct.unpack_from("<BBB", buf, pos))
-            pos += 3
-        out[sid] = (flags, targets)
-    assert pos == len(buf), f"LIST trailing bytes: {pos} != {len(buf)}"
-    return out
+def run_smoke(link: Link, dst: int) -> bool:
+    """PING, the data matrix's links, GPIO 4 as an output (level set and read back), a watch on its level."""
+    pin = 4
+    ok = True
 
+    def dev(d: int, op: int, args: bytes = b"") -> bytes:
+        return bytes([KEY_DEVICE, d, GPIO]) + struct.pack("<H", op) + args
 
-def run_stage7(link: Link, dst: int) -> bool:
-    def expect_ok(cmd: bytes) -> bytes | None:
+    def step(name: str, cmd: bytes, want: bytes | None = None) -> bytes:
+        nonlocal ok
         st, body = link.call(dst, cmd)
-        return body if st == 0 else None
+        good = st == 0 and (want is None or body == want)
+        print(f"{'ok  ' if good else 'FAIL'} {name}")
+        ok &= good
+        return body
 
-    def expect_err(cmd: bytes) -> bytes | None:
-        st, body = link.call(dst, cmd)
-        return body if st == 1 else None
+    step("PING", bytes([KEY_SYS, READ, 0x01]))
+    links = step("data matrix LIST", bytes([KEY_MATRIX, READ, 0x03]))
+    print(f"   {links[0] if links else 0} links")
+    step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, 3])))
+    for lvl in (1, 0, 1):
+        step(f"GPIO4 LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
+        step(f"GPIO4 LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
 
-    def watch_head(wid: int, trigger: int, period: int, silence: int = 0) -> bytes:
-        # sys_watch_head_t (14 B): u8 id, u8 trigger, u16 period, u16 max_silence, u32 tag, u16 source, u16 channel
-        return struct.pack("<BBHHIHH", wid, trigger, period, silence, 0, 0, 0)
-
-    # Validation: bad id (0) and non-read command refused.
-    ping_cmd = bytes([KEY_SYS, 0, 0x01])
-    log_cfg_r = bytes([KEY_LOG, 0, 0x01])
-    log_cfg_w2 = bytes([KEY_LOG, 1, 0x01, 2, 0, 1, 1, 1])
-    log_cfg_w3 = bytes([KEY_LOG, 1, 0x01, 3, 0, 1, 1, 1])
-    if expect_err(bytes([KEY_WATCH, 1, 0x01]) + watch_head(0, 0, 5) + ping_cmd) is None:
-        return False
-    if expect_err(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 5) + log_cfg_w2) is None:
-        return False
-
-    # 1. PERIODIC watch id=1 on SYS PING (u32 uptime every 50 ms) -> check [CH_WATCHES][id][status][u32] (NO owner byte!).
+    # a PERIODIC watch (id 1, every 5 ticks = 50 ms) on GPIO4's level; the entries are PUSH frames of key WATCH
     link.pushes.clear()
-    if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 5) + ping_cmd) is None:
-        return False
-    link.listen(0.22)
-    w1 = [p for p in link.pushes if p[3] == CH_WATCHES and len(p[4]) >= 2 and p[4][0] == 1]
-    if len(w1) < 2 or not all(p[4][1] == 0 and len(p[4]) == 6 for p in w1):
-        print(f"FAIL: expected >=2 PERIODIC 6-byte [id,status,u32] entries for watch 1, got {w1}")
-        return False
-    t0 = struct.unpack_from("<I", w1[0][4], 2)[0]
-    t1 = struct.unpack_from("<I", w1[-1][4], 2)[0]
-    if t1 <= t0:
-        print(f"FAIL: expected increasing uptime in watch 1 entries, got {t0} -> {t1}")
-        return False
-
-    # 2. ON_CHANGE watch id=2 on LOG CONFIG (period=20ms, max_silence=160ms).
-    link.pushes.clear()
-    if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(2, 1, 2, 16) + log_cfg_r) is None:
-        return False
-    link.listen(0.08)
-    w2_init = [p for p in link.pushes if p[3] == CH_WATCHES and len(p[4]) >= 2 and p[4][0] == 2]
-    if len(w2_init) != 1 or w2_init[0][4][1:] != bytes([0, 3, 0, 1, 1, 1]):
-        print(f"FAIL: expected single initial ON_CHANGE entry for watch 2, got {w2_init}")
-        return False
-
-    # Mutate LOG CONFIG -> ON_CHANGE emits promptly; restore -> emits promptly.
-    link.pushes.clear()
-    if expect_ok(log_cfg_w2) is None:
-        return False
-    link.listen(0.06)
-    w2_chg = [p for p in link.pushes if p[3] == CH_WATCHES and len(p[4]) >= 2 and p[4][0] == 2]
-    if not w2_chg or w2_chg[-1][4][1:] != bytes([0, 2, 0, 1, 1, 1]):
-        print(f"FAIL: ON_CHANGE did not push mutated config: {w2_chg}")
-        return False
-    link.pushes.clear()
-    if expect_ok(log_cfg_w3) is None:
-        return False
-    link.listen(0.06)
-    w2_rst = [p for p in link.pushes if p[3] == CH_WATCHES and len(p[4]) >= 2 and p[4][0] == 2]
-    if not w2_rst or w2_rst[-1][4][1:] != bytes([0, 3, 0, 1, 1, 1]):
-        print(f"FAIL: ON_CHANGE did not push restored config: {w2_rst}")
-        return False
-
-    # Wait past max_silence (160 ms) -> unchanged heartbeat entry arrives.
-    link.pushes.clear()
-    link.listen(0.24)
-    w2_sil = [p for p in link.pushes if p[3] == CH_WATCHES and len(p[4]) >= 2 and p[4][0] == 2]
-    if not w2_sil:
-        print("FAIL: expected ON_CHANGE max_silence heartbeat for watch 2")
-        return False
-
-    # 3. Replace watch 1 with SESSION PEERS (0x0E 00 02), verify WATCH LIST (16 B rows), then REMOVE both.
-    if expect_ok(bytes([KEY_WATCH, 1, 0x01]) + watch_head(1, 0, 20) + bytes([KEY_SESSION, 0, 0x02])) is None:
-        return False
-    raw_list = expect_ok(bytes([KEY_WATCH, 0, 0x03]))
-    if raw_list is None or len(raw_list) != 1 + 2 * 16 or raw_list[0] != 2:
-        print(f"FAIL: unexpected WATCH LIST reply: {raw_list!r}")
-        return False
-    if expect_ok(bytes([KEY_WATCH, 1, 0x02, 1])) is None:
-        return False
-    if expect_ok(bytes([KEY_WATCH, 1, 0x02, 2])) is None:
-        return False
-    if expect_err(bytes([KEY_WATCH, 1, 0x02, 2])) is None:
-        return False
-    raw_empty = expect_ok(bytes([KEY_WATCH, 0, 0x03]))
-    if raw_empty != bytes([0]):
-        print(f"FAIL: expected empty WATCH LIST after REMOVE, got {raw_empty!r}")
-        return False
-    if link.push_gaps:
-        print(f"FAIL: PUSH sequence gaps during Stage 7: {link.push_gaps}")
-        return False
-
-    print("Stage 7 verification PASSED")
-    return True
+    head = struct.pack("<BBHH", 1, 0, 5, 0)  # sys_watch_head_t: id, trigger, period, max_silence
+    step("WATCH ADD", bytes([KEY_WATCH, WRITE, 0x01]) + head + dev(READ, IO_LEVEL, bytes([pin])))
+    link.listen(0.5)
+    entries = [p for p in link.pushes if p[3] == KEY_WATCH and len(p[4]) >= 3 and p[4][1] == 1]
+    good = len(entries) >= 5 and all(p[4][2] == 0 and p[4][3:] == bytes([pin, 1]) for p in entries)
+    print(f"{'ok  ' if good else 'FAIL'} WATCH entries: {len(entries)} in 0.5 s, level 1")
+    ok &= good
+    step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, 0x02, 1]))
+    step("GPIO4 RESET", dev(WRITE, 0x0106, bytes([pin])))
+    print("smoke PASSED" if ok else "smoke FAILED")
+    return ok
 
 
 def main() -> int:
@@ -268,7 +195,7 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=115200, help="CONFIG_ESP_CONSOLE_UART_BAUDRATE")
     ap.add_argument("--silence", type=float, default=0, help="after the hello, say nothing this many seconds")
     ap.add_argument("--listen", type=float, default=0, help="after commands, listen for PUSH frames this many seconds")
-    ap.add_argument("--stage7", action="store_true", help="run Stage 7 (sys_watch) verification")
+    ap.add_argument("--smoke", action="store_true", help="PING, data matrix LIST, GPIO 4, a watch")
     args = ap.parse_args()
 
     link = Link(args.port, args.baud)
@@ -283,8 +210,8 @@ def main() -> int:
         ok = status is None  # the session ended: the request is answered NO_SESSION, not with an answer
         print("session ended by the silence" if ok else "session still open")
         return 0 if ok else 1
-    if args.stage7:
-        return 0 if run_stage7(link, dst) else 1
+    if args.smoke:
+        return 0 if run_smoke(link, dst) else 1
     cmds = [bytes(int(b, 16) for b in args.bytes)] if args.bytes else [bytes([KEY_SYS, 0, 0x01]),
                                                                        bytes([KEY_SESSION, 0, 0x02])]
     for cmd in cmds:

@@ -108,10 +108,10 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 
 ## Tests
 
-On a board: `python runit-esp/tools/session_client.py <COM port>` opens a session as a client (0xF0) over the console and runs PING and PEERS; `--silence 4` leaves it silent and checks the board's dead-man ended the session.
+On a board: `python runit-esp/tools/session_client.py <COM port>` opens a session as a client (0xF0) over the console and runs PING and PEERS; `--smoke` runs PING, the data matrix's LIST, GPIO 4 as an output (MODE, LEVEL set and read back) and a PERIODIC watch on its level (entries counted, removed); `--silence 4` leaves it silent and checks the board's dead-man ended the session (the console's dead-man is on only when `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS` is not 0); a command by hand is `[key][dir][op][args]` in hex.
 
 ## Open
 
 - `host/test_sys_session.c` tests the former session (its provider hooks, calls and push): rewritten on the ports when the host runner is back in the repo.
-- `session_client.py`, the router scripts and the app's session code speak the former frame: they move to the 5-byte header with the app's step.
+- The router scripts (`router_link.py` and the suites on it) and the app's session code speak the former frame: they move to the 5-byte header like `session_client.py`.
 - Two boards on a UART are not run on hardware yet.
