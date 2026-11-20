@@ -43,7 +43,7 @@ typedef struct {
   uint8_t data[SYS_WATCH_COPY_MAX];
 } slot_t;
 
-U_MUTEX_DEFINE(sys_watch_client_mutex);  // the slots: copies only, never held over a send
+U_MUTEX_DEFINE(sys_watch_client_mutex);  // the slots: copies and a read's result, never held over a send
 
 static struct {
   slot_t slots[CONFIG_SYS_WATCH_CLIENT_MAX];
