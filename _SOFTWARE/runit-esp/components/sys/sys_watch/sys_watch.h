@@ -3,8 +3,6 @@
 #include <stdint.h>
 
 #include "cmd.h"
-#include "module_id.h"
-#include "sys_session.h"
 #include "sys_watch_errors.h"
 
 #ifdef __cplusplus
@@ -13,9 +11,9 @@ extern "C" {
 
 /**
  * @file sys_watch.h
- * @brief Watches (SYS_WATCH.MD): reads run on this board every period, their answers (all, or the changed ones)
- * pushed to the peer that added them (ADD, REMOVE, LIST of sys_watch_router), and the cached reads of other boards
- * made of them (sys_watch_read / sys_watch_stale).
+ * @brief Watches (SYS_WATCH.MD): reads run on this board every period (ADD, REMOVE, LIST of sys_watch_router), their
+ * answers (all, or the changed ones) out of the port WATCH with the peer that added them, and the cached reads of
+ * other boards made of them (sys_watch_read / sys_watch_stale).
  */
 
 /* ----------------------------------------------------------------------------
@@ -23,7 +21,6 @@ extern "C" {
  * (DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)) as [hdr PUSH, MODULE_ID_WATCH][owner u8][id u8][status u8][data], to
  * every port linked from it: whoever takes them keeps its own by `owner`.
  * ------------------------------------------------------------------------- */
-
 
 #define SYS_WATCH_TICK_MS  10u  /**< Unit of period and max_silence, and server timer step (ms). */
 #define SYS_WATCH_COPY_MAX 32u  /**< Largest OK read answer cached by the client (bytes). */

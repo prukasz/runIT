@@ -134,9 +134,11 @@ static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
 
 data_matrix_port_t sys_watch_port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_WATCH), .in = on_entry};
 
-// A board is gone, and its watch with it: the next read adds it again.
-static void on_gone(uint8_t peer, uint8_t safety) {
-  (void)safety;
+// A session ended (SESSION_EV_GONE, the peer is the event's source): the board's watches are gone with it, the next
+// read adds them again.
+static err_h on_gone(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  const uint8_t peer = (uint8_t)event->key.source;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   FOR_EACH_SLOT(s) {
     if (s->state != SLOT_FREE && (peer == CMD_SRC_ALL || s->board == peer)) {
@@ -146,12 +148,6 @@ static void on_gone(uint8_t peer, uint8_t safety) {
     }
   }
   xSemaphoreGive(sys_watch_client_mutex);
-}
-
-// A session ended (SESSION_EV_GONE): the peer is the event's source.
-static err_h on_gone_event(const sys_event_t* event, void* ctx) {
-  (void)ctx;
-  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
   return NULL;
 }
 
@@ -266,6 +262,6 @@ err_h sys_watch_client_init(void) {
   board_timer_init(&s_cl.timer, on_idle_tick, NULL);
   board_timer_start(&s_cl.timer, IDLE_TICK_MS);
   uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
   return data_matrix_register(&sys_watch_port);
 }

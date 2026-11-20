@@ -57,17 +57,9 @@ static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
 
 /* ----------------------------------------------------------------------------
  * A read's answer (the router's task): the entry, [hdr PUSH, MODULE_ID_WATCH][owner][id][status][data], out of WATCH
+ * to every port linked from it (a session's sub-port, the raw telemetry), NOWAIT: whoever takes it keeps its own by
+ * `owner`. A line that does not take it loses it; max_silence sends the value again.
  * ------------------------------------------------------------------------- */
-
-// The entry out of WATCH to every port linked from it (a session's sub-port, the raw telemetry), NOWAIT: whoever takes
-// it keeps its own by `owner`.
-static void push_entry(const uint8_t* entry, uint32_t len) {
-  uint8_t packet[CMD_HEAD + len];
-  const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
-  memcpy(packet, &hdr, CMD_HEAD);
-  memcpy(packet + CMD_HEAD, entry, len);
-  data_matrix_send(&sys_watch_port, CMD_SEND_NOWAIT, packet, sizeof(packet));
-}
 
 static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
   (void)cmd;
@@ -85,12 +77,14 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     const bool changed = w->last != LAST_OK || crc != w->crc;
     const bool send = ok ? (!on_change || changed || silent) : w->last != LAST_ERROR;
     if (send) {
-      uint8_t entry[ENTRY_HEAD + len];
-      entry[0] = w->owner;
-      entry[1] = w->head.id;
-      entry[2] = status;
-      memcpy(entry + ENTRY_HEAD, data, len);
-      push_entry(entry, sizeof(entry));
+      uint8_t packet[CMD_HEAD + ENTRY_HEAD + len];  // one frame: the header, the entry's head, the answer
+      const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
+      memcpy(packet, &hdr, CMD_HEAD);
+      packet[CMD_HEAD] = w->owner;
+      packet[CMD_HEAD + 1u] = w->head.id;
+      packet[CMD_HEAD + 2u] = status;
+      memcpy(packet + CMD_HEAD + ENTRY_HEAD, data, len);
+      data_matrix_send(&sys_watch_port, CMD_SEND_NOWAIT, packet, sizeof(packet));
       w->last = ok ? LAST_OK : LAST_ERROR;
       w->crc = crc;
       w->since_sent = 0;
@@ -197,16 +191,10 @@ uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]) {
   return n;
 }
 
-// A peer is gone: its watches go with it.
-static void on_gone(uint8_t peer, uint8_t safety) {
-  (void)safety;
-  (void)remove_watches(peer, 0);
-}
-
-// A session ended (SESSION_EV_GONE): the peer is the event's source.
-static err_h on_gone_event(const sys_event_t* event, void* ctx) {
+// A session ended (SESSION_EV_GONE, the peer is the event's source): its watches go with it.
+static err_h on_gone(const sys_event_t* event, void* ctx) {
   (void)ctx;
-  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
+  (void)remove_watches((uint8_t)event->key.source, 0);
   return NULL;
 }
 
@@ -214,6 +202,6 @@ err_h sys_watch_init(void) {
   board_timer_init(&s_watch.timer, on_tick, NULL);
   board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
   uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
   return sys_watch_client_init();
 }

@@ -26,7 +26,7 @@ A watch is added, removed and listed by commands only (Remote); its owner is the
   - `SYS_WATCH_ON_CHANGE` (`1`): runs every `period` ticks, hashes an OK answer with IEEE CRC-32, and sends it when the CRC differs from the last OK entry sent, after an error, or after `max_silence` ticks without an entry (`0` = never).
 - `owner` is `router_origin()->src`: a board or a client (else `ERR_WATCH_BAD_ARG`). `read` is `2..SYS_WATCH_READ_MAX` bytes with `read[1] == CMD_DIR_READ` (else `ERR_WATCH_NOT_READ`).
 - One `board_timer` runs every `SYS_WATCH_TICK_MS` (`10 ms`) from `sys_watch_init`. It starts the reads that are due with `router_inject`; one the router's queue refuses is tried again at the next tick.
-- The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry the session refuses (no route, a busy provider) is not counted as sent: the next read sends it.
+- The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry a line does not take (a busy provider) is lost and counted as sent: `PERIODIC` sends the next read, `ON_CHANGE` the next change or, after `max_silence`, the value again.
 - An ERROR answer is sent once: the next errors are not sent until an OK entry goes.
 - An answer too long for one entry (`3 + len > CMD_DATA_MAX`) is reported once (`ERR_CMD_OUT_FULL` with the read) and the watch reads no more.
 - A peer gone (`SESSION_EV_GONE`): its watches are removed (every watch for `CMD_SRC_ALL`).
