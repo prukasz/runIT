@@ -96,7 +96,11 @@ Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CR
 
 Errors on the host or BLE task (a sync, a frame dropped, advertising) have no caller: they are reported (`err_report`).
 
+## Tests
+
+On a board, from the PC's Python with bleak (`pip install bleak`): `python runit-esp/tools/ble_client.py` opens a session as client 0xF1 on the runIT service and runs PING and PEERS; `--smoke` adds GPIO 4's MODE and LEVEL and a PERIODIC watch whose entries it reads from the raw telemetry characteristic `0xFFEA` (a BLE session does not carry the watches); `--hold N` keeps a watch N seconds and counts the entries by owner. With `session_client.py` on the console at the same time, PEERS shows both sessions open and each client sees the other's writes and watch entries.
+
 ## Open
 
-- Run from Windows (bleak) on the devkit: the one runIT service with the session's pair and the logs' characteristic, the hello, PING, PEERS, PUSH frames of the errors and of a watch, the log lines as text.
+- Not run on a board yet: PUSH frames of the errors on the session, the log lines as text on `0xFFE9`.
 - The app's settings tab makes the user characteristics as BLE providers (`PROVIDER CREATE` of type BLE) and reads this table with LIST; not run on a board yet.
