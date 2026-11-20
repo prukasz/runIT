@@ -193,6 +193,20 @@
       "label": "Leave the safe state",
       "description": "Resumes every device (oldest first) and clears the safe state. The program stays stopped: start it with VM EXEC. Motors move again when the devices resume.",
       "write": {}
+    },
+    {
+      "id": "TASKS",
+      "op": 11,
+      "symbol": "SYS_OP_TASKS",
+      "label": "Tasks",
+      "description": "Every task of the board (as many as one answer holds): its name, the least stack it has had free since it started (bytes) and its priority.",
+      "read": {
+        "returns": {
+          "type": "bytes",
+          "label": "Count and tasks",
+          "description": "u8 count, then count rows of sys_system_task_t: char name[16] (NUL-padded), u16 stack_free (bytes), u8 priority."
+        }
+      }
     }
   ]
 }

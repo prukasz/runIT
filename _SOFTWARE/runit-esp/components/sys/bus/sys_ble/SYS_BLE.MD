@@ -15,11 +15,11 @@ Component `runit-esp/components/sys/bus/sys_ble/`. NimBLE as a peripheral (one c
 
 ## Boot
 
-`sys_ble_start(adv_service)` (once, in `app/runit`, after the board's first providers) adds the services staged so far to NimBLE, starts it, advertising of `adv_service` (a client filters by it) and the BLE task. The module has no service of its own: the characteristics are made by the providers (`provider_ble`: its CREATE makes its service and characteristics, PROVIDER_BLE.MD), and the board's own pair by `app/runit` (RUNIT.MD "Connectivity"). Before the start they are only staged; after it, each CREATE or REMOVE of a provider is applied live.
+`sys_ble_start(adv_service)` (once, in `app/runit`, after the board's first providers) adds the services staged so far to NimBLE, starts it, advertising of `adv_service` (a client filters by it) and the BLE task. The module has no service of its own: the characteristics are made by the providers (`provider_ble`: its CREATE makes its service and characteristics, PROVIDER_BLE.MD), and the board's own pair by `app/runit` (RUNIT.MD "The board's data"). Before the start they are only staged; after it, each CREATE or REMOVE of a provider is applied live.
 
 ## The table
 
-`sys_ble_service_create / _remove / _lock`, `sys_ble_char_create / _remove` and `sys_ble_apply` (`sys_ble.h`) are the providers' calls, the only ones that change the table. A service **locked** with `sys_ble_service_lock` (the board's own, after its characteristics) takes no change and no removal, because a rebuild would drop the client's subscriptions under its session. A characteristic's TX buffer is `SYS_BLE_TX_BYTES(frames)` bytes. The UUIDs of the runIT service are `app/runit`'s (`runit_ids.h`). The fragment header bits are published to the app as the enum group `ble_frag` (markers in `sys_ble.h`). Logs and errors reach a client as its session's streams (SYS_STREAM.MD). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
+`sys_ble_service_create / _remove / _lock`, `sys_ble_char_create / _remove` and `sys_ble_apply` (`sys_ble.h`) are the providers' calls, the only ones that change the table. A service **locked** with `sys_ble_service_lock` (the board's own, after its characteristics) takes no change and no removal, because a rebuild would drop the client's subscriptions under its session. A characteristic's TX buffer is `SYS_BLE_TX_BYTES(frames)` bytes. The UUIDs of the runIT service are `app/runit`'s (`runit_ids.h`). The fragment header bits are published to the app as the enum group `ble_frag` (markers in `sys_ble.h`). Logs and errors reach a client as its session's streams (DATA_MATRIX.MD, RUNIT.MD). The device name is `CONFIG_SYS_BLE_DEVICE_NAME` (default `runit`).
 
 ## Framing
 
@@ -75,7 +75,7 @@ Reads only. The table is changed by the providers (PROVIDER_BLE.MD): one way to 
 
 A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_CHR_*`). A TX buffer needs NOTIFY or INDICATE (`ERR_CMD_BAD_ARG`); it holds about half its bytes as one item.
 
-Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then the role `RAW` on that provider and a route from the stream to it (DATA_MATRIX.MD).
+Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then the data matrix `CONNECT` of the stream's port to that provider's port (DATA_MATRIX.MD).
 
 ## Errors (`MODULE_ID_BLE` 0x2E)
 
@@ -98,5 +98,5 @@ Errors on the host or BLE task (a sync, a frame dropped, advertising) have no ca
 
 ## Open
 
-- Run from Windows (bleak) on the devkit: the one runIT service with the session's pair and the logs' characteristic, the hello, PING, PEERS, PUSH frames of the errors and of a watch, the log lines as text. The old firmware's version was verified from Windows (MTU 527, the framing at the full MTU, reconnects, a service added with a client connected); this one drops the board's own MTU request and pairing, and moves the joining of frames and the split of unframed items into this module.
+- Run from Windows (bleak) on the devkit: the one runIT service with the session's pair and the logs' characteristic, the hello, PING, PEERS, PUSH frames of the errors and of a watch, the log lines as text.
 - The app's settings tab makes the user characteristics as BLE providers (`PROVIDER CREATE` of type BLE) and reads this table with LIST; not run on a board yet.

@@ -16,7 +16,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`); a static check that `ERR_HDR_LEN` is the node's header |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
 | `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (0, no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
-| `errors_id.h` | `MODULE_ID_ERRORS` (`0x31`): the number of the errors' stream (its port in the data matrix, its PUSH key; DATA_MATRIX.MD "The design to build"); not the tags' module, which is each module's own |
+| `errors_id.h` | `MODULE_ID_ERRORS` (`0x31`): the number of the errors' stream (its port in the data matrix, its PUSH key; DATA_MATRIX.MD "Every byte of a provider through the matrix"); not the tags' module, which is each module's own |
 | `CMakeLists.txt` | Component registration and source files |
 | `Kconfig` | Configuration for call-site info, pool size, line buffer length, module limits |
 | `host/` | Host tests: `test_errors.c`, `host_test.json`, `errors_host_config.h` (see Tests); not part of the firmware build |
@@ -48,7 +48,7 @@ A row is `X(M, NAME, code, severity, { payload })`: `M` is the module the macros
 - Compile-time checks: a code in 1..0xFFFF, payload fits a node, no duplicate codes. Registration asserts: module ID is unique, and count fits `ERRORS_MAX_MODULES`.
 - A module's errors are under its number, `MODULE_ID_<NAME>` (`MODULE_ID_DECLARE` in the module's `<module>_id.h`, `module_id.h`: the same number as its router key and the module of its events); `MODULE_ID_CORE` is `0` (`errors.h`).
 - A context-only wrapper tag (adds data, not a failure of its own) gets severity NONE, so it never raises the chain (e.g. `ERR_I2C_REG`).
-- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`vm_core`, `data_matrix`).
+- Put `ERR_MODULE_DEFINE` in a `.c` that the firmware references anyway — an unreferenced object is dropped by the linker together with its registration — or in the module's own `errors/<component>_errors.c` with the component linked `WHOLE_ARCHIVE` (`cmd`, `data_matrix`).
 
 ## Creating and propagating
 
@@ -89,13 +89,13 @@ Rules:
 
 - `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. The command is `cmd_req_t` (`cmd_types.h` in `utils`, below `errors`): the sink gets it as it is, the record takes its origin and request.
 - `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) out of the port `ERRORS` (`MODULE_ID_ERRORS`, SYS_LOG.MD) and in the history (SYS_LOG.MD).
-- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_DEVICE_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: runit makes the record of source 2 and runs the board's policy), frees it. `err_record_parse` skips the board byte like a command header.
+- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_DEVICE_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: it would make the record of source 2 and run the board's policy; `app/runit` sets none yet, so such an error is only logged), frees it. `err_record_parse` skips the board byte like a command header.
 - The sink must not report errors itself (loop); code on the reporting path (stream task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.
 
 ## Error record
 
-`err_record_cmd(cmd, chain, buf, cap)` (`err_record.h`): a chain with the command it belongs to (`cmd_req_t`, `cmd_types.h` in `utils`; NULL gives the internal record). An internal record is also `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_STREAM.MD) and the kept history (SYS_LOG.MD ERRORS).
+`err_record_cmd(cmd, chain, buf, cap)` (`err_record.h`): a chain with the command it belongs to (`cmd_req_t`, `cmd_types.h` in `utils`; NULL gives the internal record). An internal record is also `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_LOG.MD) and the kept history (SYS_LOG.MD ERRORS).
 
 `cmd_req_t` (`cmd_types.h`) is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`, `CMD_SRC_*` in cmd.h: the board or client id of the frame's header, or `CMD_SRC_SELF` for the board itself). No board id: the frame that carries a record names its board.
 

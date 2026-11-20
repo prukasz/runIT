@@ -164,6 +164,7 @@ ERR_TRY(ERR_ESP(i2c_new_master_bus(&cfg, &c->bus)));           // bus_release de
 - REMOVE of `dep` refused while `user` exists.
 - The order of a sweep and of the locks.
 - `ERR_DEV_CYCLE{user, dep}` when `dep` uses `user` already, itself or through others.
+- A `dep` that is a remote device is allowed: `ERR_DEV_REMOTE_DEP{id, dep}` (LOW) tells it once, because `user`'s calls to `dep` go over the way (latency, a WIRED wait under the lock of `user`).
 
 Two `uint64_t` masks per slot (`uses`, `used_by`), cleared when the device goes.
 
@@ -282,6 +283,7 @@ Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep'
 | `ERR_DEV_BUSY{id, op}` | MEDIUM | The device's lock was not free in time |
 | `ERR_DEV_NOT_LOCKED{id}` | HIGH | A slot changed without its lock (a registry bug) |
 | `ERR_DEV_REMOTE_DOWN{id, board}` | HIGH | A remote device's board can't be reached |
+| `ERR_DEV_REMOTE_DEP{id, dep}` | LOW | A device uses a remote device (allowed, told once) |
 | `ERR_DEV_RANGE`, `_BAD_PIN`, `_PIN_LOCKED{id, pin, owner}`, `_PIN_NOT_OWNED{id, pin, owner}` | HIGH | Raised by drivers the same way on every device |
 | `ERR_DEV_ID`, `_OP`, `_INSTALL` | NONE | Context of a call or a CREATE |
 | `ERR_DEV_FAULT_RESPONSE` | HIGH | The policy's response failed |

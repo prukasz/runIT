@@ -34,7 +34,7 @@ Keys are at most 15 characters. Who keeps what: `board_id` (BOARD_ID.MD), `sys_a
 
 ## JSON files
 
-A file is one namespace of its own, opened at boot with `nvs_store_json_open`, so another file takes only another name. The content is never parsed.
+A file is one namespace of its own, opened at boot with `nvs_store_json_open` (`nvs_store_json_t`), so another file takes only another name. The calls: `_append`, `_get` (by chunk), `_info` (length, CRC, chunks) and `_erase` (every key of the namespace). The content is never parsed.
 
 | Key | Holds |
 |---|---|

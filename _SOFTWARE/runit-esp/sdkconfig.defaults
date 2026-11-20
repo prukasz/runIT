@@ -10,6 +10,8 @@ CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=1
 CONFIG_FREERTOS_TLSP_DELETION_CALLBACKS=y
+# SYS TASKS reads every task's least free stack (uxTaskGetSystemState).
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
 # BLE (sys_ble): NimBLE as a peripheral only, one client, no pairing; the largest MTU; services added at run time.
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y

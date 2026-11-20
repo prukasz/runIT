@@ -44,6 +44,16 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"COMMIT FIRST: before anything else with this prompt, commit the step finished in the previous turn (if it left uncommitted work that is yours). Run git status, then git add only the files you changed in that step (never git add -A, never the files the user had modified or staged that are not yours), and commit in the repo message style with the attribution lines. Nothing finished or nothing of yours uncommitted: skip silently.\"}}'"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",

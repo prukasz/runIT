@@ -60,13 +60,7 @@ They are frames of the board's record (`SYS_ACTIONS_ID_DATA_MATRIX`), replayed a
 
 `DATA_MATRIX_PORTS` 32 (one place is 16 B on the board: 512 B), `DATA_MATRIX_TARGETS` 8 (the router's and the streams' ports are linked with every session; a send takes a pointer each of the sender's stack: 32 B).
 
-## Open
-
-- Not built yet since the move to ports: the first ESP build (`build.ps1 reconfigure`: the matrix's Kconfig changed) and the host tests of the switch, the router's port, the session, the stream ports (the host runner is not in the repo).
-- A self-registration macro for a module's port.
-- Host tests of the switch.
-
-### The design to build: every byte of a provider through the matrix
+## Every byte of a provider through the matrix
 
 Everything a provider carries goes through the matrix, the commands too, and what is connected is connected by links only. Nothing in it routes: a port that answers or calls names its target (`send_to`), links say where a port's output goes.
 
@@ -82,12 +76,11 @@ Everything a provider carries goes through the matrix, the commands too, and wha
 - **`src` 0 is none.** Board ids are `0x01..0xEF` (a board with no id given has 0 and its frames go without one), clients `0xF0..0xFC` (`CMD_SRC_*`); the hello has no `id` (the sender is `src`; it keeps `boot_id`, `build_id`). A hello with `src` 0 still opens a session, so the app can give a new board its id.
 - **Who sets `src`:** the session that puts a frame on the line, its board's id, and only when `src` is 0. Nothing else touches it, so a slave's error keeps the slave's id through every board on its way to the app.
 - `src` and `key` go end to end; `seq` is per link: a session gives a PUSH its class's count, the router a call the `seq` of its slot.
-- `CMD_HEAD` is 5: `key` moves from the body into the header, `src` is the one new byte.
-- Done in `core/cmd` (CMD.MD "The header": `cmd_hdr_t`, `CMD_TYPE_*`, `cmd_kind_e`, `CMD_SRC_*`) and `MODULE_ID_ERRORS` (`core/errors/errors_id.h`); the router and the session do not write it yet.
+- `CMD_HEAD` is 5. The header is `core/cmd`'s (CMD.MD "The header": `cmd_hdr_t`, `CMD_TYPE_*`, `cmd_kind_e`, `CMD_SRC_*`, `cmd_push_head`).
 
-**The ports.** A module's (the router, `ERRORS`, the events, `LOGS`, the watches, the remote devices), a provider's, a session's. A module has at most one stream port, named by its module number: the port's name, the PUSH's `key` and the router's key are the same number. `ERRORS` is `core/errors`'s, `MODULE_ID_ERRORS` `0x31` (the errors' stream leaves `sys_log`, whose port is the logs, `0x2A`); the events `0x25`, the watches `0x2B`, the remote devices `0x2F`.
+**The ports.** A module's (the router, `ERRORS`, the events, `LOGS`, the watches, the remote devices), a provider's, a session's. A module has at most one stream port, named by its module number: the port's name, the PUSH's `key` and the router's key are the same number. `LOGS` `0x2A` and `ERRORS` `0x31` (`MODULE_ID_ERRORS`, `core/errors/errors_id.h`) are `sys_log`'s, the events `0x25` `sys_event_stream`'s, the watches `0x2B`, the remote devices `0x2F`.
 
-**A session** is a port linked both ways with its provider, and the sub-ports it owns: one per module it shows (`MODULE_ID_ROUTER` for the commands, a stream's module). The session port and its sub-ports are joined inside the session (no link, not in `LIST`); the sub-ports are linked in the matrix with the modules' ports. Their names: the high byte `0x80 | provider` (provider ids are below `0x80`), the low byte 0 for the session port, else the module's number. `ATTACH {provider, flags, deadman_ms}` and the modules, a command of `sys_session` (replacing the matrix's role), registers them and links the session port with its provider both ways; `DETACH` unregisters them (their links go). Done: SYS_SESSION.MD "The ports". What a session does with a frame:
+**A session** is a port linked both ways with its provider, and the sub-ports it owns: one per module it shows (`MODULE_ID_ROUTER` for the commands, a stream's module). The session port and its sub-ports are joined inside the session (no link, not in `LIST`); the sub-ports are linked in the matrix with the modules' ports. Their names: the high byte `0x80 | provider` (provider ids are below `0x80`), the low byte 0 for the session port, else the module's number. `ATTACH {provider, flags, deadman_ms}` and the modules, a command of `sys_session`, registers them and links the session port with its provider both ways; `DETACH` unregisters them (their links go) (SYS_SESSION.MD "The ports"). What a session does with a frame:
 
 | Frame | Goes |
 |---|---|
@@ -95,22 +88,22 @@ Everything a provider carries goes through the matrix, the commands too, and wha
 | `REQUEST`, `ANSWER` | out of its command sub-port, to the router; from it back onto the line |
 | `PUSH` | out of the sub-port of its `key` (none: dropped); what comes into a sub-port by a link leaves as a PUSH with its class's `seq`, `NOWAIT \| SPARE` |
 
-The channel range (`0x80`, `SYS_SESSION_CHANNEL`) is gone: the watches and the remote devices are streams like the errors. A module learns the session a packet came on from `from`, the board from `src`.
+A module learns the session a packet came on from `from`, the board from `src`.
 
 **The router has one port**, `ROUTER` (`MODULE_ID_ROUTER`), for the sessions' command sub-ports and for providers without a session (an MQTT topic of commands) alike: a raw provider carries the header like any bytes, the client on its other end writes it (`src` 0 and `seq` 0 when it does not need them). Commands through a raw provider are full access on purpose: no dead-man and no safety flag stand behind them.
 
-`n` connections are `n` links into the one port, not `n` ports: an answer goes back with `data_matrix_send_to(port, from, ...)` to whoever asked, no link back needed. The router is the hub of commands both ways: this board's calls to a peer leave from `ROUTER` too. The caller (`sys_device_remote`, the watches' client) finds the command sub-port of `dst`'s session (`sys_session_port`) and gives it to the router, which keeps the call's slot by `(from, seq)`, its timeout and its wait (`router_request`, ROUTER_QUEUE.MD "Calls": done). A broadcast (STOP, the time) is the session's: a REQUEST with `NOREPLY` out of every open session's port. C code of this board runs its commands with `router_inject`.
+`n` connections are `n` links into the one port, not `n` ports: an answer goes back with `data_matrix_send_to(port, from, ...)` to whoever asked, no link back needed. The router is the hub of commands both ways: this board's calls to a peer leave from `ROUTER` too. The caller (`sys_device_remote`, the watches' client) finds the command sub-port of `dst`'s session (`sys_session_port`) and gives it to the router, which keeps the call's slot by `(from, seq)`, its timeout and its wait (`router_request`, ROUTER_QUEUE.MD "Calls"; `sys_session_request` does both steps). A broadcast (STOP, the time) is the session's: a REQUEST with `NOREPLY` out of every open session's port. C code of this board runs its commands with `router_inject`.
 
-**Streams: one port per stream, both ways.** `ERRORS` sends this board's records and takes the records of other boards; the events the same (`ERRORS` / `ERRORS_IN` and `EVENT_NOTIFY` / `EVENT_REMOTE` become one port each). What a stream port takes it passes on with `data_matrix_send_except(port, from, ...)`: never back to the board it came from, so a slave's errors reach the app's session and never return to the slave. Three boards linked in a ring are not guarded: boards make a tree. What a module does on its own board with what it takes (the log's history, the policy, publishing an event) is decided when the module moves to ports, not here.
+**Streams: one port per stream, both ways.** `ERRORS` sends this board's records and takes the records of other boards; the events the same. What a stream port takes it passes on with `data_matrix_send_except(port, from, ...)`: never back to the board it came from, so a slave's errors reach the app's session and never return to the slave. Three boards linked in a ring are not guarded: boards make a tree. What a module does on its own board with what it takes is its own (the events are published here too, the errors only passed on).
 
 **Raw providers** link with the modules' ports directly, with no session: `ERRORS` to a raw BLE characteristic or an MQTT topic, `ROUTER` ⇄ an MQTT topic of commands. A raw provider of commands carries whole messages (MQTT, a BLE characteristic): on a byte stream with no framing the header has nowhere to start.
 
 **A tunnel** is two links, `P(a) ⇄ P(b)`: the frames pass whole, so the app opens a session with the board behind. A provider in a tunnel has no session (its output goes to every target), and both ends are framed or both raw.
 
-**Still to settle in the work:**
+## Open
 
-- The deepest chain (provider, session, its sub-port, the router's call callback, another session, its provider) puts a session frame on the sender's stack at each session: counted against the BLE host's and the RX tasks' stacks.
-- `DATA_MATRIX_PORTS` counted again: each session is its port and its sub-ports (`CONFIG_SYS_SESSION_PORTS`, 4).
+- The deepest chain (provider, session, its sub-port, the router's call callback, another session, its provider) puts a session frame on the sender's stack at each session: measured on the board with SYS TASKS (SYS_SYSTEM.MD), against the BLE host's and the RX tasks' stacks.
 - The board's record: the `ATTACH` frames before the `CONNECT` frames that link the sub-ports.
-
-**Done:** the switch, the header, the router's port and calls, the session's ports, the stream ports (`LOGS`, `ERRORS`, `EVENTS`), `WATCH`, `REMOTE`, `app/runit` (`ATTACH` and `CONNECT`). **The order of work left:** `templates/sync.sh` (the generated enums, errors and contracts), `session_client.py` and the router scripts, the app's session code (the 5-byte header, the PUSH keys).
+- A self-registration macro for a module's port.
+- Host tests of the switch (the host runner is not in the repo).
+- The host side speaks the former frame: `router_link.py` and the board scripts, the app's session code (the 5-byte header, the module numbers as keys, the PUSH keys).

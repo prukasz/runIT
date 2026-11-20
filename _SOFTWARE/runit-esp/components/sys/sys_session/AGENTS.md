@@ -19,4 +19,4 @@ Spec: `SYS_SESSION.MD` (this folder).
 - A session tells who is reached and gone by events (`sys_session_events.h`), never by a hook table: a module that needs it subscribes inline. A session is made by ATTACH (the board's record) or `sys_session_attach` at boot: nothing else attaches or detaches one.
 - The dead-man is the session's own time (attach, `sys_session_deadman_set`); a session without it never ends by silence. The safety flag only goes with `SESSION_EV_GONE`: what it does (the safe state) is `sys_system`'s.
 - Keep it small: no state that only guards against a caller's mistake, no limit or counter nobody reads, no second path. A control frame a full queue refuses is lost; the hello and the ping repeat.
-- Four headers, no more: `sys_session.h` (wire format and use), `router/sys_session_router.h`, `errors/sys_session_errors.h`, `internal/sys_session_internal.h`.
+- Five headers, no more: `sys_session.h` (wire format and use), `sys_session_events.h`, `router/sys_session_router.h`, `errors/sys_session_errors.h`, `internal/sys_session_internal.h`.

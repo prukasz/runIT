@@ -50,7 +50,7 @@ A command has one answer, at most `cap`. Data longer than that is paged by the c
 CMD_FRAME_MAX
  ├─ a framed provider: a frame it takes or sends whole; its driver's buffers hold one
  │    (BLE: a framed characteristic's item, sys_ble; UART: the frame, its CRC and COBS, device_esp32s3_uart / provider_console)
- ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's, a project section's),
+ ├─ CMD_DATA_MAX = CMD_FRAME_MAX − CMD_HEAD: a stored frame (an action record's),
  │    the answer buffer of a replay
  └─ a PUSH's data (its stream is the header's key): ≤ CMD_DATA_MAX
 ```
@@ -80,7 +80,7 @@ Every request names the side of its command it runs: the `cmd_dir_e` byte right 
   - The length check (`ERR_CMD_BAD_LEN{got, need}`, the payload's bytes) is done before the body runs. A frame of no fixed shape (the power manager's MATRIX: rows, as many as the board has) is a hand-written `cmd_f` named `P_w_<OP_NAME>` / `P_r_<OP_NAME>`, so its row is still `ROUTER_ENTRY*`. Remote-only policy belongs in the body, not in the native API.
 - Root: modules register exclusively via `ROUTER_MODULE_REGISTER(MODULE_ID_<NAME>, fn)` (the key is the module's number, `MODULE_ID_<NAME>`, `module_id.h`) in their `.c`: a constructor queues the pair (`router_register`, no check and no error made before `app_main`), and `router_root_init` (called by `router_init`) binds them into the root table and returns `ERR_ROUTER_KEY_TAKEN` / `ERR_ROUTER_TABLE_FULL` / `ERR_CMD_BAD_ARG`. Two modules cannot have one number (`module_id.h`); nothing references such a module, so its component is linked `WHOLE_ARCHIVE`. A module's router header is also the list of its ops: the frames, then the op table; the module's own header only forward-declares a frame its API needs.
 - `out->cap` is `CMD_DATA_MAX` for every command; answers use `cmd_reply` (`ERR_CMD_OUT_FULL` when too big). A command answers once: data longer than that is paged by the command (ROUTER.MD "The handler").
-- `router_route(in, out)` is also the entry point for replaying stored frames (actions, project), on the calling task.
+- `router_route(in, out)` is also the entry point for replaying stored frames (actions), on the calling task.
 - **Concurrency**: urgent and normal commands run concurrently on two tasks, so module routers must be thread-safe.
 
 ## Root keys

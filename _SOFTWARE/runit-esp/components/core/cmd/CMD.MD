@@ -1,8 +1,8 @@
 # cmd — shared command contract (for agents)
 
 Component `components/core/cmd/`. Holds the transport- and routing-agnostic command contract shared between `router` (`components/core/router/`) and `sys_device` / contracts / device drivers:
-- Frame limits (`CMD_FRAME_MAX`, `CMD_HEAD`, `CMD_DATA_MAX`), the header of every frame (`cmd_hdr_t`: its type byte `CMD_TYPE_*`, the kinds `cmd_kind_e`, the sources `CMD_SRC_*`) and shared TX queue flags (`CMD_SEND_URGENT`, `CMD_SEND_SPARE`, `CMD_SEND_NOWAIT`)
-- Handler types and direction (`cmd_in_t`, `cmd_out_t`, `cmd_f`, `CMD_F_PARAMS`, `cmd_dir_e`)
+- Frame limits (`CMD_FRAME_MAX`, `CMD_HEAD`, `CMD_DATA_MAX`), the header of every frame (`cmd_hdr_t`: its type byte `CMD_TYPE_*`, the kinds `cmd_kind_e`, the sources `CMD_SRC_*`) and the send flags (`CMD_SEND_URGENT`, `CMD_SEND_SPARE`, `CMD_SEND_NOWAIT`, in `utils`' `cmd_types.h`)
+- Handler type and direction (`cmd_f`, `CMD_F_PARAMS`, `cmd_dir_e`; the handler's `cmd_in_t` and `cmd_out_t` are `utils`' `cmd_types.h`)
 - `static inline` answer helpers (`cmd_reply`, `cmd_append`)
 - Op-table and payload-parsing macros (`cmd_table.h`: `cmd_none_t`, `CMD_TABLE_DECLARE`, `CMD_REPLY`, `CMD_HANDLER`, `CMD_HANDLER_TAIL`)
 - Error module `MODULE_ID_CMD` (`0x27`): `ERR_CMD_BAD_LEN`, `ERR_CMD_OUT_FULL`, `ERR_CMD_BAD_ARG`, `ERR_CMD_DIRECTION`
@@ -11,9 +11,10 @@ Component `components/core/cmd/`. Holds the transport- and routing-agnostic comm
 
 | File | Role |
 |---|---|
-| `cmd.h` | Frame limits, the header (below), shared `CMD_SEND_*` TX flags, `cmd_f` (over `cmd_in_t` / `cmd_out_t`, `cmd_types.h` in `utils`), `cmd_dir_e`, `static inline` `cmd_reply` / `cmd_append`, `cmd_push_head` (a PUSH packet's header written into the `CMD_HEAD` bytes a stream module leaves before its data: the one way every stream port writes it) |
+| `cmd.h` | Frame limits, the header (below), `cmd_f` (over `cmd_in_t` / `cmd_out_t`, `cmd_types.h` in `utils`, which also holds the `CMD_SEND_*` flags), `cmd_dir_e`, `static inline` `cmd_reply` / `cmd_append`, `cmd_push_head` (a PUSH packet's header written into the `CMD_HEAD` bytes a stream module leaves before its data: the one way every stream port writes it) |
 | `cmd_table.h` | Op-table declarations (`CMD_TABLE_DECLARE`) and handler wrappers (`CMD_HANDLER`, `CMD_HANDLER_TAIL`, `CMD_REPLY`) |
 | `errors/cmd_errors.h`, `errors/errors_cmd.json` | `ERR_CMD_MAP` (`MODULE_ID_CMD = 0x27`) and user messages |
+| `cmd_id.h` | `MODULE_ID_CMD` |
 | `cmd.c` | Registers `ERR_CMD_MAP` under `MODULE_ID_CMD` (`0x27`, `ERR_MODULE_DEFINE`), linked `WHOLE_ARCHIVE` |
 | `host/` | `test_cmd.c` and `host_test.json` (`python test_host/run.py cmd`) |
 

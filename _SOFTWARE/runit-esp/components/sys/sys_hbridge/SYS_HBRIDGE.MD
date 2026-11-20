@@ -5,6 +5,7 @@ Component `components/sys/sys_hbridge/`. A contract, not a module with state: op
 | File | Contents |
 |---|---|
 | `sys_hbridge.h` | The contract table `CONTRACT_HBRIDGE_OPERATIONS` (prefix `CONTRACT_HBRIDGE`), arg structs (`hbridge_channel_args_t`, `hbridge_drive_args_t`), `SYS_HBRIDGE_DRIVE_MAX`, fault reasons, and `HBRIDGE_EVENTS` |
+| `sys_hbridge_id.h` | `MODULE_ID_DECLARE(MODULE_ID_HBRIDGE, 0x09)` |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
 | `CMakeLists.txt` | Header only; requires `sys_device`, `sys_event` |
 | `AGENTS.md` | Rules for changing this folder |

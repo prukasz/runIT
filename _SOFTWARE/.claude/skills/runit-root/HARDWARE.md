@@ -3,7 +3,7 @@
 Current hardware revision. Sources of truth, in order:
 
 1. [runit-esp-archive/boards/runit_r1_defs.h](../../../runit-esp-archive/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
-2. [runit-esp-archive/boards/runit_r1_devices.c](../../../runit-esp-archive/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot" — how each onboard chip is created and wired; `board.json` — the board descriptor
+2. [runit-esp-archive/boards/runit_r1_devices.c](../../../runit-esp-archive/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot order" — how each onboard chip is created and wired; `board.json` — the board descriptor
 3. `runit-esp/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` (a device not moved yet: `runit-esp-archive/components/devices/device_<chip>/`) — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
@@ -65,7 +65,7 @@ Users connect standard RC parts (servos, ESCs, actuators), popular sensors and L
 
 ## 3. Onboard device catalog (firmware view)
 
-All onboard chips are created by the board's profile (SYS_BOARD.MD), except the ESP32-S3's own GPIO (device 0), which the firmware creates at every boot (`esp32 gpio` step, RUNIT.MD), its wiring as C in `runit-esp-archive/boards/` (IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
+All onboard chips are created by the board's profile (SYS_BOARD.MD), except the ESP32-S3's own GPIO (device 0), which the firmware creates at every boot (the GPIO step, RUNIT.MD "Boot order"), its wiring as C in `runit-esp-archive/boards/` (IDs, buses and pins below). Each is reached by its device ID through a system contract — the app and VM never talk to the chip directly.
 
 | ID | Chip | Contract | I2C (bus 0) | Board wiring | Role |
 |---|---|---|---|---|---|
@@ -90,9 +90,9 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 - The PCA9685 has one PWM frequency for all 16 channels, so the servo headers (CH 0–7) and DRV8962 #2 (CH 8–15) always share a frequency. Servos typically want ~50 Hz; motor drive usually runs much faster.
 - The servo header voltage follows the TPS55289 rail that feeds it — changing that rail's voltage changes the servo supply.
 - Rail names: `DEVICE_ID_TPS55289_2` = rail A (ID 10, 0x74), `DEVICE_ID_TPS55289_1` = rail B (ID 11, 0x75) (renamed from `_0` 2026-09-27; IDs unchanged).
-- The TPS55289 current limit can't go below 200 mA. On USB 5 V with the assumed 1 A, a rail above ~6 V doesn't fit the budget: the power manager answers `ERR_POWER_BUDGET_EXCEEDED` (consumer `min_mA`, SYS_POWER.MD).
+- The TPS55289 current limit can't go below 200 mA. On USB 5 V with the assumed 1 A, a rail above ~6 V doesn't fit the budget: the power manager answers `ERR_PWRM_BUDGET_EXCEEDED` (rail `min_mA`, SYS_POWER_MANAGER.MD).
 - INA3221 shunts are all wired reversed (`inverted_mask = 0x07`). Its alerts still work: the limit registers and the compare are signed, so the device writes −threshold and takes the pin's release as the alert (one channel per alert pin; measured 2026-09-27). The power manager arms both alerts on the input channel (critical at the source current, warning at 90 %), so on the board both alert pins belong to the input.
-- ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not reserved in firmware (`SYS_PIN_*` has only the I2C pins), so the app offers them in pin pickers. Open question: reserve them.
+- ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not locked in firmware (the ESP32-S3 GPIO locks only the pins a native peripheral reserved in ESP-IDF, SYS_IO.MD), so the app offers them in pin pickers. Open question: reserve them.
 - The board's input current has short peaks above 100 mA (likely BLE transmit) while the average is ~50 mA: a low critical (per-conversion) alert trips on them; the warning alert (averaged) suits low thresholds.
 
 ### Contract ops per device (from generated catalog)

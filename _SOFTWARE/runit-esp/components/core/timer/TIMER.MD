@@ -22,6 +22,7 @@ board_timer_init(&m->timer, on_timeout, m);      // set up, stopped
 board_timer_start(&m->timer, 10);                // every 10 ms; the same period again keeps the phase
 board_timer_once(&m->timer, 500);                // once, 500 ms from now
 board_timer_stop(&m->timer);                     // before the struct is freed
+board_timer_running(&m->timer);                  // started and not stopped (a once that has fired: stopped)
 ```
 
 - **A timer is a `board_timer_t` in its owner's struct**: no table, so no capacity and no error; the calls return nothing. Any task, not an ISR.
@@ -38,4 +39,3 @@ The running timers are a list in no order (there are few), under a spinlock held
 ## Open
 
 - A deterministic stand-in for the host tests of the components that use timers (a test advances the clock and the due callbacks run in its thread), added when the first such test needs it.
-- The firmware's other timers (the drivers' polls, sys_session, sys_watch, the VM) still use esp_timer.

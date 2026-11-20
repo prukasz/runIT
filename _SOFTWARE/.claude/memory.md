@@ -7,16 +7,15 @@ Index of knowledge that is not obvious from the code. Detail lives in the linked
 - Vision, hardware, repo map: `.claude/skills/runit-root/` (`VISION.md`, `HARDWARE.md`)
 - Firmware map (links every component's `*.MD` / `AGENTS.md`), architecture, conventions, errors, build and tests: `.claude/skills/runit-esp/`
 - The app (`runit-app/`): `AGENTS.md` (the frame, the shared UI parts, the project, the desktop app), `src/engine/ENGINE.md` (VM engine), `src/backend/BACKEND.md` (the BLE link, the stored project)
-- Block canvas concept: `board-canvas-concept.md`
 - Descriptors, schemas and generators: `templates/AGENTS.md`
 - Per-module design notes: the `*.MD` next to each component
 
 ## Gotchas
 
-- **ESP-IDF build on the author's machine:** the generic `export.ps1; idf.py build` from the docs fails. IDF is split across `C:\esp\v6.1\esp-idf` and `C:\Espressif\tools`, so the build needs `IDF_TOOLS_PATH`, `IDF_PYTHON_ENV_PATH` and `IDF_PYTHON_CHECK_CONSTRAINTS=no` set first. Working command: `.claude/skills/runit-esp/build.md`.
+- **ESP-IDF build on the author's machine:** the generic `export.ps1; idf.py build` from the docs fails. IDF is split across `C:\esp\v6.1\esp-idf` and `C:\Espressif\tools`; the build activates the EIM profile script first (`runit-esp/build.ps1`, `.claude/skills/runit-esp/build.md`).
 - **CMake warnings:** only IDF's own (`esp_wifi` / `wpa_supplicant` private include dirs). Any project warning is new and must be fixed.
-- **Layering:** `core` → `sys` → `devices` → `vm`; `runit-esp/components/app/runit` composes them. Components are found via `EXTRA_COMPONENT_DIRS` in `runit-esp/CMakeLists.txt` (`core/time` still from `runit-esp-archive/components/`).
-- **Stored actions:** IDs 3 to 6 are the firmware's (resume, suspend, reset, hard reset); a project section runs at every load or run of the project (at a boot as the boot option says: none / load / run), so an action that waits for a call is stored with the actions router, not as a section (SYS_PROJECT.MD).
+- **Layering:** `core` → `sys` → `devices` → `vm`; `runit-esp/components/app/runit` composes them. Components are found via `EXTRA_COMPONENT_DIRS` in `runit-esp/CMakeLists.txt` (`core/time` still from `runit-esp-archive/components/`; `sys_lvgl` is excluded).
+- **Stored actions:** IDs 3 to 6 are the firmware's (resume, suspend, reset, hard reset); nothing replays by itself (SYS_ACTIONS.MD).
 - **Hardware tests over BLE** are the app's (`runit-app/tests/hardware`, `build.md` §6): after a GATT change Windows reports no disconnect and every write fails until the link is reopened; opening the console port can reset the board. The board takes one BLE client: with the app (or a phone) connected, nothing else finds it.
 - **The app's backend on the board:** `npm run test:hw` in `runit-app/` (BACKEND.md "Tests"; the devkit advertising `runit`, no other BLE client; a failing vitest default pool is fixed by `pool: 'vmThreads'` in the configs). Windows reuses a closed client's GATT connection, so `dropFromHost` is no lost link to the board: the dead-man's link-lost path is held by `npm run test:browser`.
 - **App UI** shows names, never `obj-…` IDs, and is built from `runit-app/src/ui/components` only: `tools/check-ui.mjs` fails a raw `<input>`, `<select>`, text `<button>` or a component's class in a screen (in `npm test`, and a PostToolUse hook in `.claude/settings.json` after each edit); `ui-raw: <reason>` excuses one line.

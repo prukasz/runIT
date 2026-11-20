@@ -1,12 +1,12 @@
 # sys_data_provider — the providers' lifecycle
 
-Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, the board's console — under a 1-byte `id`, each one a stream port of the data matrix (its whole data plane, "Stream port"), controlled by commands only (`sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x0D`). The registry keeps the providers' lifecycle and nothing of their logic: it never looks into a packet. In C there is only `sys_data_provider_create_system`, the boot's CREATE of the board's own providers.
+Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, the board's console — under a 1-byte `id`, each one a stream port of the data matrix (its whole data plane, "Stream port"), controlled by commands only (`sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x0D`). The registry keeps the providers' lifecycle and nothing of their logic: it never looks into a packet. In C there are only `sys_data_provider_create_system`, the boot's CREATE of the board's own providers, and `sys_data_provider_state`, a provider's state bits.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `sys_data_provider.h` | Public: the driver types (`sys_data_provider_type_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `sys_data_provider_create_system` |
+| `sys_data_provider.h` | Public: the driver types (`sys_data_provider_type_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `sys_data_provider_create_system`, `sys_data_provider_state` |
 | `driver/sys_data_provider_driver.h` | For a driver only: the base `sys_data_provider_t`, the type (`SYS_DATA_PROVIDER_TYPE_DEFINE`), the own ops (`SYS_DATA_PROVIDER_OWN_OP`), `sys_data_provider_set_up`, the driver's side of the contract |
 | `sys_data_provider.c` | The registry: the types, the slots, the locks, CREATE / REMOVE, the port's input, the own ops' call; no wire format |
 | `internal/sys_data_provider_internal.h` | The seam between the registry and its router: create, remove, list, an own op |

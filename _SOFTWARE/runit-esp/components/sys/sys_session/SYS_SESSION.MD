@@ -19,6 +19,7 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is the peer of 
 | `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION` 0x0E): the frames, then `SESSION_OPERATIONS`; registers itself |
 | `router/contract_session.json` | The router's descriptor |
 | `errors/` | `MODULE_ID_SESSION` (0x0E), `ERR_SYS_SESSION_MAP`, the messages |
+| `Kconfig` | `CONFIG_SYS_SESSION_MAX`, `CONFIG_SYS_SESSION_PORTS` (Limits) |
 | `host/` | Host tests of the former session (Open) |
 
 ## Peers and ids

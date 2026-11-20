@@ -15,7 +15,7 @@ This machine: ESP-IDF **v6.1**, target **esp32s3**, installed by the Espressif I
 
 ## 2. Commands
 
-Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be the project (`_SOFTWARE\runit-esp`, the firmware project, whose `build.ps1` does all of this: its `sdkconfig`, `partitions.csv`, `build*/`, `sdkconfig.qemu.defaults` and `sdkconfig.devkit.defaults` sit there, and the relative paths below are from it).
+Activation lasts only for one shell call, so prefix every command with it. Always pass `-C <project>`, because the shell's working directory may not be the project (`_SOFTWARE\runit-esp`, the firmware project, whose `build.ps1` does all of this: its `sdkconfig` (generated, not tracked), `sdkconfig.defaults` and `build/` sit there, and the relative paths below are from it).
 
 ```powershell
 . C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1 | Out-Null; idf.py -C C:\Users\lukasz\Documents\runIT\_SOFTWARE\runit-esp build
@@ -41,11 +41,11 @@ Rules for running from the agent:
 
 Success looks like `Project build complete`.
 
-**Partition table** (custom, `partitions.csv`, flash 16 MB): `nvs` 0x9000 24 KB, `phy_init` 0xf000, `ota_0` 0x10000 4 MB, `otadata` 0x410000, `ota_1` 0x420000 4 MB (the firmware slots, [SYS_OTA.MD](../../../runit-esp-archive/components/sys/sys_ota/SYS_OTA.MD)), `project` 0x820000 512 KB (NVS: the records of `sys_actions` and the stored project, [SYS_ACTIONS.MD](../../../runit-esp/components/sys/sys_actions/SYS_ACTIONS.MD), [SYS_PROJECT.MD](../../../runit-esp-archive/components/sys/sys_project/SYS_PROJECT.MD)), `source` 0x8a0000 1 MB (NVS: the project as the app edits it, gzipped). Retained VM values are in `nvs`.
+**Partition table:** the default one (a single app, `nvs` 24 KB, the records of `sys_actions` and the board's JSON) on the 16 MB flash (`sdkconfig.defaults`) while nothing else stores to flash.
 
 ## 2a. Flash and monitor
 
-**Two boards.** Bare devkit: USB-UART bridge on UART0 (GPIO 43/44). runIT PCB: "USB Serial Device", the ESP32-S3's native USB-Serial-JTAG; the console reaches the PC as the *secondary* output (`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y`) and `sys_uart` reads and writes its frames there too (SYS_UART.MD), so a client session works on either port. An RTS reset re-enumerates the PCB's port: use [scripts/usb_capture.py](scripts/usb_capture.py) for boot logs (serial_capture.py loses the port). If `idf.py flash` fails with access denied right after a reset, run it again.
+**Two boards.** Bare devkit: USB-UART bridge on UART0 (GPIO 43/44). runIT PCB: "USB Serial Device", the ESP32-S3's native USB-Serial-JTAG; the console reaches the PC as the *secondary* output (`CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y`) and `provider_console` reads and writes its frames on both (PROVIDER_CONSOLE.MD), so a client session works on either port. An RTS reset re-enumerates the PCB's port: use [scripts/usb_capture.py](scripts/usb_capture.py) for boot logs (serial_capture.py loses the port). If `idf.py flash` fails with access denied right after a reset, run it again.
 
 **Choosing the port:** COM numbers change between sessions. List ports with `[System.IO.Ports.SerialPort]::GetPortNames()`. If exactly one exists, use it and say which. If there are several, or the user named one, confirm with the user. Never guess between multiple ports.
 
@@ -57,7 +57,7 @@ Success looks like `Project build complete`.
 
 **Monitor from the agent:** `idf.py monitor` is interactive and doesn't work without a TTY. Use [scripts/serial_capture.py](scripts/serial_capture.py), run with the IDF venv Python (it has pyserial). By default it resets the board through RTS/DTR, so the capture starts from the ROM boot log, and reads N seconds at the console's 921600 baud (`CONFIG_ESP_CONSOLE_UART_BAUDRATE`; the ROM's own boot lines, at 115200, show as noise). `--no-reset` attaches to a running board. Args: `<PORT> [seconds] [baud] [--no-reset]`.
 
-**Healthy boot:** ROM → `ESP-IDF v6.1 2nd stage bootloader` → partition table → the boot steps of RUNIT.MD "Boot" → `runIT up (0 boot step(s) failed)`. On the PCB the status LED (TCA6424A pin 23) lights once the board's profile has set it. A failing step is logged with its name and the boot goes on.
+**Healthy boot:** ROM → `ESP-IDF v6.1 2nd stage bootloader` → partition table → the boot steps of RUNIT.MD "Boot order" → `runIT rework: up, uptime N ms`. On the PCB the status LED (TCA6424A pin 23) lights once the board's profile has set it. A failing step is logged with its name and the boot goes on.
 
 **Open findings from the boot log:** `BLE Advertising started ...` is logged twice (a restart to apply the device name set after sync; cosmetic). The CPU runs at 160 MHz (240 MHz possible).
 
@@ -74,11 +74,11 @@ Project Kconfig files: the `Kconfig` of the components under `runit-esp/componen
 | Want to review each default conflict | `idf.py refresh-config --policy=interactive` | Interactive; not usable from the agent |
 | Changed a value through menuconfig | nothing extra | `idf.py menuconfig` is interactive and meant for the user |
 
-`--policy=kconfig` only updates options still marked `# default:` in `sdkconfig`. Values set by the user are kept. Afterwards run `git diff sdkconfig` to review what changed.
+`--policy=kconfig` only updates options still marked `# default:` in `sdkconfig`. Values set by the user are kept. Afterwards read the changed options in `sdkconfig`.
 
 **Watch out:** an option can be marked `# default:` with a value that differs from its current Kconfig default; the refresh then silently flips it. If that happens, restore the value and delete its `# default:` line so it counts as user-set, then `idf.py reconfigure`. An option the user set explicitly (no marker) keeps its value even when the default changes; change it by hand.
 
-`sdkconfig` and `sdkconfig.old` are **tracked in git**. `sdkconfig.qemu.defaults` holds the QEMU overrides (§6). Treat `sdkconfig` changes as part of the commit.
+`sdkconfig` and `sdkconfig.old` are generated and **not tracked** (`runit-esp/.gitignore`): a setting the firmware needs goes in `sdkconfig.defaults` (with a comment on why), which `sdkconfig` is made from; after changing it run `idf.py reconfigure` (a value already in `sdkconfig` stays until `refresh-config --policy=kconfig` or `fullclean`).
 
 Symptoms that you forgot to reconfigure: `'CONFIG_XXX' undeclared` for a newly added option, or the build still using an old default value.
 
@@ -98,14 +98,13 @@ Without the driver, clangd parses headers for the host (MSVC) target instead of 
 
 ## 6. Tests
 
-**Open: the Python suites below do not follow the firmware's session and streams yet.** `router_link.py` (and every suite on it, the app's console witness `uart_tap.py` too) sends the old HELLO (the board giving the client its id) and the CONNECTOR commands (READ, MIRROR, FORWARD, `EVENTS_ALL`), so its session does not open on the current firmware and the suites fail; `remote_tests.py` and `forward_tests.py` test connector mirrors and FORWARD, which the streams no longer have (SYS_STREAM.MD). Until they follow, the session, the streams and the watches are tested on a board by the app's suite (`npm run test:hw`: `a-link`, `h-watches`, `i-streams`).
+**Open: the Python suites below speak the former session frame yet.** `router_link.py` (and every suite on it, `runit-esp/tools/session_client.py`, the app's console witness `uart_tap.py`) frames `[frame byte][dst][src][seq u16][body]` and takes its id from the board's HELLO, not the 5-byte header (`[type][src][key][seq u16]`, CMD.MD "The header") with the client's own id as `src` (SYS_SESSION.MD), so their session does not open on the current firmware and the suites fail; `remote_tests.py` and `forward_tests.py` test connector mirrors and FORWARD, which the board no longer has. Until they follow, the session, the streams and the watches are tested on a board by the app's suite (`npm run test:hw`: `a-link`, `h-watches`, `i-streams`). The VM suites (`vm_suite.py` and its parts) wait for the VM to move.
 
-**Host tests** (no board): unit tests of a component's real code built with `gcc` and Unity on the PC, `python test_host/run.py [component]` from `runit-esp-archive/`; it finds the components of `runit-esp-archive/` and of `runit-esp/` (`runit-esp-archive/test_host/HOST_TESTS.MD`: how a component gets its `host/host_test.json`, the platform stand-ins). Today: `errors`, `sys_flasher`, and in the firmware `router`, `router_queue` (its tasks run as threads), `timer`, `sys_event`, `sys_device`, `sys_actions`. Run them for a change to a component that has them. The same stand-ins build the **screen simulator** `lvgl-playground/` (its README.md: `sys_lvgl`, `sys_device`, `sys_display`, `sys_touch` with a display driver on a simulated SPI bus and ILI9341, a simulated touch, scenarios of command frames, an SDL2 window): `.
-un.ps1 -Headless -Scenario scenarios\walkthrough.txt` after a change to those components or to `test_host/`.
+**Host tests** (no board): a component's real code built with `gcc` and Unity on the PC has its `host/host_test.json` and `test_*.c` in the components `core/errors`, `core/cmd`, `core/router`, `core/router_queue`, `core/timer`, `sys/sys_event`, `sys/sys_event_stream`, `sys/sys_device`, `sys/sys_actions`, `sys/sys_data_provider`, `sys/sys_session`, `sys/sys_watch`. **The runner is not in the repo** (`runit-esp-archive/` holds no `test_host/`): nothing builds them now, and the ones written for the former queue, session, provider and streams need rewriting when it comes back (each component's "Open"). The screen simulator `lvgl-playground/` (its README.md, `run.ps1`) builds the LVGL adapter on the same kind of stand-ins and is not part of the firmware build.
 
 The suites below run on the board (or QEMU):
 
-All suites run on the board (or QEMU) over the command link, with the IDF venv Python (`C:\Espressif\tools\python\v6.1\venv\Scripts\python.exe`), and import [scripts/router_link.py](scripts/router_link.py): a client session on the console (SYS_SESSION.MD): the line's COBS + CRC16, the frame header, HELLO (the board gives the client its id), PINGs, a new session after a restart (`wait_reopen`), the streams subscribed (logs, errors, telemetry, events), error records; tag names parsed from the firmware's error maps. Text on the line that is no frame (the ROM, a panic, `mirror_serial`) is kept as console lines (`console_since`) and as log lines with the LOGS stream's (`logs_since`, `wait_log`). A test passes the keys without the direction byte: `frame()` adds the side the command has in `runit-app/generated/` (a command with both sides takes `dir=READ` / `dir=WRITE`); a frame stored in a record is built with `frame()` too. The Python suites test the firmware over the console; the BLE link and the app's protocol are tested by the app's own suite on the board (`runit-app/tests/hardware`, below). Run them without `-I` (they import from their own folder). Flash the current firmware first. After a flash or `esptool … hard-reset`, wait ~4 s before starting a suite. No other client of the board while a suite runs (the app over BLE, `npm run app`): its session subscribes the streams too, which changes the timing (the 1 ms PERIODIC of `vm_suite`), and a short dead-man ends its session as well.
+All suites run on the board over the command link, with the IDF venv Python (`C:\Espressif\tools\python\v6.1\venv\Scripts\python.exe`), and import [scripts/router_link.py](scripts/router_link.py): a client session on the console (SYS_SESSION.MD): the line's COBS + CRC16, the frame header, HELLO, PINGs, a new session after a restart (`wait_reopen`), the streams subscribed (logs, errors, telemetry, events), error records; tag names parsed from the firmware's error maps. Text on the line that is no frame (the ROM, a panic, `mirror_serial`) is kept as console lines (`console_since`) and as log lines with the LOGS stream's (`logs_since`, `wait_log`). A test passes the keys without the direction byte: `frame()` adds the side the command has in `runit-app/generated/` (a command with both sides takes `dir=READ` / `dir=WRITE`); a frame stored in a record is built with `frame()` too. The Python suites test the firmware over the console; the BLE link and the app's protocol are tested by the app's own suite on the board (`runit-app/tests/hardware`, below). Run them without `-I` (they import from their own folder). Flash the current firmware first. After a flash or `esptool … hard-reset`, wait ~4 s before starting a suite. No other client of the board while a suite runs (the app over BLE, `npm run app`): its session subscribes the streams too, which changes the timing (the 1 ms PERIODIC of `vm_suite`), and a short dead-man ends its session as well.
 
 | Script | Covers |
 |---|---|
@@ -120,36 +119,9 @@ All suites run on the board (or QEMU) over the command link, with the IDF venv P
 
 **One build for every board.** `sdkconfig` is for 16 MB of flash (the PCB, an N16R8 devkit): `idf.py -p <PORT> flash`. A devkit in the app is a board profile (`runit-app/profiles/esp32s3-devkit.runit-board.json`) opened in its Board profile tab.
 
-**Two boards on a cable.** Both run the same build; the root programs its child itself. Wiring (SYS_UART.MD "The link to another board", SYS_FLASHER.MD): **root GPIO18 (link TX) to the child's U0RXD (GPIO 44, its RX pin), root GPIO17 (link RX) to its U0TXD (GPIO 43, its TX pin), root GPIO46 to its GPIO 0 (BOOT), root GPIO3 to its EN, GND to GND** (3.3 V logic, no power wire). Power the child by its native USB or 5 V, not by the port of its USB-UART bridge: a powered bridge drives U0RXD too.
+**Two boards on a cable.** Both run the same build. The link is a UART device (`device_esp32s3_uart`, FRAMED) bridged by `provider_uart`, with a session attached over it: all of it frames of the board's record (SYS_BOARD.MD, SYS_SESSION.MD). The root flashing the child and OTA through the root are not moved into the rework yet. Not run on hardware yet; `tree_tests.py` and `remote_tests.py` belong to the former session and do not run.
 
-1. Flash the root by cable (`idf.py -p <root port> flash`) and give it an id other than 0 (SESSION ID, then SYS RESTART): 0 is the id a new board starts with.
-2. The root flashes the child: FLASHER START over any session to the root (`flashAttached` in the app's backend; `HW_FLASHER=1 npm run test:hw` runs it with its checks), STATUS until DONE. It writes the root's bootloader, partition table and firmware, erases the child's nvs and otadata, checks each region's MD5 and restarts it.
-3. The child's console session hears the root's hello on the link and makes the root its master: it has no other session while that lasts (its BLE client and its own link end), id 0 until it is given another (SESSION ID to `board: 0`, then a restart). The host reaches it only through the root; later updates are OTA through the root (`writeFirmware(..., { board })`).
-
-Run `python .claude\skills
-unit-esp\scripts	ree_tests.py --port <root port>` (`--loss 20` also tests unplugging the cable), and `python .claude\skills
-unit-esp\scripts
-emote_tests.py --port <root port>` for the remote devices: the child's GPIO device 0 as a device of the root, async and blocking, cached reads, the child's events and errors as the twin's, dummy errors on its unconnected GPIO, the root's connectors keeping the child's streams (the latest, a queue, a full queue, the pool), and `--blink 8 [--keep]` for a program on the root (a PERIODIC of 1 s and a TOGGLE) that blinks pin 4 of the child (`--pin`); `--keep` leaves it running until the root is reset. `forward_tests.py` (the repo's `.venv` Python: it needs `bleak` and `pyserial`; `--port <root port> --ble <the root's address>`) forwards from the root to the child: the host writes a user characteristic of the root over Bluetooth, a connector with FORWARD sends it on to another characteristic (back to the host) and over the cable to a queue on the child. The root must have no other Bluetooth client (close the desktop app: it reconnects by itself and a connected board does not advertise). A host that went away (the dead-man) makes the root STOP every board, so the child's devices are suspended until a RESUME of every device (`[05][01][FF FF][03 00]` to the child): `remote_tests.py` does it first. The child's console UART is the link now, so its log text goes to the root (dropped there); its native USB still shows it. The Python suites do not follow the firmware's session yet (the note above).
-
-**QEMU** (Espressif QEMU 9.2.2, under `C:\Espressif\tools\tools\qemu-xtensa`; not on PATH after the IDF profile: call `C:\Espressif\tools\tools\qemu-xtensa\<ver>\qemu\bin\qemu-system-xtensa.exe`). QEMU has no BT controller, so it has its own build with `CONFIG_RUNIT_BLE_START=n` from `sdkconfig.qemu.defaults`:
-
-```powershell
-idf.py -B build_qemu -D SDKCONFIG=build_qemu/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig;sdkconfig.qemu.defaults" build
-cd build_qemu; python -m esptool --chip esp32s3 merge-bin --fill-flash-size 16MB -o qemu_flash.bin "@flash_args"
-# qemu_efuse.bin: 1024 B, the esp32s3 default from idf_py_actions/qemu_ext.py (chip rev 0.3)
-qemu-system-xtensa -M esp32s3 -m 32M -drive file=qemu_flash.bin,if=mtd,format=raw `
-  -drive file=qemu_efuse.bin,if=none,format=raw,id=efuse -global driver=nvram.esp32s3.efuse,property=drive,value=efuse `
-  -nographic -serial tcp::5555,server          # waits for the client, so the boot log is not lost
-python router_tests.py --port socket://localhost:5555 --target qemu
-```
-
-Expected under QEMU: I2C bus 1 scan reports `ERR_I2C_BUS_STUCK` (no devices / pull-ups), a GPIO `LEVEL` read back fails (no GPIO readback).
-
-**QEMU hangs at boot because `esp_adc` is linked** (device_esp32s3_gpio's ADC): IDF's constructor `adc_hw_calibration` waits for SAR ADC hardware QEMU doesn't emulate; the log stops after the `eFuse: calibration efuse version` line. No Kconfig turns it off. Workaround: start QEMU with `-gdb tcp::1234 -S`, connect the suite first (the serial server waits for it), then keep [scripts/qemu_skip_adc_cal.gdb](scripts/qemu_skip_adc_cal.gdb) attached; it returns early from that constructor on every boot (so the RESTART test works too):
-
-```powershell
-xtensa-esp32s3-elf-gdb -batch -x qemu_skip_adc_cal.gdb ..\..\..\..\runit-esp\build_qemu\runIT.elf   # C:\Espressif\tools\xtensa-esp-elf-gdb\<ver>\xtensa-esp-elf-gdb\bin
-```
+**QEMU:** the project has no `sdkconfig.qemu.defaults` now, so there is no QEMU build; `scripts/qemu_skip_adc_cal.gdb` is left from one.
 
 **Opening the port resets a USB-Serial-JTAG board** (pyserial toggles DTR / RTS), so the first command of a run reaches a board that is booting. `router_link.py` sends its HELLO again every 0.5 s until the board answers, and takes a board's HELLO with a new `boot_id` as a restart (a new session, the streams subscribed again). A frame starts with a 0x00 too, so text before it never spoils it. The boot's own log lines come before the session opens: a suite sees the board up by its session (`wait_boot`), not by `runIT up`.
 

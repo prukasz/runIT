@@ -50,7 +50,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 - **An event**: the first subscription of a device subscribes a function to all its events (`sys_event_subscribe`, `SYS_EVENT_RUN_QUEUED_DEVICE`: all of a device's events are in the DEVICE lane; its source the device; the last one gone drops it). The registry's `CREATED` and `REMOVED` are not sent: on the other board they would reach the policy as the alias's own, and it would forget the alias's settings (the alias sees the device gone as `ERR_DEV_NOT_FOUND` in the answer); `SUSPENDED`, `RESUMED` and `RESET` go.
 - **An error**: the app's error sink calls `sys_device_remote_on_error(chain, cmd)` for every reported chain: one with no command (`cmd` NULL) whose chain has an `ERR_DEV_ID` in the table is made an error record (`err_record`). `sys_device_write` wraps the drivers' timers' errors in `ERR_DEV_ID` too.
-- Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` (queued with the room of its header, written there: no copy) out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`, 0x2F) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_DEVICE_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_DEVICE_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Push frames and data"), which the receiver does not count.
+- Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` (queued with the room of its header, written there: no copy) out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`, 0x2F) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_DEVICE_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_DEVICE_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Counting push frames"), which the receiver does not count.
 
 **On the alias's board**: the registry's `CREATED` of a remote device (`sys_device_remote_of`) sends SUBSCRIBE to its board (a call, never waited for). A board reached again gets the SUBSCRIBE of each of its remote devices again (a loop over the registry's remote devices). There is no table of aliases: `(board, remote id) → local id` is the registry's (`sys_device_find_remote`).
 
@@ -87,7 +87,7 @@ The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json
 - **sys_watch**: `sys_watch_read`, `sys_watch_stale` (SYS_WATCH.MD "Cached reads").
 - **sys_event**: `sys_event_subscribe`, `sys_event_publish`.
 - **errors**: `err_record`, `err_record_parse`, `err_report_board`.
-- **main**: its error sink calls `sys_device_remote_on_error`.
+- **app/runit**: its error sink calls `sys_device_remote_on_error`.
 
 ## Open
 

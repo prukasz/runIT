@@ -94,7 +94,7 @@ LiPo per-cell curve (4.20 V = 100 %, 3.84 V = 50 %, 3.27 V = 0 %; 21 points, lin
 
 ## Events and the response matrix
 
-The manager's own events (`MODULE_ID_PWRM` = `0x22`, codes `0x01..0x06`, tags `0x00220001..0x00220006`, **source `SYS_DEVICE_ID_NONE`** = `0xFFFF`, channel `0`, all `SYS_EVENT_NOTIFY`):
+The manager's own events (`MODULE_ID_PWRM` = `0x22`, codes `0x01..0x06`, tags `0x00220001..0x00220006`, **source `SYS_DEVICE_ID_NONE`** = `0xFF`, channel `0`, all `SYS_EVENT_NOTIFY`):
 
 | Event | ID | Value | Kind |
 |---|---|---|---|
@@ -121,7 +121,7 @@ A rail's own events, and the alerts of its monitor channel, get **that rail's ro
 | `0` NOTIFY | event only | event only |
 | `1` DISABLE | SUSPEND that rail | SUSPEND every rail |
 | `2` RESET | RESET that rail | RESET every rail |
-| `3` SAFE_STATE | the app's safe state (`runit_enter_safe_state`) | the same |
+| `3` SAFE_STATE | the app's safe state (the `sys_power_safe_state_f` given to `sys_power_manager_init`) | the same |
 
 Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 5 OCP critical, 6 OTP, 7 battery low, 8 battery critical, 9 budget exceeded, 10 source changed. UVP and OTP have no source yet. Only OVP, SPC and the two OCP kinds reach a rail's row. The other kinds are board events.
 
@@ -175,6 +175,7 @@ Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPEND
 
 ## Limits
 
+- `CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS` (4, 1..16): the budgeted rails.
 - The USB-PD negotiation has not been run against a PD charger yet.
 - The module has not been run on the PCB, which needs the INA3221 and the TPS55289 rails.
 - The hardware test is `router_tests.py` `test_power` (config, settings, source, status, responses). It is not run on the board yet.

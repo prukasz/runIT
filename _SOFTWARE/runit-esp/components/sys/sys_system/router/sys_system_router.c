@@ -1,5 +1,7 @@
 #include "sys_system_router.h"
 
+#include <string.h>
+
 #include "board_time.h"
 #include "esp_log.h"
 #include "router_queue.h"
@@ -7,6 +9,10 @@
 #include "sys_system.h"
 
 #define TAG __FILE_NAME__
+
+#define TASKS_MAX 32u  // the tasks a TASKS read takes in (TaskStatus_t on the router's stack); one answer holds fewer
+
+_Static_assert(sizeof(((sys_system_task_t*)0)->name) == CONFIG_FREERTOS_MAX_TASK_NAME_LEN, "a task's name");
 
 ROUTER_READ(SYS, OP_PING) {
   return CMD_REPLY(SYS, OP_PING, (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount()));
@@ -68,10 +74,30 @@ ROUTER_WRITE(SYS, OP_SAFE_LEAVE) {
   return sys_system_leave_safe_state();
 }
 
+// Every task (as many as one answer holds): its name, the least stack it has had free and its priority, to see the
+// margin of the deepest call chains on the board.
+ROUTER_READ(SYS, OP_TASKS) {
+  TaskStatus_t all[TASKS_MAX];
+  const UBaseType_t n = uxTaskGetSystemState(all, TASKS_MAX, NULL);
+  ERR_CHECK(n > 0, ERR_CMD_OUT_FULL, .need = (uint16_t)uxTaskGetNumberOfTasks(), .cap = TASKS_MAX);
+  const uint32_t fit = (out->cap - 1u) / sizeof(sys_system_task_t);
+  const uint8_t count = (uint8_t)(n < fit ? n : fit);
+  ERR_TRY(cmd_append(out, &count, sizeof(count)));
+  for (uint8_t i = 0; i < count; i++) {
+    sys_system_task_t row = {
+        .stack_free = (uint16_t)(all[i].usStackHighWaterMark > UINT16_MAX ? UINT16_MAX : all[i].usStackHighWaterMark),
+        .priority = (uint8_t)all[i].uxCurrentPriority,
+    };
+    strncpy(row.name, all[i].pcTaskName, sizeof(row.name));
+    ERR_TRY(cmd_append(out, &row, sizeof(row)));
+  }
+  return NULL;
+}
+
 static const router_op_t k_ops[] = {
     ROUTER_ENTRY_R(SYS, OP_PING),       ROUTER_ENTRY_W(SYS, OP_STOP), ROUTER_ENTRY_W(SYS, OP_RESTART),
     ROUTER_ENTRY(SYS, OP_DEADMAN),      ROUTER_ENTRY_W(SYS, OP_BYE),  ROUTER_ENTRY(SYS, OP_TIME),
-    ROUTER_ENTRY_R(SYS, OP_SAFE),       ROUTER_ENTRY_W(SYS, OP_SAFE_LEAVE),
+    ROUTER_ENTRY_R(SYS, OP_SAFE),       ROUTER_ENTRY_W(SYS, OP_SAFE_LEAVE), ROUTER_ENTRY_R(SYS, OP_TASKS),
 };
 
 ROUTER_MODULE(sys_system_router, k_ops)

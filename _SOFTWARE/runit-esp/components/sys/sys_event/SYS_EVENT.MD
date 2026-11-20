@@ -155,7 +155,7 @@ The deferred events and the queued listeners go through **lanes**: each lane is 
 
 | Lane | Events | Task priority | Queued listeners |
 |---|---|---|---|
-| `SYS` | The system's: `SESSION`, `PWRM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
+| `SYS` | The system's: `SESSION`, `PROVIDER`, `PWRM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
 | `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_device_remote` |
 
 - **The lane is the table's** (`SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, LANE)`), so all the events of one module go one way and keep their order. Between lanes there is no order: whichever task gets there first delivers first; `t_ms` says when each happened.
@@ -187,4 +187,4 @@ Not covered on the host: priorities, the lanes' stacks, an interrupt's timing.
 | `ERR_EVENT_BAD_ARG` | HIGH | | A `NULL` function or handle, an unknown run kind, a payload too long |
 | `ERR_EVENT_DELIVERY` | NONE (context) | `source`, `event`, `channel` | Wraps a listener's failure |
 
-The listener that sends the `SYS_EVENT_NOTIFY` events to the app (`SYS_EVENT_RUN_FIRST`) is not in this component: the module that owns the link to the app subscribes it.
+The listener that sends the `SYS_EVENT_NOTIFY` events to the app (`SYS_EVENT_RUN_FIRST`) is not in this component: `sys_event_stream` subscribes it (SYS_EVENT_STREAM.MD).

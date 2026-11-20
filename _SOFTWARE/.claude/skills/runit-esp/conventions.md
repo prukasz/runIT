@@ -22,7 +22,7 @@ Use dynamic creation only for objects whose count or lifetime is decided at runt
 | `U_EVENT_GROUP_DEFINE`, `U_TIMER_DEFINE` | event group, software timer | |
 | `U_TASK_DEFINE(name, stack)` + `U_TASK_START[_ON_CORE]` | task (stack + TCB static) | the stack size is in **bytes** (`StackType_t` is `uint8_t` on ESP-IDF); the task starts only at `U_TASK_START` |
 
-`utils.h` only defines objects; what is done with them is the FreeRTOS call itself, written out: `xSemaphoreTake(m, portMAX_DELAY)` / `xSemaphoreGive(m)` (`...Recursive` for a recursive mutex), `xQueueSend`, `xQueueReceive`, `xTimerStart(t, 0)`, `xTaskNotifyWait`. Its only time helpers are `MSEC(ms)` (rounds up: a non-zero time waits at least one tick) and `NO_WAIT`; forever is `portMAX_DELAY`. A spinlock has no macro: `static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;` and `portENTER_CRITICAL(&s_lock)` / `portEXIT_CRITICAL(&s_lock)` (`_ISR`, `_SAFE` from an ISR or both). A lock is never wrapped in a local `LOCK()` / `UNLOCK()` macro. Keep a critical section short, no blocking call inside.
+`utils.h` only defines objects; what is done with them is the FreeRTOS call itself, written out: `xSemaphoreTake(m, portMAX_DELAY)` / `xSemaphoreGive(m)` (`...Recursive` for a recursive mutex), or for a whole scope `U_MUTEX_GUARD(m)` / `U_RMUTEX_GUARD(m)` (released on every way out), `xQueueSend`, `xQueueReceive`, `xTimerStart(t, 0)`, `xTaskNotifyWait`. Its only time helpers are `MSEC(ms)` (rounds up: a non-zero time waits at least one tick) and `NO_WAIT`; forever is `portMAX_DELAY`. A spinlock has no macro: `static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;` and `portENTER_CRITICAL(&s_lock)` / `portEXIT_CRITICAL(&s_lock)` (`_ISR`, `_SAFE` from an ISR or both). A lock is never wrapped in a local `LOCK()` / `UNLOCK()` macro. Keep a critical section short, no blocking call inside.
 
 How the macros work:
 - `U_*_DEFINE` (except tasks) builds the object in an `__attribute__((constructor))` function, run before the scheduler starts, so init functions never create these objects.
@@ -43,7 +43,7 @@ How the macros work:
 
 - **Internal constants** of one file (register addresses, bit masks, protocol offsets, internal limits) are `#define`d at the top of that `.c` file. They go in a header only when another component needs them.
 - **Tunables** (buffer sizes, queue depths, stack sizes, task priorities / cores, timeouts, counts, IDs, anything a user may want to change) go in the owning component's `Kconfig` under its menu, used as `CONFIG_<COMPONENT>_<NAME>`. A limit the app should know is marked `#@limit` (published by `templates/sync.sh`).
-- After adding or changing Kconfig options run `idf.py reconfigure`; after changing a default, `idf.py refresh-config --policy=kconfig` ([build.md](build.md) §3). Commit the resulting `sdkconfig` change.
+- After adding or changing Kconfig options run `idf.py reconfigure`; after changing a default, `idf.py refresh-config --policy=kconfig` ([build.md](build.md) §3). `sdkconfig` is generated and not tracked: a setting the firmware needs goes in `runit-esp/sdkconfig.defaults`.
 - **No fallback `#ifndef X` / `#define X` pairs** for values that come from Kconfig or another header: a missing value must fail the build. Include guards are `#pragma once`.
 - Kconfig bools in a runtime `if`: `IS_ENABLED(CONFIG_X)` (ESP-IDF's), because a disabled bool is not defined.
 
@@ -83,13 +83,13 @@ How the macros work:
   | Thing | Pattern | Example |
   |---|---|---|
   | Core / system module API | `<module>[_<object>]_<action>` | `router_inject`, `sys_io_set_mode`, `sys_device_call` |
-  | Router op numbers | `<MODULE>_OP_<NAME>` / `VM_OP_<NAME>` | `VM_OP_DATA`, `SYS_SYSTEM_OP_RESTART` |
+  | Router op numbers | the module's table `<MODULE>_OPERATIONS(X, P)`, which gives `<P>_OP_<NAME>` | `SYS_OP_RESTART`, `LOG_OP_CONFIG` |
   | VM API | `vm_<part>_<action>` | `vm_exec_stop`, `vm_loader_add_accessor` |
   | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_PROTECTION` |
   | Chip access (static, in the driver) | `chip_<action>(ctx, ...)` returning `err_h` | `chip_set_voltage` |
   | Board / application | `runit_<area>_<action>` | `runit_board_power_init` |
   | Kconfig | `CONFIG_<MODULE>_<NAME>` | `CONFIG_SYS_EVENT_QUEUE_LEN` |
-  | Error tag / module | `ERR_<MODULE>_<WHAT>` / `ERR_MOD_<MODULE>` | `ERR_IO_PIN_IN_USE`, `ERR_MOD_SYS_IO` |
+  | Error tag / module | `ERR_<MODULE>_<WHAT>` / `MODULE_ID_<NAME>` | `ERR_IO_PIN_IN_USE`, `MODULE_ID_IO` |
 
   The module segment matches the component folder name.
 
@@ -100,7 +100,7 @@ How the macros work:
 | Area | Deviation | Should be |
 |---|---|---|
 | `vm_core` | `vm_internal_*` helpers declared in public headers (`vm_obj_access.h` macros use them) | a private header or a module prefix |
-| Function-pointer typedefs | `vm_block_fn`, `vm_block_verify_fn`, `runit_boot_step_fn` | `vm_block_f`, `vm_block_verify_f`, `runit_boot_step_f` |
+| Function-pointer typedefs | `vm_block_fn`, `vm_block_verify_fn` | `vm_block_f`, `vm_block_verify_f` |
 
 ## 6. Module setup
 
@@ -109,8 +109,8 @@ How the macros work:
   - `static struct { ... } s_<module>;` holds everything that starts at zero. It has **no initializer**, so it stays in `.bss`: one non-zero field would move the whole struct, arrays included, to `.data` (a flash image copied to RAM at boot).
   - What must start non-zero (a `portMUX` spinlock, default options read before `init`) goes in a second, small `static struct { ... } s_<module>_preset = {...};`. A single such value stays a plain `static` (`s_policy_mux`).
   - Outside any struct, only what can't be a field: RTOS objects from the `U_*_DEFINE` macros, `__thread` variables, constant tables (`k_*`). Independent parts of one file may each have their own struct (`s_hooks`, `s_rx`).
-- A component with router ops exports only its `cmd_f` (`<module>_router`); `runit` registers it (ROUTER.MD).
-- The router header (`sys_i2c_router.h` is the model) lists every op as `#define <MODULE>_OP_<NAME> 0x..u  // R: args -> answer; W: args`, each directly above the packed frame struct it takes (ops sharing a frame stand together above it; an op with no frame has none). The frame of a create lives there, not in the `.c`; the module header only forward-declares what its API needs. Names of the frames: `<module>_<what>_args_t`.
+- A component with router ops declares its `cmd_f` (`ROUTER_MODULE_DECLARE(<module>_router)`) and registers it itself with `ROUTER_MODULE_REGISTER(MODULE_ID_<NAME>, <module>_router)`; no other component names it (ROUTER.MD).
+- The router header (`sys_actions_router.h` is the model) holds the packed frame structs, then the module's table `<MODULE>_OPERATIONS(X, P)` of rows `X(P, OP_NAME, code, key_t, value_t, flags)` (`cmd_table.h`) and `CMD_TABLE_DECLARE(<MODULE>)`: no `#define` of an op code. The frame of a create lives there, not in the `.c`; the module header only forward-declares what its API needs. Names of the frames: `<module>_<what>_args_t`.
 
 ## 7. Comments and documentation
 

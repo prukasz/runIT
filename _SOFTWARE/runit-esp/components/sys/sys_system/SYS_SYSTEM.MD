@@ -33,6 +33,7 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 | `0x07` | TIME | read / write | `sys_system_time_t` `{u64 unix_ms}`; read 0 = not set since the power came on; the write is sent to every board |
 | `0x09` | SAFE | read | → `sys_system_safe_t` `{u8 reason, u32 for_ms}`; reason 0 = not in the safe state |
 | `0x0A` | SAFE_LEAVE | write | – : every device resumed, the note cleared |
+| `0x0B` | TASKS | read | → `[u8 count]` and `count` × `sys_system_task_t` `{char name[16], u16 stack_free, u8 priority}`: every task, as many as one answer holds; `stack_free` is the least stack it has had free since it started, in bytes (the margin of the deepest call chains, DATA_MATRIX.MD "Open"). Needs `CONFIG_FREERTOS_USE_TRACE_FACILITY` |
 
 0x05 and 0x08 are unused: never assign them.
 
