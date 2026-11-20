@@ -109,7 +109,7 @@
         "returns": {
           "type": "bytes",
           "label": "Total count and error record",
-          "description": "u8 total kept count followed by the packed error record (up to SYS_LOG_RECORD_MAX bytes), or just u8 total if index is past the end."
+          "description": "u8 total kept count followed by the packed error record (up to ERR_RECORD_MAX bytes), or just u8 total if index is past the end."
         }
       }
     }

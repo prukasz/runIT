@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cmd.h"
+#include "err_record.h"
 #include "errors.h"
 #include "sys_log_errors.h"
 #include "utils.h"
@@ -52,12 +53,9 @@ MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);
  */
 void sys_log_get(sys_log_cfg_t* out);
 
-/** @brief The largest error record kept (and sent out of ERRORS): longer ones are cut by err_record to this. */
-#define SYS_LOG_RECORD_MAX 192u
-
 /**
  * @brief A reported error chain as a record (err_record_cmd, `cmd` the command it came from, or NULL, cut to
- * SYS_LOG_RECORD_MAX): kept in the history read by OP_ERRORS (the latest CONFIG_SYS_LOG_ERRORS_KEPT, the oldest
+ * ERR_RECORD_MAX): kept in the history read by OP_ERRORS (the latest CONFIG_SYS_LOG_ERRORS_KEPT, the oldest
  * dropped) and sent out of ERRORS. The error sink's call. Any task; never reports.
  * @param[in] chain The chain
  * @param[in] cmd   The command it came from, or NULL
@@ -67,7 +65,7 @@ void sys_log_report(err_h chain, const cmd_req_t* cmd);
 /**
  * @brief The kept record at `index` copied to `out`.
  * @param[in]  index 0 = the oldest
- * @param[out] out   Buffer of SYS_LOG_RECORD_MAX bytes
+ * @param[out] out   Buffer of ERR_RECORD_MAX bytes
  * @param[out] total How many records are kept
  * @return The record's length; 0 past the end
  */

@@ -44,7 +44,7 @@ typedef struct __attribute__((packed)) {
 3. **Reporting (`sys_device_policy_handle`)**: called on the reporting task (from the app's error sink):
    - immediately returns `NULL` if `chain == NULL`, the chain contains `ERR_DEV_FAULT_RESPONSE`, or the current FreeRTOS task is `sys_device_policy_task_h` (prevents response recursion);
    - performs a dry walk of `chain` to see if any node is admitted; if none, returns `NULL` without queuing;
-   - serializes `chain` via `err_record` into a stack buffer of `CONFIG_SYS_DEVICE_POLICY_RECORD_MAX` bytes and pushes it to `sys_device_policy_ring` (zero blocking; returns `ERR_DEV_FAULT_RESPONSE` with `SYS_DEVICE_FAULT_STAGE_QUEUE` if serialization fails or the ring is full).
+   - serializes `chain` via `err_record` into a stack buffer of `ERR_RECORD_MAX` bytes (err_record.h) and pushes it to `sys_device_policy_ring` (zero blocking; returns `ERR_DEV_FAULT_RESPONSE` with `SYS_DEVICE_FAULT_STAGE_QUEUE` if serialization fails or the ring is full).
 4. **Policy task (`sys_device_policy_task_h`)**: pops one serialized record, parses it with `err_record_parse`, and walks from outermost node to root:
    - the walk ends at `ERR_REMOTE`: a remote device's error is `ERR_DEV_ID{local id}` over `ERR_REMOTE{board, seq}` over that board's chain, whose device IDs are not this board's (the severity from the device down still counts the whole chain);
    - first `ERR_DEV_ID` occurrence per device (`HANDLED_MAX` = 16 unique devices per chain), computing the sub-chain severity from that node down (`err_chain_sev`);
@@ -67,7 +67,6 @@ typedef struct __attribute__((packed)) {
 | Option | Default | Role |
 |---|---|---|
 | `CONFIG_SYS_DEVICE_POLICY_QUEUE_BYTES` | `1024` | Ring buffer capacity (bytes) for serialized error records |
-| `CONFIG_SYS_DEVICE_POLICY_RECORD_MAX` | `256` | Stack buffer size (bytes) for one serialized error record |
 | `CONFIG_SYS_DEVICE_POLICY_TASK_PRIO` | `14` | Policy response task priority |
 | `CONFIG_SYS_DEVICE_POLICY_TASK_STACK` | `4096` | Policy response task stack size (bytes) |
 

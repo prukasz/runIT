@@ -113,7 +113,7 @@ src 1: err_record_cmd_t (5 B, after the stamp)
 ```
 
 - Chain: `payload` is the packed `err_data_<TAG>_t` as is (`len` from the tag table, 0 for an unknown tag). A node's severity is not sent: it is its tag's, which the app reads from `errors.json` with the payload's fields.
-- The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when `cap` is small; the chain gets the rest (its own truncated bit).
+- The request is cut to `CONFIG_ERRORS_RECORD_REQ_MAX` (32) bytes, and further when `cap` is small; the chain gets the rest (its own truncated bit). Every caller gives `ERR_RECORD_MAX` as `cap`.
 - The chain starts with the route (`ERR_ROUTER_KEY{key}` at the root, `ERR_ROUTER_OP{code}` in a module; NONE severity) and ends with the root cause, so it shows how far routing got; the request shows what was asked.
 - Command errors end in `err_report_ex(err, ctx_line, &cmd)` (the router, for a command that failed): the log gets a context line before the chain (`cmd src f0 seq 7 flags 00 req 02 00 02 00`) and the sink gets the command, so the errors stream carries the same record as the answer, and a sender finds its own errors there by `from` and `seq`.
 - `src 0` (internal: device task, timer, boot) has no command header.
@@ -152,6 +152,7 @@ answer    44 01 00                                   ANSWER (status ERROR), seq 
 - `CONFIG_ERRORS_MAX_MODULES` (default 32): maximum number of modules that can register error tables.
 - `CONFIG_ERRORS_LOG_LINE_LEN` (default 256 B): stack buffer size for formatting chain lines in `err_log`.
 - `CONFIG_ERRORS_RECORD_REQ_MAX` (default 32 B): request bytes an error record repeats (7 bits at most).
+- `CONFIG_ERRORS_RECORD_NODES` (default 6): chain nodes at their largest payload a record has room for. With the request it sizes `ERR_RECORD_MAX` (`err_record.h`, 197 B by default): the one bound of every record, so the router's ERROR answer, the errors stream, the history, the policy's queue and a remote device's error carry the same bytes.
 
 ## Tests
 

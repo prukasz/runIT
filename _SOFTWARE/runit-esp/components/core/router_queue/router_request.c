@@ -13,7 +13,6 @@
 #include "sdkconfig.h"
 
 #define TICK_MS        10u   // the timer: the calls' timeouts
-#define RECORD_BYTES   160u  // an error record made for a call's callback
 #define WAIT_MARGIN_MS 50u   // a waited call's own limit past its timeout: the timer's tick and the answer's way
 
 /* A call out of the router's port, waiting for its answer. */
@@ -66,7 +65,7 @@ static bool take_call(take_e by, data_matrix_port_id_t to, uint32_t key, call_t*
 // Ends a call: OK with the answer's data, or ERROR with this board's record of `err` (freed here).
 static void finish_call(const call_t* c, uint8_t status, err_h err, const uint8_t* data, uint32_t len) {
   const cmd_req_t cmd = {.req = c->req, .req_len = c->req_len, .seq = c->seq, .src = CMD_SRC_SELF};
-  uint8_t record[RECORD_BYTES];
+  uint8_t record[ERR_RECORD_MAX];
   if (status == ROUTER_STATUS_ERROR) {
     data = record;
     len = err_record_cmd(&cmd, err, record, sizeof(record));

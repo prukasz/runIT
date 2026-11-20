@@ -240,7 +240,7 @@ err_h sys_device_policy_handle(err_h chain) {
   if (!needed) {
     return NULL;
   }
-  uint8_t rec[CONFIG_SYS_DEVICE_POLICY_RECORD_MAX];
+  uint8_t rec[ERR_RECORD_MAX];
   const uint32_t len = err_record(chain, rec, sizeof(rec));
   const bool queued = len > 0 && xRingbufferSend(sys_device_policy_ring, rec, len, NO_WAIT) == pdTRUE;
   ERR_CHECK(queued, ERR_DEV_FAULT_RESPONSE, .id = SYS_DEVICE_ID_NONE, .sev = err_chain_sev(chain),
@@ -258,7 +258,7 @@ static void policy_task(void* arg) {
     if (p == NULL) {
       continue;
     }
-    uint8_t rec[CONFIG_SYS_DEVICE_POLICY_RECORD_MAX];
+    uint8_t rec[ERR_RECORD_MAX];
     memcpy(rec, p, size);  // a copy, so the ring's room is free again before the response runs
     vRingbufferReturnItem(sys_device_policy_ring, p);
 

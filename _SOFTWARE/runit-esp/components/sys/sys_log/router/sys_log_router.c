@@ -11,7 +11,7 @@ ROUTER_READ(LOG, OP_CONFIG) {
 ROUTER_SETTER(LOG, OP_CONFIG, sys_log_set)
 
 ROUTER_READ(LOG, OP_ERRORS) {
-  uint8_t reply[1 + SYS_LOG_RECORD_MAX];
+  uint8_t reply[1 + ERR_RECORD_MAX];
   uint32_t total = 0;
   const uint32_t len = sys_log_error_get(args->index, reply + 1, &total);
   // An index past the end is not an error (history may be empty or shorter than asked): just total, no record.

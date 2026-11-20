@@ -91,7 +91,7 @@ void sys_device_policy_set_action_runner(sys_device_action_runner_f fn);
 
 /**
  * @brief Hands a reported chain to the policy (the app's error sink calls it, on the task that reported). Nothing
- * runs here: a chain that needs a response is copied as a record (CONFIG_SYS_DEVICE_POLICY_RECORD_MAX) into the queue
+ * runs here: a chain that needs a response is copied as a record (ERR_RECORD_MAX, err_record.h) into the queue
  * of the policy's task, which runs the policy on it and reports a response's failure itself.
  * The policy walks from the outermost node: each device (ERR_DEV_ID) once, at its first mention, with the severity
  * from there down; a device at importance NONE ends the walk (it and every deeper cause are ignored). Admitted:

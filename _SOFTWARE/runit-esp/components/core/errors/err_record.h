@@ -36,6 +36,16 @@ typedef struct __attribute__((packed)) {
 _Static_assert(sizeof(err_record_cmd_t) == 5, "record command header");
 
 /**
+ * @brief The largest error record, the one bound of every record: the longest header (a command's, its request
+ * at CONFIG_ERRORS_RECORD_REQ_MAX), the chain's count and CONFIG_ERRORS_RECORD_NODES nodes at ERR_DATA_MAX. A buffer of
+ * this size holds what any other holds: the router's ERROR answer, the errors stream and the history carry the same
+ * bytes.
+ */
+#define ERR_RECORD_MAX                                                                                                 \
+  (1u + ERR_RECORD_STAMP_BYTES + sizeof(err_record_cmd_t) + CONFIG_ERRORS_RECORD_REQ_MAX + 1u +                        \
+   CONFIG_ERRORS_RECORD_NODES * (5u + ERR_DATA_MAX))
+
+/**
  * @brief Encodes the record of an internal error (no command) into `buf`: [ERR_RECORD_SRC_INTERNAL][stamp], then the
  * chain, outermost node first: [count u8, bit 7 = cut] and per node [tag u32 LE][len u8][payload] (the packed
  * err_data_<TAG>_t; len 0 for an unknown tag). Nodes that don't fit are left out and bit 7 is set. Does not free the

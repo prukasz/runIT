@@ -14,14 +14,14 @@ ERR_MODULE_DEFINE(MODULE_ID_LOG, ERR_SYS_LOG_MAP)
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
 
 _Static_assert(CONFIG_LOG_DEFAULT_LEVEL <= LEVEL_MAX, "the default log level is above the compile-time ceiling");
-_Static_assert(SYS_LOG_RECORD_MAX <= CMD_DATA_MAX, "an error record must fit a frame");
+_Static_assert(ERR_RECORD_MAX <= CMD_DATA_MAX, "an error record must fit a frame");
 
 static struct {
   portMUX_TYPE lock;       // protects cfg and history
   sys_log_cfg_t cfg;
   vprintf_like_t console;  // what ESP_LOG wrote to before the hook
   struct {
-    uint8_t bytes[SYS_LOG_RECORD_MAX];
+    uint8_t bytes[ERR_RECORD_MAX];
     uint8_t len;
   } history[CONFIG_SYS_LOG_ERRORS_KEPT];
   uint32_t history_next;
@@ -136,9 +136,9 @@ void sys_log_get(sys_log_cfg_t* out) {
 }
 
 void sys_log_report(err_h chain, const cmd_req_t* cmd) {
-  uint8_t packet[CMD_HEAD + SYS_LOG_RECORD_MAX];  // the header, then the record: one frame
+  uint8_t packet[CMD_HEAD + ERR_RECORD_MAX];  // the header, then the record: one frame
   uint8_t* record = packet + CMD_HEAD;
-  const uint32_t len = err_record_cmd(cmd, chain, record, SYS_LOG_RECORD_MAX);
+  const uint32_t len = err_record_cmd(cmd, chain, record, ERR_RECORD_MAX);
   if (len == 0) {
     return;
   }

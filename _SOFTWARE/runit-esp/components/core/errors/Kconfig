@@ -42,6 +42,17 @@ menu "Errors"
           How much of the failing request (keys + payload) an error record
           repeats. Longer requests are cut and marked.
 
+    config ERRORS_RECORD_NODES
+        int "Chain nodes an error record holds"
+        default 6
+        range 1 16
+        help
+          How many nodes of a chain, each at its largest payload, an error
+          record has room for: with ERRORS_RECORD_REQ_MAX it sizes
+          ERR_RECORD_MAX, the one bound of every record (the router's ERROR
+          answer, the errors stream, the history). Shorter nodes leave room
+          for more; what does not fit is cut, the innermost first.
+
     config ERRORS_MAX_MODULES
         int "Maximum error modules"
         default 32

@@ -11,16 +11,6 @@ menu "sys_device_policy"
           the report with ERR_DEV_FAULT_RESPONSE (stage QUEUE). A multiple
           of 4, at least twice the largest record.
 
-    config SYS_DEVICE_POLICY_RECORD_MAX
-        int "Largest record (bytes)"
-        default 256
-        range 64 1024
-        help
-          The most bytes of one error as it crosses to the policy's task. A
-          chain that does not fit loses its innermost nodes, and with them
-          the root cause the severity may come from. On the stack of the
-          task that reports and of the policy's task.
-
     config SYS_DEVICE_POLICY_TASK_PRIO
         int "Task priority"
         default 14

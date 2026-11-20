@@ -29,7 +29,6 @@ ERR_MODULE_DEFINE(MODULE_ID_REMOTE, ERR_SYS_REMOTE_MAP)
 #define FRAME_HEAD 2u                                       // a frame: [id][kind], then the data (after its header)
 #define OUT_HEAD   1u                                       // a frame to send, queued: [OUT], then the frame
 #define IN_HEAD    2u                                       // a frame come in, queued: [IN][board], then the frame
-#define ERROR_MAX  160u                                     // an error record of a device, on the reporter's stack
 
 /* The queue's items start with their mark: what came in with IN, what goes out with OUT. */
 #define IN  0u
@@ -104,7 +103,7 @@ void sys_remote_on_error(err_h chain, const cmd_req_t* cmd) {
   if (!has_subscriber(id)) {
     return;
   }
-  uint8_t rec[ERROR_MAX];
+  uint8_t rec[ERR_RECORD_MAX];
   queue_out(id, SYS_REMOTE_ERROR, rec, err_record(chain, rec, sizeof(rec)));
 }
 

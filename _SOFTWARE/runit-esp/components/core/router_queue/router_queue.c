@@ -8,10 +8,10 @@ ERR_MODULE_DEFINE(MODULE_ID_ROUTER_QUEUE, ERR_ROUTER_QUEUE_MAP)
 
 #define REQ_MIN_BYTES 2u                   // a root key and the direction
 #define REQ_MAX_BYTES (CMD_DATA_MAX + 1u)  // a frame's body and the key of its header
-#define REJECT_BYTES  64u                  // an error record answered on the sender's task (its stack)
 
 _Static_assert(CONFIG_ROUTER_WORK_QUEUE_SIZE % 4 == 0, "ROUTER_WORK_QUEUE_SIZE must be a multiple of 4");
 _Static_assert(CONFIG_ROUTER_URGENT_QUEUE_SIZE % 4 == 0, "ROUTER_URGENT_QUEUE_SIZE must be a multiple of 4");
+_Static_assert(ERR_RECORD_MAX <= CMD_DATA_MAX, "an error record must fit an answer");
 
 U_RINGBUFFER_DEFINE(router_work_rb, CONFIG_ROUTER_WORK_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
 U_RINGBUFFER_DEFINE(router_urgent_rb, CONFIG_ROUTER_URGENT_QUEUE_SIZE, RINGBUF_TYPE_NOSPLIT);
@@ -131,8 +131,8 @@ static void reject(data_matrix_port_id_t to, const cmd_hdr_t* hdr, const uint8_t
   const uint8_t flags = hdr->type & CMD_TYPE_FLAGS;
   const cmd_req_t cmd = {.req = req, .req_len = n + 1u, .seq = hdr->seq, .src = hdr->src, .flags = flags};
   if (!(flags & ROUTER_FLAG_NOREPLY)) {
-    uint8_t frame[CMD_HEAD + REJECT_BYTES];
-    const uint32_t rec = err_record_cmd(&cmd, err, frame + CMD_HEAD, REJECT_BYTES);
+    uint8_t frame[CMD_HEAD + ERR_RECORD_MAX];
+    const uint32_t rec = err_record_cmd(&cmd, err, frame + CMD_HEAD, ERR_RECORD_MAX);
     answer_head(frame, hdr->key, hdr->seq, ROUTER_STATUS_ERROR, flags);
     (void)data_matrix_send_to(&router_port, to, CMD_SEND_NOWAIT | (flags & CMD_SEND_URGENT), frame, CMD_HEAD + rec);
   }
@@ -205,7 +205,7 @@ static void process(const uint8_t* slot, size_t size, uint8_t* buf) {
   err_h err = router_route((cmd_in_t){cmd.req, cmd.req_len}, &out);
   s_route = NULL;
   if ((item.done != NULL || item.port != 0) && !(item.flags & ROUTER_FLAG_NOREPLY)) {
-    uint32_t len = err != NULL ? err_record_cmd(&cmd, err, out.data, out.cap) : out.len;
+    uint32_t len = err != NULL ? err_record_cmd(&cmd, err, out.data, ERR_RECORD_MAX) : out.len;
     uint8_t status = err != NULL ? ROUTER_STATUS_ERROR : ROUTER_STATUS_OK;
     if (item.done != NULL) {
       err_h lost = item.done(item.ctx, &cmd, status, out.data, len);
