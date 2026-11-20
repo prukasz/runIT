@@ -258,15 +258,25 @@ static void frame_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
   xRingbufferSendComplete(sys_device_remote_rb, slot);
 }
 
-// The answer of a SUBSCRIBE: refused (the board's table full), it is reported about the board; sent again when the
-// board is reached again.
+static void send_subscription(uint8_t board, uint8_t remote_id, uint8_t op);
+
+// The answer of a SUBSCRIBE: none in the call's time (lost on the way), it is sent again; refused (the board's table
+// full, no sub-port REMOTE on its session to this one), it is reported about the board and sent again when the board
+// is reached again. A session gone meanwhile: the board's REACHED sends it again.
 static err_h on_subscribed(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {
-  (void)cmd;
-  if (status != ROUTER_STATUS_OK) {
-    const uint8_t board = (uint8_t)(uintptr_t)ctx;
-    err_h chain = NULL;
-    err_free(err_record_parse(data, len, &chain));
-    err_report_board(ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0), board);
+  if (status == ROUTER_STATUS_OK) {
+    return NULL;
+  }
+  const uint8_t board = (uint8_t)(uintptr_t)ctx;
+  err_h chain = NULL;
+  err_free(err_record_parse(data, len, &chain));
+  if (err_tag(chain) == ERR_ROUTER_CALL_TIMEOUT) {
+    err_free(chain);
+    send_subscription(board, cmd->req[3], REMOTE_OP_SUBSCRIBE);  // [key][dir][op][id]
+  } else if (err_tag(chain) == ERR_ROUTER_CALL_DOWN) {
+    err_free(chain);
+  } else {
+    err_report_board(chain, board);  // the board's answer: its chain under ERR_REMOTE already (router_request)
   }
   return NULL;
 }

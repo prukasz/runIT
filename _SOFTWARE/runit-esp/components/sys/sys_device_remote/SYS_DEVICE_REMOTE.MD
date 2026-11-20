@@ -56,7 +56,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 - A frame on `REMOTE`'s input (from a session's sub-port linked to it, on the RX task; the board is its `src`, a frame from anyone but a board is dropped) is queued and taken on the task: by its board and id to the local id; the event is published as the local id's (`sys_event_publish` with `SYS_EVENT_DEFER`, so ON_EVENT and this board's listeners see it), the error reported as the local id's (`ERR_DEV_ID` over `ERR_REMOTE{board, 0}` over that board's chain: `err_record_parse`), so its policy answers it, and stops at `ERR_REMOTE` (SYS_DEVICE_POLICY.MD).
 - A frame for a device no remote device names (it was removed) is answered by UNSUBSCRIBE to its sender: the subscription of a removed alias ends at its first event.
-- SUBSCRIBE answered ERROR (the device's board's table full): reported about the board (`ERR_REMOTE` over that chain, `err_report_board`); sent again when the board is reached again.
+- SUBSCRIBE with no answer in the call's time (`ERR_ROUTER_CALL_TIMEOUT`: lost on the way) is sent again at once; its session gone meanwhile (`ERR_ROUTER_CALL_DOWN`): the board's REACHED sends it again. Refused by the board (its table full, no sub-port `REMOTE` on its session to this one): its answer, already under `ERR_REMOTE`, is reported about the board (`err_report_board`); sent again when the board is reached again.
 
 ## Remote (`sys_device_remote_router`, root key `MODULE_ID_REMOTE` 0x2F)
 

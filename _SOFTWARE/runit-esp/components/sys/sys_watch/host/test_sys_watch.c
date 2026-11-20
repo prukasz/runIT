@@ -566,12 +566,12 @@ void test_client_b3_gate_error_and_size_limits(void) {
              ERR_CMD_BAD_LEN);
   TEST_ASSERT_EQUAL_UINT32(4u, out_len);
 
-  // Too-large entry (> COPY_MAX) drops copy rather than serving old data
+  // Too-large entry (> COPY_MAX): ERR_CMD_OUT_FULL, never an old value nor "no value yet"
   uint8_t huge[SYS_WATCH_COPY_MAX + 4u];
   memset(huge, 0xEE, sizeof(huge));
   inject_slave_push(wid, ROUTER_STATUS_OK, huge, sizeof(huge));
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
-             ERR_WATCH_NO_VALUE);
+             ERR_CMD_OUT_FULL);
 
   // Error entry -> returned wrapped in ERR_REMOTE over serialized cause
   err_h rem_cause = ERR_NEW(ERR_TESTW_FAIL, .code = 9);

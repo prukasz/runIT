@@ -5,5 +5,5 @@
 - `sys_watch_mutex` (the watches) may be held over `data_matrix_send` (NOWAIT) and `router_inject`: neither blocks nor calls back here. Never over `sys_event_*` or `err_report`. `sys_watch_client_mutex` (the cached reads) is for copies only: never held over a send.
 - Both timers run from init, with no start and stop by a count. One way to start a read: the tick, every `period`. A watch hears no event: its only listener is the session's `GONE`.
 - A callback from before a slot was taken again is dropped by the slot's `gen` (a read's answer, ADD's answer): the only use of `gen`.
-- B3: `on_entry` takes an entry only when `s->state == SLOT_ACTIVE && s->board == src`. Whatever makes what a slot holds wrong (a write, the board gone) puts it back to `ADDING` and sends ADD again: no other state, no second way to refresh.
+- B3: `on_entry` takes an entry only when `s->state == SLOT_ACTIVE && s->board == src`. Whatever makes what a slot holds wrong (a write, the board gone, nothing newer than `MAX_AGE_MS`: the owner checks that it receives) puts it back to `ADDING` and sends ADD again: no other state, no second way to refresh.
 - Keep it small: no state that only guards against a caller's mistake, no retry bookkeeping beyond `add_ms`.

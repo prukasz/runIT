@@ -15,13 +15,11 @@
 #include "utils.h"
 
 #define IDLE_TICK_MS  100u
-#define ENTRY_MAX     ERR_RECORD_MAX  // an entry kept: an OK answer (at most SYS_WATCH_COPY_MAX) or an error record
 #define PERIOD_MS     ((uint32_t)CONFIG_SYS_WATCH_READ_PERIOD_MS)
 #define PERIOD_TICKS  ((PERIOD_MS + SYS_WATCH_TICK_MS - 1u) / SYS_WATCH_TICK_MS)
 #define MAX_AGE_MS    (3u * PERIOD_MS)
 
 _Static_assert(2u * PERIOD_TICKS <= UINT16_MAX, "CONFIG_SYS_WATCH_READ_PERIOD_MS in a watch's ticks");
-_Static_assert(SYS_WATCH_COPY_MAX <= ENTRY_MAX && ENTRY_MAX <= UINT8_MAX, "an entry kept in a slot");
 
 typedef enum {
   SLOT_FREE = 0,
@@ -34,15 +32,15 @@ typedef struct {
   uint8_t state;     // slot_state_e
   bool have;         // an entry came since ADD's OK
   uint8_t status;    // of that entry: router_status_e
-  uint8_t len;       // bytes of `data`
   uint8_t board;
   uint8_t req_len;
   uint8_t gen;       // changes when the slot starts again: an ADD's answer from before is dropped
-  uint32_t entry_ms;  // when the entry came
+  uint16_t len;       // bytes of the entry: only SYS_WATCH_COPY_MAX of them are kept, a longer one is ERR_CMD_OUT_FULL
+  uint32_t entry_ms;  // when the entry came, or ADD's OK while none has: what the slot holds is that old
   uint32_t read_ms;   // the last sys_watch_read of it
   uint32_t add_ms;    // the last ADD sent
   uint8_t req[SYS_WATCH_READ_MAX];
-  uint8_t data[ENTRY_MAX];
+  uint8_t data[SYS_WATCH_COPY_MAX];
 } slot_t;
 
 U_MUTEX_DEFINE(sys_watch_client_mutex);  // the slots: copies only, never held over a send
@@ -71,6 +69,7 @@ static err_h on_added(void* ctx, const cmd_req_t* cmd, uint8_t status, const uin
   if (s->state == SLOT_ADDING && s->gen == (uint8_t)((uintptr_t)ctx >> 8) && status == ROUTER_STATUS_OK) {
     s->state = SLOT_ACTIVE;
     s->have = false;
+    s->entry_ms = now_ms();  // no entry within MAX_AGE_MS of it: the entries do not reach this board, ADD again
   }
   xSemaphoreGive(sys_watch_client_mutex);
   return NULL;
@@ -123,11 +122,11 @@ static void on_entry(data_matrix_port_t* self, data_matrix_port_id_t from, uint8
   const uint32_t n = len - SYS_WATCH_ENTRY_HEAD;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   if (s->state == SLOT_ACTIVE && s->board == src) {  // B3: only after ADD's OK
-    s->have = status != ROUTER_STATUS_OK || n <= SYS_WATCH_COPY_MAX;  // a longer answer is not kept
+    s->have = true;
     s->status = status;
-    s->len = (uint8_t)(n < ENTRY_MAX ? n : ENTRY_MAX);
+    s->len = (uint16_t)n;
     s->entry_ms = now_ms();
-    memcpy(s->data, data + SYS_WATCH_ENTRY_HEAD, s->len);
+    memcpy(s->data, data + SYS_WATCH_ENTRY_HEAD, n < SYS_WATCH_COPY_MAX ? n : SYS_WATCH_COPY_MAX);
   }
   xSemaphoreGive(sys_watch_client_mutex);
 }
@@ -184,8 +183,9 @@ err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint
 
   const uint32_t now = now_ms();
   slot_t* at = NULL;
-  slot_t got = {0};
   bool add = false;
+  uint8_t gen = 0;
+  err_h err = NULL;
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
   FOR_EACH_SLOT(s) {
     const bool same = s->board == board && s->req_len == read.len && memcmp(s->req, read.data, read.len) == 0;
@@ -204,31 +204,43 @@ err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint
       memcpy(at->req, read.data, read.len);
     }
     at->read_ms = now;
+    // An ACTIVE slot with nothing as new as MAX_AGE_MS (no entry since ADD's OK, or the last too old): the watch is
+    // gone on its board, or its entries do not reach this one. It is added again; this read says what it held.
+    const uint32_t age = now - at->entry_ms;
+    const bool old = at->state == SLOT_ACTIVE && age > MAX_AGE_MS;
+    if (old) {
+      err = at->have ? ERR_NEW(ERR_WATCH_STALE, .board = board, .age_ms = (uint16_t)(age > UINT16_MAX ? UINT16_MAX : age))
+                     : ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
+      at->state = SLOT_ADDING;
+      at->gen++;
+      at->add_ms = now - PERIOD_MS;
+    } else if (at->state != SLOT_ACTIVE || !at->have) {
+      err = ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
+    } else if (at->status != ROUTER_STATUS_OK) {  // that board's chain under ERR_REMOTE
+      err_h chain = NULL;
+      err_free(err_record_parse(at->data, at->len < SYS_WATCH_COPY_MAX ? at->len : SYS_WATCH_COPY_MAX, &chain));
+      err = ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0);
+    } else if (at->len > SYS_WATCH_COPY_MAX) {
+      err = ERR_NEW(ERR_CMD_OUT_FULL, .need = at->len, .cap = (uint16_t)SYS_WATCH_COPY_MAX);
+    } else if (at->len > cap) {
+      *len = at->len;
+      err = ERR_NEW(ERR_CMD_BAD_LEN, .got = at->len, .need = (uint16_t)cap);
+    } else {
+      *len = at->len;
+      memcpy(buf, at->data, at->len);
+    }
     add = at->state == SLOT_ADDING && now - at->add_ms >= PERIOD_MS;
     if (add) {
       at->add_ms = now;
     }
-    got = *at;
+    gen = at->gen;
   }
   xSemaphoreGive(sys_watch_client_mutex);
   ERR_CHECK(at != NULL, ERR_WATCH_FULL);
   if (add) {
-    send_add((uint8_t)(at - s_cl.slots), got.gen, board, read);
+    send_add((uint8_t)(at - s_cl.slots), gen, board, read);
   }
-
-  ERR_CHECK(got.state == SLOT_ACTIVE && got.have, ERR_WATCH_NO_VALUE, .board = board);
-  const uint32_t age = now - got.entry_ms;
-  ERR_CHECK(age <= MAX_AGE_MS, ERR_WATCH_STALE, .board = board,
-            .age_ms = (uint16_t)(age > UINT16_MAX ? UINT16_MAX : age));
-  if (got.status != ROUTER_STATUS_OK) {  // that board's chain under ERR_REMOTE
-    err_h chain = NULL;
-    err_free(err_record_parse(got.data, got.len, &chain));
-    return ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0);
-  }
-  *len = got.len;
-  ERR_CHECK(got.len <= cap, ERR_CMD_BAD_LEN, .got = got.len, .need = (uint16_t)cap);
-  memcpy(buf, got.data, got.len);
-  return NULL;
+  return err;
 }
 
 /* A write went to `board`: what its cached reads hold is from before it. Their watches are added again: ADD's OK

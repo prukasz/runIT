@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "cmd.h"
+#include "err_record.h"
 #include "sys_watch_errors.h"
 
 #ifdef __cplusplus
@@ -23,7 +24,7 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 
 #define SYS_WATCH_TICK_MS  10u  /**< Unit of period and max_silence, and server timer step (ms). */
-#define SYS_WATCH_COPY_MAX 32u  /**< Largest OK read answer cached by the client (bytes). */
+#define SYS_WATCH_COPY_MAX ERR_RECORD_MAX  /**< Largest entry the client keeps: an OK answer or an error record. */
 #define SYS_WATCH_READ_MAX 48u  /**< Largest watched read command (bytes), including router key and dir. */
 
 /** @brief When a watch runs its read and when its entry goes out. */
@@ -72,7 +73,9 @@ MUST_USE err_h sys_watch_init(void);
  *   CONFIG_SYS_WATCH_READ_PERIOD_MS, max_silence 2x), returning ERR_WATCH_NO_VALUE.
  * - While ADD is awaiting its OK answer (the first one, or the one sys_watch_stale() sends), or before the first
  *   PUSH entry after ADD OK arrives, returns ERR_WATCH_NO_VALUE.
- * - If the latest cached entry is older than 3 * CONFIG_SYS_WATCH_READ_PERIOD_MS, returns ERR_WATCH_STALE.
+ * - Nothing newer than 3 * CONFIG_SYS_WATCH_READ_PERIOD_MS (no entry since ADD's OK, or the last one that old): the
+ *   watch is added again and this read returns ERR_WATCH_STALE (it had an entry) or ERR_WATCH_NO_VALUE.
+ * - An answer longer than SYS_WATCH_COPY_MAX returns ERR_CMD_OUT_FULL.
  * - If the latest entry was an error record from `board`, returns that chain wrapped in ERR_REMOTE{board, 0}.
  * - A read not read for CONFIG_SYS_WATCH_IDLE_MS is REMOVEd from `board` and its slot freed.
  *
@@ -82,7 +85,7 @@ MUST_USE err_h sys_watch_init(void);
  * @param[in]  cap   Capacity of `buf`.
  * @param[out] len   Cached answer length (set before ERR_CMD_BAD_LEN check if `cap` is too small).
  * @return NULL on cached hit; ERR_WATCH_BAD_ARG, ERR_WATCH_NOT_READ, ERR_WATCH_FULL, ERR_WATCH_NO_VALUE,
- *         ERR_WATCH_STALE, ERR_CMD_BAD_LEN, or ERR_REMOTE chain from a failed remote read.
+ *         ERR_WATCH_STALE, ERR_CMD_OUT_FULL, ERR_CMD_BAD_LEN, or ERR_REMOTE chain from a failed remote read.
  */
 MUST_USE err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint32_t* len);
 

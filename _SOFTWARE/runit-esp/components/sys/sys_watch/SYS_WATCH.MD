@@ -6,7 +6,7 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 
 | File | Role |
 |---|---|
-| `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS` / `_COPY_MAX` / `_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
+| `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS`, `SYS_WATCH_COPY_MAX` (= `ERR_RECORD_MAX`: the one bound of a kept entry), `SYS_WATCH_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
 | `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]` out of `WATCH` to its links), `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
@@ -47,10 +47,11 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 1. **States:** `FREE -> ADDING -> ACTIVE -> FREE`, and `ACTIVE -> ADDING` when the watch has to be added again.
 2. **The first read** `sys_watch_read(board, read, buf, cap, &len)` takes a `FREE` slot, sends `WATCH ADD` (`id = slot + 1`, `SYS_WATCH_ON_CHANGE`, period `CONFIG_SYS_WATCH_READ_PERIOD_MS`, `max_silence` twice that) and returns `ERR_WATCH_NO_VALUE`. While the slot is `ADDING`, a read sends ADD again when the last one went a period ago (it was refused, did not go, or its answer is late: ADD of an id that exists only replaces the watch).
 3. **B3:** an entry `[id][status][data]` from `board` with `id == slot + 1` is taken only while the slot is `ACTIVE`, that is after ADD's OK: what came before it may be of the watch that had the id before.
-4. **A read of an `ACTIVE` slot** returns the entry kept: its bytes, or its error as a chain under `ERR_REMOTE{board, 0}`. No entry yet: `ERR_WATCH_NO_VALUE`; one older than `3 * CONFIG_SYS_WATCH_READ_PERIOD_MS`: `ERR_WATCH_STALE`. An answer longer than `SYS_WATCH_COPY_MAX` (`32 B`) is not kept; an error record is kept whole (`ERR_RECORD_MAX`, err_record.h).
-5. **After a write (`sys_watch_stale`):** the slots on `board` whose command has the write's router key and `target_len` bytes after `dir` go back to `ADDING` and send ADD again. ADD's OK comes after the write's answer, so every entry taken from then on was read after the write, and a watch just added sends its first read at once.
-6. **A peer gone** (`SESSION_EV_GONE`): its slots go back to `ADDING`; the next read adds the watch again.
-7. **Idle:** a slot not read for `CONFIG_SYS_WATCH_IDLE_MS` is freed and its watch removed with `WATCH REMOVE` (a 100 ms `board_timer`).
+4. **A read of an `ACTIVE` slot** returns the entry kept: its bytes, or its error as a chain under `ERR_REMOTE{board, 0}`. No entry yet: `ERR_WATCH_NO_VALUE`. An entry is kept up to `SYS_WATCH_COPY_MAX` (`ERR_RECORD_MAX`, err_record.h): a longer answer is `ERR_CMD_OUT_FULL{need, cap}`, never an old value nor "no value yet"; a buffer too small for it `ERR_CMD_BAD_LEN`.
+5. **The owner checks that it receives:** the watch's board does not check where its entries go. An `ACTIVE` slot with nothing newer than `3 * CONFIG_SYS_WATCH_READ_PERIOD_MS` (no entry since ADD's OK, or the last one that old; the watch sends one at least every `max_silence`, twice the period) goes back to `ADDING` and sends ADD again; that read answers `ERR_WATCH_STALE` (an entry it had) or `ERR_WATCH_NO_VALUE` (none). So a watch gone on its board, or entries that do not reach this one, are added again every three periods and never served as fresh.
+6. **After a write (`sys_watch_stale`):** the slots on `board` whose command has the write's router key and `target_len` bytes after `dir` go back to `ADDING` and send ADD again. ADD's OK comes after the write's answer, so every entry taken from then on was read after the write, and a watch just added sends its first read at once.
+7. **A peer gone** (`SESSION_EV_GONE`): its slots go back to `ADDING`; the next read adds the watch again.
+8. **Idle:** a slot not read for `CONFIG_SYS_WATCH_IDLE_MS` is freed and its watch removed with `WATCH REMOVE` (a 100 ms `board_timer`).
 
 ## Remote (`sys_watch_router`, root key `MODULE_ID_WATCH` `0x2B`)
 
