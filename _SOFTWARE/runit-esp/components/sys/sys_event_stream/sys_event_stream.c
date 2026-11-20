@@ -20,8 +20,7 @@ static err_h on_notify_event(const sys_event_t* event, void* ctx) {
     return NULL;
   }
   uint8_t packet[CMD_HEAD + len];
-  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | CMD_SEND_URGENT), .key = MODULE_ID_SYS_EVENT};
-  memcpy(packet, &hdr, CMD_HEAD);
+  cmd_push_head(packet, MODULE_ID_SYS_EVENT, CMD_SEND_URGENT);
   memcpy(packet + CMD_HEAD, event, len);
   data_matrix_send(&s_events, CMD_SEND_NOWAIT | CMD_SEND_URGENT, packet, sizeof(packet));
   return NULL;

@@ -85,10 +85,13 @@ void router_request_answer(data_matrix_port_id_t from, const cmd_hdr_t* hdr, con
     finish_call(&call, ROUTER_STATUS_OK, NULL, body, len);
     return;
   }
-  // That board's chain under ERR_REMOTE, so the error policy's walk stops at it.
+  finish_call(&call, ROUTER_STATUS_ERROR, router_remote_chain(body, len, hdr->src, hdr->seq), NULL, 0);
+}
+
+err_h router_remote_chain(const uint8_t* record, uint32_t len, uint8_t board, uint16_t seq) {
   err_h chain = NULL;
-  err_free(err_record_parse(body, len, &chain));
-  finish_call(&call, ROUTER_STATUS_ERROR, ERR_WRAP(chain, ERR_REMOTE, .board = hdr->src, .seq = hdr->seq), NULL, 0);
+  err_free(err_record_parse(record, len, &chain));
+  return ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = seq);
 }
 
 void router_request_fail_to(data_matrix_port_id_t to) {

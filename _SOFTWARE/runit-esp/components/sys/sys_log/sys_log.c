@@ -68,8 +68,7 @@ static data_matrix_port_t s_errors = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MO
 // Sends `packet`, its data already after CMD_HEAD free bytes: writes [hdr PUSH, key] there, NOWAIT (a full line drops
 // it: waiting or reporting it would loop).
 static void push(data_matrix_port_t* port, uint8_t urgent, uint8_t* packet, uint32_t len) {
-  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | urgent), .key = (uint8_t)port->id};
-  memcpy(packet, &hdr, CMD_HEAD);
+  cmd_push_head(packet, (uint8_t)port->id, urgent);
   s_sending = true;
   data_matrix_send(port, (uint8_t)(CMD_SEND_NOWAIT | urgent), packet, CMD_HEAD + len);
   s_sending = false;

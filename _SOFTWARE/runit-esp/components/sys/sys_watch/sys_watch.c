@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "board_timer.h"
+#include "crc.h"
 #include "data_matrix.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -41,18 +42,6 @@ static struct {
   board_timer_t timer;
 } s_watch;
 
-static uint32_t crc32_le(const uint8_t* data, uint32_t len) {
-  uint32_t crc = 0xFFFFFFFFu;
-  for (uint32_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (uint8_t b = 0; b < 8u; b++) {
-      const uint32_t mask = (uint32_t)-(int32_t)(crc & 1u);
-      crc = (crc >> 1) ^ (0xEDB88320u & mask);
-    }
-  }
-  return ~crc;
-}
-
 /* ----------------------------------------------------------------------------
  * A read's answer (the router's task): the entry, [hdr PUSH, MODULE_ID_WATCH][owner][id][status][data], out of WATCH
  * to every port linked from it (a session's sub-port, the raw telemetry), NOWAIT: whoever takes it keeps its own by
@@ -63,24 +52,23 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
   (void)cmd;
   const bool too_long = SYS_WATCH_ENTRY_HEAD + len > CMD_DATA_MAX;
   bool removed = false;
-  watch_t* w = &s_watch.watches[(uintptr_t)ctx & 0xFFu];
+  watch_t* w = &s_watch.watches[SYS_WATCH_CTX_SLOT(ctx)];
   xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
-  if (USED(w) && w->gen == (uint8_t)((uintptr_t)ctx >> 8) && too_long) {
+  if (USED(w) && w->gen == SYS_WATCH_CTX_GEN(ctx) && too_long) {
     w->head.id = 0;  // an answer no entry can carry: the watch removes itself
     w->gen++;
     removed = true;
-  } else if (USED(w) && w->gen == (uint8_t)((uintptr_t)ctx >> 8)) {
+  } else if (USED(w) && w->gen == SYS_WATCH_CTX_GEN(ctx)) {
     w->busy = false;
     const bool ok = status == ROUTER_STATUS_OK;
     const bool on_change = w->head.trigger == SYS_WATCH_ON_CHANGE;
-    const uint32_t crc = (ok && on_change) ? crc32_le(data, len) : 0u;
+    const uint32_t crc = (ok && on_change) ? crc32_ieee(0, data, len) : 0u;
     const bool silent = w->head.max_silence != 0u && w->since_sent >= w->head.max_silence;
     const bool changed = w->last != LAST_OK || crc != w->crc;
     const bool send = ok ? (!on_change || changed || silent) : w->last != LAST_ERROR;
     if (send) {
       uint8_t packet[CMD_HEAD + SYS_WATCH_ENTRY_HEAD + len];  // one frame: the header, the entry's head, the answer
-      const cmd_hdr_t hdr = {.type = CMD_TYPE(CMD_PUSH), .key = MODULE_ID_WATCH};
-      memcpy(packet, &hdr, CMD_HEAD);
+      cmd_push_head(packet, MODULE_ID_WATCH, 0);
       packet[CMD_HEAD] = w->owner;
       packet[CMD_HEAD + 1u] = w->head.id;
       packet[CMD_HEAD + 2u] = status;
@@ -112,7 +100,7 @@ static void on_tick(void* arg) {
     if (w->busy || w->since_read < w->head.period) {
       continue;
     }
-    void* ctx = (void*)((uintptr_t)(w - s_watch.watches) | ((uintptr_t)w->gen << 8));
+    void* ctx = SYS_WATCH_CTX(w - s_watch.watches, w->gen);
     err_h err = router_inject((cmd_in_t){w->read, w->read_len}, 0, on_read, ctx);
     if (err == NULL) {  // a full queue: the next tick tries again
       w->busy = true;

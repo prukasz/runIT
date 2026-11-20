@@ -78,6 +78,18 @@ typedef struct __attribute__((packed)) {
 
 _Static_assert(sizeof(cmd_hdr_t) == CMD_HEAD, "the header is CMD_HEAD");
 
+/**
+ * @brief Writes a PUSH packet's header [hdr PUSH, key] into the CMD_HEAD bytes before its data: what a module's port
+ * sends out of a stream (src and seq are the session's, which sets them on the line).
+ * @param packet The packet: CMD_HEAD free bytes, then the data.
+ * @param key    The stream's module number.
+ * @param urgent CMD_SEND_URGENT or 0.
+ */
+static inline void cmd_push_head(uint8_t* packet, uint8_t key, uint8_t urgent) {
+  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | urgent), .key = key};
+  memcpy(packet, &hdr, CMD_HEAD);
+}
+
 /* The send flags (CMD_SEND_*): cmd_types.h (utils), with the stream ports that carry them. */
 
 /* A handler's input and answer, cmd_in_t and cmd_out_t: cmd_types.h (utils). */

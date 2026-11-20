@@ -39,7 +39,7 @@ A file is one namespace of its own, opened at boot with `nvs_store_json_open`, s
 | Key | Holds |
 |---|---|
 | `c0`, `c1`, … | One chunk each, as `nvs_store_json_append` got it. No buffer in RAM: a chunk is written as it comes |
-| `info` | `nvs_store_json_info_t`: length, CRC-32 (zlib / IEEE, computed here) and the number of chunks |
+| `info` | `nvs_store_json_info_t`: length, CRC-32 (zlib / IEEE, `crc32_ieee`, CRC.MD) and the number of chunks |
 
 **Append.** The offset must be the file's length, so a chunk sent twice is refused (`ERR_NVS_OFFSET`). The chunk is stored first, then `info`: a power cut leaves the file without the chunk or with it whole. A write cut short leaves a shorter file: the reader compares length and CRC with what it sent. **Replace** is erase and append; nothing keeps the old content meanwhile.
 

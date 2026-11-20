@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "esp_rom_crc.h"
+#include "crc.h"
 #include "nvs_store.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -262,7 +262,7 @@ err_h sys_actions_record_write(uint16_t offset, const uint8_t* data, uint16_t le
 // Lock held, a draft open.
 static err_h draft_store(uint32_t crc32) {
   ERR_CHECK(s_draft.len == s_draft.want, ERR_ACTION_INCOMPLETE, .got = s_draft.len, .want = s_draft.want);
-  uint32_t crc = esp_rom_crc32_le(0, s_draft.image, s_draft.len);
+  uint32_t crc = crc32_ieee(0, s_draft.image, s_draft.len);
   ERR_CHECK(crc == crc32, ERR_ACTION_CRC, .got = crc32, .want = crc);
   uint16_t count;
   ERR_TRY(frames_check(s_draft.image, s_draft.len, &count));
@@ -340,7 +340,7 @@ err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
   ERR_TRY(load_checked(id, 0, &blob, &len, &count));
   out->bytes = (uint16_t)len;
   out->count = count;
-  out->crc32 = esp_rom_crc32_le(0, blob, len);
+  out->crc32 = crc32_ieee(0, blob, len);
   free(blob);
   return NULL;
 }

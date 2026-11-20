@@ -126,6 +126,17 @@ MUST_USE err_h router_request_wait(data_matrix_port_id_t to, cmd_in_t req, uint8
                                    void* buf, uint32_t cap, uint32_t* len);
 
 /**
+ * @brief Another board's error record as a chain under ERR_REMOTE{board, seq}: the chain below is that board's, so
+ * the error policy's walk stops at it. What a cut record holds is kept (err_record_parse).
+ * @param record The record (an ERROR answer, a watch's entry, a remote device's frame).
+ * @param len    Its bytes.
+ * @param board  The board it came from.
+ * @param seq    The request it answers, 0 for none.
+ * @return The chain (the caller ends it).
+ */
+MUST_USE err_h router_remote_chain(const uint8_t* record, uint32_t len, uint8_t board, uint16_t seq);
+
+/**
  * @brief Ends every call that went out to `to` with ERR_ROUTER_CALL_DOWN: the link behind it ended (a session's end).
  * @param[in] to The port.
  */

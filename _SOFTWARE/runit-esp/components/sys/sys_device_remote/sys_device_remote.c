@@ -213,8 +213,7 @@ static void send_out(uint8_t* packet, uint32_t len) {
   }
   xSemaphoreGive(sys_device_remote_lock);
   const uint8_t urgent = frame[1] == SYS_DEVICE_REMOTE_ERROR ? CMD_SEND_URGENT : 0u;
-  const cmd_hdr_t hdr = {.type = (uint8_t)(CMD_TYPE(CMD_PUSH) | urgent), .key = MODULE_ID_REMOTE};
-  memcpy(packet, &hdr, CMD_HEAD);
+  cmd_push_head(packet, MODULE_ID_REMOTE, urgent);
   for (uint32_t i = 0; i < n; i++) {
     data_matrix_port_id_t port = 0;
     err_h err = sys_session_port(to[i], MODULE_ID_REMOTE, &port);
@@ -285,9 +284,7 @@ static err_h on_subscribed(void* ctx, const cmd_req_t* cmd, uint8_t status, cons
 static void send_subscription(uint8_t board, uint8_t remote_id, uint8_t op) {
   const uint8_t req[] = {MODULE_ID_REMOTE, CMD_DIR_WRITE, op, remote_id};
   const router_done_f done = op == REMOTE_OP_SUBSCRIBE ? on_subscribed : NULL;  // UNSUBSCRIBE: no answer kept
-  data_matrix_port_id_t port = 0;
-  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
-  err_free(err != NULL ? err : router_request(port, (cmd_in_t){req, sizeof(req)}, 0, 0, done, (void*)(uintptr_t)board));
+  err_free(sys_session_request(board, (cmd_in_t){req, sizeof(req)}, 0, 0, done, (void*)(uintptr_t)board));
 }
 
 /* A frame come in, on the task: the event is published and the error reported as the remote device's local id, so
@@ -311,9 +308,7 @@ static void take_in(const uint8_t* item, uint32_t len) {
       err_report(sys_event_publish(ev.key, ev.flags | SYS_EVENT_DEFER, data + sizeof(ev), ev.len));
     }
   } else if (frame[1] == SYS_DEVICE_REMOTE_ERROR) {
-    err_h chain = NULL;
-    err_free(err_record_parse(data, data_len, &chain));
-    err_report(ERR_WRAP(ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0), ERR_DEV_ID, .id = local));
+    err_report(ERR_WRAP(router_remote_chain(data, data_len, board, 0), ERR_DEV_ID, .id = local));
   }
 }
 
@@ -418,16 +413,12 @@ static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cm
   const uint8_t board = where->board;
   const bool read = dir == CMD_DIR_READ;
   out->len = 0;
-  data_matrix_port_id_t port = 0;
   if ((where->flags & SYS_DEVICE_REMOTE_WIRED) && wired_now(board)) {
     // Every call waits for its answer: a read's value is of this pass, a write's error comes at once.
     uint8_t answer[ANSWER_MAX];
     uint32_t answer_len = 0;
-    err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
-    if (err == NULL) {
-      err = read ? router_request_wait(port, req, 0, 0, out->data, out->cap, &out->len)
-                 : router_request_wait(port, req, 0, 0, answer, sizeof(answer), &answer_len);
-    }
+    const err_h err = read ? sys_session_request_wait(board, req, 0, 0, out->data, out->cap, &out->len)
+                           : sys_session_request_wait(board, req, 0, 0, answer, sizeof(answer), &answer_len);
     if (err == NULL && !read) {
       sys_watch_stale(board, req, DEV_TARGET);
     }
@@ -436,11 +427,7 @@ static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cm
   if (read) {
     return down(sys_watch_read(board, req, out->data, out->cap, &out->len), board, where->remote_id);
   }
-  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
-  if (err == NULL) {
-    err = router_request(port, req, 0, 0, on_write_done, (void*)(uintptr_t)board);
-  }
-  return down(err, board, where->remote_id);
+  return down(sys_session_request(board, req, 0, 0, on_write_done, (void*)(uintptr_t)board), board, where->remote_id);
 }
 
 /* ----------------------------------------------------------------------------

@@ -64,9 +64,9 @@ static err_h on_added(void* ctx, const cmd_req_t* cmd, uint8_t status, const uin
   (void)cmd;
   (void)data;
   (void)len;
-  slot_t* s = &s_cl.slots[(uintptr_t)ctx & 0xFFu];
+  slot_t* s = &s_cl.slots[SYS_WATCH_CTX_SLOT(ctx)];
   xSemaphoreTake(sys_watch_client_mutex, portMAX_DELAY);
-  if (s->state == SLOT_ADDING && s->gen == (uint8_t)((uintptr_t)ctx >> 8) && status == ROUTER_STATUS_OK) {
+  if (s->state == SLOT_ADDING && s->gen == SYS_WATCH_CTX_GEN(ctx) && status == ROUTER_STATUS_OK) {
     s->state = SLOT_ACTIVE;
     s->have = false;
     s->entry_ms = now_ms();  // no entry within MAX_AGE_MS of it: the entries do not reach this board, ADD again
@@ -86,13 +86,8 @@ static void send_add(uint8_t slot, uint8_t gen, uint8_t board, cmd_in_t read) {
   uint8_t req[3u + sizeof(head) + SYS_WATCH_READ_MAX] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_ADD};
   memcpy(req + 3u, &head, sizeof(head));
   memcpy(req + 3u + sizeof(head), read.data, read.len);
-  void* ctx = (void*)((uintptr_t)slot | ((uintptr_t)gen << 8));
-  data_matrix_port_id_t port = 0;
-  err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
-  if (err == NULL) {
-    err = router_request(port, (cmd_in_t){req, 3u + sizeof(head) + read.len}, 0, 0, on_added, ctx);
-  }
-  err_free(err);
+  err_free(sys_session_request(board, (cmd_in_t){req, 3u + sizeof(head) + read.len}, 0, 0, on_added,
+                               SYS_WATCH_CTX(slot, gen)));
 }
 
 /* ----------------------------------------------------------------------------
@@ -164,9 +159,7 @@ static void on_idle_tick(void* arg) {
     xSemaphoreGive(sys_watch_client_mutex);
     if (idle) {
       const uint8_t req[] = {MODULE_ID_WATCH, CMD_DIR_WRITE, WATCH_OP_REMOVE, (uint8_t)(s - s_cl.slots + 1)};
-      data_matrix_port_id_t port = 0;
-      err_h err = sys_session_port(board, MODULE_ID_ROUTER, &port);
-      err_free(err != NULL ? err : router_request(port, (cmd_in_t){req, sizeof(req)}, 0, 0, NULL, NULL));
+      err_free(sys_session_request(board, (cmd_in_t){req, sizeof(req)}, 0, 0, NULL, NULL));
     }
   }
 }
@@ -217,9 +210,7 @@ err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint
     } else if (at->state != SLOT_ACTIVE || !at->have) {
       err = ERR_NEW(ERR_WATCH_NO_VALUE, .board = board);
     } else if (at->status != ROUTER_STATUS_OK) {  // that board's chain under ERR_REMOTE
-      err_h chain = NULL;
-      err_free(err_record_parse(at->data, at->len < SYS_WATCH_COPY_MAX ? at->len : SYS_WATCH_COPY_MAX, &chain));
-      err = ERR_WRAP(chain, ERR_REMOTE, .board = board, .seq = 0);
+      err = router_remote_chain(at->data, at->len < SYS_WATCH_COPY_MAX ? at->len : SYS_WATCH_COPY_MAX, board, 0);
     } else if (at->len > SYS_WATCH_COPY_MAX) {
       err = ERR_NEW(ERR_CMD_OUT_FULL, .need = at->len, .cap = (uint16_t)SYS_WATCH_COPY_MAX);
     } else if (at->len > cap) {

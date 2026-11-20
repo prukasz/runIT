@@ -72,6 +72,8 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 
 `router_request_wait(to, req, flags, timeout_ms, buf, cap, &len)` is the same call, waited for: the answer in `buf`, or the error as a chain (`ERR_REMOTE` over that board's chain, `ERR_ROUTER_CALL_TIMEOUT`, `_CALL_DOWN`; `ERR_CMD_BAD_LEN` for an answer longer than `cap`).
 
+`router_remote_chain(record, len, board, seq)` makes another board's error record a chain under `ERR_REMOTE{board, seq}`: the one way to do it, for an ERROR answer (here), a watch's entry (SYS_WATCH.MD) and a remote device's frame (SYS_DEVICE_REMOTE.MD).
+
 - The wait ends on a flag the call's callback sets, not on the task's notification: another notification of the waiting task wakes it, finds the flag down and sleeps again, so the wait never ends early and the callback never writes into a frame that is gone.
 - **Its own limit**: the waiter sleeps at most the call's timeout and a margin (50 ms). Past it, it takes the call out of its slot itself and returns `ERR_ROUTER_CALL_TIMEOUT`; if another task is ending it at that moment, it waits for that end. So a wait never hangs, also on a task the answer or the timer would need (the board timers' task; the RX task of the link).
 - A router task may wait for another board: the commands behind it wait that long too.

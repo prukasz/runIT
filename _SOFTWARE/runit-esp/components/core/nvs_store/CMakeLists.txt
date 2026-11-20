@@ -5,5 +5,5 @@ idf_component_register(
     SRCS "nvs_store.c" "esp/nvs_store_esp.c"
     INCLUDE_DIRS "." "errors"
     REQUIRES errors
-    PRIV_REQUIRES utils log nvs_flash
+    PRIV_REQUIRES crc utils log nvs_flash
 )

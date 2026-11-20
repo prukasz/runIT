@@ -13,6 +13,12 @@ extern "C" {
 /** @brief An entry's head after the packet's header: [owner][id][status], then the read's answer or error record. */
 #define SYS_WATCH_ENTRY_HEAD 3u
 
+/** @brief A callback's ctx of a slot (a watch, a cached read): its index and its `gen`, so a callback from before the
+ * slot was taken again is dropped. */
+#define SYS_WATCH_CTX(slot, gen) ((void*)((uintptr_t)(slot) | ((uintptr_t)(gen) << 8)))
+#define SYS_WATCH_CTX_SLOT(ctx)  ((uint8_t)(uintptr_t)(ctx))
+#define SYS_WATCH_CTX_GEN(ctx)   ((uint8_t)((uintptr_t)(ctx) >> 8))
+
 /**
  * @brief Adds the watch `(owner, head->id)`, or replaces it: what the one before had under way is dropped.
  * @param[in] head  id 1..255, a trigger, period >= 1.

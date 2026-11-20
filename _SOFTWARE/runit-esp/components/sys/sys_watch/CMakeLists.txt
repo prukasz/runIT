@@ -5,6 +5,6 @@ idf_component_register(
     INCLUDE_DIRS "." "errors" "router"
     PRIV_INCLUDE_DIRS "internal"
     REQUIRES cmd errors router utils
-    PRIV_REQUIRES board_id data_matrix sys_event sys_session router_queue timer time
+    PRIV_REQUIRES board_id crc data_matrix sys_event sys_session router_queue timer time
     WHOLE_ARCHIVE
 )

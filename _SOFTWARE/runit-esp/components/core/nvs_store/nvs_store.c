@@ -7,6 +7,7 @@
 
 #include "nvs_store.h"
 
+#include "crc.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -52,18 +53,6 @@ err_h nvs_store_keys(nvs_store_ns_t ns, nvs_store_key_f fn, void* ctx) {
  * A JSON file
  * ------------------------------------------------------------------------- */
 
-// CRC-32 (zlib / IEEE, reflected 0xEDB88320) of `len` bytes, going on from `crc`.
-static uint32_t crc32(uint32_t crc, const uint8_t* data, uint32_t len) {
-  crc = ~crc;
-  for (uint32_t i = 0; i < len; i++) {
-    crc ^= data[i];
-    for (uint32_t b = 0; b < 8u; b++) {
-      crc = (crc >> 1) ^ (0xEDB88320u & (uint32_t)-(int32_t)(crc & 1u));
-    }
-  }
-  return ~crc;
-}
-
 static void chunk_key(uint16_t chunk, char key[KEY_LEN]) {
   snprintf(key, KEY_LEN, "c%u", (unsigned)chunk);
 }
@@ -88,7 +77,7 @@ static err_h append_locked(nvs_store_json_t* file, uint32_t offset, const uint8_
   chunk_key(file->info.chunks, key);
   ERR_TRY(nvs_store_set(file->ns, key, data, len));
   const nvs_store_json_info_t next = {.bytes = file->info.bytes + len,
-                                      .crc32 = crc32(file->info.crc32, data, len),
+                                      .crc32 = crc32_ieee(file->info.crc32, data, len),
                                       .chunks = file->info.chunks + 1u};
   ERR_TRY(nvs_store_set(file->ns, KEY_INFO, &next, sizeof(next)));
   file->info = next;

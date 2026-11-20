@@ -6,6 +6,7 @@
 #include "cmd.h"
 #include "data_matrix.h"
 #include "errors.h"
+#include "router_queue.h"
 #include "sys_session_errors.h"
 
 /**
@@ -110,6 +111,21 @@ MUST_USE err_h sys_session_detach(uint8_t provider);
  * @return NULL; ERR_SESSION_NO_ROUTE{dst} when no open session has that peer or that sub-port
  */
 MUST_USE err_h sys_session_port(uint8_t peer, uint8_t module, data_matrix_port_id_t* port);
+
+/**
+ * @brief A call of this board to `peer`: router_request to its session's command sub-port (sys_session_port of
+ * MODULE_ID_ROUTER). Never blocks.
+ * @return NULL when sent (the answer comes to `cb`); ERR_SESSION_NO_ROUTE{dst}, or router_request's error.
+ */
+MUST_USE err_h sys_session_request(uint8_t peer, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
+                                   void* ctx);
+
+/**
+ * @brief sys_session_request that waits for the answer: router_request_wait to `peer`'s command sub-port.
+ * @return NULL with the answer in `buf` (`*len`); ERR_SESSION_NO_ROUTE{dst}, or router_request_wait's error.
+ */
+MUST_USE err_h sys_session_request_wait(uint8_t peer, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, void* buf,
+                                        uint32_t cap, uint32_t* len);
 
 /**
  * @brief The peer of the open session a port belongs to (its port or a sub-port: a packet's `from`).

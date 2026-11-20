@@ -100,6 +100,20 @@ err_h sys_session_port(uint8_t peer, uint8_t module, data_matrix_port_id_t* port
   return NULL;
 }
 
+err_h sys_session_request(uint8_t peer, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
+                          void* ctx) {
+  data_matrix_port_id_t port = 0;
+  ERR_TRY(sys_session_port(peer, MODULE_ID_ROUTER, &port));
+  return router_request(port, req, flags, timeout_ms, cb, ctx);
+}
+
+err_h sys_session_request_wait(uint8_t peer, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, void* buf,
+                               uint32_t cap, uint32_t* len) {
+  data_matrix_port_id_t port = 0;
+  ERR_TRY(sys_session_port(peer, MODULE_ID_ROUTER, &port));
+  return router_request_wait(port, req, flags, timeout_ms, buf, cap, len);
+}
+
 bool sys_session_peer(data_matrix_port_id_t port, uint8_t* peer) {
   portENTER_CRITICAL(&s_lock);
   const session_t* s = of_port(port);
