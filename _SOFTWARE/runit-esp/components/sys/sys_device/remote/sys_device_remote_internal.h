@@ -30,12 +30,13 @@ MUST_USE err_h sys_device_remote_create(uint8_t id, cmd_in_t in);
  * @param[in]  where Where it is: a copy taken under the lock
  * @param[in]  dir   cmd_dir_e
  * @param[in]  op    Op number
+ * @param[in]  op_flags The op's SYS_DEVICE_OP_* (DIRECT: a read the hook sends and waits for)
  * @param[in]  in    The op's payload
  * @param[out] out   The answer
  * @return ERR_DEV_REMOTE_DOWN{id, board} without a hook (no sys_device_remote on this board), else the hook's
  */
 MUST_USE err_h sys_device_remote_send(uint8_t id, const sys_device_remote_t* where, uint8_t dir, uint16_t op,
-                                      cmd_in_t in, cmd_out_t* out);
+                                      uint8_t op_flags, cmd_in_t in, cmd_out_t* out);
 
 #ifdef __cplusplus
 }

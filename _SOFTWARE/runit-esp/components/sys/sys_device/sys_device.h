@@ -62,11 +62,14 @@ enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
  *         timeout of its args): a NOLOCK call that never returns blocks REMOVE.
  * TAIL:   the write's payload is its value_t (the head, packed) and then bytes of any number (an event's payload, the
  *         data of a register write). Its handler is OP_DECLARE_WRITE_TAIL, which gets the head, the tail and its length;
- *         OP_DECLARE_WRITE refuses to compile for it, and OP_DECLARE_WRITE_TAIL for an op without the flag. */
+ *         OP_DECLARE_WRITE refuses to compile for it, and OP_DECLARE_WRITE_TAIL for an op without the flag.
+ * DIRECT: a read that takes something or costs (a UART's RECEIVE, an I2C bus's SCAN): a WIRELESS remote device sends
+ *         it and waits for the answer, never serves it from a watch's copy (which reads it every period). */
 #define SYS_DEVICE_OP_ALWAYS (1u << 0)
 #define SYS_DEVICE_OP_LOCAL  (1u << 1)
 #define SYS_DEVICE_OP_NOLOCK (1u << 2)
 #define SYS_DEVICE_OP_TAIL   (1u << 3)
+#define SYS_DEVICE_OP_DIRECT (1u << 4)
 
 /* A contract is a table of ops in the format of every set of commands (cmd_table.h: P_OPERATIONS(X, P) of rows
  * X(P, OP_NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, id)

@@ -33,6 +33,7 @@
   X(M, ERR_DEV_NOT_LOCKED,     28, ERR_SEV_HIGH,     { uint8_t id; }) /* a slot was changed without its lock */                                                                                                                                \
   X(M, ERR_DEV_BUSY,           29, ERR_SEV_MEDIUM,   { uint8_t id; uint16_t op; }) /* the lock of a device was not free in time: `op` is the op that holds it */                                                                               \
   X(M, ERR_DEV_CYCLE,          30, ERR_SEV_HIGH,     { uint8_t id; uint8_t dep; }) /* device `id` would use `dep`, which uses `id` already (itself or through others) */                                                                       \
-  X(M, ERR_DEV_PIN_NOT_OWNED,  31, ERR_SEV_HIGH,     { uint8_t id; uint8_t pin; uint8_t owner; }) /* UNLOCK by a caller that did not lock the pin: `owner` did (SYS_DEVICE_ID_NONE: no device) */
+  X(M, ERR_DEV_PIN_NOT_OWNED,  31, ERR_SEV_HIGH,     { uint8_t id; uint8_t pin; uint8_t owner; }) /* UNLOCK by a caller that did not lock the pin: `owner` did (SYS_DEVICE_ID_NONE: no device) */                                              \
+  X(M, ERR_DEV_REMOTE_DEP,     32, ERR_SEV_LOW,      { uint8_t id; uint8_t dep; }) /* device `id` uses a remote device `dep`: allowed, its calls go over the way (latency, a WIRED wait under the lock of `id`) */
 
 ERR_TAGS_DECLARE(MODULE_ID_SYS_DEVICE, ERR_SYS_DEVICE_MAP)

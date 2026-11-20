@@ -89,12 +89,13 @@ MUST_USE err_h sys_device_set_interceptor(uint8_t contract, sys_device_intercept
  * @param where Where the device is: a copy, valid during the call
  * @param dir   cmd_dir_e
  * @param op    Op number, SYS_DEVICE_OP(contract, n)
+ * @param op_flags The op's SYS_DEVICE_OP_* of its row (DIRECT: a read never served from a watch's copy)
  * @param in    The op's payload
  * @param out   The answer: a read's value
  * @return NULL; ERR_DEV_REMOTE_DOWN, ERR_WATCH_NO_VALUE (later), the answer's error.
  */
-typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cmd_in_t in,
-                                     cmd_out_t* out);
+typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t dir, uint16_t op, uint8_t op_flags,
+                                     cmd_in_t in, cmd_out_t* out);
 
 /**
  * @brief Sets the remote hook. Boot only, one (sys_device_remote_init).

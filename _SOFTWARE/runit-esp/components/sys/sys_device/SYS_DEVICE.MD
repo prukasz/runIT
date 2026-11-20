@@ -49,6 +49,7 @@ The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<c
 | `SYS_DEVICE_OP_ALWAYS` | The write runs while the device is suspended (an event delivery, a pin lock, a bus transfer) |
 | `SYS_DEVICE_OP_LOCAL` | C only (its args carry a pointer, or it is a driver's op): refused as a command and on a remote device, left out of OPS |
 | `SYS_DEVICE_OP_NOLOCK` | The handler runs without the lock of the slot, counted in flight; REMOVE waits for it. The driver guards it and bounds its time |
+| `SYS_DEVICE_OP_DIRECT` | A read that takes something or costs (UART RECEIVE, I2C PROBE / SCAN / RAW): a WIRELESS remote device sends it and waits for the answer instead of serving it from a watch's copy, which would run it every period (SYS_DEVICE_REMOTE.MD "A call") |
 | `SYS_DEVICE_OP_TAIL` | The write's payload is its value (the head, packed) and then bytes of any number; its handler is `OP_DECLARE_WRITE_TAIL` |
 
 **The registry's ops** (contract `0x20`):
@@ -230,7 +231,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 [`sys_device_policy`](../sys_device_policy/SYS_DEVICE_POLICY.MD) is beside the registry, which knows nothing of it. Per device: how much its errors matter (importance) and an action per severity.
 
 - **Following the registry**: a CREATED gives a device the default policy, a REMOVED of the same generation takes it away.
-- **A reported error**: the app's error sink calls `sys_device_policy_handle(chain)` on the task that reported. Nothing runs there, because that task may be inside a device op and hold the lock the response needs. A chain that needs a response is copied as a record (`CONFIG_SYS_DEVICE_POLICY_RECORD_MAX`, 256 B) into the queue of the policy's task; one that needs none is not queued.
+- **A reported error**: the app's error sink calls `sys_device_policy_handle(chain)` on the task that reported. Nothing runs there, because that task may be inside a device op and hold the lock the response needs. A chain that needs a response is copied as a record (`ERR_RECORD_MAX`, err_record.h) into the queue of the policy's task; one that needs none is not queued.
 - **The policy's task** (`CONFIG_SYS_DEVICE_POLICY_TASK_PRIO` = 14, above the tasks of the event lanes and the router work task) makes the record a chain again and responds: a critical error stops the VM and suspends every device (the sweep), then the device's action for that severity runs. It reports a response's failure itself.
 - **No loops**: a chain that holds `ERR_DEV_FAULT_RESPONSE`, and any error reported by the policy's task, is not handled.
 - **Full queue**: `ERR_DEV_FAULT_RESPONSE{stage QUEUE}` to the sink; that response does not run.
@@ -240,7 +241,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 
 - **Interceptor** (`sys_device_set_interceptor(contract, fn, done)`, boot only, one per contract): two stages, both without any lock of the registry; both may call other devices (an ordinary nested call). `fn` sees every call of a contract's ops before the device: it refuses the call or writes the payload the device gets (at most 32 B). `done` (optional) is told how every call `fn` let through ended: the payload the device got and the call's error, NULL when the op worked. What the interceptor decides on is shared by all devices and tasks (a budget), so `fn` decides and takes under a lock of its own module, and `done` gives back what a failed call did not use.
 - **Routed call** (`sys_device_call_routed`): the call a command makes; LOCAL ops are refused on every device.
-- **Remote device**: CREATE_REMOTE keeps the type and where the device is (`sys_device_remote_t`: board, ID there, WIRED or WIRELESS). Its ops are checked here against the type and sent through the remote hook (`sys_device_set_remote`) after the lock is let go. `sys_device_find_remote(board, remote_id)` gives the local ID of the remote device that names a device of a board, `sys_device_remote_of(id, &where)` where a remote device is (both a snapshot, no lock): what `sys_device_remote` follows the registry with.
+- **Remote device**: CREATE_REMOTE keeps the type and where the device is (`sys_device_remote_t`: board, ID there, WIRED or WIRELESS). Its ops are checked here against the type and sent through the remote hook (`sys_device_set_remote`) after the lock is let go, with the op's flags (a DIRECT read is never served from a copy). `sys_device_find_remote(board, remote_id)` gives the local ID of the remote device that names a device of a board, `sys_device_remote_of(id, &where)` where a remote device is (both a snapshot, no lock): what `sys_device_remote` follows the registry with.
 
 ## Limits
 

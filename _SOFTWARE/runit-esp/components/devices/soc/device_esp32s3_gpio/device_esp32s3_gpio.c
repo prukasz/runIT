@@ -499,7 +499,6 @@ static err_h suspend(gpio_t* c) {
  * marked suspended so resume can be retried.
  ******************************************************************************/
 static err_h resume(gpio_t* c) {
-  (void)c;
   err_h err = NULL;
   esp32s3_gpio_lock();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
@@ -540,7 +539,6 @@ static err_h instance_release(void* arg) {
  * reserved native/USB-JTAG pins, installs ISR service and starts ADC task.
  ******************************************************************************/
 static err_h create(uint8_t id, gpio_t* c, const esp32s3_gpio_cfg_t* cfg) {
-  (void)cfg;
   ERR_CHECK(s_gpio.dev == NULL, ERR_DEV_ID_TAKEN, .id = s_gpio.device_id);
   c->id = id;
   ERR_TRY(sys_device_res_add(id, &c->res, instance_release, c));

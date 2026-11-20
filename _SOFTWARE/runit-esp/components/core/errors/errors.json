@@ -1104,47 +1104,6 @@
           "message": "Board {dst} cannot be reached from here"
         },
         {
-          "code": 6,
-          "tag": 917510,
-          "name": "ERR_SESSION_TIMEOUT",
-          "severity": 2,
-          "size": 3,
-          "fields": [
-            {
-              "name": "dst",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "seq",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "description": "a call without an answer",
-          "message": "Board {dst} did not answer",
-          "hint": "A write may still have run: read the value back."
-        },
-        {
-          "code": 7,
-          "tag": 917511,
-          "name": "ERR_SESSION_PEER_DOWN",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "the session the call went through ended",
-          "message": "The connection to board {board} was lost"
-        },
-        {
           "code": 11,
           "tag": 917515,
           "name": "ERR_SESSION_FULL",
@@ -1156,79 +1115,15 @@
           "hint": "Remove one first."
         },
         {
-          "code": 12,
-          "tag": 917516,
-          "name": "ERR_SESSION_CALLS_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every CONFIG_SYS_SESSION_CALLS slot in use",
-          "message": "Too many requests to other boards at once"
-        },
-        {
-          "code": 13,
-          "tag": 917517,
-          "name": "ERR_REMOTE",
-          "severity": 0,
-          "size": 3,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "seq",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "description": "context: the chain below is that board's",
-          "context": true,
-          "message": "On board {board}"
-        },
-        {
-          "code": 14,
-          "tag": 917518,
-          "name": "ERR_SESSION_WOULD_BLOCK",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "call_wait to this board on a router task: it would wait for itself",
-          "message": "A wait for another board's answer was asked where nothing may wait",
-          "hint": "A firmware fault: report it."
-        },
-        {
           "code": 16,
           "tag": 917520,
           "name": "ERR_SESSION_NOT_FRAMED",
           "severity": 2,
           "size": 0,
           "fields": [],
-          "description": "attach: a raw provider carries no whole frame",
-          "message": "A session needs a link that carries a whole frame; this one is raw",
-          "hint": "Give a framed provider the Session role. A raw one is for the Raw or Commands role."
-        },
-        {
-          "code": 17,
-          "tag": 917521,
-          "name": "ERR_SESSION_NOT_OPEN",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "description": "push: no open session on the provider",
-          "message": "No session is open on provider {provider}",
-          "hint": "Its peer has not said hello yet, or the session ended."
+          "description": "attach: no provider, or a raw one: no whole frame",
+          "message": "A session needs a link that carries a whole frame; this one is raw, or there is none",
+          "hint": "Attach a session to a framed provider."
         }
       ]
     },
@@ -1335,8 +1230,8 @@
       "id": 22,
       "name": "NVS",
       "symbol": "MODULE_ID_NVS",
-      "source_file": "runit-esp/components/sys/sys_nvs/errors/sys_nvs_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_nvs/errors/errors_sys_nvs.json",
+      "source_file": "runit-esp/components/core/nvs_store/errors/nvs_store_errors.h",
+      "texts_file": "runit-esp/components/core/nvs_store/errors/errors_nvs_store.json",
       "tags": [
         {
           "code": 1,
@@ -1386,6 +1281,16 @@
             }
           ],
           "message": "The file has no chunk {chunk}"
+        },
+        {
+          "code": 4,
+          "tag": 1441796,
+          "name": "ERR_NVS_NOT_FOUND",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "get, erase: no such key",
+          "message": "No such value is stored"
         }
       ]
     },
@@ -1954,6 +1859,32 @@
           ],
           "description": "UNLOCK by a caller that did not lock the pin: `owner` did (SYS_DEVICE_ID_NONE: no device)",
           "message": "{pin} of {id} belongs to {owner}: only that device can free it"
+        },
+        {
+          "code": 32,
+          "tag": 2097184,
+          "name": "ERR_DEV_REMOTE_DEP",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "dep",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "device `id` uses a remote device `dep`: allowed, its calls go over the way (latency, a WIRED wait under the lock of `id`)",
+          "message": "{id} uses {dep}, a device of another board: its calls go over the connection",
+          "hint": "Slower, and a wired call waits under the lock of {id}. Use a device of this board where timing matters."
         }
       ]
     },
@@ -2325,6 +2256,99 @@
           "fields": [],
           "description": "router_run_urgent: another fn waits to run",
           "message": "Urgent work could not start: other urgent work waits to run"
+        },
+        {
+          "code": 4,
+          "tag": 2359300,
+          "name": "ERR_ROUTER_CALLS_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_ROUTER_CALLS slot in use",
+          "message": "Too many requests to other boards at once"
+        },
+        {
+          "code": 5,
+          "tag": 2359301,
+          "name": "ERR_ROUTER_NO_PORT",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "a call to a port that is not registered",
+          "message": "Connection {port} cannot be reached from here",
+          "hint": "Attach its session first."
+        },
+        {
+          "code": 6,
+          "tag": 2359302,
+          "name": "ERR_ROUTER_CALL_TIMEOUT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "a call without an answer",
+          "message": "Connection {port} did not answer",
+          "hint": "A write may still have run: read the value back."
+        },
+        {
+          "code": 7,
+          "tag": 2359303,
+          "name": "ERR_ROUTER_CALL_DOWN",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "the link the call went out on ended",
+          "message": "Connection {port} was lost before its answer came"
+        },
+        {
+          "code": 8,
+          "tag": 2359304,
+          "name": "ERR_REMOTE",
+          "severity": 0,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "context: the chain below is that board's",
+          "context": true,
+          "message": "On board {board}"
         }
       ]
     },

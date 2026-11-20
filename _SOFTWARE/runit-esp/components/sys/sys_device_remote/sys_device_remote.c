@@ -22,9 +22,9 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_REMOTE, ERR_SYS_DEVICE_REMOTE_MAP)
 
-#define ARGS_MAX   64u                                      // the args of a call to a remote device
-#define ANSWER_MAX 16u                                      // a write's answer has no data; a little room anyway
 #define REQ_HEAD   (1u + sizeof(sys_device_router_hdr_t))   // a device command: [key][dir][id][op u16], then the args
+#define ARGS_MAX   (CMD_DATA_MAX + 1u - REQ_HEAD)           // the args of a call to a remote device: a whole request
+#define ANSWER_MAX 16u                                      // a write's answer has no data; a little room anyway
 #define DEV_TARGET 1u                                       // the bytes after the dir byte that name the device: its id
 #define FRAME_HEAD 2u                                       // a frame: [id][kind], then the data (after its header)
 #define OUT_HEAD   (1u + CMD_HEAD)                          // a frame to send, queued: [OUT], its packet's header room
@@ -399,8 +399,11 @@ static bool wired_now(uint8_t board) {
   return wired;
 }
 
-// The remote hook: the call as a device command of its board, with the device's ID there.
-static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
+/* The remote hook: the call as a device command of its board, with the device's ID there. A WIRELESS read comes from
+   the watch's copy, but for a DIRECT one (it takes something or costs: a watch would run it every period), sent and
+   waited for as a WIRED one. */
+static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, uint8_t op_flags, cmd_in_t in,
+                  cmd_out_t* out) {
   ERR_CHECK(in.len <= ARGS_MAX, ERR_CMD_BAD_LEN, .got = (uint16_t)in.len, .need = ARGS_MAX);
   uint8_t buf[REQ_HEAD + ARGS_MAX];
   const sys_device_router_hdr_t hdr = {.dir = dir, .id = where->remote_id, .op = op};
@@ -413,7 +416,8 @@ static err_h call(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cm
   const uint8_t board = where->board;
   const bool read = dir == CMD_DIR_READ;
   out->len = 0;
-  if ((where->flags & SYS_DEVICE_REMOTE_WIRED) && wired_now(board)) {
+  const bool direct = read && (op_flags & SYS_DEVICE_OP_DIRECT);
+  if (((where->flags & SYS_DEVICE_REMOTE_WIRED) && wired_now(board)) || direct) {
     // Every call waits for its answer: a read's value is of this pass, a write's error comes at once.
     uint8_t answer[ANSWER_MAX];
     uint32_t answer_len = 0;

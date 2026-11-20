@@ -346,12 +346,10 @@ OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
 
 // A port has no outputs to make safe: suspended (the safe state), it keeps carrying a session's frames.
 static err_h suspend(port_t* c) {
-  (void)c;
   return NULL;
 }
 
 static err_h resume(port_t* c) {
-  (void)c;
   return NULL;
 }
 

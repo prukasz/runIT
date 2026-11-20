@@ -123,7 +123,7 @@ typedef struct {
   X(P, OP_BAUD,       0x01, cmd_none_t,         uint32_t,              SYS_DEVICE_OP_ALWAYS)                      \
   X(P, OP_SEND,       0x02, cmd_none_t,         sys_uart_send_t,                                                  \
     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL | SYS_DEVICE_OP_NOLOCK)                                           \
-  X(P, OP_RECEIVE,    0x03, sys_uart_receive_t, cmd_none_t,            SYS_DEVICE_OP_NOLOCK)                      \
+  X(P, OP_RECEIVE,    0x03, sys_uart_receive_t, cmd_none_t,            SYS_DEVICE_OP_NOLOCK | SYS_DEVICE_OP_DIRECT)\
   X(P, OP_FLUSH,      0x04, cmd_none_t,         cmd_none_t,            SYS_DEVICE_OP_ALWAYS)                      \
   X(P, OP_SUBSCRIBE,  0x05, cmd_none_t,         sys_uart_subscribe_t,  SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)\
   X(P, OP_TRANSACT,   0x06, cmd_none_t,         sys_uart_transact_t,                                              \

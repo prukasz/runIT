@@ -101,6 +101,12 @@ typedef struct {
   uint8_t gen;  /**< Generation check (step or deliver): 0 for any other call */
 } how_t;
 
+/** @brief A remote device's call checked under the lock: where it goes and its op's flags (SYS_DEVICE_OP_*). */
+typedef struct {
+  sys_device_remote_t where;  /**< flags 0: not a remote device's call */
+  uint8_t op_flags;
+} remote_call_t;
+
 /** @brief A NOLOCK op checked under the lock and counted in flight: the caller runs it after the lock. */
 typedef struct {
   cmd_f fn;        /**< The handler; NULL: nothing left to run */
@@ -114,7 +120,7 @@ typedef struct {
  * goes, the caller sends it. A NOLOCK op is checked here, counted in flight and not run: `*later` gets it, the caller
  * runs it without the lock. */
 static err_h run_locked(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, bool routed,
-                        sys_device_remote_t* remote, unlocked_t* later) {
+                        remote_call_t* remote, unlocked_t* later) {
   if (op == CONTRACT_SYS_DEVICE_OP_CREATE || op == CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE) {
     ERR_CHECK(dir == CMD_DIR_WRITE, ERR_DEV_UNKNOWN_OP, .op = op);
     ERR_CHECK(!gated(), ERR_DEV_SUSPENDED, .id = id);  // no new device while every device goes into the safe state
@@ -133,7 +139,7 @@ static err_h run_locked(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_o
   const bool is_remote = sys_device_slot_is_remote(id);
   ERR_CHECK(!((routed || is_remote) && (row->flags & SYS_DEVICE_OP_LOCAL)), ERR_DEV_LOCAL_OP, .op = op);
   if (is_remote) {
-    *remote = *(const sys_device_remote_t*)sys_device_slot_instance(id);
+    *remote = (remote_call_t){.where = *(const sys_device_remote_t*)sys_device_slot_instance(id), .op_flags = row->flags};
     return NULL;
   }
   if (row->flags & SYS_DEVICE_OP_NOLOCK) {
@@ -192,7 +198,7 @@ static void publish_change(uint8_t source, uint32_t change, uint8_t gen) {
  * in flight. What the op changed is published after the lock. A step takes the lock only when it is free and runs only
  * on the device it is for; else it is skipped, with no error. */
 static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out, const how_t* how) {
-  sys_device_remote_t remote = {0};
+  remote_call_t remote = {0};
   unlocked_t later = {0};
   if (how->step) {
     if (!sys_device_slot_try_lock(id, op)) {
@@ -221,10 +227,10 @@ static err_h call_device(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
     sys_device_slot_leave(id);
     return op_err;
   }
-  if (err != NULL || remote.flags == 0) {
+  if (err != NULL || remote.where.flags == 0) {
     return err;  // done: a local device, a registry op, or refused
   }
-  return sys_device_remote_send(id, &remote, dir, op, in, out);
+  return sys_device_remote_send(id, &remote.where, dir, op, remote.op_flags, in, out);
 }
 
 /* One call (outermost or nested): ensures a non-NULL answer buffer, links this call's frame onto `s_frame`, runs

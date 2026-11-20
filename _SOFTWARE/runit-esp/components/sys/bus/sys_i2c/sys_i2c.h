@@ -108,10 +108,10 @@ typedef struct __attribute__((packed)) {
   X(P, OP_ATTACH,  0x00, cmd_none_t,      i2c_attach_args_t, SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
   X(P, OP_DETACH,  0x01, cmd_none_t,      i2c_addr_args_t,   SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
   X(P, OP_XFER,    0x02, cmd_none_t,      i2c_xfer_t,        SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)       \
-  X(P, OP_PROBE,   0x03, i2c_addr_args_t, uint8_t,           0)                                                \
-  X(P, OP_SCAN,    0x04, cmd_none_t,      i2c_scan_t,        SYS_DEVICE_OP_NOLOCK)                             \
+  X(P, OP_PROBE,   0x03, i2c_addr_args_t, uint8_t,           SYS_DEVICE_OP_DIRECT)                             \
+  X(P, OP_SCAN,    0x04, cmd_none_t,      i2c_scan_t,        SYS_DEVICE_OP_NOLOCK | SYS_DEVICE_OP_DIRECT)      \
   X(P, OP_RECOVER, 0x05, cmd_none_t,      cmd_none_t,        0)                                                \
-  X(P, OP_RAW,     0x06, i2c_raw_key_t,   i2c_raw_t,         SYS_DEVICE_OP_TAIL)
+  X(P, OP_RAW,     0x06, i2c_raw_key_t,   i2c_raw_t,         SYS_DEVICE_OP_TAIL | SYS_DEVICE_OP_DIRECT)
 
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_I2C, MODULE_ID_I2C)
 

@@ -39,8 +39,6 @@ How the macros work:
 | 3 | `U_TASK_DEFINE(name, stack_words)`: the value is bytes on ESP-IDF | Rename the parameter to `stack_bytes` |
 | 4 | Static stream / message buffers hold `size − 1` bytes | Allocate and pass `size + 1` |
 
-Places not yet following §1: `vm_exec.c` (`U_TASK_DEFINE(vm_exec_task_h, 6144)`) and `esp32s3_gpio_adc.c` (`U_TASK_DEFINE(adc_processing_task, 4096)`) hard-code their stack sizes: move them to Kconfig.
-
 ## 2. Constants and configuration
 
 - **Internal constants** of one file (register addresses, bit masks, protocol offsets, internal limits) are `#define`d at the top of that `.c` file. They go in a header only when another component needs them.

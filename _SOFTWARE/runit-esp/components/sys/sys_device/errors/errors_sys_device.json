@@ -114,6 +114,10 @@
     "ERR_DEV_CYCLE": {
       "message": "{id} cannot use {dep}: {dep} already uses {id}",
       "hint": "Two devices cannot use each other: change one of them."
+    },
+    "ERR_DEV_REMOTE_DEP": {
+      "message": "{id} uses {dep}, a device of another board: its calls go over the connection",
+      "hint": "Slower, and a wired call waits under the lock of {id}. Use a device of this board where timing matters."
     }
   }
 }

@@ -29,11 +29,11 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 
 ## A call
 
-The hook gets the device's record (`board`, `remote_id`, `flags`), the direction, the op and its args (at most 64 B, else `ERR_CMD_BAD_LEN`), with no lock held but the caller's own. The registry has checked the op against the device's type. The record's flag says how a call goes:
+The hook gets the device's record (`board`, `remote_id`, `flags`), the direction, the op, its flags (`SYS_DEVICE_OP_*` of its row) and its args (a whole request at most: `CMD_DATA_MAX + 1` with the 5 B of the device command's head, else `ERR_CMD_BAD_LEN`), with no lock held but the caller's own. The registry has checked the op against the device's type. The record's flag says how a call goes:
 
 | Call | `WIRED` (a neighbour on a wired link) | `WIRELESS` |
 |---|---|---|
-| read | `router_request_wait`, every read: the answer in this pass, never a copy | `sys_watch_read(board, req, ...)`: the first read makes an ON_CHANGE watch of it by itself; every read then takes its latest value; before the first entry `ERR_WATCH_NO_VALUE`, a copy too old `ERR_WATCH_STALE` (the VM takes both as "later") (SYS_WATCH.MD "Cached reads") |
+| read | `router_request_wait`, every read: the answer in this pass, never a copy | a `DIRECT` read (it takes something or costs: UART RECEIVE, I2C PROBE / SCAN / RAW) as WIRED: sent and waited for, never from a watch, which would run it every period. Any other: `sys_watch_read(board, req, ...)`: the first read makes an ON_CHANGE watch of it by itself; every read then takes its latest value; before the first entry `ERR_WATCH_NO_VALUE`, a copy too old `ERR_WATCH_STALE` (the VM takes both as "later") (SYS_WATCH.MD "Cached reads") |
 | write | `router_request_wait`: its error at once | `router_request`, not waited for: its answer comes on the RX task, an ERROR reported as the device's (`ERR_DEV_ID` over `ERR_REMOTE` over that board's chain) |
 
 - After an OK write, in both ways, `sys_watch_stale(board, req, 1)` marks the copies of that device old and reads each again at once: a read after a write does not take a value from before it.

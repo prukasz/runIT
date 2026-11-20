@@ -920,8 +920,9 @@ static int s_remote_n;
 static sys_device_remote_t s_remote_where;
 static uint16_t s_remote_op;
 
-static err_h remote_hook(const sys_device_remote_t* where, uint8_t dir, uint16_t op, cmd_in_t in, cmd_out_t* out) {
-  (void)dir, (void)in, (void)out;
+static err_h remote_hook(const sys_device_remote_t* where, uint8_t dir, uint16_t op, uint8_t op_flags, cmd_in_t in,
+                         cmd_out_t* out) {
+  (void)dir, (void)op_flags, (void)in, (void)out;
   s_remote_n++;
   s_remote_where = *where;
   s_remote_op = op;

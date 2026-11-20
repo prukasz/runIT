@@ -249,7 +249,11 @@ uint8_t sys_device_gen(uint8_t id) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_device_use(uint8_t user, uint8_t dep) {
-  return sys_device_slot_use(user, dep);  // the caller is in create(): it holds the lock of `user`
+  ERR_TRY(sys_device_slot_use(user, dep));  // the caller is in create(): it holds the lock of `user`
+  if (sys_device_slot_is_remote(dep)) {  // allowed, and told once: its calls go over the way
+    err_report(ERR_NEW(ERR_DEV_REMOTE_DEP, .id = user, .dep = dep));
+  }
+  return NULL;
 }
 
 err_h sys_device_require_op(uint8_t user, uint8_t dep, uint16_t op, uint8_t dir) {

@@ -58,8 +58,8 @@ err_h sys_device_remote_create(uint8_t id, cmd_in_t in) {
   return err;
 }
 
-err_h sys_device_remote_send(uint8_t id, const sys_device_remote_t* where, uint8_t dir, uint16_t op, cmd_in_t in,
-                             cmd_out_t* out) {
+err_h sys_device_remote_send(uint8_t id, const sys_device_remote_t* where, uint8_t dir, uint16_t op, uint8_t op_flags,
+                             cmd_in_t in, cmd_out_t* out) {
   ERR_CHECK(s_remote != NULL, ERR_DEV_REMOTE_DOWN, .id = id, .board = where->board);
-  return s_remote(where, dir, op, in, out);
+  return s_remote(where, dir, op, op_flags, in, out);
 }

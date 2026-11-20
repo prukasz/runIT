@@ -258,7 +258,6 @@ static err_h bus_release(void* arg) {
  * slave devices' suspend hooks.
  ******************************************************************************/
 static err_h suspend(esp_i2c_t* c) {
-  (void)c;
   return NULL;
 }
 
@@ -267,7 +266,6 @@ static err_h suspend(esp_i2c_t* c) {
  * No-op: bus stays active across suspend/resume.
  ******************************************************************************/
 static err_h resume(esp_i2c_t* c) {
-  (void)c;
   return NULL;
 }
 
