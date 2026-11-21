@@ -25,8 +25,8 @@ afterAll(async () => {
 describe('the session as the board opened it', () => {
   it('the hello gave the board its id, its boot and its build, and no stream was subscribed', () => {
     const session = board.link.session!
-    expect(session.clientId).toBe(board.link.defs.session.id.app)
-    expect(session.boardId).toBeLessThanOrEqual(board.link.defs.session.id.boardLast)
+    expect(session.clientId).toBe(board.link.defs.src.clientFirst)
+    expect(session.boardId).toBeLessThanOrEqual(board.link.defs.src.boardLast)
     expect(session.bootId).toBeGreaterThan(0)
     expect(session.buildId).toBeGreaterThan(0)
   })

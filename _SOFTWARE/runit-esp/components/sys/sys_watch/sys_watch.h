@@ -23,7 +23,9 @@ extern "C" {
  * every port linked from it: whoever takes them keeps its own by `owner`.
  * ------------------------------------------------------------------------- */
 
-#define SYS_WATCH_TICK_MS  10u  /**< Unit of period and max_silence, and server timer step (ms). */
+//#ref-defines watch_tick @alias Watch tick @prefix SYS_WATCH_TICK_
+#define SYS_WATCH_TICK_MS 10u  //@alias Tick @description The unit of a period and of max_silence (ms), the server timer step
+
 #define SYS_WATCH_COPY_MAX ERR_RECORD_MAX  /**< Largest entry the client keeps: an OK answer or an error record. */
 #define SYS_WATCH_READ_MAX 48u  /**< Largest watched read command (bytes), including router key and dir. */
 

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runit.local/schema/provider.schema.json",
+  "title": "runIT provider type",
+  "description": "Typ providera (sterownik sys_data_provider, SYS_DATA_PROVIDER.MD): jego numer typu i struktura konfiguracji, którą niesie PROVIDER CREATE (pole `cfg`). Plik provider_<id>.json leży obok sterownika w runit-esp/components/providers/; generate_bundle.py kopiuje go do runit-app/generated/providers/.",
+  "type": "object",
+  "required": ["kind", "id", "alias", "type", "config"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "type": "integer" },
+    "kind": { "const": "provider-definition" },
+    "id": { "type": "string", "description": "Identyfikator typu (np. 'ble')." },
+    "alias": { "type": "string", "description": "Nazwa dla użytkownika." },
+    "description": { "type": "string" },
+    "type": { "type": "string", "description": "Członek grupy 'sys_data_provider_type_e' z enums.json: numer typu, który przyjmuje CREATE (np. 'SYS_DATA_PROVIDER_TYPE_BLE')." },
+    "config": {
+      "type": "object",
+      "required": ["fields"],
+      "description": "Struktura konfiguracji CREATE, spakowana, little endian.",
+      "properties": {
+        "struct": { "type": "string", "description": "Nazwa typu struktury C (np. 'provider_ble_cfg_t')." },
+        "size": { "type": "integer", "minimum": 0, "description": "sizeof struktury." },
+        "fields": { "type": "array", "items": { "$ref": "contract.schema.json#/$defs/field" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

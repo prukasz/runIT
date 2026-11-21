@@ -55,7 +55,7 @@ describe('an error from the board, read for a user', () => {
   })
 
   it('an unknown router key', async () => {
-    const error = await fail(() => board.link.request({ keys: [0xee] }))
+    const error = await fail(() => board.link.request({ key: 0xee, body: Uint8Array.of(0) }))
     const report = interpreter.interpret(error.record!)
     expect(report.message.length).toBeGreaterThan(0)
   })
@@ -92,7 +92,7 @@ describe('the error log', () => {
 
   it('the stream alone fills the log (an error nobody asked for is still shown)', async () => {
     log.clear()
-    await board.link.request({ keys: [0xee] }).catch(() => undefined)
+    await board.link.request({ key: 0xee, body: Uint8Array.of(0) }).catch(() => undefined)
     expect(await until(() => log.entries().length > 0, 2000)).toBe(true)
   })
 

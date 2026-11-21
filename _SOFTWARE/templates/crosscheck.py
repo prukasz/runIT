@@ -1,6 +1,8 @@
 """Checks the references between descriptors, which no single schema can see.
 
   device     "contracts" name existing contracts
+  provider   "type" is a member of sys_data_provider_type_e, and no two providers have it
+  returns    a `lead` leads rows: `array` is true
   command    one with a read and a write side is a mirror: read.returns has the fields of write.args (id, raw_type, size)
   device     a contract with a `channel` field needs the device's provides.channels (or provides.pins)
   field      a `control` fits its field: slider = a number with min and max, switch = a choice of two options
@@ -86,6 +88,7 @@ class Checker:
         self.problems = []
         self.contracts = load("contract_")
         self.devices = load("device_")
+        self.providers = load("provider_")
         self.enums = json.loads(read(ENUMS))["enums"] if ENUMS.exists() else {}
 
     def error(self, path, where, message):
@@ -107,6 +110,25 @@ class Checker:
             for name in document.get("contracts", []):
                 if name not in self.contracts:
                     self.error(path, "contracts", f"'{name}' is not a contract (no contract_*.json with that id)")
+
+    def providers_check(self):
+        types = {m["name"] for m in self.enums.get("sys_data_provider_type_e", {}).get("members", [])}
+        seen = {}
+        for path, document in self.providers.values():
+            kind = document.get("type")
+            if kind not in types:
+                self.error(path, "type", f"'{kind}' is not a member of sys_data_provider_type_e")
+            elif kind in seen:
+                self.error(path, "type", f"'{kind}' is also {rel(seen[kind])}'s")
+            seen[kind] = path
+
+    def leads_check(self):
+        for path, document in list(self.contracts.values()) + list(self.devices.values()):
+            for c in document.get("commands", []):
+                for side in ("read", "write"):
+                    returns = (c.get(side) or {}).get("returns") or {}
+                    if "lead" in returns and returns.get("array") is not True:
+                        self.error(path, f"commands/{c['id']}/{side}/returns", "a `lead` leads rows: `array` must be true")
 
     def mirrors_check(self):
         def shape(part):
@@ -342,12 +364,14 @@ class Checker:
 def main():
     checker = Checker()
     checker.devices_check()
+    checker.providers_check()
+    checker.leads_check()
     checker.mirrors_check()
     checker.controls_check()
     count, missing = checker.blocks()
     if checker.problems:
         fail(f"{len(checker.problems)} broken reference(s):\n  " + "\n  ".join(checker.problems))
-    print(f"references hold: {len(checker.devices)} devices, {len(checker.contracts)} contracts, {count} block descriptors")
+    print(f"references hold: {len(checker.devices)} devices, {len(checker.contracts)} contracts, {len(checker.providers)} providers, {count} block descriptors")
     if missing:
         print(f"no descriptor yet for {len(missing)} block types: {', '.join(missing)}")
 

@@ -6,7 +6,8 @@ Component `runit-esp/components/providers/provider_ble/`. The provider driver `S
 
 | File | Role |
 |---|---|
-| `provider_ble.h` | The CREATE cfg `provider_ble_cfg_t` (24 B) and `PROVIDER_BLE_FRAMED` |
+| `provider_ble.h` | The CREATE cfg `provider_ble_cfg_t` (24 B) and `PROVIDER_BLE_FRAMED` (published: `provider_ble_flag`) |
+| `provider_ble.json` | The provider type's descriptor (`templates/provider.schema.json`): its type, the cfg's fields; the app builds a way's PROVIDER CREATE from it |
 | `provider_ble.c` | The driver: its struct, create, remove, the port's input, the hook; `SYS_DATA_PROVIDER_TYPE_DEFINE` |
 | `Kconfig` | `CONFIG_PROVIDER_BLE_SEND_WAIT_MS` (default `100`), `CONFIG_PROVIDER_BLE_TX_ITEMS` (default `4`) |
 

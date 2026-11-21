@@ -111,5 +111,5 @@ On a board, as unittest: `python runit-esp/tools/test_session.py` (the PC's Pyth
 
 ## Open
 
-- The router scripts (`router_link.py` and the suites on it) and the app's session code speak the former frame: they move to the 5-byte header like `session_client.py`.
+- The router scripts (`router_link.py` and the suites on it) speak the former frame: they move to the 5-byte header like `session_client.py`.
 - Two boards on a UART are not run on hardware yet.

@@ -64,12 +64,26 @@ const browser = (options: { watch: boolean }) => {
   return { bluetooth, log, handlers }
 }
 
+/** What the link opens: the browser's board has no telemetry characteristic, which is optional. */
+const spec = { service: defs.gatt.service, write: defs.gatt.rx, notify: [defs.gatt.tx], optional: [defs.gatt.logs, defs.gatt.telemetry] }
+
+describe('opening the service', () => {
+  it('a characteristic the link must hear and the board lacks fails the open; an optional one is left out', async () => {
+    const { bluetooth } = browser({ watch: true })
+    const platform = new WebBluetoothPlatform(defs, bluetooth)
+    const [known] = await platform.knownDevices()
+    await expect(platform.open(known!, { ...spec, notify: [defs.gatt.telemetry] }, { onPacket() {}, onClosed() {} })).rejects.toThrow(/no characteristic/)
+    const channel = await platform.open(known!, spec, { onPacket() {}, onClosed() {} })
+    await channel.close()
+  })
+})
+
 describe('opening a board the browser knows from an earlier visit', () => {
   it('listens for one advertisement after the first failed connect, then connects, and stops listening', async () => {
     const { bluetooth, log, handlers } = browser({ watch: true })
     const platform = new WebBluetoothPlatform(defs, bluetooth)
     const [known] = await platform.knownDevices()
-    const channel = await platform.open(known!, { onPacket() {}, onClosed() {} })
+    const channel = await platform.open(known!, spec, { onPacket() {}, onClosed() {} })
     expect(log).toEqual(['connect', 'watch', 'connect'])
     expect(handlers.get('advertisementreceived')?.size ?? 0).toBe(0)
     await channel.close()
@@ -79,7 +93,7 @@ describe('opening a board the browser knows from an earlier visit', () => {
     const { bluetooth, log } = browser({ watch: false })
     const platform = new WebBluetoothPlatform(defs, bluetooth)
     const [known] = await platform.knownDevices()
-    await expect(platform.open(known!, { onPacket() {}, onClosed() {} })).rejects.toThrow(/no longer in range/)
+    await expect(platform.open(known!, spec, { onPacket() {}, onClosed() {} })).rejects.toThrow(/no longer in range/)
     expect(log).toEqual(['connect'])
   })
 })
@@ -91,6 +105,6 @@ describe('forgetting a board', () => {
     const [known] = await platform.knownDevices()
     await platform.forget(known!)
     expect(log).toEqual(['forget'])
-    await expect(platform.open(known!, { onPacket() {}, onClosed() {} })).rejects.toThrow(/Choose the board first/)
+    await expect(platform.open(known!, spec, { onPacket() {}, onClosed() {} })).rejects.toThrow(/Choose the board first/)
   })
 })

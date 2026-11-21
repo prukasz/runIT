@@ -82,4 +82,4 @@ MUST_USE err_h sys_device_policy_set(uint8_t id, const sys_device_error_policy_t
 
 ## Tests
 
-No standalone host folder; end-to-end policy flows are planned around `sys_device_policy` queue/task isolation and generation checks (`SYS_DEVICE.MD`).
+Host tests in `host/` (`python test_host/run.py sys_device_policy` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_device` and `router`: the default policy on CREATED and its removal on REMOVED; SET / GET checked and through the router; the built-in SUSPEND and RESET responses; a CRITICAL running the system fault once for two devices; importance NONE and `ERR_REMOTE` stopping the walk; a failing action runner reported as a fault response without a loop; a CRITICAL before a device exists, a missing device, a repeated chain, a LOW severity.

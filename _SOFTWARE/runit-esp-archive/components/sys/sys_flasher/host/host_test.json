@@ -1,5 +1,0 @@
-{
-  "sources": ["rom/sys_flasher_rom.c"],
-  "tests": ["host/test_flasher_rom.c"],
-  "includes": ["rom"]
-}

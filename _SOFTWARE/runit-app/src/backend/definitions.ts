@@ -5,53 +5,70 @@ import { ServiceCatalog } from './catalog/services'
 import type { DescriptorFile } from './catalog/services'
 
 /*
- * The one file of the backend that reads generated/. The numbers of the link (generated/common): the router's keys, the
- * direction byte, flags, status, the board's streams (the stream tables of its modules: `log_stream`, `event_stream`) and the
- * session's channels (`session_channel`), the session's frame byte, kinds, control ops and ids (`enums.json`, groups `session_*`,
- * `sys_session_*`), the runIT GATT UUIDs and the fragment header bits of `sys_ble` (`ble_runit_uuid`, `ble_frag`), the largest frame
- * (`cmd_frame`), the errors (`errors.json`: tags, fields, message templates, what an id field refers to) and the enum groups their
- * fields name (`bundledEnums`); and every command of every router (the service, contract and device descriptors,
- * `bundledServiceCatalog`). Nothing here is a number typed in by hand; a symbol the firmware stops publishing stops the load
- * with a message that names it.
+ * The one file of the backend that reads generated/. Every number of the link is a symbol the firmware publishes in
+ * `enums.json`: the header of every frame (`cmd_frame`, `cmd_type`, `cmd_kind_e`, `cmd_src`: cmd.h), the direction byte
+ * (`cmd_dir_e`), the router's flags and status, the session's control ops (`sys_session_control_e`), the module numbers that
+ * are a request's key and a PUSH frame's stream (`module_id`), the runIT GATT UUIDs and the fragment bits (`ble_runit_uuid`,
+ * `ble_frag`), the flags of the board's GATT table and of a BLE provider (`ble_svc_flag`, `ble_chr_flag`, `provider_ble_flag`,
+ * `cmd_send_flag`), the error record's header (`err_record_*`); then the errors (`errors.json`) and every command of every
+ * router, device type and provider type (`bundledServiceCatalog`). Nothing here is a number typed in by hand: a symbol the
+ * firmware stops publishing stops the load with a message that names it.
  */
 
+/** The streams a board pushes, by the module whose number is their key (DATA_MATRIX.MD, RUNIT.MD "The board's data"). */
+export const STREAM_MODULES = {
+  /** Error records (ERRORS.MD "Error record"): the session's. */
+  errors: 'MODULE_ID_ERRORS',
+  /** `sys_event_t`s (SYS_EVENT_STREAM.MD): the session's. */
+  events: 'MODULE_ID_SYS_EVENT',
+  /** The log lines as text: the raw logs characteristic. */
+  logs: 'MODULE_ID_LOG',
+  /** The watches' entries `[owner][id][status][data]` (SYS_WATCH.MD): the raw telemetry characteristic. */
+  watches: 'MODULE_ID_WATCH',
+  /** A remote device's frames (SYS_REMOTE.MD). */
+  remote: 'MODULE_ID_REMOTE',
+} as const
+
+export type StreamName = keyof typeof STREAM_MODULES
+export const STREAM_NAMES = Object.keys(STREAM_MODULES) as StreamName[]
+
 export interface LinkDefinitions {
-  /** Root keys by name (`sys`, `ble`, `session`, `sys_device`, ...): a router's root key is its module's number (`module_id`), the first key of a request. */
+  /** Module numbers by name (`sys`, `session`, `sys_device`, `watch`, ...: `MODULE_ID_<NAME>` in lower case): a request's key is its router's. */
   readonly keys: Readonly<Record<string, number>>
-  /** The byte after the root key of every request: the side of the command it runs (`cmd_dir_e`). */
+  /** The byte after a request's header: the side of the command it runs (`cmd_dir_e`). */
   readonly dir: { readonly read: number; readonly write: number }
-  /**
-   * The board's streams (DATA_MATRIX.MD "Streams"): the first byte of a PUSH frame's body below the channels. The ones the board's
-   * setup routes to a session: `errors` (error records) and `events` (`sys_event_t`s that matter to the user); `logs` is the text
-   * of the log characteristic, raw.
-   */
-  readonly streams: { readonly logs: number; readonly errors: number; readonly events: number }
-  /**
-   * The session's channels (`session_channel`): a PUSH frame's first byte from `first` on is a module's channel, not a stream: a
-   * watch's entries (`watches`), a remote device's frames (`remote`).
-   */
-  readonly channels: { readonly first: number; readonly watches: number; readonly remote: number }
+  /** The bits of a frame's type byte (`cmd_type`): the router's flags, an answer's status, the kind. */
+  readonly type: { readonly flags: number; readonly status: number; readonly kind: number }
+  /** What a frame carries (`cmd_kind_e`). */
+  readonly kind: { readonly request: number; readonly answer: number; readonly push: number; readonly control: number }
+  /** Who made a frame (`cmd_src`): boards, clients, and the ids no line carries. */
+  readonly src: {
+    readonly none: number; readonly boardFirst: number; readonly boardLast: number
+    readonly clientFirst: number; readonly clientLast: number; readonly self: number; readonly all: number
+  }
+  /** The session's control frames: their key (`MODULE_ID_SESSION`) and ops (`sys_session_control_e`). */
+  readonly control: { readonly key: number; readonly hello: number; readonly ping: number; readonly noSession: number }
+  /** Each stream's key (`STREAM_MODULES`). */
+  readonly streams: Readonly<Record<StreamName, number>>
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number; readonly noReply: number }
-  /** The session (SYS_SESSION.MD "Frames"): the frame byte's bits, the kinds, the control ops, the ids. */
-  readonly session: {
-    readonly frame: { readonly flags: number; readonly status: number; readonly kind: number }
-    readonly kind: { readonly request: number; readonly answer: number; readonly push: number; readonly control: number }
-    readonly control: { readonly hello: number; readonly ping: number; readonly noSession: number }
-    /** `app`: the id the app says in its hello, the app's own choice (the first of the clients': `clientFirst`); other clients pick one in `clientFirst..clientLast`. */
-    readonly id: {
-      readonly none: number; readonly self: number; readonly broadcast: number; readonly app: number
-      readonly clientFirst: number; readonly clientLast: number; readonly boardLast: number
-    }
-  }
-  /** The runIT service: the characteristic frames come in on (`tx`, the board's notify), the one requests go out on (`rx`, written) and the raw log lines (`logs`). */
-  readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number }
+  /** The runIT service: the session's pair (`tx` notify, `rx` written, both framed), and the raw logs and telemetry (notify). */
+  readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly telemetry: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
+  /** The board's GATT table (BLE LIST) and a BLE provider's create flags. */
+  readonly ble: {
+    readonly service: { readonly primary: number; readonly locked: number }
+    readonly characteristic: { readonly write: number; readonly indicate: number; readonly notify: number; readonly framed: number }
+    readonly providerFramed: number
+    readonly sendNoWait: number
+  }
   /** The error record's header (ERRORS.MD "Error record"). */
   readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly srcBoard: number; readonly requestCut: number; readonly stampBytes: number }
-  /** `CMD_FRAME_MAX` (cmd.h): the largest frame, the one limit of every session's link. */
+  /** `SYS_WATCH_TICK_MS`: the unit of a watch's period and silence. */
+  readonly watchTickMs: number
+  /** `CMD_FRAME_MAX`: the largest frame, its header included, on every link. */
   readonly frameMax: number
-  /** `CMD_HEAD` (cmd.h): the room a frame keeps for its header; a request (keys and payload) is at most `frameMax - frameHead`. */
+  /** `CMD_HEAD`: the header of every frame (`cmd_hdr_t`); a request's body and an answer's data are at most `frameMax - frameHead`. */
   readonly frameHead: number
 }
 
@@ -64,69 +81,61 @@ const value = (enums: EnumTables, group: string, symbol: string): number => {
 }
 
 export const linkDefinitions = (enums: EnumTables): LinkDefinitions => {
+  const v = (group: string, symbol: string) => value(enums, group, symbol)
   const modules = enums.module_id
   if (!modules) throw new Error("generated/common/enums.json has no group 'module_id'.")
-  const first = value(enums, 'session_channel', 'SYS_SESSION_CHANNEL_FIRST')
-  // A channel is its module's number with bit 7 set (`SYS_SESSION_CHANNEL(MODULE_ID_x)`).
-  const channel = (module: string): number => first | value(enums, 'module_id', module)
   return {
     keys: Object.fromEntries(modules.members.map((m) => [m.name.replace(/^MODULE_ID_/, '').toLowerCase(), m.value])),
-    dir: { read: value(enums, 'cmd_dir_e', 'CMD_DIR_READ'), write: value(enums, 'cmd_dir_e', 'CMD_DIR_WRITE') },
-    streams: {
-      logs: value(enums, 'log_stream', 'LOG_STREAM_LOGS'),
-      errors: value(enums, 'log_stream', 'LOG_STREAM_ERRORS'),
-      events: value(enums, 'event_stream', 'EVENT_STREAM_NOTIFY'),
+    dir: { read: v('cmd_dir_e', 'CMD_DIR_READ'), write: v('cmd_dir_e', 'CMD_DIR_WRITE') },
+    type: { flags: v('cmd_type', 'CMD_TYPE_FLAGS'), status: v('cmd_type', 'CMD_TYPE_STATUS'), kind: v('cmd_type', 'CMD_TYPE_KIND') },
+    kind: { request: v('cmd_kind_e', 'CMD_REQUEST'), answer: v('cmd_kind_e', 'CMD_ANSWER'), push: v('cmd_kind_e', 'CMD_PUSH'), control: v('cmd_kind_e', 'CMD_CONTROL') },
+    src: {
+      none: v('cmd_src', 'CMD_SRC_NONE'),
+      boardFirst: v('cmd_src', 'CMD_SRC_BOARD_FIRST'),
+      boardLast: v('cmd_src', 'CMD_SRC_BOARD_LAST'),
+      clientFirst: v('cmd_src', 'CMD_SRC_CLIENT_FIRST'),
+      clientLast: v('cmd_src', 'CMD_SRC_CLIENT_LAST'),
+      self: v('cmd_src', 'CMD_SRC_SELF'),
+      all: v('cmd_src', 'CMD_SRC_ALL'),
     },
-    channels: { first, watches: channel('MODULE_ID_WATCH'), remote: channel('MODULE_ID_REMOTE') },
-    status: { ok: value(enums, 'router_status_e', 'ROUTER_STATUS_OK'), error: value(enums, 'router_status_e', 'ROUTER_STATUS_ERROR') },
-    flags: { urgent: value(enums, 'router_flag', 'ROUTER_FLAG_URGENT'), noReply: value(enums, 'router_flag', 'ROUTER_FLAG_NOREPLY') },
-    session: {
-      frame: {
-        flags: value(enums, 'session_frame', 'SYS_SESSION_FRAME_FLAGS'),
-        status: value(enums, 'session_frame', 'SYS_SESSION_FRAME_STATUS'),
-        kind: value(enums, 'session_frame', 'SYS_SESSION_FRAME_KIND'),
-      },
-      kind: {
-        request: value(enums, 'sys_session_kind_e', 'SYS_SESSION_REQUEST'),
-        answer: value(enums, 'sys_session_kind_e', 'SYS_SESSION_ANSWER'),
-        push: value(enums, 'sys_session_kind_e', 'SYS_SESSION_PUSH'),
-        control: value(enums, 'sys_session_kind_e', 'SYS_SESSION_CONTROL'),
-      },
-      control: {
-        hello: value(enums, 'sys_session_control_e', 'SYS_SESSION_HELLO'),
-        ping: value(enums, 'sys_session_control_e', 'SYS_SESSION_PING'),
-        noSession: value(enums, 'sys_session_control_e', 'SYS_SESSION_NO_SESSION'),
-      },
-      id: {
-        none: value(enums, 'session_id', 'SYS_SESSION_ID_NONE'),
-        self: value(enums, 'session_id', 'SYS_SESSION_ID_SELF'),
-        broadcast: value(enums, 'session_id', 'SYS_SESSION_ID_BROADCAST'),
-        app: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_FIRST'),
-        clientFirst: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_FIRST'),
-        clientLast: value(enums, 'session_id', 'SYS_SESSION_ID_CLIENT_LAST'),
-        boardLast: value(enums, 'session_id', 'SYS_SESSION_ID_LAST'),
-      },
+    control: {
+      key: v('module_id', 'MODULE_ID_SESSION'),
+      hello: v('sys_session_control_e', 'SYS_SESSION_HELLO'),
+      ping: v('sys_session_control_e', 'SYS_SESSION_PING'),
+      noSession: v('sys_session_control_e', 'SYS_SESSION_NO_SESSION'),
     },
+    streams: Object.fromEntries(STREAM_NAMES.map((name) => [name, v('module_id', STREAM_MODULES[name])])) as Record<StreamName, number>,
+    status: { ok: v('router_status_e', 'ROUTER_STATUS_OK'), error: v('router_status_e', 'ROUTER_STATUS_ERROR') },
+    flags: { urgent: v('router_flag', 'ROUTER_FLAG_URGENT'), noReply: v('router_flag', 'ROUTER_FLAG_NOREPLY') },
     gatt: {
-      service: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_SERVICE'),
-      tx: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_TX'),
-      rx: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_RX'),
-      logs: value(enums, 'ble_runit_uuid', 'RUNIT_BLE_LOGS'),
+      service: v('ble_runit_uuid', 'RUNIT_BLE_SERVICE'),
+      tx: v('ble_runit_uuid', 'RUNIT_BLE_TX'),
+      rx: v('ble_runit_uuid', 'RUNIT_BLE_RX'),
+      logs: v('ble_runit_uuid', 'RUNIT_BLE_LOGS'),
+      telemetry: v('ble_runit_uuid', 'RUNIT_BLE_TELEMETRY'),
     },
-    frag: {
-      last: value(enums, 'ble_frag', 'SYS_BLE_FRAG_LAST'),
-      first: value(enums, 'ble_frag', 'SYS_BLE_FRAG_FIRST'),
-      countMask: value(enums, 'ble_frag', 'SYS_BLE_FRAG_COUNT_MASK'),
+    frag: { last: v('ble_frag', 'SYS_BLE_FRAG_LAST'), first: v('ble_frag', 'SYS_BLE_FRAG_FIRST'), countMask: v('ble_frag', 'SYS_BLE_FRAG_COUNT_MASK') },
+    ble: {
+      service: { primary: v('ble_svc_flag', 'SYS_BLE_SVC_PRIMARY'), locked: v('ble_svc_flag', 'SYS_BLE_SVC_LOCKED') },
+      characteristic: {
+        write: v('ble_chr_flag', 'SYS_BLE_CHR_WRITE'),
+        indicate: v('ble_chr_flag', 'SYS_BLE_CHR_INDICATE'),
+        notify: v('ble_chr_flag', 'SYS_BLE_CHR_NOTIFY'),
+        framed: v('ble_chr_flag', 'SYS_BLE_CHR_FRAMED'),
+      },
+      providerFramed: v('provider_ble_flag', 'PROVIDER_BLE_FRAMED'),
+      sendNoWait: v('cmd_send_flag', 'CMD_SEND_NOWAIT'),
     },
     errorRecord: {
-      srcInternal: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_INTERNAL'),
-      srcCommand: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_COMMAND'),
-      srcBoard: value(enums, 'err_record_src_e', 'ERR_RECORD_SRC_BOARD'),
-      requestCut: value(enums, 'err_record_flag', 'ERR_RECORD_REQ_CUT'),
-      stampBytes: value(enums, 'err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
+      srcInternal: v('err_record_src_e', 'ERR_RECORD_SRC_INTERNAL'),
+      srcCommand: v('err_record_src_e', 'ERR_RECORD_SRC_COMMAND'),
+      srcBoard: v('err_record_src_e', 'ERR_RECORD_SRC_BOARD'),
+      requestCut: v('err_record_flag', 'ERR_RECORD_REQ_CUT'),
+      stampBytes: v('err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },
-    frameMax: value(enums, 'cmd_frame', 'CMD_FRAME_MAX'),
-    frameHead: value(enums, 'cmd_frame', 'CMD_HEAD'),
+    watchTickMs: v('watch_tick', 'SYS_WATCH_TICK_MS'),
+    frameMax: v('cmd_frame', 'CMD_FRAME_MAX'),
+    frameHead: v('cmd_frame', 'CMD_HEAD'),
   }
 }
 
@@ -149,9 +158,9 @@ export const bundledLinkDefinitions = (): LinkDefinitions => linkDefinitions(bun
 /* ---- every command ---- */
 
 /*
- * The descriptors of the bundle: every system service, device contract and device type. Vite resolves the globs at build time, so
- * a new `contract_*.json` / `device_*.json` in generated/ is picked up with nothing to edit (the rule of
- * templates/generate_bundle.py).
+ * The descriptors of the bundle: every system service, device contract, device type and provider type. Vite resolves the globs
+ * at build time, so a new `contract_*.json` / `device_*.json` / `provider_*.json` in generated/ is picked up with nothing to edit
+ * (the rule of templates/generate_bundle.py).
  */
 const descriptorFiles = (modules: Record<string, unknown>): DescriptorFile[] =>
   Object.keys(modules)
@@ -165,6 +174,7 @@ export const bundledServiceCatalog = (): ServiceCatalog =>
       ...descriptorFiles(import.meta.glob('@generated/services/contract_*.json', { eager: true, import: 'default' })),
       ...descriptorFiles(import.meta.glob('@generated/contracts/contract_*.json', { eager: true, import: 'default' })),
       ...descriptorFiles(import.meta.glob('@generated/devices/device_*.json', { eager: true, import: 'default' })),
+      ...descriptorFiles(import.meta.glob('@generated/providers/provider_*.json', { eager: true, import: 'default' })),
     ],
     bundledEnums(),
   )
@@ -177,7 +187,7 @@ export const bundledBlockTypes = (): ReadonlyMap<number, string> =>
       .map((b) => [b.wire_id!, b.alias ?? b.id]),
   )
 
-/** Every enum group the firmware publishes (`enums.json`): the members an `enum_ref` of an error field names. */
+/** Every enum group the firmware publishes (`enums.json`). */
 export const bundledEnums = (): EnumTables => (enumsJson as unknown as { enums: EnumTables }).enums
 
 /* ---- errors ---- */

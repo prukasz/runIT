@@ -17,12 +17,11 @@ Component `components/sys/sys_flasher/`. The board writes its own firmware into 
 | File | Role |
 |---|---|
 | `sys_flasher.h` / `.c` | Init (the wires), START, ABORT, STATUS; the job on its own task |
-| `rom/sys_flasher_rom.h` / `.c` | The ROM's protocol as pure functions: SLIP, a command's packet, its checksum, an answer's parse, the MD5 in hex. Host-tested (`host/`) |
+| `rom/sys_flasher_rom.h` / `.c` | The ROM's protocol as pure functions: SLIP, a command's packet, its checksum, an answer's parse, the MD5 in hex. |
 | `router/sys_flasher_router.h` / `.c` | The remote interface (`ROUTER_KEY_FLASHER` 0x14): the ops and their layout |
 | `router/contract_flasher.json` | The router's descriptor |
 | `errors/` | `ERR_SYS_FLASHER_MAP`, the messages |
 | `Kconfig` | The EN and BOOT pins (3, 46), the rate while flashing (921600), the task |
-| `host/` | Host tests of `rom/` (`python test_host/run.py sys_flasher`) |
 
 ## A flashing
 
@@ -69,7 +68,7 @@ The app: `flashAttached` in `runit-app/src/backend/session/flasher.ts` (START, t
 
 ## Tests
 
-`python test_host/run.py sys_flasher` (the protocol). On boards: `HW_FLASHER=1 npm run test:hw` in `runit-app` runs `n-flasher.hw.test.ts` (wired as above, this board's id not 0): the flashing ends DONE, every byte written, the new board opens a session on the link with id 0 and answers a PING through this board.
+On boards: `HW_FLASHER=1 npm run test:hw` in `runit-app` runs `n-flasher.hw.test.ts` (wired as above, this board's id not 0): the flashing ends DONE, every byte written, the new board opens a session on the link with id 0 and answers a PING through this board.
 
 ## Open
 

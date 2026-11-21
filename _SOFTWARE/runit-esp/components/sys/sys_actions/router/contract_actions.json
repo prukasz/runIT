@@ -232,9 +232,16 @@
           ]
         },
         "returns": {
-          "type": "u16",
-          "label": "Total number of records",
-          "description": "Then the u32 record IDs in ascending order from the given start: up to 48, as many as fit."
+          "type": "u32",
+          "array": true,
+          "label": "Record IDs",
+          "lead": {
+            "id": "total",
+            "raw_type": "u16",
+            "label": "Total number of records",
+            "description": "Every record stored; the IDs that follow are the ones from the start, up to 48, as many as fit"
+          },
+          "description": "The u32 record IDs in ascending order from the given start"
         }
       }
     },

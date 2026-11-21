@@ -1,12 +1,11 @@
 import type { LinkDefinitions } from '../definitions'
-import type { BleChannel, BleDeviceRef, BlePlatform, OpenHandlers } from './types'
+import type { BleChannel, BleDeviceRef, BlePlatform, OpenHandlers, OpenSpec } from './types'
 
 /*
  * The platform on Web Bluetooth (Chromium, a secure context). Opening is the shortest path to a working link: connect, ask for
- * the runIT service alone (not a walk over every service), take its characteristics in one call and subscribe only to the two
- * the link listens to. The browser runs one GATT operation at a time and rejects overlapping ones, so every operation goes
- * through one chain. Web Bluetooth shows neither the MTU nor the connection parameters, so nothing here depends on them: a
- * write is acknowledged (flow control, nothing is dropped) and the platform splits a long one itself.
+ * the one service (no walk over every service), take its characteristics in one call, subscribe to the ones the link hears. The
+ * browser runs one GATT operation at a time and rejects overlapping ones, so every operation goes through one chain. Web
+ * Bluetooth shows neither the MTU nor the connection parameters: nothing here depends on them.
  */
 
 /** The part of the Web Bluetooth API used here (the standard DOM library does not ship it). */
@@ -42,7 +41,7 @@ interface Device extends Emitter {
   readonly id: string
   readonly name?: string
   readonly gatt?: GattServer
-  /** Not in every browser: it makes the browser scan for this device, which fires `advertisementreceived`. */
+  /** Not in every browser: makes the browser scan for this device, which fires `advertisementreceived`. */
   watchAdvertisements?(options: { signal: AbortSignal }): Promise<void>
   /** Not in every browser: revokes the page's permission for this device. */
   forget?(): Promise<void>
@@ -63,9 +62,12 @@ export const shortUuid = (uuid: string): number => {
 /** How long a board known from an earlier visit is waited for to advertise before the connection is given up. */
 const ADVERTISEMENT_WAIT_MS = 10_000
 
+const text = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+const hex = (uuid: number): string => `0x${uuid.toString(16).toUpperCase()}`
+
 /*
- * A board the browser knows from an earlier visit (`getDevices()`, after a reload) can only be connected once the browser has seen it
- * advertise: before that `connect()` fails with "Bluetooth Device is no longer in range". So the first failure is answered by listening
+ * A board the browser knows from an earlier visit (`getDevices()`, after a reload) is connectable only once the browser has seen it
+ * advertise: before that `connect()` fails with "Bluetooth Device is no longer in range". The first failure is answered by listening
  * for one advertisement (`watchAdvertisements`, where the browser has it) and connecting again.
  */
 const connectSeen = async (device: Device, gatt: GattServer): Promise<GattServer> => {
@@ -73,7 +75,7 @@ const connectSeen = async (device: Device, gatt: GattServer): Promise<GattServer
     return await gatt.connect()
   } catch (error) {
     if (typeof device.watchAdvertisements !== 'function') {
-      throw new Error(`${error instanceof Error ? error.message : String(error)}. This browser cannot listen for the board's advertisement (watchAdvertisements, "Experimental Web Platform features"): choose it in the chooser.`)
+      throw new Error(`${text(error)}. This browser cannot listen for the board's advertisement (watchAdvertisements, "Experimental Web Platform features"): choose it in the chooser.`)
     }
     const watch = new AbortController()
     let onAdvertisement: Listener = () => undefined
@@ -109,13 +111,14 @@ export class WebBluetoothPlatform implements BlePlatform {
     return this.bluetooth !== undefined
   }
 
-  /** The browser lists the boards it allowed before (`getDevices()`), so a reloaded page can open one with no chooser. */
+  /** The browser lists the boards it allowed before (`getDevices()`), so a reloaded page opens one with no chooser. */
   get remembersBoards(): boolean {
     return typeof this.bluetooth?.getDevices === 'function'
   }
 
   async requestDevice(): Promise<BleDeviceRef> {
-    const device = await this.require().requestDevice({ filters: [{ services: [this.defs.gatt.service] }], optionalServices: [this.defs.gatt.service] })
+    const service = this.defs.gatt.service
+    const device = await this.require().requestDevice({ filters: [{ services: [service] }], optionalServices: [service] })
     this.devices.set(device.id, device)
     return { id: device.id, name: device.name }
   }
@@ -135,24 +138,24 @@ export class WebBluetoothPlatform implements BlePlatform {
     await device?.forget?.()
   }
 
-  async open(ref: BleDeviceRef, handlers: OpenHandlers): Promise<BleChannel> {
+  async open(ref: BleDeviceRef, spec: OpenSpec, handlers: OpenHandlers): Promise<BleChannel> {
     const device = this.devices.get(ref.id)
     const gatt = device?.gatt
     if (!device || !gatt) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
 
-    let ours = false // we are dropping the link: not reported as a loss
+    let ours = false // we drop the link: not reported as a loss
     let lost = false
-    const gone = () => {
-      if (ours || lost) return
-      lost = true
-      cleanup()
-      handlers.onClosed('The board disconnected.')
-    }
     const listeners = new Map<Characteristic, Listener>()
     const cleanup = () => {
       device.removeEventListener('gattserverdisconnected', gone)
       for (const [characteristic, listener] of listeners) characteristic.removeEventListener('characteristicvaluechanged', listener)
       listeners.clear()
+    }
+    const gone: Listener = () => {
+      if (ours || lost) return
+      lost = true
+      cleanup()
+      handlers.onClosed('The board disconnected.')
     }
     device.addEventListener('gattserverdisconnected', gone)
 
@@ -164,17 +167,22 @@ export class WebBluetoothPlatform implements BlePlatform {
       return result
     }
 
-    let rx: Characteristic
+    let written: Characteristic
     try {
       const server = gatt.connected ? gatt : await connectSeen(device, gatt)
-      const service = await server.getPrimaryService(this.defs.gatt.service)
+      const service = await server.getPrimaryService(spec.service)
       const characteristics = await service.getCharacteristics()
-      const found = characteristics.find((c) => shortUuid(c.uuid) === this.defs.gatt.rx)
-      if (!found) throw new Error('The board has no runIT request characteristic.')
-      rx = found
-      for (const uuid of [this.defs.gatt.tx, this.defs.gatt.logs]) {
-        const characteristic = characteristics.find((c) => shortUuid(c.uuid) === uuid)
-        if (!characteristic) continue
+      const find = (uuid: number) => characteristics.find((c) => shortUuid(c.uuid) === uuid)
+      const target = find(spec.write)
+      if (!target) throw new Error(`The board's service ${hex(spec.service)} has no characteristic ${hex(spec.write)} to write.`)
+      written = target
+      const heard = [...spec.notify.map((uuid) => ({ uuid, required: true })), ...(spec.optional ?? []).map((uuid) => ({ uuid, required: false }))]
+      for (const { uuid, required } of heard) {
+        const characteristic = find(uuid)
+        if (!characteristic) {
+          if (required) throw new Error(`The board's service ${hex(spec.service)} has no characteristic ${hex(uuid)}.`)
+          continue
+        }
         const listener: Listener = (event) => {
           const value = (event.target as Characteristic).value
           if (value) handlers.onPacket(uuid, new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)))
@@ -191,9 +199,9 @@ export class WebBluetoothPlatform implements BlePlatform {
     }
 
     // Without a response when the characteristic takes it: about ten times faster. The link's window is the flow control.
-    const response = !rx.properties.writeWithoutResponse
+    const response = !written.properties.writeWithoutResponse
     return {
-      write: (packet) => gattOp(() => (response ? rx.writeValueWithResponse(packet) : rx.writeValueWithoutResponse(packet))),
+      write: (packet) => gattOp(() => (response ? written.writeValueWithResponse(packet) : written.writeValueWithoutResponse(packet))),
       close: async () => {
         ours = true
         cleanup()

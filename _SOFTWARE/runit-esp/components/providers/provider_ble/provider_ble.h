@@ -8,7 +8,8 @@
  * BLE provider (app/runit, the board's record) fills it; the driver is reached through the registry, never called.
  */
 
-#define PROVIDER_BLE_FRAMED (1u << 0)  /**< Both characteristics carry frames (a session's way); else raw bytes (a stream's) */
+//#ref-defines provider_ble_flag @alias BLE provider flags @prefix PROVIDER_BLE_
+#define PROVIDER_BLE_FRAMED (1u << 0)  //@alias Framed @description Both characteristics carry frames (a session's way); else raw bytes
 
 /** @brief CREATE cfg, 24 B: the service and the characteristics a provider's frames go out on and come in from. */
 typedef struct __attribute__((packed)) {

@@ -23,7 +23,7 @@
   "datasheet": "https://www.ti.com/lit/ds/symlink/ads7128.pdf",
   "config": {
     "struct": "ads7128_cfg_t",
-    "size": 7,
+    "size": 6,
     "fields": [
       {
         "id": "i2c_bus",
@@ -85,7 +85,7 @@
         "label": "ALERT",
         "description": "Open-drain, active-low; the device reads its falling edge",
         "offset": 2,
-        "size": 3,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
@@ -96,7 +96,7 @@
         "id": "full_scale_mV",
         "label": "ADC reference voltage",
         "description": "The input voltage that reads full scale: the chip's AVDD on a bare chip (2350 to 5500 mV), 20000 on the runIT board (its front end scales the inputs to 20 V)",
-        "offset": 5,
+        "offset": 4,
         "size": 2,
         "type": "number",
         "raw_type": "u16",

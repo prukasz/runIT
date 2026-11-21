@@ -1,7 +1,7 @@
 /* Host tests of sys_event: the real sys_event.c and errors; only the platform is replaced (tasks are threads, an ISR is
  * a thread that says it is one: host_isr_set). The tests up to the queue's are run without the lanes' tasks; the ones
  * after it start them (sys_event_init) and they stay: a test there waits for what a task delivers.
- * Run: python test_host/run.py sys_event   (runit-esp-archive/test_host/HOST_TESTS.MD) */
+ * Run: python test_host/run.py sys_event   (test_host/HOST_TESTS.MD) */
 #include <pthread.h>
 #include <string.h>
 #include "err_sink.h"
@@ -405,9 +405,26 @@ static void test_a_listener_may_publish_while_a_hold_is_released(void) {
   TEST_ASSERT_EQUAL_HEX8_ARRAY(odd, s_rec[2].data, 3);
 }
 
-/* ---- the queue, before the event task runs: it only fills ----------------------------------------------------- */
+/* ---- a stalled lane's queue fills and says so ----------------------------------------------------------------- */
+
+static StaticSemaphore_t s_lane_blocked_buf, s_lane_unblock_buf;
+static SemaphoreHandle_t s_lane_blocked, s_lane_unblock;
+
+static err_h lane_blocker(const sys_event_t* e, void* ctx) {
+  (void)e, (void)ctx;
+  xSemaphoreGive(s_lane_blocked);
+  xSemaphoreTake(s_lane_unblock, WAIT_MS);
+  return NULL;
+}
 
 static void test_without_the_event_task_the_queue_fills_and_says_so(void) {
+  /* The lane tasks start in a constructor, so stall the SYS lane inside a listener while filling its ring. */
+  s_lane_blocked = xSemaphoreCreateBinaryStatic(&s_lane_blocked_buf);
+  s_lane_unblock = xSemaphoreCreateBinaryStatic(&s_lane_unblock_buf);
+  sub(key(TESTEV_EV_PING, 0x76, SYS_EVENT_ANY_CHANNEL), lane_blocker, 0, SYS_EVENT_RUN_QUEUED_SYS);
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTEV_EV_PING, 0x76, 0));
+  TEST_ASSERT_TRUE(xSemaphoreTake(s_lane_blocked, WAIT_MS) == pdTRUE);
+
   sub(key(TESTEV_EV_PING, 0x77, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED_SYS);
   err_h e = NULL;
   int queued = 0;
@@ -427,10 +444,11 @@ static void test_without_the_event_task_the_queue_fills_and_says_so(void) {
   sys_event_release(&s_hold);
   TEST_ASSERT_EQUAL_INT(1, sink_count());
   TEST_ASSERT_EQUAL_HEX32(ERR_EVENT_QUEUE_FULL, s_sink_outer);
-  TEST_ASSERT_EQUAL_INT(0, rec_count());  // no task: nothing was delivered
+  TEST_ASSERT_EQUAL_INT(0, rec_count());  // SYS lane is stalled: nothing from 0x77 was delivered yet
   // The other lane has its own ring: the full one does not stop it.
   sub(key(TESTDEV_EV_BEEP, 0x77, SYS_EVENT_ANY_CHANNEL), recorder, 2, SYS_EVENT_RUN_QUEUED_DEVICE);
   TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(TESTDEV_EV_BEEP, 0x77, 0, .v = 1));
+  xSemaphoreGive(s_lane_unblock);
 }
 
 /* ---- the lanes' tasks (started here and kept) ----------------------------------------------------------------- */

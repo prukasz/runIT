@@ -39,10 +39,10 @@ describe('no reply', () => {
     })
     const call = serviceCall(board.services.catalog, 'SYS', 'PING')
     const t0 = performance.now()
-    const done = await board.link.request({ ...call.request, keys: [...call.request.keys.slice(0, 2), 0x7f], noReply: true }) // an op the board does not have
+    const done = await board.link.request({ key: call.request.key, body: Uint8Array.of(call.request.body[0]!, 0x7f), noReply: true }) // an op the board does not have
     expect(done.length).toBe(0)
     expect(performance.now() - t0).toBeLessThan(500)
-    const record = await until(() => records.find((r) => r.source === 'command' && r.command?.request[0] === call.request.keys[0]), 3000)
+    const record = await until(() => records.find((r) => r.source === 'command' && r.command?.request[0] === call.request.key), 3000)
     off()
     expect(record).toBeDefined()
     expect(record!.command).toMatchObject({ sender: board.link.session!.clientId, flags: defs.flags.noReply })
@@ -51,11 +51,12 @@ describe('no reply', () => {
 
 describe('size', () => {
   it('a request of the largest size is read to its last byte (ERR_CMD_BAD_LEN says how many it got), one byte more is refused by the link', async () => {
-    const max = defs.frameMax - defs.frameHead
-    const keys = [defs.keys.sys!, defs.dir.read, serviceCall(board.services.catalog, 'SYS', 'PING').request.keys[2]!]
-    const error = await board.link.request({ keys, payload: new Uint8Array(max - keys.length) }).then(() => undefined, (e: unknown) => e as CommandError)
+    const max = defs.frameMax - defs.frameHead // a body: [dir][op][args]
+    const ping = serviceCall(board.services.catalog, 'SYS', 'PING').request
+    const body = (args: number) => Uint8Array.from([...ping.body, ...new Uint8Array(args)])
+    const error = await board.link.request({ key: ping.key, body: body(max - ping.body.length) }).then(() => undefined, (e: unknown) => e as CommandError)
     expect(error?.code).toBe('device-error')
-    expect(error?.record?.cause?.fields).toMatchObject({ got: max - keys.length, need: 0 })
-    await expect(board.link.request({ keys, payload: new Uint8Array(max - keys.length + 1) })).rejects.toMatchObject({ code: 'too-long' })
+    expect(error?.record?.cause?.fields).toMatchObject({ got: max - ping.body.length, need: 0 })
+    await expect(board.link.request({ key: ping.key, body: body(max - ping.body.length + 1) })).rejects.toMatchObject({ code: 'too-long' })
   })
 })

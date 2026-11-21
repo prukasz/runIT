@@ -12,6 +12,8 @@ import type { Choice, FieldRanges, Layout, PinRef, RawType, WireField } from './
  *   contract   a descriptor with a `contract_id` and no router key: ops a device answers, `(contract id << 8) | op` (SYS_DEVICE.MD)
  *   device     a device type (`type_id`): the contracts it implements, its own ops (contract `SYS_DEVICE_CONTRACT_OWN`) and the
  *              config struct its CREATE carries
+ *   provider   a provider type (`provider-definition`, `generated/providers`): its type number (a member of
+ *              `sys_data_provider_type_e`) and the config struct its PROVIDER CREATE carries; no commands
  *
  * A command has a read side, a write side or both (`cmd_dir_e`, the byte after the root key of every request): each side has its
  * own arguments and answer. With both, the read answers what the write takes (the mirror, CMD.MD) and its arguments are the key
@@ -21,11 +23,19 @@ import type { Choice, FieldRanges, Layout, PinRef, RawType, WireField } from './
  * an op twice) is reported in `problems`, not thrown: the rest of the catalog stays usable.
  */
 
-export type EntryKind = 'service' | 'contract' | 'device'
+export type EntryKind = 'service' | 'contract' | 'device' | 'provider'
+
+/** A number that leads the rows of an answer (`lead` of the descriptor: a count, a total), then the rows to the end. */
+export interface ReturnsLead {
+  readonly id: string
+  readonly rawType: RawType
+  readonly label?: string
+  readonly description?: string
+}
 
 export type Returns =
-  | { readonly kind: 'struct'; readonly layout: Layout; readonly array: boolean; readonly label?: string; readonly description?: string }
-  | { readonly kind: 'value'; readonly rawType: RawType; readonly boolean: boolean; readonly array: boolean; readonly unit?: string; readonly label?: string; readonly description?: string; readonly choices?: readonly Choice[] }
+  | { readonly kind: 'struct'; readonly layout: Layout; readonly array: boolean; readonly lead?: ReturnsLead; readonly label?: string; readonly description?: string }
+  | { readonly kind: 'value'; readonly rawType: RawType; readonly boolean: boolean; readonly array: boolean; readonly lead?: ReturnsLead; readonly unit?: string; readonly label?: string; readonly description?: string; readonly choices?: readonly Choice[] }
 
 /** A side of a command (`cmd_dir_e`): `read` asks for a value and changes nothing, `write` sets one or runs an action. */
 export type Side = 'read' | 'write'
@@ -131,6 +141,8 @@ export interface CatalogEntry {
   readonly contractId?: number
   /** A device type: its type id, the contracts it implements and its config. */
   readonly typeId?: number
+  /** A provider type: its type number (`sys_data_provider_type_e`); its config is `config`. */
+  readonly providerType?: number
   readonly contracts: readonly string[]
   readonly config?: Layout
   /** A device type's pins. */
@@ -173,6 +185,9 @@ export class ServiceCatalog {
   /** Device types by id, and by type id. */
   readonly devices = new Map<string, CatalogEntry>()
   readonly byTypeId = new Map<number, CatalogEntry>()
+  /** Provider types by id, and by type number. */
+  readonly providers = new Map<string, CatalogEntry>()
+  readonly byProviderType = new Map<number, CatalogEntry>()
   readonly problems: string[] = []
   /** The contract id of a device's own ops (`device_contract_own`, `SYS_DEVICE_CONTRACT_OWN`). */
   readonly ownContractId: number | undefined
@@ -184,6 +199,10 @@ export class ServiceCatalog {
   readonly pinNone: PinRef | undefined
   /** The device ID that addresses every device (`SYS_DEVICE_ID_NONE`): SUSPEND, RESUME and RESET sent to it are sweeps (SYS_DEVICE.MD). */
   readonly allDevices: number | undefined
+  /** The provider ID of a call that names none (`SYS_DATA_PROVIDER_ID_NONE`: PROVIDER LIST). */
+  readonly noProvider: number | undefined
+  /** CREATE's flag of the board's own device (`SYS_DEVICE_CREATE_SYSTEM`). */
+  readonly createSystem: number | undefined
   /** The direction byte of each side (`cmd_dir_e`: `CMD_DIR_READ`, `CMD_DIR_WRITE`). */
   readonly dirs: Readonly<Record<Side, number>>
 
@@ -204,6 +223,10 @@ export class ServiceCatalog {
     if (!this.pinNone) this.problems.push("generated/common/enums.json: group 'io_pin_none' has no SYS_IO_PIN_NONE_DEVICE / _INDEX: an unused pin cannot be sent.")
     this.allDevices = enums.device_id?.members.find((m) => m.name === 'SYS_DEVICE_ID_NONE')?.value
     if (this.allDevices === undefined) this.problems.push("generated/common/enums.json: group 'device_id' has no SYS_DEVICE_ID_NONE: no sweep over every device can be addressed.")
+    this.noProvider = enums.provider_id?.members.find((m) => m.name === 'SYS_DATA_PROVIDER_ID_NONE')?.value
+    if (this.noProvider === undefined) this.problems.push("generated/common/enums.json: group 'provider_id' has no SYS_DATA_PROVIDER_ID_NONE: PROVIDER LIST cannot be addressed.")
+    this.createSystem = enums.device_create_flag?.members.find((m) => m.name === 'SYS_DEVICE_CREATE_SYSTEM')?.value
+    if (this.createSystem === undefined) this.problems.push("generated/common/enums.json: group 'device_create_flag' has no SYS_DEVICE_CREATE_SYSTEM: the board's own devices cannot be created.")
     const dir = (name: string) => enums.cmd_dir_e?.members.find((m) => m.name === name)?.value
     const [read, write] = [dir('CMD_DIR_READ'), dir('CMD_DIR_WRITE')]
     if (read === undefined || write === undefined) this.problems.push("generated/common/enums.json: group 'cmd_dir_e' has no CMD_DIR_READ / CMD_DIR_WRITE: no request can say its side.")
@@ -231,6 +254,13 @@ export class ServiceCatalog {
     return entry
   }
 
+  /** A provider type by its id (`ble`) or type number. */
+  provider(id: string | number): CatalogEntry {
+    const entry = typeof id === 'number' ? this.byProviderType.get(id) : this.providers.get(id)
+    if (!entry) throw new Error(`No provider type ${id} (${[...this.providers.keys()].join(', ')}).`)
+    return entry
+  }
+
   device(id: string | number): CatalogEntry {
     const entry = typeof id === 'number' ? this.byTypeId.get(id) : this.devices.get(id)
     if (!entry) throw new Error(`No device type ${id} (${[...this.devices.keys()].join(', ')}).`)
@@ -253,6 +283,7 @@ export class ServiceCatalog {
     const id = str(json?.id)
     if (!json || !id) return void this.problems.push(`${file.source}: not a descriptor (no id).`)
     const problem = (text: string): void => void this.problems.push(`${file.source}: ${text}`)
+    if (json.kind === 'provider-definition') return this.addProvider(json, id, file.source, problem)
     const key = num(json.router_key)
     const contractId = num(json.contract_id)
     const typeId = num(json.type_id)
@@ -340,6 +371,31 @@ export class ServiceCatalog {
     index.set(number, entry)
   }
 
+  /** A provider type: its type number by the member its descriptor names, and its config. */
+  private addProvider(json: Json, id: string, source: string, problem: (text: string) => void): void {
+    const member = str(json.type)
+    const providerType = this.enums.sys_data_provider_type_e?.members.find((m) => m.name === member)?.value
+    if (providerType === undefined) return problem(`type ${String(member)} is not a member of sys_data_provider_type_e.`)
+    const configJson = obj(json.config)
+    const entry: CatalogEntry = {
+      kind: 'provider',
+      id,
+      label: str(json.alias) ?? id,
+      ...(str(json.description) ? { description: str(json.description) } : {}),
+      tags: [],
+      providerType,
+      contracts: [],
+      ...(configJson ? { config: this.layout(configJson, 'config', problem, num(configJson.size)) } : {}),
+      commands: new Map(),
+      events: [],
+      source,
+    }
+    const taken = this.providers.get(id) ?? this.byProviderType.get(providerType)
+    if (taken) return problem(`provider ${id} (${providerType}) is already ${taken.source}.`)
+    this.providers.set(id, entry)
+    this.byProviderType.set(providerType, entry)
+  }
+
   /** The u32 ID of a settings record by its name in `settings_record` (enums.json); undefined for none. */
   private recordOf(name: unknown, problem: (text: string) => void): number | undefined {
     const record = str(name)
@@ -383,8 +439,17 @@ export class ServiceCatalog {
   }
 
   private returns(json: Json, where: string, problem: (text: string) => void): Returns | undefined {
+    const leadJson = obj(json.lead)
+    const leadType = leadJson?.raw_type
+    const leadOk = leadJson !== undefined && isRaw(leadType) && rawWidth(leadType) !== undefined && str(leadJson.id) !== undefined
+    if (leadJson && !leadOk) problem(`${where}: its lead is not a number with an id.`)
+    if (leadJson && json.array !== true) problem(`${where}: a lead leads rows, and the answer is no array.`)
+    const lead: ReturnsLead | undefined = leadOk
+      ? { id: str(leadJson!.id)!, rawType: leadType as RawType, ...(str(leadJson!.label) ? { label: str(leadJson!.label) } : {}), ...(str(leadJson!.description) ? { description: str(leadJson!.description) } : {}) }
+      : undefined
     const common = {
       array: json.array === true,
+      ...(lead ? { lead } : {}),
       ...(str(json.label) ?? str(json.alias) ? { label: str(json.label) ?? str(json.alias) } : {}),
       ...(str(json.description) ? { description: str(json.description) } : {}),
     }

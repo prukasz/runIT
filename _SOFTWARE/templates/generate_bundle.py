@@ -3,13 +3,14 @@
   runit-app/generated/devices/    device_*.json                          (runit-esp/components/devices/**/device_*/)
   runit-app/generated/contracts/  contract_*.json with scope "device"    (runit-esp/components/sys/*/ and others)
   runit-app/generated/services/   contract_*.json with scope "system"
+  runit-app/generated/providers/  provider_*.json                        (runit-esp/components/providers/*/)
   runit-app/generated/blocks/     block_*.json                           (runit-esp/components/vm/vm_blocks/**/, when present)
   runit-app/generated/common/     errors.json, optional board*.json (enums.json and limits.json are written there directly)
   runit-app/generated/manuals/<id>/  manual.md and its pictures            (runit-esp/components/devices/**/device_*/manual/)
   runit-app/generated/sources/<id>/  the device's own .c and .h            (runit-esp/components/devices/**/device_*/)
 
 A copy is the same JSON with its `$schema` pointing at templates/ from the new place. Copies of descriptors that no longer
-exist are deleted from the four folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the
+exist are deleted from the five folders. The manual and the source copies are byte-for-byte, keyed by the device's `id`; the
 pictures are the manual folder's image files. Nothing in runit-app/generated/ is edited by hand.
 
 Usage: python templates/generate_bundle.py [--check]
@@ -24,7 +25,7 @@ IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 ERRORS = COMPONENTS_DIR / "core" / "errors" / "errors.json"
 BOARD = BOARDS_DIR / "board.json"
 BOARD_DEVKIT = BOARDS_DIR / "board_devkit.json"  # a devkit's profile
-MANAGED = ("devices", "contracts", "services", "blocks")  # folders whose every .json is owned by this script
+MANAGED = ("devices", "contracts", "services", "providers", "blocks")  # folders whose every .json is owned by this script
 
 
 def plan():
@@ -36,6 +37,8 @@ def plan():
         elif path.name.startswith("contract_"):
             scope = json.loads(read(path)).get("scope", "device")
             target, schema = f"{'services' if scope == 'system' else 'contracts'}/{path.name}", "contract.schema.json"
+        elif path.name.startswith("provider_"):
+            target, schema = f"providers/{path.name}", "provider.schema.json"
         elif path.name.startswith("block_"):
             target, schema = f"blocks/{path.name}", "vm-block.schema.json"
         else:

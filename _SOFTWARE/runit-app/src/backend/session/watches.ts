@@ -1,6 +1,7 @@
 import type { FieldValues } from '../catalog/codec'
-import { decodeAnswer, requestFrame } from '../protocol/services'
-import type { Decoded, ServiceCall } from '../protocol/services'
+import { decodeAnswer } from '../protocol/calls'
+import type { Decoded, ServiceCall } from '../protocol/calls'
+import { requestFrame } from '../protocol/frame'
 import { decodeWatchEntry, watchAddCall, watchRemoveCall } from '../protocol/watches'
 import type { WatchEntry } from '../protocol/watches'
 import type { CommandOptions } from './commands'
@@ -9,12 +10,13 @@ import { Services } from './services'
 
 /*
  * The watches this client added on the board (SYS_WATCH.MD): one ADD and the board reads and sends by itself, an entry per
- * period, per change or per event, so a view that follows a value asks for nothing more. The board ends a client's watches
- * when its session ends (a reconnect, a restart, the dead-man), so they are added again when the link comes back.
+ * period or per change, so a view that follows a value asks for nothing more. The entries come on the watches' stream (the raw
+ * telemetry characteristic, which carries every owner's): the ones whose owner is this client's id are its own. The board ends
+ * a client's watches when its session ends (a reconnect, a restart, the dead-man), so they are added again when the link comes
+ * back.
  *
  *   const watches = new Watches(link)
- *   const stop = await watches.add({ head: { trigger: 'SYS_WATCH_ON_CHANGE', period: 10, max_silence: 100 },
- *                                    read: requestFrame(deviceCall(...)) }, (entry) => ...)
+ *   const stop = await watches.follow(deviceCall(...), { trigger: 'change', periodMs: 100, silenceMs: 1000 }, (value) => ...)
  *   await stop()
  */
 
@@ -32,8 +34,11 @@ export interface FollowSpec {
   readonly silenceMs?: number
 }
 
-/** The ticks of a period (`SYS_WATCH_TICK_MS`, 10 ms): at least one. */
-const ticks = (ms: number): number => Math.min(0xffff, Math.max(1, Math.round(ms / 10)))
+/** WATCH ADD's head fields and triggers (`contract_watch.json`, `sys_watch_trigger_e`). */
+export const WATCH_HEAD = { trigger: 'trigger', period: 'period', silence: 'max_silence', every: 'SYS_WATCH_PERIODIC', change: 'SYS_WATCH_ON_CHANGE' } as const
+
+/** The board's ticks (`SYS_WATCH_TICK_MS`) of `ms`: at least one, at most a u16. */
+const ticks = (ms: number, tickMs: number): number => Math.min(0xffff, Math.max(1, Math.round(ms / tickMs)))
 
 /** Called for each entry. */
 export type WatchHandler = (entry: WatchEntry) => void
@@ -41,11 +46,11 @@ export type WatchHandler = (entry: WatchEntry) => void
 interface Held {
   readonly spec: WatchSpec
   readonly handler: WatchHandler
-  /** The board has it: its ADD was answered on this connection. The board ends a client's watches with its session, so a lost link clears it. */
+  /** The board has it: its ADD was answered on this connection. A lost link takes it with the session. */
   onBoard: boolean
 }
 
-/** The ids in use on one link, shared by every `Watches` of it: the board knows a watch by (owner, id) and an ADD of an id replaces that watch, so two instances must never take the same one. */
+/** The ids in use on one link, shared by every `Watches` of it: the board knows a watch by (owner, id), and an ADD of an id replaces that watch. */
 interface IdPool {
   next: number
   readonly used: Set<number>
@@ -56,6 +61,8 @@ const poolOf = (link: RunitLink): IdPool => {
   if (!pool) pools.set(link, (pool = { next: 1, used: new Set() }))
   return pool
 }
+/** A watch id is 1..255 (SYS_WATCH.MD). */
+const ID_LAST = 255
 
 export class Watches {
   private readonly services: Services
@@ -69,12 +76,10 @@ export class Watches {
     this.ids = poolOf(link)
     this.services = new Services(link)
     this.connected = link.state === 'connected'
-    this.offStream = link.onStream((frame) => {
-      if (frame.name !== 'watches') return
-      const entry = decodeWatchEntry(link.defs, frame.data)
-      const held = entry && this.held.get(entry.id)
-      if (!entry || !held) return
-      held.handler(entry)
+    this.offStream = link.on('watches', (data) => {
+      const entry = decodeWatchEntry(link.defs, data)
+      if (!entry || entry.owner !== link.clientId) return
+      this.held.get(entry.id)?.handler(entry)
     })
     this.offStatus = link.onStatus((status) => {
       const was = this.connected
@@ -98,8 +103,7 @@ export class Watches {
     }
     return async () => {
       if (!this.held.delete(id)) return
-      // A watch the board no longer has (the link went since: the session took it) is only forgotten here: a REMOVE of it would
-      // be ERR_WATCH_NOT_FOUND on the board.
+      // A watch the board no longer has (its session went since) is only forgotten: a REMOVE would be ERR_WATCH_NOT_FOUND.
       if (!held.onBoard || !this.connected) return this.release(id)
       try {
         await this.services.send(watchRemoveCall(this.services.catalog, id), options)
@@ -110,14 +114,14 @@ export class Watches {
   }
 
   /**
-   * Follows a read (a call of the catalog, a read side): the board runs it by `spec` and each answer comes to `handler` decoded
-   * as the command's answer; `undefined` when the read failed on the board. Resolves with the function that stops it.
+   * Follows a read (a call of the catalog, a read side): the board runs it by `spec` and each answer comes to `handler` decoded as
+   * the command answers it; `undefined` when the read failed on the board. Resolves with the function that stops it.
    */
   follow(call: ServiceCall, spec: FollowSpec, handler: (value: Decoded | undefined) => void, options?: CommandOptions): Promise<() => Promise<void>> {
     const head = {
-      trigger: spec.trigger === 'change' ? 'SYS_WATCH_ON_CHANGE' : 'SYS_WATCH_PERIODIC',
-      period: ticks(spec.periodMs),
-      max_silence: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs),
+      [WATCH_HEAD.trigger]: spec.trigger === 'change' ? WATCH_HEAD.change : WATCH_HEAD.every,
+      [WATCH_HEAD.period]: ticks(spec.periodMs, this.link.defs.watchTickMs),
+      [WATCH_HEAD.silence]: spec.silenceMs === undefined ? 0 : ticks(spec.silenceMs, this.link.defs.watchTickMs),
     }
     return this.add({ head, read: requestFrame(call.request) }, (entry) => handler(entry.ok ? decodeAnswer(call, entry.data) : undefined), options)
   }
@@ -136,15 +140,15 @@ export class Watches {
   }
 
   private freeId(): number {
-    for (let i = 0; i < 255; i++) {
+    for (let i = 0; i < ID_LAST; i++) {
       const id = this.ids.next
-      this.ids.next = this.ids.next % 255 + 1
+      this.ids.next = (this.ids.next % ID_LAST) + 1
       if (!this.ids.used.has(id)) {
         this.ids.used.add(id)
         return id
       }
     }
-    throw new Error('All 255 watches of this client are in use.')
+    throw new Error(`All ${ID_LAST} watches of this client are in use.`)
   }
 
   private send(id: number, spec: WatchSpec, options?: CommandOptions): Promise<unknown> {
@@ -157,7 +161,7 @@ export class Watches {
         await this.send(id, held.spec)
         held.onBoard = this.connected
       } catch {
-        // The link went again: the next connect adds them.
+        // the link went again: the next connect adds them
       }
     }
   }

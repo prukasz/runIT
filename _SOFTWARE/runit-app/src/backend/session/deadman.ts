@@ -1,7 +1,7 @@
 import type { FieldRecord } from '../catalog/codec'
 import type { ServiceCatalog } from '../catalog/services'
 import { bundledServiceCatalog } from '../definitions'
-import { decodeAnswer, serviceCall } from '../protocol/services'
+import { decodeAnswer, serviceCall } from '../protocol/calls'
 import type { LinkStatus, RunitLink } from './link'
 
 /*

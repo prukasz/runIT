@@ -1,5 +1,5 @@
-import { requestFrame, serviceCall } from '@backend'
-import type { ServiceCatalog } from '@backend'
+import { bundledLinkDefinitions, requestFrame, serviceCall } from '@backend'
+import type { LinkDefinitions, ServiceCatalog } from '@backend'
 import type { Section } from '../devices/devices'
 import type { ProjectSettings } from '../project/projectFile'
 import { gattRecord } from './gatt'
@@ -11,7 +11,7 @@ import { settingSections, tableArgs } from './settings'
  */
 
 /** The settings sections of the stored project, in the order the descriptors give them. */
-export const settingsRecords = (catalog: ServiceCatalog, settings: ProjectSettings): Section[] => {
+export const settingsRecords = (catalog: ServiceCatalog, settings: ProjectSettings, defs: LinkDefinitions = bundledLinkDefinitions()): Section[] => {
   const sections = settingSections(catalog).flatMap((section): Section[] => [
     ...section.groups.flatMap((g): Section[] => {
       const values = settings.values[g.key]
@@ -21,7 +21,7 @@ export const settingsRecords = (catalog: ServiceCatalog, settings: ProjectSettin
       const rows = settings.tables[t.key]
       return t.recordId !== undefined && rows && rows.length > 0 ? [{ id: t.recordId, frames: [requestFrame(serviceCall(catalog, t.service, t.command.id, tableArgs(t, rows), 'write').request)] }] : []
     }),
-    ...(section.record?.editor === 'ble' && settings.gatt ? [{ id: section.record.id, frames: gattRecord(catalog, settings.gatt) }] : []),
+    ...(section.record?.editor === 'ble' && settings.gatt ? [{ id: section.record.id, frames: gattRecord(defs, catalog, settings.gatt) }] : []),
   ].filter((s) => s.frames.length > 0))
   // The settings of one service kept as one record share its id: their frames are one section.
   return [...sections.reduce((byId, s) => byId.set(s.id, { id: s.id, frames: [...(byId.get(s.id)?.frames ?? []), ...s.frames] }), new Map<number, Section>()).values()]

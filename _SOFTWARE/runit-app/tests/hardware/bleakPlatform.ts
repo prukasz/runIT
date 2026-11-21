@@ -1,4 +1,4 @@
-import type { BleChannel, BleDeviceRef, BlePlatform, LinkDefinitions, OpenHandlers } from '@backend'
+import type { BleChannel, BleDeviceRef, BlePlatform, LinkDefinitions, OpenHandlers, OpenSpec } from '@backend'
 import { Helper } from './bridge'
 
 const toHex = (b: Uint8Array) => Buffer.from(b).toString('hex')
@@ -39,10 +39,9 @@ export class BleakPlatform implements BlePlatform {
     this.known = undefined
   }
 
-  async open(device: BleDeviceRef, handlers: OpenHandlers): Promise<BleChannel> {
+  async open(device: BleDeviceRef, spec: OpenSpec, handlers: OpenHandlers): Promise<BleChannel> {
     this.handlers = handlers
-    const { gatt } = this.defs
-    const opened = await this.helper.call('open', { address: device.id, service: gatt.service, write: gatt.rx, notify: [gatt.tx, gatt.logs] })
+    const opened = await this.helper.call('open', { address: device.id, service: spec.service, write: spec.write, notify: spec.notify, optional: spec.optional ?? [] })
     this.mtu = opened.mtu as number
     return {
       write: async (packet) => {

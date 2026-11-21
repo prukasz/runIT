@@ -104,7 +104,7 @@ export const boardSections = (defs: LinkDefinitions, catalog: ServiceCatalog, pr
     .filter((d) => d.board === id)
     .flatMap((info): Section[] => {
       const device = project.devices.find((d) => d.id === info.id)!
-      const create = isBoardOwn(board, device) ? [] : [requestFrame(createDeviceCall(defs, catalog, boardDeviceId(device), device.type, there(device.config ?? {}) as ProjectDevice['config']).request)]
+      const create = isBoardOwn(board, device) ? [] : [requestFrame(createDeviceCall(catalog, boardDeviceId(device), device.type, there(device.config ?? {}) as ProjectDevice['config']).request)]
       const steps = (device.defaults ?? []).map((s) => stepFrame(defs, catalog, there(s) as Step))
       const frames = [...create, ...steps]
       return frames.length === 0 ? [] : [{ id: deviceRecordOf(boardDeviceId(device)), frames }]

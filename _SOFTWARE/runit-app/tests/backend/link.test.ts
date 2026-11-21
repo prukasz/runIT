@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { CommandError, errorCatalog, RunitLink } from '@backend'
-import type { LinkStatus } from '@backend'
-import { answer, defs, FakeBoard, until } from './fakes'
+import type { LinkStatus, Request } from '@backend'
+import { answer, CLIENT_ID, defs, FakeBoard, until } from './fakes'
 
-const PING = { keys: [defs.keys.sys!, 0x01] }
+/** A request of the SYS router: its read of op 1 with `args`. */
+const ping = (args: number[] | Uint8Array = [], extra: Partial<Request> = {}): Request => ({ key: defs.keys.sys!, body: Uint8Array.from([defs.dir.read, 0x01, ...args]), ...extra })
 
-/** A board that answers every request with the payload it got after the keys (an echo). */
-const echo = (board: FakeBoard, keys = 2) => {
-  board.respond = (frame, send) => send(answer(frame[0]!, [...frame.subarray(2 + keys)]))
+/** A board that answers every request with the arguments it got after `[dir][op]` (an echo). */
+const echo = (board: FakeBoard) => {
+  board.respond = (r, send) => send(answer(r, r.data.subarray(2)))
 }
 
 const linkTo = async (board: FakeBoard, options: ConstructorParameters<typeof RunitLink>[1] = {}) => {
@@ -16,32 +17,58 @@ const linkTo = async (board: FakeBoard, options: ConstructorParameters<typeof Ru
   return link
 }
 
-describe('commands', () => {
-  it('sends a request and returns the answer; the largest request is two writes', async () => {
+describe('opening', () => {
+  it('opens the runIT service: written on the session characteristic, heard on it and on the raw logs and telemetry', async () => {
+    const board = new FakeBoard()
+    const link = await linkTo(board)
+    expect(board.spec).toEqual({ service: defs.gatt.service, write: defs.gatt.rx, notify: [defs.gatt.tx], optional: [defs.gatt.logs, defs.gatt.telemetry] })
+    expect(board.clientHello?.id).toBe(CLIENT_ID)
+    expect(link.session).toMatchObject({ clientId: CLIENT_ID, boardId: board.boardId, bootId: board.bootId, buildId: 0xb17d1d, deadmanMs: 0 })
+    await link.close()
+  })
+
+  it('a client id outside the clients\' range is refused', () => {
+    expect(() => new RunitLink(new FakeBoard(), { clientId: defs.src.boardLast })).toThrow(RangeError)
+  })
+})
+
+describe('requests', () => {
+  it('sends a request with this client as its source and returns the answer; the largest request is two writes', async () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board)
-    expect([...(await link.request({ ...PING, payload: Uint8Array.of(1, 2, 3) }))]).toEqual([1, 2, 3])
+    expect([...(await link.request(ping([1, 2, 3])))]).toEqual([1, 2, 3])
+    expect(board.requests[0]).toMatchObject({ kind: defs.kind.request, src: CLIENT_ID, key: defs.keys.sys })
     const big = Uint8Array.from({ length: 480 }, (_, i) => i & 0xff)
-    expect(await link.request({ ...PING, payload: big })).toEqual(big)
-    expect(board.packets.slice(1)).toEqual([486]) // a 485 B frame: one packet, the fragment byte on it
-    const max = new Uint8Array(defs.frameMax - defs.frameHead - 2).fill(7) // keys and payload: CMD_DATA_MAX
-    expect(await link.request({ ...PING, payload: max })).toEqual(max)
-    expect(defs.frameHead + 2 + max.length).toBe(defs.frameMax) // the session header, the two keys, the payload: CMD_FRAME_MAX
+    expect(await link.request(ping(big))).toEqual(big)
+    expect(board.packets.slice(1)).toEqual([defs.frameHead + 2 + 480 + 1]) // one packet, its fragment byte on it
+    const max = new Uint8Array(defs.frameMax - defs.frameHead - 2).fill(7) // a body of CMD_DATA_MAX
+    expect(await link.request(ping(max))).toEqual(max)
     expect(board.packets.slice(2)).toEqual([512, 2]) // with the fragment byte one over the 512 B a write carries
     await link.close()
   })
 
   it('matches answers by seq when they come out of order, and several can be on the wire at once', async () => {
     const board = new FakeBoard()
-    const held: number[] = []
-    board.respond = (frame, send) => {
-      held.push(frame[0]!)
-      if (held.length === 3) for (const seq of [...held].reverse()) send(answer(seq, [seq]))
+    const held: (typeof board.requests)[number][] = []
+    board.respond = (r, send) => {
+      held.push(r)
+      if (held.length === 3) for (const h of [...held].reverse()) send(answer(h, [h.seq & 0xff]))
     }
     const link = await linkTo(board)
-    const results = await Promise.all([PING, PING, PING].map((r) => link.request(r)))
-    expect(results.map((r) => r[0])).toEqual(held) // each got its own answer
+    const results = await Promise.all([ping(), ping(), ping()].map((r) => link.request(r)))
+    expect(results.map((r) => r[0])).toEqual(held.map((h) => h.seq & 0xff))
+    await link.close()
+  })
+
+  it('an answer with another key than its request\'s settles nothing', async () => {
+    const board = new FakeBoard()
+    board.respond = (r, send) => send(answer({ key: r.key + 1, seq: r.seq }, [1]))
+    const link = await linkTo(board, { timeoutMs: 20 })
+    const events: string[] = []
+    link.commands.observe((e) => events.push(e.type))
+    await expect(link.request(ping())).rejects.toMatchObject({ code: 'timeout' })
+    expect(events).toContain('unmatched')
     await link.close()
   })
 
@@ -49,9 +76,9 @@ describe('commands', () => {
     const board = new FakeBoard()
     const tag = [...errorCatalog().values()].find((e) => e.name === 'ERR_ROUTER_KEY')!.tag
     // internal, clock 0, a chain of one: the tag (u32), the length of its data, the key 5
-    board.respond = (frame, send) => send(answer(frame[0]!, [0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, tag & 0xff, (tag >> 8) & 0xff, (tag >> 16) & 0xff, tag >>> 24, 0x01, 0x05], false))
+    board.respond = (r, send) => send(answer(r, [defs.errorRecord.srcInternal, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, tag & 0xff, (tag >> 8) & 0xff, (tag >> 16) & 0xff, tag >>> 24, 0x01, 0x05], false))
     const link = await linkTo(board)
-    const error = await link.request(PING).catch((e: unknown) => e)
+    const error = await link.request(ping()).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(CommandError)
     expect((error as CommandError).code).toBe('device-error')
     expect((error as CommandError).record?.cause?.info?.name).toBe('ERR_ROUTER_KEY')
@@ -61,113 +88,146 @@ describe('commands', () => {
 
   it('times out when nothing answers, and a late answer is only observed', async () => {
     const board = new FakeBoard()
-    let seq = 0
-    board.respond = (frame) => void (seq = frame[0]!)
+    let last: (typeof board.requests)[number] | undefined
+    board.respond = (r) => void (last = r)
     const link = await linkTo(board, { timeoutMs: 20 })
     const events: string[] = []
     link.commands.observe((e) => events.push(e.type))
-    await expect(link.request(PING)).rejects.toMatchObject({ code: 'timeout' })
-    board.notify(answer(seq, [9]))
+    await expect(link.request(ping())).rejects.toMatchObject({ code: 'timeout' })
+    board.notify(answer(last!, [9]))
     await until(() => events.includes('unmatched'))
     expect(events).toEqual(['sent', 'timeout', 'unmatched'])
     await link.close()
   })
 
-  it('refuses a request over the board frame limit without sending it', async () => {
+  it('refuses a request over the frame limit without sending it', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
-    await expect(link.request({ ...PING, payload: new Uint8Array(defs.frameMax - defs.frameHead - 1) })).rejects.toMatchObject({ code: 'too-long' })
+    await expect(link.request(ping(new Uint8Array(defs.frameMax - defs.frameHead - 1)))).rejects.toMatchObject({ code: 'too-long' })
     expect(board.requests).toHaveLength(0)
     await link.close()
   })
 
-  it('frames of two requests never interleave on the wire', async () => {
+  it('the packets of two requests never interleave on the wire', async () => {
     const board = new FakeBoard()
     board.writeDelayMs = 1
     echo(board)
     const link = await linkTo(board)
     const a = new Uint8Array(400).fill(0xaa)
     const b = new Uint8Array(400).fill(0xbb)
-    const [ra, rb] = await Promise.all([link.request({ ...PING, payload: a }), link.request({ ...PING, payload: b })])
+    const [ra, rb] = await Promise.all([link.request(ping(a)), link.request(ping(b))])
     expect(ra).toEqual(a)
     expect(rb).toEqual(b)
     await link.close()
   })
 
-  it('an urgent request goes before the queued ones and past a full window', async () => {
+  it('an urgent request goes before the queued ones and past a full window, with the published flag', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board, { maxInFlight: 2, timeoutMs: 1000 })
-    const normal = [1, 2, 3, 4].map((n) => link.request({ ...PING, payload: Uint8Array.of(n) }).catch(() => undefined)) // never answered
+    const normal = [1, 2, 3, 4].map((n) => link.request(ping([n])).catch(() => undefined)) // never answered
     await until(() => board.requests.length === 2) // the window is full, two wait
-    void link.request({ ...PING, urgent: true }).catch(() => undefined)
+    void link.request(ping([], { urgent: true })).catch(() => undefined)
     await until(() => board.requests.length === 3)
-    expect(board.requests[2]![1]).toBe(defs.flags.urgent)
+    expect(board.requests[2]!.flags).toBe(defs.flags.urgent)
     await link.close()
     await Promise.all(normal)
   })
 
   it('a NOREPLY request is done once written: no wait for an answer that never comes, no timeout, no stall', async () => {
     const board = new FakeBoard()
-    board.respond = () => undefined // the board answers nothing, as it does for NOREPLY
     const link = await linkTo(board, { timeoutMs: 20, stallAfter: 1 })
     const events: string[] = []
     link.commands.observe((e) => events.push(e.type))
-    for (let i = 0; i < 5; i++) expect([...(await link.request({ ...PING, noReply: true }))]).toEqual([])
-    expect(board.requests.map((r) => r[1])).toEqual(Array(5).fill(defs.flags.noReply))
+    for (let i = 0; i < 5; i++) expect([...(await link.request(ping([], { noReply: true })))]).toEqual([])
+    expect(board.requests.map((r) => r.flags)).toEqual(Array(5).fill(defs.flags.noReply))
     await new Promise((r) => setTimeout(r, 60))
     expect(events.filter((e) => e === 'timeout')).toEqual([])
     expect(link.state).toBe('connected')
     expect(link.commands.pending).toBe(0)
     await link.close()
   })
-
-  it('urgent requests set the flag the firmware published', async () => {
-    const board = new FakeBoard()
-    echo(board)
-    const link = await linkTo(board)
-    await link.request({ ...PING, urgent: true })
-    expect(board.requests[0]![1]).toBe(defs.flags.urgent)
-    await link.close()
-  })
 })
 
 describe('streams', () => {
-  it('routes PUSH frames by their first byte, without it; the LOGS characteristic carries the log lines as they are', async () => {
+  it('a PUSH is its key\'s stream: errors and events on the session, logs and watches on their raw characteristics', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
-    const seen: [string | undefined, number[]][] = []
-    link.onStream((f) => seen.push([f.name, [...f.data]]))
-    board.stream(defs.channels.watches, [1, 2, 3])
-    board.notify(Uint8Array.of(9), defs.gatt.logs)
-    board.stream(defs.streams.errors, [7])
-    board.stream(defs.streams.events, [5])
-    await until(() => seen.length === 4)
-    expect(seen).toEqual([['watches', [1, 2, 3]], ['logs', [9]], ['errors', [7]], ['events', [5]]])
-    await link.close()
-  })
-
-  it('reassembles each characteristic on its own', async () => {
-    const board = new FakeBoard()
-    const link = await linkTo(board)
-    const seen: number[] = []
-    link.onStream((f) => seen.push(f.data.length))
-    board.stream(defs.channels.remote, new Uint8Array(99).fill(1))
-    board.notify(new Uint8Array(60).fill(defs.streams.logs), defs.gatt.logs)
+    const seen: [string | undefined, number[], number | undefined][] = []
+    link.onStream((f) => seen.push([f.name, [...f.data], f.seq]))
+    board.push(defs.streams.errors, [7], { seq: 4 })
+    board.push(defs.streams.events, [5], { seq: 5 })
     await until(() => seen.length === 2)
-    expect(seen.sort((a, b) => a - b)).toEqual([60, 99])
+    board.push(defs.streams.logs, [...new TextEncoder().encode('I (1) x: y')], { characteristic: defs.gatt.logs, src: defs.src.none })
+    await until(() => seen.length === 3)
+    board.push(defs.streams.watches, [CLIENT_ID, 1, defs.status.ok, 9], { characteristic: defs.gatt.telemetry, src: defs.src.none })
+    await until(() => seen.length === 4)
+    expect(seen).toEqual([
+      ['errors', [7], 4],
+      ['events', [5], 5],
+      ['logs', [...new TextEncoder().encode('I (1) x: y')], undefined], // a raw characteristic has no session count
+      ['watches', [CLIENT_ID, 1, defs.status.ok, 9], undefined],
+    ])
     await link.close()
   })
 
-  it('reports a broken frame instead of delivering it', async () => {
+  it('a push says who made it and whether it was urgent', async () => {
+    const board = new FakeBoard()
+    const link = await linkTo(board)
+    const seen: [number, boolean][] = []
+    link.onStream((f) => seen.push([f.src, f.urgent]))
+    board.push(defs.streams.errors, [1], { urgent: true, src: 7 })
+    await until(() => seen.length === 1)
+    expect(seen).toEqual([[7, true]])
+    await link.close()
+  })
+
+  it('a key that is no stream, a broken frame and a raw notification shorter than a header are diagnostics', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
     const diagnostics: string[] = []
     link.onDiagnostic((d) => diagnostics.push(d.kind))
-    link.onStream(() => diagnostics.push('frame'))
-    board.notify(Uint8Array.of(defs.streams.logs, 1), defs.gatt.logs) // a good frame...
+    board.push(defs.keys.sys!, [1])
     await until(() => diagnostics.length === 1)
-    ;(link as unknown as { onPacket(c: number, p: Uint8Array): void }).onPacket(defs.gatt.logs, Uint8Array.of(0x05, 1, 2)) // ...then a packet outside a frame
-    expect(diagnostics).toEqual(['frame', 'dropped'])
+    board.notify(Uint8Array.of(1, 2), defs.gatt.logs)
+    await until(() => diagnostics.length === 2)
+    ;(link as unknown as { onPacket(c: number, p: Uint8Array): void }).onPacket(defs.gatt.tx, Uint8Array.of(0x05, 1, 2)) // a packet outside a frame
+    expect(diagnostics).toEqual(['unknown-stream', 'not-a-frame', 'dropped'])
+    await link.close()
+  })
+})
+
+describe('the session', () => {
+  it('a NO_SESSION fails the requests on the way and opens the session again', async () => {
+    const board = new FakeBoard()
+    const link = await linkTo(board)
+    const waiting = link.request(ping()).catch((e: unknown) => e)
+    await until(() => board.requests.length === 1)
+    board.notify(board.control(defs.control.noSession))
+    expect(((await waiting) as CommandError).code).toBe('link-lost')
+    await until(() => link.state === 'connected')
+    expect(board.opens).toBe(1) // the same link
+    await link.close()
+  })
+
+  it('a HELLO with another boot id is a restart: the session opens again with the new one', async () => {
+    const board = new FakeBoard()
+    const link = await linkTo(board)
+    const seen: LinkStatus[] = []
+    link.onStatus((s) => seen.push(s))
+    board.bootId = 2
+    board.notify(board.hello())
+    await until(() => seen.some((s) => s.state === 'connected'))
+    expect(seen[0]).toMatchObject({ state: 'reconnecting', reason: 'The board restarted.' })
+    expect(link.session?.bootId).toBe(2)
+    await link.close()
+  })
+
+  it('with the board\'s dead-man on, a silent link PINGs', async () => {
+    const board = new FakeBoard()
+    board.deadmanMs = 150
+    const link = await linkTo(board)
+    expect(link.session?.deadmanMs).toBe(150)
+    await until(() => board.pings >= 2)
     await link.close()
   })
 })
@@ -183,7 +243,7 @@ describe('a link that keeps itself up', () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
     const seen = statuses(link)
-    const waiting = link.request(PING).catch((e: unknown) => e) // nobody answers
+    const waiting = link.request(ping()).catch((e: unknown) => e) // nobody answers
     await until(() => board.requests.length === 1)
     board.drop()
     expect(((await waiting) as CommandError).code).toBe('link-lost')
@@ -192,18 +252,17 @@ describe('a link that keeps itself up', () => {
     expect(seen.map((s) => s.state)).toEqual(['reconnecting', 'connected'])
     expect(seen[0]).toMatchObject({ reason: 'out of range', attempt: 0 })
     echo(board)
-    expect((await link.request(PING)).length).toBe(0) // and it works again
+    expect((await link.request(ping())).length).toBe(0) // and it works again
     await link.close()
   })
 
-  it('a command given while the link is coming back waits for it', async () => {
+  it('a request given while the link is coming back waits for it', async () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board)
     board.failOpens = 2
     board.drop()
-    const result = await link.request({ ...PING, payload: Uint8Array.of(42) })
-    expect([...result]).toEqual([42])
+    expect([...(await link.request(ping([42])))]).toEqual([42])
     expect(board.opens).toBe(4) // the first, two that failed, the one that worked
     await link.close()
   })
@@ -220,7 +279,7 @@ describe('a link that keeps itself up', () => {
     await link.close()
   })
 
-  it('disconnect() stops the reconnecting, and a command then fails not-connected', async () => {
+  it('disconnect() stops the reconnecting, and a request then fails not-connected', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
     board.failOpens = 1000
@@ -231,7 +290,7 @@ describe('a link that keeps itself up', () => {
     await new Promise((r) => setTimeout(r, 30))
     expect(board.opens).toBe(opens)
     expect(link.state).toBe('idle')
-    await expect(link.request(PING)).rejects.toMatchObject({ code: 'not-connected' })
+    await expect(link.request(ping())).rejects.toMatchObject({ code: 'not-connected' })
   })
 
   it('gives up after maxAttempts', async () => {
@@ -254,7 +313,7 @@ describe('a link that keeps itself up', () => {
   it('recycles a link that stops answering though nothing said it is gone', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board, { timeoutMs: 15, stallAfter: 2 })
-    const results = await Promise.allSettled([link.request(PING), link.request(PING)])
+    const results = await Promise.allSettled([link.request(ping()), link.request(ping())])
     expect(results.every((r) => r.status === 'rejected')).toBe(true)
     await until(() => board.opens === 2 && link.state === 'connected')
     expect(board.closes).toBe(1) // the dead channel was closed
@@ -295,15 +354,15 @@ describe('a link that keeps itself up', () => {
     await link.close()
   })
 
-  it('a write that fails recycles the link at once (the OS reports no disconnect after a GATT change)', async () => {
+  it('a write that fails fails its request with send-failed and recycles the link (the OS reports no disconnect after a GATT change)', async () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board)
     board.failNextWrite = new Error('The object has been closed')
-    await expect(link.request(PING)).rejects.toMatchObject({ code: 'send-failed' })
+    await expect(link.request(ping())).rejects.toMatchObject({ code: 'send-failed' })
     await until(() => board.opens === 2 && link.state === 'connected')
     expect(board.closes).toBe(1)
-    expect((await link.request(PING)).length).toBe(0)
+    expect((await link.request(ping())).length).toBe(0)
     await link.close()
   })
 
@@ -311,19 +370,8 @@ describe('a link that keeps itself up', () => {
     const board = new FakeBoard()
     echo(board)
     const link = await linkTo(board, { packetBytes: 4000 })
-    await link.request({ ...PING, payload: new Uint8Array(500) })
+    await link.request(ping(new Uint8Array(500)))
     expect(Math.max(...board.packets)).toBeLessThanOrEqual(512)
-    await link.close()
-  })
-
-  it('a write that fails fails its command with send-failed, and the link carries on', async () => {
-    const board = new FakeBoard()
-    echo(board)
-    const link = await linkTo(board)
-    board.failNextWrite = new Error('GATT error')
-    await expect(link.request(PING)).rejects.toMatchObject({ code: 'send-failed' })
-    expect((await link.request(PING)).length).toBe(0)
-    expect(link.state).toBe('connected')
     await link.close()
   })
 })

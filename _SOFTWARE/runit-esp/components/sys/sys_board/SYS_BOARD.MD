@@ -43,6 +43,10 @@ A JSON file of `nvs_store` (NVS_STORE.MD), namespace `board` in the partition `C
 
 The app writes: JSON_ERASE, JSON_APPEND from offset 0, then JSON_INFO to compare the length and the CRC with what it sent. The module has no errors of its own: its failures are `nvs_store`'s and `sys_actions`'s.
 
+## Tests
+
+Host tests in `host/` (`python test_host/run.py sys_board` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `nvs_store` (a RAM implementation) and `data_matrix`: the boot skipping without a profile and injecting RUN_ALL with one; the JSON through the router (APPEND, INFO, READ, ERASE).
+
 ## Open
 
 - The app does not yet write the provider `CREATE`, the session's `ATTACH` and the data matrix's `CONNECT` frames of the ways to other boards.

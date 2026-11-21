@@ -7,7 +7,7 @@ Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as one p
 | out | every event with `SYS_EVENT_NOTIFY` in its flags (set in the events table: the ones that matter to the user), as the `sys_event_t` it is, urgent, `NOWAIT` |
 | in | a `sys_event_t` from another board: passed on to every port linked from `EVENTS` but the one it came from (`data_matrix_send_except`), and published here (`sys_event_publish`, deferred) without `SYS_EVENT_NOTIFY`, so it does not go out again as this board's. A packet whose length is not `header + sizeof(sys_event_t) + len` is dropped. |
 
-A constructor (before `app_main`) registers `EVENTS` and subscribes the listener of the notify events (`SYS_EVENT_RUN_FIRST`, the filter `SYS_EVENT_ANY_NOTIFY`: an action that stops the board can't hide its cause).
+A constructor (before `app_main`; the component links `WHOLE_ARCHIVE`, as nothing outside calls it) registers `EVENTS` and subscribes the listener of the notify events (`SYS_EVENT_RUN_FIRST`, the filter `SYS_EVENT_ANY_NOTIFY`: an action that stops the board can't hide its cause).
 
 Where they go and come from is the links (`app/runit`): `EVENTS → S(app's session, MODULE_ID_SYS_EVENT)` is the app's events, and `S(a slave's session, MODULE_ID_SYS_EVENT) → EVENTS` takes a slave's, which `EVENTS` passes on to the app's session.
 

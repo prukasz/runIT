@@ -64,3 +64,7 @@ A **message** is a `FRAMED` port's frame, a `RAW` port's bytes up to a pause in 
 ## Errors
 
 `MODULE_ID_UART`: `ERR_UART_BAD_ARG`, `_BUSY{port}` (no room in the TX queue, or `SPARE` past half), `_BAD_BAUD{baud}`, `_INIT{port}`, `_IN_USE{port, owner}`. `provider_uart` drops a frame the port does not take. A missing port is the registry's `ERR_DEV_NOT_FOUND`, a port still in use its `ERR_DEV_IN_USE`.
+
+## Tests
+
+Host tests in `host/` (`python test_host/run.py sys_uart_contract` from `runit-esp/`, `HOST_TESTS.MD`) of `sys_uart_codec.c` with the real `cmd`: COBS and CRC16 round trips at the edges; a frame refused for a bad CRC, bad COBS or its size; the TX queue's urgent first, the raw mode and the clear; `SPARE` kept out of the half of the buffer the others keep.

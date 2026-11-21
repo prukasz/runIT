@@ -84,7 +84,7 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   if (source === 'command') {
     if (data.length < at + 5) return undefined
     const lengthByte = data[at + 4]!
-    const length = lengthByte & 0x7f
+    const length = lengthByte & ~defs.errorRecord.requestCut & 0xff
     const header = { sender: data[at]!, seq: view.getUint16(at + 1, true), flags: data[at + 3]! }
     at += 5
     if (data.length < at + length) return undefined
@@ -94,7 +94,7 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   if (data.length < at + 1) return undefined
   const countByte = data[at++]!
   const chain: ErrorNode[] = []
-  for (let i = 0; i < (countByte & 0x7f); i++) {
+  for (let i = 0; i < (countByte & ~defs.errorRecord.requestCut & 0xff); i++) {
     if (data.length < at + 5) return undefined
     const tag = view.getUint32(at, true)
     const length = data[at + 4]!
@@ -107,5 +107,5 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
     chain.push({ tag, severity, payload, ...(info ? { info, fields: fieldsOf(info, payload) } : {}) })
   }
   const cause = chain.at(-1)
-  return { source, time, ...(board !== undefined ? { board } : {}), ...(command ? { command } : {}), chain, chainCut: (countByte & 0x80) !== 0, ...(cause ? { cause } : {}) }
+  return { source, time, ...(board !== undefined ? { board } : {}), ...(command ? { command } : {}), chain, chainCut: (countByte & defs.errorRecord.requestCut) !== 0, ...(cause ? { cause } : {}) }
 }

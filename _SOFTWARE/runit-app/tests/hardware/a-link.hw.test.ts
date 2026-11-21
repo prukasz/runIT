@@ -29,7 +29,7 @@ describe('the link on a real board', () => {
   })
 
   it('an unknown router key is a CommandError with the error record decoded', async () => {
-    const error = await board.link.request({ keys: [0xee] }).then(
+    const error = await board.link.request({ key: 0xee, body: Uint8Array.of(0) }).then(
       () => undefined,
       (e: unknown) => e,
     )
@@ -41,7 +41,7 @@ describe('the link on a real board', () => {
   it('the same error also arrives on the errors stream', async () => {
     const seen: Uint8Array[] = []
     const off = board.link.on('errors', (d) => seen.push(d))
-    await board.link.request({ keys: [0xee] }).catch(() => undefined)
+    await board.link.request({ key: 0xee, body: Uint8Array.of(0) }).catch(() => undefined)
     expect(await until(() => seen.length > 0, 2000)).toBe(true)
     off()
   })

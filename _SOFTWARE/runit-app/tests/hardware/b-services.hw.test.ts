@@ -59,7 +59,7 @@ describe('the catalog has no problem and the services it names are on the board'
 describe('the board and its ways', () => {
   it('this client is an open session on the BLE provider; the console is a session with nobody on it', async () => {
     const { data } = await board.services.call('SESSION', 'PEERS')
-    const peers = decodePeers(board.link.defs, data)
+    const peers = decodePeers(data, board.services.catalog)
     expect(peers.find((p) => p.open && p.peerId === board.link.session!.clientId)).toBeDefined()
     expect(peers.length).toBeGreaterThanOrEqual(2)
   })

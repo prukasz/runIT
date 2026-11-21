@@ -27,8 +27,7 @@ FW = ROOT.parent                                # runit-esp
 BUILD = FW / "build_host"
 UNITY = ROOT / "vendor" / "unity"
 CFLAGS = ["-std=gnu11", "-Wall", "-Wextra", "-g", "-pthread"]
-# Where components are found: the firmware's and the rework's (which still takes core/errors etc. from the firmware).
-COMPONENT_ROOTS = [FW / "components", FW.parent / "runit-esp-rework" / "components"]
+COMPONENT_ROOTS = [FW / "components"]
 
 
 def rel(path):

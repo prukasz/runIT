@@ -28,3 +28,7 @@ Requests are `[MODULE_ID_LOG][dir][op][args]` (`0` read, `1` write). Op `0x02` i
 |---|---|---|---|
 | `0x01` `LOG_OP_CONFIG` | RW | `–` (R) / `sys_log_cfg_t` 3 B (W) | `sys_log_cfg_t` 3 B (R) / `–` (W) |
 | `0x03` `LOG_OP_ERRORS` | R | `sys_log_errors_args_t` `{u8 index}` | `[u8 total][record]` (`[u8 total]` when `index >= total`) |
+
+## Tests
+
+Host tests in `host/` (`python test_host/run.py sys_log` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router` and `data_matrix`: the config checked and through the router; the ANSI codes stripped from a line, no push while nothing is linked; the error history ring wrapping, pushed and relayed to every port but the sender.

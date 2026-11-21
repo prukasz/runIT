@@ -105,15 +105,15 @@ describe('the devices of the view', () => {
   })
 
   it('a device frame reads back as the command it was and its side, a CREATE as the type and its config', () => {
-    const set = requestFrame(deviceCall(defs, catalog, 3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write').request)
-    expect(readDeviceFrame(defs, catalog, set)).toMatchObject({ device: 3, entry: { id: 'IO' }, command: { id: 'LEVEL' }, side: 'write', args: { pin: 22, level: 1 } })
-    const readFrame = requestFrame(deviceCall(defs, catalog, 3, 'IO', 'LEVEL', { pin: 22 }, 'read').request)
-    expect(readDeviceFrame(defs, catalog, readFrame)).toMatchObject({ side: 'read', args: { pin: 22 } })
-    const own = requestFrame(deviceCall(defs, catalog, 20, 'servo', 'target', { value_x10: -300 }).request)
-    expect(readDeviceFrame(defs, catalog, own)).toBeUndefined() // whose own op it is needs the type
-    expect(readDeviceFrame(defs, catalog, own, () => catalog.devices.get('servo'))).toMatchObject({ command: { id: 'target' }, args: { value_x10: -300 } })
-    const create = requestFrame(createDeviceCall(defs, catalog, 20, 'servo', project.devices[0]!.config).request)
-    const read = readDeviceFrame(defs, catalog, create)
+    const set = requestFrame(deviceCall(catalog, 3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write').request)
+    expect(readDeviceFrame(catalog, set)).toMatchObject({ device: 3, entry: { id: 'IO' }, command: { id: 'LEVEL' }, side: 'write', args: { pin: 22, level: 1 } })
+    const readFrame = requestFrame(deviceCall(catalog, 3, 'IO', 'LEVEL', { pin: 22 }, 'read').request)
+    expect(readDeviceFrame(catalog, readFrame)).toMatchObject({ side: 'read', args: { pin: 22 } })
+    const own = requestFrame(deviceCall(catalog, 20, 'servo', 'target', { value_x10: -300 }).request)
+    expect(readDeviceFrame(catalog, own)).toBeUndefined() // whose own op it is needs the type
+    expect(readDeviceFrame(catalog, own, () => catalog.devices.get('servo'))).toMatchObject({ command: { id: 'target' }, args: { value_x10: -300 } })
+    const create = requestFrame(createDeviceCall(catalog, 20, 'servo', project.devices[0]!.config).request)
+    const read = readDeviceFrame(catalog, create)
     expect(read?.create?.type.id).toBe('servo')
     expect(read?.create?.config).toMatchObject({ pwm_pin: { device: pwm.id, pin: 2 }, invert: 1, max_us: 2400 })
   })
@@ -121,7 +121,7 @@ describe('the devices of the view', () => {
   it('the sections are the board devices with start commands, then the project devices: CREATE first', () => {
     const sections = deviceSections(defs, catalog, project, board)
     expect(sections.map((s) => s.id)).toEqual([deviceRecordOf(expander.id), deviceRecordOf(20)])
-    expect(sections[1]!.frames[0]).toEqual(requestFrame(createDeviceCall(defs, catalog, 20, 'servo', project.devices[0]!.config).request))
+    expect(sections[1]!.frames[0]).toEqual(requestFrame(createDeviceCall(catalog, 20, 'servo', project.devices[0]!.config).request))
     expect(sections[1]!.frames).toHaveLength(2)
   })
 

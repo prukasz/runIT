@@ -28,7 +28,8 @@ typedef enum {
 } sys_data_provider_type_e;
 
 /* No provider (the id of a call that names none, e.g. LIST). */
-#define SYS_DATA_PROVIDER_ID_NONE 0xFFu
+//#ref-defines provider_id @alias Provider id @prefix SYS_DATA_PROVIDER_ID_
+#define SYS_DATA_PROVIDER_ID_NONE 0xFFu  //@alias None @description The id of a call that names no provider (LIST)
 
 /* CREATE's [flags u8]. SYSTEM: the board's own provider, it can't be removed. */
 #define SYS_DATA_PROVIDER_CREATE_SYSTEM 0x01u

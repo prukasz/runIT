@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bundledLinkDefinitions, bundledServiceCatalog } from '../../src/backend'
+import { bundledLinkDefinitions, bundledServiceCatalog, readDeviceFrame } from '../../src/backend'
 import { emptyProject, parseProject, serializeProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import { boardType, deviceRecordOf, deviceSections, SINGLE_TYPES } from '../../src/app/devices/devices'
@@ -39,11 +39,9 @@ describe('the other boards of a project', () => {
     const sections = deviceSections(defs, catalog, project, board)
     const alias = sections.find((s) => s.id === deviceRecordOf(20))!
     expect(alias.frames).toHaveLength(1)
-    const frame = alias.frames[0]!
-    expect([frame[0], frame[1], frame[2]! | (frame[3]! << 8)]).toEqual([defs.keys.device!, defs.dir.write, 20])
-    // After [key][dir][id u16][op u16]: type u16, board u8, remote id u16, flags u8 (contract_device.json CREATE_REMOTE).
-    const typeId = catalog.device(gpioType).typeId!
-    expect(Array.from(frame.subarray(6))).toEqual([typeId & 0xff, typeId >> 8, 2, gpio.id & 0xff, gpio.id >> 8, 0])
+    const read = readDeviceFrame(catalog, alias.frames[0]!)!
+    expect(read).toMatchObject({ device: 20, side: 'write', command: { id: 'CREATE_REMOTE' } })
+    expect(read.args).toEqual({ type: catalog.device(gpioType).typeId, board: 2, remote_id: gpio.id, flags: catalog.remoteFlags.wireless })
   })
 
   it('on the other board its own GPIO is only set up, and the servo is created on a pin of that GPIO', () => {
@@ -52,11 +50,11 @@ describe('the other boards of a project', () => {
     // The MODE of the GPIO names the device by its id there.
     const mode = sections[0]!.frames
     expect(mode).toHaveLength(1)
-    expect(mode[0]![2]! | (mode[0]![3]! << 8)).toBe(gpio.id)
+    expect(readDeviceFrame(catalog, mode[0]!)?.device).toBe(gpio.id)
     // CREATE of the servo under 21 (no remoteId: the same id there), its pwm_pin on device gpio.id, not 20.
-    const create = sections[1]!.frames[0]!
-    expect(create[2]! | (create[3]! << 8)).toBe(21)
-    expect(hex(create)).toContain(hex(Uint8Array.of(gpio.id & 0xff, gpio.id >> 8, 6)))
+    const create = readDeviceFrame(catalog, sections[1]!.frames[0]!)!
+    expect(create.device).toBe(21)
+    expect(create.create?.config?.pwm_pin).toEqual({ device: gpio.id, pin: 6 })
     expect(boardSections(defs, catalog, project, board, 3)).toEqual([])
   })
 

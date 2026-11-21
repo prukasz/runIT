@@ -182,9 +182,9 @@ static sys_power_layout_t base_layout(void) {
       .reserve_mW = 2000,
       .unknown_source_mA = 1000,
       .vreg_efficiency_pct = 100,
-      .input_device = 0xFFFFu,
+      .input_device = SYS_DEVICE_ID_NONE,
       .input_channel = 0,
-      .usb_pd = 0xFFFFu,
+      .usb_pd = SYS_DEVICE_ID_NONE,
       .usb_ok = SYS_IO_PIN_NONE,
       .ext_ok = SYS_IO_PIN_NONE,
   };
@@ -237,12 +237,12 @@ static void test_runtime_rail_add_remove_and_auto_remove(void) {
   TEST_ASSERT_NULL(sys_power_manager_get_matrix(rows, 4, &count));
   TEST_ASSERT_EQUAL_UINT8(1, count);
 
-  const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = 0xFFFFu, .min_mA = 200};
+  const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 200};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
   /* Duplicate rejected */
   err_h dup = sys_power_manager_add_rail(&r);
   TEST_ASSERT_ERR_TAG(ERR_PWRM_RAIL_TAKEN, dup);
-  TEST_ASSERT_EQUAL_UINT16(DEV_RAIL1, ERR_DATA(dup, ERR_PWRM_RAIL_TAKEN)->id);
+  TEST_ASSERT_EQUAL_UINT8(DEV_RAIL1, ERR_DATA(dup, ERR_PWRM_RAIL_TAKEN)->id);
   err_free(dup);
 
   TEST_ASSERT_NULL(sys_power_manager_get_matrix(rows, 4, &count));
@@ -266,7 +266,7 @@ static void test_three_budget_modes_and_interceptor_clamping(void) {
   create_mock(DEV_RAIL1);
   const sys_power_layout_t lay = base_layout();  // 10000 mW budget, 2000 mW reserve -> 8000 mW avail
   TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
-  const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = 0xFFFFu, .min_mA = 200};
+  const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 200};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
 
   TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 5000));
@@ -308,8 +308,8 @@ static void test_voltage_clamps_when_below_min_mA_and_auto_rails_split_pool(void
   lay.reserve_mW = 3000;
   TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
 
-  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = 0xFFFFu, .min_mA = 500};
-  const sys_power_rail_t r2 = {.vreg = DEV_RAIL2, .monitor_device = 0xFFFFu, .min_mA = 100};
+  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 500};
+  const sys_power_rail_t r2 = {.vreg = DEV_RAIL2, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r1));
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r2));
 
@@ -415,8 +415,8 @@ static void test_efficiency_rebalance_return_to_auto_and_settle_rollback(void) {
   lay.vreg_efficiency_pct = 90;
   TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
 
-  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = 0xFFFFu, .min_mA = 100};
-  const sys_power_rail_t r2 = {.vreg = DEV_RAIL2, .monitor_device = 0xFFFFu, .min_mA = 100};
+  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
+  const sys_power_rail_t r2 = {.vreg = DEV_RAIL2, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r1));
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r2));
 
@@ -464,7 +464,7 @@ static void test_input_ovp_budget_shrink_and_battery_hysteresis(void) {
       .vreg_efficiency_pct = 100,
       .input_device = DEV_BUS,
       .input_channel = 0,
-      .usb_pd = 0xFFFFu,
+      .usb_pd = SYS_DEVICE_ID_NONE,
       .usb_ok = {.device = DEV_BUS, .pin = 0},
       .ext_ok = {.device = DEV_BUS, .pin = 1},
   };
@@ -496,7 +496,7 @@ static void test_input_ovp_budget_shrink_and_battery_hysteresis(void) {
   /* BUDGET_EXCEEDED when budget shrinks below already-committed fixed rail */
   s_mock[DEV_BUS]->ch_mV[0] = 12000;  // 24000 mW budget
   vTaskDelay(pdMS_TO_TICKS(80));
-  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = 0xFFFFu, .min_mA = 100};
+  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r1));
   TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 10000));
   TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_CURRENT, .current_mA = 1500));  // 15000 mW + 1000 reserve = 16000 mW

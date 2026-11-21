@@ -26,7 +26,7 @@ const setDeadman = (timeout_ms: number) => board.services.call('SYS', 'DEADMAN',
 const getDeadman = async () => (await board.services.call('SYS', 'DEADMAN', undefined, { side: 'read' })).value as { timeout_ms: number }
 const suspended = async () => ((await board.services.device(GPIO, 'DEVICE', 'INFO')).value as { suspended: boolean }).suspended
 const safeReason = async () => (await board.services.call('SYS', 'SAFE', undefined, { side: 'read' }).then((a) => a.value as { reason: number }, () => undefined))?.reason
-const mine = async () => decodePeers(board.link.defs, (await board.services.call('SESSION', 'PEERS')).data).find((p) => p.open && p.peerId === board.link.session!.clientId)
+const mine = async () => decodePeers((await board.services.call('SESSION', 'PEERS')).data, board.services.catalog).find((p) => p.open && p.peerId === board.link.session!.clientId)
 const events = (deadman: DeadMan) => {
   const seen: DeadManEvent[] = []
   deadman.onEvent((e) => seen.push(e))

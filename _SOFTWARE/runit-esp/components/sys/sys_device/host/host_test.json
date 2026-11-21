@@ -3,7 +3,7 @@
     "slots/sys_device_slots.c",
     "registry/sys_device_registry.c",
     "call/sys_device_call.c",
-    "remote/sys_device_remote.c"
+    "remote/sys_device_remote_slot.c"
   ],
   "tests": ["host/test_sys_device.c"],
   "includes": ["errors", "events", "slots", "registry", "remote"],

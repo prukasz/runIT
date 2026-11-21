@@ -211,18 +211,28 @@ export class ErrorInterpreter {
     }
   }
 
-  /** The command of a record: `[key][dir][op][args]`, or `[device key][dir][id u16][op u16][args]` for a device. */
+  /**
+   * The command of a record: `[key][dir][op][args]`, or for a router whose commands are addressed (the device router, the
+   * providers': its descriptor has a contract id) `[key][dir][id u8][op u16][args]`.
+   */
   private command(request: Uint8Array): { label: string; refs: Ref[] } | undefined {
     const key = request[0]
     if (key === undefined) return undefined
-    if (key === this.defs.keys.sys_device && request.length >= 6) {
-      const id = request[2]! | (request[3]! << 8)
-      const device: Ref = { kind: 'device', id }
-      const op: Ref = { kind: 'device_op', id: request[4]! | (request[5]! << 8), scope: device }
-      return { label: `${this.label(op)} (${this.label(device)})`, refs: [device, op] }
-    }
     const target: Ref = { kind: 'router_key', id: key }
-    const entry = this.services.byKey.get(key)
+    const s = this.services
+    const lifecycle = s.lifecycleContractId === undefined ? undefined : s.byContractId.get(s.lifecycleContractId)
+    const entry = key === lifecycle?.key ? lifecycle : s.byKey.get(key)
+    if (entry?.contractId !== undefined && request.length >= 5) {
+      const id = request[2]!
+      const op = request[3]! | (request[4]! << 8)
+      if (entry === lifecycle) {
+        const device: Ref = { kind: 'device', id }
+        const deviceOp: Ref = { kind: 'device_op', id: op, scope: device }
+        return { label: `${this.label(deviceOp)} (${this.label(device)})`, refs: [device, deviceOp] }
+      }
+      const command = [...entry.commands.values()].find((c) => c.op === (op & 0xff))
+      return { label: command ? `${entry.label}: ${command.label} (${id})` : this.label(target), refs: [target] }
+    }
     const command = entry && request.length >= 3 ? [...entry.commands.values()].find((c) => c.op === request[2]) : undefined
     return { label: command ? `${entry!.label}: ${command.label}` : this.label(target), refs: [target] }
   }

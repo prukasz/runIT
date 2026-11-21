@@ -10,11 +10,14 @@
 |---|---|---|
 | Device | `runit-esp/components/devices/<category>/device_<name>/device_<name>.json` | `device.schema.json` |
 | Contract | `runit-esp/components/sys/**/contract_<name>.json` (under `sys_<name>/router/`, `sys_<name>/contracts/`, `sys/bus/*/`, etc.) | `contract.schema.json` |
+| Provider type | `runit-esp/components/providers/provider_<name>/provider_<name>.json`: a driver type the app creates with PROVIDER CREATE, its `type` (a member of `sys_data_provider_type_e`) and its `config` (the CREATE cfg struct, fields as a contract's); `crosscheck.py` holds the type to a published member, one descriptor per type | `provider.schema.json` (its fields are `contract.schema.json`'s) |
 | Board | `runit-app/boards/board.json` (the PCB), `board_devkit.json`: the app's own descriptors of the boards it knows, which the firmware never reads | `board.schema.json` |
 | VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (optional while VM is not yet migrated in rework; `crosscheck.py` skips when `vm_block_ids.h` is absent) | `vm-block.schema.json` |
 | Hardware part | `library/parts/<id>/part.json` with its drawing `part.svg` (the Devices canvas; [library/LIBRARY.md](../library/LIBRARY.md)). Not copied into `runit-app/generated/`: the app reads `library/` itself (`@library`) | `part.schema.json` |
 
-Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`), so a new device or contract needs no registration.
+Each descriptor names its schema in `$schema`. A descriptor is found by its file name pattern (`device_*.json`, `contract_*.json`, `provider_*.json`), so a new device, contract or provider type needs no registration.
+
+An answer that is a number then rows to its end (a count, a total: `[u8 count][row ...]`) says so with `lead` on its `returns` (`{"id": "count", "raw_type": "u8"}`), next to `array: true` and the rows' `fields` (or `type` for a list of values): SESSION PEERS, PROVIDER LIST, ACTIONS LIST (whose lead is the total, more than the rows). The app decodes it as the number and the rows; `crosscheck.py` fails a `lead` without `array`. An answer of any other shape (a list of lists, NUL-ended names: BLE LIST) is described in words.
 
 A field of type `bitmask` names its bits in `bits` (`{bit, label}`): the app offers only those, as chips. A bit the descriptor does not name is not a choice.
 
@@ -66,6 +69,7 @@ A command of a device contract whose field is of type `pin` (the device's own pi
 | `runit-app/generated/devices/` | `device_*.json` | `runit-esp/components/devices/**/device_*/` |
 | `runit-app/generated/contracts/` | `contract_*.json` with `scope` `device` (or none) | `runit-esp/components/sys/*/` and others |
 | `runit-app/generated/services/` | `contract_*.json` with `scope` `system` | the same places |
+| `runit-app/generated/providers/` | `provider_*.json` | `runit-esp/components/providers/*/` |
 | `runit-app/generated/blocks/` | `block_*.json` | `runit-esp/components/vm/vm_blocks/**/` (when present) |
 | `runit-app/generated/manuals/<id>/` | `manual.md` and the pictures beside it (`.png`, `.jpg`, `.gif`, `.svg`, `.webp`), keyed by the device's `id` | `runit-esp/components/devices/**/device_*/manual/` |
 | `runit-app/generated/sources/<id>/` | the device's own `device_*.c` and `device_*.h`, a copy for the app's device page (read only) | `runit-esp/components/devices/**/device_*/` |

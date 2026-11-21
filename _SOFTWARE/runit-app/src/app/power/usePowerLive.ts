@@ -49,7 +49,7 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
         const label = `${r.command} (power display)`
         const call = r.kind === 'service'
           ? serviceCall(services.catalog, r.service, r.command, reading.args, 'read')
-          : deviceCall(services.link.defs, services.catalog, r.device, r.contract, r.command, reading.args, 'read')
+          : deviceCall(services.catalog, r.device, r.contract, r.command, reading.args, 'read')
         try {
           const stop = await watches.follow({ ...call, label }, { trigger: 'change', periodMs: POWER_REFRESH_MS, silenceMs: 3 * POWER_REFRESH_MS }, (value) => {
             answers.set(key, value)

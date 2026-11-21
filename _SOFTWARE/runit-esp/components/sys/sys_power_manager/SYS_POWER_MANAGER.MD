@@ -179,3 +179,7 @@ Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPEND
 - The USB-PD negotiation has not been run against a PD charger yet.
 - The module has not been run on the PCB, which needs the INA3221 and the TPS55289 rails.
 - The hardware test is `router_tests.py` `test_power` (config, settings, source, status, responses). It is not run on the board yet.
+
+## Tests
+
+Host tests in `host/` (`python test_host/run.py sys_power_manager` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_io`, `sys_power`, `sys_device` and `router` and mock rails: stopped until a layout, AUTO start and stop; a rail added at run time, a taken one refused, an auto rail removed with its device; the three budget modes and the POWER_VREG interceptor's clamp; a voltage clamped below a rail's `min_mA`, auto rails splitting the pool; the source (USB-PD, the LiPo curve); one fault event and the response matrix; the efficiency rebalance, the return to AUTO and a settle's rollback; the input's OVP, the budget shrinking, the battery's hysteresis.

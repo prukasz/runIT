@@ -51,6 +51,6 @@ A file shares its partition (or has one of its own): when `nvs_store_init` erase
 
 `ERR_NVS_BAD_ARG` (an append with no data, or no chunk left), `ERR_NVS_OFFSET{got, want}`, `ERR_NVS_NO_CHUNK{chunk}`, `ERR_NVS_NOT_FOUND`. The implementation's other failures are the core's `ERR_ESP_ERR`.
 
-## Open
+## Tests
 
-- A RAM implementation for the host tests.
+Host tests in `host/` (`python test_host/run.py nvs_store` from `runit-esp/`, `HOST_TESTS.MD`) on a RAM implementation (`host/host_nvs_impl.c`, a software CRC-32): a JSON file appended, its INFO and chunks read, kept after a reopen, erased; a bad argument and a wrong offset refused.

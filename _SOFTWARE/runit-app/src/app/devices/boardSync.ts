@@ -1,7 +1,7 @@
-import { deviceCall, listRecords, onboardActionIds, removeRecord, runRecord, Services, storeRecord } from '@backend'
+import { deviceCall, listRecords, onboardActionIds, PROVIDER_COMMANDS, removeRecord, runRecord, Services, storeRecord } from '@backend'
 import type { RunitLink, ServiceCatalog } from '@backend'
 import type { ProjectFile } from '../project/projectFile'
-import { decodeBleProviders, GATT, gattRemoves } from '../settings/gatt'
+import { bleProviders, gattRemoves } from '../settings/gatt'
 import { settingsRecords } from '../settings/settingsRecords'
 import { actionRecordOf, DEVICE_CLASS, DEVICE_COMMANDS, deviceProblems, deviceSections, lifecycleOf, recordClass, SETTINGS_CLASS, stepFrame, USER_CLASS } from './devices'
 import { boardProblems } from '../boards/boards'
@@ -33,16 +33,16 @@ export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, boa
   const defs = link.defs
   const problems = [...deviceProblems(project, catalog, board), ...boardProblems(project, link.session?.boardId, catalog)]
   if (problems.length > 0) throw new Error(problems[0])
-  const settings = settingsRecords(catalog, project.settings)
+  const settings = settingsRecords(catalog, project.settings, defs)
   const sections = [...settings, ...deviceSections(defs, catalog, project, board)]
 
   // The devices of the last Write go first: its CREATEs would find them there. The board's own stay (SYS_DEVICE_CREATE_SYSTEM).
   onProgress?.({ step: 'Devices', done: 0, total: sections.length })
-  await link.request(deviceCall(defs, catalog, catalog.allDevices!, lifecycleOf(catalog).id, DEVICE_COMMANDS.remove, undefined, 'write').request, { timeoutMs: 10_000, label: 'devices REMOVE (sweep)' })
+  await link.request(deviceCall(catalog, catalog.allDevices!, lifecycleOf(catalog).id, DEVICE_COMMANDS.remove, undefined, 'write').request, { timeoutMs: 10_000, label: 'devices REMOVE (sweep)' })
 
   // The providers the project's BLE record creates may be on the board from the last Write: they go first.
   if (project.settings.gatt?.length) {
-    const have = decodeBleProviders((await new Services(link).call(GATT.providers, GATT.providerList)).data)
+    const have = bleProviders(catalog, (await new Services(link, catalog).call(PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.list)).data)
     for (const call of gattRemoves(catalog, have, project.settings.gatt)) await link.request(call.request, { label: 'BLE provider REMOVE' })
   }
 

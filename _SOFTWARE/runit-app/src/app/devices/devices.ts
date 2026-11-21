@@ -542,15 +542,15 @@ export const stepFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, step: 
 export const stepCall = (defs: LinkDefinitions, catalog: ServiceCatalog, step: Extract<Step, { kind: 'device' }>): ServiceCall =>
   step.contract === POLICY.service
     ? serviceCall(catalog, POLICY.service, POLICY.command, { id: step.device, ...step.args } as never, 'write')
-    : deviceCall(defs, catalog, step.device, step.contract, step.command, step.args, 'write')
+    : deviceCall(catalog, step.device, step.contract, step.command, step.args, 'write')
 
 /** The install packet of a project device: CREATE with its type and config. */
 export const installFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice): Uint8Array =>
-  requestFrame(createDeviceCall(defs, catalog, device.id, device.type, device.config).request)
+  requestFrame(createDeviceCall(catalog, device.id, device.type, device.config).request)
 
 /** The alias on this board of a project device that is on another board: CREATE_REMOTE (SYS_REMOTE.MD). */
 export const remoteFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice & { readonly board: number }): Uint8Array =>
-  requestFrame(createRemoteDeviceCall(defs, catalog, device.id, device.type, device.board, boardDeviceId(device)).request)
+  requestFrame(createRemoteDeviceCall(catalog, device.id, device.type, device.board, boardDeviceId(device)).request)
 
 /**
  * The frames of a device's record on this board: CREATE for a project device, then its start commands; a device on another board

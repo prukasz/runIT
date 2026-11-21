@@ -61,9 +61,71 @@
       "description": "Returns every session.",
       "read": {
         "returns": {
-          "type": "u8",
-          "label": "Number of sessions",
-          "description": "Then per session (sys_session_info_t, 10 B): provider u8, open u8, peer id u8, safety u8, build id u32, deadman_ms u16."
+          "struct": "sys_session_info_t",
+          "array": true,
+          "lead": {
+            "id": "count",
+            "raw_type": "u8",
+            "label": "Number of sessions"
+          },
+          "description": "One row per session",
+          "fields": [
+            {
+              "id": "provider",
+              "label": "Provider",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The provider it runs over"
+            },
+            {
+              "id": "open",
+              "label": "Open",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "Both hellos passed"
+            },
+            {
+              "id": "peer_id",
+              "label": "Peer id",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 2,
+              "description": "Its id from its hello; CMD_SRC_NONE before it"
+            },
+            {
+              "id": "safety",
+              "label": "Safety",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "description": "Its end is a safety event"
+            },
+            {
+              "id": "build_id",
+              "label": "Build",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4,
+              "description": "Its firmware's build, from its hello; 0 from a client"
+            },
+            {
+              "id": "deadman_ms",
+              "label": "Dead-man",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 8,
+              "description": "The silence that ends it; 0: none",
+              "unit": "ms"
+            }
+          ]
         }
       }
     },

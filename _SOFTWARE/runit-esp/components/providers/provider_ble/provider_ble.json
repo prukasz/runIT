@@ -1,0 +1,80 @@
+{
+  "$schema": "../../../../templates/provider.schema.json",
+  "schemaVersion": 1,
+  "kind": "provider-definition",
+  "id": "ble",
+  "alias": "BLE characteristics",
+  "description": "One or two characteristics of the board's GATT table as a way: a notify one the provider's frames go out on, a written one they come in from (PROVIDER_BLE.MD). Its service is made when it is new.",
+  "type": "SYS_DATA_PROVIDER_TYPE_BLE",
+  "config": {
+    "struct": "provider_ble_cfg_t",
+    "size": 24,
+    "fields": [
+      {
+        "id": "svc",
+        "label": "Service",
+        "type": "integer",
+        "raw_type": "u16",
+        "size": 2,
+        "offset": 0,
+        "description": "The 16-bit UUID of the service they are in: made when it is new"
+      },
+      {
+        "id": "tx",
+        "label": "Out",
+        "type": "integer",
+        "raw_type": "u16",
+        "size": 2,
+        "offset": 2,
+        "description": "The notify characteristic the frames go out on; 0: none",
+        "default": 0
+      },
+      {
+        "id": "rx",
+        "label": "In",
+        "type": "integer",
+        "raw_type": "u16",
+        "size": 2,
+        "offset": 4,
+        "description": "The characteristic the client writes; 0: none (at least one of out and in)",
+        "default": 0
+      },
+      {
+        "id": "flags",
+        "label": "Flags",
+        "type": "bitmask",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 6,
+        "description": "provider_ble_flag: PROVIDER_BLE_FRAMED, both characteristics carry frames (a session's way); else raw bytes",
+        "bits": [
+          {
+            "bit": 0,
+            "label": "Framed"
+          }
+        ],
+        "default": 0
+      },
+      {
+        "id": "rx_flags",
+        "label": "Write flags",
+        "type": "bitmask",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 7,
+        "description": "cmd_send_flag of each write out of the port: CMD_SEND_NOWAIT, the BLE host never waits",
+        "default": 0
+      },
+      {
+        "id": "name",
+        "label": "Name",
+        "type": "string",
+        "raw_type": "string",
+        "size": 16,
+        "offset": 8,
+        "description": "The user description of the characteristics (descriptor 0x2901), NUL-ended; empty: none",
+        "default": ""
+      }
+    ]
+  }
+}

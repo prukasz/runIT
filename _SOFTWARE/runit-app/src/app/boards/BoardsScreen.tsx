@@ -67,7 +67,7 @@ export function BoardsScreen({ project, link, services, board, connected }: {
 
   const add = () => {
     if (!addressBytes(address)) return tell(`"${address}" is not a BLE address (six hex bytes, like F4:12:FA:01:02:03).`, true)
-    const id = nextBoardId(boards, ownId, link.defs.session.id.boardLast)
+    const id = nextBoardId(boards, ownId, link.defs.src.boardLast)
     setBoards([...boards, { id, name: `Board ${id}`, address: address.trim().toUpperCase(), addressType: 0, provider: nextLinkProvider(project.project) }])
     setAddress('')
   }
@@ -111,7 +111,7 @@ export function BoardsScreen({ project, link, services, board, connected }: {
           {ownId === 0 && <p className="boards-hint">A new board has id 0, and so does every board it finds: give this one another id before it leads boards.</p>}
           <FormRow label="Its id" note="Kept on the board, taken at its next start: it restarts.">
             <span className="boards-row">
-              <NumberField aria-label="This board's id" integer min={0} max={link.defs.session.id.boardLast} value={newOwnId ?? ownId} onCommit={(v) => setNewOwnId(v)} />
+              <NumberField aria-label="This board's id" integer min={0} max={link.defs.src.boardLast} value={newOwnId ?? ownId} onCommit={(v) => setNewOwnId(v)} />
               <Button disabled={!connected || newOwnId === undefined || newOwnId === ownId} onClick={() => newOwnId !== undefined && void setOwnId(newOwnId)}><RotateCcw aria-hidden="true" />Set and restart</Button>
             </span>
           </FormRow>
@@ -141,7 +141,7 @@ export function BoardsScreen({ project, link, services, board, connected }: {
               </FormRow>
               <FormRow label="Its id" note="Its place in the project.">
                 <span className="boards-row">
-                  <NumberField aria-label="Its id" integer min={0} max={link.defs.session.id.boardLast} value={b.id} onCommit={(v) => project.edit((p) => ({ ...p, boards: boards.map((o, j) => (j === i ? { ...o, id: v } : o)), devices: p.devices.map((d) => (d.board === b.id ? { ...d, board: v } : d)) }))} />
+                  <NumberField aria-label="Its id" integer min={0} max={link.defs.src.boardLast} value={b.id} onCommit={(v) => project.edit((p) => ({ ...p, boards: boards.map((o, j) => (j === i ? { ...o, id: v } : o)), devices: p.devices.map((d) => (d.board === b.id ? { ...d, board: v } : d)) }))} />
                 </span>
               </FormRow>
               <FormRow label="Devices" note="Devices of the project on this board.">

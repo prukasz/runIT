@@ -1,6 +1,6 @@
 /* Host tests of the board's timers: the real code on the FreeRTOS stand-ins (the timers' task is a thread, a tick a
  * millisecond of the PC's clock). A test waits on a latch the callback gives; only "nothing more happened" waits a
- * short while. Run: python test_host/run.py timer   (runit-esp-archive/test_host/HOST_TESTS.MD) */
+ * short while. Run: python test_host/run.py timer   (test_host/HOST_TESTS.MD) */
 #include "unity.h"
 #include "board_timer.h"
 #include "freertos/FreeRTOS.h"

@@ -107,8 +107,9 @@ typedef struct __attribute__((packed)) {
 
 /* CREATE's [flags u8]. SYSTEM: the board's own device, it can't be removed (ERR_DEV_SYSTEM) and the REMOVE sweep leaves
  * it, so changing the project removes only the other devices. */
-#define SYS_DEVICE_CREATE_HDR    3u     // [type u16][flags u8], then the create struct
-#define SYS_DEVICE_CREATE_SYSTEM 0x01u
+#define SYS_DEVICE_CREATE_HDR 3u  // [type u16][flags u8], then the create struct
+//#ref-defines device_create_flag @alias Device create flags @prefix SYS_DEVICE_CREATE_
+#define SYS_DEVICE_CREATE_SYSTEM 0x01u  //@alias System @description The board's own device: never removed, left by the sweep
 
 enum {
   CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x00),  // [type u16][flags u8][create struct]

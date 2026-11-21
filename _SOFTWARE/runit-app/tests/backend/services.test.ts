@@ -3,10 +3,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
-  bundledServiceCatalog, createDeviceCall, createRemoteDeviceCall, decodeAnswer, decodeFields, deviceCall, deviceOp, encodeFields, PayloadError, PIN_REF_SIZE, rawWidth, readDeviceFrame,
-  requestFrame, RunitLink, ServiceCatalog, serviceCall, Services, sidesOf,
+  bleWayCall, bundledServiceCatalog, createDeviceCall, createProviderCall, createRemoteDeviceCall, decodeAnswer, decodeBleTable, decodeFields, deviceCall, deviceOp, encodeFields,
+  PayloadError, PIN_REF_SIZE, rawWidth, readBleWay, readDeviceFrame, readProviderFrame, requestFrame, RunitLink, ServiceCatalog, serviceCall, Services, sidesOf,
 } from '@backend'
-import type { FieldValues, Layout } from '@backend'
+import type { FieldValues, LeadAnswer, Layout } from '@backend'
 import { bundledEnums } from '@backend'
 import { answer, defs, FakeBoard, until } from './fakes'
 
@@ -20,7 +20,7 @@ const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
     const path = join(dir, name)
-    return statSync(path).isDirectory() ? walk(path) : path.endsWith('.h') ? [path] : []
+    return statSync(path).isDirectory() ? walk(path) : /\.[ch]$/.test(path) ? [path] : []
   })
 
 const C_WIDTH: Record<string, number> = { uint8_t: 1, int8_t: 1, char: 1, bool: 1, uint16_t: 2, int16_t: 2, uint32_t: 4, int32_t: 4, float: 4, uint64_t: 8, int64_t: 8, double: 8 }
@@ -63,7 +63,7 @@ const packedStructs = (): Map<string, CStruct | undefined> => {
 }
 
 const layouts = (): { where: string; layout: Layout }[] =>
-  catalog.entries.flatMap((entry) => [
+  [...catalog.entries, ...catalog.providers.values()].flatMap((entry) => [
     ...(entry.config ? [{ where: `${entry.id} config`, layout: entry.config }] : []),
     ...[...entry.commands.values()].flatMap((c) =>
       sidesOf(c).flatMap((s) => [
@@ -95,6 +95,7 @@ describe('the catalog', () => {
   it('has every descriptor of generated/ (nothing listed by hand)', () => {
     const count = (dir: string, prefix: string) => readdirSync(join(generatedDir, dir)).filter((f) => f.startsWith(prefix) && f.endsWith('.json')).length
     expect(catalog.entries.length).toBe(count('services', 'contract_') + count('contracts', 'contract_') + count('devices', 'device_'))
+    expect(catalog.providers.size).toBe(count('providers', 'provider_'))
   })
 
   it('every layout of a packed C struct is that struct: its size, and every field inside the member of its name', () => {
@@ -137,18 +138,17 @@ describe('the catalog', () => {
 describe('requests', () => {
   it('a service command: [key][dir][op][args], laid out by the descriptor', () => {
     const call = serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 }, 'write')
-    expect(call.request.keys).toEqual([defs.keys.sys, defs.dir.write, catalog.service('SYS').commands.get('DEADMAN')!.op])
-    expect(hex(call.request.payload!)).toBe('f4010000')
+    expect(call.request.key).toBe(defs.keys.sys)
+    expect(hex(call.request.body)).toBe(hex(Uint8Array.of(defs.dir.write, catalog.service('SYS').commands.get('DEADMAN')!.op, 0xf4, 0x01, 0, 0)))
     expect(defs.dir).toEqual({ read: 0, write: 1 }) // cmd_dir_e, cmd.h
   })
 
   it('a command with a read and a write is told which; one with a single side runs it', () => {
     const read = serviceCall(catalog, 'SYS', 'DEADMAN', undefined, 'read')
-    expect(read.request.keys).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('DEADMAN')!.op])
-    expect(read.request.payload!.length).toBe(0)
+    expect([read.request.key, ...read.request.body]).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('DEADMAN')!.op])
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 500 })).toThrow(/say which one/)
-    expect(serviceCall(catalog, 'SYS', 'PING').request.keys[1]).toBe(defs.dir.read)
-    expect(serviceCall(catalog, 'SYS', 'STOP').request.keys[1]).toBe(defs.dir.write)
+    expect(serviceCall(catalog, 'SYS', 'PING').request.body[0]).toBe(defs.dir.read)
+    expect(serviceCall(catalog, 'SYS', 'STOP').request.body[0]).toBe(defs.dir.write)
     expect(() => serviceCall(catalog, 'SYS', 'PING', undefined, 'write')).toThrow(/no write side/)
   })
 
@@ -156,7 +156,7 @@ describe('requests', () => {
     const level = catalog.contract('IO').commands.get('LEVEL')!
     expect(level.read!.args!.fields.map((f) => f.id)).toEqual(['pin'])
     expect(level.read!.returns?.kind === 'struct' && level.read!.returns.layout.fields.map((f) => f.id)).toEqual(level.write!.args!.fields.map((f) => f.id))
-    const read = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22 }, 'read')
+    const read = deviceCall(catalog, 1, 'IO', 'LEVEL', { pin: 22 }, 'read')
     const op = deviceOp(catalog, catalog.contract('IO'), level)
     expect(hex(requestFrame(read.request))).toBe(hex(Uint8Array.of(defs.keys.sys_device!, defs.dir.read, 1, op & 0xff, op >> 8, 22)))
     expect(decodeAnswer(read, Uint8Array.of(22, 1))).toEqual({ pin: 22, level: 1 })
@@ -166,10 +166,12 @@ describe('requests', () => {
     const matrix = catalog.service('POWER_MANAGER').commands.get('MATRIX')!
     const layout = matrix.write!.args!
     expect(layout.array).toBe(true)
-    const row = { target: 0xffff, responses: Array.from({ length: layout.fields[1]!.size! }, () => 0) }
-    const call = serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', [row, { ...row, target: 5 }], 'write')
-    expect(call.request.payload!.length).toBe(2 * layout.fixed)
-    expect(hex(call.request.payload!.subarray(layout.fixed, layout.fixed + 2))).toBe('0500')
+    const target = layout.fields[0]!
+    const row = { [target.id]: 0, [layout.fields[1]!.id]: Array.from({ length: layout.fields[1]!.size! }, () => 0) }
+    const call = serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', [row, { ...row, [target.id]: 5 }], 'write')
+    const args = call.request.body.subarray(2) // after [dir][op]
+    expect(args.length).toBe(2 * layout.fixed)
+    expect(args[layout.fixed + target.offset]).toBe(5)
     expect(() => serviceCall(catalog, 'POWER_MANAGER', 'MATRIX', row, 'write')).toThrow(/takes rows/)
   })
 
@@ -181,40 +183,40 @@ describe('requests', () => {
   })
 
   it('a device command is [device key][dir][id u8][contract << 8 | op u16][args], and a frame reads back into it', () => {
-    const call = deviceCall(defs, catalog, 1, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write')
+    const call = deviceCall(catalog, 1, 'IO', 'LEVEL', { pin: 22, level: 'High' }, 'write')
     const io = catalog.contract('IO')
     expect(hex(requestFrame(call.request))).toBe(hex(Uint8Array.of(defs.keys.sys_device!, defs.dir.write, 1, 0x00, io.contractId!, 22, 1)))
-    const back = readDeviceFrame(defs, catalog, requestFrame(call.request))
+    const back = readDeviceFrame(catalog, requestFrame(call.request))
     expect(back).toMatchObject({ device: 1, side: 'write', args: { pin: 22, level: 1 } })
     expect(back?.entry.id).toBe('IO')
     expect(back?.command.id).toBe('LEVEL')
   })
 
   it("a device type's own command is in the own contract", () => {
-    const call = deviceCall(defs, catalog, 9, 'dc_motor', 'speed', { speed_x10: -90 }, 'write')
-    expect(hex(call.request.payload!)).toBe('09' + hex(Uint8Array.of(catalog.device('dc_motor').commands.get('speed')!.op, catalog.ownContractId!)) + '7cfc')
-    const back = readDeviceFrame(defs, catalog, requestFrame(call.request), () => catalog.device('dc_motor'))
+    const call = deviceCall(catalog, 9, 'dc_motor', 'speed', { speed_x10: -90 }, 'write')
+    expect(hex(call.request.body)).toBe(hex(Uint8Array.of(defs.dir.write, 9, catalog.device('dc_motor').commands.get('speed')!.op, catalog.ownContractId!)) + '7cfc')
+    const back = readDeviceFrame(catalog, requestFrame(call.request), () => catalog.device('dc_motor'))
     expect(back).toMatchObject({ device: 9, side: 'write', args: { speed_x10: -90 } })
   })
 
   it('CREATE is a write of [type u16][flags u8][config] (SYS_DEVICE.MD: pca9685 under ID 3), and reads back', () => {
     const pca = catalog.device('pca9685')
-    const call = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!))
-    expect(call.request.keys).toEqual([defs.keys.sys_device, defs.dir.write])
-    expect(hex(call.request.payload!).slice(0, 12)).toBe(`03${hex(Uint8Array.of(0, catalog.lifecycleContractId!))}${hex(Uint8Array.of(pca.typeId! & 0xff, pca.typeId! >> 8))}00`)
-    expect(call.request.payload!.length).toBe(3 + 3 + pca.config!.fixed)
-    const system = createDeviceCall(defs, catalog, 3, 'pca9685', zeros(pca.config!), true)
-    expect(hex(system.request.payload!).slice(10, 12)).toBe('01')
-    const back = readDeviceFrame(defs, catalog, requestFrame(system.request))
+    const call = createDeviceCall(catalog, 3, 'pca9685', zeros(pca.config!))
+    expect(call.request.key).toBe(defs.keys.sys_device)
+    expect(hex(call.request.body).slice(0, 14)).toBe(`${hex(Uint8Array.of(defs.dir.write, 3, 0, catalog.lifecycleContractId!))}${hex(Uint8Array.of(pca.typeId! & 0xff, pca.typeId! >> 8))}00`)
+    expect(call.request.body.length).toBe(1 + 3 + 3 + pca.config!.fixed)
+    const system = createDeviceCall(catalog, 3, 'pca9685', zeros(pca.config!), true)
+    expect(system.request.body[6]).toBe(catalog.createSystem)
+    const back = readDeviceFrame(catalog, requestFrame(system.request))
     expect(back?.create).toMatchObject({ system: true, type: { id: 'pca9685' } })
   })
 
   it('CREATE_REMOTE says how its calls go: wireless by default, wired when asked', () => {
-    const call = createRemoteDeviceCall(defs, catalog, 20, 'esp32s3_gpio', 2, 0)
-    const wired = createRemoteDeviceCall(defs, catalog, 20, 'esp32s3_gpio', 2, 0, 'wired')
+    const call = createRemoteDeviceCall(catalog, 20, 'esp32s3_gpio', 2, 0)
+    const wired = createRemoteDeviceCall(catalog, 20, 'esp32s3_gpio', 2, 0, 'wired')
     // [id u8][op u16][type u16][board][remote id][flags]
-    expect(call.request.payload!.at(-1)).toBe(catalog.remoteFlags.wireless)
-    expect(wired.request.payload!.at(-1)).toBe(catalog.remoteFlags.wired)
+    expect(call.request.body.at(-1)).toBe(catalog.remoteFlags.wireless)
+    expect(wired.request.body.at(-1)).toBe(catalog.remoteFlags.wired)
     expect(catalog.remoteFlags.wired).not.toBe(catalog.remoteFlags.wireless)
   })
 
@@ -252,17 +254,51 @@ describe('requests', () => {
 
   it('an enum field takes a member name', () => {
     const members = bundledEnums().sys_io_mode_e!.members
-    const mode = deviceCall(defs, catalog, 0, 'IO', 'MODE', { pin: 4, mode: members[1]!.name })
-    expect(mode.request.payload![4]).toBe(members[1]!.value)
+    const mode = deviceCall(catalog, 0, 'IO', 'MODE', { pin: 4, mode: members[1]!.name })
+    expect(mode.request.body[5]).toBe(members[1]!.value) // [dir][id][op u16][pin][mode]
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', {}, 'write')).toThrow(/timeout_ms is missing/)
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1, extra: 1 }, 'write')).toThrow(/No field extra/)
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: -1 }, 'write')).toThrow(PayloadError)
-    expect(() => deviceCall(defs, catalog, 0, 'IO', 'LEVEL', { pin: 1, level: 'Middle' }, 'write')).toThrow(/'Middle' is not a value of level/)
+    expect(() => deviceCall(catalog, 0, 'IO', 'LEVEL', { pin: 1, level: 'Middle' }, 'write')).toThrow(/'Middle' is not a value of level/)
     expect(() => serviceCall(catalog, 'SYS', 'PING', { x: 1 })).toThrow(/takes no arguments/)
     expect(() => serviceCall(catalog, 'NOPE', 'PING')).toThrow(/No service NOPE/)
+  })
+})
+
+describe('providers', () => {
+  it('a provider addressed by an id: [key][dir][id u8][contract << 8 | op u16][args]; LIST names none', () => {
+    const entry = catalog.service('PROVIDER')
+    const op = deviceOp(catalog, entry, entry.commands.get('REMOVE')!)
+    expect(hex(serviceCall(catalog, 'PROVIDER', 'REMOVE', undefined, 'write', 7).request.body)).toBe(hex(Uint8Array.of(defs.dir.write, 7, op & 0xff, op >> 8)))
+    expect(serviceCall(catalog, 'PROVIDER', 'LIST').request.body[1]).toBe(catalog.noProvider)
+  })
+
+  it('CREATE carries the type of the provider descriptor and its config, and reads back', () => {
+    const call = createProviderCall(catalog, 8, 'ble', { svc: 0xee00, tx: 0xee01, name: 'temp' })
+    const ble = catalog.provider('ble')
+    expect(call.request.body.subarray(4, 6)).toEqual(Uint8Array.of(ble.providerType!, 0)) // [type][flags]
+    expect(call.request.body.length).toBe(4 + 2 + ble.config!.fixed)
+    expect(readProviderFrame(catalog, requestFrame(call.request))).toMatchObject({ id: 8, type: { id: 'ble' }, config: { svc: 0xee00, tx: 0xee01, rx: 0, flags: 0, name: 'temp' } })
+  })
+
+  it('a BLE way: framed by the published flag, a written one never makes the host wait, and back', () => {
+    const way = { provider: 9, service: 0xee00, tx: 0xee01, rx: 0xee02, framed: true, name: 'link' }
+    const frame = requestFrame(bleWayCall(defs, catalog, way).request)
+    expect(readBleWay(defs, catalog, frame)).toEqual(way)
+    const config = readProviderFrame(catalog, frame)!.config
+    expect(config.flags).toBe(defs.ble.providerFramed)
+    expect(config.rx_flags).toBe(defs.ble.sendNoWait)
+    expect(readBleWay(defs, catalog, requestFrame(serviceCall(catalog, 'SYS', 'PING').request))).toBeUndefined()
+  })
+
+  it('the board\'s GATT table (BLE LIST) by the published flags', () => {
+    const { service: svc, characteristic: chr } = defs.ble
+    const name = [...new TextEncoder().encode('runit'), 0]
+    const data = Uint8Array.from([1, 0xe0, 0xff, svc.primary | svc.locked, 1, 0xe1, 0xff, chr.notify | chr.framed, 0x10, 0x04, ...name])
+    expect(decodeBleTable(defs, data)).toEqual([{ uuid: 0xffe0, primary: true, locked: true, characteristics: [{ uuid: 0xffe1, name: 'runit', write: false, indicate: false, notify: true, framed: true }] }])
   })
 })
 
@@ -286,7 +322,7 @@ describe('answers', () => {
 
   it('a list of values and a list of structs', () => {
     // OPS: [op u16][sides u8] per op (sys_device.c), bit 0 a read side, bit 1 a write side
-    expect(decodeAnswer(deviceCall(defs, catalog, 0, 'DEVICE', 'OPS'), Uint8Array.of(2, 0, 2, 7, 0, 3, 0, 1, 1))).toEqual([
+    expect(decodeAnswer(deviceCall(catalog, 0, 'DEVICE', 'OPS'), Uint8Array.of(2, 0, 2, 7, 0, 3, 0, 1, 1))).toEqual([
       { op: 2, sides: 2 },
       { op: 7, sides: 3 },
       { op: 0x100, sides: 1 },
@@ -301,14 +337,17 @@ describe('answers', () => {
   })
 
   it('a mirror of a device type: the read takes the key and answers what the write takes', () => {
-    const write = deviceCall(defs, catalog, 4, 'dc_motor', 'speed', { speed_x10: 50 }, 'write')
-    const read = deviceCall(defs, catalog, 4, 'dc_motor', 'speed', undefined, 'read')
-    expect(read.request.payload!.length).toBe(3)
-    expect(decodeAnswer(read, write.request.payload!.subarray(3))).toEqual({ speed_x10: 50 })
+    const write = deviceCall(catalog, 4, 'dc_motor', 'speed', { speed_x10: 50 }, 'write')
+    const read = deviceCall(catalog, 4, 'dc_motor', 'speed', undefined, 'read')
+    expect(read.request.body.length).toBe(4)
+    expect(decodeAnswer(read, write.request.body.subarray(4))).toEqual({ speed_x10: 50 })
   })
 
-  it('a value that leads the answer is read from the front; bytes stay bytes', () => {
-    expect(decodeAnswer(serviceCall(catalog, 'DATA_MATRIX', 'LIST'), Uint8Array.of(3, 9, 9))).toBeDefined()
+  it('a lead: the number in front, then the rows to the end; bytes stay bytes', () => {
+    const list = decodeAnswer(serviceCall(catalog, 'ACTIONS', 'LIST', { start: 0 }), Uint8Array.of(9, 0, 1, 0, 0, 0, 2, 0, 0, 0)) as LeadAnswer
+    expect(list).toEqual({ lead: 9, rows: [1, 2] })
+    const providers = decodeAnswer(serviceCall(catalog, 'PROVIDER', 'LIST'), Uint8Array.of(1, 3, catalog.provider('ble').providerType!, 4)) as LeadAnswer
+    expect(providers).toEqual({ lead: 1, rows: [{ provider: 3, type: catalog.provider('ble').providerType, state: 4 }] })
     expect(decodeAnswer(serviceCall(catalog, 'BLE', 'LIST'), Uint8Array.of(1, 2))).toEqual(Uint8Array.of(1, 2))
   })
 })
@@ -316,16 +355,16 @@ describe('answers', () => {
 describe('over the link', () => {
   it('sends the request and decodes the answer', async () => {
     const board = new FakeBoard()
-    board.respond = (frame, send) => send(answer(frame[0]!, [0x10, 0x27, 0, 0]))
+    board.respond = (r, send) => send(answer(r, [0x10, 0x27, 0, 0]))
     const link = new RunitLink(board)
     await link.connect(board.device)
     const services = new Services(link)
     const out = await services.call('SYS', 'PING')
     expect(out.value).toEqual({ uptime_ms: 10_000 })
-    expect([...board.requests[0]!.subarray(2)]).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('PING')!.op])
+    expect([board.requests[0]!.key, ...board.requests[0]!.data]).toEqual([defs.keys.sys, defs.dir.read, catalog.service('SYS').commands.get('PING')!.op])
     await services.call('SYS', 'STOP')
     await until(() => board.requests.length === 2)
-    expect(board.requests[1]![1]).toBe(defs.flags.urgent)
+    expect(board.requests[1]!.flags).toBe(defs.flags.urgent)
     await link.close()
   })
 })

@@ -2,6 +2,7 @@
 
   device.schema.json    runit-esp/components/devices/**/device_*.json
   contract.schema.json  runit-esp/components/**/contract_*.json
+  provider.schema.json  runit-esp/components/providers/**/provider_*.json (its config fields are contract.schema.json's)
   vm-block.schema.json  runit-esp/components/vm/vm_blocks/**/block_*.json
   errors.schema.json    runit-esp/components/core/errors/errors.json
   error-texts.schema.json  runit-esp/components/**/errors_<module>.json (the message templates of a module's errors)
@@ -19,6 +20,7 @@ from _common import BOARDS_DIR, COMPONENTS_DIR, GENERATED, ROOT, fail, read, rel
 
 try:
     from jsonschema import Draft202012Validator
+    from referencing import Registry, Resource
 except ImportError:
     fail("the jsonschema package is missing: pip install jsonschema")
 
@@ -34,6 +36,7 @@ def descriptors(prefix):
 CHECKS = (
     ("device.schema.json", descriptors("device_")),
     ("contract.schema.json", descriptors("contract_")),
+    ("provider.schema.json", descriptors("provider_")),
     ("vm-block.schema.json", descriptors("block_")),
     ("errors.schema.json", [COMPONENTS_DIR / "core" / "errors" / "errors.json"]),
     ("error-texts.schema.json", descriptors("errors_")),
@@ -62,8 +65,11 @@ def main():
     published = set(json.loads(read(ENUMS))["enums"]) if ENUMS.exists() else set()
     if not published:
         problems.append(f"{rel(ENUMS)} is missing or empty: run python templates/generate_enums.py")
+    # A schema may use another's definitions by its $id (provider.schema.json takes contract.schema.json's field).
+    schemas = [json.loads(read(path)) for path in sorted(TEMPLATES.glob("*.schema.json"))]
+    registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas if "$id" in s)
     for schema_name, paths in CHECKS:
-        validator = Draft202012Validator(json.loads(read(TEMPLATES / schema_name)))
+        validator = Draft202012Validator(json.loads(read(TEMPLATES / schema_name)), registry=registry)
         for path in paths:
             if not path.exists():
                 problems.append(f"{rel(path)}: not found (expected by {schema_name})")

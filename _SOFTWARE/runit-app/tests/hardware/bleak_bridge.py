@@ -3,7 +3,7 @@ real board from Node (Node has no BLE). The backend's own code (framing, command
 this file only moves packets. It reads no UUID: the caller sends them from generated/.
 
   -> {"id": n, "cmd": "find", "service": 65504, "name": "runit", "address": null, "timeout": 10}
-  -> {"id": n, "cmd": "open", "address": "...", "service": 65504, "write": 65505, "notify": [65505, 65507]}
+  -> {"id": n, "cmd": "open", "address": "...", "service": 65504, "write": 65506, "notify": [65505], "optional": [65507, 65508]}
   -> {"id": n, "cmd": "write", "data": "hex"}   -> {"id": n, "cmd": "close"}   -> {"id": n, "cmd": "drop"}  (the OS-side loss is faked)
   <- {"id": n, "ok": true, ...} | {"id": n, "error": "..."}
   <- {"event": "packet", "char": 65505, "data": "hex"} | {"event": "closed", "reason": "..."}
@@ -60,7 +60,8 @@ class Bridge:
         client = BleakClient(target, disconnected_callback=self.on_disconnect)
         await client.connect()
         try:
-            for ch in m["notify"]:
+            present = {c.uuid.lower() for s in client.services for c in s.characteristics}
+            for ch in m["notify"] + [c for c in m.get("optional", []) if uuid16(c) in present]:
                 await client.start_notify(uuid16(ch), lambda _c, d, ch=ch: emit({"event": "packet", "char": ch, "data": bytes(d).hex()}))
         except Exception:
             self.ours = True

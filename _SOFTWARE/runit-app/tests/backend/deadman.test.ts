@@ -7,20 +7,22 @@ const catalog = bundledServiceCatalog()
 const sys = catalog.service(DEADMAN_COMMANDS.service)
 const SET = sys.commands.get(DEADMAN_COMMANDS.set)!.op
 const PING = sys.commands.get(DEADMAN_COMMANDS.ping)!.op
+/** Any request of another router than SYS. */
+const i2c = { key: defs.keys.i2c!, body: Uint8Array.of(defs.dir.write, 1) }
 const u32 = (n: number) => [n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, n >>> 24]
 
 /** A board that answers the DEADMAN write and PING (with `uptime`), and holds every other request unanswered when `hold`. */
 const board = () => {
   const b = Object.assign(new FakeBoard(), { uptime: 1000, hold: false })
-  b.respond = (frame, send) => {
-    if (frame[2] !== defs.keys.sys) return b.hold ? undefined : send(answer(frame[0]!))
-    if (frame[4] === PING) send(answer(frame[0]!, u32((b.uptime += 10))))
-    else send(answer(frame[0]!))
+  b.respond = (r, send) => {
+    if (r.key !== defs.keys.sys) return b.hold ? undefined : send(answer(r))
+    if (r.data[1] === PING) send(answer(r, u32((b.uptime += 10))))
+    else send(answer(r))
   }
   return b
 }
 
-const sysOps = (b: FakeBoard, op: number) => b.requests.filter((f) => f[2] === defs.keys.sys && f[4] === op) // [seq][flags][key][dir][op]
+const sysOps = (b: FakeBoard, op: number) => b.requests.filter((r) => r.key === defs.keys.sys && r.data[1] === op) // data: [dir][op][args]
 
 const start = async (b: FakeBoard, options: { timeoutMs?: number; heartbeatMs?: number } = {}) => {
   const link = new RunitLink(b, { timeoutMs: 200, reconnect: { delaysMs: [0, 1, 2], openTimeoutMs: 50 } })
@@ -43,9 +45,9 @@ describe('the dead-man', () => {
     const b = board()
     const { link, deadman, events } = await start(b)
     const set = sysOps(b, SET)[0]!
-    expect(set[1]).toBe(defs.flags.urgent)
-    expect(set[3]).toBe(defs.dir.write)
-    expect([...set.subarray(5)]).toEqual([...u32(120)])
+    expect(set.flags).toBe(defs.flags.urgent)
+    expect(set.data[0]).toBe(defs.dir.write)
+    expect([...set.data.subarray(2)]).toEqual([...u32(120)])
     expect(sysOps(b, PING)).toHaveLength(1)
     expect(events).toEqual([{ type: 'armed', timeoutMs: 120 }])
     await deadman.stop()
@@ -59,7 +61,7 @@ describe('the dead-man', () => {
     await until(() => sysOps(b, PING).length >= pings + 2, 500)
     const busy = sysOps(b, PING).length
     for (let i = 0; i < 12; i++) {
-      await link.request({ keys: [defs.keys.i2c!, 1] })
+      await link.request(i2c)
       await new Promise((resolve) => setTimeout(resolve, 10))
     }
     expect(sysOps(b, PING).length).toBeLessThanOrEqual(busy + 1) // traffic every 10 ms feeds it: at most one beat in flight
@@ -71,7 +73,7 @@ describe('the dead-man', () => {
     const b = board()
     const { link, deadman } = await start(b)
     b.hold = true
-    const held = Array.from({ length: 8 }, () => link.request({ keys: [defs.keys.i2c!, 1] }).catch(() => undefined))
+    const held = Array.from({ length: 8 }, () => link.request(i2c).catch(() => undefined))
     const pings = sysOps(b, PING).length
     await until(() => sysOps(b, PING).length >= pings + 2, 500)
     await deadman.stop({ disarm: false })
@@ -116,7 +118,7 @@ describe('the dead-man', () => {
     const b = board()
     const { link, deadman } = await start(b)
     await deadman.stop()
-    expect([...sysOps(b, SET).at(-1)!.subarray(5)]).toEqual([...u32(0)])
+    expect([...sysOps(b, SET).at(-1)!.data.subarray(2)]).toEqual([...u32(0)])
     expect(deadman.active).toBe(false)
     await link.close()
   })

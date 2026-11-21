@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { bundledLinkDefinitions, decodePeers, serviceCall, SESSION_COMMANDS, Services } from '@backend'
-import type { FieldValues, RunitLink, ServiceCall } from '@backend'
+import { bleTableCall, decodeBleTable, PROVIDER_COMMANDS, serviceCall, Services } from '@backend'
+import type { FieldValues, LiveGattService, RunitLink, ServiceCall } from '@backend'
 import type { GattService, ProjectSettings, SettingsRow } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
-import { decodeBleProviders, decodeGattList, GATT, gattApply, sameGatt } from './gatt'
-import type { LiveGattService } from './gatt'
+import { bleProviders, gattApply, sameGatt } from './gatt'
 import { groupValues, sameRows, sameValues, settingSections, tableArgs, tableRows } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 
@@ -64,9 +63,9 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     if (section.record) {
       const key = section.service.id
       try {
-        const table = await services.call(GATT.service, GATT.list)
-        const providers = await services.call(GATT.providers, GATT.providerList)
-        setLive((l) => ({ ...l, gatt: decodeGattList(table.data), bleProviders: decodeBleProviders(providers.data) }))
+        const table = await services.send(bleTableCall(services.catalog))
+        const providers = await services.call(PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.list)
+        setLive((l) => ({ ...l, gatt: decodeBleTable(link.defs, table.data), bleProviders: bleProviders(services.catalog, providers.data) }))
         setError(key, undefined)
       } catch (failure) { ok = false; setError(key, `Reading: ${message(failure)}`) }
     }
@@ -171,7 +170,7 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt),
     changeGatt: (services: readonly GattService[]) => editSettings((s) => ({ ...s, gatt: services }), 'setting:gatt'),
     applyGatt: (section: SettingSection) => {
-      if (settings.gatt && live.bleProviders) void send(section.service.id, gattApply(services.catalog, live.bleProviders, settings.gatt), section)
+      if (settings.gatt && live.bleProviders) void send(section.service.id, gattApply(link.defs, services.catalog, live.bleProviders, settings.gatt), section)
     },
     dropGatt: () => editSettings(({ gatt: _, ...s }) => s),
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, ListChecks, Lock, Play, Plus, RotateCcw } from 'lucide-react'
-import { bundledEnums, deviceCall, onboardActions } from '@backend'
+import { bundledEnums, deviceCall, frameRequest, onboardActions } from '@backend'
 import type { Request } from '@backend'
 import { Badge, Button, Card, CardStack, ChoiceField, DeviceTile, EditableField, FieldError, FormGrid, FormRow, PanelHeader, RefPill, TreeSlab, deviceIcon } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
@@ -289,7 +289,7 @@ function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: De
 
 /** The request of a step (a write), to send it live. */
 const stepRequest = (state: DevicesState, step: Step): Request =>
-  step.kind === 'frame' ? { keys: [step.bytes[0]!], payload: Uint8Array.from(step.bytes.slice(1)) } : stepCall(state.services.link.defs, state.catalog, step).request
+  step.kind === 'frame' ? frameRequest(Uint8Array.from(step.bytes)) : stepCall(state.services.link.defs, state.catalog, step).request
 
 function ActionScreen({ action, state }: { action: ProjectAction; state: DevicesState }) {
   const [result, setResult] = useState<{ tone: 'info' | 'error'; text: string } | undefined>()

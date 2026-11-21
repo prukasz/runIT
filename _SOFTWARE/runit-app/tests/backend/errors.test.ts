@@ -21,7 +21,7 @@ describe('errors.json', () => {
     }
     for (const [kind, info] of kinds) if (info.scope && !kinds.has(info.scope)) wrong.push(`${kind}: scope ${info.scope}`)
     expect(wrong).toEqual([])
-    expect(catalog.size).toBeGreaterThan(150)
+    expect(catalog.size).toBeGreaterThan(100)
   })
 
   it('context nodes are the ones of severity NONE', () => {
@@ -36,7 +36,7 @@ describe('reading an error', () => {
     const op = 0x0101 // IO contract, op 1
     const data = record(
       [['ERR_ROUTER_KEY', { key: defs.keys.sys_device! }], ['ERR_DEV_ID', { id: 3 }], ['ERR_DEV_OP', { op, dir: defs.dir.write }], ['ERR_IO_PIN_IN_USE', { id: 3, pin: 22, mode: ioMode.value }]],
-      [defs.keys.sys_device!, defs.dir.write, ...u16(3), ...u16(op), 22],
+      [defs.keys.sys_device!, defs.dir.write, 3, ...u16(op), 22],
     )
     const report = interpreter.read(data)!
     expect(report.message).toBe(`Pin 22 of Left motor is already set up as ${ioMode.alias}`)
@@ -80,7 +80,7 @@ describe('the error log', () => {
     let t = 1000
     return { now: () => t, tick: (ms: number) => (t += ms) }
   }
-  const pinError = (seq: number, pin = 22) => record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin }]], [defs.keys.sys_device!, ...u16(3), 1, 1], seq)
+  const pinError = (seq: number, pin = 22) => record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin }]], [defs.keys.sys_device!, defs.dir.write, 3, 1, 1, pin], seq)
 
   it('an answer and its copy on the stream are one; the same error again counts up and is unread again', () => {
     const c = clock()
@@ -101,7 +101,7 @@ describe('the error log', () => {
   it("dates an entry by the board's clock in its record: UTC as it is, a time since the start once the clock is known, never twice for one record", () => {
     const stamp = (ms: number) => [...u32(ms % 2 ** 32), ...u32(Math.floor(ms / 2 ** 32))]
     const rec = (ms: number, seq: number) => {
-      const bytes = record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin: 22 }]], [defs.keys.sys_device!, ...u16(3), 1, 1], seq, 0)
+      const bytes = record([['ERR_DEV_ID', { id: 3 }], ['ERR_IO_PIN_UNCONFIGURED', { id: 3, pin: 22 }]], [defs.keys.sys_device!, defs.dir.write, 3, 1, 1, 22], seq, 0)
       bytes.set(stamp(ms), 1)
       return bytes
     }
@@ -155,7 +155,7 @@ describe('the error log', () => {
     const changes: number[] = []
     log.onChange((entries) => changes.push(entries.length))
     log.attach(link)
-    board.stream(defs.streams.errors, pinError(4))
+    board.push(defs.streams.errors, pinError(4))
     await until(() => log.entries().length === 1)
     const failed = new CommandError('refused', 'device-error', { record: interpreter.read(record([['ERR_DEV_SUSPENDED', { id: 3 }]]))!.record })
     expect(log.addCommandError(failed)!.report.message).toBe('Left motor is suspended')

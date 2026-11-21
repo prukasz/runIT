@@ -100,10 +100,13 @@ A module learns the session a packet came on from `from`, the board from `src`.
 
 **A tunnel** is two links, `P(a) ⇄ P(b)`: the frames pass whole, so the app opens a session with the board behind. A provider in a tunnel has no session (its output goes to every target), and both ends are framed or both raw.
 
+## Tests
+
+Host tests in `host/` (`python test_host/run.py data_matrix` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`: ports registered and unregistered, the table's limits; links fanning out, a send skipping its sender, a send to one port, the targets' limit; CONNECT, DISCONNECT and LIST through the router.
+
 ## Open
 
 - The deepest chain (provider, session, its sub-port, the router's call callback, another session, its provider) puts a session frame on the sender's stack at each session: measured on the board with SYS TASKS (SYS_SYSTEM.MD), against the BLE host's and the RX tasks' stacks.
 - The board's record: the `ATTACH` frames before the `CONNECT` frames that link the sub-ports.
 - A self-registration macro for a module's port.
-- Host tests of the switch (the host runner is not in the repo).
-- The host side speaks the former frame: `router_link.py` and the board scripts, the app's session code (the 5-byte header, the module numbers as keys, the PUSH keys).
+- The host side speaks the former frame: `router_link.py` and the board scripts (the 5-byte header, the module numbers as keys, the PUSH keys).

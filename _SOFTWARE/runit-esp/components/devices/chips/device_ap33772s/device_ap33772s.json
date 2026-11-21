@@ -24,7 +24,7 @@
   "datasheet": "https://www.diodes.com/assets/Datasheets/AP33772S.pdf",
   "config": {
     "struct": "ap33772s_cfg_t",
-    "size": 5,
+    "size": 4,
     "fields": [
       {
         "id": "i2c_bus",
@@ -58,7 +58,7 @@
         "label": "INT",
         "description": "Active-low interrupt; needs CONFIGURE_INTR on its device. Leave unwired when not connected.",
         "offset": 2,
-        "size": 3,
+        "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,

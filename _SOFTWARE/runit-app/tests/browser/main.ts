@@ -68,7 +68,7 @@ async function runSuite(): Promise<Result[]> {
   await test('the session: the board id, its boot and build, and this client open on a provider', async () => {
     const session = link.session!
     expect(session.bootId > 0 && session.buildId > 0, `session ${JSON.stringify(session)}`)
-    const peers = decodePeers(defs, (await services.call('SESSION', 'PEERS')).data)
+    const peers = decodePeers((await services.call('SESSION', 'PEERS')).data, services.catalog)
     expect(peers.some((p) => p.open && p.peerId === session.clientId), 'this client is not an open session')
   })
 
@@ -113,7 +113,7 @@ async function runSuite(): Promise<Result[]> {
   })
 
   await test('a request of 500 bytes goes out in one write, and the link is fine after it', async () => {
-    const big = await link.request({ keys: [defs.keys.sys!, defs.dir.read, 0x01], payload: new Uint8Array(500) }).then(() => 'answered', (e: unknown) => (e instanceof CommandError ? e.code : String(e)))
+    const big = await link.request({ key: defs.keys.sys!, body: Uint8Array.from([defs.dir.read, 0x01, ...new Uint8Array(500)]) }).then(() => 'answered', (e: unknown) => (e instanceof CommandError ? e.code : String(e)))
     expect(big === 'answered' || big === 'device-error', `big frame: ${big}`)
     await uptime() // the link is fine after it
   })

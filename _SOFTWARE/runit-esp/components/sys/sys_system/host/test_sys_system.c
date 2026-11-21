@@ -66,6 +66,18 @@ err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
   return NULL;
 }
 
+static err_h gone_trampoline(const sys_event_t* event, void* ctx) {
+  sys_session_gone_f fn = (sys_session_gone_f)(uintptr_t)ctx;
+  const evt_data_SESSION_EV_GONE_t* d = (const evt_data_SESSION_EV_GONE_t*)event->data;
+  fn((uint8_t)event->key.source, d->safety);
+  return NULL;
+}
+
+err_h sys_session_on_gone(sys_session_gone_f fn) {
+  uint16_t handle = 0;
+  return sys_event_subscribe(SESSION_GONE_FILTER, gone_trampoline, (void*)(uintptr_t)fn, SYS_EVENT_RUN_INLINE, &handle);
+}
+
 static err_h route_sys(uint8_t dir, uint8_t op, const void* args, uint32_t args_len, uint8_t* reply,
                        uint32_t reply_cap, uint32_t* reply_len) {
   uint8_t req[32];

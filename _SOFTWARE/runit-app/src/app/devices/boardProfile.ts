@@ -67,11 +67,11 @@ export const boardProfileFrames = (defs: LinkDefinitions, catalog: ServiceCatalo
   for (const device of board.devices) {
     const type = boardType(catalog, device.descriptor)
     if (!type) throw new Error(`${device.name}: no descriptor ${device.descriptor}.`)
-    if (!SINGLE_TYPES.has(type.id)) frames.push(frameOf(createDeviceCall(defs, catalog, device.id, type.id, createConfig(catalog, device) as never, true)))
+    if (!SINGLE_TYPES.has(type.id)) frames.push(frameOf(createDeviceCall(catalog, device.id, type.id, createConfig(catalog, device) as never, true)))
     // A device with a Board boot sets its pins up there (the profile's: boardEditor.ts); the bundled board's own setup otherwise.
     for (const pin of boot.has(device.id) ? [] : board.pinSetup.filter((p) => p.device === device.id)) {
-      frames.push(frameOf(deviceCall(defs, catalog, device.id, 'IO', 'MODE', { pin: pin.pin, mode: pin.mode }, 'write')))
-      if (pin.level !== undefined) frames.push(frameOf(deviceCall(defs, catalog, device.id, 'IO', 'LEVEL', { pin: pin.pin, level: pin.level ? 1 : 0 }, 'write')))
+      frames.push(frameOf(deviceCall(catalog, device.id, 'IO', 'MODE', { pin: pin.pin, mode: pin.mode }, 'write')))
+      if (pin.level !== undefined) frames.push(frameOf(deviceCall(catalog, device.id, 'IO', 'LEVEL', { pin: pin.pin, level: pin.level ? 1 : 0 }, 'write')))
     }
     for (const step of boot.get(device.id) ?? []) frames.push(stepFrame(defs, catalog, step))
   }

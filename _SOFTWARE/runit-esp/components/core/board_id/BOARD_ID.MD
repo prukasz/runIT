@@ -18,3 +18,7 @@ Component `components/core/board_id/` (in `core`: the id is the header's `src`, 
 - **The build** (`board_build_id()`): the first 4 bytes of the firmware's ELF SHA-256: whether two boards run the same build (the session's hello).
 
 `board_id_init` runs at boot after `nvs_store_init("nvs")` and before anything reads them (`app/runit`).
+
+## Tests
+
+Host tests in `host/` (`python test_host/run.py board_id` from `runit-esp/`, `HOST_TESTS.MD`), on `nvs_store`'s RAM implementation: the default id and the boot and build ids; a saved id reloaded, an id out of range refused; a corrupt stored id falling back to the default.

@@ -20,14 +20,16 @@ extern "C" {
  */
 
 /* Flags of a service (sys_ble_service_create, LIST) */
-#define SYS_BLE_SVC_PRIMARY (1u << 0)  /**< A primary service */
-#define SYS_BLE_SVC_LOCKED  (1u << 1)  /**< LIST only: the board's own, no change, no removal */
+//#ref-defines ble_svc_flag @alias BLE service flags @prefix SYS_BLE_SVC_
+#define SYS_BLE_SVC_PRIMARY (1u << 0)  //@alias Primary @description A primary service
+#define SYS_BLE_SVC_LOCKED  (1u << 1)  //@alias Locked @description LIST only: the board's own, no change, no removal
 
 /* Flags of a characteristic (sys_ble_char_create, LIST) */
-#define SYS_BLE_CHR_WRITE    (1u << 0)  /**< The peer writes it */
-#define SYS_BLE_CHR_INDICATE (1u << 1)  /**< Out as indications */
-#define SYS_BLE_CHR_NOTIFY   (1u << 2)  /**< Out as notifications */
-#define SYS_BLE_CHR_FRAMED   (1u << 3)  /**< Fragment header on every packet (SYS_BLE_FRAG_*) */
+//#ref-defines ble_chr_flag @alias BLE characteristic flags @prefix SYS_BLE_CHR_
+#define SYS_BLE_CHR_WRITE    (1u << 0)  //@alias Write @description The peer writes it
+#define SYS_BLE_CHR_INDICATE (1u << 1)  //@alias Indicate @description Out as indications
+#define SYS_BLE_CHR_NOTIFY   (1u << 2)  //@alias Notify @description Out as notifications
+#define SYS_BLE_CHR_FRAMED   (1u << 3)  //@alias Framed @description Fragment header on every packet (SYS_BLE_FRAG_*)
 
 /** The bytes of a TX buffer that holds `items` frames of CMD_FRAME_MAX (a no-split ring buffer keeps 8 B in front of each). */
 #define SYS_BLE_TX_BYTES(items) ((CMD_FRAME_MAX + 8u) * (items))

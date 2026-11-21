@@ -1,15 +1,27 @@
+import type { FieldRecord } from '../catalog/codec'
 import type { ServiceCatalog } from '../catalog/services'
-import { serviceCall } from '../protocol/services'
+import { serviceCall } from '../protocol/calls'
+import type { CallArgs, LeadAnswer } from '../protocol/calls'
 import type { RunitLink } from './link'
+import { Services } from './services'
 
 /*
- * The records of the board (SYS_ACTIONS.MD): a list of router frames kept in NVS under a u32 id, written whole (BEGIN, WRITE,
- * COMMIT with the image's CRC) and read back from an offset. The user's actions (class 0), the settings of the system modules
- * (0x01…), a device's install and default commands (0x02000000 | device id) and the board's profile (0x04000000) are records.
+ * The records of the board (SYS_ACTIONS.MD): a list of stored frames kept in NVS under a u32 id, written whole (BEGIN, WRITE,
+ * COMMIT with the image's CRC) and read back from an offset. The user's actions, the settings of the system modules, a device's
+ * create and start commands and the board's profile are records.
  *
- * A frame here is what the router takes: keys and payload, no `seq` / `flags` (`requestFrame`). The ops are the ACTIONS service's
- * (`contract_actions.json`): none is numbered here.
+ * A stored frame is what the router takes, `[key][dir][...]` (`requestFrame`), no header. The commands and their fields are the
+ * ACTIONS service's (`contract_actions.json`), named once in `ACTIONS_COMMANDS`.
  */
+
+export const ACTIONS_COMMANDS = {
+  service: 'ACTIONS',
+  begin: 'BEGIN', write: 'WRITE', commit: 'COMMIT', info: 'INFO', read: 'READ', list: 'LIST', run: 'RUN', runAll: 'RUN_ALL', remove: 'REMOVE',
+  field: { id: 'id', len: 'len', offset: 'offset', data: 'data', crc: 'crc32', start: 'start', bytes: 'bytes', count: 'count' },
+} as const
+
+const C = ACTIONS_COMMANDS
+const F = C.field
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256)
@@ -21,14 +33,14 @@ const CRC_TABLE = (() => {
   return table
 })()
 
-/** CRC-32 as zlib and the firmware (`esp_rom_crc32_le(0, …)`) compute it. */
+/** CRC-32 as zlib and the firmware (`crc32_ieee(0, …)`, CRC.MD) compute it. */
 export const crc32 = (bytes: Uint8Array): number => {
   let crc = 0xffffffff
   for (const b of bytes) crc = CRC_TABLE[(crc ^ b) & 0xff]! ^ (crc >>> 8)
   return (crc ^ 0xffffffff) >>> 0
 }
 
-/** Frames back to back, each `[u16 len][frame]`: the image of a record. */
+/** Frames back to back, each `[u16 len LE][frame]`: the image of a record (SYS_ACTIONS.MD "Image"). */
 export const frameImage = (frames: readonly Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(frames.reduce((sum, f) => sum + 2 + f.length, 0))
   let at = 0
@@ -55,16 +67,12 @@ export const parseImage = (image: Uint8Array): Uint8Array[] | undefined => {
   return frames
 }
 
-const readU32 = (bytes: Uint8Array, at: number): number => (bytes[at]! | (bytes[at + 1]! << 8) | (bytes[at + 2]! << 16) | (bytes[at + 3]! << 24)) >>> 0
+const call = async (link: RunitLink, catalog: ServiceCatalog, command: string, args?: CallArgs, timeoutMs = 5000) =>
+  new Services(link, catalog).send(serviceCall(catalog, C.service, command, args), { timeoutMs })
 
-const SERVICE = 'ACTIONS'
-/** The bytes a WRITE of a record's image carries at most: a request holds `frameMax - frameHead`, less `[key][dir][op]` and the u16 offset. */
-const writeChunk = (link: RunitLink): number => link.defs.frameMax - link.defs.frameHead - 3 - 2
-
-type Args = Record<string, number | Uint8Array>
-
-const call = (link: RunitLink, catalog: ServiceCatalog, command: string, args?: Args, timeoutMs = 5000): Promise<Uint8Array> =>
-  link.request(serviceCall(catalog, SERVICE, command, args as never).request, { timeoutMs, label: `${SERVICE} ${command}` })
+/** The bytes one WRITE carries at most: what a request's body holds, less the body of a WRITE with no data. */
+const writeChunk = (link: RunitLink, catalog: ServiceCatalog): number =>
+  link.defs.frameMax - link.defs.frameHead - serviceCall(catalog, C.service, C.write, { [F.offset]: 0, [F.data]: new Uint8Array(0) }).request.body.length
 
 export interface RecordInfo {
   /** The image's length. */
@@ -74,29 +82,26 @@ export interface RecordInfo {
   readonly crc: number
 }
 
-/** Writes a record (BEGIN, WRITE, COMMIT with the CRC), replacing the one with this id. A frame at a time, each answered before the next. */
+/** Writes a record (BEGIN, WRITE, COMMIT with the CRC), replacing the one with this id; each step answered before the next. */
 export const storeRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number, frames: readonly Uint8Array[]): Promise<void> => {
   const image = frameImage(frames)
-  await call(link, catalog, 'BEGIN', { id, len: image.length })
-  const chunk = writeChunk(link)
-  for (let offset = 0; offset < image.length; offset += chunk) await call(link, catalog, 'WRITE', { offset, data: image.subarray(offset, offset + chunk) })
-  await call(link, catalog, 'COMMIT', { crc32: crc32(image) })
+  await call(link, catalog, C.begin, { [F.id]: id, [F.len]: image.length })
+  const chunk = writeChunk(link, catalog)
+  for (let offset = 0; offset < image.length; offset += chunk) await call(link, catalog, C.write, { [F.offset]: offset, [F.data]: image.subarray(offset, offset + chunk) })
+  await call(link, catalog, C.commit, { [F.crc]: crc32(image) })
 }
 
 export const recordInfo = async (link: RunitLink, catalog: ServiceCatalog, id: number): Promise<RecordInfo> => {
-  const data = await call(link, catalog, 'INFO', { id })
-  return { bytes: data[0]! | (data[1]! << 8), count: data[2]! | (data[3]! << 8), crc: readU32(data, 4) }
+  const info = (await call(link, catalog, C.info, { [F.id]: id })).value as FieldRecord
+  return { bytes: Number(info[F.bytes]), count: Number(info[F.count]), crc: Number(info[F.crc]) }
 }
 
-/**
- * The frames of a record, as stored: READ answers the image from an offset, as many bytes as fit, so the image is read from 0
- * up to INFO's `bytes`, checked against its CRC and split into its frames.
- */
+/** The frames of a record as stored: the image read from 0 up to INFO's `bytes`, checked against its CRC and split into its frames. */
 export const readRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number): Promise<Uint8Array[]> => {
   const info = await recordInfo(link, catalog, id)
   const image = new Uint8Array(info.bytes)
   for (let at = 0; at < info.bytes; ) {
-    const data = await call(link, catalog, 'READ', { id, offset: at }, 10_000)
+    const { data } = await call(link, catalog, C.read, { [F.id]: id, [F.offset]: at }, 10_000)
     if (data.length === 0 || at + data.length > info.bytes) throw new Error(`Record ${id.toString(16)}: READ at ${at} gave ${data.length} bytes of ${info.bytes}.`)
     image.set(data, at)
     at += data.length
@@ -107,13 +112,12 @@ export const readRecord = async (link: RunitLink, catalog: ServiceCatalog, id: n
   return frames
 }
 
-/** Every stored record id, ascending. */
+/** Every stored record id, ascending: LIST answers the total and the ids from `start` that fit, so it is asked until all came. */
 export const listRecords = async (link: RunitLink, catalog: ServiceCatalog): Promise<number[]> => {
   const ids: number[] = []
   for (let start = 0; ; ) {
-    const data = await call(link, catalog, 'LIST', { start })
-    const total = data[0]! | (data[1]! << 8)
-    const got = Array.from({ length: (data.length - 2) >> 2 }, (_, i) => readU32(data, 2 + 4 * i))
+    const { lead: total, rows } = (await call(link, catalog, C.list, { [F.start]: start })).value as LeadAnswer
+    const got = rows.map(Number)
     ids.push(...got)
     if (got.length === 0 || ids.length >= total) return ids
     start = got[got.length - 1]! + 1
@@ -121,5 +125,6 @@ export const listRecords = async (link: RunitLink, catalog: ServiceCatalog): Pro
 }
 
 /** Runs a record on the board; `keepGoing`: RUN_ALL, every frame runs and the first failure is the answer. */
-export const runRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number, keepGoing = false): Promise<void> => void (await call(link, catalog, keepGoing ? 'RUN_ALL' : 'RUN', { id }))
-export const removeRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number): Promise<void> => void (await call(link, catalog, 'REMOVE', { id }))
+export const runRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number, keepGoing = false): Promise<void> => void (await call(link, catalog, keepGoing ? C.runAll : C.run, { [F.id]: id }))
+
+export const removeRecord = async (link: RunitLink, catalog: ServiceCatalog, id: number): Promise<void> => void (await call(link, catalog, C.remove, { [F.id]: id }))

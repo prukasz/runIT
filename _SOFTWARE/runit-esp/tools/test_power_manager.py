@@ -230,23 +230,24 @@ class PowerLifecycleAndLoads(PwrmBase):
         self.assertEqual(self.c.wr(DEV_RAIL, DEV_CREATE, testdev_cfg())[0], 0)
         self.assertEqual(self.c.pm_w(OP_LAYOUT, layout_bytes())[0], 0)
 
+        row_sz = 1 + KIND_COUNT  # uint8_t target + uint8_t responses[KIND_COUNT]
         # Initially matrix has 1 row (board)
-        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
+        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), row_sz)
         # Add rail at runtime -> 2 rows; duplicate rejected
         self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 0)
         self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 1)
-        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 2 * 13)
+        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 2 * row_sz)
 
         # Explicit RAIL_REMOVE -> back to 1 row
         self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<B", DEV_RAIL))[0], 0)
-        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
+        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), row_sz)
         self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<B", DEV_RAIL))[0], 1)
 
         # Re-add rail, then remove device -> auto-removed by SYS_DEVICE_EV_REMOVED
         self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 0)
         self.assertEqual(self.c.wr(DEV_RAIL, DEV_REMOVE)[0], 0)
         time.sleep(0.05)
-        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
+        self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), row_sz)
 
 
 class PowerSourceAndBattery(PwrmBase):

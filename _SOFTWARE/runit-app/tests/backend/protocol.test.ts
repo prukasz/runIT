@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { decodeErrorRecord, decodeFrame, decodeHello, decodeResponse, encodeHello, encodeRequest, errorCatalog, fragment, HEADER_BYTES, Reassembler } from '@backend'
+import { decodeErrorRecord, decodeFrame, decodeHello, encodeFrame, encodeHello, encodeRequest, errorCatalog, fragment, frameRequest, HELLO_BYTES, Reassembler, requestFrame } from '@backend'
 import { defs } from './fakes'
 import { record } from './records'
 
@@ -10,69 +10,88 @@ const bytes = (text: string) => Uint8Array.from(text.split(' ').map((b) => Numbe
 const source = (path: string) => readFileSync(fileURLToPath(new URL(`../../../runit-esp/${path}`, import.meta.url)), 'utf8')
 
 describe('the numbers come from the firmware', () => {
+  const define = (text: string, name: string) => Number(new RegExp(String.raw`#define\s+${name}\s+\(?(0x[0-9A-Fa-f]+|\d+)u?`).exec(text)?.[1])
+  const shifted = (text: string, name: string) => {
+    const m = new RegExp(String.raw`#define\s+${name}\s+\((\d+)u\s*<<\s*(\d+)\)`).exec(text)
+    return m ? Number(m[1]) << Number(m[2]) : Number.NaN
+  }
+
   it('the runIT UUIDs and the fragment bits equal the headers', () => {
     const ids = source('components/app/runit/runit_ids.h')
-    const header = source('components/sys/bus/sys_ble/sys_ble.h')
-    const define = (text: string, name: string) => Number(new RegExp(`#define\\s+${name}\\s+(0x[0-9A-Fa-f]+)`).exec(text)?.[1])
+    const ble = source('components/sys/bus/sys_ble/sys_ble.h')
     expect(defs.gatt).toEqual({
       service: define(ids, 'RUNIT_BLE_SERVICE'),
       tx: define(ids, 'RUNIT_BLE_TX'),
       rx: define(ids, 'RUNIT_BLE_RX'),
       logs: define(ids, 'RUNIT_BLE_LOGS'),
+      telemetry: define(ids, 'RUNIT_BLE_TELEMETRY'),
     })
-    expect(defs.frag).toEqual({ last: define(header, 'SYS_BLE_FRAG_LAST'), first: define(header, 'SYS_BLE_FRAG_FIRST'), countMask: define(header, 'SYS_BLE_FRAG_COUNT_MASK') })
+    expect(defs.frag).toEqual({ last: define(ble, 'SYS_BLE_FRAG_LAST'), first: define(ble, 'SYS_BLE_FRAG_FIRST'), countMask: define(ble, 'SYS_BLE_FRAG_COUNT_MASK') })
+    expect(defs.ble.characteristic.framed).toBe(shifted(ble, 'SYS_BLE_CHR_FRAMED'))
+    expect(defs.ble.providerFramed).toBe(shifted(source('components/providers/provider_ble/provider_ble.h'), 'PROVIDER_BLE_FRAMED'))
   })
 
-  it('the root keys are the module numbers the routers declare', () => {
+  it('the keys are the module numbers the modules declare', () => {
     const declared = (path: string, name: string) => Number(new RegExp(String.raw`MODULE_ID_DECLARE\(${name},\s*(0x[0-9A-Fa-f]+)\)`).exec(source(path))?.[1])
     expect(defs.keys.sys).toBe(declared('components/sys/sys_system/sys_system_id.h', 'MODULE_ID_SYS'))
     expect(defs.keys.watch).toBe(declared('components/sys/sys_watch/sys_watch_id.h', 'MODULE_ID_WATCH'))
-    expect(defs.keys.session).toBe(0x0e)
+    expect(defs.control.key).toBe(declared('components/sys/sys_session/sys_session_id.h', 'MODULE_ID_SESSION'))
+    expect(defs.streams.watches).toBe(defs.keys.watch)
   })
 
-  it('the session header is CMD_HEAD and the frame limit equals CMD_FRAME_MAX', () => {
+  it('the header is cmd_hdr_t: CMD_HEAD bytes, type, src, key, seq u16, and the frame limit is CMD_FRAME_MAX', () => {
     const cmd = source('components/core/cmd/cmd.h')
-    expect(Number(/#define\s+CMD_FRAME_MAX\s+(\d+)u/.exec(cmd)?.[1])).toBe(defs.frameMax)
-    expect(Number(/#define\s+CMD_HEAD\s+(\d+)u/.exec(cmd)?.[1])).toBe(defs.frameHead)
-    expect(HEADER_BYTES).toBe(defs.frameHead)
+    expect(define(cmd, 'CMD_FRAME_MAX')).toBe(defs.frameMax)
+    expect(define(cmd, 'CMD_HEAD')).toBe(defs.frameHead)
+    const struct = /typedef struct __attribute__\(\(packed\)\) \{([^}]*)\} cmd_hdr_t;/.exec(cmd)![1]!
+    expect([...struct.matchAll(/(uint\d+)_t\s+(\w+);/g)].map((m) => `${m[1]} ${m[2]}`)).toEqual(['uint8 type', 'uint8 src', 'uint8 key', 'uint16 seq'])
+    expect(defs.watchTickMs).toBe(define(source('components/sys/sys_watch/sys_watch.h'), 'SYS_WATCH_TICK_MS'))
+  })
+
+  it('HELLO_BYTES is sys_session_hello_t', () => {
+    expect(/_Static_assert\(sizeof\(sys_session_hello_t\) == (\d+)/.exec(source('components/sys/sys_session/sys_session.h'))?.[1]).toBe(String(HELLO_BYTES))
   })
 })
 
-describe('frames of the session (SYS_SESSION.MD)', () => {
-  it('encodes a request: [frame byte][seq u16][keys][payload]', () => {
-    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.i2c!, 0x02], payload: Uint8Array.of(0) }))).toBe('00 07 00 02 02 00') // i2c SCAN bus 0
-    expect(hex(encodeRequest(defs, 0x1234, { keys: [defs.keys.sys!, 0x01], urgent: true }))).toBe('01 34 12 28 01') // sys PING, urgent
-    expect(hex(encodeRequest(defs, 7, { keys: [defs.keys.sys!, 0x01], noReply: true })).slice(0, 2)).toBe('02')
-    expect(() => encodeRequest(defs, 0x10000, { keys: [1] })).toThrow(RangeError)
-    expect(() => encodeRequest(defs, 0, { keys: [] })).toThrow(RangeError)
+describe('frames (CMD.MD "The header")', () => {
+  it('encodes a request: [type][src][key][seq u16][dir][...]', () => {
+    const i2c = defs.keys.i2c!
+    expect(hex(encodeRequest(defs, 0xf0, 7, { key: i2c, body: Uint8Array.of(defs.dir.read, 0x02, 0) }))).toBe(`00 f0 ${hex(Uint8Array.of(i2c))} 07 00 00 02 00`)
+    expect(encodeRequest(defs, 0xf0, 0x1234, { key: defs.keys.sys!, body: Uint8Array.of(0, 1), urgent: true }).subarray(0, 5)).toEqual(Uint8Array.of(defs.flags.urgent, 0xf0, defs.keys.sys!, 0x34, 0x12))
+    expect(encodeRequest(defs, 0xf0, 7, { key: 1, body: Uint8Array.of(0), noReply: true })[0]).toBe(defs.flags.noReply)
+    expect(() => encodeRequest(defs, 0xf0, 0x10000, { key: 1, body: Uint8Array.of(0) })).toThrow(RangeError)
+    expect(() => encodeRequest(defs, 0xf0, 0, { key: 1, body: new Uint8Array(0) })).toThrow(RangeError)
   })
 
-  it('decodes an answer (kind 1, status in bit 2), and nothing else', () => {
-    expect(decodeResponse(defs, bytes('40 07 00 10 00 00 00'))).toMatchObject({ seq: 7, ok: true })
-    expect([...decodeResponse(defs, bytes('40 07 00 10 00 00 00'))!.data]).toEqual([0x10, 0, 0, 0])
-    expect(decodeResponse(defs, bytes('44 07 01'))).toMatchObject({ seq: 0x107, ok: false })
-    expect(decodeResponse(defs, bytes('80 07 00 04 01'))).toBeUndefined() // a PUSH frame (an error record)
-    expect(decodeResponse(defs, bytes('40 07'))).toBeUndefined()
-    expect(decodeFrame(defs, bytes('80 07 00 04 01'))).toMatchObject({ kind: defs.session.kind.push, seq: 7 })
+  it('decodes any frame: the kind in bits 6-7, the status of an answer in bit 2', () => {
+    const answer = encodeFrame(defs, { kind: defs.kind.answer, error: true, src: 3, key: 0x26, seq: 0x107 }, Uint8Array.of(9))
+    expect(answer[0]).toBe((defs.kind.answer << 6) | defs.type.status)
+    expect(decodeFrame(defs, answer)).toMatchObject({ kind: defs.kind.answer, error: true, src: 3, key: 0x26, seq: 0x107 })
+    expect([...decodeFrame(defs, answer)!.data]).toEqual([9])
+    expect(decodeFrame(defs, answer.subarray(0, 4))).toBeUndefined()
   })
 
-  it('a HELLO (sys_session_hello_t, 9 B after the op) says its sender\'s own id: the app a client id, a board its place', () => {
-    const { hello } = defs.session.control
-    const mine = encodeHello(defs, { id: defs.session.id.app, bootId: 0x12345678 })
-    // [HELLO][id][boot_id u32][build_id u32]
-    expect([...mine]).toEqual([hello, 0xf0, 0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0])
-    expect(decodeHello(defs, mine)).toEqual({ id: 0xf0, bootId: 0x12345678, buildId: 0 })
-    const board = Uint8Array.from([hello, 0x03, 1, 2, 3, 4, 5, 6, 7, 8])
-    expect(decodeHello(defs, board)).toEqual({ id: 3, bootId: 0x04030201, buildId: 0x08070605 })
-    expect(decodeHello(defs, board.subarray(0, 9))).toBeUndefined() // one byte short
-    expect(decodeHello(defs, Uint8Array.of(defs.session.control.ping))).toBeUndefined()
+  it('a stored frame is [key][body], and back', () => {
+    const request = { key: 0x26, body: Uint8Array.of(1, 4, 7) }
+    expect([...requestFrame(request)]).toEqual([0x26, 1, 4, 7])
+    expect(frameRequest(requestFrame(request))).toEqual(request)
   })
 
+  it('a HELLO says the id of its sender as the source:[CONTROL, src, MODULE_ID_SESSION, 0][HELLO][boot_id u32][build_id u32]', () => {
+    const mine = encodeHello(defs, { id: 0xf0, bootId: 0x12345678 })
+    expect([...mine]).toEqual([defs.kind.control << 6, 0xf0, defs.control.key, 0, 0, defs.control.hello, 0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0])
+    expect(decodeHello(defs, decodeFrame(defs, mine)!)).toEqual({ id: 0xf0, bootId: 0x12345678, buildId: 0 })
+    const board = encodeFrame(defs, { kind: defs.kind.control, src: 3, key: defs.control.key, seq: 0 }, Uint8Array.of(defs.control.hello, 1, 2, 3, 4, 5, 6, 7, 8))
+    expect(decodeHello(defs, decodeFrame(defs, board)!)).toEqual({ id: 3, bootId: 0x04030201, buildId: 0x08070605 })
+    expect(decodeHello(defs, decodeFrame(defs, board.subarray(0, board.length - 1))!)).toBeUndefined() // one byte short
+  })
+})
+
+describe('error records', () => {
   it('decodes an error record, naming the tags from errors.json', () => {
     const request = [defs.keys.i2c!, defs.dir.read, 0x02, 0x00]
     const data = record([['ERR_ROUTER_KEY', { key: defs.keys.i2c! }], ['ERR_I2C_BUS_STUCK', { bus: 0, addr: 0 }]], request, 7, 1_766_810_422_592)
-    const response = decodeResponse(defs, Uint8Array.from([0x44, 7, 0, ...data]))!
-    const parsed = decodeErrorRecord(defs, response.data, errorCatalog())!
+    const parsed = decodeErrorRecord(defs, data, errorCatalog())!
     expect(parsed.source).toBe('command')
     expect(parsed.time).toBe(1_766_810_422_592) // the board's clock, UTC ms
     expect(parsed.command).toMatchObject({ sender: 0xf0, seq: 7, flags: 0, requestCut: false })

@@ -9,7 +9,7 @@ const catalog = bundledServiceCatalog()
 const pcb = bundledBoard('pcb')
 const hex = (bytes: Uint8Array): string => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 const frames = boardProfileFrames(defs, catalog, pcb)
-const creates = frames.map((f) => readDeviceFrame(defs, catalog, f)).filter((f) => f?.create)
+const creates = frames.map((f) => readDeviceFrame(catalog, f)).filter((f) => f?.create)
 
 describe('the board\'s profile', () => {
   it('creates every device of the board but the chip\'s own GPIO (the firmware makes it), each as the board\'s own, in board.json\'s order', () => {
@@ -17,41 +17,36 @@ describe('the board\'s profile', () => {
     expect(creates.every((c) => c!.create!.system)).toBe(true)
   })
 
-  it('a CREATE is what the firmware takes: the TCA6424A byte by byte', () => {
-    const tca = frames.find((f) => f[0] === defs.keys.device && f[2] === 1 && f[4] === 0 && f[5] === 0)!
-    // [key][write][id u16][op u16][type u16][flags][bus][addr][intr: device u16, pin][rst: device u16, pin]
-    const type = catalog.devices.get('tca6424a')!.typeId!
-    expect(hex(tca)).toBe(hex(Uint8Array.of(defs.keys.device!, defs.dir.write, 1, 0, 0, 0, type & 0xff, type >> 8, 1, 0, 0x23, 0, 0, 9, 0, 0, 8)))
+  it('a CREATE is what the firmware takes: the TCA6424A on its bus, its pins on the ESP', () => {
+    const tca = creates.find((c) => c!.device === 1)!
+    expect(tca.create!.type.id).toBe('tca6424a')
+    expect(tca.create!.config).toEqual({ i2c_bus: 14, i2c_addr: 0x23, intr_pin: { device: 0, pin: 9 }, rst_pin: { device: 0, pin: 8 } })
   })
 
   it('every pin of a DRV8962 goes to its place in the list of pins', () => {
-    const drv = frames.find((f) => f[0] === defs.keys.device && f[2] === 5 && f[4] === 0 && f[5] === 0)!
-    const pins = drv.subarray(9 + 1, 9 + 1 + 45)
-    const at = (slot: number) => [pins[slot * 3]! | (pins[slot * 3 + 1]! << 8), pins[slot * 3 + 2]]
-    expect(at(0)).toEqual([0, 21]) // IN1
-    expect(at(4)).toEqual([0, 38]) // EN1
-    expect(at(8)).toEqual([0, 7]) // IPROPI1
-    expect(at(12)).toEqual([1, 9]) // nSLEEP
-    expect(at(13)).toEqual([1, 11]) // nFAULT
-    expect(at(14)).toEqual([4, 0]) // VREF
+    const pins = creates.find((c) => c!.device === 5)!.create!.config!.pin as readonly ({ device: number; pin: number } | null)[]
+    expect(pins[0]).toEqual({ device: 0, pin: 21 }) // IN1
+    expect(pins[4]).toEqual({ device: 0, pin: 38 }) // EN1
+    expect(pins[8]).toEqual({ device: 0, pin: 7 }) // IPROPI1
+    expect(pins[12]).toEqual({ device: 1, pin: 9 }) // nSLEEP
+    expect(pins[13]).toEqual({ device: 1, pin: 11 }) // nFAULT
+    expect(pins[14]).toEqual({ device: 4, pin: 0 }) // VREF
   })
 
   it('the layout comes first, the buses after the ESP pins and before the chips on them, the expander\'s pins right after it', () => {
-    const op = (f: Uint8Array) => (f[0] === defs.keys.device ? `device ${f[2]} ${f[4]}/${f[5]}` : `${f[0]}/${f[2]}`)
-    const order = frames.map(op)
-    expect(frames[0]![0]).toBe(defs.keys.power)
-    const tca = order.indexOf('device 1 0/0')
-    const buses = frames.flatMap((f, i) => (f[0] === defs.keys.i2c ? [i] : []))
-    expect(order).not.toContain('device 0 0/0')
+    const read = frames.map((f) => readDeviceFrame(catalog, f))
+    expect(frames[0]![0]).toBe(catalog.service('POWER_MANAGER').key)
+    const tca = read.findIndex((r) => r?.create && r.device === 1)
+    const buses = read.flatMap((r, i) => (r?.create?.type.id === 'esp32s3_i2c' ? [i] : []))
+    expect(read.some((r) => r?.create && r.device === 0)).toBe(false)
     expect(buses).toHaveLength(2)
     expect(buses.every((i) => i > 0 && i < tca)).toBe(true)
-    expect(frames[tca + 1]![2]).toBe(1)
-    expect(frames[tca + 1]![0]).toBe(defs.keys.device)
+    expect(read[tca + 1]).toMatchObject({ device: 1, side: 'write' })
   })
 
   it('a bus takes the pins of the ESP as device pins', () => {
-    const bus = frames.find((f) => f[0] === defs.keys.i2c)!
-    expect(Array.from(bus.subarray(3))).toEqual([0, 0, 0, 15, 0, 0, 16, 1])
+    const bus = creates.find((c) => c!.create!.type.id === 'esp32s3_i2c')!
+    expect(bus.create!.config).toMatchObject({ port: 0, sda: { device: 0, pin: 15 }, scl: { device: 0, pin: 16 }, pullup: 1 })
   })
 
   it('fits one record and gives the same bytes each time', () => {
@@ -66,9 +61,9 @@ describe('the board\'s profile', () => {
   it('a devkit: the ESP pins and its two bus devices, no rails, no monitor', () => {
     const devkit = bundledBoard('devkit')
     const own = boardProfileFrames(defs, catalog, devkit)
-    expect(own.filter((f) => f[0] === defs.keys.device && f[4] === 0 && f[5] === 0)).toHaveLength(0) // its one device is the chip's GPIO
-    const created = (id: number) => own.some((f) => f[0] === defs.keys.device && (f[2]! | (f[3]! << 8)) === id)
-    expect(devkit.devices.filter((d) => d.descriptor === 'device_esp32s3_i2c').map((d) => created(d.id))).toEqual([true, true])
-    expect(own.filter((f) => f[0] === defs.keys.power)).toHaveLength(1)
+    const made = own.map((f) => readDeviceFrame(catalog, f)).filter((r) => r?.create).map((r) => r!.device)
+    expect(devkit.devices.filter((d) => d.descriptor === 'device_esp32s3_i2c').map((d) => made.includes(d.id))).toEqual([true, true])
+    expect(made).not.toContain(0) // its GPIO is the chip's: the firmware makes it
+    expect(own.filter((f) => f[0] === catalog.service('POWER_MANAGER').key)).toHaveLength(1)
   })
 })

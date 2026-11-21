@@ -215,6 +215,19 @@
       "additionalProperties": false
     },
 
+    "returnLead": {
+      "type": "object",
+      "required": ["id", "raw_type"],
+      "description": "Liczba na początku odpowiedzi (np. u8 count), po której idą wiersze (array: true) do końca odpowiedzi. Aplikacja dekoduje ją jako pole o tym id obok wierszy.",
+      "properties": {
+        "id": { "type": "string", "description": "Identyfikator liczby (np. 'count', 'total')." },
+        "raw_type": { "type": "string", "enum": ["u8", "u16", "u32"] },
+        "label": { "type": "string" },
+        "description": { "type": "string", "description": "Co ta liczba mówi (np. wszystkich rekordów, gdy wierszy jest mniej)." }
+      },
+      "additionalProperties": false
+    },
+
     "commandReturn": {
       "description": "Format wartości zwracanej przez operację kontraktu (skalar lub złożona struktura).",
       "oneOf": [
@@ -230,6 +243,9 @@
             "array": {
               "type": "boolean",
               "description": "Czy zwracana jest tablica wartości tego typu."
+            },
+            "lead": {
+              "$ref": "#/$defs/returnLead"
             },
             "unit": {
               "type": "string",
@@ -274,6 +290,9 @@
             },
             "array": {
               "type": "boolean"
+            },
+            "lead": {
+              "$ref": "#/$defs/returnLead"
             },
             "label": {
               "type": "string",
