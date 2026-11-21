@@ -25,7 +25,7 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 
 ## Init
 
-`sys_device_remote_init()`, a boot step after the session, the watches and the events: sets sys_device's remote hook (`sys_device_set_remote`), subscribes to the registry's `CREATED` event (a remote device made: its subscription), listens to the session (`SESSION_EV_GONE` and `_REACHED`), and registers its port `REMOTE`: what comes in is linked to it from the sessions' sub-ports `MODULE_ID_REMOTE` (`app/runit` gives the board's own sessions one, IN; a session of the board's record its own), what goes out goes to them by name. Its task starts by itself (a constructor, before `app_main`) and waits on the queue.
+A constructor (before `app_main`) sets sys_device's remote hook (`sys_device_set_remote`), subscribes to the registry's `CREATED` event (a remote device made: its subscription), listens to the session (`SESSION_EV_GONE` and `_REACHED`), and registers its port `REMOTE`: what comes in is linked to it from the sessions' sub-ports `MODULE_ID_REMOTE` (`app/runit` gives the board's own sessions one, IN; a session of the board's record its own), what goes out goes to them by name. Its task starts there too and waits on the queue.
 
 ## A call
 

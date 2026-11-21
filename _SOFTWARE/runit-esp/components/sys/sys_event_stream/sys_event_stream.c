@@ -37,14 +37,15 @@ static void events_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint
     return;
   }
   data_matrix_send_except(self, from, flags, data, len);
-  err_free(sys_event_publish(event.key, (uint16_t)((event.flags & ~SYS_EVENT_NOTIFY) | SYS_EVENT_DEFER),
-                             data + CMD_HEAD + sizeof(event), event.len));
+  err_report(sys_event_publish(event.key, (uint16_t)((event.flags & ~SYS_EVENT_NOTIFY) | SYS_EVENT_DEFER),
+                               data + CMD_HEAD + sizeof(event), event.len));
 }
 
-err_h sys_event_stream_init(void) {
-  ERR_TRY(data_matrix_register(&s_events));
+// Before app_main: the port, and the listener that sends the notify events out of it.
+__attribute__((constructor)) static void stream_start(void) {
+  err_boot(data_matrix_register(&s_events));
   uint16_t handle = 0;
-  return sys_event_subscribe(
+  err_boot(sys_event_subscribe(
       (sys_event_key_t){.tag = SYS_EVENT_ANY_NOTIFY, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL},
-      on_notify_event, NULL, SYS_EVENT_RUN_FIRST, &handle);
+      on_notify_event, NULL, SYS_EVENT_RUN_FIRST, &handle));
 }

@@ -269,15 +269,12 @@ static void event_task(void* arg) {
   }
 }
 
-#define LANE_START(L)                                                                                  \
-  if (sys_event_task_##L == NULL) {                                                                    \
-    U_TASK_START(sys_event_task_##L, event_task, (void*)(uintptr_t)SYS_EVENT_LANE_##L,                 \
-                 CONFIG_SYS_EVENT_##L##_TASK_PRIO);                                                    \
-  }
+#define LANE_START(L) \
+  U_TASK_START(sys_event_task_##L, event_task, (void*)(uintptr_t)SYS_EVENT_LANE_##L, CONFIG_SYS_EVENT_##L##_TASK_PRIO);
 
-err_h sys_event_init(void) {
+// The lanes' tasks: static (stack and TCB in U_TASK_DEFINE), so they start before app_main.
+__attribute__((constructor)) static void lanes_start(void) {
   SYS_EVENT_LANES(LANE_START)
-  return NULL;
 }
 
 /* ----------------------------------------------------------------------------

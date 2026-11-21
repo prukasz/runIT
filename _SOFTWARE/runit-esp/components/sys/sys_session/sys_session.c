@@ -40,7 +40,6 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
 static struct {
   session_t sessions[CONFIG_SYS_SESSION_MAX];
-  sys_session_hello_t me;   // this board's hello
   board_timer_t timer;
 } s_state;
 
@@ -178,7 +177,8 @@ static void send_control(session_t* s, uint8_t op, const void* data, uint32_t le
 }
 
 static void send_hello(session_t* s) {
-  send_control(s, SYS_SESSION_HELLO, &s_state.me, sizeof(s_state.me));
+  const sys_session_hello_t me = {.boot_id = board_boot_id(), .build_id = board_build_id()};
+  send_control(s, SYS_SESSION_HELLO, &me, sizeof(me));
 }
 
 err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
@@ -407,19 +407,18 @@ static void on_tick(void* arg) {
  * Start, attach, detach, dead-man
  * ------------------------------------------------------------------------- */
 
-err_h sys_session_init(void) {
-  s_state.me = (sys_session_hello_t){.boot_id = board_boot_id(), .build_id = board_build_id()};
+// Before app_main: the provider events it follows, and its timer (pings, hellos, the dead-man).
+__attribute__((constructor)) static void session_start(void) {
   static const uint32_t k_tags[] = {SYS_DATA_PROVIDER_EV_CREATED, SYS_DATA_PROVIDER_EV_REMOVED, SYS_DATA_PROVIDER_EV_UP,
                                     SYS_DATA_PROVIDER_EV_DOWN};
   for (uint32_t i = 0; i < ARRAY_LEN(k_tags); i++) {
     uint16_t handle = 0;
     const sys_event_key_t filter = {
         .tag = k_tags[i], .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL};
-    ERR_TRY(sys_event_subscribe(filter, on_provider_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+    err_boot(sys_event_subscribe(filter, on_provider_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   }
   board_timer_init(&s_state.timer, on_tick, NULL);
   board_timer_start(&s_state.timer, BOARD_TIMER_STEP_MS);
-  return NULL;
 }
 
 static bool deadman_ok(uint32_t ms) {

@@ -177,9 +177,9 @@ static void on_gone(uint8_t peer, uint8_t safety) {
   (void)remove_watches(peer, 0);
 }
 
-err_h sys_watch_init(void) {
+// Before app_main: the tick of the watches this board runs, and the sessions' end.
+__attribute__((constructor)) static void watch_start(void) {
   board_timer_init(&s_watch.timer, on_tick, NULL);
   board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
-  ERR_TRY(sys_session_on_gone(on_gone));
-  return sys_watch_client_init();
+  err_boot(sys_session_on_gone(on_gone));
 }

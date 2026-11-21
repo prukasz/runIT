@@ -64,17 +64,6 @@ _Static_assert(sizeof(sys_session_hello_t) == 8, "hello");
 #define SYS_SESSION_SAFETY (1u << 0)  //@alias Safety @description The end of the session enters the safe state
 
 /* ----------------------------------------------------------------------------
- * Start
- * ------------------------------------------------------------------------- */
-
-/**
- * @brief Starts the session layer: its hello (this board's boot id and build, board_id.h), its timer (pings, hellos,
- * the dead-man) and its listeners of the providers' events. Boot, after board_id_init, the data matrix and the events.
- * @return NULL when started.
- */
-MUST_USE err_h sys_session_init(void);
-
-/* ----------------------------------------------------------------------------
  * Sessions
  * ------------------------------------------------------------------------- */
 

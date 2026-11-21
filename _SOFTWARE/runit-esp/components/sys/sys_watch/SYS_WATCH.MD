@@ -9,10 +9,9 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 | `sys_watch.h` | The wire format (`sys_watch_head_t` 6 B, `sys_watch_info_t` 8 B, `sys_watch_trigger_e`, `SYS_WATCH_TICK_MS`, `SYS_WATCH_COPY_MAX` (= `ERR_RECORD_MAX`: the one bound of a kept entry), `SYS_WATCH_READ_MAX`), then the use: `sys_watch_init`, `sys_watch_read`, `sys_watch_stale` |
 | `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]` out of `WATCH` to its links), `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
-| `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list`, `sys_watch_client_init` |
+| `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list` |
 | `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x2A)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
 | `router/sys_watch_router.h` / `.c` | `WATCH_OPERATIONS` (`OP_ADD`, `OP_REMOVE`, `OP_LIST`), `ROUTER_MODULE_REGISTER(MODULE_ID_WATCH, sys_watch_router)`, `contract_watch.json` |
-| `host/` | Unity host tests (`test_sys_watch.c`) on fake links + real `sys_session`, `sys_event`, `router_queue`, `timer` |
 
 ## The watches of this board
 
@@ -25,7 +24,7 @@ A watch is added, removed and listed by commands (Remote); its owner is the comm
   - `SYS_WATCH_PERIODIC` (`0`): runs the read every `period` ticks (`10 ms` per tick) and sends every answer.
   - `SYS_WATCH_ON_CHANGE` (`1`): runs every `period` ticks, hashes an OK answer with IEEE CRC-32 (`crc32_ieee`, CRC.MD), and sends it when the CRC differs from the last OK entry sent, after an error, or after `max_silence` ticks without an entry (`0` = never).
 - `owner` is `router_origin()->src`: a board or a client (else `ERR_WATCH_BAD_ARG`). `read` is `2..SYS_WATCH_READ_MAX` bytes with `read[1] == CMD_DIR_READ` (else `ERR_WATCH_NOT_READ`).
-- One `board_timer` runs every `SYS_WATCH_TICK_MS` (`10 ms`) from `sys_watch_init`. It starts the reads that are due with `router_inject`; one the router's queue refuses is tried again at the next tick.
+- One `board_timer` runs every `SYS_WATCH_TICK_MS` (`10 ms`) from a constructor (before `app_main`). It starts the reads that are due with `router_inject`; one the router's queue refuses is tried again at the next tick.
 - The entry goes out in the read's answer callback on the router's task, so a command and an entry keep their order on the link. An entry a line does not take (a busy provider) is lost and counted as sent: `PERIODIC` sends the next read, `ON_CHANGE` the next change or, after `max_silence`, the value again.
 - An ERROR answer is sent once: the next errors are not sent until an OK entry goes.
 - An answer too long for one entry (`3 + len > CMD_DATA_MAX`) removes the watch and is reported once (`ERR_CMD_OUT_FULL` with the read).

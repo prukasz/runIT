@@ -98,7 +98,7 @@ typedef err_h (*sys_device_remote_f)(const sys_device_remote_t* where, uint8_t d
                                      cmd_in_t in, cmd_out_t* out);
 
 /**
- * @brief Sets the remote hook. Boot only, one (sys_device_remote_init).
+ * @brief Sets the remote hook. Boot only, one (sys_device_remote).
  * @param[in] fn The hook; valid for good.
  */
 void sys_device_set_remote(sys_device_remote_f fn);

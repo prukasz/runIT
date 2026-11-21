@@ -37,7 +37,7 @@ typedef struct __attribute__((packed)) {
 
 ## Lifecycle and execution flow
 
-1. **Initialization (`sys_device_policy_init`)**: creates the policy task (`sys_device_policy_task_h`) and ring buffer (`sys_device_policy_ring`), and subscribes `SYS_EVENT_RUN_INLINE` to `SYS_DEVICE_EV_CREATED` and `SYS_DEVICE_EV_REMOVED`.
+1. **Start (a constructor, before `app_main`)**: creates the policy task (`sys_device_policy_task_h`) and ring buffer (`sys_device_policy_ring`), and subscribes `SYS_EVENT_RUN_INLINE` to `SYS_DEVICE_EV_CREATED` and `SYS_DEVICE_EV_REMOVED`.
 2. **Registry tracking**: guarded by a short critical section (`s_mux`), never taking registry locks:
    - `CREATED` resets the slot to `{importance = SYS_DEVICE_IMPORTANCE_LOW, actions = {0}}`, `present = true`, `gen = SYS_EVENT_DATA(event, SYS_DEVICE_EV_CREATED)->gen`.
    - `REMOVED` clears `present = false` only when `SYS_EVENT_DATA(event, SYS_DEVICE_EV_REMOVED)->gen == current.gen`, ignoring stale `REMOVED` events that arrive after a newer `CREATED`.
@@ -73,7 +73,6 @@ typedef struct __attribute__((packed)) {
 ## API
 
 ```c
-MUST_USE err_h sys_device_policy_init(void);
 void sys_device_policy_set_vm_stop(sys_device_vm_stop_f fn);
 void sys_device_policy_set_action_runner(sys_device_action_runner_f fn);
 MUST_USE err_h sys_device_policy_handle(err_h chain);

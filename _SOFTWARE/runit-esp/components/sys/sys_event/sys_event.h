@@ -164,17 +164,9 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
  */
 #define SYS_EVENTS_DECLARE(P, id, LANE) SYS_EVENT__TABLE(P, id, LANE)
 
-
-
 /* ----------------------------------------------------------------------------
  * C API
  * ------------------------------------------------------------------------- */
-
-/**
- * @brief Starts the task of every lane. Boot.
- * @return NULL
- */
-MUST_USE err_h sys_event_init(void);
 
 /**
  * @brief A listener function.
@@ -310,8 +302,6 @@ void sys_event_release(sys_event_hold_t* hold);
  * @usage if (event->key.tag == IO_EV_ADC_INSIDE) { int32_t mv = SYS_EVENT_DATA(event, IO_EV_ADC_INSIDE)->mV; }
  */
 #define SYS_EVENT_DATA(e, NAME) ((const evt_data_##NAME##_t*)(e)->data)
-
-
 
 #ifdef __cplusplus
 }

@@ -278,17 +278,14 @@ static void policy_task(void* arg) {
   }
 }
 
-err_h sys_device_policy_init(void) {
-  if (sys_device_policy_task_h != NULL) {
-    return NULL;
-  }
+// Before app_main: the device events it answers, and its task (static: stack and TCB in U_TASK_DEFINE).
+__attribute__((constructor)) static void policy_start(void) {
   uint16_t handle;
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
-                                                .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_device, NULL, SYS_EVENT_RUN_INLINE, &handle));
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_REMOVED, .source = SYS_EVENT_ANY_SOURCE,
-                                                .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_device, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  err_boot(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
+                                                 .channel = SYS_EVENT_ANY_CHANNEL},
+                               on_device, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  err_boot(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_REMOVED, .source = SYS_EVENT_ANY_SOURCE,
+                                                 .channel = SYS_EVENT_ANY_CHANNEL},
+                               on_device, NULL, SYS_EVENT_RUN_INLINE, &handle));
   U_TASK_START(sys_device_policy_task_h, policy_task, NULL, CONFIG_SYS_DEVICE_POLICY_TASK_PRIO);
-  return NULL;
 }

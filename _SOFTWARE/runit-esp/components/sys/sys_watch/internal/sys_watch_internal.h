@@ -38,9 +38,6 @@ uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]);
  * the boards (sys_watch_client.c). */
 extern data_matrix_port_t sys_watch_port;
 
-/** @brief Starts the cached reads: WATCH, their idle timer and session listeners. Called by sys_watch_init(). */
-MUST_USE err_h sys_watch_client_init(void);
-
 #ifdef __cplusplus
 }
 #endif

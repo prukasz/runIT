@@ -136,6 +136,14 @@ uint8_t err_chain_sev(err_h chain);
  */
 void err_report(err_h chain);
 
+/**
+ * @brief The end of a boot-time registration made in a constructor (a table that is full, an id taken: a build that is
+ * wrong, not a state to recover from): NULL is ignored; a chain is logged and the board aborts.
+ * @param chain  The registration's result. Owned.
+ * @usage err_boot(data_matrix_register(&s_port));   // in an __attribute__((constructor)) function
+ */
+void err_boot(err_h chain);
+
 #ifdef __cplusplus
 }
 #endif

@@ -47,16 +47,16 @@ static void ble_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t
 // What the provider made, taken out again: the hook (after its call in flight), the characteristics, its service.
 static void drop(provider_ble_t* me) {
   if (me->hooked != 0) {
-    err_free(sys_ble_hook(me->hooked, NULL, me, NULL));
+    err_report(sys_ble_hook(me->hooked, NULL, me, NULL));
   }
   if (me->tx != 0) {
-    err_free(sys_ble_char_remove(me->tx));
+    err_report(sys_ble_char_remove(me->tx));
   }
   if (me->rx != 0) {
-    err_free(sys_ble_char_remove(me->rx));
+    err_report(sys_ble_char_remove(me->rx));
   }
   if (me->own_svc) {
-    err_free(sys_ble_service_remove(me->svc));
+    err_report(sys_ble_service_remove(me->svc));
   }
   sys_ble_apply();
 }

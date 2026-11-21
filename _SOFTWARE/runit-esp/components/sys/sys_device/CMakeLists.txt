@@ -12,7 +12,7 @@
 # error policy (sys_device_policy) are components of their own. Spec: SYS_DEVICE.MD.
 idf_component_register(
     SRCS "slots/sys_device_slots.c" "registry/sys_device_registry.c" "call/sys_device_call.c"
-         "remote/sys_device_remote.c"
+         "remote/sys_device_remote_slot.c"
     INCLUDE_DIRS "." "errors" "events"
     PRIV_INCLUDE_DIRS "slots" "registry" "remote"
     REQUIRES errors cmd sys_event

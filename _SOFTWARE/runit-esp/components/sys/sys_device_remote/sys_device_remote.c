@@ -461,20 +461,16 @@ static void remote_task(void* arg) {
   }
 }
 
-// The task: static (stack and TCB in U_TASK_DEFINE), so it starts before app_main, after the queue above; it waits on
-// the queue until init lets frames in.
-__attribute__((constructor)) static void task_start(void) {
+// Before app_main: the task (static: stack and TCB in U_TASK_DEFINE), the port, the session and device events it
+// follows, and the registry's remote hook.
+__attribute__((constructor)) static void remote_start(void) {
   U_TASK_START(sys_device_remote_task_h, remote_task, NULL, CONFIG_SYS_DEVICE_REMOTE_TASK_PRIO);
-}
-
-err_h sys_device_remote_init(void) {
   uint16_t handle = 0;
-  ERR_TRY(sys_session_on_gone(on_gone));
-  ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached, NULL, SYS_EVENT_RUN_INLINE, &handle));
-  ERR_TRY(data_matrix_register(&s_port));
-  ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
-                                                .channel = SYS_EVENT_ANY_CHANNEL},
-                              on_created, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
+  err_boot(sys_session_on_gone(on_gone));
+  err_boot(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  err_boot(data_matrix_register(&s_port));
+  err_boot(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
+                                                 .channel = SYS_EVENT_ANY_CHANNEL},
+                               on_created, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
   sys_device_set_remote(call);
-  return NULL;
 }

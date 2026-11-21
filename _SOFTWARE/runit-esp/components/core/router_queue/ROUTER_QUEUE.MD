@@ -23,7 +23,6 @@ Component `components/core/router_queue/`. It runs the commands of this board: i
 | `router_request.c` | This board's calls: their slots, the answers that end them, their timer, the wait |
 | `internal/router_queue_internal.h` | Between the two: the port, an answer for a call, the calls' start |
 | `Kconfig` | Queues, task prio and stack |
-| `host/` | Host tests (`test_router_queue.c`, `test_router_tasks.c`, `host_test.json`, `router_host_config.h`; see Tests); not part of the firmware build |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## A command
@@ -108,12 +107,6 @@ A tag about a command carries its `src`.
 
 ## Tests
 
-**Host tests** in `host/` were written for the former queue (`router_submit`, a `cmd_req_t` handed to it), which the port and `router_inject` replaced: they do not build until they are rewritten (Open). What they cover: the real queue with the real `router` and `errors` on the PC, the two router tasks as threads (the FreeRTOS stand-in: tasks are threads, the queues keep the ring buffer's byte accounting). Two executables:
-- `test_router_queue.c`, both tasks held (each in the `done` of its first command, which never returns), so the queues only fill: `router_report_cmd` (the log line with the command, a long request cut after 32 bytes), what `router_submit` / `router_inject` refuse (NULL, a request outside 2..`CMD_DATA_MAX`) and accept, `router_run_urgent`'s one waiting slot, the work and the urgent queue each filling to `ERR_ROUTER_QUEUE_FULL` independently.
-- `test_router_tasks.c`, the tasks running: a command's answer to its `done` with the submitter's ctx, in order; a failure answered as the error record (origin, request, the chain) and reported to the sink with its command; `NOREPLY` (no answer, a failure still reported); an answer of exactly `CMD_DATA_MAX` and one byte more; a `done` that fails reported; no `done`; an urgent command running while the work task is blocked, and a normal one waiting behind it; `router_submit` copying the command and its request; `router_inject` (src `CMD_SRC_SELF`, a counting seq, the flags); a command run inside a handler seeing the outer origin; `router_run_urgent` running a fn once on the urgent task, and waking an idle one; a router that registered itself (`ROUTER_MODULE_REGISTER`) bound by `router_init` and answering.
-
-Not covered on the host: priorities (the urgent task is above the work task only on the board), the stack sizes, the scheduler's timing.
-
 Script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client session on the console: `router_link.py`) covers:
 - The sys key (SYS_SYSTEM.MD): PING (uptime), STOP (safe state), DEADMAN (write, read back, the session's timeout, the safe state when the session ends), BYE, TIME (write, read back), RESTART, SAFE / SAFE_LEAVE.
 - The direction byte: a write-only command sent as a read, a read-only one as a write, a dir of 2 (`ERR_CMD_DIRECTION`), a frame without it (`ERR_ROUTER_FRAME_LEN`).
@@ -124,5 +117,3 @@ Script `router_tests.py` (in `.claude/skills/runit-esp/scripts/`, over a client 
 
 ## Open
 
-- Host tests of the port (a request and its answer to `from`, a refused one, an ANSWER ending a call) and of the calls (moved from `sys_session`: answered, timed out, `ERR_REMOTE`, `fail_to`, the wait): not written; the host runner is not in the repo now.
-- The tests above name the old `src` and `CMD_DATA_MAX` bound of a request: checked again when the runner is back.

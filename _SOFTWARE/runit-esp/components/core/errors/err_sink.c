@@ -6,6 +6,8 @@
 
 #include "err_sink.h"
 
+#include <stdlib.h>
+
 #include "err_log.h"
 
 static err_sink_f s_sink;
@@ -23,6 +25,13 @@ void err_report_ex(err_h chain, const char* log_ctx, const cmd_req_t* cmd) {
     s_sink(chain, cmd);
   }
   err_free(chain);
+}
+
+void err_boot(err_h chain) {
+  if (chain != NULL) {
+    err_log(chain);
+    abort();
+  }
 }
 
 static err_board_sink_f s_board_sink;

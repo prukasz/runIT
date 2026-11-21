@@ -507,7 +507,6 @@ static void test_input_ovp_budget_shrink_and_battery_hysteresis(void) {
 }
 
 int main(void) {
-  TEST_ASSERT_NULL(sys_event_init());
   uint16_t sub = 0;
   TEST_ASSERT_NULL(sys_event_subscribe(
       (sys_event_key_t){.tag = EVT_TAG(MODULE_ID_PWRM, SYS_EVENT_ANY_CODE),

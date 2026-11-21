@@ -221,8 +221,6 @@ static void test_deadman_bye_ping_time_and_tasks_router_ops(void) {
 
 int main(void) {
   TEST_ASSERT_NULL(router_root_init());
-  TEST_ASSERT_NULL(sys_event_init());
-  TEST_ASSERT_NULL(sys_system_init());
 
   UNITY_BEGIN();
   RUN_TEST(test_safe_state_enter_leave_and_failed_resume_keeps_note);

@@ -15,20 +15,11 @@
  * to its board as that board's device command, and keeps the subscriptions to devices: the other boards' to this
  * board's devices (their events and errors sent out of the module's port REMOTE), and this board's
  * to its remote devices (what comes is published and reported as the local id's). Nothing depends on it.
- * @usage ERR_TRY(sys_device_remote_init());   // boot, after the session, the watches and the events
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief Sets the remote hook of sys_device, follows the registry's remote devices (a CREATED one subscribes on its
- * board), listens to the session (gone and reached peers) and registers REMOTE (its task starts by itself). Boot step, after
- * sys_session, sys_watch and sys_event.
- * @return NULL when started; the session's or the event bus's error.
- */
-MUST_USE err_h sys_device_remote_init(void);
 
 /**
  * @brief Subscribes a peer to a device of this board: its events and errors outside a command go to the peer (SUBSCRIBE).

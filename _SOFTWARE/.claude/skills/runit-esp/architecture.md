@@ -24,7 +24,7 @@ Rules:
 
 ## 3. Boot
 
-`runit_start()` runs the boot steps in order (RUNIT.MD "Boot order"): `nvs_store_init`, `board_id_init`, `sys_actions_init`, `sys_board_init`, `router_init`, `sys_event_init`, `sys_device_policy_init`, `sys_session_init`, the modules' ports (`sys_log_init`, `sys_event_stream_init`, `sys_watch_init`, `sys_device_remote_init`), `runit_data_matrix_setup` (the providers, the sessions and their links, BLE), the error sink, `sys_system_init`, the ESP32-S3's GPIO, `sys_board_boot` (the board's profile). A failing step is reported and the boot goes on.
+`runit_start()` runs the boot steps in order (RUNIT.MD "Boot order"): `nvs_store_init`, `board_id_init`, `sys_actions_init`, `sys_board_init`, `router_init`, `sys_log_init`, `runit_data_matrix_setup` (the providers, the sessions and their links, BLE), the error sink, the ESP32-S3's GPIO, `sys_board_boot` (the board's profile). A failing step is reported and the boot goes on.
 
 ## 4. Flows
 
@@ -45,7 +45,7 @@ Rules:
 | What | Where |
 |---|---|
 | Module routers under their root keys | each module's `ROUTER_MODULE_REGISTER`, bound by `router_init` |
-| The modules' ports | registered by their `*_init` (`router_init`, `sys_log_init`, `sys_event_stream_init`, `sys_watch_init`, `sys_device_remote_init`) |
+| The modules' ports | registered by `router_init` and `sys_log_init`, the others by a constructor of their module (before `app_main`) |
 | The board's providers, sessions and links (console, runIT BLE pair, raw logs and telemetry) | `connectivity/data_matrix_setup.c` (`k_providers`, `k_sessions`, `runit_data_matrix_setup`) |
 | The error sink | `error_sink` in `runit.c` |
 | Power layout and limits for the power manager | the board's profile (`SYS_BOARD.MD`, LAYOUT and RAIL of `SYS_POWER_MANAGER.MD`); the manager is not started in `runit_start` yet |

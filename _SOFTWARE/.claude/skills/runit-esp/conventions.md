@@ -26,7 +26,7 @@ Use dynamic creation only for objects whose count or lifetime is decided at runt
 
 How the macros work:
 - `U_*_DEFINE` (except tasks) builds the object in an `__attribute__((constructor))` function, run before the scheduler starts, so init functions never create these objects.
-- The handle is `NULL` until its own constructor has run, and constructors of different files run in **unspecified order**: a constructor never uses a handle defined in another file. Constructors are used for nothing else except the type tables (architecture.md §2).
+- The handle is `NULL` until its own constructor has run, and constructors of different files run in **unspecified order**: a constructor never uses a handle defined in another file. Constructors are used for the type tables (architecture.md §2) and for a module's own boot registration (its task, its port in the data matrix, its event subscriptions, its timers): what only touches static tables under a spinlock, never an object of another file, and ends in `err_boot(...)` (a failure there is a wrong build: it aborts). An `*_init()` is left for what needs a run-time value or a parameter (the NVS partition, a stored setting, the board's id) or an order the constructors do not give (`router_init`: after every `ROUTER_MODULE_REGISTER`).
 - Start tasks in the component's init behind a guard, `if (h == NULL) U_TASK_START(...)`: starting a task twice re-initializes the running task's TCB.
 - Stack sizes, priorities and depths come from Kconfig (`CONFIG_<COMPONENT>_*`), not literals (§2).
 

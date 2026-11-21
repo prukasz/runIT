@@ -71,13 +71,6 @@ typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
 typedef err_h (*sys_device_vm_stop_f)(uint8_t device);
 
 /**
- * @brief Follows the registry (a created device gets the default policy, a removed one loses its own) and starts the
- * policy's task. Boot, after sys_event_init and before the first device is created.
- * @return The error of a subscription
- */
-MUST_USE err_h sys_device_policy_init(void);
-
-/**
  * @brief Sets the VM stop. Boot only; without one the VM is left to the safe state alone.
  * @param[in] fn The VM stop
  */

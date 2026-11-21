@@ -456,7 +456,6 @@ static void drain_queue(void) {
 }
 
 static void test_the_event_task_gives_queued_listeners_a_copy(void) {
-  TEST_ASSERT_NULL(sys_event_init());
   drain_queue();  // what the test before left, to no listener
   sub(key(SYS_EVENT_ANY_TAG, 0x10, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_QUEUED_SYS);
   sub(key(SYS_EVENT_ANY_TAG, 0x10, SYS_EVENT_ANY_CHANNEL), recorder, 2, SYS_EVENT_RUN_INLINE);

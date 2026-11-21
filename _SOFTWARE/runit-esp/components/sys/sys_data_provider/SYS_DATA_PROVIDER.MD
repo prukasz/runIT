@@ -66,7 +66,3 @@ The registry publishes them, deferred (`SYS_EVENT_PUBLISH_DEFER`: CREATE and REM
 ## Config (`Kconfig`)
 
 `SYS_DATA_PROVIDER_MAX` 8 (the slots), `SYS_DATA_PROVIDER_SIZE` 64 (the largest driver struct), `SYS_DATA_PROVIDER_TYPES` 8.
-
-## Open
-
-- `host/test_sys_data_provider.c` tests an older interface (`send`, `open`, `spare_refused`); it is rewritten with the drivers.

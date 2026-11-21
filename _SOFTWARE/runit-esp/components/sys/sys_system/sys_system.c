@@ -127,12 +127,12 @@ void sys_system_restart_later(void) {
   board_timer_once(&s_sys.restart_timer, RESTART_DELAY_MS);
 }
 
-err_h sys_system_init(void) {
+// Before app_main: the sessions' ends and openings it answers, the restart's timer and the time broadcast's.
+__attribute__((constructor)) static void system_start(void) {
   uint16_t handle = 0;
-  ERR_TRY(sys_session_on_gone(on_gone));
-  ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  err_boot(sys_session_on_gone(on_gone));
+  err_boot(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   board_timer_init(&s_sys.restart_timer, restart_now, NULL);
   board_timer_init(&s_sys.time_timer, on_time_tick, NULL);
   board_timer_start(&s_sys.time_timer, CONFIG_SYS_SYSTEM_TIME_PERIOD_S * 1000u);
-  return NULL;
 }

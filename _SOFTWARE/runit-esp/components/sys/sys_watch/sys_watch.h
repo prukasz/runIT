@@ -57,12 +57,6 @@ typedef struct __attribute__((packed)) {
 
 _Static_assert(sizeof(sys_watch_info_t) == 8, "sys_watch_info_t size");
 
-/**
- * @brief Starts the watches of this board and its cached reads. Boot, after router, sys_event and sys_session.
- * @return NULL on success, else the error of a session listener's registration.
- */
-MUST_USE err_h sys_watch_init(void);
-
 /* ----------------------------------------------------------------------------
  * Cached reads of another board (never block on the link)
  * ------------------------------------------------------------------------- */

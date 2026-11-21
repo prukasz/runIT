@@ -20,7 +20,6 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is the peer of 
 | `router/contract_session.json` | The router's descriptor |
 | `errors/` | `MODULE_ID_SESSION` (0x2C), `ERR_SYS_SESSION_MAP`, the messages |
 | `Kconfig` | `CONFIG_SYS_SESSION_MAX`, `CONFIG_SYS_SESSION_PORTS` (Limits) |
-| `host/` | Host tests of the former session (Open) |
 
 ## Peers and ids
 
@@ -112,6 +111,5 @@ On a board, as unittest: `python runit-esp/tools/test_session.py` (the PC's Pyth
 
 ## Open
 
-- `host/test_sys_session.c` tests the former session (its provider hooks, calls and push): rewritten on the ports when the host runner is back in the repo.
 - The router scripts (`router_link.py` and the suites on it) and the app's session code speak the former frame: they move to the 5-byte header like `session_client.py`.
 - Two boards on a UART are not run on hardware yet.

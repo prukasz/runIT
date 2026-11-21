@@ -346,9 +346,6 @@ static void test_critical_before_device_and_missing_device_and_dedup_and_low_sev
 }
 
 int main(void) {
-  TEST_ASSERT_NULL(sys_event_init());
-  TEST_ASSERT_NULL(sys_device_policy_init());
-  TEST_ASSERT_NULL(sys_device_policy_init());  // idempotent
   err_set_sink(test_sink);
 
   UNITY_BEGIN();

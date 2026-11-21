@@ -54,13 +54,6 @@ void sys_system_broadcast_time(void);
 /** @brief Restarts the board RESTART_DELAY_MS from now, so the answer of the command that asks leaves first. */
 void sys_system_restart_later(void);
 
-/**
- * @brief Listens for gone peers (the dead-man) and reached ones (the time), starts the time broadcast's timer and arms
- * the dead-man with its boot default. Boot, after sys_session_init.
- * @return The error of the listeners or of the dead-man
- */
-MUST_USE err_h sys_system_init(void);
-
 #ifdef __cplusplus
 }
 #endif

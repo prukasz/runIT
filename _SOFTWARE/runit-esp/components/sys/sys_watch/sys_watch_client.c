@@ -268,9 +268,10 @@ void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
   }
 }
 
-err_h sys_watch_client_init(void) {
+// Before app_main: the idle timer of the cached reads, the sessions' end and the port the entries come in at.
+__attribute__((constructor)) static void client_start(void) {
   board_timer_init(&s_cl.timer, on_idle_tick, NULL);
   board_timer_start(&s_cl.timer, IDLE_TICK_MS);
-  ERR_TRY(sys_session_on_gone(on_gone));
-  return data_matrix_register(&sys_watch_port);
+  err_boot(sys_session_on_gone(on_gone));
+  err_boot(data_matrix_register(&sys_watch_port));
 }
