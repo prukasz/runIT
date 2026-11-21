@@ -35,6 +35,34 @@ uint64_t board_time_uptime_us(void) {
 uint64_t board_time_uptime_ms(void) { return board_time_now_ms(); }
 uint64_t board_time_at_uptime_ms(uint64_t uptime_ms) { return uptime_ms; }
 
+static uint64_t s_unix_ms;
+uint64_t board_time_unix_ms(void) { return s_unix_ms; }
+bool board_time_set(uint64_t unix_ms) {
+  if (unix_ms == 0) {
+    return false;
+  }
+  s_unix_ms = unix_ms;
+  return true;
+}
+
+static uint32_t s_restarts;
+void esp_restart(void) { s_restarts++; }
+uint32_t host_restart_count(void) { return s_restarts; }
+void host_restart_reset(void) { s_restarts = 0; }
+
+static vprintf_like_t s_vprintf;
+static esp_log_level_t s_global_level = ESP_LOG_INFO;
+vprintf_like_t esp_log_set_vprintf(vprintf_like_t fn) {
+  vprintf_like_t prev = s_vprintf;
+  s_vprintf = fn;
+  return prev;
+}
+void esp_log_level_set(const char* tag, esp_log_level_t level) {
+  (void)tag;
+  s_global_level = level;
+}
+esp_log_level_t host_log_level_get(void) { return s_global_level; }
+
 const char* esp_err_to_name(esp_err_t code) {
   switch (code) {
     case ESP_OK: return "ESP_OK";

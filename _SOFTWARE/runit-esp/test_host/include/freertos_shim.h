@@ -24,9 +24,21 @@ typedef enum { RINGBUF_TYPE_NOSPLIT, RINGBUF_TYPE_ALLOWSPLIT, RINGBUF_TYPE_BYTEB
 /* A tick is a millisecond. */
 #define configTICK_RATE_HZ    1000u
 #define pdMS_TO_TICKS(ms)     ((TickType_t)(ms))
+#define pdTICKS_TO_MS(ticks)  ((uint32_t)(ticks))
 #define portYIELD_FROM_ISR(x) ((void)(x))  // an ISR is a thread here
 void vTaskDelay(TickType_t ticks);
 TickType_t xTaskGetTickCount(void);  // the milliseconds of a monotonic clock
+
+#define taskSCHEDULER_RUNNING 2
+BaseType_t xTaskGetSchedulerState(void);
+
+typedef struct {
+  const char* pcTaskName;
+  UBaseType_t uxCurrentPriority;
+  uint32_t usStackHighWaterMark;
+} TaskStatus_t;
+UBaseType_t uxTaskGetSystemState(TaskStatus_t* arr, UBaseType_t arr_size, uint32_t* total_run_time);
+UBaseType_t uxTaskGetNumberOfTasks(void);
 
 /* Semaphores: a binary semaphore, a mutex (given at the start, its holder kept: xSemaphoreGetMutexHolder; not
  * recursive, a second take by its holder waits like any other) and a recursive mutex (src/host_freertos.c); FromISR
@@ -71,7 +83,11 @@ void host_task_notify_give(TaskHandle_t task);
 uint32_t ulTaskNotifyTake(BaseType_t clear_on_exit, TickType_t ticks);
 #define xTaskNotifyGive(task) host_task_notify_give(task)
 
+RingbufHandle_t xRingbufferCreate(size_t size, RingbufferType_t type);
 RingbufHandle_t xRingbufferCreateStatic(size_t size, RingbufferType_t type, uint8_t* storage, StaticRingbuffer_t* st);
+void vRingbufferDelete(RingbufHandle_t rb);
+void vRingbufferGetInfo(RingbufHandle_t rb, UBaseType_t* free_pos, UBaseType_t* read_pos, UBaseType_t* write_pos,
+                        UBaseType_t* acq_pos, UBaseType_t* items_waiting);
 BaseType_t xRingbufferSendAcquire(RingbufHandle_t rb, void** item, size_t size, TickType_t ticks);
 BaseType_t xRingbufferSendComplete(RingbufHandle_t rb, void* item);
 BaseType_t xRingbufferSend(RingbufHandle_t rb, const void* data, size_t size, TickType_t ticks);

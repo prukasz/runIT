@@ -1,0 +1,18 @@
+{
+  "sources": [
+    "sys_log.c",
+    "router/sys_log_router.c"
+  ],
+  "tests": [
+    "host/test_sys_log.c"
+  ],
+  "includes": [
+    "errors",
+    "router"
+  ],
+  "config": "host/sys_log_host_config.h",
+  "deps": [
+    "router",
+    "data_matrix"
+  ]
+}

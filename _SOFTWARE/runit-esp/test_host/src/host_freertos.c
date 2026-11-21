@@ -118,9 +118,14 @@ typedef struct {
   pthread_cond_t c;
   size_t cap;
   size_t used;         /* bytes of items acquired and not yet returned */
+  UBaseType_t items;   /* items currently in ring (acquired + queued) */
   rb_item_t* head;     /* queued, oldest first (acquired or complete, not yet received) */
   rb_item_t* tail;
 } rb_t;
+
+RingbufHandle_t xRingbufferCreate(size_t size, RingbufferType_t type) {
+  return xRingbufferCreateStatic(size, type, NULL, NULL);
+}
 
 RingbufHandle_t xRingbufferCreateStatic(size_t size, RingbufferType_t type, uint8_t* storage, StaticRingbuffer_t* st) {
   (void)type, (void)storage, (void)st;
@@ -129,6 +134,34 @@ RingbufHandle_t xRingbufferCreateStatic(size_t size, RingbufferType_t type, uint
   pthread_cond_init(&rb->c, NULL);
   rb->cap = size;
   return rb;
+}
+
+void vRingbufferDelete(RingbufHandle_t h) {
+  rb_t* rb = h;
+  if (rb == NULL) {
+    return;
+  }
+  rb_item_t* it = rb->head;
+  while (it != NULL) {
+    rb_item_t* next = it->next;
+    free(it);
+    it = next;
+  }
+  pthread_mutex_destroy(&rb->m);
+  pthread_cond_destroy(&rb->c);
+  free(rb);
+}
+
+void vRingbufferGetInfo(RingbufHandle_t h, UBaseType_t* free_pos, UBaseType_t* read_pos, UBaseType_t* write_pos,
+                        UBaseType_t* acq_pos, UBaseType_t* items_waiting) {
+  rb_t* rb = h;
+  pthread_mutex_lock(&rb->m);
+  if (free_pos != NULL) *free_pos = 0;
+  if (read_pos != NULL) *read_pos = 0;
+  if (write_pos != NULL) *write_pos = (UBaseType_t)(rb->used % rb->cap);
+  if (acq_pos != NULL) *acq_pos = (UBaseType_t)(rb->used % rb->cap);
+  if (items_waiting != NULL) *items_waiting = rb->items;
+  pthread_mutex_unlock(&rb->m);
 }
 
 BaseType_t xRingbufferSendAcquire(RingbufHandle_t h, void** item, size_t size, TickType_t ticks) {
@@ -144,6 +177,7 @@ BaseType_t xRingbufferSendAcquire(RingbufHandle_t h, void** item, size_t size, T
   it->size = size;
   it->cost = cost;
   rb->used += cost;
+  rb->items++;
   if (rb->tail != NULL) {
     rb->tail->next = it;
   } else {
@@ -203,6 +237,7 @@ void vRingbufferReturnItem(RingbufHandle_t h, void* data) {
   rb_item_t* it = (rb_item_t*)((uint8_t*)data - offsetof(rb_item_t, data));
   pthread_mutex_lock(&rb->m);
   rb->used -= it->cost;
+  if (rb->items > 0) rb->items--;
   pthread_mutex_unlock(&rb->m);
   free(it);
 }
@@ -231,6 +266,21 @@ TickType_t xTaskGetTickCount(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (TickType_t)((uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u);
+}
+
+BaseType_t xTaskGetSchedulerState(void) {
+  return taskSCHEDULER_RUNNING;
+}
+
+UBaseType_t uxTaskGetSystemState(TaskStatus_t* arr, UBaseType_t arr_size, uint32_t* total_run_time) {
+  if (total_run_time != NULL) *total_run_time = 0;
+  if (arr_size < 1) return 0;
+  arr[0] = (TaskStatus_t){.pcTaskName = "host_main", .uxCurrentPriority = 5, .usStackHighWaterMark = 1024};
+  return 1;
+}
+
+UBaseType_t uxTaskGetNumberOfTasks(void) {
+  return 1;
 }
 
 /* ---- semaphores ----------------------------------------------------------------------------------------------- */

@@ -1,0 +1,25 @@
+{
+  "sources": [
+    "sys_system.c",
+    "router/sys_system_router.c"
+  ],
+  "tests": [
+    "host/test_sys_system.c"
+  ],
+  "includes": [
+    "router",
+    "../../core/router_queue",
+    "../../core/router_queue/errors",
+    "../sys_device",
+    "../sys_device/errors",
+    "../sys_session",
+    "../sys_session/errors"
+  ],
+  "config": "host/sys_system_host_config.h",
+  "deps": [
+    "router",
+    "timer",
+    "sys_event",
+    "data_matrix"
+  ]
+}

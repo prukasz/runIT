@@ -1,0 +1,24 @@
+{
+  "sources": [
+    "sys_board.c",
+    "router/sys_board_router.c"
+  ],
+  "tests": [
+    "host/test_sys_board.c"
+  ],
+  "includes": [
+    "internal",
+    "router",
+    "../../core/router_queue",
+    "../../core/router_queue/errors",
+    "../sys_actions",
+    "../sys_actions/errors",
+    "../sys_actions/router"
+  ],
+  "config": "host/sys_board_host_config.h",
+  "deps": [
+    "router",
+    "nvs_store",
+    "data_matrix"
+  ]
+}

@@ -77,7 +77,6 @@ MODULE_ID_KINDS = {
     "MODULE_ID_SYS_POWER": {"id": "device", "channel": "channel"},
     "MODULE_ID_DISPLAY": {"id": "device"},
     "MODULE_ID_TOUCH": {"id": "device"},
-    "MODULE_ID_LVGL": {"id": "device"},
     "MODULE_ID_PWRM": {"id": "device", "source": "device", "channel": "channel"},
     "MODULE_ID_SYS_EVENT": {"source": "device", "device": "device", "channel": "channel"},
     "MODULE_ID_ROUTER": {"key": "router_key", "link": "link"},

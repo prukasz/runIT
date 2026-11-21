@@ -1,0 +1,16 @@
+{
+  "sources": [
+    "board_id.c"
+  ],
+  "tests": [
+    "host/test_board_id.c"
+  ],
+  "includes": [
+    "internal"
+  ],
+  "config": "host/board_id_host_config.h",
+  "deps": [
+    "cmd",
+    "nvs_store"
+  ]
+}

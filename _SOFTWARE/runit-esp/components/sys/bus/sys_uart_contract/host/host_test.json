@@ -1,0 +1,14 @@
+{
+  "sources": [
+    "sys_uart_codec.c"
+  ],
+  "tests": [
+    "host/test_sys_uart_codec.c"
+  ],
+  "includes": [
+    "errors"
+  ],
+  "deps": [
+    "cmd"
+  ]
+}

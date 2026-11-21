@@ -1,0 +1,17 @@
+{
+  "sources": [
+    "data_matrix.c",
+    "router/data_matrix_router.c"
+  ],
+  "tests": [
+    "host/test_data_matrix.c"
+  ],
+  "includes": [
+    "errors",
+    "router"
+  ],
+  "config": "host/data_matrix_host_config.h",
+  "deps": [
+    "router"
+  ]
+}

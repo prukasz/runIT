@@ -1,0 +1,4 @@
+#pragma once
+
+#define CONFIG_DATA_MATRIX_PORTS   16
+#define CONFIG_DATA_MATRIX_TARGETS 4

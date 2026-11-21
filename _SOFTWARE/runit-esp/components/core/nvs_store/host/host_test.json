@@ -1,0 +1,16 @@
+{
+  "sources": [
+    "nvs_store.c",
+    "host/host_nvs_impl.c"
+  ],
+  "tests": [
+    "host/test_nvs_store.c"
+  ],
+  "includes": [
+    "errors",
+    "../crc"
+  ],
+  "deps": [
+    "errors"
+  ]
+}
