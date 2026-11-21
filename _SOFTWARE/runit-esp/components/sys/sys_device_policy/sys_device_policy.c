@@ -11,8 +11,6 @@
 
 #define TAG __FILE_NAME__
 
-#define HANDLED_MAX 16u  // distinct devices handled per chain
-
 // A value of `actions[]` in this class is a response of the policy itself, not a record.
 #define RESPONSE_CLASS 0xFFu
 
@@ -155,19 +153,14 @@ static err_h run_response(uint8_t id, uint32_t action) {
   }
 }
 
-// An admitted error of device `id`: the system response first, then its action for that severity.
+// Runs the device's configured action (built-in response or app action runner).
 static err_h device_fault(uint8_t id, uint8_t sev, uint32_t action, err_h chain) {
-  err_h response = sev == ERR_SEV_CRITICAL ? system_fault(id) : NULL;
-  if (action == 0 || (!is_response(action) && s_pol.run_action == NULL)) {
-    return response;
-  }
   err_h err = is_response(action) ? run_response(id, action) : s_pol.run_action(action, chain);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = sev, .stage = SYS_DEVICE_FAULT_STAGE_ACTION,
                    .action = action);
   }
-  ERR_KEEP_FIRST(response, err);
-  return response;
+  return err;
 }
 
 static bool is_response_failure(err_h chain) {
@@ -176,13 +169,13 @@ static bool is_response_failure(err_h chain) {
 
 /* The policy on one chain. Walks from the outermost node: each device (ERR_DEV_ID) once, at its first mention, with
  * the severity from there down; a device at importance NONE ends the walk, and so does ERR_REMOTE (the rest is another
- * board's chain; the severity of a device above it still counts all of it). A critical node before any device is the
- * system's. With `act` the responses run and the first failure is returned; without it nothing runs and `*needed`
- * says whether one would (the reporting task's question: is the chain worth the policy's task). */
+ * board's chain; the severity of a device above it still counts all of it). A critical node triggers system_fault()
+ * at most once per chain. With `act` the responses run and the first failure is returned; without it nothing runs and
+ * `*needed` says whether at least one real response would run (so no-op errors are never queued). */
 static err_h walk(err_h chain, bool act, bool* needed) {
   err_h first = NULL;
   uint64_t handled = 0;  // bit i: device i handled already
-  uint32_t handled_count = 0;
+  bool any_device = false;
   bool system_done = false;
   uint32_t left = ERR_CHAIN_MAX;
   *needed = false;
@@ -192,7 +185,7 @@ static err_h walk(err_h chain, bool act, bool* needed) {
     }
     if (err_tag(n) != ERR_DEV_ID) {
       // A critical failure above every device: nobody to attribute it to.
-      if (handled_count == 0 && !system_done && err_sev(n) == ERR_SEV_CRITICAL) {
+      if (!any_device && !system_done && err_sev(n) == ERR_SEV_CRITICAL) {
         system_done = true;
         *needed = true;
         if (act) {
@@ -207,23 +200,35 @@ static err_h walk(err_h chain, bool act, bool* needed) {
     if (found && p.importance == SYS_DEVICE_IMPORTANCE_NONE) {
       break;  // a device under test: its errors and every deeper cause are ignored (the chain is still logged)
     }
-    const uint64_t bit = id < SYS_DEVICE_COUNT ? 1ULL << id : 0;
-    if ((handled & bit) != 0 || handled_count == HANDLED_MAX) {
-      continue;
+    if (id < SYS_DEVICE_COUNT) {
+      const uint64_t bit = 1ULL << id;
+      if ((handled & bit) != 0) {
+        continue;
+      }
+      handled |= bit;
     }
-    handled |= bit;
-    handled_count++;
+    any_device = true;
     // The error as this device sees it: from its node down (ERR_DEV_ID / ERR_DEV_OP add nothing, they are NONE).
     const uint8_t sev = err_chain_sev(n);
     // Gone (a failed CREATE): only a critical error gets a response, without an action.
     if (!(found ? admitted(p.importance, sev) : sev == ERR_SEV_CRITICAL)) {
       continue;
     }
+    const uint32_t action = found ? p.actions[sev - ERR_SEV_LOW] : 0u;
+    const bool do_sys = sev == ERR_SEV_CRITICAL && !system_done;
+    const bool do_act = action != 0 && (is_response(action) || s_pol.run_action != NULL);
+    if (!do_sys && !do_act) {
+      continue;
+    }
     *needed = true;
     if (act) {
-      const uint32_t action = found ? p.actions[sev - ERR_SEV_LOW] : 0u;
-      ERR_KEEP_FIRST(first, device_fault(id, sev, action, chain));
-      system_done = system_done || sev == ERR_SEV_CRITICAL;
+      if (do_sys) {
+        system_done = true;
+        ERR_KEEP_FIRST(first, system_fault(id));
+      }
+      if (do_act) {
+        ERR_KEEP_FIRST(first, device_fault(id, sev, action, chain));
+      }
     }
   }
   return first;
@@ -259,6 +264,9 @@ static void policy_task(void* arg) {
       continue;
     }
     uint8_t rec[ERR_RECORD_MAX];
+    if (size > sizeof(rec)) {
+      size = sizeof(rec);
+    }
     memcpy(rec, p, size);  // a copy, so the ring's room is free again before the response runs
     vRingbufferReturnItem(sys_device_policy_ring, p);
 
@@ -271,6 +279,9 @@ static void policy_task(void* arg) {
 }
 
 err_h sys_device_policy_init(void) {
+  if (sys_device_policy_task_h != NULL) {
+    return NULL;
+  }
   uint16_t handle;
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
@@ -278,8 +289,6 @@ err_h sys_device_policy_init(void) {
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_REMOVED, .source = SYS_EVENT_ANY_SOURCE,
                                                 .channel = SYS_EVENT_ANY_CHANNEL},
                               on_device, NULL, SYS_EVENT_RUN_INLINE, &handle));
-  if (sys_device_policy_task_h == NULL) {
-    U_TASK_START(sys_device_policy_task_h, policy_task, NULL, CONFIG_SYS_DEVICE_POLICY_TASK_PRIO);
-  }
+  U_TASK_START(sys_device_policy_task_h, policy_task, NULL, CONFIG_SYS_DEVICE_POLICY_TASK_PRIO);
   return NULL;
 }

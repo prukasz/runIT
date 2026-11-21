@@ -1,0 +1,24 @@
+{
+  "sources": [
+    "sys_device_policy.c",
+    "router/sys_device_policy_router.c"
+  ],
+  "tests": [
+    "host/test_sys_device_policy.c"
+  ],
+  "includes": [
+    "router",
+    "../../core/router_queue",
+    "../../core/router_queue/errors"
+  ],
+  "config": "host/sys_device_policy_host_config.h",
+  "deps": [
+    "sys_device",
+    "router"
+  ],
+  "variants": {
+    "default": [
+      "-DCONFIG_ERRORS_POOL_BLOCK_SIZE=40"
+    ]
+  }
+}

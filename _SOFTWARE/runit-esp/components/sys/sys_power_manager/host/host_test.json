@@ -1,0 +1,30 @@
+{
+  "sources": [
+    "sys_power_manager.c",
+    "router/sys_power_manager_router.c",
+    "../sys_io/sys_io.c",
+    "../sys_power/sys_power.c"
+  ],
+  "tests": [
+    "host/test_sys_power_manager.c"
+  ],
+  "includes": [
+    "errors",
+    "router",
+    "../sys_io",
+    "../sys_io/errors",
+    "../sys_power",
+    "../sys_power/contracts",
+    "../sys_power/errors"
+  ],
+  "config": "host/sys_power_manager_host_config.h",
+  "deps": [
+    "sys_device",
+    "router"
+  ],
+  "variants": {
+    "default": [
+      "-DCONFIG_ERRORS_POOL_BLOCK_SIZE=40"
+    ]
+  }
+}
