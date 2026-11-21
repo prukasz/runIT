@@ -45,14 +45,13 @@ typedef struct __attribute__((packed)) {
 
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, MODULE_ID_VREG)
 
-/* Events of the contract: source = the device, channel 0. The faults matter to the user (NOTIFY), with the output's
- * setting at the time; READY is code flow (a program waiting for its rail after ENABLE / a higher VOLTAGE, which
- * return at once), with the voltage reached. */
-#define VREG_EVENTS(X, P)                              \
-  X(P, OVP,   0x01, SYS_EVENT_NOTIFY, { int32_t mV; }) \
-  X(P, OCP,   0x02, SYS_EVENT_NOTIFY, { int32_t mA; }) \
-  X(P, SCP,   0x03, SYS_EVENT_NOTIFY, {})              \
-  X(P, READY, 0x04, 0,                { int32_t mV; })
+/* Events of the contract: source = the device, channel 0. Fault codes match sys_power_kind_e so the power manager maps
+ * them automatically (no translation switch); READY (>= 0x10) is code flow (not a fault). */
+#define VREG_EVENTS(X, P)                                                  \
+  X(P, OVP,   SYS_POWER_KIND_OVP,          SYS_EVENT_NOTIFY, { int32_t mV; }) \
+  X(P, SCP,   SYS_POWER_KIND_SPC,          SYS_EVENT_NOTIFY, {})              \
+  X(P, OCP,   SYS_POWER_KIND_OCP_CRITICAL, SYS_EVENT_NOTIFY, { int32_t mA; }) \
+  X(P, READY, 0x10,                        0,                { int32_t mV; })
 
 SYS_EVENTS_DECLARE(VREG, MODULE_ID_VREG, DEVICE)
 

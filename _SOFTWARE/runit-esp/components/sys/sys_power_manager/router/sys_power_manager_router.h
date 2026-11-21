@@ -16,15 +16,17 @@ extern "C" {
  * board's profile), PSU RW, BATTERY RW, RAIL W (from the board's profile), STATUS R, PD RW, MATRIX RW (the value is
  * one row: the frame is 1 + rails of them, target first, then a response per kind). 0x06, 0x0A..0x0D are free.
  */
-#define PWRM_OPERATIONS(X, P)                                     \
-  X(P, OP_CONFIG,  0x01, cmd_none_t, sys_power_manager_cfg_t,  0) \
-  X(P, OP_LAYOUT,  0x02, cmd_none_t, sys_power_layout_t,       0) \
-  X(P, OP_PSU,     0x03, cmd_none_t, sys_power_psu_t,          0) \
-  X(P, OP_BATTERY, 0x04, cmd_none_t, sys_power_battery_t,      0) \
-  X(P, OP_RAIL,    0x05, cmd_none_t, sys_power_rail_t,         0) \
-  X(P, OP_STATUS,  0x07, cmd_none_t, sys_power_status_t,       0) \
-  X(P, OP_PD,      0x08, cmd_none_t, sys_power_pd_t,           0) \
-  X(P, OP_MATRIX,  0x09, cmd_none_t, sys_power_response_row_t, 0)
+#define PWRM_OPERATIONS(X, P)                                      \
+  X(P, OP_CONFIG,      0x01, cmd_none_t, sys_power_manager_cfg_t,  0) \
+  X(P, OP_LAYOUT,      0x02, cmd_none_t, sys_power_layout_t,       0) \
+  X(P, OP_PSU,         0x03, cmd_none_t, sys_power_psu_t,          0) \
+  X(P, OP_BATTERY,     0x04, cmd_none_t, sys_power_battery_t,      0) \
+  X(P, OP_RAIL,        0x05, cmd_none_t, sys_power_rail_t,         0) \
+  X(P, OP_RAIL_REMOVE, 0x06, cmd_none_t, sys_power_rail_ref_t,     0) \
+  X(P, OP_STATUS,      0x07, cmd_none_t, sys_power_status_t,       0) \
+  X(P, OP_PD,          0x08, cmd_none_t, sys_power_pd_t,           0) \
+  X(P, OP_MATRIX,      0x09, cmd_none_t, sys_power_response_row_t, 0) \
+  X(P, OP_STOP,        0x0A, cmd_none_t, cmd_none_t,               0)
 
 CMD_TABLE_DECLARE(PWRM)
 

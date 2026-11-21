@@ -9,9 +9,14 @@ ROUTER_SETTER(PWRM, OP_PSU, sys_power_manager_set_psu)
 ROUTER_GETTER(PWRM, OP_BATTERY, sys_power_manager_get_battery)
 ROUTER_SETTER(PWRM, OP_BATTERY, sys_power_manager_set_battery)
 ROUTER_SETTER(PWRM, OP_RAIL, sys_power_manager_add_rail)
+ROUTER_SETTER(PWRM, OP_RAIL_REMOVE, sys_power_manager_remove_rail)
 ROUTER_GETTER(PWRM, OP_STATUS, sys_power_manager_get_status)
 ROUTER_GETTER(PWRM, OP_PD, sys_power_manager_get_pd)
 ROUTER_SETTER(PWRM, OP_PD, sys_power_manager_set_pd)
+
+ROUTER_WRITE(PWRM, OP_STOP) {
+  return sys_power_manager_stop();
+}
 
 /* MATRIX: rows of its value, as many as the board has (1 + rails), both ways. */
 ROUTER_READ(PWRM, OP_MATRIX) {
@@ -32,9 +37,11 @@ static err_h PWRM_w_OP_MATRIX(CMD_F_PARAMS) {
 }
 
 static const router_op_t k_ops[] = {
-    ROUTER_ENTRY(PWRM, OP_CONFIG),  ROUTER_ENTRY_W(PWRM, OP_LAYOUT), ROUTER_ENTRY(PWRM, OP_PSU),
-    ROUTER_ENTRY(PWRM, OP_BATTERY), ROUTER_ENTRY_W(PWRM, OP_RAIL),   ROUTER_ENTRY_R(PWRM, OP_STATUS),
-    ROUTER_ENTRY(PWRM, OP_PD),      ROUTER_ENTRY(PWRM, OP_MATRIX),
+    ROUTER_ENTRY(PWRM, OP_CONFIG),        ROUTER_ENTRY_W(PWRM, OP_LAYOUT),
+    ROUTER_ENTRY(PWRM, OP_PSU),           ROUTER_ENTRY(PWRM, OP_BATTERY),
+    ROUTER_ENTRY_W(PWRM, OP_RAIL),        ROUTER_ENTRY_W(PWRM, OP_RAIL_REMOVE),
+    ROUTER_ENTRY_R(PWRM, OP_STATUS),      ROUTER_ENTRY(PWRM, OP_PD),
+    ROUTER_ENTRY(PWRM, OP_MATRIX),        ROUTER_ENTRY_W(PWRM, OP_STOP),
 };
 
 ROUTER_MODULE(sys_power_manager_router, k_ops)

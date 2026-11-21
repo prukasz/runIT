@@ -143,8 +143,8 @@
   "events": [
     {
       "id": "OCP_WARNING",
-      "event": 1,
-      "code": 262145,
+      "event": 4,
+      "code": 262148,
       "label": "Over-current warning",
       "description": "A channel's current crossed its warning threshold",
       "notify": true,
@@ -156,8 +156,8 @@
     },
     {
       "id": "OCP_CRITICAL",
-      "event": 2,
-      "code": 262146,
+      "event": 5,
+      "code": 262149,
       "label": "Over-current critical",
       "description": "A channel's current crossed its critical threshold",
       "notify": true,

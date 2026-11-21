@@ -108,8 +108,8 @@
     },
     {
       "id": "OCP",
-      "event": 2,
-      "code": 327682,
+      "event": 5,
+      "code": 327685,
       "label": "Over-current",
       "description": "The output passed its current limit",
       "notify": true,
@@ -130,8 +130,8 @@
     },
     {
       "id": "READY",
-      "event": 4,
-      "code": 327684,
+      "event": 16,
+      "code": 327696,
       "label": "Output ready",
       "description": "The output settled at the wanted voltage",
       "notify": false,

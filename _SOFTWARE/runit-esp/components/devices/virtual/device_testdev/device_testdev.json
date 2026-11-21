@@ -1,0 +1,626 @@
+{
+  "$schema": "../../../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "testdev",
+  "alias": "Test device",
+  "description": "A device with every contract, for the tests of the firmware and of the links between boards. It has no hardware: what a driver would read from a chip is state set by its fake commands, every change of its state is logged and published as the event a real driver would publish. IO pins, a simulated I2C bus with chips, a power monitor, a regulator, a USB-PD sink, a supply mux, an H-bridge, a UART port and a device that hears events.",
+  "type_id": 78,
+  "type": {
+    "symbol": "TESTDEV_TYPE",
+    "id": 78
+  },
+  "protocols": [
+    "native"
+  ],
+  "tags": [
+    "test",
+    "virtual",
+    "simulation"
+  ],
+  "config": {
+    "struct": "testdev_cfg_t",
+    "size": 7,
+    "fields": [
+      {
+        "id": "pins",
+        "label": "Pins",
+        "description": "IO pins, 1..64 (the app offers the first 16)",
+        "type": "number",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 0,
+        "min": 1,
+        "max": 64,
+        "default": 16
+      },
+      {
+        "id": "channels",
+        "label": "Channels",
+        "description": "Channels of the power monitor and the H-bridge, 1..4",
+        "type": "number",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 1,
+        "min": 1,
+        "max": 4,
+        "default": 4
+      },
+      {
+        "id": "uart_mode",
+        "label": "UART mode",
+        "description": "What the UART port says INFO",
+        "offset": 2,
+        "size": 1,
+        "type": "enum",
+        "enum": "sys_uart_mode_e",
+        "raw_type": "u8",
+        "default": 1
+      },
+      {
+        "id": "uart_baud",
+        "label": "UART baud",
+        "description": "The UART port's baud rate",
+        "type": "number",
+        "raw_type": "u32",
+        "size": 4,
+        "offset": 3,
+        "min": 1200,
+        "max": 5000000,
+        "default": 115200
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "IO",
+    "I2C",
+    "EVENT",
+    "POWER_MONITOR",
+    "POWER_VREG",
+    "POWER_USB_PD",
+    "POWER_SUPPLY",
+    "HBRIDGE",
+    "UART"
+  ],
+  "provides": {
+    "pins": {
+      "count": 16,
+      "modes": [
+        "input",
+        "input_pullup",
+        "input_pulldown",
+        "output",
+        "output_od",
+        "pwm",
+        "adc",
+        "dac",
+        "interrupt"
+      ],
+      "labels": [
+        "P0",
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5",
+        "P6",
+        "P7",
+        "P8",
+        "P9",
+        "P10",
+        "P11",
+        "P12",
+        "P13",
+        "P14",
+        "P15"
+      ]
+    },
+    "channels": {
+      "count": 4,
+      "labels": [
+        "CH0",
+        "CH1",
+        "CH2",
+        "CH3"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "id": "fake_pin",
+      "op": 0,
+      "symbol": "OWN_TESTDEV_OP_FAKE_PIN",
+      "label": "Fake pin",
+      "description": "What the outside holds a pin at: the level an input reads (an edge is an event when armed with INTR) and the voltage an ADC pin reads (leaving or entering its window is an event). The read answers the pin's level and voltage.",
+      "read": {
+        "args": {
+          "struct": "io_pin_args_t",
+          "fields": [
+            {
+              "id": "pin",
+              "label": "Pin",
+              "description": "Pin index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            }
+          ]
+        },
+        "returns": {
+          "struct": "testdev_pin_t",
+          "fields": [
+            {
+              "id": "pin",
+              "label": "Pin",
+              "description": "Pin index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "level",
+              "label": "Level",
+              "description": "0 or 1",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "description": "Millivolts",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 2,
+              "unit": "mV"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "testdev_pin_t",
+          "fields": [
+            {
+              "id": "pin",
+              "label": "Pin",
+              "description": "Pin index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "level",
+              "label": "Level",
+              "description": "0 or 1",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "description": "Millivolts",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 2,
+              "unit": "mV"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fake_i2c",
+      "op": 1,
+      "symbol": "OWN_TESTDEV_OP_FAKE_I2C",
+      "label": "Fake I2C chip",
+      "description": "Puts a chip on the simulated bus or takes it away: it acks its address and keeps a 256-byte register file.",
+      "write": {
+        "args": {
+          "struct": "testdev_i2c_t",
+          "fields": [
+            {
+              "id": "addr",
+              "label": "Address",
+              "description": "7-bit address, 0x08..0x77",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 8,
+              "max": 119
+            },
+            {
+              "id": "present",
+              "label": "Present",
+              "description": "1: a chip acks the address; 0: nothing does",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "min": 0,
+              "max": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fake_channel",
+      "op": 2,
+      "symbol": "OWN_TESTDEV_OP_FAKE_CHANNEL",
+      "label": "Fake channel",
+      "description": "What a channel measures: the power monitor's voltage and current, and so the bridge's current. A current at or over an armed alert is an event.",
+      "read": {
+        "args": {
+          "struct": "pmon_channel_args_t",
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "Channel index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            }
+          ]
+        },
+        "returns": {
+          "struct": "testdev_channel_t",
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "Channel index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "description": "Bus voltage",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV"
+            },
+            {
+              "id": "current_mA",
+              "label": "Current",
+              "description": "Current",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 5,
+              "unit": "mA"
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "testdev_channel_t",
+          "fields": [
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "Channel index",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "description": "Bus voltage",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV"
+            },
+            {
+              "id": "current_mA",
+              "label": "Current",
+              "description": "Current",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 5,
+              "unit": "mA"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fake_fault",
+      "op": 3,
+      "symbol": "OWN_TESTDEV_OP_FAKE_FAULT",
+      "label": "Fake fault",
+      "description": "Publishes the event a real driver would, as if the hardware had raised it. Kinds: 0 IO rising, 1 IO falling (channel = pin), 2 monitor warning, 3 monitor critical, 4 regulator overvoltage, 5 regulator overcurrent, 6 regulator short circuit, 7 bridge overcurrent, 8 bridge thermal or undervoltage, 9 bridge external, 10 UART overflow; 11 holds the I2C bus until RECOVER.",
+      "write": {
+        "args": {
+          "struct": "testdev_fault_t",
+          "fields": [
+            {
+              "id": "kind",
+              "label": "Kind",
+              "description": "What to raise (0..11, in the description)",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 11
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "The event's channel: a pin or a measured channel",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1
+            },
+            {
+              "id": "value",
+              "label": "Value",
+              "description": "The event's payload: mV, mA or bytes dropped",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fake_uart_rx",
+      "op": 4,
+      "symbol": "OWN_TESTDEV_OP_FAKE_UART_RX",
+      "label": "Fake UART message",
+      "description": "A message arrives on the UART port, once or up to 4 times (to the subscriber, the hook, or the queue).",
+      "write": {
+        "args": {
+          "struct": "testdev_rx_t",
+          "fields": [
+            {
+              "id": "copies",
+              "label": "Copies",
+              "description": "How many times it arrives, 1..4",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 1,
+              "max": 4,
+              "default": 1
+            },
+            {
+              "id": "data",
+              "label": "Message",
+              "description": "The bytes, 1..64",
+              "type": "string",
+              "raw_type": "bytes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "listen",
+      "op": 5,
+      "symbol": "OWN_TESTDEV_OP_LISTEN",
+      "label": "Listen",
+      "description": "ON_EVENT hears the events that pass this key (0xFFFF in source or channel: any; tag 0xFFFFFFFF: any event). A new key replaces the old one and clears what was heard.",
+      "write": {
+        "args": {
+          "struct": "testdev_listen_t",
+          "fields": [
+            {
+              "id": "tag",
+              "label": "Event",
+              "description": "The event's tag (module and code)",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0
+            },
+            {
+              "id": "source",
+              "label": "Source",
+              "description": "The device, 0xFFFF for any",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 4
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "The pin or channel, 0xFFFF for any",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "heard",
+      "op": 6,
+      "symbol": "OWN_TESTDEV_OP_HEARD",
+      "label": "Heard",
+      "description": "What ON_EVENT has been given: how many, and the last one (its key, its payload length and first bytes).",
+      "read": {
+        "returns": {
+          "struct": "testdev_heard_t",
+          "fields": [
+            {
+              "id": "count",
+              "label": "Count",
+              "description": "Events heard",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 0
+            },
+            {
+              "id": "tag",
+              "label": "Event",
+              "description": "The last one's tag",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 4
+            },
+            {
+              "id": "source",
+              "label": "Source",
+              "description": "The last one's source",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 8
+            },
+            {
+              "id": "channel",
+              "label": "Channel",
+              "description": "The last one's channel",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 10
+            },
+            {
+              "id": "len",
+              "label": "Length",
+              "description": "Its payload bytes",
+              "type": "number",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 12
+            },
+            {
+              "id": "data",
+              "label": "Payload",
+              "description": "Its first 16 bytes",
+              "type": "string",
+              "raw_type": "bytes",
+              "size": 16,
+              "offset": 14
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "vreg",
+      "op": 7,
+      "symbol": "OWN_TESTDEV_OP_VREG",
+      "label": "Regulator",
+      "description": "The regulator's settings as written: the contract's ops only write them.",
+      "read": {
+        "returns": {
+          "struct": "testdev_vreg_t",
+          "fields": [
+            {
+              "id": "enable",
+              "label": "Output",
+              "description": "1: on",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "description": "Wanted output",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV"
+            },
+            {
+              "id": "current_mA",
+              "label": "Current limit",
+              "description": "Wanted limit",
+              "type": "number",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 5,
+              "unit": "mA"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "loopback",
+      "op": 8,
+      "symbol": "OWN_TESTDEV_OP_LOOPBACK",
+      "label": "UART loopback",
+      "description": "1: what the UART sends (SEND, TRANSACT) comes back as a message; 0: it goes nowhere.",
+      "read": {
+        "returns": {
+          "struct": "testdev_loopback_t",
+          "fields": [
+            {
+              "id": "loopback",
+              "label": "Loopback",
+              "description": "0 or 1",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 1
+            }
+          ]
+        }
+      },
+      "write": {
+        "args": {
+          "struct": "testdev_loopback_t",
+          "fields": [
+            {
+              "id": "loopback",
+              "label": "Loopback",
+              "description": "0 or 1",
+              "type": "number",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "min": 0,
+              "max": 1
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

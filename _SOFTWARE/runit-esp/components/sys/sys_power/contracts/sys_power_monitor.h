@@ -54,10 +54,10 @@ typedef struct __attribute__((packed)) {
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PMON, MODULE_ID_PMON)
 
 /* Events of the contract, published by a device for an armed alert: source = the device, channel = the measured
- * channel, the payload the current that crossed it. Both matter to the user: NOTIFY. */
-#define PMON_EVENTS(X, P)                                     \
-  X(P, OCP_WARNING,  0x01, SYS_EVENT_NOTIFY, { int32_t mA; }) \
-  X(P, OCP_CRITICAL, 0x02, SYS_EVENT_NOTIFY, { int32_t mA; })
+ * channel, the payload the current that crossed it. Codes match sys_power_kind_e for automatic matrix mapping. */
+#define PMON_EVENTS(X, P)                                                           \
+  X(P, OCP_WARNING,  SYS_POWER_KIND_OCP_WARNING,  SYS_EVENT_NOTIFY, { int32_t mA; }) \
+  X(P, OCP_CRITICAL, SYS_POWER_KIND_OCP_CRITICAL, SYS_EVENT_NOTIFY, { int32_t mA; })
 
 SYS_EVENTS_DECLARE(PMON, MODULE_ID_PMON, DEVICE)
 

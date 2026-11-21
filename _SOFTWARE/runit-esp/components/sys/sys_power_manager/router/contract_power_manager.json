@@ -15,29 +15,21 @@
       "symbol": "SYS_PWRM_OP_CONFIG",
       "record": "SYS_ACTIONS_ID_POWER_CFG",
       "label": "Power manager configuration",
-      "description": "Sets how the power budget works: on / off, strict or with a soft margin, and the power source on a board without source pins.",
+      "description": "Sets how the power budget works: disabled, strict (total system power), or margin (total system power + margin), and the power source on a board without source pins.",
       "read": {
         "description": "Returns what SET_CONFIG sets.",
         "returns": {
           "struct": "sys_power_manager_cfg_t",
           "fields": [
             {
-              "id": "enabled",
-              "label": "Enabled",
-              "type": "boolean",
+              "id": "mode",
+              "label": "Budget mode",
+              "type": "enum",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "1 = budget control active, 0 = measure only"
-            },
-            {
-              "id": "strict",
-              "label": "Strict",
-              "type": "boolean",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "1 = the rails are held to the budget, 0 = with the soft margin"
+              "enum": "sys_power_budget_mode_e",
+              "description": "0 = disable all limits, 1 = limit to total system power, 2 = limit to total system power + margin"
             },
             {
               "id": "soft_margin_pct",
@@ -45,9 +37,9 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 2,
+              "offset": 1,
               "unit": "%",
-              "description": "Allowed budget overrun when not strict, in percent (0..100)"
+              "description": "Allowed budget overrun in margin mode, in percent (0..100)"
             },
             {
               "id": "source",
@@ -55,7 +47,7 @@
               "type": "enum",
               "raw_type": "u8",
               "size": 1,
-              "offset": 3,
+              "offset": 2,
               "enum": "sys_power_source_e",
               "description": "The source on a board without source pins; a board with them detects it (ignored)"
             }
@@ -64,27 +56,19 @@
         }
       },
       "write": {
-        "description": "Sets how the power budget works: on / off, strict or with a soft margin, and the power source on a board without source pins.",
+        "description": "Sets how the power budget works: disabled, strict (total system power), or margin (total system power + margin), and the power source on a board without source pins.",
         "args": {
           "struct": "sys_power_manager_cfg_t",
           "fields": [
             {
-              "id": "enabled",
-              "label": "Enabled",
-              "type": "boolean",
+              "id": "mode",
+              "label": "Budget mode",
+              "type": "enum",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "1 = budget control active, 0 = measure only"
-            },
-            {
-              "id": "strict",
-              "label": "Strict",
-              "type": "boolean",
-              "raw_type": "u8",
-              "size": 1,
-              "offset": 1,
-              "description": "1 = the rails are held to the budget, 0 = with the soft margin"
+              "enum": "sys_power_budget_mode_e",
+              "description": "0 = disable all limits, 1 = limit to total system power, 2 = limit to total system power + margin"
             },
             {
               "id": "soft_margin_pct",
@@ -92,9 +76,9 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 2,
+              "offset": 1,
               "unit": "%",
-              "description": "Allowed budget overrun when not strict, in percent (0..100)"
+              "description": "Allowed budget overrun in margin mode, in percent (0..100)"
             },
             {
               "id": "source",
@@ -102,7 +86,7 @@
               "type": "enum",
               "raw_type": "u8",
               "size": 1,
-              "offset": 3,
+              "offset": 2,
               "enum": "sys_power_source_e",
               "description": "The source on a board without source pins; a board with them detects it (ignored)"
             }
@@ -711,24 +695,56 @@
         }
       }
     }
+    {
+      "id": "RAIL_REMOVE",
+      "op": 6,
+      "symbol": "SYS_PWRM_OP_RAIL_REMOVE",
+      "label": "Remove a rail",
+      "description": "Removes a regulator rail (load) from the power manager at runtime.",
+      "write": {
+        "args": {
+          "struct": "sys_power_rail_ref_t",
+          "fields": [
+            {
+              "id": "vreg",
+              "label": "Regulator",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "description": "The device ID of the regulator rail to remove"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "STOP",
+      "op": 10,
+      "symbol": "SYS_PWRM_OP_STOP",
+      "label": "Stop power manager",
+      "description": "Stops the power manager task, unsubscribes events, and releases rails until the next LAYOUT.",
+      "write": {}
+    }
   ],
   "events": [
     {
-      "id": "SOURCE_CHANGED",
+      "id": "INPUT_OVP",
       "event": 1,
       "code": 2228225,
-      "label": "Source changed",
-      "description": "The board is now fed from another source",
+      "label": "Input over-voltage",
+      "description": "The input is above the board's maximum",
       "notify": true,
-      "symbol": "PWRM_EV_SOURCE_CHANGED",
+      "symbol": "PWRM_EV_INPUT_OVP",
       "value": {
-        "description": "The new source (power source list)"
+        "description": "The input voltage",
+        "unit": "mV"
       }
     },
     {
       "id": "BATTERY_LOW",
-      "event": 2,
-      "code": 2228226,
+      "event": 7,
+      "code": 2228231,
       "label": "Battery low",
       "description": "The battery charge passed the low threshold",
       "notify": true,
@@ -740,8 +756,8 @@
     },
     {
       "id": "BATTERY_CRITICAL",
-      "event": 3,
-      "code": 2228227,
+      "event": 8,
+      "code": 2228232,
       "label": "Battery critical",
       "description": "The battery charge passed the critical threshold",
       "notify": true,
@@ -753,8 +769,8 @@
     },
     {
       "id": "BUDGET_EXCEEDED",
-      "event": 4,
-      "code": 2228228,
+      "event": 9,
+      "code": 2228233,
       "label": "Budget exceeded",
       "description": "The rails ask for more than the budget",
       "notify": true,
@@ -765,22 +781,21 @@
       }
     },
     {
-      "id": "INPUT_OVP",
-      "event": 5,
-      "code": 2228229,
-      "label": "Input over-voltage",
-      "description": "The input is above the board's maximum",
+      "id": "SOURCE_CHANGED",
+      "event": 10,
+      "code": 2228234,
+      "label": "Source changed",
+      "description": "The board is now fed from another source",
       "notify": true,
-      "symbol": "PWRM_EV_INPUT_OVP",
+      "symbol": "PWRM_EV_SOURCE_CHANGED",
       "value": {
-        "description": "The input voltage",
-        "unit": "mV"
+        "description": "The new source (power source list)"
       }
     },
     {
       "id": "PD_FIXED",
-      "event": 6,
-      "code": 2228230,
+      "event": 16,
+      "code": 2228240,
       "label": "USB-PD fixed profile",
       "description": "The charger has no adjustable profile for the set voltage: a lower fixed one is in use",
       "notify": true,
@@ -789,6 +804,15 @@
         "description": "The voltage in use",
         "unit": "mV"
       }
+    },
+    {
+      "id": "LIMIT_REACHED",
+      "event": 17,
+      "code": 2228241,
+      "label": "Power limit reached",
+      "description": "A rail command exceeded the power limit and was clamped (or refused below min_mA)",
+      "notify": true,
+      "symbol": "PWRM_EV_LIMIT_REACHED"
     }
   ]
 }
