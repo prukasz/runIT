@@ -11,6 +11,7 @@
   ],
   "config": "host/router_host_config.h",
   "deps": [
-    "router"
+    "router",
+    "data_matrix"
   ]
 }

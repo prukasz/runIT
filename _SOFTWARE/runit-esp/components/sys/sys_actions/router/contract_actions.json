@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "ACTIONS",
-  "router_key": 44,
+  "router_key": 40,
   "alias": "Action management (Actions & Macros)",
   "description": "Storing, replaying and reading back command lists (macros) in Flash, and managing them.",
   "category": "system",
@@ -34,7 +34,7 @@
     },
     {
       "id": "BEGIN",
-      "op": 4,
+      "op": 3,
       "symbol": "ACTIONS_OP_BEGIN",
       "label": "Start writing a record",
       "description": "Opens a ready-made action record image of the given length in bytes for writing.",
@@ -65,7 +65,7 @@
     },
     {
       "id": "WRITE",
-      "op": 5,
+      "op": 4,
       "symbol": "ACTIONS_OP_WRITE",
       "label": "Write a chunk",
       "description": "Writes a chunk of the record being written at the given offset.",
@@ -95,7 +95,7 @@
     },
     {
       "id": "COMMIT",
-      "op": 6,
+      "op": 5,
       "symbol": "ACTIONS_OP_COMMIT",
       "label": "Commit the record",
       "description": "Checks the CRC-32 and stores the action record in Flash.",
@@ -262,7 +262,7 @@
     },
     {
       "id": "ABORT",
-      "op": 11,
+      "op": 6,
       "symbol": "ACTIONS_OP_ABORT",
       "label": "Abort the record being written",
       "description": "Drops the record being written and the data not stored yet.",
@@ -270,7 +270,7 @@
     },
     {
       "id": "RUN_ALL",
-      "op": 13,
+      "op": 2,
       "symbol": "ACTIONS_OP_RUN_ALL",
       "label": "Run every frame of an action",
       "description": "Replays every frame of the action record without stopping at an error (the first error is returned).",
@@ -292,7 +292,7 @@
     },
     {
       "id": "REMOVE_ALL",
-      "op": 14,
+      "op": 11,
       "symbol": "ACTIONS_OP_REMOVE_ALL",
       "label": "Remove all action records",
       "description": "Removes every stored record (settings, devices, the project and the user's actions). Refused while a record is being written.",

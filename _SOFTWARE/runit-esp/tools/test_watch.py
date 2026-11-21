@@ -15,38 +15,42 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-UART_ID = sc.CLIENT  # 0xF0
+UART_ID = sc.CLIENT
 DEV_ID = 12
-TESTDEV_TYPE = 0x004E
+TESTDEV_TYPE = defs.device_type("testdev")
 
-WATCH_ADD, WATCH_REMOVE, WATCH_LIST = 0x01, 0x02, 0x03
-TRIG_PERIODIC, TRIG_ON_CHANGE = 0, 1
-WATCH_MAX = 24  # CONFIG_SYS_WATCH_MAX default
+WATCH_ADD = defs.service_op("WATCH", "ADD")
+WATCH_REMOVE = defs.service_op("WATCH", "REMOVE")
+WATCH_LIST = defs.service_op("WATCH", "LIST")
+TRIG_PERIODIC = defs.sym("SYS_WATCH_PERIODIC")
+TRIG_ON_CHANGE = defs.sym("SYS_WATCH_ON_CHANGE")
+WATCH_MAX = defs.limit("SYS_WATCH_MAX")
 
 # Device ops
-DEV_CREATE = 0x2000
-DEV_SUSPEND = 0x2002
-DEV_RESUME = 0x2003
-DEV_REMOVE = 0x2004
-IO_LEVEL = 0x0100
-IO_MODE = 0x0105
-IO_RESET = 0x0106
-IO_VOLTAGE = 0x0109
-PMON_VOLTAGE = 0x0400
-PMON_CURRENT = 0x0401
-VREG_VOLTAGE = 0x0501
-VREG_CURRENT = 0x0502
-PD_OPTIONS = 0x0701
-SUPPLY_SOURCE = 0x0800
-OWN_FAKE_PIN = 0xFF00
-OWN_FAKE_CHANNEL = 0xFF02
-OWN_VREG = 0xFF07
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_SUSPEND = defs.contract_op("DEVICE", "SUSPEND")
+DEV_RESUME = defs.contract_op("DEVICE", "RESUME")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+IO_LEVEL = defs.contract_op("IO", "LEVEL")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_RESET = defs.contract_op("IO", "RESET")
+IO_VOLTAGE = defs.contract_op("IO", "VOLTAGE")
+PMON_VOLTAGE = defs.contract_op("POWER_MONITOR", "VOLTAGE")
+PMON_CURRENT = defs.contract_op("POWER_MONITOR", "CURRENT")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+VREG_CURRENT = defs.contract_op("POWER_VREG", "CURRENT")
+PD_OPTIONS = defs.contract_op("POWER_USB_PD", "OPTIONS")
+SUPPLY_SOURCE = defs.contract_op("POWER_SUPPLY", "SOURCE")
+OWN_FAKE_PIN = defs.device_own_op("testdev", "fake_pin")
+OWN_FAKE_CHANNEL = defs.device_own_op("testdev", "fake_channel")
+OWN_VREG = defs.device_own_op("testdev", "vreg")
 
-MODE_OUTPUT_PP = 3
-MODE_ADC = 7
+MODE_OUTPUT_PP = defs.sym("SYS_IO_MODE_OUTPUT_PUSH_PULL")
+MODE_ADC = defs.sym("SYS_IO_MODE_ADC")
 
 
 def quiet():
@@ -182,8 +186,8 @@ class WatchManagement(WatchBase):
         self.assertEqual(self.c.call(watch_add(1, 2, 5, 0, good_read))[0], 1)                 # invalid trigger
         self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 0, 0, good_read))[0], 1)     # period 0
         self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 5, 0, bad_write))[0], 1)     # not a read
-        self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 5, 0, bytes([0x28])))[0], 1) # len < 2
-        self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 5, 0, bytes([0x28, 0]) + bytes(48)))[0], 1)  # len > 48
+        self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 5, 0, bytes([sc.KEY_SYS])))[0], 1) # len < 2
+        self.assertEqual(self.c.call(watch_add(1, TRIG_PERIODIC, 5, 0, bytes([sc.KEY_SYS, 0]) + bytes(48)))[0], 1)  # len > 48
 
     def test_table_full_and_freed_on_remove(self):
         read = dev_cmd(READ, SUPPLY_SOURCE)

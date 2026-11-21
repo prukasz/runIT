@@ -20,6 +20,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 try:
@@ -29,14 +30,31 @@ except ImportError:
     bc = None
 
 READ, WRITE = sc.READ, sc.WRITE
-KEY_ERRORS, KEY_EVENTS, KEY_ROUTER_MODULE = 0x31, 0x25, 0x23
+KEY_ERRORS = defs.sym("MODULE_ID_ERRORS")
+KEY_EVENTS = defs.sym("MODULE_ID_SYS_EVENT")
+KEY_ROUTER_MODULE = defs.sym("MODULE_ID_ROUTER")
+KEY_REMOTE = defs.sym("MODULE_ID_REMOTE")
 PIN = 4
-UART_ID, BLE_ID = 0xF0, 0xF1
-PROVIDER_CONSOLE, PROVIDER_BLE, PROVIDER_BLE_LOGS = 1, 3, 4
-SESSION_PEERS = bytes([sc.KEY_SESSION, READ, 0x02])
-SESSION_ATTACH = 0x03
-SYS_PING, SYS_STOP, SYS_DEADMAN, SYS_BYE, SYS_SAFE, SYS_SAFE_LEAVE = 0x01, 0x02, 0x04, 0x06, 0x09, 0x0A
-WATCH_ADD, WATCH_REMOVE, WATCH_LIST = 0x01, 0x02, 0x03
+UART_ID = defs.sym("CMD_SRC_CLIENT_FIRST")
+BLE_ID = defs.sym("CMD_SRC_CLIENT_FIRST") + 1
+PROVIDER_CONSOLE, PROVIDER_BLE, PROVIDER_BLE_LOGS, PROVIDER_BLE_TELEMETRY = 1, 3, 4, 5
+SESSION_ID_OP = defs.service_op("SESSION", "ID")
+SESSION_PEERS = bytes([sc.KEY_SESSION, READ, defs.service_op("SESSION", "PEERS")])
+SESSION_ATTACH = defs.service_op("SESSION", "ATTACH")
+SYS_PING = defs.service_op("SYS", "PING")
+SYS_STOP = defs.service_op("SYS", "STOP")
+SYS_DEADMAN = defs.service_op("SYS", "DEADMAN")
+SYS_BYE = defs.service_op("SYS", "BYE")
+SYS_SAFE = defs.service_op("SYS", "SAFE")
+SYS_SAFE_LEAVE = defs.service_op("SYS", "SAFE_LEAVE")
+WATCH_ADD = defs.service_op("WATCH", "ADD")
+WATCH_REMOVE = defs.service_op("WATCH", "REMOVE")
+WATCH_LIST = defs.service_op("WATCH", "LIST")
+MATRIX_CONNECT = defs.service_op("DATA_MATRIX", "CONNECT")
+MATRIX_DISCONNECT = defs.service_op("DATA_MATRIX", "DISCONNECT")
+MATRIX_LIST = defs.service_op("DATA_MATRIX", "LIST")
+IO_RESET = defs.contract_op("IO", "RESET")
+BLE_LOGS = defs.sym("RUNIT_BLE_LOGS")
 
 
 def quiet():
@@ -126,7 +144,7 @@ class Uart:
         self.call(bytes([sc.KEY_SYS, WRITE, SYS_SAFE_LEAVE]))
         for wid in (1, 2, 3, 4):
             self.call(bytes([sc.KEY_WATCH, WRITE, WATCH_REMOVE, wid]))
-        self.call(dev(0x0106, bytes([PIN]), WRITE))
+        self.call(dev(IO_RESET, bytes([PIN]), WRITE))
 
 
 UART: Uart | None = None
@@ -344,37 +362,39 @@ class SessionUart(unittest.TestCase):
 
     # ---- the session's commands --------------------------------------------------------------------------------
     def test_id_reads_the_boards_id(self):
-        st, b = self.u.call(bytes([sc.KEY_SESSION, READ, 0x01]))
+        st, b = self.u.call(bytes([sc.KEY_SESSION, READ, SESSION_ID_OP]))
         self.assertEqual((st, len(b)), (0, 1))
 
     def test_attach_rules(self):
         attach = bytes([sc.KEY_SESSION, WRITE, SESSION_ATTACH])
-        mods = bytes([0x23, 0x31, 0x25, 0x2B, 0x2A, 0x2F])  # the console's sub-ports, in the board's order
+        mods = bytes([KEY_ROUTER_MODULE, KEY_ERRORS, KEY_EVENTS, sc.KEY_WATCH, sc.KEY_LOG, KEY_REMOTE])  # the console's sub-ports, in the board's order
         same = attach + struct.pack("<BBH", PROVIDER_CONSOLE, 0, 0) + mods
         self.assertEqual(self.u.call(same)[0], 0, "the same attach again is done")
         other = attach + struct.pack("<BBH", PROVIDER_CONSOLE, 0, 5000) + mods
         self.assertEqual(self.u.call(other)[0], 1, "another time on an attached provider")
-        raw = attach + struct.pack("<BBH", PROVIDER_BLE_LOGS, 0, 0) + bytes([0x23])
+        raw = attach + struct.pack("<BBH", PROVIDER_BLE_LOGS, 0, 0) + bytes([KEY_ROUTER_MODULE])
         self.assertEqual(self.u.call(raw)[0], 1, "a raw provider has no session")
         self.assertEqual(next(r for r in self.u.peers() if r[2] == UART_ID)[5], 0)
 
     # ---- the data matrix ---------------------------------------------------------------------------------------
     def test_matrix_list_connect_disconnect_and_refusals(self):
-        st, b = self.u.call(bytes([0x30, READ, 0x03]))
+        st, b = self.u.call(bytes([sc.KEY_MATRIX, READ, MATRIX_LIST]))
         links = {struct.unpack_from("<HH", b, 1 + 4 * i) for i in range(b[0])}
         self.assertEqual(st, 0)
-        self.assertIn((0x002B, 0x0105), links)  # WATCH -> the telemetry characteristic
-        link = struct.pack("<HH", 0x002B, 0x0105)
-        self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x02]) + link)[0], 0)
+        port_watch = sc.KEY_WATCH
+        port_telem = (1 << 8) | PROVIDER_BLE_TELEMETRY
+        self.assertIn((port_watch, port_telem), links)  # WATCH -> the telemetry characteristic
+        link = struct.pack("<HH", port_watch, port_telem)
+        self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_DISCONNECT]) + link)[0], 0)
         try:
-            b = self.u.call(bytes([0x30, READ, 0x03]))[1]
-            self.assertNotIn((0x002B, 0x0105), {struct.unpack_from("<HH", b, 1 + 4 * i) for i in range(b[0])})
-            self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x02]) + link)[0], 0)  # again: nothing changes
+            b = self.u.call(bytes([sc.KEY_MATRIX, READ, MATRIX_LIST]))[1]
+            self.assertNotIn((port_watch, port_telem), {struct.unpack_from("<HH", b, 1 + 4 * i) for i in range(b[0])})
+            self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_DISCONNECT]) + link)[0], 0)  # again: nothing changes
         finally:
-            self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x01]) + link)[0], 0)
-        self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x01]) + link)[0], 0)  # the same link again
-        self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x01]) + struct.pack("<HH", 0x7777, 0x002B))[0], 1)
-        self.assertEqual(self.u.call(bytes([0x30, WRITE, 0x01]) + struct.pack("<HH", 0x002B, 0x002B))[0], 1)
+            self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_CONNECT]) + link)[0], 0)
+        self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_CONNECT]) + link)[0], 0)  # the same link again
+        self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_CONNECT]) + struct.pack("<HH", 0x7777, port_watch))[0], 1)
+        self.assertEqual(self.u.call(bytes([sc.KEY_MATRIX, WRITE, MATRIX_CONNECT]) + struct.pack("<HH", port_watch, port_watch))[0], 1)
 
 
 class BleSide:
@@ -399,7 +419,7 @@ class BleSide:
         await self.client.start_notify(bc.uuid16(bc.TX), self.link.on_packet)
         await self.client.start_notify(bc.uuid16(bc.TELEMETRY), self.link.on_telemetry)
         self.logs = bytearray()
-        await self.client.start_notify(bc.uuid16(0xFFE9), lambda _c, b: self.logs.extend(b))
+        await self.client.start_notify(bc.uuid16(BLE_LOGS), lambda _c, b: self.logs.extend(b))
         with quiet():
             if not await self.link.hello():
                 raise unittest.SkipTest("no hello over BLE")

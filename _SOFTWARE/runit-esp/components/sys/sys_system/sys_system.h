@@ -20,8 +20,7 @@ extern "C" {
 typedef enum {
   SYS_SAFE_STOP = 1,     //@alias Stop @description sys STOP command
   SYS_SAFE_DEADMAN = 2,  //@alias Deadman @description A client's session ended (silence past the dead-man's time, its link lost)
-  // 3 is unused: never assign it.
-  SYS_SAFE_POWER = 4,    //@alias Power fault @description The power manager's response to a power fault (its response matrix: safe state)
+  SYS_SAFE_POWER = 3,    //@alias Power fault @description The power manager's response to a power fault (its response matrix: safe state)
 } sys_safe_reason_e;
 
 /**

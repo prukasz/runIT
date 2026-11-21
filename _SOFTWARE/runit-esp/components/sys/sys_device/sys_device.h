@@ -112,7 +112,7 @@ typedef struct __attribute__((packed)) {
 
 enum {
   CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x00),  // [type u16][flags u8][create struct]
-  CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x08),  // [type u16][sys_device_remote_t]
+  CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x07),  // [type u16][sys_device_remote_t]
 };
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, MODULE_ID_SYS_DEVICE)
 

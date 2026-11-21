@@ -548,7 +548,7 @@ static void test_typed_create_failure_unknown_type_and_slot_reuse(void) {
   err_h u_op = mock_router_call(CMD_DIR_READ, 21, 0xFF99u, NULL, 0, NULL);
   TEST_ASSERT_EQUAL_HEX32(ERR_PROV_UNKNOWN_OP, err_root_tag(u_op));
   err_free(u_op);
-  err_h u_reg = mock_router_call(CMD_DIR_WRITE, 21, 0x0D99u, NULL, 0, NULL);
+  err_h u_reg = mock_router_call(CMD_DIR_WRITE, 21, (uint16_t)((MODULE_ID_PROVIDER << 8) | 0x99u), NULL, 0, NULL);
   TEST_ASSERT_EQUAL_HEX32(ERR_PROV_UNKNOWN_OP, err_root_tag(u_reg));
   err_free(u_reg);
   const uint8_t junk = 1u;

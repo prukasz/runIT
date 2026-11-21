@@ -137,7 +137,7 @@
     },
     {
       "id": "PWM_DUTY",
-      "op": 3,
+      "op": 2,
       "symbol": "IO_OP_PWM_DUTY",
       "label": "PWM duty",
       "description": "Sets the PWM duty of a pin.",
@@ -175,7 +175,7 @@
     },
     {
       "id": "PWM_FREQ",
-      "op": 4,
+      "op": 3,
       "symbol": "IO_OP_PWM_FREQ",
       "label": "PWM frequency",
       "description": "Sets the PWM frequency of a pin; a device with one frequency for all its pins ignores the pin.",
@@ -211,7 +211,7 @@
     },
     {
       "id": "MODE",
-      "op": 5,
+      "op": 4,
       "symbol": "IO_OP_MODE",
       "label": "Mode",
       "description": "Configures what a pin does.",
@@ -247,7 +247,7 @@
     },
     {
       "id": "RESET",
-      "op": 6,
+      "op": 5,
       "symbol": "IO_OP_RESET",
       "label": "Reset pin",
       "description": "Puts a pin back in its power-on state.",
@@ -273,7 +273,7 @@
     },
     {
       "id": "INTR",
-      "op": 7,
+      "op": 6,
       "symbol": "IO_OP_INTR",
       "label": "Interrupt",
       "description": "Arms a pin to raise events on an edge or when an analog value leaves a window.",
@@ -358,7 +358,7 @@
     },
     {
       "id": "VOLTAGE",
-      "op": 9,
+      "op": 7,
       "symbol": "IO_OP_VOLTAGE",
       "label": "Voltage",
       "description": "The voltage of a pin: the write sets an output (a DAC), the read answers what the pin is at (an ADC) or the set output.",
@@ -440,7 +440,7 @@
     },
     {
       "id": "AVAILABLE",
-      "op": 10,
+      "op": 8,
       "symbol": "IO_OP_AVAILABLE",
       "label": "Available pins",
       "description": "The pins the device has.",
@@ -453,7 +453,7 @@
     },
     {
       "id": "LOCKED",
-      "op": 11,
+      "op": 9,
       "symbol": "IO_OP_LOCKED",
       "label": "Locked pins",
       "description": "The pins that are locked.",
@@ -466,7 +466,7 @@
     },
     {
       "id": "LOCK",
-      "op": 12,
+      "op": 10,
       "symbol": "IO_OP_LOCK",
       "label": "Lock pin",
       "description": "Claims a pin for another device (refused if it is locked).",
@@ -489,7 +489,7 @@
     },
     {
       "id": "UNLOCK",
-      "op": 13,
+      "op": 11,
       "symbol": "IO_OP_UNLOCK",
       "label": "Unlock pin",
       "description": "Releases a claimed pin.",

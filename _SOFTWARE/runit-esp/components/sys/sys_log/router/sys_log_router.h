@@ -28,7 +28,7 @@ typedef struct __attribute__((packed)) {
  */
 #define LOG_OPERATIONS(X, P)                                            \
   X(P, OP_CONFIG, 0x01, cmd_none_t,            sys_log_cfg_t, 0)        \
-  X(P, OP_ERRORS, 0x03, sys_log_errors_args_t, cmd_none_t,    0)
+  X(P, OP_ERRORS, 0x02, sys_log_errors_args_t, cmd_none_t,    0)
 
 CMD_TABLE_DECLARE(LOG)
 

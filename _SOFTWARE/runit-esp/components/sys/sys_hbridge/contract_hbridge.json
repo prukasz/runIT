@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "HBRIDGE",
-  "contract_id": 9,
+  "contract_id": 5,
   "alias": "H-bridge",
   "description": "A motor driver: drive, brake, coast, current and its faults",
   "category": "motor",
@@ -122,7 +122,7 @@
     {
       "id": "OVERCURRENT",
       "event": 1,
-      "code": 589825,
+      "code": 327681,
       "label": "Over-current",
       "description": "The channel drew more than its current limit",
       "notify": true,
@@ -131,7 +131,7 @@
     {
       "id": "THERMAL_OR_UVLO",
       "event": 2,
-      "code": 589826,
+      "code": 327682,
       "label": "Overheat or low supply",
       "description": "The chip overheated or its supply dropped: every channel stopped",
       "notify": true,
@@ -140,7 +140,7 @@
     {
       "id": "EXTERNAL",
       "event": 3,
-      "code": 589827,
+      "code": 327683,
       "label": "External fault",
       "description": "An external fault input fired",
       "notify": true,

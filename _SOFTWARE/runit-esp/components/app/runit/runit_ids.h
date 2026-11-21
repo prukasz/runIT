@@ -14,5 +14,5 @@
 #define RUNIT_BLE_SERVICE   0xFFE0  //@alias runIT service @description The board's own service: the client's session
 #define RUNIT_BLE_TX        0xFFE1  //@alias Session out @description Notify, framed: the session's frames to the client
 #define RUNIT_BLE_RX        0xFFE2  //@alias Session in @description Write, framed: the session's frames from the client
-#define RUNIT_BLE_LOGS      0xFFE9  //@alias Logs @description Notify, raw: the log lines, no session
-#define RUNIT_BLE_TELEMETRY 0xFFEA  //@alias Telemetry @description Notify, raw: the watches' entries ([hdr PUSH][owner][id][status][data]), no session
+#define RUNIT_BLE_LOGS      0xFFE3  //@alias Logs @description Notify, raw: the log lines, no session
+#define RUNIT_BLE_TELEMETRY 0xFFE4  //@alias Telemetry @description Notify, raw: the watches' entries ([hdr PUSH][owner][id][status][data]), no session

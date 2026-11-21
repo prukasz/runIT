@@ -54,9 +54,18 @@ typedef struct __attribute__((packed)) {
   uint8_t refresh_hz;   /**< Frames a second at most, the touch read as often; 0: SYS_LVGL_REFRESH_HZ (lv_conf.h) */
 } sys_lvgl_install_t;
 
+/** @brief Screen rotation (degrees clockwise, matches LV_DISPLAY_ROTATION_*). */
+//#ref-enum @alias Screen rotation
+typedef enum sys_lvgl_rotation_e {
+  SYS_LVGL_ROTATION_0 = 0,    //@alias 0 deg @description Normal orientation (0 degrees)
+  SYS_LVGL_ROTATION_90 = 1,   //@alias 90 deg @description Rotated 90 degrees clockwise
+  SYS_LVGL_ROTATION_180 = 2,  //@alias 180 deg @description Rotated 180 degrees
+  SYS_LVGL_ROTATION_270 = 3,  //@alias 270 deg @description Rotated 270 degrees clockwise
+} sys_lvgl_rotation_e;
+
 /** @brief ROTATION args and answer */
 typedef struct __attribute__((packed)) {
-  uint8_t rotation;  /**< sys_display_orientation_e: 0, 90, 180, 270 deg */
+  uint8_t rotation;  /**< sys_lvgl_rotation_e: 0, 90, 180, 270 deg */
 } sys_lvgl_rotation_t;
 
 /** @brief What STATUS answers */

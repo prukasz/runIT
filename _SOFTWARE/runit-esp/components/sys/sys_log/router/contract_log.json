@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "LOG",
-  "router_key": 42,
+  "router_key": 41,
   "alias": "Logs and errors",
   "description": "What ESP_LOG prints, whether also to the console, whether reported error chains are traced, and the board's ring buffer of latest error records.",
   "category": "system",
@@ -87,7 +87,7 @@
     },
     {
       "id": "ERRORS",
-      "op": 3,
+      "op": 2,
       "symbol": "LOG_OP_ERRORS",
       "label": "Read error history",
       "description": "Returns [u8 total][error record] for the kept error record at index (0 = oldest); returns only [u8 total] when index >= total.",

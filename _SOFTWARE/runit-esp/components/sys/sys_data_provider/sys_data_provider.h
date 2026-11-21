@@ -30,9 +30,9 @@ typedef enum {
 /* Provider state bits (filled by the driver inside create() and sys_data_provider_set_up()). */
 //#ref-defines prov_state @alias Provider state @prefix SYS_DATA_PROVIDER_STATE_
 #define SYS_DATA_PROVIDER_STATE_SYSTEM (1u << 0)  //@alias System @description The board's own: not removed
-#define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 3)  //@alias Wired @description Connection realised by cable - low latency
-#define SYS_DATA_PROVIDER_STATE_UP     (1u << 4)  //@alias Up @description It delivers frames now
-#define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 5)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw
+#define SYS_DATA_PROVIDER_STATE_WIRED  (1u << 1)  //@alias Wired @description Connection realised by cable - low latency
+#define SYS_DATA_PROVIDER_STATE_UP     (1u << 2)  //@alias Up @description It delivers frames now
+#define SYS_DATA_PROVIDER_STATE_FRAMED (1u << 3)  //@alias Framed @description Its driver carries a whole CMD_FRAME_MAX frame; else raw
 
 /**
  * @brief A provider's state bits (SYS_DATA_PROVIDER_STATE_*). Any task, no wait.

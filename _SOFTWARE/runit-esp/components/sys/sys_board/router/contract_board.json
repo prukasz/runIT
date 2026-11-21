@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "BOARD",
-  "router_key": 45,
+  "router_key": 39,
   "alias": "Board profile",
   "description": "The definition of the board kept on it as a JSON file: written and read in chunks by the app.",
   "category": "system",

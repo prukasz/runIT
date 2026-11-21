@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "POWER_VREG",
-  "contract_id": 5,
+  "contract_id": 7,
   "alias": "Regulator",
   "description": "An adjustable regulator: enable, voltage, current limit",
   "category": "power",
@@ -96,7 +96,7 @@
     {
       "id": "OVP",
       "event": 1,
-      "code": 327681,
+      "code": 458753,
       "label": "Over-voltage",
       "description": "The output went above its limit",
       "notify": true,
@@ -109,7 +109,7 @@
     {
       "id": "OCP",
       "event": 5,
-      "code": 327685,
+      "code": 458757,
       "label": "Over-current",
       "description": "The output passed its current limit",
       "notify": true,
@@ -122,7 +122,7 @@
     {
       "id": "SCP",
       "event": 3,
-      "code": 327683,
+      "code": 458755,
       "label": "Short circuit",
       "description": "The output is shorted",
       "notify": true,
@@ -131,7 +131,7 @@
     {
       "id": "READY",
       "event": 16,
-      "code": 327696,
+      "code": 458768,
       "label": "Output ready",
       "description": "The output settled at the wanted voltage",
       "notify": false,

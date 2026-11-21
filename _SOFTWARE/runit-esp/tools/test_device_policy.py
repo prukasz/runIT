@@ -21,31 +21,36 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-KEY_POLICY = 0x21
-OP_POLICY = 0x01
+KEY_POLICY = defs.service_key("POLICY")
+OP_POLICY = defs.service_op("POLICY", "POLICY")
 DEV_PARENT, DEV_CHILD = 20, 21
-TESTDEV_TYPE = 0x004E
-TCA6424A_TYPE = 0x0042
+TESTDEV_TYPE = defs.device_type("testdev")
+TCA6424A_TYPE = defs.device_type("tca6424a")
 
-IMP_NONE, IMP_LOW, IMP_MEDIUM, IMP_HIGH, IMP_CRITICAL = 0, 1, 2, 3, 4
+IMP_NONE = defs.sym("SYS_DEVICE_IMPORTANCE_NONE")
+IMP_LOW = defs.sym("SYS_DEVICE_IMPORTANCE_LOW")
+IMP_MEDIUM = defs.sym("SYS_DEVICE_IMPORTANCE_MEDIUM")
+IMP_HIGH = defs.sym("SYS_DEVICE_IMPORTANCE_HIGH")
+IMP_CRITICAL = defs.sym("SYS_DEVICE_IMPORTANCE_CRITICAL")
 RESP_NONE = 0
-RESP_SUSPEND = 0xFF000001
-RESP_RESET = 0xFF000002
+RESP_SUSPEND = defs.sym("SYS_DEVICE_RESPONSE_SUSPEND")
+RESP_RESET = defs.sym("SYS_DEVICE_RESPONSE_RESET")
 
-DEV_CREATE = 0x2000
-DEV_RESUME = 0x2003
-DEV_REMOVE = 0x2004
-DEV_INFO = 0x2005
-IO_MODE = 0x0105
-I2C_RAW = 0x0206
-VREG_VOLTAGE = 0x0501
-SUPPLY_SOURCE = 0x0800
-OWN_FAKE_I2C = 0xFF01
-OWN_VREG = 0xFF07
-PIN_NONE = (0xFF, 0xFF)
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_RESUME = defs.contract_op("DEVICE", "RESUME")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+DEV_INFO = defs.contract_op("DEVICE", "INFO")
+IO_MODE = defs.contract_op("IO", "MODE")
+I2C_RAW = defs.contract_op("I2C", "RAW")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+SUPPLY_SOURCE = defs.contract_op("POWER_SUPPLY", "SOURCE")
+OWN_FAKE_I2C = defs.device_own_op("testdev", "fake_i2c")
+OWN_VREG = defs.device_own_op("testdev", "vreg")
+PIN_NONE = (defs.sym("SYS_IO_PIN_NONE_DEVICE"), defs.sym("SYS_IO_PIN_NONE_INDEX"))
 
 
 def quiet():

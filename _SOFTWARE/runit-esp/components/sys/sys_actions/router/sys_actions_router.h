@@ -53,16 +53,16 @@ typedef struct __attribute__((packed)) {
  */
 #define ACTIONS_OPERATIONS(X, P)                                                         \
   X(P, OP_RUN,        0x01, cmd_none_t,              sys_actions_id_args_t,     0)       \
-  X(P, OP_BEGIN,      0x04, cmd_none_t,              sys_actions_begin_args_t,  0)       \
-  X(P, OP_WRITE,      0x05, cmd_none_t,              sys_actions_write_args_t,  0)       \
-  X(P, OP_COMMIT,     0x06, cmd_none_t,              sys_actions_commit_args_t, 0)       \
+  X(P, OP_RUN_ALL,    0x02, cmd_none_t,              sys_actions_id_args_t,     0)       \
+  X(P, OP_BEGIN,      0x03, cmd_none_t,              sys_actions_begin_args_t,  0)       \
+  X(P, OP_WRITE,      0x04, cmd_none_t,              sys_actions_write_args_t,  0)       \
+  X(P, OP_COMMIT,     0x05, cmd_none_t,              sys_actions_commit_args_t, 0)       \
+  X(P, OP_ABORT,      0x06, cmd_none_t,              cmd_none_t,                0)       \
   X(P, OP_READ,       0x07, sys_actions_read_args_t, cmd_none_t,                0)       \
   X(P, OP_INFO,       0x08, sys_actions_id_args_t,   sys_actions_info_t,        0)       \
   X(P, OP_LIST,       0x09, sys_actions_list_args_t, cmd_none_t,                0)       \
   X(P, OP_REMOVE,     0x0A, cmd_none_t,              sys_actions_id_args_t,     0)       \
-  X(P, OP_ABORT,      0x0B, cmd_none_t,              cmd_none_t,                0)       \
-  X(P, OP_RUN_ALL,    0x0D, cmd_none_t,              sys_actions_id_args_t,     0)       \
-  X(P, OP_REMOVE_ALL, 0x0E, cmd_none_t,              cmd_none_t,                0)
+  X(P, OP_REMOVE_ALL, 0x0B, cmd_none_t,              cmd_none_t,                0)
 
 CMD_TABLE_DECLARE(ACTIONS)
 

@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "BLE",
-  "router_key": 46,
+  "router_key": 45,
   "alias": "Bluetooth Low Energy (GATT table and status)",
   "description": "Reads the GATT table (the providers make its services and characteristics) and the link's state.",
   "category": "system",

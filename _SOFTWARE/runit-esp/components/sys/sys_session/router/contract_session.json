@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "SESSION",
-  "router_key": 14,
+  "router_key": 44,
   "alias": "Sessions",
   "description": "This board's id and its sessions: the providers attached to a peer, each a port of the data matrix with a sub-port per module it shows.",
   "category": "system",

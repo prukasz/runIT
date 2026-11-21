@@ -22,60 +22,70 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-KEY_PWRM = 0x22
+KEY_PWRM = defs.service_key("POWER_MANAGER")
 DEV_BUS, DEV_RAIL, DEV_EAR = 17, 18, 19
-TESTDEV_TYPE = 0x004E
+TESTDEV_TYPE = defs.device_type("testdev")
 
 # PWRM router ops
-OP_CONFIG = 0x01
-OP_LAYOUT = 0x02
-OP_PSU = 0x03
-OP_BATTERY = 0x04
-OP_RAIL = 0x05
-OP_RAIL_REMOVE = 0x06
-OP_STATUS = 0x07
-OP_PD = 0x08
-OP_MATRIX = 0x09
-OP_STOP = 0x0A
+OP_CONFIG = defs.service_op("POWER_MANAGER", "CONFIG")
+OP_LAYOUT = defs.service_op("POWER_MANAGER", "LAYOUT")
+OP_PSU = defs.service_op("POWER_MANAGER", "PSU")
+OP_BATTERY = defs.service_op("POWER_MANAGER", "BATTERY")
+OP_RAIL = defs.service_op("POWER_MANAGER", "RAIL")
+OP_RAIL_REMOVE = defs.service_op("POWER_MANAGER", "RAIL_REMOVE")
+OP_STATUS = defs.service_op("POWER_MANAGER", "STATUS")
+OP_PD = defs.service_op("POWER_MANAGER", "PD")
+OP_MATRIX = defs.service_op("POWER_MANAGER", "MATRIX")
+OP_STOP = defs.service_op("POWER_MANAGER", "STOP")
 
 # Budget modes
-MODE_DISABLED = 0
-MODE_STRICT = 1
-MODE_MARGIN = 2
+MODE_DISABLED = defs.sym("SYS_POWER_BUDGET_DISABLED")
+MODE_STRICT = defs.sym("SYS_POWER_BUDGET_STRICT")
+MODE_MARGIN = defs.sym("SYS_POWER_BUDGET_MARGIN")
 
 # Sources
-SRC_UNKNOWN, SRC_USB, SRC_PSU, SRC_BATTERY = 0, 1, 2, 3
+SRC_UNKNOWN = defs.sym("SYS_POWER_SOURCE_UNKNOWN")
+SRC_USB = defs.sym("SYS_POWER_SOURCE_USB")
+SRC_PSU = defs.sym("SYS_POWER_SOURCE_PSU")
+SRC_BATTERY = defs.sym("SYS_POWER_SOURCE_BATTERY")
 
 # Matrix kinds & responses
-KIND_COUNT = 11
-KIND_OVP, KIND_SPC, KIND_OCP_WARN, KIND_OCP_CRIT = 1, 3, 4, 5
-RESP_NOTIFY, RESP_DISABLE, RESP_RESET, RESP_SAFE = 0, 1, 2, 3
+KIND_OVP = defs.sym("SYS_POWER_KIND_OVP")
+KIND_SPC = defs.sym("SYS_POWER_KIND_SPC")
+KIND_OCP_WARN = defs.sym("SYS_POWER_KIND_OCP_WARNING")
+KIND_OCP_CRIT = defs.sym("SYS_POWER_KIND_OCP_CRITICAL")
+KIND_COUNT = defs.sym("SYS_POWER_KIND_SOURCE_CHANGED") + 1
+RESP_NOTIFY = defs.sym("SYS_POWER_RESPONSE_NOTIFY")
+RESP_DISABLE = defs.sym("SYS_POWER_RESPONSE_DISABLE")
+RESP_RESET = defs.sym("SYS_POWER_RESPONSE_RESET")
+RESP_SAFE = defs.sym("SYS_POWER_RESPONSE_SAFE_STATE")
 TARGET_BOARD = 0xFFFF
 
 # Device ops
-DEV_CREATE = 0x2000
-DEV_REMOVE = 0x2004
-DEV_INFO = 0x2005
-IO_MODE = 0x0105
-VREG_ENABLE = 0x0500
-VREG_VOLTAGE = 0x0501
-VREG_CURRENT = 0x0502
-OWN_FAKE_PIN = 0xFF00
-OWN_FAKE_CHANNEL = 0xFF02
-OWN_FAKE_FAULT = 0xFF03
-OWN_LISTEN = 0xFF05
-OWN_HEARD = 0xFF06
-OWN_VREG = 0xFF07
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+DEV_INFO = defs.contract_op("DEVICE", "INFO")
+IO_MODE = defs.contract_op("IO", "MODE")
+VREG_ENABLE = defs.contract_op("POWER_VREG", "ENABLE")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+VREG_CURRENT = defs.contract_op("POWER_VREG", "CURRENT")
+OWN_FAKE_PIN = defs.device_own_op("testdev", "fake_pin")
+OWN_FAKE_CHANNEL = defs.device_own_op("testdev", "fake_channel")
+OWN_FAKE_FAULT = defs.device_own_op("testdev", "fake_fault")
+OWN_LISTEN = defs.device_own_op("testdev", "listen")
+OWN_HEARD = defs.device_own_op("testdev", "heard")
+OWN_VREG = defs.device_own_op("testdev", "vreg")
 
-# PWRM events (aligned with sys_power_kind_e; info >= 0x10)
-EV_PWRM_INPUT_OVP = (KEY_PWRM << 16) | 1
-EV_PWRM_BAT_LOW = (KEY_PWRM << 16) | 7
-EV_PWRM_BAT_CRIT = (KEY_PWRM << 16) | 8
-EV_PWRM_SOURCE_CHANGED = (KEY_PWRM << 16) | 10
-EV_PWRM_LIMIT_REACHED = (KEY_PWRM << 16) | 0x11
+# PWRM events
+EV_PWRM_INPUT_OVP = defs.service_event("POWER_MANAGER", "INPUT_OVP")
+EV_PWRM_BAT_LOW = defs.service_event("POWER_MANAGER", "BATTERY_LOW")
+EV_PWRM_BAT_CRIT = defs.service_event("POWER_MANAGER", "BATTERY_CRITICAL")
+EV_PWRM_SOURCE_CHANGED = defs.service_event("POWER_MANAGER", "SOURCE_CHANGED")
+EV_PWRM_LIMIT_REACHED = defs.service_event("POWER_MANAGER", "LIMIT_REACHED")
 
 ANY_SRC = 0xFFFF
 ANY_CH = 0xFFFF

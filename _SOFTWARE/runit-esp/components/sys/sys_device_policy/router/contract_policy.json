@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "POLICY",
-  "router_key": 33,
+  "router_key": 48,
   "alias": "Device fault policy",
   "description": "Configures how device errors are filtered by importance and what automated recovery action or record executes for each error severity level.",
   "category": "system",

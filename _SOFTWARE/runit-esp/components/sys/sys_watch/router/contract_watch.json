@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "WATCH",
-  "router_key": 43,
+  "router_key": 42,
   "alias": "Watches",
   "description": "Reads this board runs every period and pushes (all of them, or the ones whose answer changed) as entries [owner][id][status][data] out of the port WATCH to its links (a session, the raw BLE telemetry); owner is the caller that added them.",
   "category": "system",

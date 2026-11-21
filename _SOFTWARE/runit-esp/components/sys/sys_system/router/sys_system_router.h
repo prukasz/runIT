@@ -48,11 +48,11 @@ typedef struct __attribute__((packed)) {
   X(P, OP_STOP,       0x02, cmd_none_t, cmd_none_t,           0)           \
   X(P, OP_RESTART,    0x03, cmd_none_t, cmd_none_t,           0)           \
   X(P, OP_DEADMAN,    0x04, cmd_none_t, sys_system_deadman_t, 0)           \
-  X(P, OP_BYE,        0x06, cmd_none_t, cmd_none_t,           0)           \
-  X(P, OP_TIME,       0x07, cmd_none_t, sys_system_time_t,    0)           \
-  X(P, OP_SAFE,       0x09, cmd_none_t, sys_system_safe_t,    0)           \
-  X(P, OP_SAFE_LEAVE, 0x0A, cmd_none_t, cmd_none_t,           0)           \
-  X(P, OP_TASKS,      0x0B, cmd_none_t, sys_system_task_t,    0)
+  X(P, OP_BYE,        0x05, cmd_none_t, cmd_none_t,           0)           \
+  X(P, OP_TIME,       0x06, cmd_none_t, sys_system_time_t,    0)           \
+  X(P, OP_SAFE,       0x07, cmd_none_t, sys_system_safe_t,    0)           \
+  X(P, OP_SAFE_LEAVE, 0x08, cmd_none_t, cmd_none_t,           0)           \
+  X(P, OP_TASKS,      0x09, cmd_none_t, sys_system_task_t,    0)
 
 CMD_TABLE_DECLARE(SYS)
 

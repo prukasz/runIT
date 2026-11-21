@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "POWER_MONITOR",
-  "contract_id": 4,
+  "contract_id": 6,
   "alias": "Power monitor",
   "description": "Voltage, current and power readings and current alerts",
   "category": "power",
@@ -144,7 +144,7 @@
     {
       "id": "OCP_WARNING",
       "event": 4,
-      "code": 262148,
+      "code": 393220,
       "label": "Over-current warning",
       "description": "A channel's current crossed its warning threshold",
       "notify": true,
@@ -157,7 +157,7 @@
     {
       "id": "OCP_CRITICAL",
       "event": 5,
-      "code": 262149,
+      "code": 393221,
       "label": "Over-current critical",
       "description": "A channel's current crossed its critical threshold",
       "notify": true,

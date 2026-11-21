@@ -16,116 +16,117 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
 DEV_A, DEV_B = 10, 11
-TESTDEV_TYPE = 0x004E
+TESTDEV_TYPE = defs.device_type("testdev")
 
-# Lifecycle (CONTRACT_SYS_DEVICE, 0x20xx)
-DEV_CREATE = 0x2000
-DEV_RESET = 0x2001
-DEV_SUSPEND = 0x2002
-DEV_RESUME = 0x2003
-DEV_REMOVE = 0x2004
-DEV_INFO = 0x2005
-DEV_OPS = 0x2006
+# Lifecycle (CONTRACT_SYS_DEVICE)
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_RESET = defs.contract_op("DEVICE", "RESET")
+DEV_SUSPEND = defs.contract_op("DEVICE", "SUSPEND")
+DEV_RESUME = defs.contract_op("DEVICE", "RESUME")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+DEV_INFO = defs.contract_op("DEVICE", "INFO")
+DEV_OPS = defs.contract_op("DEVICE", "OPS")
 
-# IO (0x01xx)
-IO_LEVEL = 0x0100
-IO_TOGGLE = 0x0101
-IO_PWM_DUTY = 0x0103
-IO_PWM_FREQ = 0x0104
-IO_MODE = 0x0105
-IO_RESET = 0x0106
-IO_INTR = 0x0107
-IO_VOLTAGE = 0x0109
-IO_AVAILABLE = 0x010A
-IO_LOCKED = 0x010B
-IO_LOCK = 0x010C
-IO_UNLOCK = 0x010D
+# IO
+IO_LEVEL = defs.contract_op("IO", "LEVEL")
+IO_TOGGLE = defs.contract_op("IO", "TOGGLE")
+IO_PWM_DUTY = defs.contract_op("IO", "PWM_DUTY")
+IO_PWM_FREQ = defs.contract_op("IO", "PWM_FREQ")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_RESET = defs.contract_op("IO", "RESET")
+IO_INTR = defs.contract_op("IO", "INTR")
+IO_VOLTAGE = defs.contract_op("IO", "VOLTAGE")
+IO_AVAILABLE = defs.contract_op("IO", "AVAILABLE")
+IO_LOCKED = defs.contract_op("IO", "LOCKED")
+IO_LOCK = defs.contract_op("IO", "LOCK")
+IO_UNLOCK = defs.contract_op("IO", "UNLOCK")
 
-MODE_INPUT = 0
-MODE_INPUT_PULLUP = 1
-MODE_OUTPUT_PP = 3
-MODE_PWM = 6
-MODE_ADC = 7
-MODE_DAC = 8
+MODE_INPUT = defs.sym("SYS_IO_MODE_INPUT")
+MODE_INPUT_PULLUP = defs.sym("SYS_IO_MODE_INPUT_PULLUP")
+MODE_OUTPUT_PP = defs.sym("SYS_IO_MODE_OUTPUT_PUSH_PULL")
+MODE_PWM = defs.sym("SYS_IO_MODE_PWM")
+MODE_ADC = defs.sym("SYS_IO_MODE_ADC")
+MODE_DAC = defs.sym("SYS_IO_MODE_DAC")
 
-INTR_DISABLE = 0
-INTR_RISING = 1
-INTR_FALLING = 2
-INTR_BOTH = 3
-INTR_ADC_OUTSIDE = 4
-INTR_ADC_INSIDE = 5
+INTR_DISABLE = defs.sym("SYS_IO_INTR_DISABLE")
+INTR_RISING = defs.sym("SYS_IO_INTR_MODE_RISING_EDGE")
+INTR_FALLING = defs.sym("SYS_IO_INTR_MODE_FALLING_EDGE")
+INTR_BOTH = defs.sym("SYS_IO_INTR_MODE_BOTH_EDGES")
+INTR_ADC_OUTSIDE = defs.sym("SYS_IO_INTR_ADC_WINDOW_OUTSIDE")
+INTR_ADC_INSIDE = defs.sym("SYS_IO_INTR_ADC_WINDOW_INSIDE")
 
-# I2C (0x02xx)
-I2C_ATTACH = 0x0200
-I2C_PROBE = 0x0203
-I2C_SCAN = 0x0204
-I2C_RECOVER = 0x0205
-I2C_RAW = 0x0206
+# I2C
+I2C_ATTACH = defs.contract_local_op("I2C", 0x00)
+I2C_PROBE = defs.contract_op("I2C", "PROBE")
+I2C_SCAN = defs.contract_op("I2C", "SCAN")
+I2C_RECOVER = defs.contract_op("I2C", "RECOVER")
+I2C_RAW = defs.contract_op("I2C", "RAW")
 
-# PMON (0x04xx)
-PMON_VOLTAGE = 0x0400
-PMON_CURRENT = 0x0401
-PMON_ALERT = 0x0402
-PMON_POWER = 0x0403
+# PMON
+PMON_VOLTAGE = defs.contract_op("POWER_MONITOR", "VOLTAGE")
+PMON_CURRENT = defs.contract_op("POWER_MONITOR", "CURRENT")
+PMON_ALERT = defs.contract_op("POWER_MONITOR", "ALERT")
+PMON_POWER = defs.contract_op("POWER_MONITOR", "POWER")
 
-# VREG (0x05xx)
-VREG_ENABLE = 0x0500
-VREG_VOLTAGE = 0x0501
-VREG_CURRENT = 0x0502
+# VREG
+VREG_ENABLE = defs.contract_op("POWER_VREG", "ENABLE")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+VREG_CURRENT = defs.contract_op("POWER_VREG", "CURRENT")
 
-# PD (0x07xx)
-PD_SETTINGS = 0x0700
-PD_OPTIONS = 0x0701
-PD_LIMITS = 0x0702
+# PD
+PD_SETTINGS = defs.contract_op("POWER_USB_PD", "SETTINGS")
+PD_OPTIONS = defs.contract_op("POWER_USB_PD", "OPTIONS")
+PD_LIMITS = defs.contract_op("POWER_USB_PD", "LIMITS")
 
-# SUPPLY (0x08xx)
-SUPPLY_SOURCE = 0x0800
+# SUPPLY
+SUPPLY_SOURCE = defs.contract_op("POWER_SUPPLY", "SOURCE")
 
-# HBRIDGE (0x09xx)
-HB_DRIVE = 0x0900
-HB_BRAKE = 0x0901
-HB_COAST = 0x0902
-HB_CURRENT = 0x0903
+# HBRIDGE
+HB_DRIVE = defs.contract_op("HBRIDGE", "DRIVE")
+HB_BRAKE = defs.contract_op("HBRIDGE", "BRAKE")
+HB_COAST = defs.contract_op("HBRIDGE", "COAST")
+HB_CURRENT = defs.contract_op("HBRIDGE", "CURRENT")
 
-# UART (0x13xx)
-UART_INFO = 0x1300
-UART_BAUD = 0x1301
-UART_SEND = 0x1302
-UART_RECEIVE = 0x1303
-UART_FLUSH = 0x1304
-UART_SUBSCRIBE = 0x1305
-UART_TRANSACT = 0x1306
+# UART
+UART_INFO = defs.contract_op("UART", "INFO")
+UART_BAUD = defs.contract_op("UART", "BAUD")
+UART_SEND = defs.contract_op("UART", "SEND")
+UART_RECEIVE = defs.contract_op("UART", "RECEIVE")
+UART_FLUSH = defs.contract_op("UART", "FLUSH")
+UART_SUBSCRIBE = defs.contract_local_op("UART", 0x05)
+UART_TRANSACT = defs.contract_op("UART", "TRANSACT")
 
 # Own ops (0xFFxx)
-OWN_FAKE_PIN = 0xFF00
-OWN_FAKE_I2C = 0xFF01
-OWN_FAKE_CHANNEL = 0xFF02
-OWN_FAKE_FAULT = 0xFF03
-OWN_FAKE_UART_RX = 0xFF04
-OWN_LISTEN = 0xFF05
-OWN_HEARD = 0xFF06
-OWN_VREG = 0xFF07
-OWN_LOOPBACK = 0xFF08
+OWN_FAKE_PIN = defs.device_own_op("testdev", "fake_pin")
+OWN_FAKE_I2C = defs.device_own_op("testdev", "fake_i2c")
+OWN_FAKE_CHANNEL = defs.device_own_op("testdev", "fake_channel")
+OWN_FAKE_FAULT = defs.device_own_op("testdev", "fake_fault")
+OWN_FAKE_UART_RX = defs.device_own_op("testdev", "fake_uart_rx")
+OWN_LISTEN = defs.device_own_op("testdev", "listen")
+OWN_HEARD = defs.device_own_op("testdev", "heard")
+OWN_VREG = defs.device_own_op("testdev", "vreg")
+OWN_LOOPBACK = defs.device_own_op("testdev", "loopback")
 
-# Event tags: (module << 16) | code
-EV_IO_RISING = (0x01 << 16) | 1
-EV_IO_FALLING = (0x01 << 16) | 2
-EV_IO_ADC_OUTSIDE = (0x01 << 16) | 3
-EV_IO_ADC_INSIDE = (0x01 << 16) | 4
-EV_PMON_WARN = (0x04 << 16) | 4
-EV_PMON_CRIT = (0x04 << 16) | 5
-EV_VREG_OVP = (0x05 << 16) | 1
-EV_VREG_SCP = (0x05 << 16) | 3
-EV_VREG_OCP = (0x05 << 16) | 5
-EV_VREG_READY = (0x05 << 16) | 0x10
-EV_HB_OC = (0x09 << 16) | 1
-EV_HB_THERMAL = (0x09 << 16) | 2
-EV_HB_EXT = (0x09 << 16) | 3
-EV_UART_OVERFLOW = (0x13 << 16) | 1
+# Event tags
+EV_IO_RISING = defs.contract_event("IO", "RISING")
+EV_IO_FALLING = defs.contract_event("IO", "FALLING")
+EV_IO_ADC_OUTSIDE = defs.contract_event("IO", "ADC_OUTSIDE")
+EV_IO_ADC_INSIDE = defs.contract_event("IO", "ADC_INSIDE")
+EV_PMON_WARN = defs.contract_event("POWER_MONITOR", "OCP_WARNING")
+EV_PMON_CRIT = defs.contract_event("POWER_MONITOR", "OCP_CRITICAL")
+EV_VREG_OVP = defs.contract_event("POWER_VREG", "OVP")
+EV_VREG_SCP = defs.contract_event("POWER_VREG", "SCP")
+EV_VREG_OCP = defs.contract_event("POWER_VREG", "OCP")
+EV_VREG_READY = defs.contract_event("POWER_VREG", "READY")
+EV_HB_OC = defs.contract_event("HBRIDGE", "OVERCURRENT")
+EV_HB_THERMAL = defs.contract_event("HBRIDGE", "THERMAL_OR_UVLO")
+EV_HB_EXT = defs.contract_event("HBRIDGE", "EXTERNAL")
+EV_UART_OVERFLOW = defs.contract_event("UART", "OVERFLOW")
 
 ANY_TAG = 0xFFFFFFFF
 ANY_SRC = 0xFFFF

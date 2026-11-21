@@ -4,7 +4,7 @@
   "kind": "contract-definition",
   "scope": "system",
   "id": "POWER_MANAGER",
-  "router_key": 34,
+  "router_key": 51,
   "alias": "Power manager",
   "description": "Manages the power budget, the power sources (USB-PD, bench supply, battery), the response matrix for power faults, and the power events.",
   "category": "power",
@@ -694,7 +694,7 @@
           ]
         }
       }
-    }
+    },
     {
       "id": "RAIL_REMOVE",
       "op": 6,
@@ -731,7 +731,7 @@
     {
       "id": "INPUT_OVP",
       "event": 1,
-      "code": 2228225,
+      "code": 3342337,
       "label": "Input over-voltage",
       "description": "The input is above the board's maximum",
       "notify": true,
@@ -744,7 +744,7 @@
     {
       "id": "BATTERY_LOW",
       "event": 7,
-      "code": 2228231,
+      "code": 3342343,
       "label": "Battery low",
       "description": "The battery charge passed the low threshold",
       "notify": true,
@@ -757,7 +757,7 @@
     {
       "id": "BATTERY_CRITICAL",
       "event": 8,
-      "code": 2228232,
+      "code": 3342344,
       "label": "Battery critical",
       "description": "The battery charge passed the critical threshold",
       "notify": true,
@@ -770,7 +770,7 @@
     {
       "id": "BUDGET_EXCEEDED",
       "event": 9,
-      "code": 2228233,
+      "code": 3342345,
       "label": "Budget exceeded",
       "description": "The rails ask for more than the budget",
       "notify": true,
@@ -783,7 +783,7 @@
     {
       "id": "SOURCE_CHANGED",
       "event": 10,
-      "code": 2228234,
+      "code": 3342346,
       "label": "Source changed",
       "description": "The board is now fed from another source",
       "notify": true,
@@ -795,7 +795,7 @@
     {
       "id": "PD_FIXED",
       "event": 16,
-      "code": 2228240,
+      "code": 3342352,
       "label": "USB-PD fixed profile",
       "description": "The charger has no adjustable profile for the set voltage: a lower fixed one is in use",
       "notify": true,
@@ -808,7 +808,7 @@
     {
       "id": "LIMIT_REACHED",
       "event": 17,
-      "code": 2228241,
+      "code": 3342353,
       "label": "Power limit reached",
       "description": "A rail command exceeded the power limit and was clamped (or refused below min_mA)",
       "notify": true,

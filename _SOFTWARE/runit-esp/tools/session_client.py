@@ -12,20 +12,45 @@ Frame: [type][src][key][seq u16][body] (CMD.MD "The header"); the client's id is
 Bytes that are no frame (the boot's text, the log) are shown as text. Exit 0 when every step answered as it should.
 """
 import argparse
+import os
 import struct
 import sys
 import time
 
 import serial  # pyserial (in the ESP-IDF python env)
 
-CLIENT = 0xF0
-REQUEST, ANSWER, PUSH, CONTROL = 0, 1, 2, 3
-HELLO, PING, NO_SESSION = 1, 2, 3
-KEY_SYS, KEY_SESSION, KEY_LOG, KEY_WATCH, KEY_DEVICE, KEY_MATRIX = 0x28, 0x0E, 0x2A, 0x2B, 0x20, 0x30
-F_URGENT, F_ERROR = 0x01, 0x04
-READ, WRITE = 0, 1
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
+
+CLIENT = defs.sym("CMD_SRC_CLIENT_FIRST")
+REQUEST = defs.sym("CMD_REQUEST")
+ANSWER = defs.sym("CMD_ANSWER")
+PUSH = defs.sym("CMD_PUSH")
+CONTROL = defs.sym("CMD_CONTROL")
+HELLO = defs.sym("SYS_SESSION_HELLO")
+PING = defs.sym("SYS_SESSION_PING")
+NO_SESSION = defs.sym("SYS_SESSION_NO_SESSION")
+KEY_SYS = defs.sym("MODULE_ID_SYS")
+KEY_SESSION = defs.sym("MODULE_ID_SESSION")
+KEY_LOG = defs.sym("MODULE_ID_LOG")
+KEY_WATCH = defs.sym("MODULE_ID_WATCH")
+KEY_DEVICE = defs.sym("MODULE_ID_SYS_DEVICE")
+KEY_MATRIX = defs.sym("MODULE_ID_DATA_MATRIX")
+F_URGENT = defs.sym("ROUTER_FLAG_URGENT")
+F_ERROR = defs.sym("CMD_TYPE_STATUS")
+READ = defs.sym("CMD_DIR_READ")
+WRITE = defs.sym("CMD_DIR_WRITE")
 GPIO = 0x00  # RUNIT_DEV_GPIO
-IO_LEVEL, IO_MODE = 0x0100, 0x0105
+IO_LEVEL = defs.contract_op("IO", "LEVEL")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_RESET = defs.contract_op("IO", "RESET")
+SYS_OP_PING = defs.service_op("SYS", "PING")
+SESSION_OP_PEERS = defs.service_op("SESSION", "PEERS")
+MATRIX_OP_LIST = defs.service_op("DATA_MATRIX", "LIST")
+WATCH_OP_ADD = defs.service_op("WATCH", "ADD")
+WATCH_OP_REMOVE = defs.service_op("WATCH", "REMOVE")
+MODE_OUTPUT_PP = defs.sym("SYS_IO_MODE_OUTPUT_PUSH_PULL")
+TRIG_PERIODIC = defs.sym("SYS_WATCH_PERIODIC")
 
 
 def crc16(data: bytes) -> int:
@@ -165,25 +190,25 @@ def run_smoke(link: Link, dst: int) -> bool:
         ok &= good
         return body
 
-    step("PING", bytes([KEY_SYS, READ, 0x01]))
-    links = step("data matrix LIST", bytes([KEY_MATRIX, READ, 0x03]))
+    step("PING", bytes([KEY_SYS, READ, SYS_OP_PING]))
+    links = step("data matrix LIST", bytes([KEY_MATRIX, READ, MATRIX_OP_LIST]))
     print(f"   {links[0] if links else 0} links")
-    step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, 3])))
+    step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
     for lvl in (1, 0, 1):
         step(f"GPIO4 LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
         step(f"GPIO4 LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
 
     # a PERIODIC watch (id 1, every 5 ticks = 50 ms) on GPIO4's level; the entries are PUSH frames of key WATCH
     link.pushes.clear()
-    head = struct.pack("<BBHH", 1, 0, 5, 0)  # sys_watch_head_t: id, trigger, period, max_silence
-    step("WATCH ADD", bytes([KEY_WATCH, WRITE, 0x01]) + head + dev(READ, IO_LEVEL, bytes([pin])))
+    head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)  # sys_watch_head_t: id, trigger, period, max_silence
+    step("WATCH ADD", bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([pin])))
     link.listen(0.5)
     entries = [p for p in link.pushes if p[3] == KEY_WATCH and len(p[4]) >= 3 and p[4][1] == 1]
     good = len(entries) >= 5 and all(p[4][2] == 0 and p[4][3:] == bytes([pin, 1]) for p in entries)
     print(f"{'ok  ' if good else 'FAIL'} WATCH entries: {len(entries)} in 0.5 s, level 1")
     ok &= good
-    step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, 0x02, 1]))
-    step("GPIO4 RESET", dev(WRITE, 0x0106, bytes([pin])))
+    step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
+    step("GPIO4 RESET", dev(WRITE, IO_RESET, bytes([pin])))
     print("smoke PASSED" if ok else "smoke FAILED")
     return ok
 
@@ -206,14 +231,14 @@ def main() -> int:
     ok = True
     if args.silence:
         link.listen(args.silence)
-        status, _ = link.call(link.board, bytes([KEY_SYS, 0, 0x01]))
+        status, _ = link.call(link.board, bytes([KEY_SYS, READ, SYS_OP_PING]))
         ok = status is None  # the session ended: the request is answered NO_SESSION, not with an answer
         print("session ended by the silence" if ok else "session still open")
         return 0 if ok else 1
     if args.smoke:
         return 0 if run_smoke(link, dst) else 1
-    cmds = [bytes(int(b, 16) for b in args.bytes)] if args.bytes else [bytes([KEY_SYS, 0, 0x01]),
-                                                                       bytes([KEY_SESSION, 0, 0x02])]
+    cmds = [bytes(int(b, 16) for b in args.bytes)] if args.bytes else [bytes([KEY_SYS, READ, SYS_OP_PING]),
+                                                                       bytes([KEY_SESSION, READ, SESSION_OP_PEERS])]
     for cmd in cmds:
         status, _ = link.call(dst, cmd)
         ok &= status == 0

@@ -527,8 +527,8 @@
           "message": "An I2C request is not valid"
         },
         {
-          "code": 3,
-          "tag": 131075,
+          "code": 2,
+          "tag": 131074,
           "name": "ERR_I2C_BAD_DEV_CFG",
           "severity": 3,
           "size": 2,
@@ -553,8 +553,8 @@
           "message": "{addr} on {bus} is not a valid device setting"
         },
         {
-          "code": 4,
-          "tag": 131076,
+          "code": 3,
+          "tag": 131075,
           "name": "ERR_I2C_BUS_INIT",
           "severity": 3,
           "size": 3,
@@ -583,8 +583,8 @@
           "message": "{bus} could not start on pins {sda} (SDA) and {scl} (SCL)"
         },
         {
-          "code": 5,
-          "tag": 131077,
+          "code": 4,
+          "tag": 131076,
           "name": "ERR_I2C_BUS_STUCK",
           "severity": 3,
           "size": 2,
@@ -610,8 +610,8 @@
           "hint": "Check the wiring and the pull-up resistors, then restart the board."
         },
         {
-          "code": 6,
-          "tag": 131078,
+          "code": 5,
+          "tag": 131077,
           "name": "ERR_I2C_BUS_RESET",
           "severity": 3,
           "size": 1,
@@ -628,8 +628,8 @@
           "message": "{bus} could not be reset"
         },
         {
-          "code": 7,
-          "tag": 131079,
+          "code": 6,
+          "tag": 131078,
           "name": "ERR_I2C_DEV_NOT_FOUND",
           "severity": 3,
           "size": 2,
@@ -655,8 +655,8 @@
           "hint": "Check that the module is connected and powered, and that its address is right."
         },
         {
-          "code": 8,
-          "tag": 131080,
+          "code": 7,
+          "tag": 131079,
           "name": "ERR_I2C_DEV_ADD",
           "severity": 3,
           "size": 2,
@@ -681,8 +681,8 @@
           "message": "{addr} on {bus} could not be added"
         },
         {
-          "code": 9,
-          "tag": 131081,
+          "code": 8,
+          "tag": 131080,
           "name": "ERR_I2C_DEV_REMOVE",
           "severity": 2,
           "size": 2,
@@ -707,8 +707,8 @@
           "message": "{addr} on {bus} could not be removed"
         },
         {
-          "code": 10,
-          "tag": 131082,
+          "code": 9,
+          "tag": 131081,
           "name": "ERR_I2C_DEV_NOT_ADDED",
           "severity": 3,
           "size": 2,
@@ -733,8 +733,8 @@
           "message": "{addr} on {bus} is not attached"
         },
         {
-          "code": 11,
-          "tag": 131083,
+          "code": 10,
+          "tag": 131082,
           "name": "ERR_I2C_NO_ACK",
           "severity": 3,
           "size": 2,
@@ -760,8 +760,8 @@
           "hint": "Check the wiring and the power of the module."
         },
         {
-          "code": 12,
-          "tag": 131084,
+          "code": 11,
+          "tag": 131083,
           "name": "ERR_I2C_BUS_BUSY",
           "severity": 2,
           "size": 2,
@@ -787,8 +787,8 @@
           "hint": "Try again; if it repeats, check the wiring of the bus."
         },
         {
-          "code": 13,
-          "tag": 131085,
+          "code": 12,
+          "tag": 131084,
           "name": "ERR_I2C_XFER",
           "severity": 3,
           "size": 2,
@@ -814,8 +814,8 @@
           "hint": "Check the wiring and the power of the module."
         },
         {
-          "code": 14,
-          "tag": 131086,
+          "code": 13,
+          "tag": 131085,
           "name": "ERR_I2C_REG",
           "severity": 0,
           "size": 2,
@@ -838,8 +838,8 @@
           "message": "At register {reg}"
         },
         {
-          "code": 15,
-          "tag": 131087,
+          "code": 14,
+          "tag": 131086,
           "name": "ERR_I2C_ADDR_TAKEN",
           "severity": 3,
           "size": 3,
@@ -872,8 +872,8 @@
           "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
         },
         {
-          "code": 20,
-          "tag": 131092,
+          "code": 15,
+          "tag": 131087,
           "name": "ERR_I2C_NOT_OWNER",
           "severity": 3,
           "size": 3,
@@ -907,228 +907,7 @@
       ]
     },
     {
-      "id": 13,
-      "name": "PROVIDER",
-      "symbol": "MODULE_ID_PROVIDER",
-      "source_file": "runit-esp/components/sys/sys_data_provider/errors/sys_data_provider_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_data_provider/errors/errors_sys_data_provider.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 851969,
-          "name": "ERR_PROV_NOT_FOUND",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "message": "Data provider {provider} was not found",
-          "hint": "Check the provider ID or create the provider first."
-        },
-        {
-          "code": 2,
-          "tag": 851970,
-          "name": "ERR_PROV_EXISTS",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "description": "create: id taken",
-          "message": "Data provider {provider} already exists",
-          "hint": "Choose another provider ID or remove the existing one first."
-        },
-        {
-          "code": 3,
-          "tag": 851971,
-          "name": "ERR_PROV_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every CONFIG_SYS_DATA_PROVIDER_MAX slot taken",
-          "message": "No free slot for another data provider",
-          "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
-        },
-        {
-          "code": 4,
-          "tag": 851972,
-          "name": "ERR_PROV_IN_USE",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "description": "create: a provider only one of may exist",
-          "message": "Data provider {provider} cannot be made twice",
-          "hint": "Remove the one that exists first."
-        },
-        {
-          "code": 5,
-          "tag": 851973,
-          "name": "ERR_PROV_SYSTEM",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            }
-          ],
-          "description": "remove: the board's own",
-          "message": "Cannot remove system data provider {provider}",
-          "hint": "Built-in board providers cannot be removed."
-        },
-        {
-          "code": 12,
-          "tag": 851980,
-          "name": "ERR_PROV_TYPE_UNKNOWN",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "sys_data_provider_type_e"
-            }
-          ],
-          "description": "CREATE with unknown type",
-          "message": "Unknown data provider type ({type})"
-        },
-        {
-          "code": 13,
-          "tag": 851981,
-          "name": "ERR_PROV_UNKNOWN_OP",
-          "severity": 3,
-          "size": 2,
-          "fields": [
-            {
-              "name": "op",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "op not in contract / type table, or missing side",
-          "message": "Provider does not support operation {op}"
-        },
-        {
-          "code": 15,
-          "tag": 851983,
-          "name": "ERR_PROV_NO_MEM",
-          "severity": 4,
-          "size": 3,
-          "fields": [
-            {
-              "name": "provider",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "transport"
-            },
-            {
-              "name": "size",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "description": "a driver out of memory",
-          "message": "Out of memory creating provider {provider} ({size} bytes needed)",
-          "hint": "Free memory by removing unused providers or devices."
-        }
-      ]
-    },
-    {
-      "id": 14,
-      "name": "SESSION",
-      "symbol": "MODULE_ID_SESSION",
-      "source_file": "runit-esp/components/sys/sys_session/errors/sys_session_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_session/errors/errors_sys_session.json",
-      "tags": [
-        {
-          "code": 3,
-          "tag": 917507,
-          "name": "ERR_SESSION_ID_TAKEN",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "hello: two peers with one id, or an id of the wrong kind",
-          "message": "Two boards have the id {board}",
-          "hint": "Give one of them another id."
-        },
-        {
-          "code": 4,
-          "tag": 917508,
-          "name": "ERR_SESSION_NO_ROUTE",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "dst",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "no session leads to dst",
-          "message": "Board {dst} cannot be reached from here"
-        },
-        {
-          "code": 11,
-          "tag": 917515,
-          "name": "ERR_SESSION_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every session slot taken",
-          "message": "No room for another board connection",
-          "hint": "Remove one first."
-        },
-        {
-          "code": 16,
-          "tag": 917520,
-          "name": "ERR_SESSION_NOT_FRAMED",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "attach: no provider, or a raw one: no whole frame",
-          "message": "A session needs a link that carries a whole frame; this one is raw, or there is none",
-          "hint": "Attach a session to a framed provider."
-        }
-      ]
-    },
-    {
-      "id": 19,
+      "id": 3,
       "name": "UART",
       "symbol": "MODULE_ID_UART",
       "source_file": "runit-esp/components/sys/bus/sys_uart_contract/errors/sys_uart_errors.h",
@@ -1136,7 +915,7 @@
       "tags": [
         {
           "code": 1,
-          "tag": 1245185,
+          "tag": 196609,
           "name": "ERR_UART_BAD_ARG",
           "severity": 3,
           "size": 0,
@@ -1145,8 +924,8 @@
           "message": "A UART request is not valid"
         },
         {
-          "code": 3,
-          "tag": 1245187,
+          "code": 2,
+          "tag": 196610,
           "name": "ERR_UART_BUSY",
           "severity": 1,
           "size": 1,
@@ -1163,8 +942,8 @@
           "message": "UART port {port} TX queue is full"
         },
         {
-          "code": 4,
-          "tag": 1245188,
+          "code": 3,
+          "tag": 196611,
           "name": "ERR_UART_BAD_BAUD",
           "severity": 2,
           "size": 4,
@@ -1181,8 +960,8 @@
           "hint": "Choose a rate from 1200 to 5000000."
         },
         {
-          "code": 7,
-          "tag": 1245191,
+          "code": 4,
+          "tag": 196612,
           "name": "ERR_UART_INIT",
           "severity": 3,
           "size": 1,
@@ -1199,8 +978,8 @@
           "message": "UART {port} could not start"
         },
         {
-          "code": 12,
-          "tag": 1245196,
+          "code": 5,
+          "tag": 196613,
           "name": "ERR_UART_IN_USE",
           "severity": 2,
           "size": 2,
@@ -1227,7 +1006,412 @@
       ]
     },
     {
-      "id": 22,
+      "id": 32,
+      "name": "CMD",
+      "symbol": "MODULE_ID_CMD",
+      "source_file": "runit-esp/components/core/cmd/errors/cmd_errors.h",
+      "texts_file": "runit-esp/components/core/cmd/errors/errors_cmd.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2097153,
+          "name": "ERR_CMD_BAD_LEN",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "payload size",
+          "message": "The command carries {got} bytes; it needs {need}"
+        },
+        {
+          "code": 2,
+          "tag": 2097154,
+          "name": "ERR_CMD_OUT_FULL",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "answer does not fit the link",
+          "message": "The answer needs {need} bytes; the link takes {cap}"
+        },
+        {
+          "code": 3,
+          "tag": 2097155,
+          "name": "ERR_CMD_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "invalid argument value",
+          "message": "A value of the command is not valid"
+        },
+        {
+          "code": 4,
+          "tag": 2097156,
+          "name": "ERR_CMD_DIRECTION",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "dir",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "cmd_dir_e"
+            }
+          ],
+          "description": "the command has no such side, or dir is neither read nor write",
+          "message": "The command has no {dir} side",
+          "hint": "Read a command that can be read, write one that can be written."
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "ROUTER",
+      "symbol": "MODULE_ID_ROUTER",
+      "source_file": "runit-esp/components/core/router/errors/router_errors.h",
+      "texts_file": "runit-esp/components/core/router/errors/errors_router.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2162689,
+          "name": "ERR_ROUTER_KEY",
+          "severity": 0,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "description": "context only: route step at the root",
+          "context": true,
+          "message": "In {key}"
+        },
+        {
+          "code": 2,
+          "tag": 2162690,
+          "name": "ERR_ROUTER_OP",
+          "severity": 0,
+          "size": 1,
+          "fields": [
+            {
+              "name": "code",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "context only: route step in a module",
+          "context": true,
+          "message": "In command {code}"
+        },
+        {
+          "code": 3,
+          "tag": 2162691,
+          "name": "ERR_ROUTER_NO_KEY",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "the command ended where its key or its op code was expected",
+          "message": "The command ends before it says what it is for"
+        },
+        {
+          "code": 4,
+          "tag": 2162692,
+          "name": "ERR_ROUTER_UNKNOWN_KEY",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "description": "no module under the root key",
+          "message": "The board has nothing that answers {key}"
+        },
+        {
+          "code": 5,
+          "tag": 2162693,
+          "name": "ERR_ROUTER_UNKNOWN_OP",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "code",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "no command of the module has the code",
+          "message": "There is no command {code} here"
+        },
+        {
+          "code": 6,
+          "tag": 2162694,
+          "name": "ERR_ROUTER_KEY_TAKEN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "message": "{key} is registered twice"
+        },
+        {
+          "code": 7,
+          "tag": 2162695,
+          "name": "ERR_ROUTER_TABLE_FULL",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "key",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "router_key"
+            }
+          ],
+          "message": "No room to register {key}"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "ROUTER_QUEUE",
+      "symbol": "MODULE_ID_ROUTER_QUEUE",
+      "source_file": "runit-esp/components/core/router_queue/errors/router_queue_errors.h",
+      "texts_file": "runit-esp/components/core/router_queue/errors/errors_router_queue.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2228225,
+          "name": "ERR_ROUTER_QUEUE_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "src",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "urgent",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "command not queued",
+          "message": "The board is busy: a command from {src} was dropped",
+          "hint": "Send commands less often."
+        },
+        {
+          "code": 2,
+          "tag": 2228226,
+          "name": "ERR_ROUTER_FRAME_LEN",
+          "severity": 2,
+          "size": 5,
+          "fields": [
+            {
+              "name": "src",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "description": "request too short or too long",
+          "message": "A command of {len} bytes from {src} was refused (at most {max})"
+        },
+        {
+          "code": 3,
+          "tag": 2228227,
+          "name": "ERR_ROUTER_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "router_run_urgent: another fn waits to run",
+          "message": "Urgent work could not start: other urgent work waits to run"
+        },
+        {
+          "code": 4,
+          "tag": 2228228,
+          "name": "ERR_ROUTER_CALLS_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_ROUTER_CALLS slot in use",
+          "message": "Too many requests to other boards at once"
+        },
+        {
+          "code": 5,
+          "tag": 2228229,
+          "name": "ERR_ROUTER_NO_PORT",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "a call to a port that is not registered",
+          "message": "Connection {port} cannot be reached from here",
+          "hint": "Attach its session first."
+        },
+        {
+          "code": 6,
+          "tag": 2228230,
+          "name": "ERR_ROUTER_CALL_TIMEOUT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "a call without an answer",
+          "message": "Connection {port} did not answer",
+          "hint": "A write may still have run: read the value back."
+        },
+        {
+          "code": 7,
+          "tag": 2228231,
+          "name": "ERR_ROUTER_CALL_DOWN",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "port",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "the link the call went out on ended",
+          "message": "Connection {port} was lost before its answer came"
+        },
+        {
+          "code": 8,
+          "tag": 2228232,
+          "name": "ERR_REMOTE",
+          "severity": 0,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "seq",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "context: the chain below is that board's",
+          "context": true,
+          "message": "On board {board}"
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "DATA_MATRIX",
+      "symbol": "MODULE_ID_DATA_MATRIX",
+      "source_file": "runit-esp/components/core/data_matrix/errors/data_matrix_errors.h",
+      "texts_file": "runit-esp/components/core/data_matrix/errors/errors_data_matrix.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2293761,
+          "name": "ERR_DATA_MATRIX_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every place, or a port's every target, taken",
+          "message": "The data matrix has no room for another port, or the port's output already goes to as many ports as it can",
+          "hint": "Remove a connection first."
+        },
+        {
+          "code": 2,
+          "tag": 2293762,
+          "name": "ERR_DATA_MATRIX_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "unknown port, name taken, a port to itself, no input",
+          "message": "Invalid data matrix connection",
+          "hint": "Both ports must exist, be different, and the second must take data."
+        }
+      ]
+    },
+    {
+      "id": 37,
       "name": "NVS",
       "symbol": "MODULE_ID_NVS",
       "source_file": "runit-esp/components/core/nvs_store/errors/nvs_store_errors.h",
@@ -1235,7 +1419,7 @@
       "tags": [
         {
           "code": 1,
-          "tag": 1441793,
+          "tag": 2424833,
           "name": "ERR_NVS_BAD_ARG",
           "severity": 2,
           "size": 0,
@@ -1245,7 +1429,7 @@
         },
         {
           "code": 2,
-          "tag": 1441794,
+          "tag": 2424834,
           "name": "ERR_NVS_OFFSET",
           "severity": 2,
           "size": 8,
@@ -1268,7 +1452,7 @@
         },
         {
           "code": 3,
-          "tag": 1441795,
+          "tag": 2424835,
           "name": "ERR_NVS_NO_CHUNK",
           "severity": 1,
           "size": 2,
@@ -1284,7 +1468,7 @@
         },
         {
           "code": 4,
-          "tag": 1441796,
+          "tag": 2424836,
           "name": "ERR_NVS_NOT_FOUND",
           "severity": 1,
           "size": 0,
@@ -1295,7 +1479,998 @@
       ]
     },
     {
-      "id": 32,
+      "id": 40,
+      "name": "ACTIONS",
+      "symbol": "MODULE_ID_ACTIONS",
+      "source_file": "runit-esp/components/sys/sys_actions/errors/sys_actions_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_actions/errors/errors_sys_actions.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2621441,
+          "name": "ERR_ACTION_NOT_FOUND",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "action"
+            }
+          ],
+          "message": "{id} does not exist",
+          "hint": "Write the project to the board (toolbar), or check which action is called."
+        },
+        {
+          "code": 2,
+          "tag": 2621442,
+          "name": "ERR_ACTION_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a record is being written",
+          "message": "A record is already being written"
+        },
+        {
+          "code": 3,
+          "tag": 2621443,
+          "name": "ERR_ACTION_NO_DRAFT",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "no record is being written",
+          "message": "No record is being written"
+        },
+        {
+          "code": 4,
+          "tag": 2621444,
+          "name": "ERR_ACTION_TOO_BIG",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "message": "The action is {len} bytes; at most {max} fit",
+          "hint": "Split the action into smaller ones."
+        },
+        {
+          "code": 5,
+          "tag": 2621445,
+          "name": "ERR_ACTION_OFFSET",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "upload write out of order, read past the image",
+          "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
+        },
+        {
+          "code": 6,
+          "tag": 2621446,
+          "name": "ERR_ACTION_INCOMPLETE",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "want",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "description": "commit before every byte came",
+          "message": "The record is incomplete ({got} of {want} bytes)",
+          "hint": "Write it again."
+        },
+        {
+          "code": 7,
+          "tag": 2621447,
+          "name": "ERR_ACTION_CRC",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "message": "The record is damaged (checksum {got}, expected {want})",
+          "hint": "Write it again."
+        },
+        {
+          "code": 8,
+          "tag": 2621448,
+          "name": "ERR_ACTION_BAD_FRAME",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "image framing broken there",
+          "message": "The action is broken at byte {offset}"
+        },
+        {
+          "code": 9,
+          "tag": 2621449,
+          "name": "ERR_ACTION_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
+          "description": "a record with no frame",
+          "message": "The record has no command",
+          "hint": "Add a command to the action."
+        },
+        {
+          "code": 10,
+          "tag": 2621450,
+          "name": "ERR_ACTION_DEPTH",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "RUN nested deeper than CONFIG_SYS_ACTIONS_MAX_DEPTH",
+          "message": "Actions run each other {depth} levels deep: too deep",
+          "hint": "Make the actions call each other less deep."
+        },
+        {
+          "code": 11,
+          "tag": 2621451,
+          "name": "ERR_ACTION_WRONG_TASK",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "sys_actions_run outside a router task",
+          "message": "An action was started from the wrong place"
+        },
+        {
+          "code": 12,
+          "tag": 2621452,
+          "name": "ERR_ACTION_NO_MEM",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "No memory for the action ({size} bytes)"
+        },
+        {
+          "code": 13,
+          "tag": 2621453,
+          "name": "ERR_ACTION_STEP",
+          "severity": 0,
+          "size": 6,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u32",
+              "offset": 0,
+              "size": 4,
+              "id_kind": "action"
+            },
+            {
+              "name": "step",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "description": "context: frame `step` (from 0) failed",
+          "context": true,
+          "message": "In step {step} of {id}"
+        },
+        {
+          "code": 14,
+          "tag": 2621454,
+          "name": "ERR_ACTION_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "An action request is not valid"
+        },
+        {
+          "code": 15,
+          "tag": 2621455,
+          "name": "ERR_ACTION_BAD_ID",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "ID 0 (SYS_ACTIONS_ID_NONE)",
+          "message": "Action ID 0 is not valid"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "LOG",
+      "symbol": "MODULE_ID_LOG",
+      "source_file": "runit-esp/components/sys/sys_log/errors/sys_log_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_log/errors/errors_log.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2686977,
+          "name": "ERR_LOG_BAD_LEVEL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "level",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "above CONFIG_LOG_MAXIMUM_LEVEL",
+          "message": "Log level {level} is above the highest the board has ({max})",
+          "hint": "Choose a lower level."
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "WATCH",
+      "symbol": "MODULE_ID_WATCH",
+      "source_file": "runit-esp/components/sys/sys_watch/errors/sys_watch_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_watch/errors/errors_sys_watch.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2752513,
+          "name": "ERR_WATCH_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "Watch {id} not found",
+          "hint": "Check WATCH LIST."
+        },
+        {
+          "code": 2,
+          "tag": 2752514,
+          "name": "ERR_WATCH_NOT_READ",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "ADD/read: request is no read",
+          "message": "Watch {id} request is not a read",
+          "hint": "Only commands with dir CMD_DIR_READ (0) can be watched."
+        },
+        {
+          "code": 3,
+          "tag": 2752515,
+          "name": "ERR_WATCH_BAD_ARG",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "id 0, period 0, bad trigger/owner/board/read_len",
+          "message": "Watch {id}: bad argument",
+          "hint": "Check id (1..255), period (>= 1), trigger, owner peer id and read length."
+        },
+        {
+          "code": 4,
+          "tag": 2752516,
+          "name": "ERR_WATCH_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every slot in CONFIG_SYS_WATCH_MAX or _CLIENT_MAX taken",
+          "message": "Watch table is full",
+          "hint": "Remove an unused watch first or raise CONFIG_SYS_WATCH_MAX / CONFIG_SYS_WATCH_CLIENT_MAX."
+        },
+        {
+          "code": 5,
+          "tag": 2752517,
+          "name": "ERR_WATCH_NO_VALUE",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "cached read: no valid copy yet",
+          "message": "No cached watch value from board {board} yet"
+        },
+        {
+          "code": 6,
+          "tag": 2752518,
+          "name": "ERR_WATCH_STALE",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "age_ms",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "unit": "ms"
+            }
+          ],
+          "description": "cached read: copy too old",
+          "message": "Cached watch value from board {board} is stale ({age_ms} ms old)"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "PROVIDER",
+      "symbol": "MODULE_ID_PROVIDER",
+      "source_file": "runit-esp/components/sys/sys_data_provider/errors/sys_data_provider_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_data_provider/errors/errors_sys_data_provider.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2818049,
+          "name": "ERR_PROV_NOT_FOUND",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "message": "Data provider {provider} was not found",
+          "hint": "Check the provider ID or create the provider first."
+        },
+        {
+          "code": 2,
+          "tag": 2818050,
+          "name": "ERR_PROV_EXISTS",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "create: id taken",
+          "message": "Data provider {provider} already exists",
+          "hint": "Choose another provider ID or remove the existing one first."
+        },
+        {
+          "code": 3,
+          "tag": 2818051,
+          "name": "ERR_PROV_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every CONFIG_SYS_DATA_PROVIDER_MAX slot taken",
+          "message": "No free slot for another data provider",
+          "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
+        },
+        {
+          "code": 4,
+          "tag": 2818052,
+          "name": "ERR_PROV_IN_USE",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "create: a provider only one of may exist",
+          "message": "Data provider {provider} cannot be made twice",
+          "hint": "Remove the one that exists first."
+        },
+        {
+          "code": 5,
+          "tag": 2818053,
+          "name": "ERR_PROV_SYSTEM",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            }
+          ],
+          "description": "remove: the board's own",
+          "message": "Cannot remove system data provider {provider}",
+          "hint": "Built-in board providers cannot be removed."
+        },
+        {
+          "code": 6,
+          "tag": 2818054,
+          "name": "ERR_PROV_TYPE_UNKNOWN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "sys_data_provider_type_e"
+            }
+          ],
+          "description": "CREATE with unknown type",
+          "message": "Unknown data provider type ({type})"
+        },
+        {
+          "code": 7,
+          "tag": 2818055,
+          "name": "ERR_PROV_UNKNOWN_OP",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "op",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "op not in contract / type table, or missing side",
+          "message": "Provider does not support operation {op}"
+        },
+        {
+          "code": 8,
+          "tag": 2818056,
+          "name": "ERR_PROV_NO_MEM",
+          "severity": 4,
+          "size": 3,
+          "fields": [
+            {
+              "name": "provider",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "transport"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            }
+          ],
+          "description": "a driver out of memory",
+          "message": "Out of memory creating provider {provider} ({size} bytes needed)",
+          "hint": "Free memory by removing unused providers or devices."
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "SESSION",
+      "symbol": "MODULE_ID_SESSION",
+      "source_file": "runit-esp/components/sys/sys_session/errors/sys_session_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_session/errors/errors_sys_session.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2883585,
+          "name": "ERR_SESSION_ID_TAKEN",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "hello: two peers with one id, or an id of the wrong kind",
+          "message": "Two boards have the id {board}",
+          "hint": "Give one of them another id."
+        },
+        {
+          "code": 2,
+          "tag": 2883586,
+          "name": "ERR_SESSION_NO_ROUTE",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "dst",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "no session leads to dst",
+          "message": "Board {dst} cannot be reached from here"
+        },
+        {
+          "code": 3,
+          "tag": 2883587,
+          "name": "ERR_SESSION_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "every session slot taken",
+          "message": "No room for another board connection",
+          "hint": "Remove one first."
+        },
+        {
+          "code": 4,
+          "tag": 2883588,
+          "name": "ERR_SESSION_NOT_FRAMED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "attach: no provider, or a raw one: no whole frame",
+          "message": "A session needs a link that carries a whole frame; this one is raw, or there is none",
+          "hint": "Attach a session to a framed provider."
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "BLE",
+      "symbol": "MODULE_ID_BLE",
+      "source_file": "runit-esp/components/sys/bus/sys_ble/errors/sys_ble_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_ble/errors/errors_sys_ble.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 2949121,
+          "name": "ERR_BLE_STACK",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "Bluetooth failed (code {rc})"
+        },
+        {
+          "code": 2,
+          "tag": 2949122,
+          "name": "ERR_BLE_ADV",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "The board could not start advertising (code {rc})"
+        },
+        {
+          "code": 3,
+          "tag": 2949123,
+          "name": "ERR_BLE_GATT",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "rc",
+              "type": "i32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "message": "Bluetooth service {uuid} could not be changed (code {rc})"
+        },
+        {
+          "code": 4,
+          "tag": 2949124,
+          "name": "ERR_BLE_SVC_LOCKED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth service {uuid} cannot be changed",
+          "hint": "This service belongs to the board: add a service of your own instead."
+        },
+        {
+          "code": 5,
+          "tag": 2949125,
+          "name": "ERR_BLE_UUID_TAKEN",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth {uuid} is already in use",
+          "hint": "Choose another UUID."
+        },
+        {
+          "code": 6,
+          "tag": 2949126,
+          "name": "ERR_BLE_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth {uuid} does not exist",
+          "hint": "Check the UUID, or apply the Bluetooth settings first."
+        },
+        {
+          "code": 7,
+          "tag": 2949127,
+          "name": "ERR_BLE_NO_MEM",
+          "severity": 3,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            }
+          ],
+          "message": "No memory for Bluetooth {uuid} ({size} bytes)",
+          "hint": "Make the buffers smaller, or remove a characteristic you do not need."
+        },
+        {
+          "code": 8,
+          "tag": 2949128,
+          "name": "ERR_BLE_NO_TX",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth {uuid} cannot send",
+          "hint": "Give the characteristic a send buffer with notify or indicate."
+        },
+        {
+          "code": 9,
+          "tag": 2949129,
+          "name": "ERR_BLE_TX_FULL",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            }
+          ],
+          "message": "Bluetooth {uuid} is full: {len} bytes were not sent",
+          "hint": "Send less often, or make the send buffer larger."
+        },
+        {
+          "code": 10,
+          "tag": 2949130,
+          "name": "ERR_BLE_TOO_LONG",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "{len} bytes are too long for Bluetooth {uuid} (at most {max})",
+          "hint": "Send less at once, or make the buffer larger."
+        },
+        {
+          "code": 11,
+          "tag": 2949131,
+          "name": "ERR_BLE_FRAG",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            },
+            {
+              "name": "hdr",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "want",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "Bluetooth {uuid}: a packet came out of order and its frame was dropped"
+        },
+        {
+          "code": 12,
+          "tag": 2949132,
+          "name": "ERR_BLE_HOOK",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "uuid",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "ble_uuid"
+            }
+          ],
+          "message": "Bluetooth {uuid} already has a receiver"
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "SYS_EVENT",
+      "symbol": "MODULE_ID_SYS_EVENT",
+      "source_file": "runit-esp/components/sys/sys_event/errors/sys_event_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_event/errors/errors_event.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 3014657,
+          "name": "ERR_EVENT_QUEUE_FULL",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "event",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "dropped",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "message": "Too many events: {dropped} from {source} were dropped",
+          "hint": "The source sends events faster than they are taken: slow it down."
+        },
+        {
+          "code": 2,
+          "tag": 3014658,
+          "name": "ERR_EVENT_TABLE_FULL",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "message": "No room for another event subscription"
+        },
+        {
+          "code": 3,
+          "tag": 3014659,
+          "name": "ERR_EVENT_NOT_FOUND",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "subscription handle",
+          "message": "Event subscription {id} does not exist"
+        },
+        {
+          "code": 4,
+          "tag": 3014660,
+          "name": "ERR_EVENT_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "message": "An event request is not valid"
+        },
+        {
+          "code": 5,
+          "tag": 3014661,
+          "name": "ERR_EVENT_DELIVERY",
+          "severity": 0,
+          "size": 8,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "event",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "channel",
+              "type": "u16",
+              "offset": 6,
+              "size": 2,
+              "id_kind": "channel",
+              "of": "source"
+            }
+          ],
+          "description": "context: a listener failed",
+          "context": true,
+          "message": "While a listener handled event {event} of {source} ({channel})"
+        }
+      ]
+    },
+    {
+      "id": 47,
       "name": "SYS_DEVICE",
       "symbol": "MODULE_ID_SYS_DEVICE",
       "source_file": "runit-esp/components/sys/sys_device/errors/sys_device_errors.h",
@@ -1303,7 +2478,7 @@
       "tags": [
         {
           "code": 1,
-          "tag": 2097153,
+          "tag": 3080193,
           "name": "ERR_DEV_BAD_ARG",
           "severity": 3,
           "size": 0,
@@ -1312,7 +2487,7 @@
         },
         {
           "code": 2,
-          "tag": 2097154,
+          "tag": 3080194,
           "name": "ERR_DEV_BAD_ID",
           "severity": 3,
           "size": 1,
@@ -1330,7 +2505,7 @@
         },
         {
           "code": 3,
-          "tag": 2097155,
+          "tag": 3080195,
           "name": "ERR_DEV_NOT_FOUND",
           "severity": 2,
           "size": 1,
@@ -1348,7 +2523,7 @@
         },
         {
           "code": 4,
-          "tag": 2097156,
+          "tag": 3080196,
           "name": "ERR_DEV_ID_TAKEN",
           "severity": 2,
           "size": 1,
@@ -1365,8 +2540,8 @@
           "hint": "Give the device another ID."
         },
         {
-          "code": 6,
-          "tag": 2097158,
+          "code": 5,
+          "tag": 3080197,
           "name": "ERR_DEV_TYPE_UNKNOWN",
           "severity": 3,
           "size": 2,
@@ -1383,8 +2558,8 @@
           "hint": "Update the board's firmware, or remove the device: this firmware has no driver for it."
         },
         {
-          "code": 10,
-          "tag": 2097162,
+          "code": 6,
+          "tag": 3080198,
           "name": "ERR_DEV_SUSPENDED",
           "severity": 2,
           "size": 1,
@@ -1401,8 +2576,8 @@
           "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
         },
         {
-          "code": 11,
-          "tag": 2097163,
+          "code": 7,
+          "tag": 3080199,
           "name": "ERR_DEV_NO_MEM",
           "severity": 4,
           "size": 3,
@@ -1425,8 +2600,8 @@
           "hint": "Remove a device or a part of the program you do not need, then try again."
         },
         {
-          "code": 12,
-          "tag": 2097164,
+          "code": 8,
+          "tag": 3080200,
           "name": "ERR_DEV_INSTALL",
           "severity": 0,
           "size": 3,
@@ -1451,8 +2626,8 @@
           "message": "While creating {id} ({type})"
         },
         {
-          "code": 13,
-          "tag": 2097165,
+          "code": 9,
+          "tag": 3080201,
           "name": "ERR_DEV_ID",
           "severity": 0,
           "size": 1,
@@ -1470,8 +2645,8 @@
           "message": "In {id}"
         },
         {
-          "code": 15,
-          "tag": 2097167,
+          "code": 10,
+          "tag": 3080202,
           "name": "ERR_DEV_BAD_PIN",
           "severity": 3,
           "size": 2,
@@ -1496,8 +2671,8 @@
           "hint": "Choose a pin the device has."
         },
         {
-          "code": 16,
-          "tag": 2097168,
+          "code": 11,
+          "tag": 3080203,
           "name": "ERR_DEV_RANGE",
           "severity": 3,
           "size": 13,
@@ -1533,8 +2708,8 @@
           "hint": "Use a value within the range shown."
         },
         {
-          "code": 17,
-          "tag": 2097169,
+          "code": 12,
+          "tag": 3080204,
           "name": "ERR_DEV_OP",
           "severity": 0,
           "size": 3,
@@ -1558,8 +2733,8 @@
           "message": "In {op}"
         },
         {
-          "code": 18,
-          "tag": 2097170,
+          "code": 13,
+          "tag": 3080205,
           "name": "ERR_DEV_UNKNOWN_OP",
           "severity": 3,
           "size": 2,
@@ -1577,8 +2752,8 @@
           "hint": "This device does not have that command: use one from its list."
         },
         {
-          "code": 19,
-          "tag": 2097171,
+          "code": 14,
+          "tag": 3080206,
           "name": "ERR_DEV_PIN_LOCKED",
           "severity": 3,
           "size": 3,
@@ -1611,8 +2786,8 @@
           "hint": "Change the pin through the device that holds it, or choose a free pin."
         },
         {
-          "code": 20,
-          "tag": 2097172,
+          "code": 15,
+          "tag": 3080207,
           "name": "ERR_DEV_IN_USE",
           "severity": 2,
           "size": 9,
@@ -1636,8 +2811,8 @@
           "hint": "Remove or change the devices that use it first."
         },
         {
-          "code": 22,
-          "tag": 2097174,
+          "code": 16,
+          "tag": 3080208,
           "name": "ERR_DEV_FAULT_RESPONSE",
           "severity": 3,
           "size": 7,
@@ -1675,8 +2850,8 @@
           "hint": "Check the device's error policy and the action it runs. At the step Queue the board had too many errors at once to respond to this one."
         },
         {
-          "code": 23,
-          "tag": 2097175,
+          "code": 17,
+          "tag": 3080209,
           "name": "ERR_DEV_SYSTEM",
           "severity": 2,
           "size": 1,
@@ -1693,8 +2868,8 @@
           "message": "{id} is part of the board and cannot be removed"
         },
         {
-          "code": 24,
-          "tag": 2097176,
+          "code": 18,
+          "tag": 3080210,
           "name": "ERR_DEV_REMOTE_DOWN",
           "severity": 3,
           "size": 2,
@@ -1718,8 +2893,8 @@
           "hint": "Check the cable or the link to that board."
         },
         {
-          "code": 25,
-          "tag": 2097177,
+          "code": 19,
+          "tag": 3080211,
           "name": "ERR_DEV_LOCAL_OP",
           "severity": 3,
           "size": 2,
@@ -1737,8 +2912,8 @@
           "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
         },
         {
-          "code": 27,
-          "tag": 2097179,
+          "code": 20,
+          "tag": 3080212,
           "name": "ERR_DEV_REENTRY",
           "severity": 3,
           "size": 1,
@@ -1756,8 +2931,8 @@
           "hint": "A device operation must not call its own device."
         },
         {
-          "code": 28,
-          "tag": 2097180,
+          "code": 21,
+          "tag": 3080213,
           "name": "ERR_DEV_NOT_LOCKED",
           "severity": 3,
           "size": 1,
@@ -1775,8 +2950,8 @@
           "hint": "Take the lock of the device first (sys_device_slot_lock)."
         },
         {
-          "code": 29,
-          "tag": 2097181,
+          "code": 22,
+          "tag": 3080214,
           "name": "ERR_DEV_BUSY",
           "severity": 2,
           "size": 3,
@@ -1802,8 +2977,8 @@
           "hint": "Try again; if it stays busy, the device or the bus it is on does not answer."
         },
         {
-          "code": 30,
-          "tag": 2097182,
+          "code": 23,
+          "tag": 3080215,
           "name": "ERR_DEV_CYCLE",
           "severity": 3,
           "size": 2,
@@ -1828,8 +3003,8 @@
           "hint": "Two devices cannot use each other: change one of them."
         },
         {
-          "code": 31,
-          "tag": 2097183,
+          "code": 24,
+          "tag": 3080216,
           "name": "ERR_DEV_PIN_NOT_OWNED",
           "severity": 3,
           "size": 3,
@@ -1861,8 +3036,8 @@
           "message": "{pin} of {id} belongs to {owner}: only that device can free it"
         },
         {
-          "code": 32,
-          "tag": 2097184,
+          "code": 25,
+          "tag": 3080217,
           "name": "ERR_DEV_REMOTE_DEP",
           "severity": 1,
           "size": 2,
@@ -1889,7 +3064,180 @@
       ]
     },
     {
-      "id": 34,
+      "id": 49,
+      "name": "REMOTE",
+      "symbol": "MODULE_ID_REMOTE",
+      "source_file": "runit-esp/components/sys/sys_device_remote/errors/sys_device_remote_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_device_remote/errors/errors_sys_device_remote.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 3211265,
+          "name": "ERR_REMOTE_NOT_WIRED",
+          "severity": 2,
+          "size": 1,
+          "fields": [
+            {
+              "name": "board",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "description": "a wired remote device's board is reached by a way that is not wired: its calls do not wait (once until wired again)",
+          "message": "Board {board} is not reached by a cable now: its wired devices do not wait for their answers",
+          "hint": "The program's timing has changed. Check the cable to that board."
+        },
+        {
+          "code": 2,
+          "tag": 3211266,
+          "name": "ERR_REMOTE_SUBS_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "SUBSCRIBE with every CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS slot taken",
+          "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
+          "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "SYS_POWER",
+      "symbol": "MODULE_ID_SYS_POWER",
+      "source_file": "runit-esp/components/sys/sys_power/errors/sys_power_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_power/errors/errors_sys_power.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 3276801,
+          "name": "ERR_POWER_BAD_CHANNEL",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "id"
+            }
+          ],
+          "description": "the device has no such channel",
+          "message": "{id} has no {channel}",
+          "hint": "Choose a channel the device has."
+        },
+        {
+          "code": 2,
+          "tag": 3276802,
+          "name": "ERR_POWER_ALERT_UNSUPPORTED",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "channel",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "id_kind": "channel",
+              "of": "id"
+            },
+            {
+              "name": "alert",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "enum_ref": "sys_power_alert_e"
+            }
+          ],
+          "description": "this channel / device can't do the alert (sys_power_alert_e)",
+          "message": "{channel} of {id} cannot raise the {alert} alert",
+          "hint": "Choose an alert this channel offers."
+        },
+        {
+          "code": 3,
+          "tag": 3276803,
+          "name": "ERR_POWER_EXT_FEEDBACK",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "the regulator uses an external divider: its output can't be set in mV",
+          "message": "{id} uses an external divider: its output cannot be set in mV",
+          "hint": "Set it in its own terms (the device page says how), not in mV."
+        },
+        {
+          "code": 4,
+          "tag": 3276804,
+          "name": "ERR_POWER_NO_PROFILE",
+          "severity": 3,
+          "size": 9,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "voltage_mV",
+              "type": "u32",
+              "offset": 1,
+              "size": 4,
+              "unit": "mV"
+            },
+            {
+              "name": "lowest_mV",
+              "type": "u32",
+              "offset": 5,
+              "size": 4,
+              "unit": "mV"
+            }
+          ],
+          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer, 5 V when it offers none)",
+          "message": "{id}: the source offers nothing at or below {voltage_mV} (lowest {lowest_mV})",
+          "hint": "Use a charger that offers this voltage, or ask for a higher one."
+        }
+      ]
+    },
+    {
+      "id": 51,
       "name": "PWRM",
       "symbol": "MODULE_ID_PWRM",
       "source_file": "runit-esp/components/sys/sys_power_manager/errors/sys_power_manager_errors.h",
@@ -1897,7 +3245,7 @@
       "tags": [
         {
           "code": 1,
-          "tag": 2228225,
+          "tag": 3342337,
           "name": "ERR_PWRM_NOT_READY",
           "severity": 3,
           "size": 0,
@@ -1907,7 +3255,7 @@
         },
         {
           "code": 2,
-          "tag": 2228226,
+          "tag": 3342338,
           "name": "ERR_PWRM_BUDGET_EXCEEDED",
           "severity": 2,
           "size": 10,
@@ -1940,7 +3288,7 @@
         },
         {
           "code": 3,
-          "tag": 2228227,
+          "tag": 3342339,
           "name": "ERR_PWRM_BELOW_ALLOCATION",
           "severity": 2,
           "size": 8,
@@ -1966,7 +3314,7 @@
         },
         {
           "code": 4,
-          "tag": 2228228,
+          "tag": 3342340,
           "name": "ERR_PWRM_FAULT",
           "severity": 2,
           "size": 9,
@@ -2013,7 +3361,7 @@
         },
         {
           "code": 5,
-          "tag": 2228229,
+          "tag": 3342341,
           "name": "ERR_PWRM_BAD_ARG",
           "severity": 3,
           "size": 12,
@@ -2043,7 +3391,7 @@
         },
         {
           "code": 6,
-          "tag": 2228230,
+          "tag": 3342342,
           "name": "ERR_PWRM_NOT_RAIL",
           "severity": 3,
           "size": 2,
@@ -2063,610 +3411,7 @@
       ]
     },
     {
-      "id": 35,
-      "name": "ROUTER",
-      "symbol": "MODULE_ID_ROUTER",
-      "source_file": "runit-esp/components/core/router/errors/router_errors.h",
-      "texts_file": "runit-esp/components/core/router/errors/errors_router.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2293761,
-          "name": "ERR_ROUTER_KEY",
-          "severity": 0,
-          "size": 1,
-          "fields": [
-            {
-              "name": "key",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "router_key"
-            }
-          ],
-          "description": "context only: route step at the root",
-          "context": true,
-          "message": "In {key}"
-        },
-        {
-          "code": 2,
-          "tag": 2293762,
-          "name": "ERR_ROUTER_OP",
-          "severity": 0,
-          "size": 1,
-          "fields": [
-            {
-              "name": "code",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "context only: route step in a module",
-          "context": true,
-          "message": "In command {code}"
-        },
-        {
-          "code": 3,
-          "tag": 2293763,
-          "name": "ERR_ROUTER_NO_KEY",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "the command ended where its key or its op code was expected",
-          "message": "The command ends before it says what it is for"
-        },
-        {
-          "code": 4,
-          "tag": 2293764,
-          "name": "ERR_ROUTER_UNKNOWN_KEY",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "key",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "router_key"
-            }
-          ],
-          "description": "no module under the root key",
-          "message": "The board has nothing that answers {key}"
-        },
-        {
-          "code": 5,
-          "tag": 2293765,
-          "name": "ERR_ROUTER_UNKNOWN_OP",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "code",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "no command of the module has the code",
-          "message": "There is no command {code} here"
-        },
-        {
-          "code": 6,
-          "tag": 2293766,
-          "name": "ERR_ROUTER_KEY_TAKEN",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "key",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "router_key"
-            }
-          ],
-          "message": "{key} is registered twice"
-        },
-        {
-          "code": 7,
-          "tag": 2293767,
-          "name": "ERR_ROUTER_TABLE_FULL",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "key",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "router_key"
-            }
-          ],
-          "message": "No room to register {key}"
-        }
-      ]
-    },
-    {
-      "id": 36,
-      "name": "ROUTER_QUEUE",
-      "symbol": "MODULE_ID_ROUTER_QUEUE",
-      "source_file": "runit-esp/components/core/router_queue/errors/router_queue_errors.h",
-      "texts_file": "runit-esp/components/core/router_queue/errors/errors_router_queue.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2359297,
-          "name": "ERR_ROUTER_QUEUE_FULL",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "src",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "urgent",
-              "type": "u8",
-              "offset": 1,
-              "size": 1
-            }
-          ],
-          "description": "command not queued",
-          "message": "The board is busy: a command from {src} was dropped",
-          "hint": "Send commands less often."
-        },
-        {
-          "code": 2,
-          "tag": 2359298,
-          "name": "ERR_ROUTER_FRAME_LEN",
-          "severity": 2,
-          "size": 5,
-          "fields": [
-            {
-              "name": "src",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            },
-            {
-              "name": "max",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "description": "request too short or too long",
-          "message": "A command of {len} bytes from {src} was refused (at most {max})"
-        },
-        {
-          "code": 3,
-          "tag": 2359299,
-          "name": "ERR_ROUTER_BUSY",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "router_run_urgent: another fn waits to run",
-          "message": "Urgent work could not start: other urgent work waits to run"
-        },
-        {
-          "code": 4,
-          "tag": 2359300,
-          "name": "ERR_ROUTER_CALLS_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every CONFIG_ROUTER_CALLS slot in use",
-          "message": "Too many requests to other boards at once"
-        },
-        {
-          "code": 5,
-          "tag": 2359301,
-          "name": "ERR_ROUTER_NO_PORT",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "port",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "a call to a port that is not registered",
-          "message": "Connection {port} cannot be reached from here",
-          "hint": "Attach its session first."
-        },
-        {
-          "code": 6,
-          "tag": 2359302,
-          "name": "ERR_ROUTER_CALL_TIMEOUT",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "port",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "seq",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "a call without an answer",
-          "message": "Connection {port} did not answer",
-          "hint": "A write may still have run: read the value back."
-        },
-        {
-          "code": 7,
-          "tag": 2359303,
-          "name": "ERR_ROUTER_CALL_DOWN",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "port",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "the link the call went out on ended",
-          "message": "Connection {port} was lost before its answer came"
-        },
-        {
-          "code": 8,
-          "tag": 2359304,
-          "name": "ERR_REMOTE",
-          "severity": 0,
-          "size": 3,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "seq",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "description": "context: the chain below is that board's",
-          "context": true,
-          "message": "On board {board}"
-        }
-      ]
-    },
-    {
-      "id": 37,
-      "name": "SYS_EVENT",
-      "symbol": "MODULE_ID_SYS_EVENT",
-      "source_file": "runit-esp/components/sys/sys_event/errors/sys_event_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_event/errors/errors_event.json",
-      "tags": [
-        {
-          "code": 2,
-          "tag": 2424834,
-          "name": "ERR_EVENT_QUEUE_FULL",
-          "severity": 1,
-          "size": 10,
-          "fields": [
-            {
-              "name": "source",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            },
-            {
-              "name": "event",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            },
-            {
-              "name": "dropped",
-              "type": "u32",
-              "offset": 6,
-              "size": 4
-            }
-          ],
-          "message": "Too many events: {dropped} from {source} were dropped",
-          "hint": "The source sends events faster than they are taken: slow it down."
-        },
-        {
-          "code": 3,
-          "tag": 2424835,
-          "name": "ERR_EVENT_TABLE_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "message": "No room for another event subscription"
-        },
-        {
-          "code": 4,
-          "tag": 2424836,
-          "name": "ERR_EVENT_NOT_FOUND",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "subscription handle",
-          "message": "Event subscription {id} does not exist"
-        },
-        {
-          "code": 5,
-          "tag": 2424837,
-          "name": "ERR_EVENT_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "An event request is not valid"
-        },
-        {
-          "code": 8,
-          "tag": 2424840,
-          "name": "ERR_EVENT_DELIVERY",
-          "severity": 0,
-          "size": 8,
-          "fields": [
-            {
-              "name": "source",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            },
-            {
-              "name": "event",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            },
-            {
-              "name": "channel",
-              "type": "u16",
-              "offset": 6,
-              "size": 2,
-              "id_kind": "channel",
-              "of": "source"
-            }
-          ],
-          "description": "context: a listener failed",
-          "context": true,
-          "message": "While a listener handled event {event} of {source} ({channel})"
-        }
-      ]
-    },
-    {
-      "id": 38,
-      "name": "SYS_POWER",
-      "symbol": "MODULE_ID_SYS_POWER",
-      "source_file": "runit-esp/components/sys/sys_power/errors/sys_power_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_power/errors/errors_sys_power.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2490369,
-          "name": "ERR_POWER_BAD_CHANNEL",
-          "severity": 3,
-          "size": 2,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            },
-            {
-              "name": "channel",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "id_kind": "channel",
-              "of": "id"
-            }
-          ],
-          "description": "the device has no such channel",
-          "message": "{id} has no {channel}",
-          "hint": "Choose a channel the device has."
-        },
-        {
-          "code": 2,
-          "tag": 2490370,
-          "name": "ERR_POWER_ALERT_UNSUPPORTED",
-          "severity": 3,
-          "size": 3,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            },
-            {
-              "name": "channel",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "id_kind": "channel",
-              "of": "id"
-            },
-            {
-              "name": "alert",
-              "type": "u8",
-              "offset": 2,
-              "size": 1,
-              "enum_ref": "sys_power_alert_e"
-            }
-          ],
-          "description": "this channel / device can't do the alert (sys_power_alert_e)",
-          "message": "{channel} of {id} cannot raise the {alert} alert",
-          "hint": "Choose an alert this channel offers."
-        },
-        {
-          "code": 3,
-          "tag": 2490371,
-          "name": "ERR_POWER_EXT_FEEDBACK",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            }
-          ],
-          "description": "the regulator uses an external divider: its output can't be set in mV",
-          "message": "{id} uses an external divider: its output cannot be set in mV",
-          "hint": "Set it in its own terms (the device page says how), not in mV."
-        },
-        {
-          "code": 4,
-          "tag": 2490372,
-          "name": "ERR_POWER_NO_PROFILE",
-          "severity": 3,
-          "size": 9,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            },
-            {
-              "name": "voltage_mV",
-              "type": "u32",
-              "offset": 1,
-              "size": 4,
-              "unit": "mV"
-            },
-            {
-              "name": "lowest_mV",
-              "type": "u32",
-              "offset": 5,
-              "size": 4,
-              "unit": "mV"
-            }
-          ],
-          "description": "the source offers no profile at or below the voltage (lowest_mV: the lowest fixed offer, 5 V when it offers none)",
-          "message": "{id}: the source offers nothing at or below {voltage_mV} (lowest {lowest_mV})",
-          "hint": "Use a charger that offers this voltage, or ask for a higher one."
-        }
-      ]
-    },
-    {
-      "id": 39,
-      "name": "CMD",
-      "symbol": "MODULE_ID_CMD",
-      "source_file": "runit-esp/components/core/cmd/errors/cmd_errors.h",
-      "texts_file": "runit-esp/components/core/cmd/errors/errors_cmd.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2555905,
-          "name": "ERR_CMD_BAD_LEN",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "need",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "payload size",
-          "message": "The command carries {got} bytes; it needs {need}"
-        },
-        {
-          "code": 2,
-          "tag": 2555906,
-          "name": "ERR_CMD_OUT_FULL",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "need",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "cap",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "answer does not fit the link",
-          "message": "The answer needs {need} bytes; the link takes {cap}"
-        },
-        {
-          "code": 3,
-          "tag": 2555907,
-          "name": "ERR_CMD_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "invalid argument value",
-          "message": "A value of the command is not valid"
-        },
-        {
-          "code": 4,
-          "tag": 2555908,
-          "name": "ERR_CMD_DIRECTION",
-          "severity": 3,
-          "size": 1,
-          "fields": [
-            {
-              "name": "dir",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "cmd_dir_e"
-            }
-          ],
-          "description": "the command has no such side, or dir is neither read nor write",
-          "message": "The command has no {dir} side",
-          "hint": "Read a command that can be read, write one that can be written."
-        }
-      ]
-    },
-    {
-      "id": 41,
+      "id": 52,
       "name": "LVGL",
       "symbol": "MODULE_ID_LVGL",
       "source_file": "runit-esp/components/sys/sys_lvgl/errors/sys_lvgl_errors.h",
@@ -2674,7 +3419,7 @@
       "tags": [
         {
           "code": 1,
-          "tag": 2686977,
+          "tag": 3407873,
           "name": "ERR_LVGL_INSTALLED",
           "severity": 2,
           "size": 0,
@@ -2684,7 +3429,7 @@
         },
         {
           "code": 2,
-          "tag": 2686978,
+          "tag": 3407874,
           "name": "ERR_LVGL_NOT_INSTALLED",
           "severity": 2,
           "size": 0,
@@ -2694,7 +3439,7 @@
         },
         {
           "code": 3,
-          "tag": 2686979,
+          "tag": 3407875,
           "name": "ERR_LVGL_NOT_DISPLAY",
           "severity": 3,
           "size": 1,
@@ -2713,7 +3458,7 @@
         },
         {
           "code": 4,
-          "tag": 2686980,
+          "tag": 3407876,
           "name": "ERR_LVGL_NOT_TOUCH",
           "severity": 3,
           "size": 1,
@@ -2732,7 +3477,7 @@
         },
         {
           "code": 5,
-          "tag": 2686981,
+          "tag": 3407877,
           "name": "ERR_LVGL_FORMAT",
           "severity": 3,
           "size": 2,
@@ -2756,7 +3501,7 @@
         },
         {
           "code": 6,
-          "tag": 2686982,
+          "tag": 3407878,
           "name": "ERR_LVGL_FLUSH_MAX",
           "severity": 3,
           "size": 9,
@@ -2787,7 +3532,7 @@
         },
         {
           "code": 7,
-          "tag": 2686983,
+          "tag": 3407879,
           "name": "ERR_LVGL_NO_MEMORY",
           "severity": 3,
           "size": 4,
@@ -2805,7 +3550,7 @@
         },
         {
           "code": 8,
-          "tag": 2686984,
+          "tag": 3407880,
           "name": "ERR_LVGL_HEAP",
           "severity": 2,
           "size": 12,
@@ -2835,7 +3580,7 @@
         },
         {
           "code": 9,
-          "tag": 2686985,
+          "tag": 3407881,
           "name": "ERR_LVGL_POOL_FULL",
           "severity": 2,
           "size": 12,
@@ -2865,7 +3610,7 @@
         },
         {
           "code": 10,
-          "tag": 2686986,
+          "tag": 3407882,
           "name": "ERR_LVGL_REFRESH",
           "severity": 2,
           "size": 3,
@@ -2892,751 +3637,6 @@
           "description": "the refresh rate asked for is outside SYS_LVGL_REFRESH_MIN .. _MAX",
           "message": "Screen refresh {refresh_hz} Hz is outside {min} .. {max} Hz",
           "hint": "Give the screen a refresh rate within the range, or 0 for the default."
-        }
-      ]
-    },
-    {
-      "id": 42,
-      "name": "LOG",
-      "symbol": "MODULE_ID_LOG",
-      "source_file": "runit-esp/components/sys/sys_log/errors/sys_log_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_log/errors/errors_log.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2752513,
-          "name": "ERR_LOG_BAD_LEVEL",
-          "severity": 3,
-          "size": 2,
-          "fields": [
-            {
-              "name": "level",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "max",
-              "type": "u8",
-              "offset": 1,
-              "size": 1
-            }
-          ],
-          "description": "above CONFIG_LOG_MAXIMUM_LEVEL",
-          "message": "Log level {level} is above the highest the board has ({max})",
-          "hint": "Choose a lower level."
-        }
-      ]
-    },
-    {
-      "id": 43,
-      "name": "WATCH",
-      "symbol": "MODULE_ID_WATCH",
-      "source_file": "runit-esp/components/sys/sys_watch/errors/sys_watch_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_watch/errors/errors_sys_watch.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2818049,
-          "name": "ERR_WATCH_NOT_FOUND",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "message": "Watch {id} not found",
-          "hint": "Check WATCH LIST."
-        },
-        {
-          "code": 2,
-          "tag": 2818050,
-          "name": "ERR_WATCH_NOT_READ",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "ADD/read: request is no read",
-          "message": "Watch {id} request is not a read",
-          "hint": "Only commands with dir CMD_DIR_READ (0) can be watched."
-        },
-        {
-          "code": 3,
-          "tag": 2818051,
-          "name": "ERR_WATCH_BAD_ARG",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "id 0, period 0, bad trigger/owner/board/read_len",
-          "message": "Watch {id}: bad argument",
-          "hint": "Check id (1..255), period (>= 1), trigger, owner peer id and read length."
-        },
-        {
-          "code": 4,
-          "tag": 2818052,
-          "name": "ERR_WATCH_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every slot in CONFIG_SYS_WATCH_MAX or _CLIENT_MAX taken",
-          "message": "Watch table is full",
-          "hint": "Remove an unused watch first or raise CONFIG_SYS_WATCH_MAX / CONFIG_SYS_WATCH_CLIENT_MAX."
-        },
-        {
-          "code": 5,
-          "tag": 2818053,
-          "name": "ERR_WATCH_NO_VALUE",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "cached read: no valid copy yet",
-          "message": "No cached watch value from board {board} yet"
-        },
-        {
-          "code": 6,
-          "tag": 2818054,
-          "name": "ERR_WATCH_STALE",
-          "severity": 2,
-          "size": 3,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "age_ms",
-              "type": "u16",
-              "offset": 1,
-              "size": 2,
-              "unit": "ms"
-            }
-          ],
-          "description": "cached read: copy too old",
-          "message": "Cached watch value from board {board} is stale ({age_ms} ms old)"
-        }
-      ]
-    },
-    {
-      "id": 44,
-      "name": "ACTIONS",
-      "symbol": "MODULE_ID_ACTIONS",
-      "source_file": "runit-esp/components/sys/sys_actions/errors/sys_actions_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_actions/errors/errors_sys_actions.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2883585,
-          "name": "ERR_ACTION_NOT_FOUND",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u32",
-              "offset": 0,
-              "size": 4,
-              "id_kind": "action"
-            }
-          ],
-          "message": "{id} does not exist",
-          "hint": "Write the project to the board (toolbar), or check which action is called."
-        },
-        {
-          "code": 3,
-          "tag": 2883587,
-          "name": "ERR_ACTION_BUSY",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "a record is being written",
-          "message": "A record is already being written"
-        },
-        {
-          "code": 4,
-          "tag": 2883588,
-          "name": "ERR_ACTION_NO_DRAFT",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "no record is being written",
-          "message": "No record is being written"
-        },
-        {
-          "code": 5,
-          "tag": 2883589,
-          "name": "ERR_ACTION_TOO_BIG",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "max",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "message": "The action is {len} bytes; at most {max} fit",
-          "hint": "Split the action into smaller ones."
-        },
-        {
-          "code": 6,
-          "tag": 2883590,
-          "name": "ERR_ACTION_OFFSET",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "want",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "upload write out of order, read past the image",
-          "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
-        },
-        {
-          "code": 7,
-          "tag": 2883591,
-          "name": "ERR_ACTION_INCOMPLETE",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "want",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "commit before every byte came",
-          "message": "The record is incomplete ({got} of {want} bytes)",
-          "hint": "Write it again."
-        },
-        {
-          "code": 8,
-          "tag": 2883592,
-          "name": "ERR_ACTION_CRC",
-          "severity": 2,
-          "size": 8,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            },
-            {
-              "name": "want",
-              "type": "u32",
-              "offset": 4,
-              "size": 4
-            }
-          ],
-          "message": "The record is damaged (checksum {got}, expected {want})",
-          "hint": "Write it again."
-        },
-        {
-          "code": 9,
-          "tag": 2883593,
-          "name": "ERR_ACTION_BAD_FRAME",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "offset",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "description": "image framing broken there",
-          "message": "The action is broken at byte {offset}"
-        },
-        {
-          "code": 10,
-          "tag": 2883594,
-          "name": "ERR_ACTION_EMPTY",
-          "severity": 1,
-          "size": 0,
-          "fields": [],
-          "description": "a record with no frame",
-          "message": "The record has no command",
-          "hint": "Add a command to the action."
-        },
-        {
-          "code": 11,
-          "tag": 2883595,
-          "name": "ERR_ACTION_DEPTH",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "depth",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "RUN nested deeper than CONFIG_SYS_ACTIONS_MAX_DEPTH",
-          "message": "Actions run each other {depth} levels deep: too deep",
-          "hint": "Make the actions call each other less deep."
-        },
-        {
-          "code": 12,
-          "tag": 2883596,
-          "name": "ERR_ACTION_WRONG_TASK",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "sys_actions_run outside a router task",
-          "message": "An action was started from the wrong place"
-        },
-        {
-          "code": 14,
-          "tag": 2883598,
-          "name": "ERR_ACTION_NO_MEM",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "size",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "message": "No memory for the action ({size} bytes)"
-        },
-        {
-          "code": 15,
-          "tag": 2883599,
-          "name": "ERR_ACTION_STEP",
-          "severity": 0,
-          "size": 6,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u32",
-              "offset": 0,
-              "size": 4,
-              "id_kind": "action"
-            },
-            {
-              "name": "step",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "description": "context: frame `step` (from 0) failed",
-          "context": true,
-          "message": "In step {step} of {id}"
-        },
-        {
-          "code": 16,
-          "tag": 2883600,
-          "name": "ERR_ACTION_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "An action request is not valid"
-        },
-        {
-          "code": 17,
-          "tag": 2883601,
-          "name": "ERR_ACTION_BAD_ID",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "ID 0 (SYS_ACTIONS_ID_NONE)",
-          "message": "Action ID 0 is not valid"
-        }
-      ]
-    },
-    {
-      "id": 46,
-      "name": "BLE",
-      "symbol": "MODULE_ID_BLE",
-      "source_file": "runit-esp/components/sys/bus/sys_ble/errors/sys_ble_errors.h",
-      "texts_file": "runit-esp/components/sys/bus/sys_ble/errors/errors_sys_ble.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 3014657,
-          "name": "ERR_BLE_STACK",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "rc",
-              "type": "i32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "message": "Bluetooth failed (code {rc})"
-        },
-        {
-          "code": 2,
-          "tag": 3014658,
-          "name": "ERR_BLE_ADV",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "rc",
-              "type": "i32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "message": "The board could not start advertising (code {rc})"
-        },
-        {
-          "code": 3,
-          "tag": 3014659,
-          "name": "ERR_BLE_GATT",
-          "severity": 2,
-          "size": 6,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            },
-            {
-              "name": "rc",
-              "type": "i32",
-              "offset": 2,
-              "size": 4
-            }
-          ],
-          "message": "Bluetooth service {uuid} could not be changed (code {rc})"
-        },
-        {
-          "code": 4,
-          "tag": 3014660,
-          "name": "ERR_BLE_SVC_LOCKED",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            }
-          ],
-          "message": "Bluetooth service {uuid} cannot be changed",
-          "hint": "This service belongs to the board: add a service of your own instead."
-        },
-        {
-          "code": 5,
-          "tag": 3014661,
-          "name": "ERR_BLE_UUID_TAKEN",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            }
-          ],
-          "message": "Bluetooth {uuid} is already in use",
-          "hint": "Choose another UUID."
-        },
-        {
-          "code": 6,
-          "tag": 3014662,
-          "name": "ERR_BLE_NOT_FOUND",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            }
-          ],
-          "message": "Bluetooth {uuid} does not exist",
-          "hint": "Check the UUID, or apply the Bluetooth settings first."
-        },
-        {
-          "code": 7,
-          "tag": 3014663,
-          "name": "ERR_BLE_NO_MEM",
-          "severity": 3,
-          "size": 6,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            },
-            {
-              "name": "size",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            }
-          ],
-          "message": "No memory for Bluetooth {uuid} ({size} bytes)",
-          "hint": "Make the buffers smaller, or remove a characteristic you do not need."
-        },
-        {
-          "code": 8,
-          "tag": 3014664,
-          "name": "ERR_BLE_NO_TX",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            }
-          ],
-          "message": "Bluetooth {uuid} cannot send",
-          "hint": "Give the characteristic a send buffer with notify or indicate."
-        },
-        {
-          "code": 9,
-          "tag": 3014665,
-          "name": "ERR_BLE_TX_FULL",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "message": "Bluetooth {uuid} is full: {len} bytes were not sent",
-          "hint": "Send less often, or make the send buffer larger."
-        },
-        {
-          "code": 10,
-          "tag": 3014666,
-          "name": "ERR_BLE_TOO_LONG",
-          "severity": 2,
-          "size": 6,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "max",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "message": "{len} bytes are too long for Bluetooth {uuid} (at most {max})",
-          "hint": "Send less at once, or make the buffer larger."
-        },
-        {
-          "code": 11,
-          "tag": 3014667,
-          "name": "ERR_BLE_FRAG",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            },
-            {
-              "name": "hdr",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            },
-            {
-              "name": "want",
-              "type": "u8",
-              "offset": 3,
-              "size": 1
-            }
-          ],
-          "message": "Bluetooth {uuid}: a packet came out of order and its frame was dropped"
-        },
-        {
-          "code": 12,
-          "tag": 3014668,
-          "name": "ERR_BLE_HOOK",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "uuid",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "ble_uuid"
-            }
-          ],
-          "message": "Bluetooth {uuid} already has a receiver"
-        }
-      ]
-    },
-    {
-      "id": 47,
-      "name": "REMOTE",
-      "symbol": "MODULE_ID_REMOTE",
-      "source_file": "runit-esp/components/sys/sys_device_remote/errors/sys_device_remote_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_device_remote/errors/errors_sys_device_remote.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 3080193,
-          "name": "ERR_REMOTE_NOT_WIRED",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "board",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "a wired remote device's board is reached by a way that is not wired: its calls do not wait (once until wired again)",
-          "message": "Board {board} is not reached by a cable now: its wired devices do not wait for their answers",
-          "hint": "The program's timing has changed. Check the cable to that board."
-        },
-        {
-          "code": 2,
-          "tag": 3080194,
-          "name": "ERR_REMOTE_SUBS_FULL",
-          "severity": 2,
-          "size": 2,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "max",
-              "type": "u8",
-              "offset": 1,
-              "size": 1
-            }
-          ],
-          "description": "SUBSCRIBE with every CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS slot taken",
-          "message": "Device {id} cannot be followed: {max} subscriptions to this board's devices already",
-          "hint": "Remove a remote device of this board on another board, or allow more subscriptions."
-        }
-      ]
-    },
-    {
-      "id": 48,
-      "name": "DATA_MATRIX",
-      "symbol": "MODULE_ID_DATA_MATRIX",
-      "source_file": "runit-esp/components/core/data_matrix/errors/data_matrix_errors.h",
-      "texts_file": "runit-esp/components/core/data_matrix/errors/errors_data_matrix.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 3145729,
-          "name": "ERR_DATA_MATRIX_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every place, or a port's every target, taken",
-          "message": "The data matrix has no room for another port, or the port's output already goes to as many ports as it can",
-          "hint": "Remove a connection first."
-        },
-        {
-          "code": 6,
-          "tag": 3145734,
-          "name": "ERR_DATA_MATRIX_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "unknown port, name taken, a port to itself, no input",
-          "message": "Invalid data matrix connection",
-          "hint": "Both ports must exist, be different, and the second must take data."
         }
       ]
     }

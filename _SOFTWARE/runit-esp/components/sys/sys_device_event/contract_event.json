@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "EVENT",
-  "contract_id": 3,
+  "contract_id": 4,
   "alias": "Event notification",
   "description": "Contract for devices that listen to events: sys_device_event_subscribe delivers each matching event to the device's ON_EVENT.",
   "category": "system",

@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "DATA_MATRIX",
-  "router_key": 48,
+  "router_key": 35,
   "alias": "Data matrix",
   "description": "The switch of the ports: the output of one port (a module's, a provider's, a session's) goes to the inputs of the ports linked from it, unchanged.",
   "category": "system",

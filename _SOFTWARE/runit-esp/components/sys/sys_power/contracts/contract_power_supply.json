@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "POWER_SUPPLY",
-  "contract_id": 8,
+  "contract_id": 9,
   "alias": "Power mux",
   "description": "Selecting which of two sources feeds the load",
   "category": "power",

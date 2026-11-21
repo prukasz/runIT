@@ -25,7 +25,6 @@
  * SUSPEND is the safe state of a real device: outputs low, PWM and DAC 0, bridges coasting, the regulator off, the
  * supply off. RESUME restores nothing. RESET returns every setting to its default.
  */
-#include <stdio.h>
 #include <string.h>
 
 #include "esp_log.h"

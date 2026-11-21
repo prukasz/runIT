@@ -3,7 +3,7 @@
   "schemaVersion": 3,
   "kind": "contract-definition",
   "id": "POWER_USB_PD",
-  "contract_id": 7,
+  "contract_id": 8,
   "alias": "USB-PD sink",
   "description": "Requesting a profile from a USB-PD source and reading its offers",
   "category": "power",

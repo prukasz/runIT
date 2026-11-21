@@ -59,10 +59,10 @@ extern "C" {
  * actions"), replacing what is stored under these IDs. An app stores its own actions under other IDs.
  */
 //#ref-defines onboard_action @alias Onboard actions @prefix SYS_ACTIONS_ONBOARD_
-#define SYS_ACTIONS_ONBOARD_RESUME     SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 3)  //@alias Resume all @description Resume every device
-#define SYS_ACTIONS_ONBOARD_SUSPEND    SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 4)  //@alias Suspend all @description Suspend every device (outputs off)
-#define SYS_ACTIONS_ONBOARD_RESET      SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 5)  //@alias Reset all @description Reset every device (newest first)
-#define SYS_ACTIONS_ONBOARD_HARD_RESET SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 6)  //@alias Hard reset @description Restart the board
+#define SYS_ACTIONS_ONBOARD_RESUME     SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 1)  //@alias Resume all @description Resume every device
+#define SYS_ACTIONS_ONBOARD_SUSPEND    SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 2)  //@alias Suspend all @description Suspend every device (outputs off)
+#define SYS_ACTIONS_ONBOARD_RESET      SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 3)  //@alias Reset all @description Reset every device (newest first)
+#define SYS_ACTIONS_ONBOARD_HARD_RESET SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 4)  //@alias Hard reset @description Restart the board
 
 /** @brief The project record: the list of RUN frames sys_project replays (SYS_PROJECT.MD). The other IDs of this class are sys_project's. */
 #define SYS_ACTIONS_ID_PROJECT SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_PROJECT, 0)

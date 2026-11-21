@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "REMOTE",
-  "router_key": 47,
+  "router_key": 49,
   "alias": "Remote devices",
   "description": "Subscriptions to this board's devices: a subscriber gets a device's events and errors outside a command, in the remote devices' channel: [channel][id][kind][data].",
   "category": "system",

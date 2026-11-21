@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "SYS",
-  "router_key": 40,
+  "router_key": 38,
   "alias": "Board system commands (System Control)",
   "description": "Basic board control: checking the link (ping), stopping the system safely, restarting, and the communication watchdog (dead-man).",
   "category": "system",
@@ -100,7 +100,7 @@
     },
     {
       "id": "BYE",
-      "op": 6,
+      "op": 5,
       "symbol": "SYS_OP_BYE",
       "label": "Say goodbye",
       "description": "The app leaves on purpose (its Disconnect, its window closing): the board turns the dead-man off and goes on with what it runs. Without it a dead-man the app armed would stop the board after the silence that follows. A link that drops without it (power, range) is a lost link as before.",
@@ -108,7 +108,7 @@
     },
     {
       "id": "TIME",
-      "op": 7,
+      "op": 6,
       "symbol": "SYS_OP_TIME",
       "label": "Clock",
       "description": "The board's wall clock (UTC, milliseconds since 1970). The board has no battery clock: the app sets it whenever it connects; the read answers 0 until a client set it since the power came on.",
@@ -153,7 +153,7 @@
     },
     {
       "id": "SAFE",
-      "op": 9,
+      "op": 7,
       "symbol": "SYS_OP_SAFE",
       "label": "Safe state",
       "description": "Whether the board is in its safe state (the VM stopped, every device output off and suspended), why it entered it and how long ago. A reason of 0: not in it.",
@@ -188,7 +188,7 @@
     },
     {
       "id": "SAFE_LEAVE",
-      "op": 10,
+      "op": 8,
       "symbol": "SYS_OP_SAFE_LEAVE",
       "label": "Leave the safe state",
       "description": "Resumes every device (oldest first) and clears the safe state. The program stays stopped: start it with VM EXEC. Motors move again when the devices resume.",
@@ -196,7 +196,7 @@
     },
     {
       "id": "TASKS",
-      "op": 11,
+      "op": 9,
       "symbol": "SYS_OP_TASKS",
       "label": "Tasks",
       "description": "Every task of the board (as many as one answer holds): its name, the least stack it has had free since it started (bytes) and its priority.",

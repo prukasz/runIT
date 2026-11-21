@@ -4,8 +4,8 @@
   "kind": "contract-definition",
   "scope": "device",
   "id": "DEVICE",
-  "contract_id": 32,
-  "router_key": 32,
+  "contract_id": 47,
+  "router_key": 47,
   "alias": "Device",
   "description": "Lifecycle and inspection interface shared by all managed devices on the board (create, reset, suspend, resume, remove, info, operation discovery).",
   "category": "system",
@@ -163,7 +163,7 @@
     },
     {
       "id": "CREATE_REMOTE",
-      "op": 8,
+      "op": 7,
       "symbol": "CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE",
       "label": "Create remote device proxy",
       "description": "Creates a proxy slot for a device running on another board over a session link.",
@@ -215,7 +215,7 @@
     {
       "id": "SUSPENDED",
       "event": 1,
-      "code": 2097153,
+      "code": 3080193,
       "label": "Device suspended",
       "description": "The device entered the suspended state.",
       "notify": true,
@@ -224,7 +224,7 @@
     {
       "id": "RESUMED",
       "event": 2,
-      "code": 2097154,
+      "code": 3080194,
       "label": "Device resumed",
       "description": "The device resumed normal operation.",
       "notify": true,
@@ -233,7 +233,7 @@
     {
       "id": "RESET",
       "event": 3,
-      "code": 2097155,
+      "code": 3080195,
       "label": "Device reset",
       "description": "The device was reset to its configured defaults.",
       "notify": true,
@@ -242,7 +242,7 @@
     {
       "id": "CREATED",
       "event": 4,
-      "code": 2097156,
+      "code": 3080196,
       "label": "Device created",
       "description": "A new device instance was created in this slot.",
       "notify": false,
@@ -261,7 +261,7 @@
     {
       "id": "REMOVED",
       "event": 5,
-      "code": 2097157,
+      "code": 3080197,
       "label": "Device removed",
       "description": "The device instance was removed from this slot.",
       "notify": false,

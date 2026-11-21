@@ -20,52 +20,53 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-KEY_EVENTS = 0x25
+KEY_EVENTS = defs.sym("MODULE_ID_SYS_EVENT")
 F_URGENT = sc.F_URGENT
 SYS_EVENT_NOTIFY = 0x0001
 
 DEV_SRC, DEV_EAR1, DEV_EAR2 = 22, 23, 24
-TESTDEV_TYPE = 0x004E
+TESTDEV_TYPE = defs.device_type("testdev")
 
 # Device ops
-DEV_CREATE = 0x2000
-DEV_RESET = 0x2001
-DEV_SUSPEND = 0x2002
-DEV_RESUME = 0x2003
-DEV_REMOVE = 0x2004
-IO_MODE = 0x0105
-IO_INTR = 0x0107
-VREG_ENABLE = 0x0500
-VREG_VOLTAGE = 0x0501
-OWN_FAKE_PIN = 0xFF00
-OWN_FAKE_FAULT = 0xFF03
-OWN_LISTEN = 0xFF05
-OWN_HEARD = 0xFF06
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_RESET = defs.contract_op("DEVICE", "RESET")
+DEV_SUSPEND = defs.contract_op("DEVICE", "SUSPEND")
+DEV_RESUME = defs.contract_op("DEVICE", "RESUME")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_INTR = defs.contract_op("IO", "INTR")
+VREG_ENABLE = defs.contract_op("POWER_VREG", "ENABLE")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+OWN_FAKE_PIN = defs.device_own_op("testdev", "fake_pin")
+OWN_FAKE_FAULT = defs.device_own_op("testdev", "fake_fault")
+OWN_LISTEN = defs.device_own_op("testdev", "listen")
+OWN_HEARD = defs.device_own_op("testdev", "heard")
 
-MODE_INPUT = 0
-MODE_ADC = 7
-INTR_BOTH = 3
-INTR_ADC_OUTSIDE = 4
-INTR_ADC_INSIDE = 5
+MODE_INPUT = defs.sym("SYS_IO_MODE_INPUT")
+MODE_ADC = defs.sym("SYS_IO_MODE_ADC")
+INTR_BOTH = defs.sym("SYS_IO_INTR_MODE_BOTH_EDGES")
+INTR_ADC_OUTSIDE = defs.sym("SYS_IO_INTR_ADC_WINDOW_OUTSIDE")
+INTR_ADC_INSIDE = defs.sym("SYS_IO_INTR_ADC_WINDOW_INSIDE")
 
-# Event tags (module << 16 | code)
-EV_IO_RISING = (0x01 << 16) | 1
-EV_IO_FALLING = (0x01 << 16) | 2
-EV_IO_ADC_OUTSIDE = (0x01 << 16) | 3
-EV_IO_ADC_INSIDE = (0x01 << 16) | 4
-EV_PMON_WARN = (0x04 << 16) | 4
-EV_VREG_OVP = (0x05 << 16) | 1
-EV_VREG_READY = (0x05 << 16) | 0x10
-EV_HB_OC = (0x09 << 16) | 1
-EV_UART_OVERFLOW = (0x13 << 16) | 1
-EV_DEV_SUSPENDED = (0x20 << 16) | 1
-EV_DEV_RESUMED = (0x20 << 16) | 2
-EV_DEV_RESET = (0x20 << 16) | 3
-EV_DEV_CREATED = (0x20 << 16) | 4
-EV_DEV_REMOVED = (0x20 << 16) | 5
+# Event tags
+EV_IO_RISING = defs.contract_event("IO", "RISING")
+EV_IO_FALLING = defs.contract_event("IO", "FALLING")
+EV_IO_ADC_OUTSIDE = defs.contract_event("IO", "ADC_OUTSIDE")
+EV_IO_ADC_INSIDE = defs.contract_event("IO", "ADC_INSIDE")
+EV_PMON_WARN = defs.contract_event("POWER_MONITOR", "OCP_WARNING")
+EV_VREG_OVP = defs.contract_event("POWER_VREG", "OVP")
+EV_VREG_READY = defs.contract_event("POWER_VREG", "READY")
+EV_HB_OC = defs.contract_event("HBRIDGE", "OVERCURRENT")
+EV_UART_OVERFLOW = defs.contract_event("UART", "OVERFLOW")
+EV_DEV_SUSPENDED = defs.contract_event("DEVICE", "SUSPENDED")
+EV_DEV_RESUMED = defs.contract_event("DEVICE", "RESUMED")
+EV_DEV_RESET = defs.contract_event("DEVICE", "RESET")
+EV_DEV_CREATED = defs.contract_event("DEVICE", "CREATED")
+EV_DEV_REMOVED = defs.contract_event("DEVICE", "REMOVED")
 
 ANY_TAG = 0xFFFFFFFF
 ANY_SRC = 0xFFFF

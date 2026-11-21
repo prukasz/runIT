@@ -69,8 +69,8 @@ static void latch_clear(latch_t* l) {
 
 /* ---- REC: the module the frames of a record land in ----------------------------------------------------------- */
 
-MODULE_ID_DECLARE(MODULE_ID_REC, 0x37)
-MODULE_ID_DECLARE(MODULE_ID_PROBE, 0x38)
+MODULE_ID_DECLARE(MODULE_ID_REC, 0xE7)
+MODULE_ID_DECLARE(MODULE_ID_PROBE, 0xE8)
 
 #define REC_FAIL 0xEE  /* a frame whose first byte is this fails */
 #define REC_MAX  16
@@ -200,7 +200,7 @@ static void add(image_t* im, const uint8_t* frame, uint16_t len) {
   } while (0)
 
 /* The frame that runs record `id`: [ACTIONS][W][RUN][id]. */
-#define RUN_FRAME(id) ACTIONS, W, 0x01, U32(id)
+#define RUN_FRAME(id) ACTIONS, W, ACTIONS_OP_RUN, U32(id)
 
 #define A_ID SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 10)
 #define B_ID SYS_ACTIONS_ID(SYS_ACTIONS_CLASS_USER, 11)
@@ -208,17 +208,17 @@ static void add(image_t* im, const uint8_t* frame, uint16_t len) {
 
 /* Writes a record the way the app does: BEGIN, WRITE in pieces of `piece` bytes, COMMIT with the CRC. */
 static void upload(uint32_t id, const image_t* im, uint16_t piece) {
-  CALL(ACTIONS, W, 0x04, U32(id), U16(im->n));
+  CALL(ACTIONS, W, ACTIONS_OP_BEGIN, U32(id), U16(im->n));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   for (uint16_t off = 0; off < im->n; off += piece) {
     const uint16_t n = (uint16_t)(im->n - off < piece ? im->n - off : piece);
-    uint8_t req[3 + 2 + 64] = {ACTIONS, W, 0x05, U16(off)};
+    uint8_t req[3 + 2 + 64] = {ACTIONS, W, ACTIONS_OP_WRITE, U16(off)};
     memcpy(req + 5, im->b + off, n);
     call(req, 5u + n);
     TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   }
   const uint32_t crc = esp_rom_crc32_le(0, im->b, im->n);
-  CALL(ACTIONS, W, 0x06, U32(crc));
+  CALL(ACTIONS, W, ACTIONS_OP_COMMIT, U32(crc));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
 }
 
@@ -226,7 +226,7 @@ static void upload(uint32_t id, const image_t* im, uint16_t piece) {
 static uint16_t download(uint32_t id, uint8_t* out, uint16_t piece) {
   uint16_t got = 0;
   while (true) {
-    CALL(ACTIONS, R, 0x07, U32(id), U16(got));
+    CALL(ACTIONS, R, ACTIONS_OP_READ, U32(id), U16(got));
     TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
     if (s_ans.len == 0) {
       return got;
@@ -290,7 +290,7 @@ static void test_init_stores_the_four_onboard_actions(void) {
   uint32_t len = 0;
   TEST_ASSERT_NULL(sys_actions_read(SYS_ACTIONS_ONBOARD_RESUME, 0, buf, sizeof(buf), &len));
   /* the sweep frame: [len 5][device router][write][every device][RESUME u16] */
-  const uint8_t want[] = {5, 0, MODULE_ID_SYS_DEVICE, W, SYS_DEVICE_ID_NONE, 0x03, 0x20};
+  const uint8_t want[] = {5, 0, MODULE_ID_SYS_DEVICE, W, SYS_DEVICE_ID_NONE, U16(CONTRACT_SYS_DEVICE_OP_RESUME)};
   TEST_ASSERT_EQUAL_UINT32(sizeof(want), len);
   TEST_ASSERT_EQUAL_HEX8_ARRAY(want, buf, sizeof(want));
 }
@@ -321,7 +321,7 @@ static void test_a_record_written_by_a_client_reads_back_byte_for_byte(void) {
   ADD(&im, MODULE_ID_REC, W, 0x44, 0x55, 0x66, 0x77);
   upload(A_ID, &im, 5);  /* in pieces that split the frames */
 
-  CALL(ACTIONS, R, 0x08, U32(A_ID));  /* INFO */
+  CALL(ACTIONS, R, ACTIONS_OP_INFO, U32(A_ID));  /* INFO */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   sys_actions_info_t info;
   TEST_ASSERT_EQUAL_UINT32(sizeof(info), s_ans.len);
@@ -441,7 +441,7 @@ static void test_list_is_ascending_and_pages_by_the_last_id(void) {
   TEST_ASSERT_EQUAL_UINT16(1, count);
   TEST_ASSERT_EQUAL_UINT32(C_ID, got[0]);
 
-  CALL(ACTIONS, R, 0x09, U32(A_ID));  /* LIST through the router: u16 total, then the IDs */
+  CALL(ACTIONS, R, ACTIONS_OP_LIST, U32(A_ID));  /* LIST through the router: u16 total, then the IDs */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   TEST_ASSERT_EQUAL_UINT32(2u + 3u * 4u, s_ans.len);
   uint16_t t;
@@ -486,14 +486,14 @@ static void test_remove_and_remove_all(void) {
   image_t im = {0};
   ADD(&im, MODULE_ID_REC, W, 0x01);
   TEST_ASSERT_NULL(sys_actions_set(A_ID, im.b, im.n));
-  CALL(ACTIONS, W, 0x0A, U32(A_ID));  /* REMOVE */
+  CALL(ACTIONS, W, ACTIONS_OP_REMOVE, U32(A_ID));  /* REMOVE */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   ASSERT_ERR(ERR_ACTION_NOT_FOUND, sys_actions_remove(A_ID));
   TEST_ASSERT_NULL(sys_actions_set(A_ID, im.b, im.n));
   TEST_ASSERT_NULL(sys_actions_record_begin(B_ID, 4));
   ASSERT_ERR(ERR_ACTION_BUSY, sys_actions_remove_all());  /* while a record is being written */
   sys_actions_abort();
-  CALL(ACTIONS, W, 0x0E);  /* REMOVE_ALL */
+  CALL(ACTIONS, W, ACTIONS_OP_REMOVE_ALL);  /* REMOVE_ALL */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   TEST_ASSERT_EQUAL_UINT32(0, host_nvs_count());
   TEST_ASSERT_NULL(sys_actions_init());  /* the onboard actions come back with the next boot */
@@ -509,7 +509,7 @@ static void test_run_injects_every_frame_in_order_with_its_own_direction(void) {
   ADD(&im, MODULE_ID_REC, W, 0x44);
   upload(A_ID, &im, 64);
 
-  CALL(ACTIONS, W, 0x01, U32(A_ID));  /* RUN */
+  CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(A_ID));  /* RUN */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   TEST_ASSERT_EQUAL_INT(3, s_recn);
   TEST_ASSERT_EQUAL_UINT8(W, s_rec[0].dir);
@@ -528,7 +528,7 @@ static void test_a_record_can_be_run_again_and_is_not_consumed(void) {
   ADD(&im, MODULE_ID_REC, W, 0x01);
   TEST_ASSERT_NULL(sys_actions_set(A_ID, im.b, im.n));
   for (int i = 0; i < 3; i++) {
-    CALL(ACTIONS, W, 0x01, U32(A_ID));
+    CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(A_ID));
     TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   }
   TEST_ASSERT_EQUAL_INT(3, s_recn);
@@ -565,7 +565,7 @@ static void test_run_stops_at_the_first_failing_frame_and_names_it(void) {
   TEST_ASSERT_EQUAL_INT(2, s_recn);  /* the third frame did not run */
 
   /* the same record through a remote RUN answers ERROR */
-  CALL(ACTIONS, W, 0x01, U32(A_ID));
+  CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(A_ID));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_ans.status);
 }
 
@@ -580,7 +580,7 @@ static void test_run_all_runs_every_frame_and_returns_the_first_failure(void) {
   TEST_ASSERT_FALSE(s_probe.is_null);
   TEST_ASSERT_EQUAL_UINT16(0, s_probe.step);  /* the first failure is the answer */
   TEST_ASSERT_EQUAL_INT(3, s_recn);           /* all three ran */
-  CALL(ACTIONS, W, 0x0D, U32(A_ID));          /* RUN_ALL through the router */
+  CALL(ACTIONS, W, ACTIONS_OP_RUN_ALL, U32(A_ID));          /* RUN_ALL through the router */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_ans.status);
   TEST_ASSERT_EQUAL_INT(6, s_recn);
 }
@@ -594,7 +594,7 @@ static void test_a_run_frame_inside_a_record_runs_the_other_record(void) {
   ADD(&outer, RUN_FRAME(A_ID));
   ADD(&outer, MODULE_ID_REC, W, 0x02);
   TEST_ASSERT_NULL(sys_actions_set(B_ID, outer.b, outer.n));
-  CALL(ACTIONS, W, 0x01, U32(B_ID));
+  CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(B_ID));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
   TEST_ASSERT_EQUAL_INT(4, s_recn);
   const uint8_t order[] = {0x01, 0x0A, 0x0B, 0x02};
@@ -623,11 +623,11 @@ static void test_a_record_that_runs_itself_stops_at_the_depth_limit(void) {
 
 static void test_a_missing_record_and_a_run_off_the_router_tasks_are_refused(void) {
   ASSERT_ERR(ERR_ACTION_WRONG_TASK, sys_actions_run(A_ID, false));  /* the test thread is no router task */
-  CALL(ACTIONS, W, 0x01, U32(A_ID));
+  CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(A_ID));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_ans.status);
-  CALL(ACTIONS, R, 0x08, U32(A_ID));  /* INFO of nothing */
+  CALL(ACTIONS, R, ACTIONS_OP_INFO, U32(A_ID));  /* INFO of nothing */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_ans.status);
-  CALL(ACTIONS, W, 0x01, U32(SYS_ACTIONS_ID_NONE));
+  CALL(ACTIONS, W, ACTIONS_OP_RUN, U32(SYS_ACTIONS_ID_NONE));
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_ERROR, s_ans.status);
 }
 

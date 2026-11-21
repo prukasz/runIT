@@ -107,8 +107,8 @@ static const router_op_t k_ops[] = {
 };
 static ROUTER_MODULE(mod_router, k_ops)
 
-MODULE_ID_DECLARE(MODULE_ID_TEST_MOD,  0x21)
-MODULE_ID_DECLARE(MODULE_ID_TEST_ROOT, 0x22)
+MODULE_ID_DECLARE(MODULE_ID_TEST_MOD,  0xE1)
+MODULE_ID_DECLARE(MODULE_ID_TEST_ROOT, 0xE2)
 #define KEY_MOD  MODULE_ID_TEST_MOD
 #define KEY_ROOT MODULE_ID_TEST_ROOT  /* a plain handler registered at the root */
 

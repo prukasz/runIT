@@ -1,8 +1,6 @@
 #pragma once
 
 #include "errors.h"
-#include "sys_device.h"
-#include "sys_event.h"
 #include "sys_io.h"
 #include "sys_power.h"
 #include "sys_power_manager_errors.h"

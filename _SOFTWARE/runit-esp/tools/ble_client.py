@@ -13,20 +13,45 @@ Exit 0 when every step answered as it should.
 """
 import argparse
 import asyncio
+import os
 import struct
 import sys
 import time
 
 from bleak import BleakClient, BleakScanner
 
-CLIENT = 0xF1
-REQUEST, ANSWER, PUSH, CONTROL = 0, 1, 2, 3
-HELLO, PING = 1, 2
-KEY_SYS, KEY_SESSION, KEY_WATCH, KEY_DEVICE = 0x28, 0x0E, 0x2B, 0x20
-READ, WRITE = 0, 1
-GPIO, IO_LEVEL, IO_MODE = 0x00, 0x0100, 0x0105
-F_ERROR = 0x04
-SERVICE, TX, RX, TELEMETRY = 0xFFE0, 0xFFE1, 0xFFE2, 0xFFEA
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
+
+CLIENT = defs.sym("CMD_SRC_CLIENT_FIRST") + 1
+REQUEST = defs.sym("CMD_REQUEST")
+ANSWER = defs.sym("CMD_ANSWER")
+PUSH = defs.sym("CMD_PUSH")
+CONTROL = defs.sym("CMD_CONTROL")
+HELLO = defs.sym("SYS_SESSION_HELLO")
+PING = defs.sym("SYS_SESSION_PING")
+KEY_SYS = defs.sym("MODULE_ID_SYS")
+KEY_SESSION = defs.sym("MODULE_ID_SESSION")
+KEY_WATCH = defs.sym("MODULE_ID_WATCH")
+KEY_DEVICE = defs.sym("MODULE_ID_SYS_DEVICE")
+READ = defs.sym("CMD_DIR_READ")
+WRITE = defs.sym("CMD_DIR_WRITE")
+GPIO = 0x00
+IO_LEVEL = defs.contract_op("IO", "LEVEL")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_RESET = defs.contract_op("IO", "RESET")
+SYS_OP_PING = defs.service_op("SYS", "PING")
+SESSION_OP_PEERS = defs.service_op("SESSION", "PEERS")
+WATCH_OP_ADD = defs.service_op("WATCH", "ADD")
+WATCH_OP_REMOVE = defs.service_op("WATCH", "REMOVE")
+MODE_OUTPUT_PP = defs.sym("SYS_IO_MODE_OUTPUT_PUSH_PULL")
+TRIG_PERIODIC = defs.sym("SYS_WATCH_PERIODIC")
+F_ERROR = defs.sym("CMD_TYPE_STATUS")
+SERVICE = defs.sym("RUNIT_BLE_SERVICE")
+TX = defs.sym("RUNIT_BLE_TX")
+RX = defs.sym("RUNIT_BLE_RX")
+LOGS = defs.sym("RUNIT_BLE_LOGS")
+TELEMETRY = defs.sym("RUNIT_BLE_TELEMETRY")
 
 
 def uuid16(u: int) -> str:
@@ -123,31 +148,31 @@ async def smoke(link: Link) -> bool:
         ok &= good
         return b
 
-    await step("PING", bytes([KEY_SYS, READ, 0x01]))
-    rows = await step("PEERS", bytes([KEY_SESSION, READ, 0x02]))
+    await step("PING", bytes([KEY_SYS, READ, SYS_OP_PING]))
+    rows = await step("PEERS", bytes([KEY_SESSION, READ, SESSION_OP_PEERS]))
     print(f"   {rows[0]} sessions")
-    await step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, 3])))
+    await step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
     for lvl in (1, 0, 1):
         await step(f"GPIO4 LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
         await step(f"GPIO4 LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
     link.pushes.clear()
-    head = struct.pack("<BBHH", 1, 0, 5, 0)
-    await step("WATCH ADD", bytes([KEY_WATCH, WRITE, 0x01]) + head + dev(READ, IO_LEVEL, bytes([pin])))
+    head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)
+    await step("WATCH ADD", bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([pin])))
     await link.listen(0.6)
     mine = [w for w in watches(link) if w[0] == CLIENT and w[1] == 1]
     good = len(mine) >= 4 and all(w[2] == 0 and w[3] == bytes([pin, 1]) for w in mine)
     print(f"{'ok  ' if good else 'FAIL'} WATCH entries: {len(mine)} in 0.6 s, level 1")
     ok &= good
-    await step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, 0x02, 1]))
-    await step("GPIO4 RESET", dev(WRITE, 0x0106, bytes([pin])))
+    await step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
+    await step("GPIO4 RESET", dev(WRITE, IO_RESET, bytes([pin])))
     print("smoke PASSED" if ok else "smoke FAILED")
     return ok
 
 
 async def hold(link: Link, seconds: float) -> bool:
     """A watch on GPIO 4's level (every 50 ms), listened for `seconds`: the entries by owner and the levels seen."""
-    head = struct.pack("<BBHH", 1, 0, 5, 0)
-    st, _ = await link.call(bytes([KEY_WATCH, WRITE, 0x01]) + head + dev(READ, IO_LEVEL, bytes([4])))
+    head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)
+    st, _ = await link.call(bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([4])))
     link.pushes.clear()
     await link.listen(seconds)
     by_owner: dict = {}
@@ -155,7 +180,7 @@ async def hold(link: Link, seconds: float) -> bool:
         by_owner.setdefault((owner, wid), []).append(data[1] if status == 0 and len(data) == 2 else None)
     for (owner, wid), lv in sorted(by_owner.items()):
         print(f"owner {owner:#04x} watch {wid}: {len(lv)} entries, levels {sorted(set(lv), key=str)}")
-    await link.call(bytes([KEY_WATCH, WRITE, 0x02, 1]))
+    await link.call(bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
     return st == 0 and (CLIENT, 1) in by_owner
 
 
@@ -185,7 +210,7 @@ async def main() -> int:
         if args.hold:
             return 0 if await hold(link, args.hold) else 1
         ok = True
-        for cmd in (bytes([KEY_SYS, READ, 0x01]), bytes([KEY_SESSION, READ, 0x02])):
+        for cmd in (bytes([KEY_SYS, READ, SYS_OP_PING]), bytes([KEY_SESSION, READ, SESSION_OP_PEERS])):
             st, _ = await link.call(cmd)
             ok &= st == 0
         return 0 if ok else 1

@@ -4,7 +4,7 @@
   "kind": "contract-definition",
   "scope": "device",
   "id": "UART",
-  "contract_id": 19,
+  "contract_id": 3,
   "alias": "UART bus",
   "description": "Contract for hardware UART serial ports supporting raw stream or framed transfers, dynamic baud rate changes, queue flushing, and synchronous transactions.",
   "category": "bus",
@@ -239,7 +239,7 @@
     {
       "id": "OVERFLOW",
       "event": 1,
-      "code": 1245185,
+      "code": 196609,
       "label": "RX buffer overflow",
       "description": "The hardware RX FIFO or driver receive buffer overflowed and lost bytes.",
       "notify": true,

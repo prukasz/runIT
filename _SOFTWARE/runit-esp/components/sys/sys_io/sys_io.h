@@ -147,16 +147,16 @@ typedef struct __attribute__((packed)) {
 #define CONTRACT_IO_OPERATIONS(X, P)                                                                        \
   X(P, OP_LEVEL,        0x00, io_pin_args_t, io_level_args_t,   0)                                          \
   X(P, OP_TOGGLE,       0x01, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, OP_PWM_DUTY,     0x03, cmd_none_t,    io_duty_args_t,    0)                                          \
-  X(P, OP_PWM_FREQ,     0x04, cmd_none_t,    io_freq_args_t,    0)                                          \
-  X(P, OP_MODE,         0x05, cmd_none_t,    io_mode_args_t,    0)                                          \
-  X(P, OP_RESET,        0x06, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, OP_INTR,         0x07, cmd_none_t,    io_intr_args_t,    0)                                          \
-  X(P, OP_VOLTAGE,      0x09, io_pin_args_t, io_voltage_args_t, 0)                                          \
-  X(P, OP_AVAILABLE,    0x0A, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, OP_LOCKED,       0x0B, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, OP_LOCK,         0x0C, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
-  X(P, OP_UNLOCK,       0x0D, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
+  X(P, OP_PWM_DUTY,     0x02, cmd_none_t,    io_duty_args_t,    0)                                          \
+  X(P, OP_PWM_FREQ,     0x03, cmd_none_t,    io_freq_args_t,    0)                                          \
+  X(P, OP_MODE,         0x04, cmd_none_t,    io_mode_args_t,    0)                                          \
+  X(P, OP_RESET,        0x05, cmd_none_t,    io_pin_args_t,     0)                                          \
+  X(P, OP_INTR,         0x06, cmd_none_t,    io_intr_args_t,    0)                                          \
+  X(P, OP_VOLTAGE,      0x07, io_pin_args_t, io_voltage_args_t, 0)                                          \
+  X(P, OP_AVAILABLE,    0x08, cmd_none_t,    uint64_t,          0)                                          \
+  X(P, OP_LOCKED,       0x09, cmd_none_t,    uint64_t,          0)                                          \
+  X(P, OP_LOCK,         0x0A, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
+  X(P, OP_UNLOCK,       0x0B, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
 
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, MODULE_ID_IO)
 

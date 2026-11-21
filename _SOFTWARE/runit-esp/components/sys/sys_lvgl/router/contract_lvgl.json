@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "LVGL",
-  "router_key": 41,
+  "router_key": 52,
   "alias": "Screen",
   "description": "LVGL on one display and an optional touch: the draw buffers, the objects' heap, the rotation, drawing on or off. The screen's content is built by the screen commands on top of it.",
   "category": "system",
@@ -132,7 +132,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "enum": "sys_display_orientation_e"
+              "enum": "sys_lvgl_rotation_e"
             }
           ]
         }
@@ -148,7 +148,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "enum": "sys_display_orientation_e"
+              "enum": "sys_lvgl_rotation_e"
             }
           ]
         }
@@ -180,7 +180,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "enum": "sys_display_orientation_e"
+              "enum": "sys_lvgl_rotation_e"
             },
             {
               "id": "buffers",
@@ -293,7 +293,7 @@
     {
       "id": "RESET",
       "event": 1,
-      "code": 2686977,
+      "code": 3407873,
       "label": "Screen reset",
       "description": "The screen is about to be reset: its LVGL objects still exist for listeners that drop what they made.",
       "notify": false,
@@ -302,7 +302,7 @@
     {
       "id": "STATE",
       "event": 2,
-      "code": 2686978,
+      "code": 3407874,
       "label": "Screen state",
       "description": "The screen's state changed.",
       "notify": true,
@@ -322,7 +322,7 @@
     {
       "id": "ROTATION",
       "event": 3,
-      "code": 2686979,
+      "code": 3407875,
       "label": "Screen rotated",
       "description": "The screen was rotated.",
       "notify": true,
@@ -335,7 +335,7 @@
           "raw_type": "u8",
           "size": 1,
           "offset": 0,
-          "enum": "sys_display_orientation_e"
+          "enum": "sys_lvgl_rotation_e"
         }
       ]
     }

@@ -21,72 +21,77 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-KEY_POLICY = 0x21
-OP_POLICY = 0x01
-IMP_NONE, IMP_LOW, IMP_MEDIUM, IMP_HIGH, IMP_CRITICAL = 0, 1, 2, 3, 4
+KEY_POLICY = defs.service_key("POLICY")
+OP_POLICY = defs.service_op("POLICY", "POLICY")
+IMP_NONE = defs.sym("SYS_DEVICE_IMPORTANCE_NONE")
+IMP_LOW = defs.sym("SYS_DEVICE_IMPORTANCE_LOW")
+IMP_MEDIUM = defs.sym("SYS_DEVICE_IMPORTANCE_MEDIUM")
+IMP_HIGH = defs.sym("SYS_DEVICE_IMPORTANCE_HIGH")
+IMP_CRITICAL = defs.sym("SYS_DEVICE_IMPORTANCE_CRITICAL")
 RESP_NONE = 0
-RESP_SUSPEND = 0xFF000001
-RESP_RESET = 0xFF000002
+RESP_SUSPEND = defs.sym("SYS_DEVICE_RESPONSE_SUSPEND")
+RESP_RESET = defs.sym("SYS_DEVICE_RESPONSE_RESET")
 
 GPIO_ID = sc.GPIO  # 0x00, SYS_DEVICE_CREATE_SYSTEM
 DEV_A, DEV_B, DEV_C = 14, 15, 16
-SWEEP_ALL = 0xFF
+SWEEP_ALL = defs.sym("SYS_DEVICE_ID_NONE")
 
-GPIO_TYPE = 0x0040
-TCA6424A_TYPE = 0x0042
-TESTDEV_TYPE = 0x004E
+GPIO_TYPE = defs.device_type("esp32s3_gpio")
+TCA6424A_TYPE = defs.device_type("tca6424a")
+TESTDEV_TYPE = defs.device_type("testdev")
 
-# Lifecycle (CONTRACT_SYS_DEVICE, 0x20xx)
-DEV_CREATE = 0x2000
-DEV_RESET = 0x2001
-DEV_SUSPEND = 0x2002
-DEV_RESUME = 0x2003
-DEV_REMOVE = 0x2004
-DEV_INFO = 0x2005
-DEV_OPS = 0x2006
+# Lifecycle (CONTRACT_SYS_DEVICE)
+DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
+DEV_RESET = defs.contract_op("DEVICE", "RESET")
+DEV_SUSPEND = defs.contract_op("DEVICE", "SUSPEND")
+DEV_RESUME = defs.contract_op("DEVICE", "RESUME")
+DEV_REMOVE = defs.contract_op("DEVICE", "REMOVE")
+DEV_INFO = defs.contract_op("DEVICE", "INFO")
+DEV_OPS = defs.contract_op("DEVICE", "OPS")
 
-# IO (0x01xx)
-IO_LEVEL = 0x0100
-IO_TOGGLE = 0x0101
-IO_MODE = 0x0105
-IO_LOCKED = 0x010B
-IO_LOCK = 0x010C
-IO_UNLOCK = 0x010D
+# IO
+IO_LEVEL = defs.contract_op("IO", "LEVEL")
+IO_TOGGLE = defs.contract_op("IO", "TOGGLE")
+IO_MODE = defs.contract_op("IO", "MODE")
+IO_LOCKED = defs.contract_op("IO", "LOCKED")
+IO_LOCK = defs.contract_op("IO", "LOCK")
+IO_UNLOCK = defs.contract_op("IO", "UNLOCK")
 
-# I2C (0x02xx)
-I2C_ATTACH = 0x0200
-I2C_DETACH = 0x0201
-I2C_XFER = 0x0202
-I2C_RAW = 0x0206
+# I2C
+I2C_ATTACH = defs.contract_local_op("I2C", 0x00)
+I2C_DETACH = defs.contract_local_op("I2C", 0x01)
+I2C_XFER = defs.contract_local_op("I2C", 0x02)
+I2C_RAW = defs.contract_op("I2C", "RAW")
 
 # PMON / VREG / SUPPLY / UART / OWN
-PMON_VOLTAGE = 0x0400
-VREG_VOLTAGE = 0x0501
-SUPPLY_SOURCE = 0x0800
-UART_BAUD = 0x1301
-UART_SUBSCRIBE = 0x1305
-UART_SEND_FRAME = 0x1307
-UART_RX_HOOK = 0x1308
+PMON_VOLTAGE = defs.contract_op("POWER_MONITOR", "VOLTAGE")
+VREG_VOLTAGE = defs.contract_op("POWER_VREG", "VOLTAGE")
+SUPPLY_SOURCE = defs.contract_op("POWER_SUPPLY", "SOURCE")
+UART_BAUD = defs.contract_op("UART", "BAUD")
+UART_SUBSCRIBE = defs.contract_local_op("UART", 0x05)
+UART_SEND_FRAME = defs.contract_local_op("UART", 0x07)
+UART_RX_HOOK = defs.contract_local_op("UART", 0x08)
 
-OWN_FAKE_PIN = 0xFF00
-OWN_FAKE_I2C = 0xFF01
-OWN_LISTEN = 0xFF05
-OWN_HEARD = 0xFF06
-OWN_VREG = 0xFF07
+OWN_FAKE_PIN = defs.device_own_op("testdev", "fake_pin")
+OWN_FAKE_I2C = defs.device_own_op("testdev", "fake_i2c")
+OWN_LISTEN = defs.device_own_op("testdev", "listen")
+OWN_HEARD = defs.device_own_op("testdev", "heard")
+OWN_VREG = defs.device_own_op("testdev", "vreg")
 
-# Registry events (MODULE_ID_SYS_DEVICE = 0x20)
-EV_DEV_SUSPENDED = (0x20 << 16) | 1
-EV_DEV_RESUMED = (0x20 << 16) | 2
-EV_DEV_RESET = (0x20 << 16) | 3
-EV_DEV_CREATED = (0x20 << 16) | 4
-EV_DEV_REMOVED = (0x20 << 16) | 5
+# Registry events
+EV_DEV_SUSPENDED = defs.contract_event("DEVICE", "SUSPENDED")
+EV_DEV_RESUMED = defs.contract_event("DEVICE", "RESUMED")
+EV_DEV_RESET = defs.contract_event("DEVICE", "RESET")
+EV_DEV_CREATED = defs.contract_event("DEVICE", "CREATED")
+EV_DEV_REMOVED = defs.contract_event("DEVICE", "REMOVED")
 
 ANY_TAG = 0xFFFFFFFF
 ANY_CH = 0xFFFF
-PIN_NONE = (0xFF, 0xFF)
+PIN_NONE = (defs.sym("SYS_IO_PIN_NONE_DEVICE"), defs.sym("SYS_IO_PIN_NONE_INDEX"))
 
 
 def quiet():
