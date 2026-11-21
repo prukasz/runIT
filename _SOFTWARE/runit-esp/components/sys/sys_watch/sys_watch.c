@@ -53,7 +53,7 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
   const bool too_long = SYS_WATCH_ENTRY_HEAD + len > CMD_DATA_MAX;
   bool removed = false;
   watch_t* w = &s_watch.watches[SYS_WATCH_CTX_SLOT(ctx)];
-  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_watch_mutex);
   if (USED(w) && w->gen == SYS_WATCH_CTX_GEN(ctx) && too_long) {
     w->head.id = 0;  // an answer no entry can carry: the watch removes itself
     w->gen++;
@@ -67,19 +67,13 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
     const bool changed = w->last != LAST_OK || crc != w->crc;
     const bool send = ok ? (!on_change || changed || silent) : w->last != LAST_ERROR;
     if (send) {
-      uint8_t packet[CMD_HEAD + SYS_WATCH_ENTRY_HEAD + len];  // one frame: the header, the entry's head, the answer
-      cmd_push_head(packet, MODULE_ID_WATCH, 0);
-      packet[CMD_HEAD] = w->owner;
-      packet[CMD_HEAD + 1u] = w->head.id;
-      packet[CMD_HEAD + 2u] = status;
-      memcpy(packet + CMD_HEAD + SYS_WATCH_ENTRY_HEAD, data, len);
-      data_matrix_send(&sys_watch_port, CMD_SEND_NOWAIT, packet, sizeof(packet));
+      const uint8_t entry_head[SYS_WATCH_ENTRY_HEAD] = {w->owner, w->head.id, status};
+      data_matrix_push(&sys_watch_port, 0, entry_head, sizeof(entry_head), data, len);
       w->last = ok ? LAST_OK : LAST_ERROR;
       w->crc = crc;
       w->since_sent = 0;
     }
   }
-  xSemaphoreGive(sys_watch_mutex);
   ERR_CHECK(!removed, ERR_CMD_OUT_FULL, .need = (uint16_t)(SYS_WATCH_ENTRY_HEAD + len), .cap = (uint16_t)CMD_DATA_MAX);
   return NULL;
 }
@@ -90,7 +84,7 @@ static err_h on_read(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
 
 static void on_tick(void* arg) {
   (void)arg;
-  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_watch_mutex);
   for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++) {
     if (!USED(w)) {
       continue;
@@ -108,7 +102,6 @@ static void on_tick(void* arg) {
     }
     err_free(err);
   }
-  xSemaphoreGive(sys_watch_mutex);
 }
 
 /* ----------------------------------------------------------------------------
@@ -122,7 +115,7 @@ err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) 
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = head->id);
 
   watch_t* at = NULL;
-  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_watch_mutex);
   for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++) {
     if (USED(w) && w->owner == owner && w->head.id == head->id) {
       at = w;  // ADD with an id it has replaces that watch
@@ -142,7 +135,6 @@ err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) 
     };
     memcpy(at->read, read.data, read.len);
   }
-  xSemaphoreGive(sys_watch_mutex);
   ERR_CHECK(at != NULL, ERR_FULL, .max = CONFIG_SYS_WATCH_MAX);
   return NULL;
 }
@@ -150,7 +142,7 @@ err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) 
 // Removes the watches of `owner` (CMD_SRC_ALL: of everyone) with `id` (0: every id); how many.
 static uint32_t remove_watches(uint8_t owner, uint8_t id) {
   uint32_t removed = 0;
-  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_watch_mutex);
   for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++) {
     const bool theirs = owner == CMD_SRC_ALL || w->owner == owner;
     if (USED(w) && theirs && (id == 0 || w->head.id == id)) {
@@ -159,7 +151,6 @@ static uint32_t remove_watches(uint8_t owner, uint8_t id) {
       removed++;
     }
   }
-  xSemaphoreGive(sys_watch_mutex);
   return removed;
 }
 
@@ -171,27 +162,24 @@ err_h sys_watch_remove(uint8_t owner, uint8_t id) {
 
 uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]) {
   uint8_t n = 0;
-  xSemaphoreTake(sys_watch_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_watch_mutex);
   for (watch_t* w = s_watch.watches; w < s_watch.watches + CONFIG_SYS_WATCH_MAX; w++) {
     if (USED(w)) {
       out[n++] = (sys_watch_info_t){.head = w->head, .owner = w->owner, .read_len = w->read_len};
     }
   }
-  xSemaphoreGive(sys_watch_mutex);
   return n;
 }
 
 // A session ended (SESSION_EV_GONE, the peer is the event's source): its watches go with it.
-static err_h on_gone(const sys_event_t* event, void* ctx) {
-  (void)ctx;
-  (void)remove_watches((uint8_t)event->key.source, 0);
-  return NULL;
+static void on_gone(uint8_t peer, uint8_t safety) {
+  (void)safety;
+  (void)remove_watches(peer, 0);
 }
 
 err_h sys_watch_init(void) {
   board_timer_init(&s_watch.timer, on_tick, NULL);
   board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
-  uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_session_on_gone(on_gone));
   return sys_watch_client_init();
 }

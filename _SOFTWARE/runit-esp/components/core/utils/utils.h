@@ -76,6 +76,17 @@ extern "C" {
   }
 
 /**
+ * @brief Drops every item of a NOSPLIT / ALLOWSPLIT ring buffer. NULL: nothing. Any task, not an ISR.
+ */
+static inline void u_ringbuf_clear(RingbufHandle_t rb) {
+  size_t size = 0;
+  void* item = NULL;
+  while (rb != NULL && (item = xRingbufferReceive(rb, &size, 0)) != NULL) {
+    vRingbufferReturnItem(rb, item);
+  }
+}
+
+/**
  * @brief Static event group.
  */
 #define U_EVENT_GROUP_DEFINE(name)                              \

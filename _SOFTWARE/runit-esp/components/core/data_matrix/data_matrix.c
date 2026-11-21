@@ -10,6 +10,10 @@
 
 #include "data_matrix.h"
 
+#include <string.h>
+
+#include "cmd.h"
+
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
@@ -62,6 +66,21 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
 bool data_matrix_linked(const data_matrix_port_t* self) {
   data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
   return targets(self, to) > 0;
+}
+
+void data_matrix_push(data_matrix_port_t* port, uint8_t urgent, const void* head, uint32_t head_len, const void* data,
+                      uint32_t len) {
+  const uint32_t size = CMD_HEAD + head_len + len;
+  if (size > CMD_FRAME_MAX || !data_matrix_linked(port)) {
+    return;
+  }
+  uint8_t packet[size];  // at most one frame
+  cmd_push_head(packet, (uint8_t)port->id, urgent);
+  if (head_len > 0) {
+    memcpy(packet + CMD_HEAD, head, head_len);
+  }
+  memcpy(packet + CMD_HEAD + head_len, data, len);
+  data_matrix_send(port, (uint8_t)(CMD_SEND_NOWAIT | urgent), packet, size);
 }
 
 bool data_matrix_send_to(data_matrix_port_t* self, data_matrix_port_id_t target, uint8_t flags, const uint8_t* data,

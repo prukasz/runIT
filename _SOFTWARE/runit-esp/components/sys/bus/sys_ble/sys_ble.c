@@ -601,11 +601,7 @@ void sys_ble_on_disconnect(void) {
     ble_char_t* c;
     LL_FOREACH(s->chars, c) {
       c->subscribed = false;
-      size_t size;
-      void* item;
-      while (c->tx != NULL && (item = xRingbufferReceive(c->tx, &size, NO_WAIT)) != NULL) {
-        vRingbufferReturnItem(c->tx, item);
-      }
+      u_ringbuf_clear(c->tx);
       if (c->rx != NULL) {
         c->rx->active = false;
       }

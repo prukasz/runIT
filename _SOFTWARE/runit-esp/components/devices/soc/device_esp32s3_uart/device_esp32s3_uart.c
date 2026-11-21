@@ -81,11 +81,7 @@ static bool has_reader(const port_t* c) {
 static void flush_rx(port_t* c) {
   c->flush_seq++;
   (void)uart_flush_input(c->uart);
-  size_t len = 0;
-  void* item = NULL;
-  while ((item = xRingbufferReceive(c->rx_rb, &len, 0)) != NULL) {
-    vRingbufferReturnItem(c->rx_rb, item);
-  }
+  u_ringbuf_clear(c->rx_rb);
 }
 
 /* ----------------------------------------------------------------------------
@@ -98,24 +94,28 @@ static void deliver(port_t* c, uint32_t len, uint32_t* seq) {
   if (len == 0) {
     return;
   }
-  xSemaphoreTake(c->lock, portMAX_DELAY);
-  const bool flushed = *seq != c->flush_seq;
-  *seq = c->flush_seq;
-  const uint8_t owner = flushed ? SYS_DEVICE_ID_NONE : c->owner;
-  const uint8_t gen = c->owner_gen;
-  const uint16_t op = c->owner_op;
-  const bool here = !flushed && owner == SYS_DEVICE_ID_NONE;  // not dropped, not a subscriber's
-  if (here && c->cb != NULL) {
-    c->cb(c->cb_ctx, c->rx.data, len);
-  } else if (here) {  // for RECEIVE: when full, the oldest goes
-    size_t old_len = 0;
-    void* old = NULL;
-    while (xRingbufferSend(c->rx_rb, c->rx.data, len, 0) != pdTRUE &&
-           (old = xRingbufferReceive(c->rx_rb, &old_len, 0)) != NULL) {
-      vRingbufferReturnItem(c->rx_rb, old);
+  uint8_t owner;
+  uint8_t gen;
+  uint16_t op;
+  {
+    U_MUTEX_GUARD(c->lock);
+    const bool flushed = *seq != c->flush_seq;
+    *seq = c->flush_seq;
+    owner = flushed ? SYS_DEVICE_ID_NONE : c->owner;
+    gen = c->owner_gen;
+    op = c->owner_op;
+    const bool here = !flushed && owner == SYS_DEVICE_ID_NONE;  // not dropped, not a subscriber's
+    if (here && c->cb != NULL) {
+      c->cb(c->cb_ctx, c->rx.data, len);
+    } else if (here) {  // for RECEIVE: when full, the oldest goes
+      size_t old_len = 0;
+      void* old = NULL;
+      while (xRingbufferSend(c->rx_rb, c->rx.data, len, 0) != pdTRUE &&
+             (old = xRingbufferReceive(c->rx_rb, &old_len, 0)) != NULL) {
+        vRingbufferReturnItem(c->rx_rb, old);
+      }
     }
   }
-  xSemaphoreGive(c->lock);
   if (owner != SYS_DEVICE_ID_NONE) {
     c->rx.hdr.port = c->id;
     err_report(sys_device_deliver(owner, gen, op, &c->rx, (uint32_t)sizeof(c->rx.hdr) + len));
@@ -248,15 +248,17 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_SEND_FRAME) {
 // RECEIVE (`tx` empty) and TRANSACT: the caller the port's reader for the call; TRANSACT flushes, sends, then reads.
 static err_h read_one(port_t* c, cmd_in_t tx, uint16_t wait_ms, cmd_out_t* out) {
   ERR_CHECK(wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
-  xSemaphoreTake(c->lock, portMAX_DELAY);
-  const bool busy = has_reader(c);
-  if (!busy) {
-    c->reading = true;
-    if (tx.len > 0) {
-      flush_rx(c);
+  bool busy;
+  {
+    U_MUTEX_GUARD(c->lock);
+    busy = has_reader(c);
+    if (!busy) {
+      c->reading = true;
+      if (tx.len > 0) {
+        flush_rx(c);
+      }
     }
   }
-  xSemaphoreGive(c->lock);
   ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
   const TickType_t start = xTaskGetTickCount();
   const TickType_t total = MSEC(wait_ms);
@@ -284,12 +286,14 @@ OP_DECLARE_WRITE_TAIL(CONTRACT_UART, OP_TRANSACT) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
-  xSemaphoreTake(c->lock, portMAX_DELAY);
-  const bool busy = has_reader(c);
-  if (!busy) {
-    flush_rx(c);
+  bool busy;
+  {
+    U_MUTEX_GUARD(c->lock);
+    busy = has_reader(c);
+    if (!busy) {
+      flush_rx(c);
+    }
   }
-  xSemaphoreGive(c->lock);
   ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
   return NULL;
 }
@@ -298,33 +302,37 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
 OP_DECLARE_WRITE(CONTRACT_UART, OP_SUBSCRIBE) {
   const uint8_t caller = sys_device_caller();
   ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_BAD_ARG);
-  xSemaphoreTake(c->lock, portMAX_DELAY);
-  const bool busy = args->op != 0 && has_reader(c);
-  if (args->op == 0 && c->owner == caller) {
-    c->owner = SYS_DEVICE_ID_NONE;
-  } else if (args->op != 0 && !busy) {
-    c->owner = caller;
-    c->owner_gen = sys_device_gen(caller);
-    c->owner_op = args->op;
-    flush_rx(c);
+  bool busy;
+  {
+    U_MUTEX_GUARD(c->lock);
+    busy = args->op != 0 && has_reader(c);
+    if (args->op == 0 && c->owner == caller) {
+      c->owner = SYS_DEVICE_ID_NONE;
+    } else if (args->op != 0 && !busy) {
+      c->owner = caller;
+      c->owner_gen = sys_device_gen(caller);
+      c->owner_op = args->op;
+      flush_rx(c);
+    }
   }
-  xSemaphoreGive(c->lock);
   ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
   return NULL;
 }
 
 // A C reader (a provider adapter). `cb` NULL: the hook with this `ctx` lets go.
 OP_DECLARE_WRITE(CONTRACT_UART, OP_RX_HOOK) {
-  xSemaphoreTake(c->lock, portMAX_DELAY);
-  const bool busy = args->cb != NULL && has_reader(c);
-  if (args->cb == NULL && c->cb_ctx == args->ctx) {
-    c->cb = NULL;
-  } else if (args->cb != NULL && !busy) {
-    c->cb = args->cb;
-    c->cb_ctx = args->ctx;
-    flush_rx(c);
+  bool busy;
+  {
+    U_MUTEX_GUARD(c->lock);
+    busy = args->cb != NULL && has_reader(c);
+    if (args->cb == NULL && c->cb_ctx == args->ctx) {
+      c->cb = NULL;
+    } else if (args->cb != NULL && !busy) {
+      c->cb = args->cb;
+      c->cb_ctx = args->ctx;
+      flush_rx(c);
+    }
   }
-  xSemaphoreGive(c->lock);
   ERR_CHECK(!busy, ERR_UART_IN_USE, .port = c->id, .owner = c->owner);
   return NULL;
 }
@@ -334,9 +342,8 @@ OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
   ERR_TRY(ERR_ESP(uart_set_baudrate(c->uart, c->init_baud)));
   c->baud = c->init_baud;
   sys_uart_txq_clear(&c->txq);
-  xSemaphoreTake(c->lock, portMAX_DELAY);
+  U_MUTEX_GUARD(c->lock);
   flush_rx(c);
-  xSemaphoreGive(c->lock);
   return NULL;
 }
 

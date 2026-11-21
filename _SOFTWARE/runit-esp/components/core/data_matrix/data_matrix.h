@@ -176,6 +176,19 @@ void data_matrix_send_except(data_matrix_port_t* port, data_matrix_port_id_t exc
 bool data_matrix_linked(const data_matrix_port_t* port);
 
 /**
+ * @brief Sends a PUSH out of a port, NOWAIT: [hdr PUSH, key = the port's number][head][data] to every port linked
+ * from it. Nothing is built when none is linked; a PUSH over CMD_FRAME_MAX is dropped.
+ * @param port     The owner's port: a module's stream, named by its module number.
+ * @param urgent   CMD_SEND_URGENT or 0.
+ * @param head     A fixed part before the data (NULL: none), borrowed for the call.
+ * @param head_len Bytes in head.
+ * @param data     The data, borrowed for the call.
+ * @param len      Bytes in data.
+ */
+void data_matrix_push(data_matrix_port_t* port, uint8_t urgent, const void* head, uint32_t head_len, const void* data,
+                      uint32_t len);
+
+/**
  * @brief The links, port by port: each output's targets.
  * @param out  Where the links go, may be NULL when max is 0.
  * @param max  Room in out, in links.

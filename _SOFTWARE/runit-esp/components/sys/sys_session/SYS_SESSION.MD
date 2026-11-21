@@ -82,7 +82,7 @@ No time: nothing is sent and the silence ends nothing.
 
 ## Reached and gone: events
 
-The sessions publish two events (`sys_session_events.h`, module `MODULE_ID_SESSION`, source the peer's id, channel 0, inline): **`SESSION_EV_REACHED`** when a session opens and **`SESSION_EV_GONE`** `{safety}` when it ends. A listener subscribes with `sys_event_subscribe` and `SESSION_GONE_FILTER` / `SESSION_REACHED_FILTER` (`SYS_EVENT_RUN_INLINE`); it runs on the context that noticed it (a driver's RX task, the board timers' task, the events' task, the caller of detach), drops what it keeps for that peer and never blocks. The ones that listen: the watches (server and client), the remote devices and sys_system.
+The sessions publish two events (`sys_session_events.h`, module `MODULE_ID_SESSION`, source the peer's id, channel 0, inline): **`SESSION_EV_REACHED`** when a session opens and **`SESSION_EV_GONE`** `{safety}` when it ends. A listener subscribes with `sys_event_subscribe` and `SESSION_GONE_FILTER` / `SESSION_REACHED_FILTER` (`SYS_EVENT_RUN_INLINE`), or for GONE with `sys_session_on_gone(fn)` (`fn(peer, safety)`); it runs on the context that noticed it (a driver's RX task, the board timers' task, the events' task, the caller of detach), drops what it keeps for that peer and never blocks. The ones that listen: the watches (server and client), the remote devices and sys_system.
 
 ## Remote (`sys_session_router`, root key `MODULE_ID_SESSION` 0x2C)
 

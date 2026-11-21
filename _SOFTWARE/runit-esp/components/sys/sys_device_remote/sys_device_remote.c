@@ -58,11 +58,10 @@ U_TASK_DEFINE(sys_device_remote_task_h, CONFIG_SYS_DEVICE_REMOTE_TASK_STACK);
 
 static bool has_subscriber(uint8_t id) {
   bool any = false;
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_device_remote_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS && !any; i++) {
     any = s_rem.subs[i].used && s_rem.subs[i].id == id;
   }
-  xSemaphoreGive(sys_device_remote_lock);
   return any;
 }
 
@@ -139,17 +138,18 @@ err_h sys_device_remote_subscribe(uint8_t id, uint8_t peer) {
   int at = -1;
   bool known = false;
   bool listened = false;
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-  for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
-    const sub_t* s = &s_rem.subs[i];
-    known |= s->used && s->id == id && s->peer == peer;
-    listened |= s->used && s->id == id;
-    at = at < 0 && !s->used ? (int)i : at;
+  {
+    U_MUTEX_GUARD(sys_device_remote_lock);
+    for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
+      const sub_t* s = &s_rem.subs[i];
+      known |= s->used && s->id == id && s->peer == peer;
+      listened |= s->used && s->id == id;
+      at = at < 0 && !s->used ? (int)i : at;
+    }
+    if (!known && at >= 0) {
+      s_rem.subs[at] = (sub_t){.used = true, .peer = peer, .id = id};
+    }
   }
-  if (!known && at >= 0) {
-    s_rem.subs[at] = (sub_t){.used = true, .peer = peer, .id = id};
-  }
-  xSemaphoreGive(sys_device_remote_lock);
   if (known) {
     return NULL;
   }
@@ -162,16 +162,18 @@ err_h sys_device_remote_subscribe(uint8_t id, uint8_t peer) {
   err_h err = sys_event_subscribe(
       (sys_event_key_t){.tag = SYS_EVENT_ANY_TAG, .source = id, .channel = SYS_EVENT_ANY_CHANNEL}, on_device_event, NULL,
       SYS_EVENT_RUN_QUEUED_DEVICE, &handle);
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-  sub_t* s = &s_rem.subs[at];
-  const bool same = s->used && s->id == id && s->peer == peer;
-  if (same && err == NULL) {
-    s->listens = true;
-    s->handle = handle;
-  } else if (same) {
-    s->used = false;
+  bool same;
+  {
+    U_MUTEX_GUARD(sys_device_remote_lock);
+    sub_t* s = &s_rem.subs[at];
+    same = s->used && s->id == id && s->peer == peer;
+    if (same && err == NULL) {
+      s->listens = true;
+      s->handle = handle;
+    } else if (same) {
+      s->used = false;
+    }
   }
-  xSemaphoreGive(sys_device_remote_lock);
   if (!same && err == NULL) {
     drop_listener(handle);  // unsubscribed meanwhile
   }
@@ -180,14 +182,15 @@ err_h sys_device_remote_subscribe(uint8_t id, uint8_t peer) {
 
 void sys_device_remote_unsubscribe(uint8_t id, uint8_t peer) {
   int handle = -1;
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-  for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
-    if (s_rem.subs[i].used && s_rem.subs[i].id == id && s_rem.subs[i].peer == peer) {
-      handle = sub_free_locked(i);
-      break;
+  {
+    U_MUTEX_GUARD(sys_device_remote_lock);
+    for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
+      if (s_rem.subs[i].used && s_rem.subs[i].id == id && s_rem.subs[i].peer == peer) {
+        handle = sub_free_locked(i);
+        break;
+      }
     }
   }
-  xSemaphoreGive(sys_device_remote_lock);
   drop_listener(handle);
 }
 
@@ -205,13 +208,14 @@ static void send_out(uint8_t* packet, uint32_t len) {
   const uint8_t id = frame[0];
   uint8_t to[CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS];
   uint32_t n = 0;
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-  for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
-    if (s_rem.subs[i].used && s_rem.subs[i].id == id) {
-      to[n++] = s_rem.subs[i].peer;
+  {
+    U_MUTEX_GUARD(sys_device_remote_lock);
+    for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
+      if (s_rem.subs[i].used && s_rem.subs[i].id == id) {
+        to[n++] = s_rem.subs[i].peer;
+      }
     }
   }
-  xSemaphoreGive(sys_device_remote_lock);
   const uint8_t urgent = frame[1] == SYS_DEVICE_REMOTE_ERROR ? CMD_SEND_URGENT : 0u;
   cmd_push_head(packet, MODULE_ID_REMOTE, urgent);
   for (uint32_t i = 0; i < n; i++) {
@@ -327,18 +331,18 @@ static err_h on_created(const sys_event_t* event, void* ctx) {
  * ------------------------------------------------------------------------- */
 
 // A session ended (SESSION_EV_GONE, the peer is the event's source): its subscriptions here end.
-static err_h on_gone(const sys_event_t* event, void* ctx) {
-  (void)ctx;
-  const uint8_t peer = (uint8_t)event->key.source;
+static void on_gone(uint8_t peer, uint8_t safety) {
+  (void)safety;
   const bool all = peer == CMD_SRC_ALL;
   for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
-    xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-    const bool hit = s_rem.subs[i].used && (s_rem.subs[i].peer == peer || all);
-    const int handle = hit ? sub_free_locked(i) : -1;
-    xSemaphoreGive(sys_device_remote_lock);
+    int handle;
+    {
+      U_MUTEX_GUARD(sys_device_remote_lock);
+      const bool hit = s_rem.subs[i].used && (s_rem.subs[i].peer == peer || all);
+      handle = hit ? sub_free_locked(i) : -1;
+    }
     drop_listener(handle);
   }
-  return NULL;
 }
 
 // A session opened (SESSION_EV_REACHED, the peer is the event's source): its board's remote devices subscribe there.
@@ -388,11 +392,13 @@ static err_h on_write_done(void* ctx, const cmd_req_t* cmd, uint8_t status, cons
 static bool wired_now(uint8_t board) {
   const bool wired = sys_session_wired(board);
   const uint32_t bit = 1u << (board % 32u);
-  xSemaphoreTake(sys_device_remote_lock, portMAX_DELAY);
-  uint32_t* word = &s_rem.not_wired[board / 32u];
-  const bool tell = !wired && !(*word & bit);
-  *word = wired ? (*word & ~bit) : (*word | bit);
-  xSemaphoreGive(sys_device_remote_lock);
+  bool tell;
+  {
+    U_MUTEX_GUARD(sys_device_remote_lock);
+    uint32_t* word = &s_rem.not_wired[board / 32u];
+    tell = !wired && !(*word & bit);
+    *word = wired ? (*word & ~bit) : (*word | bit);
+  }
   if (tell) {
     err_report_board(ERR_NEW(ERR_REMOTE_NOT_WIRED, .board = board), board);
   }
@@ -463,7 +469,7 @@ __attribute__((constructor)) static void task_start(void) {
 
 err_h sys_device_remote_init(void) {
   uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached, NULL, SYS_EVENT_RUN_INLINE, &handle));
   ERR_TRY(data_matrix_register(&s_port));
   ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,

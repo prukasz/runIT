@@ -19,10 +19,7 @@ static err_h on_notify_event(const sys_event_t* event, void* ctx) {
   if ((event->flags & SYS_EVENT_NOTIFY) == 0u || len > CMD_DATA_MAX) {
     return NULL;
   }
-  uint8_t packet[CMD_HEAD + len];
-  cmd_push_head(packet, MODULE_ID_SYS_EVENT, CMD_SEND_URGENT);
-  memcpy(packet + CMD_HEAD, event, len);
-  data_matrix_send(&s_events, CMD_SEND_NOWAIT | CMD_SEND_URGENT, packet, sizeof(packet));
+  data_matrix_push(&s_events, CMD_SEND_URGENT, NULL, 0, event, len);
   return NULL;
 }
 

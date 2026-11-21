@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "utils.h"
+
 #define ITEM_BYTES(n) ((((uint32_t)(n) + 3u) & ~3u) + 8u)  // a NOSPLIT ring's room for an item of n bytes
 
 static uint16_t crc16(const uint8_t* data, uint32_t len) {
@@ -94,11 +96,7 @@ void sys_uart_txq_free(sys_uart_txq_t* q) {
 
 void sys_uart_txq_clear(sys_uart_txq_t* q) {
   for (uint32_t u = 0; u < 2; u++) {
-    size_t len = 0;
-    void* item = NULL;
-    while ((item = xRingbufferReceive(q->rb[u], &len, 0)) != NULL) {
-      vRingbufferReturnItem(q->rb[u], item);
-    }
+    u_ringbuf_clear(q->rb[u]);
   }
 }
 

@@ -107,13 +107,6 @@ static void on_gone(uint8_t peer, uint8_t safety) {
   }
 }
 
-// A session ended (SESSION_EV_GONE): the peer is the event's source.
-static err_h on_gone_event(const sys_event_t* event, void* ctx) {
-  (void)ctx;
-  on_gone((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
-  return NULL;
-}
-
 // A session opened (SESSION_EV_REACHED): the peer is the event's source.
 static err_h on_reached_event(const sys_event_t* event, void* ctx) {
   (void)ctx;
@@ -136,7 +129,7 @@ void sys_system_restart_later(void) {
 
 err_h sys_system_init(void) {
   uint16_t handle = 0;
-  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_gone_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  ERR_TRY(sys_session_on_gone(on_gone));
   ERR_TRY(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   board_timer_init(&s_sys.restart_timer, restart_now, NULL);
   board_timer_init(&s_sys.time_timer, on_time_tick, NULL);
