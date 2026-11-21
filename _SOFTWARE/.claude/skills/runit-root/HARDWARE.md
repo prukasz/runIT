@@ -4,7 +4,7 @@ Current hardware revision. Sources of truth, in order:
 
 1. [runit-esp-archive/boards/runit_r1_defs.h](../../../runit-esp-archive/boards/runit_r1_defs.h) — device IDs, TCA pins, power limits
 2. [runit-esp-archive/boards/runit_r1_devices.c](../../../runit-esp-archive/boards/runit_r1_devices.c), [RUNIT.MD](../../../runit-esp/components/app/runit/RUNIT.MD) "Boot order" — how each onboard chip is created and wired; `board.json` — the board descriptor
-3. `runit-esp/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` (a device not moved yet: `runit-esp-archive/components/devices/device_<chip>/`) — per-device create frame and ops (published to `runit-app/generated/devices/`)
+3. `runit-esp/components/devices/{soc,chips,virtual}/device_<chip>/device_<chip>.json` — per-device create frame and ops (published to `runit-app/generated/devices/`)
 
 If this file and those sources disagree, the sources win — update this file.
 
@@ -80,8 +80,8 @@ All onboard chips are created by the board's profile (SYS_BOARD.MD), except the 
 | 11 | TPS55289 `TPS55289_1` | Voltage Regulator | 0x75 | INT → TCA 2, EN → TCA 16 | Adjustable rail B |
 | 12 | INA3221 | Power Monitor | 0x40 | CRIT → TCA 6, WARN → TCA 5 (measured 2026-09-27) | V/I of rail A, rail B and whole-board input, with alerts |
 | 13 | AP33772S | USB-C Power Delivery | 0x52 | INT → TCA 21 | PD sink: request/read PDOs, negotiated V/I, protection events |
-| 7 | `SUPPLY_DRV8962_0` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #1: A = TCA 14 (board input, VSUP), B = TCA 15 (rail B, TPS55289 0x75); high = on | Onboard, created at boot with both switches off; the source (off / A / B) is a default setting of the stored hardware config |
-| 8 | `SUPPLY_DRV8962_1` (power mux, type `0x4A`) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 12 (board input, VSUP), B = TCA 13 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
+| 7 | `SUPPLY_DRV8962_0` (power mux) | Power supply select | — | LM73100 pair of DRV8962 #1: A = TCA 14 (board input, VSUP), B = TCA 15 (rail B, TPS55289 0x75); high = on | Onboard, created at boot with both switches off; the source (off / A / B) is a default setting of the stored hardware config |
+| 8 | `SUPPLY_DRV8962_1` (power mux) | Power supply select | — | LM73100 pair of DRV8962 #2: A = TCA 12 (board input, VSUP), B = TCA 13 (rail A, TPS55289 0x74); high = on | Same; A is always the board input, B the regulator rail of that bridge |
 | — | TPS259474 ×2 | — (not modelled) | — | PG → TCA 3 (VUSB_OK), TCA 4 (VEXT_OK) | Input eFuses |
 
 Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pull outputs, 23 high (the status LED), 22 low. Pin 22 **must** be an output: as a floating input it toggles at ~25 kHz and floods the TCA INT line. Before the port, 22 was high (the chip's latch reset value) and 23 low.
@@ -103,7 +103,7 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 - **DAC53202** — set voltage, read back last voltage, power off channel.
 - **TPS55289** — set voltage, set current limit, enable/disable. Protection faults are published as power events.
 - **INA3221** — read bus voltage, read current, set warning/critical current alert (published as a power event).
-- **AP33772S** — request PD profile, list offered profiles, read negotiated V/I, output control (single rail, channel 0).
+- **AP33772S** — request PD profile (the charger's PPS profile when it fits, else the highest fixed one at or below the voltage; no AVS), list offered profiles, read negotiated V/I, output control (single rail, channel 0).
 
 ## 4. Buses and connectivity
 
@@ -118,9 +118,9 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 
 | Hardware | Firmware status |
 |---|---|
-| DRV8962 ×2 (H-bridges) | New firmware: both create on the PCB and brake (2026-10-11, `board_tests.py`, VM supplies never switched on); no real load, overcurrent or shutdown tested |
-| DAC53202 | Created (ID 4); used as DRV8962 VREF |
-| LM73100 ×4 (power-source selection) | Onboard power muxes 7 and 8 (2026-10-06, build only); the DRV8962 does not check its mux yet |
+| INA3221, AP33772S, DAC53202, ADS7128, DRV8962 ×2, the power muxes, a servo | Drivers in `runit-esp`, built; not run on the PCB yet |
+| DRV8962 ×2 (H-bridges) | No real load, overcurrent or shutdown tested; the DRV8962 does not check its power mux |
+| DAC53202 | Used as DRV8962 VREF (ID 4) |
 | TPS259474 eFuses ×2 | No firmware device |
 | ADS7128 digital mode | Hardware supports analog **and** digital inputs; the device is ADC-only |
 | PCA9685 CH 8–15 | Reserved for DRV8962 #2 — must not be exposed to users as free PWM |

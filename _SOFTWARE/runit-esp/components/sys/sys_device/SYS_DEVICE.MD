@@ -37,7 +37,7 @@ Inside `sys_device/`:
 | ID | Owner |
 |---|---|
 | `0x2F` | The registry (`MODULE_ID_SYS_DEVICE`): the device's lifecycle ops |
-| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(MODULE_ID_P, 0x01)` in its `<contract>_id.h` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, MODULE_ID_P)` in its header |
+| `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(MODULE_ID_P, 0x..)` in its `<contract>_id.h` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, MODULE_ID_P)` in its header |
 | `0xFF` | A device's own ops, a table in its driver (`SYS_DEVICE_OWN_DECLARE`); no contract takes it |
 
 The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<contract>_id.h`; everything else names it `MODULE_ID_P`. Two contracts with one ID fail to compile where both headers meet, and fail `templates/sync.sh` (`module_id.h`). A contract may be its header only. The ID is wire format and the module of the contract's events.
@@ -52,7 +52,7 @@ The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<c
 | `SYS_DEVICE_OP_DIRECT` | A read that takes something or costs (UART RECEIVE, I2C PROBE / SCAN / RAW): a WIRELESS remote device sends it and waits for the answer instead of serving it from a watch's copy, which would run it every period (SYS_DEVICE_REMOTE.MD "A call") |
 | `SYS_DEVICE_OP_TAIL` | The write's payload is its value (the head, packed) and then bytes of any number; its handler is `OP_DECLARE_WRITE_TAIL` |
 
-**The registry's ops** (contract `0x2F`):
+**The registry's ops** (contract `MODULE_ID_SYS_DEVICE`):
 
 | Op | n | Side | Notes |
 |---|---|---|---|
@@ -181,7 +181,7 @@ Two `uint64_t` masks per slot (`uses`, `used_by`), cleared when the device goes.
 
 ## Events
 
-Module `0x2F` (`MODULE_ID_SYS_DEVICE`, the registry's number), the table `SYS_DEVICE_EVENTS` in `events/sys_device_events.h`. Source = the device (or `SYS_DEVICE_ID_NONE` for a sweep), channel 0.
+Module `MODULE_ID_SYS_DEVICE` (the registry's number), the table `SYS_DEVICE_EVENTS` in `events/sys_device_events.h`. Source = the device (or `SYS_DEVICE_ID_NONE` for a sweep), channel 0.
 
 | Event | Flags | Payload | When |
 |---|---|---|---|
@@ -198,7 +198,7 @@ Module `0x2F` (`MODULE_ID_SYS_DEVICE`, the registry's number), the table `SYS_DE
 One source, no header, nothing includes it. A driver of a SoC peripheral with parts of their own (the ESP32-S3 GPIO: PWM on LEDC, an ADC task) splits them into sources of its folder with a header private to it, still without `INCLUDE_DIRS`; the type is declared and defined in the driver's source:
 
 ```c
-SYS_DEVICE_TYPE_DECLARE(PCA9685, 0x0041)                             // the type ID, once: PCA9685_TYPE
+SYS_DEVICE_TYPE_DECLARE(PCA9685, 0x....)                             // the type ID, once: PCA9685_TYPE
 
 typedef struct { uint8_t id; ... } pca_t;                            // the driver's struct
 #define SYS_DEVICE_CTX pca_t                                         // every body below sees it as `c`
@@ -214,7 +214,7 @@ static const sys_device_op_t k_ops[] = {OP_ENTRY(CONTRACT_IO, OP_LEVEL), ...};
 SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 ```
 
-- **Type ID**: the driver's own, four hex digits, at least `SYS_DEVICE_TYPE_FIRST` (`0x0040`); wire format. `SYS_DEVICE_TYPE_DECLARE(NAME, 0x0041)` at the top of the source writes it once: `NAME_TYPE`, for the definition at the end and for the module of the type's own events (`SYS_EVENT_MODULE_TYPE(NAME_TYPE)`). Two drivers with one ID fail to link. Drivers live under `components/devices/{soc,chips,virtual}/` and use `runit_device(...)` (`components/devices/device.cmake`, which enforces `WHOLE_ARCHIVE`, no `INCLUDE_DIRS`, no `REQUIRES`, no `device_*` deps, and SoC peripheral drivers under `devices/soc/` only).
+- **Type ID**: the driver's own, four hex digits, at least `SYS_DEVICE_TYPE_FIRST`; wire format. `SYS_DEVICE_TYPE_DECLARE(NAME, 0x....)` at the top of the source writes it once: `NAME_TYPE`, for the definition at the end and for the module of the type's own events (`SYS_EVENT_MODULE_TYPE(NAME_TYPE)`). Two drivers with one ID fail to link. Drivers live under `components/devices/{soc,chips,virtual}/` and use `runit_device(...)` (`components/devices/device.cmake`, which enforces `WHOLE_ARCHIVE`, no `INCLUDE_DIRS`, no `REQUIRES`, no `device_*` deps, and SoC peripheral drivers under `devices/soc/` only).
 - **The struct**: named once, `#define SYS_DEVICE_CTX pca_t`, after the struct and before the first handler. Every handler's body and the hooks take it typed as `c`; no body casts `ctx` or marks a parameter unused.
 - **Hooks**: `create(id, c, cfg)`, `suspend(c)`, `resume(c)` are required and typed; a hook of another signature fails to compile in `SYS_DEVICE_TYPE_DEFINE`. `cfg` is the frame's bytes, read in place (a create struct is packed, asserted). `SYS_DEVICE_TYPE_DEFINE_HAS_OP` adds `has_op(c, op)` (an op of the table the device can't run as wired). There is no uninstall hook.
 - **The type**: `SYS_DEVICE_TYPE_DEFINE` is the last line. It fills the registry's `sys_device_type_t` (the sizes from the types, the op count from the table) and registers it before `app_main`; a driver never writes that struct.
@@ -263,7 +263,7 @@ Host tests in `host/` (`python test_host/run.py sys_device` from `runit-esp-arch
 
 Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep's RESET skipping a type without one, the device timer (`sys_device_timer`, the step itself is), priorities and stack sizes.
 
-## Errors (`MODULE_ID_SYS_DEVICE` = 0x2F, `MODULE_ID_SYS_DEVICE`)
+## Errors (`MODULE_ID_SYS_DEVICE`)
 
 | Tag | Severity | When |
 |---|---|---|

@@ -15,8 +15,8 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
 | `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`); a static check that `ERR_HDR_LEN` is the node's header |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
-| `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (0, no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
-| `errors_id.h` | `MODULE_ID_ERRORS` (`0x24`): the number of the errors' stream (its port in the data matrix, its PUSH key; DATA_MATRIX.MD "Every byte of a provider through the matrix"); not the tags' module, which is each module's own |
+| `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
+| `errors_id.h` | `MODULE_ID_ERRORS`: the number of the errors' stream (its port in the data matrix, its PUSH key; DATA_MATRIX.MD "Every byte of a provider through the matrix"); not the tags' module, which is each module's own |
 | `CMakeLists.txt` | Component registration and source files |
 | `Kconfig` | Configuration for call-site info, pool size, line buffer length, module limits |
 | `host/` | Host tests: `test_errors.c`, `host_test.json`, `errors_host_config.h` (see Tests); not part of the firmware build |
@@ -35,7 +35,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 A module declares tags once as an X-macro map in its header, and registers them in one `.c`:
 
 ```c
-MODULE_ID_DECLARE(MODULE_ID_I2C, 0x02)                 // sys_i2c_id.h: the module's number (module_id.h)
+MODULE_ID_DECLARE(MODULE_ID_I2C, 0x..)                 // sys_i2c_id.h: the module's number (module_id.h)
 #define ERR_I2C_MAP(X, M) \
   X(M, ERR_I2C_NACK, 1, ERR_SEV_HIGH, { uint8_t addr; uint8_t reg; })
 ERR_TAGS_DECLARE(MODULE_ID_I2C, ERR_I2C_MAP)           // header: enum (ERR_TAG(module, code)) + err_data_*_t
@@ -119,22 +119,22 @@ src 1: err_record_cmd_t (5 B, after the stamp)
 - `src 0` (internal: device task, timer, boot) has no command header.
 - `err_record_parse(data, len, &chain)` makes a record a chain again, its nodes outermost first; the source and the command header are skipped, a tag this board doesn't know keeps its payload as is (cut to `ERR_DATA_MAX`). With the pool short the outermost nodes are left out. A record cut short: `ERR_RECORD_CUT{len}`; no place for the chain, or no bytes where `len` promises some: `ERR_NULL_PTR`.
 
-Example (an ERROR answer), a read of INFO of device 9 that is not there, from the client 0xF0 (SYS_SESSION.MD "Frames"), as the board sent it:
+Example (an ERROR answer), a read of INFO of device 9 that is not there, from the client `f0` (SYS_SESSION.MD "Frames"), as the board sent it (a field in brackets is its bytes):
 
 ```
-request   00 01 00 | 2F 00 09 05 2F                REQUEST, seq 1; sys_device key 0x2F, dir read, device 9, op 0x2F05 (INFO)
-answer    44 01 00                                   ANSWER (status ERROR), seq 1
-          01 | 45 ed 0a 00 00 00 00 00              command; clock not set (time since the start: 0x0aed45 ms)
-          f0 | 01 00 | 00                            from f0, seq 1, flags 0
-          05 | 2F 00 09 05 2F                        request: 5 B
-          04                                         chain: 4 nodes
-          01 00 21 00 | 01 | 2F                       ERR_ROUTER_KEY        key 0x2F (sys_device)
-          0d 00 2f 00 | 01 | 09                       ERR_DEV_ID            id 9
-          11 00 2f 00 | 03 | 05 2f 00                 ERR_DEV_OP            op 0x2F05, dir 0
-          03 00 2f 00 | 01 | 09                       ERR_DEV_NOT_FOUND     id 9
+request   [REQUEST][seq 1] | [MODULE_ID_SYS_DEVICE][0 read][9][INFO u16]
+answer    [ANSWER, status ERROR][seq 1]
+          [1 command][stamp u64]                       clock not set: the time since the start
+          [f0][seq 1][flags 0]                         from f0, seq 1
+          [5][MODULE_ID_SYS_DEVICE][0][9][INFO u16]    request: 5 B
+          [4]                                          chain: 4 nodes
+          [ERR_ROUTER_KEY u32][1][MODULE_ID_SYS_DEVICE]  key: the device router
+          [ERR_DEV_ID u32][1][9]                       id 9
+          [ERR_DEV_OP u32][3][INFO u16][0]             op INFO, dir read
+          [ERR_DEV_NOT_FOUND u32][1][9]                id 9
 ```
 
-## Core Errors (`MODULE_ID_CORE` = 0)
+## Core Errors (`MODULE_ID_CORE`)
 
 | Error | Severity | Context / Fields | Description |
 |---|---|---|---|

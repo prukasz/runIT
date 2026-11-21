@@ -2984,26 +2984,26 @@
           "tag": 3342338,
           "name": "ERR_PWRM_BUDGET_EXCEEDED",
           "severity": 2,
-          "size": 10,
+          "size": 9,
           "fields": [
             {
               "name": "id",
-              "type": "u16",
+              "type": "u8",
               "offset": 0,
-              "size": 2,
+              "size": 1,
               "id_kind": "device"
             },
             {
               "name": "requested_mW",
               "type": "u32",
-              "offset": 2,
+              "offset": 1,
               "size": 4,
               "unit": "mW"
             },
             {
               "name": "available_mW",
               "type": "u32",
-              "offset": 6,
+              "offset": 5,
               "size": 4,
               "unit": "mW"
             }
@@ -3090,13 +3090,13 @@
           "tag": 3342341,
           "name": "ERR_PWRM_RAIL_TAKEN",
           "severity": 2,
-          "size": 2,
+          "size": 1,
           "fields": [
             {
               "name": "id",
-              "type": "u16",
+              "type": "u8",
               "offset": 0,
-              "size": 2,
+              "size": 1,
               "id_kind": "device"
             }
           ],
@@ -3109,13 +3109,13 @@
           "tag": 3342342,
           "name": "ERR_PWRM_NOT_RAIL",
           "severity": 3,
-          "size": 2,
+          "size": 1,
           "fields": [
             {
               "name": "id",
-              "type": "u16",
+              "type": "u8",
               "offset": 0,
-              "size": 2,
+              "size": 1,
               "id_kind": "device"
             }
           ],

@@ -35,7 +35,7 @@ A command is a `cmd_req_t` (`cmd_types.h` in `utils`; an error record names it):
 | `seq` | The sender's counter, `u16`; in its answer |
 | `flags` | `ROUTER_FLAG_URGENT` (bit 0: the urgent task; the client decides what is urgent, the firmware has no fixed list), `ROUTER_FLAG_NOREPLY` (bit 1: no answer; a failure still goes to the errors stream) |
 
-- `dir` (`cmd_dir_e`, `router_queue.h`): 0 `CMD_DIR_READ`, 1 `CMD_DIR_WRITE`, the side of the command that runs (ROUTER.MD "Read and write"). A module's command is `[key][dir][code][args]`; a device's `[0x05][dir][id u16][op u16][args]` (SYS_DEVICE.MD). A side the command doesn't have, or a dir above 1: `ERR_CMD_DIRECTION{dir}`.
+- `dir` (`cmd_dir_e`, `router_queue.h`): 0 `CMD_DIR_READ`, 1 `CMD_DIR_WRITE`, the side of the command that runs (ROUTER.MD "Read and write"). A module's command is `[key][dir][code][args]`; a device's `[MODULE_ID_SYS_DEVICE][dir][id u8][op u16][args]` (SYS_DEVICE.MD). A side the command doesn't have, or a dir above 1: `ERR_CMD_DIRECTION{dir}`.
 - Payloads are packed little-endian structs, size checked exactly (`CMD_HANDLER`, ROUTER.MD "Routing").
 - The flags are defined here only: the header's type byte carries them at the same bits (`CMD_TYPE_FLAGS`, cmd.h; checked at build time in `router_queue.h`), and an answer's status at bit 2 (`CMD_TYPE_STATUS`).
 
@@ -84,7 +84,7 @@ A board is called by its id through `sys_session_port(board, MODULE_ID_ROUTER, &
 - **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
 - **Urgent work** `router_run_urgent(fn)`: runs `fn` once on the urgent task, soon (any task or a timer callback, not an ISR); called again before it ran, it still runs once; another `fn` waiting → `ERR_ROUTER_BUSY`. For work that must not wait behind a command and may block: the safe state of `sys_system` (SYS_SYSTEM.MD). Whether a peer is alive is the session's (SYS_SESSION.MD "Gone peers").
 
-## Errors (`MODULE_ID_ROUTER_QUEUE` = 0x22)
+## Errors (`MODULE_ID_ROUTER_QUEUE`)
 
 A tag about a command carries its `src`.
 

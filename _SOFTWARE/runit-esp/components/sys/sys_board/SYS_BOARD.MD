@@ -6,7 +6,7 @@ Component `runit-esp/components/sys/sys_board/`. What the board is, kept on the 
 |---|---|
 | `sys_board.h` / `.c` | `sys_board_init` (the JSON file), `sys_board_boot` (the record's RUN_ALL) |
 | `internal/sys_board_internal.h` | `sys_board_json`, for the router only |
-| `router/sys_board_router.h` / `.c` | The remote interface (root key `MODULE_ID_BOARD` 0x27): the frames, then `BOARD_OPERATIONS`; registers itself |
+| `router/sys_board_router.h` / `.c` | The remote interface (root key `MODULE_ID_BOARD`): the frames, then `BOARD_OPERATIONS`; registers itself |
 | `router/contract_board.json` | The router's descriptor |
 
 ## Model
@@ -32,7 +32,7 @@ The ESP32-S3's GPIO (device `0x00`) is the one device the record does not create
 
 A JSON file of `nvs_store` (NVS_STORE.MD), namespace `board` in the partition `CONFIG_SYS_ACTIONS_PARTITION`, opened by `sys_board_init`. The firmware stores it and never reads it.
 
-## Remote (`sys_board_router`, root key `MODULE_ID_BOARD` 0x27)
+## Remote (`sys_board_router`, root key `MODULE_ID_BOARD`)
 
 | Op | Side | Args | Answer |
 |---|---|---|---|

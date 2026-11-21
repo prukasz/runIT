@@ -10,7 +10,7 @@ sys_device     (op tables per device type: [id][op][args])  ──────�
 
 The device registry and the queue do **not depend on each other**:
 - A device driver or a contract compiles **without `router` or `router_queue`**.
-- An error for a bad payload in a device op is `ERR_CMD_BAD_LEN` (`MODULE_ID_CMD` = `0x20`), not a router or queue error.
+- An error for a bad payload in a device op is `ERR_CMD_BAD_LEN` (`MODULE_ID_CMD`), not a router or queue error.
 - Code that handles commands can be built and tested independently of routing and transport layers.
 
 Each `sys_*` module with a remote interface has its own `*_router.c` and depends on `router` **privately** (`PRIV_REQUIRES router`); its public header carries no router headers.
@@ -87,7 +87,7 @@ Every request names the side of its command it runs: the `cmd_dir_e` byte right 
 
 A root key is the number of the module that owns the router (`MODULE_ID_<NAME>`, `core/utils/module_id.h`): the same number is the module's error module and the module of its events. There is no list of keys; a module's doc names its key and its commands (SYS_DEVICE.MD, SYS_POWER_MANAGER.MD "Remote"). `ROUTER_MODULE_REGISTER` binds the key to the router; `0` is invalid.
 
-## Errors (`MODULE_ID_ROUTER` = 0x21)
+## Errors (`MODULE_ID_ROUTER`)
 
 A tag about a command carries its `src`.
 
@@ -101,7 +101,7 @@ A tag about a command carries its `src`.
 | `ERR_ROUTER_KEY_TAKEN` | HIGH | `u8 key` | Root key already registered |
 | `ERR_ROUTER_TABLE_FULL` | HIGH | `u8 key` | Root table capacity (`CONFIG_ROUTER_MAX_KEYS`) reached |
 
-The handler's errors (`ERR_CMD_BAD_LEN`, `ERR_CMD_OUT_FULL`, `ERR_CMD_BAD_ARG`, `ERR_CMD_DIRECTION`) are `MODULE_ID_CMD` (`0x20`, `components/core/cmd/CMD.MD`).
+The handler's errors (`ERR_CMD_BAD_LEN`, `ERR_CMD_OUT_FULL`, `ERR_CMD_BAD_ARG`, `ERR_CMD_DIRECTION`) are `MODULE_ID_CMD` (`components/core/cmd/CMD.MD`).
 The queue's errors (`ERR_ROUTER_QUEUE_FULL`, `_FRAME_LEN`, `_BUSY`) are `MODULE_ID_ROUTER_QUEUE` (ROUTER_QUEUE.MD).
 
 ## Limits

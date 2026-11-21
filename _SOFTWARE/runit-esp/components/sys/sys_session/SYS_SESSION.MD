@@ -16,9 +16,9 @@ Component `runit-esp/components/sys/sys_session/`. A **session** is the peer of 
 | `sys_session.c` | Everything except board id NVS and router handlers: the sessions, their ports' inputs, the control frames, the hello, the providers' events, the 10 ms tick, attach, detach and the dead-man |
 | `sys_session_events.h` | The module's events: `SESSION_EV_REACHED`, `SESSION_EV_GONE`, and the filters of them |
 | `internal/sys_session_internal.h` | For `sys_session.c` and `router/` only: `sys_session_list` |
-| `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION` 0x2C): the frames, then `SESSION_OPERATIONS`; registers itself |
+| `router/sys_session_router.h` / `.c` | The remote interface (root key `MODULE_ID_SESSION`): the frames, then `SESSION_OPERATIONS`; registers itself |
 | `router/contract_session.json` | The router's descriptor |
-| `errors/` | `MODULE_ID_SESSION` (0x2C), `ERR_SYS_SESSION_MAP`, the messages |
+| `errors/` | `MODULE_ID_SESSION`, `ERR_SYS_SESSION_MAP`, the messages |
 | `Kconfig` | `CONFIG_SYS_SESSION_MAX`, `CONFIG_SYS_SESSION_PORTS` (Limits) |
 
 ## Peers and ids
@@ -83,7 +83,7 @@ No time: nothing is sent and the silence ends nothing.
 
 The sessions publish two events (`sys_session_events.h`, module `MODULE_ID_SESSION`, source the peer's id, channel 0, inline): **`SESSION_EV_REACHED`** when a session opens and **`SESSION_EV_GONE`** `{safety}` when it ends. A listener subscribes with `sys_event_subscribe` and `SESSION_GONE_FILTER` / `SESSION_REACHED_FILTER` (`SYS_EVENT_RUN_INLINE`), or for GONE with `sys_session_on_gone(fn)` (`fn(peer, safety)`); it runs on the context that noticed it (a driver's RX task, the board timers' task, the events' task, the caller of detach), drops what it keeps for that peer and never blocks. The ones that listen: the watches (server and client), the remote devices and sys_system.
 
-## Remote (`sys_session_router`, root key `MODULE_ID_SESSION` 0x2C)
+## Remote (`sys_session_router`, root key `MODULE_ID_SESSION`)
 
 The frames and the table are in `sys_session_router.h`; `contract_session.json` names them.
 
@@ -94,7 +94,7 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 | `0x03` | ATTACH | write | `sys_session_attach_args_t` `{u8 provider, u8 flags, u16 deadman_ms}`, then a `u8` module per sub-port |
 | `0x04` | DETACH | write | `sys_session_detach_args_t` `{u8 provider}` |
 
-## Errors (`MODULE_ID_SESSION` 0x2C)
+## Errors (`MODULE_ID_SESSION`)
 
 `ERR_SESSION_ID_TAKEN{board}`, `_NO_ROUTE{dst}`, `_FULL`, `_NOT_FRAMED`. A call's errors are the router's (ROUTER_QUEUE.MD "Calls").
 

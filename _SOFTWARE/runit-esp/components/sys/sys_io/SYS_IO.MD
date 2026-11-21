@@ -1,6 +1,6 @@
 # sys_io — the IO contract
 
-Not a module with state: a set of device ops (contract `IO` = `0x01`, its module's number `MODULE_ID_IO`, ops `0x01xx`) that mean the same on every device that has pins: a PWM expander (PCA9685), a GPIO expander, the ESP32-S3's own pins. A device lists the IO ops it can do in its op table (SYS_DEVICE.MD, "A driver"); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. A device's pin is (device ID, pin), and using it is a call of that device's op: the same one a command makes.
+Not a module with state: a set of device ops (contract `IO`, its module's number `MODULE_ID_IO`) that mean the same on every device that has pins: a PWM expander (PCA9685), a GPIO expander (TCA6424A), an ADC (ADS7128: VOLTAGE and its window comparator by INTR), a DAC (DAC53202: VOLTAGE), the ESP32-S3's own pins. A device lists the IO ops it can do in its op table (SYS_DEVICE.MD, "A driver"); an op it doesn't have answers `ERR_DEV_UNKNOWN_OP`. A device's pin is (device ID, pin), and using it is a call of that device's op: the same one a command makes.
 
 | File | Contents |
 |---|---|
@@ -25,20 +25,18 @@ The contract is the table `CONTRACT_IO_OPERATIONS(X, P)` (`X(P, OP_NAME, n, key_
 
 | Op | Side | Write args / read answer |
 |---|---|---|
-| `0x0100` LEVEL | RW | `{u8 pin, u8 level}`; read key `{u8 pin}` |
-| `0x0101` TOGGLE | W | `{u8 pin}` |
-| `0x0103` PWM_DUTY | W | `{u8 pin, u32 duty}` |
-| `0x0104` PWM_FREQ | W | `{u8 pin, u32 frequency_Hz}` |
-| `0x0105` MODE | W | `{u8 pin, u8 mode}` (`sys_io_mode_e`) |
-| `0x0106` RESET | W | `{u8 pin}`: the pin back to its power-on state |
-| `0x0107` INTR | W | `{u8 pin, sys_io_intr_cfg_t cfg}` (11 B) |
-| `0x0109` VOLTAGE | RW | `{u8 pin, i32 voltage_mV}` (signed: a negative reading is reported, not wrapped); read key `{u8 pin}` |
-| `0x010A` AVAILABLE | R | u64: the pins the device has |
-| `0x010B` LOCKED | R | u64: the locked ones |
-| `0x010C` LOCK | W | `{u8 pin}`; ALWAYS, LOCAL |
-| `0x010D` UNLOCK | W | `{u8 pin}`; ALWAYS, LOCAL |
-
-`0x02`, `0x08` and `0x0E` are unused: never assign them.
+| LEVEL | RW | `{u8 pin, u8 level}`; read key `{u8 pin}` |
+| TOGGLE | W | `{u8 pin}` |
+| PWM_DUTY | W | `{u8 pin, u32 duty}` |
+| PWM_FREQ | W | `{u8 pin, u32 frequency_Hz}` |
+| MODE | W | `{u8 pin, u8 mode}` (`sys_io_mode_e`) |
+| RESET | W | `{u8 pin}`: the pin back to its power-on state |
+| INTR | W | `{u8 pin, sys_io_intr_cfg_t cfg}` (11 B) |
+| VOLTAGE | RW | `{u8 pin, i32 voltage_mV}` (signed: a negative reading is reported, not wrapped); read key `{u8 pin}` |
+| AVAILABLE | R | u64: the pins the device has |
+| LOCKED | R | u64: the locked ones |
+| LOCK | W | `{u8 pin}`; ALWAYS, LOCAL |
+| UNLOCK | W | `{u8 pin}`; ALWAYS, LOCAL |
 
 - **Duty** is `0..IO_PWM_DUTY_MAX` (4095, 12-bit); a device with another resolution scales, or refuses with `ERR_DEV_RANGE`.
 - **Frequency**: a device with one frequency for all pins (PCA9685) ignores `pin`.
@@ -85,7 +83,7 @@ A pin another device depends on (PCA9685's OE, a chip's RST, an I2C bus's SDA) i
 
 ### The ESP32-S3's own pins
 
-`device_esp32s3_gpio` (type `0x0040`, one per board, `runit-esp/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
+`device_esp32s3_gpio` (one per board, `runit-esp/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
 
 ## A device that uses another device's pin (`driver/sys_io_driver.h`)
 
@@ -105,18 +103,18 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 ## Events
 
-`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)`, module `0x01`, the DEVICE lane; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
+`IO_EVENTS` (`SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)`, module `MODULE_ID_IO`, the DEVICE lane; the table and the delivery are in SYS_EVENT.MD), published by a device for a pin armed with INTR: source = the device, channel = the pin. Flags 0: an edge drives code (an alert pin, the VM) and is not shown by itself.
 
-| Event | Code | Payload |
-|---|---|---|
-| `IO_EV_RISING` | `0x01` | none |
-| `IO_EV_FALLING` | `0x02` | none |
-| `IO_EV_ADC_OUTSIDE` | `0x03` | `i32 mV`: the reading |
-| `IO_EV_ADC_INSIDE` | `0x04` | `i32 mV`: the reading |
+| Event | Payload |
+|---|---|
+| `IO_EV_RISING` | none |
+| `IO_EV_FALLING` | none |
+| `IO_EV_ADC_OUTSIDE` | `i32 mV`: the reading |
+| `IO_EV_ADC_INSIDE` | `i32 mV`: the reading |
 
 The ESP32-S3 GPIO publishes RISING / FALLING of a digital pin from its pin ISR (deferred to the DEVICE lane's task, as every publish from an ISR) and RISING / FALLING / ADC_OUTSIDE / ADC_INSIDE of an ADC pin's thresholds from its ADC task, with `SYS_EVENT_PUBLISH_DEFER`. A device that watches another device's pin takes it with `sys_io_claim_input`, which subscribes its own op (`OP_DECLARE_EVENT`).
 
-## Errors (module `0x01`, `MODULE_ID_IO`)
+## Errors (`MODULE_ID_IO`)
 
 What a device with pins reports besides the registry's `ERR_DEV_BAD_PIN`, `ERR_DEV_PIN_LOCKED`, `ERR_DEV_PIN_NOT_OWNED`, `ERR_DEV_RANGE`, `ERR_DEV_SUSPENDED`:
 

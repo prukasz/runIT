@@ -1,6 +1,6 @@
 # sys_event_stream
 
-Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as one port of the data matrix (DATA_MATRIX.MD), **both ways**: `EVENTS`, `DATA_MATRIX_PORT(MODULE, MODULE_ID_SYS_EVENT)` (0x2E), each packet `[hdr PUSH, MODULE_ID_SYS_EVENT][sys_event_t][payload]`. A component of its own: `sys_event` knows no port.
+Component `components/sys/sys_event_stream/`. The events (SYS_EVENT.MD) as one port of the data matrix (DATA_MATRIX.MD), **both ways**: `EVENTS`, `DATA_MATRIX_PORT(MODULE, MODULE_ID_SYS_EVENT)`, each packet `[hdr PUSH, MODULE_ID_SYS_EVENT][sys_event_t][payload]`. A component of its own: `sys_event` knows no port.
 
 | Way | What |
 |---|---|

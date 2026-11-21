@@ -1,6 +1,6 @@
 # sys_device_router — command router for devices (for agents)
 
-Folder `components/sys/sys_device_router/`. Exposes [`sys_device`](../sys_device/SYS_DEVICE.MD) through [`router`](../../core/router/ROUTER.MD) under root key `MODULE_ID_SYS_DEVICE` (`0x2F`) without making `sys_device` or drivers depend on `router`.
+Folder `components/sys/sys_device_router/`. Exposes [`sys_device`](../sys_device/SYS_DEVICE.MD) through [`router`](../../core/router/ROUTER.MD) under root key `MODULE_ID_SYS_DEVICE` without making `sys_device` or drivers depend on `router`.
 
 ## Files
 
@@ -13,13 +13,13 @@ Folder `components/sys/sys_device_router/`. Exposes [`sys_device`](../sys_device
 
 ## Wire format
 
-A routed command targets root key `MODULE_ID_SYS_DEVICE` (`0x2F`):
+A routed command targets root key `MODULE_ID_SYS_DEVICE`:
 
 ```
-[0x2F][dir u8][id u8][op u16][args ...]
+[MODULE_ID_SYS_DEVICE][dir u8][id u8][op u16][args ...]
 ```
 
-`router_route()` consumes the leading key byte (`0x2F`) and delivers `[dir][id][op][args...]` to `sys_device_router`:
+`router_route()` consumes the leading key byte and delivers `[dir][id][op][args...]` to `sys_device_router`:
 
 ```c
 typedef struct __attribute__((packed)) {

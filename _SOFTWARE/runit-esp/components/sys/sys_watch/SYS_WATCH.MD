@@ -1,6 +1,6 @@
 # sys_watch
 
-Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers go out of the module's port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`, 0x2A) as PUSH packets with the peer that added it (`owner`), to every port linked from `WATCH`: a session's sub-port, the raw BLE telemetry. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
+Component `components/sys/sys_watch/`. A **watch** is a read command run on this board every `period` by a **trigger** (`PERIODIC`, `ON_CHANGE`) whose answers go out of the module's port `WATCH` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_WATCH)`) as PUSH packets with the peer that added it (`owner`), to every port linked from `WATCH`: a session's sub-port, the raw BLE telemetry. The component also holds the **cached reads** of other boards made of such watches (`sys_watch_read` / `sys_watch_stale`).
 
 ## Files
 
@@ -10,7 +10,7 @@ Component `components/sys/sys_watch/`. A **watch** is a read command run on this
 | `sys_watch.c` | The watches of this board: the table, the 10 ms tick (`board_timer`), `router_inject`, the entry (`[hdr PUSH, MODULE_ID_WATCH][owner][id][status][data]` out of `WATCH` to its links), `ERR_MODULE_DEFINE` |
 | `sys_watch_client.c` | The cached reads: slots `FREE` / `ADDING` / `ACTIVE`, the B3 gate on ADD's OK, the idle tick |
 | `internal/sys_watch_internal.h` | Between the sources and the router: `sys_watch_add` / `_remove` / `_list` |
-| `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x2A)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
+| `sys_watch_id.h`, `errors/sys_watch_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_WATCH, 0x..)` (`sys_watch_id.h`), `ERR_SYS_WATCH_MAP`, `errors_sys_watch.json` |
 | `router/sys_watch_router.h` / `.c` | `WATCH_OPERATIONS` (`OP_ADD`, `OP_REMOVE`, `OP_LIST`), `ROUTER_MODULE_REGISTER(MODULE_ID_WATCH, sys_watch_router)`, `contract_watch.json` |
 
 ## The watches of this board
@@ -52,7 +52,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 7. **A peer gone** (`SESSION_EV_GONE`): its slots go back to `ADDING`; the next read adds the watch again.
 8. **Idle:** a slot not read for `CONFIG_SYS_WATCH_IDLE_MS` is freed and its watch removed with `WATCH REMOVE` (a 100 ms `board_timer`).
 
-## Remote (`sys_watch_router`, root key `MODULE_ID_WATCH` `0x2A`)
+## Remote (`sys_watch_router`, root key `MODULE_ID_WATCH`)
 
 | Op | Side | Args | Answer |
 |---|---|---|---|
@@ -60,7 +60,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 | `0x02` `WATCH_OP_REMOVE` | W | `sys_watch_ref_t` (`u8 id`) | – |
 | `0x03` `WATCH_OP_LIST` | R | – | `u8 count` + `count * sys_watch_info_t` (8 B each) |
 
-## Errors (`MODULE_ID_WATCH` = `0x2A` / `42`)
+## Errors (`MODULE_ID_WATCH`)
 
 | Tag | Code | Severity | Data | When |
 |---|---|---|---|---|

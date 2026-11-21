@@ -1,6 +1,6 @@
 # data_matrix
 
-Component `components/core/data_matrix/` (in `core`: it depends on `core` only, and a module of any layer can have a port). **The switch of the ports**: the output of one port goes to the inputs of the ports linked from it, unchanged: to all of them, to one, or to all but one. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX` (`0x23`).
+Component `components/core/data_matrix/` (in `core`: it depends on `core` only, and a module of any layer can have a port). **The switch of the ports**: the output of one port goes to the inputs of the ports linked from it, unchanged: to all of them, to one, or to all but one. It knows nothing of what it carries: no role, no session, no tag, no format, no queue, no task. Root key `MODULE_ID_DATA_MATRIX`.
 
 **A minimal, synchronous implementation, by design.** The switch is a table of ports and their links and the calls that hand a packet on, on the sender's task. It never waits, never queues, keeps no state of a port's owner and does no lifetime tracking: no reference counts, no waiting for sends in flight at an unregister. Everything else is the owner's: what a port does with a packet, its locking, and keeping the port's memory valid (the contract of a port, below).
 
@@ -10,7 +10,7 @@ Component `components/core/data_matrix/` (in `core`: it depends on `core` only, 
 |---|---|
 | `data_matrix.h` / `data_matrix.c` | The port (`data_matrix_port_t`, its contract) and the switch: `data_matrix_send`, `_send_to`, `_send_except`, `data_matrix_register` / `_unregister`, `data_matrix_connect` / `_disconnect`, `data_matrix_linked`, `data_matrix_push`, `data_matrix_links`; the module's error tags registered |
 | `router/data_matrix_router.h` / `.c`, `router/contract_data_matrix.json` | The commands: `CONNECT`, `DISCONNECT`, `LIST` |
-| `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX` 0x23), its messages |
+| `errors/` | `ERR_DATA_MATRIX_MAP` (`MODULE_ID_DATA_MATRIX`), its messages |
 | `data_matrix_id.h` | `MODULE_ID_DATA_MATRIX` |
 
 ## Ports
@@ -78,7 +78,7 @@ Everything a provider carries goes through the matrix, the commands too, and wha
 - `src` and `key` go end to end; `seq` is per link: a session gives a PUSH its class's count, the router a call the `seq` of its slot.
 - `CMD_HEAD` is 5. The header is `core/cmd`'s (CMD.MD "The header": `cmd_hdr_t`, `CMD_TYPE_*`, `cmd_kind_e`, `CMD_SRC_*`, `cmd_push_head`).
 
-**The ports.** A module's (the router, `ERRORS`, the events, `LOGS`, the watches, the remote devices), a provider's, a session's. A module has at most one stream port, named by its module number: the port's name, the PUSH's `key` and the router's key are the same number. `LOGS` `0x29` and `ERRORS` `0x24` (`MODULE_ID_ERRORS`, `core/errors/errors_id.h`) are `sys_log`'s, the events `0x2E` `sys_event_stream`'s, the watches `0x2A`, the remote devices `0x31`.
+**The ports.** A module's (the router, `ERRORS`, the events, `LOGS`, the watches, the remote devices), a provider's, a session's. A module has at most one stream port, named by its module number: the port's name, the PUSH's `key` and the router's key are the same number. `LOGS` (`MODULE_ID_LOG`) and `ERRORS` (`MODULE_ID_ERRORS`, `core/errors/errors_id.h`) are `sys_log`'s, the events (`MODULE_ID_SYS_EVENT`) `sys_event_stream`'s, the watches `MODULE_ID_WATCH`, the remote devices `MODULE_ID_REMOTE`.
 
 **A session** is a port linked both ways with its provider, and the sub-ports it owns: one per module it shows (`MODULE_ID_ROUTER` for the commands, a stream's module). The session port and its sub-ports are joined inside the session (no link, not in `LIST`); the sub-ports are linked in the matrix with the modules' ports. Their names: the high byte `0x80 | provider` (provider ids are below `0x80`), the low byte 0 for the session port, else the module's number. `ATTACH {provider, flags, deadman_ms}` and the modules, a command of `sys_session`, registers them and links the session port with its provider both ways; `DETACH` unregisters them (their links go) (SYS_SESSION.MD "The ports"). What a session does with a frame:
 

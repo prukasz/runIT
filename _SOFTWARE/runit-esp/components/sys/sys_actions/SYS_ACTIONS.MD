@@ -12,8 +12,8 @@ The store holds the kinds of record told apart by the class in the ID: the user'
 |---|---|
 | `sys_actions.h` | API, ID classes, system IDs, onboard actions |
 | `sys_actions.c` | The NVS store, run, writing a record, the onboard actions; `ERR_MODULE_DEFINE` |
-| `sys_actions_id.h`, `errors/sys_actions_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_ACTIONS, 0x28)` (`sys_actions_id.h`), `ERR_SYS_ACTIONS_MAP`; `errors_sys_actions.json` the messages |
-| `router/sys_actions_router.h` / `.c` | The remote interface (root key `MODULE_ID_ACTIONS` 0x28): the frames, then `ACTIONS_OPERATIONS`; registers itself |
+| `sys_actions_id.h`, `errors/sys_actions_errors.h` | `MODULE_ID_DECLARE(MODULE_ID_ACTIONS, 0x..)` (`sys_actions_id.h`), `ERR_SYS_ACTIONS_MAP`; `errors_sys_actions.json` the messages |
+| `router/sys_actions_router.h` / `.c` | The remote interface (root key `MODULE_ID_ACTIONS`): the frames, then `ACTIONS_OPERATIONS`; registers itself |
 | `router/contract_actions.json` | The router's descriptor |
 | `Kconfig` | Partition, largest record, nesting depth |
 
@@ -45,7 +45,7 @@ System IDs (class `0x01`):
 
 Class `0xFF` holds no records: an error policy's actions use it for the policy's own responses (`sys_device_policy.h`). Any client may write any other class and RUN any class.
 
-**Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[0x29][0x01][0x01][level, mirror_serial, trace_errors]` (log CONFIG). The write applies the value live and stores nothing; persistence is the app writing the record.
+**Settings are records.** A settings record is the module's own write frame (`[root key][0x01 write][op][args]`) saved by the app, e.g. the log options as `[MODULE_ID_LOG][CMD_DIR_WRITE][LOG_OP_CONFIG][level, mirror_serial, trace_errors]` (log CONFIG). The write applies the value live and stores nothing; persistence is the app writing the record.
 
 **Image.** Frames back to back, each `[u16 len LE][key][dir][…]`: what `router_route` takes (no seq, no flags; the dir stays), 1..`CMD_DATA_MAX` bytes. The total is at most `CONFIG_SYS_ACTIONS_MAX_BYTES` (4096), of every class; a longer image is `ERR_ACTION_TOO_BIG {len, max}` (BEGIN, `sys_actions_set`). The CRC (`crc32_ieee(0, …)`, zlib / IEEE, CRC.MD) covers the image, which is also what a client sends.
 
@@ -70,20 +70,20 @@ Class `0xFF` holds no records: an error policy's actions use it for the policy's
 
 ## Onboard actions
 
-The firmware's own actions, written by `sys_actions_init` at every boot with `sys_actions_set` (only when they differ, so a client's edit of these IDs is replaced). Their IDs are fixed, `SYS_ACTIONS_ONBOARD_*` in `sys_actions.h`, published as the group `onboard_action`, so the app keeps its own actions off them. Each is one write frame: a device-router sweep to `SYS_DEVICE_ID_NONE` (`sys_device_router.h`: `[0x20][dir][id][op u16]`), or a sys command.
+The firmware's own actions, written by `sys_actions_init` at every boot with `sys_actions_set` (only when they differ, so a client's edit of these IDs is replaced). Their IDs are fixed, `SYS_ACTIONS_ONBOARD_*` in `sys_actions.h`, published as the group `onboard_action`, so the app keeps its own actions off them. Each is one write frame: a device-router sweep to `SYS_DEVICE_ID_NONE` (`sys_device_router.h`: `[MODULE_ID_SYS_DEVICE][dir][id][op u16]`), or a sys command.
 
 | ID | Does | Frame |
 |---|---|---|
-| 3 `SYS_ACTIONS_ONBOARD_RESUME` (`0x00000003`) | resume all | `2F 01 FF 03 2F` (CONTRACT_SYS_DEVICE RESUME, every device) |
-| 4 `SYS_ACTIONS_ONBOARD_SUSPEND` (`0x00000004`) | suspend all | `2F 01 FF 02 2F` |
-| 5 `SYS_ACTIONS_ONBOARD_RESET` (`0x00000005`) | reset all devices | `2F 01 FF 01 2F` (the drivers' RESET) |
-| 6 `SYS_ACTIONS_ONBOARD_HARD_RESET` (`0x00000006`) | hard reset: restart the board | `26 01 03` (sys RESTART, ~100 ms after the answer) |
+| 3 `SYS_ACTIONS_ONBOARD_RESUME` | resume all | `[MODULE_ID_SYS_DEVICE][write][SYS_DEVICE_ID_NONE][RESUME]` (every device) |
+| 4 `SYS_ACTIONS_ONBOARD_SUSPEND` | suspend all | `[MODULE_ID_SYS_DEVICE][write][SYS_DEVICE_ID_NONE][SUSPEND]` |
+| 5 `SYS_ACTIONS_ONBOARD_RESET` | reset all devices | `[MODULE_ID_SYS_DEVICE][write][SYS_DEVICE_ID_NONE][RESET]` (the drivers' RESET) |
+| 6 `SYS_ACTIONS_ONBOARD_HARD_RESET` | hard reset: restart the board | `[MODULE_ID_SYS][write][RESTART]` (~100 ms after the answer) |
 
-Run with `2C 01 01 <id u32>` (actions RUN, a write), or name the ID in a device's error policy. Hard reset restarts the board: the devices and the links are rebuilt by the boot. Reset all touches the devices only.
+Run with `[MODULE_ID_ACTIONS][write][RUN][id u32]`, or name the ID in a device's error policy. Hard reset restarts the board: the devices and the links are rebuilt by the boot. Reset all touches the devices only.
 
-## Remote (`sys_actions_router`, root key `MODULE_ID_ACTIONS` 0x28)
+## Remote (`sys_actions_router`, root key `MODULE_ID_ACTIONS`)
 
-All IDs are u32 LE. `info` = `sys_actions_info_t` `{u16 bytes, u16 count, u32 crc32}`. Requests are `[0x28][dir][op][args]`; READ, INFO and LIST are reads, every other op is a write.
+All IDs are u32 LE. `info` = `sys_actions_info_t` `{u16 bytes, u16 count, u32 crc32}`. Requests are `[MODULE_ID_ACTIONS][dir][op][args]`; READ, INFO and LIST are reads, every other op is a write.
 
 | Op | Request | Response |
 |---|---|---|
@@ -101,7 +101,7 @@ All IDs are u32 LE. `info` = `sys_actions_info_t` `{u16 bytes, u16 count, u32 cr
 
 0x02, 0x03 and 0x0C are unused: never assign them. READ is the mirror of the WRITEs: a client reads from 0 up to INFO's `bytes`, checks the image against INFO's `crc32` and splits it into its frames.
 
-## Errors (`MODULE_ID_ACTIONS` 0x28)
+## Errors (`MODULE_ID_ACTIONS`)
 
 `ERR_ACTION_NOT_FOUND {id}`, `_BAD_ID`, `_BUSY`, `_NO_DRAFT`, `_TOO_BIG {len, max}`, `_OFFSET {got, want}`, `_INCOMPLETE {got, want}`, `_CRC {got, want}` (got = the client's), `_BAD_FRAME {offset}`, `_EMPTY`, `_DEPTH {depth}`, `_WRONG_TASK`, `_NO_MEM {size}`, `_STEP {id, step}` (context), `_BAD_ARG`. NVS failures come as `ERR_ESP_ERR {code}`.
 

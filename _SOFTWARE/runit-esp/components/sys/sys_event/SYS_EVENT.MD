@@ -43,7 +43,7 @@ A tag is `[module u16][code u16]`, `EVT_TAG(module, code)`. The code is 1..`0xFF
 
 | Module | Owner | Where it is assigned |
 |---|---|---|
-| `0x0001`..`0x00FE` | A module, a device contract included: its number (`MODULE_ID_<NAME>`, `module_id.h`), the same as its router key and the module of its errors | `MODULE_ID_DECLARE(MODULE_ID_NAME, 0x22)` in the module's `<module>_id.h` |
+| `0x0001`..`0x00FE` | A module, a device contract included: its number (`MODULE_ID_<NAME>`, `module_id.h`), the same as its router key and the module of its errors | `MODULE_ID_DECLARE(MODULE_ID_NAME, 0x..)` in the module's `<module>_id.h` |
 | `0x8000`..`0xFFFE` | A device type's own events | `SYS_EVENT_MODULE_TYPE(NAME_TYPE)`, in the driver's `.c`: the ID its `SYS_DEVICE_TYPE_DECLARE` gives |
 | `0xFFFF` | The filters (`SYS_EVENT_ANY_TAG`, `SYS_EVENT_ANY_NOTIFY`) | Never a module |
 
@@ -177,7 +177,7 @@ Host tests in `host/` (`python test_host/run.py sys_event` from `runit-esp-archi
 
 Not covered on the host: priorities, the lanes' stacks, an interrupt's timing.
 
-## Errors (`MODULE_ID_SYS_EVENT` = 0x2E, `MODULE_ID_SYS_EVENT`)
+## Errors (`MODULE_ID_SYS_EVENT`)
 
 | Tag | Severity | Fields | When |
 |---|---|---|---|

@@ -4,7 +4,7 @@ Spec: `SYS_DEVICE.MD` (this folder).
 
 - Every change in this folder is followed by an edit of `SYS_DEVICE.MD` and of this file, if it is needed.
 - Three headers, three readers: `sys_device.h` (every caller), `sys_device_driver.h` (a driver), `sys_device_hooks.h` (the app's wiring). `slots/`, `registry/`, `call/` and `remote/` are private: no other component includes them.
-- The registry names no driver, no contract but its own (`0x2F`) and no module above it. A driver registers itself (`SYS_DEVICE_TYPE_DEFINE`), a contract declares its own ID (`MODULE_ID_DECLARE` in its `<contract>_id.h`), the app wires itself in through the hooks. Never add a list of types or contracts.
+- The registry names no driver, no contract but its own (`MODULE_ID_SYS_DEVICE`) and no module above it. A driver registers itself (`SYS_DEVICE_TYPE_DEFINE`), a contract declares its own ID (`MODULE_ID_DECLARE` in its `<contract>_id.h`), the app wires itself in through the hooks. Never add a list of types or contracts.
 - Wire format, never renumbered: the registry's op numbers (0x07 stays unused), `SYS_DEVICE_CREATE_*`, `sys_device_info_t`, `sys_device_remote_t`, the type IDs, the contract IDs, the events and their payloads, the error tags.
 - A contract ID is written once, as two hex digits, in its `MODULE_ID_DECLARE(MODULE_ID_X, 0x..)` (the contract's `<contract>_id.h`); everything else names it `MODULE_ID_X` (`SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_X, MODULE_ID_X)`).
 - One lock per device, not recursive; the only way past it is `SYS_DEVICE_OP_NOLOCK`. Never add a recursive lock or a lock of the whole registry.
