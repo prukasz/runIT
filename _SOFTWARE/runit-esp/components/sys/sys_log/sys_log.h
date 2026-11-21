@@ -3,7 +3,7 @@
 #include "cmd.h"
 #include "err_record.h"
 #include "errors.h"
-#include "sys_log_errors.h"
+#include "sys_log_id.h"
 #include "utils.h"
 
 #ifdef __cplusplus
@@ -36,14 +36,14 @@ typedef struct sys_log_cfg sys_log_cfg_t;
  * @brief Registers the module's ports (LOGS, ERRORS) and takes over ESP_LOG: every line goes to the console (if
  * mirror_serial) and, without ANSI colours and the line end, cut to one frame (CMD_DATA_MAX), out of LOGS; then
  * applies the defaults (INFO, mirror off, trace on).
- * @return ERR_DATA_MATRIX_BAD_ARG / _FULL of a port's registration
+ * @return ERR_BAD_ARG / _FULL of a port's registration
  */
 MUST_USE err_h sys_log_init(void);
 
 /**
  * @brief Applies the options at once (not stored: the app saves the CONFIG write frame as a record).
  * @param[in] cfg The three options
- * @return ERR_LOG_BAD_LEVEL{level, max}, ERR_CMD_BAD_ARG for a flag other than 0 / 1 (nothing changes)
+ * @return ERR_RANGE{level, max}, ERR_BAD_ARG for a flag other than 0 / 1 (nothing changes)
  */
 MUST_USE err_h sys_log_set(const sys_log_cfg_t* cfg);
 

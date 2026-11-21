@@ -97,7 +97,7 @@ void router_register(uint8_t key, cmd_f fn);
 /**
  * @brief Binds every module router queued via ROUTER_MODULE_REGISTER / router_register() into the root table. Boot,
  * once, called by router_init (router_queue.h).
- * @return ERR_CMD_BAD_ARG, ERR_ROUTER_KEY_TAKEN, or ERR_ROUTER_TABLE_FULL
+ * @return ERR_BAD_ARG, ERR_ROUTER_KEY_TAKEN, or ERR_ROUTER_TABLE_FULL
  */
 MUST_USE err_h router_root_init(void);
 

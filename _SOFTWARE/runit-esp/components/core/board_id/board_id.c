@@ -50,7 +50,7 @@ uint8_t board_id(void) {
 }
 
 err_h board_id_save(uint8_t id) {
-  ERR_CHECK(id_ok(id), ERR_CMD_BAD_ARG);
+  ERR_CHECK(id_ok(id), ERR_BAD_ARG);
   nvs_store_ns_t ns = 0;
   ERR_TRY(nvs_store_open(PARTITION, NAMESPACE, &ns));
   return nvs_store_set(ns, KEY_ID, &id, sizeof(id));

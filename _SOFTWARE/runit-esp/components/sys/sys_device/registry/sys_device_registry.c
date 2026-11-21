@@ -87,7 +87,7 @@ static err_h release_resources(uint8_t id) {
 }
 
 err_h sys_device_res_add(uint8_t owner, sys_device_res_t* res, sys_device_res_f release, void* arg) {
-  ERR_CHECK(res != NULL && release != NULL && res->release == NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(res != NULL && release != NULL && res->release == NULL, ERR_BAD_ARG);
   res->release = release;
   res->arg = arg;
   const err_h err = sys_device_slot_res_push(owner, res);
@@ -218,7 +218,7 @@ err_h sys_device_registry_create(uint8_t id, cmd_in_t in) {
   uint16_t type_id;
   memcpy(&type_id, in.data, sizeof(type_id));  // little-endian target
   const uint8_t flags = in.data[sizeof(type_id)];
-  ERR_CHECK((flags & ~SYS_DEVICE_CREATE_SYSTEM) == 0, ERR_DEV_BAD_ARG);
+  ERR_CHECK((flags & ~SYS_DEVICE_CREATE_SYSTEM) == 0, ERR_BAD_ARG);
   const sys_device_type_t* type = sys_device_type_find(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(in.len - SYS_DEVICE_CREATE_HDR == type->cfg_size, ERR_CMD_BAD_LEN,
@@ -226,7 +226,7 @@ err_h sys_device_registry_create(uint8_t id, cmd_in_t in) {
   ERR_TRY(sys_device_slot_begin_create(id));  // the new generation, before create() hands anything out by it
 
   void* instance = calloc(1, type->ctx_size);
-  ERR_CHECK(instance != NULL || type->ctx_size == 0, ERR_DEV_NO_MEM, .id = id, .size = type->ctx_size);
+  ERR_CHECK(instance != NULL || type->ctx_size == 0, ERR_NO_MEM, .size = type->ctx_size);
   err_h err = type->create(id, instance, in.data + SYS_DEVICE_CREATE_HDR);
   if (err == NULL) {
     err = sys_device_slot_install(id, type, instance, (flags & SYS_DEVICE_CREATE_SYSTEM) != 0, false);

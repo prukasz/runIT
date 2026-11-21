@@ -83,16 +83,6 @@ extern "C" {
 #define SYS_DEVICE_OWN_EVENTS(P) SYS_EVENT__TABLE(P, SYS_EVENT_MODULE_TYPE(P##_TYPE), DEVICE)
 
 /**
- * @brief ERR_DEV_RANGE unless lo <= v <= hi. The bounds are written once: the check and the error's min / max come from
- * the same expressions. The value and the bounds are reported as int32_t (ERR_DEV_RANGE is signed).
- * The parameter is `dev`, not `id`: a parameter named `id` would also be replaced after the `.` of `.id =`.
- * @usage SYS_DEV_CHECK_IN_RANGE(id, a->duty, 0, IO_PWM_DUTY_MAX);
- */
-#define SYS_DEV_CHECK_IN_RANGE(dev, v, lo, hi)                                                                   \
-  ERR_CHECK_IN_RANGE((v), (lo), (hi), ERR_DEV_RANGE, .id = (dev), .value = (int32_t)(v), .min = (int32_t)(lo), \
-                     .max = (int32_t)(hi))
-
-/**
  * @brief One entry of a device's op table: the op and its two sides (NULL = the device has no such side). Each gets
  * the driver's struct as ctx and the side's args only.
  */
@@ -279,7 +269,7 @@ static inline sys_device_target_t sys_device_target_unpack(const void* ctx) {
  * @param[in] id  Device ID
  * @param[in] gen The generation the step is for: sys_device_gen() in the device's create()
  * @param[in] op  An own op of the device (SYS_DEVICE_OWN_OP), LOCAL in its table
- * @return NULL when the op ran or the step was skipped; ERR_DEV_BAD_ARG for generation 0 or an op not the device's
+ * @return NULL when the op ran or the step was skipped; ERR_BAD_ARG for generation 0 or an op not the device's
  *         own; else the op's error, wrapped like a call's (ERR_DEV_OP, ERR_DEV_ID)
  */
 MUST_USE err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op);
@@ -295,7 +285,7 @@ MUST_USE err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op);
  * @param[in] op       Target write op (an own op or contract event op; never a registry op)
  * @param[in] args     Payload bytes (NULL if args_len is 0)
  * @param[in] args_len Length in bytes
- * @return NULL on delivery or stale-generation skip; ERR_DEV_BAD_ID, ERR_DEV_BAD_ARG, or the call's error wrapped
+ * @return NULL on delivery or stale-generation skip; ERR_DEV_BAD_ID, ERR_BAD_ARG, or the call's error wrapped
  */
 MUST_USE err_h sys_device_deliver(uint8_t id, uint8_t gen, uint16_t op, const void* args, uint32_t args_len);
 
@@ -321,7 +311,7 @@ typedef struct sys_device_res_s {
  * @param[out] res     The resource's node, in the driver's struct; not added yet
  * @param[in]  release Gives the resource back
  * @param[in]  arg     Passed to `release`; valid as long as the driver's struct
- * @return ERR_DEV_BAD_ID{owner}, ERR_DEV_BAD_ARG for a NULL or a node added already, ERR_DEV_NOT_LOCKED{owner} for
+ * @return ERR_DEV_BAD_ID{owner}, ERR_BAD_ARG for a NULL or a node added already, ERR_DEV_NOT_LOCKED{owner} for
  *         a caller without the lock of `owner`
  * @usage ERR_TRY(sys_device_res_add(id, &c->bus_res, bus_release, c));
  *        ERR_TRY(ERR_ESP(i2c_new_master_bus(&cfg, &c->bus)));  // bus_release deletes c->bus unless it is NULL

@@ -7,7 +7,7 @@ Folder `components/sys/sys_device_event/`. Bridges [`sys_event`](../sys_event/SY
 | File | Role |
 |---|---|
 | `sys_device_event.h` | `CONTRACT_EVENT` (`0x03`), `CONTRACT_EVENT_OPERATIONS` (`OP_ON_EVENT`), `OP_DECLARE_EVENT`, `OP_DECLARE_ON_EVENT`, `sys_device_event_subscribe_op`, `sys_device_event_subscribe` |
-| `sys_device_event_id.h` | `MODULE_ID_DECLARE(MODULE_ID_EVENT, 0x03)` |
+| `sys_device_event_id.h` | `MODULE_ID_DECLARE(MODULE_ID_EVENT, 0x04)` |
 | `sys_device_event.c` | The subscription adapter (`sys_device_target_pack`/`unpack` + `sys_device_deliver`) |
 | `contract_event.json` | Descriptor of the `EVENT` contract (`OP_ON_EVENT`): the 20 B `sys_event_t` and its payload (`services.test.ts` of the app holds it against the C struct) |
 | `CMakeLists.txt` | Requires `sys_device` and `sys_event` |
@@ -15,7 +15,7 @@ Folder `components/sys/sys_device_event/`. Bridges [`sys_event`](../sys_event/SY
 
 ## Contract `EVENT` (`0x03`)
 
-`MODULE_ID_DECLARE(MODULE_ID_EVENT, 0x03)` (`sys_device_event_id.h`) / `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, MODULE_ID_EVENT)`.
+`MODULE_ID_DECLARE(MODULE_ID_EVENT, 0x04)` (`sys_device_event_id.h`) / `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, MODULE_ID_EVENT)`.
 
 | Op | Dir | Args (wire) | Answer | Flags | Purpose |
 |---|---|---|---|---|---|

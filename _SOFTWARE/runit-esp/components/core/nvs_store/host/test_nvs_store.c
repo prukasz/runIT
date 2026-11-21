@@ -73,24 +73,24 @@ static void test_json_validation_bad_arg_and_offset(void) {
 
   const uint8_t data[] = {1, 2, 3};
   err_h e = nvs_store_json_append(&f, 0, NULL, 3);
-  TEST_ASSERT_ERR_TAG(ERR_NVS_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   e = nvs_store_json_append(&f, 0, data, 0);
-  TEST_ASSERT_ERR_TAG(ERR_NVS_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   e = nvs_store_json_append(&f, 5, data, 3);
-  TEST_ASSERT_ERR_TAG(ERR_NVS_OFFSET, e);
-  TEST_ASSERT_EQUAL_UINT32(5, ERR_DATA(e, ERR_NVS_OFFSET)->got);
-  TEST_ASSERT_EQUAL_UINT32(0, ERR_DATA(e, ERR_NVS_OFFSET)->want);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_OFFSET, e);
+  TEST_ASSERT_EQUAL_UINT32(5, ERR_DATA(e, ERR_BAD_OFFSET)->got);
+  TEST_ASSERT_EQUAL_UINT32(0, ERR_DATA(e, ERR_BAD_OFFSET)->want);
   err_free(e);
 
   TEST_ASSERT_NULL(nvs_store_json_append(&f, 0, data, 3));
   e = nvs_store_json_append(&f, 2, data, 3);
-  TEST_ASSERT_ERR_TAG(ERR_NVS_OFFSET, e);
-  TEST_ASSERT_EQUAL_UINT32(2, ERR_DATA(e, ERR_NVS_OFFSET)->got);
-  TEST_ASSERT_EQUAL_UINT32(3, ERR_DATA(e, ERR_NVS_OFFSET)->want);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_OFFSET, e);
+  TEST_ASSERT_EQUAL_UINT32(2, ERR_DATA(e, ERR_BAD_OFFSET)->got);
+  TEST_ASSERT_EQUAL_UINT32(3, ERR_DATA(e, ERR_BAD_OFFSET)->want);
   err_free(e);
 }
 

@@ -12,10 +12,6 @@
     "ERR_SESSION_NOT_FRAMED": {
       "message": "A session needs a link that carries a whole frame; this one is raw, or there is none",
       "hint": "Attach a session to a framed provider."
-    },
-    "ERR_SESSION_FULL": {
-      "message": "No room for another board connection",
-      "hint": "Remove one first."
     }
   }
 }

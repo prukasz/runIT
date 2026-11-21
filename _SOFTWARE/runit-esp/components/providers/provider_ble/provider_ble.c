@@ -75,7 +75,7 @@ static err_h ble_create(sys_data_provider_t* p, const void* cfg_in) {
   const provider_ble_cfg_t* cfg = cfg_in;
   ERR_CHECK(cfg->svc != 0 && (cfg->tx != 0 || cfg->rx != 0) && (cfg->flags & ~PROVIDER_BLE_FRAMED) == 0u &&
                 memchr(cfg->name, '\0', sizeof(cfg->name)) != NULL,
-            ERR_CMD_BAD_ARG);
+            ERR_BAD_ARG);
   char text[sizeof(cfg->name) + 4];
   const uint8_t framed = (cfg->flags & PROVIDER_BLE_FRAMED) != 0u ? SYS_BLE_CHR_FRAMED : 0u;
   me->svc = cfg->svc;

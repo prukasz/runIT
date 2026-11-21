@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /*
- * Events of the power manager itself: module MODULE_ID_PWRM (0x22), source SYS_DEVICE_ID_NONE (or the rail device for
+ * Events of the power manager itself: module MODULE_ID_PWRM (0x33), source SYS_DEVICE_ID_NONE (or the rail device for
  * LIMIT_REACHED), channel 0. Fault/matrix event codes match sys_power_kind_e; informational events start at 0x10.
  *   INPUT_OVP        - the input voltage is above its limit
  *   BATTERY_LOW      - the battery fell to its low threshold

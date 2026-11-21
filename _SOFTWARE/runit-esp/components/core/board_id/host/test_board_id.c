@@ -32,15 +32,15 @@ static void test_save_reload_and_validation(void) {
 
   /* Client & reserved IDs refused (0xF0..0xFF) */
   err_h e = board_id_save(CMD_SRC_CLIENT_FIRST);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   e = board_id_save(CMD_SRC_SELF);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   e = board_id_save(CMD_SRC_ALL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   /* Valid board ID persisted and loaded on next init */

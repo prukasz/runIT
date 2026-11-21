@@ -118,7 +118,7 @@ static void on_tick(void* arg) {
 err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) {
   ERR_CHECK(head->id != 0 && head->period != 0 && head->trigger <= SYS_WATCH_ON_CHANGE && read.len >= 2u &&
                 read.len <= SYS_WATCH_READ_MAX && owner != CMD_SRC_NONE && owner <= CMD_SRC_CLIENT_LAST,
-            ERR_WATCH_BAD_ARG, .id = head->id);
+            ERR_BAD_ARG);
   ERR_CHECK(read.data[1] == CMD_DIR_READ, ERR_WATCH_NOT_READ, .id = head->id);
 
   watch_t* at = NULL;
@@ -143,7 +143,7 @@ err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner) 
     memcpy(at->read, read.data, read.len);
   }
   xSemaphoreGive(sys_watch_mutex);
-  ERR_CHECK(at != NULL, ERR_WATCH_FULL);
+  ERR_CHECK(at != NULL, ERR_FULL, .max = CONFIG_SYS_WATCH_MAX);
   return NULL;
 }
 

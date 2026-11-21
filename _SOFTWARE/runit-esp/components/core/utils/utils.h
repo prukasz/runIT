@@ -38,7 +38,9 @@ extern "C" {
  * @brief Compiler warns if the caller ignores the return value.
  * @usage MUST_USE err_h foo_init(void);
  */
+#ifndef MUST_USE
 #define MUST_USE __attribute__((warn_unused_result))
+#endif
 
 /* ----------------------------------------------------------------------------
  * Time

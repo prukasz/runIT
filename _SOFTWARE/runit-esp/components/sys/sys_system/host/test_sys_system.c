@@ -23,7 +23,7 @@ err_h sys_device_sweep(uint16_t op) {
   s_sweep_calls++;
   s_last_sweep_op = op;
   if (s_fail_resume_sweep && op == CONTRACT_SYS_DEVICE_OP_RESUME) {
-    return ERR_NEW(ERR_CMD_BAD_ARG);
+    return ERR_NEW(ERR_BAD_ARG);
   }
   return NULL;
 }
@@ -173,14 +173,14 @@ static void test_deadman_bye_ping_time_and_tasks_router_ops(void) {
   s_has_origin = false;
   err_h e = route_sys(CMD_DIR_WRITE, SYS_OP_DEADMAN, &dm, sizeof(dm), reply, sizeof(reply), &rlen);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
 
   s_has_origin = true;
   s_origin.src = CMD_SRC_SELF;
   e = route_sys(CMD_DIR_WRITE, SYS_OP_BYE, NULL, 0, reply, sizeof(reply), &rlen);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
 
   /* Valid client origin: DEADMAN set/get, then BYE disarms with safety=false */
@@ -202,7 +202,7 @@ static void test_deadman_bye_ping_time_and_tasks_router_ops(void) {
   sys_system_time_t tm = {.unix_ms = 0};
   e = route_sys(CMD_DIR_WRITE, SYS_OP_TIME, &tm, sizeof(tm), reply, sizeof(reply), &rlen);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
 
   tm.unix_ms = 1700000000000ULL;

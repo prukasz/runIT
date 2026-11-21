@@ -46,7 +46,7 @@ const sys_device_op_t* sys_device_registry_op(uint16_t op);
  * the slot is installed when it worked.
  * @param[in] id Device ID, not installed
  * @param[in] in The args
- * @return ERR_CMD_BAD_LEN, ERR_DEV_BAD_ARG (flags), ERR_DEV_TYPE_UNKNOWN, ERR_DEV_ID_TAKEN, ERR_DEV_NO_MEM, or the
+ * @return ERR_CMD_BAD_LEN, ERR_BAD_ARG (flags), ERR_DEV_TYPE_UNKNOWN, ERR_DEV_ID_TAKEN, ERR_NO_MEM, or the
  *         create() error wrapped in ERR_DEV_INSTALL
  */
 MUST_USE err_h sys_device_registry_create(uint8_t id, cmd_in_t in);

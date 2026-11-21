@@ -9,7 +9,6 @@
 #include "router.h"
 #include "sdkconfig.h"
 #include "sys_log.h"
-#include "sys_log_errors.h"
 #include "sys_log_router.h"
 #include "unity.h"
 
@@ -89,18 +88,18 @@ static void test_config_validation_and_router(void) {
   TEST_ASSERT_NULL(route_log(CMD_DIR_WRITE, LOG_OP_CONFIG, &cfg, sizeof(cfg), reply, sizeof(reply), &rlen));
   TEST_ASSERT_EQUAL_INT(4, host_log_level_get());
 
-  /* Above CONFIG_LOG_MAXIMUM_LEVEL -> ERR_LOG_BAD_LEVEL */
+  /* Above CONFIG_LOG_MAXIMUM_LEVEL -> ERR_RANGE */
   cfg.level = CONFIG_LOG_MAXIMUM_LEVEL + 1;
   err_h e = route_log(CMD_DIR_WRITE, LOG_OP_CONFIG, &cfg, sizeof(cfg), reply, sizeof(reply), &rlen);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_LOG_BAD_LEVEL, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_RANGE, err_root_tag(e));
   err_free(e);
 
-  /* Non-boolean mirror_serial -> ERR_CMD_BAD_ARG */
+  /* Non-boolean mirror_serial -> ERR_BAD_ARG */
   cfg = (sys_log_cfg_t){.level = 3, .mirror_serial = 2, .trace_errors = 1};
   e = route_log(CMD_DIR_WRITE, LOG_OP_CONFIG, &cfg, sizeof(cfg), reply, sizeof(reply), &rlen);
   TEST_ASSERT_NOT_NULL(e);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
 }
 

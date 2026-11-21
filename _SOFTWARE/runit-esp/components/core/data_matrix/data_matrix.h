@@ -106,7 +106,7 @@ _Static_assert(sizeof(data_matrix_link_t) == 4, "data_matrix wire size");
 /**
  * @brief Registers a port: keeps it and its place. A module's at boot; a provider's by its CREATE.
  * @param port  The port, the owner's (kept by pointer), its id and `in` filled.
- * @return NULL; ERR_DATA_MATRIX_BAD_ARG (NULL, a name already registered), ERR_DATA_MATRIX_FULL
+ * @return NULL; ERR_BAD_ARG (NULL, a name already registered), ERR_FULL
  *         (CONFIG_DATA_MATRIX_PORTS taken)
  */
 MUST_USE err_h data_matrix_register(data_matrix_port_t* port);
@@ -114,15 +114,15 @@ MUST_USE err_h data_matrix_register(data_matrix_port_t* port);
 /**
  * @brief Unregisters a port: its links go with it. A provider's first thing at its REMOVE.
  * @param port  The port.
- * @return NULL; ERR_DATA_MATRIX_BAD_ARG (not registered)
+ * @return NULL; ERR_BAD_ARG (not registered)
  */
 MUST_USE err_h data_matrix_unregister(data_matrix_port_t* port);
 
 /**
  * @brief Links the output of `from` to the input of `to`. The same link again changes nothing.
  * @param link  The link.
- * @return NULL; ERR_DATA_MATRIX_BAD_ARG (an unknown port, a port to itself, `to` with no input),
- *         ERR_DATA_MATRIX_FULL (`from` already goes to CONFIG_DATA_MATRIX_TARGETS ports)
+ * @return NULL; ERR_BAD_ARG (an unknown port, a port to itself, `to` with no input),
+ *         ERR_FULL (`from` already goes to CONFIG_DATA_MATRIX_TARGETS ports)
  */
 MUST_USE err_h data_matrix_connect(const data_matrix_link_t* link);
 

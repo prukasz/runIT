@@ -173,7 +173,7 @@ static err_h chip_set_voltage(tps_t* c, uint16_t voltage_mV) {
   const uint32_t step = k_intfb[vout_fs & VOUT_FS_INTFB].step_100uV;
   const uint32_t min_mV = k_intfb[vout_fs & VOUT_FS_INTFB].min_mV;
   const uint32_t max_mV = min_mV + REF_MAX * step / 10u;
-  SYS_DEV_CHECK_IN_RANGE(c->id, voltage_mV, min_mV, max_mV);
+  ERR_CHECK_RANGE(voltage_mV, min_mV, max_mV);
   const uint16_t ref = (uint16_t)((voltage_mV - min_mV) * 10u / step);
   ERR_TRY(sys_i2c_reg_write_u16(&c->i2c, REG_REF_LSB, ref, SYS_I2C_LE));
   c->out_mV = voltage_mV;
@@ -320,7 +320,7 @@ static err_h tps_set_enable(tps_t* c, bool state) {
  * On: returns once the rise started; VREG_EV_READY when the output is settled.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_ENABLE) {
-  ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->enable <= 1, ERR_BAD_ARG);
   return tps_set_enable(c, args->enable != 0);
 }
 
@@ -331,7 +331,7 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_ENABLE) {
  * ramp just follows the new target.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_VOLTAGE) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
+  ERR_CHECK_RANGE(args->voltage_mV, TPS55289_MIN_VOLTAGE_MV, TPS55289_MAX_VOLTAGE_MV);
   c->last_voltage_mV = (uint16_t)args->voltage_mV;
   if (!tps_powered(c)) {
     return NULL;  // applied by the next enable
@@ -359,7 +359,7 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_VOLTAGE) {
  * During a rise only stored: the end of the rise writes it.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_CURRENT) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
+  ERR_CHECK_RANGE(args->current_mA, TPS55289_MIN_CURRENT_MA, TPS55289_MAX_CURRENT_MA);
   c->last_current_limit_mA = (uint16_t)args->current_mA;
   if (!tps_powered(c) || c->rise != RISE_IDLE) {
     return NULL;
@@ -391,9 +391,9 @@ OP_DECLARE_WRITE(OWN_TPS55289, OP_RISE_STEP) {
  * Stores protection settings and writes them now if powered, else on next enable.
  ******************************************************************************/
 OP_DECLARE_WRITE(OWN_TPS55289, OP_PROTECTION) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->fault_mask, 0, TPS55289_FAULT_ALL);
-  ERR_CHECK(args->hiccup <= 1 && args->discharge <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK_RANGE(args->ocp_delay, 0, TPS55289_OCP_DELAY_MAX);
+  ERR_CHECK_RANGE(args->fault_mask, 0, TPS55289_FAULT_ALL);
+  ERR_CHECK(args->hiccup <= 1 && args->discharge <= 1, ERR_BAD_ARG);
   c->prot = *args;
   return tps_powered(c) ? chip_set_protection(c) : NULL;
 }
@@ -482,7 +482,7 @@ static err_h resume(tps_t* c) {
  * falling edge, then drops EN low (kept on REMOVE).
  ******************************************************************************/
 static err_h create(uint8_t id, tps_t* c, const tps55289_cfg_t* cfg) {
-  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, TPS55289_I2C_ADDR_74, TPS55289_I2C_ADDR_75);
+  ERR_CHECK_RANGE(cfg->i2c_addr, TPS55289_I2C_ADDR_74, TPS55289_I2C_ADDR_75);
   c->id = id;
   c->last_voltage_mV = TPS_DEFAULT_VOLTAGE_MV;
   c->last_current_limit_mA = TPS55289_MIN_CURRENT_MA;

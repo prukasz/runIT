@@ -119,7 +119,7 @@ static int rail_index(uint16_t id) {
   return -1;
 }
 
-static bool same_ch(uint16_t dev, uint8_t ch, uint16_t source, uint16_t channel) {
+static bool same_ch(uint8_t dev, uint8_t ch, uint16_t source, uint16_t channel) {
   return has_device(dev) && dev == source && ch == channel;
 }
 
@@ -640,7 +640,7 @@ static void power_task(void* arg) {
   (void)arg;
   while (!s_stop_req) {
     tick();
-    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CONFIG_SYS_POWER_MANAGER_PERIOD_MS));
+    ulTaskNotifyTake(pdTRUE, MSEC(CONFIG_SYS_POWER_MANAGER_PERIOD_MS));
   }
   s_task = NULL;
   vTaskDelete(NULL);
@@ -649,7 +649,7 @@ static void power_task(void* arg) {
 /* ---- Settings ---- */
 
 static err_h check_range(int32_t value, int32_t min, int32_t max) {
-  ERR_CHECK_IN_RANGE(value, min, max, ERR_PWRM_BAD_ARG, .value = value, .min = min, .max = max);
+  ERR_CHECK_RANGE(value, min, max);
   return NULL;
 }
 
@@ -738,7 +738,7 @@ err_h sys_power_manager_get_battery(sys_power_battery_t* out) {
   return NULL;
 }
 
-static err_h matrix_row_ptr(uint16_t target, uint8_t** out) {
+static err_h matrix_row_ptr(uint8_t target, uint8_t** out) {
   if (target == SYS_POWER_TARGET_BOARD) {
     *out = s_pm.board_responses;
     return NULL;
@@ -838,7 +838,7 @@ static err_h start_manager(const sys_power_layout_t* layout, sys_power_safe_stat
 
 err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
   U_RMUTEX_GUARD(sys_pwrm_mutex);
-  ERR_CHECK(!s_pm.running, ERR_PWRM_BAD_ARG, .value = 1, .min = 0, .max = 0);
+  ERR_CHECK(!s_pm.running, ERR_BUSY);
   return start_manager(&k_default_layout, safe_state);
 }
 
@@ -847,7 +847,7 @@ err_h sys_power_manager_stop(void) {
   s_stop_req = true;
   if (s_task != NULL) {
     xTaskNotifyGive(s_task);
-    for (uint32_t i = 0; i < 40 && s_task != NULL; i++) vTaskDelay(pdMS_TO_TICKS(5));
+    for (uint32_t i = 0; i < 40 && s_task != NULL; i++) vTaskDelay(MSEC(5));
   }
   U_RMUTEX_GUARD(sys_pwrm_mutex);
   for (uint32_t i = 0; i < ARRAY_LEN(s_pm.subs); i++) {
@@ -875,8 +875,9 @@ err_h sys_power_manager_set_layout(const sys_power_layout_t* layout) {
 err_h sys_power_manager_add_rail(const sys_power_rail_t* rail) {
   U_RMUTEX_GUARD(sys_pwrm_mutex);
   ERR_CHECK(s_pm.running, ERR_PWRM_NOT_READY);
-  ERR_CHECK(rail_index(rail->vreg) < 0, ERR_PWRM_BAD_ARG, .value = rail->vreg, .min = 0, .max = SYS_DEVICE_COUNT - 1);
-  ERR_TRY(check_range(s_pm.rail_count, 0, CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS - 1));
+  ERR_CHECK(rail_index(rail->vreg) < 0, ERR_PWRM_RAIL_TAKEN, .id = rail->vreg);
+  ERR_CHECK(s_pm.rail_count < CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS, ERR_FULL,
+            .max = CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS);
   rail_slot_t* slot = &s_pm.rails[s_pm.rail_count++];
   memset(slot, 0, sizeof(*slot));
   slot->cfg = *rail;

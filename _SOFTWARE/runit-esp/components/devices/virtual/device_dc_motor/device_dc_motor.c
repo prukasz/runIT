@@ -103,7 +103,6 @@ typedef struct __attribute__((packed)) {
  * The driver
  * ------------------------------------------------------------------------- */
 
-#define TICK_MS       10u     // the timer's period: a step of the ramp at least this often while it moves
 #define STALL_POLL_MS 50u     // the current is read this often while the motor turns
 #define FULL          100000  // the ramp's unit: 100 % (fine enough that a 10 s ramp still moves every tick)
 #define X10_TO_FULL   (FULL / DC_MOTOR_SPEED_MAX)
@@ -286,7 +285,7 @@ static err_h motor_tick(motor_t* c) {
   if (c->out == c->target && c->pause_ms == 0 && !watched) {
     timer_stop(c);
   } else {
-    sys_device_timer_start(&c->timer, TICK_MS);
+    sys_device_timer_start(&c->timer, BOARD_TIMER_STEP_MS);  // a step of the ramp at least this often while it moves
     c->ticking = true;
   }
   return NULL;
@@ -312,16 +311,16 @@ static err_h stop_now(motor_t* c, uint8_t mode) {
 }
 
 static err_h check_settings(uint8_t id, const dc_motor_settings_t* s, uint8_t one_way) {
-  ERR_CHECK(s->invert <= 1 && !(one_way && s->invert), ERR_CMD_BAD_ARG);  // a half bridge has one direction
-  SYS_DEV_CHECK_IN_RANGE(id, s->stop_mode, DC_MOTOR_STOP_BRAKE, DC_MOTOR_STOP_COAST);
-  SYS_DEV_CHECK_IN_RANGE(id, s->max_pct, 1, 100);
-  SYS_DEV_CHECK_IN_RANGE(id, s->min_pct, 0, s->max_pct < DC_MOTOR_MIN_PCT_MAX ? s->max_pct : DC_MOTOR_MIN_PCT_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->deadzone_pct, 0, DC_MOTOR_DEADZONE_PCT_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->trim_pct, -DC_MOTOR_TRIM_PCT_MAX, DC_MOTOR_TRIM_PCT_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->ramp_up_ms, 0, DC_MOTOR_RAMP_MS_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->ramp_down_ms, 0, DC_MOTOR_RAMP_MS_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->reverse_pause_ms, 0, DC_MOTOR_PAUSE_MS_MAX);
-  SYS_DEV_CHECK_IN_RANGE(id, s->stall_ms, DC_MOTOR_STALL_MS_MIN, DC_MOTOR_STALL_MS_MAX);
+  ERR_CHECK(s->invert <= 1 && !(one_way && s->invert), ERR_BAD_ARG);  // a half bridge has one direction
+  ERR_CHECK_RANGE(s->stop_mode, DC_MOTOR_STOP_BRAKE, DC_MOTOR_STOP_COAST);
+  ERR_CHECK_RANGE(s->max_pct, 1, 100);
+  ERR_CHECK_RANGE(s->min_pct, 0, s->max_pct < DC_MOTOR_MIN_PCT_MAX ? s->max_pct : DC_MOTOR_MIN_PCT_MAX);
+  ERR_CHECK_RANGE(s->deadzone_pct, 0, DC_MOTOR_DEADZONE_PCT_MAX);
+  ERR_CHECK_RANGE(s->trim_pct, -DC_MOTOR_TRIM_PCT_MAX, DC_MOTOR_TRIM_PCT_MAX);
+  ERR_CHECK_RANGE(s->ramp_up_ms, 0, DC_MOTOR_RAMP_MS_MAX);
+  ERR_CHECK_RANGE(s->ramp_down_ms, 0, DC_MOTOR_RAMP_MS_MAX);
+  ERR_CHECK_RANGE(s->reverse_pause_ms, 0, DC_MOTOR_PAUSE_MS_MAX);
+  ERR_CHECK_RANGE(s->stall_ms, DC_MOTOR_STALL_MS_MIN, DC_MOTOR_STALL_MS_MAX);
   return NULL;
 }
 
@@ -332,7 +331,7 @@ static err_h check_settings(uint8_t id, const dc_motor_settings_t* s, uint8_t on
  * Sets target speed (x10), clears any latched stall and steps the ramp.
  ******************************************************************************/
 OP_DECLARE_WRITE(OWN_DC_MOTOR, OP_SPEED) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
+  ERR_CHECK_RANGE(args->speed_x10, c->cfg.one_way ? 0 : -DC_MOTOR_SPEED_MAX, DC_MOTOR_SPEED_MAX);
   set_target(c, args->speed_x10);
   c->stalled = false;
   return motor_tick(c);
@@ -471,7 +470,7 @@ static err_h resume(motor_t* c) {
 static err_h create(uint8_t id, motor_t* c, const dc_motor_cfg_t* cfg) {
   c->id = id;
   ERR_TRY(sys_device_timer_init(id, &c->timer, OWN_DC_MOTOR_OP_TICK));
-  ERR_CHECK(cfg->one_way <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(cfg->one_way <= 1, ERR_BAD_ARG);
   ERR_TRY(check_settings(id, &cfg->settings, cfg->one_way));
   c->cfg = *cfg;
   c->initial = cfg->settings;

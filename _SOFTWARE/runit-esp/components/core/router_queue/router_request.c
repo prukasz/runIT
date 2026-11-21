@@ -12,7 +12,6 @@
 #include "router_queue_internal.h"
 #include "sdkconfig.h"
 
-#define TICK_MS        10u   // the timer: the calls' timeouts
 #define WAIT_MARGIN_MS 50u   // a waited call's own limit past its timeout: the timer's tick and the answer's way
 
 /* A call out of the router's port, waiting for its answer. */
@@ -112,7 +111,7 @@ static void on_tick(void* arg) {
 
 void router_request_init(void) {
   board_timer_init(&s_call.timer, on_tick, NULL);
-  board_timer_start(&s_call.timer, TICK_MS);
+  board_timer_start(&s_call.timer, BOARD_TIMER_STEP_MS);
 }
 
 /* ----------------------------------------------------------------------------
@@ -127,7 +126,7 @@ static uint32_t timeout_or_default(uint32_t timeout_ms) {
  * back for a waiter, which may have to end the call itself. */
 static err_h call_out(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms, router_done_f cb,
                       void* ctx, uint16_t* seq) {
-  ERR_CHECK(req.data != NULL && req.len >= 2u && req.len <= CMD_DATA_MAX + 1u, ERR_CMD_BAD_ARG);
+  ERR_CHECK(req.data != NULL && req.len >= 2u && req.len <= CMD_DATA_MAX + 1u, ERR_BAD_ARG);
   call_t call = {.used = true, .to = to, .cb = cb, .ctx = ctx,
                  .deadline = xTaskGetTickCount() + MSEC(timeout_ms)};
   call.req_len = (uint8_t)(req.len < sizeof(call.req) ? req.len : sizeof(call.req));
@@ -142,7 +141,7 @@ static err_h call_out(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uin
     }
   }
   portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(kept, ERR_ROUTER_CALLS_FULL);
+  ERR_CHECK(kept, ERR_FULL, .max = CONFIG_ROUTER_CALLS);
   *seq = call.seq;
 
   uint8_t frame[CMD_HEAD + req.len - 1u];
@@ -186,7 +185,7 @@ static err_h wait_done(void* ctx, const cmd_req_t* cmd, uint8_t status, const ui
   if (status != ROUTER_STATUS_OK) {
     err_free(err_record_parse(data, len, &w->err));
     if (w->err == NULL) {
-      w->err = ERR_NEW(ERR_CMD_BAD_ARG);
+      w->err = ERR_NEW(ERR_BAD_ARG);
     }
   } else if (len > w->cap) {
     w->err = ERR_NEW(ERR_CMD_BAD_LEN, .got = (uint16_t)len, .need = (uint16_t)w->cap);

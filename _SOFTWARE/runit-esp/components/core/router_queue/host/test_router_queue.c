@@ -56,11 +56,11 @@ static cmd_req_t make_cmd(const uint8_t* req, uint32_t len, uint8_t flags) {
 
 static void test_submit_needs_a_command_with_a_request(void) {
   err_h e = router_submit(NULL, NULL, NULL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   cmd_req_t no_req = make_cmd(NULL, 5, 0);
   e = router_submit(&no_req, NULL, NULL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 }
 
@@ -91,11 +91,11 @@ static void test_submit_accepts_the_smallest_and_the_largest_request(void) {
 
 static void test_inject_needs_a_request(void) {
   err_h e = router_inject((cmd_in_t){NULL, 3}, 0, NULL, NULL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   const uint8_t req[] = {1, 0};
   e = router_inject((cmd_in_t){req, 0}, 0, NULL, NULL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 }
 
@@ -116,12 +116,12 @@ static void fn_b(void) {}
 
 static void test_run_urgent_has_one_waiting_slot(void) {
   err_h e = router_run_urgent(NULL);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   TEST_ASSERT_NULL(router_run_urgent(fn_a));
   TEST_ASSERT_NULL(router_run_urgent(fn_a));  /* the same fn again: it still runs once */
   e = router_run_urgent(fn_b);                /* another fn while one waits */
-  TEST_ASSERT_ERR_TAG(ERR_ROUTER_BUSY, e);
+  TEST_ASSERT_ERR_TAG(ERR_BUSY, e);
   err_free(e);
   TEST_ASSERT_NULL(router_run_urgent(fn_a));  /* the refusal did not displace the waiting one */
 }
@@ -177,17 +177,17 @@ static void test_a_full_urgent_queue_refuses_and_says_urgent(void) {
 static void test_report_cmd_logs_the_command_with_the_error(void) {
   const uint8_t req[] = {0x02, 0x02, 0x00};
   const cmd_req_t cmd = {.req = req, .req_len = sizeof(req), .seq = 7, .src = 0xF0, .flags = 0};
-  router_report_cmd(&cmd, ERR_NEW(ERR_CMD_BAD_ARG));
+  router_report_cmd(&cmd, ERR_NEW(ERR_BAD_ARG));
   TEST_ASSERT_EQUAL_INT(2, host_log_count());
   TEST_ASSERT_EQUAL_STRING("cmd src f0 seq 7 flags 00 req 02 02 00", host_log_line(0));
-  TEST_ASSERT_NOT_NULL(strstr(host_log_line(1), "ERR_CMD_BAD_ARG"));
+  TEST_ASSERT_NOT_NULL(strstr(host_log_line(1), "ERR_BAD_ARG"));
 }
 
 static void test_report_cmd_shows_only_the_start_of_a_long_request(void) {
   uint8_t req[100];
   for (int i = 0; i < 100; i++) req[i] = (uint8_t)i;
   const cmd_req_t cmd = {.req = req, .req_len = sizeof(req), .seq = 1, .src = 1, .flags = 3};
-  router_report_cmd(&cmd, ERR_NEW(ERR_CMD_BAD_ARG));
+  router_report_cmd(&cmd, ERR_NEW(ERR_BAD_ARG));
   const char* line = host_log_line(0);
   TEST_ASSERT_NOT_NULL(strstr(line, "flags 03 req 00 01 02"));
   TEST_ASSERT_NOT_NULL(strstr(line, " 1f ..."));  /* 32 bytes shown, then the cut mark */

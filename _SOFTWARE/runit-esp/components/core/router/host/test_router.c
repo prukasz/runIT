@@ -75,12 +75,12 @@ ROUTER_WRITE_TAIL(TEST, OP_NAME) {
 }
 
 ROUTER_READ(TEST, OP_FAIL) {
-  ERR_CHECK(args->id != 0, ERR_CMD_BAD_ARG);  /* id 0 is refused */
+  ERR_CHECK(args->id != 0, ERR_BAD_ARG);  /* id 0 is refused */
   return NULL;
 }
 
 ROUTER_WRITE(TEST, OP_FAIL) {
-  ERR_CHECK(args->id != 0, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->id != 0, ERR_BAD_ARG);
   return NULL;
 }
 
@@ -89,7 +89,7 @@ static err_h TEST_r_OP_PARTIAL(CMD_F_PARAMS) {
   (void)in;
   const uint8_t half[] = {1, 2, 3};
   ERR_TRY(cmd_reply(out, half, sizeof(half)));
-  return ERR_NEW(ERR_CMD_BAD_ARG);
+  return ERR_NEW(ERR_BAD_ARG);
 }
 
 ROUTER_READ(TEST, OP_READONLY) {
@@ -296,7 +296,7 @@ static err_h h_seen_in(CMD_F_PARAMS) {
 }
 static err_h h_fail(CMD_F_PARAMS) {
   (void)ctx, (void)in, (void)out;
-  return ERR_NEW(ERR_CMD_BAD_ARG);
+  return ERR_NEW(ERR_BAD_ARG);
 }
 
 static void test_call_finds_the_key_and_passes_ctx_and_the_whole_input(void) {
@@ -330,7 +330,7 @@ static void test_call_wraps_a_failure_in_the_key(void) {
   err_h e = router_call(table, 1, NULL, (cmd_in_t){in, sizeof(in)}, &out);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, e);
   TEST_ASSERT_EQUAL_UINT8(0x10, ERR_DATA(e, ERR_ROUTER_KEY)->key);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(e)));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_tag(err_cause(e)));
   err_free(e);
 }
 
@@ -358,9 +358,9 @@ static void test_route_a_failure_is_a_chain_of_the_steps_taken(void) {
   TEST_ASSERT_EQUAL_UINT8(KEY_MOD, ERR_DATA(e, ERR_ROUTER_KEY)->key);
   TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_OP, err_tag(err_cause(e)));
   TEST_ASSERT_EQUAL_UINT8(TEST_OP_FAIL, ERR_DATA(err_cause(e), ERR_ROUTER_OP)->code);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(err_cause(e))));       /* the cause */
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_tag(err_cause(err_cause(e))));       /* the cause */
   TEST_ASSERT_NULL(err_cause(err_cause(err_cause(e))));
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   TEST_ASSERT_EQUAL_UINT8(ERR_SEV_HIGH, err_chain_sev(e));            /* the route steps add no severity */
   err_free(e);
 }
@@ -402,11 +402,11 @@ static void test_route_unknown_root_key_and_no_key(void) {
 static void test_register_refuses_key_zero_and_no_handler(void) {
   router_register(0, root_handler);
   err_h e = router_root_init();
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   router_register(0x50, NULL);
   e = router_root_init();
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   const uint8_t req[] = {0x50, 0};  /* and nothing was bound */
   uint8_t buf[4];

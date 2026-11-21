@@ -165,8 +165,8 @@ static err_h console_create(sys_data_provider_t* p, const void* cfg_in) {
 #endif
   s_console.uart = CONSOLE_PORT;
   if (console_tx_task_h == NULL) {
-    ERR_CHECK(sys_uart_txq_init(&s_console.txq, CONFIG_PROVIDER_CONSOLE_TX_QUEUE, true), ERR_PROV_NO_MEM,
-              .provider = (uint8_t)p->port.id, .size = CONFIG_PROVIDER_CONSOLE_TX_QUEUE);
+    ERR_CHECK(sys_uart_txq_init(&s_console.txq, CONFIG_PROVIDER_CONSOLE_TX_QUEUE, true), ERR_NO_MEM,
+              .size = CONFIG_PROVIDER_CONSOLE_TX_QUEUE);
     U_TASK_START(console_tx_task_h, tx_task, &s_console, CONFIG_PROVIDER_CONSOLE_TX_TASK_PRIO);
     s_console.txq.task = console_tx_task_h;
   }

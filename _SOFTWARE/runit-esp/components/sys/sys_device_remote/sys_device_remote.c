@@ -133,7 +133,7 @@ static void drop_listener(int handle) {
 }
 
 err_h sys_device_remote_subscribe(uint8_t id, uint8_t peer) {
-  ERR_CHECK(peer != CMD_SRC_SELF && peer != CMD_SRC_NONE && peer != CMD_SRC_ALL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(peer != CMD_SRC_SELF && peer != CMD_SRC_NONE && peer != CMD_SRC_ALL, ERR_BAD_ARG);
   data_matrix_port_id_t port = 0;
   ERR_TRY(sys_session_port(peer, MODULE_ID_REMOTE, &port));  // no sub-port REMOTE: the device's frames can't reach it
   int at = -1;

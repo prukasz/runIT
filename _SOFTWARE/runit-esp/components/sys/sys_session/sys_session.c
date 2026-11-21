@@ -15,11 +15,10 @@
 
 ERR_MODULE_DEFINE(MODULE_ID_SESSION, ERR_SYS_SESSION_MAP)
 
-#define TICK_MS        10u    // the timer: pings, hellos, the dead-man
 #define HELLO_RETRY_MS 1000u  // a session not open says hello again this often
 #define PROVIDER_MAX   0x7Fu  // a provider's id in a session's port name (DATA_MATRIX_PORT_SESSION | provider)
 
-_Static_assert(SYS_SESSION_DEADMAN_MAX_MS + TICK_MS <= UINT16_MAX, "a session's silence and ping in 16 bits");
+_Static_assert(SYS_SESSION_DEADMAN_MAX_MS + BOARD_TIMER_STEP_MS <= UINT16_MAX, "a session's silence and ping in 16 bits");
 
 typedef struct {
   bool used;
@@ -173,7 +172,7 @@ static void send_hello(session_t* s) {
 }
 
 err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
-  ERR_CHECK(req.data != NULL && req.len >= 2u && req.len <= CMD_DATA_MAX + 1u, ERR_CMD_BAD_ARG);
+  ERR_CHECK(req.data != NULL && req.len >= 2u && req.len <= CMD_DATA_MAX + 1u, ERR_BAD_ARG);
   const cmd_hdr_t hdr = {
       .type = (uint8_t)(CMD_TYPE(CMD_REQUEST) | ROUTER_FLAG_NOREPLY | (flags & ROUTER_FLAG_URGENT)),
       .src = board_id(),
@@ -372,12 +371,12 @@ static void on_tick(void* arg) {
     bool hello = false;
     portENTER_CRITICAL(&s_lock);
     if (s->used && s->open) {
-      s->silent_ms = (uint16_t)(s->silent_ms + TICK_MS);
-      s->ping_ms = (uint16_t)(s->ping_ms + TICK_MS);
+      s->silent_ms = (uint16_t)(s->silent_ms + BOARD_TIMER_STEP_MS);
+      s->ping_ms = (uint16_t)(s->ping_ms + BOARD_TIMER_STEP_MS);
       end = s->deadman_ms > 0 && s->silent_ms > s->deadman_ms;
       ping = s->deadman_ms > 0 && !end && s->ping_ms >= s->deadman_ms / 3u;
     } else if (s->used) {
-      s->ping_ms = (uint16_t)(s->ping_ms + TICK_MS);
+      s->ping_ms = (uint16_t)(s->ping_ms + BOARD_TIMER_STEP_MS);
       hello = s->ping_ms >= HELLO_RETRY_MS;  // the peer on it may have started after this board
     }
     if (ping || hello) {
@@ -409,7 +408,7 @@ err_h sys_session_init(void) {
     ERR_TRY(sys_event_subscribe(filter, on_provider_event, NULL, SYS_EVENT_RUN_INLINE, &handle));
   }
   board_timer_init(&s_state.timer, on_tick, NULL);
-  board_timer_start(&s_state.timer, TICK_MS);
+  board_timer_start(&s_state.timer, BOARD_TIMER_STEP_MS);
   return NULL;
 }
 
@@ -444,7 +443,7 @@ static err_h register_ports(session_t* s) {
 err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, const uint8_t* modules, uint32_t n) {
   ERR_CHECK(provider <= PROVIDER_MAX && deadman_ok(deadman_ms) && (flags & ~SYS_SESSION_SAFETY) == 0u &&
                 n <= CONFIG_SYS_SESSION_PORTS && (n == 0 || modules != NULL),
-            ERR_CMD_BAD_ARG);
+            ERR_BAD_ARG);
   const bool safety = (flags & SYS_SESSION_SAFETY) != 0u;
   session_t* at = NULL;
   bool same = false;
@@ -470,8 +469,8 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   if (same) {
     return NULL;  // a stored record that attaches runs at every start
   }
-  ERR_CHECK(!attached, ERR_CMD_BAD_ARG);
-  ERR_CHECK(at != NULL, ERR_SESSION_FULL);
+  ERR_CHECK(!attached, ERR_BAD_ARG);
+  ERR_CHECK(at != NULL, ERR_FULL, .max = CONFIG_SYS_SESSION_MAX);
   const uint8_t state = sys_data_provider_state(provider);
   err_h err = (state & SYS_DATA_PROVIDER_STATE_FRAMED) != 0 ? NULL : ERR_NEW(ERR_SESSION_NOT_FRAMED);
   if (err == NULL) {
@@ -515,7 +514,7 @@ err_h sys_session_detach(uint8_t provider) {
 }
 
 err_h sys_session_deadman_set(uint8_t peer, uint32_t ms, bool safety) {
-  ERR_CHECK(deadman_ok(ms), ERR_CMD_BAD_ARG);
+  ERR_CHECK(deadman_ok(ms), ERR_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   session_t* s = open_with(peer);
   if (s != NULL) {

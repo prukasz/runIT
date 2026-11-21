@@ -95,7 +95,7 @@ static err_h enqueue(const item_t* item, const uint8_t* key, const uint8_t* req,
 }
 
 err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, void* ctx) {
-  ERR_CHECK(req.data != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(req.data != NULL, ERR_BAD_ARG);
   const item_t item = {
       .done = done,
       .ctx = ctx,
@@ -175,10 +175,10 @@ bool router_is_task(void) {
 }
 
 err_h router_run_urgent(void (*fn)(void)) {
-  ERR_CHECK(fn != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(fn != NULL, ERR_BAD_ARG);
   void (*none)(void) = NULL;
   if (!__atomic_compare_exchange_n(&s_dispatch.urgent_fn, &none, fn, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-    ERR_CHECK(none == fn, ERR_ROUTER_BUSY);  // the same fn already waits: it runs once
+    ERR_CHECK(none == fn, ERR_BUSY);  // the same fn already waits: it runs once
   }
   wake_urgent();
   return NULL;

@@ -89,7 +89,7 @@ MUST_USE err_h sys_session_init(void);
  * @param[in] modules    The modules of its sub-ports (MODULE_ID_ROUTER for the commands), at most
  *                       CONFIG_SYS_SESSION_PORTS.
  * @param[in] n          How many.
- * @return NULL when attached; ERR_SESSION_FULL, ERR_SESSION_NOT_FRAMED (none, or a raw provider), ERR_CMD_BAD_ARG (a
+ * @return NULL when attached; ERR_FULL, ERR_SESSION_NOT_FRAMED (none, or a raw provider), ERR_BAD_ARG (a
  *         bad time, flag or list, or attached with another), or the data matrix's error.
  */
 MUST_USE err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, const uint8_t* modules,
@@ -148,7 +148,7 @@ bool sys_session_wired(uint8_t board);
  * @param[in] peer   A peer's id
  * @param[in] ms     0, or SYS_SESSION_DEADMAN_MIN_MS..SYS_SESSION_DEADMAN_MAX_MS
  * @param[in] safety Whether its end is a safety event (SYS_SESSION_SAFETY)
- * @return NULL when set; ERR_CMD_BAD_ARG, ERR_SESSION_NO_ROUTE (no open session with `peer`)
+ * @return NULL when set; ERR_BAD_ARG, ERR_SESSION_NO_ROUTE (no open session with `peer`)
  */
 MUST_USE err_h sys_session_deadman_set(uint8_t peer, uint32_t ms, bool safety);
 
@@ -160,7 +160,7 @@ uint32_t sys_session_deadman_get(uint8_t peer);
  * does not run it: it has done what it broadcasts. NOWAIT, any task.
  * @param[in] req   The command: [key][dir][code | id + op][args], 2..CMD_DATA_MAX + 1 bytes.
  * @param[in] flags ROUTER_FLAG_URGENT, or 0.
- * @return NULL; ERR_CMD_BAD_ARG.
+ * @return NULL; ERR_BAD_ARG.
  */
 MUST_USE err_h sys_session_broadcast(cmd_in_t req, uint8_t flags);
 

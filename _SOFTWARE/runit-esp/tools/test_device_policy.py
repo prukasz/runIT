@@ -166,7 +166,7 @@ class DevicePolicyTests(unittest.TestCase):
         # HIGH -> SUSPEND enters safe state
         self.assertEqual(self.c.wr(DEV_PARENT, SUPPLY_SOURCE, bytes([1]))[0], 0)
         self.assertEqual(self.c.call(policy_set(DEV_PARENT, IMP_MEDIUM, (0, 0, RESP_SUSPEND, 0)))[0], 0)
-        self.assertEqual(self.c.wr(DEV_PARENT, VREG_VOLTAGE, struct.pack("<I", 999))[0], 1)  # ERR_DEV_RANGE (HIGH)
+        self.assertEqual(self.c.wr(DEV_PARENT, VREG_VOLTAGE, struct.pack("<I", 999))[0], 1)  # ERR_RANGE (HIGH)
         time.sleep(0.05)
         self.assertEqual(self.c.suspended(DEV_PARENT), 1)
         self.assertEqual(self.c.rd(DEV_PARENT, SUPPLY_SOURCE)[1], bytes([0]))

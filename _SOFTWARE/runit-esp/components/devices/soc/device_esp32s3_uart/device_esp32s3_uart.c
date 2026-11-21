@@ -206,7 +206,7 @@ static void tx_task(void* arg) {
 }
 
 static err_h send(port_t* c, cmd_in_t frame, uint16_t wait_ms, uint8_t flags) {
-  ERR_CHECK(frame.len > 0 && frame.len <= CMD_FRAME_MAX && wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  ERR_CHECK(frame.len > 0 && frame.len <= CMD_FRAME_MAX && wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
   const TickType_t wait = wait_ms == 0 ? 0 : MSEC(wait_ms);
   ERR_CHECK(sys_uart_txq_push(&c->txq, frame, flags, wait), ERR_UART_BUSY, .port = c->id);
   return NULL;
@@ -247,7 +247,7 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_SEND_FRAME) {
 
 // RECEIVE (`tx` empty) and TRANSACT: the caller the port's reader for the call; TRANSACT flushes, sends, then reads.
 static err_h read_one(port_t* c, cmd_in_t tx, uint16_t wait_ms, cmd_out_t* out) {
-  ERR_CHECK(wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  ERR_CHECK(wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
   xSemaphoreTake(c->lock, portMAX_DELAY);
   const bool busy = has_reader(c);
   if (!busy) {
@@ -279,7 +279,7 @@ OP_DECLARE_READ(CONTRACT_UART, OP_RECEIVE) {
 }
 
 OP_DECLARE_WRITE_TAIL(CONTRACT_UART, OP_TRANSACT) {
-  ERR_CHECK(tail_len > 0, ERR_UART_BAD_ARG);
+  ERR_CHECK(tail_len > 0, ERR_BAD_ARG);
   return read_one(c, (cmd_in_t){tail, tail_len}, args->wait_ms, out);
 }
 
@@ -297,7 +297,7 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
 // The caller (a device, in its create()) the reader: each message to its own op. `op` 0: it lets go.
 OP_DECLARE_WRITE(CONTRACT_UART, OP_SUBSCRIBE) {
   const uint8_t caller = sys_device_caller();
-  ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_UART_BAD_ARG);
+  ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_BAD_ARG);
   xSemaphoreTake(c->lock, portMAX_DELAY);
   const bool busy = args->op != 0 && has_reader(c);
   if (args->op == 0 && c->owner == caller) {
@@ -389,12 +389,11 @@ static err_h port_release(void* arg) {
 }
 
 static err_h validate_cfg(uint8_t id, const esp32s3_uart_cfg_t* cfg) {
-  ERR_CHECK(cfg->uart_num < SOC_UART_NUM, ERR_DEV_RANGE, .id = id, .value = cfg->uart_num, .min = 0,
-            .max = SOC_UART_NUM - 1);
+  ERR_CHECK_RANGE(cfg->uart_num, 0, SOC_UART_NUM - 1);
   ERR_CHECK(cfg->mode <= SYS_UART_MODE_RAW_LINE && cfg->parity <= SYS_UART_PARITY_ODD &&
                 (cfg->stop_bits == 1u || cfg->stop_bits == 2u) &&
                 (sys_io_pin_valid(cfg->pins[0]) || sys_io_pin_valid(cfg->pins[1])),
-            ERR_UART_BAD_ARG);
+            ERR_BAD_ARG);
   ERR_CHECK(cfg->baud >= SYS_UART_BAUD_MIN && cfg->baud <= SYS_UART_BAUD_MAX, ERR_UART_BAD_BAUD, .baud = cfg->baud);
   for (uint32_t i = 0; i < PIN_COUNT; i++) {
     const bool output = i == 0 || i == 2;  // tx, rts
@@ -428,7 +427,7 @@ static err_h create(uint8_t id, port_t* c, const esp32s3_uart_cfg_t* cfg) {
   c->exited = xSemaphoreCreateCounting(2, 0);
   c->rx_rb = xRingbufferCreate(CONFIG_ESP32S3_UART_RX_QUEUE, RINGBUF_TYPE_NOSPLIT);
   const bool made = sys_uart_txq_init(&c->txq, CONFIG_ESP32S3_UART_TX_QUEUE, cfg->mode == SYS_UART_MODE_FRAMED);
-  ERR_CHECK(made && c->lock != NULL && c->exited != NULL && c->rx_rb != NULL, ERR_DEV_NO_MEM, .id = id,
+  ERR_CHECK(made && c->lock != NULL && c->exited != NULL && c->rx_rb != NULL, ERR_NO_MEM,
             .size = CONFIG_ESP32S3_UART_TX_QUEUE + CONFIG_ESP32S3_UART_RX_QUEUE);
 
 #if CONFIG_UART_ISR_IN_IRAM
@@ -464,7 +463,7 @@ static err_h create(uint8_t id, port_t* c, const esp32s3_uart_cfg_t* cfg) {
   (void)xTaskCreate(tx_task, "uart_tx", CONFIG_ESP32S3_UART_TX_TASK_STACK, c, CONFIG_ESP32S3_UART_TX_TASK_PRIO,
                     &c->tx_task);
   c->txq.task = c->tx_task;
-  ERR_CHECK(c->rx_task != NULL && c->tx_task != NULL, ERR_DEV_NO_MEM, .id = id,
+  ERR_CHECK(c->rx_task != NULL && c->tx_task != NULL, ERR_NO_MEM,
             .size = CONFIG_ESP32S3_UART_RX_TASK_STACK + CONFIG_ESP32S3_UART_TX_TASK_STACK);
   return NULL;
 }

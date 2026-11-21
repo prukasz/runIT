@@ -31,14 +31,14 @@ ROUTER_WRITE(SYS, OP_RESTART) {
 // The dead-man of the session the command came on.
 ROUTER_READ(SYS, OP_DEADMAN) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_CMD_BAD_ARG);
+  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_BAD_ARG);
   return CMD_REPLY(SYS, OP_DEADMAN, .timeout_ms = sys_session_deadman_get(origin->src));
 }
 
 // A command with no session (a provider's command binding) has no silence the dead-man could notice: refused.
 ROUTER_WRITE(SYS, OP_DEADMAN) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_CMD_BAD_ARG);
+  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_BAD_ARG);
   return sys_session_deadman_set(origin->src, args->timeout_ms, true);
 }
 
@@ -47,7 +47,7 @@ ROUTER_WRITE(SYS, OP_DEADMAN) {
 // range) ends its session.
 ROUTER_WRITE(SYS, OP_BYE) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_CMD_BAD_ARG);
+  ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_BAD_ARG);
   ERR_TRY(sys_session_deadman_set(origin->src, 0, false));
   ESP_LOGI(TAG, "client left: dead-man off");
   return NULL;
@@ -58,7 +58,7 @@ ROUTER_READ(SYS, OP_TIME) {
 }
 
 ROUTER_WRITE(SYS, OP_TIME) {
-  ERR_CHECK(board_time_set(args->unix_ms), ERR_CMD_BAD_ARG);
+  ERR_CHECK(board_time_set(args->unix_ms), ERR_BAD_ARG);
   sys_system_broadcast_time();  // on every open session
   return NULL;
 }

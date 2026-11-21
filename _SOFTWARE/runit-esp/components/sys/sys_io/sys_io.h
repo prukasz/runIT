@@ -22,7 +22,7 @@ extern "C" {
  * LEVEL        - the digital level of a pin, set and read
  * TOGGLE       - inverts the level of an output pin
  * PWM_DUTY     - PWM duty of a pin, 0 .. IO_PWM_DUTY_MAX (12 bits); a device with another resolution scales or
- *                rejects with ERR_DEV_RANGE
+ *                rejects with ERR_RANGE
  * PWM_FREQ     - PWM frequency of a pin in Hz
  * MODE         - sets the pin's mode (sys_io_mode_e)
  * RESET        - puts the pin back to its power-on state
@@ -206,7 +206,7 @@ static inline bool sys_io_pin_valid(sys_io_pin_t p) {
  * @brief Writes op OP_NAME of the IO contract on pin `p`: its value_t from the contract table, the pin and the fields
  * given (none for OP_TOGGLE, OP_RESET, OP_LOCK, OP_UNLOCK). The compiler checks the field names against the op's frame.
  * @return ERR_DEV_UNKNOWN_OP if the device has no such op, ERR_DEV_PIN_LOCKED{owner} for a pin another device locked,
- *         ERR_DEV_PIN_NOT_OWNED{owner} for UNLOCK of one, ERR_DEV_RANGE, or the error of the device write
+ *         ERR_DEV_PIN_NOT_OWNED{owner} for UNLOCK of one, ERR_RANGE, or the error of the device write
  * @usage ERR_TRY(SYS_IO_WRITE(pin, OP_LEVEL, .level = 1));
  *        ERR_TRY(SYS_IO_WRITE(pin, OP_PWM_DUTY, .duty = duty));
  *        ERR_TRY(SYS_IO_WRITE(pin, OP_INTR, .cfg = {.mode = SYS_IO_INTR_MODE_FALLING_EDGE}));
@@ -250,7 +250,7 @@ MUST_USE err_h sys_io_release(sys_io_pin_t p);
  * @brief Reads the level of a pin (op LEVEL); allowed on a locked pin
  * @param[in]  p     The pin
  * @param[out] level true: high
- * @return ERR_DEV_BAD_ARG for a NULL level, or the error of the device read
+ * @return ERR_BAD_ARG for a NULL level, or the error of the device read
  */
 MUST_USE err_h sys_io_get_level(sys_io_pin_t p, bool* level);
 
@@ -258,7 +258,7 @@ MUST_USE err_h sys_io_get_level(sys_io_pin_t p, bool* level);
  * @brief Reads the voltage of an analog pin (op VOLTAGE)
  * @param[in]  p      The pin
  * @param[out] out_mV Voltage in mV
- * @return ERR_DEV_BAD_ARG for a NULL out_mV, or the error of the device read
+ * @return ERR_BAD_ARG for a NULL out_mV, or the error of the device read
  */
 MUST_USE err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV);
 

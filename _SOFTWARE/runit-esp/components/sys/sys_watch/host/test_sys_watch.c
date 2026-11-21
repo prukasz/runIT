@@ -345,19 +345,19 @@ void test_server_add_validation_and_list(void) {
 
   // Invalid id / period / trigger / owner / len
   h.id = 0;
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_BAD_ARG);
   h.id = 1;
   h.period = 0;
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_BAD_ARG);
   h.period = 2;
   h.trigger = 9;
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_BAD_ARG);
   h.trigger = SYS_WATCH_PERIODIC;
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_SELF), ERR_WATCH_BAD_ARG);
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_ALL), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_SELF), ERR_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CMD_SRC_ALL), ERR_BAD_ARG);
 
   const uint8_t too_long[SYS_WATCH_READ_MAX + 1u] = {MODULE_ID_TESTW, CMD_DIR_READ};
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){too_long, sizeof(too_long)}, CLIENT), ERR_WATCH_BAD_ARG);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){too_long, sizeof(too_long)}, CLIENT), ERR_BAD_ARG);
 
   // Non-read command -> ERR_WATCH_NOT_READ
   ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_write, sizeof(k_val_write)}, CLIENT), ERR_WATCH_NOT_READ);
@@ -368,7 +368,7 @@ void test_server_add_validation_and_list(void) {
     TEST_ASSERT_NULL(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT));
   }
   h.id = (uint8_t)(CONFIG_SYS_WATCH_MAX + 1u);
-  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_WATCH_FULL);
+  ASSERT_ERR(sys_watch_add(&h, (cmd_in_t){k_val_read, sizeof(k_val_read)}, CLIENT), ERR_FULL);
 
   // Replace an existing watch even when table is full
   h.id = 1;
@@ -531,7 +531,7 @@ void test_client_b3_gate_error_and_size_limits(void) {
 
   // Arg checks
   ASSERT_ERR(sys_watch_read(CMD_SRC_SELF, (cmd_in_t){k_val_read, sizeof(k_val_read)}, &out, sizeof(out), &out_len),
-             ERR_WATCH_BAD_ARG);
+             ERR_BAD_ARG);
   ASSERT_ERR(sys_watch_read(SLAVE, (cmd_in_t){k_val_write, sizeof(k_val_write)}, &out, sizeof(out), &out_len),
              ERR_WATCH_NOT_READ);
 

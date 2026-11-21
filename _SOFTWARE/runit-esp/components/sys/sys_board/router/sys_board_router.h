@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-/* Ops under the root key MODULE_ID_BOARD = 0x2D (SYS_BOARD.MD "Remote"), packed, little-endian; contract_board.json
+/* Ops under the root key MODULE_ID_BOARD = 0x27 (SYS_BOARD.MD "Remote"), packed, little-endian; contract_board.json
  * names them. Never renumber. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /** @brief JSON_APPEND args: the data follows */

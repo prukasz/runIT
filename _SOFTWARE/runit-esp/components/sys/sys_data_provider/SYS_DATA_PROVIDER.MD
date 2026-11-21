@@ -1,12 +1,12 @@
 # sys_data_provider — the providers' lifecycle
 
-Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, the board's console — under a 1-byte `id`, each one a stream port of the data matrix (its whole data plane, "Stream port"), controlled by commands only (`sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x0D`). The registry keeps the providers' lifecycle and nothing of their logic: it never looks into a packet. In C there are only `sys_data_provider_create_system`, the boot's CREATE of the board's own providers, and `sys_data_provider_state`, a provider's state bits.
+Component `components/sys/sys_data_provider/`. Keeps the board's ways bytes leave and enter — UART ports, BLE links, MQTT topics, the board's console — under a 1-byte `id`, each one a stream port of the data matrix (its whole data plane, "Stream port"), controlled by commands only (`sys_data_provider_router` under `MODULE_ID_PROVIDER = 0x2B`). The registry keeps the providers' lifecycle and nothing of their logic: it never looks into a packet. In C there are only `sys_data_provider_create_system`, the boot's CREATE of the board's own providers, and `sys_data_provider_state`, a provider's state bits.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `sys_data_provider.h` | Public: the driver types (`sys_data_provider_type_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `sys_data_provider_create_system`, `sys_data_provider_state` |
+| `sys_data_provider.h` | Public: the driver types (`sys_data_provider_type_e`), the state bits (`SYS_DATA_PROVIDER_STATE_*`), `SYS_DATA_PROVIDER_ID_NONE` (`0xFF`), CREATE's flag `SYS_DATA_PROVIDER_CREATE_SYSTEM`, `sys_data_provider_create_system`, `sys_data_provider_state` |
 | `driver/sys_data_provider_driver.h` | For a driver only: the base `sys_data_provider_t`, the type (`SYS_DATA_PROVIDER_TYPE_DEFINE`), the own ops (`SYS_DATA_PROVIDER_OWN_OP`), `sys_data_provider_set_up`, the driver's side of the contract |
 | `sys_data_provider.c` | The registry: the types, the slots, the locks, CREATE / REMOVE, the port's input, the own ops' call; no wire format |
 | `internal/sys_data_provider_internal.h` | The seam between the registry and its router: create, remove, list, an own op |
@@ -25,15 +25,15 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 - `ops` is an optional table of `sys_data_provider_op_t` rows (`SYS_DATA_PROVIDER_OWN_OP(n)`, `0xFFxx`; plain `cmd_f` handlers taking the provider as `ctx`), reached by the router only: what a type has beyond the contract (an MQTT topic, ...).
 - What comes in on the line the driver sends out of its port itself (`data_matrix_send(&p->port, 0, data, len)`, from its task); its line's state with `sys_data_provider_set_up` (`STATE_UP` only).
 
-## Commands (`MODULE_ID_PROVIDER = 0x0D`)
+## Commands (`MODULE_ID_PROVIDER = 0x2B`)
 
 Frame `sys_data_provider_router_hdr_t` (4 B packed LE): `[dir u8][id u8][op u16][args...]`.
 
 | Op | Code | Args / answer | Meaning |
 |---|---|---|---|
-| `CREATE` (W) | `0x0D00` | `[type u8][flags u8][cfg]` | makes provider `id` (flag bit 0: the board's own, `STATE_SYSTEM`); its port in the data matrix (no room there: it is not made) |
-| `REMOVE` (W) | `0x0D01` | | not the board's own (`ERR_PROV_SYSTEM`): its port out of the data matrix first (its links go), then, after the call into its driver in flight, `remove`; the slot is free again |
-| `LIST` (R) | `0x0D02` | `[u8 count][provider u8, type u8, state u8]...` | every provider; any `id` |
+| `CREATE` (W) | `0x2B00` | `[type u8][flags u8][cfg]` | makes provider `id` (flag bit 0: the board's own, `STATE_SYSTEM`); its port in the data matrix (no room there: it is not made) |
+| `REMOVE` (W) | `0x2B01` | | not the board's own (`ERR_PROV_SYSTEM`): its port out of the data matrix first (its links go), then, after the call into its driver in flight, `remove`; the slot is free again |
+| `LIST` (R) | `0x2B02` | `[u8 count][provider u8, type u8, state u8]...` | every provider; any `id` |
 | own (R/W) | `0xFFxx` | the driver's | a driver's own op; the app knows a type's own ops from its descriptor |
 
 `router/contract_provider.json` describes them (`router_key` and `contract_id` both 13: a descriptor with the two is addressed with the id and the 16-bit op, as the app reads it, templates/AGENTS.md).
@@ -52,7 +52,7 @@ A provider carries bytes and knows nothing of what they are. It is a stream port
 
 ## Events
 
-`events/sys_data_provider_events.h`: `SYS_DATA_PROVIDER_EVENTS` under `MODULE_ID_PROVIDER` (`0x0D`), lane `SYS`, source the provider's id, channel 0. What is not bytes of a provider goes here, never through the data matrix.
+`events/sys_data_provider_events.h`: `SYS_DATA_PROVIDER_EVENTS` under `MODULE_ID_PROVIDER` (`0x2B`), lane `SYS`, source the provider's id, channel 0. What is not bytes of a provider goes here, never through the data matrix.
 
 | Event | Code | Flags | Payload | When |
 |---|---|---|---|---|

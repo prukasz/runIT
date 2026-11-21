@@ -476,7 +476,7 @@
       "symbol": "SYS_PWRM_OP_MATRIX",
       "record": "SYS_ACTIONS_ID_POWER_RESPONSES",
       "label": "Response matrix",
-      "description": "The response to each power event, for the board and for each rail: a row per target (0xFFFF the board, else the rail's device ID). The write matches the rows by target; a target left out keeps its row.",
+      "description": "The response to each power event, for the board and for each rail: a row per target (0xFF the board, else the rail's device ID). The write matches the rows by target; a target left out keeps its row.",
       "read": {
         "description": "Returns every row of the response matrix with its target: the board first, then the regulator rails in the order SET_RESPONSES takes them.",
         "returns": {
@@ -488,10 +488,10 @@
               "id": "target",
               "label": "Target",
               "type": "device",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
-              "description": "0xFFFF for the board, or the device ID of a regulator rail"
+              "description": "0xFF for the board, or the device ID of a regulator rail"
             },
             {
               "id": "responses",
@@ -501,7 +501,7 @@
               "index_enum": "sys_power_kind_e",
               "raw_type": "u8",
               "size": 11,
-              "offset": 2,
+              "offset": 1,
               "description": "The response to each power event kind (sys_power_kind_e order)"
             }
           ]
@@ -517,10 +517,10 @@
               "id": "target",
               "label": "Target",
               "type": "device",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
-              "description": "0xFFFF for the board, or the device ID of a regulator rail"
+              "description": "0xFF for the board, or the device ID of a regulator rail"
             },
             {
               "id": "responses",
@@ -530,7 +530,7 @@
               "index_enum": "sys_power_kind_e",
               "raw_type": "u8",
               "size": 11,
-              "offset": 2,
+              "offset": 1,
               "description": "The response to each power event kind (sys_power_kind_e order)"
             }
           ]
@@ -596,10 +596,10 @@
               "id": "input_device",
               "label": "Input monitor",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 17,
-              "description": "The device measuring the board input; 65535: none"
+              "description": "The device measuring the board input; 255: none"
             },
             {
               "id": "input_channel",
@@ -607,16 +607,16 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 19
+              "offset": 18
             },
             {
               "id": "usb_pd",
               "label": "USB-PD sink",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 20,
-              "description": "The USB-PD device; 65535: none"
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 19,
+              "description": "The USB-PD device; 255: none"
             },
             {
               "id": "usb_ok",
@@ -624,7 +624,7 @@
               "type": "pin",
               "raw_type": "bytes",
               "size": 2,
-              "offset": 22,
+              "offset": 20,
               "pin_ref": true,
               "requires": "input",
               "optional": true,
@@ -636,7 +636,7 @@
               "type": "pin",
               "raw_type": "bytes",
               "size": 2,
-              "offset": 24,
+              "offset": 22,
               "pin_ref": true,
               "requires": "input",
               "optional": true,
@@ -660,8 +660,8 @@
               "id": "vreg",
               "label": "Regulator",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
               "description": "The device with the regulator contract"
             },
@@ -669,9 +669,9 @@
               "id": "monitor_device",
               "label": "Monitor",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
-              "offset": 2,
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
               "description": "The device measuring this rail's output"
             },
             {
@@ -680,7 +680,7 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 4
+              "offset": 2
             },
             {
               "id": "min_mA",
@@ -688,7 +688,7 @@
               "type": "integer",
               "raw_type": "u32",
               "size": 4,
-              "offset": 5,
+              "offset": 3,
               "unit": "mA"
             }
           ]
@@ -709,8 +709,8 @@
               "id": "vreg",
               "label": "Regulator",
               "type": "integer",
-              "raw_type": "u16",
-              "size": 2,
+              "raw_type": "u8",
+              "size": 1,
               "offset": 0,
               "description": "The device ID of the regulator rail to remove"
             }

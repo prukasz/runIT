@@ -1,13 +1,13 @@
 #pragma once
 
 #include "router_table.h"
-#include "sys_log_errors.h"
+#include "sys_log_id.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Ops under root key MODULE_ID_LOG = 0x2A (SYS_LOG.MD "Remote"), packed, little-endian; contract_log.json names
+/* Ops under root key MODULE_ID_LOG = 0x29 (SYS_LOG.MD "Remote"), packed, little-endian; contract_log.json names
  * them. Never renumber; 0x02 is unused: never assign it. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /** @brief CONFIG args and answer. Stored record SYS_ACTIONS_ID_LOG holds [MODULE_ID_LOG][CMD_DIR_WRITE][OP_CONFIG][sys_log_cfg_t]. */

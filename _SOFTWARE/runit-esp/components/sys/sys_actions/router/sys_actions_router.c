@@ -15,7 +15,7 @@ ROUTER_WRITE(ACTIONS, OP_BEGIN) {
 }
 
 ROUTER_WRITE_TAIL(ACTIONS, OP_WRITE) {
-  ERR_CHECK(tail_len <= UINT16_MAX, ERR_CMD_BAD_ARG);
+  ERR_CHECK(tail_len <= UINT16_MAX, ERR_BAD_ARG);
   return sys_actions_record_write(args->offset, tail, (uint16_t)tail_len);
 }
 

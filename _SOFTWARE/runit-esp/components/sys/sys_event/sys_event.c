@@ -183,7 +183,7 @@ err_h sys_event_publish(sys_event_key_t key, uint16_t flags, const void* data, u
     return NULL;
   }
 
-  ERR_CHECK(valid, ERR_EVENT_BAD_ARG);
+  ERR_CHECK(valid, ERR_BAD_ARG);
   if (!defer && s_hold != NULL) {
     if (hold_put(s_hold, ev)) {
       return NULL;  // delivered by sys_event_release()
@@ -286,7 +286,7 @@ err_h sys_event_init(void) {
 
 err_h sys_event_subscribe(sys_event_key_t filter, sys_event_handler_f fn, void* ctx, sys_event_run_e run,
                           uint16_t* handle) {
-  ERR_CHECK(fn != NULL && handle != NULL && (uint32_t)run < RUN_END, ERR_EVENT_BAD_ARG);
+  ERR_CHECK(fn != NULL && handle != NULL && (uint32_t)run < RUN_END, ERR_BAD_ARG);
   const bool queued = (uint32_t)run >= RUN_QUEUED_FIRST;
   sub_t sub = {.filter = filter, .fn = fn, .ctx = ctx, .inline_call = !queued,
                .lane = queued ? (uint8_t)((uint32_t)run - RUN_QUEUED_FIRST) : 0u};
@@ -304,7 +304,7 @@ err_h sys_event_subscribe(sys_event_key_t filter, sys_event_handler_f fn, void* 
     }
   }
   portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(added, ERR_EVENT_TABLE_FULL);
+  ERR_CHECK(added, ERR_FULL, .max = first ? 1u : CONFIG_SYS_EVENT_MAX_SUBS);
   return NULL;
 }
 

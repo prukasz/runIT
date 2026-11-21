@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-/* Ops under the root key MODULE_ID_ACTIONS = 0x2C (SYS_ACTIONS.MD "Remote"), packed, little-endian;
+/* Ops under the root key MODULE_ID_ACTIONS = 0x28 (SYS_ACTIONS.MD "Remote"), packed, little-endian;
  * contract_actions.json names them. Never renumber; 0x02, 0x03 and 0x0C are unused: never assign them. The router
  * registers itself (ROUTER_MODULE_REGISTER). */
 

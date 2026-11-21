@@ -1,11 +1,11 @@
 # sys_hbridge — the HBRIDGE contract
 
-Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`MODULE_ID_HBRIDGE` = `0x09`, the contract's own ID) that mean the same on every motor driver. A driver implements the ops it supports; chip specifics (current limits, fault latching) are that driver's own `0xFFxx` ops.
+Component `components/sys/sys_hbridge/`. A contract, not a module with state: opcodes `0x09xx` (`MODULE_ID_HBRIDGE` = `0x05`, the contract's own ID) that mean the same on every motor driver. A driver implements the ops it supports; chip specifics (current limits, fault latching) are that driver's own `0xFFxx` ops.
 
 | File | Contents |
 |---|---|
 | `sys_hbridge.h` | The contract table `CONTRACT_HBRIDGE_OPERATIONS` (prefix `CONTRACT_HBRIDGE`), arg structs (`hbridge_channel_args_t`, `hbridge_drive_args_t`), `SYS_HBRIDGE_DRIVE_MAX`, fault reasons, and `HBRIDGE_EVENTS` |
-| `sys_hbridge_id.h` | `MODULE_ID_DECLARE(MODULE_ID_HBRIDGE, 0x09)` |
+| `sys_hbridge_id.h` | `MODULE_ID_DECLARE(MODULE_ID_HBRIDGE, 0x05)` |
 | `contract_hbridge.json` | The descriptor of the contract (`templates/`) |
 | `CMakeLists.txt` | Header only; requires `sys_device`, `sys_event` |
 | `AGENTS.md` | Rules for changing this folder |
@@ -27,15 +27,15 @@ The drive is an integer count of PWM steps. The wire carries no floats: 12-bit i
 - DRIVE, BRAKE and COAST while suspended: `ERR_DEV_SUSPENDED`.
 - A half bridge has no brake band: drive `0` is PWM 0 with the bridge enabled, not a BRAKE.
 
-## Events (`MODULE_ID_HBRIDGE` = `0x09`)
+## Events (`MODULE_ID_HBRIDGE` = `0x05`)
 
 Per fault, published by the driver (`EVT_TAG(0x09, code)`):
 
 | Event | Code (tag) | Flags | Payload |
 |---|---|---|---|
-| `HBRIDGE_EV_OVERCURRENT` | `0x01` (`0x00090001`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
-| `HBRIDGE_EV_THERMAL_OR_UVLO` | `0x02` (`0x00090002`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
-| `HBRIDGE_EV_EXTERNAL` | `0x03` (`0x00090003`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
+| `HBRIDGE_EV_OVERCURRENT` | `0x01` (`0x00050001`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
+| `HBRIDGE_EV_THERMAL_OR_UVLO` | `0x02` (`0x00050002`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
+| `HBRIDGE_EV_EXTERNAL` | `0x03` (`0x00050003`) | `SYS_EVENT_NOTIFY` | `i32 current_mA` |
 
 Source = the driver device, channel = the channel index.
 

@@ -107,7 +107,7 @@ static err_h load(uint32_t id, uint32_t extra, uint8_t** out, uint32_t* len) {
   ERR_TRY(not_found_is(nvs_store_get(s_nvs, key, NULL, len), id));
   ERR_CHECK(*len > 0, ERR_ACTION_BAD_FRAME, .offset = 0);
   uint8_t* blob = malloc(*len + extra);
-  ERR_CHECK(blob != NULL, ERR_ACTION_NO_MEM, .size = (uint32_t)(*len + extra));
+  ERR_CHECK(blob != NULL, ERR_NO_MEM, .size = (uint32_t)(*len + extra));
   err_h err = nvs_store_get(s_nvs, key, blob, len);
   if (err != NULL) {
     free(blob);
@@ -221,11 +221,11 @@ static void draft_close(void) {
   s_draft = (draft_t){0};
 }
 
-// Lock held. ERR_ACTION_BUSY unless none is open.
+// Lock held. ERR_BUSY unless none is open.
 static err_h draft_open(uint32_t id, uint16_t len) {
-  ERR_CHECK(s_draft.image == NULL, ERR_ACTION_BUSY);
+  ERR_CHECK(s_draft.image == NULL, ERR_BUSY);
   uint8_t* image = malloc(len);
-  ERR_CHECK(image != NULL, ERR_ACTION_NO_MEM, .size = len);
+  ERR_CHECK(image != NULL, ERR_NO_MEM, .size = len);
   s_draft = (draft_t){.image = image, .id = id, .want = len};
   return NULL;
 }
@@ -234,16 +234,14 @@ err_h sys_actions_record_begin(uint32_t id, uint16_t len) {
   ERR_TRY(check_id(id));
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
   ERR_CHECK(len <= CONFIG_SYS_ACTIONS_MAX_BYTES, ERR_ACTION_TOO_BIG, .len = len, .max = CONFIG_SYS_ACTIONS_MAX_BYTES);
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = draft_open(id, len);
-  (void)xSemaphoreGive(sys_actions_mutex);
-  return err;
+  U_MUTEX_GUARD(sys_actions_mutex);
+  return draft_open(id, len);
 }
 
 // Lock held.
 static err_h draft_write(uint16_t offset, const uint8_t* data, uint16_t len) {
   ERR_CHECK(s_draft.image != NULL, ERR_ACTION_NO_DRAFT);
-  ERR_CHECK(offset == s_draft.len, ERR_ACTION_OFFSET, .got = offset, .want = s_draft.len);
+  ERR_CHECK(offset == s_draft.len, ERR_BAD_OFFSET, .got = offset, .want = s_draft.len);
   ERR_CHECK((uint32_t)offset + len <= s_draft.want, ERR_ACTION_TOO_BIG, .len = (uint16_t)(offset + len),
             .max = s_draft.want);
   memcpy(s_draft.image + offset, data, len);
@@ -252,11 +250,9 @@ static err_h draft_write(uint16_t offset, const uint8_t* data, uint16_t len) {
 }
 
 err_h sys_actions_record_write(uint16_t offset, const uint8_t* data, uint16_t len) {
-  ERR_CHECK(data != NULL || len == 0, ERR_ACTION_BAD_ARG);
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = draft_write(offset, data, len);
-  (void)xSemaphoreGive(sys_actions_mutex);
-  return err;
+  ERR_CHECK(data != NULL || len == 0, ERR_BAD_ARG);
+  U_MUTEX_GUARD(sys_actions_mutex);
+  return draft_write(offset, data, len);
 }
 
 // Lock held, a draft open.
@@ -270,7 +266,7 @@ static err_h draft_store(uint32_t crc32) {
 }
 
 err_h sys_actions_record_commit(uint32_t crc32) {
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_actions_mutex);
   err_h err;
   if (s_draft.image == NULL) {
     err = ERR_NEW(ERR_ACTION_NO_DRAFT);
@@ -278,14 +274,12 @@ err_h sys_actions_record_commit(uint32_t crc32) {
     err = draft_store(crc32);
     draft_close();
   }
-  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
 void sys_actions_abort(void) {
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
+  U_MUTEX_GUARD(sys_actions_mutex);
   draft_close();
-  (void)xSemaphoreGive(sys_actions_mutex);
 }
 
 /* ----------------------------------------------------------------------------
@@ -315,7 +309,7 @@ static bool stored_equal(uint32_t id, const uint8_t* image, size_t size) {
 
 err_h sys_actions_set(uint32_t id, const uint8_t* image, uint16_t len) {
   ERR_TRY(check_id(id));
-  ERR_CHECK(image != NULL, ERR_ACTION_BAD_ARG);
+  ERR_CHECK(image != NULL, ERR_BAD_ARG);
   ERR_CHECK(len > 0, ERR_ACTION_EMPTY);
   ERR_CHECK(len <= CONFIG_SYS_ACTIONS_MAX_BYTES, ERR_ACTION_TOO_BIG, .len = len, .max = CONFIG_SYS_ACTIONS_MAX_BYTES);
   uint16_t count;
@@ -333,7 +327,7 @@ err_h sys_actions_copy(uint32_t from, uint32_t to) {
 }
 
 err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
-  ERR_CHECK(out != NULL, ERR_ACTION_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_BAD_ARG);
   uint8_t* blob;
   uint32_t len;
   uint16_t count;
@@ -346,13 +340,13 @@ err_h sys_actions_info(uint32_t id, sys_actions_info_t* out) {
 }
 
 err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len) {
-  ERR_CHECK(buf != NULL && len != NULL, ERR_ACTION_BAD_ARG);
+  ERR_CHECK(buf != NULL && len != NULL, ERR_BAD_ARG);
   uint8_t* blob;
   uint32_t size;
   ERR_TRY(load(id, 0, &blob, &size));
   err_h err = NULL;
   if (offset > size) {
-    err = ERR_NEW(ERR_ACTION_OFFSET, .got = offset, .want = (uint16_t)size);
+    err = ERR_NEW(ERR_BAD_OFFSET, .got = offset, .want = size);
   } else {
     *len = size - offset < cap ? (uint32_t)(size - offset) : cap;
     memcpy(buf, blob + offset, *len);
@@ -362,7 +356,7 @@ err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap,
 }
 
 err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx) {
-  ERR_CHECK(fn != NULL, ERR_ACTION_BAD_ARG);
+  ERR_CHECK(fn != NULL, ERR_BAD_ARG);
   uint8_t* blob;
   uint32_t len;
   uint16_t count;
@@ -387,8 +381,8 @@ err_h sys_actions_remove(uint32_t id) {
 }
 
 err_h sys_actions_remove_all(void) {
-  (void)xSemaphoreTake(sys_actions_mutex, portMAX_DELAY);
-  err_h err = s_draft.image == NULL ? NULL : ERR_NEW(ERR_ACTION_BUSY);
+  U_MUTEX_GUARD(sys_actions_mutex);
+  err_h err = s_draft.image == NULL ? NULL : ERR_NEW(ERR_BUSY);
   uint32_t ids[8];
   // Erasing invalidates the NVS iterator, so each pass lists afresh from the lowest ID.
   while (err == NULL) {
@@ -401,7 +395,6 @@ err_h sys_actions_remove_all(void) {
       err = sys_actions_remove(ids[i]);
     }
   }
-  (void)xSemaphoreGive(sys_actions_mutex);
   return err;
 }
 
@@ -445,7 +438,7 @@ static void on_key(const char* key, void* ctx) {
 }
 
 err_h sys_actions_list(uint32_t start, uint32_t* ids, uint16_t cap, uint16_t* count, uint16_t* total) {
-  ERR_CHECK(ids != NULL && count != NULL && cap > 0, ERR_ACTION_BAD_ARG);
+  ERR_CHECK(ids != NULL && count != NULL && cap > 0, ERR_BAD_ARG);
   *count = 0;
   list_t l = {.start = start, .ids = ids, .cap = cap, .count = count};
   ERR_TRY(nvs_store_keys(s_nvs, on_key, &l));

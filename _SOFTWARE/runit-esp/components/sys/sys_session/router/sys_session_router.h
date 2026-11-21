@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-/* Ops under the root key MODULE_ID_SESSION = 0x0E (SYS_SESSION.MD "Remote"), packed, little-endian;
+/* Ops under the root key MODULE_ID_SESSION = 0x2C (SYS_SESSION.MD "Remote"), packed, little-endian;
  * contract_session.json names them. Never renumber. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /** @brief ID value: this board's id */

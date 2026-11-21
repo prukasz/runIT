@@ -10,14 +10,6 @@
       "message": "Watch {id} request is not a read",
       "hint": "Only commands with dir CMD_DIR_READ (0) can be watched."
     },
-    "ERR_WATCH_BAD_ARG": {
-      "message": "Watch {id}: bad argument",
-      "hint": "Check id (1..255), period (>= 1), trigger, owner peer id and read length."
-    },
-    "ERR_WATCH_FULL": {
-      "message": "Watch table is full",
-      "hint": "Remove an unused watch first or raise CONFIG_SYS_WATCH_MAX / CONFIG_SYS_WATCH_CLIENT_MAX."
-    },
     "ERR_WATCH_NO_VALUE": {
       "message": "No cached watch value from board {board} yet"
     },

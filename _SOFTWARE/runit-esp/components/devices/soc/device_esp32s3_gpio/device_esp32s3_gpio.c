@@ -278,7 +278,7 @@ static err_h drive(const gpio_t* c, uint8_t pin, int level) {
  * Drives a digital output pin high or low.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) {
-  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   return drive(c, args->pin, args->level);
 }
@@ -378,7 +378,7 @@ static err_h arm_digital(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_in
 static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_cfg_t* cfg) {
   ERR_CHECK(cfg->mode != SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->id, .pin = p->io_num);
   if (cfg->mode == SYS_IO_INTR_ADC_WINDOW_OUTSIDE || cfg->mode == SYS_IO_INTR_ADC_WINDOW_INSIDE) {
-    SYS_DEV_CHECK_IN_RANGE(c->id, cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
+    ERR_CHECK_RANGE(cfg->adc.threshold_down_mV, 0, cfg->adc.threshold_up_mV);
   }
   p->intr = *cfg;
   p->hw.adc.alert_active = false;
@@ -392,7 +392,7 @@ static err_h arm_adc(const gpio_t* c, esp32s3_gpio_pin_t* p, const sys_io_intr_c
  * channel = pin). Re-arming replaces the previous configuration.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_INTR) {
-  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
@@ -416,7 +416,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_INTR) {
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
+  ERR_CHECK_RANGE(args->frequency_Hz, ESP32S3_GPIO_PWM_FREQ_MIN_HZ, ESP32S3_GPIO_PWM_FREQ_MAX_HZ);
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);
@@ -433,7 +433,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_DUTY) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_CHECK_RANGE(args->duty, 0, IO_PWM_DUTY_MAX);
   esp32s3_gpio_pin_t* p;
   esp32s3_gpio_lock();
   err_h err = pin_in_mode(c, args->pin, is_pwm, &p);

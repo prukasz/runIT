@@ -63,7 +63,7 @@ RESP_NOTIFY = defs.sym("SYS_POWER_RESPONSE_NOTIFY")
 RESP_DISABLE = defs.sym("SYS_POWER_RESPONSE_DISABLE")
 RESP_RESET = defs.sym("SYS_POWER_RESPONSE_RESET")
 RESP_SAFE = defs.sym("SYS_POWER_RESPONSE_SAFE_STATE")
-TARGET_BOARD = 0xFFFF
+TARGET_BOARD = 0xFF
 
 # Device ops
 DEV_CREATE = defs.contract_op("DEVICE", "CREATE")
@@ -113,14 +113,14 @@ def layout_bytes(
     reserve_mW=1000,
     unknown_source_mA=1000,
     eff_pct=100,
-    input_dev=0xFFFF,
+    input_dev=0xFF,
     input_ch=0,
-    usb_pd=0xFFFF,
+    usb_pd=0xFF,
     usb_ok=(0xFF, 0xFF),
     ext_ok=(0xFF, 0xFF),
 ) -> bytes:
     return struct.pack(
-        "<IIIIBHBHBBBB",
+        "<IIIIBBBBBBBB",
         max_mV,
         max_mA,
         reserve_mW,
@@ -233,17 +233,17 @@ class PowerLifecycleAndLoads(PwrmBase):
         # Initially matrix has 1 row (board)
         self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
         # Add rail at runtime -> 2 rows; duplicate rejected
-        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<HHBI", DEV_RAIL, 0xFFFF, 0, 200))[0], 0)
-        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<HHBI", DEV_RAIL, 0xFFFF, 0, 200))[0], 1)
+        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 0)
+        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 1)
         self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 2 * 13)
 
         # Explicit RAIL_REMOVE -> back to 1 row
-        self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<H", DEV_RAIL))[0], 0)
+        self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<B", DEV_RAIL))[0], 0)
         self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
-        self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<H", DEV_RAIL))[0], 1)
+        self.assertEqual(self.c.pm_w(OP_RAIL_REMOVE, struct.pack("<B", DEV_RAIL))[0], 1)
 
         # Re-add rail, then remove device -> auto-removed by SYS_DEVICE_EV_REMOVED
-        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<HHBI", DEV_RAIL, 0xFFFF, 0, 200))[0], 0)
+        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 0)
         self.assertEqual(self.c.wr(DEV_RAIL, DEV_REMOVE)[0], 0)
         time.sleep(0.05)
         self.assertEqual(len(self.c.pm_r(OP_MATRIX)[1]), 13)
@@ -310,7 +310,7 @@ class PowerBudgetClamp(PwrmBase):
             self.c.pm_w(OP_LAYOUT, layout_bytes(max_mV=10000, max_mA=5000, reserve_mW=2000, unknown_source_mA=1000, eff_pct=100))[0],
             0,
         )
-        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<HHBI", DEV_RAIL, 0xFFFF, 0, 200))[0], 0)
+        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, 0xFF, 0, 200))[0], 0)
 
         # Enable rail at 5 V, then ask for 3000 mA (15000 mW > 8000 mW) in STRICT mode
         self.assertEqual(self.c.wr(DEV_RAIL, VREG_VOLTAGE, struct.pack("<I", 5000))[0], 0)
@@ -348,7 +348,7 @@ class PowerFaultMatrix(PwrmBase):
     def test_vreg_ovp_fault_triggers_matrix_disable_automatically(self):
         self.assertEqual(self.c.wr(DEV_RAIL, DEV_CREATE, testdev_cfg())[0], 0)
         self.assertEqual(self.c.pm_w(OP_LAYOUT, layout_bytes())[0], 0)
-        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<HHBI", DEV_RAIL, DEV_RAIL, 0, 200))[0], 0)
+        self.assertEqual(self.c.pm_w(OP_RAIL, struct.pack("<BBBI", DEV_RAIL, DEV_RAIL, 0, 200))[0], 0)
 
         # Default matrix has OVP -> DISABLE (SUSPEND that rail)
         self.assertEqual(self.c.wr(DEV_RAIL, OWN_FAKE_FAULT, struct.pack("<BBi", 4, 0, 21000))[0], 0)  # VREG_EV_OVP

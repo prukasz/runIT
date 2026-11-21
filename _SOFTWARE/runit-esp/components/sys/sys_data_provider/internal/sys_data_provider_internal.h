@@ -31,7 +31,7 @@ typedef struct {
  * @param system   true: the board's own (SYS_DATA_PROVIDER_STATE_SYSTEM), not removed.
  * @param cfg      The driver's cfg.
  * @param cfg_len  Its size, the type's cfg size.
- * @return NULL; ERR_PROV_TYPE_UNKNOWN, ERR_CMD_BAD_LEN, ERR_PROV_EXISTS, ERR_PROV_FULL, the
+ * @return NULL; ERR_PROV_TYPE_UNKNOWN, ERR_CMD_BAD_LEN, ERR_PROV_ID_TAKEN, ERR_FULL, the
  *         driver's create error, the data matrix's
  */
 MUST_USE err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const void* cfg, uint32_t cfg_len);

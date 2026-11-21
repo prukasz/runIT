@@ -158,7 +158,7 @@ static err_h h_fail(CMD_F_PARAMS) {  /* replies, then fails: the answer must be 
   record_handler(KEY_FAIL, &in);
   const uint8_t half[] = {1, 2, 3};
   ERR_TRY(cmd_reply(out, half, sizeof(half)));
-  return ERR_NEW(ERR_CMD_BAD_ARG);
+  return ERR_NEW(ERR_BAD_ARG);
 }
 
 static err_h h_block(CMD_F_PARAMS) {  /* holds the task that runs it until s_gate is posted */
@@ -166,7 +166,7 @@ static err_h h_block(CMD_F_PARAMS) {  /* holds the task that runs it until s_gat
   record_handler(KEY_BLOCK, &in);
   latch_post(&s_entered);
   if (!latch_wait(&s_gate, 5000)) {
-    return ERR_NEW(ERR_CMD_BAD_ARG);
+    return ERR_NEW(ERR_BAD_ARG);
   }
   return cmd_reply(out, "b", 1);
 }
@@ -218,7 +218,7 @@ static err_h done_cb(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint
   d->on_task = router_is_task();
   pthread_mutex_unlock(&s_lock);
   latch_post(&s_done);
-  return s_done_fails ? ERR_NEW(ERR_CMD_BAD_ARG) : NULL;
+  return s_done_fails ? ERR_NEW(ERR_BAD_ARG) : NULL;
 }
 
 static void sink_cb(err_h chain, const cmd_req_t* cmd) {
@@ -344,12 +344,12 @@ static void test_a_failure_answers_with_the_error_record_and_is_reported(void) {
   err_h chain = chain_of(&s_d[0]);
   TEST_ASSERT_ERR_TAG(ERR_ROUTER_KEY, chain);
   TEST_ASSERT_EQUAL_UINT8(KEY_FAIL, ERR_DATA(chain, ERR_ROUTER_KEY)->key);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(chain)));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_tag(err_cause(chain)));
   err_free(chain);
 
   TEST_ASSERT_EQUAL_INT(1, s_sn);  /* the same chain went to the errors stream, with its command */
   TEST_ASSERT_EQUAL_HEX32(ERR_ROUTER_KEY, s_s[0].tags[0]);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, s_s[0].tags[1]);
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, s_s[0].tags[1]);
   TEST_ASSERT_TRUE(s_s[0].has_cmd);
   TEST_ASSERT_EQUAL_UINT8(0x09, s_s[0].src);
   TEST_ASSERT_EQUAL_HEX16(0x0102, s_s[0].seq);
@@ -406,7 +406,7 @@ static void test_an_answer_that_could_not_be_delivered_is_reported_with_its_comm
   WAIT(s_done);
   WAIT(s_sink);
   TEST_ASSERT_EQUAL_INT(1, s_sn);
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, s_s[0].tags[0]);  /* what done returned, as it is */
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, s_s[0].tags[0]);  /* what done returned, as it is */
   TEST_ASSERT_TRUE(s_s[0].has_cmd);
   TEST_ASSERT_EQUAL_UINT8(0x0A, s_s[0].src);
   TEST_ASSERT_EQUAL_HEX16(9, s_s[0].seq);
@@ -526,7 +526,7 @@ static void test_run_urgent_runs_a_fn_once_on_the_urgent_task(void) {
   TEST_ASSERT_NULL(router_run_urgent(run_fa));
   TEST_ASSERT_NULL(router_run_urgent(run_fa));       /* again before it ran: still once */
   err_h e = router_run_urgent(run_fb);
-  TEST_ASSERT_ERR_TAG(ERR_ROUTER_BUSY, e);  /* another fn while one waits */
+  TEST_ASSERT_ERR_TAG(ERR_BUSY, e);  /* another fn while one waits */
   err_free(e);
   TEST_ASSERT_EQUAL_INT(0, s_fa.count);
 

@@ -17,9 +17,9 @@ Nothing depends on this component, so it may use them all. `app/runit` starts it
 | `sys_device_remote.h` | Use: init, subscribe, unsubscribe, the error sink's hook |
 | `sys_device_remote.c` | The hook (calls), the subscriptions of both sides, the queue and the task |
 | `config/sys_device_remote_config.h` | The kinds of a frame (published to the app) |
-| `router/sys_device_remote_router.h` / `.c` | The remote interface: SUBSCRIBE, UNSUBSCRIBE (`MODULE_ID_REMOTE` 0x2F). The header has the op table (`REMOTE_OPERATIONS`) and the frame (`sys_device_remote_ref_t`); the router registers itself |
+| `router/sys_device_remote_router.h` / `.c` | The remote interface: SUBSCRIBE, UNSUBSCRIBE (`MODULE_ID_REMOTE` 0x31). The header has the op table (`REMOTE_OPERATIONS`) and the frame (`sys_device_remote_ref_t`); the router registers itself |
 | `router/contract_remote.json` | The router's descriptor |
-| `errors/` | `ERR_SYS_DEVICE_REMOTE_MAP` (`MODULE_ID_REMOTE` 0x2F), the messages |
+| `errors/` | `ERR_SYS_DEVICE_REMOTE_MAP` (`MODULE_ID_REMOTE` 0x31), the messages |
 | `Kconfig` | The subscriptions, the queue, the task |
 | `AGENTS.md` | Rules for changing this folder |
 
@@ -50,7 +50,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 - **An event**: the first subscription of a device subscribes a function to all its events (`sys_event_subscribe`, `SYS_EVENT_RUN_QUEUED_DEVICE`: all of a device's events are in the DEVICE lane; its source the device; the last one gone drops it). The registry's `CREATED` and `REMOVED` are not sent: on the other board they would reach the policy as the alias's own, and it would forget the alias's settings (the alias sees the device gone as `ERR_DEV_NOT_FOUND` in the answer); `SUSPENDED`, `RESUMED` and `RESET` go.
 - **An error**: the app's error sink calls `sys_device_remote_on_error(chain, cmd)` for every reported chain: one with no command (`cmd` NULL) whose chain has an `ERR_DEV_ID` in the table is made an error record (`err_record`). `sys_device_write` wraps the drivers' timers' errors in `ERR_DEV_ID` too.
-- Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` (queued with the room of its header, written there: no copy) out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`, 0x2F) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_DEVICE_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_DEVICE_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Counting push frames"), which the receiver does not count.
+- Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` (queued with the room of its header, written there: no copy) out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`, 0x31) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_DEVICE_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_DEVICE_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Counting push frames"), which the receiver does not count.
 
 **On the alias's board**: the registry's `CREATED` of a remote device (`sys_device_remote_of`) sends SUBSCRIBE to its board (a call, never waited for). A board reached again gets the SUBSCRIBE of each of its remote devices again (a loop over the registry's remote devices). There is no table of aliases: `(board, remote id) → local id` is the registry's (`sys_device_find_remote`).
 
@@ -58,7 +58,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 - A frame for a device no remote device names (it was removed) is answered by UNSUBSCRIBE to its sender: the subscription of a removed alias ends at its first event.
 - SUBSCRIBE with no answer in the call's time (`ERR_ROUTER_CALL_TIMEOUT`: lost on the way) is sent again at once; its session gone meanwhile (`ERR_ROUTER_CALL_DOWN`): the board's REACHED sends it again. Refused by the board (its table full, no sub-port `REMOTE` on its session to this one): its answer, already under `ERR_REMOTE`, is reported about the board (`err_report_board`); sent again when the board is reached again.
 
-## Remote (`sys_device_remote_router`, root key `MODULE_ID_REMOTE` 0x2F)
+## Remote (`sys_device_remote_router`, root key `MODULE_ID_REMOTE` 0x31)
 
 The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json` names them.
 
@@ -67,7 +67,7 @@ The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json
 | `0x01` | SUBSCRIBE | write | `sys_device_remote_ref_t` `{u8 id}`, a device of this board; the subscriber: the command's `src` |
 | `0x02` | UNSUBSCRIBE | write | `sys_device_remote_ref_t`, of the command's `src` |
 
-## Errors (`MODULE_ID_REMOTE` 0x2F)
+## Errors (`MODULE_ID_REMOTE` 0x31)
 
 `ERR_REMOTE_NOT_WIRED{board}`, `_SUBS_FULL{id, max}`.
 

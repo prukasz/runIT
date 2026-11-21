@@ -85,3 +85,10 @@ MUST_USE err_h sys_ble_stack_add(uint16_t uuid, struct ble_gatt_svc_def* svcs);
 MUST_USE err_h sys_ble_stack_delete(uint16_t uuid);
 /** One notification / indication: NimBLE's code (BLE_HS_ENOMEM: try again). */
 int sys_ble_stack_notify(uint16_t conn, uint16_t val_handle, const uint8_t* data, uint32_t len, bool indicate);
+
+#define SYS_BLE_CHECK_MEM(cond, uuid_, size_)                                                           \
+  do {                                                                                                  \
+    if (!(cond)) {                                                                                      \
+      return ERR_WRAP(ERR_NEW(ERR_NO_MEM, .size = (uint32_t)(size_)), ERR_BLE_UUID, .uuid = (uuid_));   \
+    }                                                                                                   \
+  } while (0)

@@ -19,6 +19,25 @@
     },
     "ERR_RANGE_F": {
       "message": "The value {value} is outside {min}..{max}"
+    },
+    "ERR_BAD_ARG": {
+      "message": "An argument or request value is not valid"
+    },
+    "ERR_NO_MEM": {
+      "message": "Out of memory ({size} bytes needed)",
+      "hint": "Free memory by removing unused devices, providers, or buffers."
+    },
+    "ERR_FULL": {
+      "message": "No free slot left (limit {max})",
+      "hint": "Remove an unused entry first or raise the configured limit."
+    },
+    "ERR_BUSY": {
+      "message": "Another operation is already in progress",
+      "hint": "Wait for the current operation to finish and try again."
+    },
+    "ERR_BAD_OFFSET": {
+      "message": "Wrong offset {got} (expected {want})",
+      "hint": "Restart the transfer from offset 0."
     }
   }
 }

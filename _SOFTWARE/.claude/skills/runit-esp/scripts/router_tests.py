@@ -1444,7 +1444,7 @@ SRC_UNKNOWN, SRC_USB, SRC_PSU, SRC_BATTERY = 0, 1, 2, 3
 PW_FLAG_ENABLED, PW_FLAG_STRICT, PW_FLAG_INPUT_SEEN = 0x01, 0x02, 0x08
 PW_RESPONSES_DEFAULT = bytes([0, 1, 0, 1, 0, 0, 3, 0, 3, 1, 0])  # by kind, index 0 unused
 TPS_RAIL_A = 10  # a budgeted rail on the board; not created on the devkit
-PW_TARGET_BOARD = 0xFFFF  # response target: the board row
+PW_TARGET_BOARD = 0xFF  # response target: the board row
 VREG_VOLTAGE = 0x0501  # POWER_VREG VOLTAGE (write only)
 
 
@@ -1556,16 +1556,16 @@ def test_power(link: Link) -> None:
 
     # Response matrix: the board row, then one row per rail, each its target first. The write takes the same rows,
     # matched by target: a row left out keeps its responses.
-    row_len = 2 + len(PW_RESPONSES_DEFAULT)
+    row_len = 1 + len(PW_RESPONSES_DEFAULT)
 
     def matrix() -> list[tuple[int, bytes]] | None:
         r = pw_get(link, PW_MATRIX)
         if r is None or not r.ok or len(r.data) % row_len:
             return None
-        return [(struct.unpack_from("<H", r.data, i)[0], bytes(r.data[i + 2:i + row_len])) for i in range(0, len(r.data), row_len)]
+        return [(r.data[i], bytes(r.data[i + 1:i + row_len])) for i in range(0, len(r.data), row_len)]
 
     def rows_bytes(rows: list[tuple[int, bytes]]) -> bytes:
-        return b"".join(struct.pack("<H", target) + cells for target, cells in rows)
+        return b"".join(bytes([target]) + cells for target, cells in rows)
 
     def set_matrix(rows: list[tuple[int, bytes]]) -> Response | None:
         return pw_set(link, PW_MATRIX, rows_bytes(rows))
@@ -1584,9 +1584,9 @@ def test_power(link: Link) -> None:
     whole = rows_bytes(rows)
     r = pw_set(link, PW_MATRIX, whole[:-1])
     check("MATRIX write with the wrong size -> ERR_CMD_BAD_LEN", err_cause(r) == "ERR_CMD_BAD_LEN", str(r))
-    r = pw_set(link, PW_MATRIX, struct.pack("<H", PW_TARGET_BOARD) + bytes([4]) + PW_RESPONSES_DEFAULT[1:])
+    r = pw_set(link, PW_MATRIX, bytes([PW_TARGET_BOARD]) + bytes([4]) + PW_RESPONSES_DEFAULT[1:])
     check("MATRIX write with a response 4 -> ERR_PWRM_BAD_ARG", err_cause(r) == "ERR_PWRM_BAD_ARG", str(r))
-    r = pw_set(link, PW_MATRIX, struct.pack("<H", MISSING_ID) + PW_RESPONSES_DEFAULT)
+    r = pw_set(link, PW_MATRIX, bytes([MISSING_ID]) + PW_RESPONSES_DEFAULT)
     check("MATRIX write for a target that is no rail -> ERR_PWRM_NOT_RAIL", err_cause(r) == "ERR_PWRM_NOT_RAIL", str(r))
     check("refused MATRIX writes change nothing", matrix() == rows, str(matrix()))
 

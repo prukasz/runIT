@@ -2,9 +2,6 @@
   "$schema": "../../../../../../templates/error-texts.schema.json",
   "module": "MODULE_ID_SYS_DEVICE",
   "errors": {
-    "ERR_DEV_BAD_ARG": {
-      "message": "A device request is not valid"
-    },
     "ERR_DEV_BAD_ID": {
       "message": "{id} is not a valid device ID"
     },
@@ -24,10 +21,6 @@
       "message": "{id} is suspended",
       "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
     },
-    "ERR_DEV_NO_MEM": {
-      "message": "No memory for {id} ({size} bytes)",
-      "hint": "Remove a device or a part of the program you do not need, then try again."
-    },
     "ERR_DEV_INSTALL": {
       "message": "While creating {id} ({type})"
     },
@@ -37,10 +30,6 @@
     "ERR_DEV_BAD_PIN": {
       "message": "{id} has no {pin}",
       "hint": "Choose a pin the device has."
-    },
-    "ERR_DEV_RANGE": {
-      "message": "{id}: {value} is outside {min}..{max}",
-      "hint": "Use a value within the range shown."
     },
     "ERR_DEV_OP": {
       "message": "In {op}"

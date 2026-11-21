@@ -13,7 +13,7 @@ Component `components/core/nvs_store/` (in `core`: any module keeps its values h
 | `nvs_store.h` / `nvs_store.c` | The API: `nvs_store_init`, `_open`, `_get`, `_set`, `_erase`, `_keys` (each a call of `nvs_store_impl`), the JSON file (`nvs_store_json_*`, its CRC-32); the module's error tags registered (every implementation raises them) |
 | `nvs_store_iface.h` | The interface: `nvs_store_iface_t`, `extern const nvs_store_iface_t nvs_store_impl` |
 | `esp/nvs_store_esp.c` | `nvs_store_impl` on ESP-IDF's `nvs_flash`: a namespace (`nvs_store_ns_t`) is its handle, "not found" is `ERR_NVS_NOT_FOUND`, any other code `ERR_ESP_ERR` |
-| `errors/` | `ERR_NVS_STORE_MAP` (`MODULE_ID_NVS` 0x16, `nvs_store_id.h`), `errors_nvs_store.json` the messages |
+| `errors/` | `ERR_NVS_STORE_MAP` (`MODULE_ID_NVS` 0x25, `nvs_store_id.h`), `errors_nvs_store.json` the messages |
 
 ## Implementations
 
@@ -47,7 +47,7 @@ A file is one namespace of its own, opened at boot with `nvs_store_json_open` (`
 
 A file shares its partition (or has one of its own): when `nvs_store_init` erases the partition the file goes too.
 
-## Errors (`MODULE_ID_NVS` 0x16)
+## Errors (`MODULE_ID_NVS` 0x25)
 
 `ERR_NVS_BAD_ARG` (an append with no data, or no chunk left), `ERR_NVS_OFFSET{got, want}`, `ERR_NVS_NO_CHUNK{chunk}`, `ERR_NVS_NOT_FOUND`. The implementation's other failures are the core's `ERR_ESP_ERR`.
 

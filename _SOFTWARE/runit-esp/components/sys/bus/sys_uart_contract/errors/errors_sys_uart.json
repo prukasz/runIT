@@ -2,9 +2,6 @@
   "$schema": "../../../../templates/error-texts.schema.json",
   "module": "MODULE_ID_UART",
   "errors": {
-    "ERR_UART_BAD_ARG": {
-      "message": "A UART request is not valid"
-    },
     "ERR_UART_BUSY": {
       "message": "UART port {port} TX queue is full"
     },

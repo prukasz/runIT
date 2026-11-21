@@ -19,8 +19,8 @@ extern "C" {
  * this one keeps its type and where it is (the instance). The caller holds the lock of the slot.
  * @param[in] id Device ID, not installed
  * @param[in] in The args
- * @return ERR_CMD_BAD_LEN, ERR_DEV_BAD_ARG (remote_id, flags), ERR_DEV_TYPE_UNKNOWN, ERR_DEV_ID_TAKEN (this ID, or
- *         that device has a local ID already), ERR_DEV_NO_MEM
+ * @return ERR_CMD_BAD_LEN, ERR_BAD_ARG (remote_id, flags), ERR_DEV_TYPE_UNKNOWN, ERR_DEV_ID_TAKEN (this ID, or
+ *         that device has a local ID already), ERR_NO_MEM
  */
 MUST_USE err_h sys_device_remote_create(uint8_t id, cmd_in_t in);
 

@@ -111,11 +111,11 @@ MUST_USE err_h sys_actions_request(uint32_t id, bool urgent);
 
 /**
  * @brief Writes a whole image: begin, write in order, commit. Commit checks the length, the CRC and the framing, stores
- * the image (replacing a record with that ID) and closes the draft, also on failure. One at a time (ERR_ACTION_BUSY);
+ * the image (replacing a record with that ID) and closes the draft, also on failure. One at a time (ERR_BUSY);
  * the image is on the heap only while it is written.
  * @param[in] id  The record's ID
  * @param[in] len Image size in bytes
- * @return ERR_ACTION_BUSY while another draft is open
+ * @return ERR_BUSY while another draft is open
  */
 MUST_USE err_h sys_actions_record_begin(uint32_t id, uint16_t len);
 
@@ -174,7 +174,7 @@ MUST_USE err_h sys_actions_info(uint32_t id, sys_actions_info_t* out);
  * @param[out] buf    Buffer for the bytes
  * @param[in]  cap    Size of buf
  * @param[out] len    Number of bytes written
- * @return ERR_ACTION_NOT_FOUND, ERR_ACTION_OFFSET for an offset past the image
+ * @return ERR_ACTION_NOT_FOUND, ERR_BAD_OFFSET for an offset past the image
  */
 MUST_USE err_h sys_actions_read(uint32_t id, uint16_t offset, uint8_t* buf, uint32_t cap, uint32_t* len);
 
@@ -206,10 +206,10 @@ MUST_USE err_h sys_actions_dump(uint32_t id, sys_actions_frame_f fn, void* ctx);
 MUST_USE err_h sys_actions_remove(uint32_t id);
 
 /**
- * @brief Removes every stored record, of every class (settings, devices, project, user). ERR_ACTION_BUSY while a
+ * @brief Removes every stored record, of every class (settings, devices, project, user). ERR_BUSY while a
  * record is being written. Stops at the first failing removal and returns its error; the records after it
  * stay.
- * @return ERR_ACTION_BUSY, or the error of the first failing removal
+ * @return ERR_BUSY, or the error of the first failing removal
  */
 MUST_USE err_h sys_actions_remove_all(void);
 

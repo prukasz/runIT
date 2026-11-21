@@ -7,7 +7,6 @@
     "host/test_sys_log.c"
   ],
   "includes": [
-    "errors",
     "router"
   ],
   "config": "host/sys_log_host_config.h",

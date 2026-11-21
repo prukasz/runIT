@@ -97,7 +97,7 @@ static err_h h_rec(CMD_F_PARAMS) {  /* in: [key][dir][payload] */
   memcpy(r->data, in.data + 2, r->len);
   pthread_mutex_unlock(&s_lock);
   latch_post(&s_rec_in);
-  return (in.len > 2 && in.data[2] == REC_FAIL) ? ERR_NEW(ERR_CMD_BAD_ARG) : NULL;
+  return (in.len > 2 && in.data[2] == REC_FAIL) ? ERR_NEW(ERR_BAD_ARG) : NULL;
 }
 ROUTER_MODULE_REGISTER(MODULE_ID_REC, h_rec)
 
@@ -368,7 +368,7 @@ static void test_reading_past_the_image_is_empty_at_the_end_and_an_error_beyond(
   uint32_t len = 99;
   TEST_ASSERT_NULL(sys_actions_read(A_ID, im.n, buf, sizeof(buf), &len));
   TEST_ASSERT_EQUAL_UINT32(0, len);
-  ASSERT_ERR(ERR_ACTION_OFFSET, sys_actions_read(A_ID, (uint16_t)(im.n + 1), buf, sizeof(buf), &len));
+  ASSERT_ERR(ERR_BAD_OFFSET, sys_actions_read(A_ID, (uint16_t)(im.n + 1), buf, sizeof(buf), &len));
   ASSERT_ERR(ERR_ACTION_NOT_FOUND, sys_actions_read(B_ID, 0, buf, sizeof(buf), &len));
 }
 
@@ -403,8 +403,8 @@ static void test_the_draft_is_one_at_a_time_and_in_order(void) {
   const uint8_t bytes[8] = {0};
   ASSERT_ERR(ERR_ACTION_NO_DRAFT, sys_actions_record_write(0, bytes, 1));
   TEST_ASSERT_NULL(sys_actions_record_begin(A_ID, 8));
-  ASSERT_ERR(ERR_ACTION_BUSY, sys_actions_record_begin(B_ID, 8));
-  ASSERT_ERR(ERR_ACTION_OFFSET, sys_actions_record_write(3, bytes, 1));  /* out of order */
+  ASSERT_ERR(ERR_BUSY, sys_actions_record_begin(B_ID, 8));
+  ASSERT_ERR(ERR_BAD_OFFSET, sys_actions_record_write(3, bytes, 1));  /* out of order */
   ASSERT_ERR(ERR_ACTION_TOO_BIG, sys_actions_record_write(0, bytes, 9)); /* more than announced */
   sys_actions_abort();
   TEST_ASSERT_NULL(sys_actions_record_begin(B_ID, 8));  /* abort frees it */
@@ -491,7 +491,7 @@ static void test_remove_and_remove_all(void) {
   ASSERT_ERR(ERR_ACTION_NOT_FOUND, sys_actions_remove(A_ID));
   TEST_ASSERT_NULL(sys_actions_set(A_ID, im.b, im.n));
   TEST_ASSERT_NULL(sys_actions_record_begin(B_ID, 4));
-  ASSERT_ERR(ERR_ACTION_BUSY, sys_actions_remove_all());  /* while a record is being written */
+  ASSERT_ERR(ERR_BUSY, sys_actions_remove_all());  /* while a record is being written */
   sys_actions_abort();
   CALL(ACTIONS, W, ACTIONS_OP_REMOVE_ALL);  /* REMOVE_ALL */
   TEST_ASSERT_EQUAL_UINT8(ROUTER_STATUS_OK, s_ans.status);
@@ -561,7 +561,7 @@ static void test_run_stops_at_the_first_failing_frame_and_names_it(void) {
   TEST_ASSERT_EQUAL_UINT32(ERR_ACTION_STEP, s_probe.tags[0]);
   TEST_ASSERT_EQUAL_UINT16(1, s_probe.step);  /* counted from 0 */
   TEST_ASSERT_EQUAL_UINT32(A_ID, s_probe.id);
-  TEST_ASSERT_EQUAL_UINT32(ERR_CMD_BAD_ARG, s_probe.tags[s_probe.depth - 1]);  /* the cause is under it */
+  TEST_ASSERT_EQUAL_UINT32(ERR_BAD_ARG, s_probe.tags[s_probe.depth - 1]);  /* the cause is under it */
   TEST_ASSERT_EQUAL_INT(2, s_recn);  /* the third frame did not run */
 
   /* the same record through a remote RUN answers ERROR */

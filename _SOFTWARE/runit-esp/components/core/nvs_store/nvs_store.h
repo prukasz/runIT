@@ -116,7 +116,7 @@ MUST_USE err_h nvs_store_json_open(nvs_store_json_t* file, const char* partition
  * @param[in]     offset Must be the file's length: a chunk sent twice is refused
  * @param[in]     data   The chunk
  * @param[in]     len    Chunk size in bytes
- * @return ERR_NVS_OFFSET, ERR_NVS_BAD_ARG: no data, or the file has every chunk it can have
+ * @return ERR_BAD_OFFSET, ERR_BAD_ARG: no data, or the file has every chunk it can have
  */
 MUST_USE err_h nvs_store_json_append(nvs_store_json_t* file, uint32_t offset, const uint8_t* data, uint32_t len);
 

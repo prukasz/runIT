@@ -24,7 +24,7 @@ err_h sys_io_release(sys_io_pin_t p) {
 }
 
 err_h sys_io_get_level(sys_io_pin_t p, bool* level) {
-  ERR_CHECK(level != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(level != NULL, ERR_BAD_ARG);
   io_level_args_t answer = {0};
   ERR_TRY(SYS_IO_READ(p, OP_LEVEL, &answer));
   *level = answer.level != 0;
@@ -32,7 +32,7 @@ err_h sys_io_get_level(sys_io_pin_t p, bool* level) {
 }
 
 err_h sys_io_get_voltage(sys_io_pin_t p, int32_t* out_mV) {
-  ERR_CHECK(out_mV != NULL, ERR_DEV_BAD_ARG);
+  ERR_CHECK(out_mV != NULL, ERR_BAD_ARG);
   io_voltage_args_t answer = {0};
   ERR_TRY(SYS_IO_READ(p, OP_VOLTAGE, &answer));
   *out_mV = answer.voltage_mV;

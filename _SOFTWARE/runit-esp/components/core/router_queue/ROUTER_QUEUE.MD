@@ -85,7 +85,7 @@ A board is called by its id through `sys_session_port(board, MODULE_ID_ROUTER, &
 - **Origin** `router_origin()`: the command the calling task is routing (src, seq, request), NULL outside the router tasks; inside a replay it is still the outer command. A module that acts for a peer reads its `src` there: the streams' and the remote devices' SUBSCRIBE. `router_is_task()`: the caller runs on a router task (what waits for an answer must not run there).
 - **Urgent work** `router_run_urgent(fn)`: runs `fn` once on the urgent task, soon (any task or a timer callback, not an ISR); called again before it ran, it still runs once; another `fn` waiting → `ERR_ROUTER_BUSY`. For work that must not wait behind a command and may block: the safe state of `sys_system` (SYS_SYSTEM.MD). Whether a peer is alive is the session's (SYS_SESSION.MD "Gone peers").
 
-## Errors (`MODULE_ID_ROUTER_QUEUE` = 0x24)
+## Errors (`MODULE_ID_ROUTER_QUEUE` = 0x22)
 
 A tag about a command carries its `src`.
 

@@ -4,7 +4,7 @@
 #include "sys_event.h"
 
 /*
- * Events of the device registry (module MODULE_ID_SYS_DEVICE, 0x20, the registry's number and the ID of its lifecycle
+ * Events of the device registry (module MODULE_ID_SYS_DEVICE, 0x2F, the registry's number and the ID of its lifecycle
  * ops): what happened to a device. Each is a one-time change, not a state the device stays in (the `suspended` flag is
  * the state). The registry publishes them, after the lock of the device is let go, so a listener may call the registry.
  *

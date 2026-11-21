@@ -53,7 +53,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_EVENT, MODULE_ID_EVENT)
  * @param[in]  device The listener device (already created or inside its create())
  * @param[in]  op     Target write op
  * @param[out] handle Its handle, for sys_event_unsubscribe()
- * @return ERR_EVENT_BAD_ARG for bad device, generation 0, or bad op; else as sys_event_subscribe
+ * @return ERR_BAD_ARG for bad device, generation 0, or bad op; else as sys_event_subscribe
  */
 MUST_USE err_h sys_device_event_subscribe_op(sys_event_key_t filter, uint8_t device, uint16_t op, uint16_t* handle);
 

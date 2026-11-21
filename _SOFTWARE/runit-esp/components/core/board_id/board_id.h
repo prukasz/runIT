@@ -30,7 +30,7 @@ uint8_t board_id(void);
 /**
  * @brief Keeps the board's id in the store: it is the board's from the next start.
  * @param[in] id CMD_SRC_NONE, or CMD_SRC_BOARD_FIRST..CMD_SRC_BOARD_LAST
- * @return NULL; ERR_CMD_BAD_ARG, the store's error
+ * @return NULL; ERR_BAD_ARG, the store's error
  */
 MUST_USE err_h board_id_save(uint8_t id);
 

@@ -23,9 +23,8 @@
       "message": "Bluetooth {uuid} does not exist",
       "hint": "Check the UUID, or apply the Bluetooth settings first."
     },
-    "ERR_BLE_NO_MEM": {
-      "message": "No memory for Bluetooth {uuid} ({size} bytes)",
-      "hint": "Make the buffers smaller, or remove a characteristic you do not need."
+    "ERR_BLE_UUID": {
+      "message": "In Bluetooth {uuid}"
     },
     "ERR_BLE_NO_TX": {
       "message": "Bluetooth {uuid} cannot send",

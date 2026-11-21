@@ -84,7 +84,7 @@ MUST_USE err_h sys_watch_init(void);
  * @param[out] buf   Output buffer for cached answer.
  * @param[in]  cap   Capacity of `buf`.
  * @param[out] len   Cached answer length (set before ERR_CMD_BAD_LEN check if `cap` is too small).
- * @return NULL on cached hit; ERR_WATCH_BAD_ARG, ERR_WATCH_NOT_READ, ERR_WATCH_FULL, ERR_WATCH_NO_VALUE,
+ * @return NULL on cached hit; ERR_BAD_ARG, ERR_WATCH_NOT_READ, ERR_FULL, ERR_WATCH_NO_VALUE,
  *         ERR_WATCH_STALE, ERR_CMD_OUT_FULL, ERR_CMD_BAD_LEN, or ERR_REMOTE chain from a failed remote read.
  */
 MUST_USE err_h sys_watch_read(uint8_t board, cmd_in_t read, void* buf, uint32_t cap, uint32_t* len);

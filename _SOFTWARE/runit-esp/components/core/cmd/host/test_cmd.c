@@ -111,11 +111,9 @@ static void test_error_tags_are_registered_with_their_wire_sizes(void) {
   TEST_ASSERT_EQUAL_STRING("CMD", err_module(MODULE_ID_CMD)->name);
   TEST_ASSERT_EQUAL_HEX32(((uint32_t)MODULE_ID_CMD << 16) | 1u, ERR_CMD_BAD_LEN);
   TEST_ASSERT_EQUAL_HEX32(((uint32_t)MODULE_ID_CMD << 16) | 2u, ERR_CMD_OUT_FULL);
-  TEST_ASSERT_EQUAL_HEX32(((uint32_t)MODULE_ID_CMD << 16) | 3u, ERR_CMD_BAD_ARG);
-  TEST_ASSERT_EQUAL_HEX32(((uint32_t)MODULE_ID_CMD << 16) | 4u, ERR_CMD_DIRECTION);
+  TEST_ASSERT_EQUAL_HEX32(((uint32_t)MODULE_ID_CMD << 16) | 3u, ERR_CMD_DIRECTION);
   TEST_ASSERT_EQUAL_UINT8(4, err_tag_info(ERR_CMD_BAD_LEN)->size);
   TEST_ASSERT_EQUAL_UINT8(4, err_tag_info(ERR_CMD_OUT_FULL)->size);
-  TEST_ASSERT_EQUAL_UINT8(0, err_tag_info(ERR_CMD_BAD_ARG)->size);
   TEST_ASSERT_EQUAL_UINT8(1, err_tag_info(ERR_CMD_DIRECTION)->size);
   TEST_ASSERT_EQUAL_UINT8(ERR_SEV_HIGH, err_tag_info(ERR_CMD_BAD_LEN)->sev);
 }

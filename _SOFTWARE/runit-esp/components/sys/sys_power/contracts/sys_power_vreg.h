@@ -10,7 +10,7 @@ extern "C" {
 /*
  * The regulator contract, VREG: 0x05xx, where 0x05 is the contract and xx its op. An adjustable regulator with one
  * output. Voltage and current limit are the wanted settings: a device keeps them while the output is off and applies
- * them when it is enabled. Values the chip can't reach are refused (ERR_DEV_RANGE), never clamped. Writes while
+ * them when it is enabled. Values the chip can't reach are refused (ERR_RANGE), never clamped. Writes while
  * suspended: ERR_DEV_SUSPENDED.
  * ENABLE  - output on / off
  * VOLTAGE - output voltage in mV

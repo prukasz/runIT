@@ -33,9 +33,9 @@
         }
       }
     },
-    "ERR_PWRM_BAD_ARG": {
-      "message": "{value} is outside {min}..{max}",
-      "hint": "Use a value within the range shown."
+    "ERR_PWRM_RAIL_TAKEN": {
+      "message": "{id} is already registered as a power rail",
+      "hint": "Remove the existing rail before adding it again."
     },
     "ERR_PWRM_NOT_RAIL": {
       "message": "{id} is not a power rail of the board",

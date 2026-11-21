@@ -8,8 +8,6 @@
 #include "sdkconfig.h"
 #include "sys_log_router.h"
 
-ERR_MODULE_DEFINE(MODULE_ID_LOG, ERR_SYS_LOG_MAP)
-
 #define ANSI_ESC  '\x1b'
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
 
@@ -120,9 +118,9 @@ err_h sys_log_init(void) {
 }
 
 err_h sys_log_set(const sys_log_cfg_t* cfg) {
-  ERR_CHECK(cfg != NULL, ERR_CMD_BAD_ARG);
-  ERR_CHECK(cfg->level <= LEVEL_MAX, ERR_LOG_BAD_LEVEL, .level = cfg->level, .max = LEVEL_MAX);
-  ERR_CHECK(cfg->mirror_serial <= 1 && cfg->trace_errors <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(cfg != NULL, ERR_BAD_ARG);
+  ERR_CHECK_RANGE(cfg->level, 0, LEVEL_MAX);
+  ERR_CHECK(cfg->mirror_serial <= 1 && cfg->trace_errors <= 1, ERR_BAD_ARG);
   portENTER_CRITICAL(&s_log.lock);
   s_log.cfg = *cfg;
   portEXIT_CRITICAL(&s_log.lock);

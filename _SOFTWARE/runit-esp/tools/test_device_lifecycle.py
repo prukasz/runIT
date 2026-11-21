@@ -392,10 +392,10 @@ class DeviceErrorPolicy(LifecycleBase):
     def test_intentional_high_error_triggers_auto_suspend(self):
         self.assertEqual(self.c.wr(DEV_A, DEV_CREATE, testdev_cfg())[0], 0)
         self.assertEqual(self.c.wr(DEV_A, SUPPLY_SOURCE, bytes([1]))[0], 0)
-        # MEDIUM importance admits HIGH (ERR_DEV_RANGE) -> auto-suspend
+        # MEDIUM importance admits HIGH (ERR_RANGE) -> auto-suspend
         self.assertEqual(self.c.call(policy_set_cmd(DEV_A, IMP_MEDIUM, (0, 0, RESP_SUSPEND, 0)))[0], 0)
 
-        self.assertEqual(self.c.wr(DEV_A, VREG_VOLTAGE, struct.pack("<I", 999))[0], 1)  # ERR_DEV_RANGE (HIGH)
+        self.assertEqual(self.c.wr(DEV_A, VREG_VOLTAGE, struct.pack("<I", 999))[0], 1)  # ERR_RANGE (HIGH)
         time.sleep(0.06)
         self.assertEqual(struct.unpack("<HB", self.c.rd(DEV_A, DEV_INFO)[1])[1], 1)
         self.assertEqual(self.c.rd(DEV_A, SUPPLY_SOURCE), (0, bytes([0])))  # safe state applied

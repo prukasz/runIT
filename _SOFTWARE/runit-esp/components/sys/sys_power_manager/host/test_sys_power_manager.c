@@ -241,7 +241,8 @@ static void test_runtime_rail_add_remove_and_auto_remove(void) {
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
   /* Duplicate rejected */
   err_h dup = sys_power_manager_add_rail(&r);
-  TEST_ASSERT_ERR_TAG(ERR_PWRM_BAD_ARG, dup);
+  TEST_ASSERT_ERR_TAG(ERR_PWRM_RAIL_TAKEN, dup);
+  TEST_ASSERT_EQUAL_UINT16(DEV_RAIL1, ERR_DATA(dup, ERR_PWRM_RAIL_TAKEN)->id);
   err_free(dup);
 
   TEST_ASSERT_NULL(sys_power_manager_get_matrix(rows, 4, &count));

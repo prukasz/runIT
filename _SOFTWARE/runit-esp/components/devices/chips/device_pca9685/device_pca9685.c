@@ -88,7 +88,7 @@ static err_h chip_set_frequency(pca_t* c, uint16_t hz) {
  * Drives 0% or 100% PWM duty for the pin.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) {
-  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   return chip_set_duty(c, args->pin, args->level ? IO_PWM_DUTY_MAX : 0);
 }
@@ -117,7 +117,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_TOGGLE) {
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_DUTY) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_CHECK_RANGE(args->duty, 0, IO_PWM_DUTY_MAX);
   return chip_set_duty(c, args->pin, (uint16_t)args->duty);
 }
 
@@ -126,7 +126,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_DUTY) {
  * Shared PWM frequency for all 16 channels (`pin` is ignored).
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
+  ERR_CHECK_RANGE(args->frequency_Hz, PCA9685_MIN_FREQUENCY_HZ, PCA9685_MAX_FREQUENCY_HZ);
   return chip_set_frequency(c, (uint16_t)args->frequency_Hz);
 }
 

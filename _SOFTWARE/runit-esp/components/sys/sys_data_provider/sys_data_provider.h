@@ -4,7 +4,7 @@
  * @file sys_data_provider.h
  * @brief The board's providers (SYS_DATA_PROVIDER.MD): the ways bytes leave and enter (a UART, a BLE link, the
  * console), each one a stream port of the data matrix. Its control plane is the router only (root key
- * MODULE_ID_PROVIDER 0x0D, contract_provider.json); in C there is only the boot's CREATE of the board's own providers
+ * MODULE_ID_PROVIDER 0x2B, contract_provider.json); in C there is only the boot's CREATE of the board's own providers
  * and a provider's state.
  */
 
@@ -26,6 +26,12 @@ typedef enum {
   SYS_DATA_PROVIDER_TYPE_MQTT    = 3,  //@alias MQTT @description MQTT topic provider
   SYS_DATA_PROVIDER_TYPE_CONSOLE = 4,  //@alias Console @description Board UART/USB-JTAG console
 } sys_data_provider_type_e;
+
+/* No provider (the id of a call that names none, e.g. LIST). */
+#define SYS_DATA_PROVIDER_ID_NONE 0xFFu
+
+/* CREATE's [flags u8]. SYSTEM: the board's own provider, it can't be removed. */
+#define SYS_DATA_PROVIDER_CREATE_SYSTEM 0x01u
 
 /* Provider state bits (filled by the driver inside create() and sys_data_provider_set_up()). */
 //#ref-defines prov_state @alias Provider state @prefix SYS_DATA_PROVIDER_STATE_

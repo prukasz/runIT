@@ -177,7 +177,7 @@ Host tests in `host/` (`python test_host/run.py sys_event` from `runit-esp-archi
 
 Not covered on the host: priorities, the lanes' stacks, an interrupt's timing.
 
-## Errors (`MODULE_ID_SYS_EVENT` = 0x25, `MODULE_ID_SYS_EVENT`)
+## Errors (`MODULE_ID_SYS_EVENT` = 0x2E, `MODULE_ID_SYS_EVENT`)
 
 | Tag | Severity | Fields | When |
 |---|---|---|---|

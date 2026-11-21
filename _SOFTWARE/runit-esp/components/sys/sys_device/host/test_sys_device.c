@@ -126,7 +126,7 @@ static void wait_released(void) {
 static err_h release_res(void* arg) {
   const rel_t* r = arg;
   log_step('X', r->id, r->i);
-  return r->id == s_release_fail && r->i == 1 ? ERR_NEW(ERR_DEV_BAD_ARG) : NULL;
+  return r->id == s_release_fail && r->i == 1 ? ERR_NEW(ERR_BAD_ARG) : NULL;
 }
 
 static err_h release_extra(void* arg) {
@@ -155,7 +155,7 @@ OP_DECLARE_WRITE(OWN_PROBE, OP_SELF) {
 
 OP_DECLARE_WRITE(OWN_PROBE, OP_EMIT) {
   ERR_TRY(SYS_EVENT_PUBLISH(PROBE_EV_POKE, c->id, 0, .n = 1));
-  return c->value == 1 ? ERR_NEW(ERR_DEV_BAD_ARG) : NULL;
+  return c->value == 1 ? ERR_NEW(ERR_BAD_ARG) : NULL;
 }
 
 OP_DECLARE_WRITE(OWN_PROBE, OP_BLOCK) {
@@ -177,7 +177,7 @@ OP_DECLARE_WRITE(OWN_PROBE, OP_EVT) {
 
 OP_DECLARE_WRITE(OWN_PROBE, OP_TICK) {
   if (c->value == 0xEE) {
-    return ERR_NEW(ERR_DEV_BAD_ARG);
+    return ERR_NEW(ERR_BAD_ARG);
   }
   c->ticks++;
   return NULL;
@@ -251,7 +251,7 @@ static err_h create(uint8_t id, probe_t* c, const probe_cfg_t* cfg) {
     ERR_TRY(sys_device_use(id, cfg->dep));
     ERR_TRY(SYS_DEVICE_SET(cfg->dep, OWN_PROBE, OP_PING));  // the dep sees this device as its caller
   }
-  ERR_CHECK(cfg->fail == 0, ERR_DEV_BAD_ARG);
+  ERR_CHECK(cfg->fail == 0, ERR_BAD_ARG);
   s_dev[id] = c;
   return NULL;
 }
@@ -572,7 +572,7 @@ static void test_an_event_of_an_op_reaches_an_inline_listener_after_the_outermos
   TEST_ASSERT_EQUAL_HEX16(PROBE_EV_MODULE, 0x8000u | PROBE_TYPE);
   // An op that failed after it published: the event is delivered all the same.
   TEST_ASSERT_NULL(SYS_DEVICE_SET(3, OWN_PROBE, OP_VALUE, 1));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, write(3, OWN_PROBE_OP_EMIT));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, write(3, OWN_PROBE_OP_EMIT));
   TEST_ASSERT_EQUAL_INT(2, s_pokes);
 }
 
@@ -604,7 +604,7 @@ static void test_a_failed_create_gives_back_what_it_took_last_first_and_runs_no_
   err_h e = create_at(frame, 6, 3, 1, 0);
   TEST_ASSERT_NOT_NULL(e);
   TEST_ASSERT_EQUAL_HEX32(ERR_DEV_INSTALL, err_tag(err_cause(err_cause(e))));  // ID, OP, then the CREATE's context
-  TEST_ASSERT_EQUAL_HEX32(ERR_DEV_BAD_ARG, err_root_tag(e));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
   TEST_ASSERT_EQUAL_INT(2, s_log_n);
   TEST_ASSERT_EQUAL_CHAR('X', s_log[0].what);
@@ -635,7 +635,7 @@ static void test_remove_suspends_a_working_device_then_releases_last_first(void)
 static void test_a_failing_release_still_releases_the_rest_and_frees_the_slot(void) {
   make(9, NONE);
   s_release_fail = 9;
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, write(9, CONTRACT_SYS_DEVICE_OP_REMOVE));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, write(9, CONTRACT_SYS_DEVICE_OP_REMOVE));
   TEST_ASSERT_EQUAL_INT(3, s_log_n);  // suspend, both releases
   TEST_ASSERT_FALSE(exists(9));
   s_release_fail = NONE;
@@ -644,7 +644,7 @@ static void test_a_failing_release_still_releases_the_rest_and_frees_the_slot(vo
 
 static void test_a_resource_is_added_once_and_only_with_the_lock_of_its_owner(void) {
   make(1, NONE);
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, write(1, OWN_PROBE_OP_RES2));  // the second add of the same node
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, write(1, OWN_PROBE_OP_RES2));  // the second add of the same node
   sys_device_res_t node = {0};
   rel_t rel = {1, 0};
   err_h e = sys_device_res_add(1, &node, release_res, &rel);  // from no op of device 1
@@ -739,9 +739,9 @@ static void test_a_step_runs_only_on_its_device_when_the_device_takes_it_now(voi
   TEST_ASSERT_EQUAL_INT(1, s_dev[14]->ticks);
   // The op's own failure is returned; a step that is not a device's own op, or of no generation, is refused.
   TEST_ASSERT_NULL(SYS_DEVICE_SET(14, OWN_PROBE, OP_VALUE, 0xEE));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_step(14, sys_device_gen(14), OWN_PROBE_OP_TICK));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_step(14, 0, OWN_PROBE_OP_TICK));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_step(14, sys_device_gen(14), CONTRACT_TESTC_OP_LEVEL));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_step(14, sys_device_gen(14), OWN_PROBE_OP_TICK));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_step(14, 0, OWN_PROBE_OP_TICK));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_step(14, sys_device_gen(14), CONTRACT_TESTC_OP_LEVEL));
   TEST_ASSERT_ROOT(ERR_DEV_BAD_ID, sys_device_step(SYS_DEVICE_COUNT, 1, OWN_PROBE_OP_TICK));
 }
 
@@ -787,8 +787,8 @@ static void test_deliver_waits_for_lock_runs_when_always_and_checks_generation(v
   TEST_ASSERT_EQUAL_UINT8(0x99, s_dev[15]->deliver_val);
 
   // Invalid arguments.
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_deliver(15, 0, OWN_PROBE_OP_EVT, &val, sizeof(val)));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_deliver(15, sys_device_gen(15), CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_deliver(15, 0, OWN_PROBE_OP_EVT, &val, sizeof(val)));
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_deliver(15, sys_device_gen(15), CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
   TEST_ASSERT_ROOT(ERR_DEV_BAD_ID, sys_device_deliver(SYS_DEVICE_COUNT, 1, OWN_PROBE_OP_EVT, &val, sizeof(val)));
 }
 
@@ -877,7 +877,7 @@ static err_h clamp_level(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, cmd_
   if (dir != CMD_DIR_WRITE) {
     return NULL;
   }
-  ERR_CHECK(in.data[0] != 0xFF, ERR_DEV_RANGE, .id = id, .value = 0xFF, .min = 0, .max = 100);
+  ERR_CHECK(in.data[0] != 0xFF, ERR_RANGE, .value = 0xFF, .min = 0, .max = 100);
   if (in.data[0] > 100) {
     out->data[0] = 100;
     out->len = 1;
@@ -894,7 +894,7 @@ static void level_done(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t passed, er
 
 static void test_an_interceptor_changes_or_refuses_a_call_and_hears_how_each_ended(void) {
   TEST_ASSERT_NULL(sys_device_set_interceptor(MODULE_ID_TESTC, clamp_level, level_done));
-  TEST_ASSERT_ROOT(ERR_DEV_BAD_ARG, sys_device_set_interceptor(MODULE_ID_TESTC, clamp_level, NULL));  // one each
+  TEST_ASSERT_ROOT(ERR_BAD_ARG, sys_device_set_interceptor(MODULE_ID_TESTC, clamp_level, NULL));  // one each
   make(30, NONE);
   s_done_n = 0;
   TEST_ASSERT_NULL(SYS_DEVICE_SET(30, CONTRACT_TESTC, OP_LEVEL, 50));
@@ -904,7 +904,7 @@ static void test_an_interceptor_changes_or_refuses_a_call_and_hears_how_each_end
   TEST_ASSERT_NULL(SYS_DEVICE_SET(30, CONTRACT_TESTC, OP_LEVEL, 200));
   TEST_ASSERT_EQUAL_UINT8(100, s_dev[30]->level);  // the device got the clamped value
   TEST_ASSERT_EQUAL_UINT8(100, s_done_passed);
-  TEST_ASSERT_ROOT(ERR_DEV_RANGE, SYS_DEVICE_SET(30, CONTRACT_TESTC, OP_LEVEL, 0xFF));
+  TEST_ASSERT_ROOT(ERR_RANGE, SYS_DEVICE_SET(30, CONTRACT_TESTC, OP_LEVEL, 0xFF));
   TEST_ASSERT_EQUAL_INT(2, s_done_n);  // refused by the first stage: no done
   TEST_ASSERT_ROOT(ERR_DEV_NOT_FOUND, SYS_DEVICE_SET(31, CONTRACT_TESTC, OP_LEVEL, 1));
   TEST_ASSERT_EQUAL_INT(3, s_done_n);

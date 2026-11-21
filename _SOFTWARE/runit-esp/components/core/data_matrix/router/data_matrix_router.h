@@ -3,7 +3,7 @@
 /**
  * @file data_matrix_router.h
  * @brief The data matrix's commands (DATA_MATRIX.MD "Commands"): the app links, unlinks and lists stream ports. Root
- * key MODULE_ID_DATA_MATRIX (0x30); router/contract_data_matrix.json names them. Packed, little-endian; never renumber.
+ * key MODULE_ID_DATA_MATRIX (0x23); router/contract_data_matrix.json names them. Packed, little-endian; never renumber.
  * The router registers itself (ROUTER_MODULE_REGISTER): no other component names it.
  */
 

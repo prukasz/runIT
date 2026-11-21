@@ -66,7 +66,7 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PD, MODULE_ID_PD)
  * @param[out] out         Array for the options
  * @param[in]  max_options Size of out, at most SYS_POWER_USB_PD_OPTIONS_MAX
  * @param[out] out_count   How many options were written
- * @return ERR_DEV_BAD_ARG for a NULL out or out_count, ERR_CMD_BAD_LEN for an answer that is not whole options, or the
+ * @return ERR_BAD_ARG for a NULL out or out_count, ERR_CMD_BAD_LEN for an answer that is not whole options, or the
  *         error of the device read
  */
 MUST_USE err_h sys_power_usb_pd_list_options(uint8_t device, sys_power_usb_pd_option_t* out, uint8_t max_options,

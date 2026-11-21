@@ -290,7 +290,7 @@ static inline bool err__in_range_f(double v, double lo, double hi) {
 /**
  * @brief Returns a new error from the current function unless lo <= v <= hi (err_in_range: no -Wtype-limits warning for
  * an unsigned v and a lo of 0).
- * @usage ERR_CHECK_IN_RANGE(ms, TIMEOUT_MIN_MS, TIMEOUT_MAX_MS, ERR_CMD_BAD_ARG);
+ * @usage ERR_CHECK_IN_RANGE(ms, TIMEOUT_MIN_MS, TIMEOUT_MAX_MS, ERR_BAD_ARG);
  */
 #define ERR_CHECK_IN_RANGE(v, lo, hi, tag, ...) ERR_CHECK(err_in_range(v, lo, hi), tag, __VA_ARGS__)
 

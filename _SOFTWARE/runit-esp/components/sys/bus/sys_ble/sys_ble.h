@@ -50,14 +50,14 @@ typedef void (*sys_ble_rx_f)(void* ctx, const uint8_t* data, uint32_t len);
  * @brief Starts NimBLE with the table as staged so far (services and characteristics made with the calls below, by
  * the providers), advertising `adv_service`, and the BLE task. Once, at boot, after the board's first providers.
  * @param[in] adv_service The service UUID the advertisement carries: a client filters by it
- * @return ERR_BLE_STACK, ERR_BLE_NO_MEM
+ * @return ERR_BLE_STACK, ERR_NO_MEM
  */
 MUST_USE err_h sys_ble_start(uint16_t adv_service);
 
 /**
  * @brief The table's calls, the providers' (nothing else changes the table): staged until sys_ble_apply puts them live. A characteristic
  * is in one service and its UUID is unique in the table.
- * @return ERR_BLE_UUID_TAKEN, ERR_BLE_NOT_FOUND, ERR_BLE_SVC_LOCKED, ERR_BLE_NO_MEM, ERR_CMD_BAD_ARG
+ * @return ERR_BLE_UUID_TAKEN, ERR_BLE_NOT_FOUND, ERR_BLE_SVC_LOCKED, ERR_NO_MEM, ERR_BAD_ARG
  */
 MUST_USE err_h sys_ble_service_create(uint16_t uuid, bool primary);
 MUST_USE err_h sys_ble_service_remove(uint16_t uuid);

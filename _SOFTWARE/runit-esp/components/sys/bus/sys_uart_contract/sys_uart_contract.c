@@ -18,7 +18,7 @@ static err_h sub_release(void* arg) {
 }
 
 err_h sys_uart_port_subscribe(uint8_t owner, sys_uart_port_t* sub, uint8_t port, uint16_t op) {
-  ERR_CHECK(sub != NULL && op != 0, ERR_UART_BAD_ARG);
+  ERR_CHECK(sub != NULL && op != 0, ERR_BAD_ARG);
   sub->port = port;
   ERR_TRY(sys_device_require_op(owner, port, CONTRACT_UART_OP_SUBSCRIBE, CMD_DIR_WRITE));  // declares the use as well
   ERR_TRY(sys_device_res_add(owner, &sub->res, sub_release, sub));                        // before the port is taken

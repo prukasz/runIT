@@ -8,7 +8,7 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 | `errors/sys_power_manager_errors.h` | `ERR_SYS_POWER_MANAGER_MAP`, the module's error tags (included by `sys_power_manager.h`) |
 | `errors/errors_power_manager.json` | The error messages |
 | `sys_power_manager.c` | Task, budget, the POWER_VREG interceptor, source, battery, response matrix, settings. `WHOLE_ARCHIVE` (error tag registration) |
-| `router/sys_power_manager_router.c/.h` | Remote interface, root key `MODULE_ID_PWRM` = 0x22 (also its error module and the module of its events). The header publishes every op (`SYS_PWRM_OP_*`, with its sides); the frames are the settings structs of `sys_power_manager.h` |
+| `router/sys_power_manager_router.c/.h` | Remote interface, root key `MODULE_ID_PWRM` = 0x33 (also its error module and the module of its events). The header publishes every op (`SYS_PWRM_OP_*`, with its sides); the frames are the settings structs of `sys_power_manager.h` |
 | `router/contract_power_manager.json` | The router's descriptor (`templates/`) |
 | `Kconfig` | Task, period (1 s), rails (4), budget step (250 mW), input warning (90 %), battery hysteresis (3 %) |
 | `AGENTS.md` | Rules for changing this folder |
@@ -34,7 +34,7 @@ The board's devices are created at boot and can't be removed (`ERR_DEV_SYSTEM`, 
 
 ## Settings (records, SYS_ACTIONS.MD)
 
-A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x22][0x01][op][args]` (`MODULE_ID_PWRM` = `0x22`, `CMD_DIR_WRITE` = `1`). Nothing replays by itself: the project runs the records when it starts.
+A write applies a setting at once and stores nothing. After a reset the manager starts from the defaults below. The app keeps each setting as a record that holds its write frame, `[0x33][0x01][op][args]` (`MODULE_ID_PWRM` = `0x33`, `CMD_DIR_WRITE` = `1`). Nothing replays by itself: the project runs the records when it starts.
 
 | Record ID | Frame | Contents |
 |---|---|---|
@@ -94,16 +94,16 @@ LiPo per-cell curve (4.20 V = 100 %, 3.84 V = 50 %, 3.27 V = 0 %; 21 points, lin
 
 ## Events and the response matrix
 
-The manager's own events (`MODULE_ID_PWRM` = `0x22`, codes `0x01..0x06`, tags `0x00220001..0x00220006`, **source `SYS_DEVICE_ID_NONE`** = `0xFF`, channel `0`, all `SYS_EVENT_NOTIFY`):
+The manager's own events (`MODULE_ID_PWRM` = `0x33`, codes `0x01..0x06`, tags `0x00330001..0x00330006`, **source `SYS_DEVICE_ID_NONE`** = `0xFF`, channel `0`, all `SYS_EVENT_NOTIFY`):
 
 | Event | ID | Value | Kind |
 |---|---|---|---|
-| `SOURCE_CHANGED` | `0x01` (`0x00220001`) | `u8 source` (the new source) | SOURCE_CHANGED |
-| `BATTERY_LOW` | `0x02` (`0x00220002`) | `u8 pct` | BATTERY_LOW |
-| `BATTERY_CRITICAL` | `0x03` (`0x00220003`) | `u8 pct` | BATTERY_CRITICAL |
-| `BUDGET_EXCEEDED` | `0x04` (`0x00220004`) | `i32 limit_mW` | BUDGET_EXCEEDED |
-| `INPUT_OVP` | `0x05` (`0x00220005`) | `i32 mV` (input mV) | OVP |
-| `PD_FIXED` | `0x06` (`0x00220006`) | `i32 mV` (the voltage in use) | – (information: no response) |
+| `SOURCE_CHANGED` | `0x01` (`0x00330001`) | `u8 source` (the new source) | SOURCE_CHANGED |
+| `BATTERY_LOW` | `0x02` (`0x00330002`) | `u8 pct` | BATTERY_LOW |
+| `BATTERY_CRITICAL` | `0x03` (`0x00330003`) | `u8 pct` | BATTERY_CRITICAL |
+| `BUDGET_EXCEEDED` | `0x04` (`0x00330004`) | `i32 limit_mW` | BUDGET_EXCEEDED |
+| `INPUT_OVP` | `0x05` (`0x00330005`) | `i32 mV` (input mV) | OVP |
+| `PD_FIXED` | `0x06` (`0x00330006`) | `i32 mV` (the voltage in use) | – (information: no response) |
 
 The manager also listens (queued) to the rails' and monitors' events and maps them to a kind:
 
@@ -127,7 +127,7 @@ Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 
 
 Defaults (`k_default_responses`, every rail the same): OVP, SPC and budget exceeded → DISABLE; OTP and battery critical → SAFE_STATE; the rest NOTIFY. OCP critical stays NOTIFY: a TPS55289 at its OCP limit holds its current by itself.
 
-**Per target.** One row for the board and one per rail, so rail A can keep running in its limit while rail B is cut. MATRIX reads the rows with their targets (`0xFFFF` = `SYS_POWER_TARGET_BOARD`, else the rail's device ID; the board first, then the rails in the board config's order) and writes rows in the same form: matched by target, in any order, a target left out keeps its row. Every row is checked before anything changes. The change applies at once. The app saves it as the record `0x01000005`. How the chip protects itself (OCP delay, hiccup, which faults it reports) is the device's own setting.
+**Per target.** One row for the board and one per rail, so rail A can keep running in its limit while rail B is cut. MATRIX reads the rows with their targets (`0xFF` = `SYS_POWER_TARGET_BOARD` = `SYS_DEVICE_ID_NONE`, else the rail's device ID; the board first, then the rails in the board config's order) and writes rows in the same form: matched by target, in any order, a target left out keeps its row. Every row is checked before anything changes. The change applies at once. The app saves it as the record `0x01000005`. How the chip protects itself (OCP delay, hiccup, which faults it reports) is the device's own setting.
 
 ## USB-PD request
 
@@ -145,9 +145,9 @@ PD says what to ask the charger for. Every tick on a USB source the manager read
 - STATUS shows the profile in use: `pd_mV`, `pd_mA`, `pd_type` (0 fixed, 1 PPS, 2 AVS, 0xFF none).
 - A refused request is reported once (the sink's error), not every tick.
 
-## Remote (root key `MODULE_ID_PWRM` = 0x22)
+## Remote (root key `MODULE_ID_PWRM` = 0x33)
 
-Requests are `[0x22][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW op reads with no arguments and answers what its write takes; the write answers nothing. So the app reads every setting when it connects and shows the board's values.
+Requests are `[0x33][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW op reads with no arguments and answers what its write takes; the write answers nothing. So the app reads every setting when it connects and shows the board's values.
 
 | Op | Side | Write args / read answer |
 |---|---|---|
@@ -156,11 +156,11 @@ Requests are `[0x22][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD). An RW o
 | `0x04` BATTERY | RW | `sys_power_battery_t` (4 B): `u8 chemistry, u8 cells, u8 low_pct, u8 critical_pct` |
 | `0x07` STATUS | R | → `sys_power_status_t` (40 B): `u8 source, i32 input_mV, i32 input_mA, u32 source_mV, u32 source_mA, u32 budget_mW, u32 limit_mW, u32 allocated_mW, u8 battery_pct` (0xFF = unknown), `u8 flags` (1 enabled, 2 strict, 4 over budget, 8 input seen), `u32 pd_mV, u32 pd_mA, u8 pd_type` |
 | `0x08` PD | RW | `sys_power_pd_t` (5 B): `u8 mode, u32 voltage_mV` |
-| `0x02` LAYOUT | W | `sys_power_layout_t`, 26 B: the board's limits, input monitor, USB-PD sink and source pins (`0xFFFF`: none). Refused (`ERR_PWRM_BAD_ARG`) once a rail is added |
-| `0x05` RAIL | W | `sys_power_rail_t`, 9 B: `u16 vreg, u16 monitor_device, u8 monitor_channel, u32 min_mA`. A rail stays until the board restarts |
-| `0x09` MATRIX | RW | `sys_power_response_row_t[]`, no header: per row `u16 target` (0xFFFF the board, else the rail's device ID), `u8[11]` by kind. The read answers `1 + rails` rows; the write takes up to that many (a length that is not whole rows, or more rows: `ERR_CMD_BAD_LEN`; a target that is neither the board nor a rail: `ERR_PWRM_NOT_RAIL`; nothing changes) |
+| `0x02` LAYOUT | W | `sys_power_layout_t`, 24 B: the board's limits, input monitor, USB-PD sink and source pins (`0xFF`: none). Refused (`ERR_PWRM_BAD_ARG`) once a rail is added |
+| `0x05` RAIL | W | `sys_power_rail_t`, 7 B: `u8 vreg, u8 monitor_device, u8 monitor_channel, u32 min_mA`. A rail stays until the board restarts |
+| `0x09` MATRIX | RW | `sys_power_response_row_t[]`, no header: per row `u8 target` (0xFF the board, else the rail's device ID), `u8[11]` by kind. The read answers `1 + rails` rows; the write takes up to that many (a length that is not whole rows, or more rows: `ERR_CMD_BAD_LEN`; a target that is neither the board nor a rail: `ERR_PWRM_NOT_RAIL`; nothing changes) |
 
-## Errors (`MODULE_ID_PWRM` = 0x22)
+## Errors (`MODULE_ID_PWRM` = 0x33)
 
 | Error | Severity | Fields | Meaning |
 |---|---|---|---|

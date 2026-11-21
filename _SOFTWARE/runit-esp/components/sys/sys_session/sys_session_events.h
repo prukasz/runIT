@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 /*
- * Events of the sessions: module MODULE_ID_SESSION (0x0E, declared in sys_session_errors.h), source the peer's id,
+ * Events of the sessions: module MODULE_ID_SESSION (0x2C, declared in sys_session_errors.h), source the peer's id,
  * channel 0. They run inline, on the context that noticed it (a driver's RX task, the board timers' task, the caller of
  * sys_session_detach): a listener drops what it keeps for that peer and never blocks.
  *   REACHED - a session opened with the peer (its hello came)

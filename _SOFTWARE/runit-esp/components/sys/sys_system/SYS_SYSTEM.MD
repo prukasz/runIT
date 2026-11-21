@@ -1,6 +1,6 @@
 # sys_system — system commands, the safe state, the dead-man
 
-Component `runit-esp/components/sys/sys_system/`. The board's system commands (root key `MODULE_ID_SYS` 0x28) and the two things they control: the **safe state** and the **dead-man**. It also sends the root's clock to every board.
+Component `runit-esp/components/sys/sys_system/`. The board's system commands (root key `MODULE_ID_SYS` 0x26) and the two things they control: the **safe state** and the **dead-man**. It also sends the root's clock to every board.
 
 | File | Role |
 |---|---|
@@ -21,7 +21,7 @@ A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (
 
 A board that has a time (a client set it with TIME) sends it on every open session as a broadcast, when a peer is reached and every `CONFIG_SYS_SYSTEM_TIME_PERIOD_S` (a board timer), so the clocks of the boards that talk agree and an event's `t_ms` compares across them. Nothing while no client has set the time.
 
-## Remote (`sys_system_router`, root key `MODULE_ID_SYS` 0x28)
+## Remote (`sys_system_router`, root key `MODULE_ID_SYS` 0x26)
 
 | Code | Command | Side | Request / answer |
 |---|---|---|---|

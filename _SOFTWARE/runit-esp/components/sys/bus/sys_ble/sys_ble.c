@@ -162,7 +162,7 @@ err_h sys_ble_hook(uint16_t uuid, sys_ble_rx_f cb, void* ctx, bool* framed) {
  * ------------------------------------------------------------------------- */
 
 err_h sys_ble_service_create(uint16_t uuid, bool primary) {
-  ERR_CHECK(uuid != 0, ERR_CMD_BAD_ARG);
+  ERR_CHECK(uuid != 0, ERR_BAD_ARG);
   lock();
   const bool taken = find_svc(uuid) != NULL;
   ble_svc_t* s = taken ? NULL : calloc(1, sizeof(*s));
@@ -173,7 +173,7 @@ err_h sys_ble_service_create(uint16_t uuid, bool primary) {
   }
   unlock();
   ERR_CHECK(!taken, ERR_BLE_UUID_TAKEN, .uuid = uuid);
-  ERR_CHECK(s != NULL, ERR_BLE_NO_MEM, .uuid = uuid, .size = sizeof(*s));
+  SYS_BLE_CHECK_MEM(s != NULL, uuid, sizeof(*s));
   return NULL;
 }
 
@@ -230,9 +230,9 @@ static ble_char_t* new_char(uint16_t uuid, uint8_t flags, uint16_t tx, const cha
 }
 
 err_h sys_ble_char_create(uint16_t svc, uint16_t uuid, uint8_t flags, uint16_t tx, const char* name) {
-  ERR_CHECK(uuid != 0 && (tx == 0 || (flags & (SYS_BLE_CHR_NOTIFY | SYS_BLE_CHR_INDICATE))), ERR_CMD_BAD_ARG);
+  ERR_CHECK(uuid != 0 && (tx == 0 || (flags & (SYS_BLE_CHR_NOTIFY | SYS_BLE_CHR_INDICATE))), ERR_BAD_ARG);
   ble_char_t* c = new_char(uuid, flags, tx, name);
-  ERR_CHECK(c != NULL, ERR_BLE_NO_MEM, .uuid = uuid, .size = (uint32_t)(sizeof(*c) + tx));
+  SYS_BLE_CHECK_MEM(c != NULL, uuid, sizeof(*c) + tx);
   lock();
   ble_svc_t* s = find_svc(svc);
   err_h err = NULL;
@@ -352,7 +352,7 @@ static err_h sync_svc(ble_svc_t* s) {
     }
   }
   struct ble_gatt_svc_def* defs = calloc(2, sizeof(*defs));
-  ERR_CHECK(defs != NULL, ERR_BLE_NO_MEM, .uuid = s->uuid, .size = 2 * sizeof(*defs));
+  SYS_BLE_CHECK_MEM(defs != NULL, s->uuid, 2 * sizeof(*defs));
   err_h err = sys_ble_compile(&defs[0], s);
   if (err == NULL) {
     unlock();
@@ -643,7 +643,7 @@ void sys_ble_on_subscribe(uint16_t val_handle, bool subscribed) {
 // would drop the client's subscriptions under its session.
 static err_h add_boot_svc(ble_svc_t* s) {
   struct ble_gatt_svc_def* defs = calloc(2, sizeof(*defs));
-  ERR_CHECK(defs != NULL, ERR_BLE_NO_MEM, .uuid = s->uuid, .size = 2 * sizeof(*defs));
+  SYS_BLE_CHECK_MEM(defs != NULL, s->uuid, 2 * sizeof(*defs));
   err_h err = sys_ble_compile(&defs[0], s);
   if (err == NULL) {
     err = sys_ble_stack_add_boot(defs);

@@ -36,7 +36,7 @@ Inside `sys_device/`:
 
 | ID | Owner |
 |---|---|
-| `0x20` | The registry (`MODULE_ID_SYS_DEVICE`): the device's lifecycle ops |
+| `0x2F` | The registry (`MODULE_ID_SYS_DEVICE`): the device's lifecycle ops |
 | `0x01`..`0x1F` | A contract: `MODULE_ID_DECLARE(MODULE_ID_P, 0x01)` in its `<contract>_id.h` and `SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_P, MODULE_ID_P)` in its header |
 | `0xFF` | A device's own ops, a table in its driver (`SYS_DEVICE_OWN_DECLARE`); no contract takes it |
 
@@ -52,7 +52,7 @@ The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<c
 | `SYS_DEVICE_OP_DIRECT` | A read that takes something or costs (UART RECEIVE, I2C PROBE / SCAN / RAW): a WIRELESS remote device sends it and waits for the answer instead of serving it from a watch's copy, which would run it every period (SYS_DEVICE_REMOTE.MD "A call") |
 | `SYS_DEVICE_OP_TAIL` | The write's payload is its value (the head, packed) and then bytes of any number; its handler is `OP_DECLARE_WRITE_TAIL` |
 
-**The registry's ops** (contract `0x20`):
+**The registry's ops** (contract `0x2F`):
 
 | Op | n | Side | Notes |
 |---|---|---|---|
@@ -181,7 +181,7 @@ Two `uint64_t` masks per slot (`uses`, `used_by`), cleared when the device goes.
 
 ## Events
 
-Module `0x20` (`MODULE_ID_SYS_DEVICE`, the registry's number), the table `SYS_DEVICE_EVENTS` in `events/sys_device_events.h`. Source = the device (or `SYS_DEVICE_ID_NONE` for a sweep), channel 0.
+Module `0x2F` (`MODULE_ID_SYS_DEVICE`, the registry's number), the table `SYS_DEVICE_EVENTS` in `events/sys_device_events.h`. Source = the device (or `SYS_DEVICE_ID_NONE` for a sweep), channel 0.
 
 | Event | Flags | Payload | When |
 |---|---|---|---|
@@ -263,7 +263,7 @@ Host tests in `host/` (`python test_host/run.py sys_device` from `runit-esp-arch
 
 Not covered on the host: NOLOCK ops and REMOVE draining them, `has_op`, a sweep's RESET skipping a type without one, the device timer (`sys_device_timer`, the step itself is), priorities and stack sizes.
 
-## Errors (`MODULE_ID_SYS_DEVICE` = 0x20, `MODULE_ID_SYS_DEVICE`)
+## Errors (`MODULE_ID_SYS_DEVICE` = 0x2F, `MODULE_ID_SYS_DEVICE`)
 
 | Tag | Severity | When |
 |---|---|---|

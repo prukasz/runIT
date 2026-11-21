@@ -68,7 +68,7 @@ static err_h fake_create(sys_data_provider_t* p, void* ctx, const void* cfg_in) 
   fake_prov_cfg_t cfg;
   memcpy(&cfg, cfg_in, sizeof(cfg));
   if (cfg.no_send) {
-    return NULL;  // intentionally omit p->send so CREATE rejects it with ERR_CMD_BAD_ARG
+    return NULL;  // intentionally omit p->send so CREATE rejects it with ERR_BAD_ARG
   }
   fake_t* f = (fake_t*)cfg.fake;
   f->p = p;
@@ -178,9 +178,9 @@ static void test_flat_frame_and_flags_reach_the_driver(void) {
 static void test_an_empty_frame_or_null_bytes_is_refused(void) {
   fake_t* f = fake_add(0, 7, 0);
   const uint8_t a[] = {0x11};
-  ASSERT_ERR(ERR_CMD_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){NULL, 0}, 0));
-  ASSERT_ERR(ERR_CMD_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){a, 0}, 0));
-  ASSERT_ERR(ERR_CMD_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){NULL, 1}, 0));
+  ASSERT_ERR(ERR_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){NULL, 0}, 0));
+  ASSERT_ERR(ERR_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){a, 0}, 0));
+  ASSERT_ERR(ERR_BAD_ARG, sys_data_provider_send(7, (cmd_in_t){NULL, 1}, 0));
   TEST_ASSERT_EQUAL_UINT32(0, f->sends);
 }
 
@@ -302,16 +302,16 @@ static void test_up_down_is_told_once_per_change_and_frames_reach_the_owner(void
 static void test_ids_are_unique_and_the_slots_are_counted(void) {
   fake_add(0, 1, 0);
   const fake_prov_cfg_t dummy_cfg = {.fake = (uintptr_t)&s_fake[CONFIG_SYS_DATA_PROVIDER_MAX]};
-  ASSERT_ERR(ERR_PROV_EXISTS, fake_prov_create(1, SYS_DATA_PROVIDER_TYPE_UART, 0, &dummy_cfg));
+  ASSERT_ERR(ERR_PROV_ID_TAKEN, fake_prov_create(1, SYS_DATA_PROVIDER_TYPE_UART, 0, &dummy_cfg));
   for (uint32_t i = 1; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     fake_add(i, (uint8_t)(10 + i), 0);
   }
-  ASSERT_ERR(ERR_PROV_FULL, fake_prov_create(99, SYS_DATA_PROVIDER_TYPE_UART, 0, &dummy_cfg));
+  ASSERT_ERR(ERR_FULL, fake_prov_create(99, SYS_DATA_PROVIDER_TYPE_UART, 0, &dummy_cfg));
 
   // Free a slot and verify that a buggy driver not setting p->send is rejected cleanly without leaking the slot.
   TEST_ASSERT_NULL(fake_remove_id(1));
   const fake_prov_cfg_t no_send_cfg = {.no_send = true};
-  ASSERT_ERR(ERR_CMD_BAD_ARG, fake_prov_create(50, SYS_DATA_PROVIDER_TYPE_UART, 0, &no_send_cfg));
+  ASSERT_ERR(ERR_BAD_ARG, fake_prov_create(50, SYS_DATA_PROVIDER_TYPE_UART, 0, &no_send_cfg));
   TEST_ASSERT_EQUAL_UINT8(0, sys_data_provider_state(50));
 }
 
@@ -368,7 +368,7 @@ static err_h mock_prov_create(sys_data_provider_t* p, void* ctx_in, const void* 
   mock_prov_ctx_t* ctx = ctx_in;
   const mock_prov_cfg_t* cfg = cfg_in;
   if (cfg->fail != 0) {
-    return ERR_NEW(ERR_CMD_BAD_ARG);
+    return ERR_NEW(ERR_BAD_ARG);
   }
   ctx->prov = p;
   ctx->mode = cfg->mode;
@@ -533,7 +533,7 @@ static void test_typed_create_info_ops_list_send_own_op_and_remove(void) {
 static void test_typed_create_failure_unknown_type_and_slot_reuse(void) {
   const mock_prov_cfg_t fail_cfg = {.fail = 1};
   err_h e = mock_create(21, SYS_DATA_PROVIDER_TYPE_MQTT, 0, &fail_cfg);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   TEST_ASSERT_EQUAL_UINT8(0, sys_data_provider_state(21));
 
@@ -542,7 +542,7 @@ static void test_typed_create_failure_unknown_type_and_slot_reuse(void) {
   TEST_ASSERT_EQUAL_HEX32(ERR_PROV_TYPE_UNKNOWN, err_root_tag(unk));
   err_free(unk);
 
-  // Unknown OP (both 0xFFxx and 0x0Dxx) + bad args len on empty-input op
+  // Unknown OP (both 0xFFxx and 0x2Bxx) + bad args len on empty-input op
   const mock_prov_cfg_t ok_cfg = {.mode = 1};
   TEST_ASSERT_NULL(mock_create(21, SYS_DATA_PROVIDER_TYPE_MQTT, 0, &ok_cfg));
   err_h u_op = mock_router_call(CMD_DIR_READ, 21, 0xFF99u, NULL, 0, NULL);

@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-/* Ops under the root key MODULE_ID_BLE = 0x2E (SYS_BLE.MD "Remote"), packed, little-endian; contract_ble.json names
+/* Ops under the root key MODULE_ID_BLE = 0x2D (SYS_BLE.MD "Remote"), packed, little-endian; contract_ble.json names
  * them. Never renumber. The flags are in sys_ble.h. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /** @brief STATUS answer */

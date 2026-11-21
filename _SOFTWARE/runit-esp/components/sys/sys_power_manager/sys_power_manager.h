@@ -61,33 +61,33 @@ typedef enum {
  * Wire structs
  * ------------------------------------------------------------------------- */
 
-#define SYS_POWER_TARGET_BOARD 0xFFFFu
+#define SYS_POWER_TARGET_BOARD SYS_DEVICE_ID_NONE
 
-/** @brief LAYOUT: board limits, input monitor, USB-PD sink, and eFuse source pins (0xFF/0xFFFF = none). */
+/** @brief LAYOUT: board limits, input monitor, USB-PD sink, and eFuse source pins (SYS_DEVICE_ID_NONE / SYS_IO_PIN_NONE = none). */
 typedef struct __attribute__((packed)) {
   uint32_t max_mV;
   uint32_t max_mA;
   uint32_t reserve_mW;
   uint32_t unknown_source_mA;
   uint8_t vreg_efficiency_pct;  // 1..100
-  uint16_t input_device;
+  uint8_t input_device;
   uint8_t input_channel;
-  uint16_t usb_pd;
+  uint8_t usb_pd;
   sys_io_pin_t usb_ok;
   sys_io_pin_t ext_ok;
 } sys_power_layout_t;
 
 /** @brief RAIL: a regulator load added under the budget at runtime. */
 typedef struct __attribute__((packed)) {
-  uint16_t vreg;
-  uint16_t monitor_device;
+  uint8_t vreg;
+  uint8_t monitor_device;
   uint8_t monitor_channel;
   uint32_t min_mA;
 } sys_power_rail_t;
 
 /** @brief RAIL_REMOVE: removes a regulator load at runtime. */
 typedef struct __attribute__((packed)) {
-  uint16_t vreg;
+  uint8_t vreg;
 } sys_power_rail_ref_t;
 
 /** @brief CONFIG: budget mode, soft margin %, and fallback source (when no source pins). */
@@ -119,7 +119,7 @@ typedef struct __attribute__((packed)) {
 
 /** @brief MATRIX row: target (SYS_POWER_TARGET_BOARD or rail ID) + response per sys_power_kind_e. */
 typedef struct __attribute__((packed)) {
-  uint16_t target;
+  uint8_t target;
   uint8_t responses[SYS_POWER_KIND_COUNT];
 } sys_power_response_row_t;
 

@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-/* Ops under root key MODULE_ID_REMOTE = 0x2F (SYS_DEVICE_REMOTE.MD "Remote"), packed, little-endian; contract_remote.json
+/* Ops under root key MODULE_ID_REMOTE = 0x31 (SYS_DEVICE_REMOTE.MD "Remote"), packed, little-endian; contract_remote.json
  * names them. The subscriber is the command's src: no frame names a peer. The router registers itself
  * (ROUTER_MODULE_REGISTER). */
 
@@ -28,7 +28,7 @@ typedef struct __attribute__((packed)) {
 
 CMD_TABLE_DECLARE(REMOTE)
 
-/** @brief The subscriptions to this board's devices, under MODULE_ID_REMOTE (0x2F). */
+/** @brief The subscriptions to this board's devices, under MODULE_ID_REMOTE (0x31). */
 ROUTER_MODULE_DECLARE(sys_device_remote_router);
 
 #ifdef __cplusplus

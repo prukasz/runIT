@@ -49,7 +49,7 @@ _Static_assert(ROUTER_STATUS_ERROR << 2 == CMD_TYPE_STATUS, "the type byte's sta
 /**
  * @brief Binds every module router queued via ROUTER_MODULE_REGISTER (router_root_init), registers the router's port
  * (ROUTER_PORT), starts the calls' timer and the urgent and work tasks. After data_matrix's start.
- * @return ERR_CMD_BAD_ARG / ERR_ROUTER_KEY_TAKEN / ERR_ROUTER_TABLE_FULL of a registered router, the port's
+ * @return ERR_BAD_ARG / ERR_ROUTER_KEY_TAKEN / ERR_ROUTER_TABLE_FULL of a registered router, the port's
  *         registration error, or the error of the task start
  */
 MUST_USE err_h router_init(void);
@@ -104,7 +104,7 @@ MUST_USE err_h router_inject(cmd_in_t req, uint8_t flags, router_done_f done, vo
  * @param[in] timeout_ms Without an answer this long: ERR_ROUTER_CALL_TIMEOUT; 0: CONFIG_ROUTER_CALL_TIMEOUT_MS.
  * @param[in] cb         The answer; NULL: nobody wants it.
  * @param[in] ctx        Given to `cb`.
- * @return NULL when sent; ERR_CMD_BAD_ARG, ERR_ROUTER_CALLS_FULL, ERR_ROUTER_NO_PORT.
+ * @return NULL when sent; ERR_BAD_ARG, ERR_FULL, ERR_ROUTER_NO_PORT.
  */
 MUST_USE err_h router_request(data_matrix_port_id_t to, cmd_in_t req, uint8_t flags, uint32_t timeout_ms,
                               router_done_f cb, void* ctx);
@@ -165,7 +165,7 @@ bool router_is_task(void);
 /**
  * @brief Runs `fn` on the urgent task, soon, once: called again before it ran, it still runs once. Any task or a
  * timer callback, not an ISR. `fn` may block on I/O.
- * @return NULL when queued; ERR_ROUTER_BUSY (another fn waits to run).
+ * @return NULL when queued; ERR_BUSY (another fn waits to run).
  */
 MUST_USE err_h router_run_urgent(void (*fn)(void));
 

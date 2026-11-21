@@ -15,8 +15,7 @@
 #define CONTRACT_PROVIDER_OP_CREATE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x00u))  // W [type u8][flags u8][cfg]
 #define CONTRACT_PROVIDER_OP_REMOVE ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x01u))  // W
 #define CONTRACT_PROVIDER_OP_LIST   ((uint16_t)((MODULE_ID_PROVIDER << 8) | 0x02u))  // R [u8 count][row...]
-#define CREATE_HDR                  2u     // [type u8][flags u8] before the cfg
-#define CREATE_SYSTEM               0x01u  // CREATE flag: the board's own, not removed
+#define CREATE_HDR                  2u  // [type u8][flags u8] before the cfg
 
 // A LIST row on the wire is the registry's row as it is: [provider u8][type u8][state u8].
 _Static_assert(sizeof(sys_data_provider_row_t) == 3, "LIST row: 3 B");
@@ -41,7 +40,7 @@ err_h sys_data_provider_router(CMD_F_PARAMS) {
 
   if (h.op == CONTRACT_PROVIDER_OP_CREATE && write) {
     ERR_CHECK(args.len >= CREATE_HDR, ERR_CMD_BAD_LEN, .got = (uint16_t)args.len, .need = CREATE_HDR);
-    return sys_data_provider_create(h.id, args.data[0], (args.data[1] & CREATE_SYSTEM) != 0, args.data + CREATE_HDR,
+    return sys_data_provider_create(h.id, args.data[0], (args.data[1] & SYS_DATA_PROVIDER_CREATE_SYSTEM) != 0, args.data + CREATE_HDR,
                                     args.len - CREATE_HDR);
   }
   if (h.op == CONTRACT_PROVIDER_OP_REMOVE && write) {

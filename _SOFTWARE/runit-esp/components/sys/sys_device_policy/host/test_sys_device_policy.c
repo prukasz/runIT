@@ -178,12 +178,12 @@ static void test_set_get_validation_and_router(void) {
   create_dev(2);
   sys_device_error_policy_t bad_imp = {.importance = 99};
   err_h e = sys_device_policy_set(2, &bad_imp);
-  TEST_ASSERT_ERR_TAG(ERR_DEV_RANGE, e);
+  TEST_ASSERT_ERR_TAG(ERR_RANGE, e);
   err_free(e);
 
   sys_device_error_policy_t bad_resp = {.importance = SYS_DEVICE_IMPORTANCE_MEDIUM, .actions = {0, 0, 0xFF000099u, 0}};
   e = sys_device_policy_set(2, &bad_resp);
-  TEST_ASSERT_ERR_TAG(ERR_DEV_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   /* Router write + read roundtrip */

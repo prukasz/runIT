@@ -9,12 +9,6 @@
     "ERR_ROUTER_FRAME_LEN": {
       "message": "A command of {len} bytes from {src} was refused (at most {max})"
     },
-    "ERR_ROUTER_BUSY": {
-      "message": "Urgent work could not start: other urgent work waits to run"
-    },
-    "ERR_ROUTER_CALLS_FULL": {
-      "message": "Too many requests to other boards at once"
-    },
     "ERR_ROUTER_NO_PORT": {
       "message": "Connection {port} cannot be reached from here",
       "hint": "Attach its session first."

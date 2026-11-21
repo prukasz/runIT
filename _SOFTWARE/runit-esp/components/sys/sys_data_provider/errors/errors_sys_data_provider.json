@@ -6,13 +6,9 @@
       "message": "Data provider {provider} was not found",
       "hint": "Check the provider ID or create the provider first."
     },
-    "ERR_PROV_EXISTS": {
+    "ERR_PROV_ID_TAKEN": {
       "message": "Data provider {provider} already exists",
       "hint": "Choose another provider ID or remove the existing one first."
-    },
-    "ERR_PROV_FULL": {
-      "message": "No free slot for another data provider",
-      "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
     },
     "ERR_PROV_IN_USE": {
       "message": "Data provider {provider} cannot be made twice",
@@ -33,9 +29,8 @@
     "ERR_PROV_UNKNOWN_OP": {
       "message": "Provider does not support operation {op}"
     },
-    "ERR_PROV_NO_MEM": {
-      "message": "Out of memory creating provider {provider} ({size} bytes needed)",
-      "hint": "Free memory by removing unused providers or devices."
+    "ERR_PROV_ID": {
+      "message": "In data provider {provider}"
     }
   }
 }

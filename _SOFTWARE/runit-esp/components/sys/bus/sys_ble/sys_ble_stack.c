@@ -147,7 +147,7 @@ static ble_uuid_t* new_uuid16(uint16_t value) {
 err_h sys_ble_compile(struct ble_gatt_svc_def* def, ble_svc_t* s) {
   def->type = s->primary ? BLE_GATT_SVC_TYPE_PRIMARY : BLE_GATT_SVC_TYPE_SECONDARY;
   def->uuid = new_uuid16(s->uuid);
-  ERR_CHECK(def->uuid != NULL, ERR_BLE_NO_MEM, .uuid = s->uuid, .size = sizeof(ble_uuid16_t));
+  SYS_BLE_CHECK_MEM(def->uuid != NULL, s->uuid, sizeof(ble_uuid16_t));
   size_t count = 0;
   ble_char_t* c;
   LL_FOREACH(s->chars, c) {
@@ -155,11 +155,11 @@ err_h sys_ble_compile(struct ble_gatt_svc_def* def, ble_svc_t* s) {
   }
   struct ble_gatt_chr_def* chars = calloc(count + 1, sizeof(*chars));
   def->characteristics = chars;
-  ERR_CHECK(chars != NULL, ERR_BLE_NO_MEM, .uuid = s->uuid, .size = (uint32_t)((count + 1) * sizeof(*chars)));
+  SYS_BLE_CHECK_MEM(chars != NULL, s->uuid, (count + 1) * sizeof(*chars));
   struct ble_gatt_chr_def* d = chars;
   LL_FOREACH(s->chars, c) {
     d->uuid = new_uuid16(c->uuid);
-    ERR_CHECK(d->uuid != NULL, ERR_BLE_NO_MEM, .uuid = c->uuid, .size = sizeof(ble_uuid16_t));
+    SYS_BLE_CHECK_MEM(d->uuid != NULL, c->uuid, sizeof(ble_uuid16_t));
     d->access_cb = chr_access;
     d->arg = c;
     d->val_handle = &c->val_handle;
@@ -169,9 +169,9 @@ err_h sys_ble_compile(struct ble_gatt_svc_def* def, ble_svc_t* s) {
     if (c->name != NULL) {
       struct ble_gatt_dsc_def* dsc = calloc(2, sizeof(*dsc));
       d->descriptors = dsc;
-      ERR_CHECK(dsc != NULL, ERR_BLE_NO_MEM, .uuid = c->uuid, .size = 2 * sizeof(*dsc));
+      SYS_BLE_CHECK_MEM(dsc != NULL, c->uuid, 2 * sizeof(*dsc));
       dsc[0].uuid = new_uuid16(UUID_USER_DESC);
-      ERR_CHECK(dsc[0].uuid != NULL, ERR_BLE_NO_MEM, .uuid = c->uuid, .size = sizeof(ble_uuid16_t));
+      SYS_BLE_CHECK_MEM(dsc[0].uuid != NULL, c->uuid, sizeof(ble_uuid16_t));
       dsc[0].att_flags = BLE_ATT_F_READ;
       dsc[0].access_cb = dsc_access;
       dsc[0].arg = c->name;

@@ -88,7 +88,7 @@ static err_h subscribe(uint8_t owner, sys_io_claim_t* p, uint32_t event, uint16_
   if (event == 0) {
     return NULL;
   }
-  ERR_CHECK((op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_EVENT_BAD_ARG);
+  ERR_CHECK((op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_BAD_ARG);
   const sys_event_key_t key = {.tag = event, .source = p->pin.device, .channel = p->pin.pin};
   ERR_TRY(sys_device_event_subscribe_op(key, owner, op, &p->sub));
   p->subscribed = true;

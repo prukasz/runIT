@@ -124,7 +124,7 @@ static err_h xfer(const esp_i2c_t* c, const i2c_xfer_t* x) {
   } else if (x->n1 == 0 && x->n2 == 0 && x->rn > 0) {
     rc = i2c_master_receive(h, x->r, x->rn, ms);
   } else {
-    return ERR_NEW(ERR_I2C_BAD_ARG);
+    return ERR_NEW(ERR_BAD_ARG);
   }
   return xfer_error(c, x->addr, rc);
 }
@@ -177,7 +177,7 @@ OP_DECLARE_WRITE(CONTRACT_I2C, OP_XFER) {
 OP_DECLARE_READ(CONTRACT_I2C, OP_RAW) {
   const i2c_raw_t head = {.addr = args->addr, .reg = args->reg};
   const uint32_t need = sizeof(head) + args->len;
-  ERR_CHECK(args->len > 0, ERR_I2C_BAD_ARG);
+  ERR_CHECK(args->len > 0, ERR_BAD_ARG);
   ERR_CHECK(need <= out->cap, ERR_CMD_OUT_FULL, .need = (uint16_t)need, .cap = (uint16_t)out->cap);
   const i2c_xfer_t x = {.addr = args->addr, .w1 = &args->reg, .n1 = 1, .r = out->data + sizeof(head), .rn = args->len};
   ERR_TRY(raw(c, &x));
@@ -277,7 +277,7 @@ static err_h resume(esp_i2c_t* c) {
  * resource and creates the ESP-IDF I2C master bus.
  ******************************************************************************/
 static err_h create(uint8_t id, esp_i2c_t* c, const esp32s3_i2c_cfg_t* cfg) {
-  SYS_DEV_CHECK_IN_RANGE(id, cfg->port, 0, SOC_I2C_NUM - 1);
+  ERR_CHECK_RANGE(cfg->port, 0, SOC_I2C_NUM - 1);
   c->id = id;
   // Locked on the GPIO device: its IO writes are refused while the bus has them.
   ERR_TRY(sys_io_claim_peripheral(id, &c->sda, cfg->sda));

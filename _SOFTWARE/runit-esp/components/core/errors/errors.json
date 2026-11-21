@@ -242,6 +242,87 @@
           ],
           "description": "ERR_CHECK_RANGE, float v",
           "message": "The value {value} is outside {min}..{max}"
+        },
+        {
+          "code": 7,
+          "tag": 7,
+          "name": "ERR_BAD_ARG",
+          "severity": 3,
+          "size": 0,
+          "fields": [],
+          "description": "invalid argument or request value",
+          "message": "An argument or request value is not valid"
+        },
+        {
+          "code": 8,
+          "tag": 8,
+          "name": "ERR_NO_MEM",
+          "severity": 4,
+          "size": 4,
+          "fields": [
+            {
+              "name": "size",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "description": "out of memory (bytes requested)",
+          "message": "Out of memory ({size} bytes needed)",
+          "hint": "Free memory by removing unused devices, providers, or buffers."
+        },
+        {
+          "code": 9,
+          "tag": 9,
+          "name": "ERR_FULL",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "max",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            }
+          ],
+          "description": "fixed table or slot pool reached its limit",
+          "message": "No free slot left (limit {max})",
+          "hint": "Remove an unused entry first or raise the configured limit."
+        },
+        {
+          "code": 10,
+          "tag": 10,
+          "name": "ERR_BUSY",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "another operation is already in progress",
+          "message": "Another operation is already in progress",
+          "hint": "Wait for the current operation to finish and try again."
+        },
+        {
+          "code": 11,
+          "tag": 11,
+          "name": "ERR_BAD_OFFSET",
+          "severity": 2,
+          "size": 8,
+          "fields": [
+            {
+              "name": "got",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "want",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "chunked transfer offset mismatch",
+          "message": "Wrong offset {got} (expected {want})",
+          "hint": "Restart the transfer from offset 0."
         }
       ]
     },
@@ -519,16 +600,6 @@
         {
           "code": 1,
           "tag": 131073,
-          "name": "ERR_I2C_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "NULL pointer, zero length, a mix of buffers XFER can't do",
-          "message": "An I2C request is not valid"
-        },
-        {
-          "code": 2,
-          "tag": 131074,
           "name": "ERR_I2C_BAD_DEV_CFG",
           "severity": 3,
           "size": 2,
@@ -553,8 +624,8 @@
           "message": "{addr} on {bus} is not a valid device setting"
         },
         {
-          "code": 3,
-          "tag": 131075,
+          "code": 2,
+          "tag": 131074,
           "name": "ERR_I2C_BUS_INIT",
           "severity": 3,
           "size": 3,
@@ -583,8 +654,8 @@
           "message": "{bus} could not start on pins {sda} (SDA) and {scl} (SCL)"
         },
         {
-          "code": 4,
-          "tag": 131076,
+          "code": 3,
+          "tag": 131075,
           "name": "ERR_I2C_BUS_STUCK",
           "severity": 3,
           "size": 2,
@@ -610,8 +681,8 @@
           "hint": "Check the wiring and the pull-up resistors, then restart the board."
         },
         {
-          "code": 5,
-          "tag": 131077,
+          "code": 4,
+          "tag": 131076,
           "name": "ERR_I2C_BUS_RESET",
           "severity": 3,
           "size": 1,
@@ -628,8 +699,8 @@
           "message": "{bus} could not be reset"
         },
         {
-          "code": 6,
-          "tag": 131078,
+          "code": 5,
+          "tag": 131077,
           "name": "ERR_I2C_DEV_NOT_FOUND",
           "severity": 3,
           "size": 2,
@@ -655,8 +726,8 @@
           "hint": "Check that the module is connected and powered, and that its address is right."
         },
         {
-          "code": 7,
-          "tag": 131079,
+          "code": 6,
+          "tag": 131078,
           "name": "ERR_I2C_DEV_ADD",
           "severity": 3,
           "size": 2,
@@ -681,8 +752,8 @@
           "message": "{addr} on {bus} could not be added"
         },
         {
-          "code": 8,
-          "tag": 131080,
+          "code": 7,
+          "tag": 131079,
           "name": "ERR_I2C_DEV_REMOVE",
           "severity": 2,
           "size": 2,
@@ -707,8 +778,8 @@
           "message": "{addr} on {bus} could not be removed"
         },
         {
-          "code": 9,
-          "tag": 131081,
+          "code": 8,
+          "tag": 131080,
           "name": "ERR_I2C_DEV_NOT_ADDED",
           "severity": 3,
           "size": 2,
@@ -733,8 +804,8 @@
           "message": "{addr} on {bus} is not attached"
         },
         {
-          "code": 10,
-          "tag": 131082,
+          "code": 9,
+          "tag": 131081,
           "name": "ERR_I2C_NO_ACK",
           "severity": 3,
           "size": 2,
@@ -760,8 +831,8 @@
           "hint": "Check the wiring and the power of the module."
         },
         {
-          "code": 11,
-          "tag": 131083,
+          "code": 10,
+          "tag": 131082,
           "name": "ERR_I2C_BUS_BUSY",
           "severity": 2,
           "size": 2,
@@ -787,8 +858,8 @@
           "hint": "Try again; if it repeats, check the wiring of the bus."
         },
         {
-          "code": 12,
-          "tag": 131084,
+          "code": 11,
+          "tag": 131083,
           "name": "ERR_I2C_XFER",
           "severity": 3,
           "size": 2,
@@ -814,8 +885,8 @@
           "hint": "Check the wiring and the power of the module."
         },
         {
-          "code": 13,
-          "tag": 131085,
+          "code": 12,
+          "tag": 131084,
           "name": "ERR_I2C_REG",
           "severity": 0,
           "size": 2,
@@ -838,8 +909,8 @@
           "message": "At register {reg}"
         },
         {
-          "code": 14,
-          "tag": 131086,
+          "code": 13,
+          "tag": 131085,
           "name": "ERR_I2C_ADDR_TAKEN",
           "severity": 3,
           "size": 3,
@@ -872,8 +943,8 @@
           "hint": "Two devices cannot share an address: change one of them (its address pins or setting)."
         },
         {
-          "code": 15,
-          "tag": 131087,
+          "code": 14,
+          "tag": 131086,
           "name": "ERR_I2C_NOT_OWNER",
           "severity": 3,
           "size": 3,
@@ -916,16 +987,6 @@
         {
           "code": 1,
           "tag": 196609,
-          "name": "ERR_UART_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "NULL pointer, nothing to write, or argument out of contract limits",
-          "message": "A UART request is not valid"
-        },
-        {
-          "code": 2,
-          "tag": 196610,
           "name": "ERR_UART_BUSY",
           "severity": 1,
           "size": 1,
@@ -942,8 +1003,8 @@
           "message": "UART port {port} TX queue is full"
         },
         {
-          "code": 3,
-          "tag": 196611,
+          "code": 2,
+          "tag": 196610,
           "name": "ERR_UART_BAD_BAUD",
           "severity": 2,
           "size": 4,
@@ -960,8 +1021,8 @@
           "hint": "Choose a rate from 1200 to 5000000."
         },
         {
-          "code": 4,
-          "tag": 196612,
+          "code": 3,
+          "tag": 196611,
           "name": "ERR_UART_INIT",
           "severity": 3,
           "size": 1,
@@ -978,8 +1039,8 @@
           "message": "UART {port} could not start"
         },
         {
-          "code": 5,
-          "tag": 196613,
+          "code": 4,
+          "tag": 196612,
           "name": "ERR_UART_IN_USE",
           "severity": 2,
           "size": 2,
@@ -1061,16 +1122,6 @@
         {
           "code": 3,
           "tag": 2097155,
-          "name": "ERR_CMD_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "invalid argument value",
-          "message": "A value of the command is not valid"
-        },
-        {
-          "code": 4,
-          "tag": 2097156,
           "name": "ERR_CMD_DIRECTION",
           "severity": 3,
           "size": 1,
@@ -1277,26 +1328,6 @@
         {
           "code": 3,
           "tag": 2228227,
-          "name": "ERR_ROUTER_BUSY",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "router_run_urgent: another fn waits to run",
-          "message": "Urgent work could not start: other urgent work waits to run"
-        },
-        {
-          "code": 4,
-          "tag": 2228228,
-          "name": "ERR_ROUTER_CALLS_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every CONFIG_ROUTER_CALLS slot in use",
-          "message": "Too many requests to other boards at once"
-        },
-        {
-          "code": 5,
-          "tag": 2228229,
           "name": "ERR_ROUTER_NO_PORT",
           "severity": 2,
           "size": 2,
@@ -1313,8 +1344,8 @@
           "hint": "Attach its session first."
         },
         {
-          "code": 6,
-          "tag": 2228230,
+          "code": 4,
+          "tag": 2228228,
           "name": "ERR_ROUTER_CALL_TIMEOUT",
           "severity": 2,
           "size": 4,
@@ -1337,8 +1368,8 @@
           "hint": "A write may still have run: read the value back."
         },
         {
-          "code": 7,
-          "tag": 2228231,
+          "code": 5,
+          "tag": 2228229,
           "name": "ERR_ROUTER_CALL_DOWN",
           "severity": 2,
           "size": 2,
@@ -1354,8 +1385,8 @@
           "message": "Connection {port} was lost before its answer came"
         },
         {
-          "code": 8,
-          "tag": 2228232,
+          "code": 6,
+          "tag": 2228230,
           "name": "ERR_REMOTE",
           "severity": 0,
           "size": 3,
@@ -1380,37 +1411,6 @@
       ]
     },
     {
-      "id": 35,
-      "name": "DATA_MATRIX",
-      "symbol": "MODULE_ID_DATA_MATRIX",
-      "source_file": "runit-esp/components/core/data_matrix/errors/data_matrix_errors.h",
-      "texts_file": "runit-esp/components/core/data_matrix/errors/errors_data_matrix.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2293761,
-          "name": "ERR_DATA_MATRIX_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every place, or a port's every target, taken",
-          "message": "The data matrix has no room for another port, or the port's output already goes to as many ports as it can",
-          "hint": "Remove a connection first."
-        },
-        {
-          "code": 2,
-          "tag": 2293762,
-          "name": "ERR_DATA_MATRIX_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "description": "unknown port, name taken, a port to itself, no input",
-          "message": "Invalid data matrix connection",
-          "hint": "Both ports must exist, be different, and the second must take data."
-        }
-      ]
-    },
-    {
       "id": 37,
       "name": "NVS",
       "symbol": "MODULE_ID_NVS",
@@ -1420,39 +1420,6 @@
         {
           "code": 1,
           "tag": 2424833,
-          "name": "ERR_NVS_BAD_ARG",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "append: no data, or no chunk left",
-          "message": "The chunk has no data or the file is full"
-        },
-        {
-          "code": 2,
-          "tag": 2424834,
-          "name": "ERR_NVS_OFFSET",
-          "severity": 2,
-          "size": 8,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            },
-            {
-              "name": "want",
-              "type": "u32",
-              "offset": 4,
-              "size": 4
-            }
-          ],
-          "message": "The chunk starts at byte {got}; the file ends at byte {want}",
-          "hint": "Erase the file and write it again from the start."
-        },
-        {
-          "code": 3,
-          "tag": 2424835,
           "name": "ERR_NVS_NO_CHUNK",
           "severity": 1,
           "size": 2,
@@ -1467,8 +1434,8 @@
           "message": "The file has no chunk {chunk}"
         },
         {
-          "code": 4,
-          "tag": 2424836,
+          "code": 2,
+          "tag": 2424834,
           "name": "ERR_NVS_NOT_FOUND",
           "severity": 1,
           "size": 0,
@@ -1506,16 +1473,6 @@
         {
           "code": 2,
           "tag": 2621442,
-          "name": "ERR_ACTION_BUSY",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "a record is being written",
-          "message": "A record is already being written"
-        },
-        {
-          "code": 3,
-          "tag": 2621443,
           "name": "ERR_ACTION_NO_DRAFT",
           "severity": 2,
           "size": 0,
@@ -1524,8 +1481,8 @@
           "message": "No record is being written"
         },
         {
-          "code": 4,
-          "tag": 2621444,
+          "code": 3,
+          "tag": 2621443,
           "name": "ERR_ACTION_TOO_BIG",
           "severity": 2,
           "size": 4,
@@ -1547,31 +1504,8 @@
           "hint": "Split the action into smaller ones."
         },
         {
-          "code": 5,
-          "tag": 2621445,
-          "name": "ERR_ACTION_OFFSET",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "got",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "want",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "description": "upload write out of order, read past the image",
-          "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
-        },
-        {
-          "code": 6,
-          "tag": 2621446,
+          "code": 4,
+          "tag": 2621444,
           "name": "ERR_ACTION_INCOMPLETE",
           "severity": 2,
           "size": 4,
@@ -1594,8 +1528,8 @@
           "hint": "Write it again."
         },
         {
-          "code": 7,
-          "tag": 2621447,
+          "code": 5,
+          "tag": 2621445,
           "name": "ERR_ACTION_CRC",
           "severity": 2,
           "size": 8,
@@ -1617,8 +1551,8 @@
           "hint": "Write it again."
         },
         {
-          "code": 8,
-          "tag": 2621448,
+          "code": 6,
+          "tag": 2621446,
           "name": "ERR_ACTION_BAD_FRAME",
           "severity": 2,
           "size": 2,
@@ -1634,8 +1568,8 @@
           "message": "The action is broken at byte {offset}"
         },
         {
-          "code": 9,
-          "tag": 2621449,
+          "code": 7,
+          "tag": 2621447,
           "name": "ERR_ACTION_EMPTY",
           "severity": 1,
           "size": 0,
@@ -1645,8 +1579,8 @@
           "hint": "Add a command to the action."
         },
         {
-          "code": 10,
-          "tag": 2621450,
+          "code": 8,
+          "tag": 2621448,
           "name": "ERR_ACTION_DEPTH",
           "severity": 2,
           "size": 1,
@@ -1663,8 +1597,8 @@
           "hint": "Make the actions call each other less deep."
         },
         {
-          "code": 11,
-          "tag": 2621451,
+          "code": 9,
+          "tag": 2621449,
           "name": "ERR_ACTION_WRONG_TASK",
           "severity": 3,
           "size": 0,
@@ -1673,24 +1607,8 @@
           "message": "An action was started from the wrong place"
         },
         {
-          "code": 12,
-          "tag": 2621452,
-          "name": "ERR_ACTION_NO_MEM",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "size",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "message": "No memory for the action ({size} bytes)"
-        },
-        {
-          "code": 13,
-          "tag": 2621453,
+          "code": 10,
+          "tag": 2621450,
           "name": "ERR_ACTION_STEP",
           "severity": 0,
           "size": 6,
@@ -1714,56 +1632,14 @@
           "message": "In step {step} of {id}"
         },
         {
-          "code": 14,
-          "tag": 2621454,
-          "name": "ERR_ACTION_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "An action request is not valid"
-        },
-        {
-          "code": 15,
-          "tag": 2621455,
+          "code": 11,
+          "tag": 2621451,
           "name": "ERR_ACTION_BAD_ID",
           "severity": 3,
           "size": 0,
           "fields": [],
           "description": "ID 0 (SYS_ACTIONS_ID_NONE)",
           "message": "Action ID 0 is not valid"
-        }
-      ]
-    },
-    {
-      "id": 41,
-      "name": "LOG",
-      "symbol": "MODULE_ID_LOG",
-      "source_file": "runit-esp/components/sys/sys_log/errors/sys_log_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_log/errors/errors_log.json",
-      "tags": [
-        {
-          "code": 1,
-          "tag": 2686977,
-          "name": "ERR_LOG_BAD_LEVEL",
-          "severity": 3,
-          "size": 2,
-          "fields": [
-            {
-              "name": "level",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "max",
-              "type": "u8",
-              "offset": 1,
-              "size": 1
-            }
-          ],
-          "description": "above CONFIG_LOG_MAXIMUM_LEVEL",
-          "message": "Log level {level} is above the highest the board has ({max})",
-          "hint": "Choose a lower level."
         }
       ]
     },
@@ -1812,35 +1688,6 @@
         {
           "code": 3,
           "tag": 2752515,
-          "name": "ERR_WATCH_BAD_ARG",
-          "severity": 2,
-          "size": 1,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "description": "id 0, period 0, bad trigger/owner/board/read_len",
-          "message": "Watch {id}: bad argument",
-          "hint": "Check id (1..255), period (>= 1), trigger, owner peer id and read length."
-        },
-        {
-          "code": 4,
-          "tag": 2752516,
-          "name": "ERR_WATCH_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every slot in CONFIG_SYS_WATCH_MAX or _CLIENT_MAX taken",
-          "message": "Watch table is full",
-          "hint": "Remove an unused watch first or raise CONFIG_SYS_WATCH_MAX / CONFIG_SYS_WATCH_CLIENT_MAX."
-        },
-        {
-          "code": 5,
-          "tag": 2752517,
           "name": "ERR_WATCH_NO_VALUE",
           "severity": 1,
           "size": 1,
@@ -1856,8 +1703,8 @@
           "message": "No cached watch value from board {board} yet"
         },
         {
-          "code": 6,
-          "tag": 2752518,
+          "code": 4,
+          "tag": 2752516,
           "name": "ERR_WATCH_STALE",
           "severity": 2,
           "size": 3,
@@ -1909,7 +1756,7 @@
         {
           "code": 2,
           "tag": 2818050,
-          "name": "ERR_PROV_EXISTS",
+          "name": "ERR_PROV_ID_TAKEN",
           "severity": 2,
           "size": 1,
           "fields": [
@@ -1928,17 +1775,6 @@
         {
           "code": 3,
           "tag": 2818051,
-          "name": "ERR_PROV_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every CONFIG_SYS_DATA_PROVIDER_MAX slot taken",
-          "message": "No free slot for another data provider",
-          "hint": "Remove an unused data provider or raise CONFIG_SYS_DATA_PROVIDER_MAX."
-        },
-        {
-          "code": 4,
-          "tag": 2818052,
           "name": "ERR_PROV_IN_USE",
           "severity": 1,
           "size": 1,
@@ -1956,10 +1792,10 @@
           "hint": "Remove the one that exists first."
         },
         {
-          "code": 5,
-          "tag": 2818053,
+          "code": 4,
+          "tag": 2818052,
           "name": "ERR_PROV_SYSTEM",
-          "severity": 1,
+          "severity": 2,
           "size": 1,
           "fields": [
             {
@@ -1975,8 +1811,8 @@
           "hint": "Built-in board providers cannot be removed."
         },
         {
-          "code": 6,
-          "tag": 2818054,
+          "code": 5,
+          "tag": 2818053,
           "name": "ERR_PROV_TYPE_UNKNOWN",
           "severity": 3,
           "size": 1,
@@ -1993,8 +1829,8 @@
           "message": "Unknown data provider type ({type})"
         },
         {
-          "code": 7,
-          "tag": 2818055,
+          "code": 6,
+          "tag": 2818054,
           "name": "ERR_PROV_UNKNOWN_OP",
           "severity": 3,
           "size": 2,
@@ -2010,11 +1846,11 @@
           "message": "Provider does not support operation {op}"
         },
         {
-          "code": 8,
-          "tag": 2818056,
-          "name": "ERR_PROV_NO_MEM",
-          "severity": 4,
-          "size": 3,
+          "code": 7,
+          "tag": 2818055,
+          "name": "ERR_PROV_ID",
+          "severity": 0,
+          "size": 1,
           "fields": [
             {
               "name": "provider",
@@ -2022,17 +1858,11 @@
               "offset": 0,
               "size": 1,
               "id_kind": "transport"
-            },
-            {
-              "name": "size",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
             }
           ],
-          "description": "a driver out of memory",
-          "message": "Out of memory creating provider {provider} ({size} bytes needed)",
-          "hint": "Free memory by removing unused providers or devices."
+          "description": "context: the provider of a call or create",
+          "context": true,
+          "message": "In data provider {provider}"
         }
       ]
     },
@@ -2081,17 +1911,6 @@
         {
           "code": 3,
           "tag": 2883587,
-          "name": "ERR_SESSION_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "description": "every session slot taken",
-          "message": "No room for another board connection",
-          "hint": "Remove one first."
-        },
-        {
-          "code": 4,
-          "tag": 2883588,
           "name": "ERR_SESSION_NOT_FRAMED",
           "severity": 2,
           "size": 0,
@@ -2221,9 +2040,9 @@
         {
           "code": 7,
           "tag": 2949127,
-          "name": "ERR_BLE_NO_MEM",
-          "severity": 3,
-          "size": 6,
+          "name": "ERR_BLE_UUID",
+          "severity": 0,
+          "size": 2,
           "fields": [
             {
               "name": "uuid",
@@ -2231,16 +2050,11 @@
               "offset": 0,
               "size": 2,
               "id_kind": "ble_uuid"
-            },
-            {
-              "name": "size",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
             }
           ],
-          "message": "No memory for Bluetooth {uuid} ({size} bytes)",
-          "hint": "Make the buffers smaller, or remove a characteristic you do not need."
+          "description": "context: BLE service or characteristic",
+          "context": true,
+          "message": "In Bluetooth {uuid}"
         },
         {
           "code": 8,
@@ -2402,15 +2216,6 @@
         {
           "code": 2,
           "tag": 3014658,
-          "name": "ERR_EVENT_TABLE_FULL",
-          "severity": 2,
-          "size": 0,
-          "fields": [],
-          "message": "No room for another event subscription"
-        },
-        {
-          "code": 3,
-          "tag": 3014659,
           "name": "ERR_EVENT_NOT_FOUND",
           "severity": 2,
           "size": 2,
@@ -2426,17 +2231,8 @@
           "message": "Event subscription {id} does not exist"
         },
         {
-          "code": 4,
-          "tag": 3014660,
-          "name": "ERR_EVENT_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "An event request is not valid"
-        },
-        {
-          "code": 5,
-          "tag": 3014661,
+          "code": 3,
+          "tag": 3014659,
           "name": "ERR_EVENT_DELIVERY",
           "severity": 0,
           "size": 8,
@@ -2479,15 +2275,6 @@
         {
           "code": 1,
           "tag": 3080193,
-          "name": "ERR_DEV_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "A device request is not valid"
-        },
-        {
-          "code": 2,
-          "tag": 3080194,
           "name": "ERR_DEV_BAD_ID",
           "severity": 3,
           "size": 1,
@@ -2504,8 +2291,8 @@
           "message": "{id} is not a valid device ID"
         },
         {
-          "code": 3,
-          "tag": 3080195,
+          "code": 2,
+          "tag": 3080194,
           "name": "ERR_DEV_NOT_FOUND",
           "severity": 2,
           "size": 1,
@@ -2522,8 +2309,8 @@
           "hint": "Write the project to the board (toolbar), or check the device ID."
         },
         {
-          "code": 4,
-          "tag": 3080196,
+          "code": 3,
+          "tag": 3080195,
           "name": "ERR_DEV_ID_TAKEN",
           "severity": 2,
           "size": 1,
@@ -2540,8 +2327,8 @@
           "hint": "Give the device another ID."
         },
         {
-          "code": 5,
-          "tag": 3080197,
+          "code": 4,
+          "tag": 3080196,
           "name": "ERR_DEV_TYPE_UNKNOWN",
           "severity": 3,
           "size": 2,
@@ -2558,8 +2345,8 @@
           "hint": "Update the board's firmware, or remove the device: this firmware has no driver for it."
         },
         {
-          "code": 6,
-          "tag": 3080198,
+          "code": 5,
+          "tag": 3080197,
           "name": "ERR_DEV_SUSPENDED",
           "severity": 2,
           "size": 1,
@@ -2576,32 +2363,8 @@
           "hint": "Resume it (Devices: the device, Resume) once the cause is fixed."
         },
         {
-          "code": 7,
-          "tag": 3080199,
-          "name": "ERR_DEV_NO_MEM",
-          "severity": 4,
-          "size": 3,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            },
-            {
-              "name": "size",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            }
-          ],
-          "message": "No memory for {id} ({size} bytes)",
-          "hint": "Remove a device or a part of the program you do not need, then try again."
-        },
-        {
-          "code": 8,
-          "tag": 3080200,
+          "code": 6,
+          "tag": 3080198,
           "name": "ERR_DEV_INSTALL",
           "severity": 0,
           "size": 3,
@@ -2626,8 +2389,8 @@
           "message": "While creating {id} ({type})"
         },
         {
-          "code": 9,
-          "tag": 3080201,
+          "code": 7,
+          "tag": 3080199,
           "name": "ERR_DEV_ID",
           "severity": 0,
           "size": 1,
@@ -2645,8 +2408,8 @@
           "message": "In {id}"
         },
         {
-          "code": 10,
-          "tag": 3080202,
+          "code": 8,
+          "tag": 3080200,
           "name": "ERR_DEV_BAD_PIN",
           "severity": 3,
           "size": 2,
@@ -2671,45 +2434,8 @@
           "hint": "Choose a pin the device has."
         },
         {
-          "code": 11,
-          "tag": 3080203,
-          "name": "ERR_DEV_RANGE",
-          "severity": 3,
-          "size": 13,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "device"
-            },
-            {
-              "name": "value",
-              "type": "i32",
-              "offset": 1,
-              "size": 4
-            },
-            {
-              "name": "min",
-              "type": "i32",
-              "offset": 5,
-              "size": 4
-            },
-            {
-              "name": "max",
-              "type": "i32",
-              "offset": 9,
-              "size": 4
-            }
-          ],
-          "description": "a value the chip would reject (signed: thresholds may be negative)",
-          "message": "{id}: {value} is outside {min}..{max}",
-          "hint": "Use a value within the range shown."
-        },
-        {
-          "code": 12,
-          "tag": 3080204,
+          "code": 9,
+          "tag": 3080201,
           "name": "ERR_DEV_OP",
           "severity": 0,
           "size": 3,
@@ -2733,8 +2459,8 @@
           "message": "In {op}"
         },
         {
-          "code": 13,
-          "tag": 3080205,
+          "code": 10,
+          "tag": 3080202,
           "name": "ERR_DEV_UNKNOWN_OP",
           "severity": 3,
           "size": 2,
@@ -2752,8 +2478,8 @@
           "hint": "This device does not have that command: use one from its list."
         },
         {
-          "code": 14,
-          "tag": 3080206,
+          "code": 11,
+          "tag": 3080203,
           "name": "ERR_DEV_PIN_LOCKED",
           "severity": 3,
           "size": 3,
@@ -2786,8 +2512,8 @@
           "hint": "Change the pin through the device that holds it, or choose a free pin."
         },
         {
-          "code": 15,
-          "tag": 3080207,
+          "code": 12,
+          "tag": 3080204,
           "name": "ERR_DEV_IN_USE",
           "severity": 2,
           "size": 9,
@@ -2811,8 +2537,8 @@
           "hint": "Remove or change the devices that use it first."
         },
         {
-          "code": 16,
-          "tag": 3080208,
+          "code": 13,
+          "tag": 3080205,
           "name": "ERR_DEV_FAULT_RESPONSE",
           "severity": 3,
           "size": 7,
@@ -2850,8 +2576,8 @@
           "hint": "Check the device's error policy and the action it runs. At the step Queue the board had too many errors at once to respond to this one."
         },
         {
-          "code": 17,
-          "tag": 3080209,
+          "code": 14,
+          "tag": 3080206,
           "name": "ERR_DEV_SYSTEM",
           "severity": 2,
           "size": 1,
@@ -2868,8 +2594,8 @@
           "message": "{id} is part of the board and cannot be removed"
         },
         {
-          "code": 18,
-          "tag": 3080210,
+          "code": 15,
+          "tag": 3080207,
           "name": "ERR_DEV_REMOTE_DOWN",
           "severity": 3,
           "size": 2,
@@ -2893,8 +2619,8 @@
           "hint": "Check the cable or the link to that board."
         },
         {
-          "code": 19,
-          "tag": 3080211,
+          "code": 16,
+          "tag": 3080208,
           "name": "ERR_DEV_LOCAL_OP",
           "severity": 3,
           "size": 2,
@@ -2912,8 +2638,8 @@
           "hint": "The board's own modules use it (a display's FLUSH is sent by the screen adapter)."
         },
         {
-          "code": 20,
-          "tag": 3080212,
+          "code": 17,
+          "tag": 3080209,
           "name": "ERR_DEV_REENTRY",
           "severity": 3,
           "size": 1,
@@ -2931,8 +2657,8 @@
           "hint": "A device operation must not call its own device."
         },
         {
-          "code": 21,
-          "tag": 3080213,
+          "code": 18,
+          "tag": 3080210,
           "name": "ERR_DEV_NOT_LOCKED",
           "severity": 3,
           "size": 1,
@@ -2950,8 +2676,8 @@
           "hint": "Take the lock of the device first (sys_device_slot_lock)."
         },
         {
-          "code": 22,
-          "tag": 3080214,
+          "code": 19,
+          "tag": 3080211,
           "name": "ERR_DEV_BUSY",
           "severity": 2,
           "size": 3,
@@ -2977,8 +2703,8 @@
           "hint": "Try again; if it stays busy, the device or the bus it is on does not answer."
         },
         {
-          "code": 23,
-          "tag": 3080215,
+          "code": 20,
+          "tag": 3080212,
           "name": "ERR_DEV_CYCLE",
           "severity": 3,
           "size": 2,
@@ -3003,8 +2729,8 @@
           "hint": "Two devices cannot use each other: change one of them."
         },
         {
-          "code": 24,
-          "tag": 3080216,
+          "code": 21,
+          "tag": 3080213,
           "name": "ERR_DEV_PIN_NOT_OWNED",
           "severity": 3,
           "size": 3,
@@ -3036,8 +2762,8 @@
           "message": "{pin} of {id} belongs to {owner}: only that device can free it"
         },
         {
-          "code": 25,
-          "tag": 3080217,
+          "code": 22,
+          "tag": 3080214,
           "name": "ERR_DEV_REMOTE_DEP",
           "severity": 1,
           "size": 2,
@@ -3362,32 +3088,21 @@
         {
           "code": 5,
           "tag": 3342341,
-          "name": "ERR_PWRM_BAD_ARG",
-          "severity": 3,
-          "size": 12,
+          "name": "ERR_PWRM_RAIL_TAKEN",
+          "severity": 2,
+          "size": 2,
           "fields": [
             {
-              "name": "value",
-              "type": "i32",
+              "name": "id",
+              "type": "u16",
               "offset": 0,
-              "size": 4
-            },
-            {
-              "name": "min",
-              "type": "i32",
-              "offset": 4,
-              "size": 4
-            },
-            {
-              "name": "max",
-              "type": "i32",
-              "offset": 8,
-              "size": 4
+              "size": 2,
+              "id_kind": "device"
             }
           ],
-          "description": "a setting out of range",
-          "message": "{value} is outside {min}..{max}",
-          "hint": "Use a value within the range shown."
+          "description": "rail already registered",
+          "message": "{id} is already registered as a power rail",
+          "hint": "Remove the existing rail before adding it again."
         },
         {
           "code": 6,

@@ -359,7 +359,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_RESET) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) {
-  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   const tpin_t* p;
   ERR_TRY(pin_mode_is(c, args->pin, is_out, &p));
@@ -384,7 +384,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_DUTY) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   const tpin_t* p;
   ERR_TRY(pin_mode_is(c, args->pin, is_pwm, &p));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->duty, 0, IO_PWM_DUTY_MAX);
+  ERR_CHECK_RANGE(args->duty, 0, IO_PWM_DUTY_MAX);
   c->pin[args->pin].duty = args->duty;
   ESP_LOGI(TAG, "dev %u pin %u duty %lu", c->id, args->pin, (unsigned long)args->duty);
   return NULL;
@@ -394,7 +394,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   const tpin_t* p;
   ERR_TRY(pin_mode_is(c, args->pin, is_pwm, &p));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->frequency_Hz, 1, TESTDEV_PWM_FREQ_MAX);
+  ERR_CHECK_RANGE(args->frequency_Hz, 1, TESTDEV_PWM_FREQ_MAX);
   c->pin[args->pin].freq_Hz = args->frequency_Hz;
   ESP_LOGI(TAG, "dev %u pin %u frequency %lu Hz", c->id, args->pin, (unsigned long)args->frequency_Hz);
   return NULL;
@@ -403,7 +403,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
 // Edges need a digital pin, a window an ADC pin; the hysteresis and the event counter are not simulated.
 OP_DECLARE_WRITE(CONTRACT_IO, OP_INTR) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
-  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_BAD_ARG);
   const tpin_t* p;
   if (args->cfg.mode >= SYS_IO_INTR_ADC_WINDOW_OUTSIDE) {
     ERR_TRY(pin_mode_is(c, args->pin, is_adc, &p));
@@ -428,7 +428,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_VOLTAGE) {
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   const tpin_t* p;
   ERR_TRY(pin_mode_is(c, args->pin, is_dac, &p));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->voltage_mV, 0, TESTDEV_DAC_MAX_MV);
+  ERR_CHECK_RANGE(args->voltage_mV, 0, TESTDEV_DAC_MAX_MV);
   c->pin[args->pin].mV = args->voltage_mV;
   ESP_LOGI(TAG, "dev %u pin %u output %ld mV", c->id, args->pin, (long)args->voltage_mV);
   return NULL;
@@ -468,7 +468,7 @@ static err_h chip_xfer(testdev_t* c, uint8_t addr, const uint8_t* w1, size_t n1,
                        uint8_t* r, size_t rn) {
   const bool shape = (w1 != NULL || n1 == 0) && (w2 != NULL || n2 == 0) && (r != NULL || rn == 0) &&
                      (n1 > 0 || (n2 == 0 && rn > 0));
-  ERR_CHECK(shape, ERR_I2C_BAD_ARG);
+  ERR_CHECK(shape, ERR_BAD_ARG);
   ERR_CHECK(!c->stuck, ERR_I2C_BUS_STUCK, .bus = c->id, .addr = addr);
   tchip_t* chip = chip_at(c, addr);
   ERR_CHECK(chip != NULL, ERR_I2C_NO_ACK, .bus = c->id, .addr = addr);
@@ -549,7 +549,7 @@ static err_h raw_check(const testdev_t* c, uint8_t addr) {
 OP_DECLARE_READ(CONTRACT_I2C, OP_RAW) {
   const i2c_raw_t head = {.addr = args->addr, .reg = args->reg};
   const uint32_t need = sizeof(head) + args->len;
-  ERR_CHECK(args->len > 0, ERR_I2C_BAD_ARG);
+  ERR_CHECK(args->len > 0, ERR_BAD_ARG);
   ERR_CHECK(need <= out->cap, ERR_CMD_OUT_FULL, .need = (uint16_t)need, .cap = (uint16_t)out->cap);
   ERR_TRY(raw_check(c, args->addr));
   ERR_TRY(chip_xfer(c, args->addr, &args->reg, 1, NULL, 0, out->data + sizeof(head), args->len));
@@ -613,7 +613,7 @@ OP_DECLARE_READ(CONTRACT_PMON, OP_POWER) {
 
 OP_DECLARE_WRITE(CONTRACT_PMON, OP_ALERT) {
   ERR_TRY(check_channel(c, args->channel));
-  ERR_CHECK(args->alert <= SYS_POWER_ALERT_OCP_CRITICAL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->alert <= SYS_POWER_ALERT_OCP_CRITICAL, ERR_BAD_ARG);
   tch_t* ch = &c->ch[args->channel];
   ch->alert[args->alert].armed = true;
   ch->alert[args->alert].threshold_mA = args->threshold_mA;
@@ -631,7 +631,7 @@ enum { BRIDGE_DRIVE = 0, BRIDGE_BRAKE = 1, BRIDGE_COAST = 2 };
 
 OP_DECLARE_WRITE(CONTRACT_HBRIDGE, OP_DRIVE) {
   ERR_TRY(check_drive_channel(c, args->channel));
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->drive, -SYS_HBRIDGE_DRIVE_MAX, SYS_HBRIDGE_DRIVE_MAX);
+  ERR_CHECK_RANGE(args->drive, -SYS_HBRIDGE_DRIVE_MAX, SYS_HBRIDGE_DRIVE_MAX);
   tch_t* ch = &c->ch[args->channel];
   ch->drive = args->drive;
   ch->bridge = BRIDGE_DRIVE;
@@ -666,7 +666,7 @@ OP_DECLARE_READ(CONTRACT_HBRIDGE, OP_CURRENT) {
  * ------------------------------------------------------------------------- */
 
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_ENABLE) {
-  ERR_CHECK(args->enable <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->enable <= 1, ERR_BAD_ARG);
   const bool on = args->enable != 0 && !c->vreg.enable;
   c->vreg.enable = args->enable;
   ESP_LOGI(TAG, "dev %u regulator %s", c->id, args->enable ? "on" : "off");
@@ -674,7 +674,7 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_ENABLE) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_VOLTAGE) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->voltage_mV, TESTDEV_VREG_MIN_MV, TESTDEV_VREG_MAX_MV);
+  ERR_CHECK_RANGE(args->voltage_mV, TESTDEV_VREG_MIN_MV, TESTDEV_VREG_MAX_MV);
   const bool higher = c->vreg.enable && args->voltage_mV > c->vreg.voltage_mV;
   c->vreg.voltage_mV = args->voltage_mV;
   ESP_LOGI(TAG, "dev %u regulator voltage %lu mV", c->id, (unsigned long)args->voltage_mV);
@@ -682,15 +682,15 @@ OP_DECLARE_WRITE(CONTRACT_VREG, OP_VOLTAGE) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_VREG, OP_CURRENT) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->current_mA, 0, TESTDEV_VREG_MAX_MA);
+  ERR_CHECK_RANGE(args->current_mA, 0, TESTDEV_VREG_MAX_MA);
   c->vreg.current_mA = args->current_mA;
   ESP_LOGI(TAG, "dev %u regulator current limit %lu mA", c->id, (unsigned long)args->current_mA);
   return NULL;
 }
 
 OP_DECLARE_WRITE(CONTRACT_PD, OP_SETTINGS) {
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->voltage_mV, TESTDEV_PD_MIN_MV, TESTDEV_PD_MAX_MV);
-  SYS_DEV_CHECK_IN_RANGE(c->id, args->current_mA, 0, TESTDEV_PD_MAX_MA);
+  ERR_CHECK_RANGE(args->voltage_mV, TESTDEV_PD_MIN_MV, TESTDEV_PD_MAX_MV);
+  ERR_CHECK_RANGE(args->current_mA, 0, TESTDEV_PD_MAX_MA);
   c->pd = *args;
   ESP_LOGI(TAG, "dev %u pd asks %lu mV %lu mA", c->id, (unsigned long)args->voltage_mV,
            (unsigned long)args->current_mA);
@@ -717,7 +717,7 @@ OP_DECLARE_READ(CONTRACT_PD, OP_LIMITS) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_SUPPLY, OP_SOURCE) {
-  ERR_CHECK(args->source <= SYS_POWER_SUPPLY_B, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->source <= SYS_POWER_SUPPLY_B, ERR_BAD_ARG);
   c->source = args->source;
   ESP_LOGI(TAG, "dev %u supply source %u", c->id, args->source);
   return NULL;
@@ -771,7 +771,7 @@ static void rx_flush(testdev_t* c) {
 
 // The bytes leave the port: logged, and they come back as a message while LOOPBACK is on.
 static err_h tx_out(testdev_t* c, const uint8_t* data, uint32_t len, uint16_t wait_ms) {
-  ERR_CHECK(len > 0 && len <= TESTDEV_MSG_MAX && wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  ERR_CHECK(len > 0 && len <= TESTDEV_MSG_MAX && wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
   ESP_LOGI(TAG, "dev %u uart tx %u bytes", c->id, (unsigned)len);
   ESP_LOG_BUFFER_HEX(TAG, data, len);
   return c->loopback != 0 ? rx_in(c, data, len) : NULL;
@@ -820,14 +820,14 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_SEND_FRAME) {
 }
 
 OP_DECLARE_READ(CONTRACT_UART, OP_RECEIVE) {
-  ERR_CHECK(args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  ERR_CHECK(args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
   ERR_CHECK(!has_reader(c), ERR_UART_IN_USE, .port = c->id, .owner = c->reader);
   return rx_pop(c, out);
 }
 
 // Flushes the queue, sends, and answers the message that comes back (with LOOPBACK on, the bytes themselves).
 OP_DECLARE_WRITE_TAIL(CONTRACT_UART, OP_TRANSACT) {
-  ERR_CHECK(tail_len > 0 && args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_UART_BAD_ARG);
+  ERR_CHECK(tail_len > 0 && args->wait_ms <= SYS_UART_WAIT_MAX_MS, ERR_BAD_ARG);
   ERR_CHECK(!has_reader(c), ERR_UART_IN_USE, .port = c->id, .owner = c->reader);
   rx_flush(c);
   ERR_TRY(tx_out(c, tail, tail_len, args->wait_ms));
@@ -843,7 +843,7 @@ OP_DECLARE_WRITE(CONTRACT_UART, OP_FLUSH) {
 // The caller (a device, in its create()) the reader: each message to its own op. `op` 0: it lets go.
 OP_DECLARE_WRITE(CONTRACT_UART, OP_SUBSCRIBE) {
   const uint8_t caller = sys_device_caller();
-  ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_UART_BAD_ARG);
+  ERR_CHECK(caller != SYS_DEVICE_ID_NONE, ERR_BAD_ARG);
   const bool busy = args->op != 0 && has_reader(c);
   if (args->op == 0 && c->reader == caller) {
     c->reader = SYS_DEVICE_ID_NONE;
@@ -910,7 +910,7 @@ OP_DECLARE_READ(OWN_TESTDEV, OP_FAKE_PIN) {
 // The outside changes: a level an input reads (or an output is shorted to), a voltage an ADC pin reads.
 OP_DECLARE_WRITE(OWN_TESTDEV, OP_FAKE_PIN) {
   ERR_TRY(sys_io_pins_check(&c->pins, c->id, args->pin));
-  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_BAD_ARG);
   ERR_TRY(pin_set_level(c, args->pin, args->level));
   return pin_set_mV(c, args->pin, args->voltage_mV);
 }
@@ -926,7 +926,7 @@ OP_DECLARE_WRITE(OWN_TESTDEV, OP_FAKE_I2C) {
     for (uint32_t i = 0; i < TESTDEV_I2C_CHIPS && chip == NULL; i++) {  // addr 0 is a free slot
       chip = c->chip[i].addr == 0 ? &c->chip[i] : NULL;
     }
-    ERR_CHECK(chip != NULL, ERR_CMD_BAD_ARG);
+    ERR_CHECK(chip != NULL, ERR_BAD_ARG);
     memset(chip, 0, sizeof(*chip));
     chip->addr = args->addr;
   }
@@ -987,14 +987,14 @@ OP_DECLARE_WRITE(OWN_TESTDEV, OP_FAKE_FAULT) {
       c->stuck = true;
       return NULL;
     default:
-      return ERR_NEW(ERR_CMD_BAD_ARG);
+      return ERR_NEW(ERR_BAD_ARG);
   }
 }
 
 // A message arrives on the UART port, `copies` times.
 OP_DECLARE_WRITE_TAIL(OWN_TESTDEV, OP_FAKE_UART_RX) {
   ERR_CHECK(tail_len > 0 && tail_len <= TESTDEV_MSG_MAX && args->copies >= 1 && args->copies <= TESTDEV_UART_QUEUE,
-            ERR_UART_BAD_ARG);
+            ERR_BAD_ARG);
   err_h err = NULL;
   for (uint8_t i = 0; i < args->copies; i++) {
     ERR_KEEP_FIRST(err, rx_in(c, tail, tail_len));
@@ -1026,7 +1026,7 @@ OP_DECLARE_READ(OWN_TESTDEV, OP_LOOPBACK) {
 }
 
 OP_DECLARE_WRITE(OWN_TESTDEV, OP_LOOPBACK) {
-  ERR_CHECK(args->loopback <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->loopback <= 1, ERR_BAD_ARG);
   c->loopback = args->loopback;
   ESP_LOGI(TAG, "dev %u uart loopback %u", c->id, args->loopback);
   return NULL;
@@ -1072,7 +1072,7 @@ static err_h create(uint8_t id, testdev_t* c, const testdev_cfg_t* cfg) {
   const bool ok = cfg->pins >= 1 && cfg->pins <= SYS_IO_PINS_MAX && cfg->channels >= 1 &&
                   cfg->channels <= TESTDEV_CHANNELS_MAX && cfg->uart_mode <= SYS_UART_MODE_RAW_LINE &&
                   cfg->uart_baud >= SYS_UART_BAUD_MIN && cfg->uart_baud <= SYS_UART_BAUD_MAX;
-  ERR_CHECK(ok, ERR_CMD_BAD_ARG);
+  ERR_CHECK(ok, ERR_BAD_ARG);
   c->id = id;
   c->cfg = *cfg;
   c->reader = SYS_DEVICE_ID_NONE;

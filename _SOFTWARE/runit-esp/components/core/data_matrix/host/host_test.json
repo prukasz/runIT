@@ -7,7 +7,6 @@
     "host/test_data_matrix.c"
   ],
   "includes": [
-    "errors",
     "router"
   ],
   "config": "host/data_matrix_host_config.h",

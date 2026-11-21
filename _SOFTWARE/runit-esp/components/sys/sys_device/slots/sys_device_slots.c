@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "utils.h"
 
 _Static_assert(SYS_DEVICE_COUNT <= 64, "a dependency mask has one bit per slot");
 
@@ -73,7 +74,7 @@ err_h sys_device_slot_lock(uint8_t id, uint16_t op) {
   ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
   sys_device_slot_t* s = &s_slots[id];
   ERR_CHECK(!held_by_me(s), ERR_DEV_REENTRY, .id = id);
-  const bool taken = xSemaphoreTake(s->lock, pdMS_TO_TICKS(CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS)) == pdTRUE;
+  const bool taken = xSemaphoreTake(s->lock, MSEC(CONFIG_SYS_DEVICE_LOCK_TIMEOUT_MS)) == pdTRUE;
   ERR_CHECK(taken, ERR_DEV_BUSY, .id = id, .op = s->op);  // the op of whoever holds it: a snapshot
   s->op = op;
   return NULL;
@@ -225,7 +226,7 @@ err_h sys_device_slot_enter(uint8_t id) {
     s->in_flight++;
   }
   table_unlock();
-  ERR_CHECK(!full, ERR_DEV_BAD_ARG);  // 255 calls of one device at once: a leak of leave()
+  ERR_CHECK(!full, ERR_FULL, .max = UINT8_MAX);  // 255 calls of one device at once: a leak of leave()
   return NULL;
 }
 

@@ -6,18 +6,12 @@
       "message": "{id} does not exist",
       "hint": "Write the project to the board (toolbar), or check which action is called."
     },
-    "ERR_ACTION_BUSY": {
-      "message": "A record is already being written"
-    },
     "ERR_ACTION_NO_DRAFT": {
       "message": "No record is being written"
     },
     "ERR_ACTION_TOO_BIG": {
       "message": "The action is {len} bytes; at most {max} fit",
       "hint": "Split the action into smaller ones."
-    },
-    "ERR_ACTION_OFFSET": {
-      "message": "Wrong offset {got}: a write expects {want}, a read takes at most the record's {want} bytes"
     },
     "ERR_ACTION_INCOMPLETE": {
       "message": "The record is incomplete ({got} of {want} bytes)",
@@ -41,14 +35,8 @@
     "ERR_ACTION_WRONG_TASK": {
       "message": "An action was started from the wrong place"
     },
-    "ERR_ACTION_NO_MEM": {
-      "message": "No memory for the action ({size} bytes)"
-    },
     "ERR_ACTION_STEP": {
       "message": "In step {step} of {id}"
-    },
-    "ERR_ACTION_BAD_ARG": {
-      "message": "An action request is not valid"
     },
     "ERR_ACTION_BAD_ID": {
       "message": "Action ID 0 is not valid"

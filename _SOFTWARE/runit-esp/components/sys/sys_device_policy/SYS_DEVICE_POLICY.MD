@@ -8,7 +8,7 @@ Folder `components/sys/sys_device_policy/`. Decides how the board reacts to erro
 |---|---|
 | `sys_device_policy.h` | Importance levels, `sys_device_error_policy_t`, built-in responses, fault stages, callback types, API (`init`, `set_vm_stop`, `set_action_runner`, `handle`, `get`, `set`) |
 | `sys_device_policy.c` | Slot policy table, `CREATED`/`REMOVED` inline listener, queue ring buffer, dedicated policy task |
-| `sys_device_policy_id.h` | `MODULE_ID_DECLARE(MODULE_ID_POLICY, 0x21)` |
+| `sys_device_policy_id.h` | `MODULE_ID_DECLARE(MODULE_ID_POLICY, 0x30)` |
 | `router/sys_device_policy_router.h` | `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
 | `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(MODULE_ID_POLICY, sys_device_policy_router)` |
 | `Kconfig` | Queue size, task priority and stack size |
@@ -53,9 +53,9 @@ typedef struct __attribute__((packed)) {
    - runs that device's configured response (`SYS_DEVICE_RESPONSE_SUSPEND`, `SYS_DEVICE_RESPONSE_RESET`, or `action_runner(action, chain)`).
    - wraps any response failure in `ERR_DEV_FAULT_RESPONSE{id, sev, stage, action}` (`sys_device_fault_stage_e`: `VM_STOP=0`, `SUSPEND=1`, `ACTION=2`, `QUEUE=3`) and reports it via `err_report`.
 
-## Router (`router/sys_device_policy_router.h`, key `0x21`)
+## Router (`router/sys_device_policy_router.h`, key `0x30`)
 
-`MODULE_ID_POLICY` (`0x21`, `sys_device_policy_id.h`) registers `sys_device_policy_router` under root key `0x21` (`[0x21][dir][0x01][args]`).
+`MODULE_ID_POLICY` (`0x30`, `sys_device_policy_id.h`) registers `sys_device_policy_router` under root key `0x30` (`[0x30][dir][0x01][args]`).
 
 | Op | Dir | Args | Answer | Notes |
 |---|---|---|---|---|

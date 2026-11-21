@@ -88,13 +88,13 @@ err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const v
   }
   ERR_CHECK(type != NULL, ERR_PROV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(cfg_len == type->cfg_size, ERR_CMD_BAD_LEN, .got = (uint16_t)cfg_len, .need = type->cfg_size);
-  ERR_CHECK(find(id) == NULL, ERR_PROV_EXISTS, .provider = id);
+  ERR_CHECK(find(id) == NULL, ERR_PROV_ID_TAKEN, .provider = id);
 
   prov_slot_t* slot = NULL;
   for (uint32_t i = 0; slot == NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     slot = s_slots[i].type == NULL ? &s_slots[i] : NULL;  // a slot's type changes under s_ctrl only
   }
-  ERR_CHECK(slot != NULL, ERR_PROV_FULL);
+  ERR_CHECK(slot != NULL, ERR_FULL, .max = CONFIG_SYS_DATA_PROVIDER_MAX);
 
   sys_data_provider_t* p = &slot->p;
   // The port's `in` is never cleared (a send in flight may still read it): zeroed is only what follows the port.
@@ -102,7 +102,10 @@ err_h sys_data_provider_create(uint8_t id, uint8_t type_id, bool system, const v
   p->port.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, id);
   p->port.in = line_in;
   p->state = system ? SYS_DATA_PROVIDER_STATE_SYSTEM : 0u;
-  ERR_TRY(type->create(p, cfg));
+  err_h cerr = type->create(p, cfg);
+  if (cerr != NULL) {
+    return ERR_WRAP(cerr, ERR_PROV_ID, .provider = id);
+  }
 
   portENTER_CRITICAL(&s_lock);
   slot->type = type;

@@ -72,9 +72,10 @@ static interceptor_t s_interceptors[CONFIG_SYS_DEVICE_INTERCEPTORS];
 static uint32_t s_interceptor_count;
 
 err_h sys_device_set_interceptor(uint8_t contract, sys_device_interceptor_f fn, sys_device_intercept_done_f done) {
-  ERR_CHECK(fn != NULL && s_interceptor_count < CONFIG_SYS_DEVICE_INTERCEPTORS, ERR_DEV_BAD_ARG);
+  ERR_CHECK(fn != NULL, ERR_BAD_ARG);
+  ERR_CHECK(s_interceptor_count < CONFIG_SYS_DEVICE_INTERCEPTORS, ERR_FULL, .max = CONFIG_SYS_DEVICE_INTERCEPTORS);
   for (uint32_t i = 0; i < s_interceptor_count; i++) {
-    ERR_CHECK(s_interceptors[i].contract != contract, ERR_DEV_BAD_ARG);  // one per contract
+    ERR_CHECK(s_interceptors[i].contract != contract, ERR_BAD_ARG);  // one per contract
   }
   s_interceptors[s_interceptor_count++] = (interceptor_t){.contract = contract, .fn = fn, .done = done};
   return NULL;
@@ -294,14 +295,14 @@ err_h sys_device_call_routed(uint8_t id, uint8_t dir, uint16_t op, cmd_in_t in, 
 
 err_h sys_device_step(uint8_t id, uint8_t gen, uint16_t op) {
   ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
-  ERR_CHECK(gen != 0 && (op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_DEV_BAD_ARG);  // own ops: no interceptor sees them
+  ERR_CHECK(gen != 0 && (op >> 8) == SYS_DEVICE_CONTRACT_OWN, ERR_BAD_ARG);  // own ops: no interceptor sees them
   const how_t how = {.step = true, .gen = gen};
   return call_dispatch(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = NULL, .len = 0}, NULL, &how);
 }
 
 err_h sys_device_deliver(uint8_t id, uint8_t gen, uint16_t op, const void* args, uint32_t args_len) {
   ERR_CHECK(id < SYS_DEVICE_COUNT, ERR_DEV_BAD_ID, .id = id);
-  ERR_CHECK(gen != 0 && (op >> 8) != MODULE_ID_SYS_DEVICE, ERR_DEV_BAD_ARG);
+  ERR_CHECK(gen != 0 && (op >> 8) != MODULE_ID_SYS_DEVICE, ERR_BAD_ARG);
   const how_t how = {.gen = gen};
   return call_dispatch(id, CMD_DIR_WRITE, op, (cmd_in_t){.data = args, .len = args_len}, NULL, &how);
 }

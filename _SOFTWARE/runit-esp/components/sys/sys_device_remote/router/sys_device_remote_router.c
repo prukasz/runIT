@@ -5,13 +5,13 @@
 // The subscriber is who sent the command: no peer names another.
 ROUTER_WRITE(REMOTE, OP_SUBSCRIBE) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(origin != NULL, ERR_BAD_ARG);
   return sys_device_remote_subscribe(args->id, origin->src);
 }
 
 ROUTER_WRITE(REMOTE, OP_UNSUBSCRIBE) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(origin != NULL, ERR_BAD_ARG);
   sys_device_remote_unsubscribe(args->id, origin->src);
   return NULL;
 }

@@ -7,7 +7,7 @@ _Static_assert(1u + CONFIG_SYS_WATCH_MAX * sizeof(sys_watch_info_t) <= CMD_DATA_
 
 ROUTER_WRITE_TAIL(WATCH, OP_ADD) {
   const cmd_req_t* origin = router_origin();
-  ERR_CHECK(origin != NULL, ERR_WATCH_BAD_ARG, .id = args->id);
+  ERR_CHECK(origin != NULL, ERR_BAD_ARG);
   return sys_watch_add(args, (cmd_in_t){tail, tail_len}, origin->src);
 }
 

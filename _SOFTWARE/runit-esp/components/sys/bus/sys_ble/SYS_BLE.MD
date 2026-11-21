@@ -8,9 +8,9 @@ Component `runit-esp/components/sys/bus/sys_ble/`. NimBLE as a peripheral (one c
 | `internal/sys_ble_internal.h` | The nodes, the lock, what the sources share (the table's calls for the router) |
 | `sys_ble.c` | The table (staged), the sync to NimBLE, the hooks, TX (the BLE task), RX and the framing, the connection |
 | `sys_ble_stack.c` | NimBLE: init, advertising, GAP events, GATT access, the table's definitions, notify |
-| `router/sys_ble_router.h` / `.c` | The remote interface (root key `MODULE_ID_BLE` 0x2E): the frames and flags, then `BLE_OPERATIONS`; registers itself |
+| `router/sys_ble_router.h` / `.c` | The remote interface (root key `MODULE_ID_BLE` 0x2D): the frames and flags, then `BLE_OPERATIONS`; registers itself |
 | `router/contract_ble.json` | The router's descriptor |
-| `sys_ble_id.h`, `errors/` | `MODULE_ID_DECLARE(MODULE_ID_BLE, 0x2E)` (`sys_ble_id.h`), `ERR_SYS_BLE_MAP`, `errors_sys_ble.json` |
+| `sys_ble_id.h`, `errors/` | `MODULE_ID_DECLARE(MODULE_ID_BLE, 0x2D)` (`sys_ble_id.h`), `ERR_SYS_BLE_MAP`, `errors_sys_ble.json` |
 | `Kconfig` | The name, the BLE task, the apply delay |
 
 ## Boot
@@ -64,7 +64,7 @@ Changes are **staged** and applied by APPLY on the BLE task: at once with no cli
 - On disconnect: TX buffers emptied, subscriptions and half-joined frames dropped, advertising restarts, the hooks hear down.
 - Advertising carries the service `sys_ble_start` was given (`app/runit`'s runIT service) next to the name, so a client can filter by it. No pairing: `CONFIG_BT_NIMBLE_SECURITY_ENABLE` is off.
 
-## Remote (`sys_ble_router`, root key `MODULE_ID_BLE` 0x2E)
+## Remote (`sys_ble_router`, root key `MODULE_ID_BLE` 0x2D)
 
 Reads only. The table is changed by the providers (PROVIDER_BLE.MD): one way to make a service or a characteristic. What the module itself will be set with (a password, pairing) goes through this router.
 
@@ -77,7 +77,7 @@ A characteristic's flags: bit 0 WRITE, 1 INDICATE, 2 NOTIFY, 3 FRAMED (`SYS_BLE_
 
 Example: a user characteristic a stream sends on (notify, unframed): PROVIDER CREATE type BLE, cfg `{svc 0xEE00, tx 0xEE01, rx 0, flags 0, name "temp"}` (PROVIDER_BLE.MD), then the data matrix `CONNECT` of the stream's port to that provider's port (DATA_MATRIX.MD).
 
-## Errors (`MODULE_ID_BLE` 0x2E)
+## Errors (`MODULE_ID_BLE` 0x2D)
 
 | Error | Severity | Fields |
 |---|---|---|

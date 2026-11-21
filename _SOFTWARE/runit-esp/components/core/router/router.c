@@ -36,7 +36,7 @@ err_h router_call_op(const router_op_t* table, uint32_t count, void* ctx, cmd_in
 }
 
 static err_h root_register(uint8_t key, cmd_f fn) {
-  ERR_CHECK(key != 0 && fn != NULL, ERR_CMD_BAD_ARG);
+  ERR_CHECK(key != 0 && fn != NULL, ERR_BAD_ARG);
   for (uint32_t i = 0; i < s_router.root_count; i++) {
     ERR_CHECK(s_router.root[i].key != key, ERR_ROUTER_KEY_TAKEN, .key = key);
   }

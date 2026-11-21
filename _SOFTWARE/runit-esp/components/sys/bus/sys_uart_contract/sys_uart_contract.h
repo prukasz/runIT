@@ -8,7 +8,7 @@
 #include "sys_device.h"
 #include "sys_device_driver.h"  // sys_device_res_t: a subscription is a resource of its device
 #include "sys_event.h"          // UART_EV_OVERFLOW
-#include "sys_uart_errors.h"    // MODULE_ID_UART (0x13), ERR_UART_*
+#include "sys_uart_errors.h"    // MODULE_ID_UART (0x03), ERR_UART_*
 
 #ifdef __cplusplus
 extern "C" {

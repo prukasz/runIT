@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-/* Ops under root key MODULE_ID_WATCH = 0x2B (SYS_WATCH.MD "Remote"), packed, little-endian;
+/* Ops under root key MODULE_ID_WATCH = 0x2A (SYS_WATCH.MD "Remote"), packed, little-endian;
  * contract_watch.json names them. The router registers itself (ROUTER_MODULE_REGISTER). */
 
 /** @brief REMOVE args */
@@ -29,7 +29,7 @@ typedef struct __attribute__((packed)) {
 
 CMD_TABLE_DECLARE(WATCH)
 
-/** @brief Watch router under MODULE_ID_WATCH (0x2B). */
+/** @brief Watch router under MODULE_ID_WATCH (0x2A). */
 ROUTER_MODULE_DECLARE(sys_watch_router);
 
 #ifdef __cplusplus

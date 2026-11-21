@@ -3,7 +3,7 @@
 Spec: `SYS_ACTIONS.MD` (this folder).
 
 - Every change in this folder is followed by an edit of `SYS_ACTIONS.MD`, if it is needed.
-- `MODULE_ID_ACTIONS` (0x2C), the IDs and classes, the op codes (`ACTIONS_OPERATIONS` in `router/sys_actions_router.h`), the frames, the error tags and the NVS key format `a<8 hex digits>` are wire format or stored data: never renumber them. `contract_actions.json` and `errors/errors_sys_actions.json` follow every change.
+- `MODULE_ID_ACTIONS` (0x28), the IDs and classes, the op codes (`ACTIONS_OPERATIONS` in `router/sys_actions_router.h`), the frames, the error tags and the NVS key format `a<8 hex digits>` are wire format or stored data: never renumber them. `contract_actions.json` and `errors/errors_sys_actions.json` follow every change.
 - The size limit of a record is `CONFIG_SYS_ACTIONS_MAX_BYTES`, of every class, never a literal.
 - `s_draft` is touched only under `sys_actions_mutex`. A replay never holds it.
 - A record runs only on a router task (`router_origin()`); anything else queues a RUN (`sys_actions_request`).

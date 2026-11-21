@@ -50,7 +50,7 @@ static err_h impl_init(const char* partition) {
 }
 
 static err_h impl_open(const char* partition, const char* name, nvs_store_ns_t* out) {
-  ERR_CHECK(partition != NULL && name != NULL && out != NULL, ERR_NVS_BAD_ARG);
+  ERR_CHECK(partition != NULL && name != NULL && out != NULL, ERR_BAD_ARG);
   for (uint32_t i = 0; i < MAX_NS; i++) {
     if (s_ns[i].used && strcmp(s_ns[i].part, partition) == 0 && strcmp(s_ns[i].name, name) == 0) {
       *out = (nvs_store_ns_t)(i + 1u);
@@ -66,18 +66,18 @@ static err_h impl_open(const char* partition, const char* name, nvs_store_ns_t* 
       return NULL;
     }
   }
-  return ERR_NEW(ERR_NVS_BAD_ARG);
+  return ERR_NEW(ERR_BAD_ARG);
 }
 
 static err_h impl_get(nvs_store_ns_t ns, const char* key, void* buf, uint32_t* len) {
-  ERR_CHECK(key != NULL && len != NULL, ERR_NVS_BAD_ARG);
+  ERR_CHECK(key != NULL && len != NULL, ERR_BAD_ARG);
   for (uint32_t i = 0; i < MAX_ITEMS; i++) {
     if (s_items[i].used && s_items[i].ns == ns && strcmp(s_items[i].key, key) == 0) {
       if (buf == NULL) {
         *len = s_items[i].len;
         return NULL;
       }
-      ERR_CHECK(*len >= s_items[i].len, ERR_NVS_BAD_ARG);
+      ERR_CHECK(*len >= s_items[i].len, ERR_BAD_ARG);
       memcpy(buf, s_items[i].val, s_items[i].len);
       *len = s_items[i].len;
       return NULL;
@@ -87,7 +87,7 @@ static err_h impl_get(nvs_store_ns_t ns, const char* key, void* buf, uint32_t* l
 }
 
 static err_h impl_set(nvs_store_ns_t ns, const char* key, const void* data, uint32_t len) {
-  ERR_CHECK(key != NULL && data != NULL && len <= MAX_VAL, ERR_NVS_BAD_ARG);
+  ERR_CHECK(key != NULL && data != NULL && len <= MAX_VAL, ERR_BAD_ARG);
   int slot = -1;
   for (int i = 0; i < MAX_ITEMS; i++) {
     if (s_items[i].used && s_items[i].ns == ns && strcmp(s_items[i].key, key) == 0) {
@@ -98,7 +98,7 @@ static err_h impl_set(nvs_store_ns_t ns, const char* key, const void* data, uint
       slot = i;
     }
   }
-  ERR_CHECK(slot >= 0, ERR_NVS_BAD_ARG);
+  ERR_CHECK(slot >= 0, ERR_BAD_ARG);
   s_items[slot].used = true;
   s_items[slot].ns = ns;
   strncpy(s_items[slot].key, key, sizeof(s_items[slot].key) - 1u);

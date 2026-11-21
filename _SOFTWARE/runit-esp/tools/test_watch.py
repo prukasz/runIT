@@ -193,7 +193,7 @@ class WatchManagement(WatchBase):
         read = dev_cmd(READ, SUPPLY_SOURCE)
         for wid in range(1, WATCH_MAX + 1):
             self.assertEqual(self.c.call(watch_add(wid, TRIG_PERIODIC, 500, 0, read))[0], 0, f"slot {wid}")
-        self.assertEqual(self.c.call(watch_add(WATCH_MAX + 1, TRIG_PERIODIC, 500, 0, read))[0], 1)  # ERR_WATCH_FULL
+        self.assertEqual(self.c.call(watch_add(WATCH_MAX + 1, TRIG_PERIODIC, 500, 0, read))[0], 1)  # ERR_FULL
         self.assertEqual(self.c.call(watch_remove(1))[0], 0)
         self.assertEqual(self.c.call(watch_add(WATCH_MAX + 1, TRIG_PERIODIC, 500, 0, read))[0], 0)
 

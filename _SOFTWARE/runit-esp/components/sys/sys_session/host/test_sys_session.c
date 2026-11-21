@@ -325,13 +325,13 @@ static void open_slave(void) {
 
 static void test_attach_checks_the_deadman_time(void) {
   err_h low = sys_session_attach(UP_ID, SYS_SESSION_DEADMAN_MIN_MS - 1u, 0);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, low);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, low);
   err_free(low);
   err_h high = sys_session_attach(UP_ID, SYS_SESSION_DEADMAN_MAX_MS + 1u, 0);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, high);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, high);
   err_free(high);
   err_h flag = sys_session_attach(UP_ID, 0, 0x80u);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, flag);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, flag);
   err_free(flag);
 }
 
@@ -489,7 +489,7 @@ static void test_the_deadman_is_the_sessions_own(void) {
   TEST_ASSERT_NULL(sys_session_deadman_set(CLIENT, 0, false));
   TEST_ASSERT_EQUAL_UINT32(0, sys_session_deadman_get(CLIENT));
   err_h bad = sys_session_deadman_set(CLIENT, 20, true);
-  TEST_ASSERT_ERR_TAG(ERR_CMD_BAD_ARG, bad);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, bad);
   err_free(bad);
   err_h none = sys_session_deadman_set(0x42, 300, true);
   TEST_ASSERT_ERR_TAG(ERR_SESSION_NO_ROUTE, none);
@@ -648,7 +648,7 @@ static void test_an_error_answer_comes_back_under_err_remote(void) {
   sent_t s;
   TEST_ASSERT_TRUE(next_kind(&s_down, CMD_REQUEST, &s, WAIT_MS));
   uint8_t record[64];
-  err_h cause = ERR_NEW(ERR_CMD_BAD_ARG);
+  err_h cause = ERR_NEW(ERR_BAD_ARG);
   const uint32_t n = err_record(cause, record, sizeof(record));
   err_free(cause);
   deliver(&s_down, (uint8_t)(FRAME(CMD_ANSWER) | CMD_TYPE_STATUS), BOARD, SLAVE, hdr_of(&s).seq,
@@ -658,7 +658,7 @@ static void test_an_error_answer_comes_back_under_err_remote(void) {
   TEST_ASSERT_EQUAL_HEX32(ERR_REMOTE, err_tag(w.err));
   TEST_ASSERT_EQUAL_UINT8(SLAVE, ERR_DATA(w.err, ERR_REMOTE)->board);
   TEST_ASSERT_NOT_NULL(err_cause(w.err));
-  TEST_ASSERT_EQUAL_HEX32(ERR_CMD_BAD_ARG, err_tag(err_cause(w.err)));
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_tag(err_cause(w.err)));
   err_free(w.err);
 }
 

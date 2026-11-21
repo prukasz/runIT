@@ -31,6 +31,7 @@ board_timer_running(&m->timer);                  // started and not stopped (a o
 - **Time** is the RTOS tick (1 ms). A callback that runs late skips the periods it missed; they are not run in a burst. A callback that needs the real time between its calls reads the clock (`board_time_uptime_ms`).
 - **Stop**: no new call starts after `board_timer_stop()`, but one already started runs to its end. So a callback whose owner can go away (a device) takes an ID as its ctx, not a pointer.
 - **Start again**: the same period on a running timer changes nothing (its phase stays), so a driver may call `board_timer_start()` on every step; another period, or a once, starts it from now.
+- **The step**: `BOARD_TIMER_STEP_MS` (10 ms) is the period of the timers that count time in steps (the router's call timeouts, the sessions' pings, a ramp).
 
 ## Inside
 

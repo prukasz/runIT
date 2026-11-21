@@ -5,7 +5,7 @@ Component `components/sys/sys_power/`. Not a module with state: four device cont
 | File | Contents |
 |---|---|
 | `sys_power.h` | `sys_power_mW()` (`int64_t` product / 1000) and includes the error map |
-| `errors/sys_power_errors.h`, `errors/errors_sys_power.json` | `ERR_SYS_POWER_MAP` (`MODULE_ID_SYS_POWER` = `0x26`) and user messages |
+| `errors/sys_power_errors.h`, `errors/errors_sys_power.json` | `ERR_SYS_POWER_MAP` (`MODULE_ID_SYS_POWER` = `0x32`) and user messages |
 | `contracts/sys_power_monitor.h` | `CONTRACT_PMON` (`0x04`): `CONTRACT_PMON_OPERATIONS`, `PMON_EVENTS`, `sys_power_alert_e` (`//#ref-enum`) |
 | `contracts/sys_power_vreg.h` | `CONTRACT_VREG` (`0x05`): `CONTRACT_VREG_OPERATIONS`, `VREG_EVENTS` |
 | `contracts/sys_power_usb_pd.h` | `CONTRACT_PD` (`0x07`): `CONTRACT_PD_OPERATIONS`, option/limits structs, `sys_power_usb_pd_list_options()` |
@@ -15,7 +15,7 @@ Component `components/sys/sys_power/`. Not a module with state: four device cont
 | `CMakeLists.txt` | Requires `errors`, `cmd`, `sys_device`, `sys_event`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
-Routed frames for all four contracts use [`sys_device_router`](../sys_device_router/SYS_DEVICE_ROUTER.MD): `[0x20][dir u8][id u8][op u16][args]` with packed little-endian payloads.
+Routed frames for all four contracts use [`sys_device_router`](../sys_device_router/SYS_DEVICE_ROUTER.MD): `[0x2F][dir u8][id u8][op u16][args]` with packed little-endian payloads.
 
 ## POWER_MONITOR (`0x04xx`)
 
@@ -38,10 +38,10 @@ ERR_TRY(SYS_DEVICE_SET(mon, CONTRACT_PMON, OP_ALERT, .channel = 1, .alert = SYS_
 - **POWER**: chips with a power register read it directly; others compute `sys_power_mW(mV, mA)` (`int64_t` product so 20 V × 5.5 A does not overflow).
 - **Alerts** (`sys_power_alert_e`): `SYS_POWER_ALERT_OCP_WARNING` (`0`), `SYS_POWER_ALERT_OCP_CRITICAL` (`1`). An unsupported alert on a channel returns `ERR_POWER_ALERT_UNSUPPORTED`.
 
-| Event (`MODULE_ID_PMON` = `0x04`) | Code (tag) | Flags | Payload |
+| Event (`MODULE_ID_PMON` = `0x06`) | Code (tag) | Flags | Payload |
 |---|---|---|---|
-| `PMON_EV_OCP_WARNING` | `0x01` (`0x00040001`) | `SYS_EVENT_NOTIFY` | `i32 mA` |
-| `PMON_EV_OCP_CRITICAL` | `0x02` (`0x00040002`) | `SYS_EVENT_NOTIFY` | `i32 mA` |
+| `PMON_EV_OCP_WARNING` | `0x01` (`0x00060001`) | `SYS_EVENT_NOTIFY` | `i32 mA` |
+| `PMON_EV_OCP_CRITICAL` | `0x02` (`0x00060002`) | `SYS_EVENT_NOTIFY` | `i32 mA` |
 
 Channel = measured channel.
 
@@ -63,12 +63,12 @@ ERR_TRY(SYS_DEVICE_SET(vreg, CONTRACT_VREG, OP_ENABLE, .enable = 1));
 - Voltage and current are the requested limits (`device_tps55289` retains them while off and applies them on enable; USB-PD sinks negotiate with the charger).
 - Out of chip range: `ERR_DEV_RANGE {id, value, min, max}`, never clamped. Writes while suspended: `ERR_DEV_SUSPENDED`.
 
-| Event (`MODULE_ID_VREG` = `0x05`) | Code (tag) | Flags | Payload |
+| Event (`MODULE_ID_VREG` = `0x07`) | Code (tag) | Flags | Payload |
 |---|---|---|---|
-| `VREG_EV_OVP` | `0x01` (`0x00050001`) | `SYS_EVENT_NOTIFY` | `i32 mV` (voltage set) |
-| `VREG_EV_OCP` | `0x02` (`0x00050002`) | `SYS_EVENT_NOTIFY` | `i32 mA` (current limit) |
-| `VREG_EV_SCP` | `0x03` (`0x00050003`) | `SYS_EVENT_NOTIFY` | – |
-| `VREG_EV_READY` | `0x04` (`0x00050004`) | `0` (code flow) | `i32 mV` (settled output after `ENABLE` or voltage increase) |
+| `VREG_EV_OVP` | `0x01` (`0x00070001`) | `SYS_EVENT_NOTIFY` | `i32 mV` (voltage set) |
+| `VREG_EV_OCP` | `0x02` (`0x00070002`) | `SYS_EVENT_NOTIFY` | `i32 mA` (current limit) |
+| `VREG_EV_SCP` | `0x03` (`0x00070003`) | `SYS_EVENT_NOTIFY` | – |
+| `VREG_EV_READY` | `0x04` (`0x00070004`) | `0` (code flow) | `i32 mV` (settled output after `ENABLE` or voltage increase) |
 
 Channel `0`.
 
@@ -104,7 +104,7 @@ A two-input power mux switched into one load. Prefix `CONTRACT_SUPPLY` (`CONTRAC
 
 The power manager is its own component: [`SYS_POWER_MANAGER.MD`](../sys_power_manager/SYS_POWER_MANAGER.MD).
 
-## Errors (`MODULE_ID_SYS_POWER` = `0x26`, `MODULE_ID_SYS_POWER`, `errors/sys_power_errors.h`)
+## Errors (`MODULE_ID_SYS_POWER` = `0x32`, `MODULE_ID_SYS_POWER`, `errors/sys_power_errors.h`)
 
 Besides shared `ERR_DEV_*` (`RANGE`, `SUSPENDED`, `BAD_PIN`):
 - `ERR_POWER_BAD_CHANNEL {id, channel}`

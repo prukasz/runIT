@@ -11,8 +11,8 @@ This component holds the **contract** every port implements (`UART`, `0x13`), th
 | `sys_uart_contract.h` | The contract table (`CONTRACT_UART_OPERATIONS`), `UART_EVENTS`, `sys_uart_mode_e`, `sys_uart_parity_e`, the wait and baud limits, the frames, `sys_uart_port_subscribe` |
 | `sys_uart_contract.c` | Registers the errors of `MODULE_ID_UART` (`ERR_MODULE_DEFINE`), implements `sys_uart_port_subscribe` |
 | `sys_uart_codec.h` / `.c` | `sys_uart_unframe` (a FRAMED candidate decoded, its CRC checked); the TX queue `sys_uart_txq_*` (urgent and normal ring, SPARE, framing on the way out) |
-| `contract_uart.json`, `sys_uart_id.h` | The descriptor of the ops a command reaches; `MODULE_ID_DECLARE(MODULE_ID_UART, 0x13)` |
-| `errors/` | `MODULE_ID_UART` (0x13), `ERR_SYS_UART_MAP`, the messages |
+| `contract_uart.json`, `sys_uart_id.h` | The descriptor of the ops a command reaches; `MODULE_ID_DECLARE(MODULE_ID_UART, 0x03)` |
+| `errors/` | `MODULE_ID_UART` (0x03), `ERR_SYS_UART_MAP`, the messages |
 | `CMakeLists.txt` | Requires `errors`, `cmd`, `sys_device`, `sys_event`, `esp_ringbuf`; `WHOLE_ARCHIVE` |
 
 ## The line
@@ -63,4 +63,4 @@ A **message** is a `FRAMED` port's frame, a `RAW` port's bytes up to a pause in 
 
 ## Errors
 
-`MODULE_ID_UART` (0x13): `ERR_UART_BAD_ARG`, `_BUSY{port}` (no room in the TX queue, or `SPARE` past half), `_BAD_BAUD{baud}`, `_INIT{port}`, `_IN_USE{port, owner}`. `provider_uart` drops a frame the port does not take. A missing port is the registry's `ERR_DEV_NOT_FOUND`, a port still in use its `ERR_DEV_IN_USE`.
+`MODULE_ID_UART` (0x03): `ERR_UART_BAD_ARG`, `_BUSY{port}` (no room in the TX queue, or `SPARE` past half), `_BAD_BAUD{baud}`, `_INIT{port}`, `_IN_USE{port, owner}`. `provider_uart` drops a frame the port does not take. A missing port is the registry's `ERR_DEV_NOT_FOUND`, a port still in use its `ERR_DEV_IN_USE`.

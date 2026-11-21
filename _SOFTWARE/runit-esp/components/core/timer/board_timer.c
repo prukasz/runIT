@@ -116,7 +116,7 @@ void board_timer_init(board_timer_t* t, board_timer_f fn, void* ctx) {
 }
 
 void board_timer_start(board_timer_t* t, uint32_t period_ms) {
-  TickType_t period = pdMS_TO_TICKS(period_ms);
+  TickType_t period = MSEC(period_ms);
   period = period > 0 ? period : 1;
   taskENTER_CRITICAL(&s_lock);
   const bool same = t->running && t->period == period;
@@ -127,7 +127,7 @@ void board_timer_start(board_timer_t* t, uint32_t period_ms) {
 }
 
 void board_timer_once(board_timer_t* t, uint32_t after_ms) {
-  arm(t, 0, pdMS_TO_TICKS(after_ms));
+  arm(t, 0, MSEC(after_ms));
 }
 
 void board_timer_stop(board_timer_t* t) {

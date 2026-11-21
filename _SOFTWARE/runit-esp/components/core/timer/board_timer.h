@@ -25,6 +25,9 @@ extern "C" {
  * Any task, not an ISR.
  */
 
+/** @brief The step of the timers that count time in steps (a call's timeout, a session's ping, a ramp), in ms. */
+#define BOARD_TIMER_STEP_MS 10u
+
 typedef void (*board_timer_f)(void* ctx);
 
 /** @brief A timer: in its owner's struct, set up by board_timer_init(); its fields are the module's. */

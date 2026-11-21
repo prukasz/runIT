@@ -75,7 +75,7 @@ static err_h recorder(const sys_event_t* e, void* ctx) {
 
 static err_h failing(const sys_event_t* e, void* ctx) {
   (void)e, (void)ctx;
-  return ERR_NEW(ERR_EVENT_BAD_ARG);
+  return ERR_NEW(ERR_BAD_ARG);
 }
 
 // A PING from source 1 makes it publish a WORD from source 9, inline (the hold is over when it runs).
@@ -248,13 +248,13 @@ static void test_a_payload_too_long_or_missing_is_refused(void) {
   sub(key(SYS_EVENT_ANY_TAG, SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_CHANNEL), recorder, 1, SYS_EVENT_RUN_INLINE);
   uint8_t big[SYS_EVENT_DATA_MAX + 1] = {0};
   err_h e = sys_event_publish(key(TESTEV_EV_WORD, 1, 0), 0, big, sizeof(big));
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = sys_event_publish(key(TESTEV_EV_WORD, 1, 0), 0, NULL, 4);
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = sys_event_publish(key(TESTEV_EV_PING, 1, 0), SYS_EVENT_FLAG_LANE(SYS_EVENT_LANE_COUNT), NULL, 0);  // no lane
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   TEST_ASSERT_EQUAL_INT(0, rec_count());
 }
@@ -266,7 +266,7 @@ static void test_a_failing_listener_is_reported_with_the_event_and_the_others_st
   TEST_ASSERT_EQUAL_INT(1, rec_count());
   TEST_ASSERT_EQUAL_INT(1, sink_count());
   TEST_ASSERT_EQUAL_HEX32(ERR_EVENT_DELIVERY, s_sink_outer);
-  TEST_ASSERT_EQUAL_HEX32(ERR_EVENT_BAD_ARG, s_sink_root);
+  TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, s_sink_root);
   TEST_ASSERT_EQUAL_UINT16(7, s_sink_source);
   TEST_ASSERT_EQUAL_UINT16(2, s_sink_channel);
 }
@@ -282,7 +282,7 @@ static void test_run_first_takes_the_first_slot_and_runs_before_the_others(void)
   TEST_ASSERT_EQUAL_INT(1, s_rec[1].who);
   uint16_t h = 0;
   err_h e = sys_event_subscribe(key(SYS_EVENT_ANY_TAG, 0, 0), recorder, NULL, SYS_EVENT_RUN_FIRST, &h);
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_TABLE_FULL, e);  // one first listener
+  TEST_ASSERT_ERR_TAG(ERR_FULL, e);  // one first listener
   err_free(e);
 }
 
@@ -298,17 +298,17 @@ static void test_a_full_table_refuses_one_more_and_bad_arguments_are_refused(voi
     }
   }
   TEST_ASSERT_EQUAL_INT(CONFIG_SYS_EVENT_MAX_SUBS - 1, added);  // slot 0 is the first listener's
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_TABLE_FULL, e);
+  TEST_ASSERT_ERR_TAG(ERR_FULL, e);
   err_free(e);
   uint16_t h = 0;
   e = sys_event_subscribe(key(TESTEV_EV_PING, 0, 0), NULL, NULL, SYS_EVENT_RUN_INLINE, &h);
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = sys_event_subscribe(key(TESTEV_EV_PING, 0, 0), recorder, NULL, SYS_EVENT_RUN_INLINE, NULL);
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = sys_event_subscribe(key(TESTEV_EV_PING, 0, 0), recorder, NULL, SYS_EVENT_RUN_QUEUED_IN(SYS_EVENT_LANE_COUNT), &h);
-  TEST_ASSERT_ERR_TAG(ERR_EVENT_BAD_ARG, e);  // no such lane
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);  // no such lane
   err_free(e);
 }
 

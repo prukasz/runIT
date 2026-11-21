@@ -14,8 +14,8 @@ static err_h on_event(const sys_event_t* event, void* ctx) {
 
 err_h sys_device_event_subscribe_op(sys_event_key_t filter, uint8_t device, uint16_t op, uint16_t* handle) {
   const uint8_t gen = sys_device_gen(device);
-  ERR_CHECK(device < SYS_DEVICE_COUNT && gen != 0, ERR_EVENT_BAD_ARG);
-  ERR_CHECK((op >> 8) == SYS_DEVICE_CONTRACT_OWN || op == CONTRACT_EVENT_OP_ON_EVENT, ERR_EVENT_BAD_ARG);
+  ERR_CHECK(device < SYS_DEVICE_COUNT && gen != 0, ERR_BAD_ARG);
+  ERR_CHECK((op >> 8) == SYS_DEVICE_CONTRACT_OWN || op == CONTRACT_EVENT_OP_ON_EVENT, ERR_BAD_ARG);
   void* ctx = sys_device_target_pack((sys_device_target_t){.id = device, .gen = gen, .op = op});
   return sys_event_subscribe(filter, on_event, ctx, SYS_EVENT_RUN_INLINE, handle);
 }

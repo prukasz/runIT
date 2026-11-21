@@ -24,7 +24,7 @@ extern "C" {
  * @param[in] head  id 1..255, a trigger, period >= 1.
  * @param[in] read  The command it runs: [key][CMD_DIR_READ][...], 2..SYS_WATCH_READ_MAX bytes.
  * @param[in] owner The peer its entries go to: a board or a client.
- * @return NULL; ERR_WATCH_BAD_ARG, ERR_WATCH_NOT_READ, ERR_WATCH_FULL.
+ * @return NULL; ERR_BAD_ARG, ERR_WATCH_NOT_READ, ERR_FULL.
  */
 MUST_USE err_h sys_watch_add(const sys_watch_head_t* head, cmd_in_t read, uint8_t owner);
 

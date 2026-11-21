@@ -7,7 +7,7 @@
   "router_key": 43,
   "contract_id": 43,
   "alias": "Providers",
-  "description": "Typed provider registry (sys_device_router-style wire header [0x0D][dir u8][id u8][op u16][args], where op = 0x0D00 | n or a driver's own op 0xFFxx, described by its type).",
+  "description": "Typed provider registry (sys_device_router-style wire header [0x2B][dir u8][id u8][op u16][args], where op = 0x2B00 | n or a driver's own op 0xFFxx, described by its type).",
   "category": "system",
   "commands": [
     {

@@ -66,7 +66,7 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief XFER args: one transfer by the buffers that are set. `w1` (write), `w1` + `w2` (one write from two buffers, a
- * register byte and its data), `r` (read), `w1` + `r` (write, repeated start, read). Any other mix is ERR_I2C_BAD_ARG.
+ * register byte and its data), `r` (read), `w1` + `r` (write, repeated start, read). Any other mix is ERR_BAD_ARG.
  */
 typedef struct {
   uint8_t addr;       /**< An attached 7-bit address */
@@ -143,7 +143,7 @@ MUST_USE err_h sys_i2c_dev_attach(uint8_t owner, sys_i2c_dev_t* dev, uint8_t bus
 
 /* Transfers. Each is one XFER; a sequence of them (sys_i2c_reg_update) is not atomic on the bus. Errors: the bus's
  * (ERR_I2C_NO_ACK, ERR_I2C_BUS_BUSY, ERR_I2C_XFER) under ERR_DEV_ID / ERR_DEV_OP of the bus, ERR_I2C_DEV_NOT_ADDED
- * before attach, ERR_I2C_BAD_ARG for a NULL buffer or a length of 0. They are made from an op of the chip's owner (its
+ * before attach, ERR_BAD_ARG for a NULL buffer or a length of 0. They are made from an op of the chip's owner (its
  * create() and suspend() too): the bus refuses a transfer from anyone else (ERR_I2C_NOT_OWNER). The register helpers
  * wrap them in ERR_I2C_REG. */
 

@@ -10,15 +10,12 @@
 
 #include "data_matrix.h"
 
-#include "data_matrix_errors.h"
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
-ERR_MODULE_DEFINE(MODULE_ID_DATA_MATRIX, ERR_DATA_MATRIX_MAP)
-
 _Static_assert(CONFIG_DATA_MATRIX_PORTS < 0xFF, "a port's place is a u8, 0xFF is none");
 
-#define NO_PORT 0xFFu
+#define PORT_NONE 0xFFu
 
 // A registered port and where its output goes: the places of its targets.
 typedef struct {
@@ -30,14 +27,14 @@ typedef struct {
 static slot_t s_slots[CONFIG_DATA_MATRIX_PORTS];
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 
-// The place of the registered port with this name, NO_PORT when there is none. Under the lock.
+// The place of the registered port with this name, PORT_NONE when there is none. Under the lock.
 static uint8_t find(data_matrix_port_id_t id) {
   for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {
     if (s_slots[i].port != NULL && s_slots[i].port->id == id) {
       return i;
     }
   }
-  return NO_PORT;
+  return PORT_NONE;
 }
 
 // The ports `self`'s output goes to, copied under the lock into `to`; 0 when `self` is not registered.
@@ -71,7 +68,7 @@ bool data_matrix_send_to(data_matrix_port_t* self, data_matrix_port_id_t target,
                          uint32_t len) {
   portENTER_CRITICAL(&s_lock);
   const uint8_t at = find(target);
-  data_matrix_port_t* to = at != NO_PORT ? s_slots[at].port : NULL;
+  data_matrix_port_t* to = at != PORT_NONE ? s_slots[at].port : NULL;
   portEXIT_CRITICAL(&s_lock);
   if (to == NULL || to->in == NULL) {
     return false;
@@ -92,11 +89,11 @@ void data_matrix_send_except(data_matrix_port_t* self, data_matrix_port_id_t exc
 }
 
 err_h data_matrix_register(data_matrix_port_t* port) {
-  ERR_CHECK(port != NULL, ERR_DATA_MATRIX_BAD_ARG);
-  uint8_t at = NO_PORT;
+  ERR_CHECK(port != NULL, ERR_BAD_ARG);
+  uint8_t at = PORT_NONE;
   portENTER_CRITICAL(&s_lock);
-  const bool taken = find(port->id) != NO_PORT;
-  for (uint8_t i = 0; !taken && at == NO_PORT && i < CONFIG_DATA_MATRIX_PORTS; i++) {
+  const bool taken = find(port->id) != PORT_NONE;
+  for (uint8_t i = 0; !taken && at == PORT_NONE && i < CONFIG_DATA_MATRIX_PORTS; i++) {
     if (s_slots[i].port == NULL) {
       s_slots[i] = (slot_t){.port = port};
       port->place = i;
@@ -104,20 +101,20 @@ err_h data_matrix_register(data_matrix_port_t* port) {
     }
   }
   portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(!taken, ERR_DATA_MATRIX_BAD_ARG);
-  ERR_CHECK(at != NO_PORT, ERR_DATA_MATRIX_FULL);
+  ERR_CHECK(!taken, ERR_BAD_ARG);
+  ERR_CHECK(at != PORT_NONE, ERR_FULL, .max = CONFIG_DATA_MATRIX_PORTS);
   return NULL;
 }
 
 err_h data_matrix_unregister(data_matrix_port_t* port) {
-  ERR_CHECK(port != NULL, ERR_DATA_MATRIX_BAD_ARG);
+  ERR_CHECK(port != NULL, ERR_BAD_ARG);
   bool known = false;
   portENTER_CRITICAL(&s_lock);
   const uint8_t at = port->place;
   known = at < CONFIG_DATA_MATRIX_PORTS && s_slots[at].port == port;
   if (known) {
     s_slots[at] = (slot_t){0};
-    port->place = NO_PORT;
+    port->place = PORT_NONE;
     for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {  // the links to it go with it
       slot_t* s = &s_slots[i];
       uint8_t kept = 0;
@@ -130,18 +127,18 @@ err_h data_matrix_unregister(data_matrix_port_t* port) {
     }
   }
   portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(known, ERR_DATA_MATRIX_BAD_ARG);
+  ERR_CHECK(known, ERR_BAD_ARG);
   return NULL;
 }
 
 err_h data_matrix_connect(const data_matrix_link_t* link) {
-  ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
+  ERR_CHECK(link != NULL, ERR_BAD_ARG);
   bool ok = false;
   bool full = false;
   portENTER_CRITICAL(&s_lock);
   const uint8_t from = find(link->from);
   const uint8_t to = find(link->to);
-  ok = from != NO_PORT && to != NO_PORT && from != to && s_slots[to].port->in != NULL;
+  ok = from != PORT_NONE && to != PORT_NONE && from != to && s_slots[to].port->in != NULL;
   if (ok) {
     slot_t* s = &s_slots[from];
     bool there = false;
@@ -154,16 +151,16 @@ err_h data_matrix_connect(const data_matrix_link_t* link) {
     }
   }
   portEXIT_CRITICAL(&s_lock);
-  ERR_CHECK(ok, ERR_DATA_MATRIX_BAD_ARG);
-  ERR_CHECK(!full, ERR_DATA_MATRIX_FULL);
+  ERR_CHECK(ok, ERR_BAD_ARG);
+  ERR_CHECK(!full, ERR_FULL, .max = CONFIG_DATA_MATRIX_TARGETS);
   return NULL;
 }
 
 err_h data_matrix_disconnect(const data_matrix_link_t* link) {
-  ERR_CHECK(link != NULL, ERR_DATA_MATRIX_BAD_ARG);
+  ERR_CHECK(link != NULL, ERR_BAD_ARG);
   portENTER_CRITICAL(&s_lock);
   const uint8_t from = find(link->from);
-  slot_t* s = from != NO_PORT ? &s_slots[from] : NULL;
+  slot_t* s = from != PORT_NONE ? &s_slots[from] : NULL;
   for (uint8_t k = 0; s != NULL && k < s->count; k++) {
     if (s_slots[s->to[k]].port->id == link->to) {
       s->to[k] = s->to[--s->count];  // the order of the targets is no promise

@@ -3,7 +3,7 @@
 Spec: `SYS_SESSION.MD` (this folder).
 
 - Every change in this folder is followed by an edit of this file, if it is needed.
-- The header (`cmd_hdr_t`, 5 B = `CMD_HEAD`, its type byte, kinds and ids: cmd.h, CMD.MD "The header"), HELLO's body and the control ops (`sys_session.h`), the ports' names (`SYS_SESSION_PORT`), the router's ops and frames and the error tags (`MODULE_ID_SESSION` 0x0E) are wire format: never renumber or re-layout them without changing, in the same change, `contract_session.json`, `runit-esp/tools/session_client.py` and the app's session code.
+- The header (`cmd_hdr_t`, 5 B = `CMD_HEAD`, its type byte, kinds and ids: cmd.h, CMD.MD "The header"), HELLO's body and the control ops (`sys_session.h`), the ports' names (`SYS_SESSION_PORT`), the router's ops and frames and the error tags (`MODULE_ID_SESSION` 0x2C) are wire format: never renumber or re-layout them without changing, in the same change, `contract_session.json`, `runit-esp/tools/session_client.py` and the app's session code.
 - A session adds little: its ports, this board's id as `src` when a frame has none, a PUSH's `seq`, its own control frames, the dead-man, the events. It never looks into a REQUEST, an ANSWER or a PUSH's data, never answers for the router, never keeps a frame: what comes in goes out of a port at once.
 - Data plane = the data matrix only: frames reach the line out of the session port, and modules out of its sub-ports (`data_matrix_send`); no other way to a provider, no hook of a module. Which module gets what is the links', never the session's.
 - No routing, no task, no queue: a port's input runs on the sender's task and never blocks (the control frames `NOWAIT`); the tick runs on the board timers' task.

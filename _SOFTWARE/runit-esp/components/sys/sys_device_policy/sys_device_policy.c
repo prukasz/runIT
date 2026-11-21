@@ -56,10 +56,10 @@ static bool is_response(uint32_t action) {
 }
 
 err_h sys_device_policy_set(uint8_t id, const sys_device_error_policy_t* p) {
-  SYS_DEV_CHECK_IN_RANGE(id, p->importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
+  ERR_CHECK_RANGE(p->importance, SYS_DEVICE_IMPORTANCE_NONE, SYS_DEVICE_IMPORTANCE_CRITICAL);
   for (uint32_t i = 0; i < SYS_DEVICE_ERR_LEVELS; i++) {
     const uint32_t a = p->actions[i];
-    ERR_CHECK(!is_response(a) || a == SYS_DEVICE_RESPONSE_SUSPEND || a == SYS_DEVICE_RESPONSE_RESET, ERR_DEV_BAD_ARG);
+    ERR_CHECK(!is_response(a) || a == SYS_DEVICE_RESPONSE_SUSPEND || a == SYS_DEVICE_RESPONSE_RESET, ERR_BAD_ARG);
   }
   bool present = false;
   if (id < SYS_DEVICE_COUNT) {
@@ -149,7 +149,7 @@ static err_h run_response(uint8_t id, uint32_t action) {
     case SYS_DEVICE_RESPONSE_RESET:
       return sys_device_write(id, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0);
     default:
-      return ERR_NEW(ERR_DEV_BAD_ARG);
+      return ERR_NEW(ERR_BAD_ARG);
   }
 }
 

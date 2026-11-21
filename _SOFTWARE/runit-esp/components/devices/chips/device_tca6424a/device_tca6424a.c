@@ -163,7 +163,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_MODE) {
  * Drives the pin's output latch.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) {
-  ERR_CHECK(args->level <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->level <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   return chip_set_pins(c, 1UL << args->pin, args->level ? (1UL << args->pin) : 0);
 }
@@ -208,7 +208,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_RESET) {
  * Digital edges only via INT; ADC modes unsupported and `debounce` is ignored.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_IO, OP_INTR) {
-  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_CMD_BAD_ARG);
+  ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_ADC_WINDOW_INSIDE && args->cfg.debounce <= 1, ERR_BAD_ARG);
   ERR_TRY(sys_io_pins_check_free(&c->pins, c->id, args->pin));
   ERR_CHECK(args->cfg.mode <= SYS_IO_INTR_MODE_BOTH_EDGES, ERR_IO_FEATURE_UNSUPPORTED, .id = c->id, .pin = args->pin);
   c->intr_mode[args->pin] = args->cfg.mode;
@@ -270,7 +270,7 @@ static err_h resume(tca_t* c) {
  * attach/restore, arms INT falling edge and caches initial inputs.
  ******************************************************************************/
 static err_h create(uint8_t id, tca_t* c, const tca6424a_cfg_t* cfg) {
-  SYS_DEV_CHECK_IN_RANGE(id, cfg->i2c_addr, TCA6424A_I2C_ADDR_LOW, TCA6424A_I2C_ADDR_HIGH);
+  ERR_CHECK_RANGE(cfg->i2c_addr, TCA6424A_I2C_ADDR_LOW, TCA6424A_I2C_ADDR_HIGH);
   c->id = id;
   sys_io_pins_init(&c->pins, TCA6424A_PINS);
   // Start state: every pin an input, latches low (a pin that becomes an output starts low, not at the chip's 1).

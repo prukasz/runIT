@@ -11,7 +11,7 @@
   X(M, ERR_BLE_SVC_LOCKED, 4,  ERR_SEV_LOW,    { uint16_t uuid; })                                                      \
   X(M, ERR_BLE_UUID_TAKEN, 5,  ERR_SEV_LOW,    { uint16_t uuid; })                                                      \
   X(M, ERR_BLE_NOT_FOUND,  6,  ERR_SEV_MEDIUM, { uint16_t uuid; })                                                      \
-  X(M, ERR_BLE_NO_MEM,     7,  ERR_SEV_HIGH,   { uint16_t uuid; uint32_t size; })                                       \
+  X(M, ERR_BLE_UUID,       7,  ERR_SEV_NONE,   { uint16_t uuid; }) /* context: BLE service or characteristic */         \
   X(M, ERR_BLE_NO_TX,      8,  ERR_SEV_MEDIUM, { uint16_t uuid; })                                                      \
   X(M, ERR_BLE_TX_FULL,    9,  ERR_SEV_MEDIUM, { uint16_t uuid; uint16_t len; })                                        \
   X(M, ERR_BLE_TOO_LONG,   10, ERR_SEV_MEDIUM, { uint16_t uuid; uint16_t len; uint16_t max; })                          \

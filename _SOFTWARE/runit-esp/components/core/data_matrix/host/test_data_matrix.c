@@ -2,7 +2,6 @@
 #include <string.h>
 
 #include "data_matrix.h"
-#include "data_matrix_errors.h"
 #include "data_matrix_id.h"
 #include "data_matrix_router.h"
 #include "host_assert.h"
@@ -56,11 +55,11 @@ void tearDown(void) {}
 
 static void test_register_unregister_and_table_limits(void) {
   err_h e = data_matrix_register(NULL);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   e = data_matrix_unregister(NULL);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   spy_port_t ports[CONFIG_DATA_MATRIX_PORTS + 1];
@@ -71,19 +70,19 @@ static void test_register_unregister_and_table_limits(void) {
   /* Duplicate ID refused */
   spy_port_t dup = make_spy(DATA_MATRIX_PORT_PROVIDER, 1, true);
   e = data_matrix_register(&dup.port);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   /* Full table refused */
   ports[CONFIG_DATA_MATRIX_PORTS] = make_spy(DATA_MATRIX_PORT_PROVIDER, 99, true);
   e = data_matrix_register(&ports[CONFIG_DATA_MATRIX_PORTS].port);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_FULL, e);
+  TEST_ASSERT_ERR_TAG(ERR_FULL, e);
   err_free(e);
 
   /* Unregistering twice fails second time; frees slot */
   TEST_ASSERT_NULL(data_matrix_unregister(&ports[0].port));
   e = data_matrix_unregister(&ports[0].port);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   TEST_ASSERT_NULL(data_matrix_register(&ports[CONFIG_DATA_MATRIX_PORTS].port));
@@ -104,16 +103,16 @@ static void test_connect_fanout_except_send_to_and_target_limit(void) {
 
   /* Refusals: NULL, self-link, unknown port, target with in == NULL */
   err_h e = data_matrix_connect(NULL);
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = data_matrix_connect(&(data_matrix_link_t){dst[0].port.id, dst[0].port.id});
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = data_matrix_connect(&(data_matrix_link_t){src.port.id, DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, 250)});
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
   e = data_matrix_connect(&(data_matrix_link_t){dst[0].port.id, src.port.id});
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_BAD_ARG, e);
+  TEST_ASSERT_ERR_TAG(ERR_BAD_ARG, e);
   err_free(e);
 
   TEST_ASSERT_FALSE(data_matrix_linked(&src.port));
@@ -124,7 +123,7 @@ static void test_connect_fanout_except_send_to_and_target_limit(void) {
   TEST_ASSERT_NULL(data_matrix_connect(&(data_matrix_link_t){src.port.id, dst[0].port.id}));
   /* One more distinct target hits DATA_MATRIX_FULL */
   e = data_matrix_connect(&(data_matrix_link_t){src.port.id, dst[CONFIG_DATA_MATRIX_TARGETS].port.id});
-  TEST_ASSERT_ERR_TAG(ERR_DATA_MATRIX_FULL, e);
+  TEST_ASSERT_ERR_TAG(ERR_FULL, e);
   err_free(e);
   TEST_ASSERT_TRUE(data_matrix_linked(&src.port));
 

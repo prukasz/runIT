@@ -40,7 +40,7 @@ err_h sys_device_remote_create(uint8_t id, cmd_in_t in) {
   memcpy(&where, in.data + sizeof(type_id), sizeof(where));
   ERR_CHECK(where.remote_id < SYS_DEVICE_COUNT &&
                 (where.flags == SYS_DEVICE_REMOTE_WIRED || where.flags == SYS_DEVICE_REMOTE_WIRELESS),
-            ERR_DEV_BAD_ARG);
+            ERR_BAD_ARG);
   const sys_device_type_t* type = sys_device_type_find(type_id);
   ERR_CHECK(type != NULL, ERR_DEV_TYPE_UNKNOWN, .type = type_id);
   ERR_CHECK(!sys_device_slot_is_installed(id), ERR_DEV_ID_TAKEN, .id = id);
@@ -49,7 +49,7 @@ err_h sys_device_remote_create(uint8_t id, cmd_in_t in) {
   ERR_TRY(sys_device_slot_begin_create(id));
 
   sys_device_remote_t* instance = malloc(sizeof(*instance));
-  ERR_CHECK(instance != NULL, ERR_DEV_NO_MEM, .id = id, .size = sizeof(*instance));
+  ERR_CHECK(instance != NULL, ERR_NO_MEM, .size = sizeof(*instance));
   *instance = where;
   const err_h err = sys_device_slot_install(id, type, instance, false, true);
   if (err != NULL) {

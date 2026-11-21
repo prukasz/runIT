@@ -119,7 +119,7 @@ bool sys_device_policy_get(uint8_t id, sys_device_error_policy_t* out);
  * @brief Sets the policy of device `id`.
  * @param[in] id Device ID
  * @param[in] p  The policy: importance NONE..CRITICAL, any action ID, a known response
- * @return ERR_DEV_RANGE (importance), ERR_DEV_BAD_ARG (an unknown response), ERR_DEV_NOT_FOUND
+ * @return ERR_RANGE (importance), ERR_BAD_ARG (an unknown response), ERR_DEV_NOT_FOUND
  */
 MUST_USE err_h sys_device_policy_set(uint8_t id, const sys_device_error_policy_t* p);
 

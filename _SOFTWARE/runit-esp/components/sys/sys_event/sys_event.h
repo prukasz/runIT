@@ -217,7 +217,7 @@ typedef enum {
  *                    so what can go away is passed as an ID
  * @param[in]  run    Where it runs
  * @param[out] handle Its handle, for sys_event_unsubscribe(): never 0, and not the handle of any listener before it
- * @return ERR_EVENT_BAD_ARG for a NULL fn or handle or an unknown run, ERR_EVENT_TABLE_FULL when all
+ * @return ERR_BAD_ARG for a NULL fn or handle or an unknown run, ERR_FULL when all
  *         CONFIG_SYS_EVENT_MAX_SUBS are used
  *         (for SYS_EVENT_RUN_FIRST: when the first slot has its listener).
  * @usage ERR_TRY(sys_event_subscribe((sys_event_key_t){.tag = IO_EV_FALLING, .source = id, .channel = 21}, on_edge,
@@ -249,7 +249,7 @@ MUST_USE err_h sys_event_unsubscribe(uint16_t handle);
  * @param[in] len   Payload bytes, at most SYS_EVENT_DATA_MAX
  * While the task holds its events (sys_event_hold) a publish without SYS_EVENT_DEFER is kept in the hold and delivered
  * by sys_event_release(); one that does not fit there is deferred to the lane's task.
- * @return ERR_EVENT_BAD_ARG for a payload that is too long or an unknown lane, ERR_EVENT_QUEUE_FULL when the queued
+ * @return ERR_BAD_ARG for a payload that is too long or an unknown lane, ERR_EVENT_QUEUE_FULL when the queued
  *         copy didn't fit its lane.
  *         Listener failures are reported, not returned.
  */

@@ -4,7 +4,7 @@
 #include "sys_event.h"
 
 /*
- * Events of the providers (module MODULE_ID_PROVIDER, 0x0D): what happened to a provider and to its line. A provider's
+ * Events of the providers (module MODULE_ID_PROVIDER, 0x2B): what happened to a provider and to its line. A provider's
  * data are bytes of the data matrix; what is not bytes (it exists, it is gone, its line is up or down) is an event.
  *
  * Source = the provider's id. Channel = 0.
