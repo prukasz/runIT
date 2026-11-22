@@ -9,7 +9,7 @@ import { isBoardOwn } from '../boards/boards'
 import { FieldsForm } from './FieldsForm'
 import { LiveBadge } from './DevicesExplorer'
 import { bundledEnums, withRanges } from '@backend'
-import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
+import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, devicePins, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
 import type { DeviceInfo, PinInterrupt, PinStart } from './devices'
 import type { DevicesState } from './useDevices'
 
@@ -152,10 +152,21 @@ function LifecycleBar({ device, state }: { device: DeviceInfo; state: DevicesSta
   )
 }
 
-/** The right panel of the Devices view: every operation of the selected device, tried on the board live. */
+/** The pin or channel field a command's side takes, with the device's ranges. */
+const pinFieldOf = (device: DeviceInfo, command: CommandDef, side: Side) =>
+  withRanges(command[side]?.args, command.id, device.ranges)?.fields.find((f) => f.type === 'pin' || f.type === 'channel')
+
+/**
+ * The right panel of the Devices view: the selected device's lifecycle and its operations, tried on the board live. A device
+ * with pins keeps what takes a pin for the pin's own panel (PinPanel): until a pin is chosen only the lifecycle and the
+ * operations that take none are here.
+ */
 export function DeviceTestPanel({ device, state }: { device: DeviceInfo; state: DevicesState }) {
   // Only what the device answers (its OPS) once the board said; the descriptor's list before that.
+  const withPins = devicePins(device) !== undefined
   const groups = commandGroups(state.catalog, device.type, { ops: state.ops })
+    .map(({ entry, commands }) => ({ entry, commands: withPins ? commands.filter(({ command, side }) => !pinFieldOf(device, command, side)) : commands }))
+    .filter((group) => group.commands.length > 0)
   return (
     <div className="devices-test">
       <PanelHeader title={`Test ${device.name}`}>
@@ -163,6 +174,7 @@ export function DeviceTestPanel({ device, state }: { device: DeviceInfo; state: 
       </PanelHeader>
       {!state.connected && <p className="devices-hint">{state.scope === 'board' ? 'Connect the board to send commands. Board boot works without it.' : 'Connect the board to send commands. At start and Add to action work without it.'}</p>}
       <LifecycleBar device={device} state={state} />
+      {withPins && <p className="devices-hint">Choose a pin to set it and try what it can do.</p>}
       {groups.map(({ entry, commands }) => (
         <div key={entry.id} className="devices-group">
           <h4>{entry === device.type ? `${entry.label}: own operations` : entry.label}</h4>
@@ -227,7 +239,7 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
     entry,
     commands: commands.flatMap(({ command, side }) => {
       if (entry.id === 'IO' && (command.id === PIN_START_COMMANDS.mode || command.id === PIN_START_COMMANDS.interrupt)) return []
-      const field = withRanges(command[side]?.args, command.id, device.ranges)?.fields.find((f) => f.type === 'pin' || f.type === 'channel')
+      const field = pinFieldOf(device, command, side)
       // Only what the pin can do as it is set: a command that wants a mode (an input, an output, PWM) is offered once the pin has it,
       // from the Board boot or from what this session did to it live.
       if (field?.pinState && !pinReady(pinStateOf(device, state.board, pin, hasSetMode), field.pinState) && !pinReady(pinStateOf(device, state.board, pin, hasSetMode, state.pinKinds), field.pinState)) return []
