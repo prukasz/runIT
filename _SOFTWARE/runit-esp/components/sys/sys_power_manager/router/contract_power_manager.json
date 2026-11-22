@@ -68,7 +68,8 @@
               "size": 1,
               "offset": 0,
               "enum": "sys_power_budget_mode_e",
-              "description": "0 = disable all limits, 1 = limit to total system power, 2 = limit to total system power + margin"
+              "description": "0 = disable all limits, 1 = limit to total system power, 2 = limit to total system power + margin",
+              "default": 1
             },
             {
               "id": "soft_margin_pct",
@@ -78,7 +79,8 @@
               "size": 1,
               "offset": 1,
               "unit": "%",
-              "description": "Allowed budget overrun in margin mode, in percent (0..100)"
+              "description": "Allowed budget overrun in margin mode, in percent (0..100)",
+              "default": 20
             },
             {
               "id": "source",
@@ -88,7 +90,8 @@
               "size": 1,
               "offset": 2,
               "enum": "sys_power_source_e",
-              "description": "The source on a board without source pins; a board with them detects it (ignored)"
+              "description": "The source on a board without source pins; a board with them detects it (ignored)",
+              "default": 0
             }
           ]
         }
@@ -140,7 +143,8 @@
               "raw_type": "u32",
               "size": 4,
               "offset": 0,
-              "unit": "mV"
+              "unit": "mV",
+              "default": 0
             },
             {
               "id": "max_mA",
@@ -149,7 +153,8 @@
               "raw_type": "u32",
               "size": 4,
               "offset": 4,
-              "unit": "mA"
+              "unit": "mA",
+              "default": 0
             }
           ]
         }
@@ -236,7 +241,8 @@
                   "label": "LiPo (4.2 V per cell)",
                   "value": 1
                 }
-              ]
+              ],
+              "default": 0
             },
             {
               "id": "cells",
@@ -244,7 +250,8 @@
               "type": "integer",
               "raw_type": "u8",
               "size": 1,
-              "offset": 1
+              "offset": 1,
+              "default": 1
             },
             {
               "id": "low_pct",
@@ -253,7 +260,8 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "unit": "%"
+              "unit": "%",
+              "default": 20
             },
             {
               "id": "critical_pct",
@@ -262,7 +270,8 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 3,
-              "unit": "%"
+              "unit": "%",
+              "default": 10
             }
           ]
         }
