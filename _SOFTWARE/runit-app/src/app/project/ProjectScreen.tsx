@@ -31,7 +31,7 @@ function BoardCard({ link, connected }: { link: RunitLink; connected: boolean })
 
   if (!connected) return <Card title="On the board" subhead="Connect the board to see what it keeps." />
   return (
-    <Card title="On the board" subhead="The records the board keeps in its memory. It keeps no copy of the project and has no program: the firmware has no VM yet.">
+    <Card title="On the board" subhead="The records the board keeps in its memory. It keeps no copy of the project: Run loads its program into the VM.">
       <FormGrid>
         <FormRow label="Records">
           <span>{records ? records.length : '…'}</span>

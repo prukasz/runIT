@@ -20,7 +20,7 @@ export type { GeneratedLimits } from './limits'
 /** The firmware's enums as generated/common/enums.json publishes them. */
 export const generatedEnums = (enumsJson as unknown as { enums: EnumTables }).enums
 
-/** The VM's contract, when the firmware publishes one (the rework's firmware has no VM yet: none). */
+/** The VM's contract, when the firmware publishes one (none: no wire numbers). */
 const vmContracts = Object.values(import.meta.glob('@generated/services/contract_vm.json', { eager: true, import: 'default' })) as VmContract[]
 
 /** Whether the firmware's descriptors have a VM: without it the engine cannot make a wire frame. */

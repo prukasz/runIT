@@ -1,0 +1,28 @@
+menu "device_esp32_spi"
+
+    config DEVICE_ESP32_SPI_SLOTS
+        int "Chips per bus"
+        default 4
+        range 1 6
+        help
+          How many chips one SPI bus device holds at once (ATTACH beyond it is
+          ERR_SPI_NO_SLOT). ESP-IDF takes at most 6 devices per controller.
+
+    config DEVICE_ESP32_SPI_QUEUE_MAX
+        int "Queued transfers per chip"
+        default 4
+        range 1 16
+        help
+          The largest queue_depth an ATTACH may ask for: the transactions a
+          chip may have queued at once (QUEUE).
+
+    config DEVICE_ESP32_SPI_BOUNCE_BYTES
+        int "Bounce buffer (bytes)"
+        default 64
+        range 16 4096
+        help
+          A blocking transfer that writes, then reads, in one CS goes through
+          this buffer: its tx and rx together are at most this long. A bus
+          has two of them (sent and received bytes), 2x this in RAM.
+
+endmenu
