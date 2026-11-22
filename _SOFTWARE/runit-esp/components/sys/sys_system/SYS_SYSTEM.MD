@@ -15,7 +15,7 @@ Component `runit-esp/components/sys/sys_system/`. The board's system commands (r
 
 ## The dead-man
 
-A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (`app/runit` gives the console's and the BLE pair's `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS`, with the safety flag when it is not 0), and DEADMAN sets the time of the session the command came on, with the safety flag (`sys_session_deadman_set`): 0 is off and that session never ends by silence; else it is its silence limit, and a third of it the keepalive. A session with the safety flag that ends (silence that long, the link lost) enters the safe state: the listener of `SESSION_EV_GONE` (`safety` 1) notes the reason and has the router's urgent task run it (`router_run_urgent`), and sends STOP on every other open session (a broadcast, URGENT, NOREPLY). BYE turns the dead-man of its session off: the client leaves on purpose.
+A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (`app/runit` gives the console's and the BLE session's `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS`, with the safety flag when it is not 0), and DEADMAN sets the time of the session the command came on, with the safety flag (`sys_session_deadman_set`): 0 is off and that session never ends by silence; else it is its silence limit, and a third of it the keepalive. A session with the safety flag that ends (silence that long, the link lost) enters the safe state: the listener of `SESSION_EV_GONE` (`safety` 1) notes the reason and has the router's urgent task run it (`router_run_urgent`), and sends STOP on every other open session (a broadcast, URGENT, NOREPLY). BYE turns the dead-man of its session off: the client leaves on purpose.
 
 ## The time
 

@@ -52,8 +52,8 @@ export interface LinkDefinitions {
   readonly streams: Readonly<Record<StreamName, number>>
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number; readonly noReply: number }
-  /** The runIT service: the session's pair (`tx` notify, `rx` written, both framed), and the raw logs and telemetry (notify). */
-  readonly gatt: { readonly service: number; readonly tx: number; readonly rx: number; readonly logs: number; readonly telemetry: number }
+  /** The runIT service: the session's characteristic (written and notified, framed), and the raw logs and telemetry (notify). */
+  readonly gatt: { readonly service: number; readonly session: number; readonly logs: number; readonly telemetry: number }
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The board's GATT table (BLE LIST) and a BLE provider's create flags. */
   readonly ble: {
@@ -109,8 +109,7 @@ export const linkDefinitions = (enums: EnumTables): LinkDefinitions => {
     flags: { urgent: v('router_flag', 'ROUTER_FLAG_URGENT'), noReply: v('router_flag', 'ROUTER_FLAG_NOREPLY') },
     gatt: {
       service: v('ble_runit_uuid', 'RUNIT_BLE_SERVICE'),
-      tx: v('ble_runit_uuid', 'RUNIT_BLE_TX'),
-      rx: v('ble_runit_uuid', 'RUNIT_BLE_RX'),
+      session: v('ble_runit_uuid', 'RUNIT_BLE_SESSION'),
       logs: v('ble_runit_uuid', 'RUNIT_BLE_LOGS'),
       telemetry: v('ble_runit_uuid', 'RUNIT_BLE_TELEMETRY'),
     },

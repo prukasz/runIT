@@ -13,7 +13,7 @@ import type { GattCharacteristic, GattService } from '../project/projectFile'
  *   table    BLE LIST: the table as the board has it, to show it and to compare it with the project
  */
 
-const wayOf = (service: number, c: GattCharacteristic) => ({ provider: c.provider, service, tx: c.tx, rx: c.rx, framed: c.framed, name: c.name })
+const wayOf = (service: number, c: GattCharacteristic) => ({ provider: c.provider, service, chr: c.chr, framed: c.framed, name: c.name })
 
 const removeCall = (catalog: ServiceCatalog, provider: number): ServiceCall => serviceCall(catalog, PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.remove, undefined, 'write', provider)
 
@@ -47,7 +47,7 @@ export const gattFromRecord = (defs: LinkDefinitions, catalog: ServiceCatalog, f
   for (const frame of frames) {
     const way = readBleWay(defs, catalog, frame)
     if (!way) continue
-    const c: GattCharacteristic = { provider: way.provider, tx: way.tx, rx: way.rx, framed: way.framed, name: way.name }
+    const c: GattCharacteristic = { provider: way.provider, chr: way.chr, framed: way.framed, name: way.name }
     const at = services.findIndex((s) => s.uuid === way.service)
     if (at < 0) services.push({ uuid: way.service, characteristics: [c] })
     else services[at] = { ...services[at]!, characteristics: [...services[at]!.characteristics, c] }
@@ -74,5 +74,5 @@ const uuids = (services: readonly { readonly uuid: number; readonly chars: reado
 
 /** Whether the board's table has what the project's ways make (services and their characteristics by UUID). */
 export const sameGatt = (project: readonly GattService[], live: readonly LiveGattService[]): boolean =>
-  uuids(project.map((s) => ({ uuid: s.uuid, chars: s.characteristics.flatMap((c) => [c.tx, c.rx].filter((u) => u !== 0)) })))
+  uuids(project.map((s) => ({ uuid: s.uuid, chars: s.characteristics.map((c) => c.chr) })))
   === uuids(live.filter((s) => !s.locked).map((s) => ({ uuid: s.uuid, chars: s.characteristics.map((c) => c.uuid) })))

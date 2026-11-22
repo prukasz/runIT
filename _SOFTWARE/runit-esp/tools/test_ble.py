@@ -88,8 +88,7 @@ PROV_SYSTEM_BLE = 3  # RUNIT_PROVIDER_BLE
 TRIG_PERIODIC = defs.sym("SYS_WATCH_PERIODIC")
 
 SVC_RUNIT = defs.sym("RUNIT_BLE_SERVICE")
-CHR_TX = defs.sym("RUNIT_BLE_TX")
-CHR_RX = defs.sym("RUNIT_BLE_RX")
+CHR_SESSION = defs.sym("RUNIT_BLE_SESSION")
 CHR_LOGS = defs.sym("RUNIT_BLE_LOGS")
 CHR_TELEM = defs.sym("RUNIT_BLE_TELEMETRY")
 
@@ -136,14 +135,13 @@ def prov_cmd(prov_id: int, side: int, op: int, args: bytes = b"") -> bytes:
 def prov_ble_create(
     prov_id: int,
     svc: int,
-    tx: int,
-    rx: int,
+    chr: int,
     flags: int = 0,
     rx_flags: int = CMD_SEND_NOWAIT,
     name: str = "",
 ) -> bytes:
     raw_name = name.encode("ascii")[:15].ljust(16, b"\x00")
-    cfg = struct.pack("<HHHBB16s", svc, tx, rx, flags, rx_flags, raw_name)
+    cfg = struct.pack("<HHBB16s", svc, chr, flags, rx_flags, raw_name)
     return prov_cmd(prov_id, WRITE, PROV_CREATE, struct.pack("<BB", PROV_TYPE_BLE, 0) + cfg)
 
 
@@ -264,7 +262,7 @@ class BleSession:
         self.logs.extend(data)
 
     async def start(self):
-        await self.client.start_notify(uuid16(CHR_TX), self._on_tx)
+        await self.client.start_notify(uuid16(CHR_SESSION), self._on_tx)
         await self.client.start_notify(uuid16(CHR_TELEM), self._on_telem)
         await self.client.start_notify(uuid16(CHR_LOGS), self._on_logs)
 
@@ -272,7 +270,7 @@ class BleSession:
         frame = bytes([(kind << 6) | flags, CLIENT_BLE, key]) + struct.pack("<H", seq) + body
         step = max(1, self.client.mtu_size - 4)
         for pkt in frag_encode(frame, step):
-            await self.client.write_gatt_char(uuid16(CHR_RX), pkt, response=True)
+            await self.client.write_gatt_char(uuid16(CHR_SESSION), pkt, response=True)
 
     async def hello(self, timeout: float = 4.0) -> bool:
         await self.send(CONTROL, KEY_SESSION, bytes([HELLO]) + struct.pack("<II", self.boot_id, 0))
@@ -449,14 +447,14 @@ class BleConnectAndReconnect(unittest.TestCase):
                 self.assertIn(SVC_RUNIT, svcs)
                 runit_svc = svcs[SVC_RUNIT]
                 self.assertEqual(runit_svc["flags"] & 0x03, 0x03)  # primary + locked
-                for cuuid in (CHR_TX, CHR_RX, CHR_LOGS, CHR_TELEM):
+                for cuuid in (CHR_SESSION, CHR_LOGS, CHR_TELEM):
                     self.assertIn(cuuid, runit_svc["chars"])
 
                 # Cross-check against Bleak's discovered GATT services
                 bleak_svc = client.services.get_service(uuid16(SVC_RUNIT))
                 self.assertIsNotNone(bleak_svc)
                 bleak_chars = {int(c.uuid.split("-")[0], 16) for c in bleak_svc.characteristics}
-                self.assertTrue({CHR_TX, CHR_RX, CHR_LOGS, CHR_TELEM}.issubset(bleak_chars))
+                self.assertTrue({CHR_SESSION, CHR_LOGS, CHR_TELEM}.issubset(bleak_chars))
             finally:
                 await close_ble(client)
 
@@ -518,17 +516,17 @@ class BleRuntimeGattLifecycle(unittest.TestCase):
             try:
                 await cleanup_runtime(sess)
                 # Locked runIT service -> refused
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, SVC_RUNIT, 0xEE90, 0, name="bad")))[0], 1)
-                # Neither TX nor RX -> refused
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0, 0, name="bad")))[0], 1)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, SVC_RUNIT, 0xEE90, name="bad")))[0], 1)
+                # No characteristic -> refused
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0, name="bad")))[0], 1)
                 # Service UUID 0 -> refused
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0, 0xEE90, 0, name="bad")))[0], 1)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0, 0xEE90, name="bad")))[0], 1)
                 # Removing system BLE provider -> refused
                 self.assertEqual((await sess.call(prov_remove(PROV_SYSTEM_BLE)))[0], 1)
 
                 # Create P1, then attempt duplicate characteristic UUID in P2 -> refused
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0xEE01, 0xEE02, name="dup")))[0], 0)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P2, 0xEE05, 0xEE01, 0, name="dup2")))[0], 1)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0xEE01, name="dup")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P2, 0xEE05, 0xEE01, name="dup2")))[0], 1)
                 self.assertEqual((await sess.call(prov_remove(PROV_P1)))[0], 0)
                 await asyncio.sleep(0.4)
             finally:
@@ -539,26 +537,25 @@ class BleRuntimeGattLifecycle(unittest.TestCase):
 
     def test_02_create_join_remove_characteristics_and_service_live(self):
         async def go():
-            # Step 1: Create service 0xEE00 via P1 (tx=0xEE01, rx=0xEE02) and join via P2 (tx=0xEE03)
+            # Step 1: Create service 0xEE00 via P1 (characteristic 0xEE01) and join via P2 (0xEE03)
             client, sess = await open_ble()
             try:
                 await cleanup_runtime(sess)
                 await asyncio.sleep(0.35)
 
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0xEE01, 0xEE02, name="p1")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P1, 0xEE00, 0xEE01, name="p1")))[0], 0)
                 st, b = await sess.call(bytes([KEY_BLE, READ, BLE_LIST]))
                 self.assertEqual(st, 0)
                 svcs = parse_ble_list(b)
                 self.assertIn(0xEE00, svcs)
-                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01, 0xEE02})
-                self.assertEqual(svcs[0xEE00]["chars"][0xEE01][2], "p1 TX")
-                self.assertEqual(svcs[0xEE00]["chars"][0xEE02][2], "p1 RX")
+                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01})
+                self.assertEqual(svcs[0xEE00]["chars"][0xEE01][2], "p1")
 
                 # Join existing service 0xEE00 with second provider P2
-                self.assertEqual((await sess.call(prov_ble_create(PROV_P2, 0xEE00, 0xEE03, 0, name="p2")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_P2, 0xEE00, 0xEE03, name="p2")))[0], 0)
                 st, b = await sess.call(bytes([KEY_BLE, READ, BLE_LIST]))
                 svcs = parse_ble_list(b)
-                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01, 0xEE02, 0xEE03})
+                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01, 0xEE03})
                 self.assertEqual(svcs[0xEE00]["chars"][0xEE03][2], "p2")
 
                 # Wait for CONFIG_SYS_BLE_APPLY_DELAY_MS (200 ms) so NimBLE commits the table
@@ -566,13 +563,13 @@ class BleRuntimeGattLifecycle(unittest.TestCase):
             finally:
                 await close_ble(client)
 
-            # Step 2: Reconnect and verify Bleak sees service 0xEE00 and all 3 characteristics + user descriptions
+            # Step 2: Reconnect and verify Bleak sees service 0xEE00 and both characteristics + user descriptions
             client, sess = await open_ble()
             try:
                 svc = client.services.get_service(uuid16(0xEE00))
                 self.assertIsNotNone(svc, "new runtime service 0xEE00 not visible in GATT")
                 chars = {int(c.uuid.split("-")[0], 16): c for c in svc.characteristics}
-                self.assertEqual(set(chars.keys()), {0xEE01, 0xEE02, 0xEE03})
+                self.assertEqual(set(chars.keys()), {0xEE01, 0xEE03})
 
                 # Check User Description descriptor (0x2901) on 0xEE03
                 desc = chars[0xEE03].get_descriptor(uuid16(UUID_USER_DESC))
@@ -580,23 +577,23 @@ class BleRuntimeGattLifecycle(unittest.TestCase):
                 val = await client.read_gatt_descriptor(desc.handle)
                 self.assertEqual(val.decode("utf-8"), "p2")
 
-                # Remove P2 only -> 0xEE03 disappears, 0xEE00 + 0xEE01 + 0xEE02 stay
+                # Remove P2 only -> 0xEE03 disappears, 0xEE00 + 0xEE01 stay
                 self.assertEqual((await sess.call(prov_remove(PROV_P2)))[0], 0)
                 st, b = await sess.call(bytes([KEY_BLE, READ, BLE_LIST]))
                 svcs = parse_ble_list(b)
                 self.assertIn(0xEE00, svcs)
-                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01, 0xEE02})
+                self.assertEqual(set(svcs[0xEE00]["chars"].keys()), {0xEE01})
                 await asyncio.sleep(0.5)
             finally:
                 await close_ble(client)
 
-            # Step 3: Reconnect and verify 0xEE03 is gone while 0xEE01 + 0xEE02 remain, then remove P1 (whole service)
+            # Step 3: Reconnect and verify 0xEE03 is gone while 0xEE01 remains, then remove P1 (whole service)
             client, sess = await open_ble()
             try:
                 svc = client.services.get_service(uuid16(0xEE00))
                 self.assertIsNotNone(svc, "service 0xEE00 should still exist after removing P2")
                 chars = {int(c.uuid.split("-")[0], 16) for c in svc.characteristics}
-                self.assertEqual(chars, {0xEE01, 0xEE02})
+                self.assertEqual(chars, {0xEE01})
 
                 self.assertEqual((await sess.call(prov_remove(PROV_P1)))[0], 0)
                 st, b = await sess.call(bytes([KEY_BLE, READ, BLE_LIST]))
@@ -625,7 +622,7 @@ class BleRoutingAndMatrix(unittest.TestCase):
             client, sess = await open_ble()
             try:
                 await cleanup_runtime(sess)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_MON, 0xEE10, 0xEE11, 0, name="mon")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_MON, 0xEE10, 0xEE11, name="mon")))[0], 0)
                 await asyncio.sleep(0.5)
             finally:
                 await close_ble(client)
@@ -680,17 +677,17 @@ class BleRoutingAndMatrix(unittest.TestCase):
             client, sess = await open_ble()
             try:
                 await cleanup_runtime(sess)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_RAW_IN, 0xEE20, 0, 0xEE21, 0, CMD_SEND_NOWAIT, "rin")))[0], 0)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_RAW_OUT, 0xEE20, 0xEE22, 0, 0, CMD_SEND_NOWAIT, "rout")))[0], 0)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_IN, 0xEE20, 0, 0xEE23, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "fin")))[0], 0)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_OUT, 0xEE20, 0xEE24, 0, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "fout")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_RAW_IN, 0xEE20, 0xEE21, 0, CMD_SEND_NOWAIT, "rin")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_RAW_OUT, 0xEE20, 0xEE22, 0, CMD_SEND_NOWAIT, "rout")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_IN, 0xEE20, 0xEE23, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "fin")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_OUT, 0xEE20, 0xEE24, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "fout")))[0], 0)
                 await asyncio.sleep(0.5)
             finally:
                 await close_ble(client)
 
             client, sess = await open_ble()
             try:
-                # Connect bridges in data_matrix
+                # Connect bridges in data_matrix: each provider is both ways, a bridge is one link (a side with no link is not wired)
                 self.assertEqual(
                     (await sess.call(matrix_link(MATRIX_CONNECT, port_id(PORT_KIND_PROVIDER, PROV_RAW_IN), port_id(PORT_KIND_PROVIDER, PROV_RAW_OUT))))[0],
                     0,
@@ -837,8 +834,8 @@ class BleThroughputAndCompleteness(unittest.TestCase):
             client, sess = await open_ble()
             try:
                 await cleanup_runtime(sess)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_IN, 0xEE30, 0, 0xEE31, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "tin")))[0], 0)
-                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_OUT, 0xEE30, 0xEE32, 0, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "tout")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_IN, 0xEE30, 0xEE31, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "tin")))[0], 0)
+                self.assertEqual((await sess.call(prov_ble_create(PROV_FRM_OUT, 0xEE30, 0xEE32, PROV_BLE_FRAMED, CMD_SEND_NOWAIT, "tout")))[0], 0)
                 await asyncio.sleep(0.5)
             finally:
                 await close_ble(client)

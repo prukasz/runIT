@@ -5,7 +5,7 @@
     python runit-esp/tools/ble_client.py --smoke            # PING, PEERS, GPIO 4 level, a watch on it
     python runit-esp/tools/ble_client.py --hold 10          # a watch on GPIO 4's level for 10 s: the entries by owner
 
-Service 0xFFE0: frames out on 0xFFE1 (notify), in on 0xFFE2 (write), both framed (SYS_BLE.MD "Framing": a header byte per
+Service 0xFFE0: the session on 0xFFE1 (frames out as notifications, in as writes), framed (SYS_BLE.MD "Framing": a header byte per
 packet, bit 7 LAST, bit 6 FIRST, bits 0-5 a counter); a frame is [type][src][key][seq u16][body] (CMD.MD "The header").
 The watches' entries are not on the session: they are raw notifications of 0xFFEA, [hdr PUSH][owner][id][status][data], one
 per notification (RUNIT.MD "Ways"), every owner's. The client's id is 0xF1 (the console client has 0xF0). Needs `pip install bleak` (the system Python, not the IDF's).
@@ -48,8 +48,7 @@ MODE_OUTPUT_PP = defs.sym("SYS_IO_MODE_OUTPUT_PUSH_PULL")
 TRIG_PERIODIC = defs.sym("SYS_WATCH_PERIODIC")
 F_ERROR = defs.sym("CMD_TYPE_STATUS")
 SERVICE = defs.sym("RUNIT_BLE_SERVICE")
-TX = defs.sym("RUNIT_BLE_TX")
-RX = defs.sym("RUNIT_BLE_RX")
+SESSION = defs.sym("RUNIT_BLE_SESSION")
 LOGS = defs.sym("RUNIT_BLE_LOGS")
 TELEMETRY = defs.sym("RUNIT_BLE_TELEMETRY")
 
@@ -85,7 +84,7 @@ class Link:
         parts = [frame[i:i + step] for i in range(0, len(frame), step)] or [b""]
         for i, p in enumerate(parts):
             h = (0x40 if i == 0 else 0) | (0x80 if i == len(parts) - 1 else 0) | (i & 0x3F)
-            await self.c.write_gatt_char(uuid16(RX), bytes([h]) + p, response=True)
+            await self.c.write_gatt_char(uuid16(SESSION), bytes([h]) + p, response=True)
 
     async def frames(self, wait: float):
         end = time.monotonic() + wait
@@ -200,7 +199,7 @@ async def main() -> int:
     print(f"board: {dev_.name} {dev_.address}")
     async with BleakClient(dev_) as client:
         link = Link(client)
-        await client.start_notify(uuid16(TX), link.on_packet)
+        await client.start_notify(uuid16(SESSION), link.on_packet)
         await client.start_notify(uuid16(TELEMETRY), link.on_telemetry)
         if not await link.hello():
             print("<- no hello")

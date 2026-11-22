@@ -259,7 +259,7 @@ describe('requests', () => {
   })
 
   it('refuses a missing field, a field that is not there, a value that does not fit, and arguments to a command without any', () => {
-    expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', {}, 'write')).toThrow(/timeout_ms is missing/)
+    expect(() => serviceCall(catalog, 'SYS', 'TIME', {}, 'write')).toThrow(/unix_ms is missing/)
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: 1, extra: 1 }, 'write')).toThrow(/No field extra/)
     expect(() => serviceCall(catalog, 'SYS', 'DEADMAN', { timeout_ms: -1 }, 'write')).toThrow(PayloadError)
     expect(() => deviceCall(catalog, 0, 'IO', 'LEVEL', { pin: 1, level: 'Middle' }, 'write')).toThrow(/'Middle' is not a value of level/)
@@ -277,15 +277,15 @@ describe('providers', () => {
   })
 
   it('CREATE carries the type of the provider descriptor and its config, and reads back', () => {
-    const call = createProviderCall(catalog, 8, 'ble', { svc: 0xee00, tx: 0xee01, name: 'temp' })
+    const call = createProviderCall(catalog, 8, 'ble', { svc: 0xee00, chr: 0xee01, name: 'temp' })
     const ble = catalog.provider('ble')
     expect(call.request.body.subarray(4, 6)).toEqual(Uint8Array.of(ble.providerType!, 0)) // [type][flags]
     expect(call.request.body.length).toBe(4 + 2 + ble.config!.fixed)
-    expect(readProviderFrame(catalog, requestFrame(call.request))).toMatchObject({ id: 8, type: { id: 'ble' }, config: { svc: 0xee00, tx: 0xee01, rx: 0, flags: 0, name: 'temp' } })
+    expect(readProviderFrame(catalog, requestFrame(call.request))).toMatchObject({ id: 8, type: { id: 'ble' }, config: { svc: 0xee00, chr: 0xee01, flags: 0, name: 'temp' } })
   })
 
-  it('a BLE way: framed by the published flag, a written one never makes the host wait, and back', () => {
-    const way = { provider: 9, service: 0xee00, tx: 0xee01, rx: 0xee02, framed: true, name: 'link' }
+  it('a BLE way: framed by the published flag, a write never makes the host wait, and back', () => {
+    const way = { provider: 9, service: 0xee00, chr: 0xee01, framed: true, name: 'link' }
     const frame = requestFrame(bleWayCall(defs, catalog, way).request)
     expect(readBleWay(defs, catalog, frame)).toEqual(way)
     const config = readProviderFrame(catalog, frame)!.config

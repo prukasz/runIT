@@ -111,7 +111,7 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 |---|---|
 | I2C 0 (internal) | SDA 15, SCL 16 — all onboard chips |
 | I2C 1 (user) | SDA 40, SCL 41 — external user sensors/devices |
-| BLE | Service `0xFFE0`: RX `0xFFE2` (write, interface), TX `0xFFE1` (notify: interface + telemetry), LOGS `0xFFE3` (notify: logs + errors), STATUS `0xFFE4` (notify) |
+| BLE | Service `0xFFE0`: session `0xFFE1` (write and notify, framed: the interface), LOGS `0xFFE3` (notify: the log lines), TELEMETRY `0xFFE4` (notify: the watches' entries) |
 | Wi-Fi | Hardware-capable (ESP32-S3); firmware not implemented |
 
 ## 5. Firmware coverage gaps

@@ -6,8 +6,8 @@ import type { ServiceCall } from './calls'
 
 /*
  * The board's GATT table and the characteristics a client adds to it (SYS_BLE.MD, PROVIDER_BLE.MD). The table is made by the
- * providers: a provider of the BLE type (`provider_ble.json`) makes its service when that is new, a notify characteristic its
- * frames go out on (`tx`) and a written one they come in from (`rx`), and takes them with it when it is removed. So a way is a
+ * providers: a provider of the BLE type (`provider_ble.json`) makes its service when that is new and one characteristic, written
+ * and notified, its frames go out on and come in from (`chr`), and takes it with it when it is removed. So a way is a
  * provider, and a service is only the UUID its ways share. `BLE LIST` reads the table as the board has it.
  *
  * The config's fields are the descriptor's; the flags are the published ones (`provider_ble_flag`, `cmd_send_flag`,
@@ -17,7 +17,7 @@ import type { ServiceCall } from './calls'
 /** The BLE provider type (`provider_ble.json`) and its config's fields, and BLE's table read (`contract_ble.json`). */
 export const BLE_WAYS = {
   provider: 'ble',
-  service: 'svc', tx: 'tx', rx: 'rx', flags: 'flags', rxFlags: 'rx_flags', name: 'name',
+  service: 'svc', chr: 'chr', flags: 'flags', rxFlags: 'rx_flags', name: 'name',
   table: { service: 'BLE', command: 'LIST' },
 } as const
 
@@ -27,11 +27,9 @@ export interface BleWay {
   readonly provider: number
   /** The service it is in. */
   readonly service: number
-  /** The notify characteristic its frames go out on; 0: none. */
-  readonly tx: number
-  /** The characteristic the client writes; 0: none. */
-  readonly rx: number
-  /** Both carry frames (a session's way); else raw bytes (a stream's). */
+  /** The characteristic: its frames go out on it as notifications and come in from it as writes. */
+  readonly chr: number
+  /** It carries frames (a session's way); else raw bytes (a stream's). */
   readonly framed: boolean
   readonly name: string
 }
@@ -40,10 +38,9 @@ export interface BleWay {
 export const bleWayCall = (defs: LinkDefinitions, catalog: ServiceCatalog, way: BleWay): ServiceCall =>
   createProviderCall(catalog, way.provider, BLE_WAYS.provider, {
     [BLE_WAYS.service]: way.service,
-    [BLE_WAYS.tx]: way.tx,
-    [BLE_WAYS.rx]: way.rx,
+    [BLE_WAYS.chr]: way.chr,
     [BLE_WAYS.flags]: way.framed ? defs.ble.providerFramed : 0,
-    [BLE_WAYS.rxFlags]: way.rx !== 0 ? defs.ble.sendNoWait : 0,
+    [BLE_WAYS.rxFlags]: defs.ble.sendNoWait,
     [BLE_WAYS.name]: way.name,
   })
 
@@ -55,8 +52,7 @@ export const readBleWay = (defs: LinkDefinitions, catalog: ServiceCatalog, frame
   return {
     provider: read.id,
     service: Number(c[BLE_WAYS.service]),
-    tx: Number(c[BLE_WAYS.tx]),
-    rx: Number(c[BLE_WAYS.rx]),
+    chr: Number(c[BLE_WAYS.chr]),
     framed: (Number(c[BLE_WAYS.flags]) & defs.ble.providerFramed) !== 0,
     name: String(c[BLE_WAYS.name] ?? ''),
   }

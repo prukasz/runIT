@@ -21,8 +21,7 @@ describe('the numbers come from the firmware', () => {
     const ble = source('components/sys/bus/sys_ble/sys_ble.h')
     expect(defs.gatt).toEqual({
       service: define(ids, 'RUNIT_BLE_SERVICE'),
-      tx: define(ids, 'RUNIT_BLE_TX'),
-      rx: define(ids, 'RUNIT_BLE_RX'),
+      session: define(ids, 'RUNIT_BLE_SESSION'),
       logs: define(ids, 'RUNIT_BLE_LOGS'),
       telemetry: define(ids, 'RUNIT_BLE_TELEMETRY'),
     })

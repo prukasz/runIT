@@ -14,7 +14,7 @@ import type { RunitLink } from './link'
  *   const { value } = await services.call('SYS', 'PING')                                         // { uptime_ms: 1234 }
  *   await services.device(3, 'IO', 'LEVEL', { pin: 22, level: 'High' }, { side: 'write' })
  *   await services.create(20, 'servo', { pwm_pin: { device: 3, pin: 4 }, servo_type: 'SERVO_TYPE_ANGLE' })
- *   await services.createProvider(8, 'ble', { svc: 0xee00, tx: 0xee01, name: 'temp' })
+ *   await services.createProvider(8, 'ble', { svc: 0xee00, chr: 0xee01, name: 'temp' })
  */
 
 export interface Answer {

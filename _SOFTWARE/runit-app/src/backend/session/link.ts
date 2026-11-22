@@ -12,8 +12,8 @@ import { peersCall, readPeers } from './sessions'
 /*
  * The link to one board over BLE: the session (SYS_SESSION.MD), the commands, the streams, and a connection that keeps itself up.
  *
- *   - Opening is one call of the platform: the runIT service, written on its session characteristic (`rx`, framed), heard on
- *     its session characteristic (`tx`, framed) and on the raw ones the board has (`logs`: the log lines, `telemetry`: the
+ *   - Opening is one call of the platform: the runIT service, written on its session characteristic (framed), heard on
+ *     the same one and on the raw ones the board has (`logs`: the log lines, `telemetry`: the
  *     watches' entries). Then the session: this client's HELLO (its id as the source, a boot id of its own), until the board
  *     answers with its HELLO (its id, boot id, build), then SESSION PEERS for this session's dead-man. Nothing is subscribed:
  *     the board's setup links its errors and events to the session and its logs and watches to their characteristics.
@@ -161,7 +161,7 @@ export class RunitLink {
     this.packetBytes = Math.min(options.packetBytes ?? ATT_VALUE_MAX, ATT_VALUE_MAX)
     this.waitForLinkMs = options.waitForLinkMs ?? 5000
     const { gatt } = this.defs
-    this.spec = { service: gatt.service, write: gatt.rx, notify: [gatt.tx], optional: [gatt.logs, gatt.telemetry] }
+    this.spec = { service: gatt.service, write: gatt.session, notify: [gatt.session], optional: [gatt.logs, gatt.telemetry] }
     this.streamNames = new Map(STREAM_NAMES.map((name) => [this.defs.streams[name], name]))
     this.reassembler = new Reassembler(this.defs)
     this.commands = new CommandClient({
@@ -465,7 +465,7 @@ export class RunitLink {
   /** The session's characteristic is framed; the others carry one whole frame per notification. */
   private onPacket(characteristic: number, packet: Uint8Array): void {
     let bytes = packet
-    if (characteristic === this.defs.gatt.tx) {
+    if (characteristic === this.defs.gatt.session) {
       const result = this.reassembler.push(packet)
       if (!result) return
       if ('dropped' in result) return this.diagnose({ kind: 'dropped', characteristic, reason: result.dropped })
@@ -474,7 +474,7 @@ export class RunitLink {
     const frame = decodeFrame(this.defs, bytes)
     const { kind } = this.defs
     if (!frame) return this.diagnose({ kind: 'not-a-frame', characteristic, length: bytes.length })
-    const session = characteristic === this.defs.gatt.tx
+    const session = characteristic === this.defs.gatt.session
     if (session && frame.kind === kind.control) this.onControl(frame)
     else if (session && frame.kind === kind.answer) this.commands.onAnswer(frame)
     else if (frame.kind === kind.push) this.emitStream(frame, session)

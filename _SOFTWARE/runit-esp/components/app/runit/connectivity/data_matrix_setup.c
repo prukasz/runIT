@@ -18,12 +18,12 @@
 static const provider_console_cfg_t k_console = {.rx_flags = CMD_SEND_NOWAIT};
 // The characteristics of both providers are in the one runIT service, made below.
 static const provider_ble_cfg_t k_ble = {
-    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TX, .rx = RUNIT_BLE_RX, .flags = PROVIDER_BLE_FRAMED,
+    .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_SESSION, .flags = PROVIDER_BLE_FRAMED,
     .rx_flags = CMD_SEND_NOWAIT, .name = "runit"};
 static const provider_ble_cfg_t k_ble_logs = {
-    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_LOGS, .name = "logs"};
+    .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_LOGS, .name = "logs"};
 static const provider_ble_cfg_t k_ble_telemetry = {
-    .svc = RUNIT_BLE_SERVICE, .tx = RUNIT_BLE_TELEMETRY, .name = "telemetry"};
+    .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_TELEMETRY, .name = "telemetry"};
 
 // A provider of the board's own: its id, its type and the driver's CREATE config.
 typedef struct {

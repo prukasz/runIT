@@ -101,14 +101,12 @@ export interface SettingsRow {
 }
 
 /**
- * What the project adds to the board's Bluetooth, one provider (PROVIDER_BLE.MD): its id, the notify characteristic frames go out
- * on (`tx`, a 16-bit UUID, 0 = none), the writable one they come in from (`rx`, 0 = none; at least one), whether they carry
- * frames, and their name.
+ * What the project adds to the board's Bluetooth, one provider (PROVIDER_BLE.MD): its id, its characteristic (`chr`, a 16-bit
+ * UUID: frames go out on it as notifications and come in from it as writes), whether it carries frames, and its name.
  */
 export interface GattCharacteristic {
   readonly provider: number
-  readonly tx: number
-  readonly rx: number
+  readonly chr: number
   readonly framed: boolean
   readonly name: string
 }

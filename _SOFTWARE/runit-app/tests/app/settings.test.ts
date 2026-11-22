@@ -72,12 +72,12 @@ describe('the board settings from the service descriptors', () => {
 })
 
 describe('the settings the project keeps, as records of the stored project', () => {
-  const gatt: GattService[] = [{ uuid: 0xee00, characteristics: [{ provider: 0x11, tx: 0xee01, rx: 0, framed: false, name: 'temp' }] }]
+  const gatt: GattService[] = [{ uuid: 0xee00, characteristics: [{ provider: 0x11, chr: 0xee01, framed: false, name: 'temp' }] }]
   it('builds the BLE record as PROVIDER_BLE.MD shows it: a PROVIDER CREATE of the BLE type with its cfg', () => {
     const frames = gattRecord(defs, catalog, gatt)
     expect(frames).toHaveLength(1)
     // [PROVIDER key][write][provider][op u16], then [type][flags] and provider_ble_cfg_t: svc, tx, rx, flags, rx_flags, name[16]
-    expect(readProviderFrame(catalog, frames[0]!)).toMatchObject({ id: 0x11, type: { id: 'ble' }, config: { svc: 0xee00, tx: 0xee01, rx: 0, flags: 0, rx_flags: 0, name: 'temp' } })
+    expect(readProviderFrame(catalog, frames[0]!)).toMatchObject({ id: 0x11, type: { id: 'ble' }, config: { svc: 0xee00, chr: 0xee01, flags: 0, rx_flags: defs.ble.sendNoWait, name: 'temp' } })
     expect(frames[0]!.length).toBe(5 + 2 + catalog.provider('ble').config!.fixed)
     expect(gattFromRecord(defs, catalog, frames)).toEqual(gatt)
     expect(gattRecord(defs, catalog, [])).toEqual([])
@@ -98,7 +98,7 @@ describe('the settings the project keeps, as records of the stored project', () 
     expect(gattApply(defs, catalog, [3], gatt).map((c) => c.command.id)).toEqual(['CREATE'])
     const live = decodeBleTable(defs, Uint8Array.of(1, 0x00, 0xee, 0b01, 1, 0x01, 0xee, 0b0100, 0x60, 0, 0x74, 0x65, 0x6d, 0x70, 0))
     expect(sameGatt(gatt, live)).toBe(true)
-    expect(sameGatt([{ uuid: 0xee00, characteristics: [{ provider: 0x11, tx: 0xee02, rx: 0, framed: false, name: '' }] }], live)).toBe(false)
+    expect(sameGatt([{ uuid: 0xee00, characteristics: [{ provider: 0x11, chr: 0xee02, framed: false, name: '' }] }], live)).toBe(false)
   })
 
   it('writes each kept setting as its record', () => {

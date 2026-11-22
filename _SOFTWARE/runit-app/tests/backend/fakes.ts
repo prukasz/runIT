@@ -158,15 +158,15 @@ export class FakeBoard implements BlePlatform {
   }
 
   /** A frame from the board, on the session characteristic (fragmented into packets of 20 B: the smallest link) or, raw, on another. */
-  notify(frame: Uint8Array, characteristic: number = defs.gatt.tx): void {
+  notify(frame: Uint8Array, characteristic: number = defs.gatt.session): void {
     const handlers = this.handlers
     if (!handlers) return
-    const packets = characteristic === defs.gatt.tx ? fragment(defs, frame, 20) : [frame]
+    const packets = characteristic === defs.gatt.session ? fragment(defs, frame, 20) : [frame]
     for (const packet of packets) queueMicrotask(() => handlers.onPacket(characteristic, packet))
   }
 
   /** A PUSH of a stream (its key), on the session characteristic or a raw one. */
-  push(key: number, data: number[] | Uint8Array, { seq = 0, urgent = false, characteristic = defs.gatt.tx as number, src = this.boardId } = {}): void {
+  push(key: number, data: number[] | Uint8Array, { seq = 0, urgent = false, characteristic = defs.gatt.session as number, src = this.boardId } = {}): void {
     this.notify(encodeFrame(defs, { kind: defs.kind.push, flags: urgent ? defs.flags.urgent : 0, src, key, seq }, Uint8Array.from(data)), characteristic)
   }
 

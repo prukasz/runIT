@@ -100,11 +100,10 @@ const parseHex = (text: string): number | undefined => {
   return Number.isInteger(n) && n > 0 && n <= 0xffff ? n : undefined
 }
 
-/** A 16-bit UUID as hex text; `optional`: empty is 0 (none). */
-function UuidField({ label, value, optional, onChange }: { label: string; value: number; optional?: boolean; onChange: (value: number) => void }) {
+/** A 16-bit UUID as hex text. */
+function UuidField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
-    <TextField aria-label={label} defaultValue={optional && value === 0 ? '' : hex(value)} key={value} onBlur={(event) => {
-      if (optional && event.target.value.trim() === '') return onChange(0)
+    <TextField aria-label={label} defaultValue={hex(value)} key={value} onBlur={(event) => {
       const n = parseHex(event.target.value)
       if (n !== undefined) onChange(n)
     }} />
@@ -117,7 +116,7 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
   const board = state.live.gatt ?? (own ? [own] : [])
   const taken = new Set([
     ...board.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)]),
-    ...services.flatMap((s) => [s.uuid, ...s.characteristics.flatMap((c) => [c.tx, c.rx])]),
+    ...services.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.chr)]),
   ])
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
   // A new provider's id: a number no provider of the project has, above the board's own.
@@ -136,7 +135,7 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
       <Card title="Bluetooth" help={section.service.description}
         actions={<span className="settings-actions"><SourceBar source={state.gattSource()} differs={state.gattDiffers()} kept connected={state.connected} busy={state.busy !== undefined}
           onApply={() => state.applyGatt(section)} onDrop={() => state.dropGatt()} /></span>}>
-        <p className="project-note">A way is a provider of the board: the characteristic its frames go out on (notify) and the one they come in from (written). The first way of a service makes the service. Apply now builds them at once: the board drops the Bluetooth link for a moment and the app connects again. They are lost at a restart unless Write (the toolbar) stores them with the project.</p>
+        <p className="project-note">A way is a provider of the board: one characteristic, written by the client and notified by the board. The first way of a service makes the service. Apply now builds them at once: the board drops the Bluetooth link for a moment and the app connects again. They are lost at a restart unless Write (the toolbar) stores them with the project.</p>
         <FieldError>{state.error(section.service.id)}</FieldError>
       </Card>
       {board.map((s) => (
@@ -159,27 +158,25 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
                 <Button size="sm" title="Remove this way" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
               </div>
               <FormGrid>
-                <FormRow label="Out (notify)" note="The characteristic its frames go out on; empty: none."><UuidField label="Out UUID" value={c.tx} optional onChange={(tx) => setChar(i, k, (o) => ({ ...o, tx }))} /></FormRow>
-                <FormRow label="In (written)" note="The characteristic the client writes; empty: none."><UuidField label="In UUID" value={c.rx} optional onChange={(rx) => setChar(i, k, (o) => ({ ...o, rx }))} /></FormRow>
-                <FormRow label="Frames" note="Both carry frames (a session's way); off: raw bytes (a stream's).">
+                <FormRow label="Characteristic" note="The UUID of the one characteristic: the client writes it, the board notifies on it. What goes which way is the links of the provider in the data matrix."><UuidField label="Characteristic UUID" value={c.chr} onChange={(chr) => setChar(i, k, (o) => ({ ...o, chr }))} /></FormRow>
+                <FormRow label="Frames" note="It carries frames (a session's way); off: raw bytes (a stream's).">
                   <Switch label={c.framed ? 'On' : 'Off'} checked={c.framed} onChange={(framed) => setChar(i, k, (o) => ({ ...o, framed }))} />
                 </FormRow>
-                <FormRow label="Name" note="The user description of the characteristics (up to 15 characters).">
+                <FormRow label="Name" note="The user description of the characteristic (up to 15 characters).">
                   <TextField aria-label="Way name" maxLength={15} value={c.name} onChange={(event) => setChar(i, k, (o) => ({ ...o, name: event.target.value }))} />
                 </FormRow>
               </FormGrid>
-              {c.tx === 0 && c.rx === 0 && <FieldError>{`Provider ${c.provider}: give it an out or an in UUID.`}</FieldError>}
             </div>
           ))}
           <div className="project-actions">
-            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { provider: freeProvider(), tx: free(s.uuid + 1), rx: 0, framed: false, name: '' }] })}>
+            <Button size="sm" onClick={() => setService(i, { ...s, characteristics: [...s.characteristics, { provider: freeProvider(), chr: free(s.uuid + 1), framed: false, name: '' }] })}>
               <Plus aria-hidden="true" />A way
             </Button>
           </div>
         </Card>
       ))}
       <div className="project-actions">
-        <Button onClick={() => set([...services, { uuid: free(0xee00), characteristics: [{ provider: freeProvider(), tx: free(0xee01), rx: 0, framed: false, name: '' }] }])}><Plus aria-hidden="true" />A service</Button>
+        <Button onClick={() => set([...services, { uuid: free(0xee00), characteristics: [{ provider: freeProvider(), chr: free(0xee01), framed: false, name: '' }] }])}><Plus aria-hidden="true" />A service</Button>
       </div>
     </>
   )

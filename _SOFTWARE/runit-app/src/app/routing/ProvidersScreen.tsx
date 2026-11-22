@@ -54,8 +54,7 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
   const [selectedType, setSelectedType] = useState<string>(providerTypes[0]?.id ?? 'ble')
   // BLE fields
   const [bleSvc, setBleSvc] = useState<number>(() => freeUuid(0xee00))
-  const [bleTx, setBleTx] = useState<number>(() => freeUuid(0xee01))
-  const [bleRx, setBleRx] = useState<number>(0)
+  const [bleChr, setBleChr] = useState<number>(() => freeUuid(0xee01))
   const [bleFramed, setBleFramed] = useState<boolean>(false)
   const [bleNoWait, setBleNoWait] = useState<boolean>(true)
   const [bleName, setBleName] = useState<string>('custom')
@@ -85,14 +84,13 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
         setLocalError('BLE service UUID must be non-zero (e.g. 0xEE00).')
         return
       }
-      if (bleTx === 0 && bleRx === 0) {
-        setLocalError('Give the BLE provider at least an Out (notify) or In (write) characteristic UUID.')
+      if (bleChr === 0) {
+        setLocalError('BLE characteristic UUID must be non-zero (e.g. 0xEE01).')
         return
       }
       cfg = {
         svc: bleSvc,
-        tx: bleTx,
-        rx: bleRx,
+        chr: bleChr,
         flags: bleFramed ? routing.link.defs.ble.providerFramed : 0,
         rx_flags: bleNoWait ? CMD_SEND_NOWAIT : 0,
         name: bleName.trim(),
@@ -111,8 +109,7 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
       while (usedIds.has(next) && next < 127) next++
       setProviderId(next)
       if (selectedType === 'ble') {
-        setBleTx((u) => (u > 0 ? u + 2 : 0))
-        setBleRx((u) => (u > 0 ? u + 2 : 0))
+        setBleChr((u) => (u > 0 ? u + 2 : 0))
       }
     }
   }
@@ -170,20 +167,10 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
                     if (n !== undefined && n > 0) setBleSvc(n)
                   }} />
                 </FormRow>
-                <FormRow label="Out UUID (notify)" note="0 or empty = no outbound characteristic.">
-                  <TextField aria-label="Out UUID" key={`tx:${bleTx}`} defaultValue={bleTx ? hex4(bleTx) : ''} placeholder="0xEE01" onBlur={(e) => {
-                    const t = e.target.value.trim()
-                    if (!t) return setBleTx(0)
-                    const n = parseHex16(t)
-                    if (n !== undefined) setBleTx(n)
-                  }} />
-                </FormRow>
-                <FormRow label="In UUID (write)" note="0 or empty = no inbound characteristic.">
-                  <TextField aria-label="In UUID" key={`rx:${bleRx}`} defaultValue={bleRx ? hex4(bleRx) : ''} placeholder="0xEE02 (optional)" onBlur={(e) => {
-                    const t = e.target.value.trim()
-                    if (!t) return setBleRx(0)
-                    const n = parseHex16(t)
-                    if (n !== undefined) setBleRx(n)
+                <FormRow label="Characteristic UUID" note="The one characteristic: the client writes it, the board notifies on it. What goes which way is the provider's links in the data matrix.">
+                  <TextField aria-label="Characteristic UUID" key={`chr:${bleChr}`} defaultValue={hex4(bleChr)} placeholder="0xEE01" onBlur={(e) => {
+                    const n = parseHex16(e.target.value.trim())
+                    if (n !== undefined && n > 0) setBleChr(n)
                   }} />
                 </FormRow>
                 <FormRow label="Name" note="BLE characteristic user description (up to 15 chars).">

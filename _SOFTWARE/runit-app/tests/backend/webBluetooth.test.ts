@@ -33,7 +33,7 @@ const browser = (options: { watch: boolean }) => {
     disconnect() {
       this.connected = false
     },
-    getPrimaryService: async () => ({ getCharacteristics: async () => [characteristic(defs.gatt.rx, false), characteristic(defs.gatt.tx, true), characteristic(defs.gatt.logs, true)] }),
+    getPrimaryService: async () => ({ getCharacteristics: async () => [characteristic(defs.gatt.session, true), characteristic(defs.gatt.logs, true)] }),
   }
   const device = {
     id: 'board',
@@ -65,7 +65,7 @@ const browser = (options: { watch: boolean }) => {
 }
 
 /** What the link opens: the browser's board has no telemetry characteristic, which is optional. */
-const spec = { service: defs.gatt.service, write: defs.gatt.rx, notify: [defs.gatt.tx], optional: [defs.gatt.logs, defs.gatt.telemetry] }
+const spec = { service: defs.gatt.service, write: defs.gatt.session, notify: [defs.gatt.session], optional: [defs.gatt.logs, defs.gatt.telemetry] }
 
 describe('opening the service', () => {
   it('a characteristic the link must hear and the board lacks fails the open; an optional one is left out', async () => {

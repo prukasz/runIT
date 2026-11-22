@@ -21,7 +21,7 @@ describe('opening', () => {
   it('opens the runIT service: written on the session characteristic, heard on it and on the raw logs and telemetry', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
-    expect(board.spec).toEqual({ service: defs.gatt.service, write: defs.gatt.rx, notify: [defs.gatt.tx], optional: [defs.gatt.logs, defs.gatt.telemetry] })
+    expect(board.spec).toEqual({ service: defs.gatt.service, write: defs.gatt.session, notify: [defs.gatt.session], optional: [defs.gatt.logs, defs.gatt.telemetry] })
     expect(board.clientHello?.id).toBe(CLIENT_ID)
     expect(link.session).toMatchObject({ clientId: CLIENT_ID, boardId: board.boardId, bootId: board.bootId, buildId: 0xb17d1d, deadmanMs: 0 })
     await link.close()
@@ -190,7 +190,7 @@ describe('streams', () => {
     await until(() => diagnostics.length === 1)
     board.notify(Uint8Array.of(1, 2), defs.gatt.logs)
     await until(() => diagnostics.length === 2)
-    ;(link as unknown as { onPacket(c: number, p: Uint8Array): void }).onPacket(defs.gatt.tx, Uint8Array.of(0x05, 1, 2)) // a packet outside a frame
+    ;(link as unknown as { onPacket(c: number, p: Uint8Array): void }).onPacket(defs.gatt.session, Uint8Array.of(0x05, 1, 2)) // a packet outside a frame
     expect(diagnostics).toEqual(['unknown-stream', 'not-a-frame', 'dropped'])
     await link.close()
   })
