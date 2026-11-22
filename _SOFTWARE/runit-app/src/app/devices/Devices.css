@@ -20,6 +20,11 @@
 .devices-command { display: flex; flex-direction: column; gap: 8px; padding: 6px 4px 10px; }
 .devices-lifecycle { display: flex; flex-direction: column; gap: 8px; }
 .devices-lifecycle > .devices-actions { margin-top: 0; }
+/* A bus scan: how many answered, then one row per address */
+.devices-scan-count { margin: 0 0 6px; font-weight: 600; }
+.devices-scan-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; }
+.devices-scan-list li { display: flex; align-items: center; gap: 8px; }
+.devices-scan-unknown { color: var(--muted); }
 .devices-answer { margin: 0; padding: 6px 8px; border-left: 3px solid var(--status-ok); font-size: 12px; white-space: pre-wrap; color: var(--active); }
 .fields-array { display: flex; flex-wrap: wrap; gap: 6px; }
 .fields-array > .number-field { width: 110px; }

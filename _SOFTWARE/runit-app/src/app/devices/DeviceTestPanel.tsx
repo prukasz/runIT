@@ -7,6 +7,8 @@ import type { Choice } from '@ui/components'
 import type { ProjectDevice, Step } from '../project/projectFile'
 import { isBoardOwn } from '../boards/boards'
 import { FieldsForm } from './FieldsForm'
+import { I2cScanResult } from './I2cScanResult'
+import { I2C_SCAN, scanAddresses, scanBitmap } from './i2cScan'
 import { LiveBadge } from './DevicesExplorer'
 import { bundledEnums, withRanges } from '@backend'
 import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, devicePins, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
@@ -25,6 +27,8 @@ function CommandTester({ device, entry, command, side, state, fixedPin }: { devi
   const [args, setArgs] = useState<FieldValues>(fixedPin ? { [fixedPin.field]: fixedPin.value } : {})
   const [result, setResult] = useState<Result | undefined>()
   const [sending, setSending] = useState(false)
+  // A bus scan is shown as a list of addresses, each with the device the board keeps there.
+  const [scan, setScan] = useState<readonly number[] | undefined>()
   const layout = withRanges(command[side]?.args, command.id, device.ranges)
   const write = side === 'write'
   const step: Step = { kind: 'device', device: device.id, contract: entry.id, command: command.id, ...(layout ? { args } : {}) }
@@ -43,14 +47,17 @@ function CommandTester({ device, entry, command, side, state, fixedPin }: { devi
   const send = async () => {
     setSending(true)
     setResult(undefined)
+    setScan(undefined)
     try {
       const { value } = await state.services.device(device.id, entry.id, command.id, layout ? args : undefined, { side })
+      const bitmap = entry.id === I2C_SCAN.contract && command.id === I2C_SCAN.command ? scanBitmap(value) : undefined
       // What the board did to the pin is what the next command's pin list is made from.
       if (entry.id === 'IO' && write && typeof args.pin === 'number') {
         if (command.id === PIN_START_COMMANDS.mode) state.setPinKind(device.id, args.pin, kindOfModeValue(args.mode) ?? null)
         else if (command.id === 'RESET') state.setPinKind(device.id, args.pin, null)
       }
-      setResult({ tone: 'info', text: showAnswer(command, side, value, state.nameOf, state.pinName, device.id) })
+      if (bitmap) setScan(scanAddresses(bitmap))
+      else setResult({ tone: 'info', text: showAnswer(command, side, value, state.nameOf, state.pinName, device.id) })
       if (entry === state.lifecycle) void state.probe()
     } catch (failure) {
       setResult({ tone: 'error', text: state.explain(failure) })
@@ -87,6 +94,7 @@ function CommandTester({ device, entry, command, side, state, fixedPin }: { devi
               </>
             )}
           </div>
+          {scan && <I2cScanResult addresses={scan} nameAt={(address) => state.devices.find((d) => d.i2c?.bus === device.id && d.i2c.address === address)?.name} />}
           {result && (result.tone === 'error' ? <FieldError>{result.text}</FieldError> : <p className="devices-answer">{result.text}</p>)}
         </div>
       </TreeChildren>
