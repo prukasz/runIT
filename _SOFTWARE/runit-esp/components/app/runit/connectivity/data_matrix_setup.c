@@ -13,6 +13,7 @@
 #include "sys_log_id.h"
 #include "sys_session.h"
 #include "sys_watch_id.h"
+#include "vm_id.h"
 #include "utils.h"
 
 static const provider_console_cfg_t k_console = {.rx_flags = CMD_SEND_NOWAIT};
@@ -51,14 +52,16 @@ typedef struct {
 } sub_row_t;
 
 // The runIT BLE pair (the app): its commands, the errors, the events and the remote devices' frames; logs and
-// telemetry have their own characteristics, raw. REMOTE is IN only: its frames out go to the sub-port by name.
+// telemetry have their own characteristics, raw. REMOTE is IN only: its frames out go to the sub-port by name. VM is OUT only: the program's telemetry.
 static const sub_row_t k_ble_subs[] = {
-    {MODULE_ID_ROUTER, IN}, {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT}, {MODULE_ID_REMOTE, IN}};
+    {MODULE_ID_ROUTER, IN}, {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT}, {MODULE_ID_REMOTE, IN},
+    {MODULE_ID_VM, OUT}};
 
 // The console (the app or a board): everything, the logs, the watches' entries and the remote devices' frames too.
 static const sub_row_t k_console_subs[] = {
     {MODULE_ID_ROUTER, IN},      {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT},
-    {MODULE_ID_WATCH, IN | OUT}, {MODULE_ID_LOG, OUT},         {MODULE_ID_REMOTE, IN}};
+    {MODULE_ID_WATCH, IN | OUT}, {MODULE_ID_LOG, OUT},         {MODULE_ID_REMOTE, IN},
+    {MODULE_ID_VM, OUT}};
 
 // A board's session (a slave's or a master's, made at run time by ATTACH with SYS_SESSION_SLAVE / _MASTER): the same
 // rows for every board, the records going up the tree. A slave's errors, events and entries come in and are passed on

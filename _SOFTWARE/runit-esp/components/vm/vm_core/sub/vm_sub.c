@@ -1,4 +1,6 @@
 #include "vm_sub.h"
+#include "cmd.h"
+#include "data_matrix.h"
 #include "esp_log.h"
 #include "vm_err.h"
 #include "freertos/FreeRTOS.h"
@@ -15,8 +17,8 @@
 /* Deepest PTR nesting walked below a subscribed object. */
 #define SUB_MAX_DEPTH 8u
 
-/* Frame header (root key, op, record count): a telemetry frame is a command of the VM router. */
-#define SUB_FRAME_HDR_LEN 3u
+/* Frame header (op, record count): the data of a PUSH out of the port VM_STREAM, [hdr PUSH, MODULE_ID_VM] before it. */
+#define SUB_FRAME_HDR_LEN 2u
 /* Value record head (vm_wire_data_t) and describe record without its name
    (vm_wire_obj_t): the SET_DATA / ADD_OBJECTS layouts. */
 #define SUB_VALUE_HDR_LEN sizeof(vm_wire_data_t)
@@ -95,9 +97,8 @@ static struct {
  * time (the VM task, or the interface task under the program barrier).
  * ------------------------------------------------------------------------- */
 
-/* A frame's limit: the buffer, or less when a stream's payload is smaller. */
-#define SUB_FRAME_CAP                                                                                                  \
-  ((size_t)(CONFIG_VM_SUB_MAX_FRAME_LEN))
+/* A frame's limit: the buffer, or less when a PUSH carries less. */
+#define SUB_FRAME_CAP ((size_t)(CONFIG_VM_SUB_MAX_FRAME_LEN < CMD_DATA_MAX ? CONFIG_VM_SUB_MAX_FRAME_LEN : CMD_DATA_MAX))
 
 typedef struct {
   uint8_t buf[CONFIG_VM_SUB_MAX_FRAME_LEN];
@@ -106,10 +107,13 @@ typedef struct {
   uint8_t packet;
 } sub_frame_t;
 
+/* The telemetry out, one way: its links say where it goes (the app's session). */
+static data_matrix_port_t s_port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, MODULE_ID_VM)};
+
 static struct {
   sub_frame_t desc;
   sub_frame_t value;
-  bool refused; /* the transport refused a frame in this sample */
+  bool refused; /* no port was linked from the stream for a frame in this sample */
 } s_frames;
 
 static inline void put_u16(uint8_t* p, uint16_t v) {
@@ -119,9 +123,8 @@ static inline void put_u16(uint8_t* p, uint16_t v) {
 
 static void frame_init(sub_frame_t* f, uint8_t packet) {
   f->packet = packet;
-  f->buf[0] = MODULE_ID_VM;
-  f->buf[1] = packet;
-  f->buf[2] = 0;
+  f->buf[0] = packet;
+  f->buf[1] = 0;
   f->len = SUB_FRAME_HDR_LEN;
   f->count = 0;
 }
@@ -130,13 +133,13 @@ static void frame_lost(const sub_frame_t* f);
 
 static void frame_send(sub_frame_t* f) {
   if (f->count == 0) return;
-  f->buf[2] = f->count;
+  f->buf[1] = f->count;
   ESP_LOGD(TAG, "TX 0x%02X: %u records (%u bytes)", (unsigned)f->packet, (unsigned)f->count, (unsigned)f->len);
-  err_h err = NULL; /* TODO: the telemetry goes out of a port of the data matrix */
-  if (err) {
+  if (data_matrix_linked(&s_port)) {
+    data_matrix_push(&s_port, 0, NULL, 0, f->buf, (uint32_t)f->len);
+  } else { /* nobody to take it: what it held is sent again once a link is made */
     s_frames.refused = true;
     frame_lost(f);
-    err_report(err);
     if (f == &s_frames.desc) { /* pending values may reference what was just lost */
       frame_lost(&s_frames.value);
       frame_init(&s_frames.value, s_frames.value.packet);
@@ -462,6 +465,7 @@ static void sample(void) {
  * ------------------------------------------------------------------------- */
 
 err_h vm_sub_init(void) {
+  ERR_TRY(data_matrix_register(&s_port));
   vm_exec_set_sample_hook(vm_sub_scan);
   return NULL;
 }

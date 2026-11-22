@@ -21,6 +21,7 @@
 #include "sys_session.h"
 #include "sys_system.h"
 #include "sys_watch.h"
+#include "vm_router.h"
 
 #define TAG __FILE_NAME__
 
@@ -45,6 +46,7 @@ void runit_start(void) {
   err_report(router_init());
   // The modules' ports before the links to them.
   err_report(sys_log_init());
+  err_report(vm_init());
   err_report(runit_data_matrix_setup());
   err_set_sink(error_sink);
   err_report(sys_device_create_system(RUNIT_DEV_GPIO, RUNIT_DEV_TYPE_GPIO, NULL, 0u));
