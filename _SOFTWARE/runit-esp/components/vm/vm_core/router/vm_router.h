@@ -1,6 +1,7 @@
 #pragma once
 
 #include "router.h"
+#include "vm_id.h"
 
 #ifdef __cplusplus
 extern "C" {

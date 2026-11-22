@@ -21,7 +21,7 @@
   static err_h name(CMD_F_PARAMS) {                                          \
     (void)ctx;                                                               \
     (void)out;                                                               \
-    return name##_body(in.data + 1, in.len - 1);                             \
+    return name##_body(in.data, in.len);                             \
   }                                                                          \
   static err_h name##_body(const uint8_t* body, size_t len)
 
@@ -267,12 +267,15 @@ err_h vm_init(void) {
 err_h vm_stop_on_fault(uint16_t device_id) {
   (void)vm_exec_fault_latch(device_id, 0);  // requests the stop at once; the root tag is not known here
   err_h err = vm_exec_stop();
-  if (err != NULL && err->tag == ERR_VM_EXEC_SELF_BARRIER) {  // called from the pass itself: the latch stops it
+  if (err != NULL && err_tag(err) == ERR_VM_EXEC_SELF_BARRIER) {  // called from the pass itself: the latch stops it
     err_free(err);
     return NULL;
   }
   return err;
 }
+
+#define ROUTER_W(code, fn) {(code), NULL, (fn)}
+#define ROUTER_R(code, fn) {(code), (fn), NULL}
 
 static const router_op_t k_ops[] = {
     ROUTER_W(VM_OP_RESET, op_reset),
@@ -288,3 +291,4 @@ static const router_op_t k_ops[] = {
 };
 
 ROUTER_MODULE(vm_router, k_ops)
+ROUTER_MODULE_REGISTER(MODULE_ID_VM, vm_router)

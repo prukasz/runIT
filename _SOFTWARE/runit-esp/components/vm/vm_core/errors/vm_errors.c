@@ -1,6 +1,6 @@
 #include "vm_errors.h"
 
-ERR_MODULE_DEFINE(ERR_MOD_VM, "vm", ERR_VM_MAP)
+ERR_MODULE_DEFINE(MODULE_ID_VM, ERR_VM_MAP)
 
 /* Cold-path error builders. */
 
@@ -38,17 +38,11 @@ __attribute__((noinline)) err_h vm_err_index_failed(err_h cause, uint16_t id, ui
   return ERR_WRAP(cause, ERR_VM_ACCESSOR_INDEX_FAILED, .id = id, .chain_pos = pos);
 }
 
-// built by hand, not ERR_NEW alone: the payload carries a copied string, and
-// designated initialisers can't fill a char array
+// TODO: the payload is read-only now, so the name is not copied into it
 __attribute__((noinline)) err_h vm_err_name_not_found(uint16_t id, uint8_t pos, const char* name, size_t name_len) {
-  err_h e = ERR_NEW(ERR_VM_ACCESSOR_NAME_NOT_FOUND, .id = id, .chain_pos = pos);
-  if (e->tag != ERR_VM_ACCESSOR_NAME_NOT_FOUND) return e;
-  err_data_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t* pl = (err_data_ERR_VM_ACCESSOR_NAME_NOT_FOUND_t*)(void*)e->data;
-  size_t n = name ? name_len : 0;
-  if (n >= sizeof(pl->name)) n = sizeof(pl->name) - 1;
-  if (n) memcpy(pl->name, name, n);
-  pl->name[n] = '\0';
-  return e;
+  (void)name;
+  (void)name_len;
+  return ERR_NEW(ERR_VM_ACCESSOR_NAME_NOT_FOUND, .id = id, .chain_pos = pos);
 }
 
 __attribute__((noinline)) err_h vm_obj_not_scalar_err(uint16_t owner_id, vm_obj_t_e actual, uint16_t id) {

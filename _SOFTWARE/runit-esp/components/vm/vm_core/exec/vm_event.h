@@ -6,14 +6,24 @@
 /*
 Events bridge system callbacks into the running VM pass:
   sys_event task (Core 0) -> [ s_vm_event_q ] -> vm_event_drain() -> [ this pass's snapshot ] (Core 1)
-Buffered as sys_event_t; valid for the duration of one scan cycle, lock-free to query.
+Buffered as vm_event_t (the key and the first 4 bytes of the payload); valid for the duration of one scan cycle, lock-free to query.
 */
+
+/** @brief One event of the snapshot: its key and its value (the first 4 payload bytes, 0 when it has fewer). */
+typedef struct {
+  sys_event_key_t key;
+  int32_t value;
+} vm_event_t;
+
+/** @brief Whether the event passes a filter of the ON_EVENT block: the source, the code of the tag and the channel, each
+ *  exact or SYS_EVENT_ANY_*. */
+bool vm_event_matches(uint16_t source, uint16_t code, uint16_t channel, const vm_event_t* ev);
 
 /** @brief Number of events in current cycle snapshot. */
 uint8_t vm_event_count(void);
 
 /** @brief Event at index i of this cycle's snapshot, or NULL if out of bounds. */
-const sys_event_t* vm_event_at(uint8_t i);
+const vm_event_t* vm_event_at(uint8_t i);
 
 /** @brief Drain incoming queue into the current cycle snapshot (called at start of pass). */
 void vm_event_drain(void);

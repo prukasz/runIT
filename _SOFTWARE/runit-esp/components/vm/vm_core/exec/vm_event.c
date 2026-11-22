@@ -3,10 +3,10 @@
 #include "sys_device.h"
 #include "utils.h"
 
-U_QUEUE_DEFINE(s_vm_event_q, CONFIG_VM_EVENT_DEPTH, sizeof(sys_event_t));
+U_QUEUE_DEFINE(s_vm_event_q, CONFIG_VM_EVENT_DEPTH, sizeof(vm_event_t));
 
 static struct {
-  sys_event_t cycle[CONFIG_VM_EVENT_DEPTH];  // this pass's events: VM task only, read lock-free by blocks
+  vm_event_t cycle[CONFIG_VM_EVENT_DEPTH];  // this pass's events: VM task only, read lock-free by blocks
   uint8_t cycle_cnt;
   volatile uint32_t dropped;      // event task only writes (queue full)
   volatile uint16_t drop_source;  // event task only writes: the source of the last dropped event
@@ -23,17 +23,25 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
   if (!s_vm_event.wanted) {
     return NULL;
   }
-  if (xQueueSend(s_vm_event_q, ev, NO_WAIT) != pdTRUE) {
-    s_vm_event.drop_source = ev->source;
+  vm_event_t e = {.key = ev->key};
+  if (ev->len >= sizeof(e.value)) memcpy(&e.value, ev->data, sizeof(e.value));
+  if (xQueueSend(s_vm_event_q, &e, NO_WAIT) != pdTRUE) {
+    s_vm_event.drop_source = ev->key.source;
     s_vm_event.dropped++;
   }
   return NULL;
 }
 
 err_h vm_event_init(void) {
-  uint8_t handle;
-  return sys_event_subscribe_fn(SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_EVENT, SYS_EVENT_ANY_CHANNEL, on_event, NULL,
-                                &handle);
+  uint16_t handle;
+  const sys_event_key_t any = {.tag = SYS_EVENT_ANY_TAG, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL};
+  return sys_event_subscribe(any, on_event, NULL, SYS_EVENT_RUN_INLINE, &handle);
+}
+
+bool vm_event_matches(uint16_t source, uint16_t code, uint16_t channel, const vm_event_t* ev) {
+  return (source == SYS_EVENT_ANY_SOURCE || source == ev->key.source) &&
+         (code == SYS_EVENT_ANY_CODE || code == (uint16_t)(ev->key.tag & 0xFFFFu)) &&
+         (channel == SYS_EVENT_ANY_CHANNEL || channel == ev->key.channel);
 }
 
 void vm_event_drain(void) {
@@ -46,7 +54,7 @@ uint8_t vm_event_count(void) {
   return s_vm_event.cycle_cnt;
 }
 
-const sys_event_t* vm_event_at(uint8_t i) {
+const vm_event_t* vm_event_at(uint8_t i) {
   return (i < s_vm_event.cycle_cnt) ? &s_vm_event.cycle[i] : NULL;
 }
 

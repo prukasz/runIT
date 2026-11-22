@@ -168,7 +168,7 @@ static uint32_t args_pack(const vm_dev_op_t* op, const int32_t* v, uint8_t* out)
 // Whether `tag` is in the chain a device call answered.
 static bool chain_has(err_h err, uint32_t tag) {
   for (; err != NULL; err = err->next) {
-    if (err->tag == tag) {
+    if (err_tag(err) == tag) {
       return true;
     }
   }

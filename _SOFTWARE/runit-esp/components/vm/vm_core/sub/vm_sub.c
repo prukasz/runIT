@@ -2,8 +2,6 @@
 #include "esp_log.h"
 #include "vm_err.h"
 #include "freertos/FreeRTOS.h"
-#include "router_ids.h"
-#include "sys_stream.h"
 #include "vm_router.h"
 #include "utils.h"
 #include "vm_exec.h"
@@ -99,7 +97,7 @@ static struct {
 
 /* A frame's limit: the buffer, or less when a stream's payload is smaller. */
 #define SUB_FRAME_CAP                                                                                                  \
-  ((size_t)(CONFIG_VM_SUB_MAX_FRAME_LEN < SYS_STREAM_PAYLOAD_MAX ? CONFIG_VM_SUB_MAX_FRAME_LEN : SYS_STREAM_PAYLOAD_MAX))
+  ((size_t)(CONFIG_VM_SUB_MAX_FRAME_LEN))
 
 typedef struct {
   uint8_t buf[CONFIG_VM_SUB_MAX_FRAME_LEN];
@@ -121,7 +119,7 @@ static inline void put_u16(uint8_t* p, uint16_t v) {
 
 static void frame_init(sub_frame_t* f, uint8_t packet) {
   f->packet = packet;
-  f->buf[0] = ROUTER_KEY_VM;
+  f->buf[0] = MODULE_ID_VM;
   f->buf[1] = packet;
   f->buf[2] = 0;
   f->len = SUB_FRAME_HDR_LEN;
@@ -134,7 +132,7 @@ static void frame_send(sub_frame_t* f) {
   if (f->count == 0) return;
   f->buf[2] = f->count;
   ESP_LOGD(TAG, "TX 0x%02X: %u records (%u bytes)", (unsigned)f->packet, (unsigned)f->count, (unsigned)f->len);
-  err_h err = sys_stream_send(SYS_STREAM_TELEMETRY, f->buf, f->len);
+  err_h err = NULL; /* TODO: the telemetry goes out of a port of the data matrix */
   if (err) {
     s_frames.refused = true;
     frame_lost(f);
