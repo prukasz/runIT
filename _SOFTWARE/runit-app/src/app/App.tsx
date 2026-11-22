@@ -24,7 +24,7 @@ import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
-import { BOARD_DEVICES_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROFILE_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
+import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRouting } from './routing/useRouting'
 import { ConnectionsScreen } from './routing/ConnectionsScreen'
 import { uartProviderNames } from './routing/routing'
@@ -164,9 +164,9 @@ export function App() {
   // The Settings view's tab: remembered for the session; one gone (its service not described) falls back to the first.
   const [pickedSettingsTab, setSettingsTab] = useState<string>('')
   const settingsTab = settingsTabOf(pickedSettingsTab, settingTabs)
-  // The board editor (Project > Board devices) is the Devices view over the board's profile: the toolbar, the panels and the centre act on it.
-  const boardEdit = view === 'Project' && projectTab === BOARD_DEVICES_TAB
-  const profileEdit = boardEdit || (view === 'Project' && projectTab === PROFILE_TAB)
+  // The board editor (Project > Board profile) is the Devices view over the board's profile: the toolbar, the panels and the centre act on it.
+  const boardEdit = view === 'Project' && projectTab === BOARD_TAB
+  const profileEdit = boardEdit
   const ed = profileEdit ? boardEditor : devices
   const showView = (next: ViewName) => {
     if (next === 'Project' && view !== 'Project') setProjectTab(PROJECT_TAB)
@@ -355,7 +355,7 @@ export function App() {
                 ? (
                   <>
                     <ProjectSummary name={project.project.name} unsaved={project.unsaved} selected={projectTab === PROJECT_TAB} onOpen={() => setProjectTab(PROJECT_TAB)} />
-                    <ProjectTabs tab={projectTab} onTab={setProjectTab} />
+                    <ProjectTabs tab={projectTab} onTab={(tab) => { if (tab === BOARD_TAB) boardEditor.select(undefined); setProjectTab(tab) }} />
                   </>
                 )
                 : view === 'Settings'
@@ -497,10 +497,10 @@ export function App() {
                 ? <AppSettingsScreen zoom={appZoom} />
                 : <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />)
             : view === 'Project'
-              ? (projectTab === PROFILE_TAB
-                ? <BoardProfileScreen profile={boardProfile} editor={boardEditor} />
-                : projectTab === BOARD_DEVICES_TAB
-                ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
+              ? (projectTab === BOARD_TAB
+                ? (boardEditor.selection
+                  ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
+                  : <BoardProfileScreen profile={boardProfile} editor={boardEditor} />)
                 : projectTab === CONNECTIONS_TAB
                 ? <ConnectionsScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onName={(id, name) => setProviderName(project, id, name)} />
                 : projectTab === BOARDS_TAB

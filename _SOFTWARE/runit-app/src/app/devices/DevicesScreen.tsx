@@ -371,7 +371,7 @@ export function DevicesScreen({ state }: { state: DevicesState }) {
           : (
             <div className="view-placeholder">
               <h2>Devices</h2>
-              <p>{state.scope === 'board' ? 'Choose a device on the left, or add one. Write puts the devices and what the board runs at every load on the board.' : 'Choose a device or an action on the left, or add one. The toolbar writes the devices, their start commands and the actions to the board, and reads them back.'}</p>
+              <p>Choose a device or an action on the left, or add one. The toolbar writes the devices, their start commands and the actions to the board, and reads them back.</p>
             </div>
           )}
     </div>

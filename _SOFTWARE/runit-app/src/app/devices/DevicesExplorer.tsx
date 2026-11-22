@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ListChecks } from 'lucide-react'
+import { ArrowLeft, FileCog, ListChecks } from 'lucide-react'
 import { Badge, Button, DeviceTile, PaletteSectionHeader, SegmentedSwitch, TreeAction, TreeSlab } from '@ui/components'
 import { usePersistedChoice } from '@ui/hooks/useStorage'
 import type { DeviceInfo } from './devices'
@@ -52,13 +52,15 @@ export function DevicesExplorer({ state, onBack }: { state: DevicesState; onBack
     if (kind) setTab(kind === 'action' ? 'actions' : 'devices')
   }, [kind, actions])
 
-  // The board editor (Project view): the board's devices alone, as the Board list here, no actions; in the switch's place the way
-  // back to the board's settings.
+  // The board editor (Project view): in the switch's place the way back to the project, then the profile itself (its page: the
+  // file, Read and Write) and the board's devices alone as the Board list here, no actions.
   if (state.scope === 'board') {
     return (
       <div className="devices-explorer">
-        <Button block title="Back to the board's settings" onClick={onBack}><ArrowLeft aria-hidden="true" />Settings</Button>
-        <PaletteSectionHeader label="Board" count={state.devices.length} open={open.board} onToggle={() => setOpen((o) => ({ ...o, board: !o.board }))} />
+        <Button block title="Back to the project" onClick={onBack}><ArrowLeft aria-hidden="true" />Project</Button>
+        <TreeSlab icon={<DeviceTile size="small" icon={FileCog} />} label="Profile" title="The profile as a file: presets, Open, Save, Read and Write"
+          selected={state.selection === undefined} onClick={() => state.select(undefined)} />
+        <PaletteSectionHeader label="Devices" count={state.devices.length} open={open.board} onToggle={() => setOpen((o) => ({ ...o, board: !o.board }))} />
         {open.board && state.devices.map((d) => <DeviceRow key={d.id} device={d} state={state} />)}
         <Button variant="dashed" block onClick={() => state.select({ kind: 'add' })}>Add device</Button>
       </div>

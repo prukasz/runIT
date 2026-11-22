@@ -4,9 +4,10 @@ import type { BoardProfileState } from './useBoardProfile'
 import type { DevicesState } from './useDevices'
 
 /*
- * The Project view's Board profile tab: the board's profile as one file (`.runit-board.json`, a project file whose devices are the
- * board's: devices/boardEditor.ts), with its devices and their Board boot, its I2C buses and UART ports. Presets load the bundled
- * runIT PCB (rev 1, all 15 chips) or ESP32-S3 DevKit directly; Open replaces from a file; Write stores it on the board and restarts.
+ * The page of the Project view's Board profile tab while no device of it is chosen: the board's profile as one file
+ * (`.runit-board.json`, a project file whose devices are the board's: devices/boardEditor.ts), with its devices and their Board
+ * boot, its I2C buses and UART ports. Presets load the bundled runIT PCB (rev 1, all 15 chips) or ESP32-S3 DevKit directly; Open
+ * replaces from a file; Write stores it on the board and restarts. A device in its list opens that device's page in the tab.
  */
 export function BoardProfileScreen({ profile, editor }: { profile: BoardProfileState; editor?: DevicesState }) {
   const p = profile.project
@@ -65,6 +66,7 @@ export function BoardProfileScreen({ profile, editor }: { profile: BoardProfileS
                 key={d.id}
                 label={`#${d.id} · ${d.name}`}
                 icon={<Cpu aria-hidden="true" />}
+                {...(editor ? { onClick: () => editor.select({ kind: 'device', id: d.id }) } : {})}
               >
                 <Badge tone="neutral" size="compact">{d.descriptor.replace(/^device_/, '')}</Badge>
                 {addr && <Badge tone="neutral" size="compact">{addr}</Badge>}

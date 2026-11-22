@@ -57,7 +57,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const [selection, setSelection] = useState<DeviceSelection | undefined>()
   /** The pin whose settings the right panel shows (of the selected device). */
   const [pinSelection, setPinSelection] = useState<{ readonly device: number; readonly pin: number } | undefined>()
-  const select = useCallback((next: DeviceSelection) => { setSelection(next); setPinSelection(undefined) }, [])
+  const select = useCallback((next: DeviceSelection | undefined) => { setSelection(next); setPinSelection(undefined) }, [])
   const selectPin = useCallback((device: number, pin: number) => { setSelection({ kind: 'device', id: device }); setPinSelection({ device, pin }) }, [])
   const clearPin = useCallback(() => setPinSelection(undefined), [])
   const [live, setLive] = useState<ReadonlyMap<number, LiveDevice>>(new Map())
