@@ -1,35 +1,18 @@
 import { useState } from 'react'
-import { Bluetooth, Cable, Cpu, FileCog, Monitor, Network, Share2, SlidersHorizontal, Zap } from 'lucide-react'
+import { Bluetooth, Monitor, SlidersHorizontal, Zap } from 'lucide-react'
 import { Badge, DeviceTile, PaletteSectionHeader, TreeSlab } from '@ui/components'
 import type { SettingSection } from './settings'
 import type { BoardSettingsState } from './useBoardSettings'
 import { useErrors } from '../console/useConsole'
 
 /*
- * The settings of the Project view's left panel, under the project (its landing page, App.tsx `ProjectSummary`): the board's,
- * the project's other boards (boards/BoardsScreen.tsx) and a tab per service descriptor with settings (settings.ts), then the app's (the Live power display, App settings). The project
- * service's own settings (what the board does with the project at start) are on the landing page.
+ * The tabs of the Settings view's left panel: the board's, a tab per service descriptor with settings (settings.ts), then the
+ * app's (the Live power display, App settings). The project service's own settings (what the board does with the project at
+ * start) are on the Project view's landing page.
  */
 
-/** The tab id of the project itself: the landing page. */
-export const PROJECT_TAB = 'project'
 /** The tab of the Live power display: what the right panel shows of the board's power (power/PowerDisplayScreen.tsx). */
 export const POWER_TAB = 'live-power'
-
-/** The tab of the project's other boards, linked to this one over BLE (boards/BoardsScreen.tsx). */
-export const BOARDS_TAB = 'boards'
-
-/** The tab of the board's profile as a file: Open and Save (devices/BoardProfileScreen.tsx). */
-export const PROFILE_TAB = 'board-profile'
-
-/** The tab of the board's devices, the board editor (project/BoardEditorScreen.tsx). */
-export const BOARD_DEVICES_TAB = 'board-devices'
-
-/** The tab for creating and inspecting data providers (routing/ProvidersScreen.tsx). */
-export const PROVIDERS_TAB = 'providers'
-
-/** The tab for visualizing and wiring the data matrix + sessions (routing/DataMatrixScreen.tsx). */
-export const DATA_MATRIX_TAB = 'data-matrix'
 
 /** The tab of the app's own settings (appSettings/AppSettingsScreen.tsx). */
 export const APP_TAB = 'app-settings'
@@ -37,6 +20,10 @@ export const APP_TAB = 'app-settings'
 /** The sections that have a tab of their own: every one but the project service's (shown on the Project tab). */
 export const tabSections = (sections: readonly SettingSection[], projectKey: number | undefined): SettingSection[] =>
   sections.filter((s) => s.service.key !== projectKey)
+
+/** The tab shown: the one picked while it still exists, else the board's first, else the app's. */
+export const settingsTabOf = (tab: string, sections: readonly SettingSection[]): string =>
+  tab === POWER_TAB || tab === APP_TAB || sections.some((s) => s.service.id === tab) ? tab : (sections[0]?.service.id ?? APP_TAB)
 
 const iconOf = (section: SettingSection) =>
   section.record?.editor === 'ble' ? Bluetooth : SlidersHorizontal
@@ -55,12 +42,7 @@ export function SettingsTabs({ sections, state, tab, onTab }: { sections: readon
   const errorBadge = (n: number) => n > 0 ? <Badge tone="danger" size="compact" title={`${n} errors not read (Console)`}>{n}</Badge> : undefined
   return (
     <div className="settings-tabs">
-      <PaletteSectionHeader label="Board" count={sections.length + 5} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
-      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={FileCog} />} label="Board profile" title="The board's profile as a file: open one (the bundled boards' defaults) or save this one" selected={tab === PROFILE_TAB} onClick={() => onTab(PROFILE_TAB)} />}
-      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Cpu} />} label="Board devices" title="The devices the board has installed, with their settings and what they do at every start" selected={tab === BOARD_DEVICES_TAB} onClick={() => onTab(BOARD_DEVICES_TAB)} />}
-      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Cable} />} label="Providers" title="Data providers (BLE, UART, Console): create, inspect and remove transport endpoints" selected={tab === PROVIDERS_TAB} onClick={() => onTab(PROVIDERS_TAB)} />}
-      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Share2} />} label="Data matrix" title="Interactive graph of modules, sessions and providers: attach sessions and wire ports live" selected={tab === DATA_MATRIX_TAB} onClick={() => onTab(DATA_MATRIX_TAB)} />}
-      {boardOpen && <TreeSlab icon={<DeviceTile size="small" icon={Network} />} label="Boards" title="Other boards this one leads over Bluetooth: found, linked, given their ids" selected={tab === BOARDS_TAB} onClick={() => onTab(BOARDS_TAB)} />}
+      <PaletteSectionHeader label="Board" count={sections.length} open={boardOpen} onToggle={() => setBoardOpen(!boardOpen)} />
       {boardOpen && sections.map((s) => (
         <TreeSlab key={s.service.id} icon={<DeviceTile size="small" icon={iconOf(s)} />} label={s.title} title={s.service.description} selected={tab === s.service.id}
           isError={unread(s.service.key) > 0}

@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, Settings, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -23,7 +23,8 @@ import { useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { APP_TAB, BOARD_DEVICES_TAB, BOARDS_TAB, DATA_MATRIX_TAB, POWER_TAB, PROFILE_TAB, PROJECT_TAB, PROVIDERS_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
+import { BOARD_DEVICES_TAB, BOARDS_TAB, DATA_MATRIX_TAB, PROFILE_TAB, PROJECT_TAB, PROVIDERS_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRouting } from './routing/useRouting'
 import { ProvidersScreen } from './routing/ProvidersScreen'
 import { DataMatrixScreen } from './routing/DataMatrixScreen'
@@ -55,9 +56,10 @@ import { PartCreator } from './hardware/PartCreator'
 
 /** The screens, as tabs along the top of the left panel (the Console's on the right). */
 const VIEWS = [
-  { name: 'Project', icon: FolderOpen, title: 'Project', note: 'The project file and the board settings.' },
+  { name: 'Project', icon: FolderOpen, title: 'Project', note: 'The project file and what the board is made of.' },
   { name: 'Code', icon: Code2, title: 'Code', note: 'Variables, blocks and the canvas.' },
   { name: 'Devices', icon: Cpu, title: 'Devices', note: 'The board\'s devices, their pins and commands.' },
+  { name: 'Settings', icon: Settings, title: 'Settings', note: 'The board\'s settings and the app\'s.' },
   { name: 'Console', icon: ScrollText, title: 'Console', note: 'The logs and errors of the board.' },
 ] as const
 type ViewName = (typeof VIEWS)[number]['name']
@@ -127,7 +129,7 @@ export function App() {
   const vm = useVm(link, state, project.project.program, runSettings.holdMs)
   const code = useCode(project)
   const [theme, setTheme] = usePersistedChoice('runit.theme', ['dark', 'light'] as const, 'dark')
-  const [view, setView] = usePersistedChoice<ViewName>('runit.shell.view', ['Project', 'Code', 'Devices', 'Console'], 'Project')
+  const [view, setView] = usePersistedChoice<ViewName>('runit.shell.view', ['Project', 'Code', 'Devices', 'Settings', 'Console'], 'Project')
   const [codeMode, setCodeMode] = usePersistedChoice<ScreenMode>('runit.code.mode', SCREEN_MODES, 'details')
   const [devicesMode, setDevicesMode] = usePersistedChoice<ScreenMode>('runit.devices.mode', SCREEN_MODES, 'details')
   const [connectionOpen, setConnectionOpen] = useState(false)
@@ -151,12 +153,15 @@ export function App() {
   // The variable picked in the tree, as a path: on the canvas a tap on a block offers its pins for it.
   const pickedDraft = code.selected ? draftForVariable(code.tree, code.selected.variable.id) : undefined
   const pickedPath = pickedDraft && toPath(pickedDraft)
-  // The board's settings, read as soon as the link is up (the Project screen shows them).
+  // The board's settings, read as soon as the link is up (the Settings view shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
   const routing = useRouting(link, state === 'connected')
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
-  // The Project view opens on its landing page (the project); a settings tab is a page reached from it, not remembered.
+  // The Project view opens on its landing page (the project); a board tab is a page reached from it, not remembered.
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
+  // The Settings view's tab: remembered for the session; one gone (its service not described) falls back to the first.
+  const [pickedSettingsTab, setSettingsTab] = useState<string>('')
+  const settingsTab = settingsTabOf(pickedSettingsTab, settingTabs)
   // The board editor (Project > Board devices) is the Devices view over the board's profile: the toolbar, the panels and the centre act on it.
   const boardEdit = view === 'Project' && projectTab === BOARD_DEVICES_TAB
   const profileEdit = boardEdit || (view === 'Project' && projectTab === PROFILE_TAB)
@@ -166,7 +171,7 @@ export function App() {
     setView(next)
   }
   const appZoom = useAppZoom()
-  const tabSection = settingTabs.find((s) => s.service.id === projectTab)
+  const tabSection = settingTabs.find((s) => s.service.id === settingsTab)
   // What the Live power display reads: the project's, else the board's default.
   const powerReadings = useMemo(() => project.project.powerDisplay ?? defaultReadings(devices.board), [project.project.powerDisplay, devices.board])
   // The board's logs and errors (Console view); the errors are also shown on what they are about (devices, pins, settings tabs).
@@ -200,11 +205,9 @@ export function App() {
           : { kind: 'device', name: d.name, detail: `Channel ${ref.id}`, open: () => { setView('Devices'); devices.select({ kind: 'device', id: d.id }) } }
       }
       if (ref.kind === 'router_key') {
-        const tab = ref.id === link.defs.keys.project ? { id: PROJECT_TAB, name: 'Project' } : (() => {
-          const s = settingTabs.find((t) => t.service.key === ref.id)
-          return s && { id: s.service.id, name: s.title }
-        })()
-        return tab && { kind: 'settings', name: tab.name, open: () => { setView('Project'); setProjectTab(tab.id) } }
+        if (ref.id === link.defs.keys.project) return { kind: 'settings', name: 'Project', open: () => { setView('Project'); setProjectTab(PROJECT_TAB) } }
+        const s = settingTabs.find((t) => t.service.key === ref.id)
+        return s && { kind: 'settings', name: s.title, open: () => { setView('Settings'); setSettingsTab(s.service.id) } }
       }
       return undefined
     },
@@ -350,9 +353,11 @@ export function App() {
                 ? (
                   <>
                     <ProjectSummary name={project.project.name} unsaved={project.unsaved} selected={projectTab === PROJECT_TAB} onOpen={() => setProjectTab(PROJECT_TAB)} />
-                    <SettingsTabs sections={settingTabs} state={boardSettings} tab={projectTab} onTab={setProjectTab} />
+                    <ProjectTabs tab={projectTab} onTab={setProjectTab} />
                   </>
                 )
+                : view === 'Settings'
+                ? <SettingsTabs sections={settingTabs} state={boardSettings} tab={settingsTab} onTab={setSettingsTab} />
                 : view === 'Code'
                 ? (
                   <>
@@ -387,7 +392,7 @@ export function App() {
               )}
               <button aria-label="Undo" data-help="Undoes the last change (Ctrl+Z)." title="Undo (Ctrl+Z)" disabled={!(profileEdit ? boardProfile.canUndo : project.canUndo)} onClick={profileEdit ? boardProfile.undo : project.undo}><Undo2 aria-hidden="true" /></button>
               <button aria-label="Redo" data-help="Redoes the change that was undone (Ctrl+Y)." title="Redo (Ctrl+Y)" disabled={!(profileEdit ? boardProfile.canRedo : project.canRedo)} onClick={profileEdit ? boardProfile.redo : project.redo}><Redo2 aria-hidden="true" /></button>
-              {(view === 'Devices' || view === 'Project') && (
+              {(view === 'Devices' || view === 'Project' || view === 'Settings') && (
                 <>
                   <button aria-label="Read from the board" data-help="Reads the settings, devices, start commands and actions the board keeps into the project. Undo goes back." title={state === 'connected' ? 'Read from the board: the devices, their start commands and the actions it keeps (Undo goes back)' : 'Connect the board first'}
                     disabled={state !== 'connected' || ed.busy !== undefined} onClick={ed.read}>
@@ -483,12 +488,14 @@ export function App() {
             ? <CanvasSurface blocks={blocks} picked={pickedPath} onPickedUsed={() => code.select(undefined)} onToggleDetails={toggleDetails} />
             : screens
             ? <div className={`view-placeholder ${mode === 'canvas' ? 'canvas-empty' : ''}`}><h2>{current.title} · {mode === 'canvas' ? 'Canvas' : 'Details'}</h2><p>{screens[mode]}</p></div>
-            : view === 'Project'
-              ? (projectTab === POWER_TAB
+            : view === 'Settings'
+              ? (settingsTab === POWER_TAB
                 ? <PowerDisplayScreen project={project} services={devices.services} board={devices.board} devices={devices.devices} connected={state === 'connected'} />
-                : projectTab === APP_TAB
+                : settingsTab === APP_TAB || !tabSection
                 ? <AppSettingsScreen zoom={appZoom} />
-                : projectTab === PROFILE_TAB
+                : <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />)
+            : view === 'Project'
+              ? (projectTab === PROFILE_TAB
                 ? <BoardProfileScreen profile={boardProfile} editor={boardEditor} />
                 : projectTab === BOARD_DEVICES_TAB
                 ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
@@ -498,8 +505,6 @@ export function App() {
                 ? <DataMatrixScreen routing={routing} onOpenProviders={() => setProjectTab(PROVIDERS_TAB)} />
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
-                : tabSection
-                ? <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)
               : <div className="view-placeholder"><h2>{current.title}</h2><p>Nothing here yet.</p></div>}
         </MainScreen>
