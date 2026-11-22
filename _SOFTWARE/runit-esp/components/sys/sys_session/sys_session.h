@@ -62,6 +62,31 @@ _Static_assert(sizeof(sys_session_hello_t) == 8, "hello");
 /** ATTACH's flag: the end of the session is a safety event (sys_system enters the safe state); else it only ends. */
 //#ref-defines session_flag @alias Session flags @prefix SYS_SESSION_
 #define SYS_SESSION_SAFETY (1u << 0)  //@alias Safety @description The end of the session enters the safe state
+#define SYS_SESSION_SLAVE  (1u << 1)  //@alias Slave @description The peer is a board below this one: its sub-ports are the board's and linked as a slave's
+#define SYS_SESSION_MASTER (1u << 2)  //@alias Master @description The peer is the board above this one: its sub-ports are the board's and linked as a master's
+
+/** A sub-port of a board's session and its links: SYS_SESSION_IN, the sub-port to its module's port (what the peer
+ *  sends); SYS_SESSION_OUT, the module's port to the sub-port (what the peer hears). */
+#define SYS_SESSION_IN  (1u << 0)
+#define SYS_SESSION_OUT (1u << 1)
+
+typedef struct {
+  uint8_t module;  /**< The module of the sub-port (MODULE_ID_*) */
+  uint8_t ways;    /**< SYS_SESSION_IN, SYS_SESSION_OUT or both */
+} sys_session_sub_t;
+
+/**
+ * @brief The sub-ports a session of a board gets, and their links, as the board says: for a slave (SYS_SESSION_SLAVE)
+ * and for a master (SYS_SESSION_MASTER). Called once, before any such session is attached; the rows are kept, not
+ * copied.
+ * @param[in] slave    Rows of a slave's session, at most CONFIG_SYS_SESSION_PORTS.
+ * @param[in] slave_n  How many.
+ * @param[in] master   Rows of a master's session.
+ * @param[in] master_n How many.
+ * @return NULL; ERR_BAD_ARG for too many rows.
+ */
+MUST_USE err_h sys_session_set_boards(const sys_session_sub_t* slave, uint32_t slave_n, const sys_session_sub_t* master,
+                                      uint32_t master_n);
 
 /* ----------------------------------------------------------------------------
  * Sessions
@@ -75,8 +100,10 @@ _Static_assert(sizeof(sys_session_hello_t) == 8, "hello");
  * @param[in] deadman_ms 0: no dead-man, the session never ends by silence; else its time,
  *                       SYS_SESSION_DEADMAN_MIN_MS..SYS_SESSION_DEADMAN_MAX_MS, and the keepalive a third of it.
  * @param[in] flags      SYS_SESSION_SAFETY: the end of the session is a safety event (GONE's `safety`).
+ *                       SYS_SESSION_SLAVE or SYS_SESSION_MASTER (not both): the peer is a board; its sub-ports and their
+ *                       links are the board's (sys_session_set_boards), `modules` is empty.
  * @param[in] modules    The modules of its sub-ports (MODULE_ID_ROUTER for the commands), at most
- *                       CONFIG_SYS_SESSION_PORTS.
+ *                       CONFIG_SYS_SESSION_PORTS; none for a board's session.
  * @param[in] n          How many.
  * @return NULL when attached; ERR_FULL, ERR_SESSION_NOT_FRAMED (none, or a raw provider), ERR_BAD_ARG (a
  *         bad time, flag or list, or attached with another), or the data matrix's error.

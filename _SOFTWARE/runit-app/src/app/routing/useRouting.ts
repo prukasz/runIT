@@ -19,10 +19,11 @@ export interface RoutingState {
   refresh: () => Promise<void>
   createProvider: (id: number, type: string | number, config: FieldValues) => Promise<boolean>
   removeProvider: (id: number) => Promise<boolean>
-  attachSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]) => Promise<boolean>
+  /** `role`: SESSION_ROLE.slave or .master, the peer is a board and its sub-ports and links are the board's (no modules); 0: a client, with its modules. */
+  attachSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role?: number) => Promise<boolean>
   detachSession: (provider: number) => Promise<boolean>
   /** The session on a provider made again with another dead-man, safety flag or module list; the links of its sub-ports are made again (the session ends for a moment: not for the app's own). */
-  restartSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]) => Promise<boolean>
+  restartSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role?: number) => Promise<boolean>
   connectPorts: (from: number, to: number, bothWays?: boolean) => Promise<boolean>
   disconnectPorts: (from: number, to: number) => Promise<boolean>
   clearFeedback: () => void
@@ -108,13 +109,13 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     }, `Removed provider #${id}.`),
   [runAction, services])
 
-  const attachSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]): Promise<boolean> =>
+  const attachSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role = 0): Promise<boolean> =>
     runAction(`Attaching session on provider #${provider}`, async () => {
       await services.call('SESSION', 'ATTACH', {
         provider,
-        flags: safety ? SESSION_SAFETY_FLAG : 0,
+        flags: (safety ? SESSION_SAFETY_FLAG : 0) | role,
         deadman_ms: deadmanMs,
-        modules: Uint8Array.from(modules),
+        modules: Uint8Array.from(role ? [] : modules),
       }, { side: 'write' })
     }, `Attached session on provider #${provider}.`),
   [runAction, services])
@@ -125,12 +126,13 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     }, `Detached session on provider #${provider}.`),
   [runAction, services])
 
-  const restartSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]): Promise<boolean> =>
+  const restartSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role = 0): Promise<boolean> =>
     runAction(`Changing the session on provider #${provider}`, async () => {
-      const kept = subPortLinks(liveSnapshot?.links ?? [], provider)
+      // A board's session makes its own links; a client's are made again here.
+      const kept = role ? [] : subPortLinks(liveSnapshot?.links ?? [], provider)
       if (liveSnapshot?.sessions.some((s) => s.provider === provider)) await services.call('SESSION', 'DETACH', { provider }, { side: 'write' })
       await services.call('SESSION', 'ATTACH', {
-        provider, flags: safety ? SESSION_SAFETY_FLAG : 0, deadman_ms: deadmanMs, modules: Uint8Array.from(modules),
+        provider, flags: (safety ? SESSION_SAFETY_FLAG : 0) | role, deadman_ms: deadmanMs, modules: Uint8Array.from(role ? [] : modules),
       }, { side: 'write' })
       const subModule = (port: number) => { const p = parsePort(port); return p.kind === 'session' ? p.moduleId : undefined }
       for (const l of kept) {

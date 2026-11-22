@@ -60,6 +60,17 @@ static const sub_row_t k_console_subs[] = {
     {MODULE_ID_ROUTER, IN},      {MODULE_ID_ERRORS, IN | OUT}, {MODULE_ID_SYS_EVENT, IN | OUT},
     {MODULE_ID_WATCH, IN | OUT}, {MODULE_ID_LOG, OUT},         {MODULE_ID_REMOTE, IN}};
 
+// A board's session (a slave's or a master's, made at run time by ATTACH with SYS_SESSION_SLAVE / _MASTER): the same
+// rows for every board, the records going up the tree. A slave's errors, events and entries come in and are passed on
+// to the app's session (never back); this board's own go up to its master. Its commands come in, so does the remote
+// devices' frames; a call to the peer goes to its router sub-port by name.
+static const sys_session_sub_t k_slave_subs[] = {
+    {MODULE_ID_ROUTER, SYS_SESSION_IN}, {MODULE_ID_ERRORS, SYS_SESSION_IN}, {MODULE_ID_SYS_EVENT, SYS_SESSION_IN},
+    {MODULE_ID_WATCH, SYS_SESSION_IN},  {MODULE_ID_REMOTE, SYS_SESSION_IN}};
+static const sys_session_sub_t k_master_subs[] = {
+    {MODULE_ID_ROUTER, SYS_SESSION_IN},  {MODULE_ID_ERRORS, SYS_SESSION_OUT}, {MODULE_ID_SYS_EVENT, SYS_SESSION_OUT},
+    {MODULE_ID_WATCH, SYS_SESSION_OUT},  {MODULE_ID_REMOTE, SYS_SESSION_IN}};
+
 // A session of the board's own, with the dead-man's default (a safety one when there is a time).
 typedef struct {
   uint8_t provider;
@@ -102,6 +113,7 @@ static err_h attach(const session_row_t* row) {
 // The board's data (RUNIT.MD "The board's data"): the providers, the sessions and their links, then BLE, once its
 // characteristics are in the table. The modules' ports are registered by their modules before (runit.c).
 err_h runit_data_matrix_setup(void) {
+  ERR_TRY(sys_session_set_boards(k_slave_subs, ARRAY_LEN(k_slave_subs), k_master_subs, ARRAY_LEN(k_master_subs)));
   ERR_TRY(sys_ble_service_create(RUNIT_BLE_SERVICE, true));  // the providers' characteristics join it
   for (uint32_t i = 0; i < ARRAY_LEN(k_providers); i++) {
     ERR_TRY(sys_data_provider_create_system(k_providers[i].id, k_providers[i].type, k_providers[i].cfg,

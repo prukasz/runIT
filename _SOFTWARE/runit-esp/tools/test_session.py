@@ -70,8 +70,8 @@ def watch_add(wid: int, trigger: int, period: int, silence: int, read: bytes) ->
 
 
 def peers_rows(body: bytes) -> list:
-    """sys_session_info_t, 10 B: provider, open, peer_id, safety, build_id, deadman_ms."""
-    return [struct.unpack_from("<BBBBIH", body, 1 + 10 * i) for i in range(body[0])]
+    """sys_session_info_t, 11 B: provider, open, peer_id, safety, build_id, deadman_ms, role."""
+    return [struct.unpack_from("<BBBBIHB", body, 1 + 11 * i) for i in range(body[0])]
 
 
 class Uart:
@@ -181,7 +181,7 @@ class SessionUart(unittest.TestCase):
         rows = self.u.peers()
         ours = [r for r in rows if r[2] == UART_ID]
         self.assertEqual(len(ours), 1)
-        provider, opened, peer, safety, build, deadman = ours[0]
+        provider, opened, peer, safety, build, deadman, role = ours[0]
         self.assertEqual((provider, opened, deadman), (PROVIDER_CONSOLE, 1, 0))
         self.assertEqual(build, 0)  # a client has no build
         self.assertEqual(self.u.link.board, 0)  # a board with no id gives none

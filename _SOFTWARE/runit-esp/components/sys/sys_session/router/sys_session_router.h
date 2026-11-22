@@ -19,7 +19,7 @@ typedef struct __attribute__((packed)) {
 /** @brief ATTACH's head: then the modules of its sub-ports, a u8 each (sys_session_attach). */
 typedef struct __attribute__((packed)) {
   uint8_t provider;     /**< A framed provider, id below 0x80 */
-  uint8_t flags;        /**< SYS_SESSION_SAFETY */
+  uint8_t flags;        /**< SYS_SESSION_SAFETY, and SYS_SESSION_SLAVE or SYS_SESSION_MASTER (then no modules follow) */
   uint16_t deadman_ms;  /**< 0: none */
 } sys_session_attach_args_t;
 
@@ -36,6 +36,7 @@ typedef struct __attribute__((packed)) {
   uint8_t safety;       /**< 1: its end is a safety event */
   uint32_t build_id;    /**< Its firmware's build, from its hello; 0 from a client */
   uint16_t deadman_ms;  /**< This board's dead-man's time of it: the silence that ends it; 0: none */
+  uint8_t role;         /**< SYS_SESSION_SLAVE or SYS_SESSION_MASTER: the peer is a board; 0: a client */
 } sys_session_info_t;
 
 /**

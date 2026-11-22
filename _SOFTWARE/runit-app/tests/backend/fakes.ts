@@ -9,7 +9,7 @@ export const BOARD_ID = 0x01
 
 /** SESSION PEERS (the board answers it itself) and its row (sys_session_info_t, 10 B). */
 const PEERS = peersCall(bundledServiceCatalog()).request
-const PEER_ROW = 10
+const PEER_ROW = 11
 
 /**
  * A board on the far side of a fake platform: it reassembles what is written on the session characteristic, opens the session
@@ -144,7 +144,7 @@ export class FakeBoard implements BlePlatform {
     return encodeFrame(defs, { kind: defs.kind.control, src: this.boardId, key: defs.control.key, seq: 0 }, Uint8Array.of(op))
   }
 
-  /** SESSION PEERS: a count, then the client's session (provider, open, peer id, safety, build u32, dead-man u16). */
+  /** SESSION PEERS: a count, then the client's session (provider, open, peer id, safety, build u32, dead-man u16, role). */
   private peers(): Uint8Array {
     const data = new Uint8Array(1 + PEER_ROW)
     const view = new DataView(data.buffer)

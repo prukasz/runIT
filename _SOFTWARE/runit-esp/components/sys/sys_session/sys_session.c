@@ -24,6 +24,7 @@ typedef struct {
   bool used;
   bool open;                 // its peer's hello came
   bool safety;               // its end is a safety event (sys_system's safe state)
+  uint8_t role;              // SYS_SESSION_SLAVE, SYS_SESSION_MASTER or 0: a client
   uint8_t provider;
   uint8_t peer;              // its id, the src of its hello (open)
   uint8_t port_count;        // its sub-ports
@@ -41,6 +42,8 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static struct {
   session_t sessions[CONFIG_SYS_SESSION_MAX];
   board_timer_t timer;
+  const sys_session_sub_t* subs[2];  // the rows of a slave's session, of a master's
+  uint8_t sub_count[2];
 } s_state;
 
 #define FOR_EACH_SESSION(s) for (session_t* s = s_state.sessions; s < s_state.sessions + CONFIG_SYS_SESSION_MAX; s++)
@@ -151,6 +154,7 @@ uint8_t sys_session_list(sys_session_info_t out[CONFIG_SYS_SESSION_MAX]) {
           .open = s->open,
           .peer_id = s->open ? s->peer : CMD_SRC_NONE,
           .safety = s->safety,
+          .role = s->role,
           .build_id = s->open ? s->hello.build_id : 0,
           .deadman_ms = s->deadman_ms,
       };
@@ -449,11 +453,58 @@ static err_h register_ports(session_t* s) {
   return link_provider(s);
 }
 
+err_h sys_session_set_boards(const sys_session_sub_t* slave, uint32_t slave_n, const sys_session_sub_t* master,
+                             uint32_t master_n) {
+  ERR_CHECK(slave_n <= CONFIG_SYS_SESSION_PORTS && master_n <= CONFIG_SYS_SESSION_PORTS, ERR_BAD_ARG);
+  s_state.subs[0] = slave;
+  s_state.sub_count[0] = (uint8_t)slave_n;
+  s_state.subs[1] = master;
+  s_state.sub_count[1] = (uint8_t)master_n;
+  return NULL;
+}
+
+// The rows a board's session gets: its role's.
+static const sys_session_sub_t* board_rows(uint8_t role, uint32_t* n) {
+  const uint32_t at = role == SYS_SESSION_MASTER ? 1u : 0u;
+  *n = s_state.sub_count[at];
+  return s_state.subs[at];
+}
+
+// Links a board's session's sub-ports with its modules, as its rows say.
+static err_h link_board(const session_t* s) {
+  uint32_t n;
+  const sys_session_sub_t* rows = board_rows(s->role, &n);
+  for (uint32_t i = 0; i < n; i++) {
+    const data_matrix_port_id_t sub = SYS_SESSION_PORT(s->provider, rows[i].module);
+    const data_matrix_port_id_t module = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, rows[i].module);
+    if (rows[i].ways & SYS_SESSION_IN) {
+      ERR_TRY(data_matrix_connect(&(data_matrix_link_t){.from = sub, .to = module}));
+    }
+    if (rows[i].ways & SYS_SESSION_OUT) {
+      ERR_TRY(data_matrix_connect(&(data_matrix_link_t){.from = module, .to = sub}));
+    }
+  }
+  return NULL;
+}
+
 err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, const uint8_t* modules, uint32_t n) {
-  ERR_CHECK(provider <= PROVIDER_MAX && deadman_ok(deadman_ms) && (flags & ~SYS_SESSION_SAFETY) == 0u &&
-                n <= CONFIG_SYS_SESSION_PORTS && (n == 0 || modules != NULL),
+  const uint8_t role = flags & (SYS_SESSION_SLAVE | SYS_SESSION_MASTER);
+  ERR_CHECK(provider <= PROVIDER_MAX && deadman_ok(deadman_ms) &&
+                (flags & ~(SYS_SESSION_SAFETY | SYS_SESSION_SLAVE | SYS_SESSION_MASTER)) == 0u &&
+                role != (SYS_SESSION_SLAVE | SYS_SESSION_MASTER) && n <= CONFIG_SYS_SESSION_PORTS &&
+                (n == 0 || modules != NULL) && (role == 0u || n == 0),
             ERR_BAD_ARG);
   const bool safety = (flags & SYS_SESSION_SAFETY) != 0u;
+  // A board's session: its sub-ports are its role's rows.
+  uint8_t board_modules[CONFIG_SYS_SESSION_PORTS];
+  if (role != 0u) {
+    const sys_session_sub_t* rows = board_rows(role, &n);
+    ERR_CHECK(n > 0, ERR_BAD_ARG);
+    for (uint32_t i = 0; i < n; i++) {
+      board_modules[i] = rows[i].module;
+    }
+    modules = board_modules;
+  }
   session_t* at = NULL;
   bool same = false;
   bool attached = false;
@@ -461,7 +512,7 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   const session_t* was = on_provider(provider);
   if (was != NULL) {
     attached = true;
-    same = was->safety == safety && was->deadman_ms == deadman_ms && was->port_count == n;
+    same = was->safety == safety && was->role == role && was->deadman_ms == deadman_ms && was->port_count == n;
     for (uint32_t i = 0; same && i < n; i++) {
       same = (uint8_t)was->ports[i].id == modules[i];
     }
@@ -484,6 +535,7 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   err_h err = (state & SYS_DATA_PROVIDER_STATE_FRAMED) != 0 ? NULL : ERR_NEW(ERR_SESSION_NOT_FRAMED);
   if (err == NULL) {
     at->safety = safety;
+    at->role = role;
     at->deadman_ms = (uint16_t)deadman_ms;
     at->silent_ms = 0;
     at->ping_ms = 0;
@@ -494,6 +546,9 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
       at->ports[i] = (data_matrix_port_t){.id = SYS_SESSION_PORT(provider, modules[i]), .in = sub_in};
     }
     err = register_ports(at);
+    if (err == NULL && role != 0u) {
+      err = link_board(at);
+    }
   }
   if (err != NULL) {
     unregister_ports(at);

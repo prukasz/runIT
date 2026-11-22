@@ -24,7 +24,7 @@ export const SESSION_COMMANDS = {
   id: 'ID',
   boardId: 'board_id',
   peers: 'PEERS',
-  row: { provider: 'provider', open: 'open', peerId: 'peer_id', safety: 'safety', buildId: 'build_id', deadmanMs: 'deadman_ms' },
+  row: { provider: 'provider', open: 'open', peerId: 'peer_id', safety: 'safety', buildId: 'build_id', deadmanMs: 'deadman_ms', role: 'role' },
 } as const
 
 /** One session of the board as PEERS tells it. */
@@ -41,6 +41,8 @@ export interface SessionPeer {
   readonly buildId: number
   /** The board ends the session after this much silence from the peer; 0: never. */
   readonly deadmanMs: number
+  /** The peer is a board: the published `session_flag` slave (below this board) or master (above it); 0: a client. */
+  readonly role: number
 }
 
 export const peersCall = (catalog: ServiceCatalog): ServiceCall => serviceCall(catalog, SESSION_COMMANDS.service, SESSION_COMMANDS.peers)
@@ -57,6 +59,7 @@ export const readPeers = (call: ServiceCall, data: Uint8Array, none = 0): Sessio
       safety: r[row.safety] === true,
       buildId: Number(r[row.buildId]),
       deadmanMs: Number(r[row.deadmanMs]),
+      role: Number(r[row.role]),
     }
   })
 }

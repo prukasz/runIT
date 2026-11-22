@@ -50,19 +50,19 @@ describe('the session', () => {
 })
 
 describe('SESSION PEERS, as its descriptor lays it out', () => {
-  it('its rows are sys_session_info_t (10 B) after a count', () => {
+  it('its rows are sys_session_info_t (11 B) after a count', () => {
     const returns = catalog.command(catalog.service(SESSION_COMMANDS.service), SESSION_COMMANDS.peers).read!.returns!
-    expect(returns.kind === 'struct' && returns.layout.fixed).toBe(10)
+    expect(returns.kind === 'struct' && returns.layout.fixed).toBe(11)
     expect(returns.lead?.rawType).toBe('u8')
     expect(returns.kind === 'struct' && returns.layout.fields.map((f) => f.id)).toEqual(Object.values(SESSION_COMMANDS.row))
   })
 
   it('reads every session: its provider, open or not, its id, the dead-man and the build', () => {
-    const row = (provider: number, open: number, peer: number, safety: number, build: number, deadman: number) => [provider, open, peer, safety, build & 0xff, (build >> 8) & 0xff, (build >> 16) & 0xff, build >>> 24, deadman & 0xff, deadman >> 8]
-    const data = Uint8Array.from([2, ...row(1, 1, 0xf0, 1, 0x11223344, 1500), ...row(2, 0, defs.src.none, 0, 0, 0)])
+    const row = (provider: number, open: number, peer: number, safety: number, build: number, deadman: number, role = 0) => [provider, open, peer, safety, build & 0xff, (build >> 8) & 0xff, (build >> 16) & 0xff, build >>> 24, deadman & 0xff, deadman >> 8, role]
+    const data = Uint8Array.from([2, ...row(1, 1, 0xf0, 1, 0x11223344, 1500), ...row(2, 0, defs.src.none, 0, 0, 0, 2)])
     expect(decodePeers(data, catalog)).toEqual([
-      { provider: 1, open: true, peerId: 0xf0, safety: true, buildId: 0x11223344, deadmanMs: 1500 },
-      { provider: 2, open: false, safety: false, buildId: 0, deadmanMs: 0 },
+      { provider: 1, open: true, peerId: 0xf0, safety: true, buildId: 0x11223344, deadmanMs: 1500, role: 0 },
+      { provider: 2, open: false, safety: false, buildId: 0, deadmanMs: 0, role: 2 },
     ])
   })
 })
@@ -84,7 +84,7 @@ describe('Sessions', () => {
 
   it('peers() reads the board\'s sessions', async () => {
     const { link } = await connected()
-    expect(await new Sessions(link, new Services(link, catalog)).peers()).toEqual([{ provider: 3, open: true, peerId: CLIENT_ID, safety: false, buildId: 0, deadmanMs: 0 }])
+    expect(await new Sessions(link, new Services(link, catalog)).peers()).toEqual([{ provider: 3, open: true, peerId: CLIENT_ID, safety: false, buildId: 0, deadmanMs: 0, role: 0 }])
     await link.close()
   })
 })

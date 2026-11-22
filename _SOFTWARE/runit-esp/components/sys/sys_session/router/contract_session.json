@@ -125,6 +125,15 @@
               "offset": 8,
               "description": "The silence that ends it; 0: none",
               "unit": "ms"
+            },
+            {
+              "id": "role",
+              "label": "Role",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 10,
+              "description": "session_flag SYS_SESSION_SLAVE or SYS_SESSION_MASTER: the peer is a board (below / above this one); 0: a client"
             }
           ]
         }
@@ -135,7 +144,7 @@
       "op": 3,
       "symbol": "SESSION_OP_ATTACH",
       "label": "Attach a session",
-      "description": "Makes a framed provider's peer a session: its port, linked with the provider both ways, and a sub-port per module listed. The same again changes nothing.",
+      "description": "Makes a framed provider's peer a session: its port, linked with the provider both ways, and a sub-port per module listed; with the slave or master flag the sub-ports and their links are the board's. The same again changes nothing.",
       "write": {
         "args": {
           "struct": "sys_session_attach_args_t",
@@ -158,7 +167,7 @@
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "Bit 0: its end is a safety event"
+              "description": "session_flag: bit 0 its end is a safety event; bit 1 the peer is a slave board, bit 2 the peer is the master board (then no modules follow: its sub-ports and their links are the board's)"
             },
             {
               "id": "deadman_ms",
@@ -175,7 +184,7 @@
               "label": "Modules",
               "type": "string",
               "raw_type": "bytes",
-              "description": "The module of each sub-port, a u8 each (0x23: the commands); runs to the end of the frame"
+              "description": "The module of each sub-port, a u8 each (0x23: the commands); runs to the end of the frame; none for a slave's or a master's session"
             }
           ]
         }

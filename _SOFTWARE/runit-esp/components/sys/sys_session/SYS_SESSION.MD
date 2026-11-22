@@ -34,7 +34,9 @@ Every peer says its own id as the `src` of its hello, and no two open sessions h
 - **its port** `SYS_SESSION_PORT(provider, 0)` (`DATA_MATRIX_PORT(DATA_MATRIX_PORT_SESSION | provider, 0)`), linked with the provider both ways by the attach itself;
 - **a sub-port per module** of the list, `SYS_SESSION_PORT(provider, module)` (at most `CONFIG_SYS_SESSION_PORTS`): `MODULE_ID_ROUTER` for the commands, a stream's module for its PUSH frames. The sub-ports are linked with the modules' ports by the board's record (`CONNECT`): the command sub-port with one link, to `ROUTER_PORT` (the router's answers and calls come back to it by its name, no link back).
 
-The same attach again is done (a stored record runs at every start); another time, flag or list on an attached provider is `ERR_CMD_BAD_ARG`. **A session lasts until `DETACH`** (`sys_session_detach(provider)`), the only way it goes: it ends the session and unregisters its ports (their links go). Whatever its provider does, the session stays attached and waits (the providers' events): DOWN ends it; REMOVED ends it too (the provider's links go with its port); CREATED again under the same id links the session port with it both ways (a raw one: `ERR_SESSION_NOT_FRAMED` reported, no link) and, when it is up, says the hello; UP says the hello. Its sub-ports, their links, its dead-man and its flag stay through all of it.
+The same attach again is done (a stored record runs at every start); another time, flag or list on an attached provider is `ERR_CMD_BAD_ARG`. **A board's session** (`SYS_SESSION_SLAVE`: the peer is a board below this one; `SYS_SESSION_MASTER`: the peer is the board above) has no module list: its sub-ports and their links are the rows the board gave `sys_session_set_boards` for that role, made by the attach itself (`app/runit` gives them: RUNIT.MD "Ways"). So two boards that attach to each other, one as the other's slave and the other as its master, have their errors, events, watch entries, remote devices' frames and commands linked with no further command. Slave and master together are `ERR_CMD_BAD_ARG`, so is a module list with either.
+
+**A session lasts until `DETACH`** (`sys_session_detach(provider)`), the only way it goes: it ends the session and unregisters its ports (their links go). Whatever its provider does, the session stays attached and waits (the providers' events): DOWN ends it; REMOVED ends it too (the provider's links go with its port); CREATED again under the same id links the session port with it both ways (a raw one: `ERR_SESSION_NOT_FRAMED` reported, no link) and, when it is up, says the hello; UP says the hello. Its sub-ports, their links, its dead-man and its flag stay through all of it.
 
 **From the line** (the session port's input, on the provider's RX task):
 
@@ -90,8 +92,8 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 | Code | Command | Side | Request / answer |
 |---|---|---|---|
 | `0x01` | ID | read / write | `sys_session_id_args_t` `{u8 board_id}` (0: none, 1..0xEF): `board_id()`; the write is `board_id_save`, the board's from the next start |
-| `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 10 B: `u8 provider`, `u8 open`, `u8 peer_id` (`CMD_SRC_NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none) |
-| `0x03` | ATTACH | write | `sys_session_attach_args_t` `{u8 provider, u8 flags, u16 deadman_ms}`, then a `u8` module per sub-port |
+| `0x02` | PEERS | read | → `u8 count`, then `sys_session_info_t` per session, 11 B: `u8 provider`, `u8 open`, `u8 peer_id` (`CMD_SRC_NONE` before its hello), `u8 safety`, `u32 build_id`, `u16 deadman_ms` (0: none), `u8 role` (`SYS_SESSION_SLAVE`, `SYS_SESSION_MASTER` or 0: a client) |
+| `0x03` | ATTACH | write | `sys_session_attach_args_t` `{u8 provider, u8 flags, u16 deadman_ms}`, then a `u8` module per sub-port (none with the slave or master flag) |
 | `0x04` | DETACH | write | `sys_session_detach_args_t` `{u8 provider}` |
 
 ## Errors (`MODULE_ID_SESSION`)

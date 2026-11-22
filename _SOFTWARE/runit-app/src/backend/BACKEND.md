@@ -86,12 +86,12 @@ readDeviceFrame(catalog, frame, (id) => typeOfDevice(id))                       
 
 ## The board's sessions
 
-`Sessions` (`session/sessions.ts`, SYS_SESSION.MD "Remote"): the board's id and its sessions. PEERS is read by its descriptor (a count, then `sys_session_info_t` rows; `decodePeers`).
+`Sessions` (`session/sessions.ts`, SYS_SESSION.MD "Remote"): the board's id and its sessions; a session's `role` is the published `session_flag` slave or master when its peer is a board, 0 for a client. PEERS is read by its descriptor (a count, then `sys_session_info_t` rows; `decodePeers`).
 
 ```ts
 const sessions = new Sessions(link)
 await sessions.boardId(); await sessions.setBoardId(1)           // its place in the project (NVS, from the next start); the descriptor's range
-await sessions.peers()                                            // [{ provider, open, peerId?, safety, buildId, deadmanMs }]
+await sessions.peers()                                            // [{ provider, open, peerId?, safety, buildId, deadmanMs, role }]
 ```
 
 ## Watches
@@ -166,7 +166,7 @@ log.onChange((entries) => …)
 | Error record | `ERRORS.MD`, `errors.json` | `protocol.test.ts`, `errors.test.ts`: records built from errors.json read back with names |
 | Every command, its arguments and answer; provider types | `generated/services`, `contracts`, `devices`, `providers`; `device_contract_own`, `device_id`, `device_create_flag`, `device_remote_flag`, `provider_id`, `io_pin_none` in `enums.json` | `services.test.ts`: no problems in the bundle; every packed struct (`.h` and `.c`) against its layout; the requests' bytes; leads; providers and BLE ways |
 | The events stream | `contract_event.json`, `contract_device.json` | `events.test.ts` |
-| SESSION PEERS | `contract_session.json` (its lead and rows) | `sessions.test.ts`: the rows are `sys_session_info_t`'s 10 B, the fields `SESSION_COMMANDS` names |
+| SESSION PEERS | `contract_session.json` (its lead and rows) | `sessions.test.ts`: the rows are `sys_session_info_t`'s 11 B, the fields `SESSION_COMMANDS` names |
 
 ## Tests
 

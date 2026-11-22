@@ -33,6 +33,11 @@ export const PROV_TYPE = {
 } as const
 
 export const SESSION_SAFETY_FLAG = enumValue('session_flag', 'SYS_SESSION_SAFETY')
+/** The flags that say a session's peer is a board: below this one (a slave) or above it (its master). */
+export const SESSION_ROLE = {
+  slave: enumValue('session_flag', 'SYS_SESSION_SLAVE'),
+  master: enumValue('session_flag', 'SYS_SESSION_MASTER'),
+} as const
 export const CMD_SEND_NOWAIT = enumValue('cmd_send_flag', 'CMD_SEND_NOWAIT')
 
 /** Encodes a data_matrix_port_id_t (`DATA_MATRIX_PORT(kind, id)`). */
@@ -186,8 +191,8 @@ export const offlinePreviewSnapshot = (defs: LinkDefinitions): RoutingSnapshot =
   return {
     providers: [consoleProv, bleProv, bleLogs, bleTelem],
     sessions: [
-      { provider: 1, open: false, safety: false, buildId: 0, deadmanMs: 0 },
-      { provider: 3, open: false, safety: false, buildId: 0, deadmanMs: 0 },
+      { provider: 1, open: false, safety: false, buildId: 0, deadmanMs: 0, role: 0 },
+      { provider: 3, open: false, safety: false, buildId: 0, deadmanMs: 0, role: 0 },
     ],
     links,
     gatt: [],
