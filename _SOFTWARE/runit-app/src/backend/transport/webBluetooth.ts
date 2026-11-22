@@ -97,7 +97,19 @@ const connectSeen = async (device: Device, gatt: GattServer): Promise<GattServer
   }
 }
 
-const browserBluetooth = (): WebBluetooth | undefined => (globalThis as { navigator?: { bluetooth?: WebBluetooth } }).navigator?.bluetooth
+/** Connects (when not connected) and takes the characteristics of `service`; a failure leaves the board disconnected. */
+const discover = async (device: Device, service: number, connect: (gatt: GattServer) => Promise<GattServer>): Promise<Characteristic[]> => {
+  const gatt = device.gatt!
+  try {
+    const server = gatt.connected ? gatt : await connect(gatt)
+    return await (await server.getPrimaryService(service)).getCharacteristics()
+  } catch (error) {
+    if (gatt.connected) gatt.disconnect()
+    throw error
+  }
+}
+
+const browserBluetooth =(): WebBluetooth | undefined => (globalThis as { navigator?: { bluetooth?: WebBluetooth } }).navigator?.bluetooth
 
 export interface WebBluetoothOptions {
   /**
@@ -152,14 +164,31 @@ export class WebBluetoothPlatform implements BlePlatform {
 
   async open(ref: BleDeviceRef, spec: OpenSpec, handlers: OpenHandlers): Promise<BleChannel> {
     let device = this.devices.get(ref.id)
-    let gatt = device?.gatt
-    if (!device || !gatt) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
+    if (!device?.gatt) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
+
+    // Connect and read the service. After a board restart on Windows, Chromium's cached device often stays stale: its connect()
+    // fails, or it succeeds and the link drops at once ("GATT Server is disconnected"). Either is answered once by a fresh scan
+    // for the board (the desktop bridge) and another try.
+    let characteristics: Characteristic[]
+    try {
+      characteristics = await discover(device, spec.service, (gatt) => connectSeen(device!, gatt))
+    } catch (firstError) {
+      if (!this.refresh) throw firstError
+      const fresh = await this.refresh(ref)
+      const next = fresh ? this.devices.get(fresh.id) : undefined
+      if (!next?.gatt) throw firstError
+      this.devices.set(ref.id, next)
+      device = next
+      characteristics = await discover(device, spec.service, (gatt) => gatt.connect())
+    }
+    const opened = device
+    const gatt = opened.gatt!
 
     let ours = false // we drop the link: not reported as a loss
     let lost = false
     const listeners = new Map<Characteristic, Listener>()
     const cleanup = () => {
-      device?.removeEventListener('gattserverdisconnected', gone)
+      opened.removeEventListener('gattserverdisconnected', gone)
       for (const [characteristic, listener] of listeners) characteristic.removeEventListener('characteristicvaluechanged', listener)
       listeners.clear()
     }
@@ -169,7 +198,7 @@ export class WebBluetoothPlatform implements BlePlatform {
       cleanup()
       handlers.onClosed('The board disconnected.')
     }
-    device.addEventListener('gattserverdisconnected', gone)
+    opened.addEventListener('gattserverdisconnected', gone)
 
     // one GATT operation at a time; a failed one does not stop the ones after it
     let chain: Promise<unknown> = Promise.resolve()
@@ -181,25 +210,7 @@ export class WebBluetoothPlatform implements BlePlatform {
 
     let written: Characteristic
     try {
-      let server: GattServer
-      try {
-        server = gatt.connected ? gatt : await connectSeen(device, gatt)
-      } catch (firstError) {
-        if (!this.refresh) throw firstError
-        // After a board restart on Windows, Chromium's cached BluetoothDevice handle often stays stale until a fresh scan
-        // finds the rebooted board. Re-acquire the device silently through the desktop bridge and retry once.
-        const fresh = await this.refresh(ref)
-        const next = fresh ? this.devices.get(fresh.id) : undefined
-        if (!next?.gatt) throw firstError
-        this.devices.set(ref.id, next)
-        device.removeEventListener('gattserverdisconnected', gone)
-        device = next
-        gatt = next.gatt
-        device.addEventListener('gattserverdisconnected', gone)
-        server = gatt.connected ? gatt : await gatt.connect()
-      }
-      const service = await server.getPrimaryService(spec.service)
-      const characteristics = await service.getCharacteristics()
+      if (!gatt.connected) throw new Error('The board disconnected while the link opened.')
       const find = (uuid: number) => characteristics.find((c) => shortUuid(c.uuid) === uuid)
       const target = find(spec.write)
       if (!target) throw new Error(`The board's service ${hex(spec.service)} has no characteristic ${hex(spec.write)} to write.`)

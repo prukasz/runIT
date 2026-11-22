@@ -9,10 +9,15 @@ type Handler = (event: { target: unknown }) => void
 
 const hex = (n: number) => `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`
 
-const browser = (options: { watch: boolean }) => {
+/** `stale`: the first link after connect drops at once (Windows, a board that restarted), as the service is read. */
+const browser = (options: { watch: boolean; stale?: boolean }) => {
   const handlers = new Map<string, Set<Handler>>()
   const log: string[] = []
   let seen = false
+  let stale = options.stale ?? false
+  const fire = (type: string) => {
+    for (const h of [...(handlers.get(type) ?? [])]) h({ target: device })
+  }
   const characteristic = (n: number, notify: boolean) => ({
     uuid: hex(n),
     properties: { write: !notify, writeWithoutResponse: false, notify, indicate: false },
@@ -33,7 +38,15 @@ const browser = (options: { watch: boolean }) => {
     disconnect() {
       this.connected = false
     },
-    getPrimaryService: async () => ({ getCharacteristics: async () => [characteristic(defs.gatt.session, true), characteristic(defs.gatt.logs, true)] }),
+    async getPrimaryService() {
+      if (stale) {
+        stale = false
+        this.connected = false
+        fire('gattserverdisconnected')
+        throw new Error('GATT Server is disconnected. Cannot retrieve services.')
+      }
+      return { getCharacteristics: async () => [characteristic(defs.gatt.session, true), characteristic(defs.gatt.logs, true)] }
+    },
   }
   const device = {
     id: 'board',
@@ -54,7 +67,7 @@ const browser = (options: { watch: boolean }) => {
             log.push('watch')
             setTimeout(() => {
               seen = true
-              for (const h of handlers.get('advertisementreceived') ?? []) h({ target: device })
+              fire('advertisementreceived')
             }, 5)
           },
         }
@@ -95,6 +108,26 @@ describe('opening a board the browser knows from an earlier visit', () => {
     const [known] = await platform.knownDevices()
     await expect(platform.open(known!, spec, { onPacket() {}, onClosed() {} })).rejects.toThrow(/no longer in range/)
     expect(log).toEqual(['connect'])
+  })
+})
+
+describe('opening a board that restarted (a stale device on Windows)', () => {
+  it('a link that drops as the service is read is opened again after a fresh scan, and its later loss is reported', async () => {
+    const { bluetooth, log, handlers } = browser({ watch: true, stale: true })
+    let platform!: WebBluetoothPlatform
+    const refresh = async () => {
+      log.push('refresh')
+      return platform.requestDevice()
+    }
+    platform = new WebBluetoothPlatform(defs, bluetooth, { refresh })
+    const [known] = await platform.knownDevices()
+    const closed: string[] = []
+    const channel = await platform.open(known!, spec, { onPacket() {}, onClosed: (reason) => closed.push(reason) })
+    expect(log).toEqual(['connect', 'watch', 'connect', 'refresh', 'connect'])
+    expect(closed).toEqual([])
+    for (const h of [...(handlers.get('gattserverdisconnected') ?? [])]) h({ target: undefined })
+    expect(closed).toEqual(['The board disconnected.'])
+    await channel.close()
   })
 })
 
