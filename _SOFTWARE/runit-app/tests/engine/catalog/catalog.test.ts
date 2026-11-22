@@ -7,7 +7,7 @@ import { loadGeneratedInput } from '@engine/generated'
 const catalog = Catalog.fromGenerated(loadGeneratedInput())
 
 /* The firmware's own source: what the descriptors and the engine's tables are held against. */
-const vmDir = fileURLToPath(new URL('../../../../runit-esp-archive/components/vm/', import.meta.url))
+const vmDir = fileURLToPath(new URL('../../../../runit-esp/components/vm/', import.meta.url))
 const read = (path: string) => readFileSync(vmDir + path, 'utf8')
 const filesUnder = (dir: string, ext: string): string[] =>
   readdirSync(vmDir + dir).flatMap((name) => {

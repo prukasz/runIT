@@ -4,7 +4,7 @@
   "kind": "service-definition",
   "scope": "system",
   "id": "VM",
-  "router_key": 11,
+  "router_key": 52,
   "alias": "Virtual machine (VM Core Supervisor)",
   "description": "Managing the program of the runIT VM: loading objects and blocks, controlling the run (start, pause, step) and subscribing to telemetry.",
   "category": "system",

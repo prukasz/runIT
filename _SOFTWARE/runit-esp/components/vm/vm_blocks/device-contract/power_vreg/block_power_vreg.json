@@ -29,7 +29,7 @@
       "size": 2,
       "options": [
         { "value": 0, "alias": "Hold", "description": "Leave the regulator as it is." },
-        { "value": 1280, "alias": "Switch off", "description": "Switch the output off. The voltage and the limit are kept." }
+        { "value": 1792, "alias": "Switch off", "description": "Switch the output off. The voltage and the limit are kept." }
       ],
       "default": 0
     }

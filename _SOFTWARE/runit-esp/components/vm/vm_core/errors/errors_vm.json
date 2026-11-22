@@ -1,6 +1,6 @@
 {
   "$schema": "../../../../../templates/error-texts.schema.json",
-  "module": "ERR_MOD_VM",
+  "module": "MODULE_ID_VM",
   "errors": {
     "ERR_VM_ALLOC_EXHAUSTED": {
       "message": "The program needs {requested} more bytes; {remaining} are left",

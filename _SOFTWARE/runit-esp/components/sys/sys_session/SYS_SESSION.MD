@@ -105,7 +105,7 @@ The frames and the table are in `sys_session_router.h`; `contract_session.json` 
 | Option | Default | Meaning |
 |---|---|---|
 | `CONFIG_SYS_SESSION_MAX` | 4 | sessions: one per provider |
-| `CONFIG_SYS_SESSION_PORTS` | 6 | the sub-ports of a session (each a port of the data matrix) |
+| `CONFIG_SYS_SESSION_PORTS` | 8 | the sub-ports of a session (each a port of the data matrix) |
 
 ## Tests
 

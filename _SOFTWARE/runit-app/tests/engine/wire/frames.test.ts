@@ -20,7 +20,7 @@ const defs = loadWireDefinitions()!
 
 describe('wire numbers come from the generated descriptors', () => {
   it('match the firmware (VM_CORE.MD op table, vm_obj.h, vm_block.h)', () => {
-    expect(defs.routerKey).toBe(0x0b)
+    expect(defs.routerKey).toBe(0x34)
     expect(defs.ops).toEqual({ reset: 1, open: 2, addObjects: 3, setData: 4, addAccessors: 5, addBlock: 6, subscribe: 7, exec: 8, speed: 9 })
     expect(defs.objTypes).toEqual({ ptr: 1, u8: 2, u32: 3, i32: 4, f32: 5, bool: 6, str: 7 })
     expect(defs.enMode).toEqual({ any: 0, all: 1 })
@@ -32,7 +32,7 @@ describe('wire numbers come from the generated descriptors', () => {
   })
 
   it('refuse a symbol the firmware no longer publishes', () => {
-    expect(() => wireDefinitions({}, { commands: [] })).toThrow(/no enum 'router_key'/)
+    expect(() => wireDefinitions({}, { commands: [] })).toThrow(/no enum 'module_id'/)
   })
 })
 

@@ -12,10 +12,12 @@ import type { VmLimits } from './limits'
 /*
  * The VM at run time. A value is written the way it is loaded: SET_DATA, which on a running program is a runtime write applied
  * at the start of the next pass (VM_CORE.MD "Remote"). A value is read the way it is written: the board sends the changed
- * values of the subscribed objects as the same command without `seq` / `flags`,
+ * values of the subscribed objects as the same command without `seq` / `flags` and without the direction byte, a PUSH of the
+ * stream `MODULE_ID_VM` (VM_CORE.MD "Telemetry is the same command"); the data of that PUSH is
  *
- *   values        [ROUTER_KEY_VM][SET_DATA][u8 count] count x (id u16, start u16, byte length u16, data)
- *   heap objects  [ROUTER_KEY_VM][ADD_OBJECTS][u8 count] count x (id u16, payload u16, type | name length << 4, flags, name)
+ *
+ *   values        [SET_DATA][u8 count] count x (id u16, start u16, byte length u16, data)
+ *   heap objects  [ADD_OBJECTS][u8 count] count x (id u16, payload u16, type | name length << 4, flags, name)
  *
  * so one decoder reads both directions. A heap object is described before any value that refers to it.
  */
@@ -82,17 +84,17 @@ export class TelemetryReader {
   }
 
   /**
-   * One frame of the telemetry stream, without its stream byte. Undefined when it is not a telemetry frame (another router key
-   * or op) or it is cut short.
+   * The data of one PUSH of the VM's stream (`[op][count]{records}`, after the frame's header). Undefined when it is not a
+   * telemetry frame (another op) or it is cut short.
    */
   read(frame: Uint8Array): TelemetryUpdate | undefined {
-    if (frame.length < 3 || frame[0] !== this.defs.routerKey) return undefined
-    const op = frame[1]
-    const count = frame[2]!
+    if (frame.length < 2) return undefined
+    const op = frame[0]
+    const count = frame[1]!
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength)
     const values: TelemetryValue[] = []
     const objects: TelemetryObject[] = []
-    let at = 3
+    let at = 2
     if (op === this.defs.ops.setData) {
       for (let i = 0; i < count; i++) {
         if (at + 6 > frame.length) return undefined

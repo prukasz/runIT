@@ -5,7 +5,7 @@ import type { ExecCommand, ObjType } from './types'
  * (generated/index.ts reads generated/common/enums.json and generated/services/contract_vm.json), a test can fill it by hand.
  */
 export interface WireDefinitions {
-  /** `ROUTER_KEY_VM`: the router key a VM command and a telemetry frame start with. */
+  /** `MODULE_ID_VM`: the router key of the VM's commands and the key of its telemetry stream. */
   readonly routerKey: number
   /** The VM router ops (`VM_OP_*`). */
   readonly ops: Readonly<Record<'reset' | 'open' | 'addObjects' | 'setData' | 'addAccessors' | 'addBlock' | 'subscribe' | 'exec' | 'speed', number>>
@@ -25,7 +25,7 @@ export interface WireDefinitions {
 
 /** The C symbol behind each short name above: the single place the two vocabularies meet. Read by generated/index.ts. */
 export const WIRE_SYMBOLS = {
-  routerKey: { enum: 'router_key', symbol: 'ROUTER_KEY_VM' },
+  routerKey: { enum: 'module_id', symbol: 'MODULE_ID_VM' },
   objTypes: {
     enum: 'vm_obj_t_e',
     symbols: { ptr: 'VM_OBJ_PTR', u8: 'VM_OBJ_U8', u32: 'VM_OBJ_U32', i32: 'VM_OBJ_I32', f32: 'VM_OBJ_F', bool: 'VM_OBJ_B', str: 'VM_OBJ_STR' },

@@ -29,7 +29,7 @@
       "size": 2,
       "options": [
         { "value": 0, "alias": "Hold", "description": "Leave the mux as it is." },
-        { "value": 2048, "alias": "Switch off", "description": "Feed the load from nothing." }
+        { "value": 2304, "alias": "Switch off", "description": "Feed the load from nothing." }
       ],
       "default": 0
     }

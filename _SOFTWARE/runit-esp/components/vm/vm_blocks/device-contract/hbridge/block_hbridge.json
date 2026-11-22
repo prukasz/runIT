@@ -29,8 +29,8 @@
       "size": 2,
       "options": [
         { "value": 0, "alias": "Hold", "description": "Leave the bridge as it is." },
-        { "value": 2305, "alias": "Brake", "description": "Short the motor terminals." },
-        { "value": 2306, "alias": "Coast", "description": "Release the motor: the outputs are off." }
+        { "value": 1281, "alias": "Brake", "description": "Short the motor terminals." },
+        { "value": 1282, "alias": "Coast", "description": "Release the motor: the outputs are off." }
       ],
       "default": 0
     }

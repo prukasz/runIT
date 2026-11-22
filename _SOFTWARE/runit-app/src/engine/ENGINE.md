@@ -1,6 +1,6 @@
 # The VM engine (for agents)
 
-`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`runit-esp-archive/components/vm/`) and `generated/`.
+`runit-app/src/engine/`: everything an app needs to build on the runIT VM, with no UI, no DOM and no connection: the block palette, the user's variables and paths (accessors), block wiring, execution order, and the compiler that turns a project into the frames the board loads. Written from the firmware (`runit-esp/components/vm/`) and `generated/`.
 
 ```ts
 const engine = createEngine()                       // bundled descriptors; new Engine({definitions, limits, codecs}) for your own
@@ -56,7 +56,7 @@ An empty slot stands for the first entry while the draft is inspected, so what f
 
 ## Run time: writing and reading variables
 
-`engine.write(result, [{ variable, value, element? }])` gives the frames of a runtime write (`DATA` on a running program, applied at the next pass; refused for a `usr_protected` object); a long value is cut between elements to fit the frame. `engine.telemetry(result)` gives a `TelemetryReader`: `read(frame)` takes a telemetry frame without its stream byte (`[ROUTER_KEY_VM][DATA][count]…`, the same records a write is made of; a frame the board sends, so it has no direction byte) and returns `{ values, objects }`; a value has its object id, first element, bytes, type, decoded `value` and the user's `variable`. A heap object the board creates is announced (`ADD_OBJECTS`) before its values and the reader remembers its type. Checked against frames captured from a board.
+`engine.write(result, [{ variable, value, element? }])` gives the frames of a runtime write (`DATA` on a running program, applied at the next pass; refused for a `usr_protected` object); a long value is cut between elements to fit the frame. `engine.telemetry(result)` gives a `TelemetryReader`: `read(frame)` takes the data of a PUSH of the stream `MODULE_ID_VM` (`[DATA][count]…`, the same records a write is made of; a frame the board sends, so it has no router key or direction byte) and returns `{ values, objects }`; a value has its object id, first element, bytes, type, decoded `value` and the user's `variable`. A heap object the board creates is announced (`ADD_OBJECTS`) before its values and the reader remembers its type. Checked against frames captured from a board.
 
 `engine.watch(result, detail)` (`compiler/watch.ts`, `watchPlan`) is what to SUBSCRIBE to: `flow` the blocks' When done, every variable, then every block output (the block's own objects included, the first left out when the board takes no more); `full` the same. A program compiled with `allEnableOuts` has a When done object for every block (without it only those something reads). The plan holds the ids within the board's limits (`subscribeMax`, and `subscribeTracked`: the objects its folders reach, which the board follows 8 levels deep, so a folder is one id), the flow first; `dropped` counts what did not fit. `targets` names what each object stands for: `variableKey(id)`, `outputKey(block, n)`, `doneKey(block)` (a block that writes a variable has both of its names on the one object).
 
@@ -74,7 +74,7 @@ An empty slot stands for the first entry while the draft is inspected, so what f
 | Fact | Source | Held against it by |
 |---|---|---|
 | Op ids, enum values, flags | `generated/common/enums.json`, `generated/services/contract_vm.json` | `wire/frames.test.ts` (against the firmware's own numbers) |
-| Record layouts, arena rules, load checks | `runit-esp-archive/components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
+| Record layouts, arena rules, load checks | `runit-esp/components/vm/vm_core/loader/vm_wire.h`, `store/vm_store.c`, `block/vm_block_build.c`, `loader/vm_loader.c` | `vm-golden.json` frames byte for byte; the arena test replays the allocator |
 | Blocks: pins, fields, offsets, variants | `generated/blocks/block_*.json` | `catalog.test.ts` parses `VM_BLOCK_TYPE_DEFINE` and `vm_block_ids.h`: pin shape and wire ids must equal the C |
 | Device block ops and arguments | `generated/contracts/*.json`, `generated/devices/*.json` | `catalog.test.ts` (every variant resolves; the op code equals `SYS_DEVICE_OP` / the device header's `SYS_DEVICE_OWN_OP`), `palette.test.ts` (every variant compiles) |
 | State sizes | `state_len` of `generated/blocks/block_*.json` | `templates/crosscheck.py` and `catalog.test.ts` compare it with the `.state_len` of each `VM_BLOCK_TYPE_DEFINE` (a `sizeof` pinned by a `_Static_assert`) |

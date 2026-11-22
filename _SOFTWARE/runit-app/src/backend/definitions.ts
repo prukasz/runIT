@@ -27,6 +27,8 @@ export const STREAM_MODULES = {
   watches: 'MODULE_ID_WATCH',
   /** A remote device's frames (SYS_REMOTE.MD). */
   remote: 'MODULE_ID_REMOTE',
+  /** The running program's values and heap objects `[op][count]{records}` (VM_CORE.MD "Telemetry is the same command"): the session's. */
+  vm: 'MODULE_ID_VM',
 } as const
 
 export type StreamName = keyof typeof STREAM_MODULES
