@@ -126,8 +126,11 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
 
     /* ---- forms ---- */
     formSource: (g: SettingGroup): SettingSource => (g.recordId !== undefined && settings.values[g.key] ? 'project' : live.values[g.key] ? 'board' : 'none'),
-    formValues: (g: SettingGroup): FieldValues =>
-      g.recordId !== undefined ? (settings.values[g.key] ?? live.values[g.key] ?? {}) : { ...live.values[g.key], ...edits[g.key] },
+    /** What the form shows: the descriptor's defaults, under what the project or the board has (so a change carries every field). */
+    formValues: (g: SettingGroup): FieldValues => ({
+      ...defaultsOf(g),
+      ...(g.recordId !== undefined ? (settings.values[g.key] ?? live.values[g.key]) : { ...live.values[g.key], ...edits[g.key] }),
+    }),
     /** The form says something the board does not have. */
     formDiffers: (g: SettingGroup): boolean => {
       const board = live.values[g.key]
@@ -196,6 +199,10 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     },
   }
 }
+
+/** The descriptor's default of each field that has one. */
+const defaultsOf = (g: SettingGroup): FieldValues =>
+  Object.fromEntries(g.layout.fields.filter((f) => typeof f.default === 'number').map((f) => [f.id, f.default as number]))
 
 /** The write of a form: the fields the write takes (a read may answer more). */
 const formCall = (services: Services, g: SettingGroup, values: FieldValues): ServiceCall => {
