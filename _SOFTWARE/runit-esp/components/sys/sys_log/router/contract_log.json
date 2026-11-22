@@ -135,7 +135,8 @@
                   "label": "Verbose",
                   "value": 5
                 }
-              ]
+              ],
+              "default": 3
             },
             {
               "id": "mirror_serial",
@@ -155,7 +156,8 @@
                   "label": "On",
                   "value": 1
                 }
-              ]
+              ],
+              "default": 0
             },
             {
               "id": "trace_errors",
@@ -175,7 +177,8 @@
                   "label": "On",
                   "value": 1
                 }
-              ]
+              ],
+              "default": 1
             }
           ]
         }
