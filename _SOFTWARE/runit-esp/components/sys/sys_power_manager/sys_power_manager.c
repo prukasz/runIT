@@ -21,6 +21,7 @@
 ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)
 
 #define LIPO_FULL_CELL_MV 4200
+#define LIPO_CELLS_MIN    2  // the board does not run from one cell
 #define BOARD_TARGET      (-1)
 #define NO_TARGET         (-2)
 
@@ -718,7 +719,7 @@ err_h sys_power_manager_set_battery(const sys_power_battery_t* battery) {
   ERR_TRY(check_range(battery->chemistry, SYS_POWER_BATTERY_NONE, SYS_POWER_BATTERY_LIPO));
   sys_power_battery_t b = {0};
   if (battery->chemistry != SYS_POWER_BATTERY_NONE) {
-    ERR_TRY(check_range(battery->cells, 1, (int32_t)(s_pm.layout.max_mV / LIPO_FULL_CELL_MV)));
+    ERR_TRY(check_range(battery->cells, LIPO_CELLS_MIN, (int32_t)(s_pm.layout.max_mV / LIPO_FULL_CELL_MV)));
     ERR_TRY(check_range(battery->low_pct, 2, 100));
     ERR_TRY(check_range(battery->critical_pct, 1, battery->low_pct - 1));
     b = *battery;

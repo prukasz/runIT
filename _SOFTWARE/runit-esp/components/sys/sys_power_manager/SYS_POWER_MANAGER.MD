@@ -40,7 +40,7 @@ A write applies a setting at once and stores nothing. After a reset the manager 
 |---|---|---|
 | `0x01000002` | CONFIG `sys_power_manager_cfg_t`, 4 B | `enabled` (0 / 1), `strict` (0 / 1), `soft_margin_pct` (0..100), `source` (`sys_power_source_e`: the source on a board without source pins, ignored with them) |
 | `0x01000003` | PSU `sys_power_psu_t`, 8 B | `max_mV`, `max_mA` of an external supply; 0 / 0 removes it |
-| `0x01000004` | BATTERY `sys_power_battery_t`, 4 B | `chemistry` (NONE / LIPO), `cells` (1 .. max_mV / 4200), `low_pct` (2..100), `critical_pct` (1..low − 1) |
+| `0x01000004` | BATTERY `sys_power_battery_t`, 4 B | `chemistry` (NONE / LIPO), `cells` (2 .. max_mV / 4200: the board does not run from one cell), `low_pct` (2..100), `critical_pct` (1..low − 1) |
 | `0x01000005` | MATRIX, `sys_power_response_row_t[1 + rails]` | The response matrix (below) |
 | `0x01000008` | PD `sys_power_pd_t`, 5 B | `mode` (`sys_power_pd_mode_e`: OFF, MAX, VOLTAGE), `voltage_mV` (VOLTAGE: 1 .. `max_mV`) |
 
