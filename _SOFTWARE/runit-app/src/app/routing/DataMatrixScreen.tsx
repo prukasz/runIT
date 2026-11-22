@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeftRight, Link2, Maximize2, Plus, RefreshCw, Unlink, ZoomIn, ZoomOut } from 'lucide-react'
 import { Badge, Button, Card, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, ToggleChip } from '@ui/components'
 import type { Choice } from '@ui/components'
-import { buildGraphLayout, describePort, parsePort, standardModulePorts, wirePath } from './routing'
+import { buildGraphLayout, describePort, parsePort, providerTitle, standardModulePorts, wirePath } from './routing'
 import type { GraphEdge } from './routing'
 import type { RoutingState } from './useRouting'
 import './Routing.css'
@@ -46,7 +46,7 @@ export function DataMatrixScreen({ routing, onOpenProviders }: {
     [layout.providers],
   )
   const attachChoices: Choice<number>[] = useMemo(
-    () => attachableProviders.map((p) => ({ value: p.provider.id, label: `Provider #${p.provider.id} (${p.provider.typeLabel})` })),
+    () => attachableProviders.map((p) => ({ value: p.provider.id, label: providerTitle(p.provider) })),
     [attachableProviders],
   )
 
@@ -406,7 +406,7 @@ export function DataMatrixScreen({ routing, onOpenProviders }: {
                   onMouseEnter={() => setHoveredNodeKey(nodeKey)} onMouseLeave={() => setHoveredNodeKey(undefined)}>
                   <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={8} className="dm-node-box" />
                   <line x1={p.x + 42} y1={p.y + 10} x2={p.x + 42} y2={p.y + p.h - 10} stroke="currentColor" strokeOpacity={0.08} />
-                  <text x={p.x + 52} y={p.y + 25} className="dm-node-title">#{p.provider.id} · {p.provider.typeLabel}</text>
+                  <text x={p.x + 52} y={p.y + 25} className="dm-node-title">{p.provider.name ? `${p.provider.name} · #${p.provider.id}` : `#${p.provider.id} · ${p.provider.typeLabel}`}</text>
                   <text x={p.x + 52} y={p.y + 44} className="dm-node-sub">{flags}</text>
                   <text x={p.x + 52} y={p.y + 66} className={`dm-node-state ${p.connected ? 'is-wired' : 'is-unwired'}`}>
                     {p.connected ? 'connected' : 'unconnected'}

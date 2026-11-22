@@ -79,12 +79,21 @@ export interface LiveProvider {
   readonly id: number
   readonly type: number
   readonly typeLabel: string
+  /** The project's name of it, when the user gave one. */
+  readonly name?: string
   readonly state: number
   readonly system: boolean
   readonly wired: boolean
   readonly up: boolean
   readonly framed: boolean
 }
+
+/** How a provider is called: the user's name with its id, else its id and type. */
+export const providerTitle = (p: Pick<LiveProvider, 'id' | 'typeLabel' | 'name'>): string => (p.name ? `${p.name} (#${p.id})` : `Provider #${p.id} (${p.typeLabel})`)
+
+/** The snapshot with the project's names on its providers. */
+export const withProviderNames = (snapshot: RoutingSnapshot, names: Readonly<Record<string, string>> | undefined): RoutingSnapshot =>
+  names ? { ...snapshot, providers: snapshot.providers.map((p) => (names[p.id]?.trim() ? { ...p, name: names[p.id]!.trim() } : p)) } : snapshot
 
 export const providerTypeLabel = (type: number): string => {
   const m = bundledEnums().sys_data_provider_type_e?.members.find((x) => x.value === type)
@@ -146,7 +155,7 @@ export const describePort = (port: number, providers: readonly LiveProvider[], d
   if (p.kind === 'module') return `Module · ${moduleNameOf(defs, p.moduleId)}`
   if (p.kind === 'provider') {
     const prov = providers.find((x) => x.id === p.providerId)
-    return prov ? `Provider #${prov.id} (${prov.typeLabel})` : `Provider #${p.providerId}`
+    return prov ? providerTitle(prov) : `Provider #${p.providerId}`
   }
   if (p.kind === 'session') {
     if (p.moduleId === 0) return `Session #${p.providerId} (line)`
@@ -372,7 +381,7 @@ export const buildGraphLayout = (snapshot: RoutingSnapshot, defs: LinkDefinition
     prvY += PRV_H + GAP_Y
     const inPin = { x: COL_PRV_X, y: y + 30 }
     const outPin = { x: COL_PRV_X, y: y + 58 }
-    pins.set(portId, { in: inPin, out: outPin, label: `Provider #${provider.id} (${provider.typeLabel})`, nodeKey: `prv:${provider.id}` })
+    pins.set(portId, { in: inPin, out: outPin, label: providerTitle(provider), nodeKey: `prv:${provider.id}` })
     return { provider, portId, x: COL_PRV_X, y, w: PRV_W, h: PRV_H, connected: touched.has(portId), hasSession: sessionProviders.has(provider.id), inPin, outPin }
   })
 

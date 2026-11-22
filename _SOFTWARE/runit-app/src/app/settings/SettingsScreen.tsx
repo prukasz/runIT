@@ -152,6 +152,9 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
           {s.characteristics.map((c, k) => (
             <div key={`${k}:${c.provider}`} className="settings-char">
               <div className="settings-group-head">
+                <FormRow label="Name" note="Your name for this provider, kept in the project: the board knows it by its id only. The data matrix and the providers list show it.">
+                  <TextField aria-label="Provider name" maxLength={32} value={state.providerName(c.provider)} placeholder={`Provider #${c.provider}`} onChange={(event) => state.setProviderName(c.provider, event.target.value)} />
+                </FormRow>
                 <FormRow label="Provider" note="The id of this way: what the data matrix routes to and from.">
                   <NumberField aria-label="Provider id" integer min={1} max={254} value={c.provider} onCommit={(provider) => setChar(i, k, (o) => ({ ...o, provider }))} />
                 </FormRow>
@@ -162,8 +165,8 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
                 <FormRow label="Frames" note="It carries frames (a session's way); off: raw bytes (a stream's).">
                   <Switch label={c.framed ? 'On' : 'Off'} checked={c.framed} onChange={(framed) => setChar(i, k, (o) => ({ ...o, framed }))} />
                 </FormRow>
-                <FormRow label="Name" note="The user description of the characteristic (up to 15 characters).">
-                  <TextField aria-label="Way name" maxLength={15} value={c.name} onChange={(event) => setChar(i, k, (o) => ({ ...o, name: event.target.value }))} />
+                <FormRow label="Description" note="The characteristic's user description a BLE client sees (up to 15 characters).">
+                  <TextField aria-label="Characteristic description" maxLength={15} value={c.name} onChange={(event) => setChar(i, k, (o) => ({ ...o, name: event.target.value }))} />
                 </FormRow>
               </FormGrid>
             </div>

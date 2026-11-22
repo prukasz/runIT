@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Bluetooth, Cable, Plus, RefreshCw, Terminal, Trash2, Wifi } from 'lucide-react'
 import type { FieldValues } from '@backend'
-import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
+import { Badge, Button, Card, CardStack, ChoiceField, EditableField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import { FieldsForm } from '../devices/FieldsForm'
@@ -23,8 +23,10 @@ const providerIcon = (type: number) =>
   : type === PROV_TYPE.mqtt ? Wifi
   : Cable
 
-export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix }: {
+export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix, onName }: {
   routing: RoutingState
+  /** Gives a provider its name in the project (empty: none). */
+  onName: (id: number, name: string) => void
   pinContext: PinContext
   uartDevices: readonly { readonly id: number; readonly name: string }[]
   onOpenMatrix: () => void
@@ -51,6 +53,7 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
   }
 
   const [providerId, setProviderId] = useState<number>(nextFreeId)
+  const [providerName, setProviderName] = useState<string>('')
   const [selectedType, setSelectedType] = useState<string>(providerTypes[0]?.id ?? 'ble')
   // BLE fields
   const [bleSvc, setBleSvc] = useState<number>(() => freeUuid(0xee00))
@@ -105,6 +108,8 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
     }
     const ok = await routing.createProvider(providerId, selectedType, cfg)
     if (ok) {
+      if (providerName.trim()) onName(providerId, providerName.trim())
+      setProviderName('')
       let next = providerId + 1
       while (usedIds.has(next) && next < 127) next++
       setProviderId(next)
@@ -153,6 +158,9 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
             <FormRow label="Provider ID" note="Unique ID (1..127 recommended so a session can attach to it).">
               <NumberField aria-label="Provider ID" integer min={1} max={254} value={providerId} onCommit={setProviderId} />
             </FormRow>
+            <FormRow label="Name" note="Your name for it, kept in the project: the board knows a provider by its ID and type only.">
+              <TextField aria-label="Provider name" maxLength={32} value={providerName} placeholder={`Provider #${providerId}`} onChange={(e) => setProviderName(e.target.value)} />
+            </FormRow>
             <FormRow label="Type" note={activeDescriptor?.description ?? 'Driver type from generated/providers.'}>
               <ChoiceField<string> aria-label="Provider type" value={selectedType} choices={typeChoices} onChange={(v) => v && setSelectedType(v)} />
             </FormRow>
@@ -173,8 +181,8 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
                     if (n !== undefined && n > 0) setBleChr(n)
                   }} />
                 </FormRow>
-                <FormRow label="Name" note="BLE characteristic user description (up to 15 chars).">
-                  <TextField aria-label="BLE provider name" maxLength={15} value={bleName} onChange={(e) => setBleName(e.target.value)} />
+                <FormRow label="Description" note="The characteristic's user description a BLE client sees (up to 15 chars).">
+                  <TextField aria-label="BLE characteristic description" maxLength={15} value={bleName} onChange={(e) => setBleName(e.target.value)} />
                 </FormRow>
                 <FormRow label="Framed" note="On: carries whole runIT frames (required for a session). Off: raw stream bytes.">
                   <Switch label={bleFramed ? 'Framed (session-ready)' : 'Raw stream'} checked={bleFramed} onChange={setBleFramed} />
@@ -219,7 +227,8 @@ export function ProvidersScreen({ routing, pinContext, uartDevices, onOpenMatrix
                   <div className="routing-provider-icon"><Icon aria-hidden="true" /></div>
                   <div className="routing-provider-main">
                     <div className="routing-provider-head">
-                      <span className="routing-provider-title">Provider #{p.id}</span>
+                      <EditableField className="routing-provider-title" value={p.name ?? ''} maxLength={32} placeholder={`Provider #${p.id}`} aria-label={`Name of provider #${p.id}`} onChange={(name) => onName(p.id, name)} />
+                      <Badge tone="neutral" size="compact">#{p.id}</Badge>
                       <Badge tone="info" size="compact">{p.typeLabel}</Badge>
                       {p.system && <Badge tone="neutral" size="compact">system</Badge>}
                       {p.up ? <Badge tone="success" size="compact">up</Badge> : <Badge tone="warning" size="compact">down</Badge>}

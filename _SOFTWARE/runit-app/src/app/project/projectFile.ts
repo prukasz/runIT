@@ -139,6 +139,8 @@ export interface ProjectFile {
   readonly boardDefaults: readonly BoardDefaults[]
   readonly actions: readonly ProjectAction[]
   readonly pinAliases: readonly PinAlias[]
+  /** The user's names of the board's providers, by provider id (the board knows an id and a type, never a name). */
+  readonly providerNames?: Readonly<Record<string, string>>
   readonly settings: ProjectSettings
   /** Where the blocks and the free chips sit on the canvas. */
   readonly canvas: CanvasLayout
@@ -217,6 +219,7 @@ export const parseProject = (text: string): ParseResult => {
     pinAliases: pinAliases as unknown as PinAlias[],
     settings: { values: {}, tables: {}, ...(settings as unknown as Partial<ProjectSettings>) },
     canvas: readLayout(data.canvas),
+    ...(isObject(data.providerNames) && Object.values(data.providerNames).every((n) => typeof n === 'string') ? { providerNames: data.providerNames as Record<string, string> } : {}),
     // A display that is not readable is left out: the board's default stands in.
     ...(Array.isArray(data.powerDisplay) && data.powerDisplay.every((r) => isObject(r) && typeof r.name === 'string' && isObject(r.read)) ? { powerDisplay: data.powerDisplay as unknown as PowerReading[] } : {}),
     ...(data.hardware !== undefined ? { hardware: readHardware(data.hardware) } : {}),

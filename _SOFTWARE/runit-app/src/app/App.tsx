@@ -19,7 +19,7 @@ import { DeviceTestPanel, PinPanel } from './devices/DeviceTestPanel'
 import { useDevices } from './devices/useDevices'
 import { useBoardProfile } from './devices/useBoardProfile'
 import { BoardProfileScreen } from './devices/BoardProfileScreen'
-import { useBoardSettings } from './settings/useBoardSettings'
+import { setProviderName, useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
@@ -155,7 +155,7 @@ export function App() {
   const pickedPath = pickedDraft && toPath(pickedDraft)
   // The board's settings, read as soon as the link is up (the Settings view shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
-  const routing = useRouting(link, state === 'connected')
+  const routing = useRouting(link, state === 'connected', project.project.providerNames)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
   // The Project view opens on its landing page (the project); a board tab is a page reached from it, not remembered.
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
@@ -500,7 +500,7 @@ export function App() {
                 : projectTab === BOARD_DEVICES_TAB
                 ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
                 : projectTab === PROVIDERS_TAB
-                ? <ProvidersScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onOpenMatrix={() => setProjectTab(DATA_MATRIX_TAB)} />
+                ? <ProvidersScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onOpenMatrix={() => setProjectTab(DATA_MATRIX_TAB)} onName={(id, name) => setProviderName(project, id, name)} />
                 : projectTab === DATA_MATRIX_TAB
                 ? <DataMatrixScreen routing={routing} onOpenProviders={() => setProjectTab(PROVIDERS_TAB)} />
                 : projectTab === BOARDS_TAB

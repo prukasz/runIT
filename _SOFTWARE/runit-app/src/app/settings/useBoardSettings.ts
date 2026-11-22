@@ -168,6 +168,9 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     dropTable: (t: SettingTable) => editSettings(({ tables: { [t.key]: _, ...tables }, ...s }) => ({ ...s, tables })),
 
     /* ---- GATT ---- */
+    /** The project's name of a provider ('' none), and setting it. */
+    providerName: (id: number): string => project.project.providerNames?.[id] ?? '',
+    setProviderName: (id: number, name: string) => setProviderName(project, id, name),
     gattSource: (): SettingSource => (settings.gatt ? 'project' : 'none'),
     gattServices: (): readonly GattService[] => settings.gatt ?? [],
     gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt),
@@ -203,6 +206,13 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
 /** The descriptor's default of each field that has one. */
 const defaultsOf = (g: SettingGroup): FieldValues =>
   Object.fromEntries(g.layout.fields.filter((f) => typeof f.default === 'number').map((f) => [f.id, f.default as number]))
+
+/** Gives a provider its name in the project; an empty name takes it out. */
+export const setProviderName = (project: ProjectState, id: number, name: string): void =>
+  project.edit((p) => {
+    const { [String(id)]: _, ...rest } = p.providerNames ?? {}
+    return { ...p, providerNames: name.trim() ? { ...rest, [String(id)]: name } : rest }
+  }, `provider-name:${id}`)
 
 /** The write of a form: the fields the write takes (a read may answer more). */
 const formCall = (services: Services, g: SettingGroup, values: FieldValues): ServiceCall => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { bleTableCall, decodeBleTable, decodePeers, PROVIDER_COMMANDS, Services, SESSION_COMMANDS } from '@backend'
 import type { FieldValues, RunitLink } from '@backend'
-import { decodeMatrixLinks, decodeProviderRows, offlinePreviewSnapshot, SESSION_SAFETY_FLAG } from './routing'
+import { decodeMatrixLinks, decodeProviderRows, offlinePreviewSnapshot, SESSION_SAFETY_FLAG, withProviderNames } from './routing'
 import type { RoutingSnapshot } from './routing'
 
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
@@ -25,7 +25,7 @@ export interface RoutingState {
   clearFeedback: () => void
 }
 
-export function useRouting(link: RunitLink, connected: boolean): RoutingState {
+export function useRouting(link: RunitLink, connected: boolean, names?: Readonly<Record<string, string>>): RoutingState {
   const services = useMemo(() => new Services(link), [link])
   const preview = useMemo(() => offlinePreviewSnapshot(link.defs), [link.defs])
   const [liveSnapshot, setLiveSnapshot] = useState<RoutingSnapshot | undefined>()
@@ -137,6 +137,8 @@ export function useRouting(link: RunitLink, connected: boolean): RoutingState {
     }, 'Disconnected ports.'),
   [runAction, services])
 
+  const shown = useMemo(() => withProviderNames(liveSnapshot ?? preview, names), [liveSnapshot, preview, names])
+
   const clearFeedback = useCallback(() => {
     setError(undefined)
     setNote(undefined)
@@ -145,7 +147,7 @@ export function useRouting(link: RunitLink, connected: boolean): RoutingState {
   return {
     connected,
     live: liveSnapshot !== undefined,
-    snapshot: liveSnapshot ?? preview,
+    snapshot: shown,
     ...(busy ? { busy } : {}),
     ...(error ? { error } : {}),
     ...(note ? { note } : {}),

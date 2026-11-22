@@ -11,7 +11,9 @@ import {
   PROV_STATE,
   PROV_TYPE,
   providerPort,
+  providerTitle,
   sessionPort,
+  withProviderNames,
 } from '../../src/app/routing/routing'
 
 const defs = bundledLinkDefinitions()
@@ -59,5 +61,16 @@ describe('routing model (Providers & Data Matrix)', () => {
     expect(layout.edges.some((e) => e.kind === 'session-provider')).toBe(true)
     expect(layout.edges.some((e) => e.kind === 'module-session')).toBe(true)
     expect(layout.edges.some((e) => e.kind === 'direct')).toBe(true)
+  })
+
+  it("calls a provider by the project's name with its id, else by its id and type", () => {
+    const snapshot = offlinePreviewSnapshot(defs)
+    const named = withProviderNames(snapshot, { '3': 'Phone link', '4': '  ' })
+    expect(named.providers.find((p) => p.id === 3)!.name).toBe('Phone link')
+    expect(named.providers.find((p) => p.id === 4)!.name).toBeUndefined()
+    expect(providerTitle(named.providers.find((p) => p.id === 3)!)).toBe('Phone link (#3)')
+    expect(providerTitle(named.providers.find((p) => p.id === 4)!)).toMatch(/^Provider #4 \(/)
+    expect(describePort(providerPort(3), named.providers, defs)).toBe('Phone link (#3)')
+    expect(withProviderNames(snapshot, undefined)).toBe(snapshot)
   })
 })
