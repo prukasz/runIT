@@ -3,7 +3,7 @@ import { bleTableCall, decodeBleTable, PROVIDER_COMMANDS, serviceCall, Services 
 import type { FieldValues, LiveGattService, RunitLink, ServiceCall } from '@backend'
 import type { GattService, ProjectSettings, SettingsRow } from '../project/projectFile'
 import type { useProject } from '../project/useProject'
-import { bleProviders, gattApply, sameGatt } from './gatt'
+import { bleProviders, gattApply, gattProblems, sameGatt } from './gatt'
 import { groupValues, sameRows, sameValues, settingSections, tableArgs, tableRows } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 
@@ -176,7 +176,10 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt),
     changeGatt: (services: readonly GattService[]) => editSettings((s) => ({ ...s, gatt: services }), 'setting:gatt'),
     applyGatt: (section: SettingSection) => {
-      if (settings.gatt && live.bleProviders) void send(section.service.id, gattApply(link.defs, services.catalog, live.bleProviders, settings.gatt), section)
+      if (!settings.gatt || !live.bleProviders) return
+      const problems = gattProblems(settings.gatt, (project.project.boards ?? []).map((b) => b.provider))
+      if (problems.length > 0) { setError(section.service.id, problems[0]); return }
+      void send(section.service.id, gattApply(link.defs, services.catalog, live.bleProviders, settings.gatt), section)
     },
     dropGatt: () => editSettings(({ gatt: _, ...s }) => s),
 

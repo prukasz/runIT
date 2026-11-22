@@ -13,7 +13,23 @@ import type { GattCharacteristic, GattService } from '../project/projectFile'
  *   table    BLE LIST: the table as the board has it, to show it and to compare it with the project
  */
 
-const wayOf = (service: number, c: GattCharacteristic) => ({ provider: c.provider, service, chr: c.chr, framed: c.framed, name: c.name })
+/** The first provider id a way may have: below it are the board's own providers (the console, the runIT Bluetooth pair), which its CREATE would find. */
+export const FIRST_WAY_PROVIDER = 0x10
+
+/** What is wrong with the ways before they go to the board: a provider id of the board's own, one twice, one a link to another board has. */
+export const gattProblems = (services: readonly GattService[], links: readonly number[] = []): string[] => {
+  const ways = services.flatMap((s) => s.characteristics.map((c) => ({ ...c, service: s.uuid })))
+  const hex = (n: number) => `0x${n.toString(16)}`
+  return ways.flatMap((w, i) => {
+    const label = `Bluetooth way ${w.name || hex(w.chr)}`
+    if (w.provider < FIRST_WAY_PROVIDER) return [`${label}: provider ${w.provider} is one of the board's own (below ${hex(FIRST_WAY_PROVIDER)}): give it a higher one.`]
+    if (ways.findIndex((o) => o.provider === w.provider) !== i) return [`${label}: provider ${w.provider} is the provider of another way.`]
+    if (links.includes(w.provider)) return [`${label}: provider ${w.provider} is the link to a board.`]
+    return []
+  })
+}
+
+const wayOf =(service: number, c: GattCharacteristic) => ({ provider: c.provider, service, chr: c.chr, framed: c.framed, name: c.name })
 
 const removeCall = (catalog: ServiceCatalog, provider: number): ServiceCall => serviceCall(catalog, PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.remove, undefined, 'write', provider)
 

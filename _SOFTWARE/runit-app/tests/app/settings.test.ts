@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { bundledEnums, bundledLinkDefinitions, bundledServiceCatalog, decodeBleTable, encodeFields, PROVIDER_COMMANDS, readProviderFrame, serviceCall } from '../../src/backend'
 import type { GattService } from '../../src/app/project/projectFile'
 import { emptySettings } from '../../src/app/project/projectFile'
-import { bleProviders, gattApply, gattFromRecord, gattRecord, sameGatt } from '../../src/app/settings/gatt'
+import { bleProviders, gattApply, gattFromRecord, gattProblems, gattRecord, sameGatt } from '../../src/app/settings/gatt'
 import { groupValues, sameValues, settingSections } from '../../src/app/settings/settings'
 import { settingsRecords } from '../../src/app/settings/settingsRecords'
 
@@ -99,6 +99,14 @@ describe('the settings the project keeps, as records of the stored project', () 
     const live = decodeBleTable(defs, Uint8Array.of(1, 0x00, 0xee, 0b01, 1, 0x01, 0xee, 0b0100, 0x60, 0, 0x74, 0x65, 0x6d, 0x70, 0))
     expect(sameGatt(gatt, live)).toBe(true)
     expect(sameGatt([{ uuid: 0xee00, characteristics: [{ provider: 0x11, chr: 0xee02, framed: false, name: '' }] }], live)).toBe(false)
+  })
+
+  it('refuses a way whose provider is the board\'s own, another way\'s or a board link\'s', () => {
+    const way = (provider: number, chr: number) => ({ provider, chr, framed: false, name: '' })
+    expect(gattProblems(gatt, [0x30])).toEqual([])
+    expect(gattProblems([{ uuid: 0xee00, characteristics: [way(1, 0xee01)] }])).toHaveLength(1)
+    expect(gattProblems([{ uuid: 0xee00, characteristics: [way(0x11, 0xee01), way(0x11, 0xee02)] }])).toHaveLength(1)
+    expect(gattProblems(gatt, [0x11])).toHaveLength(1)
   })
 
   it('writes each kept setting as its record', () => {

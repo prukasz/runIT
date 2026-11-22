@@ -8,7 +8,7 @@ import type { Choice } from '@ui/components'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
 import { FieldsForm } from '../devices/FieldsForm'
 import type { PinContext } from '../devices/FieldsForm'
-import { ownGattService } from './gatt'
+import { FIRST_WAY_PROVIDER, ownGattService } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
@@ -122,7 +122,7 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
   // A new provider's id: a number no provider of the project has, above the board's own.
   const freeProvider = () => {
     const used = new Set(services.flatMap((s) => s.characteristics.map((c) => c.provider)))
-    let n = 0x10
+    let n = FIRST_WAY_PROVIDER
     while (used.has(n)) n++
     return n
   }

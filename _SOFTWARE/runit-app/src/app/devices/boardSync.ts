@@ -1,7 +1,7 @@
 import { deviceCall, listRecords, onboardActionIds, PROVIDER_COMMANDS, removeRecord, runRecord, Services, storeRecord } from '@backend'
 import type { RunitLink, ServiceCatalog } from '@backend'
 import type { ProjectFile } from '../project/projectFile'
-import { bleProviders, gattRemoves } from '../settings/gatt'
+import { bleProviders, gattProblems, gattRemoves } from '../settings/gatt'
 import { settingsRecords } from '../settings/settingsRecords'
 import { actionRecordOf, DEVICE_CLASS, DEVICE_COMMANDS, deviceProblems, deviceSections, lifecycleOf, recordClass, SETTINGS_CLASS, stepFrame, USER_CLASS } from './devices'
 import { boardProblems } from '../boards/boards'
@@ -31,7 +31,8 @@ export interface SyncProgress {
 /** Writes the devices, the settings and the actions to the board. Resolves with a line for the user. */
 export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, project: ProjectFile, onProgress?: (p: SyncProgress) => void): Promise<string> => {
   const defs = link.defs
-  const problems = [...deviceProblems(project, catalog, board), ...boardProblems(project, link.session?.boardId, catalog)]
+  const problems = [...deviceProblems(project, catalog, board), ...boardProblems(project, link.session?.boardId, catalog),
+    ...gattProblems(project.settings.gatt ?? [], (project.boards ?? []).map((b) => b.provider))]
   if (problems.length > 0) throw new Error(problems[0])
   const settings = settingsRecords(catalog, project.settings, defs)
   const sections = [...settings, ...deviceSections(defs, catalog, project, board)]
