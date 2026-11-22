@@ -23,29 +23,77 @@
             {
               "id": "level",
               "label": "Log level",
-              "type": "integer",
+              "description": "How much the board logs: a line of this level or a more severe one goes out. Above the firmware's maximum (CONFIG_LOG_MAXIMUM_LEVEL) is refused.",
+              "type": "choice",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "0=None, 1=Error, 2=Warn, 3=Info, 4=Debug, 5=Verbose (capped by CONFIG_LOG_MAXIMUM_LEVEL)"
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "Error",
+                  "value": 1
+                },
+                {
+                  "label": "Warn",
+                  "value": 2
+                },
+                {
+                  "label": "Info",
+                  "value": 3
+                },
+                {
+                  "label": "Debug",
+                  "value": 4
+                },
+                {
+                  "label": "Verbose",
+                  "value": 5
+                }
+              ]
             },
             {
               "id": "mirror_serial",
               "label": "Mirror to serial",
-              "type": "integer",
+              "description": "On: the log lines are also printed on the console UART / USB-Serial-JTAG; off: only out of the LOGS port.",
+              "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "1 = also print ESP_LOG lines to the console UART / USB-Serial-JTAG, 0 = the LOGS port only"
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
             },
             {
               "id": "trace_errors",
               "label": "Trace errors to logs",
-              "type": "integer",
+              "description": "On: every reported error chain is also printed as log lines; off: only its error record.",
+              "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "1 = print reported error chains as log lines, 0 = the error record only"
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
             }
           ]
         }
@@ -57,29 +105,77 @@
             {
               "id": "level",
               "label": "Log level",
-              "type": "integer",
+              "description": "How much the board logs: a line of this level or a more severe one goes out. Above the firmware's maximum (CONFIG_LOG_MAXIMUM_LEVEL) is refused.",
+              "type": "choice",
               "raw_type": "u8",
               "size": 1,
               "offset": 0,
-              "description": "0=None .. CONFIG_LOG_MAXIMUM_LEVEL"
+              "options": [
+                {
+                  "label": "None",
+                  "value": 0
+                },
+                {
+                  "label": "Error",
+                  "value": 1
+                },
+                {
+                  "label": "Warn",
+                  "value": 2
+                },
+                {
+                  "label": "Info",
+                  "value": 3
+                },
+                {
+                  "label": "Debug",
+                  "value": 4
+                },
+                {
+                  "label": "Verbose",
+                  "value": 5
+                }
+              ]
             },
             {
               "id": "mirror_serial",
               "label": "Mirror to serial",
-              "type": "integer",
+              "description": "On: the log lines are also printed on the console UART / USB-Serial-JTAG; off: only out of the LOGS port.",
+              "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 1,
-              "description": "0 or 1"
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
             },
             {
               "id": "trace_errors",
               "label": "Trace errors to logs",
-              "type": "integer",
+              "description": "On: every reported error chain is also printed as log lines; off: only its error record.",
+              "type": "choice",
+              "control": "switch",
               "raw_type": "u8",
               "size": 1,
               "offset": 2,
-              "description": "0 or 1"
+              "options": [
+                {
+                  "label": "Off",
+                  "value": 0
+                },
+                {
+                  "label": "On",
+                  "value": 1
+                }
+              ]
             }
           ]
         }
