@@ -47,7 +47,8 @@
               "offset": 0,
               "description": "0: none, 1..0xEF; from the next start",
               "min": 0,
-              "max": 239
+              "max": 239,
+              "default": 0
             }
           ]
         }

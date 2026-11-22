@@ -92,7 +92,8 @@
               "unit": "ms",
               "min": 0,
               "max": 60000,
-              "description": "The clients' sessions' timeout (0 = off, else 150..60000). A client sends something at least every third of it (its session's PING), so a connected client never trips it."
+              "description": "The clients' sessions' timeout (0 = off, else 150..60000). A client sends something at least every third of it (its session's PING), so a connected client never trips it.",
+              "default": 0
             }
           ]
         }
