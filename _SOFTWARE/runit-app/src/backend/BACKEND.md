@@ -108,7 +108,7 @@ await sessions.peers()                                            // [{ provider
 
 ## The dead-man
 
-Armed, the dead-man's time is the silence that ends this client's session, and the board enters its safe state (devices suspended: SYS_SYSTEM.MD) when that session ends: nothing came for that long, or the link dropped. Any frame feeds it, the link's own PINGs too. `session/deadman.ts` keeps it:
+Armed, the dead-man's time is the silence that ends this client's session, and the board enters its safe state (devices suspended: SYS_SYSTEM.MD) when that session ends: nothing came for that long, or the link dropped. Any frame feeds it, the link's own PINGs too. `link.setDeadman(ms)` sets the dead-man of this client's session at once (`SYS DEADMAN`; 0 is off) and keeps the link's PINGs to its third, as the Connections window does; `session/deadman.ts` keeps it armed from the app's side:
 
 ```ts
 const deadman = new DeadMan(link, { timeoutMs: 1500 })        // 150..60000 ms; heartbeatMs: a third of the timeout

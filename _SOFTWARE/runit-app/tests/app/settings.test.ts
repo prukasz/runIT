@@ -25,7 +25,7 @@ describe('the board settings from the service descriptors', () => {
 
   it('takes the mirrors whose read takes no key, each read answering what its write takes, one section per service', () => {
     expect(problems).toEqual([])
-    for (const key of ['LOG.CONFIG', 'POWER_MANAGER.CONFIG', 'POWER_MANAGER.PSU', 'POWER_MANAGER.BATTERY', 'POWER_MANAGER.PD', 'SYS.DEADMAN']) {
+    for (const key of ['LOG.CONFIG', 'POWER_MANAGER.CONFIG', 'POWER_MANAGER.PSU', 'POWER_MANAGER.BATTERY', 'POWER_MANAGER.PD']) {
       const g = group(key)
       expect(g, key).toBeDefined()
       expect(g!.command.read && g!.command.write, key).toBeTruthy()
@@ -41,8 +41,8 @@ describe('the board settings from the service descriptors', () => {
     expect(group('LOG.CONFIG')?.recordId).toBe(record('SYS_ACTIONS_ID_LOG'))
     expect(group('POWER_MANAGER.PSU')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PSU'))
     expect(group('POWER_MANAGER.PD')?.recordId).toBe(record('SYS_ACTIONS_ID_POWER_PD'))
-    // The dead-man is runtime only: the project never keeps it, so a board that restarts runs offline.
-    expect(group('SYS.DEADMAN')?.recordId).toBeUndefined()
+    // The dead-man of a session is set where the session is (the Connections window), not among the board's settings.
+    expect(group('SYS.DEADMAN')).toBeUndefined()
     expect(sections.find((s) => s.service.id === 'BLE')?.record).toEqual({ id: record('SYS_ACTIONS_ID_BLE'), editor: 'ble' })
   })
 

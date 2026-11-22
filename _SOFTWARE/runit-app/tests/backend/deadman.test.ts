@@ -34,6 +34,22 @@ const start = async (b: FakeBoard, options: { timeoutMs?: number; heartbeatMs?: 
   return { link, deadman, events }
 }
 
+describe('the dead-man of this session', () => {
+  it("link.setDeadman writes the time and keeps the link's own PINGs to its third; it needs a session", async () => {
+    const b = board()
+    const link = new RunitLink(b, { timeoutMs: 200 })
+    await expect(link.setDeadman(300)).rejects.toThrow(/no session/i)
+    await link.connect(b.device)
+    await link.setDeadman(300)
+    const set = sysOps(b, SET).at(-1)!
+    expect([...set.data.subarray(2)]).toEqual([...u32(300)])
+    expect(link.session?.deadmanMs).toBe(300)
+    await link.setDeadman(0)
+    expect(link.session?.deadmanMs).toBe(0)
+    await link.close()
+  })
+})
+
 describe('the dead-man', () => {
   it('names commands and fields the descriptor has', () => {
     expect(sys.commands.get(DEADMAN_COMMANDS.set)!.write!.args!.fields.map((f) => f.id)).toEqual([DEADMAN_COMMANDS.timeout])

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { bleTableCall, decodeBleTable, decodePeers, PROVIDER_COMMANDS, Services, SESSION_COMMANDS } from '@backend'
 import type { FieldValues, RunitLink } from '@backend'
-import { decodeMatrixLinks, decodeProviderRows, offlinePreviewSnapshot, SESSION_SAFETY_FLAG, withProviderNames } from './routing'
+import { subPortLinks } from './connections'
+import { decodeMatrixLinks, decodeProviderRows, offlinePreviewSnapshot, parsePort, SESSION_SAFETY_FLAG, withProviderNames } from './routing'
 import type { RoutingSnapshot } from './routing'
 
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
@@ -20,6 +21,8 @@ export interface RoutingState {
   removeProvider: (id: number) => Promise<boolean>
   attachSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]) => Promise<boolean>
   detachSession: (provider: number) => Promise<boolean>
+  /** The session on a provider made again with another dead-man, safety flag or module list; the links of its sub-ports are made again (the session ends for a moment: not for the app's own). */
+  restartSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]) => Promise<boolean>
   connectPorts: (from: number, to: number, bothWays?: boolean) => Promise<boolean>
   disconnectPorts: (from: number, to: number) => Promise<boolean>
   clearFeedback: () => void
@@ -122,6 +125,21 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     }, `Detached session on provider #${provider}.`),
   [runAction, services])
 
+  const restartSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[]): Promise<boolean> =>
+    runAction(`Changing the session on provider #${provider}`, async () => {
+      const kept = subPortLinks(liveSnapshot?.links ?? [], provider)
+      if (liveSnapshot?.sessions.some((s) => s.provider === provider)) await services.call('SESSION', 'DETACH', { provider }, { side: 'write' })
+      await services.call('SESSION', 'ATTACH', {
+        provider, flags: safety ? SESSION_SAFETY_FLAG : 0, deadman_ms: deadmanMs, modules: Uint8Array.from(modules),
+      }, { side: 'write' })
+      const subModule = (port: number) => { const p = parsePort(port); return p.kind === 'session' ? p.moduleId : undefined }
+      for (const l of kept) {
+        if (![subModule(l.from), subModule(l.to)].some((m) => m !== undefined && modules.includes(m))) continue
+        await services.call('DATA_MATRIX', 'CONNECT', { from: l.from, to: l.to }, { side: 'write' })
+      }
+    }, `Changed the session on provider #${provider}.`),
+  [runAction, services, liveSnapshot])
+
   const connectPorts = useCallback(async (from: number, to: number, bothWays = false): Promise<boolean> =>
     runAction('Connecting ports', async () => {
       await services.call('DATA_MATRIX', 'CONNECT', { from, to }, { side: 'write' })
@@ -158,6 +176,7 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     removeProvider,
     attachSession,
     detachSession,
+    restartSession,
     connectPorts,
     disconnectPorts,
     clearFeedback,

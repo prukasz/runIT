@@ -55,6 +55,9 @@
       "op": 4,
       "symbol": "SYS_OP_DEADMAN",
       "label": "Dead-man",
+      "tags": [
+        "app"
+      ],
       "description": "Sets the dead-man: the timeout of the clients' sessions, whose end (silence that long, the link lost) enters the safe state. 0 = off: the board then runs its program on its own, with no client. Runtime only: after a restart the board is as built (off by default).",
       "read": {
         "description": "Returns the dead-man time (0 = off).",

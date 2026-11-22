@@ -24,10 +24,9 @@ import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
-import { BOARD_DEVICES_TAB, BOARDS_TAB, DATA_MATRIX_TAB, PROFILE_TAB, PROJECT_TAB, PROVIDERS_TAB, ProjectTabs } from './project/ProjectTabs'
+import { BOARD_DEVICES_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROFILE_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRouting } from './routing/useRouting'
-import { ProvidersScreen } from './routing/ProvidersScreen'
-import { DataMatrixScreen } from './routing/DataMatrixScreen'
+import { ConnectionsScreen } from './routing/ConnectionsScreen'
 import { BoardsScreen } from './boards/BoardsScreen'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
@@ -499,10 +498,8 @@ export function App() {
                 ? <BoardProfileScreen profile={boardProfile} editor={boardEditor} />
                 : projectTab === BOARD_DEVICES_TAB
                 ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
-                : projectTab === PROVIDERS_TAB
-                ? <ProvidersScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onOpenMatrix={() => setProjectTab(DATA_MATRIX_TAB)} onName={(id, name) => setProviderName(project, id, name)} />
-                : projectTab === DATA_MATRIX_TAB
-                ? <DataMatrixScreen routing={routing} onOpenProviders={() => setProjectTab(PROVIDERS_TAB)} />
+                : projectTab === CONNECTIONS_TAB
+                ? <ConnectionsScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onName={(id, name) => setProviderName(project, id, name)} />
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)

@@ -1,12 +1,14 @@
 import type { ServiceCatalog } from '../catalog/services'
 import { bundledLinkDefinitions, bundledServiceCatalog, errorCatalog, STREAM_NAMES } from '../definitions'
 import type { ErrorInfo, LinkDefinitions, StreamName } from '../definitions'
+import { serviceCall } from '../protocol/calls'
 import { decodeFrame, decodeHello, encodeControl, encodeHello } from '../protocol/frame'
 import type { Frame, Hello, Request } from '../protocol/frame'
 import { fragment, Reassembler } from '../transport/framing'
 import type { BleChannel, BleDeviceRef, BlePlatform, OpenSpec } from '../transport/types'
 import { CommandClient, CommandError } from './commands'
 import type { CommandOptions } from './commands'
+import { DEADMAN_COMMANDS } from './deadman'
 import { peersCall, readPeers } from './sessions'
 
 /*
@@ -188,6 +190,19 @@ export class RunitLink {
   /** The open session; undefined while there is none. */
   get session(): SessionInfo | undefined {
     return this.sessionInfo
+  }
+
+  /**
+   * Sets the dead-man of this client's session on the board (SYS DEADMAN: 0 is off, else 150..60000 ms; its end enters the safe
+   * state) and keeps the pings to it: a PING whenever nothing was sent for a third of it.
+   */
+  async setDeadman(ms: number): Promise<void> {
+    if (!this.sessionInfo) throw new CommandError('There is no session with the board.', 'closed')
+    const call = serviceCall(this.catalog, DEADMAN_COMMANDS.service, DEADMAN_COMMANDS.set, { [DEADMAN_COMMANDS.timeout]: ms }, 'write')
+    await this.commands.request(call.request, { label: call.label })
+    if (!this.sessionInfo) return
+    this.sessionInfo = { ...this.sessionInfo, deadmanMs: ms }
+    this.startPings()
   }
 
   /* ---- connection ---- */
