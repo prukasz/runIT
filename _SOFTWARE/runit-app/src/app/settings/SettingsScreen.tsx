@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Download, Plus, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { bundledEnums } from '@backend'
 import type { FieldValues, WireField } from '@backend'
-import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
+import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, Switch, TextField } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
@@ -13,7 +13,7 @@ import type { SettingGroup, SettingSection, SettingTable } from './settings'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
 
 /*
- * A tab of the Project view: the settings of one service descriptor. Every label, unit, choice and help text is the
+ * A tab of the Settings view: the settings of one service descriptor. Every label, unit, choice and help text is the
  * descriptor's (the write command's fields); the values are the project's, or the board's while the project keeps none.
  */
 
@@ -44,9 +44,7 @@ function FormCard({ group, state, context }: { group: SettingGroup; state: Board
     <Card title={settingTitle(group.command)} help={group.command.write?.description ?? group.command.description}
       actions={<span className="settings-actions"><SourceBar source={source} differs={state.formDiffers(group)} kept={kept} connected={state.connected} busy={state.busy !== undefined}
         onApply={() => state.applyForm(group)} onDrop={() => state.dropForm(group)} /></span>}>
-      {source === 'none'
-        ? <p className="project-note">{state.connected ? 'Reading the board…' : 'Connect the board to read it, or set it here.'}</p>
-        : null}
+      {source === 'none' && state.connected && <p className="project-note">Reading the board…</p>}
       <FieldsForm layout={group.layout} values={state.formValues(group)} context={context} disabled={!kept && !state.connected}
         onChange={(values: FieldValues) => state.changeForm(group, values)} />
       <FieldError>{state.error(group.key)}</FieldError>
@@ -196,14 +194,15 @@ export function SettingsCards({ section, state, context, nameOf }: { section: Se
   )
 }
 
-/** A settings tab: the section's title, Read, and its cards. */
+/** A settings tab: Read while connected, and its cards (its name is the tab's, in the left panel). */
 export function SettingsScreen({ section, state, context, nameOf }: { section: SettingSection; state: BoardSettingsState; context: PinContext; nameOf: (device: number) => string }) {
   return (
     <div className="project-screen">
-      <PanelHeader title={section.title}>
-        {state.connected && <Button size="sm" title="Read these settings from the board: the forms show what it has (Undo brings the project's back)" onClick={() => state.read(section)}><RefreshCw aria-hidden="true" />Read</Button>}
-      </PanelHeader>
-      {!state.connected && <p className="project-note">Not connected: the values are the project's; connect the board to see its own.</p>}
+      {state.connected && (
+        <div className="project-actions">
+          <Button size="sm" title="Read these settings from the board: the forms show what it has (Undo brings the project's back)" onClick={() => state.read(section)}><RefreshCw aria-hidden="true" />Read</Button>
+        </div>
+      )}
       <CardStack>
         {section.service.key !== undefined && <ErrorsCard about={`router_key:${section.service.key}`} />}
         <SettingsCards section={section} state={state} context={context} nameOf={nameOf} />

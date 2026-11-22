@@ -1,4 +1,4 @@
-import { Card, CardStack, FormRow, PanelHeader, Slider, Switch } from '@ui/components'
+import { Card, CardStack, FormRow, Slider, Switch } from '@ui/components'
 import { useAppPrefs } from './AppPrefs'
 import type { useAppZoom } from './useAppZoom'
 
@@ -12,7 +12,6 @@ export function AppSettingsScreen({ zoom }: { zoom: ReturnType<typeof useAppZoom
   const prefs = useAppPrefs()
   return (
     <div className="project-screen">
-      <PanelHeader title="App settings" />
       <CardStack>
         <Card title="Interface scale" help="How large the app draws everything. Ctrl + / Ctrl − change it too, Ctrl 0 returns to 130 %.">
           {zoom.zoom === undefined

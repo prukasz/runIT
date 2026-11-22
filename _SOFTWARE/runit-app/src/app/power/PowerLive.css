@@ -12,11 +12,10 @@
 .power-live.is-column .power-live-more { margin-top: 4px; }
 .power-live-more svg { width: 14px; height: 14px; }
 
-/* The Project view's Live power display tab (PowerDisplayScreen.tsx). */
+/* The Settings view's Live power display tab (PowerDisplayScreen.tsx). */
 .power-display-screen { display: flex; flex-direction: column; gap: 10px; }
-.power-display-screen > .power-display-intro, .power-display-screen > .power-display-actions { max-width: 760px; }
+.power-display-screen > .power-display-actions { max-width: 760px; }
 .power-display-screen > * { flex: none; }
-.power-display-intro { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .power-display-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .power-display-row-actions { display: inline-flex; align-items: center; gap: 4px; }
 .power-display-now { margin-right: 6px; color: var(--color-amber); font: 600 12px ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; }

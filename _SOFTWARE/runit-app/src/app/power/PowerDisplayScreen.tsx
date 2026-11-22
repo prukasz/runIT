@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import type { FieldValues, Services } from '@backend'
-import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, PanelHeader, Switch, TextField } from '@ui/components'
+import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, Switch, TextField } from '@ui/components'
 import type { Choice } from '@ui/components'
 import { deviceChannels } from '../devices/devices'
 import type { DeviceInfo } from '../devices/devices'
@@ -41,8 +41,6 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
 
   return (
     <div className="project-screen power-display-screen">
-      <PanelHeader title="Live power display" />
-      <p className="power-display-intro">What the right panel shows of the board's power, read every second while connected. Readings of one name stand together; those not in the short view show with More.</p>
       <div className="power-display-actions">
         <Button onClick={() => set([...readings, { name: 'Reading', read: { kind: 'service', service: 'POWER_MANAGER', command: 'STATUS' }, field: 'input_mV', main: true }])}><Plus aria-hidden="true" />Add a reading</Button>
         <Button disabled={own === undefined} title="Back to the board's own: the input, the source and every regulator rail" onClick={() => project.edit((p) => {
