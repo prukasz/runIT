@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RunitLink, Services, WebBluetoothPlatform, bundledLinkDefinitions } from '@backend'
 import type { BleDeviceRef, LinkState } from '@backend'
 import { readStored, writeStored } from '@ui/hooks/useStorage'
@@ -39,7 +39,10 @@ export function useLink(auto: boolean) {
   const [board, setBoard] = useState<Board | undefined>(() => readStored(BOARD_KEY, parseBoard, undefined))
   const boardRef = useRef(board)
   boardRef.current = board
-  const platform = useMemo(() => {
+  // One platform and one link for the page's life, in a ref: a hot reload re-runs every useMemo, and a new link would be an idle
+  // one under a screen that still says connected (every request then fails "not connected").
+  const held = useRef<{ platform: WebBluetoothPlatform; link: RunitLink } | undefined>(undefined)
+  if (!held.current) {
     let instance!: WebBluetoothPlatform
     const bridge = desktop
     const refresh = bridge
@@ -61,9 +64,9 @@ export function useLink(auto: boolean) {
         }
       : undefined
     instance = new WebBluetoothPlatform(bundledLinkDefinitions(), undefined, { refresh })
-    return instance
-  }, [])
-  const link = useMemo(() => new RunitLink(platform), [platform])
+    held.current = { platform: instance, link: new RunitLink(instance) }
+  }
+  const { platform, link } = held.current
   const [state, setState] = useState<LinkState>(link.state)
   const [reason, setReason] = useState<string | undefined>()
   const [scan, setScan] = useState<readonly ScanResult[] | undefined>()
