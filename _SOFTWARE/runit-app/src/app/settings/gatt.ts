@@ -1,4 +1,4 @@
-import { bleWayCall, decodeAnswer, PROVIDER_COMMANDS, readBleWay, requestFrame, serviceCall } from '@backend'
+import { bleWayCall, bundledEnums, decodeAnswer, PROVIDER_COMMANDS, readBleWay, requestFrame, serviceCall } from '@backend'
 import type { FieldRecord, LeadAnswer, LinkDefinitions, LiveGattService, ServiceCall, ServiceCatalog } from '@backend'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
 
@@ -53,6 +53,19 @@ export const gattFromRecord = (defs: LinkDefinitions, catalog: ServiceCatalog, f
     else services[at] = { ...services[at]!, characteristics: [...services[at]!.characteristics, c] }
   }
   return services
+}
+
+/**
+ * The board's own service as the firmware makes it (the group `ble_runit_uuid`: the service first, then its characteristics),
+ * shown while the board's table is not read: it is always there, and locked.
+ */
+export const ownGattService = (): LiveGattService | undefined => {
+  const [service, ...characteristics] = bundledEnums().ble_runit_uuid?.members ?? []
+  if (!service) return undefined
+  return {
+    uuid: service.value, primary: true, locked: true,
+    characteristics: characteristics.map((c) => ({ uuid: c.value, name: c.alias ?? c.name, write: false, indicate: false, notify: false, framed: false })),
+  }
 }
 
 /** The characteristic UUIDs of each service, as a comparable text: what the project's ways make and what the board's table has. */

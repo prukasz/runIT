@@ -8,6 +8,7 @@ import type { Choice } from '@ui/components'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
 import { FieldsForm } from '../devices/FieldsForm'
 import type { PinContext } from '../devices/FieldsForm'
+import { ownGattService } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
@@ -112,7 +113,8 @@ function UuidField({ label, value, optional, onChange }: { label: string; value:
 
 function GattEditor({ section, state }: { section: SettingSection; state: BoardSettingsState }) {
   const services = state.gattServices()
-  const board = state.live.gatt ?? []
+  const own = ownGattService()
+  const board = state.live.gatt ?? (own ? [own] : [])
   const taken = new Set([
     ...board.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)]),
     ...services.flatMap((s) => [s.uuid, ...s.characteristics.flatMap((c) => [c.tx, c.rx])]),
