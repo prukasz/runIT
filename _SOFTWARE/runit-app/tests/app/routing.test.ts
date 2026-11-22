@@ -12,6 +12,8 @@ import {
   providerTitle,
   sessionPort,
   standardModulePorts,
+  UART_PROVIDER_BASE,
+  uartProviderNames,
   withProviderNames,
 } from '../../src/app/routing/routing'
 import { chipLinks, chipState, deadmanChoices, deadmanLabel, sessionModules, subPortLinks } from '../../src/app/routing/connections'
@@ -89,5 +91,11 @@ describe('routing model (Providers & Data Matrix)', () => {
     expect(providerTitle(named.providers.find((p) => p.id === 3)!)).toBe('Phone link (#3)')
     expect(providerTitle(named.providers.find((p) => p.id === 4)!)).toMatch(/^Provider #4 \(/)
     expect(withProviderNames(snapshot, undefined)).toBe(snapshot)
+  })
+
+  it('a framed UART device has a provider named after it; a raw one has none', () => {
+    const uart = (id: number, name: string, config: Record<string, unknown>) => ({ id, name, type: { id: 'esp32s3_uart' }, config }) as never
+    const names = uartProviderNames([uart(1, 'Link to slave', {}), uart(2, 'GPS', { mode: 'SYS_UART_MODE_RAW_LINE' }), uart(3, 'Cable', { mode: 'SYS_UART_MODE_FRAMED' }), uart(0x40, 'Too high', {})])
+    expect(names).toEqual({ [String(UART_PROVIDER_BASE + 1)]: 'Link to slave', [String(UART_PROVIDER_BASE + 3)]: 'Cable' })
   })
 })

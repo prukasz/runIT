@@ -23,6 +23,7 @@ Every provider is created via `CREATE` from a driver registered under `sys_data_
 - `remove(sys_data_provider_t* p)` tears down the driver's hooks. It can't fail: when it returns, no RX callback of the driver runs any more. What the driver allocated in `create` (queues, buffers, a client) it frees here; its struct is the registry's.
 - `in` is the port's input (`data_matrix_in_f`): the packet onto the line (in it the driver gets its struct with `SYS_DATA_PROVIDER_OF(self, prov_t)`).
 - `ops` is an optional table of `sys_data_provider_op_t` rows (`SYS_DATA_PROVIDER_OWN_OP(n)`, `0xFFxx`; plain `cmd_f` handlers taking the provider as `ctx`), reached by the router only: what a type has beyond the contract (an MQTT topic, ...).
+- Code that makes a provider for something the board has (the framed UART devices' in `provider_uart`) calls `sys_data_provider_create_runtime` and `sys_data_provider_remove_runtime`: CREATE and REMOVE as a client's, not `SYSTEM`. They may be called from a listener of the device registry's events: those come after the device's lock is let go.
 - A type the app creates (BLE) has a descriptor beside its driver, `provider_<name>.json` (`templates/provider.schema.json`): its type and its cfg's fields, from which the app builds the CREATE.
 - What comes in on the line the driver sends out of its port itself (`data_matrix_send(&p->port, 0, data, len)`, from its task); its line's state with `sys_data_provider_set_up` (`STATE_UP` only).
 

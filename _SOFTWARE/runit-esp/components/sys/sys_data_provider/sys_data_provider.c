@@ -186,6 +186,14 @@ err_h sys_data_provider_create_system(uint8_t id, uint8_t type_id, const void* c
   return sys_data_provider_create(id, type_id, true, cfg, cfg_len);
 }
 
+err_h sys_data_provider_create_runtime(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len) {
+  return sys_data_provider_create(id, type_id, false, cfg, cfg_len);
+}
+
+err_h sys_data_provider_remove_runtime(uint8_t id) {
+  return sys_data_provider_remove(id);
+}
+
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
   portENTER_CRITICAL(&s_lock);
   const bool was = (p->state & SYS_DATA_PROVIDER_STATE_UP) != 0;

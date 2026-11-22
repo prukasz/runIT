@@ -1,5 +1,6 @@
 import { bundledEnums } from '@backend'
 import type { LinkDefinitions, LiveGattService, SessionPeer } from '@backend'
+import type { DeviceInfo } from '../devices/devices'
 
 /*
  * Pure model for the board's Providers, Sessions and Data Matrix (DATA_MATRIX.MD, SYS_DATA_PROVIDER.MD, SYS_SESSION.MD).
@@ -95,6 +96,19 @@ export interface LiveProvider {
 
 /** How a provider is called: the user's name with its id, else its id and type. */
 export const providerTitle = (p: Pick<LiveProvider, 'id' | 'typeLabel' | 'name'>): string => (p.name ? `${p.name} (#${p.id})` : `Provider #${p.id} (${p.typeLabel})`)
+
+/** The firmware makes a provider for each UART device in framed mode, with the ID `UART_PROVIDER_BASE` + the device's (provider_uart.c). */
+export const UART_PROVIDER_BASE = 0x40
+const UART_PROVIDER_MAX = 0x40
+
+/** The names of those providers: their device's (a UART's mode is framed unless it says otherwise). The user's own names come over them. */
+export const uartProviderNames = (devices: readonly DeviceInfo[]): Record<string, string> => {
+  const framed = bundledEnums().sys_uart_mode_e?.members.find((m) => m.name === 'SYS_UART_MODE_FRAMED')
+  const isFramed = (mode: unknown): boolean => mode === undefined || mode === framed?.value || mode === framed?.name || mode === framed?.alias
+  return Object.fromEntries(devices
+    .filter((d) => d.type?.id === 'esp32s3_uart' && d.id < UART_PROVIDER_MAX && isFramed(d.config.mode))
+    .map((d) => [String(UART_PROVIDER_BASE + d.id), d.name]))
+}
 
 /** The snapshot with the project's names on its providers. */
 export const withProviderNames = (snapshot: RoutingSnapshot, names: Readonly<Record<string, string>> | undefined): RoutingSnapshot =>

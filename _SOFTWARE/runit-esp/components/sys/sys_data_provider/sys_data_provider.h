@@ -49,6 +49,24 @@ typedef enum {
 uint8_t sys_data_provider_state(uint8_t id);
 
 /**
+ * @brief CREATE as a client's: a provider that code makes for something the board has (a UART device), not SYSTEM, so
+ * REMOVE takes it away. Any task that may wait on the registry's lock, not the event task of the device it follows.
+ * @param[in] id      The provider ID
+ * @param[in] type_id sys_data_provider_type_e
+ * @param[in] cfg     The driver's cfg
+ * @param[in] cfg_len Its size, the type's cfg size
+ * @return As CREATE
+ */
+MUST_USE err_h sys_data_provider_create_runtime(uint8_t id, uint8_t type_id, const void* cfg, uint32_t cfg_len);
+
+/**
+ * @brief REMOVE of a provider made so; ERR_PROV_NOT_FOUND when there is none, ERR_PROV_SYSTEM for a SYSTEM one.
+ * @param[in] id The provider ID
+ * @return NULL, or the error
+ */
+MUST_USE err_h sys_data_provider_remove_runtime(uint8_t id);
+
+/**
  * @brief CREATE of the board's own provider (SYS_DATA_PROVIDER_STATE_SYSTEM: it can't be removed). Boot code.
  * @param[in] id      The provider ID
  * @param[in] type_id sys_data_provider_type_e

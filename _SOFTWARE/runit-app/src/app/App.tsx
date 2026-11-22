@@ -27,6 +27,7 @@ import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './
 import { BOARD_DEVICES_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROFILE_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRouting } from './routing/useRouting'
 import { ConnectionsScreen } from './routing/ConnectionsScreen'
+import { uartProviderNames } from './routing/routing'
 import { BoardsScreen } from './boards/BoardsScreen'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
@@ -154,7 +155,9 @@ export function App() {
   const pickedPath = pickedDraft && toPath(pickedDraft)
   // The board's settings, read as soon as the link is up (the Settings view shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
-  const routing = useRouting(link, state === 'connected', project.project.providerNames)
+  // A provider is called by the user's name, else (a framed UART's) by its device's.
+  const providerNames = useMemo(() => ({ ...uartProviderNames(devices.devices), ...project.project.providerNames }), [devices.devices, project.project.providerNames])
+  const routing = useRouting(link, state === 'connected', providerNames)
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
   // The Project view opens on its landing page (the project); a board tab is a page reached from it, not remembered.
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)

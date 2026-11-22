@@ -167,7 +167,7 @@ export function CreateProviderCard({ routing, pinContext, uartDevices, onName }:
       ) : selectedType === 'uart' ? (
         <div className="routing-cfg-block">
           <FormGrid>
-            <FormRow label="UART device" note="A CONTRACT_UART device already created on the board.">
+            <FormRow label="UART device" note="A CONTRACT_UART device already created on the board, in a raw mode: a framed one has its provider already, made with it.">
               {uartChoices.length > 0 ? (
                 <ChoiceField<number> aria-label="UART device" value={uartDevice} choices={uartChoices} onChange={(v) => v !== undefined && setUartDevice(v)} />
               ) : (
