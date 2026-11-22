@@ -19,6 +19,8 @@ const at = (path) => fileURLToPath(new URL(path, import.meta.url))
 app.commandLine.appendSwitch('disable-background-timer-throttling')
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+// Allow Web Bluetooth's watchAdvertisements() and getDevices() so reconnecting after a board reset works cleanly.
+app.commandLine.appendSwitch('enable-experimental-web-platform-features')
 
 const createWindow = () => {
   const window = new BrowserWindow({
@@ -60,7 +62,7 @@ const createWindow = () => {
       callback(wanted)
       return
     }
-    window.webContents.send('ble:devices', devices.map((device) => ({ id: device.deviceId, name: device.deviceName })))
+    if (!wanted) window.webContents.send('ble:devices', devices.map((device) => ({ id: device.deviceId, name: device.deviceName })))
   })
 
   const own = (event) => event.sender === window.webContents

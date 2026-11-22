@@ -54,11 +54,11 @@ extern "C" {
 #endif
 
 /** @brief What a port belongs to: a module (its number), a provider (its id) or a session (its provider's id). */
+//#ref-enum @alias Data matrix port kind
 typedef enum {
-  DATA_MATRIX_PORT_MODULE = 0,      /**< A module's, by its module number: the router, the errors, the events, ... */
-  DATA_MATRIX_PORT_PROVIDER = 1,    /**< A provider, by its id (sys_data_provider) */
-  DATA_MATRIX_PORT_SESSION = 0x80,  /**< | the provider's id (below 0x80): a session's ports, by a module's number, 0
-                                         the session's own (sys_session) */
+  DATA_MATRIX_PORT_MODULE = 0,      //@alias Module @description A module's port, by its module number
+  DATA_MATRIX_PORT_PROVIDER = 1,    //@alias Provider @description A provider's port, by its provider id
+  DATA_MATRIX_PORT_SESSION = 0x80,  //@alias Session @description ORed with provider id (<0x80): a session's port or module sub-port
 } data_matrix_port_kind_e;
 
 /** @brief A port's name: its kind in the high byte, its id in the low one (DATA_MATRIX_PORT). Compared as a whole. */

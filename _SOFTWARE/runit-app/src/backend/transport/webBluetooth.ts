@@ -99,13 +99,25 @@ const connectSeen = async (device: Device, gatt: GattServer): Promise<GattServer
 
 const browserBluetooth = (): WebBluetooth | undefined => (globalThis as { navigator?: { bluetooth?: WebBluetooth } }).navigator?.bluetooth
 
+export interface WebBluetoothOptions {
+  /**
+   * Optional recovery when reconnecting to a cached BluetoothDevice fails (e.g. in Electron on Windows after a board reset).
+   * Should re-discover the board (via `requestDevice()`) and return its refreshed reference, or undefined if unavailable.
+   */
+  readonly refresh?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
+}
+
 export class WebBluetoothPlatform implements BlePlatform {
   private readonly devices = new Map<string, Device>()
+  private readonly refresh?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
 
   constructor(
     private readonly defs: LinkDefinitions,
     private readonly bluetooth: WebBluetooth | undefined = browserBluetooth(),
-  ) {}
+    options: WebBluetoothOptions = {},
+  ) {
+    this.refresh = options.refresh
+  }
 
   get available(): boolean {
     return this.bluetooth !== undefined
@@ -139,15 +151,15 @@ export class WebBluetoothPlatform implements BlePlatform {
   }
 
   async open(ref: BleDeviceRef, spec: OpenSpec, handlers: OpenHandlers): Promise<BleChannel> {
-    const device = this.devices.get(ref.id)
-    const gatt = device?.gatt
+    let device = this.devices.get(ref.id)
+    let gatt = device?.gatt
     if (!device || !gatt) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
 
     let ours = false // we drop the link: not reported as a loss
     let lost = false
     const listeners = new Map<Characteristic, Listener>()
     const cleanup = () => {
-      device.removeEventListener('gattserverdisconnected', gone)
+      device?.removeEventListener('gattserverdisconnected', gone)
       for (const [characteristic, listener] of listeners) characteristic.removeEventListener('characteristicvaluechanged', listener)
       listeners.clear()
     }
@@ -169,7 +181,23 @@ export class WebBluetoothPlatform implements BlePlatform {
 
     let written: Characteristic
     try {
-      const server = gatt.connected ? gatt : await connectSeen(device, gatt)
+      let server: GattServer
+      try {
+        server = gatt.connected ? gatt : await connectSeen(device, gatt)
+      } catch (firstError) {
+        if (!this.refresh) throw firstError
+        // After a board restart on Windows, Chromium's cached BluetoothDevice handle often stays stale until a fresh scan
+        // finds the rebooted board. Re-acquire the device silently through the desktop bridge and retry once.
+        const fresh = await this.refresh(ref)
+        const next = fresh ? this.devices.get(fresh.id) : undefined
+        if (!next?.gatt) throw firstError
+        this.devices.set(ref.id, next)
+        device.removeEventListener('gattserverdisconnected', gone)
+        device = next
+        gatt = next.gatt
+        device.addEventListener('gattserverdisconnected', gone)
+        server = gatt.connected ? gatt : await gatt.connect()
+      }
       const service = await server.getPrimaryService(spec.service)
       const characteristics = await service.getCharacteristics()
       const find = (uuid: number) => characteristics.find((c) => shortUuid(c.uuid) === uuid)

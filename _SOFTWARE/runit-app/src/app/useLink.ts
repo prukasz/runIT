@@ -36,11 +36,36 @@ const parseBoard = (raw: string): Board | undefined => {
  * the remembered board.
  */
 export function useLink(auto: boolean) {
-  const platform = useMemo(() => new WebBluetoothPlatform(bundledLinkDefinitions()), [])
+  const [board, setBoard] = useState<Board | undefined>(() => readStored(BOARD_KEY, parseBoard, undefined))
+  const boardRef = useRef(board)
+  boardRef.current = board
+  const platform = useMemo(() => {
+    let instance!: WebBluetoothPlatform
+    const bridge = desktop
+    const refresh = bridge
+      ? async (): Promise<BleDeviceRef | undefined> => {
+          const saved = boardRef.current
+          if (!saved?.scanId) return undefined
+          return withGesture(bridge, async () => {
+            bridge.want(saved.scanId!)
+            const timer = setTimeout(() => bridge.select(''), 6_000)
+            try {
+              return await instance.requestDevice()
+            } catch {
+              return undefined
+            } finally {
+              clearTimeout(timer)
+              bridge.want(null)
+            }
+          })
+        }
+      : undefined
+    instance = new WebBluetoothPlatform(bundledLinkDefinitions(), undefined, { refresh })
+    return instance
+  }, [])
   const link = useMemo(() => new RunitLink(platform), [platform])
   const [state, setState] = useState<LinkState>(link.state)
   const [reason, setReason] = useState<string | undefined>()
-  const [board, setBoard] = useState<Board | undefined>(() => readStored(BOARD_KEY, parseBoard, undefined))
   const [scan, setScan] = useState<readonly ScanResult[] | undefined>()
   const restored = useRef(false)
   const picked = useRef<string | undefined>(undefined)

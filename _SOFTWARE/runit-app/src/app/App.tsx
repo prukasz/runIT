@@ -23,7 +23,10 @@ import { useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
-import { APP_TAB, BOARD_DEVICES_TAB, BOARDS_TAB, PROFILE_TAB, POWER_TAB, PROJECT_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { APP_TAB, BOARD_DEVICES_TAB, BOARDS_TAB, DATA_MATRIX_TAB, POWER_TAB, PROFILE_TAB, PROJECT_TAB, PROVIDERS_TAB, SettingsTabs, tabSections } from './settings/SettingsTabs'
+import { useRouting } from './routing/useRouting'
+import { ProvidersScreen } from './routing/ProvidersScreen'
+import { DataMatrixScreen } from './routing/DataMatrixScreen'
 import { BoardsScreen } from './boards/BoardsScreen'
 import { CONSOLE_SHOWS, ConsoleExplorer, ConsoleScreen } from './console/ConsoleScreen'
 import type { ConsoleShow } from './console/ConsoleScreen'
@@ -150,6 +153,7 @@ export function App() {
   const pickedPath = pickedDraft && toPath(pickedDraft)
   // The board's settings, read as soon as the link is up (the Project screen shows them).
   const boardSettings = useBoardSettings(link, state === 'connected', project)
+  const routing = useRouting(link, state === 'connected')
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
   // The Project view opens on its landing page (the project); a settings tab is a page reached from it, not remembered.
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
@@ -485,9 +489,13 @@ export function App() {
                 : projectTab === APP_TAB
                 ? <AppSettingsScreen zoom={appZoom} />
                 : projectTab === PROFILE_TAB
-                ? <BoardProfileScreen profile={boardProfile} />
+                ? <BoardProfileScreen profile={boardProfile} editor={boardEditor} />
                 : projectTab === BOARD_DEVICES_TAB
                 ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
+                : projectTab === PROVIDERS_TAB
+                ? <ProvidersScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onOpenMatrix={() => setProjectTab(DATA_MATRIX_TAB)} />
+                : projectTab === DATA_MATRIX_TAB
+                ? <DataMatrixScreen routing={routing} onOpenProviders={() => setProjectTab(PROVIDERS_TAB)} />
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : tabSection

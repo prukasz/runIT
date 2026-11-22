@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bundledServiceCatalog, CommandError, decodePeers, sidesOf } from '@backend'
+import { bundledServiceCatalog, CommandError, decodeBleTable, decodePeers, sidesOf } from '@backend'
 import { openBoard } from './harness'
 import type { Board } from './harness'
 
@@ -69,15 +69,15 @@ describe('the board and its ways', () => {
     expect((value as { board_id: number }).board_id).toBe(board.link.session!.boardId)
   })
 
-  it('PROVIDER LIST has the console and the BLE pair, each with INFO', async () => {
-    const { data } = await board.services.call('PROVIDER', 'LIST')
-    const count = data[0]!
-    expect(count).toBeGreaterThanOrEqual(3)
-    for (let i = 0; i < count; i++) {
-      const id = data[1 + i * 3]!
-      const info = (await board.services.call('PROVIDER', 'INFO', undefined, { id })).value as { type: number; state: number }
-      expect(info.type, `provider ${id}`).toBe(data[2 + i * 3])
-    }
+  it('PROVIDER LIST has the console and the BLE providers', async () => {
+    const { value, data } = await board.services.call('PROVIDER', 'LIST')
+    const { lead, rows } = value as { lead: number; rows: Array<{ provider: number; type: number; state: number }> }
+    expect(lead).toBe(rows.length)
+    expect(rows.length).toBeGreaterThanOrEqual(4)
+    expect(data.length).toBe(1 + rows.length * 3)
+    const bleType = catalog.providers.get('ble')!.providerType!
+    expect(rows.filter((r) => r.type === bleType).length).toBeGreaterThanOrEqual(3)
+    expect(rows.some((r) => r.type !== bleType)).toBe(true)
   })
 
   it('DATA_MATRIX LIST has the roles and the routes of the setup', async () => {
@@ -85,11 +85,17 @@ describe('the board and its ways', () => {
     expect(data.length).toBeGreaterThan(8)
   })
 
-  it('BLE LIST is the one runIT service with its three characteristics', async () => {
+  it('BLE LIST is the one runIT service with its four characteristics', async () => {
     const { data } = await board.services.call('BLE', 'LIST')
-    expect(data[0]).toBe(1)
-    expect(data[1]! | (data[2]! << 8)).toBe(board.link.defs.gatt.service)
-    expect(data[4]).toBe(3)
+    const table = decodeBleTable(board.link.defs, data)
+    expect(table.length).toBe(1)
+    expect(table[0]!.uuid).toBe(board.link.defs.gatt.service)
+    const uuids = table[0]!.characteristics.map((c) => c.uuid)
+    expect(uuids.length).toBe(4)
+    expect(uuids).toContain(board.link.defs.gatt.tx)
+    expect(uuids).toContain(board.link.defs.gatt.rx)
+    expect(uuids).toContain(board.link.defs.gatt.logs)
+    expect(uuids).toContain(board.link.defs.gatt.telemetry)
   })
 })
 

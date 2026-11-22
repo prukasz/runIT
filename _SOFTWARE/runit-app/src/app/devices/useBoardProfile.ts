@@ -8,6 +8,7 @@ import { chooseFile, download } from '../project/useProject'
 import type { ProjectFile } from '../project/projectFile'
 import { boardFromProfile, profileFromBoard, profileKey, withBoard } from './boardEditor'
 import { bundledBoard } from './boardDescriptor'
+import type { BoardKind } from './boardDescriptor'
 
 /*
  * The board's profile in the app (boardEditor.ts): the devices of the board and their boot packages, kept in the app's own storage
@@ -26,14 +27,25 @@ export interface ProfileState {
   readonly edit: (change: (project: ProjectFile) => ProjectFile, key?: string) => void
 }
 
+/** The incomplete 7-device snapshot that shipped before the rest of the PCB's chip descriptors existed. */
+const LEGACY_PCB_IDS = '0,1,3,10,11,14,15'
+
+const isLegacyIncompletePcb = (stored: ProjectFile, base: ReturnType<typeof bundledBoard>): boolean =>
+  stored.name === base.name
+  && stored.devices.map((d) => d.id).sort((a, b) => a - b).join(',') === LEGACY_PCB_IDS
+  && base.devices.length > stored.devices.length
+
 export function useBoardProfile() {
   const base = useMemo(() => bundledBoard(), [])
   const catalog = useMemo(bundledServiceCatalog, [])
   const key = profileKey('pcb')
   const [history, setHistory] = useState<History<ProjectFile>>(() => {
     const stored = readStored<ProjectFile | undefined>(key, (raw) => { const read = parseProject(raw); return read.ok ? read.project : undefined }, undefined)
-    // A profile kept without buses has the bundled board's: the board made them so.
-    return startHistory(stored ? withBoard(stored, base) : profileFromBoard(base, catalog))
+    // Upgrade the legacy 7-device PCB profile automatically to the full rev 1 board profile (all 15 chips).
+    const initial = !stored || isLegacyIncompletePcb(stored, base)
+      ? profileFromBoard(base, catalog)
+      : withBoard(stored, base)
+    return startHistory(initial)
   })
   const project = history.present
   const text = useMemo(() => serializeProject(project), [project])
@@ -67,13 +79,21 @@ export function useBoardProfile() {
     download(name, serializeProject(project))
     setNote({ tone: 'info', text: `Saved as ${name}.` })
   }, [project])
+  const loadPreset = useCallback((kind: BoardKind) => {
+    const preset = profileFromBoard(bundledBoard(kind), catalog)
+    last.key = undefined
+    setHistory((h) => record(h, preset))
+    const label = kind === 'pcb' ? 'runIT PCB (r1)' : 'ESP32-S3 DevKit'
+    setNote({ tone: 'info', text: `Loaded ${label} profile (${preset.devices.length} devices): Write puts it on the board.` })
+  }, [catalog, last])
+
   const redo = useCallback(() => { last.key = undefined; setHistory(redoHistory) }, [last])
 
   /** The descriptor the app works with: the bundled board's static parts and the profile's devices. */
   const board = useMemo(() => boardFromProfile(project, base, catalog), [project, base, catalog])
   /** The board without any device: the static parts alone (the editor's own view of the board). */
   const bare = useMemo(() => ({ ...board, devices: [] }), [board])
-  return { project, edit, open: () => void open(), save, note, clearNote: () => setNote(undefined), undo, redo, canUndo: history.past.length > 0, canRedo: history.future.length > 0, board, bare, base }
+  return { project, edit, open: () => void open(), save, loadPreset, note, clearNote: () => setNote(undefined), undo, redo, canUndo: history.past.length > 0, canRedo: history.future.length > 0, board, bare, base }
 }
 
 export type BoardProfileState = ReturnType<typeof useBoardProfile>

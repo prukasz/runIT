@@ -1,4 +1,4 @@
-import { createDeviceCall, crc32, deviceCall, frameImage, recordInfo, requestFrame, serviceCall, storeRecord, CommandError } from '@backend'
+import { createDeviceCall, crc32, deviceCall, frameImage, PIN_REF_SIZE, recordInfo, requestFrame, serviceCall, storeRecord, CommandError } from '@backend'
 import type { LinkDefinitions, RunitLink, ServiceCatalog } from '@backend'
 import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectFile, Step } from '../project/projectFile'
@@ -36,9 +36,9 @@ export const createConfig = (catalog: ServiceCatalog, device: BoardDescriptor['d
       config[pin.use] = at
       continue
     }
-    const list = fields.find((f) => f.pinRef && (f.size ?? 0) > 3)
+    const list = fields.find((f) => f.pinRef && (f.size ?? 0) > PIN_REF_SIZE)
     if (!list) throw new Error(`${device.name}: the pin ${pin.use} has a slot, its type no list of pins.`)
-    const pins = (config[list.id] ??= Array.from({ length: (list.size ?? 0) / 3 }, () => null)) as unknown[]
+    const pins = (config[list.id] ??= Array.from({ length: (list.size ?? 0) / PIN_REF_SIZE }, () => null)) as unknown[]
     pins[pin.slot] = at
   }
   return config

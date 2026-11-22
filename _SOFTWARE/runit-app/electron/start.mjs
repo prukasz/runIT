@@ -12,7 +12,7 @@ const URL_DEV = 'http://localhost:2137/'
 // Whatever answers on the port is reused only if it is this app's page: another project's dev server on the same port would
 // otherwise open in the window.
 const probe = built ? undefined : await fetch(URL_DEV).then((response) => response.text(), () => undefined)
-if (probe !== undefined && !/<title>runIT/.test(probe)) {
+if (probe !== undefined && !/<title>runIT\b/.test(probe)) {
   console.error(`Port ${new URL(URL_DEV).port} is taken by another app (not runIT's page). Stop that dev server and run again.`)
   process.exit(1)
 }

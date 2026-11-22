@@ -1,0 +1,49 @@
+{
+  "$schema": "../../../templates/provider.schema.json",
+  "schemaVersion": 1,
+  "kind": "provider-definition",
+  "id": "uart",
+  "alias": "UART bridge",
+  "description": "Bridges any CONTRACT_UART device into the data matrix as a provider (PROVIDER_UART.MD): frames sent to the port go out on the UART, received UART frames go out of the port.",
+  "type": "SYS_DATA_PROVIDER_TYPE_UART",
+  "config": {
+    "struct": "provider_uart_cfg_t",
+    "size": 2,
+    "fields": [
+      {
+        "id": "device",
+        "label": "UART device",
+        "type": "integer",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 0,
+        "requires_contract": "UART",
+        "description": "The CONTRACT_UART device ID to bridge"
+      },
+      {
+        "id": "flags",
+        "label": "RX flags",
+        "type": "bitmask",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 1,
+        "description": "cmd_send_flag of each received message sent out of the port (CMD_SEND_NOWAIT: RX task never waits)",
+        "bits": [
+          {
+            "bit": 0,
+            "label": "Urgent"
+          },
+          {
+            "bit": 1,
+            "label": "Spare"
+          },
+          {
+            "bit": 2,
+            "label": "No wait"
+          }
+        ],
+        "default": 4
+      }
+    ]
+  }
+}
