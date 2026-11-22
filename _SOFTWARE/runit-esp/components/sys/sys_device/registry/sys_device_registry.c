@@ -126,6 +126,24 @@ OP_DECLARE_READ(CONTRACT_SYS_DEVICE, OP_INFO) {
   return cmd_reply(out, &info, sizeof(info));
 }
 
+// LIST: a row per device that exists (the slots' snapshot).
+err_h sys_device_list(cmd_out_t* out) {
+  const uint64_t installed = sys_device_slot_installed();
+  for (uint32_t id = 0; id < SYS_DEVICE_COUNT; id++) {
+    if ((installed & (1ULL << id)) == 0u) {
+      continue;
+    }
+    const sys_device_type_t* type = sys_device_slot_type((uint8_t)id);
+    if (type == NULL) {
+      continue;  // removed since the snapshot
+    }
+    const sys_device_list_row_t row = {.id = (uint8_t)id, .type_id = sys_device_type_id(type),
+                                       .suspended = sys_device_slot_is_suspended((uint8_t)id)};
+    ERR_TRY(cmd_append(out, &row, sizeof(row)));
+  }
+  return NULL;
+}
+
 static err_h CONTRACT_SYS_DEVICE_r_OP_OPS(CMD_F_PARAMS);  // lists the table below, itself in it: defined after it
 
 static const sys_device_op_t k_registry_ops[] = {

@@ -209,6 +209,47 @@
           ]
         }
       }
+    },
+    {
+      "id": "LIST",
+      "op": 8,
+      "symbol": "CONTRACT_SYS_DEVICE_OP_LIST",
+      "label": "List devices",
+      "description": "Lists every device that exists on the board: its ID, type and whether it is suspended. Sent to the ID that addresses no device (SYS_DEVICE_ID_NONE), in place of an INFO to every ID, which is an error for each that is not there.",
+      "read": {
+        "returns": {
+          "struct": "sys_device_list_row_t",
+          "label": "Devices",
+          "array": true,
+          "fields": [
+            {
+              "id": "id",
+              "label": "Device",
+              "type": "integer",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "type_id",
+              "label": "Device type",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 1
+            },
+            {
+              "id": "suspended",
+              "label": "Suspended",
+              "type": "boolean",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 3,
+              "description": "1 when suspended, 0 otherwise"
+            }
+          ]
+        }
+      }
     }
   ],
   "events": [

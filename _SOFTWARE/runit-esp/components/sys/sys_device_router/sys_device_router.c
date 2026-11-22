@@ -25,6 +25,9 @@ err_h sys_device_router(CMD_F_PARAMS) {
   if (is_sweep(&h)) {
     return sys_device_sweep(h.op);
   }
+  if (h.id == SYS_DEVICE_ID_NONE && h.dir == CMD_DIR_READ && h.op == CONTRACT_SYS_DEVICE_OP_LIST) {
+    return sys_device_list(out);
+  }
   return sys_device_call_routed(h.id, h.dir, h.op, args, out);
 }
 

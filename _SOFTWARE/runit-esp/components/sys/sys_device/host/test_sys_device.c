@@ -473,6 +473,28 @@ static void test_ops_lists_the_registrys_and_the_types_ops_but_no_local_one(void
   TEST_ASSERT_EQUAL_UINT32(3 * (5 + 12 - 1), out.len);          // 5 of the registry, the type's 12 but TICK
 }
 
+static void test_list_gives_a_row_per_device_that_exists_and_asks_each_of_none(void) {
+  make(1, NONE);
+  uint8_t rows[SYS_DEVICE_COUNT * sizeof(sys_device_list_row_t)];
+  cmd_out_t out = {.data = rows, .cap = sizeof(rows)};
+  TEST_ASSERT_NULL(sys_device_list(&out));
+  TEST_ASSERT_EQUAL_UINT32(0, out.len % sizeof(sys_device_list_row_t));
+  bool found = false;
+  for (uint32_t at = 0; at + sizeof(sys_device_list_row_t) <= out.len; at += sizeof(sys_device_list_row_t)) {
+    sys_device_list_row_t row;
+    memcpy(&row, rows + at, sizeof(row));
+    TEST_ASSERT_NOT_EQUAL_UINT8(9, row.id);  // no device 9 here: INFO to it is an error, LIST just has no row
+    if (row.id == 1) {
+      found = true;
+      sys_device_info_t info;
+      TEST_ASSERT_NULL(SYS_DEVICE_GET(1, CONTRACT_SYS_DEVICE, OP_INFO, &info));
+      TEST_ASSERT_EQUAL_UINT16(info.type_id, row.type_id);
+      TEST_ASSERT_EQUAL_UINT8(0, row.suspended);
+    }
+  }
+  TEST_ASSERT_TRUE(found);
+}
+
 static void test_a_call_names_the_device_and_the_op_and_a_local_op_is_c_only(void) {
   make(1, NONE);
   err_h e = sys_device_call(1, CMD_DIR_READ, OWN_PROBE_OP_PING, (cmd_in_t){NULL, 0}, NULL);  // PING has no read side
@@ -992,6 +1014,7 @@ int main(void) {
   RUN_TEST(test_a_use_never_closes_a_cycle);
   RUN_TEST(test_a_lock_held_too_long_fails_with_the_op_that_holds_it);
   RUN_TEST(test_a_step_runs_only_on_its_device_when_the_device_takes_it_now);
+  RUN_TEST(test_list_gives_a_row_per_device_that_exists_and_asks_each_of_none);
   RUN_TEST(test_deliver_waits_for_lock_runs_when_always_and_checks_generation);
   RUN_TEST(test_a_sweep_runs_users_before_the_devices_they_use_and_resume_the_other_way);
   RUN_TEST(test_while_a_suspend_sweep_runs_a_write_from_no_device_and_create_are_refused);

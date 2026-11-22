@@ -31,6 +31,7 @@ typedef struct __attribute__((packed)) {
 
 - Rejects payloads shorter than `sizeof(sys_device_router_hdr_t)` (`4` B) with `ERR_CMD_BAD_LEN`.
 - A write of SUSPEND, RESUME, RESET or REMOVE to `SYS_DEVICE_ID_NONE` is a sweep (`sys_device_sweep`): the op on every device, REMOVE leaving the board's own. Any other op to that ID is `ERR_DEV_BAD_ID`.
+- A read of `CONTRACT_SYS_DEVICE_OP_LIST` to `SYS_DEVICE_ID_NONE` is the registry's list (`sys_device_list`): a row per device that exists. To any other ID the op is unknown.
 - Copies the header with `memcpy` (safe on unaligned frames) and forwards the remaining slice to `sys_device_call_routed(h.id, h.dir, h.op, args, out)`.
 - `sys_device_call_routed` rejects ops flagged `SYS_DEVICE_OP_LOCAL` with `ERR_DEV_LOCAL_OP` (`MODULE_ID_SYS_DEVICE`), and `CONTRACT_SYS_DEVICE` `REMOVE` rejects board/system devices (`SYS_DEVICE_CREATE_SYSTEM`) with `ERR_DEV_SYSTEM`.
 

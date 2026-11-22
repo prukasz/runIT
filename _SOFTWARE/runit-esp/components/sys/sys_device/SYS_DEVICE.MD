@@ -63,9 +63,10 @@ The ID is written once, as two hex digits, in the `MODULE_ID_DECLARE` of its `<c
 | REMOVE | `0x04` | W | See "Lifecycle" |
 | INFO | `0x05` | R | `sys_device_info_t`: type ID, suspended |
 | OPS | `0x06` | R | A list of `[op u16][sides u8]`, LOCAL ops left out |
-| CREATE_REMOTE | `0x08` | W | `[type u16][sys_device_remote_t]` |
+| CREATE_REMOTE | `0x07` | W | `[type u16][sys_device_remote_t]` |
+| LIST | `0x08` | R | To `SYS_DEVICE_ID_NONE`, not to a device: a `sys_device_list_row_t` `{u8 id, u16 type_id, u8 suspended}` for every device that exists, in one answer (`sys_device_list`; the router answers it, `sys_device_router.c`). The app asks it in place of an INFO to every ID it keeps: INFO to a device that is not there is an error record each |
 
-`0x07` is unused: never assign it.
+No number is reused: a retired op's stays unassigned.
 
 ## Calls
 
@@ -254,7 +255,7 @@ SYS_DEVICE_TYPE_DEFINE(PCA9685, pca9685_cfg_t, create, suspend, resume, k_ops)
 ## Tests
 
 Host tests in `host/` (`python test_host/run.py sys_device` from `runit-esp/`, `HOST_TESTS.MD`): the real slots, registry, call path and remote devices' slots (`remote/sys_device_remote_slot.c`) with the real `router`, `sys_event` and `errors` on the PC, tasks as threads, a lock timeout of 200 ms. The devices are of a test type, `PROBE`, written as a driver is (own ops, own events, a test contract, two resources). `test_sys_device.c`:
-- CREATE (INFO, a taken ID, an unknown type, a wrong size, the struct at an odd address), OPS (the registry's and the type's rows, no LOCAL one), a call's error chain (`ERR_DEV_ID`, `ERR_DEV_OP`), an unknown op or side, an ID not found or past the table, a LOCAL op refused as a command and run from C.
+- LIST (a row per device that exists, none for an ID that is not there), CREATE (INFO, a taken ID, an unknown type, a wrong size, the struct at an odd address), OPS (the registry's and the type's rows, no LOCAL one), a call's error chain (`ERR_DEV_ID`, `ERR_DEV_OP`), an unknown op or side, an ID not found or past the table, a LOCAL op refused as a command and run from C.
 - The caller (in `create()`, from an op, from no device), REENTRY, an op's event reaching an inline listener after the outermost call (the listener calls the device whose op published), an event of an op that failed; CREATED / REMOVED with the generation, SUSPENDED with NOTIFY.
 - A failed `create()` (its resources last first, no `suspend()`, the use taken back), REMOVE (`suspend()` of a working device only, the releases last first, a failing release), a resource added twice or without its owner's lock; REMOVE of a device in use (`users`), a use closing a cycle (directly, through a third, itself).
 - A lock held past the timeout (`ERR_DEV_BUSY` with the op holding it); a step (runs; skipped at once when busy, while suspended, on the next device under the ID; the op's own failure; refused for generation 0, an op not the device's own, a bad ID).

@@ -677,7 +677,7 @@ export const showAnswer = (command: CommandDef, side: Side, value: unknown, name
 /** The types a project cannot add more of: the chip's own GPIO, which the board already has (board.json). */
 export const SINGLE_TYPES: ReadonlySet<string> = new Set(['esp32s3_gpio'])
 
-export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME' } as const
+export const DEVICE_COMMANDS = { info: 'INFO', ops: 'OPS', list: 'LIST', remove: 'REMOVE', reset: 'RESET', suspend: 'SUSPEND', resume: 'RESUME' } as const
 
 /**
  * A device's error policy is the POLICY service's (SYS_DEVICE_POLICY): the device is an argument of it, not the header's. A step of it

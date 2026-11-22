@@ -111,20 +111,25 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
 
   // The IDs as one string: a rename does not ask the board again.
   const ids = devices.map((d) => d.id).join(',')
-  /** Asks every device of the view INFO: there or not, its type, suspended. */
+  /**
+   * Which of the view's devices the board has, their types and whether they are suspended: one LIST (SYS_DEVICE.MD) to the ID that
+   * addresses no device, not an INFO to each, which the board answers with an error for every one it does not have.
+   */
   const probe = useCallback(async () => {
-    if (!connected) return
-    const next = new Map<number, LiveDevice>()
-    await Promise.all((ids ? ids.split(',').map(Number) : []).map(async (id) => {
-      try {
-        const { value } = await services.device(id, lifecycle.id, DEVICE_COMMANDS.info, undefined, { label: `device ${id} INFO (probe)` })
-        const info = value as Record<string, unknown>
-        next.set(id, { state: 'present', typeId: Number(info.type_id), suspended: Number(info.suspended) === 1 })
-      } catch (failure) {
-        if (failure instanceof CommandError && failure.code === 'device-error') next.set(id, { state: 'missing' })      }
-    }))
-    for (const [id, l] of next) if (l.state === 'present') occupied.current.add(id)
-    setLive(next)
+    if (!connected || services.catalog.allDevices === undefined) return
+    try {
+      const { value } = await services.device(services.catalog.allDevices, lifecycle.id, DEVICE_COMMANDS.list, undefined, { side: 'read', label: 'devices LIST (probe)' })
+      const rows = new Map((value as readonly Record<string, unknown>[]).map((r) => [Number(r.id), r]))
+      const next = new Map<number, LiveDevice>()
+      for (const id of ids ? ids.split(',').map(Number) : []) {
+        const row = rows.get(id)
+        next.set(id, row ? { state: 'present', typeId: Number(row.type_id), suspended: row.suspended === true || Number(row.suspended) === 1 } : { state: 'missing' })
+      }
+      for (const [id, l] of next) if (l.state === 'present') occupied.current.add(id)
+      setLive(next)
+    } catch {
+      // The link dropped: the next probe asks again.
+    }
   }, [connected, services, lifecycle, ids])
 
   useEffect(() => {

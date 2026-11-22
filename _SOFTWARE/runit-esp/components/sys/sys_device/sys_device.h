@@ -71,6 +71,15 @@ enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
 #define SYS_DEVICE_OP_TAIL   (1u << 3)
 #define SYS_DEVICE_OP_DIRECT (1u << 4)
 
+/**
+ * @brief The answer of LIST (a read of CONTRACT_SYS_DEVICE_OP_LIST to SYS_DEVICE_ID_NONE): a sys_device_list_row_t of
+ * every device that exists, by ID. One request in place of an INFO to every ID the asker keeps, which is an error for
+ * each that does not exist.
+ * @param[out] out The answer
+ * @return NULL; ERR_CMD_BAD_LEN when the answer does not fit
+ */
+MUST_USE err_h sys_device_list(cmd_out_t* out);
+
 /* A contract is a table of ops in the format of every set of commands (cmd_table.h: P_OPERATIONS(X, P) of rows
  * X(P, OP_NAME, n, key_t, value_t, flags), cmd_none_t for a side with nothing). SYS_DEVICE_CONTRACT_DECLARE(P, id)
  * gives what the table gives everywhere, the types P_key_<OP_NAME>_t and P_value_<OP_NAME>_t, and what a contract
@@ -84,6 +93,15 @@ enum { SYS_DEVICE__CONTRACT_ID_0xFF };  // reserved: no contract takes it
   P##_OPERATIONS(CMD__TABLE_TYPES, P)
 #define SYS_DEVICE_CONTRACT_DECLARE(P, id) SYS_DEVICE__TABLE(P, id)
 
+/** @brief One row of the LIST answer: a device that exists. */
+typedef struct __attribute__((packed)) {
+  uint8_t id;         /**< Device ID */
+  uint16_t type_id;   /**< Device type ID */
+  uint8_t suspended;  /**< 1 if suspended, 0 otherwise */
+} sys_device_list_row_t;
+
+_Static_assert(sizeof(sys_device_list_row_t) == 4, "LIST row");
+
 /** @brief INFO answer. */
 typedef struct __attribute__((packed)) {
   uint16_t type_id;   /**< Device type ID */
@@ -92,9 +110,10 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief Device contract (the module's number, 0x20xx, prefix CONTRACT_SYS_DEVICE): the lifecycle, X(P, OP_NAME, n, key_t, value_t, flags). CREATE
- * (0x00, write) and CREATE_REMOTE (0x08) are not in the table: they have no instance yet. Writes: RESET, SUSPEND,
- * RESUME, REMOVE; reads: INFO, OPS (answered as a list, so its value is none here). SUSPEND, RESUME, REMOVE, INFO and
- * OPS are the registry's for every device: a driver's op table lists none of them. 0x07 is unused: never assign it.
+ * (0x00, write), CREATE_REMOTE (0x07) and LIST (0x08, a read to SYS_DEVICE_ID_NONE) are not in the table: the first two have
+ * no instance yet, LIST is of no device. Writes: RESET, SUSPEND, RESUME, REMOVE; reads: INFO, OPS (answered as a list, so
+ * its value is none here). SUSPEND, RESUME, REMOVE, INFO and OPS are the registry's for every device: a driver's op
+ * table lists none of them.
  * A device's error policy is not here: sys_device_policy.h.
  */
 #define CONTRACT_SYS_DEVICE_OPERATIONS(X, P)               \
@@ -114,6 +133,7 @@ typedef struct __attribute__((packed)) {
 enum {
   CONTRACT_SYS_DEVICE_OP_CREATE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x00),  // [type u16][flags u8][create struct]
   CONTRACT_SYS_DEVICE_OP_CREATE_REMOTE = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x07),  // [type u16][sys_device_remote_t]
+  CONTRACT_SYS_DEVICE_OP_LIST = SYS_DEVICE_OP(MODULE_ID_SYS_DEVICE, 0x08),  // read, to SYS_DEVICE_ID_NONE: a sys_device_list_row_t per device
 };
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_SYS_DEVICE, MODULE_ID_SYS_DEVICE)
 
