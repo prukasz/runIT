@@ -626,7 +626,10 @@ export const nextActionId = (project: ProjectFile): number => {
 /** A decoded field value as a project keeps it (JSON): bytes as a list, a u64 as a number. */
 /* ---- showing values ---- */
 
-/** A value of a field as a user reads it: a choice by its label, a pin by its device and name, bytes in hex. */
+/** A whole number as hex, `0x46`: at least as many digits as the field's largest value (two for a byte). */
+export const hexText = (n: number, max = 255): string => `0x${n.toString(16).toUpperCase().padStart(Math.max(2, Math.ceil(Math.log2(max + 1) / 4)), '0')}`
+
+/** A value of a field as a user reads it: a choice by its label, a pin by its device and name, bytes in hex, a `display: hex` number in hex. */
 export const showValue = (field: WireField, value: unknown, nameOf: (device: number) => string | undefined, pinName: PinNamer, own?: number): string => {
   if (value === undefined) return '—'
   if (value === null) return 'none'
@@ -640,6 +643,7 @@ export const showValue = (field: WireField, value: unknown, nameOf: (device: num
   if (choice) return choice.label
   if (field.type === 'pin' && typeof value === 'number' && own !== undefined) return pinName(own, value)
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (field.display === 'hex' && typeof value === 'number' && Number.isInteger(value) && value >= 0) return hexText(value, field.max)
   return `${String(value)}${field.unit ? ` ${field.unit}` : ''}`
 }
 

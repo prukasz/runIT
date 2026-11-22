@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { WireField } from '@backend'
+import { hexText, showValue } from '../../src/app/devices/devices'
 import { addressText, scanAddresses, scanBitmap } from '../../src/app/devices/i2cScan'
 
 describe('the I2C bus scan answer', () => {
@@ -15,5 +17,17 @@ describe('the I2C bus scan answer', () => {
     expect(scanBitmap({ found: [1, 0] })).toEqual([1, 0])
     expect(scanBitmap({ other: 1 })).toBeUndefined()
     expect(scanBitmap(undefined)).toBeUndefined()
+  })
+})
+
+describe('a number the descriptor shows in hex', () => {
+  const field = { id: 'addr', label: '7-bit address', type: 'integer', rawType: 'u8', offset: 0, optional: false, pinRef: false, display: 'hex', max: 127 } satisfies WireField
+  const none = () => undefined
+  it('is written 0x46, with the digits its largest value needs', () => {
+    expect(hexText(0x46, 127)).toBe('0x46')
+    expect(hexText(5, 127)).toBe('0x05')
+    expect(hexText(0x1ff, 0xffff)).toBe('0x01FF')
+    expect(showValue(field, 0x46, none, () => '')).toBe('0x46')
+    expect(showValue({ ...field, display: undefined } as WireField, 70, none, () => '')).toBe('70')
   })
 })

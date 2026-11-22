@@ -504,6 +504,11 @@
           "enum": ["slider", "switch"],
           "description": "Jak aplikacja może zastąpić pole, gdy użytkownik na to pozwoli (App settings): 'slider' dla type='number' z min i max (suwak w zakresie), 'switch' dla type='choice' z dokładnie dwiema opcjami (przełącznik: pierwsza opcja wyłączona, druga włączona). Bez tego pole zostaje polem liczbowym albo listą."
         },
+        "display": {
+          "type": "string",
+          "enum": ["hex"],
+          "description": "Jak aplikacja pokazuje i przyjmuje liczbę całkowitą: 'hex' szesnastkowo, jak adres albo rejestr (0x46). Wartość na drucie jest ta sama."
+        },
         "options": {
           "type": "array",
           "description": "Dostępne opcje dla typu 'choice' lub 'enum'.",

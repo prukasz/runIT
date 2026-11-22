@@ -324,6 +324,8 @@ class Checker:
                     self.error(path, where, "control slider needs min and max (or a `ranges` entry: a contract field takes them from the device)")
                 if control == "switch" and not (node.get("type") == "choice" and len(node.get("options", [])) == 2):
                     self.error(path, where, "control switch needs a choice field with exactly two options")
+                if node.get("display") == "hex" and node.get("type") not in ("number", "integer"):
+                    self.error(path, where, "display hex needs a number field")
                 for key, value in node.items():
                     walk(value, path, f"{where}/{node['id']}" if key == "fields" and "id" in node else where)
             elif isinstance(node, list):

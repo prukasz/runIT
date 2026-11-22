@@ -538,6 +538,7 @@ export class ServiceCatalog {
         ...(num(f.step) !== undefined ? { step: num(f.step) } : {}),
         ...(num(f.scale) !== undefined && num(f.scale)! > 0 ? { scale: num(f.scale) } : {}),
         ...(f.control === 'slider' || f.control === 'switch' ? { control: f.control } : {}),
+        ...(f.display === 'hex' ? { display: 'hex' as const } : {}),
         ...(f.default !== undefined ? { default: f.default } : {}),
         optional: f.optional === true,
         ...(choices ? { choices } : {}),

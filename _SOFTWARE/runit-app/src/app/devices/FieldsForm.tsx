@@ -3,7 +3,7 @@ import { ChoiceField, FormGrid, FormRow, NumberField, Slider, Switch, TextField,
 import type { Choice } from '@ui/components'
 import { bundledServiceCatalog } from '@backend'
 import type { FieldInput, FieldValues, Layout, PinRef, WireField } from '@backend'
-import { boardDeviceId, deviceChannels, devicePins, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
+import { boardDeviceId, deviceChannels, devicePins, hexText, isReserved, noPinReady, offersMember, pinChoiceLabel, pinHint, pinNamer, pinNumber, pinNotes, pinReady, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import { useAppPrefs } from '../appSettings/AppPrefs'
 import type { BoardDescriptor } from './boardDescriptor'
@@ -203,7 +203,21 @@ function FieldControl({ field, value, onChange, context, missing, disabled, layo
     const step = field.step ?? (integer ? 1 : scale !== 1 ? 1 / scale : (max - min) / 100)
     return <Slider label={label} disabled={disabled} error={missing} value={shown} min={min} max={max} step={step} format={(n) => `${n}${field.unit ? ` ${field.unit}` : ''}`} onChange={onChange} />
   }
+  if (field.display === 'hex' && integer) return <HexField label={label} disabled={disabled} value={shown} min={min ?? 0} max={max ?? 255} onCommit={onChange} />
   return <NumberField aria-label={label} disabled={disabled} value={shown} min={min} max={max} integer={integer} onCommit={onChange} />
+}
+
+/** A whole number typed in hex (`0x46` or `46`), kept in its range: what is not a number in range is put back. */
+function HexField({ label, value, min, max, disabled, onCommit }: { label: string; value: number | undefined; min: number; max: number; disabled: boolean; onCommit: (value: number) => void }) {
+  const text = value === undefined ? '' : hexText(value, max)
+  return (
+    <TextField aria-label={label} disabled={disabled} key={text} defaultValue={text} placeholder={hexText(0, max)} onBlur={(event) => {
+      const typed = event.target.value.trim().replace(/^0x/i, '')
+      const n = /^[0-9a-f]+$/i.test(typed) ? parseInt(typed, 16) : NaN
+      if (n >= min && n <= max) onCommit(n)
+      else event.target.value = text
+    }} />
+  )
 }
 
 /** A form of a layout's fields; `onChange` gets every value set so far with the changed one. `disabled` shows them locked (a board device's own settings). */
