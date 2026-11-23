@@ -132,7 +132,7 @@ function GattEditor({ section, state, registry }: { section: SettingSection; sta
       <Card title="Bluetooth" help={section.service.description}
         actions={<span className="settings-actions"><SourceBar source={state.gattSource()} differs={state.gattDiffers()} kept connected={state.connected} busy={state.busy !== undefined}
           onApply={() => state.applyGatt(section)} onDrop={() => state.dropGatt()} /></span>}>
-        <p className="project-note">A way is a provider of the board: one characteristic, written by the client and notified by the board. The first way of a service makes the service. Apply now builds them at once: the board drops the Bluetooth link for a moment and the app connects again. They are lost at a restart unless Write (the toolbar) stores them with the project.</p>
+        <p className="project-note">Ways are Bluetooth channels the app and other devices use to exchange data with the board. Apply now builds them at once and the connection drops for a moment. Without Write they are gone after a restart.</p>
         <FieldError>{state.error(section.service.id)}</FieldError>
       </Card>
       {board.map((s) => (
