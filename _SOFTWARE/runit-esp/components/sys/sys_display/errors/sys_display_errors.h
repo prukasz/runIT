@@ -31,7 +31,9 @@
     X(M, ERR_DISPLAY_TRANSFER, 3, ERR_SEV_HIGH, {                                                  \
         uint8_t id;                                                                                \
         esp_err_t code;                                                                            \
-    }) /* the bus refused the transfer (from FLUSH at once); code: the bus's esp_err_t */          \
+    }) /* the bus refused the transfer (from FLUSH at once); code: the bus's esp_err_t. A driver   \
+       on sys_spi passes the bus's own error instead (ERR_SPI_XFER, ERR_SPI_QUEUE_FULL), which has \
+       no esp_err_t */                                                                             \
     X(M, ERR_DISPLAY_FLUSH_TIMEOUT, 4, ERR_SEV_HIGH, {                                             \
         uint8_t id;                                                                                \
         uint16_t timeout_ms;                                                                       \

@@ -7,7 +7,8 @@ idf_component_register(
     PRIV_REQUIRES errors time utils cmd router router_queue timer board_id nvs_store sys_actions sys_board sys_data_provider
                   provider_console provider_uart sys_ble provider_ble sys_session sys_system sys_event sys_event_stream
                   data_matrix sys_log sys_watch sys_device_remote sys_device sys_device_event sys_device_timer sys_device_router
-                  sys_device_policy sys_io sys_power sys_hbridge sys_power_manager sys_i2c device_esp32s3_gpio
-                  device_esp32s3_i2c device_esp32s3_uart device_dc_motor device_testdev device_pca9685 device_tca6424a device_tps55289
+                  sys_device_policy sys_io sys_power sys_hbridge sys_power_manager sys_i2c sys_spi sys_display sys_render
+                  device_esp32s3_gpio device_esp32s3_i2c device_esp32s3_uart device_esp32_spi device_dc_motor device_testdev
+                  device_pca9685 device_tca6424a device_tps55289
                   vm_core vm_blocks log
 )

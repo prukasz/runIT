@@ -240,6 +240,7 @@ static void fill_trans(esp_spi_t *c, trans_t *t, const spi_xfer_t *x)
 {
     *t = (trans_t){.pre = x->pre, .done = x->done, .ctx = x->ctx};
     t->t.user = t;
+    t->t.flags = SPI_TRANS_DMA_USE_PSRAM; /* aligned PSRAM buffers (LVGL draw bufs) go zero-copy */
     if ((x->flags & SYS_SPI_XFER_DUPLEX) != 0) {
         t->t.length = x->tx_len * 8u;
         t->t.rxlength = x->rx_len * 8u;

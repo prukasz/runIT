@@ -1,9 +1,16 @@
-# The same chip and flash as the firmware (runit-esp/sdkconfig); the partition table is the default one while nothing
-# stores to flash.
+# The same chip and flash as the firmware (runit-esp/sdkconfig).
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+# 1.5 MB app partition on the 16 MB flash so LVGL and the drivers fit.
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+# 8 MB Octal PSRAM (ESP32-S3 N16R8): heap_caps only so regular malloc() stays in internal RAM
+# while sys_render takes its LVGL pool and DMA draw buffers from PSRAM (board_mem_esp.c).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
 CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200

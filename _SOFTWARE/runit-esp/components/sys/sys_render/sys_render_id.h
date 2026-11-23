@@ -8,4 +8,4 @@
 #include "module_id.h"
 
 /** @brief The module's number (module_id.h): MODULE_ID_RENDER. */
-MODULE_ID_DECLARE(MODULE_ID_RENDER, 0x29) //@alias Screen @description Render adapter module ID
+MODULE_ID_DECLARE(MODULE_ID_RENDER, 0x35) //@alias Screen @description Render adapter module ID

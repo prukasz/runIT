@@ -26,7 +26,7 @@ Activation lasts only for one shell call, so prefix every command with it. Alway
 | Build | `idf.py -C <proj> build` | full ~200 s, incremental no-op ~2 s |
 | Re-run CMake / pick up Kconfig changes | `idf.py -C <proj> reconfigure` | ~26 s |
 | A new component folder (`components/<layer>/<name>/`) | `idf.py -C <proj> reconfigure build`: a plain `build` succeeds without compiling it (check `build/compile_commands.json`) | ~1 min |
-| A new or changed `idf_component.yml` (LVGL in `sys_lvgl`) | `idf.py -C <proj> reconfigure`: the component manager downloads into `managed_components/` and writes `dependencies.lock` (both not committed; needs the network once) | ~1 min |
+| A new or changed `idf_component.yml` (LVGL in `sys_render`) | `idf.py -C <proj> reconfigure`: the component manager downloads into `managed_components/` and writes `dependencies.lock` (both not committed; needs the network once) | ~1 min |
 | Apply changed Kconfig **defaults** | `idf.py -C <proj> refresh-config --policy=kconfig` | ~2.5 s, non-interactive |
 | Flash | `idf.py -C <proj> -p <PORT> flash` | ~10 s |
 | Monitor (agent) | `& C:\Espressif\tools\python\v6.1\venv\Scripts\python.exe .claude\skills\runit-esp\scripts\serial_capture.py <PORT> 15` | captures N seconds; see §2a |
@@ -41,7 +41,7 @@ Rules for running from the agent:
 
 Success looks like `Project build complete`.
 
-**Partition table:** the default one (a single app, `nvs` 24 KB, the records of `sys_actions` and the board's JSON) on the 16 MB flash (`sdkconfig.defaults`) while nothing else stores to flash.
+**Partition table & PSRAM:** `PARTITION_TABLE_SINGLE_APP_LARGE` (a single 1.5 MB app partition, `nvs` 24 KB, the records of `sys_actions` and the board's JSON) on the 16 MB flash, and 8 MB Octal PSRAM at 80 MHz (`CONFIG_SPIRAM=y`, `SPIRAM_MODE_OCT`, `SPIRAM_USE_CAPS_ALLOC`, `sdkconfig.defaults`) so regular `malloc()` stays in internal RAM while `sys_render` takes its LVGL pool and DMA draw buffers from PSRAM.
 
 ## 2a. Flash and monitor
 

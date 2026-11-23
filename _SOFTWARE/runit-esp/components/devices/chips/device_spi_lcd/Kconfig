@@ -1,0 +1,12 @@
+menu "device_spi_lcd"
+
+    config DEVICE_SPI_LCD_FLUSH_MAX
+        int "Largest FLUSH (bytes)"
+        default 12800
+        range 64 65536
+        help
+          The largest FLUSH a display takes (GEOMETRY's flush_max): one window of
+          pixels sent in one SPI transaction. At most the bus's max_transfer.
+          12800 is 20 lines of 320 pixels in RGB565.
+
+endmenu

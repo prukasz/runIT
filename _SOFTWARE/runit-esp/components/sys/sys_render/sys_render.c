@@ -5,8 +5,8 @@
  *        runs on (its pool, the draw buffers, its display). The engine itself (sys_render_driver)
  *        and the memory (board_mem_*) are reached only through their interfaces.
  */
-#include "FreeRTOS.h"
-#include "semphr.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include "board_time.h"
 #include "sys_device.h"

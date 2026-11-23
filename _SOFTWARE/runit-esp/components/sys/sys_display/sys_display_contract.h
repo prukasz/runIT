@@ -278,8 +278,8 @@ err_h sys_display_get_orientation(uint8_t device, uint8_t *out);
  * @param[in] done     The end of the transfer (ISR context)
  * @param[in] done_ctx Passed to done
  * @return ERR_BAD_ARG for a NULL window or done, or the driver's error passed (BAD_ARG,
- * BAD_WINDOW, FLUSH_BUSY, TRANSFER: the bus refused it; SUSPENDED...): then done is not called and
- * nothing is sent
+ * BAD_WINDOW, FLUSH_BUSY, TRANSFER, or the bus's own error from a driver on sys_spi: the bus
+ * refused it; SUSPENDED...): then done is not called and nothing is sent
  */
 err_h sys_display_flush(uint8_t device, const void *pixels, uint32_t len,
                         const display_window_t *window, display_flush_done_f done, void *done_ctx);
