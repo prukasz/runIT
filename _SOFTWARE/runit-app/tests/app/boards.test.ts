@@ -3,7 +3,8 @@ import { bundledLinkDefinitions, bundledServiceCatalog, readDeviceFrame } from '
 import { emptyProject, parseProject, serializeProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import { boardType, deviceRecordOf, deviceSections, SINGLE_TYPES } from '../../src/app/devices/devices'
-import { addressBytes, boardProblems, boardSections, formatAddress, nextLinkProvider } from '../../src/app/boards/boards'
+import { buildProviderRegistry } from '../../src/app/routing/providerRegistry'
+import { FIRST_LINK_PROVIDER, LAST_LINK_PROVIDER, addressBytes, boardProblems, boardSections, formatAddress } from '../../src/app/boards/boards'
 import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 
 const defs = bundledLinkDefinitions()
@@ -31,8 +32,9 @@ describe('the other boards of a project', () => {
     expect(addressBytes('F4:12:FA')).toBeUndefined()
   })
 
-  it('gives a new link the next provider id the project leaves free', () => {
-    expect(nextLinkProvider(project)).toBe(0x31)
+  it('the register gives a new link the lowest provider id nothing holds', () => {
+    const registry = buildProviderRegistry({ live: [], project, devices: [] })
+    expect(registry.freeFrom(FIRST_LINK_PROVIDER, LAST_LINK_PROVIDER)).toBe(0x31)
   })
 
   it('a device on another board is only its alias here: CREATE_REMOTE of its type, board and id there', () => {

@@ -7,6 +7,7 @@ import { FieldsForm } from '../devices/FieldsForm'
 import type { PinContext } from '../devices/FieldsForm'
 import { CMD_SEND_NOWAIT } from './routing'
 import type { RoutingState } from './useRouting'
+import type { ProviderRegistry } from './providerRegistry'
 import './Routing.css'
 
 const hex4 = (n: number): string => `0x${n.toString(16).toUpperCase().padStart(4, '0')}`
@@ -17,7 +18,8 @@ const parseHex16 = (text: string): number | undefined => {
 }
 
 /** The card that makes a provider on the board (PROVIDER CREATE): its ID, its name in the project, its type and the type's config. */
-export function CreateProviderCard({ routing, pinContext, uartDevices, onName }: {
+export function CreateProviderCard({ routing, registry, pinContext, uartDevices, onName }: {
+  registry: ProviderRegistry
   routing: RoutingState
   /** Gives a provider its name in the project (empty: none). */
   onName: (id: number, name: string) => void
@@ -31,12 +33,7 @@ export function CreateProviderCard({ routing, pinContext, uartDevices, onName }:
     [providerTypes],
   )
 
-  const usedIds = useMemo(() => new Set(routing.snapshot.providers.map((p) => p.id)), [routing.snapshot.providers])
-  const nextFreeId = useMemo(() => {
-    let id = 8
-    while (usedIds.has(id) && id < 127) id++
-    return id
-  }, [usedIds])
+  const nextFreeId = useMemo(() => registry.freeFrom(8, 127) ?? 8, [registry])
 
   const takenUuids = useMemo(() => new Set(routing.snapshot.gatt.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)])), [routing.snapshot.gatt])
   const freeUuid = (start: number) => {
@@ -69,8 +66,8 @@ export function CreateProviderCard({ routing, pinContext, uartDevices, onName }:
       setLocalError('Provider ID must be between 1 and 254 (use 1..127 if you want to attach a session).')
       return
     }
-    if (usedIds.has(providerId)) {
-      setLocalError(`Provider #${providerId} already exists on the board.`)
+    if (!registry.isFree(providerId)) {
+      setLocalError(`Provider #${providerId} is taken: ${registry.entries.get(providerId)?.label ?? 'in use'}.`)
       return
     }
     let cfg: FieldValues
@@ -102,9 +99,7 @@ export function CreateProviderCard({ routing, pinContext, uartDevices, onName }:
     if (ok) {
       if (providerName.trim()) onName(providerId, providerName.trim())
       setProviderName('')
-      let next = providerId + 1
-      while (usedIds.has(next) && next < 127) next++
-      setProviderId(next)
+      setProviderId(registry.freeFrom(providerId + 1, 127) ?? providerId + 1)
       if (selectedType === 'ble') {
         setBleChr((u) => (u > 0 ? u + 2 : 0))
       }

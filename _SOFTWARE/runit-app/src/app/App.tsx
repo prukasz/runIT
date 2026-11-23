@@ -26,6 +26,7 @@ import { SettingsScreen } from './settings/SettingsScreen'
 import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
 import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRouting } from './routing/useRouting'
+import { buildProviderRegistry } from './routing/providerRegistry'
 import { ConnectionsScreen } from './routing/ConnectionsScreen'
 import { uartProviderNames } from './routing/routing'
 import { BoardsScreen } from './boards/BoardsScreen'
@@ -158,6 +159,7 @@ export function App() {
   // A provider is called by the user's name, else (a framed UART's) by its device's.
   const providerNames = useMemo(() => ({ ...uartProviderNames(devices.devices), ...project.project.providerNames }), [devices.devices, project.project.providerNames])
   const routing = useRouting(link, state === 'connected', providerNames)
+  const providers = useMemo(() => buildProviderRegistry({ live: routing.snapshot.providers, project: project.project, devices: devices.devices }), [routing.snapshot.providers, project.project, devices.devices])
   const settingTabs = tabSections(boardSettings.sections, link.defs.keys.project)
   // The Project view opens on its landing page (the project); a board tab is a page reached from it, not remembered.
   const [projectTab, setProjectTab] = useState<string>(PROJECT_TAB)
@@ -495,16 +497,16 @@ export function App() {
                 ? <PowerDisplayScreen project={project} services={devices.services} board={devices.board} devices={devices.devices} connected={state === 'connected'} />
                 : settingsTab === APP_TAB || !tabSection
                 ? <AppSettingsScreen zoom={appZoom} />
-                : <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} />)
+                : <SettingsScreen section={tabSection} state={boardSettings} context={pinContext} nameOf={nameOf} registry={providers} />)
             : view === 'Project'
               ? (projectTab === BOARD_TAB
                 ? (boardEditor.selection
                   ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
                   : <BoardProfileScreen profile={boardProfile} editor={boardEditor} />)
                 : projectTab === CONNECTIONS_TAB
-                ? <ConnectionsScreen routing={routing} pinContext={pinContext} uartDevices={uartPorts} onName={(id, name) => setProviderName(project, id, name)} />
+                ? <ConnectionsScreen registry={providers} routing={routing} pinContext={pinContext} uartDevices={uartPorts} onName={(id, name) => setProviderName(project, id, name)} />
                 : projectTab === BOARDS_TAB
-                ? <BoardsScreen project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
+                ? <BoardsScreen registry={providers} project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)
               : <div className="view-placeholder"><h2>{current.title}</h2><p>Nothing here yet.</p></div>}
         </MainScreen>

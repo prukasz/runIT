@@ -5,6 +5,7 @@ import { Badge, Button, Card, CardStack, EditableField, FieldError, SegmentedSwi
 import { ErrorsCard } from '../console/ErrorView'
 import type { PinContext } from '../devices/FieldsForm'
 import { CreateProviderCard } from './CreateProviderCard'
+import type { ProviderRegistry } from './providerRegistry'
 import { chipLinks, chipState, deadmanChoices, deadmanLabel, sessionModules } from './connections'
 import type { Endpoint } from './connections'
 import { PROV_TYPE, providerPort, providerTitle, SESSION_ROLE, standardModulePorts } from './routing'
@@ -208,7 +209,8 @@ function ProviderCard({ provider, session, others, links, modules, routing, own,
   )
 }
 
-export function ConnectionsScreen({ routing, pinContext, uartDevices, onName }: {
+export function ConnectionsScreen({ routing, registry, pinContext, uartDevices, onName }: {
+  registry: ProviderRegistry
   routing: RoutingState
   pinContext: PinContext
   uartDevices: readonly { readonly id: number; readonly name: string }[]
@@ -237,7 +239,7 @@ export function ConnectionsScreen({ routing, pinContext, uartDevices, onName }: 
               own={session?.open === true && session.peerId === ownId} onName={onName} />
           )
         })}
-        <CreateProviderCard routing={routing} pinContext={pinContext} uartDevices={uartDevices} onName={onName} />
+        <CreateProviderCard registry={registry} routing={routing} pinContext={pinContext} uartDevices={uartDevices} onName={onName} />
       </CardStack>
     </div>
   )

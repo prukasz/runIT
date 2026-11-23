@@ -20,7 +20,9 @@ import type { BoardDescriptor } from '../devices/boardDescriptor'
 export const BOARD_COMMANDS = { system: 'SYS', restart: 'RESTART' } as const
 
 /** The first provider id the app gives a link: above the board's own (1..4) and the ports and characteristics a project makes (0x10..). */
-const FIRST_LINK_PROVIDER = 0x30
+export const FIRST_LINK_PROVIDER = 0x30
+/** The last one: the UART devices' providers begin at 0x40. */
+export const LAST_LINK_PROVIDER = 0x3f
 
 /* ---- addresses ---- */
 
@@ -36,14 +38,6 @@ export const addressBytes = (address: string): number[] | undefined => {
 }
 
 /* ---- the links ---- */
-
-/** The provider id a new link gets: the lowest from FIRST_LINK_PROVIDER the project's boards leave free. */
-export const nextLinkProvider = (project: ProjectFile): number => {
-  const taken = new Set((project.boards ?? []).map((b) => b.provider))
-  let id = FIRST_LINK_PROVIDER
-  while (taken.has(id)) id++
-  return id
-}
 
 /**
  * What is wrong with the boards: an id twice, this board's id, a provider twice, an address that is none, a device on a board

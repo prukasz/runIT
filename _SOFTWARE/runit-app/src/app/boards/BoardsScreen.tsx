@@ -6,7 +6,8 @@ import { Badge, Button, Card, CardStack, FormRow, NumberField, PanelHeader, Text
 import type { useProject } from '../project/useProject'
 import type { ProjectBoard } from '../project/projectFile'
 import { boardType, nextDeviceId, SINGLE_TYPES } from '../devices/devices'
-import { BOARD_COMMANDS, addressBytes, boardProblems, devicesOn, nextLinkProvider } from './boards'
+import type { ProviderRegistry } from '../routing/providerRegistry'
+import { BOARD_COMMANDS, addressBytes, boardProblems, devicesOn, FIRST_LINK_PROVIDER, LAST_LINK_PROVIDER } from './boards'
 import './Boards.css'
 import type { BoardDescriptor } from '../devices/boardDescriptor'
 
@@ -26,7 +27,8 @@ const nextBoardId = (boards: readonly ProjectBoard[], own: number | undefined, l
   return id
 }
 
-export function BoardsScreen({ project, link, services, board, connected }: {
+export function BoardsScreen({ registry, project, link, services, board, connected }: {
+  registry: ProviderRegistry
   project: ReturnType<typeof useProject>
   link: RunitLink
   services: Services
@@ -68,7 +70,9 @@ export function BoardsScreen({ project, link, services, board, connected }: {
   const add = () => {
     if (!addressBytes(address)) return tell(`"${address}" is not a BLE address (six hex bytes, like F4:12:FA:01:02:03).`, true)
     const id = nextBoardId(boards, ownId, link.defs.src.boardLast)
-    setBoards([...boards, { id, name: `Board ${id}`, address: address.trim().toUpperCase(), addressType: 0, provider: nextLinkProvider(project.project) }])
+    const provider = registry.freeFrom(FIRST_LINK_PROVIDER, LAST_LINK_PROVIDER)
+    if (provider === undefined) return tell('Every provider id for a link is taken.', true)
+    setBoards([...boards, { id, name: `Board ${id}`, address: address.trim().toUpperCase(), addressType: 0, provider }])
     setAddress('')
   }
 

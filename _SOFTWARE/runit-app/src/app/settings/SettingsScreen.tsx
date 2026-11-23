@@ -11,6 +11,7 @@ import type { PinContext } from '../devices/FieldsForm'
 import { FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER, ownGattService } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
+import type { ProviderRegistry } from '../routing/providerRegistry'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
 
 /*
@@ -110,7 +111,7 @@ function UuidField({ label, value, onChange }: { label: string; value: number; o
   )
 }
 
-function GattEditor({ section, state }: { section: SettingSection; state: BoardSettingsState }) {
+function GattEditor({ section, state, registry }: { section: SettingSection; state: BoardSettingsState; registry: ProviderRegistry }) {
   const services = state.gattServices()
   const own = ownGattService()
   const board = state.live.gatt ?? (own ? [own] : [])
@@ -120,20 +121,10 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
   ])
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
   // A new provider's id: a number no provider of the project has, above the board's own.
-  const usedProviders = new Set([...services.flatMap((s) => s.characteristics.map((c) => c.provider)), ...state.linkProviders()])
-  const freeProvider = () => {
-    let n = FIRST_WAY_PROVIDER
-    while (usedProviders.has(n)) n++
-    return n
-  }
-  // The ids a way can take: the unused ones, and its own.
-  const providerChoices = (own: number): Choice<number>[] => {
-    const choices: Choice<number>[] = []
-    for (let id = FIRST_WAY_PROVIDER; id <= MAX_WAY_PROVIDER; id++) {
-      if (id === own || !usedProviders.has(id)) choices.push({ value: id, label: state.providerName(id) ? `${id} · ${state.providerName(id)}` : String(id) })
-    }
-    return choices
-  }
+  // A new way's id, and the ids a way can take: the register's free ones, and its own.
+  const freeProvider = () => registry.freeFrom(FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER) ?? FIRST_WAY_PROVIDER
+  const providerChoices = (own: number): Choice<number>[] =>
+    registry.freeIds(FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER, own).map((id) => ({ value: id, label: registry.label(id) }))
   const set = (next: readonly GattService[]) => state.changeGatt(next)
   const setService = (i: number, s: GattService) => set(services.map((o, j) => (j === i ? s : o)))
   const setChar = (i: number, k: number, change: (c: GattCharacteristic) => GattCharacteristic) =>
@@ -194,18 +185,18 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
 }
 
 /** The forms of a section's settings (a tab's cards, or the Project tab's board settings). */
-export function SettingsCards({ section, state, context, nameOf }: { section: SettingSection; state: BoardSettingsState; context: PinContext; nameOf: (device: number) => string }): ReactNode {
+export function SettingsCards({ section, state, context, nameOf, registry }: { section: SettingSection; state: BoardSettingsState; context: PinContext; nameOf: (device: number) => string; registry: ProviderRegistry }): ReactNode {
   return (
     <>
       {section.groups.map((g) => <FormCard key={g.key} group={g} state={state} context={context} />)}
       {section.tables.map((t) => <TableCard key={t.key} table={t} state={state} nameOf={nameOf} />)}
-      {section.record?.editor === 'ble' && <GattEditor section={section} state={state} />}
+      {section.record?.editor === 'ble' && <GattEditor section={section} state={state} registry={registry} />}
     </>
   )
 }
 
 /** A settings tab: Read while connected, and its cards (its name is the tab's, in the left panel). */
-export function SettingsScreen({ section, state, context, nameOf }: { section: SettingSection; state: BoardSettingsState; context: PinContext; nameOf: (device: number) => string }) {
+export function SettingsScreen({ section, state, context, nameOf, registry }: { section: SettingSection; state: BoardSettingsState; context: PinContext; nameOf: (device: number) => string; registry: ProviderRegistry }) {
   return (
     <div className="project-screen">
       {state.connected && (
@@ -215,7 +206,7 @@ export function SettingsScreen({ section, state, context, nameOf }: { section: S
       )}
       <CardStack>
         {section.service.key !== undefined && <ErrorsCard about={`router_key:${section.service.key}`} />}
-        <SettingsCards section={section} state={state} context={context} nameOf={nameOf} />
+        <SettingsCards section={section} state={state} context={context} nameOf={nameOf} registry={registry} />
       </CardStack>
     </div>
   )
