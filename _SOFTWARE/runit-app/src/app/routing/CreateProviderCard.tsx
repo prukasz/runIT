@@ -33,7 +33,8 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
     [providerTypes],
   )
 
-  const nextFreeId = useMemo(() => registry.freeFrom(8, 127) ?? 8, [registry])
+  // The id is the register's lowest free one (1..127 can host a session); the user never sees it.
+  const providerId = useMemo(() => registry.freeFrom(8, 127), [registry])
 
   const takenUuids = useMemo(() => new Set(routing.snapshot.gatt.flatMap((s) => [s.uuid, ...s.characteristics.map((c) => c.uuid)])), [routing.snapshot.gatt])
   const freeUuid = (start: number) => {
@@ -42,7 +43,6 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
     return u
   }
 
-  const [providerId, setProviderId] = useState<number>(nextFreeId)
   const [providerName, setProviderName] = useState<string>('')
   const [selectedType, setSelectedType] = useState<string>(providerTypes[0]?.id ?? 'ble')
   // BLE fields
@@ -62,12 +62,8 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
 
   const handleCreate = async () => {
     setLocalError(undefined)
-    if (providerId < 1 || providerId > 254) {
-      setLocalError('Provider ID must be between 1 and 254 (use 1..127 if you want to attach a session).')
-      return
-    }
-    if (!registry.isFree(providerId)) {
-      setLocalError(`Provider #${providerId} is taken: ${registry.entries.get(providerId)?.label ?? 'in use'}.`)
+    if (providerId === undefined) {
+      setLocalError('Every provider id is taken: remove a provider first.')
       return
     }
     let cfg: FieldValues
@@ -99,7 +95,6 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
     if (ok) {
       if (providerName.trim()) onName(providerId, providerName.trim())
       setProviderName('')
-      setProviderId(registry.freeFrom(providerId + 1, 127) ?? providerId + 1)
       if (selectedType === 'ble') {
         setBleChr((u) => (u > 0 ? u + 2 : 0))
       }
@@ -107,7 +102,7 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
   }
 
   const uartChoices: Choice<number>[] = useMemo(
-    () => uartDevices.map((d) => ({ value: d.id, label: `#${d.id} ${d.name}` })),
+    () => uartDevices.map((d) => ({ value: d.id, label: d.name })),
     [uartDevices],
   )
 
@@ -122,11 +117,8 @@ export function CreateProviderCard({ routing, registry, pinContext, uartDevices,
       }
     >
       <FormGrid>
-        <FormRow label="Provider ID" note="Unique ID (1..127 recommended so a session can attach to it).">
-          <NumberField aria-label="Provider ID" integer min={1} max={254} value={providerId} onCommit={setProviderId} />
-        </FormRow>
         <FormRow label="Name" note="Your name for it, kept in the project: the board knows a provider by its ID and type only.">
-          <TextField aria-label="Provider name" maxLength={32} value={providerName} placeholder={`Provider #${providerId}`} onChange={(e) => setProviderName(e.target.value)} />
+          <TextField aria-label="Provider name" maxLength={32} value={providerName} placeholder={providerId === undefined ? '' : registry.name(providerId)} onChange={(e) => setProviderName(e.target.value)} />
         </FormRow>
         <FormRow label="Type" note={activeDescriptor?.description ?? 'Driver type from generated/providers.'}>
           <ChoiceField<string> aria-label="Provider type" value={selectedType} choices={typeChoices} onChange={(v) => v && setSelectedType(v)} />

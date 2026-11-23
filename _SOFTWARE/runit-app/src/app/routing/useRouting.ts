@@ -94,40 +94,40 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
 
   const createProvider = useCallback(async (id: number, type: string | number, config: FieldValues): Promise<boolean> => {
     const isBle = type === 'ble' || type === services.catalog.providers.get('ble')?.providerType
-    return runAction(`Creating provider #${id}`, async () => {
+    return runAction(`Creating provider`, async () => {
       await services.createProvider(id, type, config)
       if (isBle) {
         // Adding/joining BLE GATT triggers NimBLE Service Changed (~200 ms debounce); give link a brief beat.
         await new Promise((r) => setTimeout(r, 350))
       }
-    }, `Created provider #${id}.`)
+    }, `Created provider.`)
   }, [runAction, services])
 
   const removeProvider = useCallback(async (id: number): Promise<boolean> =>
-    runAction(`Removing provider #${id}`, async () => {
+    runAction(`Removing provider`, async () => {
       await services.call(PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.remove, undefined, { side: 'write', id })
-    }, `Removed provider #${id}.`),
+    }, `Removed provider.`),
   [runAction, services])
 
   const attachSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role = 0): Promise<boolean> =>
-    runAction(`Attaching session on provider #${provider}`, async () => {
+    runAction(`Attaching session on provider`, async () => {
       await services.call('SESSION', 'ATTACH', {
         provider,
         flags: (safety ? SESSION_SAFETY_FLAG : 0) | role,
         deadman_ms: deadmanMs,
         modules: Uint8Array.from(role ? [] : modules),
       }, { side: 'write' })
-    }, `Attached session on provider #${provider}.`),
+    }, `Attached session on provider.`),
   [runAction, services])
 
   const detachSession = useCallback(async (provider: number): Promise<boolean> =>
-    runAction(`Detaching session on provider #${provider}`, async () => {
+    runAction(`Detaching session on provider`, async () => {
       await services.call('SESSION', 'DETACH', { provider }, { side: 'write' })
-    }, `Detached session on provider #${provider}.`),
+    }, `Detached session on provider.`),
   [runAction, services])
 
   const restartSession = useCallback(async (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role = 0): Promise<boolean> =>
-    runAction(`Changing the session on provider #${provider}`, async () => {
+    runAction(`Changing the session on provider`, async () => {
       // A board's session makes its own links; a client's are made again here.
       const kept = role ? [] : subPortLinks(liveSnapshot?.links ?? [], provider)
       if (liveSnapshot?.sessions.some((s) => s.provider === provider)) await services.call('SESSION', 'DETACH', { provider }, { side: 'write' })
@@ -139,7 +139,7 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
         if (![subModule(l.from), subModule(l.to)].some((m) => m !== undefined && modules.includes(m))) continue
         await services.call('DATA_MATRIX', 'CONNECT', { from: l.from, to: l.to }, { side: 'write' })
       }
-    }, `Changed the session on provider #${provider}.`),
+    }, `Changed the session on provider.`),
   [runAction, services, liveSnapshot])
 
   const connectPorts = useCallback(async (from: number, to: number, bothWays = false): Promise<boolean> =>

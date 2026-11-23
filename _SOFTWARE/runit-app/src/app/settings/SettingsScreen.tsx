@@ -121,10 +121,8 @@ function GattEditor({ section, state, registry }: { section: SettingSection; sta
   ])
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
   // A new provider's id: a number no provider of the project has, above the board's own.
-  // A new way's id, and the ids a way can take: the register's free ones, and its own.
+  // A new way's id: the register's lowest free one. The user never sees it.
   const freeProvider = () => registry.freeFrom(FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER) ?? FIRST_WAY_PROVIDER
-  const providerChoices = (own: number): Choice<number>[] =>
-    registry.freeIds(FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER, own).map((id) => ({ value: id, label: registry.label(id) }))
   const set = (next: readonly GattService[]) => state.changeGatt(next)
   const setService = (i: number, s: GattService) => set(services.map((o, j) => (j === i ? s : o)))
   const setChar = (i: number, k: number, change: (c: GattCharacteristic) => GattCharacteristic) =>
@@ -152,10 +150,7 @@ function GattEditor({ section, state, registry }: { section: SettingSection; sta
             <div key={`${k}:${c.provider}`} className="settings-char">
               <div className="settings-group-head">
                 <FormRow label="Name" note="Your name for this provider, kept in the project: the board knows it by its id only. The data matrix and the providers list show it.">
-                  <TextField aria-label="Provider name" maxLength={32} value={state.providerName(c.provider)} placeholder={`Provider #${c.provider}`} onChange={(event) => state.setProviderName(c.provider, event.target.value)} />
-                </FormRow>
-                <FormRow label="Provider" note="The id of this way: what the data matrix routes to and from. Only ids no other way uses are offered.">
-                  <ChoiceField<number> aria-label="Provider id" value={c.provider} choices={providerChoices(c.provider)} onChange={(provider) => provider !== undefined && setChar(i, k, (o) => ({ ...o, provider }))} />
+                  <TextField aria-label="Provider name" maxLength={32} value={state.providerName(c.provider)} placeholder={registry.name(c.provider)} onChange={(event) => state.setProviderName(c.provider, event.target.value)} />
                 </FormRow>
                 <Button size="sm" title="Remove this way" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
               </div>

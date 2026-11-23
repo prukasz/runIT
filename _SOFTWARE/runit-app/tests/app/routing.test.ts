@@ -9,13 +9,14 @@ import {
   PROV_STATE,
   PROV_TYPE,
   providerPort,
-  providerTitle,
   sessionPort,
   standardModulePorts,
   UART_PROVIDER_BASE,
   uartProviderNames,
   withProviderNames,
 } from '../../src/app/routing/routing'
+import { emptyProject } from '../../src/app/project/projectFile'
+import { buildProviderRegistry } from '../../src/app/routing/providerRegistry'
 import { chipLinks, chipState, deadmanChoices, deadmanLabel, sessionModules, subPortLinks } from '../../src/app/routing/connections'
 
 const defs = bundledLinkDefinitions()
@@ -50,7 +51,6 @@ describe('routing model (Providers & Data Matrix)', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({ id: 1, system: true, wired: true, up: true, framed: true })
     expect(rows[1]).toMatchObject({ id: 8, system: false, wired: false, up: false, framed: true })
-    expect(providerTitle(rows[0]!)).toContain('#1')
   })
 
   it("a chip is the links a module and a provider's data path need: its out to it and its in from it", () => {
@@ -83,13 +83,14 @@ describe('routing model (Providers & Data Matrix)', () => {
     expect([0, 1000, 1500].map(deadmanLabel)).toEqual(['Off', '1 s', '1500 ms'])
   })
 
-  it("calls a provider by the project's name with its id, else by its id and type", () => {
+  it("the register calls a provider by the project's name, else by its kind with a number when several are alike; never by its id", () => {
     const snapshot = offlinePreviewSnapshot(defs)
-    const named = withProviderNames(snapshot, { '3': 'Phone link', '4': '  ' })
-    expect(named.providers.find((p) => p.id === 3)!.name).toBe('Phone link')
-    expect(named.providers.find((p) => p.id === 4)!.name).toBeUndefined()
-    expect(providerTitle(named.providers.find((p) => p.id === 3)!)).toBe('Phone link (#3)')
-    expect(providerTitle(named.providers.find((p) => p.id === 4)!)).toMatch(/^Provider #4 \(/)
+    const project = { ...emptyProject(), providerNames: { '3': 'Phone link', '4': '  ' } }
+    const registry = buildProviderRegistry({ live: snapshot.providers, project, devices: [] })
+    expect(registry.name(3)).toBe('Phone link')
+    expect(registry.name(4)).not.toContain('#')
+    expect(registry.name(4)).toBe(registry.entries.get(4)!.name)
+    expect(withProviderNames(snapshot, { '3': 'Phone link' }).providers.find((p) => p.id === 3)!.name).toBe('Phone link')
     expect(withProviderNames(snapshot, undefined)).toBe(snapshot)
   })
 

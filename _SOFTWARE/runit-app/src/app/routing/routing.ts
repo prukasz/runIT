@@ -94,9 +94,6 @@ export interface LiveProvider {
   readonly framed: boolean
 }
 
-/** How a provider is called: the user's name with its id, else its id and type. */
-export const providerTitle = (p: Pick<LiveProvider, 'id' | 'typeLabel' | 'name'>): string => (p.name ? `${p.name} (#${p.id})` : `Provider #${p.id} (${p.typeLabel})`)
-
 /** The firmware makes a provider for each UART device in framed mode, with the ID `UART_PROVIDER_BASE` + the device's (provider_uart.c). */
 export const UART_PROVIDER_BASE = 0x40
 const UART_PROVIDER_MAX = 0x40

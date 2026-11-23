@@ -8,7 +8,7 @@ import { CreateProviderCard } from './CreateProviderCard'
 import type { ProviderRegistry } from './providerRegistry'
 import { chipLinks, chipState, deadmanChoices, deadmanLabel, sessionModules } from './connections'
 import type { Endpoint } from './connections'
-import { PROV_TYPE, providerPort, providerTitle, SESSION_ROLE, standardModulePorts } from './routing'
+import { PROV_TYPE, providerPort, SESSION_ROLE, standardModulePorts } from './routing'
 import type { LiveProvider, MatrixLink, ModulePortSpec } from './routing'
 import type { RoutingState } from './useRouting'
 import './Routing.css'
@@ -128,7 +128,8 @@ function SessionBlock({ provider, session, routing, modules, known, own }: {
   )
 }
 
-function ProviderCard({ provider, session, others, links, modules, routing, own, onName }: {
+function ProviderCard({ registry, provider, session, others, links, modules, routing, own, onName }: {
+  registry: ProviderRegistry
   provider: LiveProvider
   session?: SessionPeer
   others: readonly LiveProvider[]
@@ -166,14 +167,14 @@ function ProviderCard({ provider, session, others, links, modules, routing, own,
 
   return (
     <Card
-      title={providerTitle(provider)}
+      title={registry.name(provider.id)}
       actions={!provider.system
-        ? <Button size="sm" variant="danger" disabled={busy} title={`Remove provider #${provider.id}`} onClick={() => void routing.removeProvider(provider.id)}><Trash2 aria-hidden="true" />Remove</Button>
+        ? <Button size="sm" variant="danger" disabled={busy} title={`Remove ${registry.name(provider.id)}`} onClick={() => void routing.removeProvider(provider.id)}><Trash2 aria-hidden="true" />Remove</Button>
         : undefined}
     >
       <div className="connections-head">
         <Icon aria-hidden="true" />
-        <EditableField className="connections-name" value={provider.name ?? ''} maxLength={32} placeholder={`Provider #${provider.id}`} aria-label={`Name of provider #${provider.id}`} onChange={(name) => onName(provider.id, name)} />
+        <EditableField className="connections-name" value={provider.name ?? ''} maxLength={32} placeholder={registry.name(provider.id)} aria-label={`Name of ${registry.name(provider.id)}`} onChange={(name) => onName(provider.id, name)} />
         <Badge tone="info" size="compact">{provider.typeLabel}</Badge>
         {provider.system && <Badge tone="neutral" size="compact">system</Badge>}
         <Badge tone={provider.up ? 'success' : 'warning'} size="compact">{provider.up ? 'up' : 'down'}</Badge>
@@ -197,7 +198,7 @@ function ProviderCard({ provider, session, others, links, modules, routing, own,
             {others.map((o) => {
               const expected = [{ from: providerPort(provider.id), to: providerPort(o.id) }]
               const on = chipState(links, expected) === 'on'
-              return <ToggleChip key={o.id} selected={on} disabled={busy} onClick={() => void toggle(expected, on)}>{o.name ?? `#${o.id} ${o.typeLabel}`}</ToggleChip>
+              return <ToggleChip key={o.id} selected={on} disabled={busy} onClick={() => void toggle(expected, on)}>{registry.name(o.id)}</ToggleChip>
             })}
           </div>
         </>
@@ -235,7 +236,7 @@ export function ConnectionsScreen({ routing, registry, pinContext, uartDevices, 
         {providers.map((p) => {
           const session = sessions.find((s) => s.provider === p.id)
           return (
-            <ProviderCard key={p.id} provider={p} {...(session ? { session } : {})} others={providers.filter((o) => o.id !== p.id)} links={links} modules={modules} routing={routing}
+            <ProviderCard key={p.id} registry={registry} provider={p} {...(session ? { session } : {})} others={providers.filter((o) => o.id !== p.id)} links={links} modules={modules} routing={routing}
               own={session?.open === true && session.peerId === ownId} onName={onName} />
           )
         })}
