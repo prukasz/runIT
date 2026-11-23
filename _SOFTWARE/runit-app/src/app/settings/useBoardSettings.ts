@@ -171,6 +171,8 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     /** The project's name of a provider ('' none), and setting it. */
     providerName: (id: number): string => project.project.providerNames?.[id] ?? '',
     setProviderName: (id: number, name: string) => setProviderName(project, id, name),
+    /** The providers that are the links to other boards: no way may take one. */
+    linkProviders: (): readonly number[] => (project.project.boards ?? []).map((b) => b.provider),
     gattSource: (): SettingSource => (settings.gatt ? 'project' : 'none'),
     gattServices: (): readonly GattService[] => settings.gatt ?? [],
     gattDiffers: (): boolean => settings.gatt !== undefined && live.gatt !== undefined && !sameGatt(settings.gatt, live.gatt),

@@ -2,13 +2,13 @@ import type { ReactNode } from 'react'
 import { Download, Plus, RefreshCw, Send, Trash2 } from 'lucide-react'
 import { bundledEnums } from '@backend'
 import type { FieldValues, WireField } from '@backend'
-import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, NumberField, Switch, TextField } from '@ui/components'
+import { Badge, Button, Card, CardStack, ChoiceField, FieldError, FormGrid, FormRow, Switch, TextField } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
 import type { Choice } from '@ui/components'
 import type { GattCharacteristic, GattService } from '../project/projectFile'
 import { FieldsForm } from '../devices/FieldsForm'
 import type { PinContext } from '../devices/FieldsForm'
-import { FIRST_WAY_PROVIDER, ownGattService } from './gatt'
+import { FIRST_WAY_PROVIDER, MAX_WAY_PROVIDER, ownGattService } from './gatt'
 import { settingTitle } from './settings'
 import type { SettingGroup, SettingSection, SettingTable } from './settings'
 import type { BoardSettingsState, SettingSource } from './useBoardSettings'
@@ -120,11 +120,19 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
   ])
   const free = (from: number) => { let n = from; while (taken.has(n)) n++; return n }
   // A new provider's id: a number no provider of the project has, above the board's own.
+  const usedProviders = new Set([...services.flatMap((s) => s.characteristics.map((c) => c.provider)), ...state.linkProviders()])
   const freeProvider = () => {
-    const used = new Set(services.flatMap((s) => s.characteristics.map((c) => c.provider)))
     let n = FIRST_WAY_PROVIDER
-    while (used.has(n)) n++
+    while (usedProviders.has(n)) n++
     return n
+  }
+  // The ids a way can take: the unused ones, and its own.
+  const providerChoices = (own: number): Choice<number>[] => {
+    const choices: Choice<number>[] = []
+    for (let id = FIRST_WAY_PROVIDER; id <= MAX_WAY_PROVIDER; id++) {
+      if (id === own || !usedProviders.has(id)) choices.push({ value: id, label: state.providerName(id) ? `${id} · ${state.providerName(id)}` : String(id) })
+    }
+    return choices
   }
   const set = (next: readonly GattService[]) => state.changeGatt(next)
   const setService = (i: number, s: GattService) => set(services.map((o, j) => (j === i ? s : o)))
@@ -155,8 +163,8 @@ function GattEditor({ section, state }: { section: SettingSection; state: BoardS
                 <FormRow label="Name" note="Your name for this provider, kept in the project: the board knows it by its id only. The data matrix and the providers list show it.">
                   <TextField aria-label="Provider name" maxLength={32} value={state.providerName(c.provider)} placeholder={`Provider #${c.provider}`} onChange={(event) => state.setProviderName(c.provider, event.target.value)} />
                 </FormRow>
-                <FormRow label="Provider" note="The id of this way: what the data matrix routes to and from.">
-                  <NumberField aria-label="Provider id" integer min={1} max={254} value={c.provider} onCommit={(provider) => setChar(i, k, (o) => ({ ...o, provider }))} />
+                <FormRow label="Provider" note="The id of this way: what the data matrix routes to and from. Only ids no other way uses are offered.">
+                  <ChoiceField<number> aria-label="Provider id" value={c.provider} choices={providerChoices(c.provider)} onChange={(provider) => provider !== undefined && setChar(i, k, (o) => ({ ...o, provider }))} />
                 </FormRow>
                 <Button size="sm" title="Remove this way" onClick={() => setService(i, { ...s, characteristics: s.characteristics.filter((_, j) => j !== k) })}><Trash2 aria-hidden="true" />Remove</Button>
               </div>

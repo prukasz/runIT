@@ -16,6 +16,9 @@ import type { GattCharacteristic, GattService } from '../project/projectFile'
 /** The first provider id a way may have: below it are the board's own providers (the console, the runIT Bluetooth pair), which its CREATE would find. */
 export const FIRST_WAY_PROVIDER = 0x10
 
+/** The last provider id a way may have. */
+export const MAX_WAY_PROVIDER = 254
+
 /** What is wrong with the ways before they go to the board: a provider id of the board's own, one twice, one a link to another board has. */
 export const gattProblems = (services: readonly GattService[], links: readonly number[] = []): string[] => {
   const ways = services.flatMap((s) => s.characteristics.map((c) => ({ ...c, service: s.uuid })))
