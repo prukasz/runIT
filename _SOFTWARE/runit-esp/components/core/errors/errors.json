@@ -1067,6 +1067,518 @@
       ]
     },
     {
+      "id": 10,
+      "name": "DISPLAY",
+      "symbol": "MODULE_ID_DISPLAY",
+      "source_file": "runit-esp/components/sys/sys_display/errors/sys_display_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_display/errors/errors_sys_display.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 655361,
+          "name": "ERR_DISPLAY_BAD_WINDOW",
+          "severity": 3,
+          "size": 9,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "x1",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "y1",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            },
+            {
+              "name": "x2",
+              "type": "u16",
+              "offset": 5,
+              "size": 2
+            },
+            {
+              "name": "y2",
+              "type": "u16",
+              "offset": 7,
+              "size": 2
+            }
+          ],
+          "description": "empty, outside the panel, not the FLUSH's len, or len above flush_max",
+          "message": "{id}: the area {x1},{y1} to {x2},{y2} is empty, outside the screen or does not match the picture sent"
+        },
+        {
+          "code": 2,
+          "tag": 655362,
+          "name": "ERR_DISPLAY_FLUSH_BUSY",
+          "severity": 3,
+          "size": 1,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "a FLUSH while one runs",
+          "message": "{id} is still drawing the previous picture"
+        },
+        {
+          "code": 3,
+          "tag": 655363,
+          "name": "ERR_DISPLAY_TRANSFER",
+          "severity": 3,
+          "size": 5,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "code",
+              "type": "i32",
+              "offset": 1,
+              "size": 4,
+              "id_kind": "esp_err"
+            }
+          ],
+          "description": "the bus refused the transfer: its esp_err_t",
+          "message": "{id}: the picture could not be sent ({code})",
+          "hint": "Check the display's wiring."
+        },
+        {
+          "code": 4,
+          "tag": 655364,
+          "name": "ERR_DISPLAY_FLUSH_TIMEOUT",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "timeout_ms",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "unit": "ms"
+            }
+          ],
+          "description": "an accepted FLUSH did not end: the adapter resets the display",
+          "message": "{id} did not finish drawing within {timeout_ms}: it is restarted",
+          "hint": "Check the display's wiring and power."
+        },
+        {
+          "code": 5,
+          "tag": 655365,
+          "name": "ERR_DISPLAY_LOST",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "health",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "sys_display_health_e"
+            },
+            {
+              "name": "power_mode",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "HEALTH: no answer or power lost; once until it answers",
+          "message": "{id} does not work: {health}",
+          "hint": "Check the display's cable and power; it is restarted when it answers again."
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "SPI",
+      "symbol": "MODULE_ID_SPI",
+      "source_file": "runit-esp/components/sys/bus/sys_spi/errors/sys_spi_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_spi/errors/errors_sys_spi.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 786433,
+          "name": "ERR_SPI_BAD_DEV_CFG",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "mode above 3, clock 0 or above the bus's maximum, queue depth 0",
+          "message": "The setting of the chip at {cs} on {bus} is not valid (mode, clock or queue)"
+        },
+        {
+          "code": 2,
+          "tag": 786434,
+          "name": "ERR_SPI_DEV_ADD",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "the bus could not add the chip, over its cause",
+          "message": "The chip at {cs} could not be added to {bus}"
+        },
+        {
+          "code": 3,
+          "tag": 786435,
+          "name": "ERR_SPI_DEV_REMOVE",
+          "severity": 2,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "the bus could not remove the chip, over its cause",
+          "message": "The chip at {cs} could not be removed from {bus}"
+        },
+        {
+          "code": 4,
+          "tag": 786436,
+          "name": "ERR_SPI_DEV_NOT_ADDED",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "an op on a chip select not attached",
+          "message": "No chip is attached at {cs} on {bus}"
+        },
+        {
+          "code": 5,
+          "tag": 786437,
+          "name": "ERR_SPI_CS_TAKEN",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "owner",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "another chip is attached there: `owner` is its device",
+          "message": "{owner} already uses {cs} on {bus}",
+          "hint": "Give each chip on the bus its own chip select pin."
+        },
+        {
+          "code": 6,
+          "tag": 786438,
+          "name": "ERR_SPI_NOT_OWNER",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "owner",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "id_kind": "device"
+            }
+          ],
+          "description": "an op by a caller that did not attach it: `owner` did",
+          "message": "{cs} on {bus} belongs to {owner}"
+        },
+        {
+          "code": 7,
+          "tag": 786439,
+          "name": "ERR_SPI_NO_SLOT",
+          "severity": 3,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "slots",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "all the bus's `slots` for chips are taken",
+          "message": "{bus} has no room for another chip (at most {slots})",
+          "hint": "Remove a chip from the bus first."
+        },
+        {
+          "code": 8,
+          "tag": 786440,
+          "name": "ERR_SPI_XFER",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "description": "the transfer failed, over its cause",
+          "message": "A transfer to the chip at {cs} on {bus} failed",
+          "hint": "Check the wiring of the bus and the chip."
+        },
+        {
+          "code": 9,
+          "tag": 786441,
+          "name": "ERR_SPI_TOO_LONG",
+          "severity": 3,
+          "size": 10,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "len",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "description": "`len` bytes in one transfer, above the bus's `max`",
+          "message": "A transfer of {len} bytes to {cs} on {bus} is longer than its {max}"
+        },
+        {
+          "code": 10,
+          "tag": 786442,
+          "name": "ERR_SPI_QUEUE_FULL",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "QUEUE with `depth` transfers of the chip queued",
+          "message": "The chip at {cs} on {bus} has {depth} transfers waiting already"
+        },
+        {
+          "code": 11,
+          "tag": 786443,
+          "name": "ERR_SPI_TIMEOUT",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "cs",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "timeout_ms",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "unit": "ms"
+            }
+          ],
+          "description": "queued transfers did not end: XFER not run, DETACH goes on",
+          "message": "The transfers to the chip at {cs} on {bus} did not end within {timeout_ms}",
+          "hint": "Check the wiring of the bus and the chip."
+        },
+        {
+          "code": 12,
+          "tag": 786444,
+          "name": "ERR_SPI_BUS_INIT",
+          "severity": 3,
+          "size": 4,
+          "fields": [
+            {
+              "name": "bus",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "sclk",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "mosi",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "miso",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "the controller could not be set up (pins: GPIO, 0xFF none)",
+          "message": "{bus} could not start on pins {sclk} (SCLK), {mosi} (MOSI) and {miso} (MISO)",
+          "hint": "Check that the pins are free and can be used for SPI."
+        }
+      ]
+    },
+    {
       "id": 32,
       "name": "CMD",
       "symbol": "MODULE_ID_CMD",
@@ -4678,6 +5190,203 @@
             }
           ],
           "message": "The kept values are damaged at byte {offset}"
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "RENDER",
+      "symbol": "MODULE_ID_RENDER",
+      "source_file": "runit-esp/components/sys/sys_render/errors/sys_render_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_render/errors/errors_sys_render.json",
+      "tags": [
+        {
+          "code": 1,
+          "tag": 3473409,
+          "name": "ERR_RENDER_ALREADY_INSTALLED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "install while installed: reset first",
+          "message": "The screen is already set up",
+          "hint": "Reset the screen first."
+        },
+        {
+          "code": 2,
+          "tag": 3473410,
+          "name": "ERR_RENDER_NOT_INSTALLED",
+          "severity": 2,
+          "size": 0,
+          "fields": [],
+          "description": "a call that needs an installed adapter",
+          "message": "The screen is not set up"
+        },
+        {
+          "code": 3,
+          "tag": 3473411,
+          "name": "ERR_RENDER_PIXEL_FORMAT_UNSUPPORTED",
+          "severity": 3,
+          "size": 2,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "format",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "sys_display_format_e"
+            }
+          ],
+          "description": "a pixel format the adapter does not draw",
+          "message": "{id}: the screen cannot draw in {format}"
+        },
+        {
+          "code": 4,
+          "tag": 3473412,
+          "name": "ERR_RENDER_ROW_EXCEEDS_FLUSH_MAX",
+          "severity": 3,
+          "size": 9,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "device"
+            },
+            {
+              "name": "flush_max",
+              "type": "u32",
+              "offset": 1,
+              "size": 4
+            },
+            {
+              "name": "row",
+              "type": "u32",
+              "offset": 5,
+              "size": 4
+            }
+          ],
+          "description": "the display's largest FLUSH is less than a row of a buffer",
+          "message": "{id} takes at most {flush_max} bytes at once, less than one row ({row})"
+        },
+        {
+          "code": 5,
+          "tag": 3473413,
+          "name": "ERR_RENDER_ALLOC_FAILED",
+          "severity": 3,
+          "size": 8,
+          "fields": [
+            {
+              "name": "bytes",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "free",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "pool, buffer or display: asked, largest free block (bytes 0: unknown)",
+          "message": "No memory for the screen: {bytes} bytes needed, the largest free block has {free}",
+          "hint": "Use a smaller screen memory or fewer draw buffers."
+        },
+        {
+          "code": 6,
+          "tag": 3473414,
+          "name": "ERR_RENDER_HEAP_BYTES_OUT_OF_RANGE",
+          "severity": 2,
+          "size": 12,
+          "fields": [
+            {
+              "name": "heap_bytes",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "min",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "the pool outside SYS_RENDER_HEAP_BYTES_MIN .. _MAX",
+          "message": "A screen memory of {heap_bytes} bytes is outside {min}..{max}"
+        },
+        {
+          "code": 7,
+          "tag": 3473415,
+          "name": "ERR_RENDER_POOL_BELOW_RESERVE",
+          "severity": 2,
+          "size": 12,
+          "fields": [
+            {
+              "name": "free",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "need",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            },
+            {
+              "name": "reserve",
+              "type": "u32",
+              "offset": 8,
+              "size": 4
+            }
+          ],
+          "description": "it would leave less than the reserve in the engine's pool",
+          "message": "{need} more bytes would leave the screen less than its reserve of {reserve} ({free} free)",
+          "hint": "Give the screen more memory or draw less at once."
+        },
+        {
+          "code": 8,
+          "tag": 3473416,
+          "name": "ERR_RENDER_REFRESH_HZ_OUT_OF_RANGE",
+          "severity": 2,
+          "size": 3,
+          "fields": [
+            {
+              "name": "refresh_hz",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "min",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            },
+            {
+              "name": "max",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            }
+          ],
+          "description": "outside SYS_RENDER_REFRESH_HZ_MIN .. _MAX",
+          "message": "A refresh of {refresh_hz} Hz is outside {min}..{max}"
         }
       ]
     }

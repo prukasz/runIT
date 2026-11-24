@@ -44,19 +44,17 @@ typedef void (*display_flush_done_f)(void *ctx);
  ******************************************************************/
 
 /** @brief Pixel format of a FLUSH buffer, as GEOMETRY reports it */
-// #ref-enum @alias Pixel format
+//#ref-enum @alias Pixel format
 typedef enum sys_display_format_e {
-    SYS_DISPLAY_FORMAT_RGB565_SWAPPED = 0, //@alias RGB565 @description 16 bit, 2 bytes per pixel,
-                                           // the high byte first (as the panel takes it)
-    SYS_DISPLAY_FORMAT_RGB888 = 1, //@alias RGB888 @description 24 bit, 3 bytes per pixel B, G, R;
-                                   // an 18-bit panel uses the 6 high bits
+    SYS_DISPLAY_FORMAT_RGB565_SWAPPED = 0, //@alias RGB565 @description 16 bit, 2 bytes per pixel, the high byte first (as the panel takes it)
+    SYS_DISPLAY_FORMAT_RGB888         = 1, //@alias RGB888 @description 24 bit, 3 bytes per pixel B, G, R; an 18-bit panel uses the 6 high bits
 } sys_display_format_e;
 
 /** @brief Orientation of the picture in the panel */
-// #ref-enum @alias Display orientation
+//#ref-enum @alias Display orientation
 typedef enum sys_display_orientation_e {
-    SYS_DISPLAY_ORIENTATION_0 = 0,   //@alias 0 deg @description Native
-    SYS_DISPLAY_ORIENTATION_90 = 1,  //@alias 90 deg @description Rotated 90 deg
+    SYS_DISPLAY_ORIENTATION_0   = 0, //@alias 0 deg @description Native
+    SYS_DISPLAY_ORIENTATION_90  = 1, //@alias 90 deg @description Rotated 90 deg
     SYS_DISPLAY_ORIENTATION_180 = 2, //@alias 180 deg @description Rotated 180 deg
     SYS_DISPLAY_ORIENTATION_270 = 3, //@alias 270 deg @description Rotated 270 deg
 } sys_display_orientation_e;
@@ -64,54 +62,34 @@ typedef enum sys_display_orientation_e {
 /* display_cfg_t.panel: the controller, whose init sequence the driver sends; a driver refuses one
    it does not know (ERR_RANGE) */
 /** @brief Display controller (display_cfg_t.panel) */
-// #ref-enum @alias Display controller
+//#ref-enum @alias Display controller
 typedef enum sys_display_panel_e {
     SYS_DISPLAY_PANEL_ILI9341 = 0, //@alias ILI9341 @description 240x320, RGB565
-    SYS_DISPLAY_PANEL_ST7789 =
-        1, //@alias ST7789 @description 240x320 RAM (240x240, 135x240, 170x320 glass), RGB565
-    SYS_DISPLAY_PANEL_ST7735 =
-        2, //@alias ST7735 @description 132x162 RAM (128x160, 80x160 glass), RGB565
-    SYS_DISPLAY_PANEL_GC9A01 = 3,  //@alias GC9A01 @description 240x240 round, RGB565
-    SYS_DISPLAY_PANEL_ST7796 = 4,  //@alias ST7796 @description 320x480, RGB565
+    SYS_DISPLAY_PANEL_ST7789  = 1, //@alias ST7789 @description 240x320 RAM (240x240, 135x240, 170x320 glass), RGB565
+    SYS_DISPLAY_PANEL_ST7735  = 2, //@alias ST7735 @description 132x162 RAM (128x160, 80x160 glass), RGB565
+    SYS_DISPLAY_PANEL_GC9A01  = 3, //@alias GC9A01 @description 240x240 round, RGB565
+    SYS_DISPLAY_PANEL_ST7796  = 4, //@alias ST7796 @description 320x480, RGB565
     SYS_DISPLAY_PANEL_ILI9488 = 5, //@alias ILI9488 @description 320x480, RGB888 (18 bit on SPI)
 } sys_display_panel_e;
 
-/* What HEALTH answers */
 /** @brief What HEALTH answers */
-// #ref-enum @alias Display health
+//#ref-enum @alias Display health
 typedef enum sys_display_health_e {
-    SYS_DISPLAY_HEALTH_UNKNOWN =
-        0, //@alias Unknown @description The module cannot be read (SDO not wired): not checked
-    SYS_DISPLAY_HEALTH_OK =
-        1, //@alias OK @description The panel answers and runs as the driver set it
-    SYS_DISPLAY_HEALTH_NO_ANSWER =
-        2, //@alias No answer @description Nothing answers: the cable or the module's power is off
-    SYS_DISPLAY_HEALTH_RESTARTED = 3, //@alias Restarted @description The panel answers but runs no
-                                      // more: it lost its power and needs a RESET
+    SYS_DISPLAY_HEALTH_UNKNOWN   = 0, //@alias Unknown @description The module cannot be read (SDO not wired): not checked
+    SYS_DISPLAY_HEALTH_OK        = 1, //@alias OK @description The panel answers and runs as the driver set it
+    SYS_DISPLAY_HEALTH_NO_ANSWER = 2, //@alias No answer @description Nothing answers: the cable or the module's power is off
+    SYS_DISPLAY_HEALTH_RESTARTED = 3, //@alias Restarted @description The panel answers but runs no more: it lost its power and needs a RESET
 } sys_display_health_e;
 
 /* display_cfg_t.flags: how the module differs from the controller's defaults; 0 is an RGB glass,
    not inverted, not mirrored, its backlight on when the pin is high */
-// #ref-defines display_flags @alias Display flags @prefix SYS_DISPLAY_FLAG_
-/** @brief The glass's subpixels are blue, green, red */
-#define SYS_DISPLAY_FLAG_BGR                                                                       \
-    (1u << 0) //@alias BGR @description The glass's subpixels are blue, green, red
-/** @brief Inverted colours */
-#define SYS_DISPLAY_FLAG_INVERT                                                                    \
-    (1u << 1) //@alias Invert @description Inverted colours (most IPS glass)
-/** @brief Mounted mirrored left to right */
-#define SYS_DISPLAY_FLAG_MIRROR_X                                                                  \
-    (1u << 2) //@alias Mirror X @description The glass is mounted mirrored left to right
-/** @brief Mounted mirrored top to bottom */
-#define SYS_DISPLAY_FLAG_MIRROR_Y                                                                  \
-    (1u << 3) //@alias Mirror Y @description The glass is mounted mirrored top to bottom
-/** @brief Backlight is on when its pin is low */
-#define SYS_DISPLAY_FLAG_BL_ACTIVE_LOW                                                             \
-    (1u << 4) //@alias Backlight active low @description The backlight is on when its pin is low
-/** @brief SDO is wired to MISO: HEALTH reads the panel */
-#define SYS_DISPLAY_FLAG_READABLE                                                                  \
-    (1u << 5) //@alias Readable @description The module's SDO is wired to the bus's MISO: HEALTH
-              // reads the panel
+//#ref-defines display_flags @alias Display flags @prefix SYS_DISPLAY_FLAG_
+#define SYS_DISPLAY_FLAG_BGR           (1u << 0) //@alias BGR @description The glass's subpixels are blue, green, red
+#define SYS_DISPLAY_FLAG_INVERT        (1u << 1) //@alias Invert @description Inverted colours (most IPS glass)
+#define SYS_DISPLAY_FLAG_MIRROR_X      (1u << 2) //@alias Mirror X @description The glass is mounted mirrored left to right
+#define SYS_DISPLAY_FLAG_MIRROR_Y      (1u << 3) //@alias Mirror Y @description The glass is mounted mirrored top to bottom
+#define SYS_DISPLAY_FLAG_BL_ACTIVE_LOW (1u << 4) //@alias Backlight active low @description The backlight is on when its pin is low
+#define SYS_DISPLAY_FLAG_READABLE      (1u << 5) //@alias Readable @description The module's SDO is wired to the bus's MISO: HEALTH reads the panel
 
 /** @brief Every SYS_DISPLAY_FLAG_* bit */
 #define SYS_DISPLAY_FLAGS_ALL 0x3Fu // every SYS_DISPLAY_FLAG_* bit

@@ -1,0 +1,47 @@
+{
+  "$schema": "../../../../../../templates/error-texts.schema.json",
+  "module": "MODULE_ID_SPI",
+  "errors": {
+    "ERR_SPI_BAD_DEV_CFG": {
+      "message": "The setting of the chip at {cs} on {bus} is not valid (mode, clock or queue)"
+    },
+    "ERR_SPI_DEV_ADD": {
+      "message": "The chip at {cs} could not be added to {bus}"
+    },
+    "ERR_SPI_DEV_REMOVE": {
+      "message": "The chip at {cs} could not be removed from {bus}"
+    },
+    "ERR_SPI_DEV_NOT_ADDED": {
+      "message": "No chip is attached at {cs} on {bus}"
+    },
+    "ERR_SPI_CS_TAKEN": {
+      "message": "{owner} already uses {cs} on {bus}",
+      "hint": "Give each chip on the bus its own chip select pin."
+    },
+    "ERR_SPI_NOT_OWNER": {
+      "message": "{cs} on {bus} belongs to {owner}"
+    },
+    "ERR_SPI_NO_SLOT": {
+      "message": "{bus} has no room for another chip (at most {slots})",
+      "hint": "Remove a chip from the bus first."
+    },
+    "ERR_SPI_XFER": {
+      "message": "A transfer to the chip at {cs} on {bus} failed",
+      "hint": "Check the wiring of the bus and the chip."
+    },
+    "ERR_SPI_TOO_LONG": {
+      "message": "A transfer of {len} bytes to {cs} on {bus} is longer than its {max}"
+    },
+    "ERR_SPI_QUEUE_FULL": {
+      "message": "The chip at {cs} on {bus} has {depth} transfers waiting already"
+    },
+    "ERR_SPI_TIMEOUT": {
+      "message": "The transfers to the chip at {cs} on {bus} did not end within {timeout_ms}",
+      "hint": "Check the wiring of the bus and the chip."
+    },
+    "ERR_SPI_BUS_INIT": {
+      "message": "{bus} could not start on pins {sclk} (SCLK), {mosi} (MOSI) and {miso} (MISO)",
+      "hint": "Check that the pins are free and can be used for SPI."
+    }
+  }
+}

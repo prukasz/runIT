@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "MODULE_ID_DISPLAY",
+  "errors": {
+    "ERR_DISPLAY_BAD_WINDOW": {
+      "message": "{id}: the area {x1},{y1} to {x2},{y2} is empty, outside the screen or does not match the picture sent"
+    },
+    "ERR_DISPLAY_FLUSH_BUSY": {
+      "message": "{id} is still drawing the previous picture"
+    },
+    "ERR_DISPLAY_TRANSFER": {
+      "message": "{id}: the picture could not be sent ({code})",
+      "hint": "Check the display's wiring.",
+      "fields": {
+        "code": {
+          "id_kind": "esp_err"
+        }
+      }
+    },
+    "ERR_DISPLAY_FLUSH_TIMEOUT": {
+      "message": "{id} did not finish drawing within {timeout_ms}: it is restarted",
+      "hint": "Check the display's wiring and power."
+    },
+    "ERR_DISPLAY_LOST": {
+      "message": "{id} does not work: {health}",
+      "hint": "Check the display's cable and power; it is restarted when it answers again."
+    }
+  }
+}

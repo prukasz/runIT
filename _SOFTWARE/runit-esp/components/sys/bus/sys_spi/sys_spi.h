@@ -59,7 +59,7 @@ extern "C" {
 /**
  * @brief Clock polarity and phase of a chip (CPOL, CPHA)
  */
-// #ref-enum @alias SPI Mode
+//#ref-enum @alias SPI Mode
 typedef enum sys_spi_mode_e {
     SYS_SPI_MODE_0 = 0, //@alias Mode 0 @description CPOL 0, CPHA 0: idle low, sample on rising
     SYS_SPI_MODE_1 = 1, //@alias Mode 1 @description CPOL 0, CPHA 1: idle low, sample on falling

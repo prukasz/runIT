@@ -1,0 +1,33 @@
+{
+  "$schema": "../../../../../templates/error-texts.schema.json",
+  "module": "MODULE_ID_RENDER",
+  "errors": {
+    "ERR_RENDER_ALREADY_INSTALLED": {
+      "message": "The screen is already set up",
+      "hint": "Reset the screen first."
+    },
+    "ERR_RENDER_NOT_INSTALLED": {
+      "message": "The screen is not set up"
+    },
+    "ERR_RENDER_PIXEL_FORMAT_UNSUPPORTED": {
+      "message": "{id}: the screen cannot draw in {format}"
+    },
+    "ERR_RENDER_ROW_EXCEEDS_FLUSH_MAX": {
+      "message": "{id} takes at most {flush_max} bytes at once, less than one row ({row})"
+    },
+    "ERR_RENDER_ALLOC_FAILED": {
+      "message": "No memory for the screen: {bytes} bytes needed, the largest free block has {free}",
+      "hint": "Use a smaller screen memory or fewer draw buffers."
+    },
+    "ERR_RENDER_HEAP_BYTES_OUT_OF_RANGE": {
+      "message": "A screen memory of {heap_bytes} bytes is outside {min}..{max}"
+    },
+    "ERR_RENDER_POOL_BELOW_RESERVE": {
+      "message": "{need} more bytes would leave the screen less than its reserve of {reserve} ({free} free)",
+      "hint": "Give the screen more memory or draw less at once."
+    },
+    "ERR_RENDER_REFRESH_HZ_OUT_OF_RANGE": {
+      "message": "A refresh of {refresh_hz} Hz is outside {min}..{max}"
+    }
+  }
+}
