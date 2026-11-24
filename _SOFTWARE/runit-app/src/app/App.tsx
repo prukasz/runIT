@@ -76,6 +76,9 @@ const SCREENS: Partial<Record<ViewName, Record<ScreenMode, string>>> = {
   Devices: { details: 'The devices, their pins and commands.', canvas: 'The board and what is connected to it.' },
 }
 
+/** The Devices canvas (hardware/) is off for now: Devices shows its details only, with no button to switch. */
+const DEVICES_CANVAS = false
+
 /** What the left panel of the Code view lists: the variables, or the block palette. */
 const CODE_PALETTES = [['variables', 'Variables'], ['blocks', 'Blocks']] as const
 type CodePalette = (typeof CODE_PALETTES)[number][0]
@@ -132,7 +135,8 @@ export function App() {
   const [theme, setTheme] = usePersistedChoice('runit.theme', ['dark', 'light'] as const, 'dark')
   const [view, setView] = usePersistedChoice<ViewName>('runit.shell.view', ['Project', 'Code', 'Devices', 'Settings', 'Console'], 'Project')
   const [codeMode, setCodeMode] = usePersistedChoice<ScreenMode>('runit.code.mode', SCREEN_MODES, 'details')
-  const [devicesMode, setDevicesMode] = usePersistedChoice<ScreenMode>('runit.devices.mode', SCREEN_MODES, 'details')
+  const [storedDevicesMode, setDevicesMode] = usePersistedChoice<ScreenMode>('runit.devices.mode', SCREEN_MODES, 'details')
+  const devicesMode: ScreenMode = DEVICES_CANVAS ? storedDevicesMode : 'details'
   const [connectionOpen, setConnectionOpen] = useState(false)
   // The bug button's panel (debug) takes the right panel the way the connection does; one covers the other.
   const [debugOpen, setDebugOpen] = useState(false)
@@ -388,7 +392,7 @@ export function App() {
           label="Main screen"
           toolbar={
             <>
-              {screens && (
+              {screens && (view !== 'Devices' || DEVICES_CANVAS) && (
                 // One button, a full touch target: it shows the screen it switches to.
                 <button aria-label={mode === 'canvas' ? 'Show the details' : 'Show the canvas'} data-help="Switches between the lists and settings of this screen and its drawing." title={mode === 'canvas' ? 'Details: lists and settings' : 'Canvas: the drawing'} onClick={() => setMode(mode === 'canvas' ? 'details' : 'canvas')}>
                   {mode === 'canvas' ? <SlidersHorizontal aria-hidden="true" /> : <Workflow aria-hidden="true" />}
