@@ -1,8 +1,9 @@
 # The VM core: object store, accessors, block layer, supervisor, loader, telemetry, retained values (VM_CORE.MD).
 # The palette (the block types) is a separate component, vm_blocks: each block registers itself (block/vm_blocks.h).
+# The VM's errors (the core's and the blocks') are one folder beside both components, vm/errors/, built here.
 # WHOLE_ARCHIVE: the error tags are registered by a constructor in vm_errors.c.
 idf_component_register(
-    SRCS "errors/vm_errors.c"
+    SRCS "../errors/vm_errors.c"
          "store/vm_store.c"
          "obj/vm_obj_build.c" "obj/vm_obj_access.c" "obj/vm_obj_access_internal.c" "obj/vm_obj_dyn.c"
          "block/vm_block_build.c" "block/vm_block_run.c" "block/vm_block_helpers.c" "block/vm_blocks.c"
@@ -11,7 +12,7 @@ idf_component_register(
          "sub/vm_sub.c"
          "retain/vm_retain.c"
          "router/vm_router.c"
-    INCLUDE_DIRS "." "errors" "store" "obj" "block" "exec" "loader" "sub" "retain" "router"
+    INCLUDE_DIRS "." "../errors" "store" "obj" "block" "exec" "loader" "sub" "retain" "router"
     REQUIRES errors utils cmd router data_matrix freertos esp_timer esp_ringbuf sys_event sys_event_stream sys_actions sys_device
     PRIV_REQUIRES log nvs_flash
     WHOLE_ARCHIVE

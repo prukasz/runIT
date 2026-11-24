@@ -3129,8 +3129,8 @@
       "id": 52,
       "name": "VM",
       "symbol": "MODULE_ID_VM",
-      "source_file": "runit-esp/components/vm/vm_core/errors/vm_errors.h",
-      "texts_file": "runit-esp/components/vm/vm_core/errors/errors_vm.json",
+      "source_file": "runit-esp/components/vm/errors/vm_errors.h",
+      "texts_file": "runit-esp/components/vm/errors/errors_vm.json",
       "tags": [
         {
           "code": 1,

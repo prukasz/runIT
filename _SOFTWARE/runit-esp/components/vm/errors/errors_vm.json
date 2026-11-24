@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../../../templates/error-texts.schema.json",
+  "$schema": "../../../../templates/error-texts.schema.json",
   "module": "MODULE_ID_VM",
   "errors": {
     "ERR_VM_ALLOC_EXHAUSTED": {

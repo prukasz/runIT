@@ -5,9 +5,10 @@ Component `components/vm/vm_core/`. The VM runs a program that the app compiles 
 ## Layout
 
 ```
+vm/errors/   the VM's errors, beside vm_core and vm_blocks and built by vm_core: vm_errors.h (ERR_VM_MAP, the tags of
+             the core and the blocks, and the cold-path builders), vm_errors.c (their registration and the builders),
+             errors_vm.json (the messages)
 vm_core/
-  errors/    vm_errors.h (ERR_VM_MAP, the tags of the core and the blocks, and the cold-path builders), vm_errors.c
-             (their registration and the builders), errors_vm.json (the messages)
   store/     arena + the three registries
   obj/       objects, accessors, dynamic objects, copy / clone / link
   block/     block layout and API (vm_block.h), build + verify, helpers, vm_block_ids.h (the type numbers),
@@ -88,7 +89,7 @@ Sending: only objects whose value changed since last sent (value hash), everythi
 
 | Part | How |
 |---|---|
-| Errors | Module `MODULE_ID_VM`: one `ERR_VM_MAP` in `errors/vm_errors.h` for the core and the blocks, its messages in `errors/errors_vm.json`. A bad argument, a NULL, no memory, a value out of range and a full table are the core tags (`ERR_BAD_ARG`, `ERR_NULL_PTR`, `ERR_NO_MEM`, `ERR_RANGE` by `ERR_CHECK_RANGE`, `ERR_FULL`). An error that ends where it is raised is `err_report(ERR_NEW(…))`; a block's goes through `BLOCK_CALL` / `vm_block_report_error` / `vm_block_emit`. The ID constants (`VM_ID_NONE`, `VM_OBJ_ID_DYN_BIT`) are in `obj/vm_obj.h`, the wiring points of a bad reference (`VM_REF_KIND_*`) in `block/vm_block_build.h` |
+| Errors | Module `MODULE_ID_VM`: one `ERR_VM_MAP` in `vm/errors/vm_errors.h` for the core and the blocks, its messages in `vm/errors/errors_vm.json`. A bad argument, a NULL, no memory, a value out of range and a full table are the core tags (`ERR_BAD_ARG`, `ERR_NULL_PTR`, `ERR_NO_MEM`, `ERR_RANGE` by `ERR_CHECK_RANGE`, `ERR_FULL`). An error that ends where it is raised is `err_report(ERR_NEW(…))`; a block's goes through `BLOCK_CALL` / `vm_block_report_error` / `vm_block_emit`. The ID constants (`VM_ID_NONE`, `VM_OBJ_ID_DYN_BIT`) are in `obj/vm_obj.h`, the wiring points of a bad reference (`VM_REF_KIND_*`) in `block/vm_block_build.h` |
 | Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): `runit` registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended; `EXEC` ACK_FAULT clears the latch |
 | Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` (queued, run on a router task, never inside a pass); the VM sits above sys_actions |
 | Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue, only while the loaded program has an `ON_EVENT` block (the loader turns it on, `vm_event_listen`; a load turns it off): a program that reads no event queues none, so a burst (a safe stop suspends every device, an event each) drops and reports nothing. An event lives exactly one pass; `ON_EVENT` matches the snapshot by source, event and channel with `sys_event_matches`. A full queue drops the event; the first pass of a run of passes with drops reports them as `ERR_VM_EVENT_OVERFLOW` (count and the last source), the next only after a pass without a drop |
