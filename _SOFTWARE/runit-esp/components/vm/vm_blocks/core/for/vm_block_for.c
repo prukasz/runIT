@@ -1,11 +1,12 @@
 #include "vm_block_for.h"
+#include <math.h>
 #include "vm_blocks.h"
 
 static void vm_for_bad_loop(vm_block_h b, vm_for_code_t* c, uint32_t turns, uint8_t reason) {
   vm_block_mark_failed(b);
   if (c->rt & VM_FOR_RT_BAD) return;
   c->rt |= VM_FOR_RT_BAD;
-  vm_block_report_error(VM_BLK_ERR_NEW(ERR_VM_FOR_BAD_LOOP, .block_idx = b->cfg.block_idx, .turns = turns, .cap = c->max_turns,
+  vm_block_report_error(ERR_NEW(ERR_VM_FOR_BAD_LOOP, .block_idx = b->cfg.block_idx, .turns = turns, .cap = c->max_turns,
                   .reason = reason), b);
 }
 

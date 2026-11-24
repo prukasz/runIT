@@ -1,5 +1,5 @@
 #include "vm_obj_access.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 
 
 /*
@@ -17,7 +17,7 @@
 // ===========================================================================
 
 err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
-  ERR_CHECK(target != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(target != NULL, ERR_NULL_PTR);
   *target = NULL;
   vm_obj_payload_t p;
   ERR_TRY(vm_acc_resolve(source, &p));
@@ -29,7 +29,7 @@ err_h vm_obj_get_obj(vm_obj_h* target, const vm_accessor_t* source) {
   if (source->count > 0 && p.type == VM_OBJ_PTR && p.ptr && p.count >= 1) {
     vm_obj_h linked = *(vm_obj_h*)p.ptr;
     if (!linked) {
-      return ERR_NEW(ERR_VM_ACCESSOR_NULL_OBJ, .id = source->id, .chain_pos = source->count, .parent_id = vm_obj_get_id(p.owner));
+      return ERR_NEW(ERR_VM_ACC_NULL_OBJ, .id = source->id, .chain_pos = source->count, .parent_id = vm_obj_get_id(p.owner));
     }
     *target = linked;
     return NULL;
@@ -60,8 +60,8 @@ bool vm_obj_schema_matches(vm_obj_h a, vm_obj_h b) {
 }
 
 err_h vm_obj_clone_shape(vm_obj_h* out, vm_obj_h src) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
-  ERR_CHECK(src != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
+  ERR_CHECK(src != NULL, ERR_NULL_PTR);
   return vm_internal_clone_shape(out, src, 0);
 }
 
@@ -78,8 +78,8 @@ err_h vm_obj_link(const vm_accessor_t* child, const vm_accessor_t* target) {
 }
 
 err_h vm_obj_link_direct(vm_obj_h cell, uint16_t index, vm_obj_h child) {
-  ERR_CHECK(cell != NULL, ERR_VM_BAD_ARG);
-  ERR_CHECK(child != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(cell != NULL, ERR_NULL_PTR);
+  ERR_CHECK(child != NULL, ERR_NULL_PTR);
   if (!cell->head.f.mutable) return vm_obj_not_mutable_err(vm_obj_get_id(cell));
   vm_obj_payload_t slot = obj_elem(cell, index);
   if (!slot.ptr) return vm_obj_oob_err(vm_obj_get_id(cell), index);

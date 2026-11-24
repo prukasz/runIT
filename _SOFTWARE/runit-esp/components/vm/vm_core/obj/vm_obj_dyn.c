@@ -1,5 +1,4 @@
 #include "vm_obj_dyn.h"
-#include "vm_err.h"
 #include "vm_errors.h"
 #include "esp_heap_caps.h"
 #include "vm_obj_build.h"
@@ -49,7 +48,7 @@ static void dyn_free(vm_obj_h o, uint8_t depth) {
 }
 
 err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* name) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   *out = NULL;
 
   // The shape is checked before a slot is taken or a byte allocated, as on the arena path
@@ -58,11 +57,11 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
 
   uint16_t slot = 0;
   while (slot < CONFIG_VM_DYN_MAX && g_vm_dyn[slot] != NULL) slot++;
-  if (slot == CONFIG_VM_DYN_MAX) return ERR_NEW(ERR_VM_DYN_FULL, .limit = CONFIG_VM_DYN_MAX);
+  if (slot == CONFIG_VM_DYN_MAX) return ERR_NEW(ERR_FULL, .max = CONFIG_VM_DYN_MAX);
 
   // zeroed like arena objects: payload and name read as empty, cells as unwired
   vm_obj_dyn_hdr_t* h = (vm_obj_dyn_hdr_t*)heap_caps_calloc(1, sizeof(*h) + total, VM_DYN_HEAP_CAPS);
-  if (!h) return ERR_NEW(ERR_VM_NO_MEM, .size = (uint32_t)(sizeof(*h) + total));
+  if (!h) return ERR_NEW(ERR_NO_MEM, .size = (uint32_t)(sizeof(*h) + total));
   h->slot = slot;
 
   vm_obj_h o = (vm_obj_h)(h + 1);
@@ -74,12 +73,12 @@ err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* na
 }
 
 err_h vm_obj_dyn_new(vm_obj_h* out, vm_obj_t_e type, uint16_t count, const char* name, uint8_t name_len) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   *out = NULL;
   if (name_len > VM_OBJ_NAME_MAX) return ERR_NEW(ERR_VM_OBJ_NAME_TOO_LONG, .len = name_len);
-  ERR_CHECK(name_len == 0 || name != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(name_len == 0 || name != NULL, ERR_NULL_PTR);
   const uint32_t size = (uint32_t)count << vm_type_shift(type);
-  if (size > UINT16_MAX) return ERR_NEW(ERR_VM_RANGE, .val = count, .min = 1, .max = UINT16_MAX >> vm_type_shift(type));
+  if (size > UINT16_MAX) return ERR_NEW(ERR_RANGE, .value = count, .min = 1, .max = UINT16_MAX >> vm_type_shift(type));
 
   const vm_obj_head_t head = {
       .payload_size = (uint16_t)size,
@@ -90,7 +89,7 @@ err_h vm_obj_dyn_new(vm_obj_h* out, vm_obj_t_e type, uint16_t count, const char*
 }
 
 err_h vm_obj_dyn_adopt(vm_obj_h parent, uint16_t index, vm_obj_h child) {
-  ERR_CHECK(vm_obj_is_dynamic(parent) && vm_obj_is_dynamic(child), ERR_VM_BAD_ARG);
+  ERR_CHECK(vm_obj_is_dynamic(parent) && vm_obj_is_dynamic(child), ERR_BAD_ARG);
   const uint16_t parent_id = VM_OBJ_ID_DYN_BIT | vm_obj_dyn_get_id(parent);
   if ((vm_obj_t_e)parent->head.d.obj_t != VM_OBJ_PTR) return vm_obj_not_ptr_err(parent_id, parent->head.d.obj_t);
   if (index >= vm_obj_get_items_cnt(parent)) return vm_obj_oob_err(parent_id, index);

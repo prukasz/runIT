@@ -1,11 +1,12 @@
 #include "vm_block_build.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 #include "vm_blocks.h"
 #include "vm_exec.h"
 
 err_h vm_block_create(vm_block_h* out, uint16_t id, const vm_block_cfg_t* cfg) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
-  ERR_CHECK(cfg != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
+  ERR_CHECK(cfg != NULL, ERR_NULL_PTR);
   *out = NULL;
 
   if (cfg->in_cnt > CONFIG_VM_BLOCK_MAX_IN || cfg->q_cnt > CONFIG_VM_BLOCK_MAX_OUT || cfg->en_cnt > CONFIG_VM_BLOCK_MAX_EN) {
@@ -135,7 +136,7 @@ void vm_block_report_error(err_h cause, vm_block_h b) {
   }
   b->cfg.rt |= VM_BLK_RT_REPORTED;
   b->cfg.err_key = key;
-  vm_block_emit(ERR_WRAP(cause, ERR_VM_BLOCK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
+  vm_block_emit(ERR_WRAP(cause, ERR_VM_BLK_FAILED, .block_idx = b->cfg.block_idx, .block_type = b->cfg.block_type));
 }
 
 void vm_block_emit(err_h chain) {

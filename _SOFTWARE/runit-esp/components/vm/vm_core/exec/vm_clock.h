@@ -1,6 +1,6 @@
 #pragma once
 #include "esp_timer.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "errors.h"
 
 /*
@@ -55,7 +55,7 @@ void vm_clock_pass_start(uint64_t now_us, bool stepped);
  * The pause between passes grows @p factor times (a pass every ~10 ms becomes one every 10 ms x factor)
  * and program time runs @p factor times slower, so a 500 ms timer still spans the same number of
  * passes. 1 = normal speed. Applies at once, survives a program load, and is back to 1 at boot.
- * @return ERR_VM_BAD_ARG when @p factor is outside 1..VM_CLOCK_SLOWDOWN_MAX.
+ * @return ERR_RANGE when @p factor is outside 1..VM_CLOCK_SLOWDOWN_MAX.
  */
 MUST_USE err_h vm_clock_set_slowdown(uint16_t factor);
 
@@ -65,7 +65,7 @@ uint16_t vm_clock_slowdown(void);
 /** @brief Largest step per stepped pass, ms. */
 #define VM_CLOCK_STEP_MS_MAX 60000
 
-/** @brief Program time a stepped pass adds, ms: 0 stands time still while stepping. Default 10 (a pass at full speed). @return ERR_VM_BAD_ARG past VM_CLOCK_STEP_MS_MAX. */
+/** @brief Program time a stepped pass adds, ms: 0 stands time still while stepping. Default 10 (a pass at full speed). @return ERR_RANGE past VM_CLOCK_STEP_MS_MAX. */
 MUST_USE err_h vm_clock_set_step_ms(uint16_t ms);
 
 /** @brief Current step per stepped pass, ms. */

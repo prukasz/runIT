@@ -24,7 +24,12 @@ typedef struct vm_block_cfg_t {
   const void*     custom_data;  // Initial custom payload (copied if non-NULL)
 } vm_block_cfg_t;
 
-
+/* The wiring point of a block a bad or taken reference is at (`kind` in ERR_VM_BLK_BAD_REF / _OUTPUT_TAKEN). */
+//#ref-defines vm_ref_kind @alias Block wiring point @prefix VM_REF_KIND_
+#define VM_REF_KIND_IN  0  //@alias Input @description An input pin: an accessor
+#define VM_REF_KIND_OUT 1  //@alias Output @description An output pin: an object
+#define VM_REF_KIND_EN  2  //@alias Enable @description An enable source: an accessor
+#define VM_REF_KIND_ENO 3  //@alias ENO @description The enable output: an object
 
 /**
  * @brief Allocates one block in arena, resolves all ID references to pointers, and binds to registry.

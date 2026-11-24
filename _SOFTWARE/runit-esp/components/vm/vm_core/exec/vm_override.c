@@ -1,6 +1,7 @@
 #include "vm_override.h"
+#include <string.h>
 #include "esp_log.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "utils.h"
 #include "vm_obj_access.h"
 #include "vm_obj_build.h"
@@ -16,7 +17,7 @@ static MUST_USE err_h validate_override_target(uint16_t id, uint16_t start_idx, 
                                       vm_obj_h* out_obj, uint8_t* out_width) {
   vm_obj_h obj = vm_obj_get_by_id(id);
   if (!obj) {
-    return ERR_NEW(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
+    return ERR_NEW(ERR_VM_ACC_UNKNOWN_ID, .id = id);
   }
   if ((vm_obj_t_e)obj->head.d.obj_t == VM_OBJ_PTR) {
     return ERR_NEW(ERR_VM_OVERRIDE_PTR_UNSUPPORTED, .obj_id = id);
@@ -48,13 +49,13 @@ static uint16_t size_u16_sat(size_t size) {
 }
 
 static void report_bad_record(uint16_t id, uint16_t declared_len, size_t item_size) {
-  VM_RAISE(ERR_VM_OVERRIDE_BAD_RECORD, .obj_id = id, .declared_len = declared_len,
-              .item_size = size_u16_sat(item_size));
+  err_report(ERR_NEW(ERR_VM_OVERRIDE_BAD_RECORD, .obj_id = id, .declared_len = declared_len,
+              .item_size = size_u16_sat(item_size)));
 }
 
 err_h vm_override_post(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
   if (!data && len > 0) {
-    return ERR_NEW(ERR_VM_BAD_ARG);
+    return ERR_NEW(ERR_NULL_PTR);
   }
   ERR_TRY(validate_override_target(id, start_idx, len, NULL, NULL));
 

@@ -1,5 +1,7 @@
 
 #include "vm_blocks.h"
+#include <math.h>
+#include <string.h>
 #include "vm_block_set.h"
 
 bool vm_verify_set(vm_block_h b) {

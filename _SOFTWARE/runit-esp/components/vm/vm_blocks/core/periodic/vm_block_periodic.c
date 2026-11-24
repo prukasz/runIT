@@ -1,4 +1,5 @@
 #include "vm_block_periodic.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 bool vm_verify_periodic(vm_block_h b) {
@@ -63,8 +64,8 @@ void vm_blk_periodic(vm_block_h b) {
        on_error must not withdraw it. */
     if (!(state.flags & VM_PERIODIC_F_OVERRUN)) {
       state.flags |= VM_PERIODIC_F_OVERRUN;
-      VM_BLK_EMIT_ERR(ERR_VM_PERIODIC_OVERRUN, .block_idx = b->cfg.block_idx, .missed = missed,
-                      .period_ms = period_ms > UINT32_MAX ? UINT32_MAX : (uint32_t)period_ms);
+      vm_block_emit(ERR_NEW(ERR_VM_PERIODIC_OVERRUN, .block_idx = b->cfg.block_idx, .missed = missed,
+                      .period_ms = period_ms > UINT32_MAX ? UINT32_MAX : (uint32_t)period_ms));
     }
   } else if (tick) {
     state.flags &= (uint8_t)~VM_PERIODIC_F_OVERRUN;

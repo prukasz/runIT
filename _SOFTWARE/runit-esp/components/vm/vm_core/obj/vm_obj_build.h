@@ -1,6 +1,6 @@
 #pragma once
 #include "errors.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "vm_obj_access.h"
 
 typedef struct vm_accessor_t vm_accessor_t;
@@ -88,7 +88,7 @@ MUST_USE err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t roo
  * @param[in,out] acc   Accessor handle.
  * @param[in]     pos   Index slot position (0 .. count-1).
  * @param[in]     value Literal index value.
- * @return err_h NULL on success, or ERR_VM_ACC_INDEX_OOB if pos >= count.
+ * @return err_h NULL on success, or ERR_VM_ACC_STEP_OOB if pos >= count.
  */
 MUST_USE err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t value);
 
@@ -98,7 +98,7 @@ MUST_USE err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t
  * @param[in,out] acc Accessor handle.
  * @param[in]     pos Index slot position (0 .. count-1).
  * @param[in]     ref Target accessor reference.
- * @return err_h NULL on success, or ERR_VM_ACC_INDEX_OOB if pos >= count.
+ * @return err_h NULL on success, or ERR_VM_ACC_STEP_OOB if pos >= count.
  */
 MUST_USE err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* ref);
 
@@ -122,6 +122,6 @@ MUST_USE err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char*
  * cache (VM_ACC_F_CACHED), which vm_acc_resolve() returns from then on; one that doesn't resolve is refused, so no
  * fixed path fails at run time. Any other path is walked when used.
  *
- * @return err_h NULL, ERR_VM_ACCESSOR_UNKNOWN_ID (no root) or ERR_VM_ACCESSOR_OOB (the literal step is past the end).
+ * @return err_h NULL, ERR_VM_ACC_UNKNOWN_ID (no root) or ERR_VM_ACC_OOB (the literal step is past the end).
  */
 MUST_USE err_h vm_accessor_bind(vm_accessor_t* acc);

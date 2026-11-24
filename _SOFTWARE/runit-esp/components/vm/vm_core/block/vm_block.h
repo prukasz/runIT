@@ -1,6 +1,6 @@
 #pragma once
 #include <sdkconfig.h>
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "vm_obj_access.h"
 
 /*
@@ -193,7 +193,7 @@ static inline void* vm_block_get_custom_data(vm_block_h b) {
  * @param[out] target Receives accessor handle.
  * @param[in]  b      Block handle.
  * @param[in]  id     Input pin index (0 .. in_cnt-1).
- * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+ * @return err_h NULL on success, ERR_VM_BLK_PIN_MISSING or ERR_VM_BLK_PIN_UNLINKED.
  */
 static inline MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.in_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, false);
@@ -208,7 +208,7 @@ static inline MUST_USE err_h vm_block_get_in(const vm_accessor_t** target, vm_bl
  * @param[out] target Receives object handle.
  * @param[in]  b      Block handle.
  * @param[in]  id     Output pin index (0 .. q_cnt-1).
- * @return err_h NULL on success, ERR_VM_BLOCK_PIN_MISSING or ERR_VM_BLOCK_PIN_UNLINKED.
+ * @return err_h NULL on success, ERR_VM_BLK_PIN_MISSING or ERR_VM_BLK_PIN_UNLINKED.
  */
 static inline MUST_USE err_h vm_block_get_out(vm_obj_h* target, vm_block_h b, uint8_t id) {
   if (unlikely(id >= b->cfg.q_cnt)) return vm_block_err_pin_missing(b->cfg.block_idx, id, true);
@@ -304,14 +304,10 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end);
 
 /** @brief Runs an err_h call, reporting failure with block context and marking the call failed.
  */
-#define BLOCK_CALL(call, block)                                                       \
-  do {                                                                                \
-    err_h __bc_e = (call);                                                            \
-    if (__bc_e) {                                                                     \
+#define BLOCK_CALL(call, block)               \
+  do {                                        \
+    err_h __bc_e = (call);                    \
+    if (__bc_e) {                             \
       vm_block_report_error(__bc_e, (block)); \
-    }                                                                                 \
+    }                                         \
   } while (0)
-
-#define VM_BLK_ERR_NEW(tag_name, ...) ERR_NEW(tag_name, __VA_ARGS__)
-
-#define VM_BLK_EMIT_ERR(tag_name, ...) vm_block_emit(VM_BLK_ERR_NEW(tag_name, __VA_ARGS__))

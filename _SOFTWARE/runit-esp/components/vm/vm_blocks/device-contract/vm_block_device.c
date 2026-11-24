@@ -146,9 +146,9 @@ static err_h field_get(vm_block_h b, const vm_dev_op_t* op, vm_block_device_data
     d->flags |= VM_DEV_F_HELD;
     const float unit = op->scale[i] > 0.0f ? op->scale[i] : 1.0f;
     const int32_t lo = limited(op, i, INT32_MIN);
-    VM_BLK_EMIT_ERR(ERR_VM_DEV_HELD, .block_idx = b->cfg.block_idx, .field = i,
+    vm_block_emit(ERR_NEW(ERR_VM_DEV_HELD, .block_idx = b->cfg.block_idx, .field = i,
                     .value = op->scale[i] > 0.0f ? shown : (float)*out, .min = (float)lo / unit,
-                    .max = (float)op->lim[i] / unit);
+                    .max = (float)op->lim[i] / unit));
   }
   *out = v;
   return NULL;
@@ -186,7 +186,7 @@ static err_h call(const vm_block_device_data_t* d, const vm_dev_op_t* op, const 
   if (op->result != VM_DEV_R_NONE) {
     const uint32_t want = result_count(op) * (result_is_u8(op) ? 1u : 4u);
     const uint32_t skip = out_len == want + len ? len : 0;  // the read of a mirror op answers its key first
-    ERR_CHECK(out_len - skip == want, ERR_VM_RANGE, .val = out_len, .min = want, .max = want);
+    ERR_CHECK_RANGE(out_len - skip, want, want);
     memcpy(result, out + skip, want);
   }
   return NULL;

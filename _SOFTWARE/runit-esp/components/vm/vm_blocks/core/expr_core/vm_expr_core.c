@@ -1,4 +1,5 @@
 #include "vm_expr_core.h"
+#include <math.h>
 
 /* ==========================================================================
    Load-time check
@@ -7,7 +8,7 @@
 _Static_assert(VM_EXPR_END == 0 && VM_BIT_END == 0, "vm_expr_check() stops at opcode 0 in both sets");
 
 static bool vm_expr_reject(vm_block_h b, uint16_t pc, uint8_t op, uint8_t reason) {
-  VM_BLK_EMIT_ERR(ERR_VM_EXPR_BAD_CODE, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason);
+  vm_block_emit(ERR_NEW(ERR_VM_EXPR_BAD_CODE, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason));
   return false;
 }
 
@@ -60,7 +61,7 @@ static bool vm_expr_fail(vm_block_h b, err_h e) {
 static MUST_USE err_h vm_expr_math_fault(vm_block_h b, vm_expr_code_t* c, uint16_t pc, uint8_t op, uint8_t reason) {
   if (c->rt & VM_EXPR_RT_FAULTED) return NULL;
   c->rt |= VM_EXPR_RT_FAULTED;
-  return VM_BLK_ERR_NEW(ERR_VM_EXPR_MATH, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason);
+  return ERR_NEW(ERR_VM_EXPR_MATH, .block_idx = b->cfg.block_idx, .pc = pc, .opcode = op, .reason = reason);
 }
 
 #define _MATH(reason_) return vm_expr_fail(b, vm_expr_math_fault(b, c, at, op, (reason_)))

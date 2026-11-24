@@ -1,5 +1,8 @@
 #include "vm_obj_access.h"
-#include "vm_err.h"
+#include <limits.h>
+#include <math.h>
+#include <string.h>
+#include "vm_errors.h"
 #include "vm_obj_dyn.h"
 
 
@@ -154,7 +157,7 @@ static MUST_USE err_h payload_as_index(uint32_t* out, vm_obj_payload_t p, const 
 /* The accessors vm_acc_resolve() cannot take from their cache: a walk of the index chain, returning the payload and its
    owner object (only the walk has both in hand at once). Permissions are checked by the operations that write. */
 err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out) {
-  ERR_CHECK(acc != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(acc != NULL, ERR_NULL_PTR);
   if (unlikely(depth >= CONFIG_VM_ACCESSOR_MAX_DEPTH)) return vm_err_depth(acc->id);
 
   vm_obj_h obj = vm_obj_get_by_id(acc->id);
@@ -179,7 +182,7 @@ err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out
         break;
       }
       case VM_IDX_NAME: {
-        ERR_CHECK(idx->name != NULL, ERR_VM_BAD_ARG);
+        ERR_CHECK(idx->name != NULL, ERR_NULL_PTR);
         // checked against `obj`, not `p`: past the first step `p` still
         // describes the previous element, while `obj` is what's about to
         // be indexed, and only a PTR array has tagged children
@@ -188,7 +191,7 @@ err_h vm_acc_walk(const vm_accessor_t* acc, uint8_t depth, vm_obj_payload_t* out
         }
         int32_t found = find_child_by_name(obj, idx->name, idx->name_len);
         if (unlikely(found < 0)) {
-          return vm_err_name_not_found(acc->id, i, idx->name, idx->name_len);
+          return vm_err_name_not_found(acc->id, i);
         }
         index = (uint32_t)found;
         break;

@@ -1,4 +1,5 @@
 #include "vm_block_edge.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 bool vm_verify_edge(vm_block_h b) {

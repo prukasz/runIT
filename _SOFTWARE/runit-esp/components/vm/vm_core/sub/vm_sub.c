@@ -1,8 +1,9 @@
 #include "vm_sub.h"
+#include <string.h>
 #include "cmd.h"
 #include "data_matrix.h"
 #include "esp_log.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "freertos/FreeRTOS.h"
 #include "vm_router.h"
 #include "utils.h"
@@ -218,7 +219,7 @@ static track_t* track_get(vm_obj_h o, bool* is_new) {
   if (s_track.count >= CONFIG_VM_SUB_MAX_TRACKED) {
     if (!s_track.full_reported) {
       s_track.full_reported = true;
-      VM_RAISE(ERR_VM_SUB_TRACK_FULL, .max = CONFIG_VM_SUB_MAX_TRACKED);
+      err_report(ERR_NEW(ERR_FULL, .max = CONFIG_VM_SUB_MAX_TRACKED));
     }
     return NULL;
   }
@@ -471,10 +472,8 @@ err_h vm_sub_init(void) {
 }
 
 err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
-  if (count > CONFIG_VM_SUB_MAX_SUBSCRIBERS) {
-    return ERR_NEW(ERR_VM_RANGE, .val = count, .min = 0, .max = CONFIG_VM_SUB_MAX_SUBSCRIBERS);
-  }
-  if (count) ERR_CHECK(ids != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK_RANGE(count, 0, CONFIG_VM_SUB_MAX_SUBSCRIBERS);
+  if (count) ERR_CHECK(ids != NULL, ERR_NULL_PTR);
 
   portENTER_CRITICAL(&s_mux);
   if (count) memcpy(s_list.pending_ids, ids, (size_t)count * sizeof(uint16_t));
@@ -495,15 +494,13 @@ err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count) {
 }
 
 err_h vm_sub_handle_packet(const uint8_t* body, size_t len) {
-  ERR_CHECK(body != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(body != NULL, ERR_NULL_PTR);
   if (len < 1) {
     return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_SUBSCRIBE, .need = 1, .got = (uint16_t)len);
   }
 
   uint8_t count = body[0];
-  if (count > CONFIG_VM_SUB_MAX_SUBSCRIBERS) {
-    return ERR_NEW(ERR_VM_RANGE, .val = count, .min = 0, .max = CONFIG_VM_SUB_MAX_SUBSCRIBERS);
-  }
+  ERR_CHECK_RANGE(count, 0, CONFIG_VM_SUB_MAX_SUBSCRIBERS);
   size_t need = 1u + (size_t)count * sizeof(vm_wire_sub_t);
   if (len < need) {
     return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_SUBSCRIBE, .need = (uint16_t)need, .got = (uint16_t)len);

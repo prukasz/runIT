@@ -1,5 +1,6 @@
 #include "vm_obj_build.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 
 
 /*
@@ -22,8 +23,8 @@
 // ===========================================================================
 
 err_h vm_obj_shape(const vm_obj_head_t* head, uint32_t* out_total) {
-  ERR_CHECK(head != NULL, ERR_VM_BAD_ARG);
-  ERR_CHECK(out_total != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(head != NULL, ERR_NULL_PTR);
+  ERR_CHECK(out_total != NULL, ERR_NULL_PTR);
   *out_total = 0;
 
   vm_obj_t_e type = (vm_obj_t_e)head->d.obj_t;
@@ -66,7 +67,7 @@ void vm_obj_init(vm_obj_h o, const vm_obj_head_t* head, const char* name) {
 }
 
 err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const char* name) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   *out = NULL;
 
   uint32_t total = 0;
@@ -85,7 +86,7 @@ err_h vm_obj_create(vm_obj_h* out, uint16_t id, const vm_obj_head_t* head, const
 // ===========================================================================
 
 err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id, uint8_t idx_count) {
-  ERR_CHECK(out != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out != NULL, ERR_NULL_PTR);
   *out = NULL;
 
   // Single allocation holds accessor struct and its contiguous index array
@@ -102,9 +103,9 @@ err_h vm_accessor_create(vm_accessor_t** out, uint16_t id, uint16_t root_obj_id,
 }
 
 static inline MUST_USE err_h index_slot(vm_accessor_t* acc, uint8_t pos, vm_index_t** out) {
-  ERR_CHECK(acc != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(acc != NULL, ERR_NULL_PTR);
   if (pos >= acc->count || acc->indices == NULL) {
-    return ERR_NEW(ERR_VM_ACC_INDEX_OOB, .acc_id = acc->id, .pos = pos, .count = acc->count);
+    return ERR_NEW(ERR_VM_ACC_STEP_OOB, .acc_id = acc->id, .pos = pos, .count = acc->count);
   }
   *out = (vm_index_t*)&acc->indices[pos];
   return NULL;
@@ -119,7 +120,7 @@ err_h vm_accessor_set_literal(vm_accessor_t* acc, uint8_t pos, uint32_t value) {
 }
 
 err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* ref) {
-  ERR_CHECK(ref != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(ref != NULL, ERR_NULL_PTR);
   vm_index_t* slot = NULL;
   ERR_TRY(index_slot(acc, pos, &slot));
   slot->kind = VM_IDX_REF;
@@ -128,7 +129,7 @@ err_h vm_accessor_set_ref(vm_accessor_t* acc, uint8_t pos, const vm_accessor_t* 
 }
 
 err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, uint8_t name_len) {
-  ERR_CHECK(name != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(name != NULL, ERR_NULL_PTR);
   if (name_len > VM_OBJ_NAME_MAX) {
     return ERR_NEW(ERR_VM_OBJ_NAME_TOO_LONG, .len = name_len);
   }
@@ -149,7 +150,7 @@ err_h vm_accessor_set_name(vm_accessor_t* acc, uint8_t pos, const char* name, ui
 }
 
 err_h vm_accessor_bind(vm_accessor_t* acc) {
-  ERR_CHECK(acc != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(acc != NULL, ERR_NULL_PTR);
   acc->flags &= (uint8_t)~VM_ACC_F_CACHED;
 
   // Objects load before accessors: a root that isn't there now never will be

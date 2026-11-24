@@ -23,7 +23,7 @@
 /** @brief vm_accessor_t.flags bit: a resolved payload is cached in c_payload. */
 #define VM_ACC_F_CACHED 0x01u
 
-/* `reason` in ERR_VM_OBJ_COPY_SHAPE -- kept in step with VM_COPY_SHAPE_NAME() in sys_error_vm.h */
+/* `reason` in ERR_VM_OBJ_COPY_SHAPE */
 #define VM_COPY_SHAPE_DEPTH     0u  // ran out of depth, or the tree loops
 #define VM_COPY_SHAPE_SRC_EMPTY 1u  // source slot unwired, target holds an object
 #define VM_COPY_SHAPE_DST_EMPTY 2u  // target slot unwired, source holds an object
@@ -55,11 +55,6 @@ typedef enum vm_index_kind_e {
   VM_IDX_REF     = 1,  //@alias Accessor Reference @description Accessor reference: read another accessor to obtain the index
   VM_IDX_NAME    = 2,  //@alias Child Name @description Child name: find a child object by its tag
 } vm_index_kind_e;
-
-/** @brief String representation of accessor index kind for debugging. */
-static inline const char* vm_index_kind_str(vm_index_kind_e k) {
-  return vm_index_kind_name((uint8_t)k);
-}
 
 /* One resolved path step, in memory. Its wire form is vm_wire_idx_*_t
    (vm_wire.h); this layout only feeds the arena size. */

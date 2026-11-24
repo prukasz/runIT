@@ -1,6 +1,6 @@
 #pragma once
 #include <sdkconfig.h>
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "errors.h"
 #include "vm_block_build.h"
 #include "vm_obj_access.h"
@@ -11,11 +11,6 @@ typedef enum vm_load_state_e {
   VM_LOAD_EMPTY = 0,  //@alias Empty @description No storage; all ID lookups resolve to NULL
   VM_LOAD_OPEN  = 1,  //@alias Open @description Storage reserved; objects, accessors, and blocks may be loaded
 } vm_load_state_e;
-
-/** @brief String representation of loader state for debugging. */
-static inline const char* vm_load_state_str(vm_load_state_e s) {
-  return vm_load_state_name((uint8_t)s);
-}
 
 /**
  * @brief Quiesce execution, reset registries and arena, and set state to EMPTY.

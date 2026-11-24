@@ -255,7 +255,7 @@ def t_step_time(vm: Vm) -> None:
     got = [bool(vm.vals(vm.step([q]), q)) for _ in range(4)]
     check("step 100 ms: every pass asked for is one period, the block ticks on every one", got == [True] * 4, str(got))
     r = vm.op(OP_SPEED, struct.pack("<HH", 1, 60001))
-    check("a step past 60000 ms is refused", cause(r) == "ERR_VM_BAD_ARG", str(r))
+    check("a step past 60000 ms is refused", cause(r) == "ERR_RANGE", str(r))
     r = vm.op(OP_SPEED, struct.pack("<H", 1))
     check("the factor alone (2 bytes) is still taken", ok(r), str(r))
     vm.op(OP_SPEED, struct.pack("<HH", 1, 10))
@@ -306,7 +306,7 @@ def t_writes(vm: Vm) -> None:
              ("an object protected from the user (the ENO of a block)", eno, b"\x01", 0, "ERR_VM_OBJ_USR_PROTECTED"),
              ("an object protected from the user (the upload flag)", prot, f32(1.0), 0, "ERR_VM_OBJ_USR_PROTECTED"),
              ("a pointer", ptr, u16(0), 0, "ERR_VM_OVERRIDE_PTR_UNSUPPORTED"),
-             ("an object that does not exist", 99, b"\x00", 0, "ERR_VM_ACCESSOR_UNKNOWN_ID"),
+             ("an object that does not exist", 99, b"\x00", 0, "ERR_VM_ACC_UNKNOWN_ID"),
              ("a length that is not a multiple of the width", f, b"\x00\x00\x00", 0, "ERR_VM_LOAD_DATA_RANGE"),
              ("a slice past the end", farr, f32(1.0) * 2, 3, "ERR_VM_LOAD_DATA_RANGE"),
              ("a start index past the end", farr, f32(1.0), 4, "ERR_VM_LOAD_DATA_RANGE")]
@@ -401,7 +401,7 @@ def t_telemetry(vm: Vm) -> None:
     frames = [f for _, f in tele_frames(vm.link, t)]
     check("... in frames that are well formed and no longer than CONFIG_VM_SUB_MAX_FRAME_LEN (512)", frames and all(len(f) <= 512 and parse_frame(f) is not None for f in frames), f"{len(frames)} frames, longest {max(map(len, frames), default=0)}")
     r = vm.sub(objs[:129])
-    check("129 ids -> ERR_VM_RANGE", cause(r) == "ERR_VM_RANGE", str(r))
+    check("129 ids -> ERR_RANGE", cause(r) == "ERR_RANGE", str(r))
     t = vm.link.mark()
     vm.write(objs[7], 250)
     got = vm.collect(t, [objs[7]])

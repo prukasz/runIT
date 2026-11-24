@@ -1,4 +1,5 @@
 #include "vm_block_action.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 bool vm_verify_action(vm_block_h b) {
@@ -28,7 +29,7 @@ void vm_blk_action(vm_block_h b) {
     return;
   }
   if (unlikely(id == 0)) {
-    BLOCK_CALL(VM_BLK_ERR_NEW(ERR_VM_RANGE, .val = id, .min = 1, .max = UINT32_MAX), b);
+    vm_block_report_error(ERR_NEW(ERR_RANGE, .value = 0, .min = 1, .max = INT32_MAX), b);
     vm_block_set_eno(b, false);
     return;
   }

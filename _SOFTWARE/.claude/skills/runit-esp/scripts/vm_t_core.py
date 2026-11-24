@@ -186,7 +186,7 @@ def t_wire_data(vm: Vm) -> None:
     check("a DATA frame with no records is a no-op", ok(vm.op(OP_DATA, b"\x00")))
     r = vm.op(OP_DATA, batch(struct.pack("<HHH", 1, 0, 4) + f32(1.5), struct.pack("<HHH", 3, 0, 3) + b"abc", struct.pack("<HHH", 4, 0, 1) + b"\x01"))
     check("one frame with records for three objects", ok(r), str(r))
-    for name, args, want in (("an unknown object", (9, 0, b"\x00"), "ERR_VM_ACCESSOR_UNKNOWN_ID"),
+    for name, args, want in (("an unknown object", (9, 0, b"\x00"), "ERR_VM_ACC_UNKNOWN_ID"),
                              ("a length that is not a multiple of the width", (0, 0, b"\x00" * 6), "ERR_VM_LOAD_DATA_RANGE"),
                              ("a slice past the end", (0, 15, b"\x00" * 8), "ERR_VM_LOAD_DATA_RANGE"),
                              ("a start index past the end", (0, 16, b"\x00" * 4), "ERR_VM_LOAD_DATA_RANGE"),
@@ -202,7 +202,7 @@ def t_wire_data(vm: Vm) -> None:
     check("two elements linked in one record", ok(sd(2, 1, u16(0) + u16(3))))
     for name, args, want in (("an odd byte count", (2, 0, b"\x01\x00\x00"), "ERR_VM_LOAD_DATA_RANGE"),
                              ("a slice past the end", (2, 3, u16(0) * 2), "ERR_VM_LOAD_DATA_RANGE"),
-                             ("a child that does not exist", (2, 0, u16(40)), "ERR_VM_ACCESSOR_UNKNOWN_ID")):
+                             ("a child that does not exist", (2, 0, u16(40)), "ERR_VM_ACC_UNKNOWN_ID")):
         prog()
         r = sd(*args)
         check(f"PTR DATA with {name} -> {want}", cause(r) == want, str(r))
@@ -239,8 +239,8 @@ def t_wire_acc(vm: Vm) -> None:
         ("a step count that the bytes do not cover", (0, 0, 2, struct.pack("<BI", 0, 3)), "ERR_VM_LOAD_SHORT_RECORD"),
         ("trailing bytes after the steps", (0, 0, 1, struct.pack("<BI", 0, 3) + b"\x00"), "ERR_VM_LOAD_SHORT_RECORD"),
         ("a literal step cut short", (0, 0, 1, b"\x00\x01\x00"), "ERR_VM_LOAD_SHORT_RECORD"),
-        ("a root object that does not exist", (0, 77, 0, b""), "ERR_VM_ACCESSOR_UNKNOWN_ID"),
-        ("a literal step past the end of its root", (0, 0, 1, struct.pack("<BI", 0, 4)), "ERR_VM_ACCESSOR_OOB"),
+        ("a root object that does not exist", (0, 77, 0, b""), "ERR_VM_ACC_UNKNOWN_ID"),
+        ("a literal step past the end of its root", (0, 0, 1, struct.pack("<BI", 0, 4)), "ERR_VM_ACC_OOB"),
     ):
         prog()
         r = acc(*args)
@@ -490,7 +490,7 @@ def t_expr_faults(vm: Vm) -> None:
     check("a healthy block next to the faulty ones still works", vm.vals(got, good_out) == -1.0 and vm.vals(got, good_eno) == 1)
     time.sleep(0.3)
     names = err_names(vm.link, t)
-    check("each fault is reported (ERR_VM_EXPR_MATH wrapped in ERR_VM_BLOCK_FAILED)", names.count("ERR_VM_EXPR_MATH") >= len(rows) - 1 and "ERR_VM_BLOCK_FAILED" in names, f"{names.count('ERR_VM_EXPR_MATH')} of {len(rows)}")
+    check("each fault is reported (ERR_VM_EXPR_MATH wrapped in ERR_VM_BLK_FAILED)", names.count("ERR_VM_EXPR_MATH") >= len(rows) - 1 and "ERR_VM_BLK_FAILED" in names, f"{names.count('ERR_VM_EXPR_MATH')} of {len(rows)}")
     # reasons: DIV0 = 0, DOMAIN = 1, NOT_FINITE = 2 (node data: block u16, pc u16, opcode u8, reason u8)
     reasons = {n.data[5] for n in err_nodes(vm.link, t, "ERR_VM_EXPR_MATH") if len(n.data) >= 6}
     check("... with the reasons division by zero, domain and not finite", reasons == {0, 1, 2}, str(reasons))

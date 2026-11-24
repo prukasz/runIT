@@ -40,7 +40,7 @@ MUST_USE err_h vm_sub_init(void);
  *
  * @param ids Array of object IDs to subscribe to (VM_OBJ_ID_DYN_BIT for heap objects).
  * @param count Number of IDs in the array. 0 clears all subscriptions.
- * @return err_h NULL on success; ERR_VM_BAD_ARG if count exceeds
+ * @return err_h NULL on success; ERR_RANGE if count exceeds
  *         CONFIG_VM_SUB_MAX_SUBSCRIBERS (nothing changes).
  */
 MUST_USE err_h vm_sub_subscribe(const uint16_t* ids, uint16_t count);

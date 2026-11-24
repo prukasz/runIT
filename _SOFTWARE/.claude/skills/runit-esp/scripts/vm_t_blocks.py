@@ -569,7 +569,7 @@ def t_clone(vm: Vm) -> None:
     vm.start(p, X_SCAN)
     t = vm.link.mark()
     g = vm.step([e], {gate: True})
-    check("a cell that is not a pointer: ENO 0 and an error", vm.vals(g, e) == 0 and wait_err(vm.link, t, "ERR_VM_BLOCK_FAILED") is not None, str(vm.vals(g, e)))
+    check("a cell that is not a pointer: ENO 0 and an error", vm.vals(g, e) == 0 and wait_err(vm.link, t, "ERR_VM_BLK_FAILED") is not None, str(vm.vals(g, e)))
     vm.reset()
 
 

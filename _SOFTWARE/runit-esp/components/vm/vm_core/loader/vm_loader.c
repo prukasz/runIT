@@ -1,5 +1,6 @@
 #include "vm_loader.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 #include "vm_block_ids.h"
 #include "vm_event.h"
 #include "vm_exec.h"
@@ -121,7 +122,7 @@ static MUST_USE err_h wire_id_check(vm_reg_e kind, uint16_t id) {
 }
 
 static MUST_USE err_h add_obj_unlocked(uint16_t id, const vm_obj_head_t* head, const char* name) {
-  ERR_CHECK(head != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(head != NULL, ERR_NULL_PTR);
   ERR_TRY(wire_id_check(VM_REG_OBJ, id));
 
   // Validate type before indexing width table
@@ -144,11 +145,11 @@ err_h vm_loader_add_obj(uint16_t id, const vm_obj_head_t* head, const char* name
 }
 
 static MUST_USE err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const uint8_t* data, uint16_t len) {
-  ERR_CHECK(data != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(data != NULL, ERR_NULL_PTR);
 
   vm_obj_h obj = vm_obj_get_by_id(id);
   if (!obj) {
-    return ERR_NEW(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = id);
+    return ERR_NEW(ERR_VM_ACC_UNKNOWN_ID, .id = id);
   }
 
   uint16_t items = vm_obj_get_items_cnt(obj);
@@ -167,7 +168,7 @@ static MUST_USE err_h set_data_unlocked(uint16_t id, uint16_t start_idx, const u
       memcpy(&child_id, data + (size_t)i * VM_OBJ_PTR_WIRE_SIZE, sizeof(child_id));
       vm_obj_h child = vm_obj_get_by_id(child_id);
       if (!child) {
-        return ERR_NEW(ERR_VM_ACCESSOR_UNKNOWN_ID, .id = child_id);
+        return ERR_NEW(ERR_VM_ACC_UNKNOWN_ID, .id = child_id);
       }
       ERR_TRY(vm_obj_link_direct(obj, (uint16_t)(start_idx + i), child));
     }
@@ -265,7 +266,7 @@ err_h vm_loader_add_accessor(uint16_t acc_id, uint16_t root_obj_id, uint8_t idx_
 }
 
 static MUST_USE err_h add_block_unlocked(uint16_t blk_id, const vm_block_cfg_t* cfg) {
-  ERR_CHECK(cfg != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(cfg != NULL, ERR_NULL_PTR);
   ERR_TRY(wire_id_check(VM_REG_BLK, blk_id));
 
   // Validate block_type against the palette before allocating arena memory

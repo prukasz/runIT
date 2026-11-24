@@ -1,6 +1,6 @@
 #include "vm_exec.h"
 #include "esp_log.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "utils.h"
 #include "vm_block.h"
 #include "vm_event.h"
@@ -86,7 +86,7 @@ static void wait_for_quiescence(void) {
    before the loader can replace the program. The caller/task check covers
    both the supervisor and a task executing vm_exec_pass() directly. */
 err_h vm_exec_program_lock(vm_run_mode_e* out_previous) {
-  ERR_CHECK(out_previous != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(out_previous != NULL, ERR_NULL_PTR);
   if (caller_owns_active_pass()) {
     return ERR_NEW(ERR_VM_EXEC_SELF_BARRIER, .operation = 1);
   }
@@ -155,7 +155,7 @@ static void wd_sample(void* arg) {
     const uint16_t blk = (uint16_t)(cur & 0xFFFFu);
     if (blk != s_exec_preset.wd_quiet) {
       s_exec_preset.wd_quiet = blk;
-      VM_RAISE(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = blk, .ms = CONFIG_VM_EXEC_BLOCK_WD_MS);
+      err_report(ERR_NEW(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = blk, .ms = CONFIG_VM_EXEC_BLOCK_WD_MS));
     }
   }
   s_wd.last = cur;
@@ -273,13 +273,13 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
     vm_block_mark_failed(s_exec.current_block);
     if (!(s_exec.current_block->cfg.rt & VM_BLK_RT_SPAN_BAD)) {
       s_exec.current_block->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-      VM_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = s_exec.current_block->cfg.block_idx, .start = start, .end = end);
+      err_report(ERR_NEW(ERR_VM_EXEC_BAD_SPAN, .block_idx = s_exec.current_block->cfg.block_idx, .start = start, .end = end));
     }
     return;
   }
   if (unlikely(s_exec.span_depth >= CONFIG_VM_EXEC_MAX_SPAN_DEPTH)) {
     if (s_exec.current_block) vm_block_mark_failed(s_exec.current_block);
-    VM_RAISE(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH);
+    err_report(ERR_NEW(ERR_VM_EXEC_SPAN_DEPTH, .block_idx = start, .depth = CONFIG_VM_EXEC_MAX_SPAN_DEPTH));
     return;
   }
   s_exec.span_depth++;
@@ -324,8 +324,8 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
         next = sp->end;
       } else if (!(b->cfg.rt & VM_BLK_RT_SPAN_BAD)) {
         b->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-        VM_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = sp ? sp->start : 0,
-                    .end = sp ? sp->end : 0);
+        err_report(ERR_NEW(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = sp ? sp->start : 0,
+                    .end = sp ? sp->end : 0));
       }
     }
 
@@ -436,16 +436,11 @@ err_h vm_exec_start(void) {
         .callback = wd_sample,
         .name = "vm_blk_wd",
     };
-    if (esp_timer_create(&args, &s_wd.timer) != ESP_OK) {
-      return ERR_NEW(ERR_VM_NO_MEM);
-    }
+    ERR_TRY_ESP(esp_timer_create(&args, &s_wd.timer));
     (void)esp_timer_start_periodic(s_wd.timer, (uint64_t)CONFIG_VM_EXEC_BLOCK_WD_MS * 1000u);
   }
 
   U_TASK_START_ON_CORE(vm_exec_task_h, vm_exec_task, NULL, CONFIG_VM_EXEC_TASK_PRIO, CONFIG_VM_EXEC_TASK_CORE);
-  if (vm_exec_task_h == NULL) {
-    return ERR_NEW(ERR_VM_NO_MEM);
-  }
 
   ESP_LOGD(TAG, "supervisor started on core %d, %u block types in the palette", CONFIG_VM_EXEC_TASK_CORE, vm_block_types_count());
   return NULL;

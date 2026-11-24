@@ -1,4 +1,6 @@
 #include "vm_block_map.h"
+#include <math.h>
+#include <string.h>
 #include "vm_blocks.h"
 
 bool vm_verify_map(vm_block_h b) {

@@ -1,4 +1,5 @@
 #include "vm_block_timer.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 static bool vm_timer_elapsed(vm_block_timer_data_t* d, uint32_t pt, uint64_t now) {

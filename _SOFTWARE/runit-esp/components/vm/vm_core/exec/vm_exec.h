@@ -1,6 +1,6 @@
 #pragma once
 #include "errors.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "vm_block.h"
 #include "vm_clock.h"  // vm_now_ms(), vm_clock_us(): what the timing blocks read
 #include "vm_stats.h"
@@ -21,11 +21,6 @@ typedef enum vm_run_mode_e {
   VM_RUN_BLOCK_STEP = 6,  //@alias Block step @description Execute single pending block dispatch
 } vm_run_mode_e;
 
-/** @brief String representation of VM run mode for debugging. */
-static inline const char* vm_run_mode_str(vm_run_mode_e m) {
-  return vm_run_mode_name((uint8_t)m);
-}
-
 //#ref-enum @alias VM Exec Command
 typedef enum vm_exec_command_e {
   VM_EXEC_SCAN_MODE      = 0,  //@alias Scan mode @description Scan mode
@@ -40,11 +35,6 @@ typedef enum vm_exec_command_e {
   VM_EXEC_ACK_FAULT      = 9,  //@alias Ack fault @description Ack fault
   VM_EXEC_RETAIN_CLEAR   = 10,  //@alias Retain clear @description Forget retained values (vm_retain_clear)
 } vm_exec_command_e;
-
-/** @brief String representation of VM execution command for debugging. */
-static inline const char* vm_exec_command_str(vm_exec_command_e c) {
-  return vm_exec_command_name((uint8_t)c);
-}
 
 typedef struct vm_exec_status_t {
   vm_run_mode_e mode;

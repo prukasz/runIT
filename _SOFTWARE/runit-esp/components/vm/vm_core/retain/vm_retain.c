@@ -1,5 +1,6 @@
 #include "vm_retain.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 
 #include "nvs.h"
 #include "utils.h"
@@ -161,7 +162,7 @@ static MUST_USE err_h apply(const uint8_t* buf, size_t len) {
     if (o) {
       if (o->head.d.obj_t != type || o->head.payload_size != size) {
         /* Renamed-in-place or retyped: keep the uploaded value. */
-        VM_RAISE(ERR_VM_RETAIN_MISMATCH, .obj_id = id, .type = type, .size = size);
+        err_report(ERR_NEW(ERR_VM_RETAIN_MISMATCH, .obj_id = id, .type = type, .size = size));
       } else {
         memcpy(o->payload, &buf[off], size);
       }
@@ -189,7 +190,6 @@ static void vm_retain_task(void* arg) {
 err_h vm_retain_init(void) {
   if (vm_retain_task_h == NULL) {
     U_TASK_START(vm_retain_task_h, vm_retain_task, NULL, CONFIG_VM_RETAIN_TASK_PRIO);
-    if (vm_retain_task_h == NULL) return ERR_NEW(ERR_VM_NO_MEM);
   }
   return retain_nvs_open();
 }
@@ -207,7 +207,7 @@ void vm_retain_on_reset(void) {
 }
 
 err_h vm_retain_reserve(uint16_t obj_id, const vm_obj_head_t* head) {
-  ERR_CHECK(head != NULL, ERR_VM_BAD_ARG);
+  ERR_CHECK(head != NULL, ERR_NULL_PTR);
   if (!head->f.retentive) return NULL;
   if (head->d.name_size == 0) return ERR_NEW(ERR_VM_RETAIN_UNNAMED, .obj_id = obj_id);
   const uint32_t used = s_retain.budget ? s_retain.budget : RETAIN_HDR_LEN;

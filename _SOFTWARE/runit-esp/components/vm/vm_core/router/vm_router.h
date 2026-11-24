@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Remote interface of the VM (ROUTER_KEY_VM, VM_CORE.MD "Remote"): build, run and watch a program.
+ * @brief Remote interface of the VM (MODULE_ID_VM, VM_CORE.MD "Remote"): build, run and watch a program.
  *
  * Every record layout is a packed struct of vm_wire.h. The same ops carry the program to the board and the board's
  * values back: the telemetry, PUSHes out of the port of MODULE_ID_VM, is `[VM_OP_DATA][n]{records}` for values and

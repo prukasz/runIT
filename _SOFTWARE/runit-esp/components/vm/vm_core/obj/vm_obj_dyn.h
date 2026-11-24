@@ -57,7 +57,7 @@ static inline vm_obj_h vm_obj_dyn_get_by_id(uint16_t id) {
 
 /**
  * @brief Allocates a heap object from a head (the shape, flags as given) and registers it, with no owner.
- * @return ERR_VM_OBJ_* for a bad shape (vm_obj_shape), ERR_VM_DYN_FULL when CONFIG_VM_DYN_MAX are live, ERR_VM_NO_MEM.
+ * @return ERR_VM_OBJ_* for a bad shape (vm_obj_shape), ERR_FULL when CONFIG_VM_DYN_MAX are live, ERR_NO_MEM.
  */
 MUST_USE err_h vm_obj_dyn_create(vm_obj_h* out, const vm_obj_head_t* head, const char* name);
 

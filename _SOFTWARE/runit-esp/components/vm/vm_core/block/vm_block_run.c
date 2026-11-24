@@ -1,5 +1,5 @@
 #include "vm_block.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 
 
 /*
@@ -25,7 +25,7 @@ void vm_block_claim_span(vm_block_h b, uint16_t start, uint16_t end) {
          through to the next block either way -- the span degrades to running
          inline rather than to a hang. */
       b->cfg.rt |= VM_BLK_RT_SPAN_BAD;
-      VM_RAISE(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = start, .end = end);
+      err_report(ERR_NEW(ERR_VM_EXEC_BAD_SPAN, .block_idx = b->cfg.block_idx, .start = start, .end = end));
     }
     return;
   }

@@ -1,7 +1,7 @@
 #pragma once
 /**
  * @file vm_wire.h
- * @brief Wire records of the VM router (ROUTER_KEY_VM, vm_router.h) and of VM telemetry.
+ * @brief Wire records of the VM router (MODULE_ID_VM, vm_router.h) and of VM telemetry.
  *
  * Every record the app sends to build, run and watch a program, as packed
  * little-endian structs. The router (vm_router.c), the loader and vm_sub

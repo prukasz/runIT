@@ -1,4 +1,5 @@
 #include "vm_block_latch.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 bool vm_verify_latch(vm_block_h b) {

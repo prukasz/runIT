@@ -1,4 +1,5 @@
 #pragma once
+#include <string.h>
 #include "vm_block_helpers.h"
 #include "vm_exec.h"
 

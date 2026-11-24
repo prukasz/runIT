@@ -1,5 +1,6 @@
 #include "vm_event.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 #include "sys_device.h"
 #include "utils.h"
 

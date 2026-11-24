@@ -3129,7 +3129,7 @@
       "id": 52,
       "name": "VM",
       "symbol": "MODULE_ID_VM",
-      "source_file": "runit-esp/components/vm/vm_core/errors/vm_err.h",
+      "source_file": "runit-esp/components/vm/vm_core/errors/vm_errors.h",
       "texts_file": "runit-esp/components/vm/vm_core/errors/errors_vm.json",
       "tags": [
         {
@@ -3152,13 +3152,14 @@
               "size": 4
             }
           ],
+          "description": "the program's arena is used up while loading",
           "message": "The program needs {requested} more bytes; {remaining} are left",
           "hint": "Make the program smaller: fewer or shorter variables."
         },
         {
           "code": 2,
           "tag": 3407874,
-          "name": "ERR_VM_ACCESSOR_UNKNOWN_ID",
+          "name": "ERR_VM_ACC_UNKNOWN_ID",
           "severity": 1,
           "size": 2,
           "fields": [
@@ -3175,7 +3176,7 @@
         {
           "code": 3,
           "tag": 3407875,
-          "name": "ERR_VM_ACCESSOR_OOB",
+          "name": "ERR_VM_ACC_OOB",
           "severity": 1,
           "size": 7,
           "fields": [
@@ -3206,12 +3207,13 @@
               "id_kind": "vm_object"
             }
           ],
+          "description": "a position outside the object",
           "message": "{id}: position {index} is outside {obj_id} (step {chain_pos})"
         },
         {
           "code": 4,
           "tag": 3407876,
-          "name": "ERR_VM_ACCESSOR_TYPE_MISMATCH",
+          "name": "ERR_VM_ACC_TYPE_MISMATCH",
           "severity": 1,
           "size": 7,
           "fields": [
@@ -3255,7 +3257,7 @@
         {
           "code": 5,
           "tag": 3407877,
-          "name": "ERR_VM_ACCESSOR_NULL_OBJ",
+          "name": "ERR_VM_ACC_NULL_OBJ",
           "severity": 1,
           "size": 5,
           "fields": [
@@ -3285,7 +3287,7 @@
         {
           "code": 6,
           "tag": 3407878,
-          "name": "ERR_VM_ACCESSOR_DEPTH_EXCEEDED",
+          "name": "ERR_VM_ACC_DEPTH_EXCEEDED",
           "severity": 1,
           "size": 2,
           "fields": [
@@ -3302,7 +3304,7 @@
         {
           "code": 7,
           "tag": 3407879,
-          "name": "ERR_VM_ACCESSOR_INDEX_FAILED",
+          "name": "ERR_VM_ACC_INDEX_FAILED",
           "severity": 1,
           "size": 3,
           "fields": [
@@ -3320,14 +3322,15 @@
               "size": 1
             }
           ],
+          "description": "context: the step whose index read failed",
           "message": "{id}: the position at step {chain_pos} could not be read"
         },
         {
           "code": 8,
           "tag": 3407880,
-          "name": "ERR_VM_ACCESSOR_NAME_NOT_FOUND",
+          "name": "ERR_VM_ACC_NAME_NOT_FOUND",
           "severity": 1,
-          "size": 19,
+          "size": 3,
           "fields": [
             {
               "name": "id",
@@ -3341,50 +3344,75 @@
               "type": "u8",
               "offset": 2,
               "size": 1
-            },
-            {
-              "name": "name",
-              "type": "chars",
-              "offset": 3,
-              "size": 16
             }
           ],
-          "message": "{id}: there is nothing named '{name}' (step {chain_pos})"
+          "description": "the app names the step's name",
+          "message": "{id}: no element has the name of step {chain_pos}"
         },
         {
           "code": 9,
           "tag": 3407881,
-          "name": "ERR_VM_ACCESSOR_NOT_MUTABLE",
+          "name": "ERR_VM_ACC_STEP_OOB",
           "severity": 1,
-          "size": 5,
+          "size": 4,
           "fields": [
             {
-              "name": "id",
+              "name": "acc_id",
               "type": "u16",
               "offset": 0,
               "size": 2,
               "id_kind": "vm_accessor"
             },
             {
-              "name": "chain_pos",
+              "name": "pos",
               "type": "u8",
               "offset": 2,
               "size": 1
             },
             {
-              "name": "obj_id",
-              "type": "u16",
+              "name": "count",
+              "type": "u8",
               "offset": 3,
-              "size": 2,
-              "id_kind": "vm_object"
+              "size": 1
             }
           ],
-          "message": "{id}: {obj_id} cannot be written (step {chain_pos})"
+          "description": "load: a step outside the accessor's steps",
+          "message": "{acc_id}: step {pos} is outside its {count} steps"
         },
         {
           "code": 10,
           "tag": 3407882,
-          "name": "ERR_VM_BLOCK_PIN_MISSING",
+          "name": "ERR_VM_ACC_BAD_KIND",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "acc_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_accessor"
+            },
+            {
+              "name": "pos",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 3,
+              "size": 1,
+              "enum_ref": "vm_index_kind_e"
+            }
+          ],
+          "message": "{acc_id}: step {pos} is {kind}, which is not allowed there"
+        },
+        {
+          "code": 11,
+          "tag": 3407883,
+          "name": "ERR_VM_BLK_PIN_MISSING",
           "severity": 1,
           "size": 4,
           "fields": [
@@ -3418,9 +3446,9 @@
           "message": "{pin_id} of {block_idx} is missing"
         },
         {
-          "code": 11,
-          "tag": 3407883,
-          "name": "ERR_VM_BLOCK_PIN_UNLINKED",
+          "code": 12,
+          "tag": 3407884,
+          "name": "ERR_VM_BLK_PIN_UNLINKED",
           "severity": 1,
           "size": 4,
           "fields": [
@@ -3455,9 +3483,9 @@
           "hint": "Connect the pin."
         },
         {
-          "code": 12,
-          "tag": 3407884,
-          "name": "ERR_VM_BLOCK_FAILED",
+          "code": 13,
+          "tag": 3407885,
+          "name": "ERR_VM_BLK_FAILED",
           "severity": 2,
           "size": 3,
           "fields": [
@@ -3476,473 +3504,12 @@
               "id_kind": "vm_block_type"
             }
           ],
+          "description": "context: the block of a report",
           "message": "{block_idx} ({block_type}) failed"
-        },
-        {
-          "code": 13,
-          "tag": 3407885,
-          "name": "ERR_VM_OBJ_COPY_MISMATCH",
-          "severity": 1,
-          "size": 6,
-          "fields": [
-            {
-              "name": "src_type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            },
-            {
-              "name": "dst_type",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            },
-            {
-              "name": "src_size",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "dst_size",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "message": "A {src_type} of {src_size} bytes cannot be copied into a {dst_type} of {dst_size} bytes"
         },
         {
           "code": 14,
           "tag": 3407886,
-          "name": "ERR_VM_OBJ_COPY_SHAPE",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "index",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "depth",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            },
-            {
-              "name": "reason",
-              "type": "u8",
-              "offset": 3,
-              "size": 1
-            }
-          ],
-          "message": "The values do not have the same shape (element {index}, level {depth})"
-        },
-        {
-          "code": 15,
-          "tag": 3407887,
-          "name": "ERR_VM_OBJ_NOT_MUTABLE",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "{obj_id} cannot be written"
-        },
-        {
-          "code": 16,
-          "tag": 3407888,
-          "name": "ERR_VM_OBJ_OOB",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "index",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            },
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 2,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "Position {index} is outside {obj_id}"
-        },
-        {
-          "code": 17,
-          "tag": 3407889,
-          "name": "ERR_VM_OBJ_NOT_PTR",
-          "severity": 1,
-          "size": 3,
-          "fields": [
-            {
-              "name": "actual",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            },
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 1,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "{obj_id} is {actual}, not a folder"
-        },
-        {
-          "code": 18,
-          "tag": 3407890,
-          "name": "ERR_VM_OBJ_BAD_TYPE",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            }
-          ],
-          "message": "{type} is not a type the board knows"
-        },
-        {
-          "code": 19,
-          "tag": 3407891,
-          "name": "ERR_VM_OBJ_EMPTY",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            }
-          ],
-          "message": "A {type} with no elements"
-        },
-        {
-          "code": 20,
-          "tag": 3407892,
-          "name": "ERR_VM_OBJ_BAD_SIZE",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            },
-            {
-              "name": "payload_size",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            },
-            {
-              "name": "width",
-              "type": "u8",
-              "offset": 3,
-              "size": 1
-            }
-          ],
-          "message": "A {type} of {payload_size} bytes does not split into elements of {width}"
-        },
-        {
-          "code": 21,
-          "tag": 3407893,
-          "name": "ERR_VM_OBJ_NAME_TOO_LONG",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "len",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "message": "A name of {len} bytes is too long"
-        },
-        {
-          "code": 22,
-          "tag": 3407894,
-          "name": "ERR_VM_OBJ_RETENTIVE_PTR",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            }
-          ],
-          "message": "A {type} cannot be kept across restarts"
-        },
-        {
-          "code": 23,
-          "tag": 3407895,
-          "name": "ERR_VM_LOAD_BAD_STATE",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "state",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_load_state_e"
-            },
-            {
-              "name": "expected",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "enum_ref": "vm_load_state_e"
-            }
-          ],
-          "message": "The program upload is {state}; {expected} was expected"
-        },
-        {
-          "code": 24,
-          "tag": 3407896,
-          "name": "ERR_VM_LOAD_TOO_BIG",
-          "severity": 1,
-          "size": 8,
-          "fields": [
-            {
-              "name": "requested",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            },
-            {
-              "name": "available",
-              "type": "u32",
-              "offset": 4,
-              "size": 4
-            }
-          ],
-          "message": "The program needs {requested} bytes; the board has {available}",
-          "hint": "Make the program smaller."
-        },
-        {
-          "code": 25,
-          "tag": 3407897,
-          "name": "ERR_VM_LOAD_DATA_RANGE",
-          "severity": 1,
-          "size": 8,
-          "fields": [
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            },
-            {
-              "name": "start_idx",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "len",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            },
-            {
-              "name": "items",
-              "type": "u16",
-              "offset": 6,
-              "size": 2
-            }
-          ],
-          "message": "{id}: {len} values from {start_idx} do not fit its {items} elements"
-        },
-        {
-          "code": 26,
-          "tag": 3407898,
-          "name": "ERR_VM_LOAD_SHORT_RECORD",
-          "severity": 1,
-          "size": 5,
-          "fields": [
-            {
-              "name": "packet",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "id_kind": "vm_op"
-            },
-            {
-              "name": "need",
-              "type": "u16",
-              "offset": 1,
-              "size": 2
-            },
-            {
-              "name": "got",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "message": "{packet} is cut short ({got} of {need} bytes)"
-        },
-        {
-          "code": 27,
-          "tag": 3407899,
-          "name": "ERR_VM_ACC_INDEX_OOB",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "acc_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_accessor"
-            },
-            {
-              "name": "pos",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            },
-            {
-              "name": "count",
-              "type": "u8",
-              "offset": 3,
-              "size": 1
-            }
-          ],
-          "message": "{acc_id}: step {pos} is outside its {count} steps"
-        },
-        {
-          "code": 28,
-          "tag": 3407900,
-          "name": "ERR_VM_ACC_BAD_KIND",
-          "severity": 1,
-          "size": 4,
-          "fields": [
-            {
-              "name": "acc_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_accessor"
-            },
-            {
-              "name": "pos",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            },
-            {
-              "name": "kind",
-              "type": "u8",
-              "offset": 3,
-              "size": 1,
-              "enum_ref": "vm_index_kind_e"
-            }
-          ],
-          "message": "{acc_id}: step {pos} is {kind}, which is not allowed there"
-        },
-        {
-          "code": 29,
-          "tag": 3407901,
-          "name": "ERR_VM_REG_OOB",
-          "severity": 1,
-          "size": 5,
-          "fields": [
-            {
-              "name": "kind",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_reg_e"
-            },
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 1,
-              "size": 2,
-              "id_kind_by": {
-                "field": "kind",
-                "kinds": {
-                  "0": "vm_object",
-                  "1": "vm_accessor",
-                  "2": "vm_block"
-                }
-              }
-            },
-            {
-              "name": "count",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "message": "{id} is outside the {count} {kind} of the program"
-        },
-        {
-          "code": 30,
-          "tag": 3407902,
-          "name": "ERR_VM_REG_DUP",
-          "severity": 1,
-          "size": 3,
-          "fields": [
-            {
-              "name": "kind",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_reg_e"
-            },
-            {
-              "name": "id",
-              "type": "u16",
-              "offset": 1,
-              "size": 2,
-              "id_kind_by": {
-                "field": "kind",
-                "kinds": {
-                  "0": "vm_object",
-                  "1": "vm_accessor",
-                  "2": "vm_block"
-                }
-              }
-            }
-          ],
-          "message": "{id} is loaded twice"
-        },
-        {
-          "code": 31,
-          "tag": 3407903,
           "name": "ERR_VM_BLK_BAD_SHAPE",
           "severity": 1,
           "size": 4,
@@ -3970,8 +3537,8 @@
           "message": "{blk_id} has {in_cnt} inputs and {q_cnt} outputs: not what its type takes"
         },
         {
-          "code": 32,
-          "tag": 3407904,
+          "code": 15,
+          "tag": 3407887,
           "name": "ERR_VM_BLK_BAD_REF",
           "severity": 1,
           "size": 6,
@@ -4020,27 +3587,12 @@
               "enum_ref": "vm_ref_kind"
             }
           ],
+          "description": "kind: vm_ref_kind",
           "message": "{slot} of {blk_id} refers to {ref_id}, which does not exist"
         },
         {
-          "code": 33,
-          "tag": 3407905,
-          "name": "ERR_VM_DYN_FULL",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "limit",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "message": "No room for more dynamic values (at most {limit})"
-        },
-        {
-          "code": 34,
-          "tag": 3407906,
+          "code": 16,
+          "tag": 3407888,
           "name": "ERR_VM_BLK_UNKNOWN_TYPE",
           "severity": 1,
           "size": 3,
@@ -4063,535 +3615,8 @@
           "message": "{blk_id}: the board has no {block_type}"
         },
         {
-          "code": 35,
-          "tag": 3407907,
-          "name": "ERR_VM_EXEC_BLOCK_HUNG",
-          "severity": 3,
-          "size": 4,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "ms",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            }
-          ],
-          "message": "{block_idx} has run for {ms} ms without finishing",
-          "hint": "Check the block: a loop that never ends, or a device that does not answer."
-        },
-        {
-          "code": 36,
-          "tag": 3407908,
-          "name": "ERR_VM_EXEC_SPAN_DEPTH",
-          "severity": 1,
-          "size": 3,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "depth",
-              "type": "u8",
-              "offset": 2,
-              "size": 1
-            }
-          ],
-          "message": "{block_idx}: loops are nested {depth} deep, too deep"
-        },
-        {
-          "code": 37,
-          "tag": 3407909,
-          "name": "ERR_VM_EXEC_BAD_SPAN",
-          "severity": 1,
-          "size": 6,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "start",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "end",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "message": "{block_idx}: its loop covers blocks {start} to {end}, which is not valid"
-        },
-        {
-          "code": 38,
-          "tag": 3407910,
-          "name": "ERR_VM_EVENT_OVERFLOW",
-          "severity": 2,
-          "size": 6,
-          "fields": [
-            {
-              "name": "source",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            },
-            {
-              "name": "depth",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "dropped",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "message": "Too many events from {source}: {dropped} dropped (queue of {depth})",
-          "hint": "The source sends events faster than the program takes them: slow it down."
-        },
-        {
-          "code": 39,
-          "tag": 3407911,
-          "name": "ERR_VM_EXPR_BAD_CODE",
-          "severity": 1,
-          "size": 6,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "pc",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "opcode",
-              "type": "u8",
-              "offset": 4,
-              "size": 1,
-              "enum_ref": "vm_expr_op_e"
-            },
-            {
-              "name": "reason",
-              "type": "u8",
-              "offset": 5,
-              "size": 1
-            }
-          ],
-          "message": "{block_idx}: the formula is broken at {pc} ({opcode})"
-        },
-        {
-          "code": 40,
-          "tag": 3407912,
-          "name": "ERR_VM_EXPR_MATH",
-          "severity": 1,
-          "size": 6,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "pc",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "opcode",
-              "type": "u8",
-              "offset": 4,
-              "size": 1,
-              "enum_ref": "vm_expr_op_e"
-            },
-            {
-              "name": "reason",
-              "type": "u8",
-              "offset": 5,
-              "size": 1
-            }
-          ],
-          "message": "{block_idx}: the formula cannot compute {opcode} at {pc}",
-          "hint": "Check the formula: a division by zero, or a value out of range."
-        },
-        {
-          "code": 41,
-          "tag": 3407913,
-          "name": "ERR_VM_FOR_BAD_LOOP",
-          "severity": 1,
-          "size": 9,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "turns",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            },
-            {
-              "name": "cap",
-              "type": "u16",
-              "offset": 6,
-              "size": 2
-            },
-            {
-              "name": "reason",
-              "type": "u8",
-              "offset": 8,
-              "size": 1
-            }
-          ],
-          "message": "{block_idx}: the loop would run {turns} times (at most {cap})",
-          "hint": "Check the loop limits."
-        },
-        {
-          "code": 42,
-          "tag": 3407914,
-          "name": "ERR_VM_OBJ_OWNERSHIP",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "reason",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            },
-            {
-              "name": "limit",
-              "type": "u8",
-              "offset": 1,
-              "size": 1
-            }
-          ],
-          "message": "A value is already placed elsewhere, would contain itself, or is nested too deep (at most {limit})"
-        },
-        {
-          "code": 43,
-          "tag": 3407915,
-          "name": "ERR_VM_OBJ_USR_PROTECTED",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "{obj_id} cannot be changed from the app",
-          "hint": "Change it in the program, not from the app."
-        },
-        {
-          "code": 44,
-          "tag": 3407916,
-          "name": "ERR_VM_LOAD_RUNNING",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "mode",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_run_mode_e"
-            }
-          ],
-          "message": "The program cannot be changed while it runs ({mode})",
-          "hint": "Stop the program first."
-        },
-        {
-          "code": 45,
-          "tag": 3407917,
-          "name": "ERR_VM_EXEC_CONTROL",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "command",
-              "type": "u8",
-              "offset": 0,
-              "size": 1,
-              "enum_ref": "vm_exec_command_e"
-            },
-            {
-              "name": "mode",
-              "type": "u8",
-              "offset": 1,
-              "size": 1,
-              "enum_ref": "vm_run_mode_e"
-            }
-          ],
-          "message": "{command} is not possible now ({mode})",
-          "hint": "Wait for the program to reach a state that allows it, or stop it first."
-        },
-        {
-          "code": 46,
-          "tag": 3407918,
-          "name": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "{obj_id} is a folder: it cannot be written from the app"
-        },
-        {
-          "code": 47,
-          "tag": 3407919,
-          "name": "ERR_VM_OVERRIDE_BAD_RECORD",
-          "severity": 1,
-          "size": 6,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            },
-            {
-              "name": "declared_len",
-              "type": "u16",
-              "offset": 2,
-              "size": 2
-            },
-            {
-              "name": "item_size",
-              "type": "u16",
-              "offset": 4,
-              "size": 2
-            }
-          ],
-          "message": "A write to {obj_id} is broken ({declared_len} bytes for elements of {item_size})"
-        },
-        {
-          "code": 48,
-          "tag": 3407920,
-          "name": "ERR_VM_EXEC_SELF_BARRIER",
-          "severity": 1,
-          "size": 1,
-          "fields": [
-            {
-              "name": "operation",
-              "type": "u8",
-              "offset": 0,
-              "size": 1
-            }
-          ],
-          "message": "The program tried to stop itself from inside a block"
-        },
-        {
-          "code": 49,
-          "tag": 3407921,
-          "name": "ERR_VM_EXEC_FAULT_LATCHED",
-          "severity": 4,
-          "size": 6,
-          "fields": [
-            {
-              "name": "device_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "device"
-            },
-            {
-              "name": "root_tag",
-              "type": "u32",
-              "offset": 2,
-              "size": 4,
-              "id_kind": "error_tag"
-            }
-          ],
-          "message": "The program is stopped by a critical error of {device_id} ({root_tag}): acknowledge it to start again",
-          "hint": "Fix the device error, then acknowledge it and run again."
-        },
-        {
-          "code": 50,
-          "tag": 3407922,
-          "name": "ERR_VM_PERIODIC_OVERRUN",
-          "severity": 1,
-          "size": 10,
-          "fields": [
-            {
-              "name": "block_idx",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_block"
-            },
-            {
-              "name": "missed",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            },
-            {
-              "name": "period_ms",
-              "type": "u32",
-              "offset": 6,
-              "size": 4,
-              "unit": "ms"
-            }
-          ],
-          "message": "{block_idx} missed {missed} runs of its {period_ms} period",
-          "hint": "Give the block a longer period, or make what it runs shorter."
-        },
-        {
-          "code": 51,
-          "tag": 3407923,
-          "name": "ERR_VM_RETAIN_UNNAMED",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            }
-          ],
-          "message": "{obj_id} must have a name to be kept across restarts",
-          "hint": "Give the variable a name."
-        },
-        {
-          "code": 52,
-          "tag": 3407924,
-          "name": "ERR_VM_RETAIN_TOO_BIG",
-          "severity": 1,
-          "size": 10,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            },
-            {
-              "name": "need",
-              "type": "u32",
-              "offset": 2,
-              "size": 4
-            },
-            {
-              "name": "max",
-              "type": "u32",
-              "offset": 6,
-              "size": 4
-            }
-          ],
-          "message": "Keeping {obj_id} needs {need} bytes; at most {max} are kept",
-          "hint": "Keep fewer or smaller variables across restarts."
-        },
-        {
-          "code": 53,
-          "tag": 3407925,
-          "name": "ERR_VM_RETAIN_MISMATCH",
-          "severity": 1,
-          "size": 5,
-          "fields": [
-            {
-              "name": "obj_id",
-              "type": "u16",
-              "offset": 0,
-              "size": 2,
-              "id_kind": "vm_object"
-            },
-            {
-              "name": "type",
-              "type": "u8",
-              "offset": 2,
-              "size": 1,
-              "enum_ref": "vm_obj_t_e"
-            },
-            {
-              "name": "size",
-              "type": "u16",
-              "offset": 3,
-              "size": 2
-            }
-          ],
-          "message": "The kept value of {obj_id} does not match it ({type}, {size} bytes)"
-        },
-        {
-          "code": 54,
-          "tag": 3407926,
-          "name": "ERR_VM_RETAIN_CORRUPT",
-          "severity": 2,
-          "size": 4,
-          "fields": [
-            {
-              "name": "offset",
-              "type": "u32",
-              "offset": 0,
-              "size": 4
-            }
-          ],
-          "message": "The kept values are damaged at byte {offset}"
-        },
-        {
-          "code": 55,
-          "tag": 3407927,
-          "name": "ERR_VM_SUB_TRACK_FULL",
-          "severity": 1,
-          "size": 2,
-          "fields": [
-            {
-              "name": "max",
-              "type": "u16",
-              "offset": 0,
-              "size": 2
-            }
-          ],
-          "message": "Too many values to watch (at most {max})",
-          "hint": "Watch fewer values at once."
-        },
-        {
-          "code": 56,
-          "tag": 3407928,
+          "code": 17,
+          "tag": 3407889,
           "name": "ERR_VM_BLK_OUTPUT_TAKEN",
           "severity": 1,
           "size": 6,
@@ -4632,29 +3657,418 @@
               "enum_ref": "vm_ref_kind"
             }
           ],
+          "description": "kind: vm_ref_kind",
           "message": "{slot} of {blk_id} writes {obj_id}, which another block already writes",
           "hint": "Let only one block write the variable."
         },
         {
-          "code": 57,
-          "tag": 3407929,
-          "name": "ERR_VM_LOAD_EMPTY",
+          "code": 18,
+          "tag": 3407890,
+          "name": "ERR_VM_OBJ_COPY_MISMATCH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "src_type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "dst_type",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "src_size",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dst_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "A {src_type} of {src_size} bytes cannot be copied into a {dst_type} of {dst_size} bytes"
+        },
+        {
+          "code": 19,
+          "tag": 3407891,
+          "name": "ERR_VM_OBJ_COPY_SHAPE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "description": "reason: VM_COPY_SHAPE_*",
+          "message": "The values do not have the same shape (element {index}, level {depth})"
+        },
+        {
+          "code": 20,
+          "tag": 3407892,
+          "name": "ERR_VM_OBJ_NOT_MUTABLE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} cannot be written"
+        },
+        {
+          "code": 21,
+          "tag": 3407893,
+          "name": "ERR_VM_OBJ_OOB",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "index",
+              "type": "u16",
+              "offset": 0,
+              "size": 2
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 2,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "Position {index} is outside {obj_id}"
+        },
+        {
+          "code": 22,
+          "tag": 3407894,
+          "name": "ERR_VM_OBJ_NOT_PTR",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "actual",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} is {actual}, not a folder"
+        },
+        {
+          "code": 23,
+          "tag": 3407895,
+          "name": "ERR_VM_OBJ_BAD_TYPE",
           "severity": 1,
           "size": 1,
           "fields": [
             {
-              "name": "unused",
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "{type} is not a type the board knows"
+        },
+        {
+          "code": 24,
+          "tag": 3407896,
+          "name": "ERR_VM_OBJ_EMPTY",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "A {type} with no elements"
+        },
+        {
+          "code": 25,
+          "tag": 3407897,
+          "name": "ERR_VM_OBJ_BAD_SIZE",
+          "severity": 1,
+          "size": 4,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "payload_size",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "width",
+              "type": "u8",
+              "offset": 3,
+              "size": 1
+            }
+          ],
+          "message": "A {type} of {payload_size} bytes does not split into elements of {width}"
+        },
+        {
+          "code": 26,
+          "tag": 3407898,
+          "name": "ERR_VM_OBJ_NAME_TOO_LONG",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "len",
               "type": "u8",
               "offset": 0,
               "size": 1
             }
           ],
+          "message": "A name of {len} bytes is too long"
+        },
+        {
+          "code": 27,
+          "tag": 3407899,
+          "name": "ERR_VM_OBJ_RETENTIVE_PTR",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            }
+          ],
+          "message": "A {type} cannot be kept across restarts"
+        },
+        {
+          "code": 28,
+          "tag": 3407900,
+          "name": "ERR_VM_OBJ_OWNERSHIP",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            },
+            {
+              "name": "limit",
+              "type": "u8",
+              "offset": 1,
+              "size": 1
+            }
+          ],
+          "message": "A value is already placed elsewhere, would contain itself, or is nested too deep (at most {limit})"
+        },
+        {
+          "code": 29,
+          "tag": 3407901,
+          "name": "ERR_VM_OBJ_USR_PROTECTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} cannot be changed from the app",
+          "hint": "Change it in the program, not from the app."
+        },
+        {
+          "code": 30,
+          "tag": 3407902,
+          "name": "ERR_VM_LOAD_BAD_STATE",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "state",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_load_state_e"
+            },
+            {
+              "name": "expected",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_load_state_e"
+            }
+          ],
+          "message": "The program upload is {state}; {expected} was expected"
+        },
+        {
+          "code": 31,
+          "tag": 3407903,
+          "name": "ERR_VM_LOAD_TOO_BIG",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "requested",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            },
+            {
+              "name": "available",
+              "type": "u32",
+              "offset": 4,
+              "size": 4
+            }
+          ],
+          "description": "OPEN: more than the pool",
+          "message": "The program needs {requested} bytes; the board has {available}",
+          "hint": "Make the program smaller."
+        },
+        {
+          "code": 32,
+          "tag": 3407904,
+          "name": "ERR_VM_LOAD_DATA_RANGE",
+          "severity": 1,
+          "size": 8,
+          "fields": [
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "start_idx",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "len",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            },
+            {
+              "name": "items",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            }
+          ],
+          "message": "{id}: {len} values from {start_idx} do not fit its {items} elements"
+        },
+        {
+          "code": 33,
+          "tag": 3407905,
+          "name": "ERR_VM_LOAD_SHORT_RECORD",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "packet",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "id_kind": "vm_op"
+            },
+            {
+              "name": "need",
+              "type": "u16",
+              "offset": 1,
+              "size": 2
+            },
+            {
+              "name": "got",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "{packet} is cut short ({got} of {need} bytes)"
+        },
+        {
+          "code": 34,
+          "tag": 3407906,
+          "name": "ERR_VM_LOAD_RUNNING",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_run_mode_e"
+            }
+          ],
+          "message": "The program cannot be changed while it runs ({mode})",
+          "hint": "Stop the program first."
+        },
+        {
+          "code": 35,
+          "tag": 3407907,
+          "name": "ERR_VM_LOAD_EMPTY",
+          "severity": 1,
+          "size": 0,
+          "fields": [],
           "message": "The program is empty",
           "hint": "Add blocks to the program."
         },
         {
-          "code": 58,
-          "tag": 3407930,
+          "code": 36,
+          "tag": 3407908,
           "name": "ERR_VM_LOAD_ABORTED",
           "severity": 2,
           "size": 1,
@@ -4667,12 +4081,13 @@
               "id_kind": "vm_op"
             }
           ],
+          "description": "context: the failed load op (fail closed)",
           "message": "The program upload was cancelled at {packet}: send it again from the start",
           "hint": "Load the program again."
         },
         {
-          "code": 59,
-          "tag": 3407931,
+          "code": 37,
+          "tag": 3407909,
           "name": "ERR_VM_LOAD_INCOMPLETE",
           "severity": 1,
           "size": 3,
@@ -4702,63 +4117,388 @@
           "message": "The program is incomplete: {id} was never loaded"
         },
         {
-          "code": 60,
-          "tag": 3407932,
-          "name": "ERR_VM_NO_MEM",
+          "code": 38,
+          "tag": 3407910,
+          "name": "ERR_VM_REG_OOB",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_reg_e"
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_object",
+                  "1": "vm_accessor",
+                  "2": "vm_block"
+                }
+              }
+            },
+            {
+              "name": "count",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "{id} is outside the {count} {kind} of the program"
+        },
+        {
+          "code": 39,
+          "tag": 3407911,
+          "name": "ERR_VM_REG_DUP",
+          "severity": 1,
+          "size": 3,
+          "fields": [
+            {
+              "name": "kind",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_reg_e"
+            },
+            {
+              "name": "id",
+              "type": "u16",
+              "offset": 1,
+              "size": 2,
+              "id_kind_by": {
+                "field": "kind",
+                "kinds": {
+                  "0": "vm_object",
+                  "1": "vm_accessor",
+                  "2": "vm_block"
+                }
+              }
+            }
+          ],
+          "message": "{id} is loaded twice"
+        },
+        {
+          "code": 40,
+          "tag": 3407912,
+          "name": "ERR_VM_EXEC_BLOCK_HUNG",
           "severity": 3,
           "size": 4,
           "fields": [
             {
-              "name": "size",
-              "type": "u32",
+              "name": "block_idx",
+              "type": "u16",
               "offset": 0,
-              "size": 4
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "ms",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
             }
           ],
-          "message": "No memory for the program ({size} bytes)",
-          "hint": "Make the program smaller."
+          "message": "{block_idx} has run for {ms} ms without finishing",
+          "hint": "Check the block: a loop that never ends, or a device that does not answer."
         },
         {
-          "code": 61,
-          "tag": 3407933,
-          "name": "ERR_VM_BAD_ARG",
-          "severity": 3,
-          "size": 0,
-          "fields": [],
-          "message": "A program request is not valid"
-        },
-        {
-          "code": 62,
-          "tag": 3407934,
-          "name": "ERR_VM_RANGE",
+          "code": 41,
+          "tag": 3407913,
+          "name": "ERR_VM_EXEC_SPAN_DEPTH",
           "severity": 1,
-          "size": 12,
+          "size": 3,
           "fields": [
             {
-              "name": "val",
-              "type": "u32",
+              "name": "block_idx",
+              "type": "u16",
               "offset": 0,
-              "size": 4
+              "size": 2,
+              "id_kind": "vm_block"
             },
             {
-              "name": "min",
-              "type": "u32",
-              "offset": 4,
-              "size": 4
-            },
-            {
-              "name": "max",
-              "type": "u32",
-              "offset": 8,
-              "size": 4
+              "name": "depth",
+              "type": "u8",
+              "offset": 2,
+              "size": 1
             }
           ],
-          "description": "a count or value outside its limits",
-          "message": "{val} is outside {min}..{max}"
+          "message": "{block_idx}: loops are nested {depth} deep, too deep"
         },
         {
-          "code": 63,
-          "tag": 3407935,
+          "code": 42,
+          "tag": 3407914,
+          "name": "ERR_VM_EXEC_BAD_SPAN",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "start",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "end",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "{block_idx}: its loop covers blocks {start} to {end}, which is not valid"
+        },
+        {
+          "code": 43,
+          "tag": 3407915,
+          "name": "ERR_VM_EXEC_CONTROL",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "command",
+              "type": "u8",
+              "offset": 0,
+              "size": 1,
+              "enum_ref": "vm_exec_command_e"
+            },
+            {
+              "name": "mode",
+              "type": "u8",
+              "offset": 1,
+              "size": 1,
+              "enum_ref": "vm_run_mode_e"
+            }
+          ],
+          "message": "{command} is not possible now ({mode})",
+          "hint": "Wait for the program to reach a state that allows it, or stop it first."
+        },
+        {
+          "code": 44,
+          "tag": 3407916,
+          "name": "ERR_VM_EXEC_SELF_BARRIER",
+          "severity": 1,
+          "size": 1,
+          "fields": [
+            {
+              "name": "operation",
+              "type": "u8",
+              "offset": 0,
+              "size": 1
+            }
+          ],
+          "message": "The program tried to stop itself from inside a block"
+        },
+        {
+          "code": 45,
+          "tag": 3407917,
+          "name": "ERR_VM_EXEC_FAULT_LATCHED",
+          "severity": 4,
+          "size": 6,
+          "fields": [
+            {
+              "name": "device_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "root_tag",
+              "type": "u32",
+              "offset": 2,
+              "size": 4,
+              "id_kind": "error_tag"
+            }
+          ],
+          "message": "The program is stopped by a critical error of {device_id} ({root_tag}): acknowledge it to start again",
+          "hint": "Fix the device error, then acknowledge it and run again."
+        },
+        {
+          "code": 46,
+          "tag": 3407918,
+          "name": "ERR_VM_EVENT_OVERFLOW",
+          "severity": 2,
+          "size": 6,
+          "fields": [
+            {
+              "name": "source",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "device"
+            },
+            {
+              "name": "depth",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "dropped",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "Too many events from {source}: {dropped} dropped (queue of {depth})",
+          "hint": "The source sends events faster than the program takes them: slow it down."
+        },
+        {
+          "code": 47,
+          "tag": 3407919,
+          "name": "ERR_VM_EXPR_BAD_CODE",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the formula is broken at {pc} ({opcode})"
+        },
+        {
+          "code": 48,
+          "tag": 3407920,
+          "name": "ERR_VM_EXPR_MATH",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "pc",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "opcode",
+              "type": "u8",
+              "offset": 4,
+              "size": 1,
+              "enum_ref": "vm_expr_op_e"
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 5,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the formula cannot compute {opcode} at {pc}",
+          "hint": "Check the formula: a division by zero, or a value out of range."
+        },
+        {
+          "code": 49,
+          "tag": 3407921,
+          "name": "ERR_VM_FOR_BAD_LOOP",
+          "severity": 1,
+          "size": 9,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "turns",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "cap",
+              "type": "u16",
+              "offset": 6,
+              "size": 2
+            },
+            {
+              "name": "reason",
+              "type": "u8",
+              "offset": 8,
+              "size": 1
+            }
+          ],
+          "message": "{block_idx}: the loop would run {turns} times (at most {cap})",
+          "hint": "Check the loop limits."
+        },
+        {
+          "code": 50,
+          "tag": 3407922,
+          "name": "ERR_VM_PERIODIC_OVERRUN",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "block_idx",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_block"
+            },
+            {
+              "name": "missed",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "period_ms",
+              "type": "u32",
+              "offset": 6,
+              "size": 4,
+              "unit": "ms"
+            }
+          ],
+          "message": "{block_idx} missed {missed} runs of its {period_ms} period",
+          "hint": "Give the block a longer period, or make what it runs shorter."
+        },
+        {
+          "code": 51,
+          "tag": 3407923,
           "name": "ERR_VM_DEV_HELD",
           "severity": 2,
           "size": 15,
@@ -4798,6 +4538,146 @@
           "description": "a device block's value held to its limit",
           "message": "{block_idx}: {value} is outside {min}..{max}, the nearest end is sent",
           "hint": "Bring the value into the range shown; until then the device runs at the end of its range."
+        },
+        {
+          "code": 52,
+          "tag": 3407924,
+          "name": "ERR_VM_OVERRIDE_PTR_UNSUPPORTED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} is a folder: it cannot be written from the app"
+        },
+        {
+          "code": 53,
+          "tag": 3407925,
+          "name": "ERR_VM_OVERRIDE_BAD_RECORD",
+          "severity": 1,
+          "size": 6,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "declared_len",
+              "type": "u16",
+              "offset": 2,
+              "size": 2
+            },
+            {
+              "name": "item_size",
+              "type": "u16",
+              "offset": 4,
+              "size": 2
+            }
+          ],
+          "message": "A write to {obj_id} is broken ({declared_len} bytes for elements of {item_size})"
+        },
+        {
+          "code": 54,
+          "tag": 3407926,
+          "name": "ERR_VM_RETAIN_UNNAMED",
+          "severity": 1,
+          "size": 2,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            }
+          ],
+          "message": "{obj_id} must have a name to be kept across restarts",
+          "hint": "Give the variable a name."
+        },
+        {
+          "code": 55,
+          "tag": 3407927,
+          "name": "ERR_VM_RETAIN_TOO_BIG",
+          "severity": 1,
+          "size": 10,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "need",
+              "type": "u32",
+              "offset": 2,
+              "size": 4
+            },
+            {
+              "name": "max",
+              "type": "u32",
+              "offset": 6,
+              "size": 4
+            }
+          ],
+          "message": "Keeping {obj_id} needs {need} bytes; at most {max} are kept",
+          "hint": "Keep fewer or smaller variables across restarts."
+        },
+        {
+          "code": 56,
+          "tag": 3407928,
+          "name": "ERR_VM_RETAIN_MISMATCH",
+          "severity": 1,
+          "size": 5,
+          "fields": [
+            {
+              "name": "obj_id",
+              "type": "u16",
+              "offset": 0,
+              "size": 2,
+              "id_kind": "vm_object"
+            },
+            {
+              "name": "type",
+              "type": "u8",
+              "offset": 2,
+              "size": 1,
+              "enum_ref": "vm_obj_t_e"
+            },
+            {
+              "name": "size",
+              "type": "u16",
+              "offset": 3,
+              "size": 2
+            }
+          ],
+          "message": "The kept value of {obj_id} does not match it ({type}, {size} bytes)"
+        },
+        {
+          "code": 57,
+          "tag": 3407929,
+          "name": "ERR_VM_RETAIN_CORRUPT",
+          "severity": 2,
+          "size": 4,
+          "fields": [
+            {
+              "name": "offset",
+              "type": "u32",
+              "offset": 0,
+              "size": 4
+            }
+          ],
+          "message": "The kept values are damaged at byte {offset}"
         }
       ]
     }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "esp_compiler.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 
 /*
  * VM Object Model & Header Definitions
@@ -19,6 +19,11 @@
 // ===========================================================================
 // 1. Types & Core Data Structures
 // ===========================================================================
+
+/* No ID, in every ID space of the VM: an unwired pin, no ENO, no object, an object not in a register. Never a
+ * registry slot (the store allocates without binding under it). A heap object's ID is VM_OBJ_ID_DYN_BIT | its slot. */
+#define VM_ID_NONE        0xFFFFu
+#define VM_OBJ_ID_DYN_BIT 0x8000u
 
 // Longest tag a 4-bit name_size can describe (4-bit size in obj head)
 #define VM_OBJ_NAME_MAX 15

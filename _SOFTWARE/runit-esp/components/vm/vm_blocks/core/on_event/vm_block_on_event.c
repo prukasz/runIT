@@ -1,4 +1,5 @@
 #include "vm_block_on_event.h"
+#include <string.h>
 #include "vm_blocks.h"
 
 /* Enable-driven: acts only on a pass that holds a matching event. */

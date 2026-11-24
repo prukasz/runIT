@@ -1,5 +1,6 @@
 #include "vm_router.h"
-#include "vm_err.h"
+#include <string.h>
+#include "vm_errors.h"
 
 #include "vm_clock.h"
 #include "vm_event.h"
@@ -221,7 +222,7 @@ VM_OP_FN(op_speed) {
     return ERR_NEW(ERR_VM_LOAD_SHORT_RECORD, .packet = VM_OP_SPEED, .need = sizeof(rec), .got = (uint16_t)len);
   }
   memcpy(&rec, body, len);
-  ERR_CHECK(rec.step_ms <= VM_CLOCK_STEP_MS_MAX, ERR_VM_BAD_ARG);
+  ERR_CHECK_RANGE(rec.step_ms, 0, VM_CLOCK_STEP_MS_MAX);
   ERR_TRY(vm_clock_set_slowdown(rec.factor));
   return vm_clock_set_step_ms(rec.step_ms);
 }
@@ -267,10 +268,7 @@ err_h vm_init(void) {
 err_h vm_stop_on_fault(uint16_t device_id) {
   (void)vm_exec_fault_latch(device_id, 0);  // requests the stop at once; the root tag is not known here
   err_h err = vm_exec_stop();
-  if (err != NULL && err_tag(err) == ERR_VM_EXEC_SELF_BARRIER) {  // called from the pass itself: the latch stops it
-    err_free(err);
-    return NULL;
-  }
+  (void)err_drop(&err, ERR_VM_EXEC_SELF_BARRIER);  // called from the pass itself: the latch stops it
   return err;
 }
 

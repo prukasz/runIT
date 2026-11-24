@@ -1,6 +1,6 @@
 #pragma once
 #include <sdkconfig.h>
-#include "vm_err.h"
+#include "vm_errors.h"
 #include "errors.h"
 
 //#ref-enum @alias VM registry
@@ -10,11 +10,6 @@ typedef enum vm_reg_e {
   VM_REG_BLK = 2,  //@alias Blocks @description The program's blocks
   VM_REG_CNT = 3,
 } vm_reg_e;
-
-/** @brief String representation of registry kind for debugging. */
-static inline const char* vm_reg_kind_name(vm_reg_e r) {
-  return vm_reg_name((uint8_t)r);
-}
 
 typedef struct vm_alloc_t {
   uint8_t* base;

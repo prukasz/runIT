@@ -1,5 +1,5 @@
 #include "vm_clock.h"
-#include "vm_err.h"
+#include "vm_errors.h"
 
 
 uint64_t g_vm_pass_ms;
@@ -55,7 +55,7 @@ void vm_clock_pass_start(uint64_t now_us, bool stepped) {
 }
 
 err_h vm_clock_set_slowdown(uint16_t factor) {
-  ERR_CHECK_IN_RANGE(factor, 1, VM_CLOCK_SLOWDOWN_MAX, ERR_VM_BAD_ARG);
+  ERR_CHECK_RANGE(factor, 1, VM_CLOCK_SLOWDOWN_MAX);
   s_clock_preset.slowdown = factor;
   return NULL;
 }
@@ -65,7 +65,7 @@ uint16_t vm_clock_slowdown(void) {
 }
 
 err_h vm_clock_set_step_ms(uint16_t ms) {
-  ERR_CHECK(ms <= VM_CLOCK_STEP_MS_MAX, ERR_VM_BAD_ARG);
+  ERR_CHECK_RANGE(ms, 0, VM_CLOCK_STEP_MS_MAX);
   s_clock_preset.step_ms = ms;
   return NULL;
 }

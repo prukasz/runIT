@@ -6,7 +6,8 @@ Component `components/vm/vm_core/`. The VM runs a program that the app compiles 
 
 ```
 vm_core/
-  errors/    vm_err.h (the tags, ERR_MOD_VM = 15, object ID constants, debug names), vm_errors.c/h (cold-path builders)
+  errors/    vm_errors.h (ERR_VM_MAP, the tags of the core and the blocks, and the cold-path builders), vm_errors.c
+             (their registration and the builders), errors_vm.json (the messages)
   store/     arena + the three registries
   obj/       objects, accessors, dynamic objects, copy / clone / link
   block/     block layout and API (vm_block.h), build + verify, helpers, vm_block_ids.h (the type numbers),
@@ -15,7 +16,7 @@ vm_core/
   loader/    load state machine, vm_wire.h (every wire record)
   sub/       telemetry subscriptions (vm_sub.c)
   retain/    retained values (vm_retain.c)
-  router/    vm_router.c/.h, contract_vm.json: the remote interface (ROUTER_KEY_VM = 0x0B), vm_init, vm_stop_on_fault
+  router/    vm_router.c/.h, contract_vm.json: the remote interface (MODULE_ID_VM), vm_init, vm_stop_on_fault
 ```
 
 Includes are by bare filename; every folder is on the include path (`CMakeLists.txt`). The component builds at `-O2` (hot path) and is linked `WHOLE_ARCHIVE` (tag registration).
@@ -25,7 +26,7 @@ Includes are by bare filename; every folder is on the include path (`CMakeLists.
 A program lives in three ID spaces over one arena per program (`vm_store`; size and slot counts come with OPEN, `CONFIG_VM_STORE_MAX_POOL` caps it):
 
 - **Objects** (`vm_obj.h`): a 4-byte head, a payload of one value or an array, an optional tag (name, up to 15 chars). Types `PTR U8 U32 I32 F B STR`. There is no struct type: a tree is a `PTR` array of child objects. Flags: mutable, retentive, usr_protected; the board's own: tagged, dynamic.
-- **Accessors** (`vm_obj_access*.h`): a root object plus a chain of index steps: `LITERAL` (fixed position), `REF` (index read live from another accessor), `NAME` (child by tag). Every input pin and enable source is an accessor. At load the root must exist, and a fixed path (no steps, or one `LITERAL` on the root) is resolved once into the accessor's cache, or refused (`ERR_VM_ACCESSOR_UNKNOWN_ID` / `_OOB`): reading it is then a flag test and a copy (`vm_acc_resolve`). Any other path is walked when used (`vm_acc_walk`).
+- **Accessors** (`vm_obj_access*.h`): a root object plus a chain of index steps: `LITERAL` (fixed position), `REF` (index read live from another accessor), `NAME` (child by tag). Every input pin and enable source is an accessor. At load the root must exist, and a fixed path (no steps, or one `LITERAL` on the root) is resolved once into the accessor's cache, or refused (`ERR_VM_ACC_UNKNOWN_ID` / `_OOB`): reading it is then a flag test and a copy (`vm_acc_resolve`). Any other path is walked when used (`vm_acc_walk`).
 - **Blocks** (`vm_block.h`): `[cfg 16 B][inputs: accessor*][outputs: object][enables: accessor*][state]`. `block_type` indexes the palette (`g_vm_block_types[]`), which gives the body, the optional load check, the pin shape and the state size.
 - **Heap objects** (`vm_obj_dyn`): trees built at run time (a CLONE's copy; a block building a tree with `vm_obj_dyn_new` / `vm_obj_dyn_adopt`). ID = `VM_OBJ_ID_DYN_BIT` | slot, at most `CONFIG_VM_DYN_MAX` live. A small header in front of the object holds its slot and its owner. Ownership is a tree: a heap object hangs in at most one PTR cell, and losing that cell frees it with everything below it; sharing means copying (CLONE). Linking a tree into a cell checks it once (no owner yet, not containing the cell, at most `CONFIG_VM_DYN_MAX_DEPTH` heap levels: `ERR_VM_OBJ_OWNERSHIP`). Nothing else allocates after the load.
 
@@ -38,14 +39,14 @@ Rules everything else follows:
 - **Not acting = outputs kept, ENO off.** The routers (IF, SWITCH) write every output, 1 on the branch taken and 0 on the others: their outputs are enable gates.
 - **`cfg.on_error`**: `STOP` drops ENO after a failed call (everything below it skips), `CONTINUE` leaves the flow; both report the error. Outputs are never retracted. A failure is the block's per-call bit `VM_BLK_RT_FAULT`; errors go out through `BLOCK_CALL` / `vm_block_report_error`, tagged with the block.
 - **One report per episode**: a block that keeps failing with the same root cause reports the first failure only (`VM_BLK_RT_REPORTED`, the root tag folded into `cfg.err_key`); the repeats still fail the call (`on_error` acts) but are freed unreported, so the errors stream, the history and the device error policy see one record, not one per pass. A call that passes, another root cause or a start of the program (`VM_EXEC_NORMAL_MODE` / `SCAN_MODE` / `BLOCK_MODE`; the next pass clears every block) ends the episode.
-- **Reporting is not the block's time**: a block's report (`vm_block_report_error`, `VM_BLK_EMIT_ERR`) goes through `vm_exec_report`, which pauses the block watchdog while `err_report` logs the chain to the console (tens of ms).
+- **Reporting is not the block's time**: a block's report (`vm_block_report_error`, `vm_block_emit`) goes through `vm_exec_report`, which pauses the block watchdog while `err_report` logs the chain to the console (tens of ms).
 - **Everything from the wire is untrusted**: IDs, counts and lengths are checked before anything is stored. An ID that was never bound reads NULL; ID `0xFFFF` is refused (`ERR_VM_REG_OOB`), and an accessor cannot take a reference step to itself.
 - **Block watchdog**: a block that runs longer than `CONFIG_VM_EXEC_BLOCK_WD_MS` is reported (`ERR_VM_EXEC_BLOCK_HUNG`) once; it stays quiet until one of its calls finishes within that time or the program starts again, so a block slow on every pass is one report.
 - **Run modes** (`vm_run_mode_e`, set by `EXEC`): normal (passes back to back), scan (one pass per `ONCE`), block (one block per `NEXT`), pause / resume, reset to start. In block mode the supervisor parks before each block, and at each stop it sends what the block before changed (the telemetry sample, once per stop) instead of waiting for the end of the pass; `STATUS` says which block the next `NEXT` runs (`next_block`: the one it is parked before, 0 between two passes). Time spent not running passes does not count for the program clock (`vm_clock.h`); so that stepping does not stop the timing blocks, each pass asked for (scan `ONCE`, a whole pass of `NEXT`s) adds `step_ms` of program time (SPEED, default 10 ms; 0 stands time still).
 
-## Remote (`ROUTER_KEY_VM` = 0x0B, `vm_router.h`)
+## Remote (`MODULE_ID_VM`, `vm_router.h`)
 
-A request is `[0x0B][dir][op][payload]`: `dir` (`cmd_dir_e`, read 0 / write 1) picks the side of the op (a side the op does not have: `ERR_CMD_DIRECTION`). Ops never renumber.
+A request is `[MODULE_ID_VM][dir][op][payload]`: `dir` (`cmd_dir_e`, read 0 / write 1) picks the side of the op (a side the op does not have: `ERR_CMD_DIRECTION`). Ops never renumber.
 
 | Op | Dir | Payload | Effect |
 |---|---|---|---|
@@ -79,15 +80,15 @@ heap objects  [hdr PUSH, MODULE_ID_VM][0x03 ADD_OBJECTS][u8 count] count × (vm_
 
 Where it goes is its links (`app/runit`: to the sub-port `MODULE_ID_VM` of the app's sessions). A frame with no link from the port is lost like a refused one: its objects are sent again once one is made.
 
-So the board writes values out in the format the app writes them in, and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`ROUTER_KEY_VM`, `VM_OP_*`).
+So the board writes values out in the format the app writes them in, and the app parses both directions with one decoder. The record structs are shared (`vm_wire.h`), the key and ops are the same constants (`MODULE_ID_VM`, `VM_OP_*`).
 
-Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; sampled at the end of every pass, and in block mode also at every stop before a block (`block_gate` in `vm_exec.c`, once per stop), so a stepped program shows what each block did; an object larger than a frame is split by `start_idx`, and one larger than the stream queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_VM_SUB_TRACK_FULL`), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
+Sending: only objects whose value changed since last sent (value hash), everything once after a subscribe; sampled at the end of every pass, and in block mode also at every stop before a block (`block_gate` in `vm_exec.c`, once per stop), so a stepped program shows what each block did; an object larger than a frame is split by `start_idx`, and one larger than the stream queue continues where the last sample stopped (`resume`; it starts over if the value changed meanwhile). A heap object is described before any value that refers to it. Limits: `CONFIG_VM_SUB_MAX_SUBSCRIBERS`, `CONFIG_VM_SUB_MAX_TRACKED` (subscribed objects plus everything reachable through their PTR children; past it `ERR_FULL`, reported once), `CONFIG_VM_SUB_MAX_FRAME_LEN`.
 
 ## Integration
 
 | Part | How |
 |---|---|
-| Errors | Module `ERR_MOD_VM` (15): one `ERR_VM_MAP` in `errors/vm_err.h`. `VM_RAISE(tag, …)` = `err_report(ERR_NEW(…))` for an error that ends where it is raised |
+| Errors | Module `MODULE_ID_VM`: one `ERR_VM_MAP` in `errors/vm_errors.h` for the core and the blocks, its messages in `errors/errors_vm.json`. A bad argument, a NULL, no memory, a value out of range and a full table are the core tags (`ERR_BAD_ARG`, `ERR_NULL_PTR`, `ERR_NO_MEM`, `ERR_RANGE` by `ERR_CHECK_RANGE`, `ERR_FULL`). An error that ends where it is raised is `err_report(ERR_NEW(…))`; a block's goes through `BLOCK_CALL` / `vm_block_report_error` / `vm_block_emit`. The ID constants (`VM_ID_NONE`, `VM_OBJ_ID_DYN_BIT`) are in `obj/vm_obj.h`, the wiring points of a bad reference (`VM_REF_KIND_*`) in `block/vm_block_build.h` |
 | Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): `runit` registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended; `EXEC` ACK_FAULT clears the latch |
 | Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` (queued, run on a router task, never inside a pass); the VM sits above sys_actions |
 | Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue, only while the loaded program has an `ON_EVENT` block (the loader turns it on, `vm_event_listen`; a load turns it off): a program that reads no event queues none, so a burst (a safe stop suspends every device, an event each) drops and reports nothing. An event lives exactly one pass; `ON_EVENT` matches the snapshot by source, event and channel with `sys_event_matches`. A full queue drops the event; the first pass of a run of passes with drops reports them as `ERR_VM_EVENT_OVERFLOW` (count and the last source), the next only after a pass without a drop |
@@ -105,6 +106,12 @@ Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the s
 - **A message block (JSON in, a heap tree out):** not written. The core is ready for it: the block builds the tree with `vm_obj_dyn_new` / `vm_obj_dyn_adopt` and links the root into its output's cell (`vm_obj_link_direct`); other blocks read it by name (`msg["key"]`) or position (`msg[i]`) through accessors the app keeps walked (a `dynamic` folder). Mapping decided: a number is `F`; an object is a `PTR` with named children (keys up to 15 characters); an array of numbers is one `F` array; a 2-D array is a `PTR` of 1-D arrays; a string is `STR`. Open: `null` and empty values (an object cannot be empty: probably an unwired cell).
 - **Retained values as a record:** a snapshot as `DATA` frames in a record would make readback symmetric with the rest; for now a plain NVS blob.
 - **Start with no program:** `EXEC` normal on an empty VM succeeds (`vm_loader_verify_complete` checks only an open program) and runs zero blocks. Undecided whether this should be an error.
+- **Data in:** the port of `MODULE_ID_VM` is output only (no `in`): nothing reaches the program from the data matrix, only `DATA` commands through the router. No general input (a provider's bytes, another board's values, a watch) for a block yet; the port is not among a board session's sub-ports either (`k_slave_subs` / `k_master_subs` in `app/runit`), so a slave's telemetry does not go up the tree.
+- **Telemetry per session:** one subscription list for the board: a SUBSCRIBE from one session replaces another's, and every linked session gets the same stream (`sys_watch` sends to the session that added the watch). The telemetry goes in the BLE session, not on the raw telemetry characteristic (which carries the watches): undecided.
+- **Router format:** `vm_router.h` still has `#define VM_OP_*` and `vm_router.c` an `router_op_t` table (`ROUTER_W` / `ROUTER_R`) and its own length check (`need`, `ERR_VM_LOAD_SHORT_RECORD`); the rework's form is the frames, then `VM_OPERATIONS(X, P)` and `CMD_TABLE_DECLARE` (as `sys_watch_router.h`), with the frame size checked by `cmd`.
+- **Retained values on `nvs_store`:** `vm_retain.c` calls `nvs_flash` (`nvs_open`, `nvs_set_blob`) directly instead of `core/nvs_store`.
+- **Two tags for one case:** `ERR_VM_OBJ_NOT_PTR` (object layer) and `ERR_VM_ACC_TYPE_MISMATCH` with `expected` PTR (accessor layer) say the same; the NULL checks of internal C calls (`ERR_NULL_PTR`) are many, against "validate once" (conventions.md).
+- **Fault latch:** `vm_stop_on_fault` latches with root tag 0 (`ERR_VM_EXEC_FAULT_LATCHED` names no cause): the registry's hook does not pass the error.
 - **Lost answers:** a request now and then gets no answer on the USB-Serial-JTAG link (about twice in 1500 requests, not repeatable); no cause found.
 
 ## Tests
