@@ -3,8 +3,6 @@ import { Bluetooth, Cable, Link2, RefreshCw, Terminal, Trash2, Wifi } from 'luci
 import type { SessionPeer } from '@backend'
 import { Badge, Button, Card, CardStack, EditableField, FieldError, SegmentedSwitch, Switch, ToggleChip } from '@ui/components'
 import { ErrorsCard } from '../console/ErrorView'
-import type { PinContext } from '../devices/FieldsForm'
-import { CreateProviderCard } from './CreateProviderCard'
 import type { ProviderRegistry } from './providerRegistry'
 import { chipLinks, chipState, deadmanChoices, deadmanLabel, sessionModules } from './connections'
 import type { Endpoint } from './connections'
@@ -210,11 +208,9 @@ function ProviderCard({ registry, provider, session, others, links, modules, rou
   )
 }
 
-export function ConnectionsScreen({ routing, registry, pinContext, uartDevices, onName }: {
+export function ConnectionsScreen({ routing, registry, onName }: {
   registry: ProviderRegistry
   routing: RoutingState
-  pinContext: PinContext
-  uartDevices: readonly { readonly id: number; readonly name: string }[]
   onName: (id: number, name: string) => void
 }) {
   const modules = useMemo(() => standardModulePorts(routing.link.defs), [routing.link.defs])
@@ -240,7 +236,6 @@ export function ConnectionsScreen({ routing, registry, pinContext, uartDevices, 
               own={session?.open === true && session.peerId === ownId} onName={onName} />
           )
         })}
-        <CreateProviderCard registry={registry} routing={routing} pinContext={pinContext} uartDevices={uartDevices} onName={onName} />
       </CardStack>
     </div>
   )

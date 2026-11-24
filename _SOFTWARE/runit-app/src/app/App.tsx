@@ -504,7 +504,7 @@ export function App() {
                   ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={boardEditor} /></div>
                   : <BoardProfileScreen profile={boardProfile} editor={boardEditor} />)
                 : projectTab === CONNECTIONS_TAB
-                ? <ConnectionsScreen registry={providers} routing={routing} pinContext={pinContext} uartDevices={uartPorts} onName={(id, name) => setProviderName(project, id, name)} />
+                ? <ConnectionsScreen registry={providers} routing={routing} onName={(id, name) => setProviderName(project, id, name)} />
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen registry={providers} project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { bleTableCall, decodeBleTable, decodePeers, PROVIDER_COMMANDS, Services, SESSION_COMMANDS } from '@backend'
-import type { FieldValues, RunitLink } from '@backend'
+import type { RunitLink } from '@backend'
 import { subPortLinks } from './connections'
 import { decodeMatrixLinks, decodeProviderRows, offlinePreviewSnapshot, parsePort, SESSION_SAFETY_FLAG, withProviderNames } from './routing'
 import type { RoutingSnapshot } from './routing'
@@ -17,7 +17,6 @@ export interface RoutingState {
   readonly services: Services
   readonly link: RunitLink
   refresh: () => Promise<void>
-  createProvider: (id: number, type: string | number, config: FieldValues) => Promise<boolean>
   removeProvider: (id: number) => Promise<boolean>
   /** `role`: SESSION_ROLE.slave or .master, the peer is a board and its sub-ports and links are the board's (no modules); 0: a client, with its modules. */
   attachSession: (provider: number, deadmanMs: number, safety: boolean, modules: readonly number[], role?: number) => Promise<boolean>
@@ -92,17 +91,6 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     }
   }, [connected, refresh])
 
-  const createProvider = useCallback(async (id: number, type: string | number, config: FieldValues): Promise<boolean> => {
-    const isBle = type === 'ble' || type === services.catalog.providers.get('ble')?.providerType
-    return runAction(`Creating provider`, async () => {
-      await services.createProvider(id, type, config)
-      if (isBle) {
-        // Adding/joining BLE GATT triggers NimBLE Service Changed (~200 ms debounce); give link a brief beat.
-        await new Promise((r) => setTimeout(r, 350))
-      }
-    }, `Created provider.`)
-  }, [runAction, services])
-
   const removeProvider = useCallback(async (id: number): Promise<boolean> =>
     runAction(`Removing provider`, async () => {
       await services.call(PROVIDER_COMMANDS.service, PROVIDER_COMMANDS.remove, undefined, { side: 'write', id })
@@ -174,7 +162,6 @@ export function useRouting(link: RunitLink, connected: boolean, names?: Readonly
     services,
     link,
     refresh,
-    createProvider,
     removeProvider,
     attachSession,
     detachSession,
