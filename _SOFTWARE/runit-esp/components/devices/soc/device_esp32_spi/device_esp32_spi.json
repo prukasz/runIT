@@ -1,0 +1,100 @@
+{
+  "$schema": "../../../../../templates/device.schema.json",
+  "schemaVersion": 3,
+  "kind": "device-definition",
+  "id": "esp32_spi",
+  "alias": "ESP32-S3 SPI Bus",
+  "description": "Hardware SPI master controller on the ESP32-S3 SoC (SPI2 or SPI3). Chips on it (displays) name it as their bus and each takes its own chip select.",
+  "protocols": [
+    "native",
+    "spi"
+  ],
+  "tags": [
+    "soc",
+    "spi",
+    "bus"
+  ],
+  "type_id": 79,
+  "type": {
+    "symbol": "ESP32_SPI_TYPE",
+    "id": 79
+  },
+  "config": {
+    "struct": "device_esp32_spi_cfg_t",
+    "size": 11,
+    "fields": [
+      {
+        "id": "host",
+        "label": "SPI controller",
+        "type": "choice",
+        "raw_type": "u8",
+        "size": 1,
+        "offset": 0,
+        "options": [
+          {
+            "label": "SPI2",
+            "value": 2
+          },
+          {
+            "label": "SPI3",
+            "value": 3
+          }
+        ],
+        "default": 2,
+        "description": "ESP32-S3 hardware SPI controller; SPI2 is the fastest on its own pins (GPIO 10 to 13)"
+      },
+      {
+        "id": "sclk",
+        "label": "SCLK pin",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 2,
+        "offset": 1,
+        "pin_ref": true,
+        "requires": "output",
+        "description": "ESP32-S3 GPIO pin for the clock"
+      },
+      {
+        "id": "mosi",
+        "label": "MOSI pin",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 2,
+        "offset": 3,
+        "pin_ref": true,
+        "requires": "output",
+        "optional": true,
+        "description": "ESP32-S3 GPIO pin for data to the chips (optional if they only send)"
+      },
+      {
+        "id": "miso",
+        "label": "MISO pin",
+        "type": "pin",
+        "raw_type": "bytes",
+        "size": 2,
+        "offset": 5,
+        "pin_ref": true,
+        "requires": "input",
+        "optional": true,
+        "description": "ESP32-S3 GPIO pin for data from the chips (optional if they only listen)"
+      },
+      {
+        "id": "max_transfer",
+        "label": "Largest transfer",
+        "type": "number",
+        "raw_type": "u32",
+        "size": 4,
+        "offset": 7,
+        "min": 1,
+        "max": 65536,
+        "default": 16384,
+        "unit": "B",
+        "description": "The most bytes in one transfer; at least a display's largest transfer (12800 by default)"
+      }
+    ]
+  },
+  "contracts": [
+    "DEVICE",
+    "SPI"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "scope": "device",
+  "id": "SPI",
+  "contract_id": 12,
+  "alias": "SPI bus",
+  "description": "An SPI bus controller: MOSI, MISO, SCLK and a chip select per chip. A chip on the bus (a display) names the bus in its own setup; the bus's operations are run by the chips' drivers only, so it has no commands of its own.",
+  "category": "bus",
+  "commands": []
+}

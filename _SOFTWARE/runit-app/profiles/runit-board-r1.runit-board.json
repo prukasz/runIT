@@ -51,6 +51,28 @@
       "defaults": []
     },
     {
+      "id": 16,
+      "type": "esp32_spi",
+      "name": "SPI",
+      "config": {
+        "host": 2,
+        "max_transfer": 16384,
+        "sclk": {
+          "device": 0,
+          "pin": 12
+        },
+        "mosi": {
+          "device": 0,
+          "pin": 11
+        },
+        "miso": {
+          "device": 0,
+          "pin": 13
+        }
+      },
+      "defaults": []
+    },
+    {
       "id": 1,
       "type": "tca6424a",
       "name": "GPIO expander",

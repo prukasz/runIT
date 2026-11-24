@@ -179,6 +179,33 @@
       }
     },
     {
+      "id": 16,
+      "name": "SPI",
+      "description": "SPI bus of the SPI header (SPI2): CS0 (ESP 10) and CS1 (ESP 14) are the chips' chip selects",
+      "descriptor": "device_esp32_spi",
+      "pins": [
+        {
+          "use": "sclk",
+          "device": 0,
+          "pin": 12
+        },
+        {
+          "use": "mosi",
+          "device": 0,
+          "pin": 11
+        },
+        {
+          "use": "miso",
+          "device": 0,
+          "pin": 13
+        }
+      ],
+      "config": {
+        "host": 2,
+        "max_transfer": 16384
+      }
+    },
+    {
       "id": 1,
       "symbol": "DEVICE_ID_TCA6424A",
       "name": "GPIO expander",
@@ -1203,6 +1230,59 @@
           "kind": "bus",
           "device": 0,
           "pin": 41
+        }
+      ]
+    },
+    {
+      "id": "spi",
+      "name": "SPI Header",
+      "type": "goldpin_header",
+      "group": "user_bus",
+      "description": "8-pin SPI header: 3V3, CS1 (ESP 14), MISO (ESP 13), SCK (ESP 12), MOSI (ESP 11), CS0 (ESP 10), GND, GND",
+      "pins": [
+        {
+          "name": "3V3",
+          "kind": "power_out",
+          "mV_min": 3300,
+          "mV_max": 3300
+        },
+        {
+          "name": "CS1",
+          "kind": "io",
+          "device": 0,
+          "pin": 14
+        },
+        {
+          "name": "MISO",
+          "kind": "bus",
+          "device": 0,
+          "pin": 13
+        },
+        {
+          "name": "SCK",
+          "kind": "bus",
+          "device": 0,
+          "pin": 12
+        },
+        {
+          "name": "MOSI",
+          "kind": "bus",
+          "device": 0,
+          "pin": 11
+        },
+        {
+          "name": "CS0",
+          "kind": "io",
+          "device": 0,
+          "pin": 10
+        },
+        {
+          "name": "GND",
+          "kind": "gnd"
+        },
+        {
+          "name": "GND",
+          "kind": "gnd"
         }
       ]
     },

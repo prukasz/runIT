@@ -1,0 +1,141 @@
+{
+  "$schema": "../../../../templates/contract.schema.json",
+  "schemaVersion": 3,
+  "kind": "contract-definition",
+  "scope": "device",
+  "id": "DISPLAY",
+  "contract_id": 10,
+  "alias": "Display",
+  "description": "A colour display panel: its size and pixel format, the backlight's brightness and whether the panel still answers. The board's screen engine draws on it.",
+  "category": "display",
+  "commands": [
+    {
+      "id": "GEOMETRY",
+      "op": 0,
+      "symbol": "CONTRACT_DISPLAY_OP_GEOMETRY",
+      "label": "Size",
+      "description": "The size of the picture in the current orientation and the pixel format the panel takes.",
+      "read": {
+        "returns": {
+          "struct": "display_geometry_t",
+          "fields": [
+            {
+              "id": "width",
+              "label": "Width",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "unit": "px"
+            },
+            {
+              "id": "height",
+              "label": "Height",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 2,
+              "unit": "px"
+            },
+            {
+              "id": "format",
+              "label": "Pixel format",
+              "type": "enum",
+              "enum": "sys_display_format_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 4
+            },
+            {
+              "id": "flush_max",
+              "label": "Largest transfer",
+              "type": "integer",
+              "raw_type": "u32",
+              "size": 4,
+              "offset": 5,
+              "unit": "B",
+              "description": "The most bytes of pixels the display takes in one transfer"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BACKLIGHT",
+      "op": 1,
+      "symbol": "CONTRACT_DISPLAY_OP_BACKLIGHT",
+      "label": "Brightness",
+      "description": "The brightness of the backlight (its PWM duty).",
+      "read": {
+        "description": "The brightness now; 0 while the display is suspended.",
+        "returns": {
+          "struct": "display_backlight_args_t",
+          "fields": [
+            {
+              "id": "brightness_duty",
+              "label": "Brightness",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "min": 0,
+              "max": 4095
+            }
+          ]
+        }
+      },
+      "write": {
+        "description": "Sets the brightness: 0 is dark, 4095 full.",
+        "args": {
+          "struct": "display_backlight_args_t",
+          "fields": [
+            {
+              "id": "brightness_duty",
+              "label": "Brightness",
+              "type": "integer",
+              "raw_type": "u16",
+              "size": 2,
+              "offset": 0,
+              "min": 0,
+              "max": 4095,
+              "control": "slider"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "HEALTH",
+      "op": 4,
+      "symbol": "CONTRACT_DISPLAY_OP_HEALTH",
+      "label": "Health",
+      "description": "Whether the panel still answers and runs; read only when its SDO line is wired (the Readable option), else Unknown.",
+      "read": {
+        "returns": {
+          "struct": "display_health_t",
+          "fields": [
+            {
+              "id": "health",
+              "label": "State",
+              "type": "enum",
+              "enum": "sys_display_health_e",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0
+            },
+            {
+              "id": "power_mode",
+              "label": "Power mode",
+              "type": "integer",
+              "display": "hex",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 1,
+              "description": "What the panel answered to its power mode read; 0 when not read"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
