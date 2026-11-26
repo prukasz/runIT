@@ -37,7 +37,7 @@ RESP_SUSPEND = defs.sym("SYS_DEVICE_RESPONSE_SUSPEND")
 RESP_RESET = defs.sym("SYS_DEVICE_RESPONSE_RESET")
 
 GPIO_ID = sc.GPIO  # 0x00, SYS_DEVICE_CREATE_SYSTEM
-DEV_A, DEV_B, DEV_C = 14, 15, 16
+DEV_A, DEV_B, DEV_C = 33, 34, 35  # IDs no board device takes
 SWEEP_ALL = defs.sym("SYS_DEVICE_ID_NONE")
 
 GPIO_TYPE = defs.device_type("esp32s3_gpio")

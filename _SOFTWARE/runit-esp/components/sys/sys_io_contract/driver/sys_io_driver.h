@@ -23,7 +23,8 @@ extern "C" {
  * A device that uses another device's pin (a chip's RST or OE, an alert line) calls sys_io_claim*() from its create()
  * (its slot locked). A zeroed sys_io_claim_t is an unused pin (the registry allocates the device zeroed). The take
  * functions do nothing for SYS_IO_PIN_NONE, so an optional pin needs no check at the call site. Take: declare the use,
- * mode, level or interrupt, lock. The taken pin is a resource of its owner (sys_device_res_add): the registry releases
+ * mode, lock, then the level or the interrupt. Every taken pin is locked, so no one else writes it and a RESET of its
+ * device leaves it. The taken pin is a resource of its owner (sys_device_res_add): the registry releases
  * it when the owner is removed or its create() fails (unsubscribe, unlock, reset; not the reset with `keep`), so a
  * driver never releases a pin itself.
  *
@@ -126,7 +127,7 @@ typedef struct {
 } sys_io_claim_t;
 
 /**
- * @brief A pin in `mode`, not locked: its owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's
+ * @brief A pin in `mode`, locked: its owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's
  * thresholds). Its event `event` (0 = no subscription) reaches the owner's own op `op` (`LOCAL`, `TAIL` with
  * `sys_event_t`, `ALWAYS` if it should run while suspended). A device without MODE (fixed-function pins: PCA9685
  * channels, DAC outputs) is fine.
@@ -142,7 +143,7 @@ MUST_USE err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, 
                             uint16_t op);
 
 /**
- * @brief An output at `level`, locked for its owner.
+ * @brief sys_io_claim of a push-pull output, driven to `level`.
  * @param[in]  owner The owner's device ID
  * @param[out] p     What was done to the pin
  * @param[in]  pin   The pin; SYS_IO_PIN_NONE: nothing is done

@@ -112,8 +112,8 @@ typedef struct {
   uint8_t id;
   uint8_t topology;
   bool turn_off_at_ocp;
-  /* Every signal: EN and nSLEEP locked outputs, nFAULT a locked input, IN (PWM), IPROPI (ADC) and VREF (DAC) not
-   * locked (their duty, window and voltage are IO writes). */
+  /* Every signal, each locked: EN and nSLEEP outputs, nFAULT an input, IN (PWM), IPROPI (ADC) and VREF (DAC), whose
+   * duty, window and voltage are IO writes. */
   sys_io_claim_t pin[DRV8962_PINS];
   uint32_t ripropi_ohms[HALF_BRIDGES];
   uint32_t current_limit_mA;  // 0 = none

@@ -4,7 +4,7 @@
     python runit-esp/tools/test_testdev.py                # the one serial port found; RUNIT_PORT=COM10 to name it
     python runit-esp/tools/test_testdev.py -v TestdevIo   # one class, verbose
 
-Creates temporary testdev instance(s) (IDs 10 and 11), exercises every contract (DEVICE, IO, I2C, EVENT, PMON, VREG,
+Creates temporary testdev instance(s) (IDs 30 and 31), exercises every contract (DEVICE, IO, I2C, EVENT, PMON, VREG,
 PD, SUPPLY, HBRIDGE, UART) and every own op (0xFF00..0xFF08), plus SUSPEND/RESUME/RESET lifecycle and an I2C child
 device on the simulated bus. Removes every device it created in tearDown.
 """
@@ -20,7 +20,7 @@ import runit_defs as defs  # noqa: E402
 import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
-DEV_A, DEV_B = 10, 11
+DEV_A, DEV_B = 30, 31  # IDs no board device takes
 TESTDEV_TYPE = defs.device_type("testdev")
 
 # Lifecycle (CONTRACT_SYS_DEVICE)

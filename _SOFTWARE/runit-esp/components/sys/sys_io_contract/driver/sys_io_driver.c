@@ -104,18 +104,14 @@ err_h sys_io_claim(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, sys_io_mo
   ERR_TRY(take(owner, p, pin));
   ERR_TRY(sys_io_prepare(pin, mode));
   p->used = true;
+  ERR_TRY(SYS_IO_WRITE(pin, OP_LOCK));
+  p->locked = true;
   return subscribe(owner, p, event, op);
 }
 
 err_h sys_io_claim_output(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, bool level) {
   ERR_TRY(sys_io_claim(owner, p, pin, SYS_IO_MODE_OUTPUT_PUSH_PULL, 0, 0));
-  if (!sys_io_pin_valid(pin)) {
-    return NULL;
-  }
-  ERR_TRY(SYS_IO_WRITE(pin, OP_LEVEL, .level = level));
-  ERR_TRY(SYS_IO_WRITE(pin, OP_LOCK));
-  p->locked = true;
-  return NULL;
+  return sys_io_claim_drive(p, level);  // SYS_IO_PIN_NONE: not locked, nothing done
 }
 
 err_h sys_io_claim_input(uint8_t owner, sys_io_claim_t* p, sys_io_pin_t pin, uint32_t event, uint16_t op,

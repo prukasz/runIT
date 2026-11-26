@@ -73,17 +73,18 @@ A device keeps one `sys_io_pins_t`: which pins exist (`available`), which are lo
 
 ### Locked pins and their owners
 
-A pin another device depends on (PCA9685's OE, a chip's RST, an I2C bus's SDA) is locked by that device. A lock has an owner: the device whose op called LOCK (`sys_device_caller()`).
+A pin another device depends on (PCA9685's OE, a chip's RST, a bridge's PWM input, an I2C bus's SDA) is locked by that device. A lock has an owner: the device whose op called LOCK (`sys_device_caller()`).
 
 - `sys_io_pins_check_free` means "free, or mine": it passes a pin that is not locked and one the caller of the op locked. The owner writes its pin with the ordinary ops (LEVEL, PWM_DUTY, INTR, ...); the same write from anyone else (another device, the app, a VM program) is `ERR_DEV_PIN_LOCKED{id, pin, owner}`. There is no op for the owner alone.
 - A pin with the owner `SYS_DEVICE_ID_NONE` is no device's (the chip's own peripheral): every write refuses it.
 - LOCK of a locked pin is `ERR_DEV_PIN_LOCKED`, also for its owner: a lock is taken once. UNLOCK from anyone but the owner is `ERR_DEV_PIN_NOT_OWNED{id, pin, owner}`; UNLOCK of a pin that is not locked does nothing.
 - LOCK and UNLOCK are LOCAL (a driver's C reaches them through `sys_io_claim`; the device router refuses them, `ERR_DEV_LOCAL_OP`) and ALWAYS (a suspended device's pins are still taken and given back).
 - Reads stay allowed on a locked pin.
+- A RESET of a device with pins that releases pins (the ESP32-S3's GPIO, the TCA6424A) leaves the locked ones: what another device took stays set up.
 
 ### The ESP32-S3's own pins
 
-`device_esp32s3_gpio` (one per board, `runit-esp/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its other rules (PWM pools, the ADC task, its safe state) are in the driver's comments and `esp32s3_gpio.h`.
+`device_esp32s3_gpio` (one per board, `runit-esp/components/devices/soc/device_esp32s3_gpio/`) is the one device whose driver locks pins itself: a pin a native peripheral holds (flash, PSRAM, the USB-Serial-JTAG; reserved in ESP-IDF, `esp_gpio_reserve`) is locked at its CREATE for no device (owner `SYS_DEVICE_ID_NONE`), and MODE refuses a pin reserved later with `ERR_DEV_PIN_LOCKED{owner SYS_DEVICE_ID_NONE}`. A peripheral that a device drives (the ESP32-S3's I2C controller, `device_esp32s3_i2c`) locks its pins for that device instead (`sys_io_claim_peripheral`). Its SUSPEND turns off every PWM, also on a pin another device holds (the chip generates it, and a suspended device refuses its owner's writes), and makes the unlocked digital outputs safe; a locked digital output stays with its owner. Its RESET releases the unlocked pins. Its other rules (PWM pools, the ADC task) are in the driver's comments and `esp32s3_gpio.h`.
 
 ## A device that uses another device's pin (`driver/sys_io_driver.h`)
 
@@ -91,10 +92,12 @@ The driver keeps one `sys_io_claim_t` per pin it uses and takes it in its `creat
 
 | Take | What it does to the pin |
 |---|---|
-| `sys_io_claim(owner, p, pin, mode, event, op)` | `mode` (`sys_io_prepare`), not locked: the owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's thresholds); `event` (0: none) reaches the owner's own op `op` (`LOCAL`, `TAIL` with `sys_event_t`, `ALWAYS` if it should run suspended) |
-| `sys_io_claim_output(owner, p, pin, level)` | Push-pull output at `level`, locked |
+| `sys_io_claim(owner, p, pin, mode, event, op)` | `mode` (`sys_io_prepare`), locked: the owner writes it with the IO ops (a PWM duty, a DAC voltage, an ADC pin's thresholds); `event` (0: none) reaches the owner's own op `op` (`LOCAL`, `TAIL` with `sys_event_t`, `ALWAYS` if it should run suspended) |
+| `sys_io_claim_output(owner, p, pin, level)` | `sys_io_claim` of a push-pull output, driven to `level` |
 | `sys_io_claim_input(owner, p, pin, event, op, mode)` | Input (`sys_io_prepare_input`), `event` (0: none) to the owner's own op `op`, interrupt `mode`, locked |
 | `sys_io_claim_peripheral(owner, p, pin)` | Locked, its mode left to a peripheral of the pin's own chip |
+
+Every take locks its pin, so a pin has one owner: a second take of it is refused (`ERR_DEV_PIN_LOCKED`), and so is anyone else's write.
 
 - `sys_io_claim_drive(p, level)` writes LEVEL of a pin the owner locked and does nothing for one that is not locked, so an optional pin needs no check. Any other write of a taken pin is the IO op itself: `SYS_IO_WRITE(p->pin, OP_INTR, ...)`.
 - The release undoes what the take did: unsubscribe, UNLOCK, RESET (`sys_io_release`). Set `p->keep = true` after the take to leave an output as it is (PCA9685's OE stays at its outputs-off level).

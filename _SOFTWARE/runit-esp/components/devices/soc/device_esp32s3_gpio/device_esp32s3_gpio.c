@@ -463,16 +463,18 @@ OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
 
 /*******************************************************************************
  * ESP32S3_GPIO : suspend (lifecycle)
- * Puts unlocked PWM (duty 0) and digital outputs (push-pull low, open-drain
- * released) into safe state while saving values for resume; locked pins stay
- * with their owning devices.
+ * Puts every PWM (duty 0) and the unlocked digital outputs (push-pull low,
+ * open-drain released) into safe state while saving values for resume. A PWM
+ * goes off also when another device holds its pin: this chip generates it, and
+ * once it is suspended the owner's writes are refused. A locked digital output
+ * stays with its owner.
  ******************************************************************************/
 static err_h suspend(gpio_t* c) {
   err_h err = NULL;
   esp32s3_gpio_lock();
   for (uint8_t pin = 0; pin < GPIO_NUM_MAX; pin++) {
     esp32s3_gpio_pin_t* p = esp32s3_gpio_pin(pin);
-    if (p == NULL || p->suspended || (c->pins.locked & (1ULL << pin)) != 0) {
+    if (p == NULL || p->suspended) {
       continue;
     }
     if (p->pin_mode == SYS_IO_MODE_PWM) {
@@ -482,7 +484,7 @@ static err_h suspend(gpio_t* c) {
       p->hw.pwm.saved_duty = p->hw.pwm.duty;
       p->suspended = true;
       ERR_KEEP_FIRST(err, esp32s3_gpio_pwm_set_duty(p, 0));
-    } else if (is_digital_output(p->pin_mode)) {
+    } else if (is_digital_output(p->pin_mode) && (c->pins.locked & (1ULL << pin)) == 0) {
       p->saved_level = gpio_get_level((gpio_num_t)pin) != 0;
       p->suspended = true;
       // Open-drain: released (high); push-pull: low.

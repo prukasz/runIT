@@ -20,7 +20,7 @@ import session_client as sc  # noqa: E402
 
 READ, WRITE = sc.READ, sc.WRITE
 UART_ID = sc.CLIENT
-DEV_ID = 12
+DEV_ID = 32  # IDs no board device takes
 TESTDEV_TYPE = defs.device_type("testdev")
 
 WATCH_ADD = defs.service_op("WATCH", "ADD")
