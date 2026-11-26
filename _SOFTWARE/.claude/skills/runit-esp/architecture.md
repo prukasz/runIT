@@ -11,7 +11,7 @@ A plug-and-play board for hobbyists. The board exposes what it has (devices, con
 | Layer | Components | May depend on |
 |---|---|---|
 | core | `utils`, `errors`, `cmd`, `router`, `router_queue`, `data_matrix`, `timer`, `crc`, `nvs_store`, `board_id` (`time` is still the archive's) | ESP-IDF only (and earlier core) |
-| sys | `sys_event`, `sys_event_stream`, `sys_device` (+ `sys_device_event_contract`, `_timer`, `_router`, `_policy`, `_remote`), the contracts `sys_io_contract`, `sys_power_contract`, `sys_hbridge_contract`, `sys_display_contract`, `bus/sys_i2c_contract`, `bus/sys_spi_contract`, `bus/sys_uart_contract`, `bus/sys_ble`, `sys_render` (LVGL 9.3), `sys_data_provider`, `sys_session`, `sys_watch`, `sys_log`, `sys_system`, `sys_actions`, `sys_board`, `sys_power_manager` | core, earlier sys |
+| sys | `sys_event`, `sys_event_stream`, `sys_device` (+ `sys_device_event_contract`, `_timer`, `_router`, `_policy`, `_remote`), the contracts `sys_io_contract`, `sys_power_contract`, `sys_hbridge_contract`, `sys_display_contract`, `bus/sys_i2c_contract`, `bus/sys_spi_contract`, `bus/sys_uart_contract`, `wireless/sys_ble`, `sys_render` (LVGL 9.3), `sys_data_provider`, `sys_session`, `sys_watch`, `sys_log`, `sys_system`, `sys_actions`, `sys_board`, `sys_power_manager` | core, earlier sys |
 | providers | `provider_uart`, `provider_console`, `provider_ble`: drivers of `sys_data_provider` | core, sys |
 | devices | `devices/{soc,chips,virtual}/device_<chip>`, one driver each | core, sys (the contracts they implement) |
 | vm | `vm_core`, `vm_blocks` (not moved yet) | core, sys, devices |

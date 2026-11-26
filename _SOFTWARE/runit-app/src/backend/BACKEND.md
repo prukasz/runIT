@@ -1,6 +1,6 @@
 # The backend: the link to a board (for agents)
 
-`runit-app/src/backend/`: requests, the board's streams and a connection that keeps itself up, over BLE. No UI, no DOM beyond the Web Bluetooth platform. Written from the firmware (`runit-esp/components/core/cmd/` CMD.MD "The header", `sys/sys_session/`, `sys/bus/sys_ble/`, `providers/provider_ble/`, `app/runit/` RUNIT.MD "The board's data") and `generated/`.
+`runit-app/src/backend/`: requests, the board's streams and a connection that keeps itself up, over BLE. No UI, no DOM beyond the Web Bluetooth platform. Written from the firmware (`runit-esp/components/core/cmd/` CMD.MD "The header", `sys/sys_session/`, `sys/wireless/sys_ble/`, `providers/provider_ble/`, `app/runit/` RUNIT.MD "The board's data") and `generated/`.
 
 ```ts
 const platform = new WebBluetoothPlatform(bundledLinkDefinitions())

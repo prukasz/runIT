@@ -17,6 +17,7 @@ list(APPEND EXTRA_COMPONENT_DIRS
 list(APPEND EXTRA_COMPONENT_DIRS "components/core")
 list(APPEND EXTRA_COMPONENT_DIRS "components/sys")
 list(APPEND EXTRA_COMPONENT_DIRS "components/sys/bus")
+list(APPEND EXTRA_COMPONENT_DIRS "components/sys/wireless")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices/soc")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices/chips")
 list(APPEND EXTRA_COMPONENT_DIRS "components/devices/virtual")

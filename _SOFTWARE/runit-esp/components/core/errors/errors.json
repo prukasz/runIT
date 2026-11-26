@@ -2437,8 +2437,8 @@
       "id": 45,
       "name": "BLE",
       "symbol": "MODULE_ID_BLE",
-      "source_file": "runit-esp/components/sys/bus/sys_ble/errors/sys_ble_errors.h",
-      "texts_file": "runit-esp/components/sys/bus/sys_ble/errors/errors_sys_ble.json",
+      "source_file": "runit-esp/components/sys/wireless/sys_ble/errors/sys_ble_errors.h",
+      "texts_file": "runit-esp/components/sys/wireless/sys_ble/errors/errors_sys_ble.json",
       "tags": [
         {
           "code": 1,

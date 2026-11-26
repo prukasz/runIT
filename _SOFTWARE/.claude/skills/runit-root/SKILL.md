@@ -27,7 +27,7 @@ runIT is a plug-and-play framework for hobbyists spanning hardware, firmware and
 
 | Path | Contents |
 |---|---|
-| `runit-esp/` | The firmware, an ESP-IDF project (build with its `build.ps1`): `CMakeLists.txt`, `sdkconfig`, `main/` (`app_main` calls `runit_start`) and `components/` by layer (`core`, `sys`, `sys/bus`, `devices/{soc,chips,virtual}`, `providers`, `app`); every component has its `*.MD` and `AGENTS.md` (the `runit-esp` skill links them) |
+| `runit-esp/` | The firmware, an ESP-IDF project (build with its `build.ps1`): `CMakeLists.txt`, `sdkconfig`, `main/` (`app_main` calls `runit_start`) and `components/` by layer (`core`, `sys`, `sys/bus`, `sys/wireless`, `devices/{soc,chips,virtual}`, `providers`, `app`); every component has its `*.MD` and `AGENTS.md` (the `runit-esp` skill links them) |
 | `runit-esp-archive/` | The old firmware, kept for what is not moved yet (it does not build any more): `components/core/time` (the rework builds it from here), `sys_display`, `sys_touch`, `sys_lvgl`, `sys_project`, `sys_ota`, `sys_flasher`, `vm/`, the old `app/runit`, `main/`; the reference for moving them |
 | `runit-esp-archive/boards/` | The boards' devices as C, not compiled: the reference for a board's profile ([BOARDS.MD](../../../runit-esp-archive/boards/BOARDS.MD)) |
 | `runit-esp/components/vm/` | The VM (partly ported, see the `runit-esp` skill): `vm_core` (runtime, loader, telemetry) and `vm_blocks` (the block palette) |

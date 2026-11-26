@@ -18,7 +18,7 @@ describe('the numbers come from the firmware', () => {
 
   it('the runIT UUIDs and the fragment bits equal the headers', () => {
     const ids = source('components/app/runit/runit_ids.h')
-    const ble = source('components/sys/bus/sys_ble/sys_ble.h')
+    const ble = source('components/sys/wireless/sys_ble/sys_ble.h')
     expect(defs.gatt).toEqual({
       service: define(ids, 'RUNIT_BLE_SERVICE'),
       session: define(ids, 'RUNIT_BLE_SESSION'),

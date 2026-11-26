@@ -9,7 +9,7 @@
 | Descriptor | Where | Schema |
 |---|---|---|
 | Device | `runit-esp/components/devices/<category>/device_<name>/device_<name>.json` | `device.schema.json` |
-| Contract | `runit-esp/components/sys/**/contract_<name>.json` (under `sys_<name>/router/`, `sys_<name>/contracts/`, `sys/bus/*/`, etc.) | `contract.schema.json` |
+| Contract | `runit-esp/components/sys/**/contract_<name>.json` (under `sys_<name>/router/`, `sys_<name>/contracts/`, `sys/bus/*/`, `sys/wireless/*/`, etc.) | `contract.schema.json` |
 | Provider type | `runit-esp/components/providers/provider_<name>/provider_<name>.json`: a driver type the app creates with PROVIDER CREATE, its `type` (a member of `sys_data_provider_type_e`) and its `config` (the CREATE cfg struct, fields as a contract's); `crosscheck.py` holds the type to a published member, one descriptor per type | `provider.schema.json` (its fields are `contract.schema.json`'s) |
 | Board | `runit-app/boards/board.json` (the PCB), `board_devkit.json`: the app's own descriptors of the boards it knows, which the firmware never reads | `board.schema.json` |
 | VM block | `runit-esp/components/vm/vm_blocks/**/block_<name>.json` (optional while VM is not yet migrated in rework; `crosscheck.py` skips when `vm_block_ids.h` is absent) | `vm-block.schema.json` |

@@ -1,6 +1,6 @@
 # sys_ble — the board's BLE peripheral
 
-Component `runit-esp/components/sys/bus/sys_ble/`. NimBLE as a peripheral (one client, no pairing) with a GATT table of 16-bit services and characteristics that changes at run time through its router. A characteristic is a way out (notify / indicate, with a TX buffer) and in (the client writes it); one hook per characteristic hears its writes and the link's state. The module knows no providers: `provider_ble` (PROVIDER_BLE.MD) makes one of a characteristic, or of a pair. The board is not a central.
+Component `runit-esp/components/sys/wireless/sys_ble/`. NimBLE as a peripheral (one client, no pairing) with a GATT table of 16-bit services and characteristics that changes at run time through its router. A characteristic is a way out (notify / indicate, with a TX buffer) and in (the client writes it); one hook per characteristic hears its writes and the link's state. The module knows no providers: `provider_ble` (PROVIDER_BLE.MD) makes one of a characteristic, or of a pair. The board is not a central.
 
 | File | Role |
 |---|---|
