@@ -16,9 +16,9 @@ static struct {
   volatile bool wanted;           // the loaded program has an ON_EVENT block (vm_event_listen)
 } s_vm_event;
 
-/* The listener (queued: the event task) of the one wildcard subscription: every event goes to the queue, while the
-   program has a block that reads it. Without one nothing is queued, so nothing is dropped and reported either (a safe
-   stop suspends every device: an event each). */
+/* The listener (inline: the publisher's task) of the one wildcard subscription: every event goes to the queue, while
+   the program has a block that reads it. Without one nothing is queued, so nothing is dropped and reported either (a
+   safe stop suspends every device: an event each). */
 static err_h on_event(const sys_event_t* ev, void* ctx) {
   (void)ctx;
   if (!s_vm_event.wanted) {

@@ -5,7 +5,7 @@
 
 /*
 Events bridge system callbacks into the running VM pass:
-  sys_event task (Core 0) -> [ s_vm_event_q ] -> vm_event_drain() -> [ this pass's snapshot ] (Core 1)
+  the publisher's task (an inline listener) -> [ s_vm_event_q ] -> vm_event_drain() -> [ this pass's snapshot ] (VM task)
 Buffered as vm_event_t (the key and the first 4 bytes of the payload); valid for the duration of one scan cycle, lock-free to query.
 */
 

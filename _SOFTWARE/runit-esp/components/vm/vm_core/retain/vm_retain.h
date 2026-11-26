@@ -16,7 +16,8 @@
  *   consistent snapshot). If anything changed since the last save, the retain
  *   task writes the whole set as one record (NVS blob "vm/retain") —
  *   flash is never written on the VM task. A program is also saved right before
- *   it is torn down (RESET, OPEN) and when runit enters the safe state.
+ *   it is torn down (RESET, OPEN), and in the board's safe state (SAFE: the VM
+ *   task saves once the stopped pass let go, vm_exec_request_retain_save).
  * - **Restore:** on the first start after a load (an EXEC run command), before the
  *   first pass: each stored value goes into the retentive object with the same
  *   name, type and size; a mismatch keeps the uploaded value and is reported.
