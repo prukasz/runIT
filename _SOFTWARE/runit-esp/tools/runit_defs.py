@@ -141,3 +141,24 @@ def device_own_op(name: str, op_id: str) -> int:
         if cmd["id"] == op_id:
             return (own << 8) | int(cmd["op"])
     raise KeyError(f"device {name!r} has no own command {op_id!r}")
+
+
+# ---- The pin the session tools drive ----------------------------------------------------------------------------
+# A simulated pin of a testdev the tool creates and removes, so no pin of the board is touched.
+
+PIN_DEV = 29  # an ID no board device takes
+PIN = 1       # one of its pins
+
+
+def pin_dev_create() -> bytes:
+    """The command that creates it: [key][dir][id][op u16][type u16][flags u8][pins, channels, uart mode, baud u32]."""
+    op = contract_op("DEVICE", "CREATE").to_bytes(2, "little")
+    cfg = bytes([16, 4, 1]) + (115200).to_bytes(4, "little")
+    head = bytes([sym("MODULE_ID_SYS_DEVICE"), sym("CMD_DIR_WRITE"), PIN_DEV]) + op
+    return head + device_type("testdev").to_bytes(2, "little") + bytes([0]) + cfg
+
+
+def pin_dev_remove() -> bytes:
+    op = contract_op("DEVICE", "REMOVE").to_bytes(2, "little")
+    return bytes([sym("MODULE_ID_SYS_DEVICE"), sym("CMD_DIR_WRITE"), PIN_DEV]) + op
+

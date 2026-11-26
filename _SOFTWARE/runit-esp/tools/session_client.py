@@ -3,7 +3,7 @@
 
     python runit-esp/tools/session_client.py COM10                 # the hello, PING and PEERS
     python runit-esp/tools/session_client.py COM10 28 00 01        # one command by hand: [key][dir][op][args]
-    python runit-esp/tools/session_client.py COM10 --smoke         # PING, data matrix LIST, GPIO 4 level, a watch
+    python runit-esp/tools/session_client.py COM10 --smoke         # PING, data matrix LIST, a testdev pin's level, a watch
     python runit-esp/tools/session_client.py COM10 --listen 2      # subscribe / run cmd, then print PUSH frames
     python runit-esp/tools/session_client.py COM10 --silence 4     # opens, then says nothing: the board ends it
 
@@ -175,12 +175,12 @@ class Link:
 
 
 def run_smoke(link: Link, dst: int) -> bool:
-    """PING, the data matrix's links, GPIO 4 as an output (level set and read back), a watch on its level."""
-    pin = 4
+    """PING, the data matrix's links, a testdev's pin as an output (level set and read back), a watch on its level."""
+    pin = defs.PIN
     ok = True
 
     def dev(d: int, op: int, args: bytes = b"") -> bytes:
-        return bytes([KEY_DEVICE, d, GPIO]) + struct.pack("<H", op) + args
+        return bytes([KEY_DEVICE, d, defs.PIN_DEV]) + struct.pack("<H", op) + args
 
     def step(name: str, cmd: bytes, want: bytes | None = None) -> bytes:
         nonlocal ok
@@ -193,12 +193,13 @@ def run_smoke(link: Link, dst: int) -> bool:
     step("PING", bytes([KEY_SYS, READ, SYS_OP_PING]))
     links = step("data matrix LIST", bytes([KEY_MATRIX, READ, MATRIX_OP_LIST]))
     print(f"   {links[0] if links else 0} links")
-    step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
+    step("testdev CREATE", defs.pin_dev_create())
+    step("pin MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
     for lvl in (1, 0, 1):
-        step(f"GPIO4 LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
-        step(f"GPIO4 LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
+        step(f"pin LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
+        step(f"pin LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
 
-    # a PERIODIC watch (id 1, every 5 ticks = 50 ms) on GPIO4's level; the entries are PUSH frames of key WATCH
+    # a PERIODIC watch (id 1, every 5 ticks = 50 ms) on the pin's level; the entries are PUSH frames of key WATCH
     link.pushes.clear()
     head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)  # sys_watch_head_t: id, trigger, period, max_silence
     step("WATCH ADD", bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([pin])))
@@ -208,7 +209,7 @@ def run_smoke(link: Link, dst: int) -> bool:
     print(f"{'ok  ' if good else 'FAIL'} WATCH entries: {len(entries)} in 0.5 s, level 1")
     ok &= good
     step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
-    step("GPIO4 RESET", dev(WRITE, IO_RESET, bytes([pin])))
+    step("testdev REMOVE", defs.pin_dev_remove())
     print("smoke PASSED" if ok else "smoke FAILED")
     return ok
 
@@ -220,7 +221,7 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=115200, help="CONFIG_ESP_CONSOLE_UART_BAUDRATE")
     ap.add_argument("--silence", type=float, default=0, help="after the hello, say nothing this many seconds")
     ap.add_argument("--listen", type=float, default=0, help="after commands, listen for PUSH frames this many seconds")
-    ap.add_argument("--smoke", action="store_true", help="PING, data matrix LIST, GPIO 4, a watch")
+    ap.add_argument("--smoke", action="store_true", help="PING, data matrix LIST, a testdev pin, a watch")
     args = ap.parse_args()
 
     link = Link(args.port, args.baud)

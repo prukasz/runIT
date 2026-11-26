@@ -2,8 +2,8 @@
 """A client of the firmware over BLE (bleak, the PC's Python): a session on the runIT service, like session_client.py on the console.
 
     python runit-esp/tools/ble_client.py                    # the hello, PING and PEERS
-    python runit-esp/tools/ble_client.py --smoke            # PING, PEERS, GPIO 4 level, a watch on it
-    python runit-esp/tools/ble_client.py --hold 10          # a watch on GPIO 4's level for 10 s: the entries by owner
+    python runit-esp/tools/ble_client.py --smoke            # PING, PEERS, a testdev pin's level, a watch on it
+    python runit-esp/tools/ble_client.py --hold 10          # a watch on a testdev pin's level for 10 s: the entries by owner
 
 Service 0xFFE0: the session on 0xFFE1 (frames out as notifications, in as writes), framed (SYS_BLE.MD "Framing": a header byte per
 packet, bit 7 LAST, bit 6 FIRST, bits 0-5 a counter); a frame is [type][src][key][seq u16][body] (CMD.MD "The header").
@@ -36,7 +36,6 @@ KEY_WATCH = defs.sym("MODULE_ID_WATCH")
 KEY_DEVICE = defs.sym("MODULE_ID_SYS_DEVICE")
 READ = defs.sym("CMD_DIR_READ")
 WRITE = defs.sym("CMD_DIR_WRITE")
-GPIO = 0x00
 IO_LEVEL = defs.contract_op("IO", "LEVEL")
 IO_MODE = defs.contract_op("IO", "MODE")
 IO_RESET = defs.contract_op("IO", "RESET")
@@ -129,7 +128,7 @@ class Link:
 
 
 def dev(d: int, op: int, args: bytes = b"") -> bytes:
-    return bytes([KEY_DEVICE, d, GPIO]) + struct.pack("<H", op) + args
+    return bytes([KEY_DEVICE, d, defs.PIN_DEV]) + struct.pack("<H", op) + args
 
 
 def watches(link: Link) -> list:
@@ -137,7 +136,7 @@ def watches(link: Link) -> list:
 
 
 async def smoke(link: Link) -> bool:
-    ok, pin = True, 4
+    ok, pin = True, defs.PIN
 
     async def step(name, cmd, want=None):
         nonlocal ok
@@ -150,10 +149,11 @@ async def smoke(link: Link) -> bool:
     await step("PING", bytes([KEY_SYS, READ, SYS_OP_PING]))
     rows = await step("PEERS", bytes([KEY_SESSION, READ, SESSION_OP_PEERS]))
     print(f"   {rows[0]} sessions")
-    await step("GPIO4 MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
+    await step("testdev CREATE", defs.pin_dev_create())
+    await step("pin MODE output", dev(WRITE, IO_MODE, bytes([pin, MODE_OUTPUT_PP])))
     for lvl in (1, 0, 1):
-        await step(f"GPIO4 LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
-        await step(f"GPIO4 LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
+        await step(f"pin LEVEL {lvl}", dev(WRITE, IO_LEVEL, bytes([pin, lvl])))
+        await step(f"pin LEVEL reads {lvl}", dev(READ, IO_LEVEL, bytes([pin])), bytes([pin, lvl]))
     link.pushes.clear()
     head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)
     await step("WATCH ADD", bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([pin])))
@@ -163,15 +163,19 @@ async def smoke(link: Link) -> bool:
     print(f"{'ok  ' if good else 'FAIL'} WATCH entries: {len(mine)} in 0.6 s, level 1")
     ok &= good
     await step("WATCH REMOVE", bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
-    await step("GPIO4 RESET", dev(WRITE, IO_RESET, bytes([pin])))
+    await step("testdev REMOVE", defs.pin_dev_remove())
     print("smoke PASSED" if ok else "smoke FAILED")
     return ok
 
 
 async def hold(link: Link, seconds: float) -> bool:
-    """A watch on GPIO 4's level (every 50 ms), listened for `seconds`: the entries by owner and the levels seen."""
+    """A watch on a testdev pin's level (every 50 ms), listened for `seconds`: the entries by owner and the levels seen.
+    The testdev is made when it is not there (another client's may be), the pin an output unless it has a mode."""
+    made, _ = await link.call(defs.pin_dev_create())
+    if made == 0:
+        await link.call(dev(WRITE, IO_MODE, bytes([defs.PIN, MODE_OUTPUT_PP])))
     head = struct.pack("<BBHH", 1, TRIG_PERIODIC, 5, 0)
-    st, _ = await link.call(bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([4])))
+    st, _ = await link.call(bytes([KEY_WATCH, WRITE, WATCH_OP_ADD]) + head + dev(READ, IO_LEVEL, bytes([defs.PIN])))
     link.pushes.clear()
     await link.listen(seconds)
     by_owner: dict = {}
@@ -180,13 +184,15 @@ async def hold(link: Link, seconds: float) -> bool:
     for (owner, wid), lv in sorted(by_owner.items()):
         print(f"owner {owner:#04x} watch {wid}: {len(lv)} entries, levels {sorted(set(lv), key=str)}")
     await link.call(bytes([KEY_WATCH, WRITE, WATCH_OP_REMOVE, 1]))
+    if made == 0:
+        await link.call(defs.pin_dev_remove())
     return st == 0 and (CLIENT, 1) in by_owner
 
 
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--smoke", action="store_true")
-    ap.add_argument("--hold", type=float, default=0, help="watch GPIO 4's level this many seconds")
+    ap.add_argument("--hold", type=float, default=0, help="watch a testdev pin's level this many seconds")
     ap.add_argument("--name", default="runit")
     args = ap.parse_args()
 

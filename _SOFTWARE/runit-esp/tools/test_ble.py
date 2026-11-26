@@ -185,8 +185,8 @@ def parse_ble_status(body: bytes) -> tuple[int, int]:
     return struct.unpack("<BH", body)
 
 
-def parse_peers(body: bytes) -> list[tuple[int, int, int, int, int, int]]:
-    return [struct.unpack_from("<BBBBIH", body, 1 + 10 * i) for i in range(body[0])]
+def parse_peers(body: bytes) -> list[tuple[int, int, int, int, int, int, int]]:
+    return [struct.unpack_from("<BBBBIHB", body, 1 + 11 * i) for i in range(body[0])]  # sys_session_info_t, 11 B
 
 
 def frag_encode(payload: bytes, step: int) -> list[bytes]:

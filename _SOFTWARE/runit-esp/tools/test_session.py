@@ -7,8 +7,9 @@ advertises the runIT service and bleak is installed, over BLE too.
 
 Run with the PC's Python (pyserial and bleak); the ESP-IDF venv has no bleak, so the BLE class is skipped there.
 The board runs the current firmware, with nothing else attached (the app, a monitor): the tests are two clients,
-0xF0 on the console and 0xF1 on BLE, and they drive GPIO 4 (a clean devkit; the pin is reset after each test).
-Every test leaves the board as it found it: dead-man 0, no safe state, no watches, GPIO 4 reset.
+0xF0 on the console and 0xF1 on BLE, and they drive a simulated pin of a testdev they create (runit_defs.PIN_DEV), so
+no pin of the board is touched. Every test leaves the board as it found it: dead-man 0, no safe state, no watches, the
+pin reset; the testdev is removed at the end.
 """
 import asyncio
 import contextlib
@@ -34,7 +35,8 @@ KEY_ERRORS = defs.sym("MODULE_ID_ERRORS")
 KEY_EVENTS = defs.sym("MODULE_ID_SYS_EVENT")
 KEY_ROUTER_MODULE = defs.sym("MODULE_ID_ROUTER")
 KEY_REMOTE = defs.sym("MODULE_ID_REMOTE")
-PIN = 4
+KEY_VM = defs.sym("MODULE_ID_VM")
+PIN = defs.PIN
 UART_ID = defs.sym("CMD_SRC_CLIENT_FIRST")
 BLE_ID = defs.sym("CMD_SRC_CLIENT_FIRST") + 1
 PROVIDER_CONSOLE, PROVIDER_BLE, PROVIDER_BLE_LOGS, PROVIDER_BLE_TELEMETRY = 1, 3, 4, 5
@@ -62,7 +64,7 @@ def quiet():
 
 
 def dev(op: int, args: bytes, side: int) -> bytes:
-    return bytes([sc.KEY_DEVICE, side, sc.GPIO]) + struct.pack("<H", op) + args
+    return bytes([sc.KEY_DEVICE, side, defs.PIN_DEV]) + struct.pack("<H", op) + args
 
 
 def watch_add(wid: int, trigger: int, period: int, silence: int, read: bytes) -> bytes:
@@ -138,7 +140,7 @@ class Uart:
         return [p for p in self.link.pushes[since:] if p[3] == key]
 
     def restore(self):
-        """The board as it was: dead-man 0, the safe state left, our watches and GPIO 4 reset."""
+        """The board as it was: dead-man 0, the safe state left, our watches and the pin reset."""
         self.hello(wait=0.03)  # the session may have ended: a hello (a short wait: with a dead-man on, silence ends it)
         self.call(bytes([sc.KEY_SYS, WRITE, SYS_DEADMAN]) + struct.pack("<I", 0))
         self.call(bytes([sc.KEY_SYS, WRITE, SYS_SAFE_LEAVE]))
@@ -161,6 +163,15 @@ def setUpModule():
         port = ports[0]
     UART = Uart(port)
     UART.restore()
+    UART.call(defs.pin_dev_remove())  # one a run that broke off left
+    st, body = UART.call(defs.pin_dev_create())
+    assert st == 0, f"the testdev {defs.PIN_DEV} was not created: {body.hex(' ')}"
+
+
+def tearDownModule():
+    if UART is not None:
+        UART.restore()
+        UART.call(defs.pin_dev_remove())
 
 
 class SessionUart(unittest.TestCase):
@@ -310,7 +321,7 @@ class SessionUart(unittest.TestCase):
 
     def test_a_watch_of_a_failing_read_reports_the_error_once(self):
         n = len(self.u.link.pushes)
-        self.u.call(watch_add(1, 0, 2, 0, dev(sc.IO_LEVEL, bytes([PIN]), READ)))  # GPIO 4 not set up: the read fails?
+        self.u.call(watch_add(1, 0, 2, 0, dev(sc.IO_LEVEL, bytes([PIN]), READ)))  # the pin not set up: the read fails
         self.u.pump(0.25)
         entries = self.u.pushes(sc.KEY_WATCH, n)
         errs = [p for p in entries if p[4][2] == 1]
@@ -367,7 +378,7 @@ class SessionUart(unittest.TestCase):
 
     def test_attach_rules(self):
         attach = bytes([sc.KEY_SESSION, WRITE, SESSION_ATTACH])
-        mods = bytes([KEY_ROUTER_MODULE, KEY_ERRORS, KEY_EVENTS, sc.KEY_WATCH, sc.KEY_LOG, KEY_REMOTE])  # the console's sub-ports, in the board's order
+        mods = bytes([KEY_ROUTER_MODULE, KEY_ERRORS, KEY_EVENTS, sc.KEY_WATCH, sc.KEY_LOG, KEY_REMOTE, KEY_VM])  # the console's sub-ports, in the board's order
         same = attach + struct.pack("<BBH", PROVIDER_CONSOLE, 0, 0) + mods
         self.assertEqual(self.u.call(same)[0], 0, "the same attach again is done")
         other = attach + struct.pack("<BBH", PROVIDER_CONSOLE, 0, 5000) + mods
@@ -416,7 +427,7 @@ class BleSide:
         self.client = BleakClient(dev_)
         await self.client.connect()
         self.link = bc.Link(self.client)
-        await self.client.start_notify(bc.uuid16(bc.TX), self.link.on_packet)
+        await self.client.start_notify(bc.uuid16(bc.SESSION), self.link.on_packet)
         await self.client.start_notify(bc.uuid16(bc.TELEMETRY), self.link.on_telemetry)
         self.logs = bytearray()
         await self.client.start_notify(bc.uuid16(BLE_LOGS), lambda _c, b: self.logs.extend(b))
