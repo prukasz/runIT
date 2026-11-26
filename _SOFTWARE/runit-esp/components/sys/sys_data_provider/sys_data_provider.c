@@ -36,7 +36,7 @@ static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
 U_MUTEX_DEFINE(s_ctrl);                                     // CREATE, REMOVE and the own ops, one at a time
-static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type and state, read on another core
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type, read on another core; `state` is atomics
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
 __attribute__((constructor)) static void slots_init(void) {
@@ -149,7 +149,8 @@ uint32_t sys_data_provider_list(sys_data_provider_row_t* rows) {
   for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     const prov_slot_t* s = &s_slots[i];
     if (s->type != NULL) {
-      rows[n++] = (sys_data_provider_row_t){.id = (uint8_t)s->p.port.id, .type = s->type->type, .state = s->p.state};
+      rows[n++] = (sys_data_provider_row_t){.id = (uint8_t)s->p.port.id, .type = s->type->type,
+                                           .state = __atomic_load_n(&s->p.state, __ATOMIC_RELAXED)};
     }
   }
   portEXIT_CRITICAL(&s_lock);
@@ -175,7 +176,7 @@ uint8_t sys_data_provider_state(uint8_t id) {
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     if (s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id) {
-      state = s_slots[i].p.state;
+      state = __atomic_load_n(&s_slots[i].p.state, __ATOMIC_RELAXED);
     }
   }
   portEXIT_CRITICAL(&s_lock);
@@ -195,10 +196,11 @@ err_h sys_data_provider_remove_runtime(uint8_t id) {
 }
 
 void sys_data_provider_set_up(sys_data_provider_t* p, bool up) {
-  portENTER_CRITICAL(&s_lock);
-  const bool was = (p->state & SYS_DATA_PROVIDER_STATE_UP) != 0;
-  p->state = up ? (uint8_t)(p->state | SYS_DATA_PROVIDER_STATE_UP) : (uint8_t)(p->state & ~SYS_DATA_PROVIDER_STATE_UP);
-  portEXIT_CRITICAL(&s_lock);
+  // The value before the change says whether this call made it, so of two calls at once only one publishes.
+  const uint8_t before =
+      up ? __atomic_fetch_or(&p->state, (uint8_t)SYS_DATA_PROVIDER_STATE_UP, __ATOMIC_ACQ_REL)
+         : __atomic_fetch_and(&p->state, (uint8_t)~SYS_DATA_PROVIDER_STATE_UP, __ATOMIC_ACQ_REL);
+  const bool was = (before & SYS_DATA_PROVIDER_STATE_UP) != 0;
   if (up != was) {
     const uint8_t id = (uint8_t)p->port.id;
     err_report(up ? SYS_EVENT_PUBLISH_DEFER(SYS_DATA_PROVIDER_EV_UP, id, 0)

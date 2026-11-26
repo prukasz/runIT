@@ -31,7 +31,8 @@ typedef struct {
   sys_device_res_t* res;          /**< What the device took, the last added first (sys_device_res_add); under `lock` */
   uint64_t uses;                  /**< Bit i: this device uses the device in slot i (sys_device_use) */
   uint64_t used_by;               /**< Bit i: the device in slot i uses this one; REMOVE is refused while any */
-  uint8_t in_flight;              /**< NOLOCK calls running without `lock`; under the table lock */
+  uint32_t in_flight;             /**< NOLOCK calls running without `lock`, at most UINT8_MAX: counted up under `lock`,
+                                       down by any task; atomics only */
   struct {
     uint8_t installed : 1;  /**< The device exists: set when create() worked, cleared by REMOVE */
     uint8_t suspended : 1;  /**< The safe state: writes are refused until RESUME (an op's ALWAYS aside) */
@@ -43,7 +44,7 @@ typedef struct {
 
 static sys_device_slot_t s_slots[SYS_DEVICE_COUNT];  // zero at the start (.bss)
 
-/* Guards `uses`, `used_by`, `gen`, `in_flight` and every write to `flags`. A critical section: a few bit operations,
+/* Guards `uses`, `used_by`, `gen` and every write to `flags`. A critical section: a few bit operations,
  * nothing that waits, allocates or builds an error inside; taken after the lock of a slot. */
 static portMUX_TYPE s_table_lock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -220,12 +221,11 @@ err_h sys_device_slot_enter(uint8_t id) {
   sys_device_slot_t* s = &s_slots[id];
   ERR_CHECK(held_by_me(s), ERR_DEV_NOT_LOCKED, .id = id);
   ERR_CHECK(s->flags.installed, ERR_DEV_NOT_FOUND, .id = id);
-  table_lock();
-  const bool full = s->in_flight == UINT8_MAX;
+  // Only the lock's holder counts up (this one), so the count cannot pass the limit between the check and the add.
+  const bool full = __atomic_load_n(&s->in_flight, __ATOMIC_RELAXED) >= UINT8_MAX;
   if (!full) {
-    s->in_flight++;
+    (void)__atomic_add_fetch(&s->in_flight, 1u, __ATOMIC_RELAXED);
   }
-  table_unlock();
   ERR_CHECK(!full, ERR_FULL, .max = UINT8_MAX);  // 255 calls of one device at once: a leak of leave()
   return NULL;
 }
@@ -234,25 +234,16 @@ void sys_device_slot_leave(uint8_t id) {
   if (id >= SYS_DEVICE_COUNT) {
     return;
   }
-  table_lock();
-  if (s_slots[id].in_flight > 0) {
-    s_slots[id].in_flight--;
+  if (__atomic_load_n(&s_slots[id].in_flight, __ATOMIC_RELAXED) != 0u) {
+    (void)__atomic_sub_fetch(&s_slots[id].in_flight, 1u, __ATOMIC_RELEASE);  // what the call did, before drain sees it
   }
-  table_unlock();
-}
-
-static uint8_t in_flight_of(uint8_t id) {
-  table_lock();
-  const uint8_t n = s_slots[id].in_flight;
-  table_unlock();
-  return n;
 }
 
 void sys_device_slot_drain(uint8_t id) {
   if (id >= SYS_DEVICE_COUNT) {
     return;
   }
-  while (in_flight_of(id) != 0) {
+  while (__atomic_load_n(&s_slots[id].in_flight, __ATOMIC_ACQUIRE) != 0u) {
     vTaskDelay(1);  // a NOLOCK call bounds its own time (SYS_DEVICE_OP_NOLOCK)
   }
 }

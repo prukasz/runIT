@@ -11,12 +11,16 @@
 #define ANSI_ESC  '\x1b'
 #define LEVEL_MAX CONFIG_LOG_MAXIMUM_LEVEL
 
+_Static_assert(sizeof(sys_log_cfg_t) <= sizeof(uint32_t), "the options must fit the word they are swapped as");
 _Static_assert(CONFIG_LOG_DEFAULT_LEVEL <= LEVEL_MAX, "the default log level is above the compile-time ceiling");
 _Static_assert(ERR_RECORD_MAX <= CMD_DATA_MAX, "an error record must fit a frame");
 
 static struct {
-  portMUX_TYPE lock;       // protects cfg and history
-  sys_log_cfg_t cfg;
+  portMUX_TYPE lock;  // protects history
+  union {
+    sys_log_cfg_t cfg;
+    uint32_t cfg_word;  // the three options at once: read and written with atomics only, every log line reads them
+  };
   vprintf_like_t console;  // what ESP_LOG wrote to before the hook
   struct {
     uint8_t bytes[ERR_RECORD_MAX];
@@ -73,10 +77,11 @@ static void push(data_matrix_port_t* port, uint8_t urgent, uint8_t* packet, uint
 }
 
 static sys_log_cfg_t read_cfg(void) {
-  portENTER_CRITICAL(&s_log.lock);
-  const sys_log_cfg_t cfg = s_log.cfg;
-  portEXIT_CRITICAL(&s_log.lock);
-  return cfg;
+  const union {
+    uint32_t word;
+    sys_log_cfg_t cfg;
+  } now = {.word = __atomic_load_n(&s_log.cfg_word, __ATOMIC_RELAXED)};
+  return now.cfg;
 }
 
 static int log_vprintf(const char* fmt, va_list args) {
@@ -121,9 +126,12 @@ err_h sys_log_set(const sys_log_cfg_t* cfg) {
   ERR_CHECK(cfg != NULL, ERR_BAD_ARG);
   ERR_CHECK_RANGE(cfg->level, 0, LEVEL_MAX);
   ERR_CHECK(cfg->mirror_serial <= 1 && cfg->trace_errors <= 1, ERR_BAD_ARG);
-  portENTER_CRITICAL(&s_log.lock);
-  s_log.cfg = *cfg;
-  portEXIT_CRITICAL(&s_log.lock);
+  union {
+    uint32_t word;
+    sys_log_cfg_t cfg;
+  } next = {.word = 0};
+  next.cfg = *cfg;
+  __atomic_store_n(&s_log.cfg_word, next.word, __ATOMIC_RELAXED);
   apply(cfg);
   return NULL;
 }

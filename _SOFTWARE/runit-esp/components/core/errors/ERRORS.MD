@@ -12,7 +12,7 @@ Component `components/core/errors/`. The foundational error handling and propaga
 | `err_log.h` / `err_log.c` | `err_log` (a chain as log text, for a sink that prints a chain it must not report), `err_log_ctx`, `err_log_enable`: chain formatting to `ESP_LOG` |
 | `err_record.h` / `err_record.c` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` (a chain with what caused it, as bytes) and `err_record_parse` (a record made a chain again); for the modules that send, keep or read records |
 | `err_tags.c` | Module and tag registry (`err__register_module`), lookup (`err_tag_info`, `err_module`) |
-| `err_pool.c` | Fixed block pool (task- and ISR-safe, double-free detection, static storage) |
+| `err_pool.c` | Fixed block pool (one bit per block, taken and returned with atomics, no lock; task- and ISR-safe, double-free detection, static storage) |
 | `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`); a static check that `ERR_HDR_LEN` is the node's header |
 | `errors.json` | Generated error catalog descriptor for all firmware modules: tags, payload fields, what an id field refers to, the user message of each tag |
 | `errors/core_errors.h` / `errors/errors_core.json` | The core tags, as every module's errors: `MODULE_ID_CORE` (no module), `ERR_CORE_MAP` (`ERR_POOL_EMPTY`, `ERR_ESP_ERR`, `ERR_RECORD_CUT`, `ERR_NULL_PTR`, `ERR_RANGE`, `ERR_RANGE_F`) and their user messages (and hints: what to do). Each module has its map `<component>_errors.h` and its `errors_<module>.json` in the `errors/` folder of its component |
@@ -156,7 +156,7 @@ answer    [ANSWER, status ERROR][seq 1]
 
 ## Tests
 
-Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, spinlock, sdkconfig). `host/host_test.json` lists the sources and three variants: `info` (call-site info on), `no_info` (`CONFIG_ERRORS_INFO=0`) and `no_assert` (`NDEBUG`: what a misuse does where asserts are off); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size. No test waits: the concurrency test joins its threads, nothing sleeps.
+Host tests in `host/`, run by the shared runner (`runit-esp/test_host/HOST_TESTS.MD`): `python test_host/run.py errors` from `runit-esp/`. The component's real sources are built with `gcc` on the PC with Unity; only the platform is replaced (clock, log, sdkconfig). `host/host_test.json` lists the sources and three variants: `info` (call-site info on), `no_info` (`CONFIG_ERRORS_INFO=0`) and `no_assert` (`NDEBUG`: what a misuse does where asserts are off); `host/errors_host_config.h` holds the Kconfig defaults. The host has 8-byte pointers, so the node header is `2 * sizeof(void*) + 4` (`ERR_HDR_LEN`): the tests check the logic and the wire bytes, not the board's node size. No test waits: the concurrency test joins its threads, nothing sleeps.
 
 They cover:
 - **Nodes:** tag and payload, a payload of exactly `ERR_DATA_MAX`, none (`data` NULL), the rest of a reused block zeroed; reading a node (`err_tag`, `err_cause`, `err_data`, NULL).
@@ -169,4 +169,4 @@ They cover:
 - **The log:** lines, an ESP-IDF code by name, the call site (and none without call-site info), level by severity, a context line, nothing for NULL, off.
 - **Reporting:** `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing, NULL).
 
-Not covered on the host: the pool's use from an ISR (on the host its critical section is a mutex, so tasks are covered, an ISR is not); the assertions themselves (they abort: the `no_assert` variant covers what follows them); the registration's asserts (a module ID twice, more modules than `ERRORS_MAX_MODULES`).
+Not covered on the host: the pool's use from an ISR (threads cover its atomics between tasks, an ISR is not run); the assertions themselves (they abort: the `no_assert` variant covers what follows them); the registration's asserts (a module ID twice, more modules than `ERRORS_MAX_MODULES`).

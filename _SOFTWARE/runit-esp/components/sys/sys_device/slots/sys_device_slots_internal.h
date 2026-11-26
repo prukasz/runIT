@@ -127,8 +127,8 @@ MUST_USE err_h sys_device_slot_uninstall(uint8_t id);
  */
 MUST_USE err_h sys_device_slot_set_suspended(uint8_t id, bool suspended);
 
-/* Calls in flight: the NOLOCK ops (SYS_DEVICE_OP_NOLOCK) that run without the lock of the slot. Counted under a short
- * critical section of their own, so a call leaves without the lock. */
+/* Calls in flight: the NOLOCK ops (SYS_DEVICE_OP_NOLOCK) that run without the lock of the slot. Counted with atomics,
+ * so a call leaves without the lock. */
 
 /**
  * @brief Counts a NOLOCK call in flight on an installed device. The caller holds the lock of the slot (it made the

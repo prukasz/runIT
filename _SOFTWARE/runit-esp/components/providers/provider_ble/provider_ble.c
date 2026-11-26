@@ -88,7 +88,8 @@ static err_h ble_create(sys_data_provider_t* p, const void* cfg_in) {
     return err;
   }
   sys_ble_apply();
-  p->state |= framed != 0u ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u;
+  // Atomic: the stack is applied, so a client may connect and set STATE_UP right now.
+  (void)__atomic_fetch_or(&p->state, (uint8_t)(framed != 0u ? SYS_DATA_PROVIDER_STATE_FRAMED : 0u), __ATOMIC_RELAXED);
   return NULL;
 }
 

@@ -59,7 +59,7 @@ const err_module_t* err_module(uint16_t id);
 
 /* ----------------------------------------------------------------------------
  * The pool (err_pool.c): CONFIG_ERRORS_POOL_BLOCKS blocks of CONFIG_ERRORS_POOL_BLOCK_SIZE bytes, static. One node is
- * one block, freed in any order. Safe from tasks and ISRs, on both cores (a spinlock critical section).
+ * one block, freed in any order. Safe from tasks and ISRs, on both cores (atomics, no lock).
  * ------------------------------------------------------------------------- */
 
 /**

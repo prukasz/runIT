@@ -40,18 +40,15 @@ bool sys_device_self_suspended(void) {
 /* The safe-state gate: the SUSPEND sweeps running now, on any task. While it is not 0 a write that comes from no
  * device and a CREATE are refused on every device, so nothing starts an output the sweep has not reached yet. A
  * device's own calls pass: a suspend() hook reaches the devices it uses, which are suspended after it. */
-static volatile uint32_t s_safe_gate;
-static portMUX_TYPE s_gate_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t s_safe_gate;  // atomics only
 
 static void safe_gate(bool enter) {
-  portENTER_CRITICAL(&s_gate_lock);
-  s_safe_gate += enter ? 1u : (uint32_t)-1;
-  portEXIT_CRITICAL(&s_gate_lock);
+  (void)__atomic_add_fetch(&s_safe_gate, enter ? 1u : (uint32_t)-1, __ATOMIC_ACQ_REL);
 }
 
 // Whether the call this task makes now is one the safe-state gate refuses: it comes from no device.
 static bool gated(void) {
-  return s_safe_gate != 0 && sys_device_caller() == SYS_DEVICE_ID_NONE;
+  return __atomic_load_n(&s_safe_gate, __ATOMIC_ACQUIRE) != 0 && sys_device_caller() == SYS_DEVICE_ID_NONE;
 }
 
 /* ----------------------------------------------------------------------------

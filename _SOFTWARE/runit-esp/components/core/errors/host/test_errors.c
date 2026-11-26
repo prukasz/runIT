@@ -1,4 +1,4 @@
-/* Host tests of the errors component: the real code; only the platform (clock, log, spinlock, sdkconfig) is replaced.
+/* Host tests of the errors component: the real code; only the platform (clock, log, sdkconfig) is replaced.
  * Run: python test_host/run.py errors   (HOST_TESTS.MD) */
 #include <math.h>
 #include <pthread.h>
@@ -668,7 +668,7 @@ static void test_pool_is_safe_across_tasks(void) {
     pthread_join(th[i], NULL);
     TEST_ASSERT_EQUAL_INT(0, w[i].bad);
   }
-  ASSERT_POOL_FULL();  /* and not a block lost or twice on the free list */
+  ASSERT_POOL_FULL();  /* and not a block lost or handed out twice */
 }
 
 /* ---- nodes: limits and edges ---------------------------------------------------------------------------------- */
@@ -785,7 +785,7 @@ static void test_record_parse_refuses_null(void) {
 static void test_double_free_and_a_foreign_pointer_leave_the_pool_whole(void) {
   err_h a = err_pool_alloc();
   err_pool_free(a);
-  err_pool_free(a);                          /* a second time: ignored, not on the free list twice */
+  err_pool_free(a);                          /* a second time: ignored, not handed out twice */
   uint32_t local[16];
   err_pool_free((err_h)(void*)local);        /* not a pool block */
   err_h b = err_pool_alloc();
