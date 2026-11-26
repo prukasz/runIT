@@ -64,4 +64,4 @@ On a board: `python runit-esp/tools/session_client.py <COM port>` runs PING (`28
 
 ## Open
 
-- The power manager is not started in `app/runit` yet, so the reason POWER does not occur on a board.
+- No board profile starts the power manager yet (its first LAYOUT, SYS_POWER_MANAGER.MD), so the reason POWER does not occur on a board.

@@ -386,7 +386,8 @@ static void test_source_detection_pd_and_lipo_curve(void) {
 
 static void test_unified_fault_event_codes_and_response_matrix(void) {
   create_mock(DEV_RAIL1);
-  TEST_ASSERT_NULL(sys_power_manager_init());
+  const sys_power_layout_t lay = base_layout();
+  TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
   const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = DEV_RAIL1, .monitor_channel = 0, .min_mA = 200};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
 

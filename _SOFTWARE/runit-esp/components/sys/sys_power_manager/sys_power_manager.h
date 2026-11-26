@@ -152,7 +152,8 @@ typedef struct __attribute__((packed)) {
  * API
  * ------------------------------------------------------------------------- */
 
-MUST_USE err_h sys_power_manager_init(void);
+/* Lazy: stopped until the first LAYOUT (sys_power_manager_set_layout) starts it (its task, the POWER_VREG interceptor,
+ * its listeners); stop frees it. While it is stopped every other call is ERR_PWRM_NOT_READY. */
 MUST_USE err_h sys_power_manager_stop(void);
 MUST_USE err_h sys_power_manager_set_layout(const sys_power_layout_t* layout);
 MUST_USE err_h sys_power_manager_add_rail(const sys_power_rail_t* rail);

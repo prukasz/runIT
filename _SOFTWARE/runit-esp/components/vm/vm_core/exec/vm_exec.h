@@ -78,6 +78,13 @@ MUST_USE err_h vm_exec_start(void);
 void vm_exec_request_stop(void);
 
 /**
+ * @brief Request a save of the retained values without waiting: the VM task saves them (vm_retain_save_stopped,
+ * under the program lock) once no pass runs, so a stop requested with it saves the values the stopped pass left.
+ * Any task; the safe state's (SAFE).
+ */
+void vm_exec_request_retain_save(void);
+
+/**
  * @brief Request stop and wait for a quiescent VM.
  *
  * On success, mode is VM_RUN_STOPPED and no pass is active or parked. Objects,

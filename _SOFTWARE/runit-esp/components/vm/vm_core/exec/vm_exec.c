@@ -40,6 +40,7 @@ static struct {
   vm_exec_fault_status_t fault;
   bool waiting;
   vm_run_mode_e resume;
+  volatile bool save_req;     // the retained values to be saved once no pass runs (vm_exec_request_retain_save)
   void (*sample_hook)(void);  // telemetry sampling, called at the end of every completed pass
 } s_exec;
 
@@ -410,11 +411,26 @@ void vm_exec_pass(void) {
    The task
    ========================================================================== */
 
+/* The retained values as they are now, on the VM task between passes: under the program lock, so neither a pass nor a
+   load touches the objects while they are captured. */
+static void save_retained(void) {
+  s_exec.save_req = false;
+  vm_run_mode_e previous;
+  err_h err = vm_exec_program_lock(&previous);
+  if (err != NULL) {
+    err_report(err);
+    return;
+  }
+  vm_retain_save_stopped();
+  vm_exec_program_unlock(previous);
+}
+
 static void vm_exec_task(void* arg) {
   (void)arg;
   for (;;) {
     vm_run_mode_e mode = vm_exec_mode();
     if (mode == VM_RUN_STOPPED || mode == VM_RUN_FROZEN || mode == VM_RUN_SCAN || mode == VM_RUN_BLOCK) {
+      if (s_exec.save_req) save_retained();
       vm_clock_hold_begin();  // not running passes: this time doesn't count for the program
       vTaskDelay(MSEC(10));
       continue;
@@ -450,6 +466,10 @@ void vm_exec_request_stop(void) {
   portENTER_CRITICAL(&s_program_mux);
   request_stop_locked();
   portEXIT_CRITICAL(&s_program_mux);
+}
+
+void vm_exec_request_retain_save(void) {
+  s_exec.save_req = true;
 }
 
 err_h vm_exec_stop(void) {

@@ -15,7 +15,7 @@ Component `components/sys/sys_power_manager/`. It watches one board input, the p
 
 ## Board description (`sys_power_board_t`)
 
-From the board's profile (SYS_BOARD.MD): LAYOUT gives the limits, the input, the sink and the source pins, RAIL adds a rail. Until then: a USB port's limits (5 V, 500 mA, 1 W of fixed loads) with no rails, monitor, sink or source pins. The values below are the PCB's. Each power element is tied to its measurement here: a rail to its regulator and monitor channel, the board input to its monitor channel. The rails' own limits (voltage, current) are set by the user on the regulator itself (POWER_VREG frames, through the interceptor below).
+From the board's profile (SYS_BOARD.MD): LAYOUT gives the limits, the input, the sink and the source pins, RAIL adds a rail. **The manager starts lazily:** it is stopped (no task, no interceptor, no listeners) until the first LAYOUT starts it, and STOP frees it again; while it is stopped every other command answers `ERR_PWRM_NOT_READY`, so a board whose profile has no LAYOUT runs no power manager. Nothing in `app/runit` starts it. The values below are the PCB's. Each power element is tied to its measurement here: a rail to its regulator and monitor channel, the board input to its monitor channel. The rails' own limits (voltage, current) are set by the user on the regulator itself (POWER_VREG frames, through the interceptor below).
 
 | Field | Value | Meaning |
 |---|---|---|
@@ -164,7 +164,7 @@ Requests are `[MODULE_ID_PWRM][dir][op][args]` (`dir` 0 read, 1 write; ROUTER.MD
 
 | Error | Severity | Fields | Meaning |
 |---|---|---|---|
-| `ERR_PWRM_NOT_READY` | HIGH | – | Called before `sys_power_manager_init` |
+| `ERR_PWRM_NOT_READY` | HIGH | – | The manager is stopped: before the first LAYOUT, or after STOP |
 | `ERR_PWRM_BUDGET_EXCEEDED` | MEDIUM | `id, requested_mW, available_mW` | A rail change that does not fit |
 | `ERR_PWRM_BELOW_ALLOCATION` | MEDIUM | `allocated_mW, limit_mW` | The budget shrank under what is committed |
 | `ERR_PWRM_FAULT` | MEDIUM | `source, channel, kind, response, value` | A hardware fault and the response taken |

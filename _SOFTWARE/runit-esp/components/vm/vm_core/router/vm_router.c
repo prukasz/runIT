@@ -261,10 +261,12 @@ static err_h op_open_closed(CMD_F_PARAMS) {
 }
 
 /* The board enters the safe state (inline, on the task that enters it, before the devices are suspended): the program
-   stops at the next block boundary. Only asked for, never waited for: the pass may be inside a device op that waits
-   for this very task. A device fault also latches (the program stays loaded, EXEC ACK_FAULT clears the latch). */
+   stops at the next block boundary and the VM task then saves the retained values. Only asked for, never waited for:
+   the pass may be inside a device op that waits for this very task. A device fault also latches (the program stays
+   loaded, EXEC ACK_FAULT clears the latch). */
 static err_h on_safe(const sys_event_t* event, void* ctx) {
   (void)ctx;
+  vm_exec_request_retain_save();  // before the stop: the VM task sees it once the pass let go
   if (event->key.channel == SYS_SAFE_FAULT) {
     (void)vm_exec_fault_latch(event->key.source, 0);  // requests the stop; SAFE carries no error, so no root tag
   } else {

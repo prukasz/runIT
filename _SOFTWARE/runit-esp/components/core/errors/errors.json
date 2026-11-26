@@ -3488,7 +3488,7 @@
           "severity": 3,
           "size": 0,
           "fields": [],
-          "description": "before sys_power_manager_init",
+          "description": "stopped: before the first LAYOUT",
           "message": "The power manager is not ready"
         },
         {

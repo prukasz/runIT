@@ -32,4 +32,4 @@ Every reported chain goes to `error_sink`: `sys_device_policy_handle` answers it
 
 ## Open
 
-- The power manager is not started here yet (`sys_power_manager_init`); its safe state (reason POWER) needs no wiring, it calls `sys_system_enter_safe_state` itself.
+- No board profile has a power manager LAYOUT yet, so the power manager (started lazily by its first LAYOUT, SYS_POWER_MANAGER.MD) does not run on a board; its safe state (reason POWER) needs no wiring here, it calls `sys_system_enter_safe_state` itself.

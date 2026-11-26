@@ -45,18 +45,6 @@ typedef struct {
   uint8_t type;
 } offer_t;
 
-static const sys_power_layout_t k_default_layout = {
-    .max_mV = 5000,
-    .max_mA = 500,
-    .reserve_mW = 1000,
-    .unknown_source_mA = 500,
-    .vreg_efficiency_pct = 90,
-    .input_device = SYS_DEVICE_ID_NONE,
-    .usb_pd = SYS_DEVICE_ID_NONE,
-    .usb_ok = SYS_IO_PIN_NONE,
-    .ext_ok = SYS_IO_PIN_NONE,
-};
-
 static const sys_power_manager_cfg_t k_default_cfg = {
     .mode = SYS_POWER_BUDGET_STRICT, .soft_margin_pct = 20, .source = SYS_POWER_SOURCE_UNKNOWN};
 static const sys_power_pd_t k_default_pd = {.mode = SYS_POWER_PD_MAX, .voltage_mV = 0};
@@ -834,12 +822,6 @@ static err_h start_manager(const sys_power_layout_t* layout) {
     return ERR_NEW(ERR_PWRM_NOT_READY);
   }
   return NULL;
-}
-
-err_h sys_power_manager_init(void) {
-  U_RMUTEX_GUARD(sys_pwrm_mutex);
-  ERR_CHECK(!s_pm.running, ERR_BUSY);
-  return start_manager(&k_default_layout);
 }
 
 err_h sys_power_manager_stop(void) {
