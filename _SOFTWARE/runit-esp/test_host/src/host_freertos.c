@@ -25,6 +25,38 @@ static bool wait_cond(pthread_cond_t* c, pthread_mutex_t* m, TickType_t ticks) {
   return pthread_cond_timedwait(c, m, &ts) != ETIMEDOUT;
 }
 
+/* ---- the scheduler -------------------------------------------------------------------------------------------- */
+
+/* As on the board: every constructor has run before a task does. A task a constructor makes waits here, so it never
+ * sees a static object (utils.h, its component's own) that a later constructor makes. */
+static pthread_mutex_t s_sched_m = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_sched_c = PTHREAD_COND_INITIALIZER;
+static bool s_sched_started;
+
+static void scheduler_wait(void) {
+  pthread_mutex_lock(&s_sched_m);
+  while (!s_sched_started) {
+    pthread_cond_wait(&s_sched_c, &s_sched_m);
+  }
+  pthread_mutex_unlock(&s_sched_m);
+}
+
+static void scheduler_start(void) {
+  pthread_mutex_lock(&s_sched_m);
+  s_sched_started = true;
+  pthread_cond_broadcast(&s_sched_c);
+  pthread_mutex_unlock(&s_sched_m);
+}
+
+/* The executable's main (a test's own is built as host_test_main, run.py): the constructors are done by now. */
+#undef main
+int host_test_main(void);
+
+int main(void) {
+  scheduler_start();
+  return host_test_main();
+}
+
 /* ---- tasks: threads ------------------------------------------------------------------------------------------- */
 
 typedef struct {
@@ -58,6 +90,7 @@ void host_isr_set(int in_isr) {
 static void* task_main(void* p) {
   task_t* t = p;
   s_self = t;
+  scheduler_wait();
   t->fn(t->arg);
   return NULL;
 }

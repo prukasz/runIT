@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parent          # runit-esp/test_host
 FW = ROOT.parent                                # runit-esp
 BUILD = FW / "build_host"
 UNITY = ROOT / "vendor" / "unity"
-CFLAGS = ["-std=gnu11", "-Wall", "-Wextra", "-g", "-pthread"]
+# -Dmain: a test's main() is run by host_freertos.c's, which starts the tasks first (HOST_TESTS.MD).
+CFLAGS = ["-std=gnu11", "-Wall", "-Wextra", "-g", "-pthread", "-Dmain=host_test_main"]
 COMPONENT_ROOTS = [FW / "components"]
 
 
