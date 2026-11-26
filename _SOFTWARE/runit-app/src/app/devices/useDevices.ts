@@ -12,14 +12,14 @@ import { boardHoldsJson, readBoardProfile, writeBoardProfile } from './boardProf
 import { bootSteps, withBoard } from './boardEditor'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
-import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
-import type { DeviceInfo, DeviceOps } from './devices'
+import { baseConfig, decodeOps, DEVICE_COMMANDS, DEVICE_EVENTS, deviceList, hydrateRemoteDevices, lifecycleOf, nextActionId, nextDeviceId, pinNamer, renumberDevice, SINGLE_TYPES } from './devices'
+import type { DeviceInfo, DeviceOps, RemoteBoardContext } from './devices'
 
 type ProjectState = Pick<ReturnType<typeof useProject>, 'project' | 'edit'>
 
 /** What is selected in the Devices view: a device (by its ID) or an action. */
-/** A device, an action, or the choice of a type to add (`add`: the centre shows a tile for every type that can be installed). */
-export type DeviceSelection = { readonly kind: 'device'; readonly id: number } | { readonly kind: 'action'; readonly id: number } | { readonly kind: 'add' }
+/** A device, an action, or the choice of a type to add (`add`: the centre shows a tile for every type that can be installed; optional `board` places it on that remote board). */
+export type DeviceSelection = { readonly kind: 'device'; readonly id: number } | { readonly kind: 'action'; readonly id: number } | { readonly kind: 'add'; readonly board?: number }
 
 /** A device as the board answers INFO: there and of which type, suspended or not; or not there. */
 export type LiveDevice =
@@ -45,7 +45,7 @@ export interface DevicesNote {
  * edited project IS the profile: its devices are added, changed and removed like a project's, and Write and Read are the profile's
  * to and from the board; it has no actions and no program. When the board connects, this instance loads the board's profile.
  */
-export function useDevices(link: RunitLink, linkState: LinkState, project: ProjectState, autoSync = false, profile?: BoardProfileState, scope: 'app' | 'board' = 'app') {
+export function useDevices(link: RunitLink, linkState: LinkState, project: ProjectState, autoSync = false, profile?: BoardProfileState, scope: 'app' | 'board' = 'app', remoteContext?: RemoteBoardContext, onAfterWrite?: () => Promise<void>) {
   const catalog = useMemo(bundledServiceCatalog, [])
   const board = scope === 'board' ? profile!.bare : profile!.board
   const boot = useMemo(() => bootSteps(profile!.project), [profile!.project])
@@ -53,7 +53,7 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const services = useMemo(() => new Services(link, catalog), [link, catalog])
   const lifecycle = useMemo(() => lifecycleOf(catalog), [catalog])
   const connected = linkState === 'connected'
-  const devices = useMemo(() => deviceList(project.project, catalog, board), [project.project, catalog, board])
+  const devices = useMemo(() => hydrateRemoteDevices(deviceList(project.project, catalog, board), project.project, scope === 'app' ? remoteContext : undefined), [project.project, catalog, board, scope, remoteContext])
   const [selection, setSelection] = useState<DeviceSelection | undefined>()
   /** The pin whose settings the right panel shows (of the selected device). */
   const [pinSelection, setPinSelection] = useState<{ readonly device: number; readonly pin: number } | undefined>()
@@ -197,13 +197,16 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
   const updateDevice = useCallback((id: number, change: (d: ProjectDevice) => ProjectDevice, key?: string) =>
     edit((p) => ({ ...p, devices: p.devices.map((d) => (d.id === id ? change(d) : d)) }), key), [edit])
 
-  const addDevice = useCallback((type: CatalogEntry) => {
+  const addDevice = useCallback((type: CatalogEntry, onBoard?: number) => {
     if (SINGLE_TYPES.has(type.id)) return
     const id = nextDeviceId(project.project, board, occupied.current)
     const taken = new Set(project.project.devices.map((d) => d.name))
     let n = 1
     while (taken.has(`${type.label} ${n}`)) n++
-    edit((p) => ({ ...p, devices: [...p.devices, { id, type: type.id, name: `${type.label} ${n}`, config: baseConfig(type, board, scope), defaults: [] }] }))
+    edit((p) => ({
+      ...p,
+      devices: [...p.devices, { id, type: type.id, name: `${type.label} ${n}`, config: baseConfig(type, board, scope), defaults: [], ...(onBoard !== undefined ? { board: onBoard } : {}) }],
+    }))
     setSelection({ kind: 'device', id })
   }, [edit, project.project, board, scope])
 
@@ -264,9 +267,10 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
       return 'The profile is on the board; it restarts to create its devices.'
     }
     const text = await writeToBoard(link, catalog, board, project.project, setBusy)
+    await onAfterWrite?.()
     setSynced(snapshot)
     return text
-  }), [run, scope, link, catalog, board, project.project, snapshot, boot, profile, services])
+  }), [run, scope, link, catalog, board, project.project, snapshot, boot, profile, services, onAfterWrite])
 
   const read = useCallback(() => run(async () => {
     if (scope === 'board') {

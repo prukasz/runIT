@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { bundledEnums, CommandError, deviceRefs, ErrorInterpreter, ErrorLog, errorCatalog, errorIdKinds, refKey, RunitLink } from '@backend'
+import { bundledEnums, CommandError, deviceRefs, ErrorInterpreter, ErrorLog, errorCatalog, errorIdKinds, programRefs, refKey, RunitLink } from '@backend'
 import type { ErrorReport } from '@backend'
+import type { Project } from '@engine/model'
 import { defs, FakeBoard, until } from './fakes'
 import { record, tagOf, u16, u32 } from './records'
 
@@ -71,6 +72,39 @@ describe('reading an error', () => {
   it('a tag errors.json does not have keeps its number', () => {
     const report = interpreter.read(Uint8Array.from([defs.errorRecord.srcInternal, ...u32(0), ...u32(0), 1, ...u32(0x7fff0001), 0]))!
     expect(report.cause).toMatchObject({ known: false, name: '0x7FFF0001', message: 'Error 0x7FFF0001' })
+  })
+
+  it('programRefs numbers unnamed blocks within their own type, matching the editor', () => {
+    const project: Project = {
+      variables: [],
+      blocks: [
+        { id: 'periodic1', type: 'periodic', inputs: [], enables: [], outputs: [] },
+        { id: 'io1', type: 'io', inputs: [], enables: [], outputs: [] },
+        { id: 'io2', type: 'io', inputs: [], enables: [], outputs: [] },
+        { id: 'io3', type: 'io', inputs: [], enables: [], outputs: [] },
+        { id: 'io4', type: 'io', inputs: [], enables: [], outputs: [] },
+      ],
+    }
+    const blk = (id: number, type: number) => ({
+      id, index: id, type, inputs: [], enables: [], outputs: [], enableMode: 'all' as const, onError: 'continue' as const, state: new Uint8Array(), eno: 0xffff,
+    })
+    const resolve = programRefs(project, {
+      ids: {
+        variables: new Map(),
+        outputs: new Map(),
+        blocks: new Map([['periodic1', 0], ['io1', 1], ['io2', 2], ['io3', 3], ['io4', 4]]),
+      },
+      ir: {
+        objects: [],
+        data: [],
+        accessors: [],
+        blocks: [blk(0, 13), blk(1, 32), blk(2, 32), blk(3, 32), blk(4, 32)],
+      },
+    })
+    const interp = new ErrorInterpreter({ resolve })
+    expect(interp.label({ kind: 'vm_block', id: 0 })).toBe('Every')
+    expect(interp.label({ kind: 'vm_block', id: 3 })).toBe('IO pin 3')
+    expect(interp.label({ kind: 'vm_block', id: 4 })).toBe('IO pin 4')
   })
 })
 

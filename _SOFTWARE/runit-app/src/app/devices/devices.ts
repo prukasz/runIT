@@ -66,6 +66,40 @@ export interface DeviceInfo {
   readonly board?: number
   /** Its id on that board (`ProjectDevice.remoteId`). */
   readonly remoteId?: number
+  /** When known (a wired remote board whose profile/project the app keeps), that board's descriptor for pin filtering. */
+  readonly remoteBoard?: BoardDescriptor
+  /** The devices on that remote board (for `usedBy` pin filtering). */
+  readonly remoteDevices?: readonly DeviceInfo[]
+}
+
+/** A remote board's own descriptor and devices, used on the master to filter pins and show pin names of its ghost aliases. */
+export interface RemoteBoardContext {
+  readonly board: BoardDescriptor
+  readonly devices: readonly DeviceInfo[]
+}
+
+/**
+ * Hydrates remote ghost devices on a wired board with that board's actual pin modes (`defaults`), pin names (`pinAliases`),
+ * board descriptor (`remoteBoard`) and devices (`remoteDevices`) so Code blocks filter pins accurately.
+ */
+export const hydrateRemoteDevices = (
+  devices: readonly DeviceInfo[],
+  project: ProjectFile,
+  remote?: RemoteBoardContext,
+): DeviceInfo[] => {
+  if (!remote) return [...devices]
+  const wiredIds = new Set((project.boards ?? []).filter((b) => b.link === 'wired').map((b) => b.id))
+  return devices.map((d) => {
+    if (d.board === undefined || !wiredIds.has(d.board)) return d
+    const real = remote.devices.find((r) => r.id === boardDeviceId(d))
+    return {
+      ...d,
+      defaults: real ? real.defaults : d.defaults,
+      pinAliases: real ? new Map([...real.pinAliases, ...d.pinAliases]) : d.pinAliases,
+      remoteBoard: remote.board,
+      remoteDevices: remote.devices,
+    }
+  })
 }
 
 /**
@@ -572,9 +606,14 @@ export const stepCall = (defs: LinkDefinitions, catalog: ServiceCatalog, step: E
 export const installFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice): Uint8Array =>
   requestFrame(createDeviceCall(catalog, device.id, device.type, device.config).request)
 
-/** The alias on this board of a project device that is on another board: CREATE_REMOTE (SYS_REMOTE.MD). */
-export const remoteFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, device: ProjectDevice & { readonly board: number }): Uint8Array =>
-  requestFrame(createRemoteDeviceCall(catalog, device.id, device.type, device.board, boardDeviceId(device)).request)
+/** The alias on this board of a project device that is on another board: CREATE_REMOTE (SYS_DEVICE_REMOTE.MD). */
+export const remoteFrame = (
+  defs: LinkDefinitions,
+  catalog: ServiceCatalog,
+  device: ProjectDevice & { readonly board: number },
+  link: 'wired' | 'wireless' = 'wireless',
+): Uint8Array =>
+  requestFrame(createRemoteDeviceCall(catalog, device.id, device.type, device.board, boardDeviceId(device), link).request)
 
 /**
  * The frames of a device's record on this board: CREATE for a project device, then its start commands; a device on another board
@@ -582,7 +621,10 @@ export const remoteFrame = (defs: LinkDefinitions, catalog: ServiceCatalog, devi
  */
 export const deviceFrames = (defs: LinkDefinitions, catalog: ServiceCatalog, project: ProjectFile, device: DeviceInfo): Uint8Array[] => {
   const own = project.devices.find((d) => d.id === device.id)
-  if (own?.board !== undefined) return [remoteFrame(defs, catalog, { ...own, board: own.board })]
+  if (own?.board !== undefined) {
+    const link = project.boards?.find((b) => b.id === own.board)?.link ?? 'wireless'
+    return [remoteFrame(defs, catalog, { ...own, board: own.board }, link)]
+  }
   return [...(device.system || !own ? [] : [installFrame(defs, catalog, own)]), ...device.defaults.map((s) => stepFrame(defs, catalog, s))]
 }
 

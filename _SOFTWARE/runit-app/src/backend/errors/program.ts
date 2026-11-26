@@ -41,12 +41,18 @@ export const programRefs = (project: Project, result: Pick<CompileResult, 'ids' 
   const instances = new Map(project.blocks.map((b) => [b.id, b]))
   const irBlocks = new Map((result.ir?.blocks ?? []).map((b) => [b.id, b]))
 
+  const blockBase = (b: Project['blocks'][number]): string => {
+    const wireId = result.ids.blocks.get(b.id)
+    const type = wireId !== undefined ? irBlocks.get(wireId)?.type : undefined
+    return b.name?.trim() || (type !== undefined && blockTypes.get(type)) || b.type
+  }
   const blockLabel = (id: number): string | undefined => {
     const instance = instances.get(blockOf.get(id) ?? '')
     if (!instance) return undefined
-    if (instance.name) return instance.name
-    const type = irBlocks.get(id)?.type
-    return `${(type !== undefined && blockTypes.get(type)) || instance.type} ${id + 1}`
+    const own = blockBase(instance)
+    if (instance.name?.trim()) return own
+    const alike = project.blocks.filter((b) => !b.name?.trim() && blockBase(b) === own)
+    return alike.length > 1 ? `${own} ${alike.indexOf(instance) + 1}` : own
   }
   const pinLabel = (kind: 'input' | 'output' | 'enable' | 'eno', index: number) => (kind === 'eno' ? 'ENO' : `${kind} ${index + 1}`)
   const block = (id: number, pin?: { kind: 'input' | 'output' | 'enable' | 'eno'; index: number }): RefTarget | undefined => {

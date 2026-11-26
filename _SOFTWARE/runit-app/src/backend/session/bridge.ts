@@ -24,6 +24,8 @@ export const BRIDGE_DEVICE = 63
 
 /** A UART device's provider: this plus the device's ID (PROVIDER_UART.MD "Made with the device"). */
 const UART_PROVIDER_BASE = 0x40
+/** The provider id of the master's bridge/slave UART (`UART_PROVIDER_BASE + BRIDGE_DEVICE`). */
+export const BRIDGE_UART_PROVIDER = UART_PROVIDER_BASE + BRIDGE_DEVICE
 /** The master's provider of the bridge characteristic (`RUNIT_PROVIDER_BLE_BRIDGE`, runit_ids.h). */
 export const BRIDGE_PROVIDER = 0x06
 
@@ -96,9 +98,8 @@ export class BridgePlatform implements BlePlatform {
     })
   }
 
-  /** The UART on the master and its two links with the bridge, made anew. */
-  private async makeWire(): Promise<void> {
-    await this.release()
+  /** Creates the master's framed UART device for the wire. */
+  private async createUart(): Promise<void> {
     const wire = this.wire()
     const create = createDeviceCall(this.catalog, BRIDGE_DEVICE, UART_TYPE, {
       uart_num: wire.uart,
@@ -112,16 +113,41 @@ export class BridgePlatform implements BlePlatform {
       cts_pin: null,
     } as never)
     await this.services.send(create)
+  }
+
+  /** Detaches any master session on the bridge UART provider (no-op when none is attached). */
+  async detachSession(): Promise<void> {
+    await this.services.call('SESSION', 'DETACH', { provider: BRIDGE_UART_PROVIDER }, { side: 'write', timeoutMs: 1000, label: 'bridge SESSION DETACH' }).catch(() => undefined)
+  }
+
+  /** The UART on the master and its two links with the bridge, made anew (app ↔ slave tunnel). */
+  private async makeWire(): Promise<void> {
+    await this.release()
+    await this.createUart()
     const port = (provider: number) => (this.master.defs.providerPortKind << 8) | provider
     const bridge = port(BRIDGE_PROVIDER)
-    const uart = port(UART_PROVIDER_BASE + BRIDGE_DEVICE)
+    const uart = port(BRIDGE_UART_PROVIDER)
     for (const [from, to] of [[bridge, uart], [uart, bridge]] as const) {
       await this.services.call('DATA_MATRIX', 'CONNECT', { from, to }, { side: 'write' })
     }
   }
 
-  /** Takes the bridge's UART off the master (its provider and the links with it); nothing when the master has none. */
+  /** Hands the UART to the master board itself as a slave-board session (`SYS_SESSION_SLAVE`) so the master's VM can call the slave directly. */
+  async attachSlave(): Promise<void> {
+    if (this.master.state !== 'connected') throw new Error('The main board is not connected.')
+    await this.release()
+    await this.createUart()
+    await this.services.call('SESSION', 'ATTACH', {
+      provider: BRIDGE_UART_PROVIDER,
+      flags: enumValue('session_flag', 'SYS_SESSION_SLAVE'),
+      deadman_ms: 0,
+      modules: Uint8Array.from([]),
+    }, { side: 'write', label: 'slave SESSION ATTACH' })
+  }
+
+  /** Takes the bridge's session and UART off the master (its provider and links); nothing when the master has none. */
   async release(): Promise<void> {
+    await this.detachSession()
     const lifecycle = this.catalog.byContractId.get(this.catalog.lifecycleContractId!)!
     const { value } = await this.services.device(this.catalog.allDevices!, lifecycle.id, 'LIST', undefined, { side: 'read', label: 'devices LIST (bridge)' })
     const there = (value as readonly Record<string, unknown>[]).find((row) => Number(row.id) === BRIDGE_DEVICE)

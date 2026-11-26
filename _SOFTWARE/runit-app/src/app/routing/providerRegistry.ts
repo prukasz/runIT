@@ -46,7 +46,7 @@ export function buildProviderRegistry(inputs: {
     held.push({ id, holder, base, given: names[String(id)]?.trim() ?? '' })
   }
   for (const p of live) add(p.id, 'board', providerTypeLabel(p.type))
-  for (const b of project.boards ?? []) add(b.provider, 'link', `Link to ${b.name}`)
+  for (const b of project.boards ?? []) if (b.provider !== undefined) add(b.provider, 'link', `Link to ${b.name}`)
   for (const s of project.settings.gatt ?? []) for (const c of s.characteristics) add(c.provider, 'way', providerTypeLabel(PROV_TYPE.ble))
   // Unnamed providers of one kind are told apart by a number, in the order of their ids.
   const kinds = new Map<string, number[]>()

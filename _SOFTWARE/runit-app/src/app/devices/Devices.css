@@ -84,3 +84,7 @@
 .devices-live-value { min-width: 62px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--active); }
 .devices-live-now { display: flex; align-items: center; min-height: 34px; margin-bottom: 6px; }
 .devices-live-now .devices-live-value { font-size: 24px; }
+
+/* A remote device alias (ghost): its real settings live on its own board. */
+.devices-explorer .devices-remote-ghost .tree-slab-item { border: 1px dashed var(--divider); opacity: 0.78; }
+.devices-explorer .devices-remote-ghost:hover .tree-slab-item { opacity: 1; }

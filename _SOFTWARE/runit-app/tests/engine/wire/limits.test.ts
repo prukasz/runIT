@@ -43,7 +43,10 @@ describe('limits from generated/', () => {
   })
 
   it('an option the firmware stopped publishing names itself, instead of a number being guessed', () => {
-    expect(() => limitsFromGenerated({ limits: {} })).toThrow(/no limit '[A-Z_]+'/)
+    // A firmware without a VM publishes none (the engine keeps its defaults); one that publishes some must publish all.
+    expect(limitsFromGenerated({ limits: {} })).toEqual({})
+    const [one] = Object.values(LIMIT_SYMBOLS)
+    expect(() => limitsFromGenerated({ limits: { [one!]: { value: 1 } } } as never)).toThrow(/no limit '[A-Z_]+'/)
     expect(() => frameMaxFromGenerated({})).toThrow(/CMD_FRAME_MAX/)
   })
 })

@@ -1,4 +1,5 @@
 import { ArrowLeftRight, Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, Settings, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { bundledServiceCatalog } from '@backend'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -11,21 +12,22 @@ import { DebugPanel } from './run/DebugPanel'
 import { useRunSettings } from './run/useRunSettings'
 import { LiveContext } from './run/live'
 import { ProjectScreen } from './project/ProjectScreen'
-import { useProject } from './project/useProject'
+import { emptyProject } from './project/projectFile'
+import { readStoredProject, useProject } from './project/useProject'
 import { useEffect, useMemo, useState } from 'react'
 import { DevicesExplorer } from './devices/DevicesExplorer'
 import { DevicesScreen } from './devices/DevicesScreen'
 import { DeviceTestPanel, PinPanel } from './devices/DeviceTestPanel'
 import { useDevices } from './devices/useDevices'
-import { useBoardProfile } from './devices/useBoardProfile'
+import { boardDeviceId, deviceList } from './devices/devices'
+import { readStoredBoard, useBoardProfile } from './devices/useBoardProfile'
 import { BoardProfileScreen } from './devices/BoardProfileScreen'
 import { setProviderName, useBoardSettings } from './settings/useBoardSettings'
 import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
-import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, REMOTE_TAB, ProjectTabs } from './project/ProjectTabs'
-import { RemoteScreen } from './remote/RemoteScreen'
+import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
 import { useRemote } from './remote/useRemote'
 import type { RemoteState } from './remote/useRemote'
 import type { Perspective } from './remote/remote'
@@ -135,16 +137,33 @@ const LINK_VIEW: Record<LinkState, { tone: string; Icon: typeof Bluetooth; title
 export function App() {
   const [auto, setAuto] = usePersistedFlag('runit.autoReconnect', true)
   const main = useLink(auto)
-  const remote = useRemote(main.link)
   const [picked, setPerspective] = useState<Perspective>('main')
+  const [pendingRemoteDevice, setPendingRemoteDevice] = useState<number | undefined>()
+  const remote = useRemote(main.link, main.state, picked)
   const perspective: Perspective = remote.on ? picked : 'main'
-  return <Workspace key={perspective} perspective={perspective} onPerspective={setPerspective} main={main} remote={remote} auto={auto} onAuto={setAuto} />
+  return (
+    <Workspace
+      key={perspective}
+      perspective={perspective}
+      onPerspective={setPerspective}
+      onOpenRemoteDevice={(remoteId) => { setPendingRemoteDevice(remoteId); setPerspective('remote') }}
+      initialDevice={perspective === 'remote' ? pendingRemoteDevice : undefined}
+      onConsumeInitialDevice={() => setPendingRemoteDevice(undefined)}
+      main={main}
+      remote={remote}
+      auto={auto}
+      onAuto={setAuto}
+    />
+  )
 }
 
 /** The screens over one board: the main one, or (`perspective` remote) the board behind it, by that board's own link. */
-function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
+function Workspace({ perspective, onPerspective, onOpenRemoteDevice, initialDevice, onConsumeInitialDevice, main, remote, auto, onAuto }: {
   perspective: Perspective
   onPerspective: (perspective: Perspective) => void
+  onOpenRemoteDevice: (remoteId: number) => void
+  initialDevice?: number
+  onConsumeInitialDevice: () => void
   main: ReturnType<typeof useLink>
   remote: RemoteState
   auto: boolean
@@ -172,7 +191,32 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
   const [help, setHelp] = useState(false)
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
   const boardProfile = useBoardProfile(perspective)
-  const devices = useDevices(link, state, project, autoSync, boardProfile)
+  // On the main board, hydrate wired remote aliases with the remote board's stored profile & pin setup so Code filters pins accurately.
+  const remoteContext = useMemo(() => {
+    if (behind) return undefined
+    const catalog = bundledServiceCatalog()
+    const remoteBoard = readStoredBoard('remote', catalog)
+    const remoteProject = readStoredProject('remote') ?? emptyProject()
+    return { board: remoteBoard, devices: deviceList(remoteProject, catalog, remoteBoard) }
+  }, [behind, remote.state, project.project.boards])
+  const devices = useDevices(link, state, project, autoSync, boardProfile, 'app', remoteContext, !behind ? remote.reattachSlave : undefined)
+  // When switching to the remote board by clicking a ghost device on the master, open that device right away.
+  useEffect(() => {
+    if (initialDevice === undefined) return
+    setView('Devices')
+    devices.select({ kind: 'device', id: initialDevice })
+    onConsumeInitialDevice()
+  }, [initialDevice, setView, devices.select, onConsumeInitialDevice])
+  // Opens a remote ghost device on its own board when the wired remote link is active; returns false otherwise.
+  const openRemoteDevice = (boardId: number, remoteDeviceId: number): boolean => {
+    if (behind || !remote.on || main.state !== 'connected') return false
+    const isWiredBoard = project.project.boards?.some((b) => b.id === boardId && b.link === 'wired')
+      || remote.slavePeer?.peerId === boardId
+      || remote.link.session?.boardId === boardId
+    if (!isWiredBoard) return false
+    onOpenRemoteDevice(remoteDeviceId)
+    return true
+  }
   // The UART ports of the board and the project: devices of the UART contract, what the Console's terminal talks to.
   const uartPorts = useMemo(() => devices.devices.filter((d) => d.type?.id === 'esp32s3_uart').map((d) => ({ id: d.id, name: d.name })), [devices.devices])
   // The Project view's board editor: the same Devices state over the board's profile alone.
@@ -315,12 +359,13 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
     panels.setRightOpen(true)
     panels.widenRight()
   }
-  // Which board the app shows: there while a remote board is wanted (Project > Create remote), beside the other buttons.
-  const remoteTone = remote.state === 'connected' ? 'status-ok' : remote.state === 'reconnecting' ? 'status-lost' : 'status-warn'
+  // Which board the app shows: while a wired remote board is enabled, main view links it to the master and remote view opens the app tunnel.
+  const remoteReady = remote.mode === 'master' ? !!remote.slavePeer?.open : remote.state === 'connected'
+  const remoteTone = remoteReady ? 'status-ok' : remote.state === 'reconnecting' ? 'status-lost' : 'status-warn'
   const perspectiveButton = remote.on && (
     <button className={`${remoteTone} ${behind ? 'selected' : ''}`.trim()} aria-label="Remote board" aria-pressed={behind}
-      data-help="Switches the app between the board it is connected to and the board wired to it by a UART; both stay connected."
-      title={behind ? 'Showing the remote board (through the main board): back to the main board' : `Show the remote board${remote.state === 'connected' ? '' : ' (not there yet)'}`}
+      data-help="Switches between the main board (linked to the slave) and the remote board's own view."
+      title={behind ? 'Showing the remote board: back to the main board (hands the UART back to master)' : `Show the remote board${remoteReady ? ' (linked to master)' : ''}`}
       onClick={() => onPerspective(behind ? 'main' : 'remote')}>
       <ArrowLeftRight aria-hidden="true" />
     </button>
@@ -399,7 +444,7 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
                 ? (
                   <>
                     <ProjectSummary name={project.project.name} unsaved={project.unsaved} selected={projectTab === PROJECT_TAB} onOpen={() => setProjectTab(PROJECT_TAB)} />
-                    <ProjectTabs tab={projectTab} remote={!behind} onTab={(tab) => { if (tab === BOARD_TAB) boardEditor.select(undefined); setProjectTab(tab) }} />
+                    <ProjectTabs tab={projectTab} onTab={(tab) => { if (tab === BOARD_TAB) boardEditor.select(undefined); setProjectTab(tab) }} />
                   </>
                 )
                 : view === 'Settings'
@@ -412,7 +457,7 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
                   </>
                 )
                 : view === 'Devices'
-                ? (devicesMode === 'canvas' ? <HardwarePalette state={hardware} /> : <DevicesExplorer state={devices} />)
+                ? (devicesMode === 'canvas' ? <HardwarePalette state={hardware} /> : <DevicesExplorer state={devices} onOpenRemoteDevice={openRemoteDevice} />)
                 : view === 'Console'
                 ? <ConsoleExplorer state={board} jumps={jumps} subject={consoleSubject} onSubject={setConsoleSubject} />
                 : <div className="view-placeholder"><h2>{current.title}</h2><p>{current.note}</p></div>}
@@ -526,7 +571,7 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
           {view === 'Console'
             ? <ConsoleScreen state={board} jumps={jumps} show={consoleShow} onShow={setConsoleShow} subject={consoleSubject} onSubject={setConsoleSubject} link={link} connected={state === 'connected'} ports={uartPorts} />
             : view === 'Devices' && mode === 'details'
-            ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} /></div>
+            ? <div className="devices-focus" onClick={showDeviceTest}><DevicesScreen state={devices} onOpenRemoteDevice={openRemoteDevice} onOpenBoards={() => { setView('Project'); setProjectTab(BOARDS_TAB) }} /></div>
             : view === 'Code' && mode === 'details'
             ? (codePalette === 'blocks' ? <BlocksList blocks={blocks} /> : <VariablesEditor code={pickVariable} />)
             : view === 'Devices' && mode === 'canvas'
@@ -548,10 +593,23 @@ function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
                   : <BoardProfileScreen profile={boardProfile} editor={boardEditor} />)
                 : projectTab === CONNECTIONS_TAB
                 ? <ConnectionsScreen registry={providers} routing={routing} onName={(id, name) => setProviderName(project, id, name)} />
-                : projectTab === REMOTE_TAB
-                ? <RemoteScreen remote={remote} main={main.link} mainConnected={main.state === 'connected'} onOpen={() => onPerspective('remote')} />
                 : projectTab === BOARDS_TAB
-                ? <BoardsScreen registry={providers} project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
+                ? <BoardsScreen
+                    registry={providers}
+                    project={project}
+                    link={link}
+                    services={devices.services}
+                    board={devices.board}
+                    connected={state === 'connected'}
+                    {...(!behind ? { remote, mainConnected: main.state === 'connected', onOpenRemote: () => onPerspective('remote') } : {})}
+                    onOpenDevice={(id) => {
+                      const d = devices.devices.find((o) => o.id === id)
+                      if (d?.board !== undefined && openRemoteDevice(d.board, boardDeviceId(d))) return
+                      setView('Devices')
+                      devices.select({ kind: 'device', id })
+                    }}
+                    onAddDevice={(boardId) => { setView('Devices'); devices.select({ kind: 'add', board: boardId }) }}
+                  />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)
               : <div className="view-placeholder"><h2>{current.title}</h2><p>Nothing here yet.</p></div>}
         </MainScreen>

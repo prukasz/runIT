@@ -1,20 +1,23 @@
 #include "vm_block_servo.h"
-#include "device_servo.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(servo_set_t) == 2 && sizeof(servo_trim_t) == 2,
-               "a servo op's argument struct changed: update the table of the SERVO block");
+/* The servo's own ops: its driver is one source nothing includes, so the numbers are its table's (OWN_SERVO_OPERATIONS,
+ * device_servo.c), checked against it by the app's tests. TARGET's and TRIM's value is one i16. */
+#define OWN_SERVO_OP_HOME    SYS_DEVICE_OWN_OP(0x00)
+#define OWN_SERVO_OP_TRIM    SYS_DEVICE_OWN_OP(0x01)
+#define OWN_SERVO_OP_TARGET  SYS_DEVICE_OWN_OP(0x02)
+#define OWN_SERVO_OP_RELEASE SYS_DEVICE_OWN_OP(0x04)
 
 static const vm_dev_op_t k_ops[] = {
-    {.op = SERVO_OP_TARGET,
+    {.op = OWN_SERVO_OP_TARGET,
      .act = VM_DEV_ACT_CHANGE,
      .result = VM_DEV_R_NONE,
      .nfield = 1,
      .ftype = {VM_DEV_F_I16},
      .scale = {10.0f}},  // position in the servo's unit, tenths on the wire
-    {.op = SERVO_OP_HOME, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
-    {.op = SERVO_OP_RELEASE, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
-    VM_DEV_OP(SERVO_OP_TRIM, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_I16),
+    {.op = OWN_SERVO_OP_HOME, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
+    {.op = OWN_SERVO_OP_RELEASE, .act = VM_DEV_ACT_EDGE, .result = VM_DEV_R_NONE, .nfield = 0},
+    VM_DEV_OP(OWN_SERVO_OP_TRIM, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_I16),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

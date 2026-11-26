@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, ListChecks, Lock, Play, Plus, RotateCcw } from 'lucide-react'
+import { ArrowLeftRight, BookOpen, ListChecks, Lock, Play, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { bundledEnums, deviceCall, frameRequest, onboardActions } from '@backend'
 import type { Request } from '@backend'
 import { Badge, Button, Card, CardStack, ChoiceField, DeviceTile, EditableField, FieldError, FormGrid, FormRow, PanelHeader, RefPill, TreeSlab, deviceIcon } from '@ui/components'
@@ -266,6 +266,43 @@ function BoardCard({ device, state }: { device: DeviceInfo; state: DevicesState 
   )
 }
 
+function RemoteGhostScreen({ device, state, onOpenRemoteDevice, onOpenBoards }: {
+  device: DeviceInfo
+  state: DevicesState
+  onOpenRemoteDevice?: (boardId: number, remoteDeviceId: number) => boolean
+  onOpenBoards?: () => void
+}) {
+  const boardId = device.board!
+  const remoteId = device.remoteId ?? device.id
+  const boardName = boardNameOf(state.project, boardId) ?? `Board ${boardId}`
+  return (
+    <>
+      <PanelHeader icon={<DeviceTile tags={device.type?.tags} />}
+        title={<EditableField className="devices-title" value={device.name} maxLength={48} aria-label="Device name" onChange={(name) => state.updateDevice(device.id, (d) => ({ ...d, name }), `device-name:${device.id}`)} />}>
+        <Badge tone="neutral" title={`Remote alias of device ${remoteId} on ${boardName}`}>Remote · {boardName}</Badge>
+      </PanelHeader>
+      <CardStack>
+        <ErrorsCard about={`device:${device.id}`} />
+        <Card title="Remote alias" subhead={`Lives on ${boardName} (device ${remoteId}). Its settings, pin modes and start commands are edited on that board.`}>
+          <div className="devices-actions">
+            {onOpenRemoteDevice && (
+              <Button size="sm" onClick={() => { if (!onOpenRemoteDevice(boardId, remoteId)) onOpenBoards?.() }}>
+                <ArrowLeftRight aria-hidden="true" />Edit on {boardName}
+              </Button>
+            )}
+            {onOpenBoards && <Button size="sm" onClick={onOpenBoards}>Open Boards</Button>}
+            <Button size="sm" variant="danger" onClick={() => state.removeDevice(device.id)}>
+              <Trash2 aria-hidden="true" />Remove alias
+            </Button>
+          </div>
+        </Card>
+        <PolicyCard device={device} state={state} />
+        <LinksCard device={device} state={state} />
+      </CardStack>
+    </>
+  )
+}
+
 function DeviceScreen({ device, state, onPage }: { device: DeviceInfo; state: DevicesState; onPage: () => void }) {
   return (
     <>
@@ -326,21 +363,22 @@ function ActionScreen({ action, state }: { action: ProjectAction; state: Devices
 }
 
 /** Every type that can be installed, as a tile, by category; a tile adds the device and opens it. */
-function AddScreen({ state }: { state: DevicesState }) {
+function AddScreen({ state, onBoard }: { state: DevicesState; onBoard?: number }) {
   const groups = new Map<string, CatalogEntry[]>()
   for (const t of [...state.catalog.devices.values()].filter((t) => !SINGLE_TYPES.has(t.id)).sort((a, b) => a.label.localeCompare(b.label))) {
     const group = t.category ?? (t.tags[0] ?? 'Other')
     groups.set(group, [...(groups.get(group) ?? []), t])
   }
+  const boardName = onBoard !== undefined ? boardNameOf(state.project, onBoard) ?? `Board ${onBoard}` : undefined
   return (
     <>
-      <PanelHeader icon={<DeviceTile icon={Plus} />} title="Add a device" />
+      <PanelHeader icon={<DeviceTile icon={Plus} />} title={boardName ? `Add a device on ${boardName}` : 'Add a device'} />
       <CardStack>
         {[...groups].sort(([a], [b]) => a.localeCompare(b)).map(([group, types]) => (
           <Card key={group} title={group.toUpperCase()}>
             <div className="devices-types">
               {types.map((t) => (
-                <Button key={t.id} className="devices-type" title={t.description} data-key={`type:${t.id}`} onClick={() => state.addDevice(t)}>
+                <Button key={t.id} className="devices-type" title={t.description} data-key={`type:${t.id}`} onClick={() => state.addDevice(t, onBoard)}>
                   <DeviceTile tags={t.tags} />
                   <span className="devices-type-label">{t.label}</span>
                   {t.description && <span className="devices-type-note">{t.description}</span>}
@@ -355,7 +393,11 @@ function AddScreen({ state }: { state: DevicesState }) {
 }
 
 /** The Devices view's details screen: the selected device or action. */
-export function DevicesScreen({ state }: { state: DevicesState }) {
+export function DevicesScreen({ state, onOpenRemoteDevice, onOpenBoards }: {
+  state: DevicesState
+  onOpenRemoteDevice?: (boardId: number, remoteDeviceId: number) => boolean
+  onOpenBoards?: () => void
+}) {
   // The device whose page (manual, code) is open in place of its settings.
   const [pageOf, setPageOf] = useState<number | undefined>()
   const selection = state.selection
@@ -365,7 +407,9 @@ export function DevicesScreen({ state }: { state: DevicesState }) {
     // A click in the centre outside a pin (its row, or its At start line) leaves the pin: the right panel is the device's again.
     <div className="devices-screen" onClick={(event) => { if (state.pinSelection && !(event.target as HTMLElement).closest('.devices-pin, .devices-pin-start')) state.clearPin() }}>
       {selection?.kind === 'add'
-        ? <AddScreen state={state} />
+        ? <AddScreen state={state} onBoard={selection.board} />
+        : device && device.board !== undefined
+        ? <RemoteGhostScreen device={device} state={state} onOpenRemoteDevice={onOpenRemoteDevice} onOpenBoards={onOpenBoards} />
         : device && pageOf === device.id
         ? <DevicePage device={device} onBack={() => setPageOf(undefined)} />
         : device

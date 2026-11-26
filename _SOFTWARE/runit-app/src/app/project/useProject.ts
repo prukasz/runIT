@@ -26,6 +26,9 @@ const readProject = (key: string): ProjectFile | undefined => readStored<Project
   return read.ok ? read.project : undefined
 }, undefined)
 
+/** Reads the last stored project of a perspective (`'main'` or `'remote'`) from browser storage. */
+export const readStoredProject = (of: Perspective): ProjectFile | undefined => readProject(storageKeys(of).current)
+
 const removeStored = (key: string) => {
   try { localStorage.removeItem(key) } catch { /* a convenience only */ }
 }

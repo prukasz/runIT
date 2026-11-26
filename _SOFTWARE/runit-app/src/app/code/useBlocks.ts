@@ -35,11 +35,12 @@ export const blockPinChoices = (state: Pick<DevicesState, 'catalog' | 'board' | 
   const command = operation && (operation.source === 'contract' ? state.catalog.contracts.get(operation.of) : device.type)?.commands.get(operation.command)
   const side = operation && state.catalog.sideOfDir(operation.dir)
   const wants = side && command?.[side]?.args?.fields.find((f) => f.id === field)?.pinState
-  const users = usedBy(state.devices, device.id)
+  const ownerBoard = device.remoteBoard ?? state.board
+  const users = device.remoteDevices ? usedBy(device.remoteDevices, boardDeviceId(device)) : usedBy(state.devices, device.id)
   return Array.from({ length: count }, (_, pin) => pin)
-    .filter((pin) => !isReserved(state.board, boardDeviceId(device), pin))
+    .filter((pin) => (device.board !== undefined && !device.remoteBoard) || !isReserved(ownerBoard, boardDeviceId(device), pin))
     .filter((pin) => !command || !side || !changesPin(side) || !users.some((u) => u.use.pin.pin === pin))
-    .filter((pin) => pinReady(pinStateOf(device, state.board, pin, !device.type?.pins?.fixedModes), wants))
+    .filter((pin) => pinReady(pinStateOf(device, ownerBoard, pin, !device.type?.pins?.fixedModes), wants))
 }
 
 /** The devices a device block can work on: those that implement its contract, or are of its device type, and have a pin it may take when it takes one. */

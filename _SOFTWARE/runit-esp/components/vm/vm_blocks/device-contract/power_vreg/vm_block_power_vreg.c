@@ -2,19 +2,19 @@
 #include "sys_power_vreg_contract.h"
 #include "vm_blocks.h"
 
-_Static_assert(sizeof(VREG_value_ENABLE_t) == 1 && sizeof(VREG_value_VOLTAGE_t) == 4 &&
-                   sizeof(VREG_value_CURRENT_t) == 4,
+_Static_assert(sizeof(CONTRACT_VREG_value_OP_ENABLE_t) == 1 && sizeof(CONTRACT_VREG_value_OP_VOLTAGE_t) == 4 &&
+                   sizeof(CONTRACT_VREG_value_OP_CURRENT_t) == 4,
                "a POWER_VREG op's argument struct changed: update the table of the POWER_VREG block");
 
 static const vm_dev_op_t k_ops[] = {
-    VM_DEV_OP(VREG_OP_ENABLE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U8),
-    {.op = VREG_OP_VOLTAGE,
+    VM_DEV_OP(CONTRACT_VREG_OP_ENABLE, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_B),
+    {.op = CONTRACT_VREG_OP_VOLTAGE,
      .act = VM_DEV_ACT_CHANGE,
      .result = VM_DEV_R_NONE,
      .nfield = 1,
      .ftype = {VM_DEV_F_U32},
      .scale = {1000.0f}},  // voltage in volts (mV on the wire)
-    VM_DEV_OP(VREG_OP_CURRENT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U32),
+    VM_DEV_OP(CONTRACT_VREG_OP_CURRENT, VM_DEV_ACT_CHANGE, VM_DEV_R_NONE, 1, VM_DEV_F_U32),
 };
 static const vm_dev_contract_t k_contract = {.ops = k_ops, .count = ARRAY_LEN(k_ops), .naddr = 0};
 

@@ -49,8 +49,10 @@ export const boardProblems = (project: ProjectFile, ownId: number | undefined, c
   boards.forEach((b, i) => {
     if (ownId !== undefined && b.id === ownId) problems.push(`${b.name} has the id of the board the app is connected to (${b.id}): give one of them another id.`)
     if (boards.findIndex((o) => o.id === b.id) !== i) problems.push(`${b.name} has the id of ${boards.find((o) => o.id === b.id)!.name} (${b.id}).`)
-    if (boards.findIndex((o) => o.provider === b.provider) !== i) problems.push(`${b.name} has the link of another board (provider ${b.provider}).`)
-    if (!addressBytes(b.address)) problems.push(`${b.name}: "${b.address}" is not a BLE address.`)
+    if (b.link !== 'wired') {
+      if (b.provider !== undefined && boards.findIndex((o) => o.provider === b.provider) !== i) problems.push(`${b.name} has the link of another board (provider ${b.provider}).`)
+      if (!b.address || !addressBytes(b.address)) problems.push(`${b.name}: "${b.address ?? ''}" is not a BLE address.`)
+    }
   })
   const boardOf = (device: number) => project.devices.find((d) => d.id === device)?.board
   for (const d of project.devices) {
@@ -60,6 +62,44 @@ export const boardProblems = (project: ProjectFile, ownId: number | undefined, c
     }
   }
   return problems
+}
+
+/**
+ * Remembers a detected wired board in `project`: adds it when absent, or updates its id / profile / known devices when
+ * already remembered (keeping any name the user gave it). Returns `undefined` when nothing changed.
+ */
+export const rememberWiredBoard = (
+  project: ProjectFile,
+  detected: { readonly id: number; readonly name?: string; readonly profile?: string; readonly knownDevices?: ProjectBoard['knownDevices'] },
+): ProjectFile | undefined => {
+  const boards = project.boards ?? []
+  const wiredIdx = boards.findIndex((b) => b.link === 'wired')
+  const index = wiredIdx >= 0 ? wiredIdx : boards.findIndex((b) => b.id === detected.id)
+  if (index < 0) {
+    const added: ProjectBoard = {
+      id: detected.id,
+      name: detected.name?.trim() || `Board ${detected.id}`,
+      link: 'wired',
+      ...(detected.profile !== undefined ? { profile: detected.profile } : {}),
+      ...(detected.knownDevices && detected.knownDevices.length > 0 ? { knownDevices: detected.knownDevices } : {}),
+    }
+    return { ...project, boards: [...boards, added] }
+  }
+  const current = boards[index]!
+  // Upgrade an existing board entry with the same id to wired (dropping any stale BLE fields), preserving its name.
+  const { address: _a, addressType: _t, provider: _p, ...keep } = current
+  const next: ProjectBoard = {
+    ...keep,
+    id: detected.id,
+    link: 'wired',
+    ...(detected.profile !== undefined ? { profile: detected.profile } : {}),
+    ...(detected.knownDevices && detected.knownDevices.length > 0 ? { knownDevices: detected.knownDevices } : {}),
+  }
+  if (JSON.stringify(current) === JSON.stringify(next)) return undefined
+  const movedDevices = current.id === next.id
+    ? project.devices
+    : project.devices.map((d) => (d.board === current.id ? { ...d, board: next.id } : d))
+  return { ...project, boards: boards.map((b, i) => (i === index ? next : b)), devices: movedDevices }
 }
 
 /** The name of a board of the project by its id. */

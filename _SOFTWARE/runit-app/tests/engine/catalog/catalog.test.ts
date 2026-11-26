@@ -218,16 +218,38 @@ describe('blocks as the UI and the compiler read them', () => {
   })
 
   it('the op code is the u16 the firmware builds: (contract << 8) | n, or 0xFF00 | n for a device command', () => {
-    const header = readFileSync(fileURLToPath(new URL('../../../../runit-esp/components/sys/sys_device/registry/sys_device.h', import.meta.url)), 'utf8')
+    const header = read('../sys/sys_device/sys_device.h')
     expect(header).toMatch(/#define\s+SYS_DEVICE_OP\(contract,\s*n\)\s+\(\(uint16_t\)\(\(\(contract\)\s*<<\s*8\)\s*\|\s*\(n\)\)\)/)
-    const contractNumbers = new Map([...header.matchAll(/#define\s+SYS_DEVICE_CONTRACT_(\w+)\s+0x([0-9a-fA-F]+)u/g)].map((m) => [m[1]!, parseInt(m[2]!, 16)]))
-    const input = loadGeneratedInput()
-    for (const contract of input.contracts) expect(contract.contract_id, `contract ${contract.id}`).toBe(contractNumbers.get(contract.id))
-    // a device's own ops are `#define X_OP_NAME SYS_DEVICE_OWN_OP(0x..)` in the device's header
-    const own = new Map<string, number>()
-    for (const file of filesUnder('../devices', '.h')) {
-      for (const [, symbol, n] of read(file).matchAll(/#define\s+(\w+)\s+SYS_DEVICE_OWN_OP\(\s*(0x[0-9a-fA-F]+|\d+)\s*\)/g)) own.set(symbol!, 0xff00 | Number(n))
+    expect(header).toMatch(/#define\s+SYS_DEVICE_CONTRACT_OWN\s+0xFFu/)
+    // A table `#define P_OPERATIONS(X, P)` of rows `X(P, OP_NAME, 0x.., ...)`: {OP_NAME: n}
+    const rows = (text: string, prefix: string) => {
+      const lines = text.slice(text.indexOf(`#define ${prefix}_OPERATIONS(`)).split(/\r?\n/)
+      const body = lines.slice(0, lines.findIndex((l) => !l.trimEnd().endsWith('\\')) + 1).join('\n')
+      return new Map([...body.matchAll(/X\(P,\s*(OP_\w+),\s*(0x[0-9a-fA-F]+)/g)].map((m) => [m[1]!, parseInt(m[2]!, 16)]))
     }
+    // The contracts: SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, MODULE_ID_IO), its number in MODULE_ID_DECLARE(MODULE_ID_IO, 0x01)
+    const sources = filesUnder('../sys', '.h').map(read).join('\n')
+    const moduleIds = new Map([...sources.matchAll(/MODULE_ID_DECLARE\((MODULE_ID_\w+),\s*(0x[0-9a-fA-F]+)\)/g)].map((m) => [m[1]!, parseInt(m[2]!, 16)]))
+    const contracts = new Map([...sources.matchAll(/^SYS_DEVICE_CONTRACT_DECLARE\((CONTRACT_\w+),\s*(MODULE_ID_\w+)\)/gm)].map((m) => [moduleIds.get(m[2]!)!, rows(sources, m[1]!)]))
+    const input = loadGeneratedInput()
+    // A device's own ops: `#define OWN_<DEVICE>_OPERATIONS(X, P)` in its driver, OWN_<DEVICE>_OP_NAME = 0xFF00 | n
+    const own = new Map<string, number>()
+    for (const file of filesUnder('../devices', '.c')) {
+      const text = read(file)
+      for (const [, prefix] of text.matchAll(/#define\s+(OWN_\w+)_OPERATIONS\(/g)) {
+        for (const [name, n] of rows(text, prefix!)) own.set(`${prefix}_${name}`, 0xff00 | n)
+      }
+    }
+    // A block of a device's own ops cannot include its driver: it names the same ops by the same symbols, `#define
+    // OWN_SERVO_OP_TARGET SYS_DEVICE_OWN_OP(0x02)`, and each must be the driver's number.
+    let blockOps = 0
+    for (const file of filesUnder('vm_blocks/device-custom-block', '.c')) {
+      for (const [, symbol, n] of read(file).matchAll(/#define\s+(OWN_\w+_OP_\w+)\s+SYS_DEVICE_OWN_OP\(\s*(0x[0-9a-fA-F]+)\s*\)/g)) {
+        expect(own.get(symbol!), `${file}: ${symbol}`).toBe(0xff00 | parseInt(n!, 16))
+        blockOps += 1
+      }
+    }
+    expect(blockOps).toBeGreaterThan(10)
     let checked = 0
     for (const block of catalog.blocks) {
       for (const variant of block.variants) {
@@ -235,8 +257,11 @@ describe('blocks as the UI and the compiler read them', () => {
         if (!op) continue
         const source = op.source === 'contract' ? input.contracts.find((c) => c.id === op.of) : input.devices.find((d) => d.id === op.of)
         const command = (source?.commands as { id: string; op: number; symbol?: string }[]).find((c) => c.id === op.command)!
-        if (op.source === 'contract') expect(op.value, `${block.id}.${variant.id}`).toBe((contractNumbers.get(op.of)! << 8) | command.op)
-        else {
+        if (op.source === 'contract') {
+          const contractId = input.contracts.find((c) => c.id === op.of)!.contract_id!
+          expect(contracts.get(contractId)?.get(`OP_${command.id}`), `${block.id}.${variant.id}: OP_${command.id} of contract ${contractId} in the C`).toBe(command.op)
+          expect(op.value, `${block.id}.${variant.id}`).toBe((contractId << 8) | command.op)
+        } else {
           expect(own.has(command.symbol!), `${command.symbol} is defined in the C of the device`).toBe(true)
           expect(op.value, `${block.id}.${variant.id} ${command.symbol}`).toBe(own.get(command.symbol!))
         }

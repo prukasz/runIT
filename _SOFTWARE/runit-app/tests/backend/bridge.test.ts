@@ -79,4 +79,18 @@ describe('the board behind the main one', () => {
     const platform = new BridgePlatform(new RunitLink(main, OPTIONS), () => DEFAULT_WIRE, catalog)
     await expect(new RunitLink(platform, OPTIONS).connect(REMOTE_BOARD)).rejects.toThrow('main board is not connected')
   })
+
+  it('attachSlave creates the UART and attaches a SYS_SESSION_SLAVE session on the master', async () => {
+    const { main } = boards()
+    const master = new RunitLink(main, OPTIONS)
+    await master.connect(main.device)
+    const platform = new BridgePlatform(master, () => DEFAULT_WIRE, catalog)
+    await platform.attachSlave()
+    const create = main.requests.find((r) => r.key === defs.keys.sys_device && r.data[0] === defs.dir.write && r.data[1] === BRIDGE_DEVICE)
+    expect(create).toBeDefined()
+    const expectedAttach = serviceCall(catalog, 'SESSION', 'ATTACH', { provider: 0x40 + BRIDGE_DEVICE, flags: 0x02, deadman_ms: 0, modules: Uint8Array.from([]) }, 'write').request
+    const attach = main.requests.find((r) => r.key === expectedAttach.key && [...r.data].join(',') === [...expectedAttach.body].join(','))
+    expect(attach).toBeDefined()
+    await master.close()
+  })
 })

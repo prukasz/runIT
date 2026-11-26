@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, FileCog, ListChecks } from 'lucide-react'
 import { Badge, Button, DeviceTile, PaletteSectionHeader, SegmentedSwitch, TreeAction, TreeSlab } from '@ui/components'
 import { usePersistedChoice } from '@ui/hooks/useStorage'
+import { boardDeviceId } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState, LiveDevice } from './useDevices'
+import { boardNameOf } from '../boards/boards'
 import { useErrors } from '../console/useConsole'
 
 /** What the board answered about a device, as a badge: on the board, suspended, of another type, not there. */
@@ -17,21 +19,31 @@ export function LiveBadge({ device, live, connected }: { device: DeviceInfo; liv
   return <Badge tone="success" title="On the board">on board</Badge>
 }
 
-function DeviceRow({ device, state }: { device: DeviceInfo; state: DevicesState }) {
+function DeviceRow({ device, state, onOpenRemoteDevice }: { device: DeviceInfo; state: DevicesState; onOpenRemoteDevice?: (boardId: number, remoteDeviceId: number) => boolean }) {
   const selected = state.selection?.kind === 'device' && state.selection.id === device.id
   // The board's errors about the device or a pin of it, not read yet: the row is red and counts them.
   const unread = useErrors()?.console.unread(`device:${device.id}`) ?? 0
+  const isRemote = device.board !== undefined
+  const boardName = isRemote ? (boardNameOf(state.project, device.board) ?? `Board ${device.board}`) : undefined
   return (
     <TreeSlab
       twoRow
+      className={isRemote ? 'devices-remote-ghost' : undefined}
+      isReference={isRemote}
       icon={<DeviceTile size="small" tags={device.type?.tags} />}
       label={device.name}
-      title={`${device.name} · ${device.type?.label ?? 'unknown type'}`}
+      title={isRemote ? `${device.name} · remote ghost on ${boardName} (click to open on that board)` : `${device.name} · ${device.type?.label ?? 'unknown type'}`}
       selected={selected}
       refKey={`device:${device.id}`}
       isError={unread > 0}
-      badges={<><LiveBadge device={device} live={state.live.get(device.id)} connected={state.connected} />{unread > 0 && <Badge tone="danger" size="compact" title={`${unread} errors not read (Console)`}>{unread}</Badge>}</>}
-      onClick={() => state.select({ kind: 'device', id: device.id })}
+      badges={isRemote
+        ? <><Badge tone="neutral" size="compact" title={`Lives on ${boardName}; click to edit it there`}>on {boardName}</Badge>{unread > 0 && <Badge tone="danger" size="compact" title={`${unread} errors not read (Console)`}>{unread}</Badge>}</>
+        : <><LiveBadge device={device} live={state.live.get(device.id)} connected={state.connected} />{unread > 0 && <Badge tone="danger" size="compact" title={`${unread} errors not read (Console)`}>{unread}</Badge>}</>}
+      actions={isRemote ? <TreeAction label={`Remove ${device.name}`} onClick={() => state.removeDevice(device.id)} /> : undefined}
+      onClick={() => {
+        if (isRemote && onOpenRemoteDevice?.(device.board!, boardDeviceId(device))) return
+        state.select({ kind: 'device', id: device.id })
+      }}
     />
   )
 }
@@ -40,7 +52,7 @@ function DeviceRow({ device, state }: { device: DeviceInfo; state: DevicesState 
  * The left panel of the Devices view: the devices (the board's own and the project's, with what the board answers about each)
  * and Add; or the actions and Add.
  */
-export function DevicesExplorer({ state, onBack }: { state: DevicesState; onBack?: () => void }) {
+export function DevicesExplorer({ state, onBack, onOpenRemoteDevice }: { state: DevicesState; onBack?: () => void; onOpenRemoteDevice?: (boardId: number, remoteDeviceId: number) => boolean }) {
   const [tab, setTab] = usePersistedChoice('runit.devices.tab', ['devices', 'actions'] as const, 'devices')
   const [open, setOpen] = useState({ board: state.scope === 'board', project: true })
   const system = state.devices.filter((d) => d.system)
@@ -76,7 +88,7 @@ export function DevicesExplorer({ state, onBack }: { state: DevicesState; onBack
             <PaletteSectionHeader label="Board" count={system.length} open={open.board} onToggle={() => setOpen((o) => ({ ...o, board: !o.board }))} />
             {open.board && system.map((d) => <DeviceRow key={d.id} device={d} state={state} />)}
             <PaletteSectionHeader label="Project" count={own.length} open={open.project} onToggle={() => setOpen((o) => ({ ...o, project: !o.project }))} />
-            {open.project && own.map((d) => <DeviceRow key={d.id} device={d} state={state} />)}
+            {open.project && own.map((d) => <DeviceRow key={d.id} device={d} state={state} onOpenRemoteDevice={onOpenRemoteDevice} />)}
             <Button variant="dashed" block onClick={() => state.select({ kind: 'add' })}>Add device</Button>
           </>
         )

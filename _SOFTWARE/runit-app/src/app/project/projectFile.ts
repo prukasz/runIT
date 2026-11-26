@@ -70,20 +70,33 @@ export interface PinAlias {
   readonly name: string
 }
 
+/** A device discovered on another board's profile when last detected (remembered so its alias can be added offline too). */
+export interface KnownBoardDevice {
+  readonly id: number
+  readonly type: string
+  readonly name: string
+}
+
 /**
- * Another board of the project, linked to this one over BLE (SYS_BLE.MD "Central"): this board keeps a link to it as provider
- * `provider` and a session with it as its slave; the app reaches it through this board (`dst` = `id`).
+ * Another board of the project: wired to this board by a UART (`link: 'wired'`), or linked over BLE (`link: 'wireless'`, default).
+ * On this board its devices are aliases (DEVICE CREATE_REMOTE); the app remembers detected wired boards here too.
  */
 export interface ProjectBoard {
-  /** Its board id (`SYS_SESSION_ID`), given by the app: other than this board's. */
+  /** Its board id (`SYS_SESSION_ID`): other than this board's. */
   readonly id: number
   readonly name: string
-  /** Its BLE address as it is shown, most significant byte first (`F4:12:FA:01:02:03`). */
-  readonly address: string
-  /** 0 public, 1 random. */
-  readonly addressType: number
-  /** The id of this board's provider that is the link to it. */
-  readonly provider: number
+  /** How this board is reached: `'wired'` (UART) or `'wireless'` (BLE; default when absent). */
+  readonly link?: 'wired' | 'wireless'
+  /** Its BLE address as it is shown, most significant byte first (`F4:12:FA:01:02:03`), for wireless boards. */
+  readonly address?: string
+  /** 0 public, 1 random (wireless boards). */
+  readonly addressType?: number
+  /** The id of this board's provider that is the link to it (wireless boards). */
+  readonly provider?: number
+  /** Summary of the board's profile when last detected (e.g. `runIT devkit, 3 devices`). */
+  readonly profile?: string
+  /** Devices of the board's profile when last detected, so they can be added on this board. */
+  readonly knownDevices?: readonly KnownBoardDevice[]
 }
 
 /** A user action: a list of commands stored as a record of the user class, run by an app, the VM or an error policy. */
@@ -207,8 +220,13 @@ export const parseProject = (text: string): ParseResult => {
     return { ok: false, error: "The board settings of the project are not readable." }
   }
   const boards = data.boards ?? []
-  if (!Array.isArray(boards) || !boards.every((b) => isObject(b) && Number.isInteger(b.id) && typeof b.name === 'string' && typeof b.address === 'string' && Number.isInteger(b.addressType) && Number.isInteger(b.provider))) {
-    return { ok: false, error: 'The other boards of the project are not readable (each needs an id, a name, an address and a provider).' }
+  const validBoard = (b: unknown): boolean => {
+    if (!isObject(b) || !Number.isInteger(b.id) || typeof b.name !== 'string') return false
+    if (b.link === 'wired') return true
+    return typeof b.address === 'string' && Number.isInteger(b.addressType) && Number.isInteger(b.provider)
+  }
+  if (!Array.isArray(boards) || !boards.every(validBoard)) {
+    return { ok: false, error: 'The other boards of the project are not readable (each needs an id and a name).' }
   }
   const project: ProjectFile = {
     name: typeof data.name === 'string' && data.name.trim() ? data.name : 'Untitled',

@@ -70,16 +70,15 @@ describe('the devices of the view', () => {
     expect(pinChoiceLabel(deviceList(named, catalog, board), pwm.id, 2)).toBe('#2 Left servo · PWM pin')
   })
 
-  it('a write changes the pin it is given, a read does not; the IO and PINS commands have the sides that say so', () => {
+  it('a write changes the pin it is given, a read does not; the IO commands have the sides that say so', () => {
     const io = catalog.contracts.get('IO')!
-    const pins = catalog.contracts.get('PINS')!
     expect(changesPin('write')).toBe(true)
     expect(changesPin('read')).toBe(false)
     expect(['LEVEL', 'TOGGLE', 'PWM_DUTY', 'MODE', 'RESET', 'INTR', 'VOLTAGE'].every((id) => io.commands.get(id)!.write !== undefined)).toBe(true)
-    expect(['LOCK', 'UNLOCK', 'LOCKED_LEVEL'].every((id) => pins.commands.get(id)!.write !== undefined)).toBe(true)
+    expect(['LOCK', 'UNLOCK'].every((id) => io.commands.get(id)!.write !== undefined)).toBe(true)
     // the mirrors: the read takes the pin, the write the pin and the value
     expect(['LEVEL', 'VOLTAGE'].every((id) => io.commands.get(id)!.read?.args?.fields.map((f) => f.id).join() === 'pin')).toBe(true)
-    expect(['AVAILABLE', 'LOCKED'].every((id) => pins.commands.get(id)!.write === undefined)).toBe(true)
+    expect(['AVAILABLE', 'LOCKED', 'LEVELS', 'VOLTAGES'].every((id) => io.commands.get(id)!.write === undefined)).toBe(true)
   })
 
   it('offers a device its contracts and its own ops, not the device contract (the panel has it on top)', () => {
@@ -319,9 +318,11 @@ describe('IO commands a device\'s pins can never take', () => {
     const { commandGroups, sideLabel } = await import('../../src/app/devices/devices')
     const catalog = bundledServiceCatalog()
     const io = (type: string) => commandGroups(catalog, catalog.devices.get(type)).find((g) => g.entry.id === 'IO')?.commands.map(sideLabel) ?? []
-    expect(io('ads7128')).toEqual(['Reset pin', 'Interrupt', 'Voltage: read'])
+    // The pins' own state (AVAILABLE ... UNLOCK) and the reads of many pins are offered too: they take no pin.
+    const pinState = ['Available pins', 'Locked pins', 'Lock pin', 'Unlock pin']
+    expect(io('ads7128')).toEqual(['Reset pin', 'Interrupt', 'Voltage: read', ...pinState, 'Levels', 'Voltages'])
     expect(io('esp32s3_gpio')).toEqual(expect.arrayContaining(['Level: write', 'PWM duty', 'Mode']))
-    expect(io('dac53202')).toEqual(['Reset pin', 'Voltage: read', 'Voltage: write'])
+    expect(io('dac53202')).toEqual(['Reset pin', 'Voltage: read', 'Voltage: write', ...pinState, 'Levels', 'Voltages'])
   })
 })
 

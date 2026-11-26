@@ -1,6 +1,8 @@
 #include "vm_block_device.h"
 
-#include "sys_session_errors.h"
+#include <math.h>
+#include <string.h>
+
 #include "sys_watch_errors.h"
 #include "vm_blocks.h"
 
@@ -38,6 +40,7 @@ static bool result_is_u8(const vm_dev_op_t* op) {
 static uint8_t ftype_size(uint8_t t) {
   switch (t) {
     case VM_DEV_F_U8:
+    case VM_DEV_F_B:
       return 1;
     case VM_DEV_F_I16:
       return 2;
@@ -55,6 +58,9 @@ static int32_t scaled(const vm_dev_op_t* op, uint8_t i, float f) {
   switch (op->ftype[i]) {
     case VM_DEV_F_U8:
       lo = 0, hi = UINT8_MAX;
+      break;
+    case VM_DEV_F_B:
+      lo = 0, hi = 1;
       break;
     case VM_DEV_F_I16:
       lo = INT16_MIN, hi = INT16_MAX;
@@ -75,14 +81,14 @@ static int32_t limited(const vm_dev_op_t* op, uint8_t i, int32_t v) {
   if (lim <= 0) {
     return v;
   }
-  const int32_t lo = op->ftype[i] == VM_DEV_F_U8 || op->ftype[i] == VM_DEV_F_U32 ? 0 : -lim;
+  const int32_t lo = op->ftype[i] == VM_DEV_F_U8 || op->ftype[i] == VM_DEV_F_B || op->ftype[i] == VM_DEV_F_U32 ? 0 : -lim;
   return v < lo ? lo : v > lim ? lim : v;
 }
 
 // A constant of the state as the field's value (not yet limited): a scaled field keeps a float.
 static int32_t const_value(const vm_dev_op_t* op, uint8_t i, int32_t raw) {
   if (op->scale[i] <= 0.0f) {
-    return raw;
+    return op->ftype[i] == VM_DEV_F_B ? (raw != 0) : raw;
   }
   float f;
   memcpy(&f, &raw, sizeof(f));
@@ -113,6 +119,12 @@ static err_h field_read(vm_block_h b, const vm_dev_op_t* op, const vm_block_devi
       uint8_t v = 0;
       ERR_TRY(VM_OBJ_SCALAR_GET(v, in));
       *out = v;
+      return NULL;
+    }
+    case VM_DEV_F_B: {
+      uint8_t v = 0;
+      ERR_TRY(VM_OBJ_SCALAR_GET(v, in));
+      *out = v != 0;
       return NULL;
     }
     case VM_DEV_F_U32: {
@@ -165,29 +177,27 @@ static uint32_t args_pack(const vm_dev_op_t* op, const int32_t* v, uint8_t* out)
   return n;
 }
 
-// Whether `tag` is in the chain a device call answered.
-static bool chain_has(err_h err, uint32_t tag) {
-  for (; err != NULL; err = err->next) {
-    if (err_tag(err) == tag) {
-      return true;
-    }
-  }
-  return false;
-}
-
+/**
+ * @brief Calls the block's device: the op on its side, the fields packed as its payload; a read's answer into `result`.
+ * @param[in]  d      The block's state (the device)
+ * @param[in]  op     The table row
+ * @param[in]  v      The fields' values
+ * @param[out] result The answer's values as the device sent them (a read's), may be NULL for a write
+ * @return The device's error, ERR_RANGE for an answer of another size than the row's result
+ */
 static err_h call(const vm_block_device_data_t* d, const vm_dev_op_t* op, const int32_t* v, uint8_t* result) {
   uint8_t args[VM_DEV_ARGS_BYTES];
   const uint32_t len = args_pack(op, v, args);
-  uint8_t out[OUT_BYTES];
-  uint32_t out_len = 0;
+  uint8_t buf[OUT_BYTES];
+  cmd_out_t out = {.data = buf, .cap = sizeof(buf)};
   const bool read = op->act == VM_DEV_ACT_READ;
-  ERR_TRY(sys_device_call(d->device_id, read ? CMD_DIR_READ : CMD_DIR_WRITE, op->op, args, len, out, sizeof(out),
-                          &out_len));
+  ERR_TRY(sys_device_call((uint8_t)d->device_id, read ? CMD_DIR_READ : CMD_DIR_WRITE, op->op,
+                          (cmd_in_t){.data = args, .len = len}, &out));
   if (op->result != VM_DEV_R_NONE) {
     const uint32_t want = result_count(op) * (result_is_u8(op) ? 1u : 4u);
-    const uint32_t skip = out_len == want + len ? len : 0;  // the read of a mirror op answers its key first
-    ERR_CHECK_RANGE(out_len - skip, want, want);
-    memcpy(result, out + skip, want);
+    const uint32_t skip = out.len == want + len ? len : 0;  // the read of a mirror op answers its key first
+    ERR_CHECK_RANGE(out.len - skip, want, want);
+    memcpy(result, buf + skip, want);
   }
   return NULL;
 }
@@ -221,7 +231,6 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
     return;
   }
   if (!en) {
-    d->flags &= (uint8_t)~VM_DEV_F_WAIT;  // an edge that waited is dropped with the enable
     if (d->idle_op != 0 && (d->flags & VM_DEV_F_SENT) && !(d->flags & VM_DEV_F_IDLE)) {
       idle_send(b, d, c);
     }
@@ -244,7 +253,7 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 
   bool fired = true;
   if (op->act == VM_DEV_ACT_EDGE) {
-    fired = rising || (d->flags & VM_DEV_F_WAIT);
+    fired = rising;
   } else if (op->act == VM_DEV_ACT_CHANGE) {
     fired = !(d->flags & VM_DEV_F_SENT) || memcmp(v, d->last, sizeof(int32_t) * op->nfield) != 0;
   }
@@ -255,24 +264,13 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 
   uint8_t result[OUT_BYTES] = {0};  // the answer as the device sent it (little-endian)
   err_h err = call(d, op, v, result);
-  if (err != NULL && chain_has(err, ERR_SESSION_BUSY) && !(op->act == VM_DEV_ACT_EDGE && rising && (d->flags & VM_DEV_F_WAIT))) {
-    // A remote device's way is busy: later. A CHANGE sends its newest values at a later pass (`last` is not updated), an
-    // EDGE waits for one; a second edge while one waits is a failure.
-    err_free(err);
-    if (op->act == VM_DEV_ACT_EDGE) {
-      d->flags |= VM_DEV_F_WAIT;
-    }
-    vm_block_set_eno(b, false);
-    return;
-  }
   if (err != NULL && op->act == VM_DEV_ACT_READ &&
-      (chain_has(err, ERR_WATCH_NO_VALUE) || chain_has(err, ERR_WATCH_STALE))) {
+      (err_find(err, ERR_WATCH_NO_VALUE) != NULL || err_find(err, ERR_WATCH_STALE) != NULL)) {
     // A remote device's copy is not there yet, or not fresh: the outputs stay as they are.
     err_free(err);
     vm_block_set_eno(b, false);
     return;
   }
-  d->flags &= (uint8_t)~VM_DEV_F_WAIT;
   BLOCK_CALL(err, b);
   if (vm_block_failed(b)) {
     vm_block_set_eno(b, false);
@@ -305,7 +303,7 @@ void vm_device_run(vm_block_h b, const vm_dev_contract_t* c) {
 bool vm_device_check(vm_block_h b, const vm_dev_contract_t* c) {
   vm_block_device_data_t d;
   memcpy(&d, vm_block_get_custom_data(b), sizeof(d));
-  if (d.device_id == SYS_DEVICE_ID_NONE || d.dir > CMD_DIR_WRITE) {
+  if (d.device_id >= SYS_DEVICE_ID_NONE || d.dir > CMD_DIR_WRITE) {  // a device ID is a u8; SYS_DEVICE_ID_NONE: none
     return false;
   }
   const vm_dev_op_t* op = op_find(c, d.op, d.dir);

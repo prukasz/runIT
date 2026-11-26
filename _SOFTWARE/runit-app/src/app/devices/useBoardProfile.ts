@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { bundledServiceCatalog } from '@backend'
+import type { ServiceCatalog } from '@backend'
 import { readStored, writeStored } from '@ui/hooks/useStorage'
 import { amend, record, redo as redoHistory, startHistory, undo as undoHistory } from '../project/history'
 import type { History } from '../project/history'
@@ -8,7 +9,7 @@ import { chooseFile, download } from '../project/useProject'
 import type { ProjectFile } from '../project/projectFile'
 import { boardFromProfile, profileFromBoard, profileKey, withBoard } from './boardEditor'
 import { bundledBoard } from './boardDescriptor'
-import type { BoardKind } from './boardDescriptor'
+import type { BoardDescriptor, BoardKind } from './boardDescriptor'
 import type { Perspective } from '../remote/remote'
 
 /*
@@ -29,6 +30,16 @@ export interface ProfileState {
 }
 
 const REMOTE_PROFILE_KEY = 'runit.remote.profile'
+
+/** Reads the stored board descriptor of a perspective (`'main'` or `'remote'`) from browser storage. */
+export const readStoredBoard = (of: Perspective, catalog: ServiceCatalog): BoardDescriptor => {
+  const kind: BoardKind = of === 'remote' ? 'devkit' : 'pcb'
+  const base = bundledBoard(kind)
+  const key = of === 'remote' ? REMOTE_PROFILE_KEY : profileKey(kind)
+  const stored = readStored<ProjectFile | undefined>(key, (raw) => { const read = parseProject(raw); return read.ok ? read.project : undefined }, undefined)
+  const profile = !stored || isLegacyIncompletePcb(stored, base) ? profileFromBoard(base, catalog) : withBoard(stored, base)
+  return boardFromProfile(profile, base, catalog)
+}
 
 /** The incomplete 7-device snapshot that shipped before the rest of the PCB's chip descriptors existed. */
 const LEGACY_PCB_IDS = '0,1,3,10,11,14,15'

@@ -1,5 +1,6 @@
 #pragma once
 #include "sys_device.h"
+#include "utils.h"  // ARRAY_LEN, for the tables
 #include "vm_block_helpers.h"
 
 /*
@@ -45,6 +46,7 @@ typedef enum vm_dev_ftype_e {
   VM_DEV_F_I16 = 2,
   VM_DEV_F_U32 = 3,
   VM_DEV_F_I32 = 4,
+  VM_DEV_F_B = 5,  // 1 wire byte (0 / 1): wired values round to u8 (< 0.5 -> 0, >= 0.5 -> 1)
 } vm_dev_ftype_e;
 
 typedef enum vm_dev_result_e {
@@ -88,10 +90,9 @@ typedef struct vm_dev_contract_t {
 #define VM_DEV_F_SENT    (1u << 1)     // `last` holds what the device was told
 #define VM_DEV_F_IDLE    (1u << 2)     // the idle operation was sent since the enable fell
 #define VM_DEV_F_HELD    (1u << 3)     // a value held to its limit was reported; cleared on a pass with none held
-#define VM_DEV_F_WAIT    (1u << 4)     // an EDGE could not go yet (a remote device's way was busy): it goes at a later pass
 
 typedef struct __attribute__((aligned(4))) {
-  uint16_t device_id;  // The device the block works on.
+  uint16_t device_id;  // The device the block works on (a u8 ID; SYS_DEVICE_ID_NONE and above are refused at load).
   uint16_t op;  // What the block does with the device; it decides the block's inputs and outputs.
   uint16_t idle_op;  // What the block does once when its enable turns off (none: the device is left as it is).
   uint8_t flags;

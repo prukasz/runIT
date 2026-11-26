@@ -13,17 +13,18 @@
  *  the kinds of operation (CHANGE / EDGE / READ), the idle operation and ENO are in vm_block_device.h.
  *
  *  Operation (op)        Inputs               Result   Kind
- *  SET_LEVEL             pin, level (0 / 1)   -        CHANGE
+ *  LEVEL write           pin, level (0 / 1)   -        CHANGE
  *  TOGGLE                pin                  -        EDGE
- *  GET_LEVEL             pin                  u8       READ
- *  SET_PWM_DUTY          pin, duty (0..4095)  -        CHANGE
- *  SET_PWM_FREQ          pin, Hz              -        CHANGE
- *  SET_MODE              pin, mode            -        CHANGE
+ *  LEVEL read            pin                  u8       READ
+ *  PWM_DUTY              pin, duty (0..4095)  -        CHANGE
+ *  PWM_FREQ              pin, Hz              -        CHANGE
+ *  MODE                  pin, mode            -        CHANGE
  *  RESET                 pin                  -        EDGE
- *  GET_VOLTAGE           pin                  i32 mV   READ
- *  SET_VOLTAGE           pin, mV              -        CHANGE
+ *  VOLTAGE read          pin                  V        READ
+ *  VOLTAGE write         pin, V               -        CHANGE
  *
- *  Not here: CONFIGURE_INTR (a setup struct) and the PINS contract (install time).
+ *  Not here: INTR (a setup struct), the pins' state (AVAILABLE, LOCKED, LOCK, UNLOCK) and the reads of many pins
+ *  (LEVELS, VOLTAGES).
  */
 
 /* Load-time check of the block's state and shape; the body, called every pass. */

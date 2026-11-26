@@ -287,8 +287,8 @@ interface Resolved {
   readonly outputs: readonly PinSpec[]
 }
 
-/** `SYS_DEVICE_CONTRACT_OWN`: the contract number of a device's own commands (enums.json, group `device_contract`). */
-const ownContractId = (enums: EnumTables): number | undefined => enums.device_contract?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_OWN')?.value
+/** `SYS_DEVICE_CONTRACT_OWN`: the contract number of a device's own commands (enums.json, group `device_contract_own`). */
+const ownContractId = (enums: EnumTables): number | undefined => enums.device_contract_own?.members.find((m) => m.name === 'SYS_DEVICE_CONTRACT_OWN')?.value
 
 /** A variant's command, its arguments as fields (with the variant's per-argument overrides) and its returned values as outputs. */
 const resolveOperation = (

@@ -32,7 +32,7 @@ export interface SyncProgress {
 export const writeToBoard = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, project: ProjectFile, onProgress?: (p: SyncProgress) => void): Promise<string> => {
   const defs = link.defs
   const problems = [...deviceProblems(project, catalog, board), ...boardProblems(project, link.session?.boardId, catalog),
-    ...gattProblems(project.settings.gatt ?? [], (project.boards ?? []).map((b) => b.provider))]
+    ...gattProblems(project.settings.gatt ?? [], (project.boards ?? []).flatMap((b) => (b.provider !== undefined ? [b.provider] : [])))]
   if (problems.length > 0) throw new Error(problems[0])
   const settings = settingsRecords(catalog, project.settings, defs)
   const sections = [...settings, ...deviceSections(defs, catalog, project, board)]

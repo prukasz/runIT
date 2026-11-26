@@ -177,7 +177,7 @@ export function useBoardSettings(link: RunitLink, connected: boolean, project: P
     changeGatt: (services: readonly GattService[]) => editSettings((s) => ({ ...s, gatt: services }), 'setting:gatt'),
     applyGatt: (section: SettingSection) => {
       if (!settings.gatt || !live.bleProviders) return
-      const problems = gattProblems(settings.gatt, (project.project.boards ?? []).map((b) => b.provider))
+      const problems = gattProblems(settings.gatt, (project.project.boards ?? []).flatMap((b) => (b.provider !== undefined ? [b.provider] : [])))
       if (problems.length > 0) { setError(section.service.id, problems[0]); return }
       void send(section.service.id, gattApply(link.defs, services.catalog, live.bleProviders, settings.gatt), section)
     },
