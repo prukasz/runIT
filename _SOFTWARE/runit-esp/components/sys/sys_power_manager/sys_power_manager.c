@@ -13,9 +13,9 @@
 #include "sdkconfig.h"
 #include "sys_device_events.h"
 #include "sys_device_hooks.h"
-#include "sys_power_monitor.h"
-#include "sys_power_usb_pd.h"
-#include "sys_power_vreg.h"
+#include "sys_power_monitor_contract.h"
+#include "sys_power_usb_pd_contract.h"
+#include "sys_power_vreg_contract.h"
 #include "utils.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)

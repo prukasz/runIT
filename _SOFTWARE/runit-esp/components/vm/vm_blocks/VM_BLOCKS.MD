@@ -32,7 +32,7 @@ Every block folder holds `vm_block_<name>.h/.c`, `block_<name>.json` (the descri
 | ACTION | 14 | 0..1 / 0 / – | on the enable's rising edge queues a record of the store by its u32 ID (`sys_actions_request`); the ID from the pin or the state |
 | ON_EVENT | 15 | 0 / 0..1 / – | ENO pulses and VALUE is set when this pass holds an event matching source / event / channel (`sys_event_matches`, wildcards as in a subscription) |
 | MAP | 16 | 1 / 1 / – | X from [in_min, in_max] onto [out_min, out_max] along a curve (linear, log / exp, square / square root, S), the four ends constants of the state; `clamp` holds X to its range |
-| IO | 32 | 0..2 / 0..1 / – | the IO contract (SYS_IO.MD): pins. Device blocks below |
+| IO | 32 | 0..2 / 0..1 / – | the IO contract (SYS_IO_CONTRACT.MD): pins. Device blocks below |
 | HBRIDGE | 33 | 0..2 / 0..1 / – | the HBRIDGE contract: motor channels |
 | POWER_MONITOR | 34 | 0..3 / 0..1 / – | the POWER_MONITOR contract: voltage, current, power of a channel, alerts |
 | POWER_VREG | 35 | 0..1 / 0 / – | the POWER_VREG contract: enable, voltage, current limit of a regulator |

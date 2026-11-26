@@ -1,6 +1,6 @@
 # sys_power_manager — power budget, source, battery, responses
 
-Component `components/sys/sys_power_manager/`. It watches one board input, the power source behind it, and the regulator rails fed from it. It keeps the rails within the source's budget, asks the USB-PD charger for the voltage set, estimates the battery charge, and answers power faults with a response matrix. What the board has (rails, monitors, source pins, the sink) is fixed in the board config; what the user chooses is set remotely. The contracts it uses (POWER_MONITOR, POWER_VREG) are `sys_power`'s (SYS_POWER.MD).
+Component `components/sys/sys_power_manager/`. It watches one board input, the power source behind it, and the regulator rails fed from it. It keeps the rails within the source's budget, asks the USB-PD charger for the voltage set, estimates the battery charge, and answers power faults with a response matrix. What the board has (rails, monitors, source pins, the sink) is fixed in the board config; what the user chooses is set remotely. The contracts it uses (POWER_MONITOR, POWER_VREG) are `sys_power_contract`'s (SYS_POWER_CONTRACT.MD).
 
 | File | Contents |
 |---|---|
@@ -182,4 +182,4 @@ Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPEND
 
 ## Tests
 
-Host tests in `host/` (`python test_host/run.py sys_power_manager` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_io`, `sys_power`, `sys_device` and `router` and mock rails: stopped until a layout, AUTO start and stop; a rail added at run time, a taken one refused, an auto rail removed with its device; the three budget modes and the POWER_VREG interceptor's clamp; a voltage clamped below a rail's `min_mA`, auto rails splitting the pool; the source (USB-PD, the LiPo curve); one fault event and the response matrix; the efficiency rebalance, the return to AUTO and a settle's rollback; the input's OVP, the budget shrinking, the battery's hysteresis.
+Host tests in `host/` (`python test_host/run.py sys_power_manager` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_io_contract`, `sys_power_contract`, `sys_device` and `router` and mock rails: stopped until a layout, AUTO start and stop; a rail added at run time, a taken one refused, an auto rail removed with its device; the three budget modes and the POWER_VREG interceptor's clamp; a voltage clamped below a rail's `min_mA`, auto rails splitting the pool; the source (USB-PD, the LiPo curve); one fault event and the response matrix; the efficiency rebalance, the return to AUTO and a settle's rollback; the input's OVP, the budget shrinking, the battery's hysteresis.

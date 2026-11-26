@@ -1,6 +1,6 @@
 #include "vm_block_drv8962.h"
 #include "device_drv8962.h"
-#include "sys_hbridge.h"
+#include "sys_hbridge_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(sizeof(drv8962_limit_t) == 4 && sizeof(hbridge_channel_args_t) == 1 && sizeof(drv8962_fault_t) == 2,

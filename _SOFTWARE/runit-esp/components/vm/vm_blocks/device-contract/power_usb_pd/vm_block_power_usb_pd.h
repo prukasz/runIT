@@ -8,7 +8,7 @@
  *  (->ARG1)   |              | ->RESULT1 (current)
  *             ----------------
  *
- *  VM_BLK_POWER_USB_PD -- the POWER_USB_PD contract (SYS_POWER.MD): a USB-PD sink (AP33772S). The operation is in the
+ *  VM_BLK_POWER_USB_PD -- the POWER_USB_PD contract (SYS_POWER_CONTRACT.MD): a USB-PD sink (AP33772S). The operation is in the
  *  state (`op`, PD_OP_*). The engine, the kinds of operation and ENO are in vm_block_device.h.
  *
  *  Operation (op)        Inputs                             Results                      Kind

@@ -3,7 +3,7 @@
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali.h"
 #include "freertos/FreeRTOS.h"
-#include "sys_io.h"
+#include "sys_io_contract.h"
 
 /*
  * Private to this component, nothing else includes it (no INCLUDE_DIRS): the pins of the ESP32-S3 as one device,

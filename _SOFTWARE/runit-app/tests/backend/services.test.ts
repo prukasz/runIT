@@ -224,7 +224,7 @@ describe('requests', () => {
     const c = packedStructs().get('sys_io_pin_t')!
     expect(c.size).toBe(PIN_REF_SIZE)
     expect([...c.members.entries()]).toEqual([['device', { offset: 0, size: 1 }], ['pin', { offset: 1, size: 1 }]])
-    expect(catalog.pinNone).toEqual({ device: 0xff, pin: 0xff }) // SYS_IO_PIN_NONE, sys_io.h
+    expect(catalog.pinNone).toEqual({ device: 0xff, pin: 0xff }) // SYS_IO_PIN_NONE, sys_io_contract.h
 
     const i2c = catalog.device('esp32s3_i2c').config!
     const sda = i2c.fields.find((f) => f.id === 'sda')!

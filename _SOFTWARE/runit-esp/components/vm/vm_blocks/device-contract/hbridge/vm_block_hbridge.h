@@ -8,7 +8,7 @@
  *  (->DRIVE) |             |
  *            ---------------
  *
- *  VM_BLK_HBRIDGE -- the HBRIDGE contract (SYS_HBRIDGE.MD): the channels of a motor driver. The operation is in the
+ *  VM_BLK_HBRIDGE -- the HBRIDGE contract (SYS_HBRIDGE_CONTRACT.MD): the channels of a motor driver. The operation is in the
  *  state (`op`, HBRIDGE_OP_*); its argument fields are the inputs, the first is the channel. The engine, the kinds
  *  of operation, the idle operation and ENO are in vm_block_device.h.
  *

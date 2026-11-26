@@ -1,5 +1,5 @@
 #include "vm_block_hbridge.h"
-#include "sys_hbridge.h"
+#include "sys_hbridge_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(SYS_HBRIDGE_DRIVE_MAX == 4095, "the HBRIDGE block's scale (percent to steps) assumes 12 bits");

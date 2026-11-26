@@ -10,11 +10,11 @@
  * excursion.
  */
 #include "sys_device_driver.h"
-#include "sys_device_event.h"
+#include "sys_device_event_contract.h"
 #include "sys_event.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
-#include "sys_power_monitor.h"
+#include "sys_power_monitor_contract.h"
 
 SYS_DEVICE_TYPE_DECLARE(INA3221, 0x0044)
 

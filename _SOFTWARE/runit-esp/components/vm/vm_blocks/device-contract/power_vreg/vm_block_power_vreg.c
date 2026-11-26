@@ -1,5 +1,5 @@
 #include "vm_block_power_vreg.h"
-#include "sys_power_vreg.h"
+#include "sys_power_vreg_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(sizeof(VREG_value_ENABLE_t) == 1 && sizeof(VREG_value_VOLTAGE_t) == 4 &&

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "errors.h"
-#include "sys_io.h"
-#include "sys_power.h"
+#include "sys_io_contract.h"
+#include "sys_power_contract.h"
 #include "sys_power_manager_errors.h"
 #include "sys_power_manager_events.h"
 

@@ -1,5 +1,5 @@
 #include "vm_block_power_monitor.h"
-#include "sys_power_monitor.h"
+#include "sys_power_monitor_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(sizeof(PMON_key_VOLTAGE_t) == 1 && sizeof(PMON_key_CURRENT_t) == 1 &&

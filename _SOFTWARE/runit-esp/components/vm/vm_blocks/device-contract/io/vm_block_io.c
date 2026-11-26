@@ -1,5 +1,5 @@
 #include "vm_block_io.h"
-#include "sys_io.h"
+#include "sys_io_contract.h"
 #include "vm_blocks.h"
 
 /* The table: each row's fields, in the order of the contract's argument struct. A _Static_assert keeps them the size

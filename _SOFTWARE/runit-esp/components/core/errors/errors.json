@@ -330,8 +330,8 @@
       "id": 1,
       "name": "IO",
       "symbol": "MODULE_ID_IO",
-      "source_file": "runit-esp/components/sys/sys_io/errors/sys_io_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_io/errors/errors_sys_io.json",
+      "source_file": "runit-esp/components/sys/sys_io_contract/errors/sys_io_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_io_contract/errors/errors_sys_io.json",
       "tags": [
         {
           "code": 1,
@@ -594,8 +594,8 @@
       "id": 2,
       "name": "I2C",
       "symbol": "MODULE_ID_I2C",
-      "source_file": "runit-esp/components/sys/bus/sys_i2c/errors/sys_i2c_errors.h",
-      "texts_file": "runit-esp/components/sys/bus/sys_i2c/errors/errors_sys_i2c.json",
+      "source_file": "runit-esp/components/sys/bus/sys_i2c_contract/errors/sys_i2c_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_i2c_contract/errors/errors_sys_i2c.json",
       "tags": [
         {
           "code": 1,
@@ -1070,8 +1070,8 @@
       "id": 10,
       "name": "DISPLAY",
       "symbol": "MODULE_ID_DISPLAY",
-      "source_file": "runit-esp/components/sys/sys_display/errors/sys_display_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_display/errors/errors_sys_display.json",
+      "source_file": "runit-esp/components/sys/sys_display_contract/errors/sys_display_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_display_contract/errors/errors_sys_display.json",
       "tags": [
         {
           "code": 1,
@@ -1223,8 +1223,8 @@
       "id": 12,
       "name": "SPI",
       "symbol": "MODULE_ID_SPI",
-      "source_file": "runit-esp/components/sys/bus/sys_spi/errors/sys_spi_errors.h",
-      "texts_file": "runit-esp/components/sys/bus/sys_spi/errors/errors_sys_spi.json",
+      "source_file": "runit-esp/components/sys/bus/sys_spi_contract/errors/sys_spi_errors.h",
+      "texts_file": "runit-esp/components/sys/bus/sys_spi_contract/errors/errors_sys_spi.json",
       "tags": [
         {
           "code": 1,
@@ -3356,8 +3356,8 @@
       "id": 50,
       "name": "SYS_POWER",
       "symbol": "MODULE_ID_SYS_POWER",
-      "source_file": "runit-esp/components/sys/sys_power/errors/sys_power_errors.h",
-      "texts_file": "runit-esp/components/sys/sys_power/errors/errors_sys_power.json",
+      "source_file": "runit-esp/components/sys/sys_power_contract/errors/sys_power_errors.h",
+      "texts_file": "runit-esp/components/sys/sys_power_contract/errors/errors_sys_power.json",
       "tags": [
         {
           "code": 1,

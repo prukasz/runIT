@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "sys_event.h"
-#include "sys_power.h"
+#include "sys_power_contract.h"
 #include "sys_power_manager_errors.h"
 
 #ifdef __cplusplus

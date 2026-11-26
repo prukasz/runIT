@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief Magistrala SPI ESP32 / ESP32-S3 jako urządzenie, typ 0x004F: kontrakt SPI (sys_spi) na
+ * @brief Magistrala SPI ESP32 / ESP32-S3 jako urządzenie, typ 0x004F: kontrakt SPI (sys_spi_contract) na
  *        driver/spi_master.h ESP-IDF. Jedno urządzenie to jeden kontroler (SPI2 albo SPI3).
  */
 #include <string.h>
@@ -13,7 +13,7 @@
 #include "soc/soc_caps.h"
 #include "sys_device_driver.h"
 #include "sys_io_driver.h"
-#include "sys_spi/sys_spi.h"
+#include "sys_spi_contract/sys_spi_contract.h"
 
 SYS_DEVICE_TYPE_DECLARE(DEVICE_ESP32_SPI, 0x004F)
 

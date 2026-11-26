@@ -4,7 +4,7 @@
  * Hi-Z). Both channels take VDD (3.3 V) as their reference, gain 1x.
  */
 #include "sys_device_driver.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
 
 SYS_DEVICE_TYPE_DECLARE(DAC53202, 0x0046)

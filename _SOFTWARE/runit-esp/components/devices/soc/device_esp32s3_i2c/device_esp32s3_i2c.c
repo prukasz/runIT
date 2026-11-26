@@ -3,7 +3,7 @@
  * per controller (port 0 or 1), on two pins of the ESP32-S3 itself: the controller reaches its pads through the GPIO
  * matrix, and a pin's index is its GPIO (pin 46 is GPIO 46). That the two pins are the ESP32-S3's, not an expander's,
  * is the board's configuration: the driver knows no other device's type. The whole device is this file: nothing
- * includes it, the chips reach it by its ID and the I2C contract's ops (sys_i2c.h).
+ * includes it, the chips reach it by its ID and the I2C contract's ops (sys_i2c_contract.h).
  */
 #include <string.h>
 
@@ -11,7 +11,7 @@
 #include "sdkconfig.h"
 #include "soc/soc_caps.h"
 #include "sys_device_driver.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
 
 SYS_DEVICE_TYPE_DECLARE(ESP32S3_I2C, 0x004C)

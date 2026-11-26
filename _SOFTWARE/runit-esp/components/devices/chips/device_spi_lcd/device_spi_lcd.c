@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief device_spi_lcd: sterownik wyświetlacza SPI (MIPI DCS) z kontraktem sys_display. Jeden
+ * @brief device_spi_lcd: sterownik wyświetlacza SPI (MIPI DCS) z kontraktem sys_display_contract. Jeden
  *        sterownik dla wielu układów; układ (display_cfg_t.panel) wybiera tabelę z sekwencją
  *        inicjalizacji i bazowym MADCTL. Tabele z przykładu ESP-IDF spi_master/lcd
  *        (ESP-WROVER-KIT), kolejność jak w LVGL lv_lcd_generic_mipi: reset, SLPOUT, tabela.
@@ -14,10 +14,10 @@
 
 #include "sdkconfig.h"
 #include "sys_device_driver.h"
-#include "sys_display/sys_display_contract.h"
-#include "sys_io.h"
+#include "sys_display_contract/sys_display_contract.h"
+#include "sys_io_contract.h"
 #include "sys_io_driver.h"
-#include "sys_spi/sys_spi.h"
+#include "sys_spi_contract/sys_spi_contract.h"
 
 SYS_DEVICE_TYPE_DECLARE(DEVICE_SPI_LCD, 0x0050)
 

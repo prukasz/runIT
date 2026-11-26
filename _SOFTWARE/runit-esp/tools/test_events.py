@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hardware tests of sys_event + sys_device_event + sys_event_stream (PUSH key 0x25) on a board using device_testdev.
+"""Hardware tests of sys_event + sys_device_event_contract + sys_event_stream (PUSH key 0x25) on a board using device_testdev.
 
     python runit-esp/tools/test_events.py                 # auto-detect single port; RUNIT_PORT=COM10
     python runit-esp/tools/test_events.py -v EventStreamWire

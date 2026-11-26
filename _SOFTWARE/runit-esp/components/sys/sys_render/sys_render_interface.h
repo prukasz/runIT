@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "sys_display/sys_display_contract.h" /* display_window_t */
+#include "sys_display_contract/sys_display_contract.h" /* display_window_t */
 
 /**
  * @brief Sends one rendered window to the panel; returns once queued (the panel's done comes

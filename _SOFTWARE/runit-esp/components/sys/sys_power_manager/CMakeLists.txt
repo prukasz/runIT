@@ -2,7 +2,7 @@
 idf_component_register(
     SRCS "sys_power_manager.c" "router/sys_power_manager_router.c"
     INCLUDE_DIRS "." "errors" "router"
-    REQUIRES errors utils cmd sys_device sys_event sys_io sys_power
+    REQUIRES errors utils cmd sys_device sys_event sys_io_contract sys_power_contract
     PRIV_REQUIRES router freertos
     WHOLE_ARCHIVE
 )

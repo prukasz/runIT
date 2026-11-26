@@ -8,7 +8,7 @@
  *  (->ARG1)  |              |
  *            ----------------
  *
- *  VM_BLK_POWER_MONITOR -- the POWER_MONITOR contract (SYS_POWER.MD): the measured channels of a monitor (INA3221).
+ *  VM_BLK_POWER_MONITOR -- the POWER_MONITOR contract (SYS_POWER_CONTRACT.MD): the measured channels of a monitor (INA3221).
  *  The operation is in the state (`op`, PMON_OP_*); its argument fields are the inputs, the first is the channel. The
  *  engine, the kinds of operation and ENO are in vm_block_device.h.
  *

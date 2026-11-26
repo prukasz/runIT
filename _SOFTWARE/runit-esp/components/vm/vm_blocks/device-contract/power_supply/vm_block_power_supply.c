@@ -1,5 +1,5 @@
 #include "vm_block_power_supply.h"
-#include "sys_power_supply.h"
+#include "sys_power_supply_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(sizeof(SUPPLY_value_SOURCE_t) == 1, "the POWER_SUPPLY SELECT argument struct changed: update the table");

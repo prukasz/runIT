@@ -6,7 +6,7 @@ idf_component_register(
     SRCS "sys_render.c" "router/sys_render_router.c" "lvgl_impl/sys_render_lvgl.c" "esp_malloc_impl/board_mem_esp.c"
     INCLUDE_DIRS "." "errors" "config" "router" ".."
     PRIV_INCLUDE_DIRS "internal" "lvgl_impl"
-    REQUIRES errors cmd router sys_device sys_event sys_display utils
+    REQUIRES errors cmd router sys_device sys_event sys_display_contract utils
     PRIV_REQUIRES lvgl heap time freertos
     WHOLE_ARCHIVE
 )

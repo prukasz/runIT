@@ -92,7 +92,7 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 - Rail names: `DEVICE_ID_TPS55289_2` = rail A (ID 10, 0x74), `DEVICE_ID_TPS55289_1` = rail B (ID 11, 0x75) (renamed from `_0` 2026-09-27; IDs unchanged).
 - The TPS55289 current limit can't go below 200 mA. On USB 5 V with the assumed 1 A, a rail above ~6 V doesn't fit the budget: the power manager answers `ERR_PWRM_BUDGET_EXCEEDED` (rail `min_mA`, SYS_POWER_MANAGER.MD).
 - INA3221 shunts are all wired reversed (`inverted_mask = 0x07`). Its alerts still work: the limit registers and the compare are signed, so the device writes −threshold and takes the pin's release as the alert (one channel per alert pin; measured 2026-09-27). The power manager arms both alerts on the input channel (critical at the source current, warning at 90 %), so on the board both alert pins belong to the input.
-- ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not locked in firmware (the ESP32-S3 GPIO locks only the pins a native peripheral reserved in ESP-IDF, SYS_IO.MD), so the app offers them in pin pickers. Open question: reserve them.
+- ESP32-S3 strapping pins (0, 3, 45, 46) and USB D−/D+ (19, 20) are not locked in firmware (the ESP32-S3 GPIO locks only the pins a native peripheral reserved in ESP-IDF, SYS_IO_CONTRACT.MD), so the app offers them in pin pickers. Open question: reserve them.
 - The board's input current has short peaks above 100 mA (likely BLE transmit) while the average is ~50 mA: a low critical (per-conversion) alert trips on them; the warning alert (averaged) suits low thresholds.
 
 ### Contract ops per device (from generated catalog)

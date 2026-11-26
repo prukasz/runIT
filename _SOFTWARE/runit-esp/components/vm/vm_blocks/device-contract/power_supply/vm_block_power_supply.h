@@ -7,7 +7,7 @@
  *  (->SOURCE) | POWER_SUPPLY| ->RESULT
  *             ---------------
  *
- *  VM_BLK_POWER_SUPPLY -- the POWER_SUPPLY contract (SYS_POWER.MD): a power mux, two switched sources into one load.
+ *  VM_BLK_POWER_SUPPLY -- the POWER_SUPPLY contract (SYS_POWER_CONTRACT.MD): a power mux, two switched sources into one load.
  *  At most one source is on; a change switches the old one off first and the new one on after the device's delay.
  *  The operation is in the state (`op`, SUPPLY_OP_*). The engine, the kinds of operation, the idle operation and
  *  ENO are in vm_block_device.h.

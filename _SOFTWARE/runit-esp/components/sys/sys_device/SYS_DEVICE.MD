@@ -7,7 +7,7 @@ Folder `components/sys/sys_device/`. A device is an instance of a type (a driver
 | Component | Role | Who requires it |
 |---|---|---|
 | `sys_device/` | The registry: slots, types, calls, the sweep, remote devices | Everything that calls a device or is one |
-| [`sys_device_event/`](../sys_device_event/SYS_DEVICE_EVENT.MD) | The EVENT contract (`ON_EVENT`) and the subscription of a device by its ID | Drivers that listen to events |
+| [`sys_device_event_contract/`](../sys_device_event_contract/SYS_DEVICE_EVENT_CONTRACT.MD) | The EVENT contract (`ON_EVENT`) and the subscription of a device by its ID | Drivers that listen to events |
 | [`sys_device_timer/`](../sys_device_timer/SYS_DEVICE_TIMER.MD) | A device's timer: its expiry is a step of its owner (`sys_device_step`) | Drivers that run something later or every so often |
 | [`sys_device_router/`](../sys_device_router/SYS_DEVICE_ROUTER.MD) | The registry as commands (root key `MODULE_ID_SYS_DEVICE`) | Whoever builds the frame; it registers itself |
 | [`sys_device_policy/`](../sys_device_policy/SYS_DEVICE_POLICY.MD) | The device error policy (root key `MODULE_ID_POLICY`): follows the registry's events, responds in a task of its own | The app's error sink |

@@ -12,9 +12,9 @@
 #include <string.h>
 
 #include "sys_device_driver.h"
-#include "sys_device_event.h"
+#include "sys_device_event_contract.h"
 #include "sys_event.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
 #include "utils.h"
 

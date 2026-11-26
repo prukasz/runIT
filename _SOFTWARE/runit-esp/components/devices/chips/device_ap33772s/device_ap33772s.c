@@ -8,11 +8,11 @@
  * would cut the power of the ESP.
  */
 #include "sys_device_driver.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
-#include "sys_power_monitor.h"
-#include "sys_power_usb_pd.h"
-#include "sys_power_vreg.h"
+#include "sys_power_monitor_contract.h"
+#include "sys_power_usb_pd_contract.h"
+#include "sys_power_vreg_contract.h"
 #include "utils.h"
 
 SYS_DEVICE_TYPE_DECLARE(AP33772S, 0x0045)

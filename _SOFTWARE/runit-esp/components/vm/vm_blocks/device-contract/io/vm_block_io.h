@@ -8,7 +8,7 @@
  *  (->ARG1)  |             |
  *            ---------------
  *
- *  VM_BLK_IO -- the IO contract (SYS_IO.MD): the pins of a device (ESP GPIO, an expander, a PWM chip). The
+ *  VM_BLK_IO -- the IO contract (SYS_IO_CONTRACT.MD): the pins of a device (ESP GPIO, an expander, a PWM chip). The
  *  operation is in the state (`op`, IO_OP_*); its argument fields are the inputs, the first is the pin. The engine,
  *  the kinds of operation (CHANGE / EDGE / READ), the idle operation and ENO are in vm_block_device.h.
  *

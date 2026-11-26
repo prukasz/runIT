@@ -6,7 +6,7 @@
  */
 #include "sys_device_driver.h"
 #include "sys_io_driver.h"
-#include "sys_power_supply.h"
+#include "sys_power_supply_contract.h"
 #include "utils.h"
 
 SYS_DEVICE_TYPE_DECLARE(POWER_MUX, 0x004A)

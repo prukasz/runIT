@@ -9,11 +9,11 @@
 #include "host_assert.h"
 #include "sys_device.h"
 #include "sys_device_driver.h"
-#include "sys_io.h"
+#include "sys_io_contract.h"
 #include "sys_power_manager.h"
-#include "sys_power_monitor.h"
-#include "sys_power_usb_pd.h"
-#include "sys_power_vreg.h"
+#include "sys_power_monitor_contract.h"
+#include "sys_power_usb_pd_contract.h"
+#include "sys_power_vreg_contract.h"
 #include "unity.h"
 
 #define DEV_BUS   1u

@@ -24,7 +24,7 @@ export interface Choice {
   readonly description?: string
 }
 
-/** A pin of a device (`sys_io_pin_t`, SYS_IO.MD); `null` where a pin is unused. */
+/** A pin of a device (`sys_io_pin_t`, SYS_IO_CONTRACT.MD); `null` where a pin is unused. */
 export interface PinRef {
   readonly device: number
   readonly pin: number

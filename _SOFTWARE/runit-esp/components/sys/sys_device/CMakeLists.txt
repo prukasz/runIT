@@ -8,7 +8,7 @@
 #   errors/     the error tags and their messages
 #   events/     the events the registry publishes
 #
-# The router (sys_device_router), the EVENT contract (sys_device_event), a device's timer (sys_device_timer) and the
+# The router (sys_device_router), the EVENT contract (sys_device_event_contract), a device's timer (sys_device_timer) and the
 # error policy (sys_device_policy) are components of their own. Spec: SYS_DEVICE.MD.
 idf_component_register(
     SRCS "slots/sys_device_slots.c" "registry/sys_device_registry.c" "call/sys_device_call.c"

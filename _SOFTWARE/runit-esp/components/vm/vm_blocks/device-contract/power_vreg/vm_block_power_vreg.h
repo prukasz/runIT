@@ -7,7 +7,7 @@
  *  (->ARG0)   | POWER_VREG  |
  *             ---------------
  *
- *  VM_BLK_POWER_VREG -- the POWER_VREG contract (SYS_POWER.MD): an adjustable regulator with one output (TPS55289 rail).
+ *  VM_BLK_POWER_VREG -- the POWER_VREG contract (SYS_POWER_CONTRACT.MD): an adjustable regulator with one output (TPS55289 rail).
  *  The operation is in the state (`op`, VREG_OP_*); its single argument is input 0. The engine, the kinds of
  *  operation, the idle operation and ENO are in vm_block_device.h.
  *

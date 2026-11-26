@@ -1,5 +1,5 @@
 #include "vm_block_power_usb_pd.h"
-#include "sys_power_usb_pd.h"
+#include "sys_power_usb_pd_contract.h"
 #include "vm_blocks.h"
 
 _Static_assert(sizeof(PD_value_SETTINGS_t) == 8 && sizeof(sys_power_usb_pd_limits_t) == 8,

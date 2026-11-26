@@ -16,7 +16,7 @@
 #include "sys_device_driver.h"
 #include "sys_device_timer.h"
 #include "sys_event.h"
-#include "sys_hbridge.h"
+#include "sys_hbridge_contract.h"
 
 SYS_DEVICE_TYPE_DECLARE(DC_MOTOR, 0x004B)  // DC_MOTOR_TYPE: also the module of the own events
 

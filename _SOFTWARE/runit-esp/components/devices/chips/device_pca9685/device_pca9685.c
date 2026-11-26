@@ -6,7 +6,7 @@
 
 #include "board_time.h"
 #include "sys_device_driver.h"
-#include "sys_i2c.h"
+#include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
 
 SYS_DEVICE_TYPE_DECLARE(PCA9685, 0x0041)

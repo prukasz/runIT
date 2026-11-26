@@ -14,11 +14,11 @@
 
 #include "board_time.h"
 #include "sys_device_driver.h"
-#include "sys_device_event.h"
+#include "sys_device_event_contract.h"
 #include "sys_event.h"
-#include "sys_hbridge.h"
+#include "sys_hbridge_contract.h"
 #include "sys_io_driver.h"
-#include "sys_power_monitor.h"
+#include "sys_power_monitor_contract.h"
 #include "utils.h"
 
 SYS_DEVICE_TYPE_DECLARE(DRV8962, 0x0049)
