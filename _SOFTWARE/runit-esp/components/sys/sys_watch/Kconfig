@@ -3,7 +3,7 @@ menu "sys_watch"
     #@limit @alias Server watches
     config SYS_WATCH_MAX
         int "Maximum watches on this board"
-        default 24
+        default 63
         range 1 63
         help
           Reads that peers added on this board (ADD), of every owner. At

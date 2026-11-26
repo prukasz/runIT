@@ -14,6 +14,7 @@ import { LiveBadge } from './DevicesExplorer'
 import { StepList } from './StepList'
 import { isCanvasStep } from '../hardware/apply'
 import { boardNameOf } from '../boards/boards'
+import { PinLiveCell } from './PinLive'
 import { admittedSeverities, baseConfig, DEVICE_COMMANDS, devicePins, isBusField, isLiveSettingsStep, isPinStart, liveSettingsArgs, liveSettingsOf, PIN_START_COMMANDS, pinHint, pinNotes, pinNumber, POLICY, SINGLE_TYPES, startSettings, stepCall, usedBy } from './devices'
 import type { DeviceInfo } from './devices'
 import type { DevicesState } from './useDevices'
@@ -206,7 +207,10 @@ function PinsCard({ device, state }: { device: DeviceInfo; state: DevicesState }
                 )
                 : <EditableField className="devices-pin-alias" value={device.pinAliases.get(pin) ?? ''} placeholder="Name…" maxLength={32} aria-label={`Name of pin ${pinNumber(pin)}`}
                     onChange={(name) => state.setPinAlias(device.id, pin, name)} />}
-              <span className="devices-pin-note">{note && user.length === 0 && !kept && <Badge tone="info" size="compact">{note}</Badge>}</span>
+              <span className="devices-pin-note">
+                <PinLiveCell device={device} pin={pin} state={state} />
+                {note && user.length === 0 && !kept && <Badge tone="info" size="compact">{note}</Badge>}
+              </span>
             </div>
           )
         })}

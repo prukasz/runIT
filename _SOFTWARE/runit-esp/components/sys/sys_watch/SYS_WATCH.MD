@@ -75,7 +75,7 @@ A cached read is an `ON_CHANGE` watch this board keeps on another one, and the l
 
 | Option | Default | Meaning |
 |---|---|---|
-| `CONFIG_SYS_WATCH_MAX` | 24 | watches on this board, of every owner (at most 63: LIST in one frame) |
+| `CONFIG_SYS_WATCH_MAX` | 63 | watches on this board, of every owner (at most 63: LIST in one frame) |
 | `CONFIG_SYS_WATCH_CLIENT_MAX` | 24 | cached reads of other boards |
 | `CONFIG_SYS_WATCH_READ_PERIOD_MS` | 100 | a cached read's watch period; ADD is sent again and an entry is stale by it |
 | `CONFIG_SYS_WATCH_IDLE_MS` | 3000 | a cached read not read this long is removed |

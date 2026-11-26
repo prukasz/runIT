@@ -10,8 +10,9 @@ import { FieldsForm } from './FieldsForm'
 import { I2cScanResult } from './I2cScanResult'
 import { I2C_SCAN, scanAddresses, scanBitmap } from './i2cScan'
 import { LiveBadge } from './DevicesExplorer'
+import { PinLiveCard } from './PinLive'
 import { bundledEnums, withRanges } from '@backend'
-import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, devicePins, GPIO_MODE_MEMBER, hasGpioModes, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
+import { answers, boardDeviceId, changesPin, commandGroups, DEVICE_COMMANDS, devicePins, GPIO_MODE_MEMBER, hasGpioModes, isLiveRead, kindOfModeValue, PIN_MODE_MEMBER, PIN_START_COMMANDS, pinNumber, pinReady, pinStartOf, pinStateOf, showAnswer, sideLabel, usedBy, withPinStart } from './devices'
 import type { DeviceInfo, PinInterrupt, PinStart } from './devices'
 import type { DevicesState } from './useDevices'
 
@@ -247,6 +248,8 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
     entry,
     commands: commands.flatMap(({ command, side }) => {
       if (entry.id === 'IO' && (command.id === PIN_START_COMMANDS.mode || command.id === PIN_START_COMMANDS.interrupt)) return []
+      // A pin's level and voltage are on the live card above: no read to send.
+      if (isLiveRead(entry.id, command.id, side)) return []
       const field = pinFieldOf(device, command, side)
       // Only what the pin can do as it is set: a command that wants a mode (an input, an output, PWM) is offered once the pin has it,
       // from the Board boot or from what this session did to it live.
@@ -264,6 +267,7 @@ export function PinPanel({ device, pin, state }: { device: DeviceInfo; pin: numb
       )}
       {free && !canMode && !canInterrupt && <p className="devices-hint">Nothing to set on this pin.</p>}
       <ErrorsCard about={`device:${device.id}/pin:${pin}`} />
+      <PinLiveCard key={`live:${device.id}/${pin}`} device={device} pin={pin} state={state} />
       {free && (
         <CardStack>
           {canMode && (

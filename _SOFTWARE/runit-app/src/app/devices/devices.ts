@@ -341,6 +341,35 @@ export const pinStateOf = (device: DeviceInfo, board: BoardDescriptor, pin: numb
 export const pinReady = (states: readonly string[], wants: readonly string[] | undefined): boolean =>
   !wants || wants.some((w) => (w === 'configured' ? states.some((s) => s !== 'unconfigured') : states.includes(w)))
 
+/** The read that follows a pin live, and the field of its answer with the value. */
+export interface LiveRead {
+  readonly kind: 'voltage' | 'level'
+  readonly command: string
+  readonly field: string
+}
+
+const LIVE_READS: readonly LiveRead[] = [
+  { kind: 'voltage', command: 'VOLTAGE', field: 'voltage_mV' },
+  { kind: 'level', command: 'LEVEL', field: 'level' },
+]
+
+/** The IO commands whose read the live view stands for: the panel offers their writes only. */
+export const isLiveRead = (contract: string, command: string, side: Side): boolean => contract === 'IO' && side === 'read' && LIVE_READS.some((r) => r.command === command)
+
+/**
+ * How a pin in `states` (pinStateOf) is followed live: the voltage of an analogue pin, the level of an input or an output, as
+ * far as the device answers the read; undefined for a pin that is neither (not set up, PWM).
+ */
+export const livePinRead = (catalog: ServiceCatalog, ops: DeviceOps | undefined, device: DeviceInfo, states: readonly string[]): LiveRead | undefined => {
+  const io = device.type?.contracts?.includes('IO') ? catalog.contracts.get('IO') : undefined
+  if (!io) return undefined
+  return LIVE_READS.find((read) => {
+    const command = io.commands.get(read.command)
+    const wants = command?.read?.args?.fields.find((f) => f.type === 'pin')?.pinState
+    return command !== undefined && wants !== undefined && answers(catalog, ops, io, command, 'read') && pinReady(states, wants)
+  })
+}
+
 /** What to say when no pin is ready for a command that wants `wants`. */
 export const noPinReady = (wants: readonly string[]): string =>
   wants.includes('unconfigured') ? 'Every pin is set up already' : wants.includes('configured') ? 'No pin is set up yet: set its mode first' : `No pin is set up as ${wants.join(' or ')}: set its mode first`

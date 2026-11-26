@@ -11,7 +11,7 @@
 .devices-refs { display: flex; flex-wrap: wrap; gap: 6px; }
 /* One pin per row, in columns: #n, the user's name of it (or the device that uses it), what board.json says of it. */
 .devices-pins { display: flex; flex-direction: column; }
-.devices-pin { display: grid; grid-template-columns: 44px minmax(180px, 280px) 1fr; align-items: center; gap: 10px; min-height: 36px; padding: 4px 0; border-bottom: 1px solid var(--divider); }
+.devices-pin { display: grid; grid-template-columns: 44px minmax(0, 280px) minmax(150px, 1fr); align-items: center; gap: 10px; min-height: 36px; padding: 4px 0; border-bottom: 1px solid var(--divider); }
 .devices-pin-name { font-weight: 600; font-size: 13px; color: var(--active); font-variant-numeric: tabular-nums; }
 .devices-pin-uses, .devices-pin-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .devices-test { display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 24px; }
@@ -78,3 +78,9 @@
 /* A pin the board reported an error about (not read yet): the red edge of an error. */
 .devices-pin.has-error { box-shadow: inset 3px 0 var(--error); background: var(--error-bg); }
 .devices-pin.has-error .devices-pin-name { color: var(--error); }
+
+/* A pin's live value (PinLive.tsx): in its row beside its past, and large at the top of its panel. */
+.devices-live { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.devices-live-value { min-width: 62px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--active); }
+.devices-live-now { display: flex; align-items: center; min-height: 34px; margin-bottom: 6px; }
+.devices-live-now .devices-live-value { font-size: 24px; }

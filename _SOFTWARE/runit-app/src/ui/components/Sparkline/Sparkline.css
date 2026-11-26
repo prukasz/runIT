@@ -1,0 +1,4 @@
+.sparkline { display: block; overflow: hidden; color: var(--status-ok); }
+.sparkline path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.sparkline.is-row { flex: 0 1 96px; width: 96px; min-width: 0; height: 22px; }
+.sparkline.is-panel { width: 100%; height: 96px; padding: 4px 0; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
