@@ -4,7 +4,6 @@
 
 #include "data_matrix.h"
 #include "err_record.h"
-#include "err_sink.h"
 #include "freertos/ringbuf.h"
 #include "router_queue.h"
 #include "sdkconfig.h"
@@ -279,7 +278,7 @@ static err_h on_subscribed(void* ctx, const cmd_req_t* cmd, uint8_t status, cons
   } else if (err_tag(chain) == ERR_ROUTER_CALL_DOWN) {
     err_free(chain);
   } else {
-    err_report_board(chain, board);  // the board's answer: its chain under ERR_REMOTE already (router_request)
+    err_report(chain);  // the board's answer: its chain under ERR_REMOTE{board} already (router_request)
   }
   return NULL;
 }
@@ -402,7 +401,7 @@ static bool wired_now(uint8_t board) {
     *word = wired ? (*word & ~bit) : (*word | bit);
   }
   if (tell) {
-    err_report_board(ERR_NEW(ERR_REMOTE_NOT_WIRED, .board = board), board);
+    err_report(ERR_NEW(ERR_REMOTE_NOT_WIRED, .board = board));
   }
   return wired;
 }

@@ -26,12 +26,10 @@ export interface ErrorNode {
 export const CLOCK_SET_AFTER_MS = 1_577_836_800_000
 
 export interface ErrorRecord {
-  readonly source: 'internal' | 'command' | 'board'
+  readonly source: 'internal' | 'command'
   /** The board's clock when it reported the error (ms): UTC when it is at least CLOCK_SET_AFTER_MS, else since the start. */
   readonly time: number
   /** The command: `sender` the peer id that sent it (a client's, or 0xFE the board itself), its seq and flags, its request. */
-  /** The board an error with the source `board` is about. */
-  readonly board?: number
   readonly command?: { readonly sender: number; readonly seq: number; readonly flags: number; readonly request: Uint8Array; readonly requestCut: boolean }
   readonly chain: readonly ErrorNode[]
   readonly chainCut: boolean
@@ -70,17 +68,12 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
   let at = 0
   const src = data[at++]
-  const source = src === defs.errorRecord.srcCommand ? 'command' : src === defs.errorRecord.srcBoard ? 'board' : 'internal'
+  const source = src === defs.errorRecord.srcCommand ? 'command' : 'internal'
   if (data.length < at + defs.errorRecord.stampBytes) return undefined
   const stamp = view.getBigUint64(at, true)
   at += defs.errorRecord.stampBytes
   const time = Number(stamp)
   let command: ErrorRecord['command']
-  let board: number | undefined
-  if (source === 'board') {
-    if (data.length < at + 1) return undefined
-    board = data[at++]
-  }
   if (source === 'command') {
     if (data.length < at + 5) return undefined
     const lengthByte = data[at + 4]!
@@ -107,5 +100,5 @@ export const decodeErrorRecord = (defs: LinkDefinitions, data: Uint8Array, catal
     chain.push({ tag, severity, payload, ...(info ? { info, fields: fieldsOf(info, payload) } : {}) })
   }
   const cause = chain.at(-1)
-  return { source, time, ...(board !== undefined ? { board } : {}), ...(command ? { command } : {}), chain, chainCut: (countByte & defs.errorRecord.requestCut) !== 0, ...(cause ? { cause } : {}) }
+  return { source, time, ...(command ? { command } : {}), chain, chainCut: (countByte & defs.errorRecord.requestCut) !== 0, ...(cause ? { cause } : {}) }
 }

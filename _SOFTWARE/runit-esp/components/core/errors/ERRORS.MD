@@ -8,9 +8,9 @@ Component `components/core/errors/`. The foundational error handling and propaga
 |---|---|
 | `errors.h` / `errors.c` | The public API: types (`err_h`: an opaque node, `err_sev_e`), creating and reading a node (`err__new`, `err_tag` / `err_cause` / `err_data` / `err_find`), the severity and root of a chain (`err_sev`, `err_chain_sev`, `err_root_tag`, `err_drop`), `err_free`, `err_report` and `err_boot` (in `err_sink.c`: the end of a constructor's registration, which aborts); includes the core tags (`errors/core_errors.h`), which `errors.c` registers |
 | `err_macros.h` | Every macro: the tags (`ERR_TAG`, `ERR_TAGS_DECLARE`), the node size (`ERR_HDR_LEN` / `ERR_DATA_MAX`), the registration of a module's map (`ERR_MODULE_DEFINE`), constructors (`ERR_NEW` / `ERR_WRAP` / `ERR_DATA`) and propagation (`ERR_TRY`, `ERR_CHECK*`, `ERR_KEEP_FIRST`, `ERR_ESP`); and what only they use, never called directly: `err_info_t` (where a node was made, built at the call site), `err_tag_info_t`, `err_module_t`, `err__register_module`, `err__new`. Included by `errors.h` |
-| `err_sink.h` / `err_sink.c` | The sinks (`err_set_sink`, `err_set_board_sink`, set by the app at boot) and the reports: `err_report`, `err_report_ex` (a command's chain, `struct cmd_req`) and `err_report_board` |
+| `err_sink.h` / `err_sink.c` | The sink (`err_set_sink`, set by the app at boot) and the reports: `err_report`, `err_report_ex` (a command's chain, `struct cmd_req`) |
 | `err_log.h` / `err_log.c` | `err_log` (a chain as log text, for a sink that prints a chain it must not report), `err_log_ctx`, `err_log_enable`: chain formatting to `ESP_LOG` |
-| `err_record.h` / `err_record.c` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` / `err_record_board` (a chain with what caused it, as bytes) and `err_record_parse` (a record made a chain again); for the modules that send, keep or read records |
+| `err_record.h` / `err_record.c` | The error record: `err_record_src_e`, the flags, `err_record_cmd_t`, `err_record` / `err_record_cmd` (a chain with what caused it, as bytes) and `err_record_parse` (a record made a chain again); for the modules that send, keep or read records |
 | `err_tags.c` | Module and tag registry (`err__register_module`), lookup (`err_tag_info`, `err_module`) |
 | `err_pool.c` | Fixed block pool (one bit per block, taken and returned with atomics, no lock; task- and ISR-safe, double-free detection, static storage) |
 | `internal/err_internal.h` | Shared by the component's own files only (`PRIV_INCLUDE_DIRS`; a host test that must reach a node includes it): the node (`struct err`), `ERR_MODULE` / `ERR_CODE` (a tag's parts), the pool, the tag lookup (`err_tag_info`, `err_module`); a static check that `ERR_HDR_LEN` is the node's header |
@@ -89,20 +89,18 @@ Rules:
 
 - `err_report(chain)` / `err_report_ex(chain, log_ctx, cmd)`: the end of a chain nobody returns any more (task loops, callbacks, boot). Logs it (context line first), passes it to the **sink** with `cmd` (the command it belongs to, NULL for an internal error), frees it. The command is `cmd_req_t` (`cmd_types.h` in `utils`, below `errors`): the sink gets it as it is, the record takes its origin and request.
 - `err_set_sink(fn)` (boot, by the app): `fn(chain, cmd)` turns every reported chain into an error record (below) out of the port `ERRORS` (`MODULE_ID_ERRORS`, SYS_LOG.MD) and in the history (SYS_LOG.MD).
-- `err_report_board(chain, board)` / `err_set_board_sink(fn)`: the same for an error about another board as a whole, no device of it (frames of its device lost on the way, the way not wired for a wired device, no slot to follow it; SYS_DEVICE_REMOTE.MD): logs it, passes it to the **board sink** (`fn(chain, board)`: it would make the record of source 2 and run the board's policy; `app/runit` sets none yet, so such an error is only logged), frees it. `err_record_parse` skips the board byte like a command header.
 - The sink must not report errors itself (loop); code on the reporting path (stream task, log capture) uses `err_log` / `err_free` instead.
 - Rule: return `err_h` while there is a caller; `err_report` where the chain ends. Plain `err_log` + `err_free` only where reporting could loop.
 
 ## Error record
 
-`err_record_cmd(cmd, chain, buf, cap)` (`err_record.h`): a chain with the command it belongs to (`cmd_req_t`, `cmd_types.h` in `utils`; NULL gives the internal record). An internal record is also `err_record(chain, buf, cap)`, a board's `err_record_board`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_LOG.MD) and the kept history (SYS_LOG.MD ERRORS).
+`err_record_cmd(cmd, chain, buf, cap)` (`err_record.h`): a chain with the command it belongs to (`cmd_req_t`, `cmd_types.h` in `utils`; NULL gives the internal record). An internal record is also `err_record(chain, buf, cap)`. The same bytes are the router's ERROR answer (ROUTER.MD), every record on the errors stream (the sink in `runit`, SYS_LOG.MD) and the kept history (SYS_LOG.MD ERRORS).
 
 `cmd_req_t` (`cmd_types.h`) is `{req, req_len, seq u16, src u8, flags u8}`: the request and who sent it (`src`, `CMD_SRC_*` in cmd.h: the board or client id of the frame's header, or `CMD_SRC_SELF` for the board itself). No board id: the frame that carries a record names its board.
 
 ```
-[src u8]                                    0 internal (no request), 1 command, 2 board (about another board as a whole)
+[src u8]                                    0 internal (no request), 1 command
 [unix_ms u64 LE]                            the board's clock when it was reported (`board_time_now_ms`, TIME.MD; ERR_RECORD_STAMP_BYTES); before 2020: not a date, a time since the start
-src 2: [board u8]   the board the error is about (`err_record_board`), then the chain
 src 1: err_record_cmd_t (5 B, after the stamp)
        [from u8]     cmd_req_t.src: who sent the command
        [seq u16 LE]  cmd_req_t.seq: the sender's counter
@@ -167,6 +165,6 @@ They cover:
 - **The record:** its bytes (internal, command with a request cut by `ERRORS_RECORD_REQ_MAX` and by the capacity, board, cut by capacity); its parse (round trip, command and board headers skipped, every cut-short prefix, NULL arguments, a tag this board does not know, a short pool keeping the root cause, random bytes without crash or leak).
 - **Guards:** a cyclic chain stays bounded in every walk.
 - **The log:** lines, an ESP-IDF code by name, the call site (and none without call-site info), level by severity, a context line, nothing for NULL, off.
-- **Reporting:** `err_report` / `err_report_ex` / `err_report_board` (sink, context line, the command passed on, freeing, NULL).
+- **Reporting:** `err_report` / `err_report_ex` (sink, context line, the command passed on, freeing, NULL).
 
 Not covered on the host: the pool's use from an ISR (threads cover its atomics between tasks, an ISR is not run); the assertions themselves (they abort: the `no_assert` variant covers what follows them); the registration's asserts (a module ID twice, more modules than `ERRORS_MAX_MODULES`).

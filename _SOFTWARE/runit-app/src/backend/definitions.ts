@@ -65,7 +65,7 @@ export interface LinkDefinitions {
     readonly sendNoWait: number
   }
   /** The error record's header (ERRORS.MD "Error record"). */
-  readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly srcBoard: number; readonly requestCut: number; readonly stampBytes: number }
+  readonly errorRecord: { readonly srcInternal: number; readonly srcCommand: number; readonly requestCut: number; readonly stampBytes: number }
   /** `SYS_WATCH_TICK_MS`: the unit of a watch's period and silence. */
   readonly watchTickMs: number
   /** `CMD_FRAME_MAX`: the largest frame, its header included, on every link. */
@@ -130,7 +130,6 @@ export const linkDefinitions = (enums: EnumTables): LinkDefinitions => {
     errorRecord: {
       srcInternal: v('err_record_src_e', 'ERR_RECORD_SRC_INTERNAL'),
       srcCommand: v('err_record_src_e', 'ERR_RECORD_SRC_COMMAND'),
-      srcBoard: v('err_record_src_e', 'ERR_RECORD_SRC_BOARD'),
       requestCut: v('err_record_flag', 'ERR_RECORD_REQ_CUT'),
       stampBytes: v('err_record_flag', 'ERR_RECORD_STAMP_BYTES'),
     },

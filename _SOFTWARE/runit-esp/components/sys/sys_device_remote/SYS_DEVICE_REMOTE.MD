@@ -37,7 +37,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 | write | `router_request_wait`: its error at once | `router_request`, not waited for: its answer comes on the RX task, an ERROR reported as the device's (`ERR_DEV_ID` over `ERR_REMOTE` over that board's chain) |
 
 - After an OK write, in both ways, `sys_watch_stale(board, req, 1)` marks the copies of that device old and reads each again at once: a read after a write does not take a value from before it.
-- `WIRED` with the way not wired now (`sys_session_wired`): the call goes the other way, and that is reported once per board until the way is wired again, `ERR_REMOTE_NOT_WIRED{board}` by `err_report_board`: the program's timing has changed.
+- `WIRED` with the way not wired now (`sys_session_wired`): the call goes the other way, and that is reported once per board until the way is wired again, `ERR_REMOTE_NOT_WIRED{board}` by `err_report` (the board is the tag's field): the program's timing has changed.
 - A wired call waits at most the session's call timeout: the VM's pass is longer by the round trip, the price of the answer in the same pass.
 - `ERR_SESSION_NO_ROUTE` (no open session to the board) or `ERR_ROUTER_CALL_DOWN` (its session ended during the call): its board is gone, `ERR_DEV_REMOTE_DOWN{id, board}`. No state is kept for it: the next call tries again, and works once that board is reached again. Any other error (the call's timeout, the board's own answer, `ERR_WATCH_NO_VALUE` / `_STALE`) goes back as it is.
 - A command's errors come in its answer only. An error of a command from someone else (the app driving that device) stays with that one and that board's policy; it reaches no subscriber.
@@ -56,7 +56,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 
 - A frame on `REMOTE`'s input (from a session's sub-port linked to it, on the RX task; the board is its `src`, a frame from anyone but a board is dropped) is queued and taken on the task: by its board and id to the local id; the event is published as the local id's (`sys_event_publish` with `SYS_EVENT_DEFER`, so ON_EVENT and this board's listeners see it), the error reported as the local id's (`ERR_DEV_ID` over `ERR_REMOTE{board, 0}` over that board's chain: `err_record_parse`), so its policy answers it, and stops at `ERR_REMOTE` (SYS_DEVICE_POLICY.MD).
 - A frame for a device no remote device names (it was removed) is answered by UNSUBSCRIBE to its sender: the subscription of a removed alias ends at its first event.
-- SUBSCRIBE with no answer in the call's time (`ERR_ROUTER_CALL_TIMEOUT`: lost on the way) is sent again at once; its session gone meanwhile (`ERR_ROUTER_CALL_DOWN`): the board's REACHED sends it again. Refused by the board (its table full, no sub-port `REMOTE` on its session to this one): its answer, already under `ERR_REMOTE`, is reported about the board (`err_report_board`); sent again when the board is reached again.
+- SUBSCRIBE with no answer in the call's time (`ERR_ROUTER_CALL_TIMEOUT`: lost on the way) is sent again at once; its session gone meanwhile (`ERR_ROUTER_CALL_DOWN`): the board's REACHED sends it again. Refused by the board (its table full, no sub-port `REMOTE` on its session to this one): its answer, already under `ERR_REMOTE{board}`, is reported (`err_report`); sent again when the board is reached again.
 
 ## Remote (`sys_device_remote_router`, root key `MODULE_ID_REMOTE`)
 
@@ -86,7 +86,7 @@ The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json
 - **router_queue**: the calls and the wait (`router_request`, ROUTER_QUEUE.MD "Calls"); **sys_session**: `sys_session_port` (the port of a board's commands), `sys_session_wired`, `sys_session_peer`, the gone and reached events (SYS_SESSION.MD); **data_matrix**: its port `REMOTE`, in and out (DATA_MATRIX.MD).
 - **sys_watch**: `sys_watch_read`, `sys_watch_stale` (SYS_WATCH.MD "Cached reads").
 - **sys_event**: `sys_event_subscribe`, `sys_event_publish`.
-- **errors**: `err_record`, `err_record_parse`, `err_report_board`.
+- **errors**: `err_record`, `err_record_parse`, `err_report`.
 - **app/runit**: its error sink calls `sys_device_remote_on_error`.
 
 ## Open

@@ -209,17 +209,6 @@ static void test_record_cmd_without_a_request(void) {
   err_free(e);
 }
 
-static void test_record_board(void) {
-  err_h e = ERR_NEW(T_PLAIN);
-  uint8_t buf[32];
-  uint32_t n = err_record_board(0x42, e, buf, sizeof(buf));
-  TEST_ASSERT_EQUAL_HEX8(ERR_RECORD_SRC_BOARD, buf[0]);
-  TEST_ASSERT_EQUAL_HEX8(0x42, buf[9]);  /* the board's id */
-  TEST_ASSERT_EQUAL_HEX8(1, buf[10]);    /* one node */
-  TEST_ASSERT_EQUAL_UINT32(10 + 1 + 5, n);
-  err_free(e);
-}
-
 static void test_record_round_trip(void) {
   err_h e = ERR_WRAP(ERR_WRAP(ERR_NEW(T_PLAIN), T_PAIR, .a = 5, .b = 600), T_CRIT, .x = 3);
   uint8_t buf[128];
@@ -413,12 +402,6 @@ static void test_record_parse_skips_command_header_and_request(void) {
   TEST_ASSERT_NULL(back->next);
   err_free(back);
   err_free(e);
-  e = ERR_NEW(T_PLAIN);  /* a board's record too */
-  n = err_record_board(3, e, buf, sizeof(buf));
-  TEST_ASSERT_NULL(err_record_parse(buf, n, &back));
-  TEST_ASSERT_ERR_TAG(T_PLAIN, back);
-  err_free(back);
-  err_free(e);
   ASSERT_POOL_FULL();
 }
 
@@ -529,25 +512,6 @@ static void test_report_with_log_off_still_sinks_and_frees(void) {
   TEST_ASSERT_EQUAL_INT(0, host_log_count());
   TEST_ASSERT_EQUAL_INT(1, s_sink_calls);
   err_set_sink(NULL);
-  ASSERT_POOL_FULL();
-}
-
-static uint8_t s_board_seen = 0xFF;
-static uint32_t s_board_tag;
-static void board_sink(err_h chain, uint8_t board) {
-  s_board_seen = board;
-  s_board_tag = chain->tag;
-}
-static void test_report_board(void) {
-  s_board_seen = 0xFF;
-  err_set_board_sink(board_sink);
-  err_report_board(ERR_NEW(T_MED), 5);
-  TEST_ASSERT_EQUAL_UINT8(5, s_board_seen);
-  TEST_ASSERT_EQUAL_HEX32(T_MED, s_board_tag);
-  TEST_ASSERT_EQUAL_STRING("board", host_log_line(0));
-  err_report_board(NULL, 6);
-  TEST_ASSERT_EQUAL_UINT8(5, s_board_seen);  /* NULL: nothing reported */
-  err_set_board_sink(NULL);
   ASSERT_POOL_FULL();
 }
 
@@ -837,7 +801,6 @@ int main(void) {
   RUN_TEST(test_record_cmd_cuts_request);
   RUN_TEST(test_record_cmd_of_no_command_is_an_internal_record);
   RUN_TEST(test_record_cmd_without_a_request);
-  RUN_TEST(test_record_board);
   RUN_TEST(test_record_round_trip);
   RUN_TEST(test_record_parse_cut_short);
   RUN_TEST(test_log_lines);
@@ -854,7 +817,6 @@ int main(void) {
   RUN_TEST(test_log_level_follows_chain_severity);
   RUN_TEST(test_report_ex_logs_context_first_and_passes_the_command);
   RUN_TEST(test_report_with_log_off_still_sinks_and_frees);
-  RUN_TEST(test_report_board);
   RUN_TEST(test_check_in_range_is_inclusive);
   RUN_TEST(test_check_range_picks_the_tag_by_type);
   RUN_TEST(test_pool_is_safe_across_tasks);

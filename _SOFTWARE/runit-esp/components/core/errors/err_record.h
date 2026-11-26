@@ -18,7 +18,6 @@ extern "C" {
 typedef enum {
   ERR_RECORD_SRC_INTERNAL = 0,  //@alias Internal @description No request (task, timer, boot); later device ID/task may follow
   ERR_RECORD_SRC_COMMAND = 1,  //@alias Command @description Raised while running a command
-  ERR_RECORD_SRC_BOARD = 2,    //@alias Board @description About another board as a whole, no request: the board's id (u8) follows the stamp
 } err_record_src_e;
 
 //#ref-defines err_record_flag @alias Error Record Flags @prefix ERR_RECORD_
@@ -67,15 +66,8 @@ uint32_t err_record(err_h chain, uint8_t* buf, uint32_t cap);
 uint32_t err_record_cmd(const cmd_req_t* cmd, err_h chain, uint8_t* buf, uint32_t cap);
 
 /**
- * @brief err_record for an error about another board as a whole: [ERR_RECORD_SRC_BOARD][stamp][board u8], then the chain.
- * @param board  The board's id.
- * @return Bytes written (0 only when cap is too small for the header).
- */
-uint32_t err_record_board(uint8_t board, err_h chain, uint8_t* buf, uint32_t cap);
-
-/**
  * @brief Makes a record's chain a chain again, its nodes outermost first; a tag this board doesn't know keeps its
- * payload as is (cut to ERR_DATA_MAX). The source, the command header or the board are skipped. With the pool short, the
+ * payload as is (cut to ERR_DATA_MAX). The source and the command header are skipped. With the pool short, the
  * outermost nodes are left out.
  * @param data   The record.
  * @param len    Bytes in `data`.

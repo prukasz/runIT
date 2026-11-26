@@ -322,25 +322,6 @@ def test_dummy_errors(link: Link, child: int) -> None:
     check("the twin is removed", r is not None and r.ok, str(r))
 
 
-def test_board_errors(link: Link) -> None:
-    """The board as the source of an error: a board the root has no slot to follow (CONFIG_SYS_DEVICE_REMOTE_BOARDS is 4)."""
-    boards = [21, 22, 23, 24, 25]  # boards that do not exist: the twins are only records
-    t = link.mark()
-    made = []
-    for i, board in enumerate(boards):
-        r = dev(link, 0x40 + i, SYS_DEVICE_OP_CREATE_REMOTE, struct.pack("<HBHBH", ESP32S3_GPIO, board, 0, ASYNC, 100),
-                dir=WRITE)
-        made.append(r is not None and r.ok)
-    check("five twins on five boards are made", all(made), str(made))
-    time.sleep(0.5)
-    recs = [rec for rec in link.error_records_since(t) if rec.src == 2]
-    check("the fifth board has no slot for its mirrors: an error about the board (source BOARD, board 25)",
-          any(rec.sender == 25 and "ERR_CONN_FULL" in [n.name for n in rec.nodes] for rec in recs),
-          str([(rec.sender, [n.name for n in rec.nodes]) for rec in recs]))
-    for i in range(len(boards)):
-        dev(link, 0x40 + i, SYS_DEVICE_OP_REMOVE, dir=WRITE)
-
-
 def test_blink(link: Link, child: int, pin: int, seconds: float, keep: bool) -> None:
     vm = Vm(link)
     release(link, pin, child)  # the program makes the pin an output itself, through the twin
@@ -392,7 +373,6 @@ def main() -> int:
             test_events_errors(link, a.child)
             test_connector_rx(link, a.child)
             test_dummy_errors(link, a.child)
-            test_board_errors(link)
         if a.blink > 0:
             test_blink(link, a.child, a.pin, a.blink, a.keep)
     failed = [n for (n, ok, _) in RESULTS if not ok]

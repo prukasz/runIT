@@ -127,7 +127,7 @@ await deadman.stop()         // the DEADMAN write of 0; stop({ disarm: false }) 
 
 ## Errors for a user
 
-An error record (ERRORS.MD "Error record": the board's clock when it was reported (`ErrorRecord.time`: UTC ms; before 2020 the clock was never set and it is a time since the start), the command (`source` `command`: its sender, seq, flags and request, a stored frame) or the board it is about (`source` `board`), then the chain from the route to the root cause) is read with what `errors.json` says about each tag: its message template, its fields, what an id field refers to (`id_kind`, `id_kind_by`), which kinds are numbered within another (`scope`, `of`), which nodes are context (severity NONE), and each node's severity, which the record does not carry. How errors.json gets them: templates/AGENTS.md "Errors".
+An error record (ERRORS.MD "Error record": the board's clock when it was reported (`ErrorRecord.time`: UTC ms; before 2020 the clock was never set and it is a time since the start), the command (`source` `command`: its sender, seq, flags and request, a stored frame), then the chain from the route to the root cause) is read with what `errors.json` says about each tag: its message template, its fields, what an id field refers to (`id_kind`, `id_kind_by`), which kinds are numbered within another (`scope`, `of`), which nodes are context (severity NONE), and each node's severity, which the record does not carry. How errors.json gets them: templates/AGENTS.md "Errors".
 
 ```ts
 const interpreter = new ErrorInterpreter({
