@@ -133,7 +133,7 @@ typedef struct {
     uint8_t orientation; /**< Bieżąca orientacja (sys_display_orientation_e) */
     uint16_t brightness; /**< Jasność ustawiona przez użytkownika, 0 .. BRIGHTNESS_MAX */
     uint8_t id;          /**< ID urządzenia (do błędów) */
-    volatile bool busy;  /**< FLUSH w toku: od kolejki do done z ISR */
+    bool busy;           /**< FLUSH w toku: od kolejki do done z ISR; tylko atomowo */
     display_flush_done_f flush_done; /**< done użytkownika bieżącego FLUSH */
     void *flush_ctx;                 /**< done_ctx bieżącego FLUSH */
 } lcd_t;
@@ -236,7 +236,7 @@ OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET)
 {
     (void)args;
     (void)out;
-    c->busy = false;
+    __atomic_store_n(&c->busy, false, __ATOMIC_RELAXED);  // ISR, który przyjdzie po tym, nic nie robi
     ERR_TRY(panel_init(c));
     return backlight(c, c->brightness);
 }
@@ -289,7 +289,7 @@ static err_h create(uint8_t id, lcd_t *c, const display_cfg_t *cfg)
     c->orientation = cfg->orientation;
     c->brightness = cfg->brightness_default;
     c->id = id;
-    c->busy = false;
+    __atomic_store_n(&c->busy, false, __ATOMIC_RELAXED);
     ERR_TRY(claim_pins(id, c, cfg));
     const spi_attach_args_t attach = {
         .cs = pin_none(cfg->cs) ? SYS_SPI_CS_NONE : cfg->cs.pin,
@@ -331,7 +331,7 @@ OP_DECLARE_READ(CONTRACT_DISPLAY, OP_ORIENTATION)
 OP_DECLARE_WRITE(CONTRACT_DISPLAY, OP_ORIENTATION)
 {
     ERR_CHECK_RANGE(args->orientation, 0, SYS_DISPLAY_ORIENTATION_270);
-    if (c->busy) {
+    if (__atomic_load_n(&c->busy, __ATOMIC_ACQUIRE)) {
         return ERR_NEW(ERR_DISPLAY_FLUSH_BUSY, .id = c->id);
     }
     c->orientation = args->orientation;
@@ -426,18 +426,18 @@ static err_h set_range(lcd_t *c, uint8_t op, uint16_t from, uint16_t to)
     return cmd(c, op, data, sizeof(data));
 }
 
-/* Koniec transferu (ISR): kończy FLUSH i woła done użytkownika; po RESET (busy zdjęte) nic.
+/* Koniec transferu (ISR): kończy FLUSH i woła done użytkownika; po RESET (busy zdjęte) nic. busy zdejmuje jeden:
+ * ISR albo RESET (wymiana atomowa), więc done nie przychodzi po RESET z drugiego rdzenia.
  * Ograniczenie: stare done po RESET i nowym FLUSH zakończyłoby ten nowy (brak licznika generacji).
  */
 static void flush_done_isr(void *ctx)
 {
     lcd_t *c = ctx;
-    if (!c->busy) {
+    const display_flush_done_f done = c->flush_done;  // przed zdjęciem busy: potem może je nadpisać nowy FLUSH
+    void *done_ctx = c->flush_ctx;
+    if (!__atomic_exchange_n(&c->busy, false, __ATOMIC_ACQ_REL)) {
         return;
     }
-    const display_flush_done_f done = c->flush_done;
-    void *done_ctx = c->flush_ctx;
-    c->busy = false;
     done(done_ctx);
 }
 
@@ -451,7 +451,7 @@ OP_DECLARE_WRITE(CONTRACT_DISPLAY, OP_FLUSH)
         return ERR_NEW(ERR_DISPLAY_BAD_WINDOW, .id = c->id, .x1 = w->x1, .y1 = w->y1, .x2 = w->x2,
                        .y2 = w->y2);
     }
-    if (c->busy) {
+    if (__atomic_load_n(&c->busy, __ATOMIC_ACQUIRE)) {
         return ERR_NEW(ERR_DISPLAY_FLUSH_BUSY, .id = c->id);
     }
     uint16_t ox;
@@ -462,12 +462,12 @@ OP_DECLARE_WRITE(CONTRACT_DISPLAY, OP_FLUSH)
     ERR_TRY(cmd(c, CMD_RAMWR, NULL, 0));
     c->flush_done = args->done;
     c->flush_ctx = args->done_ctx;
-    c->busy = true;
+    __atomic_store_n(&c->busy, true, __ATOMIC_RELEASE);  // po done i ctx: ISR je czyta
     const spi_xfer_t xfer = {
         .tx = args->pixels, .tx_len = args->len, .done = flush_done_isr, .ctx = c};
     err_h e = sys_spi_queue(&c->spi, &xfer);
     if (e != NULL) {
-        c->busy = false;
+        __atomic_store_n(&c->busy, false, __ATOMIC_RELAXED);
     }
     return e;
 }

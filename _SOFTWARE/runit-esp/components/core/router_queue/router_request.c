@@ -176,7 +176,7 @@ typedef struct {
   uint32_t cap;
   uint32_t* len;
   err_h err;
-  volatile bool done;  // set by the callback last: until then `w` is the callback's, after it the waiter's again
+  bool done;  // atomics only; set by the callback last: until then `w` is the callback's, after it the waiter's again
 } waiter_t;
 
 static err_h wait_done(void* ctx, const cmd_req_t* cmd, uint8_t status, const uint8_t* data, uint32_t len) {

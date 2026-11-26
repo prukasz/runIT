@@ -60,7 +60,7 @@ static struct {
   sub_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock
   /* ISR events a lane's ring couldn't take. Counts up and wraps; only the ISR side writes it, the lane's task reads it
      (an aligned u32 is read and written whole) and reports what it has not reported yet. */
-  volatile uint32_t isr_drops[SYS_EVENT_LANE_COUNT];
+  uint32_t isr_drops[SYS_EVENT_LANE_COUNT];           // ISRs of both cores count up: atomics only
   uint32_t isr_drops_reported[SYS_EVENT_LANE_COUNT];  // each by its lane's task only
 } s_event;
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // s_event.subs: short copies only, never held while calling out
@@ -177,7 +177,8 @@ err_h sys_event_publish(sys_event_key_t key, uint16_t flags, const void* data, u
   if (isr) {
     BaseType_t woken = pdFALSE;
     if (!valid || xRingbufferSendFromISR(*s_rings[lane], &item, ITEM_SIZE(len), &woken) != pdTRUE) {
-      s_event.isr_drops[lane < SYS_EVENT_LANE_COUNT ? lane : 0u]++;  // an unknown lane: counted in the first
+      // An unknown lane: counted in the first.
+      (void)__atomic_fetch_add(&s_event.isr_drops[lane < SYS_EVENT_LANE_COUNT ? lane : 0u], 1u, __ATOMIC_RELAXED);
     }
     portYIELD_FROM_ISR(woken);
     return NULL;
@@ -256,7 +257,8 @@ static void event_task(void* arg) {
       ev->t_ms = board_time_at_uptime_ms(ev->t_ms);
     }
 
-    const uint32_t dropped = s_event.isr_drops[lane] - s_event.isr_drops_reported[lane];  // unsigned: across the wrap
+    const uint32_t dropped = __atomic_load_n(&s_event.isr_drops[lane], __ATOMIC_RELAXED) -
+                             s_event.isr_drops_reported[lane];  // unsigned: across the wrap
     if (dropped > 0) {
       s_event.isr_drops_reported[lane] += dropped;
       err_report(ERR_NEW(ERR_EVENT_QUEUE_FULL, .source = SYS_EVENT_ANY_SOURCE, .event = SYS_EVENT_ANY_TAG,
