@@ -36,8 +36,10 @@ typedef enum {
 MUST_USE err_h sys_system_enter_safe_state(sys_safe_reason_e reason, uint8_t device);
 
 /**
- * @brief Every device resumed (sys_device_sweep RESUME), then the note cleared; it stays when a device's resume fails.
- * @return The first device's error
+ * @brief Every device resumed (sys_device_sweep RESUME), then the note cleared and SAFE_LEFT published (channel the
+ * reason it was in; nothing when the board was not in it); the note stays and nothing is published when a device's
+ * resume fails.
+ * @return The first device's error, or the publish's
  */
 MUST_USE err_h sys_system_leave_safe_state(void);
 

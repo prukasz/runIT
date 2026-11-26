@@ -62,7 +62,7 @@ void vm_retain_on_pass(uint64_t now_ms);
 
 /**
  * @brief Capture now and hand it to the retain task. The caller guarantees the
- * VM is quiescent (under the program lock, or after vm_exec_stop()).
+ * VM is quiescent (under the program lock).
  */
 void vm_retain_save_stopped(void);
 

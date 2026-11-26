@@ -270,6 +270,7 @@ static err_h on_safe(const sys_event_t* event, void* ctx) {
   if (event->key.channel == SYS_SAFE_FAULT) {
     (void)vm_exec_fault_latch(event->key.source, 0);  // requests the stop; SAFE carries no error, so no root tag
   } else {
+    vm_exec_note_cause(VM_EVENT_CAUSE_SAFE);
     vm_exec_request_stop();
   }
   return NULL;

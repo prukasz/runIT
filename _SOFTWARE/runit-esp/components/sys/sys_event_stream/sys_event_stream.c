@@ -23,9 +23,9 @@ static err_h on_notify_event(const sys_event_t* event, void* ctx) {
   return NULL;
 }
 
-// A sys_event_t from another board: passed on to every port linked from EVENTS but the one it came from, and
-// published here without NOTIFY (what it sent out was that board's to tell). Its source and channel are that board's
-// own numbers.
+// A sys_event_t from another board: only passed on, to every port linked from EVENTS but the one it came from (the
+// app's session). Never published here: its source and channel are that board's own numbers, which mean nothing to
+// this board's listeners; a remote device's events reach them by sys_device_remote, as the local alias's.
 static void events_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_t flags, const uint8_t* data,
                       uint32_t len) {
   sys_event_t event;
@@ -37,8 +37,6 @@ static void events_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint
     return;
   }
   data_matrix_send_except(self, from, flags, data, len);
-  err_report(sys_event_publish(event.key, (uint16_t)((event.flags & ~SYS_EVENT_NOTIFY) | SYS_EVENT_DEFER),
-                               data + CMD_HEAD + sizeof(event), event.len));
 }
 
 // Before app_main: the port, and the listener that sends the notify events out of it.

@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "vm_block.h"
 #include "vm_event.h"
+#include "vm_events.h"
 #include "vm_override.h"
 #include "vm_retain.h"
 #include "sys_actions.h"
@@ -41,6 +42,8 @@ static struct {
   bool waiting;
   vm_run_mode_e resume;
   volatile bool save_req;     // the retained values to be saved once no pass runs (vm_exec_request_retain_save)
+  volatile uint8_t cause;     // vm_event_cause_e of the last mode change asked for (STATE's cause)
+  vm_run_mode_e published;    // the mode the last STATE told (VM task only)
   void (*sample_hook)(void);  // telemetry sampling, called at the end of every completed pass
 } s_exec;
 
@@ -157,6 +160,7 @@ static void wd_sample(void* arg) {
     if (blk != s_exec_preset.wd_quiet) {
       s_exec_preset.wd_quiet = blk;
       err_report(ERR_NEW(ERR_VM_EXEC_BLOCK_HUNG, .block_idx = blk, .ms = CONFIG_VM_EXEC_BLOCK_WD_MS));
+      err_report(SYS_EVENT_PUBLISH_DEFER(VM_EV_HUNG, 0, blk, .block = blk));
     }
   }
   s_wd.last = cur;
@@ -314,7 +318,10 @@ void vm_exec_run_range(uint16_t start, uint16_t end) {
     wd_enter(i);
     run_block(b, fn);
     wd_leave();
-    if (quiet && vm_clock_us() - call_t0 < (uint64_t)CONFIG_VM_EXEC_BLOCK_WD_MS * 1000u) s_exec_preset.wd_quiet = VM_ID_NONE;
+    if (quiet && vm_clock_us() - call_t0 < (uint64_t)CONFIG_VM_EXEC_BLOCK_WD_MS * 1000u) {
+      s_exec_preset.wd_quiet = VM_ID_NONE;  // its episode is over
+      err_report(SYS_EVENT_PUBLISH_DEFER(VM_EV_RECOVERED, 0, i, .block = i));
+    }
 
     uint16_t next = (uint16_t)(i + 1);
 
@@ -425,10 +432,23 @@ static void save_retained(void) {
   vm_exec_program_unlock(previous);
 }
 
+/* STATE when the mode seen from outside differs from the one told last: a STEP is SCAN, a BLOCK_STEP is BLOCK. The
+   cause is the one the last change noted (vm_exec_note_cause), back to COMMAND once told. */
+static void publish_state(vm_run_mode_e mode) {
+  if (mode == VM_RUN_STEP) mode = VM_RUN_SCAN;
+  if (mode == VM_RUN_BLOCK_STEP) mode = VM_RUN_BLOCK;
+  if (mode == s_exec.published) return;
+  s_exec.published = mode;
+  const uint8_t cause = s_exec.cause;
+  s_exec.cause = VM_EVENT_CAUSE_COMMAND;
+  err_report(SYS_EVENT_PUBLISH_DEFER(VM_EV_STATE, 0, (uint16_t)mode, .cause = cause));
+}
+
 static void vm_exec_task(void* arg) {
   (void)arg;
   for (;;) {
     vm_run_mode_e mode = vm_exec_mode();
+    publish_state(mode);
     if (mode == VM_RUN_STOPPED || mode == VM_RUN_FROZEN || mode == VM_RUN_SCAN || mode == VM_RUN_BLOCK) {
       if (s_exec.save_req) save_retained();
       vm_clock_hold_begin();  // not running passes: this time doesn't count for the program
@@ -472,21 +492,12 @@ void vm_exec_request_retain_save(void) {
   s_exec.save_req = true;
 }
 
-err_h vm_exec_stop(void) {
-  vm_exec_request_stop();
-  if (caller_owns_active_pass()) {
-    return ERR_NEW(ERR_VM_EXEC_SELF_BARRIER, .operation = 0);
-  }
-
-  /* Hold the program barrier through the wait so a concurrent mode command
-     cannot restart execution between quiescence and this function returning. */
-  vm_run_mode_e previous;
-  ERR_TRY(vm_exec_program_lock(&previous));
-  vm_exec_program_unlock(VM_RUN_STOPPED);
-  return NULL;
+void vm_exec_note_cause(vm_event_cause_e cause) {
+  s_exec.cause = (uint8_t)cause;
 }
 
 bool vm_exec_fault_latch(uint16_t device_id, uint32_t root_tag) {
+  s_exec.cause = VM_EVENT_CAUSE_FAULT;
   portENTER_CRITICAL(&s_program_mux);
   bool first = !s_exec.fault.latched;
   if (first) {
@@ -519,24 +530,6 @@ err_h vm_exec_fault_acknowledge(void) {
   return NULL;
 }
 
-void vm_exec_set_mode(vm_run_mode_e mode) {
-  if (mode == VM_RUN_STOPPED) {
-    vm_exec_request_stop();
-    return;
-  }
-  portENTER_CRITICAL(&s_program_mux);
-  if (!s_exec.fault.latched && !s_exec.program_locked && !(s_exec.stop_requested && s_exec.pass_active) && mode <= VM_RUN_BLOCK_STEP) {
-    if (mode == VM_RUN_FROZEN && s_exec.mode != VM_RUN_FROZEN) s_exec.resume = s_exec.mode;
-    if (mode == VM_RUN_RUNNING) s_exec_preset.selected = VM_RUN_RUNNING;
-    if (mode == VM_RUN_STEP || mode == VM_RUN_SCAN) s_exec_preset.selected = VM_RUN_SCAN;
-    if (mode == VM_RUN_BLOCK || mode == VM_RUN_BLOCK_STEP) s_exec_preset.selected = VM_RUN_BLOCK;
-    s_exec.stop_requested = false;
-    s_exec.cancel = false;
-    s_exec.mode = mode;
-  }
-  portEXIT_CRITICAL(&s_program_mux);
-}
-
 vm_run_mode_e vm_exec_mode(void) {
   return s_exec.mode;
 }
@@ -550,6 +543,7 @@ vm_exec_status_t vm_exec_status(void) {
 
 err_h vm_exec_control(vm_exec_command_e command) {
   if (command == VM_EXEC_ACK_FAULT) return vm_exec_fault_acknowledge();
+  s_exec.cause = VM_EVENT_CAUSE_COMMAND;
 
   portENTER_CRITICAL(&s_program_mux);
   vm_exec_fault_status_t fault = s_exec.fault;

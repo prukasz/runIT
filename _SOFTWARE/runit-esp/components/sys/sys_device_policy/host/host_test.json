@@ -9,6 +9,8 @@
   "includes": [
     "router",
     "../sys_system",
+    "../sys_actions",
+    "../sys_actions/errors",
     "../../core/router_queue",
     "../../core/router_queue/errors"
   ],

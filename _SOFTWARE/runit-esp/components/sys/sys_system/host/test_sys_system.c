@@ -15,7 +15,7 @@
 #include "sys_system_router.h"
 #include "unity.h"
 
-/* ---- Stubs for sys_device_sweep, router_origin, router_run_urgent, sys_session_* ---- */
+/* ---- Stubs for sys_device_sweep, router_origin, router_run_urgent, sys_session_deadman_*, sys_session_broadcast ---- */
 static int s_sweep_calls;
 static uint16_t s_last_sweep_op;
 static bool s_fail_resume_sweep;
@@ -67,17 +67,6 @@ err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
   return NULL;
 }
 
-static err_h gone_trampoline(const sys_event_t* event, void* ctx) {
-  sys_session_gone_f fn = (sys_session_gone_f)(uintptr_t)ctx;
-  const evt_data_SESSION_EV_GONE_t* d = (const evt_data_SESSION_EV_GONE_t*)event->data;
-  fn((uint8_t)event->key.source, d->safety);
-  return NULL;
-}
-
-err_h sys_session_on_gone(sys_session_gone_f fn) {
-  uint16_t handle = 0;
-  return sys_event_subscribe(SESSION_GONE_FILTER, gone_trampoline, (void*)(uintptr_t)fn, SYS_EVENT_RUN_INLINE, &handle);
-}
 
 static err_h route_sys(uint8_t dir, uint8_t op, const void* args, uint32_t args_len, uint8_t* reply,
                        uint32_t reply_cap, uint32_t* reply_len) {
@@ -168,13 +157,22 @@ static void test_safe_state_enter_leave_and_failed_resume_keeps_note(void) {
   sys_system_safe_state_get(&reason, &for_ms);
   TEST_ASSERT_EQUAL_UINT8(SYS_SAFE_STOP, reason);
 
-  /* Successful RESUME clears the note */
+  /* Successful RESUME clears the note and publishes SAFE_LEFT with the reason it was in; once only */
+  const sys_event_key_t left = {.tag = SYS_EV_SAFE_LEFT, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL};
+  TEST_ASSERT_NULL(sys_event_subscribe(left, on_safe, NULL, SYS_EVENT_RUN_INLINE, &handle));
+  s_safe_calls = 0;
   s_fail_resume_sweep = false;
   TEST_ASSERT_NULL(route_sys(CMD_DIR_WRITE, SYS_OP_SAFE_LEAVE, NULL, 0, reply, sizeof(reply), &rlen));
   TEST_ASSERT_EQUAL_HEX16(CONTRACT_SYS_DEVICE_OP_RESUME, s_last_sweep_op);
+  TEST_ASSERT_EQUAL_INT(1, s_safe_calls);
+  TEST_ASSERT_EQUAL_UINT32(SYS_EV_SAFE_LEFT, s_safe_key.tag);
+  TEST_ASSERT_EQUAL_UINT16(SYS_SAFE_STOP, s_safe_key.channel);
   sys_system_safe_state_get(&reason, &for_ms);
   TEST_ASSERT_EQUAL_UINT8(0, reason);
   TEST_ASSERT_EQUAL_UINT32(0, for_ms);
+  TEST_ASSERT_NULL(route_sys(CMD_DIR_WRITE, SYS_OP_SAFE_LEAVE, NULL, 0, reply, sizeof(reply), &rlen));
+  TEST_ASSERT_EQUAL_INT(1, s_safe_calls);
+  TEST_ASSERT_NULL(sys_event_unsubscribe(handle));
 }
 
 static void test_session_gone_safety_triggers_deadman_and_urgent_stop_broadcast(void) {

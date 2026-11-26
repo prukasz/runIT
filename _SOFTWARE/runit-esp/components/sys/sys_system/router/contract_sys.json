@@ -222,6 +222,15 @@
       "label": "Safe state",
       "description": "The board entered its safe state: the program stopped, then every device suspended. The channel is the reason (Safe State Reason), the source the device whose error caused it (a device fault), else none.",
       "notify": true
+    },
+    {
+      "id": "SAFE_LEFT",
+      "event": 2,
+      "code": 2490370,
+      "symbol": "SYS_EV_SAFE_LEFT",
+      "label": "Safe state left",
+      "description": "The board left its safe state: every device resumed. The channel is the reason it was in. The program stays stopped until VM EXEC starts it.",
+      "notify": true
     }
   ]
 }

@@ -6,6 +6,7 @@
 #include "sys_device.h"
 #include "sys_device_driver.h"
 #include "sys_device_events.h"
+#include "sys_actions.h"
 #include "sys_system.h"
 #include "router_queue_errors.h"
 #include "utils.h"
@@ -26,7 +27,6 @@ static struct {
     bool present;  // the device exists (CREATED, not yet REMOVED)
     uint8_t gen;   // the generation of that device (its CREATED): a REMOVED of another one is not its
   } e[SYS_DEVICE_COUNT];
-  sys_device_action_runner_f run_action;
 } s_pol;  // zero at the start (.bss)
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -101,10 +101,6 @@ static err_h on_device(const sys_event_t* event, void* ctx) {
   return NULL;
 }
 
-void sys_device_policy_set_action_runner(sys_device_action_runner_f fn) {
-  s_pol.run_action = fn;
-}
-
 /* ----------------------------------------------------------------------------
  * The response to a reported chain: the policy's task
  * ------------------------------------------------------------------------- */
@@ -140,9 +136,21 @@ static err_h run_response(uint8_t id, uint32_t action) {
   }
 }
 
-// Runs the device's configured action (built-in response or app action runner).
+/* A stored action (sys_actions), queued on the router. Not when the chain is that action's own failure (one of its
+   steps, ERR_ACTION_STEP): the action would answer itself without end. */
+static err_h run_action(uint32_t action, err_h chain) {
+  uint32_t left = ERR_CHAIN_MAX;
+  for (err_h n = chain; n != NULL && left-- > 0; n = err_cause(n)) {
+    if (err_tag(n) == ERR_ACTION_STEP && ERR_DATA(n, ERR_ACTION_STEP)->id == action) {
+      return NULL;
+    }
+  }
+  return sys_actions_request(action, false);
+}
+
+// Runs the device's configured action (a built-in response or a stored action).
 static err_h device_fault(uint8_t id, uint8_t sev, uint32_t action, err_h chain) {
-  err_h err = is_response(action) ? run_response(id, action) : s_pol.run_action(action, chain);
+  err_h err = is_response(action) ? run_response(id, action) : run_action(action, chain);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = sev, .stage = SYS_DEVICE_FAULT_STAGE_ACTION,
                    .action = action);
@@ -203,7 +211,7 @@ static err_h walk(err_h chain, bool act, bool* needed) {
     }
     const uint32_t action = found ? p.actions[sev - ERR_SEV_LOW] : 0u;
     const bool do_sys = sev == ERR_SEV_CRITICAL && !system_done;
-    const bool do_act = action != 0 && (is_response(action) || s_pol.run_action != NULL);
+    const bool do_act = action != 0;
     if (!do_sys && !do_act) {
       continue;
     }

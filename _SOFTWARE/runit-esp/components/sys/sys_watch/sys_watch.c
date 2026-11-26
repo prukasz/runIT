@@ -172,14 +172,16 @@ uint8_t sys_watch_list(sys_watch_info_t out[CONFIG_SYS_WATCH_MAX]) {
 }
 
 // A session ended (SESSION_EV_GONE, the peer is the event's source): its watches go with it.
-static void on_gone(uint8_t peer, uint8_t safety) {
-  (void)safety;
-  (void)remove_watches(peer, 0);
+static err_h on_gone(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  (void)remove_watches((uint8_t)event->key.source, 0);
+  return NULL;
 }
 
 // Before app_main: the tick of the watches this board runs, and the sessions' end.
 __attribute__((constructor)) static void watch_start(void) {
+  uint16_t handle = 0;
   board_timer_init(&s_watch.timer, on_tick, NULL);
   board_timer_start(&s_watch.timer, SYS_WATCH_TICK_MS);
-  err_boot(sys_session_on_gone(on_gone));
+  err_boot(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
 }

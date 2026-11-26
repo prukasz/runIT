@@ -28,16 +28,6 @@ SYS_EVENTS_DECLARE(SESSION, MODULE_ID_SESSION, SYS)
 #define SESSION_GONE_FILTER \
   ((sys_event_key_t){.tag = SESSION_EV_GONE, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL})
 
-/** @brief A session with `peer` ended; `safety` 1: it had the safety flag. Runs inline (SYS_EVENT_RUN_INLINE). */
-typedef void (*sys_session_gone_f)(uint8_t peer, uint8_t safety);
-
-/**
- * @brief Calls `fn` at every SESSION_EV_GONE: the one subscription a module that cleans up after a peer needs.
- * @param[in] fn The callback
- * @return NULL; ERR_EVENT_* when the subscription is refused
- */
-MUST_USE err_h sys_session_on_gone(sys_session_gone_f fn);
-
 #ifdef __cplusplus
 }
 #endif

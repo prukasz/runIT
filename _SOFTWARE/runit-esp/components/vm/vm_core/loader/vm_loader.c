@@ -11,6 +11,13 @@
 
 
 static vm_load_state_e s_state = VM_LOAD_EMPTY;
+static uint16_t s_gen;  // loads (OPEN, RESET) since the start: LOADED's gen
+
+/* The program was replaced or reset: LOADED, after the barrier is let go (deferred: a listener may call the VM). */
+static void publish_loaded(void) {
+  s_gen++;
+  err_report(SYS_EVENT_PUBLISH_DEFER(VM_EV_LOADED, 0, 0, .gen = s_gen));
+}
 
 static MUST_USE err_h require_state(vm_load_state_e want) {
   if (s_state != want) {
@@ -49,6 +56,7 @@ static void end_stopped_mutation(void) {
 
 err_h vm_loader_reset(void) {
   vm_run_mode_e previous;
+  vm_exec_note_cause(VM_EVENT_CAUSE_LOAD);
   ERR_TRY(vm_exec_program_lock(&previous));
   vm_retain_save_stopped();  // last values of the program going away
   vm_exec_reset();
@@ -57,6 +65,7 @@ err_h vm_loader_reset(void) {
   vm_retain_on_reset();
   s_state = VM_LOAD_EMPTY;
   vm_exec_program_unlock(VM_RUN_STOPPED);
+  publish_loaded();
   return NULL;
 }
 
@@ -86,6 +95,7 @@ err_h vm_loader_verify_complete(void) {
 
 err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint32_t total_size) {
   vm_run_mode_e previous;
+  vm_exec_note_cause(VM_EVENT_CAUSE_LOAD);
   ERR_TRY(vm_exec_program_lock(&previous));
   vm_retain_save_stopped();  // last values of the program being replaced
 
@@ -103,12 +113,14 @@ err_h vm_loader_open(uint16_t obj_cnt, uint16_t acc_cnt, uint16_t blk_cnt, uint3
     vm_retain_on_reset();
     s_state = VM_LOAD_EMPTY;
     vm_exec_program_unlock(VM_RUN_STOPPED);
+    publish_loaded();  // the old program is gone all the same
     return ERR_WRAP(e, ERR_VM_LOAD_ABORTED, .packet = VM_OP_OPEN);
   }
 
   vm_retain_on_open();
   s_state = VM_LOAD_OPEN;
   vm_exec_program_unlock(VM_RUN_STOPPED);
+  publish_loaded();
   return NULL;
 }
 

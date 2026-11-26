@@ -15,6 +15,7 @@
 #include "sys_device_events.h"
 #include "sys_device_policy.h"
 #include "sys_device_policy_router.h"
+#include "sys_actions.h"
 #include "sys_system.h"
 #include "unity.h"
 
@@ -28,6 +29,8 @@ MODULE_ID_DECLARE(MODULE_ID_POLT, 0x3D)
   X(M, ERR_POLT_CRIT, 4, ERR_SEV_CRITICAL, {})
 ERR_TAGS_DECLARE(MODULE_ID_POLT, ERR_POLT_MAP)
 ERR_MODULE_DEFINE(MODULE_ID_POLT, ERR_POLT_MAP)
+/* sys_actions is not linked: its tags registered here, so an ERR_ACTION_STEP keeps its data in the policy's record. */
+ERR_MODULE_DEFINE(MODULE_ID_ACTIONS, ERR_SYS_ACTIONS_MAP)
 
 /* ---- Minimal fake device driver for real sys_device hooks ---- */
 
@@ -92,8 +95,9 @@ err_h sys_system_enter_safe_state(sys_safe_reason_e reason, uint8_t device) {
   return sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND);
 }
 
-static err_h mock_action_runner(uint32_t action, err_h chain) {
-  (void)chain;
+/* sys_actions' queueing of a RUN: counted, the action noted, failing when the test says so. */
+err_h sys_actions_request(uint32_t action, bool urgent) {
+  (void)urgent;
   atomic_store(&s_last_action, action);
   atomic_fetch_add(&s_actions_run, 1);
   return atomic_load(&s_action_should_fail) ? ERR_NEW(ERR_POLT_HIGH) : NULL;
@@ -155,7 +159,6 @@ void setUp(void) {
   atomic_store(&s_fault_resp_reported, 0);
   atomic_store(&s_safe_reason, 0);
   atomic_store(&s_safe_device, 0);
-  sys_device_policy_set_action_runner(mock_action_runner);
 }
 
 void tearDown(void) {
@@ -301,6 +304,15 @@ static void test_action_runner_failure_reports_fault_response_without_loop(void)
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_actions_run));
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_fault_resp_reported));
   TEST_ASSERT_EQUAL_UINT32(0x01000022u, atomic_load(&s_last_action));
+
+  /* The action's own failure (one of its steps) does not run the action again. */
+  atomic_store(&s_action_should_fail, false);
+  atomic_store(&s_actions_run, 0);
+  err_h own = make_dev_err(8, ERR_WRAP(ERR_NEW(ERR_POLT_HIGH), ERR_ACTION_STEP, .id = 0x01000022u, .step = 0));
+  TEST_ASSERT_NULL(sys_device_policy_handle(own));
+  err_free(own);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  TEST_ASSERT_EQUAL_INT(0, atomic_load(&s_actions_run));
 }
 
 static void test_critical_before_device_and_missing_device_and_dedup_and_low_sev(void) {

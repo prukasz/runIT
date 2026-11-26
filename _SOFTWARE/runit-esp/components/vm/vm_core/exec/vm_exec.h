@@ -4,6 +4,7 @@
 #include "vm_block.h"
 #include "vm_clock.h"  // vm_now_ms(), vm_clock_us(): what the timing blocks read
 #include "vm_stats.h"
+#include "vm_events.h"
 
 
 /* ========================================================================= */
@@ -85,17 +86,13 @@ void vm_exec_request_stop(void);
 void vm_exec_request_retain_save(void);
 
 /**
- * @brief Request stop and wait for a quiescent VM.
- *
- * On success, mode is VM_RUN_STOPPED and no pass is active or parked. Objects,
- * block state, and loaded program storage are preserved. If called by the task
- * currently executing a pass, cancellation is still requested but the wait is
- * rejected with ERR_VM_EXEC_SELF_BARRIER to avoid self-deadlock.
+ * @brief Notes why the next mode change happens: the cause the next VM STATE event carries (vm_events.h), back to
+ * COMMAND once told. EXEC notes COMMAND and a fault latch FAULT themselves; the loader notes LOAD, the safe state SAFE.
  */
-MUST_USE err_h vm_exec_stop(void);
+void vm_exec_note_cause(vm_event_cause_e cause);
 
 /**
- * @brief Latch a critical device fault and request cancellation immediately.
+ * @brief Latch a critical device fault and request cancellation immediately (STATE's cause FAULT).
  * @return true only for the first fault in the current latched episode.
  */
 bool vm_exec_fault_latch(uint16_t device_id, uint32_t root_tag);
@@ -105,9 +102,6 @@ vm_exec_fault_status_t vm_exec_fault_status(void);
 
 /** @brief Clear a latched fault once execution is quiescent and stopped. */
 MUST_USE err_h vm_exec_fault_acknowledge(void);
-
-/** @brief Set run mode directly. */
-void vm_exec_set_mode(vm_run_mode_e mode);
 
 /** @brief Get current run mode. */
 vm_run_mode_e vm_exec_mode(void);

@@ -13,8 +13,8 @@ extern "C" {
  * @brief The device error policy, beside the registry: per device, how much its errors matter (importance) and an
  * action per severity. The policy finds the devices of a reported chain, filters them and responds: CRITICAL enters the
  * board's safe state (sys_system_enter_safe_state, reason FAULT: the event SAFE stops the VM, then every device is
- * suspended), then the device's action for that severity runs (through the runner the app sets, so
- * this module doesn't know sys_actions). The responses run in the policy's own task, never in the task that reported
+ * suspended), then the device's action for that severity runs (a built-in response, or a stored action queued with
+ * sys_actions_request; never the action whose own step failed in the chain). The responses run in the policy's own task, never in the task that reported
  * the error: that one may be inside a device op, holding the lock the response needs. A device gets its policy when it
  * is created and loses it when it is removed (the registry's events CREATED / REMOVED); the registry knows nothing of
  * it. Commands: root key MODULE_ID_POLICY (sys_device_policy_router.h).
@@ -56,19 +56,6 @@ typedef enum {
   SYS_DEVICE_FAULT_STAGE_ACTION = 1,  //@alias Action @description Run configured action
   SYS_DEVICE_FAULT_STAGE_QUEUE = 2,   //@alias Queue @description Hand the error to the policy's task
 } sys_device_fault_stage_e;
-
-/**
- * @brief Runs action `action` (a sys_actions ID) as a response; `chain` is the reported chain (borrowed), so the runner
- * can refuse an action whose own failure is in it. The app sets it (runit: sys_actions_request, queued on the router).
- * @return A failure to start it, or NULL.
- */
-typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
-
-/**
- * @brief Sets the action runner. Boot only; without one, actions are not run (CRITICAL still suspends).
- * @param[in] fn The action runner
- */
-void sys_device_policy_set_action_runner(sys_device_action_runner_f fn);
 
 /**
  * @brief Hands a reported chain to the policy (the app's error sink calls it, on the task that reported). Nothing

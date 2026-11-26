@@ -84,7 +84,7 @@ How the macros work:
   |---|---|---|
   | Core / system module API | `<module>[_<object>]_<action>` | `router_inject`, `sys_io_set_mode`, `sys_device_call` |
   | Router op numbers | the module's table `<MODULE>_OPERATIONS(X, P)`, which gives `<P>_OP_<NAME>` | `SYS_OP_RESTART`, `LOG_OP_CONFIG` |
-  | VM API | `vm_<part>_<action>` | `vm_exec_stop`, `vm_loader_add_accessor` |
+  | VM API | `vm_<part>_<action>` | `vm_exec_request_stop`, `vm_loader_add_accessor` |
   | Device driver | `device_<chip>` component, `<CHIP>_OP_*` own ops, the create struct in its header | `TPS55289_OP_PROTECTION` |
   | Chip access (static, in the driver) | `chip_<action>(ctx, ...)` returning `err_h` | `chip_set_voltage` |
   | Board / application | `runit_<area>_<action>` | `runit_board_power_init` |

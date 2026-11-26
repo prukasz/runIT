@@ -331,8 +331,9 @@ static err_h on_created(const sys_event_t* event, void* ctx) {
  * ------------------------------------------------------------------------- */
 
 // A session ended (SESSION_EV_GONE, the peer is the event's source): its subscriptions here end.
-static void on_gone(uint8_t peer, uint8_t safety) {
-  (void)safety;
+static err_h on_gone(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  const uint8_t peer = (uint8_t)event->key.source;
   const bool all = peer == CMD_SRC_ALL;
   for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
     int handle;
@@ -343,6 +344,7 @@ static void on_gone(uint8_t peer, uint8_t safety) {
     }
     drop_listener(handle);
   }
+  return NULL;
 }
 
 // A session opened (SESSION_EV_REACHED, the peer is the event's source): its board's remote devices subscribe there.
@@ -466,7 +468,7 @@ static void remote_task(void* arg) {
 __attribute__((constructor)) static void remote_start(void) {
   U_TASK_START(sys_device_remote_task_h, remote_task, NULL, CONFIG_SYS_DEVICE_REMOTE_TASK_PRIO);
   uint16_t handle = 0;
-  err_boot(sys_session_on_gone(on_gone));
+  err_boot(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
   err_boot(sys_event_subscribe(SESSION_REACHED_FILTER, on_reached, NULL, SYS_EVENT_RUN_INLINE, &handle));
   err_boot(data_matrix_register(&s_port));
   err_boot(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,

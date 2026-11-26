@@ -126,16 +126,6 @@ bool sys_session_peer(data_matrix_port_id_t port, uint8_t* peer) {
   return open;
 }
 
-static err_h gone_event(const sys_event_t* event, void* ctx) {
-  ((sys_session_gone_f)ctx)((uint8_t)event->key.source, ((const evt_data_SESSION_EV_GONE_t*)event->data)->safety);
-  return NULL;
-}
-
-err_h sys_session_on_gone(sys_session_gone_f fn) {
-  uint16_t handle = 0;
-  return sys_event_subscribe(SESSION_GONE_FILTER, gone_event, (void*)fn, SYS_EVENT_RUN_INLINE, &handle);
-}
-
 bool sys_session_wired(uint8_t board) {
   portENTER_CRITICAL(&s_lock);
   const session_t* s = open_with(board);

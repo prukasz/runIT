@@ -386,5 +386,55 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "id": "STATE",
+      "event": 1,
+      "code": 3407873,
+      "symbol": "VM_EV_STATE",
+      "label": "Run mode changed",
+      "description": "The program's run mode seen from outside changed. The channel is the new mode (Program Run Mode: a step counts as scan, a block step as block); the value is why (VM Event Cause: a command, a load, a device fault, the board's safe state).",
+      "notify": true,
+      "value": {
+        "description": "The cause (vm_event_cause_e)"
+      }
+    },
+    {
+      "id": "LOADED",
+      "event": 2,
+      "code": 3407874,
+      "symbol": "VM_EV_LOADED",
+      "label": "Program loaded",
+      "description": "The program was replaced or reset (OPEN, RESET): whoever keeps its object or block IDs drops them. The value counts the loads since the start.",
+      "notify": false,
+      "value": {
+        "description": "The load's generation"
+      }
+    },
+    {
+      "id": "HUNG",
+      "event": 3,
+      "code": 3407875,
+      "symbol": "VM_EV_HUNG",
+      "label": "Block hung",
+      "description": "A block ran longer than the block watchdog's limit; once per episode. The channel and the value are the block.",
+      "notify": true,
+      "value": {
+        "description": "The block's index"
+      }
+    },
+    {
+      "id": "RECOVERED",
+      "event": 4,
+      "code": 3407876,
+      "symbol": "VM_EV_RECOVERED",
+      "label": "Block recovered",
+      "description": "The block reported hung finished within the limit again: its episode is over. The channel and the value are the block.",
+      "notify": true,
+      "value": {
+        "description": "The block's index"
+      }
+    }
   ]
 }

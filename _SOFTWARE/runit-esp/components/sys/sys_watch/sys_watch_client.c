@@ -128,8 +128,9 @@ data_matrix_port_t sys_watch_port = {.id = DATA_MATRIX_PORT(DATA_MATRIX_PORT_MOD
 
 // A session ended (SESSION_EV_GONE, the peer is the event's source): the board's watches are gone with it, the next
 // read adds them again.
-static void on_gone(uint8_t peer, uint8_t safety) {
-  (void)safety;
+static err_h on_gone(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  const uint8_t peer = (uint8_t)event->key.source;
   U_MUTEX_GUARD(sys_watch_client_mutex);
   FOR_EACH_SLOT(s) {
     if (s->state != SLOT_FREE && (peer == CMD_SRC_ALL || s->board == peer)) {
@@ -138,6 +139,7 @@ static void on_gone(uint8_t peer, uint8_t safety) {
       s->add_ms = now_ms() - PERIOD_MS;
     }
   }
+  return NULL;
 }
 
 // A read nobody read for CONFIG_SYS_WATCH_IDLE_MS: its slot is free and its watch removed from its board.
@@ -270,8 +272,9 @@ void sys_watch_stale(uint8_t board, cmd_in_t write, uint32_t target_len) {
 
 // Before app_main: the idle timer of the cached reads, the sessions' end and the port the entries come in at.
 __attribute__((constructor)) static void client_start(void) {
+  uint16_t handle = 0;
   board_timer_init(&s_cl.timer, on_idle_tick, NULL);
   board_timer_start(&s_cl.timer, IDLE_TICK_MS);
-  err_boot(sys_session_on_gone(on_gone));
+  err_boot(sys_event_subscribe(SESSION_GONE_FILTER, on_gone, NULL, SYS_EVENT_RUN_INLINE, &handle));
   err_boot(data_matrix_register(&sys_watch_port));
 }
