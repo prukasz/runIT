@@ -4,10 +4,15 @@
  * POWER_VREG (VREG: the sink's output switch, a wanted voltage and current) and POWER_MONITOR (PMON: the output, one
  * channel). A request takes the charger's PPS profile when it fits, else the highest fixed profile at or below it.
  *
+ * INT is high while an enabled event waits in STATUS (the read clears it): its rising edge runs the INT op, which
+ * publishes the protections that tripped (VREG: OVP, UVP, OCP, OTP) and new offers of the charger (PD: OPTIONS_CHANGED).
+ * A protection leaves the chip's output switch off until the next request. Without the pin there are no events.
+ *
  * The output is the board's own supply, so reset, suspend and resume leave it as it is: switching it off in a fault
  * would cut the power of the ESP.
  */
 #include "sys_device_driver.h"
+#include "sys_device_event_contract.h"
 #include "sys_i2c_contract.h"
 #include "sys_io_driver.h"
 #include "sys_power_monitor_contract.h"
@@ -19,11 +24,21 @@ SYS_DEVICE_TYPE_DECLARE(AP33772S, 0x0045)
 
 #define AP33772S_I2C_ADDR 0x52u  // fixed 7-bit I2C address
 
+/*******************************************************************************
+ * OWN_AP33772S : own operations (0xFFxx)
+ *   OP_INT - INT rising edge event (LOCAL | ALWAYS | TAIL)
+ ******************************************************************************/
+#define OWN_AP33772S_OPERATIONS(X, P)     \
+  X(P, OP_INT, 0x00, cmd_none_t, sys_event_t, \
+    SYS_DEVICE_OP_LOCAL | SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_TAIL)
+
+SYS_DEVICE_OWN_DECLARE(OWN_AP33772S)
+
 /** @brief CREATE's struct (wire format). The interrupt pin not wired is SYS_IO_PIN_NONE. */
 typedef struct __attribute__((packed)) {
   uint8_t i2c_bus;        /**< The bus's device ID (an I2C contract device) */
   uint8_t i2c_addr;       /**< 7-bit I2C address (0x52) */
-  sys_io_pin_t intr_pin;  /**< Active-low interrupt pin (optional) */
+  sys_io_pin_t intr_pin;  /**< INT, high while an event waits (optional) */
 } ap33772s_cfg_t;
 
 #define I2C_SPEED_HZ       400000u
@@ -36,11 +51,21 @@ typedef struct __attribute__((packed)) {
 #define DEFAULT_CURRENT_MA 500u
 #define VSAFE_5V_MV        5000u   // the 5 V every USB-PD source offers
 
+#define CMD_STATUS    0x01u  // read clears it
+#define CMD_MASK      0x02u  // which STATUS bits raise INT, the same bit positions
 #define CMD_SYSTEM    0x06u
 #define CMD_VOLTAGE   0x11u
 #define CMD_CURRENT   0x12u
 #define CMD_SRCPDO    0x20u
 #define CMD_PD_REQMSG 0x31u
+
+#define STATUS_NEWPDO (1u << 2)
+#define STATUS_UVP    (1u << 3)
+#define STATUS_OVP    (1u << 4)
+#define STATUS_OCP    (1u << 5)
+#define STATUS_OTP    (1u << 6)
+// What raises INT. READY and STARTED (on at power-up) are left out: nothing waits for them.
+#define INT_EVENTS    (STATUS_NEWPDO | STATUS_UVP | STATUS_OVP | STATUS_OCP | STATUS_OTP)
 
 #define OUTPUT_ON  0x12u
 #define OUTPUT_OFF 0x11u
@@ -243,6 +268,30 @@ OP_DECLARE_READ(CONTRACT_PMON, OP_POWER) {
   return CMD_REPLY(CONTRACT_PMON, OP_POWER, sys_power_mW(mV, mA));
 }
 
+/* ---- INT ---- */
+
+OP_DECLARE_EVENT(OWN_AP33772S, OP_INT) {
+  uint8_t status;
+  ERR_TRY(sys_i2c_reg_read(&c->i2c, CMD_STATUS, &status, 1));  // clears it, INT falls
+  err_h err = NULL;
+  if (status & STATUS_NEWPDO) {
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(PD_EV_OPTIONS_CHANGED, c->id, 0));
+  }
+  if (status & STATUS_OVP) {
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG_EV_OVP, c->id, 0, .mV = (int32_t)c->last_voltage_mV));
+  }
+  if (status & STATUS_UVP) {
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG_EV_UVP, c->id, 0, .mV = (int32_t)c->last_voltage_mV));
+  }
+  if (status & STATUS_OCP) {
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG_EV_OCP, c->id, 0, .mA = (int32_t)c->last_current_mA));
+  }
+  if (status & STATUS_OTP) {
+    ERR_KEEP_FIRST(err, SYS_EVENT_PUBLISH(VREG_EV_OTP, c->id, 0));
+  }
+  return err;
+}
+
 /* ---- Lifecycle: the board's own supply is left alone ---- */
 
 static err_h suspend(ap_t* c CMD_UNUSED) {
@@ -259,15 +308,22 @@ static err_h create(uint8_t id, ap_t* c, const ap33772s_cfg_t* cfg) {
   c->last_voltage_mV = DEFAULT_VOLTAGE_MV;
   c->last_current_mA = DEFAULT_CURRENT_MA;
   ERR_TRY(sys_i2c_dev_attach(id, &c->i2c, cfg->i2c_bus, cfg->i2c_addr, I2C_SPEED_HZ));
-  ERR_TRY(sys_io_claim_input(id, &c->intr, cfg->intr_pin, 0, 0, SYS_IO_INTR_DISABLE));  // held, no events
+  ERR_TRY(sys_io_claim_input(id, &c->intr, cfg->intr_pin, IO_EV_RISING, OWN_AP33772S_OP_INT,
+                             SYS_IO_INTR_MODE_RISING_EDGE));
   vTaskDelay(MSEC(PDO_WAIT_MS));
-  return read_pdos(c);
+  ERR_TRY(read_pdos(c));
+  const uint8_t mask = INT_EVENTS;
+  ERR_TRY(sys_i2c_reg_write(&c->i2c, CMD_MASK, &mask, 1));
+  /* What waits already (the power-up's own flags) is dropped: INT may be high now, and only a new rise is seen. */
+  uint8_t status;
+  return sys_i2c_reg_read(&c->i2c, CMD_STATUS, &status, 1);
 }
 
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_VREG, OP_ENABLE),   OP_ENTRY_W(CONTRACT_VREG, OP_VOLTAGE),  OP_ENTRY_W(CONTRACT_VREG, OP_CURRENT),
     OP_ENTRY(CONTRACT_PD, OP_SETTINGS),     OP_ENTRY_R(CONTRACT_PD, OP_OPTIONS),    OP_ENTRY_R(CONTRACT_PD, OP_LIMITS),
     OP_ENTRY_R(CONTRACT_PMON, OP_VOLTAGE),  OP_ENTRY_R(CONTRACT_PMON, OP_CURRENT),  OP_ENTRY_R(CONTRACT_PMON, OP_POWER),
+    OP_ENTRY_W(OWN_AP33772S, OP_INT),
 };
 
 SYS_DEVICE_TYPE_DEFINE(AP33772S, ap33772s_cfg_t, create, suspend, resume, k_ops)

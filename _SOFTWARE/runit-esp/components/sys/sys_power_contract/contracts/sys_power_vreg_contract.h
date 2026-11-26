@@ -47,10 +47,12 @@ SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_VREG, MODULE_ID_VREG)
 
 /* Events of the contract: source = the device, channel 0. Fault codes match sys_power_kind_e so the power manager maps
  * them automatically (no translation switch); READY (>= 0x10) is code flow (not a fault). */
-#define VREG_EVENTS(X, P)                                                  \
+#define VREG_EVENTS(X, P)                                                     \
   X(P, OVP,   SYS_POWER_KIND_OVP,          SYS_EVENT_NOTIFY, { int32_t mV; }) \
+  X(P, UVP,   SYS_POWER_KIND_UVP,          SYS_EVENT_NOTIFY, { int32_t mV; }) \
   X(P, SCP,   SYS_POWER_KIND_SPC,          SYS_EVENT_NOTIFY, {})              \
   X(P, OCP,   SYS_POWER_KIND_OCP_CRITICAL, SYS_EVENT_NOTIFY, { int32_t mA; }) \
+  X(P, OTP,   SYS_POWER_KIND_OTP,          SYS_EVENT_NOTIFY, {})              \
   X(P, READY, 0x10,                        0,                { int32_t mV; })
 
 SYS_EVENTS_DECLARE(VREG, MODULE_ID_VREG, DEVICE)

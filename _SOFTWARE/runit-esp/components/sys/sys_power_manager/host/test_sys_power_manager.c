@@ -39,6 +39,8 @@ typedef struct {
   uint32_t vreg_mA;
   pd_settings_args_t pd;
   int resets;
+  atomic_int alerts;    // ALERT writes
+  atomic_int requests;  // PD SETTINGS writes
 } pmmock_t;
 
 #define SYS_DEVICE_CTX pmmock_t
@@ -64,7 +66,7 @@ OP_DECLARE_READ(CONTRACT_PMON, OP_CURRENT) {
 }
 
 OP_DECLARE_WRITE(CONTRACT_PMON, OP_ALERT) {
-  (void)c;
+  atomic_fetch_add(&c->alerts, 1);
   (void)args;
   return NULL;
 }
@@ -90,6 +92,7 @@ OP_DECLARE_READ(CONTRACT_PD, OP_OPTIONS) {
 
 OP_DECLARE_WRITE(CONTRACT_PD, OP_SETTINGS) {
   c->pd = *args;
+  atomic_fetch_add(&c->requests, 1);
   return NULL;
 }
 
@@ -459,6 +462,100 @@ static void test_efficiency_rebalance_return_to_auto_and_settle_rollback(void) {
   TEST_ASSERT_EQUAL_UINT32(720, s_mock[DEV_RAIL2]->vreg_mA);
 }
 
+/* A RESET puts a rail back to its create state (off), so the manager forgets it the moment the call is over: the share
+ * goes to the other rails and the next writes start from an off rail. One rail's RESET and a sweep's. */
+static void test_reset_forgets_the_rail_at_once(void) {
+  create_mock(DEV_RAIL1);
+  create_mock(DEV_RAIL2);
+  const sys_power_layout_t lay = base_layout();  // 8000 mW for the rails
+  TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
+  const sys_power_rail_t r1 = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
+  const sys_power_rail_t r2 = {.vreg = DEV_RAIL2, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 100};
+  TEST_ASSERT_NULL(sys_power_manager_add_rail(&r1));
+  TEST_ASSERT_NULL(sys_power_manager_add_rail(&r2));
+  for (uint8_t id = DEV_RAIL1; id <= DEV_RAIL2; id++) {
+    TEST_ASSERT_NULL(SYS_DEVICE_SET(id, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 5000));
+    TEST_ASSERT_NULL(SYS_DEVICE_SET(id, CONTRACT_VREG, OP_ENABLE, .enable = 1));
+  }
+  TEST_ASSERT_EQUAL_UINT32(800, s_mock[DEV_RAIL2]->vreg_mA);
+
+  TEST_ASSERT_NULL(sys_device_write(DEV_RAIL1, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
+  TEST_ASSERT_EQUAL_UINT32(1600, s_mock[DEV_RAIL2]->vreg_mA);  // before the call returned: no delay
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 5000));
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_ENABLE, .enable = 1));
+  TEST_ASSERT_EQUAL_UINT32(800, s_mock[DEV_RAIL1]->vreg_mA);  // programmed again over the reset's 1000 mA
+  TEST_ASSERT_EQUAL_UINT32(800, s_mock[DEV_RAIL2]->vreg_mA);
+
+  /* Rail1 takes all 8000 mW, then a sweep: nothing is taken any more, rail2 gets the whole pool. */
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL2, CONTRACT_VREG, OP_ENABLE, .enable = 0));
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL1, CONTRACT_VREG, OP_CURRENT, .current_mA = 1600));
+  TEST_ASSERT_NULL(sys_device_sweep(CONTRACT_SYS_DEVICE_OP_RESET));
+  sys_power_status_t st;
+  TEST_ASSERT_NULL(sys_power_manager_get_status(&st));
+  TEST_ASSERT_EQUAL_UINT32(2000, st.allocated_mW);  // the reserve
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL2, CONTRACT_VREG, OP_VOLTAGE, .voltage_mV = 5000));
+  TEST_ASSERT_NULL(SYS_DEVICE_SET(DEV_RAIL2, CONTRACT_VREG, OP_ENABLE, .enable = 1));
+  TEST_ASSERT_EQUAL_UINT32(1600, s_mock[DEV_RAIL2]->vreg_mA);
+}
+
+/* A reset input monitor has lost its alerts: both are programmed again, with the budget unchanged. */
+static void test_reset_of_the_input_monitor_programs_its_alerts_again(void) {
+  create_mock(DEV_BUS);
+  sys_power_layout_t lay = base_layout();
+  lay.input_device = DEV_BUS;
+  TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
+  vTaskDelay(pdMS_TO_TICKS(30));
+  const int before = atomic_load(&s_mock[DEV_BUS]->alerts);
+  TEST_ASSERT_GREATER_THAN_INT(0, before);
+
+  TEST_ASSERT_NULL(sys_device_write(DEV_BUS, CONTRACT_SYS_DEVICE_OP_RESET, NULL, 0));
+  vTaskDelay(pdMS_TO_TICKS(30));
+  TEST_ASSERT_EQUAL_INT(before + 2, atomic_load(&s_mock[DEV_BUS]->alerts));
+}
+
+/* A fault of a device that is no rail, no monitor of one, not the input channel and not the USB-PD sink is not the
+ * manager's: it takes no response. The sink's own fault is the board's. */
+static void test_only_the_boards_power_devices_get_a_response(void) {
+  create_mock(DEV_RAIL1);
+  create_mock(DEV_RAIL2);
+  create_mock(DEV_BUS);
+  sys_power_layout_t lay = base_layout();
+  lay.usb_pd = DEV_BUS;
+  TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
+  const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = SYS_DEVICE_ID_NONE, .min_mA = 200};
+  TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
+
+  /* DEV_RAIL2 is not a rail here: its OVP (the board row's default: DISABLE) leaves rail1 alone. */
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(VREG_EV_OVP, DEV_RAIL2, 0, .mV = 21000));
+  vTaskDelay(pdMS_TO_TICKS(30));
+  TEST_ASSERT_FALSE(is_suspended(DEV_RAIL1));
+
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(VREG_EV_OVP, DEV_BUS, 0, .mV = 21000));
+  vTaskDelay(pdMS_TO_TICKS(30));
+  TEST_ASSERT_TRUE(is_suspended(DEV_RAIL1));
+}
+
+/* New offers of the sink: the same profile is asked for again. Another device's offers are not the board's. */
+static void test_new_pd_offers_ask_the_charger_again(void) {
+  create_mock(DEV_BUS);
+  create_mock(DEV_RAIL1);
+  sys_power_layout_t lay = base_layout();
+  lay.usb_pd = DEV_BUS;
+  TEST_ASSERT_NULL(sys_power_manager_set_layout(&lay));
+  const sys_power_manager_cfg_t cfg = {.mode = SYS_POWER_BUDGET_STRICT, .source = SYS_POWER_SOURCE_USB};
+  TEST_ASSERT_NULL(sys_power_manager_set_config(&cfg));
+  vTaskDelay(pdMS_TO_TICKS(40));
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_mock[DEV_BUS]->requests));
+
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(PD_EV_OPTIONS_CHANGED, DEV_RAIL1, 0));
+  vTaskDelay(pdMS_TO_TICKS(40));
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_mock[DEV_BUS]->requests));
+
+  TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(PD_EV_OPTIONS_CHANGED, DEV_BUS, 0));
+  vTaskDelay(pdMS_TO_TICKS(40));
+  TEST_ASSERT_EQUAL_INT(2, atomic_load(&s_mock[DEV_BUS]->requests));
+}
+
 static void test_input_ovp_budget_shrink_and_battery_hysteresis(void) {
   create_mock(DEV_BUS);
   create_mock(DEV_RAIL1);
@@ -532,5 +629,9 @@ int main(void) {
   RUN_TEST(test_unified_fault_event_codes_and_response_matrix);
   RUN_TEST(test_efficiency_rebalance_return_to_auto_and_settle_rollback);
   RUN_TEST(test_input_ovp_budget_shrink_and_battery_hysteresis);
+  RUN_TEST(test_reset_forgets_the_rail_at_once);
+  RUN_TEST(test_only_the_boards_power_devices_get_a_response);
+  RUN_TEST(test_new_pd_offers_ask_the_charger_again);
+  RUN_TEST(test_reset_of_the_input_monitor_programs_its_alerts_again);
   return UNITY_END();
 }

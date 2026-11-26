@@ -2,7 +2,7 @@ menu "sys_event"
 
     config SYS_EVENT_MAX_SUBS
         int "Subscriptions (C)"
-        default 32
+        default 48
         range 4 255
         help
           Listeners made by C code: inline ones (a device's ON_EVENT) and

@@ -49,6 +49,7 @@ The hook gets the device's record (`board`, `remote_id`, `flags`), the direction
 **On the device's board**: SUBSCRIBE `[id u8]` adds (the command's `src`, the device's id) to one table, `CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS`. A peer that is no peer (`SELF`, `NONE`, `ALL`): `ERR_CMD_BAD_ARG`; a peer whose session has no sub-port `REMOTE` (the frames could not reach it): `ERR_SESSION_NO_ROUTE{dst}`; the table full: `ERR_REMOTE_SUBS_FULL{id, max}`; whether the device exists is not checked (an id with no device sends nothing). The session's gone ends a peer's subscriptions.
 
 - **An event**: the first subscription of a device subscribes a function to all its events (`sys_event_subscribe`, `SYS_EVENT_RUN_QUEUED_DEVICE`: all of a device's events are in the DEVICE lane; its source the device; the last one gone drops it). The registry's `CREATED` and `REMOVED` are not sent: on the other board they would reach the policy as the alias's own, and it would forget the alias's settings (the alias sees the device gone as `ERR_DEV_NOT_FOUND` in the answer); `SUSPENDED`, `RESUMED` and `RESET` go.
+- **A sweep** (a safe state and its end, a RESET of every device) is one event with source `SYS_DEVICE_ID_NONE`. It is never sent as it is: on the other board it would read as that board's own sweep. A listener of the registry's events with that source (`SYS_EVENT_RUN_QUEUED_DEVICE`) sends it for each subscribed device the sweep changed, as the device's own event (its source the device's id), so the alias gets it like any other: `SUSPENDED` for every one that exists, `RESUMED` for those no longer suspended (`INFO`: a failed resume leaves the flag), `RESET` for those with a RESET (`OPS`).
 - **An error**: the app's error sink calls `sys_device_remote_on_error(chain, cmd)` for every reported chain: one with no command (`cmd` NULL) whose chain has an `ERR_DEV_ID` in the table is made an error record (`err_record`). `sys_device_write` wraps the drivers' timers' errors in `ERR_DEV_ID` too.
 - Both only queue: a reporter may be a timer's task. The task sends a frame `[hdr PUSH, MODULE_ID_REMOTE][id u8][kind][data]` (queued with the room of its header, written there: no copy) out of the port `REMOTE` (`DATA_MATRIX_PORT(MODULE, MODULE_ID_REMOTE)`) to the sub-port `MODULE_ID_REMOTE` of each subscriber of the device, `kind` `SYS_DEVICE_REMOTE_EVENT` (`sys_event_t` with its payload, its source the device's id here) or `SYS_DEVICE_REMOTE_ERROR` (an error record; urgent). A frame the queue or the way did not take is lost: it shows as a gap in the session's PUSH `seq` (SYS_SESSION.MD "Counting push frames"), which the receiver does not count.
 
@@ -79,6 +80,10 @@ The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json
 | `CONFIG_SYS_DEVICE_REMOTE_QUEUE_SIZE` | 1024 | bytes of the queue: frames out to the subscribers and in from the boards |
 | `CONFIG_SYS_DEVICE_REMOTE_TASK_PRIO` / `_STACK` | 4 / 4096 | its task |
 
+## Tests
+
+Host test in `host/` (`python test_host/run.py sys_device_remote` from `runit-esp/`, `HOST_TESTS.MD`): the real registry, `sys_event` and data matrix, the session and the watches as stubs, a port as the subscriber's session: a SUSPEND, RESUME and RESET sweep as each subscribed device's own events.
+
 ## Needs elsewhere
 
 - **sys_device**: the remote record, the hook, `sys_device_find_remote`, `sys_device_remote_of`, the `CREATED` event (SYS_DEVICE.MD).
@@ -91,8 +96,7 @@ The ops and the frame are in `sys_device_remote_router.h`; `contract_remote.json
 
 ## Open
 
-- A board's safe state does not reach the master as an event: the sweep's `SUSPENDED` / `RESUMED` (source `SYS_DEVICE_ID_NONE`) is not sent, the master learns of it from the first refused write.
 - The queue (1 KB) smooths a series of events; whether it is needed is for the measurement of lost frames on BLE.
 - The policy per board has no wire command: the board config sets it in C.
 - An error of a write that was not waited for reaches the program only as the device's report (its policy), not in the block.
-- No host test yet (the bridge on a fake session: the frames, the UNSUBSCRIBE of a removed alias).
+- The host test covers the sweeps only: not yet the calls, the frames come in, the UNSUBSCRIBE of a removed alias.

@@ -89,7 +89,7 @@ What `sys_event_publish` does depends on where it is called:
 
 - A publisher picks inline or `SYS_EVENT_DEFER` by what its task can bear: a task an op may wait for, or one with a deadline, defers.
 - What the lane's task still has to do with a queued event is the queue item's, never the event's `flags`: a listener sees exactly what the events table says.
-- Errors to the publisher: `ERR_EVENT_BAD_ARG` (a payload longer than `SYS_EVENT_DATA_MAX`, `NULL` data with a length, a lane that is not a row of `SYS_EVENT_LANES`), `ERR_EVENT_QUEUE_FULL` (the queued copy did not fit its lane). An ISR never gets an error: a drop there is counted per lane and that lane's task reports it (`ERR_EVENT_QUEUE_FULL {source 0xFFFF, event 0xFFFFFFFF, dropped n}`).
+- Errors to the publisher: `ERR_BAD_ARG` (a payload longer than `SYS_EVENT_DATA_MAX`, `NULL` data with a length, a lane that is not a row of `SYS_EVENT_LANES`), `ERR_EVENT_QUEUE_FULL` (the queued copy did not fit its lane). An ISR never gets an error: a drop there is counted per lane and that lane's task reports it (`ERR_EVENT_QUEUE_FULL {source 0xFFFF, event 0xFFFFFFFF, dropped n}`).
 - A listener's failure is wrapped in `ERR_EVENT_DELIVERY {source, event, channel}` and reported; the other listeners still run; nothing returns to the publisher.
 
 ## Holding
@@ -142,7 +142,7 @@ A listener is a function `err_h fn(const sys_event_t* event, void* ctx)` and a c
 | `SYS_EVENT_RUN_FIRST` | Inline, before every other listener: the table's first slot, kept for one | The listener that sends the events to the app (`SYS_EVENT_ANY_NOTIFY`), so an action stopping the board can't hide its cause |
 | `SYS_EVENT_RUN_QUEUED_<LANE>` (`SYS_EVENT_RUN_QUEUED_IN(lane)` in a loop) | The task of that lane, for that lane's events only | A module with locks of its own that an inline run would take out of order |
 
-- The table has `CONFIG_SYS_EVENT_MAX_SUBS` (32, up to 255) slots. `ERR_EVENT_TABLE_FULL` when none is free, and for `SYS_EVENT_RUN_FIRST` when the first slot has its listener.
+- The table has `CONFIG_SYS_EVENT_MAX_SUBS` (48, up to 255) slots: the modules' listeners, one per pin interrupt a driver claims with an event, one per device another board follows. `ERR_FULL` when none is free, and for `SYS_EVENT_RUN_FIRST` when the first slot has its listener.
 - **Handle**: `[generation u8][slot u8]`. The generation counts the listeners the slot has had (1..255, then 1 again; never 0) and stays when the slot is freed, so the next listener of the slot gets another handle. A handle of a listener that is gone names no listener: `sys_event_unsubscribe` answers `ERR_EVENT_NOT_FOUND` and leaves the slot's new listener alone. Handle 0 is never a listener, so a zeroed field is "not subscribed".
 - A matching slot is copied out under a critical section and the function is called without it, one slot at a time, so an unsubscribe doesn't wait for a delivery in progress. A listener may still get an event already being delivered after its unsubscribe.
 - **A queued listener runs in one task**: the subscription names its lane, and it hears only the events of that lane, so it is never called by two tasks at once. A filter that spans lanes is subscribed once per lane (`SYS_EVENT_RUN_QUEUED_IN(lane)`), each with its handle. An inline listener runs in whatever task publishes, so several tasks may call it at once.
@@ -155,8 +155,8 @@ The deferred events and the queued listeners go through **lanes**: each lane is 
 
 | Lane | Events | Task priority | Queued listeners |
 |---|---|---|---|
-| `SYS` | The system's: `SESSION`, `PROVIDER`, `PWRM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
-| `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_device_remote` |
+| `SYS` | The system's: `SYS`, `SESSION`, `PROVIDER`, `PWRM`, `RENDER`, `VM` | `CONFIG_SYS_EVENT_SYS_TASK_PRIO` (7) | – |
+| `DEVICE` | The devices': the contracts' (`IO`, `HBRIDGE`, `PMON`, `VREG`, `PD`, `UART`), the registry's (`SYS_DEVICE`), every type's own | `CONFIG_SYS_EVENT_DEVICE_TASK_PRIO` (6) | the power manager, `sys_device_remote` |
 
 - **The lane is the table's** (`SYS_EVENTS_DECLARE(P, MODULE_ID_<NAME>, LANE)`), so all the events of one module go one way and keep their order. Between lanes there is no order: whichever task gets there first delivers first; `t_ms` says when each happened.
 - **It travels in the event**: bits 4..7 of `flags` (`SYS_EVENT_FLAG_LANE`, `SYS_EVENT_LANE_OF`). An event passed on (another board's: `sys_device_remote`, `sys_event_stream`) keeps the lane its board gave it.
@@ -182,9 +182,9 @@ Not covered on the host: priorities, the lanes' stacks, an interrupt's timing.
 | Tag | Severity | Fields | When |
 |---|---|---|---|
 | `ERR_EVENT_QUEUE_FULL` | LOW | `source`, `event`, `dropped` | The queued copy did not fit; ISR drops (source and event "any") |
-| `ERR_EVENT_TABLE_FULL` | MEDIUM | | No free subscription slot |
 | `ERR_EVENT_NOT_FOUND` | MEDIUM | `id` (the handle) | Unsubscribe of 0, of a handle never given or of a listener removed already |
-| `ERR_EVENT_BAD_ARG` | HIGH | | A `NULL` function or handle, an unknown run kind, a payload too long |
 | `ERR_EVENT_DELIVERY` | NONE (context) | `source`, `event`, `channel` | Wraps a listener's failure |
+
+A bad argument (a `NULL` function or handle, an unknown run kind, a payload too long) is `ERR_BAD_ARG`, a full table `ERR_FULL` (the shared tags).
 
 The listener that sends the `SYS_EVENT_NOTIFY` events to the app (`SYS_EVENT_RUN_FIRST`) is not in this component: `sys_event_stream` subscribes it (SYS_EVENT_STREAM.MD).

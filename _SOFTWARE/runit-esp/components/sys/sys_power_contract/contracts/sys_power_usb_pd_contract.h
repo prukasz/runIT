@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sys_event.h"
 #include "sys_power_usb_pd_id.h"
 #include "sys_power_contract.h"
 
@@ -13,7 +14,6 @@ extern "C" {
  * SETTINGS - the profile asked of the charger, set and read (the charger may not grant exactly what is asked)
  * OPTIONS  - what the charger offers: an array of sys_power_usb_pd_option_t (sys_power_usb_pd_list_options)
  * LIMITS   - the highest the charger offers (the power manager's USB budget)
- * No events.
  * @usage ERR_TRY(SYS_DEVICE_SET(pd, CONTRACT_PD, OP_SETTINGS, .voltage_mV = 12000, .current_mA = 2000));
  *        sys_power_usb_pd_limits_t lim; ERR_TRY(SYS_DEVICE_GET(pd, CONTRACT_PD, OP_LIMITS, &lim));
  */
@@ -59,6 +59,12 @@ typedef struct __attribute__((packed)) {
   X(P, OP_LIMITS,   0x02, cmd_none_t, sys_power_usb_pd_limits_t, 0)
 
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_PD, MODULE_ID_PD)
+
+/* Events of the contract: source = the device, channel 0.
+ * OPTIONS_CHANGED - the charger's offers are new (one attached or swapped): read OPTIONS and ask again. Code flow. */
+#define PD_EVENTS(X, P) X(P, OPTIONS_CHANGED, 0x01, 0, {})
+
+SYS_EVENTS_DECLARE(PD, MODULE_ID_PD, DEVICE)
 
 /**
  * @brief Reads what the charger offers (op OPTIONS): an answer of any number of options, so not SYS_DEVICE_GET.

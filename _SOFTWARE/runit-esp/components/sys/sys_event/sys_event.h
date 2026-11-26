@@ -128,7 +128,8 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
  * A module lists its events once, in the format of every table (cmd_table.h): P_EVENTS(X, P) of rows
  * X(P, NAME, code, flags, { payload fields }). The module of the tags and their lane come from the table, never from a
  * row, so no row can name another module's or go another way than its module's:
- *   SYS_EVENTS_DECLARE(P, LANE) the module's number, MODULE_ID_<P> (module_id.h): a module's, a contract's ID
+ *   SYS_EVENTS_DECLARE(P, id, LANE) the module's number `id`, its MODULE_ID_<NAME> (module_id.h): a module's, a
+ *                               contract's ID
  *   SYS_DEVICE_OWN_EVENTS(P)    a device type's own events, SYS_EVENT_MODULE_TYPE(P_TYPE), lane DEVICE
  *                               (sys_device_driver.h)
  * Both give P_EV_<NAME> = EVT_TAG(module, code), its flags P_EV_<NAME>_FLAGS (the row's and the lane), its payload
@@ -136,7 +137,7 @@ bool sys_event_match(const sys_event_key_t* filter, const sys_event_t* e);
  *   #define IO_EVENTS(X, P)                     \
  *     X(P, RISING, 0x01, 0,                {}) \
  *     X(P, FAULT,  0x02, SYS_EVENT_NOTIFY, { uint16_t mA; })
- *   SYS_EVENTS_DECLARE(IO, DEVICE)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, ...
+ *   SYS_EVENTS_DECLARE(IO, MODULE_ID_IO, DEVICE)  // IO_EV_RISING = EVT_TAG(MODULE_ID_IO, 0x01), IO_EV_RISING_FLAGS, ...
  * A row's flags are SYS_EVENT_NOTIFY for events that matter to the user (an over-current, a fault), 0 for the ones that
  * only drive code (an edge, an alert pin); they go into the event's flags with the lane. Publishing with
  * SYS_EVENT_PUBLISH takes the tag, the flags and the payload size from the table.

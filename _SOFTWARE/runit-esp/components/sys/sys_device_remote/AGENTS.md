@@ -8,5 +8,6 @@ Spec: `SYS_DEVICE_REMOTE.MD` (this folder).
 - A write's copy is made old (`sys_watch_stale`) when its answer comes, never before: the refresh read must be after the write.
 - The event function and `sys_device_remote_on_error` only queue (a reporter may be a timer's task). What comes in on its port `REMOTE` is queued on the RX task and published and reported from the component's task, never on the RX task.
 - The table's mutex guards copies only: never call the session, `sys_event` or a report under it.
+- A sweep's event (source `SYS_DEVICE_ID_NONE`) never goes out as it is: `on_sweep` sends it as each followed device's own. Host test: `python test_host/run.py sys_device_remote`.
 - There is no table of aliases: the registry is the one source of what a remote device is (`sys_device_find_remote`, `sys_device_remote_of`).
 - `config/sys_device_remote_config.h` (the frame's kinds) and the router's codes are wire format: never renumber them. The router's op table and its frame are in `router/sys_device_remote_router.h`; every `struct` name in `contract_remote.json` is a C type of it. Its error tags are in `errors/`; a new tag gets its message in `errors/errors_sys_device_remote.json` in the same change. The registrations are constructors nothing references: keep `WHOLE_ARCHIVE` in `CMakeLists.txt`.

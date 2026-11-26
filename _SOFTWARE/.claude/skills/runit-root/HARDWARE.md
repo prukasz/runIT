@@ -103,7 +103,7 @@ Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pul
 - **DAC53202** — set voltage, read back last voltage, power off channel.
 - **TPS55289** — set voltage, set current limit, enable/disable. Protection faults are published as power events.
 - **INA3221** — read bus voltage, read current, set warning/critical current alert (published as a power event).
-- **AP33772S** — request PD profile (the charger's PPS profile when it fits, else the highest fixed one at or below the voltage; no AVS), list offered profiles, read negotiated V/I, output control (single rail, channel 0).
+- **AP33772S** — request PD profile (the charger's PPS profile when it fits, else the highest fixed one at or below the voltage; no AVS), list offered profiles, read negotiated V/I, output control (single rail, channel 0). With INT wired (high while an event waits): events for its protections (OVP, UVP, OCP, OTP; each turns the output switch off until the next request) and for new offers of the charger.
 
 ## 4. Buses and connectivity
 

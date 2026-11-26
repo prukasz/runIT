@@ -56,13 +56,13 @@
       {
         "id": "intr_pin",
         "label": "INT",
-        "description": "Active-low interrupt; needs CONFIGURE_INTR on its device. Leave unwired when not connected.",
+        "description": "High while an event waits: faults and new offers of the charger; needs CONFIGURE_INTR on its device. Unwired: no events.",
         "offset": 2,
         "size": 2,
         "type": "pin",
         "raw_type": "bytes",
         "pin_ref": true,
-        "requires": "output",
+        "requires": "input",
         "optional": true
       }
     ]

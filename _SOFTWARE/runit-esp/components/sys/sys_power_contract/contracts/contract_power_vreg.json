@@ -129,6 +129,28 @@
       "symbol": "VREG_EV_SCP"
     },
     {
+      "id": "UVP",
+      "event": 2,
+      "code": 458754,
+      "label": "Under-voltage",
+      "description": "The output fell below its limit",
+      "notify": true,
+      "symbol": "VREG_EV_UVP",
+      "value": {
+        "description": "The wanted voltage",
+        "unit": "mV"
+      }
+    },
+    {
+      "id": "OTP",
+      "event": 6,
+      "code": 458758,
+      "label": "Over-temperature",
+      "description": "The regulator is too hot",
+      "notify": true,
+      "symbol": "VREG_EV_OTP"
+    },
+    {
       "id": "READY",
       "event": 16,
       "code": 458768,

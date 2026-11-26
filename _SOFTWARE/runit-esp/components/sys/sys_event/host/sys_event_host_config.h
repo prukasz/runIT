@@ -1,7 +1,7 @@
 #pragma once
 /* The Kconfig defaults of sys_event/Kconfig for the host tests. Override with -D (the variants in host_test.json). */
 #ifndef CONFIG_SYS_EVENT_MAX_SUBS
-#define CONFIG_SYS_EVENT_MAX_SUBS 32
+#define CONFIG_SYS_EVENT_MAX_SUBS 48
 #endif
 #ifndef CONFIG_SYS_EVENT_DATA_MAX
 #define CONFIG_SYS_EVENT_DATA_MAX 64

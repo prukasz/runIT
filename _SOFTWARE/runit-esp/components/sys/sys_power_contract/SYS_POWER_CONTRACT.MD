@@ -8,7 +8,7 @@ Component `components/sys/sys_power_contract/`. Not a module with state: four de
 | `errors/sys_power_errors.h`, `errors/errors_sys_power.json` | `ERR_SYS_POWER_MAP` (`MODULE_ID_SYS_POWER`) and user messages |
 | `contracts/sys_power_monitor_contract.h` | `CONTRACT_PMON`: `CONTRACT_PMON_OPERATIONS`, `PMON_EVENTS`, `sys_power_alert_e` (`//#ref-enum`) |
 | `contracts/sys_power_vreg_contract.h` | `CONTRACT_VREG`: `CONTRACT_VREG_OPERATIONS`, `VREG_EVENTS` |
-| `contracts/sys_power_usb_pd_contract.h` | `CONTRACT_PD`: `CONTRACT_PD_OPERATIONS`, option/limits structs, `sys_power_usb_pd_list_options()` |
+| `contracts/sys_power_usb_pd_contract.h` | `CONTRACT_PD`: `CONTRACT_PD_OPERATIONS`, `PD_EVENTS`, option/limits structs, `sys_power_usb_pd_list_options()` |
 | `contracts/sys_power_supply_contract.h` | `CONTRACT_SUPPLY`: `CONTRACT_SUPPLY_OPERATIONS`, `sys_power_supply_source_e` (`//#ref-enum`) |
 | `contracts/contract_power_*.json` | The descriptors of the four contracts (`templates/`) |
 | `sys_power_contract.c` | Registers the errors of `MODULE_ID_SYS_POWER` (`ERR_MODULE_DEFINE`) and implements `sys_power_usb_pd_list_options()`. `WHOLE_ARCHIVE`: devices raise `ERR_POWER_*` without calling functions here |
@@ -66,8 +66,10 @@ ERR_TRY(SYS_DEVICE_SET(vreg, CONTRACT_VREG, OP_ENABLE, .enable = 1));
 | Event (`MODULE_ID_VREG`) | Flags | Payload |
 |---|---|---|
 | `VREG_EV_OVP` | `SYS_EVENT_NOTIFY` | `i32 mV` (voltage set) |
+| `VREG_EV_UVP` | `SYS_EVENT_NOTIFY` | `i32 mV` (voltage set) |
 | `VREG_EV_OCP` | `SYS_EVENT_NOTIFY` | `i32 mA` (current limit) |
 | `VREG_EV_SCP` | `SYS_EVENT_NOTIFY` | – |
+| `VREG_EV_OTP` | `SYS_EVENT_NOTIFY` | – |
 | `VREG_EV_READY` | `0` (code flow) | `i32 mV` (settled output after `ENABLE` or voltage increase) |
 
 Channel `0`.
@@ -81,6 +83,12 @@ A USB Power Delivery sink. Prefix `CONTRACT_PD` (`CONTRACT_PD_OP_*`).
 | SETTINGS | RW | `SYS_DEVICE_SET` / `SYS_DEVICE_GET` (`OP_SETTINGS`) | `{u32 voltage_mV, u32 current_mA}` (`pd_settings_args_t`) |
 | OPTIONS | R | `sys_power_usb_pd_list_options(dev, out, max, &count)` | `sys_power_usb_pd_option_t[]` (8 B each: `slot`, `type`, `min_mV`, `max_mV`, `max_mA`), up to `SYS_POWER_USB_PD_OPTIONS_MAX` (`13`) |
 | LIMITS | R | `SYS_DEVICE_GET` (`OP_LIMITS`) | `{i32 voltage_mV, i32 current_mA}` (`sys_power_usb_pd_limits_t`): highest-voltage offer |
+
+| Event (`MODULE_ID_PD`) | Flags | Payload |
+|---|---|---|
+| `PD_EV_OPTIONS_CHANGED` | `0` (code flow) | – (the charger's offers are new: one attached or swapped) |
+
+Channel `0`.
 
 Option types (`sys_power_usb_pd_option_type_e`): `FIXED` (`0`), `PPS` (`1`), `AVS` (`2`). `OPTIONS` may answer a variable number of items, so `sys_power_usb_pd_list_options()` reads with `sys_device_call()`, validates whole `sys_power_usb_pd_option_t` items (`ERR_CMD_BAD_LEN`), and fills `out_count`.
 
@@ -102,7 +110,7 @@ A two-input power mux switched into one load. Prefix `CONTRACT_SUPPLY` (`CONTRAC
 |---|---|
 | `POWER_MONITOR` | [`device_ina3221`](../../devices/chips/device_ina3221/device_ina3221.c) (three channels, alerts), [`device_ap33772s`](../../devices/chips/device_ap33772s/device_ap33772s.c) (its output, channel 0), [`device_drv8962`](../../devices/chips/device_drv8962/device_drv8962.c) (CURRENT of a channel with its IPROPI pins) |
 | `POWER_VREG` | [`device_tps55289`](../../devices/chips/device_tps55289/device_tps55289.c), [`device_ap33772s`](../../devices/chips/device_ap33772s/device_ap33772s.c) (the sink's output switch and the request) |
-| `POWER_USB_PD` | [`device_ap33772s`](../../devices/chips/device_ap33772s/device_ap33772s.c) (PPS when the voltage fits, else the highest fixed profile at or below it) |
+| `POWER_USB_PD` | [`device_ap33772s`](../../devices/chips/device_ap33772s/device_ap33772s.c) (PPS when the voltage fits, else the highest fixed profile at or below it; with its INT pin wired it publishes `PD_EV_OPTIONS_CHANGED` and, as a regulator, `VREG_EV_OVP` / `_UVP` / `_OCP` / `_OTP`: a protection leaves its output switch off until the next request) |
 | `POWER_SUPPLY` | [`device_power_mux`](../../devices/chips/device_power_mux/device_power_mux.c) |
 
 The power manager is its own component: [`SYS_POWER_MANAGER.MD`](../sys_power_manager/SYS_POWER_MANAGER.MD).

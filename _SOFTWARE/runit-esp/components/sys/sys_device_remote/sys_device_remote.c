@@ -90,6 +90,57 @@ static err_h on_device_event(const sys_event_t* event, void* ctx) {
   return NULL;
 }
 
+// Whether the device, as wired, has a RESET: its OPS answer, rows of [op u16][sides u8].
+static bool has_reset(uint8_t id) {
+  uint8_t ops[CMD_DATA_MAX];
+  cmd_out_t out = {.data = ops, .cap = sizeof(ops)};
+  err_h err = sys_device_call(id, CMD_DIR_READ, CONTRACT_SYS_DEVICE_OP_OPS, (cmd_in_t){NULL, 0}, &out);
+  bool found = false;
+  for (uint32_t at = 0; err == NULL && !found && at + 3u <= out.len; at += 3u) {
+    uint16_t op;
+    memcpy(&op, ops + at, sizeof(op));
+    found = op == CONTRACT_SYS_DEVICE_OP_RESET;
+  }
+  err_free(err);  // no such device: nothing was reset
+  return found;
+}
+
+/* Whether a sweep changed device `id`. SUSPENDED: every device that is there (a look at the flag could be late, after
+ * the RESUME, and lose it). RESUMED: not one whose resume failed, it is still suspended. RESET: not one without a
+ * RESET, the sweep left it out. */
+static bool sweep_changed(uint8_t id, uint32_t tag) {
+  if (tag == SYS_DEVICE_EV_RESET) {
+    return has_reset(id);
+  }
+  sys_device_info_t info = {0};
+  err_h err = SYS_DEVICE_GET(id, CONTRACT_SYS_DEVICE, OP_INFO, &info);
+  const bool there = err == NULL;
+  err_free(err);
+  return there && (tag == SYS_DEVICE_EV_SUSPENDED || info.suspended == 0);
+}
+
+/* A sweep of this board (the registry's one event for it, source SYS_DEVICE_ID_NONE, no payload): each followed device
+ * it changed gets it as its own, so the board with its alias hears of it. The sweep's own event can't go: there it
+ * would read as that board's sweep. */
+static err_h on_sweep(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  for (uint32_t i = 0; i < CONFIG_SYS_DEVICE_REMOTE_SUBSCRIPTIONS; i++) {
+    uint8_t id;
+    bool followed;  // one entry per followed device holds its event subscription
+    {
+      U_MUTEX_GUARD(sys_device_remote_lock);
+      followed = s_rem.subs[i].used && s_rem.subs[i].listens;
+      id = s_rem.subs[i].id;
+    }
+    if (followed && sweep_changed(id, event->key.tag)) {
+      sys_event_t own = *event;
+      own.key.source = id;
+      queue_out(id, SYS_DEVICE_REMOTE_EVENT, &own, sizeof(own));
+    }
+  }
+  return NULL;
+}
+
 void sys_device_remote_on_error(err_h chain, const cmd_req_t* cmd) {
   if (cmd != NULL) {
     return;  // a command's errors go in its answer, to whoever gave it
@@ -473,5 +524,8 @@ __attribute__((constructor)) static void remote_start(void) {
   err_boot(sys_event_subscribe((sys_event_key_t){.tag = SYS_DEVICE_EV_CREATED, .source = SYS_EVENT_ANY_SOURCE,
                                                  .channel = SYS_EVENT_ANY_CHANNEL},
                                on_created, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
+  err_boot(sys_event_subscribe((sys_event_key_t){.tag = EVT_TAG(MODULE_ID_SYS_DEVICE, SYS_EVENT_ANY_CODE),
+                                                 .source = SYS_DEVICE_ID_NONE, .channel = SYS_EVENT_ANY_CHANNEL},
+                               on_sweep, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &handle));
   sys_device_set_remote(call);
 }

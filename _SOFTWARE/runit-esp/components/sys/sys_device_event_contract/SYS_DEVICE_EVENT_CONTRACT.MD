@@ -45,8 +45,8 @@ MUST_USE err_h sys_device_event_subscribe(sys_event_key_t filter, uint8_t device
 ```
 
 - `sys_device_event_subscribe` is shorthand for `op = CONTRACT_EVENT_OP_ON_EVENT`.
-- `sys_device_event_subscribe_op` targets either `CONTRACT_EVENT_OP_ON_EVENT` or an own op (`(op >> 8) == SYS_DEVICE_CONTRACT_OWN`), otherwise `ERR_EVENT_BAD_ARG`.
-- Validates `device < SYS_DEVICE_COUNT` and reads `gen = sys_device_gen(device)` (`gen != 0`, else `ERR_EVENT_BAD_ARG`).
+- `sys_device_event_subscribe_op` targets either `CONTRACT_EVENT_OP_ON_EVENT` or an own op (`(op >> 8) == SYS_DEVICE_CONTRACT_OWN`), otherwise `ERR_BAD_ARG`.
+- Validates `device < SYS_DEVICE_COUNT` and reads `gen = sys_device_gen(device)` (`gen != 0`, else `ERR_BAD_ARG`).
 - Packs `[op u16][gen u8][owner u8]` into `void* ctx` (`_Static_assert(sizeof(uintptr_t) >= sizeof(uint32_t))`) and registers a `SYS_EVENT_RUN_INLINE` listener in `sys_event`.
 - On match, the listener invokes `sys_device_deliver(owner, gen, op, event, sizeof(*event) + event->len)`:
   - waits for `owner`'s device lock;

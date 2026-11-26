@@ -1,0 +1,21 @@
+{
+  "sources": ["sys_device_remote.c"],
+  "tests": ["host/test_sys_device_remote.c"],
+  "includes": [
+    "errors",
+    "config",
+    "router",
+    "../sys_device_router",
+    "../sys_session",
+    "../sys_session/errors",
+    "../sys_watch",
+    "../sys_watch/errors",
+    "../../core/router_queue",
+    "../../core/router_queue/errors"
+  ],
+  "config": "host/sys_device_remote_host_config.h",
+  "deps": ["sys_device", "data_matrix", "router"],
+  "variants": {
+    "default": ["-DCONFIG_ERRORS_POOL_BLOCK_SIZE=40"]
+  }
+}

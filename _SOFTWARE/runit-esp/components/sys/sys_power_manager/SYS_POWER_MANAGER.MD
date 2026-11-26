@@ -88,6 +88,8 @@ Every tick (`CONFIG_SYS_POWER_MANAGER_PERIOD_MS`, and at once after a setting):
 - A rail that is not created: the budget is checked first, then the registry answers `ERR_DEV_NOT_FOUND` and the second stage gives the budget back. A suspended or missing rail is skipped by the rebalance.
 - Two writes to the same rail at once give back only the field their op changed; the next rebalance puts the shares right.
 
+**A device's RESET** leaves it at its create state, and no interceptor sees it (it is the device contract's op), so the manager listens to the registry's `RESET`, **inline**: the state is right before any write that comes after the reset's call. A rail is forgotten (off, no voltage, automatic current, as a rail just added) and the automatic rails are rebalanced at once. The input monitor has lost its alerts: the task is woken and programs them again. A sweep's `RESET` (source `SYS_DEVICE_ID_NONE`) is every rail's and the input's.
+
 ## Battery
 
 LiPo per-cell curve (4.20 V = 100 %, 3.84 V = 50 %, 3.27 V = 0 %; 21 points, linear between them). The estimate uses the measured input voltage, and only while the source is BATTERY. `BATTERY_LOW` and `BATTERY_CRITICAL` are published once at or below their threshold, and re-armed `CONFIG_SYS_POWER_MANAGER_BATTERY_HYSTERESIS_PCT` (3 %) above it.
@@ -105,16 +107,18 @@ The manager's own events (`MODULE_ID_PWRM`, **source `SYS_DEVICE_ID_NONE`** = `0
 | `INPUT_OVP` | `i32 mV` (input mV) | OVP |
 | `PD_FIXED` | `i32 mV` (the voltage in use) | – (information: no response) |
 
-The manager also listens (queued) to the rails' and monitors' events and maps them to a kind:
+The manager also listens (queued) to the `VREG` and `PMON` events and maps them to a kind:
 
 | Device event | Kind |
 |---|---|
 | VREG `OVP` | OVP |
+| VREG `UVP` | UVP |
 | VREG `OCP` | OCP_CRITICAL |
 | VREG `SCP` | SPC |
+| VREG `OTP` | OTP |
 | monitor `OCP_WARNING` / `OCP_CRITICAL` | OCP_WARNING / OCP_CRITICAL |
 
-A rail's own events, and the alerts of its monitor channel, get **that rail's row** of the matrix and act on that rail. The input channel's alerts and the manager's own events get the **board row** and act on every rail. Each fault is also reported as `ERR_PWRM_FAULT {source, channel, kind, response, value}` (MEDIUM), so it reaches the errors stream with the response taken.
+A rail's own events, and the alerts of its monitor channel, get **that rail's row** of the matrix and act on that rail. The input channel's alerts, the USB-PD sink's faults (`usb_pd`: the board's supply) and the manager's own events get the **board row** and act on every rail. A `VREG` or `PMON` event of any other device is not the manager's: no response. Each fault is also reported as `ERR_PWRM_FAULT {source, channel, kind, response, value}` (MEDIUM), so it reaches the errors stream with the response taken.
 
 | Response | Rail | Board |
 |---|---|---|
@@ -123,7 +127,7 @@ A rail's own events, and the alerts of its monitor channel, get **that rail's ro
 | `2` RESET | RESET that rail | RESET every rail |
 | `3` SAFE_STATE | the board's safe state, `sys_system_enter_safe_state(SYS_SAFE_POWER, the rail's regulator)` (SYS_SYSTEM.MD: SAFE stops the VM, then every device is suspended) | the same, device `SYS_DEVICE_ID_NONE` |
 
-Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 5 OCP critical, 6 OTP, 7 battery low, 8 battery critical, 9 budget exceeded, 10 source changed. UVP and OTP have no source yet. Only OVP, SPC and the two OCP kinds reach a rail's row. The other kinds are board events.
+Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 5 OCP critical, 6 OTP, 7 battery low, 8 battery critical, 9 budget exceeded, 10 source changed. UVP and OTP come from a regulator's events (the AP33772S publishes them). OVP, UVP, SPC, OTP and the two OCP kinds can reach a rail's row. The other kinds are board events.
 
 Defaults (`k_default_responses`, every rail the same): OVP, SPC and budget exceeded → DISABLE; OTP and battery critical → SAFE_STATE; the rest NOTIFY. OCP critical stays NOTIFY: a TPS55289 at its OCP limit holds its current by itself.
 
@@ -131,7 +135,7 @@ Defaults (`k_default_responses`, every rail the same): OVP, SPC and budget excee
 
 ## USB-PD request
 
-PD says what to ask the charger for. Every tick on a USB source the manager reads the sink's offers (`OPTIONS`), picks one and, when it differs from the last request, sends it (the `SETTINGS` write). A new charger is asked again.
+PD says what to ask the charger for. Every tick on a USB source the manager reads the sink's offers (`OPTIONS`), picks one and, when it differs from the last request, sends it (the `SETTINGS` write). A new charger is asked again: the sink's `PD_EV_OPTIONS_CHANGED` drops the last request and wakes the task, so the profile is asked at once, also when the new offer reads like the old one (a sink with no INT pin: only a different offer is noticed, at the next tick).
 
 | `mode` | Voltage asked |
 |---|---|
@@ -182,4 +186,4 @@ Besides these, the device errors it passes on: `ERR_DEV_RANGE`, `ERR_DEV_SUSPEND
 
 ## Tests
 
-Host tests in `host/` (`python test_host/run.py sys_power_manager` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_io_contract`, `sys_power_contract`, `sys_device` and `router` and mock rails: stopped until a layout, AUTO start and stop; a rail added at run time, a taken one refused, an auto rail removed with its device; the three budget modes and the POWER_VREG interceptor's clamp; a voltage clamped below a rail's `min_mA`, auto rails splitting the pool; the source (USB-PD, the LiPo curve); one fault event and the response matrix; the efficiency rebalance, the return to AUTO and a settle's rollback; the input's OVP, the budget shrinking, the battery's hysteresis.
+Host tests in `host/` (`python test_host/run.py sys_power_manager` from `runit-esp/`, `HOST_TESTS.MD`; among them a rail's and a sweep's `RESET`, the input's alerts after its monitor's, the sink's new offers, the events of a device that is not the board's), with the real `sys_io_contract`, `sys_power_contract`, `sys_device` and `router` and mock rails: stopped until a layout, AUTO start and stop; a rail added at run time, a taken one refused, an auto rail removed with its device; the three budget modes and the POWER_VREG interceptor's clamp; a voltage clamped below a rail's `min_mA`, auto rails splitting the pool; the source (USB-PD, the LiPo curve); one fault event and the response matrix; the efficiency rebalance, the return to AUTO and a settle's rollback; the input's OVP, the budget shrinking, the battery's hysteresis.

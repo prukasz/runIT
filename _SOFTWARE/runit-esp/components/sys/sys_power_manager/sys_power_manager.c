@@ -25,6 +25,7 @@ ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)
 #define LIPO_CELLS_MIN    2  // the board does not run from one cell
 #define BOARD_TARGET      (-1)
 #define NO_TARGET         (-2)
+#define SUB_COUNT         5  // the events it listens to (start_manager)
 
 typedef struct {
   uint32_t set_mV;      // 0 until a voltage is set
@@ -75,7 +76,7 @@ static struct {
   rail_slot_t rails[CONFIG_SYS_POWER_MANAGER_MAX_CONSUMERS];
   uint8_t rail_count;
   uint32_t alert_mA;
-  uint16_t subs[3];
+  uint16_t subs[SUB_COUNT];
   bool recompute;
   bool starved;
   bool input_seen;
@@ -107,6 +108,8 @@ static int rail_index(uint16_t id) {
   }
   return -1;
 }
+
+static bool is_pd_sink(uint16_t source) { return has_device(s_pm.layout.usb_pd) && s_pm.layout.usb_pd == source; }
 
 static bool same_ch(uint8_t dev, uint8_t ch, uint16_t source, uint16_t channel) {
   return has_device(dev) && dev == source && ch == channel;
@@ -207,18 +210,32 @@ static err_h on_event(const sys_event_t* ev, void* ctx) {
   U_RMUTEX_GUARD(sys_pwrm_mutex);
   if (!s_pm.running) return NULL;
   int target = rail_index(ev->key.source);
-  if (target < 0 && same_ch(s_pm.layout.input_device, s_pm.layout.input_channel, ev->key.source, ev->key.channel)) {
-    target = BOARD_TARGET;
+  if (target < 0) {
+    const bool board = is_pd_sink(ev->key.source) || same_ch(s_pm.layout.input_device, s_pm.layout.input_channel,
+                                                             ev->key.source, ev->key.channel);
+    target = board ? BOARD_TARGET : NO_TARGET;
   }
-  for (uint8_t i = 0; i < s_pm.rail_count && target < 0; i++) {
+  for (uint8_t i = 0; i < s_pm.rail_count && target == NO_TARGET; i++) {
     if (same_ch(s_pm.rails[i].cfg.monitor_device, s_pm.rails[i].cfg.monitor_channel, ev->key.source, ev->key.channel)) {
       target = i;
     }
   }
-  if (target != NO_TARGET && target >= BOARD_TARGET) {
+  if (target != NO_TARGET) {
     err_report(ERR_NEW(ERR_PWRM_FAULT, .source = ev->key.source, .channel = (uint8_t)ev->key.channel,
                        .kind = (uint8_t)kind, .response = response_of((uint8_t)kind, target), .value = value));
     apply_response((uint8_t)kind, target);
+  }
+  return NULL;
+}
+
+/* The USB-PD sink has new offers (a charger attached or swapped): the profile is asked of it again at once, also when
+ * the new offer looks like the old one. */
+static err_h on_pd_options(const sys_event_t* ev, void* ctx) {
+  (void)ctx;
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
+  if (s_pm.running && is_pd_sink(ev->key.source)) {
+    s_pm.pd_req.mV = s_pm.pd_req.mA = 0;
+    wake();
   }
   return NULL;
 }
@@ -247,6 +264,29 @@ static err_h on_device_removed(const sys_event_t* ev, void* ctx) {
 }
 
 /* ---- Budget & POWER_VREG interceptor ---- */
+
+static err_h rebalance(void);
+
+/* A RESET leaves a device at its create state. Inline, so no write that comes after the reset's call meets the old
+ * state: a rail is forgotten (off, nothing set) and its share goes to the others at once; the input monitor has lost
+ * its alerts, which the task programs again. A sweep's RESET (source SYS_DEVICE_ID_NONE) is every device's. */
+static err_h on_device_reset(const sys_event_t* ev, void* ctx) {
+  (void)ctx;
+  U_RMUTEX_GUARD(sys_pwrm_mutex);
+  if (!s_pm.running) return NULL;
+  const bool all = ev->key.source == SYS_DEVICE_ID_NONE;
+  if (has_device(s_pm.layout.input_device) && (all || ev->key.source == s_pm.layout.input_device)) {
+    s_pm.alert_mA = 0;
+    wake();
+  }
+  bool forgot = false;
+  for (uint8_t i = 0; i < s_pm.rail_count; i++) {
+    if (!all && ev->key.source != s_pm.rails[i].cfg.vreg) continue;
+    s_pm.rails[i].st = s_pm.rails[i].undo = (rail_state_t){0};
+    forgot = true;
+  }
+  return forgot ? rebalance() : NULL;
+}
 
 static err_h rebalance(void) {
   s_pm.starved = false;
@@ -796,15 +836,17 @@ static err_h start_manager(const sys_power_layout_t* layout) {
     s_interceptor_installed = true;
   }
 
-  static const struct { uint32_t tag; sys_event_handler_f fn; } k_subs[3] = {
-      {EVT_TAG(MODULE_ID_VREG, SYS_EVENT_ANY_CODE), on_event},
-      {EVT_TAG(MODULE_ID_PMON, SYS_EVENT_ANY_CODE), on_event},
-      {SYS_DEVICE_EV_REMOVED, on_device_removed},
+  static const struct { uint32_t tag; sys_event_handler_f fn; sys_event_run_e run; } k_subs[SUB_COUNT] = {
+      {EVT_TAG(MODULE_ID_VREG, SYS_EVENT_ANY_CODE), on_event, SYS_EVENT_RUN_QUEUED_DEVICE},
+      {EVT_TAG(MODULE_ID_PMON, SYS_EVENT_ANY_CODE), on_event, SYS_EVENT_RUN_QUEUED_DEVICE},
+      {SYS_DEVICE_EV_REMOVED, on_device_removed, SYS_EVENT_RUN_QUEUED_DEVICE},
+      {SYS_DEVICE_EV_RESET, on_device_reset, SYS_EVENT_RUN_INLINE},
+      {PD_EV_OPTIONS_CHANGED, on_pd_options, SYS_EVENT_RUN_QUEUED_DEVICE},
   };
   for (uint32_t i = 0; i < ARRAY_LEN(k_subs); i++) {
     err_h err = sys_event_subscribe(
         (sys_event_key_t){.tag = k_subs[i].tag, .source = SYS_EVENT_ANY_SOURCE, .channel = SYS_EVENT_ANY_CHANNEL},
-        k_subs[i].fn, NULL, SYS_EVENT_RUN_QUEUED_DEVICE, &s_pm.subs[i]);
+        k_subs[i].fn, NULL, k_subs[i].run, &s_pm.subs[i]);
     if (err != NULL) {
       err_free(sys_power_manager_stop());
       return err;

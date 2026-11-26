@@ -169,5 +169,16 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "id": "OPTIONS_CHANGED",
+      "event": 1,
+      "code": 524289,
+      "label": "New offers",
+      "description": "The charger's offers are new: one was attached or swapped",
+      "notify": false,
+      "symbol": "PD_EV_OPTIONS_CHANGED"
+    }
   ]
 }
