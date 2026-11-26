@@ -251,6 +251,11 @@
               "type": "string",
               "description": "Jednostka fizyczna wartości (np. 'mV', 'mA', '%', 'us', 'deg', 'C')."
             },
+            "display": {
+              "type": "string",
+              "enum": ["pin_mask"],
+              "description": "Jak aplikacja pokazuje liczbę: 'pin_mask' to maska pinów urządzenia (bit n = pin n), pokazywana jako lista pinów."
+            },
             "label": {
               "type": "string",
               "description": "Etykieta zwracanego wyniku."

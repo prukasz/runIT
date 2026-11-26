@@ -5,6 +5,7 @@ import { emptyProject } from '../../src/app/project/projectFile'
 import type { ProjectFile } from '../../src/app/project/projectFile'
 import { bundledBoard } from '../../src/app/devices/boardDescriptor'
 import {
+  showPinMask,
   actionRecordOf, admittedSeverities, POLICY, stepCall, deviceChannels, devicePins, offersMember, pinReady, pinStateOf, baseConfig, changesPin, decodeOps, OPS_SIDE_BIT, GPIO_MODE_MEMBER, renumberDevice, isReserved, pinStartOf, withPinStart, commandGroups, DEVICE_EVENTS, describeStep, pinChoiceLabel, pinHint, pinNamer, pinNumber, showValue, DEVICE_COMMANDS, deviceList, deviceProblems, deviceRecordOf, deviceSections, lifecycleOf, nextActionId, nextDeviceId, stepFrame, usedBy,
 } from '../../src/app/devices/devices'
 
@@ -358,5 +359,15 @@ describe('the channels of a device', () => {
   it('a device whose channels are its pins gives them', () => {
     const driver = deviceList(emptyProject('Driver'), catalog, board).find((d) => d.type?.id === 'drv8962')!
     expect(deviceChannels(driver)?.count).toBe(devicePins(driver)!.count)
+  })
+})
+
+describe('a mask of pins', () => {
+  it('is shown as the pins: runs of the unnamed ones, the named one by one, and their number', () => {
+    const plain = (_device: number, pin: number) => `#${pin}`
+    // The ESP32-S3's pins: 0..48 without 22..25.
+    expect(showPinMask(562949890506751, plain, 0)).toBe('#0–#21, #26–#48 (45)')
+    expect(showPinMask(0b1111n, (_d, pin) => (pin === 1 ? '#1 LED' : `#${pin}`), 0)).toBe('#0, #1 LED, #2, #3 (4)')
+    expect(showPinMask(0, plain, 0)).toBe('none')
   })
 })

@@ -447,6 +447,7 @@
       "read": {
         "returns": {
           "type": "u64",
+          "display": "pin_mask",
           "label": "Pins"
         }
       }
@@ -460,6 +461,7 @@
       "read": {
         "returns": {
           "type": "u64",
+          "display": "pin_mask",
           "label": "Pins"
         }
       }

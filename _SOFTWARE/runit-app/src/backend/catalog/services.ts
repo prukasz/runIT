@@ -35,7 +35,7 @@ export interface ReturnsLead {
 
 export type Returns =
   | { readonly kind: 'struct'; readonly layout: Layout; readonly array: boolean; readonly lead?: ReturnsLead; readonly label?: string; readonly description?: string }
-  | { readonly kind: 'value'; readonly rawType: RawType; readonly boolean: boolean; readonly array: boolean; readonly lead?: ReturnsLead; readonly unit?: string; readonly label?: string; readonly description?: string; readonly choices?: readonly Choice[] }
+  | { readonly kind: 'value'; readonly rawType: RawType; readonly boolean: boolean; readonly array: boolean; readonly lead?: ReturnsLead; readonly unit?: string; readonly label?: string; readonly description?: string; readonly choices?: readonly Choice[]; readonly display?: 'pin_mask' }
 
 /** A side of a command (`cmd_dir_e`): `read` asks for a value and changes nothing, `write` sets one or runs an action. */
 export type Side = 'read' | 'write'
@@ -459,7 +459,7 @@ export class ServiceCatalog {
     const rawType = boolean ? 'u8' : type
     if (!isRaw(rawType)) return void problem(`${where}: type ${String(json.type)} has no wire layout.`)
     const choices = this.choices(json.choices)
-    return { kind: 'value', rawType, boolean, ...common, ...(str(json.unit) ? { unit: str(json.unit) } : {}), ...(choices ? { choices } : {}) }
+    return { kind: 'value', rawType, boolean, ...common, ...(str(json.unit) ? { unit: str(json.unit) } : {}), ...(choices ? { choices } : {}), ...(json.display === 'pin_mask' ? { display: 'pin_mask' as const } : {}) }
   }
 
   private event(raw: unknown, problem: (text: string) => void): EventDef[] {

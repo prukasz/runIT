@@ -659,6 +659,36 @@ export const describeStep = (catalog: ServiceCatalog, step: Step, nameOf: (devic
   return { device: step.device, command: command ? `${entry!.label}: ${command.label}` : `${step.contract} ${step.command}`, args }
 }
 
+/**
+ * A mask of a device's pins (bit n is pin n) as a user reads it: the pins the user or the board named one by one (`#22 LED
+ * blue`), the others in runs (`#0–#21`); then how many there are.
+ */
+export const showPinMask = (mask: number | bigint, pinName: PinNamer, device?: number): string => {
+  const bits = BigInt(mask)
+  const parts: string[] = []
+  let run: number[] = []
+  let count = 0
+  const closeRun = () => {
+    if (run.length > 2) parts.push(`#${run[0]}–#${run[run.length - 1]}`)
+    else parts.push(...run.map((pin) => `#${pin}`))
+    run = []
+  }
+  for (let pin = 0; bits >> BigInt(pin) !== 0n; pin++) {
+    if (((bits >> BigInt(pin)) & 1n) === 0n) continue
+    count++
+    const name = device === undefined ? `#${pin}` : pinName(device, pin)
+    if (name !== `#${pin}`) {
+      closeRun()
+      parts.push(name)
+      continue
+    }
+    if (run.length > 0 && run[run.length - 1] !== pin - 1) closeRun()
+    run.push(pin)
+  }
+  closeRun()
+  return count === 0 ? 'none' : `${parts.join(', ')} (${count})`
+}
+
 /** An answer of a side as a user reads it: a struct field by field, a value with its unit or choice, a list joined; a list of u16 in hex. */
 export const showAnswer = (command: CommandDef, side: Side, value: unknown, nameOf: (device: number) => string | undefined, pinName: PinNamer, own?: number): string => {
   const returns = command[side]?.returns
@@ -667,6 +697,7 @@ export const showAnswer = (command: CommandDef, side: Side, value: unknown, name
     const one = (record: unknown) => returns.layout.fields.map((f) => `${f.label}: ${showValue(f, (record as Record<string, unknown>)[f.id], nameOf, pinName, own)}`).join(' · ')
     return Array.isArray(value) ? value.map(one).join('\n') : one(value)
   }
+  if (returns.display === 'pin_mask' && (typeof value === 'number' || typeof value === 'bigint')) return `${returns.label ? `${returns.label}: ` : ''}${showPinMask(value, pinName, own)}`
   const field = { id: '', label: returns.label ?? '', type: returns.boolean ? 'boolean' : 'number', rawType: returns.rawType, offset: 0, optional: false, pinRef: false, ...(returns.unit ? { unit: returns.unit } : {}), ...(returns.choices ? { choices: returns.choices } : {}) } satisfies WireField
   const hex = returns.array && returns.rawType === 'u16' && !returns.unit
   const show = (v: unknown) => (hex && typeof v === 'number' ? `0x${v.toString(16).padStart(4, '0')}` : showValue(field, v, nameOf, pinName, own))
