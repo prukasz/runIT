@@ -51,7 +51,7 @@ Rules:
 | Power layout and limits for the power manager | the board's profile (`SYS_BOARD.MD`, LAYOUT and RAIL of `SYS_POWER_MANAGER.MD`); the manager is not started in `runit_start` yet |
 | Onboard devices, their IDs and the I2C buses and UART ports | the ESP32-S3's GPIO in `runit.c`; the rest the board's profile (`SYS_BOARD.MD`), `runit-app/boards/` |
 | The firmware's own actions (resume / suspend / reset all, hard reset) | `k_onboard` in `sys_actions.c` (`SYS_ACTIONS_ONBOARD_*`) |
-| Safe state: every device suspended | `sys_system_enter_safe_state` (STOP, the dead-man; the power manager's response takes a function given to `sys_power_manager_init`) |
+| Safe state: the VM stopped, every device suspended | `sys_system_enter_safe_state(reason, device)`, the one way in (STOP, the dead-man, the power manager's SAFE_STATE, the device policy's critical error): it publishes SAFE inline, whose listener in the VM asks the program to stop, then sweeps SUSPEND |
 
 ## 6. Descriptors
 

@@ -6,13 +6,13 @@ Folder `components/sys/sys_device_policy/`. Decides how the board reacts to erro
 
 | File | Role |
 |---|---|
-| `sys_device_policy.h` | Importance levels, `sys_device_error_policy_t`, built-in responses, fault stages, callback types, API (`init`, `set_vm_stop`, `set_action_runner`, `handle`, `get`, `set`) |
+| `sys_device_policy.h` | Importance levels, `sys_device_error_policy_t`, built-in responses, fault stages, the action runner's type, API (`set_action_runner`, `handle`, `get`, `set`) |
 | `sys_device_policy.c` | Slot policy table, `CREATED`/`REMOVED` inline listener, queue ring buffer, dedicated policy task |
 | `sys_device_policy_id.h` | `MODULE_ID_DECLARE(MODULE_ID_POLICY, 0x..)` |
 | `router/sys_device_policy_router.h` | `sys_device_policy_key_t`, `sys_device_policy_entry_t`, `POLICY_OPERATIONS` (`OP_POLICY`) |
 | `router/sys_device_policy_router.c` | `ROUTER_READ`/`ROUTER_WRITE` handlers and `ROUTER_MODULE_REGISTER(MODULE_ID_POLICY, sys_device_policy_router)` |
 | `Kconfig` | Queue size, task priority and stack size |
-| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `router_queue` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
+| `CMakeLists.txt` | Requires `errors`, `router`; privately `sys_device`, `sys_event`, `sys_system` (the safe state), `router_queue` (the `ERR_REMOTE` tag), `utils`, `freertos`, `log`; linked `WHOLE_ARCHIVE` |
 | `AGENTS.md` | Rules for changing this folder |
 
 ## Model
@@ -32,7 +32,7 @@ typedef struct __attribute__((packed)) {
   - `SYS_DEVICE_IMPORTANCE_MEDIUM` (2): admits `HIGH` and `CRITICAL`.
   - `SYS_DEVICE_IMPORTANCE_HIGH` (3): admits `MEDIUM`, `HIGH`, `CRITICAL`.
   - `SYS_DEVICE_IMPORTANCE_CRITICAL` (4): admits `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
-- **Admission rule**: `sev == ERR_SEV_CRITICAL` is always admitted (even if `found == false`, e.g. a failed `CREATE` where `vm_stop` + global `SUSPEND` still run without a slot action); otherwise admitted iff `sev + importance > ERR_SEV_CRITICAL`.
+- **Admission rule**: `sev == ERR_SEV_CRITICAL` is always admitted (even if `found == false`, e.g. a failed `CREATE` where the safe state still runs without a slot action); otherwise admitted iff `sev + importance > ERR_SEV_CRITICAL`.
 - **Actions** (`SYS_DEVICE_ERR_LEVELS` = 4): `actions[sev - 1]` for `ERR_SEV_LOW`..`ERR_SEV_CRITICAL` is `0` (no action), a built-in response (`SYS_DEVICE_RESPONSE_SUSPEND = 0xFF000001u`, `SYS_DEVICE_RESPONSE_RESET = 0xFF000002u`), or an application action ID passed to `action_runner`.
 
 ## Lifecycle and execution flow
@@ -48,10 +48,10 @@ typedef struct __attribute__((packed)) {
 4. **Policy task (`sys_device_policy_task_h`)**: pops one serialized record, parses it with `err_record_parse`, and walks from outermost node to root:
    - the walk ends at `ERR_REMOTE`: a remote device's error is `ERR_DEV_ID{local id}` over `ERR_REMOTE{board, seq}` over that board's chain, whose device IDs are not this board's (the severity from the device down still counts the whole chain);
    - first `ERR_DEV_ID` occurrence per device (`HANDLED_MAX` = 16 unique devices per chain), computing the sub-chain severity from that node down (`err_chain_sev`);
-   - a `CRITICAL` node before any `ERR_DEV_ID` triggers `vm_stop(SYS_DEVICE_ID_NONE)` + `sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND)` once per chain;
-   - on an admitted `CRITICAL` device node, runs `vm_stop(id)` + global `SUSPEND` sweep (`sys_device_sweep`) before running the slot's action;
+   - a `CRITICAL` node before any `ERR_DEV_ID` enters the board's safe state, `sys_system_enter_safe_state(SYS_SAFE_FAULT, SYS_DEVICE_ID_NONE)` (SYS_SYSTEM.MD: the event SAFE stops the VM, then every device is suspended), once per chain;
+   - on an admitted `CRITICAL` device node, enters it with the device, `sys_system_enter_safe_state(SYS_SAFE_FAULT, id)`, before running the slot's action;
    - runs that device's configured response (`SYS_DEVICE_RESPONSE_SUSPEND`, `SYS_DEVICE_RESPONSE_RESET`, or `action_runner(action, chain)`).
-   - wraps any response failure in `ERR_DEV_FAULT_RESPONSE{id, sev, stage, action}` (`sys_device_fault_stage_e`: `VM_STOP=0`, `SUSPEND=1`, `ACTION=2`, `QUEUE=3`) and reports it via `err_report`.
+   - wraps any response failure in `ERR_DEV_FAULT_RESPONSE{id, sev, stage, action}` (`sys_device_fault_stage_e`: `SAFE`, `ACTION`, `QUEUE`) and reports it via `err_report`.
 
 ## Router (`router/sys_device_policy_router.h`, key `MODULE_ID_POLICY`)
 
@@ -73,7 +73,6 @@ typedef struct __attribute__((packed)) {
 ## API
 
 ```c
-void sys_device_policy_set_vm_stop(sys_device_vm_stop_f fn);
 void sys_device_policy_set_action_runner(sys_device_action_runner_f fn);
 MUST_USE err_h sys_device_policy_handle(err_h chain);
 bool sys_device_policy_get(uint8_t id, sys_device_error_policy_t* out);
@@ -82,4 +81,4 @@ MUST_USE err_h sys_device_policy_set(uint8_t id, const sys_device_error_policy_t
 
 ## Tests
 
-Host tests in `host/` (`python test_host/run.py sys_device_policy` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_device` and `router`: the default policy on CREATED and its removal on REMOVED; SET / GET checked and through the router; the built-in SUSPEND and RESET responses; a CRITICAL running the system fault once for two devices; importance NONE and `ERR_REMOTE` stopping the walk; a failing action runner reported as a fault response without a loop; a CRITICAL before a device exists, a missing device, a repeated chain, a LOW severity.
+Host tests in `host/` (`python test_host/run.py sys_device_policy` from `runit-esp/`, `HOST_TESTS.MD`), with the real `sys_device` and `router` and a stand-in safe state (`sys_system_enter_safe_state`: the reason and the device noted, the SUSPEND sweep): the default policy on CREATED and its removal on REMOVED; SET / GET checked and through the router; the built-in SUSPEND and RESET responses; a CRITICAL entering the safe state once for two devices (reason FAULT, the outermost device); importance NONE and `ERR_REMOTE` stopping the walk; a failing action runner reported as a fault response without a loop; a CRITICAL before a device exists, a missing device, a repeated chain, a LOW severity.

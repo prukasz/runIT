@@ -212,5 +212,16 @@
         }
       }
     }
+  ],
+  "events": [
+    {
+      "id": "SAFE",
+      "event": 1,
+      "code": 2490369,
+      "symbol": "SYS_EV_SAFE",
+      "label": "Safe state",
+      "description": "The board entered its safe state: the program stopped, then every device suspended. The channel is the reason (Safe State Reason), the source the device whose error caused it (a device fault), else none.",
+      "notify": true
+    }
   ]
 }

@@ -120,7 +120,7 @@ await deadman.stop()         // the DEADMAN write of 0; stop({ disarm: false }) 
 
 - **Armed** with the DEADMAN write (urgent) when the link opens and after every reconnect: the setting lives in the board's RAM. The write sets the time of this session, with the safety flag (PEERS says both).
 - **Fed** by a PING (urgent) only when nothing was written for `heartbeatMs`; the check runs every half heartbeat, so a heartbeat of 1/1.5 of the timeout or more is refused.
-- **After a reconnect**, PING's uptime says whether the board restarted (`restarted`). If not, `lapsed` says the board has most likely entered its safe state: `link-lost` for a drop, `silence` when the last write before the drop is a timeout old. The board sends nothing when it enters it: this is the app's inference (`SYS SAFE` says the reason).
+- **After a reconnect**, PING's uptime says whether the board restarted (`restarted`). If not, `lapsed` says the board has most likely entered its safe state: `link-lost` for a drop, `silence` when the last write before the drop is a timeout old. The board's event SAFE (SYS_SYSTEM.MD) cannot reach this client then, its session is the one that ended: this is the app's inference (`SYS SAFE` says the reason).
 - Commands and fields are the descriptor's (`contract_sys.json`), named once in `DEADMAN_COMMANDS`; `deadman.test.ts` holds them against the catalog.
 - **Leaving the safe state** is the caller's choice, never automatic (motors move again): `services.call('SYS', 'SAFE_LEAVE')`.
 - A browser throttles timers of a background tab: a timeout of a few seconds survives the first throttling, not the second. The desktop app turns throttling off for its window (AGENTS.md "The desktop app").

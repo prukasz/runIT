@@ -5,13 +5,25 @@ Component `runit-esp/components/sys/sys_system/`. The board's system commands (r
 | File | Role |
 |---|---|
 | `sys_system.h` / `.c` | The safe state, the dead-man, the time broadcast, the restart |
+| `sys_system_events.h` | The events table (`SYS_EVENTS`: SAFE) and `SYS_SAFE_FILTER` |
 | `router/sys_system_router.h` / `.c` | The remote interface: `MODULE_ID_SYS`, the frames, `SYS_OPERATIONS`; registers itself |
 | `router/contract_sys.json` | The router's descriptor |
 | `Kconfig` | The dead-man at boot, the time broadcast's period |
 
 ## The safe state
 
-`sys_system_enter_safe_state(reason)` suspends every device: `sys_device_sweep(SUSPEND)` (SYS_DEVICE.MD "Sweeps": the users before the devices they use; while it runs no write from outside starts an output it has not reached yet). A device's failure is reported, the others are suspended all the same. The reason (`sys_safe_reason_e`: STOP, DEADMAN, POWER) and the time are noted for SAFE. `sys_system_leave_safe_state()` (SAFE_LEAVE) resumes every device (`sys_device_sweep(RESUME)`, the used ones first) and clears the note; a device that fails to resume keeps the note. The sweep takes every device's lock, so neither runs inside a device's op: STOP runs on the router task that takes it (URGENT is the client's choice), the dead-man on the urgent task.
+`sys_system_enter_safe_state(reason, device)` is the one way into the safe state, whoever asks for it:
+
+| Reason (`sys_safe_reason_e`) | Who | Task |
+|---|---|---|
+| STOP | the STOP command | the router task that takes it (URGENT is the client's choice) |
+| DEADMAN | a session with the safety flag ended (below) | the urgent task |
+| POWER | the power manager's response SAFE_STATE (SYS_POWER_MANAGER.MD); `device` the rail's regulator, or none for the board's own | the power manager's (its queued listener) |
+| FAULT | a device's critical error (SYS_DEVICE_POLICY.MD); `device` the device, or none for an error above every device | the policy's task |
+
+It notes the reason and the time (for SAFE), publishes the event **SAFE** inline, then suspends every device: `sys_device_sweep(SUSPEND)` (SYS_DEVICE.MD "Sweeps": the users before the devices they use; while it runs no write from outside starts an output it has not reached yet). A device's failure does not stop the others' suspend; the first error is returned and the caller reports it (the policy wraps it as its response's failure). `sys_system_leave_safe_state()` (SAFE_LEAVE) resumes every device (`sys_device_sweep(RESUME)`, the used ones first) and clears the note; a device that fails to resume keeps the note. The sweep takes every device's lock, so neither runs inside a device's op.
+
+**The event SAFE** (`sys_system_events.h`, module `MODULE_ID_SYS`, lane SYS, NOTIFY): channel = the reason, source = `device` (`SYS_DEVICE_ID_NONE` when none), no payload. Its inline listeners run before the sweep, on the task that enters the safe state, so what writes to the devices stops first: the VM asks its program to stop (VM_CORE.MD "Safe state"). A listener only asks for its stop and never waits for it: the one who writes may be inside a device op that waits for this very task. NOTIFY: it goes out on the event stream (SYS_EVENT_STREAM.MD) like every notify event.
 
 ## The dead-man
 
@@ -46,11 +58,10 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 
 ## Tests
 
-Host tests in `host/` (`python test_host/run.py sys_system` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `timer`, `sys_event` and `data_matrix` and a stand-in session (`sys_session_broadcast`, `sys_session_on_gone`): the safe state entered and left, a failed resume keeping its note; `SESSION_EV_GONE` with its safety bit starting the dead-man and the urgent STOP broadcast; BYE, PING, the time and TASKS through the router.
+Host tests in `host/` (`python test_host/run.py sys_system` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `timer`, `sys_event` and `data_matrix` and a stand-in session (`sys_session_broadcast`, `sys_session_on_gone`): the safe state entered and left, SAFE heard inline before the sweep with its reason and device, a failed resume keeping its note; `SESSION_EV_GONE` with its safety bit starting the dead-man and the urgent STOP broadcast; BYE, PING, the time and TASKS through the router.
 
 On a board: `python runit-esp/tools/session_client.py <COM port>` runs PING (`28 00 01`) over a session. STOP, SAFE and SAFE_LEAVE with devices, the dead-man by the session's silence, and the time on a slave are not run yet.
 
 ## Open
 
-- The power manager's safe state (reason POWER) is wired when the power manager is started in `app/runit`.
-- The VM's stop joins the safe state when the VM is in the rework.
+- The power manager is not started in `app/runit` yet, so the reason POWER does not occur on a board.

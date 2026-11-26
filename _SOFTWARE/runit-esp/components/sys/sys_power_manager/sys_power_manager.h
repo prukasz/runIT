@@ -152,9 +152,7 @@ typedef struct __attribute__((packed)) {
  * API
  * ------------------------------------------------------------------------- */
 
-typedef void (*sys_power_safe_state_f)(void);
-
-MUST_USE err_h sys_power_manager_init(sys_power_safe_state_f safe_state);
+MUST_USE err_h sys_power_manager_init(void);
 MUST_USE err_h sys_power_manager_stop(void);
 MUST_USE err_h sys_power_manager_set_layout(const sys_power_layout_t* layout);
 MUST_USE err_h sys_power_manager_add_rail(const sys_power_rail_t* rail);

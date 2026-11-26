@@ -5,6 +5,7 @@
 #include "board_time.h"
 #include "esp_log.h"
 #include "router_queue.h"
+#include "sys_device.h"
 #include "sys_session.h"
 #include "sys_system.h"
 
@@ -19,7 +20,7 @@ ROUTER_READ(SYS, OP_PING) {
 }
 
 ROUTER_WRITE(SYS, OP_STOP) {
-  sys_system_enter_safe_state(SYS_SAFE_STOP);
+  err_report(sys_system_enter_safe_state(SYS_SAFE_STOP, SYS_DEVICE_ID_NONE));  // a device that failed: the rest stopped
   return NULL;
 }
 

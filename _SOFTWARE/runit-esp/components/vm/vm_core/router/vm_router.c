@@ -11,6 +11,8 @@
 #include "vm_stats.h"
 #include "vm_sub.h"
 #include "vm_wire.h"
+#include "sys_system.h"
+#include "sys_system_events.h"
 
 /* The ops of VM_CORE.MD "Remote". Each one parses its frame with the packed records of vm_wire.h (a bounds check
    before every copy: everything from the wire is untrusted) and calls the loader / supervisor. A truncated frame is
@@ -258,18 +260,26 @@ static err_h op_open_closed(CMD_F_PARAMS) {
   return load_result(op_open(ctx, in, out), VM_OP_OPEN, true);
 }
 
+/* The board enters the safe state (inline, on the task that enters it, before the devices are suspended): the program
+   stops at the next block boundary. Only asked for, never waited for: the pass may be inside a device op that waits
+   for this very task. A device fault also latches (the program stays loaded, EXEC ACK_FAULT clears the latch). */
+static err_h on_safe(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  if (event->key.channel == SYS_SAFE_FAULT) {
+    (void)vm_exec_fault_latch(event->key.source, 0);  // requests the stop; SAFE carries no error, so no root tag
+  } else {
+    vm_exec_request_stop();
+  }
+  return NULL;
+}
+
 err_h vm_init(void) {
+  uint16_t handle;
   ERR_TRY(vm_event_init());
+  ERR_TRY(sys_event_subscribe(SYS_SAFE_FILTER, on_safe, NULL, SYS_EVENT_RUN_INLINE, &handle));
   ERR_TRY(vm_sub_init());
   ERR_TRY(vm_retain_init());
   return vm_exec_start();
-}
-
-err_h vm_stop_on_fault(uint16_t device_id) {
-  (void)vm_exec_fault_latch(device_id, 0);  // requests the stop at once; the root tag is not known here
-  err_h err = vm_exec_stop();
-  (void)err_drop(&err, ERR_VM_EXEC_SELF_BARRIER);  // called from the pass itself: the latch stops it
-  return err;
 }
 
 #define ROUTER_W(code, fn) {(code), NULL, (fn)}

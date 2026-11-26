@@ -17,7 +17,7 @@ vm_core/
   loader/    load state machine, vm_wire.h (every wire record)
   sub/       telemetry subscriptions (vm_sub.c)
   retain/    retained values (vm_retain.c)
-  router/    vm_router.c/.h, contract_vm.json: the remote interface (MODULE_ID_VM), vm_init, vm_stop_on_fault
+  router/    vm_router.c/.h, contract_vm.json: the remote interface (MODULE_ID_VM), vm_init, the SAFE listener
 ```
 
 Includes are by bare filename; every folder is on the include path (`CMakeLists.txt`). The component builds at `-O2` (hot path) and is linked `WHOLE_ARCHIVE` (tag registration).
@@ -90,16 +90,18 @@ Sending: only objects whose value changed since last sent (value hash), everythi
 | Part | How |
 |---|---|
 | Errors | Module `MODULE_ID_VM`: one `ERR_VM_MAP` in `vm/errors/vm_errors.h` for the core and the blocks, its messages in `vm/errors/errors_vm.json`. A bad argument, a NULL, no memory, a value out of range and a full table are the core tags (`ERR_BAD_ARG`, `ERR_NULL_PTR`, `ERR_NO_MEM`, `ERR_RANGE` by `ERR_CHECK_RANGE`, `ERR_FULL`). An error that ends where it is raised is `err_report(ERR_NEW(…))`; a block's goes through `BLOCK_CALL` / `vm_block_report_error` / `vm_block_emit`. The ID constants (`VM_ID_NONE`, `VM_OBJ_ID_DYN_BIT`) are in `obj/vm_obj.h`, the wiring points of a bad reference (`VM_REF_KIND_*`) in `block/vm_block_build.h` |
-| Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM through `sys_device_set_vm_stop` (SYS_DEVICE.MD): `runit` registers `vm_stop_on_fault`, which latches and stops the VM before the devices are suspended; `EXEC` ACK_FAULT clears the latch |
+| Fault latch | `vm_exec_fault_latch(u16 device, u32 root_tag)`. A critical device error reaches the VM as the board's SAFE with the reason FAULT (below): the VM latches the device (SAFE's source) and stops; `EXEC` ACK_FAULT clears the latch |
 | Actions | `vm_exec_request_action(u32 id)` calls `sys_actions_request` (queued, run on a router task, never inside a pass); the VM sits above sys_actions |
 | Events | One wildcard `sys_event` subscription (`vm_event_init`, queued, `CONFIG_VM_EVENT_DEPTH`) fills the per-pass queue, only while the loaded program has an `ON_EVENT` block (the loader turns it on, `vm_event_listen`; a load turns it off): a program that reads no event queues none, so a burst (a safe stop suspends every device, an event each) drops and reports nothing. An event lives exactly one pass; `ON_EVENT` matches the snapshot with its filter, a `sys_event_key_t` (tag, source, channel), by the rule of a subscription (`vm_event_matches`: `sys_event_match`; `SYS_EVENT_ANY_NOTIFY` matches nothing, the snapshot keeps no flags). A full queue drops the event; the first pass of a run of passes with drops reports them as `ERR_VM_EVENT_OVERFLOW` (count and the last source), the next only after a pass without a drop |
 | Telemetry | `data_matrix_push` out of the port `VM_STREAM`; data `[op][count]{records}` (above) |
-| Retained values | One NVS blob `vm/retain` in the default partition (`vm_retain.c`). Kept by name (a retentive object must be named), type and size; saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task, on teardown (RESET, OPEN) and in the safe state; restored on the first start after a load; `EXEC` RETAIN_CLEAR forgets them. A program retaining more than `CONFIG_VM_RETAIN_MAX_BYTES` is refused at load |
+| Retained values | One NVS blob `vm/retain` in the default partition (`vm_retain.c`). Kept by name (a retentive object must be named), type and size; saved every `CONFIG_VM_RETAIN_PERIOD_S` off the VM task and on teardown (RESET, OPEN); restored on the first start after a load; `EXEC` RETAIN_CLEAR forgets them. A program retaining more than `CONFIG_VM_RETAIN_MAX_BYTES` is refused at load |
 | Palette | A registry of pointers, `g_vm_block_types[VM_BLOCK_TYPES_MAX]`, filled before `app_main` by `VM_BLOCK_TYPE_DEFINE` in each block file (like `SYS_DEVICE_TYPE_REGISTER`). The numbers are in `block/vm_block_ids.h`. The blocks are in `vm_blocks` |
 
-## Boot and safe state (RUNIT.MD)
+## Boot and safe state (RUNIT.MD, SYS_SYSTEM.MD)
 
-Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the supervisor task) runs after the router is up. `runit_enter_safe_state` stops the VM and saves the retained values before it suspends the devices.
+Boot step `vm` (`vm_init`: the event subscriptions, telemetry, retained values, the supervisor task) runs after the router is up.
+
+**Safe state:** `vm_init` subscribes `on_safe` (`vm_router.c`) inline to the board's SAFE (`sys_system_events.h`), which `sys_system_enter_safe_state` publishes before it suspends the devices, whoever enters it (STOP, the dead-man, the power manager, the device policy). `on_safe` only asks for the stop (`vm_exec_request_stop`; reason FAULT: `vm_exec_fault_latch` with SAFE's source as the device, which requests it too) and never waits for it: it runs on the task that enters the safe state, and the pass may be inside a device op that waits for that task. The pass ends at the next block boundary; a block's write that comes after the sweep reached its device is refused (`ERR_DEV_SUSPENDED`). The program stays loaded and stopped after SAFE_LEAVE: `EXEC` starts it again.
 
 ## Open
 
@@ -112,9 +114,10 @@ Boot step `vm` (`vm_init`: event subscription, telemetry, retained values, the s
 - **Router format:** `vm_router.h` still has `#define VM_OP_*` and `vm_router.c` an `router_op_t` table (`ROUTER_W` / `ROUTER_R`) and its own length check (`need`, `ERR_VM_LOAD_SHORT_RECORD`); the rework's form is the frames, then `VM_OPERATIONS(X, P)` and `CMD_TABLE_DECLARE` (as `sys_watch_router.h`), with the frame size checked by `cmd`.
 - **Retained values on `nvs_store`:** `vm_retain.c` calls `nvs_flash` (`nvs_open`, `nvs_set_blob`) directly instead of `core/nvs_store`.
 - **Two tags for one case:** `ERR_VM_OBJ_NOT_PTR` (object layer) and `ERR_VM_ACC_TYPE_MISMATCH` with `expected` PTR (accessor layer) say the same; the NULL checks of internal C calls (`ERR_NULL_PTR`) are many, against "validate once" (conventions.md).
-- **Fault latch:** `vm_stop_on_fault` latches with root tag 0 (`ERR_VM_EXEC_FAULT_LATCHED` names no cause): the registry's hook does not pass the error.
+- **Fault latch:** the latch at SAFE (reason FAULT) has root tag 0 (`ERR_VM_EXEC_FAULT_LATCHED` names no cause): SAFE carries no error.
+- **Retained values in the safe state:** not saved at SAFE (the stop is only asked for, and the pass it ends is cut short); what the last periodic save kept stays.
 - **Lost answers:** a request now and then gets no answer on the USB-Serial-JTAG link (about twice in 1500 requests, not repeatable); no cause found.
 
 ## Tests
 
-`.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`): the wire (every op truncated and malformed, the direction byte, fail closed, IDs), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed) and what STATUS reads of them, runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD "Tests"). Not covered: a latched device fault (`vm_stop_on_fault`), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.
+`.claude/skills/runit-esp/scripts/vm_suite.py` (`--port COM9`, runs on the PCB; `--only`, `--list`, `--skip-hw`): the wire (every op truncated and malformed, the direction byte, fail closed, IDs), objects, accessors, supervisor modes (scan / ONCE, block / NEXT, pause, restart, speed) and what STATUS reads of them, runtime writes and the override ring, telemetry (limits, split objects, trees, a frame as a command), retained values, loads and limits, and every block (VM_BLOCKS.MD "Tests"). Not covered: the stop at SAFE (STOP while a program runs) and a latched device fault (SAFE with the reason FAULT), the heap-object limit (`CONFIG_VM_DYN_MAX`), BLE as the telemetry transport.

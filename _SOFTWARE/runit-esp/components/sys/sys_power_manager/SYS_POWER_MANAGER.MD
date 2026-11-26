@@ -121,7 +121,7 @@ A rail's own events, and the alerts of its monitor channel, get **that rail's ro
 | `0` NOTIFY | event only | event only |
 | `1` DISABLE | SUSPEND that rail | SUSPEND every rail |
 | `2` RESET | RESET that rail | RESET every rail |
-| `3` SAFE_STATE | the app's safe state (the `sys_power_safe_state_f` given to `sys_power_manager_init`) | the same |
+| `3` SAFE_STATE | the board's safe state, `sys_system_enter_safe_state(SYS_SAFE_POWER, the rail's regulator)` (SYS_SYSTEM.MD: SAFE stops the VM, then every device is suspended) | the same, device `SYS_DEVICE_ID_NONE` |
 
 Kinds (the matrix index, also on the wire): 1 OVP, 2 UVP, 3 SPC, 4 OCP warning, 5 OCP critical, 6 OTP, 7 battery low, 8 battery critical, 9 budget exceeded, 10 source changed. UVP and OTP have no source yet. Only OVP, SPC and the two OCP kinds reach a rail's row. The other kinds are board events.
 

@@ -11,6 +11,7 @@
 #include "sys_session.h"
 #include "sys_session_events.h"
 #include "sys_system.h"
+#include "sys_system_events.h"
 #include "sys_system_router.h"
 #include "unity.h"
 
@@ -114,14 +115,41 @@ void setUp(void) {
 
 void tearDown(void) {}
 
+/* A SAFE listener inline: what it saw when it ran. */
+static int s_safe_calls;
+static int s_safe_sweeps_before;
+static sys_event_key_t s_safe_key;
+
+static err_h on_safe(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  s_safe_calls++;
+  s_safe_sweeps_before = s_sweep_calls;
+  s_safe_key = event->key;
+  return NULL;
+}
+
 static void test_safe_state_enter_leave_and_failed_resume_keeps_note(void) {
   uint8_t reply[64];
   uint32_t rlen = 0;
+  uint16_t handle = 0;
+  TEST_ASSERT_NULL(sys_event_subscribe(SYS_SAFE_FILTER, on_safe, NULL, SYS_EVENT_RUN_INLINE, &handle));
 
-  /* STOP enters safe state with SYS_SAFE_STOP and sweeps SUSPEND */
+  /* STOP enters safe state with SYS_SAFE_STOP: SAFE to its listeners first, then the SUSPEND sweep */
   TEST_ASSERT_NULL(route_sys(CMD_DIR_WRITE, SYS_OP_STOP, NULL, 0, reply, sizeof(reply), &rlen));
+  TEST_ASSERT_EQUAL_INT(1, s_safe_calls);
+  TEST_ASSERT_EQUAL_INT(0, s_safe_sweeps_before);
+  TEST_ASSERT_EQUAL_UINT16(SYS_SAFE_STOP, s_safe_key.channel);
+  TEST_ASSERT_EQUAL_UINT16(SYS_DEVICE_ID_NONE, s_safe_key.source);
   TEST_ASSERT_EQUAL_INT(1, s_sweep_calls);
   TEST_ASSERT_EQUAL_HEX16(CONTRACT_SYS_DEVICE_OP_SUSPEND, s_last_sweep_op);
+
+  /* A device's fault: its ID is SAFE's source */
+  TEST_ASSERT_NULL(sys_system_enter_safe_state(SYS_SAFE_FAULT, 7));
+  TEST_ASSERT_EQUAL_INT(2, s_safe_calls);
+  TEST_ASSERT_EQUAL_UINT16(SYS_SAFE_FAULT, s_safe_key.channel);
+  TEST_ASSERT_EQUAL_UINT16(7, s_safe_key.source);
+  TEST_ASSERT_NULL(sys_event_unsubscribe(handle));
+  TEST_ASSERT_NULL(sys_system_enter_safe_state(SYS_SAFE_STOP, SYS_DEVICE_ID_NONE));  // the note: STOP again
 
   /* OP_SAFE reports reason == SYS_SAFE_STOP */
   TEST_ASSERT_NULL(route_sys(CMD_DIR_READ, SYS_OP_SAFE, NULL, 0, reply, sizeof(reply), &rlen));

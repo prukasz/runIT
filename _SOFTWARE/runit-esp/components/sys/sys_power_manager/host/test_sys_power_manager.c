@@ -14,6 +14,7 @@
 #include "sys_power_monitor_contract.h"
 #include "sys_power_usb_pd_contract.h"
 #include "sys_power_vreg_contract.h"
+#include "sys_system.h"
 #include "unity.h"
 
 #define DEV_BUS   1u
@@ -158,8 +159,14 @@ static err_h on_pwrm_ev(const sys_event_t* ev, void* ctx) {
   return NULL;
 }
 
-static void on_safe_state(void) {
+static atomic_uint s_safe_device;
+
+/* sys_system's safe state: counted, with the device (the rail's regulator); reason POWER. */
+err_h sys_system_enter_safe_state(sys_safe_reason_e reason, uint8_t device) {
+  TEST_ASSERT_EQUAL_INT(SYS_SAFE_POWER, reason);
+  atomic_store(&s_safe_device, device);
   atomic_fetch_add(&s_safe_state_calls, 1);
+  return NULL;
 }
 
 static void create_mock(uint8_t id) {
@@ -379,7 +386,7 @@ static void test_source_detection_pd_and_lipo_curve(void) {
 
 static void test_unified_fault_event_codes_and_response_matrix(void) {
   create_mock(DEV_RAIL1);
-  TEST_ASSERT_NULL(sys_power_manager_init(on_safe_state));
+  TEST_ASSERT_NULL(sys_power_manager_init());
   const sys_power_rail_t r = {.vreg = DEV_RAIL1, .monitor_device = DEV_RAIL1, .monitor_channel = 0, .min_mA = 200};
   TEST_ASSERT_NULL(sys_power_manager_add_rail(&r));
 
@@ -401,10 +408,11 @@ static void test_unified_fault_event_codes_and_response_matrix(void) {
   vTaskDelay(pdMS_TO_TICKS(30));
   TEST_ASSERT_TRUE(is_suspended(DEV_RAIL1));
 
-  /* VREG_EV_SCP -> SAFE_STATE callback */
+  /* VREG_EV_SCP -> the safe state, reason POWER, the rail's regulator as the device */
   TEST_ASSERT_NULL(SYS_EVENT_PUBLISH(VREG_EV_SCP, DEV_RAIL1, 0));
   vTaskDelay(pdMS_TO_TICKS(30));
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_safe_state_calls));
+  TEST_ASSERT_EQUAL_UINT(DEV_RAIL1, atomic_load(&s_safe_device));
 }
 
 static void test_efficiency_rebalance_return_to_auto_and_settle_rollback(void) {

@@ -16,6 +16,7 @@
 #include "sys_power_monitor_contract.h"
 #include "sys_power_usb_pd_contract.h"
 #include "sys_power_vreg_contract.h"
+#include "sys_system.h"
 #include "utils.h"
 
 ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)
@@ -76,7 +77,6 @@ static const uint8_t k_default_responses[SYS_POWER_KIND_COUNT] = {
 /* All manager state in one place, guarded by sys_pwrm_mutex. */
 static struct {
   bool running;
-  sys_power_safe_state_f safe_state;
   sys_power_layout_t layout;
   sys_power_manager_cfg_t cfg;
   sys_power_pd_t pd;
@@ -178,8 +178,8 @@ static uint8_t response_of(uint8_t kind, int target) {
 static void apply_response(uint8_t kind, int target) {
   const uint8_t resp = response_of(kind, target);
   if (resp == SYS_POWER_RESPONSE_SAFE_STATE) {
-    if (s_pm.safe_state != NULL) s_pm.safe_state();
-    else err_report(sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND));
+    const uint8_t device = target == BOARD_TARGET ? SYS_DEVICE_ID_NONE : s_pm.rails[target].cfg.vreg;
+    err_report(sys_system_enter_safe_state(SYS_SAFE_POWER, device));
     return;
   }
   if (resp != SYS_POWER_RESPONSE_DISABLE && resp != SYS_POWER_RESPONSE_RESET) return;
@@ -789,12 +789,11 @@ err_h sys_power_manager_get_status(sys_power_status_t* out) {
 
 /* ---- Runtime lifecycle & loads ---- */
 
-static err_h start_manager(const sys_power_layout_t* layout, sys_power_safe_state_f safe_state) {
+static err_h start_manager(const sys_power_layout_t* layout) {
   memset(&s_pm, 0, sizeof(s_pm));
   s_pm.layout = *layout;
   s_pm.cfg = k_default_cfg;
   s_pm.pd = k_default_pd;
-  s_pm.safe_state = safe_state;
   s_pm.status.battery_pct = SYS_POWER_PCT_UNKNOWN;
   s_pm.status.pd_type = SYS_POWER_PD_TYPE_NONE;
   memcpy(s_pm.board_responses, k_default_responses, SYS_POWER_KIND_COUNT);
@@ -837,10 +836,10 @@ static err_h start_manager(const sys_power_layout_t* layout, sys_power_safe_stat
   return NULL;
 }
 
-err_h sys_power_manager_init(sys_power_safe_state_f safe_state) {
+err_h sys_power_manager_init(void) {
   U_RMUTEX_GUARD(sys_pwrm_mutex);
   ERR_CHECK(!s_pm.running, ERR_BUSY);
-  return start_manager(&k_default_layout, safe_state);
+  return start_manager(&k_default_layout);
 }
 
 err_h sys_power_manager_stop(void) {
@@ -863,7 +862,7 @@ err_h sys_power_manager_stop(void) {
 err_h sys_power_manager_set_layout(const sys_power_layout_t* layout) {
   ERR_TRY(check_range(layout->vreg_efficiency_pct, 1, 100));
   U_RMUTEX_GUARD(sys_pwrm_mutex);
-  if (!s_pm.running) return start_manager(layout, NULL);
+  if (!s_pm.running) return start_manager(layout);
   s_pm.layout = *layout;
   s_pm.alert_mA = 0;
   s_pm.input_seen = s_pm.input_error_reported = false;

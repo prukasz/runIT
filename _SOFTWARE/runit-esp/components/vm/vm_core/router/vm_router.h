@@ -32,16 +32,11 @@ extern "C" {
 ROUTER_MODULE_DECLARE(vm_router);
 
 /**
- * @brief Starts the VM: the event subscription, telemetry, retained values, the supervisor task (stopped until a
- * program starts it). Boot step, after sys_event_init, the telemetry stream and the router setup.
+ * @brief Starts the VM: the event subscriptions (the program's events, the board's SAFE), telemetry, retained values,
+ * the supervisor task (stopped until a program starts it). Boot step, after sys_event_init, the telemetry stream and
+ * the router setup. At SAFE the VM stops (a device fault, reason FAULT, also latches: `EXEC` ACK_FAULT clears it).
  */
 MUST_USE err_h vm_init(void);
-
-/**
- * @brief A critical device error: latches the fault and stops the VM (the program is kept, `EXEC` ACK_FAULT clears
- * the latch). Safe from the VM task itself (it then stops at the next block boundary).
- */
-MUST_USE err_h vm_stop_on_fault(uint16_t device_id);
 
 #ifdef __cplusplus
 }

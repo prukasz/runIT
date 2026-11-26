@@ -6,6 +6,7 @@
 #include "sys_device.h"
 #include "sys_device_driver.h"
 #include "sys_device_events.h"
+#include "sys_system.h"
 #include "router_queue_errors.h"
 #include "utils.h"
 
@@ -26,7 +27,6 @@ static struct {
     uint8_t gen;   // the generation of that device (its CREATED): a REMOVED of another one is not its
   } e[SYS_DEVICE_COUNT];
   sys_device_action_runner_f run_action;
-  sys_device_vm_stop_f vm_stop;
 } s_pol;  // zero at the start (.bss)
 
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -101,10 +101,6 @@ static err_h on_device(const sys_event_t* event, void* ctx) {
   return NULL;
 }
 
-void sys_device_policy_set_vm_stop(sys_device_vm_stop_f fn) {
-  s_pol.vm_stop = fn;
-}
-
 void sys_device_policy_set_action_runner(sys_device_action_runner_f fn) {
   s_pol.run_action = fn;
 }
@@ -121,24 +117,15 @@ static bool admitted(uint8_t importance, uint8_t sev) {
   return sev == ERR_SEV_CRITICAL || (uint32_t)sev + importance > ERR_SEV_CRITICAL;
 }
 
-// Critical: the VM stopped (the program stops writing), then every device suspended (outputs safe).
+// Critical: the board's safe state (SAFE stops the VM, then every device is suspended: outputs safe).
 static err_h system_fault(uint8_t id) {
-  ESP_LOGE(TAG, "critical error (device %u): stopping the VM, suspending every device", (unsigned)id);
-  err_h response = NULL;
-  if (s_pol.vm_stop != NULL) {
-    err_h stop = s_pol.vm_stop(id);
-    if (stop != NULL) {
-      response = ERR_WRAP(stop, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
-                          .stage = SYS_DEVICE_FAULT_STAGE_VM_STOP, .action = 0u);
-    }
-  }
-  err_h err = sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND);
+  ESP_LOGE(TAG, "critical error (device %u): the safe state", (unsigned)id);
+  err_h err = sys_system_enter_safe_state(SYS_SAFE_FAULT, id);
   if (err != NULL) {
     err = ERR_WRAP(err, ERR_DEV_FAULT_RESPONSE, .id = id, .sev = ERR_SEV_CRITICAL,
-                   .stage = SYS_DEVICE_FAULT_STAGE_SUSPEND, .action = 0u);
+                   .stage = SYS_DEVICE_FAULT_STAGE_SAFE, .action = 0u);
   }
-  ERR_KEEP_FIRST(response, err);
-  return response;
+  return err;
 }
 
 // The device's own response: the op on the device that failed, a write like any other.

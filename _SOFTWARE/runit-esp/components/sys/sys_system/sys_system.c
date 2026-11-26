@@ -12,6 +12,7 @@
 #include "sys_event.h"
 #include "sys_session.h"
 #include "sys_session_events.h"
+#include "sys_system_events.h"
 #include "sys_system_router.h"
 
 #define TAG __FILE_NAME__
@@ -29,14 +30,16 @@ static struct {
 } s_sys;
 
 /* ----------------------------------------------------------------------------
- * Safe state: every device suspended
+ * Safe state: SAFE to its listeners (the VM stops), then every device suspended
  * ------------------------------------------------------------------------- */
 
-void sys_system_enter_safe_state(sys_safe_reason_e reason) {
-  ESP_LOGW(TAG, "safe state (reason %d)", (int)reason);
+err_h sys_system_enter_safe_state(sys_safe_reason_e reason, uint8_t device) {
+  ESP_LOGW(TAG, "safe state (reason %d, device %u)", (int)reason, (unsigned)device);
   s_sys.safe_since = xTaskGetTickCount();
   s_sys.safe_reason = (uint8_t)reason;
-  err_report(sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND));
+  err_h err = SYS_EVENT_PUBLISH(SYS_EV_SAFE, device, (uint16_t)reason);  // inline: the listeners before the sweep
+  ERR_KEEP_FIRST(err, sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND));
+  return err;
 }
 
 err_h sys_system_leave_safe_state(void) {
@@ -66,7 +69,7 @@ static void trigger(sys_safe_reason_e reason) {
 static void on_urgent(void) {
   const uint32_t pending = __atomic_exchange_n(&s_sys.pending, 0u, __ATOMIC_RELAXED);
   if (pending & (1u << SYS_SAFE_DEADMAN)) {
-    sys_system_enter_safe_state(SYS_SAFE_DEADMAN);
+    err_report(sys_system_enter_safe_state(SYS_SAFE_DEADMAN, SYS_DEVICE_ID_NONE));
   }
 }
 

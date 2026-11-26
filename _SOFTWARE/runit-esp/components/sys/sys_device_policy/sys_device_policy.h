@@ -11,8 +11,9 @@ extern "C" {
 
 /**
  * @brief The device error policy, beside the registry: per device, how much its errors matter (importance) and an
- * action per severity. The policy finds the devices of a reported chain, filters them and responds: CRITICAL stops the
- * VM and suspends every device, then the device's action for that severity runs (through the runner the app sets, so
+ * action per severity. The policy finds the devices of a reported chain, filters them and responds: CRITICAL enters the
+ * board's safe state (sys_system_enter_safe_state, reason FAULT: the event SAFE stops the VM, then every device is
+ * suspended), then the device's action for that severity runs (through the runner the app sets, so
  * this module doesn't know sys_actions). The responses run in the policy's own task, never in the task that reported
  * the error: that one may be inside a device op, holding the lock the response needs. A device gets its policy when it
  * is created and loses it when it is removed (the registry's events CREATED / REMOVED); the registry knows nothing of
@@ -51,10 +52,9 @@ typedef struct __attribute__((packed)) {
 /** @brief Stage of a response, in ERR_DEV_FAULT_RESPONSE. */
 //#ref-enum @alias Fault Response Stage
 typedef enum {
-  SYS_DEVICE_FAULT_STAGE_VM_STOP = 0,  //@alias Vm stop @description Stop the VM
-  SYS_DEVICE_FAULT_STAGE_SUSPEND = 1,  //@alias Suspend @description Suspend all devices
-  SYS_DEVICE_FAULT_STAGE_ACTION = 2,   //@alias Action @description Run configured action
-  SYS_DEVICE_FAULT_STAGE_QUEUE = 3,    //@alias Queue @description Hand the error to the policy's task
+  SYS_DEVICE_FAULT_STAGE_SAFE = 0,    //@alias Safe state @description Enter the safe state (the VM stopped, every device suspended)
+  SYS_DEVICE_FAULT_STAGE_ACTION = 1,  //@alias Action @description Run configured action
+  SYS_DEVICE_FAULT_STAGE_QUEUE = 2,   //@alias Queue @description Hand the error to the policy's task
 } sys_device_fault_stage_e;
 
 /**
@@ -63,18 +63,6 @@ typedef enum {
  * @return A failure to start it, or NULL.
  */
 typedef err_h (*sys_device_action_runner_f)(uint32_t action, err_h chain);
-
-/**
- * @brief Stops the VM on a critical error, before the devices are suspended, so the program stops writing to them.
- * `device` is the failing device or SYS_DEVICE_ID_NONE. The app sets it (runit).
- */
-typedef err_h (*sys_device_vm_stop_f)(uint8_t device);
-
-/**
- * @brief Sets the VM stop. Boot only; without one the VM is left to the safe state alone.
- * @param[in] fn The VM stop
- */
-void sys_device_policy_set_vm_stop(sys_device_vm_stop_f fn);
 
 /**
  * @brief Sets the action runner. Boot only; without one, actions are not run (CRITICAL still suspends).
@@ -88,9 +76,10 @@ void sys_device_policy_set_action_runner(sys_device_action_runner_f fn);
  * of the policy's task, which runs the policy on it and reports a response's failure itself.
  * The policy walks from the outermost node: each device (ERR_DEV_ID) once, at its first mention, with the severity
  * from there down; a device at importance NONE ends the walk (it and every deeper cause are ignored). Admitted:
- * CRITICAL at any importance but NONE, else when severity + importance > CRITICAL. An admitted error: CRITICAL stops
- * the VM and suspends every device, then the device's action for that severity runs (a device with no policy, a failed
- * CREATE, gets the suspend only, for a critical error). A critical node before any device suspends every device too.
+ * CRITICAL at any importance but NONE, else when severity + importance > CRITICAL. An admitted error: CRITICAL enters
+ * the safe state (reason FAULT, source the device), then the device's action for that severity runs (a device with no
+ * policy, a failed CREATE, gets the safe state only, for a critical error). A critical node before any device enters
+ * the safe state too (source SYS_DEVICE_ID_NONE).
  * A chain holding ERR_DEV_FAULT_RESPONSE, or one reported by the policy's task (while a response runs), is not handled
  * (no loops).
  * @param[in] chain The reported error chain, not freed here and not kept

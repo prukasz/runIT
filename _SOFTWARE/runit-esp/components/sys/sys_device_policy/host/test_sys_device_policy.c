@@ -15,6 +15,7 @@
 #include "sys_device_events.h"
 #include "sys_device_policy.h"
 #include "sys_device_policy_router.h"
+#include "sys_system.h"
 #include "unity.h"
 
 /* ---- Synthetic test errors (LOW, MEDIUM, HIGH, CRITICAL) ---- */
@@ -74,16 +75,21 @@ SYS_DEVICE_TYPE_DEFINE(PDEV, pdev_cfg_t, pdev_create, pdev_suspend, pdev_resume,
 
 /* ---- Callbacks & error sink ---- */
 
-static atomic_int s_vm_stops;
+static atomic_int s_safe_entries;
 static atomic_int s_actions_run;
 static atomic_uint s_last_action;
 static atomic_bool s_action_should_fail;
 static atomic_int s_fault_resp_reported;
 
-static err_h mock_vm_stop(uint8_t id) {
-  (void)id;
-  atomic_fetch_add(&s_vm_stops, 1);
-  return NULL;
+static atomic_uint s_safe_reason;
+static atomic_uint s_safe_device;
+
+/* sys_system's safe state, as it suspends: the reason and the device noted, every device suspended. */
+err_h sys_system_enter_safe_state(sys_safe_reason_e reason, uint8_t device) {
+  atomic_store(&s_safe_reason, (unsigned)reason);
+  atomic_store(&s_safe_device, device);
+  atomic_fetch_add(&s_safe_entries, 1);
+  return sys_device_sweep(CONTRACT_SYS_DEVICE_OP_SUSPEND);
 }
 
 static err_h mock_action_runner(uint32_t action, err_h chain) {
@@ -142,12 +148,13 @@ void setUp(void) {
     atomic_store(&s_suspends[i], 0);
     atomic_store(&s_resets[i], 0);
   }
-  atomic_store(&s_vm_stops, 0);
+  atomic_store(&s_safe_entries, 0);
   atomic_store(&s_actions_run, 0);
   atomic_store(&s_last_action, 0);
   atomic_store(&s_action_should_fail, false);
   atomic_store(&s_fault_resp_reported, 0);
-  sys_device_policy_set_vm_stop(mock_vm_stop);
+  atomic_store(&s_safe_reason, 0);
+  atomic_store(&s_safe_device, 0);
   sys_device_policy_set_action_runner(mock_action_runner);
 }
 
@@ -246,8 +253,10 @@ static void test_critical_runs_system_fault_once_across_two_devices(void) {
   TEST_ASSERT_TRUE(wait_for_atomic(&s_actions_run, 2, 500));
   TEST_ASSERT_TRUE(is_suspended(4));
   TEST_ASSERT_TRUE(is_suspended(5));
-  /* system_fault() (vm_stop + sweep SUSPEND) must run ONCE, not twice! */
-  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_vm_stops));
+  /* system_fault() (the safe state: SAFE, sweep SUSPEND) runs ONCE, not twice, for the outermost device. */
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_safe_entries));
+  TEST_ASSERT_EQUAL_UINT(SYS_SAFE_FAULT, atomic_load(&s_safe_reason));
+  TEST_ASSERT_EQUAL_UINT(4, atomic_load(&s_safe_device));
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_suspends[4]));
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_suspends[5]));
 }
@@ -302,23 +311,24 @@ static void test_critical_before_device_and_missing_device_and_dedup_and_low_sev
   TEST_ASSERT_NULL(sys_device_policy_handle(c_top));
   err_free(c_top);
   TEST_ASSERT_TRUE(wait_for_suspended(9, 500));
-  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_vm_stops));
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_safe_entries));
+  TEST_ASSERT_EQUAL_UINT(SYS_DEVICE_ID_NONE, atomic_load(&s_safe_device));
   TEST_ASSERT_NULL(SYS_DEVICE_SET(9, CONTRACT_SYS_DEVICE, OP_RESUME));
 
   /* 2. Missing device (e.g. failed CREATE): HIGH is ignored, CRITICAL still runs system_fault(). */
-  atomic_store(&s_vm_stops, 0);
+  atomic_store(&s_safe_entries, 0);
   err_h c_miss_hi = make_dev_err(30, ERR_NEW(ERR_POLT_HIGH));
   TEST_ASSERT_NULL(sys_device_policy_handle(c_miss_hi));
   err_free(c_miss_hi);
   vTaskDelay(pdMS_TO_TICKS(25));
-  TEST_ASSERT_EQUAL_INT(0, atomic_load(&s_vm_stops));
+  TEST_ASSERT_EQUAL_INT(0, atomic_load(&s_safe_entries));
   TEST_ASSERT_FALSE(is_suspended(9));
 
   err_h c_miss_cr = make_dev_err(30, ERR_NEW(ERR_POLT_CRIT));
   TEST_ASSERT_NULL(sys_device_policy_handle(c_miss_cr));
   err_free(c_miss_cr);
   TEST_ASSERT_TRUE(wait_for_suspended(9, 500));
-  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_vm_stops));
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_safe_entries));
   TEST_ASSERT_NULL(SYS_DEVICE_SET(9, CONTRACT_SYS_DEVICE, OP_RESUME));
 
   /* 3. Same device appearing twice in one chain is acted on only once (handled bitmask). */

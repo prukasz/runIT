@@ -11,6 +11,7 @@
   "includes": [
     "errors",
     "router",
+    "../sys_system",
     "../sys_io_contract",
     "../sys_io_contract/errors",
     "../sys_power_contract",

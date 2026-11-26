@@ -14,7 +14,7 @@ idf_component_register(
          "router/vm_router.c"
     INCLUDE_DIRS "." "../errors" "store" "obj" "block" "exec" "loader" "sub" "retain" "router"
     REQUIRES errors utils cmd router data_matrix freertos esp_timer esp_ringbuf sys_event sys_event_stream sys_actions sys_device
-    PRIV_REQUIRES log nvs_flash
+    PRIV_REQUIRES log nvs_flash sys_system
     WHOLE_ARCHIVE
 )
 
