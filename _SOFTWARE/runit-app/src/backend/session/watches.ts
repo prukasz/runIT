@@ -17,7 +17,8 @@ import { Services } from './services'
  *
  *   const watches = new Watches(link)
  *   const stop = await watches.follow(deviceCall(...), { trigger: 'change', periodMs: 100, silenceMs: 1000 }, (value) => ...)
- *   await stop()
+ *   await stop()      // one of them
+ *   watches.close()   // all of them, the ones whose ADD is still on its way too
  */
 
 export interface WatchSpec {
@@ -48,6 +49,8 @@ interface Held {
   readonly handler: WatchHandler
   /** The board has it: its ADD was answered on this connection. A lost link takes it with the session. */
   onBoard: boolean
+  /** Its first ADD is not answered yet: a close leaves its removal to `add`. */
+  adding: boolean
 }
 
 /** The ids in use on one link, shared by every `Watches` of it: the board knows a watch by (owner, id), and an ADD of an id replaces that watch. */
@@ -69,6 +72,7 @@ export class Watches {
   private readonly held = new Map<number, Held>()
   private readonly ids: IdPool
   private connected: boolean
+  private closed = false
   private readonly offStream: () => void
   private readonly offStatus: () => void
 
@@ -91,8 +95,9 @@ export class Watches {
 
   /** Adds a watch; resolves with the function that removes it. */
   async add(spec: WatchSpec, handler: WatchHandler, options?: CommandOptions): Promise<() => Promise<void>> {
+    if (this.closed) throw new Error('These watches are closed.')
     const id = this.freeId()
-    const held: Held = { spec, handler, onBoard: false }
+    const held: Held = { spec, handler, onBoard: false, adding: true }
     this.held.set(id, held)
     try {
       await this.send(id, spec, options)
@@ -100,17 +105,12 @@ export class Watches {
     } catch (error) {
       this.release(id)
       throw error
+    } finally {
+      held.adding = false
     }
-    return async () => {
-      if (!this.held.delete(id)) return
-      // A watch the board no longer has (its session went since) is only forgotten: a REMOVE would be ERR_WATCH_NOT_FOUND.
-      if (!held.onBoard || !this.connected) return this.release(id)
-      try {
-        await this.services.send(watchRemoveCall(this.services.catalog, id), options)
-      } finally {
-        this.release(id) // free for another only once the board has dropped it
-      }
-    }
+    // Closed while the ADD was on its way: the board has a watch nobody follows.
+    if (this.closed) await this.remove(id, held, options)
+    return () => this.remove(id, held, options)
   }
 
   /**
@@ -126,12 +126,26 @@ export class Watches {
     return this.add({ head, read: requestFrame(call.request) }, (entry) => handler(entry.ok ? decodeAnswer(call, entry.data) : undefined), options)
   }
 
-  /** Stops listening; the board ends the watches with the session. */
+  /** Removes every watch from the board (SYS_WATCH.MD has `CONFIG_SYS_WATCH_MAX` of them in all) and stops listening; takes no more. */
   close(): void {
+    if (this.closed) return
+    this.closed = true
     this.offStream()
     this.offStatus()
-    for (const id of this.held.keys()) this.ids.used.delete(id)
-    this.held.clear()
+    // One that fails goes with the session.
+    for (const [id, held] of this.held) if (!held.adding) void this.remove(id, held).catch(() => undefined)
+  }
+
+  private async remove(id: number, held: Held, options?: CommandOptions): Promise<void> {
+    if (this.held.get(id) !== held) return
+    this.held.delete(id)
+    // A watch the board no longer has (its session went since) is only forgotten: a REMOVE would be ERR_WATCH_NOT_FOUND.
+    if (!held.onBoard || this.link.state !== 'connected') return this.release(id)
+    try {
+      await this.services.send(watchRemoveCall(this.services.catalog, id), options)
+    } finally {
+      this.release(id) // free for another only once the board has dropped it
+    }
   }
 
   private release(id: number): void {

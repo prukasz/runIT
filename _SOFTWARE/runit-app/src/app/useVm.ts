@@ -141,20 +141,17 @@ export function useVm(link: RunitLink, linkState: LinkState, program: Project, h
     void refresh()
     // The board sends the two answers by itself from here on; the watches are added again when the link comes back.
     const watches = new Watches(link)
-    const stops: (() => Promise<void>)[] = []
     let stopped = false
     const follow = (service: string, command: string, apply: (value: unknown) => void) =>
       watches
         .follow({ ...serviceCall(services.catalog, service, command, undefined, 'read'), label: `${service} ${command} (watch)` }, { trigger: 'every', periodMs: STATUS_EVERY_MS }, (value) => {
           if (!stopped) apply(value)
         })
-        .then((stop) => void stops.push(stop))
         .catch(() => undefined) // a link without watches: the one-shot refresh stands
     void follow('VM', 'STATUS', applyStatus)
     void follow('SYS', 'SAFE', applySafe)
     return () => {
       stopped = true
-      for (const stop of stops) void stop().catch(() => undefined)
       watches.close()
     }
   }, [connected, refresh, link, services, applyStatus, applySafe])

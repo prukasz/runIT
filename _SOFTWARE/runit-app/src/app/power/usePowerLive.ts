@@ -37,11 +37,11 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
         }),
       )
     const watches = new Watches(services.link)
-    const stops: (() => Promise<void>)[] = []
     let stopped = false
     void (async () => {
       const added = new Set<string>()
       for (const reading of wanted) {
+        if (stopped) return
         const key = callKey(reading)
         if (added.has(key)) continue
         added.add(key)
@@ -51,11 +51,10 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
           ? serviceCall(services.catalog, r.service, r.command, reading.args, 'read')
           : deviceCall(services.catalog, r.device, r.contract, r.command, reading.args, 'read')
         try {
-          const stop = await watches.follow({ ...call, label }, { trigger: 'change', periodMs: POWER_REFRESH_MS, silenceMs: 3 * POWER_REFRESH_MS }, (value) => {
+          await watches.follow({ ...call, label }, { trigger: 'change', periodMs: POWER_REFRESH_MS, silenceMs: 3 * POWER_REFRESH_MS }, (value) => {
             answers.set(key, value)
             if (!stopped) publish()
           })
-          stops.push(stop)
         } catch {
           answers.set(key, undefined) // not answered: the reading stays empty
         }
@@ -64,7 +63,6 @@ export function usePowerLive(services: Services, readings: readonly PowerReading
     })()
     return () => {
       stopped = true
-      for (const stop of stops) void stop().catch(() => undefined)
       watches.close()
     }
   }, [services, readings, on, more])

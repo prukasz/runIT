@@ -67,6 +67,22 @@ describe('Watches.follow', () => {
     await link.close()
   })
 
+  it('close removes every watch from the board, one whose ADD is not answered yet too, and takes no more', async () => {
+    const { board, link } = await connected()
+    const watches = new Watches(link)
+    const call = serviceCall(catalog, 'SYS', 'PING')
+    const spec = { trigger: 'change', periodMs: 100 } as const
+    await watches.follow(call, spec, () => undefined)
+    const onItsWay = watches.follow(call, spec, () => undefined)
+    watches.close()
+    await onItsWay
+    await until(() => watchOps(board, REMOVE).length === 2)
+    expect(new Set(watchOps(board, REMOVE).map((r) => r.data[2]))).toEqual(new Set(watchOps(board, ADD).map((r) => r.data[2])))
+    await expect(watches.follow(call, spec, () => undefined)).rejects.toThrow(/closed/)
+    expect(watchOps(board, ADD)).toHaveLength(2)
+    await link.close()
+  })
+
   it('a watch stopped while the link is lost is not removed on the board when it comes back: its session took it', async () => {
     const { board, link } = await connected(500, true)
     const stop = await new Watches(link).follow(serviceCall(catalog, 'SYS', 'PING'), { trigger: 'change', periodMs: 100 }, () => undefined)

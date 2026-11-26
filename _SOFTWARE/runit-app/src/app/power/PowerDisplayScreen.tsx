@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import type { FieldValues, Services } from '@backend'
 import { Button, Card, CardStack, ChoiceField, FormRow, NumberField, Switch, TextField } from '@ui/components'
@@ -25,7 +26,8 @@ export function PowerDisplayScreen({ project, services, board, devices, connecte
   connected: boolean
 }) {
   const own = project.project.powerDisplay
-  const readings = own ?? defaultReadings(board)
+  // One list while nothing changes: a new one makes the watches anew (usePowerLive).
+  const readings = useMemo(() => own ?? defaultReadings(board), [own, board])
   const values = usePowerLive(services, readings, connected, true)
   const ops = usePowerOps(services, devices, connected)
   const commands = readCommands(services.catalog, devices, (id) => ops.get(id))
