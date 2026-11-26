@@ -29,7 +29,3 @@ The console, BLE and GPIO are made as system devices and providers, by `sys_devi
 ## The error sink
 
 Every reported chain goes to `error_sink`: `sys_device_policy_handle` answers it; `sys_log_report` keeps it and sends it on `ERRORS`; `sys_device_remote_on_error` queues it for the subscribers of the device it names. A policy response is logged, reported the same way and freed.
-
-## Open
-
-- No board profile has a power manager LAYOUT yet, so the power manager (started lazily by its first LAYOUT, SYS_POWER_MANAGER.MD) does not run on a board; its safe state (reason POWER) needs no wiring here, it calls `sys_system_enter_safe_state` itself.

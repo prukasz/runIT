@@ -86,6 +86,8 @@ All onboard chips are created by the board's profile (SYS_BOARD.MD), except the 
 
 Also set up by the profile (measured 2026-10-11): TCA pins 22 and 23 as push-pull outputs, 23 high (the status LED), 22 low. Pin 22 **must** be an output: as a floating input it toggles at ~25 kHz and floods the TCA INT line. Before the port, 22 was high (the chip's latch reset value) and 23 low.
 
+TCA INT (ESP GPIO 9) as the chip goes into reset or comes out of it: a burst of edges (70 to 350 measured). Its driver arms that interrupt only while the chip runs, and after a resume publishes what changed on the armed pins meanwhile, so the alerts of the chips wired to the expander (TPS55289, INA3221, DRV8962, AP33772S) are not lost.
+
 **Design constraints worth remembering:**
 - The PCA9685 has one PWM frequency for all 16 channels, so the servo headers (CH 0–7) and DRV8962 #2 (CH 8–15) always share a frequency. Servos typically want ~50 Hz; motor drive usually runs much faster.
 - The servo header voltage follows the TPS55289 rail that feeds it — changing that rail's voltage changes the servo supply.

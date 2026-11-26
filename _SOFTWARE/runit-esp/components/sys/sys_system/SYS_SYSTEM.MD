@@ -61,7 +61,3 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 Host tests in `host/` (`python test_host/run.py sys_system` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `timer`, `sys_event` and `data_matrix` and a stand-in session (`sys_session_broadcast`; `SESSION_EV_GONE` published by the test): the safe state entered and left, SAFE heard inline before the sweep with its reason and device, a failed resume keeping its note, SAFE_LEFT with the reason once; `SESSION_EV_GONE` with its safety bit starting the dead-man and the urgent STOP broadcast; BYE, PING, the time and TASKS through the router.
 
 On a board: `python runit-esp/tools/session_client.py <COM port>` runs PING (`28 00 01`) over a session. STOP, SAFE and SAFE_LEAVE with devices, the dead-man by the session's silence, and the time on a slave are not run yet.
-
-## Open
-
-- No board profile starts the power manager yet (its first LAYOUT, SYS_POWER_MANAGER.MD), so the reason POWER does not occur on a board.

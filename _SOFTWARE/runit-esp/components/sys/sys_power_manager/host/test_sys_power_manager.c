@@ -594,7 +594,20 @@ static void test_input_ovp_budget_shrink_and_battery_hysteresis(void) {
   vTaskDelay(pdMS_TO_TICKS(80));
   TEST_ASSERT_EQUAL_INT(2, atomic_load(&s_ev_bat_low));
 
-  /* INPUT_OVP when input_mV > max_mV (15000) */
+  /* INPUT_OVP above max_mV (15000) + 500: a source at the board's limit reads a step over it (the monitor's 8 mV). */
+  s_mock[DEV_BUS]->ch_mV[0] = 15008;
+  vTaskDelay(pdMS_TO_TICKS(80));
+  s_mock[DEV_BUS]->ch_mV[0] = 15500;
+  vTaskDelay(pdMS_TO_TICKS(80));
+  TEST_ASSERT_EQUAL_INT(0, atomic_load(&s_ev_input_ovp));
+  s_mock[DEV_BUS]->ch_mV[0] = 15508;
+  vTaskDelay(pdMS_TO_TICKS(80));
+  TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_ev_input_ovp));
+  s_mock[DEV_BUS]->ch_mV[0] = 15000;
+  vTaskDelay(pdMS_TO_TICKS(80));
+  atomic_store(&s_ev_input_ovp, 0);
+
+  /* And far over it. */
   s_mock[DEV_BUS]->ch_mV[0] = 16000;
   vTaskDelay(pdMS_TO_TICKS(80));
   TEST_ASSERT_EQUAL_INT(1, atomic_load(&s_ev_input_ovp));

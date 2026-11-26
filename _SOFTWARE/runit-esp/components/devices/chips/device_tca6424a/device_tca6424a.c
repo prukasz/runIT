@@ -100,6 +100,36 @@ static err_h chip_get_pins(tca_t* c, uint32_t* levels) {
   return NULL;
 }
 
+/* The one read of the input port once pins are armed. It releases INT, so it also publishes what changed on the armed
+ * pins since the last read: an edge any read saw and kept to itself (a LEVEL read of another pin, the first one after
+ * a reset) would never be seen again, and a line that latches (an alert of a chip behind this one) would stay so. */
+static err_h sync_inputs(tca_t* c) {
+  uint32_t now;
+  ERR_TRY(chip_get_pins(c, &now));
+  const uint32_t changed = now ^ c->cached_inputs;
+  c->cached_inputs = now;
+  err_h err = NULL;
+  for (uint8_t pin = 0; pin < TCA6424A_PINS; pin++) {
+    if (!(changed & (1UL << pin))) {
+      continue;
+    }
+    const bool level = (now & (1UL << pin)) != 0;
+    const uint8_t mode = c->intr_mode[pin];
+    if (mode == SYS_IO_INTR_MODE_BOTH_EDGES || (mode == SYS_IO_INTR_MODE_RISING_EDGE && level) ||
+        (mode == SYS_IO_INTR_MODE_FALLING_EDGE && !level)) {
+      ERR_KEEP_FIRST(err, level ? SYS_EVENT_PUBLISH(IO_EV_RISING, c->id, pin)
+                                : SYS_EVENT_PUBLISH(IO_EV_FALLING, c->id, pin));
+    }
+  }
+  return err;
+}
+
+/* The interrupt of the line INT is wired to, on that pin's device: off while the chip is in reset or its pins are let
+ * go, where the line means nothing and floods that device with edges. */
+static err_h int_line_arm(tca_t* c, uint8_t mode) {
+  return c->intr.locked ? SYS_IO_WRITE(c->intr.pin, OP_INTR, .cfg = {.mode = mode}) : NULL;
+}
+
 /* Writes the cached registers back: at create and after a resume (the chip is at its defaults after a reset).
  * Outputs first, then the direction: a pin that becomes an output never shows the chip's default latch (1). */
 static err_h chip_restore(tca_t* c) {
@@ -122,27 +152,7 @@ static err_h chip_release_all(tca_t* c) {
  * while suspended because the chip is in reset.
  ******************************************************************************/
 OP_DECLARE_EVENT(OWN_TCA6424A, OP_INT) {
-  if (sys_device_self_suspended()) {
-    return NULL;
-  }
-  uint32_t now;
-  ERR_TRY(chip_get_pins(c, &now));
-  const uint32_t changed = now ^ c->cached_inputs;
-  c->cached_inputs = now;
-  err_h err = NULL;
-  for (uint8_t pin = 0; pin < TCA6424A_PINS; pin++) {
-    if (!(changed & (1UL << pin))) {
-      continue;
-    }
-    const bool level = (now & (1UL << pin)) != 0;
-    const uint8_t mode = c->intr_mode[pin];
-    if (mode == SYS_IO_INTR_MODE_BOTH_EDGES || (mode == SYS_IO_INTR_MODE_RISING_EDGE && level) ||
-        (mode == SYS_IO_INTR_MODE_FALLING_EDGE && !level)) {
-      ERR_KEEP_FIRST(err, level ? SYS_EVENT_PUBLISH(IO_EV_RISING, c->id, pin)
-                                : SYS_EVENT_PUBLISH(IO_EV_FALLING, c->id, pin));
-    }
-  }
-  return err;
+  return sys_device_self_suspended() ? NULL : sync_inputs(c);
 }
 
 /* ---- IO contract ---- */
@@ -174,12 +184,10 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_LEVEL) {
  ******************************************************************************/
 OP_DECLARE_READ(CONTRACT_IO, OP_LEVEL) {
   ERR_TRY(sys_io_pins_check(&c->pins, c->id, args->pin));
-  uint32_t levels = c->cached_inputs;
   if (!sys_device_self_suspended()) {
-    ERR_TRY(chip_get_pins(c, &levels));
-    c->cached_inputs = levels;
+    ERR_TRY(sync_inputs(c));
   }
-  return CMD_REPLY(CONTRACT_IO, OP_LEVEL, .pin = args->pin, .level = (levels & (1UL << args->pin)) != 0);
+  return CMD_REPLY(CONTRACT_IO, OP_LEVEL, .pin = args->pin, .level = (c->cached_inputs & (1UL << args->pin)) != 0);
 }
 
 /*******************************************************************************
@@ -225,23 +233,29 @@ SYS_IO_PINS_HANDLERS
 
 /*******************************************************************************
  * CONTRACT_SYS_DEVICE : OP_RESET (write)
- * Resets unlocked pins to input/low/no-intr while preserving owner-locked pins.
+ * Resets unlocked pins to input/low/no-intr while preserving owner-locked pins,
+ * their interrupt modes included.
  ******************************************************************************/
 OP_DECLARE_WRITE(CONTRACT_SYS_DEVICE, OP_RESET) {
   const uint32_t free_pins = ~(uint32_t)c->pins.locked & PINS_MASK;
-  memset(c->intr_mode, SYS_IO_INTR_DISABLE, sizeof(c->intr_mode));
+  for (uint8_t pin = 0; pin < TCA6424A_PINS; pin++) {
+    if (free_pins & (1UL << pin)) {
+      c->intr_mode[pin] = SYS_IO_INTR_DISABLE;
+    }
+  }
   ERR_TRY(chip_set_pins(c, free_pins, 0));
   ERR_TRY(chip_set_config(c, free_pins, free_pins));
-  return chip_get_pins(c, &c->cached_inputs);
+  return sync_inputs(c);
 }
 
 /*******************************************************************************
  * TCA6424A : suspend (lifecycle)
- * Holds chip in reset (RST low) or configures every pin as input when no RST
- * pin is wired; dependent devices are suspended first.
+ * Disarms the INT line, then holds the chip in reset (RST low) or configures
+ * every pin as input when no RST pin is wired. Every step runs.
  ******************************************************************************/
 static err_h suspend(tca_t* c) {
   err_h err = NULL;
+  ERR_KEEP_FIRST(err, int_line_arm(c, SYS_IO_INTR_DISABLE));
   if (c->rst.locked) {
     ERR_KEEP_FIRST(err, sys_io_claim_drive(&c->rst, false));
   } else {
@@ -252,8 +266,9 @@ static err_h suspend(tca_t* c) {
 
 /*******************************************************************************
  * TCA6424A : resume (lifecycle)
- * Releases RST, restores register state and refreshes cached input levels; a
- * failing resume leaves the device suspended.
+ * Releases RST, restores register state, arms the INT line again and publishes
+ * what changed on the armed pins meanwhile (armed first: a later change pulls
+ * INT again); a failing resume leaves the device suspended.
  ******************************************************************************/
 static err_h resume(tca_t* c) {
   if (c->rst.locked) {
@@ -261,7 +276,8 @@ static err_h resume(tca_t* c) {
     vTaskDelay(MSEC(RESET_PULSE_MS));
   }
   ERR_TRY(chip_restore(c));
-  return chip_get_pins(c, &c->cached_inputs);
+  ERR_TRY(int_line_arm(c, SYS_IO_INTR_MODE_FALLING_EDGE));
+  return sync_inputs(c);
 }
 
 /*******************************************************************************

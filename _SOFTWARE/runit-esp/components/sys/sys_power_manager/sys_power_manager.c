@@ -22,6 +22,8 @@
 ERR_MODULE_DEFINE(MODULE_ID_PWRM, ERR_SYS_POWER_MANAGER_MAP)
 
 #define LIPO_FULL_CELL_MV 4200
+// INPUT_OVP only this far above max_mV: a source at the board's limit reads a step of the monitor over it.
+#define INPUT_OVP_MARGIN_MV 500u
 #define LIPO_CELLS_MIN    2  // the board does not run from one cell
 #define BOARD_TARGET      (-1)
 #define NO_TARGET         (-2)
@@ -606,7 +608,7 @@ static bool read_input(bool* have_input) {
 }
 
 static void update_budget(sys_power_source_e source, bool have_input) {
-  if (have_input && (uint32_t)s_pm.status.input_mV > s_pm.layout.max_mV) {
+  if (have_input && (uint32_t)s_pm.status.input_mV > s_pm.layout.max_mV + INPUT_OVP_MARGIN_MV) {
     if (!s_pm.latched.ovp) {
       s_pm.latched.ovp = true;
       EMIT(OVP, INPUT_OVP, .mV = s_pm.status.input_mV);
