@@ -19,7 +19,7 @@ Each descriptor names its schema in `$schema`. A descriptor is found by its file
 
 An answer that is a number then rows to its end (a count, a total: `[u8 count][row ...]`) says so with `lead` on its `returns` (`{"id": "count", "raw_type": "u8"}`), next to `array: true` and the rows' `fields` (or `type` for a list of values): SESSION PEERS, PROVIDER LIST, ACTIONS LIST (whose lead is the total, more than the rows). The app decodes it as the number and the rows; `crosscheck.py` fails a `lead` without `array`. An answer of any other shape (a list of lists, NUL-ended names: BLE LIST) is described in words.
 
-An answer that is a mask of a device's pins (bit n is pin n) says `display: pin_mask` on its `returns` (IO AVAILABLE, LOCKED): the app shows the pins, not the number.
+An answer that is a mask of a device's pins (bit n is pin n) says `display: pin_mask` on its `returns` (IO AVAILABLE, LOCKED), a field that is one on the field (IO LEVELS' key `pins` and its answer's `read` and `high`): the app shows the pins, not the number.
 
 A field of type `bitmask` names its bits in `bits` (`{bit, label}`): the app offers only those, as chips. A bit the descriptor does not name is not a choice.
 

@@ -340,6 +340,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_RESET) {
   return disarm(c, args->pin);
 }
 
+SYS_IO_VOLTAGES_HANDLER
 SYS_IO_PINS_HANDLERS
 
 /* ---- Lifecycle ---- */
@@ -380,7 +381,7 @@ static err_h create(uint8_t id, ads_t* c, const ads7128_cfg_t* cfg) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
     OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGE),  OP_ENTRY_W(CONTRACT_IO, OP_MODE),  OP_ENTRY_W(CONTRACT_IO, OP_INTR),
-    OP_ENTRY_W(CONTRACT_IO, OP_RESET),
+    OP_ENTRY_W(CONTRACT_IO, OP_RESET),    OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGES),
     SYS_IO_PINS_ENTRIES,
     OP_ENTRY_W(OWN_ADS7128, OP_ALERT),
 };

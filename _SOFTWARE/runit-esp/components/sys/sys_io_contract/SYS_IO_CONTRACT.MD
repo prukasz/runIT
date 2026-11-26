@@ -33,6 +33,8 @@ The contract is the table `CONTRACT_IO_OPERATIONS(X, P)` (`X(P, OP_NAME, n, key_
 | RESET | W | `{u8 pin}`: the pin back to its power-on state |
 | INTR | W | `{u8 pin, sys_io_intr_cfg_t cfg}` (11 B) |
 | VOLTAGE | RW | `{u8 pin, i32 voltage_mV}` (signed: a negative reading is reported, not wrapped); read key `{u8 pin}` |
+| LEVELS | R | key `io_pins_args_t {u64 pins}`; answer `io_levels_t {u64 read, u64 high}`: the pins read, the high ones |
+| VOLTAGES | R | key `io_pins_args_t {u64 pins}`; answer one `io_voltage_args_t {u8 pin, i32 voltage_mV}` row per pin read, lowest pin first (5 B each, at most 320 B) |
 | AVAILABLE | R | u64: the pins the device has |
 | LOCKED | R | u64: the locked ones |
 | LOCK | W | `{u8 pin}`; ALWAYS, LOCAL |
@@ -43,6 +45,7 @@ The contract is the table `CONTRACT_IO_OPERATIONS(X, P)` (`X(P, OP_NAME, n, key_
 - **Modes** (`sys_io_mode_e`): input (plain, pull-up, pull-down), output (push-pull, open-drain, open-drain with pull-up), PWM, ADC, DAC. A device refuses a mode it can't do (`ERR_IO_MODE_UNSUPPORTED`).
 - **Interrupts** (`sys_io_intr_cfg_t`, 10 B): `{u8 mode, u8 debounce, sys_io_adc_window_t adc}`. Modes: disable, rising / falling / both edges, ADC window outside / inside. `adc` = `{u16 threshold_up_mV, u16 threshold_down_mV, u16 hysteresis_mV, u16 event_counter_threshold}`, read by the threshold modes of an ADC pin. INTR only arms the pin; who gets its events is not in the contract.
 - **Masks** are u64, bit n = pin n: a device has at most 64 pins.
+- **Many pins in one read**: LEVELS and VOLTAGES read each pin of the key as LEVEL's and VOLTAGE's read do, in one command, so one watch (SYS_WATCH.MD) follows every pin of a device read that way. A pin of the key that does not exist is `ERR_DEV_BAD_PIN` (the lowest one); a pin not set up for the read (`ERR_IO_PIN_UNCONFIGURED`, `ERR_IO_WRONG_MODE`) is left out of the answer (not in `read`, no row); any other error of a pin fails the whole read.
 - The registry refuses a write while the device is suspended (`ERR_DEV_SUSPENDED`, SYS_DEVICE.MD); the device does the rest: `ERR_DEV_BAD_PIN`, `ERR_DEV_RANGE` (a value the chip would refuse, never clamped).
 
 ## Calls
@@ -69,6 +72,7 @@ A device keeps one `sys_io_pins_t`: which pins exist (`available`), which are lo
 
 - Before every write of the contract the handler calls `sys_io_pins_check_free(&c->pins, c->id, pin)`, before a read `sys_io_pins_check`.
 - AVAILABLE, LOCKED, LOCK and UNLOCK only read or change that state, so they are the same on every device: `SYS_IO_PINS_HANDLERS` writes them (the driver's struct has the members `id` and `pins`) and `SYS_IO_PINS_ENTRIES` lists their rows.
+- LEVELS and VOLTAGES: `SYS_IO_LEVELS_HANDLER` / `SYS_IO_VOLTAGES_HANDLER`, written after the device's LEVEL / VOLTAGE read, run that read for every pin asked (`sys_io_read_levels`, `sys_io_read_voltages`); the rows are `OP_ENTRY_R(CONTRACT_IO, OP_LEVELS)` / `OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGES)`. A device that reads all its pins at once writes its own handler (the TCA6424A: one read of its input registers) and checks the key with `sys_io_pins_check_mask`. Every device with LEVEL's read has LEVELS (ESP32-S3 GPIO, TCA6424A, PCA9685, the test device), every one with VOLTAGE's read VOLTAGES (ESP32-S3 GPIO, ADS7128, DAC53202, the test device).
 - Nothing is reserved by a driver: a device reports every pin it has in AVAILABLE, whoever uses a pin for something else locks it, and LOCKED says what is taken. Free pins: `AVAILABLE & ~LOCKED`.
 
 ### Locked pins and their owners

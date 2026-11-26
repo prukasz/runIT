@@ -511,8 +511,8 @@
         },
         "display": {
           "type": "string",
-          "enum": ["hex"],
-          "description": "Jak aplikacja pokazuje i przyjmuje liczbę całkowitą: 'hex' szesnastkowo, jak adres albo rejestr (0x46). Wartość na drucie jest ta sama."
+          "enum": ["hex", "pin_mask"],
+          "description": "Jak aplikacja pokazuje i przyjmuje liczbę całkowitą: 'hex' szesnastkowo, jak adres albo rejestr (0x46); 'pin_mask' to maska pinów urządzenia (bit n = pin n), pokazywana jako lista pinów. Wartość na drucie jest ta sama."
         },
         "options": {
           "type": "array",

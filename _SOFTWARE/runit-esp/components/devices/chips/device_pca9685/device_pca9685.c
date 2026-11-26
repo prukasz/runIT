@@ -135,6 +135,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_FREQ) {
  * Shared pin availability and ownership handlers; channel owners (e.g. a bridge
  * on CH 8-15) drive locked channels via the IO ops above.
  ******************************************************************************/
+SYS_IO_LEVELS_HANDLER
 SYS_IO_PINS_HANDLERS
 
 /* ---- Lifecycle ---- */
@@ -199,6 +200,7 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
     OP_ENTRY(CONTRACT_IO, OP_LEVEL),       OP_ENTRY_W(CONTRACT_IO, OP_TOGGLE),
     OP_ENTRY_W(CONTRACT_IO, OP_PWM_DUTY),  OP_ENTRY_W(CONTRACT_IO, OP_PWM_FREQ),
+    OP_ENTRY_R(CONTRACT_IO, OP_LEVELS),
     SYS_IO_PINS_ENTRIES,
 };
 

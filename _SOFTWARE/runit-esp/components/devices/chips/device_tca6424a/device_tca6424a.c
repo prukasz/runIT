@@ -191,6 +191,18 @@ OP_DECLARE_READ(CONTRACT_IO, OP_LEVEL) {
 }
 
 /*******************************************************************************
+ * CONTRACT_IO : OP_LEVELS (read)
+ * Every pin asked from one read of the input registers: each is read.
+ ******************************************************************************/
+OP_DECLARE_READ(CONTRACT_IO, OP_LEVELS) {
+  ERR_TRY(sys_io_pins_check_mask(&c->pins, c->id, args->pins));
+  if (!sys_device_self_suspended()) {
+    ERR_TRY(sync_inputs(c));
+  }
+  return CMD_REPLY(CONTRACT_IO, OP_LEVELS, .read = args->pins, .high = c->cached_inputs & args->pins);
+}
+
+/*******************************************************************************
  * CONTRACT_IO : OP_TOGGLE (write)
  * Flips the pin's output latch.
  ******************************************************************************/
@@ -318,7 +330,7 @@ static err_h create(uint8_t id, tca_t* c, const tca6424a_cfg_t* cfg) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
     OP_ENTRY_W(CONTRACT_IO, OP_MODE),  OP_ENTRY(CONTRACT_IO, OP_LEVEL), OP_ENTRY_W(CONTRACT_IO, OP_TOGGLE),
-    OP_ENTRY_W(CONTRACT_IO, OP_RESET), OP_ENTRY_W(CONTRACT_IO, OP_INTR),
+    OP_ENTRY_W(CONTRACT_IO, OP_RESET), OP_ENTRY_W(CONTRACT_IO, OP_INTR),  OP_ENTRY_R(CONTRACT_IO, OP_LEVELS),
     OP_ENTRY_W(OWN_TCA6424A, OP_INT),
     SYS_IO_PINS_ENTRIES,
 };

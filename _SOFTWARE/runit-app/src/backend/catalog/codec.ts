@@ -51,8 +51,8 @@ export interface WireField {
   readonly scale?: number
   /** What the app may draw instead of the field's own control (`control`): a slider for a number with a range, a switch for a choice of two. */
   readonly control?: 'slider' | 'switch'
-  /** A whole number shown and typed in hex (`display` of the descriptor): an address, a register. */
-  readonly display?: 'hex'
+  /** How a whole number is shown (`display` of the descriptor): in hex, typed so too (an address, a register), or as the list of a device's pins (a mask, bit n = pin n). */
+  readonly display?: 'hex' | 'pin_mask'
   readonly default?: unknown
   readonly optional: boolean
   /** The values of a `choice` field, or of an `enum` field from its group in `enums.json`. */

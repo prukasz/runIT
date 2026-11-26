@@ -451,6 +451,13 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_PWM_DUTY) {
  ******************************************************************************/
 SYS_IO_PINS_HANDLERS
 
+/*******************************************************************************
+ * CONTRACT_IO : OP_LEVELS / OP_VOLTAGES (read)
+ * The one-pin reads above, for every pin asked.
+ ******************************************************************************/
+SYS_IO_LEVELS_HANDLER
+SYS_IO_VOLTAGES_HANDLER
+
 /* ---- Lifecycle ---- */
 
 /*******************************************************************************
@@ -577,7 +584,8 @@ static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
     OP_ENTRY(CONTRACT_IO, OP_LEVEL),       OP_ENTRY_W(CONTRACT_IO, OP_TOGGLE),  OP_ENTRY_W(CONTRACT_IO, OP_PWM_DUTY),
     OP_ENTRY_W(CONTRACT_IO, OP_PWM_FREQ),  OP_ENTRY_W(CONTRACT_IO, OP_MODE),    OP_ENTRY_W(CONTRACT_IO, OP_RESET),
-    OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGE),   OP_ENTRY_W(CONTRACT_IO, OP_INTR),
+    OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGE),   OP_ENTRY_W(CONTRACT_IO, OP_INTR),    OP_ENTRY_R(CONTRACT_IO, OP_LEVELS),
+    OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGES),
     SYS_IO_PINS_ENTRIES,
 };
 

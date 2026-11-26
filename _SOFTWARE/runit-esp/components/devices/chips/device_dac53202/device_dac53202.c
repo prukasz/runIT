@@ -104,6 +104,7 @@ OP_DECLARE_WRITE(CONTRACT_IO, OP_RESET) {
   return NULL;
 }
 
+SYS_IO_VOLTAGES_HANDLER
 SYS_IO_PINS_HANDLERS
 
 /* ---- Lifecycle ---- */
@@ -142,6 +143,7 @@ static err_h create(uint8_t id, dac_t* c, const dac53202_cfg_t* cfg) {
 static const sys_device_op_t k_ops[] = {
     OP_ENTRY_W(CONTRACT_SYS_DEVICE, OP_RESET),
     OP_ENTRY(CONTRACT_IO, OP_VOLTAGE),
+    OP_ENTRY_R(CONTRACT_IO, OP_VOLTAGES),
     OP_ENTRY_W(CONTRACT_IO, OP_RESET),
     SYS_IO_PINS_ENTRIES,
 };

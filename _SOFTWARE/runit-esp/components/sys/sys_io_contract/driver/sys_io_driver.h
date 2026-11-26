@@ -113,6 +113,64 @@ MUST_USE err_h sys_io_pins_unlock(sys_io_pins_t* s, uint8_t dev, uint8_t pin);
   OP_ENTRY_R(CONTRACT_IO, OP_AVAILABLE), OP_ENTRY_R(CONTRACT_IO, OP_LOCKED),   \
   OP_ENTRY_W(CONTRACT_IO, OP_LOCK),      OP_ENTRY_W(CONTRACT_IO, OP_UNLOCK)
 
+/* ---- Many pins in one read: LEVELS and VOLTAGES ---- */
+
+/**
+ * @brief Checks that every pin of a mask exists (the key of LEVELS and VOLTAGES).
+ * @param[in] s    The device's state
+ * @param[in] dev  Device ID, for the error
+ * @param[in] pins Bit n: pin n
+ * @return ERR_DEV_BAD_PIN{lowest pin of `pins` that does not exist}
+ */
+MUST_USE err_h sys_io_pins_check_mask(const sys_io_pins_t* s, uint8_t dev, uint64_t pins);
+
+/**
+ * @brief LEVELS' answer from the device's own LEVEL read, run for every pin of `pins` (the body of
+ * SYS_IO_LEVELS_HANDLER). A pin not set up for a level (ERR_IO_PIN_UNCONFIGURED, ERR_IO_WRONG_MODE) is left out of
+ * `read`; any other error ends the read.
+ * @param[in]  ctx   The driver's struct, given to `level`
+ * @param[in]  s     The device's state
+ * @param[in]  dev   Device ID, for the error
+ * @param[in]  level The device's LEVEL read (CONTRACT_IO_r_OP_LEVEL)
+ * @param[in]  pins  The pins to read
+ * @param[out] out   The answer, io_levels_t
+ * @return ERR_DEV_BAD_PIN for a pin that does not exist, or the error of a pin's read
+ */
+MUST_USE err_h sys_io_read_levels(void* ctx, const sys_io_pins_t* s, uint8_t dev, cmd_f level, uint64_t pins,
+                                  cmd_out_t* out);
+
+/**
+ * @brief VOLTAGES' answer from the device's own VOLTAGE read, run for every pin of `pins` (the body of
+ * SYS_IO_VOLTAGES_HANDLER): an io_voltage_args_t row per pin read, lowest pin first. A pin not set up for a voltage
+ * (ERR_IO_PIN_UNCONFIGURED, ERR_IO_WRONG_MODE) has no row; any other error ends the read.
+ * @param[in]  ctx     The driver's struct, given to `voltage`
+ * @param[in]  s       The device's state
+ * @param[in]  dev     Device ID, for the error
+ * @param[in]  voltage The device's VOLTAGE read (CONTRACT_IO_r_OP_VOLTAGE)
+ * @param[in]  pins    The pins to read
+ * @param[out] out     The answer, the rows
+ * @return ERR_DEV_BAD_PIN for a pin that does not exist, ERR_CMD_OUT_FULL, or the error of a pin's read
+ */
+MUST_USE err_h sys_io_read_voltages(void* ctx, const sys_io_pins_t* s, uint8_t dev, cmd_f voltage, uint64_t pins,
+                                    cmd_out_t* out);
+
+/**
+ * @brief LEVELS / VOLTAGES of a device with the member `pins` (sys_io_pins_t) and its own LEVEL / VOLTAGE read,
+ * written after that read: each runs the one-pin read for every pin asked. A device that reads all its pins at once
+ * (an expander's input register) writes its own LEVELS instead.
+ * @usage OP_DECLARE_READ(CONTRACT_IO, OP_LEVEL) { ... }
+ *        SYS_IO_LEVELS_HANDLER
+ *        static const sys_device_op_t k_ops[] = {..., OP_ENTRY_R(CONTRACT_IO, OP_LEVELS)};
+ */
+#define SYS_IO_LEVELS_HANDLER                                                                   \
+  OP_DECLARE_READ(CONTRACT_IO, OP_LEVELS) {                                                     \
+    return sys_io_read_levels(c, &c->pins, c->id, CONTRACT_IO_r_OP_LEVEL, args->pins, out);     \
+  }
+#define SYS_IO_VOLTAGES_HANDLER                                                                 \
+  OP_DECLARE_READ(CONTRACT_IO, OP_VOLTAGES) {                                                   \
+    return sys_io_read_voltages(c, &c->pins, c->id, CONTRACT_IO_r_OP_VOLTAGE, args->pins, out); \
+  }
+
 /* ---- Claiming another device's pin ---- */
 
 /** @brief A pin a device took: what it did to it, so the release undoes exactly that */

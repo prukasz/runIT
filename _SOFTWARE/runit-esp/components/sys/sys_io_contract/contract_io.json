@@ -511,6 +511,108 @@
           "struct": "io_pin_args_t"
         }
       }
+    },
+    {
+      "id": "LEVELS",
+      "op": 12,
+      "symbol": "IO_OP_LEVELS",
+      "label": "Levels",
+      "description": "The levels of many pins in one read.",
+      "read": {
+        "description": "Reads the level of every pin asked; a pin not set up as an input or an output is left out.",
+        "args": {
+          "fields": [
+            {
+              "id": "pins",
+              "label": "Pins",
+              "type": "bitmask",
+              "raw_type": "u64",
+              "size": 8,
+              "offset": 0,
+              "display": "pin_mask",
+              "description": "The pins to read: bit n is pin n"
+            }
+          ],
+          "struct": "io_pins_args_t"
+        },
+        "returns": {
+          "struct": "io_levels_t",
+          "label": "Levels",
+          "fields": [
+            {
+              "id": "read",
+              "label": "Read",
+              "type": "bitmask",
+              "raw_type": "u64",
+              "size": 8,
+              "offset": 0,
+              "display": "pin_mask",
+              "description": "The pins read"
+            },
+            {
+              "id": "high",
+              "label": "High",
+              "type": "bitmask",
+              "raw_type": "u64",
+              "size": 8,
+              "offset": 8,
+              "display": "pin_mask",
+              "description": "The pins read high"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "VOLTAGES",
+      "op": 13,
+      "symbol": "IO_OP_VOLTAGES",
+      "label": "Voltages",
+      "description": "The voltages of many pins in one read.",
+      "read": {
+        "description": "Reads the voltage of every pin asked: a row per pin read; a pin not set up as an analog one has none.",
+        "args": {
+          "fields": [
+            {
+              "id": "pins",
+              "label": "Pins",
+              "type": "bitmask",
+              "raw_type": "u64",
+              "size": 8,
+              "offset": 0,
+              "display": "pin_mask",
+              "description": "The pins to read: bit n is pin n"
+            }
+          ],
+          "struct": "io_pins_args_t"
+        },
+        "returns": {
+          "struct": "io_voltage_args_t",
+          "size": 5,
+          "array": true,
+          "label": "Voltages",
+          "fields": [
+            {
+              "id": "pin",
+              "label": "Pin",
+              "type": "pin",
+              "raw_type": "u8",
+              "size": 1,
+              "offset": 0,
+              "description": "The pin of the device"
+            },
+            {
+              "id": "voltage_mV",
+              "label": "Voltage",
+              "type": "number",
+              "raw_type": "i32",
+              "size": 4,
+              "offset": 1,
+              "unit": "mV"
+            }
+          ]
+        }
+      }
     }
   ],
   "events": [

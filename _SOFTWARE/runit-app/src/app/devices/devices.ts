@@ -2,6 +2,8 @@ import { bundledEnums, createDeviceCall, createRemoteDeviceCall, deviceCall, dev
 import type { CatalogEntry, CommandDef, DevicePins, FieldRanges, FieldValues, LinkDefinitions, PinRef, ServiceCall, ServiceCatalog, Side, WireField } from '@backend'
 import type { ProjectDevice, ProjectFile, Step } from '../project/projectFile'
 import type { BoardDescriptor, BoardDevice } from './boardDescriptor'
+import { BATCH_READS } from './livePins'
+import type { LiveKind } from './livePins'
 
 /*
  * The devices of the Devices view, pure (no link, no UI): the board's own (board.json, created by the profile the app writes to it) and the
@@ -341,32 +343,25 @@ export const pinStateOf = (device: DeviceInfo, board: BoardDescriptor, pin: numb
 export const pinReady = (states: readonly string[], wants: readonly string[] | undefined): boolean =>
   !wants || wants.some((w) => (w === 'configured' ? states.some((s) => s !== 'unconfigured') : states.includes(w)))
 
-/** The read that follows a pin live, and the field of its answer with the value. */
-export interface LiveRead {
-  readonly kind: 'voltage' | 'level'
-  readonly command: string
-  readonly field: string
-}
+/** The order a pin is tried in for its live read: the voltage of an analogue pin before the level. */
+const LIVE_KINDS: readonly LiveKind[] = ['voltage', 'level']
 
-const LIVE_READS: readonly LiveRead[] = [
-  { kind: 'voltage', command: 'VOLTAGE', field: 'voltage_mV' },
-  { kind: 'level', command: 'LEVEL', field: 'level' },
-]
-
-/** The IO commands whose read the live view stands for: the panel offers their writes only. */
-export const isLiveRead = (contract: string, command: string, side: Side): boolean => contract === 'IO' && side === 'read' && LIVE_READS.some((r) => r.command === command)
+/** The IO commands whose one-pin read the live view stands for: the panel offers their writes only. */
+export const isLiveRead = (contract: string, command: string, side: Side): boolean =>
+  contract === 'IO' && side === 'read' && LIVE_KINDS.some((kind) => BATCH_READS[kind].pinCommand === command)
 
 /**
- * How a pin in `states` (pinStateOf) is followed live: the voltage of an analogue pin, the level of an input or an output, as
- * far as the device answers the read; undefined for a pin that is neither (not set up, PWM).
+ * How a pin in `states` (pinStateOf) is followed live: the voltage of an analogue pin, the level of an input or an output (the
+ * state the one-pin read wants), as far as the device answers the read of many pins (LEVELS, VOLTAGES, `livePins.ts`);
+ * undefined for a pin that is neither (not set up, PWM).
  */
-export const livePinRead = (catalog: ServiceCatalog, ops: DeviceOps | undefined, device: DeviceInfo, states: readonly string[]): LiveRead | undefined => {
+export const livePinRead = (catalog: ServiceCatalog, ops: DeviceOps | undefined, device: DeviceInfo, states: readonly string[]): LiveKind | undefined => {
   const io = device.type?.contracts?.includes('IO') ? catalog.contracts.get('IO') : undefined
   if (!io) return undefined
-  return LIVE_READS.find((read) => {
-    const command = io.commands.get(read.command)
-    const wants = command?.read?.args?.fields.find((f) => f.type === 'pin')?.pinState
-    return command !== undefined && wants !== undefined && answers(catalog, ops, io, command, 'read') && pinReady(states, wants)
+  return LIVE_KINDS.find((kind) => {
+    const batch = io.commands.get(BATCH_READS[kind].command)
+    const wants = io.commands.get(BATCH_READS[kind].pinCommand)?.read?.args?.fields.find((f) => f.type === 'pin')?.pinState
+    return batch !== undefined && wants !== undefined && answers(catalog, ops, io, batch, 'read') && pinReady(states, wants)
   })
 }
 
@@ -673,6 +668,7 @@ export const showValue = (field: WireField, value: unknown, nameOf: (device: num
   if (field.type === 'pin' && typeof value === 'number' && own !== undefined) return pinName(own, value)
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   if (field.display === 'hex' && typeof value === 'number' && Number.isInteger(value) && value >= 0) return hexText(value, field.max)
+  if (field.display === 'pin_mask' && (typeof value === 'number' || typeof value === 'bigint')) return showPinMask(value, pinName, own)
   return `${String(value)}${field.unit ? ` ${field.unit}` : ''}`
 }
 

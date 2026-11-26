@@ -50,6 +50,58 @@ err_h sys_io_pins_unlock(sys_io_pins_t* s, uint8_t dev, uint8_t pin) {
   return NULL;
 }
 
+/* ---- Many pins in one read ---- */
+
+err_h sys_io_pins_check_mask(const sys_io_pins_t* s, uint8_t dev, uint64_t pins) {
+  const uint64_t missing = pins & ~s->available;
+  ERR_CHECK(missing == 0, ERR_DEV_BAD_PIN, .id = dev, .pin = (uint8_t)__builtin_ctzll(missing));
+  return NULL;
+}
+
+// The device's own read of one pin into `answer` (`size` bytes); *got false, and no error, for a pin not set up for it.
+static err_h read_pin(void* ctx, cmd_f read, uint8_t pin, void* answer, uint32_t size, bool* got) {
+  cmd_out_t one = {.data = answer, .cap = size};
+  err_h err = read(ctx, (cmd_in_t){.data = &pin, .len = sizeof(pin)}, &one);
+  *got = err == NULL && one.len == size;
+  if (err_drop(&err, ERR_IO_PIN_UNCONFIGURED) || err_drop(&err, ERR_IO_WRONG_MODE)) {
+    return NULL;
+  }
+  return err;
+}
+
+err_h sys_io_read_levels(void* ctx, const sys_io_pins_t* s, uint8_t dev, cmd_f level, uint64_t pins,
+                         cmd_out_t* out) {
+  ERR_TRY(sys_io_pins_check_mask(s, dev, pins));
+  io_levels_t levels = {0};
+  for (uint64_t left = pins; left != 0; left &= left - 1u) {
+    const uint8_t pin = (uint8_t)__builtin_ctzll(left);
+    io_level_args_t one;
+    bool got;
+    ERR_TRY(read_pin(ctx, level, pin, &one, sizeof(one), &got));
+    if (got) {
+      levels.read |= 1ULL << pin;
+      levels.high |= one.level ? 1ULL << pin : 0u;
+    }
+  }
+  return cmd_reply(out, &levels, sizeof(levels));
+}
+
+err_h sys_io_read_voltages(void* ctx, const sys_io_pins_t* s, uint8_t dev, cmd_f voltage, uint64_t pins,
+                           cmd_out_t* out) {
+  ERR_TRY(sys_io_pins_check_mask(s, dev, pins));
+  out->len = 0;
+  for (uint64_t left = pins; left != 0; left &= left - 1u) {
+    const uint8_t pin = (uint8_t)__builtin_ctzll(left);
+    io_voltage_args_t row;
+    bool got;
+    ERR_TRY(read_pin(ctx, voltage, pin, &row, sizeof(row), &got));
+    if (got) {
+      ERR_TRY(cmd_append(out, &row, sizeof(row)));
+    }
+  }
+  return NULL;
+}
+
 /* ---- Claiming another device's pin ---- */
 
 /* A device's own pins: take / drive in one order for every driver; the release is the registry's (a resource of the

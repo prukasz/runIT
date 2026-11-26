@@ -28,6 +28,8 @@ extern "C" {
  * RESET        - puts the pin back to its power-on state
  * INTR         - arms the pin's interrupt source (sys_io_intr_cfg_t); who gets the events is not part of the contract
  * VOLTAGE      - the voltage of an analog pin in mV: a DAC output set, an ADC input read
+ * LEVELS       - the levels of many pins in one read: the pins read and the high ones, as masks
+ * VOLTAGES     - the voltages of many pins in one read: a {pin, mV} row per pin read
  * AVAILABLE    - mask of the pins the device has
  * LOCKED       - mask of the pins that are locked
  * LOCK         - locks a pin for the device that depends on it (PCA9685's OE, a chip's RST, an I2C bus's SDA). Always,
@@ -105,11 +107,22 @@ typedef struct __attribute__((packed)) {
   uint8_t mode;  /**< sys_io_mode_e */
 } io_mode_args_t;
 
-/** @brief VOLTAGE args and answer */
+/** @brief VOLTAGE args and answer; a row of VOLTAGES' answer */
 typedef struct __attribute__((packed)) {
   uint8_t pin;         /**< Device pin index */
   int32_t voltage_mV;  /**< Voltage in mV */
 } io_voltage_args_t;
+
+/** @brief LEVELS / VOLTAGES read key: the pins to read */
+typedef struct __attribute__((packed)) {
+  uint64_t pins;  /**< Bit n: pin n */
+} io_pins_args_t;
+
+/** @brief LEVELS answer */
+typedef struct __attribute__((packed)) {
+  uint64_t read;  /**< Bit n: pin n was read (a pin asked for and not set up for a level is left out) */
+  uint64_t high;  /**< Bit n: pin n is high */
+} io_levels_t;
 
 /** @brief ADC window of the SYS_IO_INTR_ADC_WINDOW_* modes. */
 typedef struct __attribute__((packed)) {
@@ -138,25 +151,27 @@ typedef struct __attribute__((packed)) {
 
 /**
  * @brief The contract, once: X(P, OP_NAME, op number, key_t, value_t, flags). The read takes key_t and answers value_t,
- * the write takes value_t (the mirror). SYS_DEVICE_CONTRACT_DECLARE gives CONTRACT_IO_<OP_NAME>,
- * CONTRACT_IO_key_<OP_NAME>_t and CONTRACT_IO_value_<OP_NAME>_t; a driver writes OP_DECLARE_READ(CONTRACT_IO, OP_NAME) /
- * OP_DECLARE_WRITE(CONTRACT_IO, OP_NAME) and lists OP_ENTRY(CONTRACT_IO, OP_NAME), OP_ENTRY_R, OP_ENTRY_W. Sides: LEVEL
- * RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE RW, AVAILABLE R, LOCKED R, LOCK W, UNLOCK W.
- * 0x02, 0x08 and 0x0E are unused: never assign them.
+ * the write takes value_t (the mirror); VOLTAGES answers rows of its value_t. SYS_DEVICE_CONTRACT_DECLARE gives
+ * CONTRACT_IO_<OP_NAME>, CONTRACT_IO_key_<OP_NAME>_t and CONTRACT_IO_value_<OP_NAME>_t; a driver writes
+ * OP_DECLARE_READ(CONTRACT_IO, OP_NAME) / OP_DECLARE_WRITE(CONTRACT_IO, OP_NAME) and lists OP_ENTRY(CONTRACT_IO,
+ * OP_NAME), OP_ENTRY_R, OP_ENTRY_W. Sides: LEVEL RW, TOGGLE W, PWM_DUTY W, PWM_FREQ W, MODE W, RESET W, INTR W, VOLTAGE
+ * RW, AVAILABLE R, LOCKED R, LOCK W, UNLOCK W, LEVELS R, VOLTAGES R.
  */
-#define CONTRACT_IO_OPERATIONS(X, P)                                                                        \
-  X(P, OP_LEVEL,        0x00, io_pin_args_t, io_level_args_t,   0)                                          \
-  X(P, OP_TOGGLE,       0x01, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, OP_PWM_DUTY,     0x02, cmd_none_t,    io_duty_args_t,    0)                                          \
-  X(P, OP_PWM_FREQ,     0x03, cmd_none_t,    io_freq_args_t,    0)                                          \
-  X(P, OP_MODE,         0x04, cmd_none_t,    io_mode_args_t,    0)                                          \
-  X(P, OP_RESET,        0x05, cmd_none_t,    io_pin_args_t,     0)                                          \
-  X(P, OP_INTR,         0x06, cmd_none_t,    io_intr_args_t,    0)                                          \
-  X(P, OP_VOLTAGE,      0x07, io_pin_args_t, io_voltage_args_t, 0)                                          \
-  X(P, OP_AVAILABLE,    0x08, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, OP_LOCKED,       0x09, cmd_none_t,    uint64_t,          0)                                          \
-  X(P, OP_LOCK,         0x0A, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
-  X(P, OP_UNLOCK,       0x0B, cmd_none_t,    io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL)
+#define CONTRACT_IO_OPERATIONS(X, P)                                                                         \
+  X(P, OP_LEVEL,        0x00, io_pin_args_t,  io_level_args_t,   0)                                          \
+  X(P, OP_TOGGLE,       0x01, cmd_none_t,     io_pin_args_t,     0)                                          \
+  X(P, OP_PWM_DUTY,     0x02, cmd_none_t,     io_duty_args_t,    0)                                          \
+  X(P, OP_PWM_FREQ,     0x03, cmd_none_t,     io_freq_args_t,    0)                                          \
+  X(P, OP_MODE,         0x04, cmd_none_t,     io_mode_args_t,    0)                                          \
+  X(P, OP_RESET,        0x05, cmd_none_t,     io_pin_args_t,     0)                                          \
+  X(P, OP_INTR,         0x06, cmd_none_t,     io_intr_args_t,    0)                                          \
+  X(P, OP_VOLTAGE,      0x07, io_pin_args_t,  io_voltage_args_t, 0)                                          \
+  X(P, OP_AVAILABLE,    0x08, cmd_none_t,     uint64_t,          0)                                          \
+  X(P, OP_LOCKED,       0x09, cmd_none_t,     uint64_t,          0)                                          \
+  X(P, OP_LOCK,         0x0A, cmd_none_t,     io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
+  X(P, OP_UNLOCK,       0x0B, cmd_none_t,     io_pin_args_t,     SYS_DEVICE_OP_ALWAYS | SYS_DEVICE_OP_LOCAL) \
+  X(P, OP_LEVELS,       0x0C, io_pins_args_t, io_levels_t,       0)                                          \
+  X(P, OP_VOLTAGES,     0x0D, io_pins_args_t, io_voltage_args_t, 0)
 
 SYS_DEVICE_CONTRACT_DECLARE(CONTRACT_IO, MODULE_ID_IO)
 
