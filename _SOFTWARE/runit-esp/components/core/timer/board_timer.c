@@ -137,10 +137,3 @@ void board_timer_stop(board_timer_t* t) {
   }
   taskEXIT_CRITICAL(&s_lock);
 }
-
-bool board_timer_running(const board_timer_t* t) {
-  taskENTER_CRITICAL(&s_lock);
-  const bool running = t->running;
-  taskEXIT_CRITICAL(&s_lock);
-  return running;
-}

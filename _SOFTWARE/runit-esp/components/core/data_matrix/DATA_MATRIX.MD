@@ -44,7 +44,7 @@ A **link** `{from, to}` (`data_matrix_link_t`, 4 bytes: two names, `u16` LE) sen
 
 **A send inside an `in`** ends at a provider: a provider's `in` never sends. A session's `in` sends on at once (what its provider brings out of a sub-port, what comes into a sub-port out to its provider); a module's `in` may pass on what it takes (`data_matrix_send_except(from)`) or send from a callback (the router's call). The modules' ports that send in their `in` are linked with sessions' sub-ports and providers only, never with each other: no chain is a cycle, and the switch checks none. Each session on a chain puts its frame on the sender's stack.
 
-Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: an `in` never runs under the lock. The table changes from one task (boot, the commands).
+Each port keeps its own targets, as 1-byte places in the table, so a send copies a few bytes under the spinlock and calls them after it: an `in` never runs under the lock. `data_matrix_linked` takes no lock: it reads whether the port has a link with atomic loads (a snapshot, as under the lock; a send copies its targets again). The table changes from one task (boot, the commands).
 
 ## Commands (`router/data_matrix_router.h`, `contract_data_matrix.json`)
 

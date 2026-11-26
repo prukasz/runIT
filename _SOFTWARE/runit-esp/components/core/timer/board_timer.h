@@ -70,13 +70,6 @@ void board_timer_once(board_timer_t* t, uint32_t after_ms);
  */
 void board_timer_stop(board_timer_t* t);
 
-/**
- * @brief Whether the timer runs (started and not stopped; a once that has fired is stopped).
- * @param[in] t The timer
- * @return true while it runs
- */
-bool board_timer_running(const board_timer_t* t);
-
 #ifdef __cplusplus
 }
 #endif

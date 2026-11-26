@@ -5,7 +5,9 @@
  * (DATA_MATRIX.MD).
  *
  * A port's targets are its own (at most CONFIG_DATA_MATRIX_TARGETS, as places in the table), so a send only copies
- * them under the spinlock, a few bytes, and calls them after it: a port's `in` never runs under the lock.
+ * them under the spinlock, a few bytes, and calls them after it: a port's `in` never runs under the lock. What
+ * data_matrix_linked reads without the lock (a slot's `port` and `count`, a port's `place`) is written with atomic
+ * stores, under the lock.
  */
 
 #include "data_matrix.h"
@@ -21,12 +23,14 @@ _Static_assert(CONFIG_DATA_MATRIX_PORTS < 0xFF, "a port's place is a u8, 0xFF is
 
 #define PORT_NONE 0xFFu
 
-// A registered port and where its output goes: the places of its targets.
+// A registered port and where its output goes: the places of its targets. A free place has `count` 0.
 typedef struct {
   data_matrix_port_t* port;  // NULL: a free place
   uint8_t to[CONFIG_DATA_MATRIX_TARGETS];
   uint8_t count;
 } slot_t;
+
+#define STORE(field, value) __atomic_store_n(&(field), (value), __ATOMIC_RELAXED)
 
 static slot_t s_slots[CONFIG_DATA_MATRIX_PORTS];
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -63,9 +67,11 @@ void data_matrix_send(data_matrix_port_t* self, uint8_t flags, const uint8_t* da
   }
 }
 
+// Without the lock: the answer is a snapshot either way, and a send copies the targets under it again.
 bool data_matrix_linked(const data_matrix_port_t* self) {
-  data_matrix_port_t* to[CONFIG_DATA_MATRIX_TARGETS];
-  return targets(self, to) > 0;
+  const uint8_t at = __atomic_load_n(&self->place, __ATOMIC_RELAXED);
+  return at < CONFIG_DATA_MATRIX_PORTS && __atomic_load_n(&s_slots[at].port, __ATOMIC_RELAXED) == self &&
+         __atomic_load_n(&s_slots[at].count, __ATOMIC_RELAXED) != 0u;
 }
 
 void data_matrix_push(data_matrix_port_t* port, uint8_t urgent, const void* head, uint32_t head_len, const void* data,
@@ -113,9 +119,9 @@ err_h data_matrix_register(data_matrix_port_t* port) {
   portENTER_CRITICAL(&s_lock);
   const bool taken = find(port->id) != PORT_NONE;
   for (uint8_t i = 0; !taken && at == PORT_NONE && i < CONFIG_DATA_MATRIX_PORTS; i++) {
-    if (s_slots[i].port == NULL) {
-      s_slots[i] = (slot_t){.port = port};
-      port->place = i;
+    if (s_slots[i].port == NULL) {  // its `count` is 0
+      STORE(s_slots[i].port, port);
+      STORE(port->place, i);
       at = i;
     }
   }
@@ -132,8 +138,9 @@ err_h data_matrix_unregister(data_matrix_port_t* port) {
   const uint8_t at = port->place;
   known = at < CONFIG_DATA_MATRIX_PORTS && s_slots[at].port == port;
   if (known) {
-    s_slots[at] = (slot_t){0};
-    port->place = PORT_NONE;
+    STORE(s_slots[at].count, 0u);
+    STORE(s_slots[at].port, NULL);
+    STORE(port->place, (uint8_t)PORT_NONE);
     for (uint8_t i = 0; i < CONFIG_DATA_MATRIX_PORTS; i++) {  // the links to it go with it
       slot_t* s = &s_slots[i];
       uint8_t kept = 0;
@@ -142,7 +149,7 @@ err_h data_matrix_unregister(data_matrix_port_t* port) {
           s->to[kept++] = s->to[k];
         }
       }
-      s->count = kept;
+      STORE(s->count, kept);
     }
   }
   portEXIT_CRITICAL(&s_lock);
@@ -166,7 +173,8 @@ err_h data_matrix_connect(const data_matrix_link_t* link) {
     }
     full = !there && s->count == CONFIG_DATA_MATRIX_TARGETS;
     if (!there && !full) {
-      s->to[s->count++] = to;
+      s->to[s->count] = to;
+      STORE(s->count, (uint8_t)(s->count + 1u));
     }
   }
   portEXIT_CRITICAL(&s_lock);
@@ -182,7 +190,8 @@ err_h data_matrix_disconnect(const data_matrix_link_t* link) {
   slot_t* s = from != PORT_NONE ? &s_slots[from] : NULL;
   for (uint8_t k = 0; s != NULL && k < s->count; k++) {
     if (s_slots[s->to[k]].port->id == link->to) {
-      s->to[k] = s->to[--s->count];  // the order of the targets is no promise
+      s->to[k] = s->to[s->count - 1u];  // the order of the targets is no promise
+      STORE(s->count, (uint8_t)(s->count - 1u));
       break;
     }
   }

@@ -23,6 +23,11 @@ static StaticSemaphore_t s_latch_buf[2];
 static probe_t s_probe[2];
 static board_timer_t s_timer[2];
 
+// The timer's own field: in the running list (started and not stopped; a once that has fired is stopped).
+static bool running(const board_timer_t* t) {
+  return __atomic_load_n(&t->running, __ATOMIC_SEQ_CST);
+}
+
 static int calls(const probe_t* p) {
   return __atomic_load_n(&p->calls, __ATOMIC_SEQ_CST);
 }
@@ -61,11 +66,11 @@ void tearDown(void) {
 
 static void test_once_runs_once(void) {
   board_timer_once(&s_timer[0], 5);
-  TEST_ASSERT_TRUE(board_timer_running(&s_timer[0]));
+  TEST_ASSERT_TRUE(running(&s_timer[0]));
   TEST_ASSERT_TRUE(latch(&s_probe[0]));
   vTaskDelay(pdMS_TO_TICKS(QUIET_MS));
   TEST_ASSERT_EQUAL_INT(1, calls(&s_probe[0]));
-  TEST_ASSERT_FALSE(board_timer_running(&s_timer[0]));
+  TEST_ASSERT_FALSE(running(&s_timer[0]));
 }
 
 static void test_periodic_runs_until_stopped(void) {
@@ -74,7 +79,7 @@ static void test_periodic_runs_until_stopped(void) {
     TEST_ASSERT_TRUE(latch(&s_probe[0]));
   }
   board_timer_stop(&s_timer[0]);
-  TEST_ASSERT_FALSE(board_timer_running(&s_timer[0]));
+  TEST_ASSERT_FALSE(running(&s_timer[0]));
   vTaskDelay(pdMS_TO_TICKS(QUIET_MS));  // a call started before the stop ends
   const int after_stop = calls(&s_probe[0]);
   vTaskDelay(pdMS_TO_TICKS(QUIET_MS));
@@ -106,7 +111,7 @@ static void test_same_period_keeps_phase(void) {
     vTaskDelay(pdMS_TO_TICKS(5));
   }
   TEST_ASSERT_EQUAL_INT(0, calls(&s_probe[0]));
-  TEST_ASSERT_TRUE(board_timer_running(&s_timer[0]));
+  TEST_ASSERT_TRUE(running(&s_timer[0]));
 }
 
 static void test_two_timers(void) {

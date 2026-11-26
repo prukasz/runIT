@@ -22,7 +22,6 @@ board_timer_init(&m->timer, on_timeout, m);      // set up, stopped
 board_timer_start(&m->timer, 10);                // every 10 ms; the same period again keeps the phase
 board_timer_once(&m->timer, 500);                // once, 500 ms from now
 board_timer_stop(&m->timer);                     // before the struct is freed
-board_timer_running(&m->timer);                  // started and not stopped (a once that has fired: stopped)
 ```
 
 - **A timer is a `board_timer_t` in its owner's struct**: no table, so no capacity and no error; the calls return nothing. Any task, not an ISR.
