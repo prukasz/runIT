@@ -17,7 +17,7 @@ void vm_blk_on_event(vm_block_h b) {
   const uint8_t n = vm_event_count();
   for (uint8_t i = 0; i < n; i++) {
     const vm_event_t* ev = vm_event_at(i);
-    if (ev && vm_event_matches(filter.source, filter.event, filter.channel, ev)) {
+    if (ev && vm_event_matches(&filter, ev)) {
       matched = true;
       value = ev->value;
     }

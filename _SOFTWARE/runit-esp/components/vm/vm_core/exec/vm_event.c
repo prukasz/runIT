@@ -39,10 +39,10 @@ err_h vm_event_init(void) {
   return sys_event_subscribe(any, on_event, NULL, SYS_EVENT_RUN_INLINE, &handle);
 }
 
-bool vm_event_matches(uint16_t source, uint16_t code, uint16_t channel, const vm_event_t* ev) {
-  return (source == SYS_EVENT_ANY_SOURCE || source == ev->key.source) &&
-         (code == SYS_EVENT_ANY_CODE || code == (uint16_t)(ev->key.tag & 0xFFFFu)) &&
-         (channel == SYS_EVENT_ANY_CHANNEL || channel == ev->key.channel);
+// The rule of a subscription (sys_event_match) on the event's key; the snapshot keeps no flags.
+bool vm_event_matches(const sys_event_key_t* filter, const vm_event_t* ev) {
+  const sys_event_t e = {.key = ev->key};
+  return sys_event_match(filter, &e);
 }
 
 void vm_event_drain(void) {

@@ -10,10 +10,10 @@
  *
  *  VM_BLK_ON_EVENT -- Starts a chain when a matching system event arrived.
  *
- *  - Looks through this pass's events (vm_event_count / vm_event_at) with the match rule of a sys_event
- *    subscription (sys_event_matches): source, event and channel are each exact or a wildcard
- *    (SYS_EVENT_ANY_SOURCE, SYS_EVENT_ANY_EVENT, SYS_EVENT_ANY_IN for "any event of that contract",
- *    SYS_EVENT_ANY_CHANNEL). The VM listens to every event (vm_event_init); this block doesn't subscribe.
+ *  - Its filter is a sys_event_key_t, matched against this pass's events (vm_event_count / vm_event_at) by the
+ *    rule of a subscription (vm_event_matches): the tag (exact, SYS_EVENT_ANY_TAG, or EVT_TAG(module,
+ *    SYS_EVENT_ANY_CODE) for any event of a contract), the source (SYS_EVENT_ANY_SOURCE) and the channel
+ *    (SYS_EVENT_ANY_CHANNEL). The VM listens to every event (vm_event_init); this block doesn't subscribe.
  *  - On a match: ENO is on for this pass, VALUE gets the event's value
  *    (converted to the output's type). Several matches in one pass
  *    collapse into one pulse: VALUE is the last one's.
@@ -24,12 +24,9 @@
  *  - A one-pass pulse: to hold it (event -> wait -> act), put a LATCH below.
  */
 
-typedef struct __attribute__((aligned(4))) {
-  uint16_t source;  // The device that raised the event (Any: every device)
-  uint16_t event;  // What happened (Any: every event of that device)
-  uint8_t channel;  // The pin or channel of that device the event came from (Any: every one)
-  uint8_t _pad[3];
-} vm_block_on_event_data_t;
+/* The filter, as a subscription's: tag = what happened (EVT_TAG(module, code); Any: every event), source = the device
+ * that raised it (Any: every device), channel = its pin or channel (Any: every one). */
+typedef sys_event_key_t vm_block_on_event_data_t;
 
 _Static_assert(sizeof(vm_block_on_event_data_t) == 8, "vm_block_on_event_data_t must be 8 bytes");
 #define VM_ON_EVENT_CUSTOM_LEN sizeof(vm_block_on_event_data_t)

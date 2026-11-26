@@ -330,7 +330,7 @@
         "code": {
           "type": "integer",
           "minimum": 0,
-          "description": "Numeryczny kod zdarzenia w firmware (np. 0x0100 dla pierwszego zdarzenia kontraktu)."
+          "description": "Tag zdarzenia w firmware: EVT_TAG(moduł kontraktu, kod), np. 0x00010001 dla RISING kontraktu IO. To wartość filtra bloku ON_EVENT."
         },
         "event": {
           "type": "integer",

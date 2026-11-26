@@ -30,7 +30,7 @@ Every block folder holds `vm_block_<name>.h/.c`, `block_<name>.json` (the descri
 | LATCH | 12 | 0..1 / 0 / ≥1 | SR / RS bistable |
 | PERIODIC | 13 | 0..1 / 0 / – | "every N" tick on ENO |
 | ACTION | 14 | 0..1 / 0 / – | on the enable's rising edge queues a record of the store by its u32 ID (`sys_actions_request`); the ID from the pin or the state |
-| ON_EVENT | 15 | 0 / 0..1 / – | ENO pulses and VALUE is set when this pass holds an event matching source / event / channel (`sys_event_matches`, wildcards as in a subscription) |
+| ON_EVENT | 15 | 0 / 0..1 / – | ENO pulses and VALUE is set when this pass holds an event matching its filter, a `sys_event_key_t` (tag, source, channel), by the rule of a subscription (`vm_event_matches`: `sys_event_match`; the tag exact, any, or any of a module) |
 | MAP | 16 | 1 / 1 / – | X from [in_min, in_max] onto [out_min, out_max] along a curve (linear, log / exp, square / square root, S), the four ends constants of the state; `clamp` holds X to its range |
 | IO | 32 | 0..2 / 0..1 / – | the IO contract (SYS_IO_CONTRACT.MD): pins. Device blocks below |
 | HBRIDGE | 33 | 0..2 / 0..1 / – | the HBRIDGE contract: motor channels |

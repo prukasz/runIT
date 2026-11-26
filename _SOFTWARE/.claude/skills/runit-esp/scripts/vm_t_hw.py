@@ -27,7 +27,8 @@ IO_LEVEL, IO_TOGGLE, IO_PWM_DUTY, IO_PWM_FREQ, IO_MODE, IO_RESET, IO_INTR, IO_VO
     0x0100, 0x0101, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107, 0x0109)
 HB_DRIVE, HB_BRAKE, HB_COAST, HB_CURRENT = 0x0900, 0x0901, 0x0902, 0x0903
 PM_VOLTAGE, PM_CURRENT, PM_ALERT, PM_POWER = 0x0400, 0x0401, 0x0402, 0x0403
-EV_RISING, EV_FALLING, EV_ANY_IO = 0x0100, 0x0101, 0x01FF
+EV_RISING, EV_FALLING, EV_ANY_IO = 0x00010001, 0x00010002, 0x0001FFFF  # EVT_TAG(MODULE_ID_IO, code / any code)
+EV_DEV_SUSPENDED = 0x002F0001  # EVT_TAG(MODULE_ID_SYS_DEVICE, 0x01): the code of RISING, another module
 
 
 def dev_call(vm: Vm, dev_id: int, op: int, payload: bytes = b"", dir: int | None = None) -> Response | None:
@@ -298,8 +299,11 @@ def t_pmon(vm: Vm) -> None:
 # =====================================================================================================================
 
 
-def ev_state(source: int, event: int, channel: int) -> bytes:
-    return struct.pack("<HHB3x", source, event, channel)
+EV_ANY, ANY_SOURCE, ANY_CHANNEL = 0xFFFFFFFF, 0xFFFF, 0xFFFF
+
+
+def ev_state(source: int, tag: int, channel: int) -> bytes:  # the filter: a sys_event_key_t {u32 tag, u16 source, u16 channel}
+    return struct.pack("<IHH", tag, source, channel)
 
 
 @test("events/ON_EVENT on the edges of a pin", hw=True)
@@ -313,14 +317,15 @@ def t_on_event(vm: Vm) -> None:
     p = Prog()
     gate = p.b(False)
     rows = {}
-    for nm, st in (("any event of the pin", ev_state(GPIO_ID, 0xFFFF, PIN)), ("another pin", ev_state(GPIO_ID, 0xFFFF, PIN + 1)),
-                   ("falling, any device and channel", ev_state(0xFFFF, EV_FALLING, 0xFF)), ("rising, any device and channel", ev_state(0xFFFF, EV_RISING, 0xFF)),
-                   ("any IO event, any pin", ev_state(0xFFFF, EV_ANY_IO, 0xFF)), ("another device", ev_state(GPIO_ID + 1, 0xFFFF, 0xFF)), ("the pin, gated", ev_state(GPIO_ID, 0xFFFF, PIN))):
+    for nm, st in (("any event of the pin", ev_state(GPIO_ID, EV_ANY, PIN)), ("another pin", ev_state(GPIO_ID, EV_ANY, PIN + 1)),
+                   ("falling, any device and channel", ev_state(ANY_SOURCE, EV_FALLING, ANY_CHANNEL)), ("rising, any device and channel", ev_state(ANY_SOURCE, EV_RISING, ANY_CHANNEL)),
+                   ("any IO event, any pin", ev_state(ANY_SOURCE, EV_ANY_IO, ANY_CHANNEL)), ("another device", ev_state(GPIO_ID + 1, EV_ANY, ANY_CHANNEL)),
+                   ("the device suspended (RISING's code, another module)", ev_state(GPIO_ID, EV_DEV_SUSPENDED, ANY_CHANNEL)), ("the pin, gated", ev_state(GPIO_ID, EV_ANY, PIN))):
         e, v = p.b(), p.i32(-5)
         gated = nm.endswith("gated")
         p.block("ON_EVENT", outs=[v], ens=[gate] if gated else [], eno=e, state=st)
         rows[nm] = (e, v)
-    if not loaded(vm, p, X_SCAN, "seven ON_EVENT blocks"):
+    if not loaded(vm, p, X_SCAN, "eight ON_EVENT blocks"):
         pin_release(vm)
         return
     ids = [x for ev in rows.values() for x in ev]
@@ -369,16 +374,16 @@ def t_on_event(vm: Vm) -> None:
 
     # shape
     p = Prog()
-    p.block("ON_EVENT", outs=[p.i32(), p.i32()], state=ev_state(0, 0xFFFF, 0xFF))
+    p.block("ON_EVENT", outs=[p.i32(), p.i32()], state=ev_state(0, EV_ANY, ANY_CHANNEL))
     check("ON_EVENT with two outputs -> ERR_VM_BLK_BAD_SHAPE", cause(vm.load(p)) == "ERR_VM_BLK_BAD_SHAPE")
     p = Prog()
-    p.block("ON_EVENT", ins=[p.i32()], state=ev_state(0, 0xFFFF, 0xFF))
+    p.block("ON_EVENT", ins=[p.i32()], state=ev_state(0, EV_ANY, ANY_CHANNEL))
     check("ON_EVENT with an input -> ERR_VM_BLK_BAD_SHAPE", cause(vm.load(p)) == "ERR_VM_BLK_BAD_SHAPE")
     p = Prog()
-    p.block("ON_EVENT", state=ev_state(0, 0xFFFF, 0xFF)[:6])
+    p.block("ON_EVENT", state=ev_state(0, EV_ANY, ANY_CHANNEL)[:6])
     check("ON_EVENT with a short state -> ERR_VM_BLK_BAD_SHAPE", cause(vm.load(p)) == "ERR_VM_BLK_BAD_SHAPE")
     p = Prog()
-    p.block("ON_EVENT", state=ev_state(0, 0xFFFF, 0xFF))
+    p.block("ON_EVENT", state=ev_state(0, EV_ANY, ANY_CHANNEL))
     check("ON_EVENT with no output and no ENO loads", vm.load(p) is None)
     vm.reset()
 
@@ -411,7 +416,7 @@ def t_event_queue(vm: Vm) -> None:
         vm.reset()
 
     p = Prog()
-    p.block("ON_EVENT", outs=[p.i32()], state=ev_state(GPIO_ID, 0xFFFF, PIN))
+    p.block("ON_EVENT", outs=[p.i32()], state=ev_state(GPIO_ID, EV_ANY, PIN))
     if loaded(vm, p, X_SCAN, "a program with an ON_EVENT block"):
         t = vm.link.mark()
         edges(40)

@@ -33,7 +33,7 @@
       "description": "The device that raised the event. Any: every device.",
       "type": "device",
       "raw_type": "u16",
-      "offset": 0,
+      "offset": 4,
       "size": 2,
       "any": 65535,
       "default": 65535
@@ -44,11 +44,11 @@
       "description": "What happened. The events a device can raise depend on its contracts (IO, power, H-bridge). Any: every event of that device.",
       "type": "event",
       "device_field": "source",
-      "raw_type": "u16",
-      "offset": 2,
-      "size": 2,
-      "any": 65535,
-      "default": 65535
+      "raw_type": "u32",
+      "offset": 0,
+      "size": 4,
+      "any": 4294967295,
+      "default": 4294967295
     },
     {
       "id": "channel",
@@ -56,11 +56,11 @@
       "description": "The pin or channel of that device the event came from. Any: every one.",
       "type": "pin",
       "device_field": "source",
-      "raw_type": "u8",
-      "offset": 4,
-      "size": 1,
-      "any": 255,
-      "default": 255
+      "raw_type": "u16",
+      "offset": 6,
+      "size": 2,
+      "any": 65535,
+      "default": 65535
     }
   ]
 }

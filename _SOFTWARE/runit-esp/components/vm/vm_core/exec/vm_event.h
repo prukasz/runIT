@@ -15,9 +15,10 @@ typedef struct {
   int32_t value;
 } vm_event_t;
 
-/** @brief Whether the event passes a filter of the ON_EVENT block: the source, the code of the tag and the channel, each
- *  exact or SYS_EVENT_ANY_*. */
-bool vm_event_matches(uint16_t source, uint16_t code, uint16_t channel, const vm_event_t* ev);
+/** @brief Whether the event passes a filter of the ON_EVENT block, by the rule of a subscription (sys_event_match): the
+ *  tag (exact, SYS_EVENT_ANY_TAG, or EVT_TAG(module, SYS_EVENT_ANY_CODE) for any event of a module), the source and
+ *  the channel (each exact or SYS_EVENT_ANY_*). SYS_EVENT_ANY_NOTIFY matches nothing: the snapshot keeps no flags. */
+bool vm_event_matches(const sys_event_key_t* filter, const vm_event_t* ev);
 
 /** @brief Number of events in current cycle snapshot. */
 uint8_t vm_event_count(void);
