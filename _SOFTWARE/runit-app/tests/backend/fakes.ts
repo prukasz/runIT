@@ -45,6 +45,9 @@ export class FakeBoard implements BlePlatform {
   failNextWrite: Error | undefined
   /** Writes wait this long before they finish (a slow link). */
   writeDelayMs = 0
+  /** The board behind this one: what is written to the bridge goes to it, what it says comes back on the bridge. */
+  behind: FakeBoard | undefined
+  private through: Promise<BleChannel> | undefined
   /** Called for each request; answer with `send` (a whole frame, fragmented for you). */
   respond: (request: Frame, send: (frame: Uint8Array) => void) => void = () => undefined
   private readonly late: (() => void)[] = []
@@ -86,7 +89,8 @@ export class FakeBoard implements BlePlatform {
     this.reassembler.reset()
     this.framePackets = []
     return {
-      write: async (packet) => {
+      write: async (packet, characteristic) => {
+        if (characteristic === defs.gatt.bridge) return this.cross(packet)
         if (this.writeDelayMs) await new Promise((resolve) => setTimeout(resolve, this.writeDelayMs))
         if (this.failNextWrite) {
           const error = this.failNextWrite
@@ -106,6 +110,17 @@ export class FakeBoard implements BlePlatform {
         this.handlers = undefined
       },
     }
+  }
+
+  /** A packet through the bridge to the board behind; its packets come back on the bridge. */
+  private async cross(packet: Uint8Array): Promise<void> {
+    const behind = this.behind
+    if (!behind) return
+    this.through ??= behind.open(behind.device, behind.spec ?? { service: defs.gatt.service, write: defs.gatt.session, notify: [] }, {
+      onPacket: (_characteristic, back) => this.handlers?.onPacket(defs.gatt.bridge, back),
+      onClosed: () => undefined,
+    })
+    await (await this.through).write(packet)
   }
 
   private received(raw: Uint8Array, packets: number[]): void {

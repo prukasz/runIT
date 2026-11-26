@@ -1,4 +1,4 @@
-import { Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, Settings, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
+import { ArrowLeftRight, Bluetooth, BluetoothConnected, BluetoothOff, CircleHelp, ClipboardPaste, Code2, Copy, Cpu, FolderOpen, HardDriveDownload, HardDriveUpload, Moon, PanelLeft, Pause, PanelRight, Bug, Eye, Pencil, PenTool, Play, Redo2, RotateCcw, RotateCw, ScrollText, Settings, SlidersHorizontal, SquareDashedMousePointer, Sun, Trash2, Undo2, Workflow } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components'
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
@@ -24,7 +24,11 @@ import { AppSettingsScreen } from './appSettings/AppSettingsScreen'
 import { useAppZoom } from './appSettings/useAppZoom'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { APP_TAB, POWER_TAB, SettingsTabs, settingsTabOf, tabSections } from './settings/SettingsTabs'
-import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, ProjectTabs } from './project/ProjectTabs'
+import { BOARD_TAB, BOARDS_TAB, CONNECTIONS_TAB, PROJECT_TAB, REMOTE_TAB, ProjectTabs } from './project/ProjectTabs'
+import { RemoteScreen } from './remote/RemoteScreen'
+import { useRemote } from './remote/useRemote'
+import type { RemoteState } from './remote/useRemote'
+import type { Perspective } from './remote/remote'
 import { useRouting } from './routing/useRouting'
 import { buildProviderRegistry } from './routing/providerRegistry'
 import { ConnectionsScreen } from './routing/ConnectionsScreen'
@@ -124,11 +128,34 @@ const LINK_VIEW: Record<LinkState, { tone: string; Icon: typeof Bluetooth; title
   closed: { tone: 'status-warn', Icon: BluetoothOff, title: 'Bluetooth: closed' },
 }
 
+/**
+ * The app: the connection to the main board, the board behind it (remote/), and the workspace of the one shown. The
+ * workspace is made anew when the other board is shown, so nothing of one board is on the screens of the other.
+ */
 export function App() {
   const [auto, setAuto] = usePersistedFlag('runit.autoReconnect', true)
-  const { link, state, reason, board: myBoard, searching, available, scan, choose, cancelScan, connect, disconnect, forget } = useLink(auto)
+  const main = useLink(auto)
+  const remote = useRemote(main.link)
+  const [picked, setPerspective] = useState<Perspective>('main')
+  const perspective: Perspective = remote.on ? picked : 'main'
+  return <Workspace key={perspective} perspective={perspective} onPerspective={setPerspective} main={main} remote={remote} auto={auto} onAuto={setAuto} />
+}
+
+/** The screens over one board: the main one, or (`perspective` remote) the board behind it, by that board's own link. */
+function Workspace({ perspective, onPerspective, main, remote, auto, onAuto }: {
+  perspective: Perspective
+  onPerspective: (perspective: Perspective) => void
+  main: ReturnType<typeof useLink>
+  remote: RemoteState
+  auto: boolean
+  onAuto: (on: boolean) => void
+}) {
+  const behind = perspective === 'remote'
+  const link = behind ? remote.link : main.link
+  const state = behind ? remote.state : main.state
+  const { reason, board: myBoard, searching, available, scan, choose, cancelScan, connect, disconnect, forget } = main
   const panels = usePanels()
-  const project = useProject()
+  const project = useProject(perspective)
   const runSettings = useRunSettings()
   const vm = useVm(link, state, project.project.program, runSettings.holdMs)
   const code = useCode(project)
@@ -144,7 +171,7 @@ export function App() {
   // Help mode for this session: numbered notes over the fields and buttons of the screen (HelpOverlay).
   const [help, setHelp] = useState(false)
   const [autoSync, setAutoSync] = usePersistedFlag('runit.autoSync', true)
-  const boardProfile = useBoardProfile()
+  const boardProfile = useBoardProfile(perspective)
   const devices = useDevices(link, state, project, autoSync, boardProfile)
   // The UART ports of the board and the project: devices of the UART contract, what the Console's terminal talks to.
   const uartPorts = useMemo(() => devices.devices.filter((d) => d.type?.id === 'esp32s3_uart').map((d) => ({ id: d.id, name: d.name })), [devices.devices])
@@ -265,7 +292,8 @@ export function App() {
     panels.setRightOpen(true)
   }
 
-  const { tone, Icon: LinkIcon, title: linkTitle } = available ? LINK_VIEW[state] : { tone: 'status-warn', Icon: BluetoothOff, title: 'This browser has no Web Bluetooth' }
+  // The connection button is the main board's, whichever board is shown: the Bluetooth is its.
+  const { tone, Icon: LinkIcon, title: linkTitle } = available ? LINK_VIEW[main.state] : { tone: 'status-warn', Icon: BluetoothOff, title: 'This browser has no Web Bluetooth' }
   // The details panel is open only while it has something to show (so far the connection panel); closing that collapses it.
   const closeDetails = () => {
     setConnectionOpen(false); setDebugOpen(false)
@@ -287,6 +315,16 @@ export function App() {
     panels.setRightOpen(true)
     panels.widenRight()
   }
+  // Which board the app shows: there while a remote board is wanted (Project > Create remote), beside the other buttons.
+  const remoteTone = remote.state === 'connected' ? 'status-ok' : remote.state === 'reconnecting' ? 'status-lost' : 'status-warn'
+  const perspectiveButton = remote.on && (
+    <button className={`${remoteTone} ${behind ? 'selected' : ''}`.trim()} aria-label="Remote board" aria-pressed={behind}
+      data-help="Switches the app between the board it is connected to and the board wired to it by a UART; both stay connected."
+      title={behind ? 'Showing the remote board (through the main board): back to the main board' : `Show the remote board${remote.state === 'connected' ? '' : ' (not there yet)'}`}
+      onClick={() => onPerspective(behind ? 'main' : 'remote')}>
+      <ArrowLeftRight aria-hidden="true" />
+    </button>
+  )
   const current = VIEWS.find((v) => v.name === view)!
   const screens = SCREENS[view]
   const [mode, setMode] = view === 'Devices' ? [devicesMode, setDevicesMode] : [codeMode, setCodeMode]
@@ -340,7 +378,7 @@ export function App() {
   return (
     <ConsoleContext.Provider value={{ console: board, jumps }}>
     <LiveContext.Provider value={vm.live}>
-    <WorkspaceShell className={`theme-${theme} ${panels.resizing ? 'is-resizing' : ''}`}>
+    <WorkspaceShell className={`theme-${theme} ${panels.resizing ? 'is-resizing' : ''} ${behind ? 'is-remote' : ''}`}>
       <ExplorerPanel open={panels.leftOpen} width={panels.left}>
         <div className="side-panel-header left-strip">
           {panels.leftOpen && <ViewTabs view={view} onView={showView} />}
@@ -361,7 +399,7 @@ export function App() {
                 ? (
                   <>
                     <ProjectSummary name={project.project.name} unsaved={project.unsaved} selected={projectTab === PROJECT_TAB} onOpen={() => setProjectTab(PROJECT_TAB)} />
-                    <ProjectTabs tab={projectTab} onTab={(tab) => { if (tab === BOARD_TAB) boardEditor.select(undefined); setProjectTab(tab) }} />
+                    <ProjectTabs tab={projectTab} remote={!behind} onTab={(tab) => { if (tab === BOARD_TAB) boardEditor.select(undefined); setProjectTab(tab) }} />
                   </>
                 )
                 : view === 'Settings'
@@ -470,6 +508,7 @@ export function App() {
                   <Trash2 aria-hidden="true" />
                 </button>
               )}
+              {behind && <span className="remote-mark" title="Everything here is the board wired to the main one, reached through it">Remote board</span>}
               <span className="toolbar-spacer" />
               {ed.busy && <span className="bar-note" role="status">{ed.busy.step}… {ed.busy.done}/{ed.busy.total}</span>}
               {!ed.busy && ed.note && <span className={`bar-note ${ed.note.tone === 'error' ? 'is-error' : ''}`} role="status" title={ed.note.text} onClick={ed.clearNote}>{ed.note.text}</span>}
@@ -509,6 +548,8 @@ export function App() {
                   : <BoardProfileScreen profile={boardProfile} editor={boardEditor} />)
                 : projectTab === CONNECTIONS_TAB
                 ? <ConnectionsScreen registry={providers} routing={routing} onName={(id, name) => setProviderName(project, id, name)} />
+                : projectTab === REMOTE_TAB
+                ? <RemoteScreen remote={remote} main={main.link} mainConnected={main.state === 'connected'} onOpen={() => onPerspective('remote')} />
                 : projectTab === BOARDS_TAB
                 ? <BoardsScreen registry={providers} project={project} link={link} services={devices.services} board={devices.board} connected={state === 'connected'} />
                 : <ProjectScreen project={project} link={link} connected={state === 'connected'} />)
@@ -528,7 +569,7 @@ export function App() {
                 <button className="panel-toggle" aria-label="Collapse right panel" onClick={closeDetails}>
                   <PanelRight aria-hidden="true" />
                 </button>
-                <div className="header-icons">{runButtons}{consoleButton}{linkButton}{vm.running && safeStopButton}</div>
+                <div className="header-icons">{runButtons}{consoleButton}{perspectiveButton}{linkButton}{vm.running && safeStopButton}</div>
               </>
             )
             : linkButton}
@@ -551,10 +592,10 @@ export function App() {
                 {...(state !== 'connected' ? { why: 'Connect the board to debug the program.' } : {})}
                 onStart={() => void vm.run('debug', runSettings.slow, runSettings.stepping, runSettings.stepMs)} onStepping={(how) => void vm.control(how === 'continuous' ? 'normal' : how === 'loop' ? 'scan' : 'block')}
                 onNext={() => void vm.control(vm.stepping === 'step' ? 'next' : 'once')} onRewind={() => void vm.control('restart')} onSlow={(f) => void vm.slowTo(f, runSettings.stepMs)} onStepMs={(ms) => void vm.slowTo(runSettings.slow, ms)} />}
-              {connectionOpen && <ConnectionPanel state={state} board={myBoard} searching={searching} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
+              {connectionOpen && <ConnectionPanel state={main.state} board={myBoard} searching={searching} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={onAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
             </div>
           )
-          : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} />{vm.running && <div className="safe-stop-dock">{safeStopButton}</div>}</div>}
+          : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{perspectiveButton}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} />{vm.running && <div className="safe-stop-dock">{safeStopButton}</div>}</div>}
       </DetailsPanel>
       <HelpOverlay on={help} />
     </WorkspaceShell>

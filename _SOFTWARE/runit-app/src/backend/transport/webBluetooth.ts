@@ -218,6 +218,7 @@ export class WebBluetoothPlatform implements BlePlatform {
     }
 
     let written: Characteristic
+    const taken = new Map<number, Characteristic>()
     try {
       if (!gatt.connected) throw new Error('The board disconnected while the link opened.')
       const find = (uuid: number) => characteristics.find((c) => shortUuid(c.uuid) === uuid)
@@ -235,6 +236,7 @@ export class WebBluetoothPlatform implements BlePlatform {
           const value = (event.target as Characteristic).value
           if (value) handlers.onPacket(uuid, new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)))
         }
+        taken.set(uuid, characteristic)
         characteristic.addEventListener('characteristicvaluechanged', listener)
         listeners.set(characteristic, listener)
         await gattOp(() => characteristic.startNotifications())
@@ -247,9 +249,13 @@ export class WebBluetoothPlatform implements BlePlatform {
     }
 
     // Without a response when the characteristic takes it: about ten times faster. The link's window is the flow control.
-    const response = !written.properties.writeWithoutResponse
+    const send = (to: Characteristic, packet: Uint8Array) => (to.properties.writeWithoutResponse ? to.writeValueWithoutResponse(packet) : to.writeValueWithResponse(packet))
     return {
-      write: (packet) => gattOp(() => (response ? written.writeValueWithResponse(packet) : written.writeValueWithoutResponse(packet))),
+      write: (packet, uuid) => {
+        const to = uuid === undefined ? written : taken.get(uuid)
+        if (!to) return Promise.reject(new Error(`The board's service ${hex(spec.service)} has no characteristic ${hex(uuid!)}.`))
+        return gattOp(() => send(to, packet))
+      },
       close: async () => {
         ours = true
         cleanup()

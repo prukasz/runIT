@@ -22,6 +22,10 @@ static const provider_console_cfg_t k_console = {.rx_flags = CMD_SEND_NOWAIT};
 static const provider_ble_cfg_t k_ble = {
     .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_SESSION, .flags = PROVIDER_BLE_FRAMED,
     .rx_flags = CMD_SEND_NOWAIT, .name = "runit"};
+// The way through this board to another one: no session and no link at boot (RUNIT.MD "The bridge").
+static const provider_ble_cfg_t k_ble_bridge = {
+    .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_BRIDGE, .flags = PROVIDER_BLE_FRAMED,
+    .rx_flags = CMD_SEND_NOWAIT, .name = "bridge"};
 static const provider_ble_cfg_t k_ble_logs = {
     .svc = RUNIT_BLE_SERVICE, .chr = RUNIT_BLE_LOGS, .name = "logs"};
 static const provider_ble_cfg_t k_ble_telemetry = {
@@ -40,6 +44,7 @@ static const provider_row_t k_providers[] = {
     {RUNIT_PROVIDER_BLE, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble, sizeof(k_ble)},
     {RUNIT_PROVIDER_BLE_LOGS, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_logs, sizeof(k_ble_logs)},
     {RUNIT_PROVIDER_BLE_TELEMETRY, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_telemetry, sizeof(k_ble_telemetry)},
+    {RUNIT_PROVIDER_BLE_BRIDGE, SYS_DATA_PROVIDER_TYPE_BLE, &k_ble_bridge, sizeof(k_ble_bridge)},
 };
 
 // A sub-port of a session and its links: IN, the sub-port to its module's port (what the peer sends: commands, other

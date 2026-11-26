@@ -110,3 +110,7 @@
 
 /* The Devices view inside the click that brings the live test back (App.tsx): no box of its own. */
 .devices-focus { display: contents; }
+
+/* The remote board is shown (remote/): a line of its colour over the frame and a mark in the action bar, so it is never taken for the main one. */
+.shell.is-remote { box-shadow: inset 0 3px 0 var(--color-orange); }
+.remote-mark { align-self: center; padding: 3px 8px; border: 1px solid var(--color-orange); border-radius: 6px; color: var(--color-orange); font-size: 12px; white-space: nowrap; }

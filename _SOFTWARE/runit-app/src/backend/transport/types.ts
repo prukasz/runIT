@@ -22,8 +22,11 @@ export interface OpenSpec {
 }
 
 export interface BleChannel {
-  /** One packet to the written characteristic; resolves when the platform took it (with a response: when the board acknowledged it). */
-  write(packet: Uint8Array): Promise<void>
+  /**
+   * One packet to the written characteristic, or to `characteristic`, another one of the same service that is heard; resolves when
+   * the platform took it (with a response: when the board acknowledged it).
+   */
+  write(packet: Uint8Array, characteristic?: number): Promise<void>
   /** Drops the link on purpose: `onClosed` is not called for it. */
   close(): Promise<void>
 }

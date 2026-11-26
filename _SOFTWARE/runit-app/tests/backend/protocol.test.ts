@@ -22,6 +22,7 @@ describe('the numbers come from the firmware', () => {
     expect(defs.gatt).toEqual({
       service: define(ids, 'RUNIT_BLE_SERVICE'),
       session: define(ids, 'RUNIT_BLE_SESSION'),
+      bridge: define(ids, 'RUNIT_BLE_BRIDGE'),
       logs: define(ids, 'RUNIT_BLE_LOGS'),
       telemetry: define(ids, 'RUNIT_BLE_TELEMETRY'),
     })

@@ -54,8 +54,10 @@ export interface LinkDefinitions {
   readonly streams: Readonly<Record<StreamName, number>>
   readonly status: { readonly ok: number; readonly error: number }
   readonly flags: { readonly urgent: number; readonly noReply: number }
-  /** The runIT service: the session's characteristic (written and notified, framed), and the raw logs and telemetry (notify). */
-  readonly gatt: { readonly service: number; readonly session: number; readonly logs: number; readonly telemetry: number }
+  /** The runIT service: the session's characteristic (written and notified, framed), the bridge (the same, with no session: a tunnel to another board), and the raw logs and telemetry (notify). */
+  readonly gatt: { readonly service: number; readonly session: number; readonly bridge: number; readonly logs: number; readonly telemetry: number }
+  /** The data matrix's kind of a provider's port (`data_matrix_port_kind_e`): the high byte of its name. */
+  readonly providerPortKind: number
   readonly frag: { readonly last: number; readonly first: number; readonly countMask: number }
   /** The board's GATT table (BLE LIST) and a BLE provider's create flags. */
   readonly ble: {
@@ -112,9 +114,11 @@ export const linkDefinitions = (enums: EnumTables): LinkDefinitions => {
     gatt: {
       service: v('ble_runit_uuid', 'RUNIT_BLE_SERVICE'),
       session: v('ble_runit_uuid', 'RUNIT_BLE_SESSION'),
+      bridge: v('ble_runit_uuid', 'RUNIT_BLE_BRIDGE'),
       logs: v('ble_runit_uuid', 'RUNIT_BLE_LOGS'),
       telemetry: v('ble_runit_uuid', 'RUNIT_BLE_TELEMETRY'),
     },
+    providerPortKind: v('data_matrix_port_kind_e', 'DATA_MATRIX_PORT_PROVIDER'),
     frag: { last: v('ble_frag', 'SYS_BLE_FRAG_LAST'), first: v('ble_frag', 'SYS_BLE_FRAG_FIRST'), countMask: v('ble_frag', 'SYS_BLE_FRAG_COUNT_MASK') },
     ble: {
       service: { primary: v('ble_svc_flag', 'SYS_BLE_SVC_PRIMARY'), locked: v('ble_svc_flag', 'SYS_BLE_SVC_LOCKED') },

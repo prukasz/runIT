@@ -198,3 +198,9 @@ The suites change the board and put it back; no other BLE client may hold the bo
 - Only BLE. A UART or Wi-Fi platform would implement the same channel; `RunitLink` fragments for BLE only.
 - The firmware's VM, project, OTA and flasher are not in the rework yet: the backend has no client for them.
 - BLE LIST's layout is given in words (lists of lists): `decodeBleTable` reads it by hand, with the published flags; DATA_MATRIX LIST, WATCH LIST and SYS TASKS are still in words (their bytes in `Answer.data`).
+
+## A board behind the board (`session/bridge.ts`)
+
+`link.tunnel(characteristic, handlers)` takes over another characteristic of the open service (`OpenSpec.optional`; `BleChannel.write(packet, characteristic)`): its packets go to `handlers`, what is written to the returned channel goes to it, in turn with the link's own packets (the board joins each characteristic's fragments by themselves, so frames of two characteristics may interleave). A link that drops or is disconnected closes it.
+
+`BridgePlatform(master, wire)` is a `BlePlatform` over the master's bridge characteristic (`gatt.bridge`, RUNIT.MD "The bridge"), so a `RunitLink` on it is a whole link to the board behind the master: its own session, commands, streams, reconnecting. Opening needs the master connected; it makes the master's UART anew under device `BRIDGE_DEVICE` (63, the last ID) from the `BridgeWire` (controller, TX and RX pins, rate; framed), links its provider and `BRIDGE_PROVIDER` both ways (`DATA_MATRIX CONNECT`) and takes the tunnel; the other board's frames come to its link as the session characteristic's. `release()` removes the UART (and with it the provider and the links). `heard` counts the packets of the last attempt: a board heard that opens no session does not hear the master (it greets by itself). Tested in `tests/backend/bridge.test.ts`.

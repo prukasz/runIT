@@ -14,6 +14,18 @@ The runIT app, written from scratch. So far: the VM engine in `src/engine/` (rea
 
 `npm run dev` serves the app at `http://localhost:2137` (a fixed port; localhost is a secure context, so Web Bluetooth works; Chrome or Edge). `npm run build` typechecks and builds it. There is one app for every board: a devkit is a board profile (`profiles/esp32s3-devkit.runit-board.json`: only the ESP pins as device 0, no chips, no power rails or monitor) opened in the Board profile tab. `useLink` (`src/app/connection/`) holds its connection in a ref, so a hot reload keeps the connected link (a backend file changed takes effect at the next page reload). Vite caches the imported `generated/` descriptors: after `templates/sync.sh` changes them, `touch` the changed JSON files (or restart `npm run dev`) and reload. The desktop app takes Chromium switches after `--`: `npm run app -- --remote-debugging-port=9345` lets a script drive it over the DevTools protocol.
 
+## The remote board (`src/app/remote/`)
+
+A second board wired to the main one by a UART, shown in its place. The app keeps its connection to the main board and opens a **second session**, with the other board, through the main board's bridge (backend/session/bridge.ts, BACKEND.md "A board behind the board"; RUNIT.MD "The bridge").
+
+| File | What |
+|---|---|
+| `remote.ts` | Pure. `Perspective` (`main`, `remote`: which board the app shows), the remote board as kept (`runit.remote.link`: wanted or not, the wire), `remoteReason` (why it is not there: nothing heard, or heard and not answering: it does not hear the main board) |
+| `useRemote.ts` | Its link (`RunitLink` on a `BridgePlatform`): wanted from **Connect** until **Disconnect**, also after the app restarts, and looked for until found; a `SYS PING` every 3 s (on a UART nothing else says it is gone). Disconnect: `SYS BYE`, the link, the bridge's UART off the main board |
+| `RemoteScreen.tsx` | The Project view's **Create remote** tab (the main board's only): the wire (UART, TX, RX, baud; `DEFAULT_WIRE`: UART1, 17, 18, 115200: the runIT PCB to a devkit's RX and TX pins), Connect and detect, what answered (its id, its build against the main board's, its profile), Show the remote board |
+
+While a remote board is wanted the right toolbar has the **Remote board** button (both header and collapsed column): it switches the **perspective**. `App` holds the two connections; `Workspace` is every screen over one board's link, made anew (a `key`) at each switch, so nothing of one board stays on the other's screens (undo histories start over). Each perspective has a project and a board profile of its own (`useProject(of)`, `useBoardProfile(of)`: `runit.remote.project.*`, `runit.remote.profile`, which starts as the devkit's), so the remote board's profile is loaded, or written to one that keeps none, as the main board's is. The connection button and panel are the main board's in both. The remote view has an orange line at the top and a **Remote board** mark in the action bar.
+
 ## The project
 
 `src/app/project/`: the open project and its screen.

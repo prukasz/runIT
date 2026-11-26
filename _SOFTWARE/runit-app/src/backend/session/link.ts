@@ -5,7 +5,7 @@ import { serviceCall } from '../protocol/calls'
 import { decodeFrame, decodeHello, encodeControl, encodeHello } from '../protocol/frame'
 import type { Frame, Hello, Request } from '../protocol/frame'
 import { fragment, Reassembler } from '../transport/framing'
-import type { BleChannel, BleDeviceRef, BlePlatform, OpenSpec } from '../transport/types'
+import type { BleChannel, BleDeviceRef, BlePlatform, OpenHandlers, OpenSpec } from '../transport/types'
 import { CommandClient, CommandError } from './commands'
 import type { CommandOptions } from './commands'
 import { DEADMAN_COMMANDS } from './deadman'
@@ -138,6 +138,8 @@ export class RunitLink {
   /** This client's boot id, one per link: the board sees another one as a client that started over. */
   private readonly bootId = Math.floor(Math.random() * 0x100000000) >>> 0
   private channel: BleChannel | undefined
+  /** The other characteristics of the service someone took over (`tunnel`): their packets are not this link's frames. */
+  private readonly tunnels = new Map<number, OpenHandlers>()
   private tx: Promise<unknown> = Promise.resolve()
   private generation = 0
   private wanted = false
@@ -163,7 +165,7 @@ export class RunitLink {
     this.packetBytes = Math.min(options.packetBytes ?? ATT_VALUE_MAX, ATT_VALUE_MAX)
     this.waitForLinkMs = options.waitForLinkMs ?? 5000
     const { gatt } = this.defs
-    this.spec = { service: gatt.service, write: gatt.session, notify: [gatt.session], optional: [gatt.logs, gatt.telemetry] }
+    this.spec = { service: gatt.service, write: gatt.session, notify: [gatt.session], optional: [gatt.logs, gatt.telemetry, gatt.bridge] }
     this.streamNames = new Map(STREAM_NAMES.map((name) => [this.defs.streams[name], name]))
     this.reassembler = new Reassembler(this.defs)
     this.commands = new CommandClient({
@@ -237,6 +239,7 @@ export class RunitLink {
     this.generation++
     const channel = this.channel
     this.channel = undefined
+    this.closeTunnels('The link was disconnected.')
     this.endSession()
     this.reassembler.reset()
     this.commands.cancelAll('not-connected', 'The link was disconnected.')
@@ -254,6 +257,35 @@ export class RunitLink {
     await this.disconnect()
     this.commands.close()
     this.setStatus({ state: 'closed' })
+  }
+
+  /* ---- another characteristic ---- */
+
+  /**
+   * Takes over another characteristic of the open service (the bridge: a tunnel to another board): its packets go to
+   * `handlers`, and what is written to the returned channel goes to it, in turn with this link's own packets. It lasts as long
+   * as this connection: a link that drops or is disconnected closes it (`onClosed`). One taker per characteristic: a new one
+   * replaces it.
+   */
+  tunnel(characteristic: number, handlers: OpenHandlers): BleChannel {
+    if (!this.channel || this.status.state !== 'connected') throw new CommandError('The board is not connected.', 'not-connected')
+    const generation = this.generation
+    this.tunnels.set(characteristic, handlers)
+    return {
+      write: (packet) => {
+        if (this.tunnels.get(characteristic) !== handlers) return Promise.reject(new Error('The tunnel is closed.'))
+        return this.writePackets([packet], generation, characteristic)
+      },
+      close: async () => {
+        if (this.tunnels.get(characteristic) === handlers) this.tunnels.delete(characteristic)
+      },
+    }
+  }
+
+  private closeTunnels(reason: string): void {
+    const closed = [...this.tunnels.values()]
+    this.tunnels.clear()
+    for (const handlers of closed) handlers.onClosed(reason)
   }
 
   /* ---- requests ---- */
@@ -410,6 +442,7 @@ export class RunitLink {
     if (!this.channel) return
     this.channel = undefined
     this.generation++
+    this.closeTunnels(reason)
     this.endSession()
     this.reassembler.reset()
     this.commands.cancelAll('link-lost', `The link dropped: ${reason}`)
@@ -464,23 +497,30 @@ export class RunitLink {
   /* ---- frames ---- */
 
   private sendFrame(frame: Uint8Array): Promise<void> {
+    if (!this.channel) return Promise.reject(new Error('The link is down.'))
+    this.lastSentAt = Date.now()
+    return this.writePackets(fragment(this.defs, frame, this.packetBytes), this.generation)
+  }
+
+  /** The packets one after another, after what is already on its way; to `characteristic`, else the session's. */
+  private writePackets(packets: readonly Uint8Array[], generation: number, characteristic?: number): Promise<void> {
     const channel = this.channel
     if (!channel) return Promise.reject(new Error('The link is down.'))
-    const generation = this.generation
-    const packets = fragment(this.defs, frame, this.packetBytes)
     const result = this.tx.then(async () => {
       for (const packet of packets) {
         if (generation !== this.generation) throw new Error('The link changed while the frame was being written.')
-        await channel.write(packet)
+        await (characteristic === undefined ? channel.write(packet) : channel.write(packet, characteristic))
       }
     })
     this.tx = result.catch(() => undefined)
-    this.lastSentAt = Date.now()
     return result
   }
 
   /** The session's characteristic is framed; the others carry one whole frame per notification. */
   private onPacket(characteristic: number, packet: Uint8Array): void {
+    const tunnel = this.tunnels.get(characteristic)
+    if (tunnel) return tunnel.onPacket(characteristic, packet)
+    if (characteristic === this.defs.gatt.bridge) return // a tunnel nobody takes: what still comes through it is not this link's
     let bytes = packet
     if (characteristic === this.defs.gatt.session) {
       const result = this.reassembler.push(packet)

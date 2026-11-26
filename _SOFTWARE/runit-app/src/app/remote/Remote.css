@@ -1,0 +1,3 @@
+.remote-screen > .remote-intro { max-width: 760px; }
+.remote-intro { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.remote-reason { margin: 0 0 8px; color: var(--error); font-size: 12px; line-height: 1.5; }

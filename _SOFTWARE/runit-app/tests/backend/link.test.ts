@@ -21,7 +21,7 @@ describe('opening', () => {
   it('opens the runIT service: written on the session characteristic, heard on it and on the raw logs and telemetry', async () => {
     const board = new FakeBoard()
     const link = await linkTo(board)
-    expect(board.spec).toEqual({ service: defs.gatt.service, write: defs.gatt.session, notify: [defs.gatt.session], optional: [defs.gatt.logs, defs.gatt.telemetry] })
+    expect(board.spec).toEqual({ service: defs.gatt.service, write: defs.gatt.session, notify: [defs.gatt.session], optional: [defs.gatt.logs, defs.gatt.telemetry, defs.gatt.bridge] })
     expect(board.clientHello?.id).toBe(CLIENT_ID)
     expect(link.session).toMatchObject({ clientId: CLIENT_ID, boardId: board.boardId, bootId: board.bootId, buildId: 0xb17d1d, deadmanMs: 0 })
     await link.close()

@@ -8,10 +8,12 @@
 #define RUNIT_PROVIDER_BLE           0x03u  // the runIT pair of BLE: a client's session
 #define RUNIT_PROVIDER_BLE_LOGS      0x04u  // the BLE characteristic of the logs: raw, LOGS linked to it
 #define RUNIT_PROVIDER_BLE_TELEMETRY 0x05u  // the BLE characteristic of the telemetry: raw, WATCH linked to it
+#define RUNIT_PROVIDER_BLE_BRIDGE    0x06u  // the BLE characteristic of the bridge: no session, no link until the app makes one
 
 /* The runIT GATT service: the client's session. The board's provider of it is in connectivity/data_matrix_setup.c. */
 //#ref-defines ble_runit_uuid @alias runIT GATT UUIDs @prefix RUNIT_BLE_
 #define RUNIT_BLE_SERVICE   0xFFE0  //@alias runIT service @description The board's own service: the client's session
 #define RUNIT_BLE_SESSION   0xFFE1  //@alias Session @description Write and notify, framed: the session's frames both ways
+#define RUNIT_BLE_BRIDGE    0xFFE2  //@alias Bridge @description Write and notify, framed, no session: linked with a way to another board, the client's frames pass to it and back
 #define RUNIT_BLE_LOGS      0xFFE3  //@alias Logs @description Notify, raw: the log lines, no session
 #define RUNIT_BLE_TELEMETRY 0xFFE4  //@alias Telemetry @description Notify, raw: the watches' entries ([hdr PUSH][owner][id][status][data]), no session

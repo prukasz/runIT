@@ -4,6 +4,7 @@ import { amend, record, redo as redoHistory, startHistory, undo as undoHistory }
 import type { History } from './history'
 import { emptyProject, parseProject, PROJECT_EXTENSION, projectFileName, serializeProject } from './projectFile'
 import type { ProjectFile } from './projectFile'
+import type { Perspective } from '../remote/remote'
 
 /*
  * The open project: its undo history, the file (New, Open, Save) and what the browser keeps of it. The current project is
@@ -12,9 +13,11 @@ import type { ProjectFile } from './projectFile'
  * the text last saved or opened.
  */
 
-const CURRENT_KEY = 'runit.project.current'
-const SAVED_KEY = 'runit.project.saved'
-const PREVIOUS_KEY = 'runit.project.previous'
+/** Where the project is kept: each board the app shows (remote/remote.ts `Perspective`) has its own. */
+const storageKeys = (of: Perspective) => {
+  const prefix = of === 'remote' ? 'runit.remote.project' : 'runit.project'
+  return { current: `${prefix}.current`, saved: `${prefix}.saved`, previous: `${prefix}.previous` }
+}
 /** Edits of one field closer together than this are one undo step. */
 const COALESCE_MS = 1500
 
@@ -59,20 +62,21 @@ export const download = (name: string, text: string) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export function useProject() {
-  const [history, setHistory] = useState<History<ProjectFile>>(() => startHistory(readProject(CURRENT_KEY) ?? emptyProject()))
-  const [savedText, setSavedText] = useState<string | undefined>(() => readStored(SAVED_KEY, (raw) => raw, undefined))
-  const [previous, setPrevious] = useState<ProjectFile | undefined>(() => readProject(PREVIOUS_KEY))
+export function useProject(of: Perspective = 'main') {
+  const [keys] = useState(() => storageKeys(of))
+  const [history, setHistory] = useState<History<ProjectFile>>(() => startHistory(readProject(keys.current) ?? emptyProject()))
+  const [savedText, setSavedText] = useState<string | undefined>(() => readStored(keys.saved, (raw) => raw, undefined))
+  const [previous, setPrevious] = useState<ProjectFile | undefined>(() => readProject(keys.previous))
   const [note, setNote] = useState<FileNote | undefined>()
   const project = history.present
   const text = serializeProject(project)
 
-  useEffect(() => writeStored(CURRENT_KEY, text), [text])
+  useEffect(() => writeStored(keys.current, text), [keys, text])
 
   const markSaved = (saved: string | undefined) => {
     setSavedText(saved)
-    if (saved === undefined) removeStored(SAVED_KEY)
-    else writeStored(SAVED_KEY, saved)
+    if (saved === undefined) removeStored(keys.saved)
+    else writeStored(keys.saved, saved)
   }
 
   /* The last edit's key and time: edits with the same `key` less than COALESCE_MS apart (typing in one field) are one undo step. */
@@ -91,7 +95,7 @@ export function useProject() {
 
   /** Puts `next` in place of the project, keeping the one it replaces for Restore previous. A new history starts. */
   const replace = (next: ProjectFile, saved: string | undefined) => {
-    writeStored(PREVIOUS_KEY, serializeProject(project))
+    writeStored(keys.previous, serializeProject(project))
     setPrevious(project)
     setHistory(startHistory(next))
     markSaved(saved)

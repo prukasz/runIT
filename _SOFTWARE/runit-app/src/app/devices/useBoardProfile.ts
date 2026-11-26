@@ -9,6 +9,7 @@ import type { ProjectFile } from '../project/projectFile'
 import { boardFromProfile, profileFromBoard, profileKey, withBoard } from './boardEditor'
 import { bundledBoard } from './boardDescriptor'
 import type { BoardKind } from './boardDescriptor'
+import type { Perspective } from '../remote/remote'
 
 /*
  * The board's profile in the app (boardEditor.ts): the devices of the board and their boot packages, kept in the app's own storage
@@ -27,6 +28,8 @@ export interface ProfileState {
   readonly edit: (change: (project: ProjectFile) => ProjectFile, key?: string) => void
 }
 
+const REMOTE_PROFILE_KEY = 'runit.remote.profile'
+
 /** The incomplete 7-device snapshot that shipped before the rest of the PCB's chip descriptors existed. */
 const LEGACY_PCB_IDS = '0,1,3,10,11,14,15'
 
@@ -35,10 +38,12 @@ const isLegacyIncompletePcb = (stored: ProjectFile, base: ReturnType<typeof bund
   && stored.devices.map((d) => d.id).sort((a, b) => a - b).join(',') === LEGACY_PCB_IDS
   && base.devices.length > stored.devices.length
 
-export function useBoardProfile() {
-  const base = useMemo(() => bundledBoard(), [])
+/** `of`: whose profile: the main board's starts as the runIT PCB, the remote board's (a devkit wired to it) as the devkit. */
+export function useBoardProfile(of: Perspective = 'main') {
+  const kind: BoardKind = of === 'remote' ? 'devkit' : 'pcb'
+  const base = useMemo(() => bundledBoard(kind), [kind])
   const catalog = useMemo(bundledServiceCatalog, [])
-  const key = profileKey('pcb')
+  const key = of === 'remote' ? REMOTE_PROFILE_KEY : profileKey(kind)
   const [history, setHistory] = useState<History<ProjectFile>>(() => {
     const stored = readStored<ProjectFile | undefined>(key, (raw) => { const read = parseProject(raw); return read.ok ? read.project : undefined }, undefined)
     // Upgrade the legacy 7-device PCB profile automatically to the full rev 1 board profile (all 15 chips).
