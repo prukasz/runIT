@@ -217,7 +217,7 @@ export class RunitLink {
     this.current = device
     this.wanted = true
     if (options.retry && this.policy) {
-      void this.keepOpen()
+      void this.keepOpen(undefined, 'connecting')
       await this.whenConnected(Number.POSITIVE_INFINITY)
       return
     }
@@ -429,15 +429,15 @@ export class RunitLink {
     if (channel) this.lost(reason, channel.close().catch(() => undefined))
   }
 
-  /** Attempts to open until one works, `disconnect()` is called, or the policy gives up. */
-  private async keepOpen(before?: Promise<unknown>): Promise<void> {
+  /** Attempts to open until one works, `disconnect()` is called, or the policy gives up; `state` is what the attempts are shown as (a first connection is not a lost one). */
+  private async keepOpen(before?: Promise<unknown>, state: 'connecting' | 'reconnecting' = 'reconnecting'): Promise<void> {
     const policy = this.policy
     if (!policy || this.looping) return
     this.looping = true
     try {
       await before
       for (let attempt = 0; this.wanted; attempt++) {
-        this.setStatus({ state: 'reconnecting', reason: this.status.reason, attempt })
+        this.setStatus({ state, reason: this.status.reason, attempt })
         const wait = policy.delaysMs[Math.min(attempt, policy.delaysMs.length - 1)] ?? 0
         if (wait > 0) await sleep(wait)
         if (!this.wanted) return
@@ -445,7 +445,9 @@ export class RunitLink {
           await this.openOnce()
           return
         } catch (error) {
-          this.setStatus({ state: 'reconnecting', reason: errorText(error), attempt })
+          // Disconnected meanwhile: the link is idle, an attempt that failed for it says nothing.
+          if (!this.wanted) return
+          this.setStatus({ state, reason: errorText(error), attempt })
           if (attempt + 1 >= policy.maxAttempts) {
             this.wanted = false
             this.setStatus({ state: 'idle', reason: errorText(error) })

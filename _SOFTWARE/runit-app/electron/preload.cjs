@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld('runitDesktop', {
     ipcRenderer.on('zoom:changed', listener)
     return () => ipcRenderer.removeListener('zoom:changed', listener)
   },
+  onLeaving: (handler) => {
+    const listener = () => Promise.resolve(handler()).finally(() => ipcRenderer.send('app:left'))
+    ipcRenderer.on('app:leaving', listener)
+    return () => ipcRenderer.removeListener('app:leaving', listener)
+  },
   onDevices: (handler) => {
     const listener = (_event, devices) => handler(devices)
     ipcRenderer.on('ble:devices', listener)

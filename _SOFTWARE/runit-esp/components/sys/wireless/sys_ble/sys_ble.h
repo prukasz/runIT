@@ -57,6 +57,13 @@ typedef void (*sys_ble_rx_f)(void* ctx, const uint8_t* data, uint32_t len);
 MUST_USE err_h sys_ble_start(uint16_t adv_service);
 
 /**
+ * @brief Ends the connection with the client from the board's side, when there is one: the board advertises again at
+ * once. For a client that left (its BYE) or went silent: the PC's Bluetooth keeps a link up for many seconds after
+ * the app on it is gone, and the board can't be found while it lasts. Any task.
+ */
+void sys_ble_disconnect(void);
+
+/**
  * @brief The table's calls, the providers' (nothing else changes the table): staged until sys_ble_apply puts them live. A characteristic
  * is in one service and its UUID is unique in the table.
  * @return ERR_BLE_UUID_TAKEN, ERR_BLE_NOT_FOUND, ERR_BLE_SVC_LOCKED, ERR_NO_MEM, ERR_BAD_ARG

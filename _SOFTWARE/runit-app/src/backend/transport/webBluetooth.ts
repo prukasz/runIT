@@ -113,22 +113,24 @@ const browserBluetooth =(): WebBluetooth | undefined => (globalThis as { navigat
 
 export interface WebBluetoothOptions {
   /**
-   * Optional recovery when reconnecting to a cached BluetoothDevice fails (e.g. in Electron on Windows after a board reset).
-   * Should re-discover the board (via `requestDevice()`) and return its refreshed reference, or undefined if unavailable.
+   * Finds the board anew by a scan (the desktop app: `requestDevice()` answered by the board's address) and gives its new
+   * reference, or undefined when the scan did not see it. Used when the page holds no device for the reference (the app just
+   * started) and when connecting to the one it holds fails (Windows keeps a stale device after the board restarts). Without it
+   * a held device that does not connect is waited for to advertise (`watchAdvertisements`).
    */
-  readonly refresh?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
+  readonly find?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
 }
 
 export class WebBluetoothPlatform implements BlePlatform {
   private readonly devices = new Map<string, Device>()
-  private readonly refresh?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
+  private readonly find?: (ref: BleDeviceRef) => Promise<BleDeviceRef | undefined>
 
   constructor(
     private readonly defs: LinkDefinitions,
     private readonly bluetooth: WebBluetooth | undefined = browserBluetooth(),
     options: WebBluetoothOptions = {},
   ) {
-    this.refresh = options.refresh
+    this.find = options.find
   }
 
   get available(): boolean {
@@ -164,24 +166,31 @@ export class WebBluetoothPlatform implements BlePlatform {
 
   async open(ref: BleDeviceRef, spec: OpenSpec, handlers: OpenHandlers): Promise<BleChannel> {
     let device = this.devices.get(ref.id)
-    if (!device?.gatt) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
+    if (!device?.gatt && !this.find) throw new Error('Choose the board first (requestDevice), or take it from knownDevices.')
 
     // Connect and read the service. After a board restart on Windows, Chromium's cached device often stays stale: its connect()
-    // fails, or it succeeds and the link drops at once ("GATT Server is disconnected"). Either is answered once by a fresh scan
-    // for the board (the desktop bridge) and another try.
-    let characteristics: Characteristic[]
-    try {
-      characteristics = await discover(device, spec.service, (gatt) => connectSeen(device!, gatt))
-    } catch (firstError) {
-      if (!this.refresh) throw firstError
-      const fresh = await this.refresh(ref)
+    // fails, or it succeeds and the link drops at once ("GATT Server is disconnected"). With `find`, that (or no device held) is
+    // answered by a fresh scan for the board and one more try; without it, by waiting for the board to advertise.
+    let characteristics: Characteristic[] | undefined
+    let failure: unknown
+    if (device?.gatt) {
+      try {
+        const held = device
+        characteristics = await discover(held, spec.service, (gatt) => (this.find ? gatt.connect() : connectSeen(held, gatt)))
+      } catch (error) {
+        if (!this.find) throw error
+        failure = error
+      }
+    }
+    if (!characteristics) {
+      const fresh = await this.find!(ref)
       const next = fresh ? this.devices.get(fresh.id) : undefined
-      if (!next?.gatt) throw firstError
+      if (!next?.gatt) throw failure ?? new Error(`${ref.name ?? 'The board'} was not found nearby.`)
       this.devices.set(ref.id, next)
       device = next
       characteristics = await discover(device, spec.service, (gatt) => gatt.connect())
     }
-    const opened = device
+    const opened = device!
     const gatt = opened.gatt!
 
     let ours = false // we drop the link: not reported as a loss

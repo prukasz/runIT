@@ -4,8 +4,8 @@ import { Badge, HelpOverlay, PanelHeader, SegmentedSwitch } from '@ui/components
 import { usePersistedChoice, usePersistedFlag } from '@ui/hooks/useStorage'
 import { DetailsPanel, ExplorerPanel, MainScreen, ResizeHandle, WorkspaceShell } from '@ui/layout/WorkspaceLayout'
 import { usePanels } from '@ui/layout/usePanels'
-import { ConnectionPanel } from './ConnectionPanel'
-import { useLink } from './useLink'
+import { ConnectionPanel } from './connection/ConnectionPanel'
+import { useLink } from './connection/useLink'
 import { useVm } from './useVm'
 import { DebugPanel } from './run/DebugPanel'
 import { useRunSettings } from './run/useRunSettings'
@@ -126,7 +126,7 @@ const LINK_VIEW: Record<LinkState, { tone: string; Icon: typeof Bluetooth; title
 
 export function App() {
   const [auto, setAuto] = usePersistedFlag('runit.autoReconnect', true)
-  const { link, state, reason, device, available, scan, choose, cancelScan, connect, disconnect, forget } = useLink(auto)
+  const { link, state, reason, board: myBoard, searching, available, scan, choose, cancelScan, connect, disconnect, forget } = useLink(auto)
   const panels = usePanels()
   const project = useProject()
   const runSettings = useRunSettings()
@@ -551,7 +551,7 @@ export function App() {
                 {...(state !== 'connected' ? { why: 'Connect the board to debug the program.' } : {})}
                 onStart={() => void vm.run('debug', runSettings.slow, runSettings.stepping, runSettings.stepMs)} onStepping={(how) => void vm.control(how === 'continuous' ? 'normal' : how === 'loop' ? 'scan' : 'block')}
                 onNext={() => void vm.control(vm.stepping === 'step' ? 'next' : 'once')} onRewind={() => void vm.control('restart')} onSlow={(f) => void vm.slowTo(f, runSettings.stepMs)} onStepMs={(ms) => void vm.slowTo(runSettings.slow, ms)} />}
-              {connectionOpen && <ConnectionPanel state={state} device={device} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
+              {connectionOpen && <ConnectionPanel state={state} board={myBoard} searching={searching} reason={reason} available={available} scan={scan} onChoose={choose} onCancelScan={cancelScan} auto={auto} onAuto={setAuto} sync={autoSync} onSync={setAutoSync} onConnect={() => void connect()} onDisconnect={() => void disconnect()} onForget={() => void forget()} />}
             </div>
           )
           : <div className="side-panel-icons">{vm.safe && <SafeStateButton safe={vm.safe} onOpen={() => { setDebugOpen(false); setConnectionOpen(true); panels.setRightOpen(true) }} />}{runButtons}{consoleButton}<PowerLive layout="column" services={devices.services} board={devices.board} devices={devices.devices} readings={powerReadings} connected={state === 'connected'} />{vm.running && <div className="safe-stop-dock">{safeStopButton}</div>}</div>}

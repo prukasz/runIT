@@ -44,12 +44,12 @@ ROUTER_WRITE(SYS, OP_DEADMAN) {
 }
 
 // The client is leaving on purpose (its Disconnect, its window closing): the board goes on with what it runs, and a
-// dead-man the client armed must not stop it for the silence that follows. A link that drops without it (power,
-// range) ends its session.
+// dead-man the client armed must not stop it for the silence that follows; whoever owns its link may drop it
+// (SESSION_EV_LEFT). A link that drops without it (power, range) ends its session.
 ROUTER_WRITE(SYS, OP_BYE) {
   const cmd_req_t* origin = router_origin();
   ERR_CHECK(origin != NULL && origin->src != CMD_SRC_NONE && origin->src != CMD_SRC_SELF, ERR_BAD_ARG);
-  ERR_TRY(sys_session_deadman_set(origin->src, 0, false));
+  ERR_TRY(sys_session_leave(origin->src));
   ESP_LOGI(TAG, "client left: dead-man off");
   return NULL;
 }

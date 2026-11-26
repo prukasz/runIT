@@ -73,7 +73,7 @@ const browser = (options: { watch: boolean; stale?: boolean }) => {
         }
       : {}),
   }
-  const bluetooth: WebBluetooth = { requestDevice: async () => device, getDevices: async () => [device] }
+  const bluetooth = { requestDevice: async () => device, getDevices: async () => [device], seen: () => { seen = true } } as WebBluetooth
   return { bluetooth, log, handlers }
 }
 
@@ -115,18 +115,39 @@ describe('opening a board that restarted (a stale device on Windows)', () => {
   it('a link that drops as the service is read is opened again after a fresh scan, and its later loss is reported', async () => {
     const { bluetooth, log, handlers } = browser({ watch: true, stale: true })
     let platform!: WebBluetoothPlatform
-    const refresh = async () => {
-      log.push('refresh')
+    const find = async () => {
+      log.push('find')
       return platform.requestDevice()
     }
-    platform = new WebBluetoothPlatform(defs, bluetooth, { refresh })
+    platform = new WebBluetoothPlatform(defs, bluetooth, { find })
+    ;(bluetooth as unknown as { seen: () => void }).seen() // the board advertises: its connect works, its link is stale
     const [known] = await platform.knownDevices()
     const closed: string[] = []
     const channel = await platform.open(known!, spec, { onPacket() {}, onClosed: (reason) => closed.push(reason) })
-    expect(log).toEqual(['connect', 'watch', 'connect', 'refresh', 'connect'])
+    expect(log).toEqual(['connect', 'find', 'connect'])
     expect(closed).toEqual([])
     for (const h of [...(handlers.get('gattserverdisconnected') ?? [])]) h({ target: undefined })
     expect(closed).toEqual(['The board disconnected.'])
+    await channel.close()
+  })
+})
+
+describe('opening a board the page does not hold yet (the desktop app just started)', () => {
+  it('finds it by a scan first; a scan that does not see it fails the open', async () => {
+    const { bluetooth, log } = browser({ watch: false })
+    let platform!: WebBluetoothPlatform
+    let nearby = false
+    const find = async () => {
+      log.push('find')
+      ;(bluetooth as unknown as { seen: () => void }).seen()
+      return nearby ? platform.requestDevice() : undefined
+    }
+    platform = new WebBluetoothPlatform(defs, bluetooth, { find })
+    const ref = { id: 'not-held', name: 'runit' }
+    await expect(platform.open(ref, spec, { onPacket() {}, onClosed() {} })).rejects.toThrow(/runit was not found nearby/)
+    nearby = true
+    const channel = await platform.open(ref, spec, { onPacket() {}, onClosed() {} })
+    expect(log).toEqual(['find', 'find', 'connect'])
     await channel.close()
   })
 })

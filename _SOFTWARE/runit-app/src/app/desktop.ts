@@ -20,6 +20,8 @@ export interface Desktop {
   /** The scale changed from the keyboard (Ctrl + / Ctrl − / Ctrl 0) or by `setZoom`. */
   onZoom(handler: (factor: number) => void): () => void
   onDevices(handler: (devices: readonly ScanResult[]) => void): () => void
+  /** The window is closing: `handler` runs first (the window waits for it, a short while at most). */
+  onLeaving(handler: () => Promise<void>): () => void
   /** Writes a part of the creator into the hardware library (part.json and part.svg); answers the folder, null when refused. */
   saveLibraryPart(part: { id: string; json: string; svg: string }): Promise<string | null>
 }

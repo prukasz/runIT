@@ -51,22 +51,23 @@ const createWindow = () => {
     window.webContents.send('zoom:changed', next)
   }
 
-  let wanted = null // the board to pick as soon as the scan sees it (the id the scan reports)
+  let wanted = null // the board to pick as soon as the scan sees it: its address (the id the scan reports), upper case
   let answer = null // the pending `select-bluetooth-device` callback
 
   window.webContents.on('select-bluetooth-device', (event, devices, callback) => {
     event.preventDefault()
     answer = callback
-    if (wanted && devices.some((device) => device.deviceId === wanted)) {
+    const found = wanted && devices.find((device) => device.deviceId.toUpperCase() === wanted)
+    if (found) {
       answer = null
-      callback(wanted)
+      callback(found.deviceId)
       return
     }
     if (!wanted) window.webContents.send('ble:devices', devices.map((device) => ({ id: device.deviceId, name: device.deviceName })))
   })
 
   const own = (event) => event.sender === window.webContents
-  ipcMain.on('ble:want', (event, id) => { if (own(event)) wanted = typeof id === 'string' && id ? id : null })
+  ipcMain.on('ble:want', (event, id) => { if (own(event)) wanted = typeof id === 'string' && id ? id.toUpperCase() : null })
   ipcMain.on('ble:select', (event, id) => {
     if (!own(event) || !answer) return
     const callback = answer
@@ -89,7 +90,20 @@ const createWindow = () => {
     await writeFile(join(folder, 'part.svg'), part.svg)
     return folder
   })
+  // Closing the window lets the page say goodbye to the board first (SYS BYE, then the link dropped: the board drops it
+  // too and advertises at once); a page that does not answer in time is closed anyway.
+  let leaving = false
+  window.on('close', (event) => {
+    if (leaving) return
+    leaving = true
+    event.preventDefault()
+    const done = () => { if (!window.isDestroyed()) window.destroy() }
+    ipcMain.once('app:left', done)
+    setTimeout(done, 1500)
+    window.webContents.send('app:leaving')
+  })
   window.on('closed', () => {
+    ipcMain.removeAllListeners('app:left')
     ipcMain.removeAllListeners('ble:want')
     ipcMain.removeAllListeners('ble:select')
     ipcMain.removeHandler('ble:gesture')

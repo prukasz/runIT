@@ -279,6 +279,18 @@ void sys_ble_apply(void) {
   wake();
 }
 
+void sys_ble_disconnect(void) {
+  lock();
+  const bool connected = g_ble.connected;
+  const uint16_t conn = g_ble.conn;
+  unlock();
+  // Outside the lock: NimBLE takes the host's. The disconnect event then starts advertising (sys_ble_stack.c).
+  const int rc = connected ? sys_ble_stack_terminate(conn) : 0;
+  if (rc != 0 && rc != BLE_HS_ENOTCONN) {
+    err_report(ERR_NEW(ERR_BLE_STACK, .rc = rc));  // it has no caller to answer
+  }
+}
+
 err_h sys_ble_status(sys_ble_status_t* out) {
   lock();
   *out = (sys_ble_status_t){.connected = g_ble.connected, .mtu = g_ble.mtu};
@@ -508,21 +520,34 @@ static uint32_t take_item(out_t* o) {
   return 0;
 }
 
+// Ticks until `at`, 0 when it has passed; portMAX_DELAY when nothing is due (`pending` false).
+static TickType_t until(bool pending, TickType_t at) {
+  const TickType_t left = at - xTaskGetTickCount();
+  return !pending ? portMAX_DELAY : (int32_t)left > 0 ? left : 0;
+}
+
 void sys_ble_task(void* arg) {
   (void)arg;
   while (true) {
     lock();
-    const TickType_t left = g_ble.apply_at - xTaskGetTickCount();
-    const TickType_t wait = !g_ble.apply_pending ? portMAX_DELAY : (int32_t)left > 0 ? left : 0;
+    const TickType_t apply = until(g_ble.apply_pending, g_ble.apply_at);
+    const TickType_t mute = until(g_ble.mute, g_ble.mute_until);
     unlock();
-    xSemaphoreTake(g_ble_wake, wait);
+    xSemaphoreTake(g_ble_wake, apply < mute ? apply : mute);
 
     lock();
-    const bool due = g_ble.apply_pending && (int32_t)(xTaskGetTickCount() - g_ble.apply_at) >= 0;
+    const bool due = g_ble.apply_pending && until(true, g_ble.apply_at) == 0;
     g_ble.apply_pending = g_ble.apply_pending && !due;
     err_h err = due ? sync() : NULL;
+    // A central that connected and wrote nothing: no client of the board (the PC's Bluetooth reconnecting on its own
+    // for an app that is gone). Dropped, so the board advertises and the app finds it (SYS_BLE.MD "Connection").
+    const bool drop = g_ble.mute && until(true, g_ble.mute_until) == 0;
+    g_ble.mute = g_ble.mute && !drop;
     unlock();
     err_report(err);
+    if (drop) {
+      sys_ble_disconnect();
+    }
 
     out_t o;
     uint32_t len;
@@ -578,6 +603,9 @@ int sys_ble_on_write(ble_char_t* c, const uint8_t* data, uint32_t len) {
   if (taken && len > 0) {
     cb(ctx, data, len);
   }
+  lock();
+  g_ble.mute = false;
+  unlock();
   xSemaphoreGive(g_ble_calls);
   return taken ? 0 : BLE_ATT_ERR_WRITE_NOT_PERMITTED;
 }
@@ -587,13 +615,17 @@ void sys_ble_on_connect(uint16_t conn, uint16_t mtu) {
   g_ble.connected = true;
   g_ble.conn = conn;
   g_ble.mtu = mtu;
+  g_ble.mute = true;
+  g_ble.mute_until = xTaskGetTickCount() + MSEC(CONFIG_SYS_BLE_FIRST_WRITE_MS);
   unlock();
+  wake();  // the BLE task waits for the first write from now
   tell_hooks();
 }
 
 void sys_ble_on_disconnect(void) {
   lock();
   g_ble.connected = false;
+  g_ble.mute = false;
   g_ble.conn = 0;
   g_ble.mtu = BLE_ATT_MTU_DFLT;
   ble_svc_t* s;

@@ -53,6 +53,8 @@ typedef struct {
   uint16_t mtu;
   bool apply_pending;
   TickType_t apply_at;
+  bool mute;               // connected and the client has written nothing yet
+  TickType_t mute_until;   // then the BLE task drops it (CONFIG_SYS_BLE_FIRST_WRITE_MS)
 } ble_t;
 
 extern ble_t g_ble;
@@ -85,6 +87,8 @@ MUST_USE err_h sys_ble_stack_add(uint16_t uuid, struct ble_gatt_svc_def* svcs);
 MUST_USE err_h sys_ble_stack_delete(uint16_t uuid);
 /** One notification / indication: NimBLE's code (BLE_HS_ENOMEM: try again). */
 int sys_ble_stack_notify(uint16_t conn, uint16_t val_handle, const uint8_t* data, uint32_t len, bool indicate);
+/** Ends the connection from this side (the remote user ended it); NimBLE's code. */
+int sys_ble_stack_terminate(uint16_t conn);
 
 #define SYS_BLE_CHECK_MEM(cond, uuid_, size_)                                                           \
   do {                                                                                                  \

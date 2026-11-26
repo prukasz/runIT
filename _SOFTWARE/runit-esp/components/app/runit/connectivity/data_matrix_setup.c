@@ -12,6 +12,7 @@
 #include "sys_event_id.h"
 #include "sys_log_id.h"
 #include "sys_session.h"
+#include "sys_session_events.h"
 #include "sys_watch_id.h"
 #include "vm_id.h"
 #include "utils.h"
@@ -74,18 +75,25 @@ static const sys_session_sub_t k_master_subs[] = {
     {MODULE_ID_ROUTER, SYS_SESSION_IN},  {MODULE_ID_ERRORS, SYS_SESSION_OUT}, {MODULE_ID_SYS_EVENT, SYS_SESSION_OUT},
     {MODULE_ID_WATCH, SYS_SESSION_OUT},  {MODULE_ID_REMOTE, SYS_SESSION_IN}};
 
-// A session of the board's own, with the dead-man's default (a safety one when there is a time).
+// A session of the board's own and its dead-man: the default (a safety one when there is a time), or, on BLE with no
+// default, BLE_SILENCE_MS with no safety: only to notice the app that is gone (RUNIT.MD "The app's BLE link").
 typedef struct {
   uint8_t provider;
   const sub_row_t* subs;
   uint8_t count;
+  uint16_t deadman_ms;
+  uint8_t flags;
 } session_row_t;
 
+#define BLE_SILENCE_MS 5000u  // the app pings at a third of it (SYS_SESSION.MD "The dead-man")
+#define DEADMAN_MS     CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS
+#define DEADMAN_FLAGS  (DEADMAN_MS > 0 ? SYS_SESSION_SAFETY : 0u)
+#define BLE_DEADMAN_MS (DEADMAN_MS > 0 ? DEADMAN_MS : BLE_SILENCE_MS)
+
 static const session_row_t k_sessions[] = {
-    {RUNIT_PROVIDER_CONSOLE, k_console_subs, ARRAY_LEN(k_console_subs)},
-    {RUNIT_PROVIDER_BLE, k_ble_subs, ARRAY_LEN(k_ble_subs)},
+    {RUNIT_PROVIDER_CONSOLE, k_console_subs, ARRAY_LEN(k_console_subs), DEADMAN_MS,     DEADMAN_FLAGS},
+    {RUNIT_PROVIDER_BLE,     k_ble_subs,     ARRAY_LEN(k_ble_subs),     BLE_DEADMAN_MS, DEADMAN_FLAGS},
 };
-#define SESSION_FLAGS (CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS > 0 ? SYS_SESSION_SAFETY : 0u)
 
 #define MODULE_PORT(module) DATA_MATRIX_PORT(DATA_MATRIX_PORT_MODULE, (module))
 
@@ -99,7 +107,7 @@ static err_h attach(const session_row_t* row) {
   for (uint32_t m = 0; m < row->count; m++) {
     modules[m] = row->subs[m].module;
   }
-  ERR_TRY(sys_session_attach(row->provider, CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS, SESSION_FLAGS, modules, row->count));
+  ERR_TRY(sys_session_attach(row->provider, row->deadman_ms, row->flags, modules, row->count));
   for (uint32_t m = 0; m < row->count; m++) {
     const data_matrix_port_id_t sub = SYS_SESSION_PORT(row->provider, row->subs[m].module);
     const data_matrix_port_id_t module = MODULE_PORT(row->subs[m].module);
@@ -109,6 +117,20 @@ static err_h attach(const session_row_t* row) {
     if (row->subs[m].ways & OUT) {
       ERR_TRY(connect(module, sub));
     }
+  }
+  return NULL;
+}
+
+// The app on BLE left (its BYE) or went silent: the board drops the link. The PC's Bluetooth keeps it up for many
+// seconds after the app is gone, and while it lasts the board does not advertise: the app started again can't find it.
+// Queued, not inline: BYE's answer goes out first.
+static err_h on_app_gone(const sys_event_t* event, void* ctx) {
+  (void)ctx;
+  const bool left = event->key.tag == SESSION_EV_LEFT;
+  const uint8_t provider =
+      left ? SYS_EVENT_DATA(event, SESSION_EV_LEFT)->provider : SYS_EVENT_DATA(event, SESSION_EV_GONE)->provider;
+  if (provider == RUNIT_PROVIDER_BLE && (left || SYS_EVENT_DATA(event, SESSION_EV_GONE)->silent != 0u)) {
+    sys_ble_disconnect();
   }
   return NULL;
 }
@@ -125,6 +147,9 @@ err_h runit_data_matrix_setup(void) {
   for (uint32_t i = 0; i < ARRAY_LEN(k_sessions); i++) {
     ERR_TRY(attach(&k_sessions[i]));
   }
+  uint16_t handle;
+  ERR_TRY(sys_event_subscribe(SESSION_LEFT_FILTER, on_app_gone, NULL, SYS_EVENT_RUN_QUEUED_SYS, &handle));
+  ERR_TRY(sys_event_subscribe(SESSION_GONE_FILTER, on_app_gone, NULL, SYS_EVENT_RUN_QUEUED_SYS, &handle));
   // The raw characteristics, with no session: the log lines as text, the watches' entries as they are.
   ERR_TRY(connect(MODULE_PORT(MODULE_ID_LOG), DATA_MATRIX_PORT(DATA_MATRIX_PORT_PROVIDER, RUNIT_PROVIDER_BLE_LOGS)));
   ERR_TRY(connect(MODULE_PORT(MODULE_ID_WATCH),

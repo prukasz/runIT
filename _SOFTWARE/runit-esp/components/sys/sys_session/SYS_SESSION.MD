@@ -69,9 +69,9 @@ One board timer (every 10 ms) does it all: the dead-man's pings and ends, the he
 
 ## The dead-man
 
-A session has a dead-man **of its own**: a time, or none. The attach sets it, `sys_session_deadman_set(peer, ms, safety)` changes it (sys_system's DEADMAN, for the session the command came on; `ms` 0: off), and the PEERS row says it. With a time:
+A session has a dead-man **of its own**: a time, or none. The attach sets it, `sys_session_deadman_set(peer, ms, safety)` changes it (sys_system's DEADMAN, for the session the command came on; `ms` 0: off), `sys_session_leave(peer)` turns it off (BYE: the peer leaves on purpose, `SESSION_EV_LEFT`), and the PEERS row says it. What a peer set is that peer's: each new session (a hello on a session not open) starts with the attach's time and flag again. With a time:
 
-- the session ends after that much silence;
+- the session ends after that much silence (`SESSION_EV_GONE` with `silent` 1: the peer is gone, its link may still be up);
 - the **keepalive** is a third of it: the board sends a PING that often. Both sides with the same time keep each other alive; a client that set the time itself sends at least that often;
 - with the flag `SYS_SESSION_SAFETY` its end is a **safety event**: `SESSION_EV_GONE` carries `safety` 1 and sys_system enters the safe state (SYS_SYSTEM.MD). Without the flag it only ends.
 
@@ -83,7 +83,7 @@ No time: nothing is sent and the silence ends nothing.
 
 ## Reached and gone: events
 
-The sessions publish two events (`sys_session_events.h`, module `MODULE_ID_SESSION`, source the peer's id, channel 0, inline): **`SESSION_EV_REACHED`** when a session opens and **`SESSION_EV_GONE`** `{safety}` when it ends. A listener subscribes with `sys_event_subscribe` and `SESSION_GONE_FILTER` / `SESSION_REACHED_FILTER` (`SYS_EVENT_RUN_INLINE`), the peer the event's source, GONE's `safety` its payload (`SYS_EVENT_DATA(event, SESSION_EV_GONE)`); it runs on the context that noticed it (a driver's RX task, the board timers' task, the events' task, the caller of detach), drops what it keeps for that peer and never blocks. The ones that listen: the watches (server and client), the remote devices and sys_system.
+The sessions publish three events (`sys_session_events.h`, module `MODULE_ID_SESSION`, source the peer's id, channel 0, inline): **`SESSION_EV_REACHED`** when a session opens, **`SESSION_EV_GONE`** `{safety, provider, silent}` when it ends (`silent` 1: by the dead-man's silence) and **`SESSION_EV_LEFT`** `{provider}` when its peer leaves on purpose (`sys_session_leave`, its BYE: the session stays open, its dead-man off). A listener subscribes with `sys_event_subscribe` and `SESSION_GONE_FILTER` / `SESSION_REACHED_FILTER` (`SYS_EVENT_RUN_INLINE`), the peer the event's source, GONE's `safety` its payload (`SYS_EVENT_DATA(event, SESSION_EV_GONE)`); it runs on the context that noticed it (a driver's RX task, the board timers' task, the events' task, the caller of detach), drops what it keeps for that peer and never blocks. The ones that listen: the watches (server and client), the remote devices, sys_system and `app/runit` (GONE by silence and LEFT of the BLE pair: it drops the link, RUNIT.MD "The app's BLE link").
 
 ## Remote (`sys_session_router`, root key `MODULE_ID_SESSION`)
 

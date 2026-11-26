@@ -1,7 +1,8 @@
 import { Check, Loader2, Unplug } from 'lucide-react'
 import type { LinkState } from '@backend'
 import { Button, Switch } from '@ui/components'
-import type { ScanResult } from './desktop'
+import type { ScanResult } from '../desktop'
+import type { RememberedBoard } from './board'
 
 /** The Connect button while the link is on its way up or up: its text, its colour (styles/status.css) and its icon. Otherwise it reads Connect. */
 const CONNECT_VIEW: Partial<Record<LinkState, { label: string; tone: string; Icon: typeof Check }>> = {
@@ -10,10 +11,12 @@ const CONNECT_VIEW: Partial<Record<LinkState, { label: string; tone: string; Ico
   connected: { label: 'Connected', tone: 'is-ok', Icon: Check },
 }
 
-/** The right panel when the connection button is open: which board, Connect / Disconnect, the boards nearby (desktop app), connecting automatically, forgetting the board. */
-export function ConnectionPanel({ state, device, reason, available, scan, auto, onAuto, sync, onSync, onConnect, onDisconnect, onForget, onChoose, onCancelScan }: {
+/** The right panel when the connection button is open: which board (its name and address), Connect / Disconnect, the boards nearby (desktop app), connecting automatically, forgetting the board. */
+export function ConnectionPanel({ state, board, searching, reason, available, scan, auto, onAuto, sync, onSync, onConnect, onDisconnect, onForget, onChoose, onCancelScan }: {
   state: LinkState
-  device?: string
+  board?: RememberedBoard
+  /** Looking for the remembered board (connection.ts). */
+  searching: boolean
   reason?: string
   available: boolean
   /** The desktop app's scan while its chooser is open (useLink). */
@@ -30,18 +33,20 @@ export function ConnectionPanel({ state, device, reason, available, scan, auto, 
   onCancelScan: () => void
 }) {
   const up = state === 'connected' || state === 'reconnecting'
-  const down = state === 'idle' || state === 'closed'
-  const view = CONNECT_VIEW[state]
+  // Searching is something to stop: Disconnect ends it.
+  const down = (state === 'idle' || state === 'closed') && !searching
+  const view = searching ? { label: 'Looking for the board…', tone: 'is-warn', Icon: Loader2 } : CONNECT_VIEW[state]
   return (
     <div className="connection-panel">
       <div className="connection-board">
         <span className="connection-board-label">My board</span>
-        <span className="connection-device">{device ?? 'no board'}</span>
+        <span className="connection-device">{board?.name ?? 'no board'}</span>
+        {board?.address && <span className="connection-board-label" title="The board's Bluetooth address: the desktop app finds it by this">{board.address}</span>}
       </div>
       {!available && <p className="connection-error">This browser has no Web Bluetooth. Use Chrome or Edge.</p>}
-      {reason && state !== 'connected' && <p className="connection-error">{reason}</p>}
+      {reason && state !== 'connected' && <p className={searching ? 'connection-board-label' : 'connection-error'}>{reason}</p>}
       <div className="connection-actions">
-        <Button block className={`connection-state ${view?.tone ?? ''}`} disabled={!available || state === 'connecting' || up || scan !== undefined} onClick={onConnect}>
+        <Button block className={`connection-state ${view?.tone ?? ''}`} disabled={!available || state === 'connecting' || up || searching || scan !== undefined} onClick={onConnect}>
           {view && <view.Icon aria-hidden="true" className={view.Icon === Loader2 ? 'spinning' : ''} />}
           {view?.label ?? 'Connect'}
         </Button>
@@ -62,7 +67,7 @@ export function ConnectionPanel({ state, device, reason, available, scan, auto, 
       <Switch checked={auto} onChange={onAuto} label="Connect automatically" />
       <Switch checked={sync} onChange={onSync} label="Read the board when it connects" />
       <div className="connection-actions">
-        <Button block disabled={!available || !device} onClick={onForget}>Forget device</Button>
+        <Button block disabled={!available || !board} onClick={onForget}>Forget device</Button>
       </div>
     </div>
   )

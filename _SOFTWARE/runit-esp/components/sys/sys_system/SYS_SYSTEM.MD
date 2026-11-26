@@ -27,7 +27,7 @@ It notes the reason and the time (for SAFE), publishes the event **SAFE** inline
 
 ## The dead-man
 
-A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (`app/runit` gives the console's and the BLE session's `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS`, with the safety flag when it is not 0), and DEADMAN sets the time of the session the command came on, with the safety flag (`sys_session_deadman_set`): 0 is off and that session never ends by silence; else it is its silence limit, and a third of it the keepalive. A session with the safety flag that ends (silence that long, the link lost) enters the safe state: the listener of `SESSION_EV_GONE` (`safety` 1) notes the reason and has the router's urgent task run it (`router_run_urgent`), and sends STOP on every other open session (a broadcast, URGENT, NOREPLY). BYE turns the dead-man of its session off: the client leaves on purpose.
+A session has a dead-man of its own (SYS_SESSION.MD "The dead-man"): at ATTACH (`app/runit` gives the console's and the BLE session's `CONFIG_SYS_SYSTEM_DEADMAN_DEFAULT_MS`, with the safety flag when it is not 0), and DEADMAN sets the time of the session the command came on, with the safety flag (`sys_session_deadman_set`): 0 is off and that session never ends by silence; else it is its silence limit, and a third of it the keepalive. A session with the safety flag that ends (silence that long, the link lost) enters the safe state: the listener of `SESSION_EV_GONE` (`safety` 1) notes the reason and has the router's urgent task run it (`router_run_urgent`), and sends STOP on every other open session (a broadcast, URGENT, NOREPLY). BYE is the client leaving on purpose: `sys_session_leave` turns the dead-man of its session off and publishes `SESSION_EV_LEFT` (`app/runit` then drops the app's BLE link: RUNIT.MD "The app's BLE link").
 
 ## The time
 
@@ -41,7 +41,7 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 | `0x02` | STOP | write | – : the safe state, reason STOP |
 | `0x03` | RESTART | write | – : the board restarts 100 ms after the answer (a board timer) |
 | `0x04` | DEADMAN | read / write | `sys_system_deadman_t` `{u32 timeout_ms}` (0 = off) |
-| `0x06` | BYE | write | – : the dead-man disarmed |
+| `0x06` | BYE | write | – : the client leaves (`sys_session_leave`: the dead-man disarmed, `SESSION_EV_LEFT`) |
 | `0x07` | TIME | read / write | `sys_system_time_t` `{u64 unix_ms}`; read 0 = not set since the power came on; the write is sent to every board |
 | `0x09` | SAFE | read | → `sys_system_safe_t` `{u8 reason, u32 for_ms}`; reason 0 = not in the safe state |
 | `0x0A` | SAFE_LEAVE | write | – : every device resumed, the note cleared |
@@ -58,6 +58,6 @@ A board that has a time (a client set it with TIME) sends it on every open sessi
 
 ## Tests
 
-Host tests in `host/` (`python test_host/run.py sys_system` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `timer`, `sys_event` and `data_matrix` and a stand-in session (`sys_session_broadcast`; `SESSION_EV_GONE` published by the test): the safe state entered and left, SAFE heard inline before the sweep with its reason and device, a failed resume keeping its note, SAFE_LEFT with the reason once; `SESSION_EV_GONE` with its safety bit starting the dead-man and the urgent STOP broadcast; BYE, PING, the time and TASKS through the router.
+Host tests in `host/` (`python test_host/run.py sys_system` from `runit-esp/`, `HOST_TESTS.MD`), with the real `router`, `timer`, `sys_event` and `data_matrix` and a stand-in session (`sys_session_broadcast`; `SESSION_EV_GONE` published by the test): the safe state entered and left, SAFE heard inline before the sweep with its reason and device, a failed resume keeping its note, SAFE_LEFT with the reason once; `SESSION_EV_GONE` with its safety bit starting the dead-man and the urgent STOP broadcast; BYE leaving its session, PING, the time and TASKS through the router.
 
 On a board: `python runit-esp/tools/session_client.py <COM port>` runs PING (`28 00 01`) over a session. STOP, SAFE and SAFE_LEAVE with devices, the dead-man by the session's silence, and the time on a slave are not run yet.

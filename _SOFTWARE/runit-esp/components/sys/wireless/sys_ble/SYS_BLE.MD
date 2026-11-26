@@ -4,14 +4,14 @@ Component `runit-esp/components/sys/wireless/sys_ble/`. NimBLE as a peripheral (
 
 | File | Role |
 |---|---|
-| `sys_ble.h` | `sys_ble_start`, the table's calls, `sys_ble_hook`, `sys_ble_send`; the service and characteristic flags and the fragment header bits |
+| `sys_ble.h` | `sys_ble_start`, `sys_ble_disconnect`, the table's calls, `sys_ble_hook`, `sys_ble_send`; the service and characteristic flags and the fragment header bits |
 | `internal/sys_ble_internal.h` | The nodes, the lock, what the sources share (the table's calls for the router) |
 | `sys_ble.c` | The table (staged), the sync to NimBLE, the hooks, TX (the BLE task), RX and the framing, the connection |
 | `sys_ble_stack.c` | NimBLE: init, advertising, GAP events, GATT access, the table's definitions, notify |
 | `router/sys_ble_router.h` / `.c` | The remote interface (root key `MODULE_ID_BLE`): the frames and flags, then `BLE_OPERATIONS`; registers itself |
 | `router/contract_ble.json` | The router's descriptor |
 | `sys_ble_id.h`, `errors/` | `MODULE_ID_DECLARE(MODULE_ID_BLE, 0x..)` (`sys_ble_id.h`), `ERR_SYS_BLE_MAP`, `errors_sys_ble.json` |
-| `Kconfig` | The name, the BLE task, the apply delay |
+| `Kconfig` | The name, the BLE task, the time a client has to write after it connects, the apply delay |
 
 ## Boot
 
@@ -62,6 +62,8 @@ Changes are **staged** and applied by APPLY on the BLE task: at once with no cli
 - The board asks for the connection parameters only (interval 7.5 ms, latency 0, supervision timeout 2 s; the central may refuse or round them up). The MTU exchange, the PHY and the packet length are the central's: a request from the board collides with the central's and can leave a link-layer procedure unanswered, and the link drops exactly 40 s after connecting (reason `0x222`). The board offers `CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU` (527) when the client asks; a PC negotiates 527.
 - On connect the MTU is the link's current one (a client may finish the exchange before the connect event).
 - On disconnect: TX buffers emptied, subscriptions and half-joined frames dropped, advertising restarts, the hooks hear down.
+- **A central that writes nothing** within `CONFIG_SYS_BLE_FIRST_WRITE_MS` (3 s) of connecting is dropped by the BLE task: a PC's Bluetooth connects again on its own for an app that is gone, and the board, connected, does not advertise, so the app started again could not find it. A client writes at once (the app's session HELLO).
+- `sys_ble_disconnect()` ends the connection from the board's side (`ble_gap_terminate`, the remote user ended it), whoever asks: `app/runit` for the app that left or went silent (RUNIT.MD "The app's BLE link"). Advertising restarts with the disconnect.
 - Advertising carries the service `sys_ble_start` was given (`app/runit`'s runIT service) next to the name, so a client can filter by it. No pairing: `CONFIG_BT_NIMBLE_SECURITY_ENABLE` is off.
 
 ## Remote (`sys_ble_router`, root key `MODULE_ID_BLE`)

@@ -18,6 +18,14 @@ menu "sys_ble"
         default 4096
         range 2048 32768
 
+    config SYS_BLE_FIRST_WRITE_MS
+        int "Time a client has to write after it connects (ms)"
+        default 3000
+        range 500 30000
+        help
+          A central that connects and writes nothing for this long is dropped, so the board advertises again: the
+          PC's Bluetooth reconnects on its own for an app that is gone, and keeps the board from being found.
+
     config SYS_BLE_APPLY_DELAY_MS
         int "Apply delay with a client connected (ms)"
         default 200

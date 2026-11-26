@@ -272,3 +272,7 @@ int sys_ble_stack_notify(uint16_t conn, uint16_t val_handle, const uint8_t* data
   }
   return indicate ? ble_gatts_indicate_custom(conn, val_handle, om) : ble_gatts_notify_custom(conn, val_handle, om);
 }
+
+int sys_ble_stack_terminate(uint16_t conn) {
+  return ble_gap_terminate(conn, BLE_ERR_REM_USER_CONN_TERM);
+}

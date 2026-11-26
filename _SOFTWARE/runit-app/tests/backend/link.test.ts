@@ -354,6 +354,32 @@ describe('a link that keeps itself up', () => {
     await link.close()
   })
 
+  it('a first connect with retry is shown as connecting, never as a lost link', async () => {
+    const board = new FakeBoard()
+    board.failOpens = 2
+    const link = new RunitLink(board, { reconnect: { delaysMs: [0, 1] } })
+    const seen: string[] = []
+    link.onStatus((s) => seen.push(s.state))
+    await link.connect(board.device, { retry: true })
+    expect(seen).not.toContain('reconnecting')
+    expect(seen.at(-1)).toBe('connected')
+    await link.close()
+  })
+
+  it('disconnect() while an attempt is under way leaves the link idle when that attempt fails', async () => {
+    const board = new FakeBoard()
+    const link = new RunitLink(board, { reconnect: { delaysMs: [0], openTimeoutMs: 50 } })
+    board.hangOpens = 1
+    const connecting = link.connect(board.device, { retry: true }).catch(() => undefined)
+    await until(() => board.opens === 1)
+    await link.disconnect()
+    await new Promise((r) => setTimeout(r, 120)) // the hung attempt times out now
+    expect(link.state).toBe('idle')
+    board.release()
+    await connecting
+    await link.close()
+  })
+
   it('a write that fails fails its request with send-failed and recycles the link (the OS reports no disconnect after a GATT change)', async () => {
     const board = new FakeBoard()
     echo(board)

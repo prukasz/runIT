@@ -54,6 +54,11 @@ err_h sys_session_deadman_set(uint8_t peer, uint32_t timeout_ms, bool safety) {
   s_deadman_safety = safety;
   return NULL;
 }
+static uint8_t s_left_peer;
+err_h sys_session_leave(uint8_t peer) {  // the session's own: its dead-man off, LEFT published
+  s_left_peer = peer;
+  return sys_session_deadman_set(peer, 0, false);
+}
 
 static int s_bcast_calls;
 static uint8_t s_bcast_flags;
@@ -221,7 +226,7 @@ static void test_deadman_bye_ping_time_and_tasks_router_ops(void) {
   TEST_ASSERT_EQUAL_HEX32(ERR_BAD_ARG, err_root_tag(e));
   err_free(e);
 
-  /* Valid client origin: DEADMAN set/get, then BYE disarms with safety=false */
+  /* Valid client origin: DEADMAN set/get, then BYE leaves its session (sys_session_leave: the dead-man off) */
   s_origin.src = 0xF0;
   TEST_ASSERT_NULL(route_sys(CMD_DIR_WRITE, SYS_OP_DEADMAN, &dm, sizeof(dm), reply, sizeof(reply), &rlen));
   TEST_ASSERT_EQUAL_UINT32(5000, s_deadman_ms);
@@ -233,6 +238,7 @@ static void test_deadman_bye_ping_time_and_tasks_router_ops(void) {
   TEST_ASSERT_EQUAL_UINT32(5000, got_dm.timeout_ms);
 
   TEST_ASSERT_NULL(route_sys(CMD_DIR_WRITE, SYS_OP_BYE, NULL, 0, reply, sizeof(reply), &rlen));
+  TEST_ASSERT_EQUAL_HEX8(0xF0, s_left_peer);
   TEST_ASSERT_EQUAL_UINT32(0, s_deadman_ms);
   TEST_ASSERT_FALSE(s_deadman_safety);
 

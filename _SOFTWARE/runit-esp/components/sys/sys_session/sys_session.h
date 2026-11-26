@@ -172,6 +172,14 @@ MUST_USE err_h sys_session_deadman_set(uint8_t peer, uint32_t ms, bool safety);
 uint32_t sys_session_deadman_get(uint8_t peer);
 
 /**
+ * @brief The peer of the open session leaves on purpose (its BYE): the session's dead-man is off, so the silence that
+ * follows ends nothing, and SESSION_EV_LEFT with its provider is published (who owns the link may drop it). Any task.
+ * @param[in] peer A peer's id
+ * @return NULL; ERR_SESSION_NO_ROUTE (no open session with `peer`)
+ */
+MUST_USE err_h sys_session_leave(uint8_t peer);
+
+/**
  * @brief Sends a command on every open session (STOP, the time), never answered (NOREPLY). The board that makes it
  * does not run it: it has done what it broadcasts. NOWAIT, any task.
  * @param[in] req   The command: [key][dir][code | id + op][args], 2..CMD_DATA_MAX + 1 bytes.

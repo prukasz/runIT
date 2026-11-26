@@ -29,6 +29,8 @@ typedef struct {
   uint8_t peer;              // its id, the src of its hello (open)
   uint8_t port_count;        // its sub-ports
   uint16_t deadman_ms;       // the silence that ends it, 0: never; a third of it the keepalive
+  uint16_t attach_ms;        // the attach's dead-man and safety: each new session starts with them
+  bool attach_safety;
   uint16_t silent_ms;        // since its last frame
   uint16_t ping_ms;          // since this board's last ping (not open: its last hello)
   uint16_t push_seq[2];      // the next PUSH seq to its peer: [normal, urgent]
@@ -200,7 +202,8 @@ err_h sys_session_broadcast(cmd_in_t req, uint8_t flags) {
  * A session's end and its hello
  * ------------------------------------------------------------------------- */
 
-static void end_session(session_t* s) {
+// `silent`: the dead-man's silence ended it (GONE says so: the peer is gone, its link may still be up).
+static void end_session(session_t* s, bool silent) {
   portENTER_CRITICAL(&s_lock);
   const bool was_open = s->open;
   const uint8_t peer = s->peer;
@@ -211,7 +214,7 @@ static void end_session(session_t* s) {
   portEXIT_CRITICAL(&s_lock);
   if (was_open) {
     router_request_fail_to(SYS_SESSION_PORT(provider, MODULE_ID_ROUTER));
-    err_report(SYS_EVENT_PUBLISH(SESSION_EV_GONE, peer, 0, .safety = safety));
+    err_report(SYS_EVENT_PUBLISH(SESSION_EV_GONE, peer, 0, .safety = safety, .provider = provider, .silent = silent));
   }
 }
 
@@ -241,7 +244,7 @@ static void on_hello(session_t* s, uint8_t src, const uint8_t* body, uint32_t le
     return;
   }
   if (restarted) {
-    end_session(s);  // what it had here is gone
+    end_session(s, false);  // what it had here is gone
   }
 
   portENTER_CRITICAL(&s_lock);
@@ -250,6 +253,10 @@ static void on_hello(session_t* s, uint8_t src, const uint8_t* body, uint32_t le
   s->peer = src;
   s->hello = hello;
   s->silent_ms = 0;
+  if (!was_open) {  // a new peer: the dead-man a peer before it set (DEADMAN, BYE) was that peer's
+    s->deadman_ms = s->attach_ms;
+    s->safety = s->attach_safety;
+  }
   portEXIT_CRITICAL(&s_lock);
   if (!was_open) {
     err_report(SYS_EVENT_PUBLISH(SESSION_EV_REACHED, src, 0));
@@ -282,7 +289,7 @@ static void line_in(data_matrix_port_t* self, data_matrix_port_id_t from, uint8_
     return;
   }
   if (op == SYS_SESSION_NO_SESSION) {
-    end_session(s);
+    end_session(s, false);
     send_hello(s);
     return;
   }
@@ -362,7 +369,7 @@ static err_h on_provider_event(const sys_event_t* event, void* ctx) {
       send_hello(s);
     }
   } else {
-    end_session(s);  // DOWN, REMOVED
+    end_session(s, false);  // DOWN, REMOVED
   }
   return NULL;
 }
@@ -388,7 +395,7 @@ static void on_tick(void* arg) {
     }
     portEXIT_CRITICAL(&s_lock);
     if (end) {
-      end_session(s);
+      end_session(s, true);
     } else if (ping) {
       send_control(s, SYS_SESSION_PING, NULL, 0);
     } else if (hello) {
@@ -502,7 +509,7 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   const session_t* was = on_provider(provider);
   if (was != NULL) {
     attached = true;
-    same = was->safety == safety && was->role == role && was->deadman_ms == deadman_ms && was->port_count == n;
+    same = was->attach_safety == safety && was->role == role && was->attach_ms == deadman_ms && was->port_count == n;
     for (uint32_t i = 0; same && i < n; i++) {
       same = (uint8_t)was->ports[i].id == modules[i];
     }
@@ -524,9 +531,9 @@ err_h sys_session_attach(uint8_t provider, uint32_t deadman_ms, uint8_t flags, c
   const uint8_t state = sys_data_provider_state(provider);
   err_h err = (state & SYS_DATA_PROVIDER_STATE_FRAMED) != 0 ? NULL : ERR_NEW(ERR_SESSION_NOT_FRAMED);
   if (err == NULL) {
-    at->safety = safety;
+    at->safety = at->attach_safety = safety;
     at->role = role;
-    at->deadman_ms = (uint16_t)deadman_ms;
+    at->deadman_ms = at->attach_ms = (uint16_t)deadman_ms;
     at->silent_ms = 0;
     at->ping_ms = 0;
     at->push_seq[0] = at->push_seq[1] = 0;
@@ -558,7 +565,7 @@ err_h sys_session_detach(uint8_t provider) {
   session_t* s = on_provider(provider);
   portEXIT_CRITICAL(&s_lock);
   if (s != NULL) {
-    end_session(s);
+    end_session(s, false);
     unregister_ports(s);
     portENTER_CRITICAL(&s_lock);
     s->used = false;
@@ -579,6 +586,19 @@ err_h sys_session_deadman_set(uint8_t peer, uint32_t ms, bool safety) {
   portEXIT_CRITICAL(&s_lock);
   ERR_CHECK(s != NULL, ERR_SESSION_NO_ROUTE, .dst = peer);
   return NULL;
+}
+
+err_h sys_session_leave(uint8_t peer) {
+  portENTER_CRITICAL(&s_lock);
+  session_t* s = open_with(peer);
+  const uint8_t provider = s != NULL ? s->provider : 0u;
+  if (s != NULL) {
+    s->safety = false;
+    s->deadman_ms = 0;
+  }
+  portEXIT_CRITICAL(&s_lock);
+  ERR_CHECK(s != NULL, ERR_SESSION_NO_ROUTE, .dst = peer);
+  return SYS_EVENT_PUBLISH(SESSION_EV_LEFT, peer, 0, .provider = provider);
 }
 
 uint32_t sys_session_deadman_get(uint8_t peer) {
