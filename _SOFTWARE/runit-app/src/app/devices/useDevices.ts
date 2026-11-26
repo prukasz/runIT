@@ -41,9 +41,9 @@ export interface DevicesNote {
  * `autoSync`: read the board into the project each time it connects (when the project has nothing unwritten).
  *
  * `profile` is the board's own profile (useBoardProfile.ts). In the app's Devices view (`scope: 'app'`) its devices are the board's
- * system devices, and the board is made to hold it when it connects. In the Project view's board editor (`scope: 'board'`) the
+ * system devices. In the Project view's board editor (`scope: 'board'`) the
  * edited project IS the profile: its devices are added, changed and removed like a project's, and Write and Read are the profile's
- * to and from the board; it has no actions and no program.
+ * to and from the board; it has no actions and no program. When the board connects, this instance loads the board's profile.
  */
 export function useDevices(link: RunitLink, linkState: LinkState, project: ProjectState, autoSync = false, profile?: BoardProfileState, scope: 'app' | 'board' = 'app') {
   const catalog = useMemo(bundledServiceCatalog, [])
@@ -136,30 +136,6 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     if (connected) void probe()
     else { occupied.current.clear(); setLive(new Map()) }
   }, [connected, probe])
-
-  // A board without this profile gets it, then restarts: only a boot creates its devices. Once per run of the app: a board that
-  // still differs after its restart is reported, it must not restart for ever.
-  const profileWritten = useRef(false)
-  useEffect(() => {
-    if (!connected || scope === 'board') return
-    void (async () => {
-      try {
-        if (await boardHasProfile(link, catalog, board, profile!.project, boot)) return
-        if (profileWritten.current) {
-          setNote({ tone: 'error', text: 'The board does not hold the profile written to it.' })
-          return
-        }
-        profileWritten.current = true
-        setNote({ tone: 'info', text: 'Writing the board\'s profile: it restarts to create its devices.' })
-        await writeBoardProfile(link, catalog, board, profile!.project, boot)
-        await services.call('SYS', 'RESTART')
-      } catch (failure) {
-        setNote({ tone: 'error', text: explain(failure) })
-      }
-    })()
-    // Only when the link comes up: `explain` changes with the project's devices.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, link, catalog, board, boot, services])
 
   // The board says when a device is suspended or resumed (the DEVICE events, SYS_DEVICE.MD): the view follows it without
   // asking. A sweep (the safe state, a critical fault, every device at once) comes as one event from SYS_DEVICE_ID_NONE: then
@@ -309,6 +285,43 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     }
     return result.notes.join(' ')
   }), [run, scope, link, catalog, edit])
+
+  // A board that connects gives the app its profile (SYS_BOARD.MD): what the board is comes from the board, so the editor and the
+  // Devices view show it with no click. Not over edits of the profile that are not written yet (Read does it by hand, Undo goes
+  // back). A board that keeps none gets the app's and restarts (only a boot creates its devices), once per run of the app. The
+  // board editor's instance does it: its project is the profile, and what it loads is what the board holds.
+  const profileLatest = useRef({ project: project.project, pending, snapshot, board: profile?.board, boot, edit, explain })
+  profileLatest.current = { project: project.project, pending, snapshot, board: profile?.board, boot, edit, explain }
+  const profileProvisioned = useRef(false)
+  useEffect(() => {
+    if (!connected || scope !== 'board') return
+    void (async () => {
+      try {
+        const stored = await readBoardProfile(link, catalog)
+        const now = profileLatest.current
+        if (stored) {
+          const loaded = withBoard(stored, profile!.base)
+          const text = serializeProject(loaded)
+          if (text === serializeProject(now.project)) return setSynced(text)
+          if (now.pending) return setNote({ tone: 'info', text: 'Not loaded from the board: the profile has changes that are not written yet. Read does it by hand (Undo goes back).' })
+          now.edit(() => loaded)
+          setSynced(text)
+          setNote({ tone: 'info', text: `Loaded the board's profile: ${loaded.name}.` })
+          return
+        }
+        if (profileProvisioned.current) return setNote({ tone: 'error', text: 'The board does not hold the profile written to it.' })
+        profileProvisioned.current = true
+        setNote({ tone: 'info', text: 'The board keeps no profile: writing this one, it restarts to create its devices.' })
+        await writeBoardProfile(link, catalog, now.board!, now.project, now.boot)
+        await services.call('SYS', 'RESTART')
+        setSynced(now.snapshot)
+      } catch (failure) {
+        setNote({ tone: 'error', text: profileLatest.current.explain(failure) })
+      }
+    })()
+    // Only when the link comes up: what else it uses is read from `profileLatest`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected])
 
   // A board that has just connected (again, after a restart or a drop) is read into the project, so what the app shows is what the
   // board has. Not over changes that are not written yet: those are the user's, Read does it by hand (Undo goes back).

@@ -12,7 +12,7 @@ import type { BoardKind } from './boardDescriptor'
 
 /*
  * The board's profile in the app (boardEditor.ts): the devices of the board and their boot packages, kept in the app's own storage
- * and written to the board (SYS_BOARD.MD). It starts as the bundled board's devices. Edited like a project's devices, with its own
+ * and written to the board (SYS_BOARD.MD). It starts as the bundled board's devices; a board that connects gives its own (useDevices.ts). Edited like a project's devices, with its own
  * undo; `board` is the descriptor the rest of the app uses.
  */
 

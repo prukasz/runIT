@@ -18,7 +18,7 @@ The profile is two stored things:
 | What | The record `SYS_ACTIONS_ID_BOARD` (class `0x04`, SYS_ACTIONS.MD): the power layout and rails, the I2C buses and the UART ports (a port's CREATE: the way to a slave, a device's port, a raw port), the providers of the board's ways to other boards, their sessions and their links (the session's `ATTACH`, the data matrix's `CONNECT`: SYS_SESSION.MD, DATA_MATRIX.MD; the board's own console and BLE are made by `app/runit`, and a record frame of the same role or route changes nothing), the `CREATE` of each device but the ESP32-S3's GPIO, and the board's settings | The app's descriptor of the board |
 | Read by | The firmware, at boot | The app, never the firmware |
 
-The app (`runit-app/src/app/devices/boardProfile.ts`) encodes its board descriptor into frames and compares them and the JSON with what is stored each time the board connects; a board without them gets them and restarts. The record is written like any record (sys_actions BEGIN, WRITE, COMMIT).
+The app (`runit-app/src/app/devices/boardProfile.ts`) encodes its board descriptor into frames. Each time the board connects it reads the JSON and takes it as its profile; a board that keeps none gets the app's JSON and record and restarts. The record is written like any record (sys_actions BEGIN, WRITE, COMMIT).
 
 ## Boot
 

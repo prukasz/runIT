@@ -42,7 +42,7 @@ export function BoardProfileScreen({ profile, editor }: { profile: BoardProfileS
           </>
         )}
       </PanelHeader>
-      <p className="project-note">What the board is: its devices with their settings, power layout and Board boot (I2C buses and UART ports are devices too). On connect, a board without this profile receives it automatically and restarts; use Write to update it immediately.</p>
+      <p className="project-note">What the board is: its devices with their settings, power layout and Board boot (I2C buses and UART ports are devices too). On connect the board's profile is loaded here; a board that keeps none receives this one and restarts. Write puts your changes on the board.</p>
       {profile.note && (profile.note.tone === 'error'
         ? <FieldError>{profile.note.text}</FieldError>
         : <p className="project-note" role="status" onClick={profile.clearNote}>{profile.note.text}</p>)}
