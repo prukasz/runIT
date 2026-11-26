@@ -57,7 +57,7 @@ SYS_EVENT_LANES(LANE_DEFINE)
 static RingbufHandle_t* const s_rings[SYS_EVENT_LANE_COUNT] = {SYS_EVENT_LANES(LANE_RING)};
 
 static struct {
-  sub_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock
+  sub_t subs[CONFIG_SYS_EVENT_MAX_SUBS];  // under s_lock; `fn` written with atomic stores, read without it too
   /* ISR events a lane's ring couldn't take. Counts up and wraps; only the ISR side writes it, the lane's task reads it
      (an aligned u32 is read and written whole) and reports what it has not reported yet. */
   uint32_t isr_drops[SYS_EVENT_LANE_COUNT];           // ISRs of both cores count up: atomics only
@@ -101,12 +101,20 @@ static bool sub_matches(const sub_t* s, const sys_event_t* e, bool inline_call) 
          sys_event_match(&s->filter, e);
 }
 
+// A free slot, seen without the lock: skipped. One taken meanwhile misses only an event published before it was.
+static bool free_slot(uint32_t i) {
+  return __atomic_load_n(&s_event.subs[i].fn, __ATOMIC_RELAXED) == NULL;
+}
+
 /* Calls the listeners of one kind (inline or queued) that match, in table order. Each slot is copied under the lock
  * and called outside it; one slot per lock, since a copy of the whole table would take CONFIG_SYS_EVENT_MAX_SUBS x
  * 21 B of the publisher's stack (an esp_timer task, a router task). A listener's failure is reported with the event;
  * the other listeners still run. */
 static void run_listeners(const sys_event_t* e, bool inline_call) {
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS; i++) {
+    if (free_slot(i)) {
+      continue;
+    }
     sub_t sub;
     portENTER_CRITICAL(&s_lock);
     const bool hit = sub_matches(&s_event.subs[i], e, inline_call);
@@ -129,7 +137,7 @@ static bool any_queued_listener(const sys_event_t* e) {
   bool any = false;
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; i < CONFIG_SYS_EVENT_MAX_SUBS && !any; i++) {
-    any = sub_matches(&s_event.subs[i], e, false);
+    any = !free_slot(i) && sub_matches(&s_event.subs[i], e, false);
   }
   portEXIT_CRITICAL(&s_lock);
   return any;
@@ -296,8 +304,14 @@ err_h sys_event_subscribe(sys_event_key_t filter, sys_event_handler_f fn, void* 
   portENTER_CRITICAL(&s_lock);
   for (uint32_t i = first ? 0u : 1u; i < end && !added; i++) {
     if (s_event.subs[i].fn == NULL) {
-      sub.gen = s_event.subs[i].gen == UINT8_MAX ? 1u : (uint8_t)(s_event.subs[i].gen + 1u);  // never 0
-      s_event.subs[i] = sub;
+      sub_t* slot = &s_event.subs[i];
+      slot->filter = sub.filter;
+      slot->ctx = sub.ctx;
+      slot->inline_call = sub.inline_call;
+      slot->lane = sub.lane;
+      slot->gen = slot->gen == UINT8_MAX ? 1u : (uint8_t)(slot->gen + 1u);  // never 0
+      sub.gen = slot->gen;
+      __atomic_store_n(&slot->fn, sub.fn, __ATOMIC_RELAXED);  // last; read without the lock (free_slot)
       *handle = HANDLE(sub.gen, i);
       added = true;
     }
@@ -312,7 +326,7 @@ err_h sys_event_unsubscribe(uint16_t handle) {
   bool found = false;
   portENTER_CRITICAL(&s_lock);
   if (slot < CONFIG_SYS_EVENT_MAX_SUBS && s_event.subs[slot].fn != NULL && s_event.subs[slot].gen == HANDLE_GEN(handle)) {
-    s_event.subs[slot].fn = NULL;  // `gen` stays: the next listener of the slot gets another handle
+    __atomic_store_n(&s_event.subs[slot].fn, NULL, __ATOMIC_RELAXED);  // `gen` stays: the next listener of the slot gets another handle
     found = true;
   }
   portEXIT_CRITICAL(&s_lock);

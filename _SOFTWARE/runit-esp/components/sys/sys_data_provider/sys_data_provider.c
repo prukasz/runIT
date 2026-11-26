@@ -36,7 +36,7 @@ static const sys_data_provider_type_t* s_types[CONFIG_SYS_DATA_PROVIDER_TYPES];
 static uint32_t s_type_count;
 
 U_MUTEX_DEFINE(s_ctrl);                                     // CREATE, REMOVE and the own ops, one at a time
-static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type, read on another core; `state` is atomics
+static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;  // A slot's type for list and state, read without s_ctrl
 static prov_slot_t s_slots[CONFIG_SYS_DATA_PROVIDER_MAX];
 
 __attribute__((constructor)) static void slots_init(void) {
@@ -45,14 +45,12 @@ __attribute__((constructor)) static void slots_init(void) {
   }
 }
 
-// The slot of provider `id`, NULL when there is none.
+// The slot of provider `id`, NULL when there is none. Under s_ctrl: a slot's type and id change under it only.
 static prov_slot_t* find(uint8_t id) {
   prov_slot_t* s = NULL;
-  portENTER_CRITICAL(&s_lock);
   for (uint32_t i = 0; s == NULL && i < CONFIG_SYS_DATA_PROVIDER_MAX; i++) {
     s = s_slots[i].type != NULL && (uint8_t)s_slots[i].p.port.id == id ? &s_slots[i] : NULL;
   }
-  portEXIT_CRITICAL(&s_lock);
   return s;
 }
 
