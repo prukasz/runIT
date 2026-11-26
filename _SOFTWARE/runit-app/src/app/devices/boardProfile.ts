@@ -98,14 +98,19 @@ const jsonInfo = async (link: RunitLink, catalog: ServiceCatalog): Promise<JsonI
   return { bytes: view.getUint32(0, true), crc32: view.getUint32(4, true) }
 }
 
+/** Whether the board's JSON is this profile's, by length and CRC: one request, the JSON itself is not read. */
+export const boardHoldsJson = async (link: RunitLink, catalog: ServiceCatalog, profile: ProjectFile): Promise<boolean> => {
+  const json = boardProfileJson(profile)
+  const info = await jsonInfo(link, catalog)
+  return info.bytes === json.length && info.crc32 === crc32(json)
+}
+
 /** Whether the board holds this profile: the record and the JSON, each by its length and CRC. */
 export const boardHasProfile = async (link: RunitLink, catalog: ServiceCatalog, board: BoardDescriptor, profile: ProjectFile, boot: ReadonlyMap<number, readonly Step[]>): Promise<boolean> => {
   const image = frameImage(boardProfileFrames(link.defs, catalog, board, boot))
-  const json = boardProfileJson(profile)
   const record = await storedRecord(link, catalog)
   if (!record || record.bytes !== image.length || record.crc !== crc32(image)) return false
-  const info = await jsonInfo(link, catalog)
-  return info.bytes === json.length && info.crc32 === crc32(json)
+  return boardHoldsJson(link, catalog, profile)
 }
 
 /** Writes the profile: the JSON, checked, then the record. The caller restarts the board: only a boot runs it. */

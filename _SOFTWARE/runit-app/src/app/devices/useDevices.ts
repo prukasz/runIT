@@ -8,7 +8,7 @@ import { parseProject, serializeProject } from '../project/projectFile'
 import type { ProjectAction, ProjectDevice, Step } from '../project/projectFile'
 import { EMPTY_LAYOUT } from '../code/canvas/layout'
 import { forgetDevice } from '../hardware/apply'
-import { boardHasProfile, readBoardProfile, writeBoardProfile } from './boardProfile'
+import { boardHoldsJson, readBoardProfile, writeBoardProfile } from './boardProfile'
 import { bootSteps, withBoard } from './boardEditor'
 import { readFromBoard, writeToBoard } from './boardSync'
 import type { SyncProgress } from './boardSync'
@@ -297,6 +297,9 @@ export function useDevices(link: RunitLink, linkState: LinkState, project: Proje
     if (!connected || scope !== 'board') return
     void (async () => {
       try {
+        // The same profile (most connections) is told by length and CRC; only another one is read whole.
+        const before = profileLatest.current
+        if (await boardHoldsJson(link, catalog, before.project)) return setSynced(before.snapshot)
         const stored = await readBoardProfile(link, catalog)
         const now = profileLatest.current
         if (stored) {
