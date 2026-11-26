@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
-import { CheckCheck, CircuitBoard, Cpu, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { CircuitBoard, Cpu, ScrollText, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { refKey } from '@backend'
 import type { ErrorEntry } from '@backend'
 import type { RunitLink } from '@backend'
@@ -84,7 +84,6 @@ export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, 
     if (el && atEnd.current) el.scrollTop = el.scrollHeight
   }, [items.length, items.at(-1)?.at])
   const subjectName = subject && (subject === BOARD_SUBJECT.key ? BOARD_SUBJECT.name : entries[0] ? subjectOf(entries[0], jumps).name : undefined)
-  const unread = entries.filter((e) => !e.read).map((e) => e.id)
 
   return (
     <div className="console-screen">
@@ -92,7 +91,6 @@ export function ConsoleScreen({ state, jumps, show, onShow, subject, onSubject, 
         <SegmentedSwitch label="What the console shows" value={show} options={[['all', 'All'], ['errors', 'Errors'], ['logs', 'Logs'], ['serial', 'Serial']]} onChange={onShow} />
         {subjectName && <Button size="sm" title="Show everything again" onClick={() => onSubject(undefined)}>Errors of {subjectName} ✕</Button>}
         <span className="console-bar-spacer" />
-        {show !== 'serial' && <Button size="sm" disabled={unread.length === 0} onClick={() => state.markRead({ ids: unread })}><CheckCheck aria-hidden="true" />Mark read</Button>}
         {show !== 'serial' && <Button size="sm" title="Remove what is shown" onClick={() => { if (show !== 'logs') state.clear({ ids: entries.map((e) => e.id) }); if (show !== 'errors' && subject === undefined) state.clearLines() }}><Trash2 aria-hidden="true" />Clear</Button>}
       </div>
       {show === 'serial' ? <SerialTerminal link={link} connected={connected} ports={ports} /> : <div className="console-feed" ref={feed} onScroll={(event) => { const el = event.currentTarget; atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 }}>

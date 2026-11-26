@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { bundledEnums, refKey } from '@backend'
 import type { ErrorEntry as Entry, Ref } from '@backend'
 import { Button, Card, ErrorEntry, RefPill } from '@ui/components'
@@ -38,12 +38,7 @@ export function ErrorView({ entry, state, jumps, active, onClick }: { entry: Ent
       refs={pills.length > 0 ? pills.map(({ ref, target }) => (
         <RefPill key={refKey(ref)} compact name={target.name} detail={target.detail} refKey={refKey(ref)} onJump={target.open} />
       )) : undefined}
-      actions={(
-        <>
-          {!entry.read && <Button size="icon-sm" aria-label="Mark as read" title="Mark as read" onClick={() => state.markRead({ ids: [entry.id] })}><Check aria-hidden="true" /></Button>}
-          <Button size="icon-sm" aria-label="Remove" title="Remove from the log" onClick={() => state.clear({ ids: [entry.id] })}><X aria-hidden="true" /></Button>
-        </>
-      )}
+      actions={<Button size="icon-sm" aria-label="Remove" title="Remove from the log" onClick={() => state.clear({ ids: [entry.id] })}><X aria-hidden="true" /></Button>}
       onClick={onClick ?? (entry.read ? undefined : () => state.markRead({ ids: [entry.id] }))}
     />
   )
@@ -64,12 +59,7 @@ export function ErrorsCard({ about = [], match, title = 'Errors' }: { about?: st
   const ids = entries.map((e) => e.id)
   return (
     <Card title={title} className="console-errors-card" subhead="What the board reported. A click marks one read; the console has them all."
-      actions={(
-        <span className="console-card-actions">
-          {entries.some((e) => !e.read) && <Button size="sm" onClick={() => errors.console.markRead({ ids })}><Check aria-hidden="true" />Mark read</Button>}
-          <Button size="sm" onClick={() => errors.console.clear({ ids })}><X aria-hidden="true" />Clear</Button>
-        </span>
-      )}>
+      actions={<Button size="sm" onClick={() => errors.console.clear({ ids })}><X aria-hidden="true" />Clear</Button>}>
       <div className="console-errors">
         {entries.map((e) => <ErrorView key={e.id} entry={e} state={errors.console} jumps={errors.jumps} />)}
       </div>
